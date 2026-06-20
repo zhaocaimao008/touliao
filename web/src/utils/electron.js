@@ -12,32 +12,25 @@
 export function initElectronFeatures() {
   if (!window.__ELECTRON_CONFIG__) return;
 
-  // 截图触发函数（挂到 window 供主进程快捷键调用）
-  window.__vxinScreenshot = triggerScreenshot;
+  // 截图快捷键：主进程通过 IPC 通知渲染进程（不再用 executeJavaScript）
+  window.addEventListener('electron:shortcut-screenshot', () => {
+    triggerScreenshot().catch(() => {});
+  });
 
-  // 监听更新事件
-  window.addEventListener('electron:update-available', (e) => {
-    const { version } = e.detail;
-    console.log(`[electron] 新版本 ${version} 可用，下载中...`);
-  });
-  window.addEventListener('electron:update-progress', (e) => {
-    console.log(`[electron] 下载进度 ${e.detail}%`);
-  });
-  window.addEventListener('electron:update-downloaded', (e) => {
-    console.log(`[electron] 更新已下载，即将重启安装`);
-  });
+  // 更新进度日志
+  window.addEventListener('electron:update-available',  (e) => console.log(`[electron] 新版本 ${e.detail?.version} 可用`));
+  window.addEventListener('electron:update-progress',   (e) => console.log(`[electron] 下载进度 ${e.detail}%`));
+  window.addEventListener('electron:update-downloaded', ()  => console.log('[electron] 更新已下载，等待用户确认安装'));
 }
 
 // ── 截图 ──────────────────────────────────────────────────
 export async function triggerScreenshot() {
-  if (!window.electron?.screenshot) return null;
+  const api = window.electronAPI;
+  if (!api?.screenshot) return null;
   try {
-    // 触发主进程截图
-    const filePath = await window.electron.screenshot();
+    const filePath = await api.screenshot();
     if (!filePath) return null;
-
-    // 读取为 base64
-    const base64 = await window.electron.readFileAsBase64(filePath);
+    const base64 = await api.readFileAsBase64(filePath);
     return base64;
   } catch (e) {
     console.error('[electron] 截图失败:', e);
@@ -47,20 +40,13 @@ export async function triggerScreenshot() {
 
 // ── 选择文件 ──────────────────────────────────────────────
 export async function selectFiles(options) {
-  if (!window.electron?.selectFile) return [];
+  const api = window.electronAPI;
+  if (!api?.selectFile) return [];
   try {
-    const paths = await window.electron.selectFile(options);
+    const paths = await api.selectFile(options);
     if (!paths || paths.length === 0) return [];
-
-    // 读取所有文件为 base64
-    const files = await Promise.all(
-      paths.map(async (fp) => {
-        const base64 = await window.electron.readFileAsBase64(fp);
-        const name = fp.split(/[/\\]/).pop();
-        return { name, path: fp, base64 };
-      })
-    );
-    return files;
+    // 注意：readFileAsBase64 仅允许读 temp 目录截图，文件上传走 Web 拖拽/input
+    return paths.map((fp) => ({ name: fp.split(/[/\\]/).pop(), path: fp }));
   } catch (e) {
     console.error('[electron] 选择文件失败:', e);
     return [];
@@ -94,9 +80,7 @@ export function handlePaste(e, onImagePaste) {
 }
 
 // ── 原生通知 ──────────────────────────────────────────────
-export function showNativeNotification({ title, body, tag }) {
-  if (!window.electron?.showNotification) return;
-  // 窗口聚焦时不弹通知
+export function showNativeNotification({ title, body }) {
   if (document.hasFocus()) return;
-  window.electron.showNotification({ title, body, tag });
+  window.electronAPI?.showNotification({ title, body });
 }

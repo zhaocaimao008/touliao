@@ -1,0 +1,545 @@
+{
+  "generatedAt": "2026-05-30T11:29:18.540Z",
+  "summary": {
+    "totalApisProfiled": 7,
+    "criticalApis": 0,
+    "highApis": 0,
+    "warnApis": 1
+  },
+  "apiResults": {
+    "GET /conversations": {
+      "avg": 366,
+      "p95": 498,
+      "p99": 498,
+      "min": 334,
+      "max": 498,
+      "samples": 20,
+      "errors": 0,
+      "all": [
+        334,
+        341,
+        341,
+        342,
+        342,
+        342,
+        344,
+        345,
+        345,
+        347,
+        348,
+        349,
+        359,
+        362,
+        364,
+        373,
+        388,
+        422,
+        424,
+        498
+      ],
+      "sqlAnalysis": {
+        "mainQuery": {
+          "ms": 263.51,
+          "rows": 4311,
+          "plan": "SEARCH cm USING INDEX idx_conv_members_user (user_id=?) | SEARCH c USING INDEX sqlite_autoindex_conversations_1 (id=?) | SEARCH m USING INDEX sqlite_autoindex_messages_1 (id=?) LEFT-JOIN | CORRELATED SCALAR SUBQUERY 3 | SEARCH messages USING INDEX idx_messages_unread (conversation_id=?) | SEARCH cs USING INDEX sqlite_autoindex_conversation_settings_1 (user_id=? AND conversation_id=?) LEFT-JOIN | CORRELATED SCALAR SUBQUERY 2 | SEARCH mu USING COVERING INDEX idx_messages_unread (conversation_id=? AND created_at>?) | CORRELATED SCALAR SUBQUERY 1 | SEARCH cs2 USING INDEX sqlite_autoindex_conversation_settings_1 (user_id=? AND conversation_id=?) | USE TEMP B-TREE FOR ORDER BY"
+        },
+        "n1_private": {
+          "count": 1,
+          "perQueryMs": 2.3,
+          "totalEstMs": 2
+        },
+        "n1_group": {
+          "count": 4310,
+          "perQueryMs": 0.15,
+          "totalEstMs": 647
+        },
+        "totalSqlCalls": 4312,
+        "estimatedSqlMs": 912
+      }
+    },
+    "GET /unread-counts": {
+      "avg": 32,
+      "p95": 37,
+      "p99": 37,
+      "min": 30,
+      "max": 37,
+      "samples": 20,
+      "errors": 0,
+      "all": [
+        30,
+        30,
+        31,
+        31,
+        31,
+        31,
+        31,
+        32,
+        32,
+        32,
+        32,
+        32,
+        33,
+        33,
+        33,
+        33,
+        33,
+        34,
+        36,
+        37
+      ],
+      "sqlAnalysis": {
+        "mainQuery": {
+          "ms": 1458.03,
+          "rows": 4311,
+          "plan": "SEARCH cm USING INDEX idx_conv_members_user (user_id=?) | SEARCH m USING INDEX idx_messages_unread (conversation_id=? AND created_at>?) LEFT-JOIN | CORRELATED SCALAR SUBQUERY 1 | SEARCH cs USING INDEX sqlite_autoindex_conversation_settings_1 (user_id=? AND conversation_id=?) | USE TEMP B-TREE FOR GROUP BY"
+        },
+        "totalSqlCalls": 1,
+        "estimatedSqlMs": 1458.03
+      }
+    },
+    "GET /missed": {
+      "avg": 25,
+      "p95": 34,
+      "p99": 34,
+      "min": 23,
+      "max": 34,
+      "samples": 20,
+      "errors": 0,
+      "all": [
+        23,
+        23,
+        23,
+        23,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        25,
+        25,
+        25,
+        26,
+        28,
+        28,
+        28,
+        34
+      ],
+      "sqlAnalysis": {
+        "mainQuery": {
+          "ms": 11.45,
+          "rows": 10,
+          "plan": "SEARCH m USING INDEX idx_messages_unread (conversation_id=? AND created_at>?) | SEARCH u USING INDEX sqlite_autoindex_users_1 (id=?) | USE TEMP B-TREE FOR ORDER BY"
+        },
+        "n1_replyTo": {
+          "count": 1,
+          "totalMs": 0,
+          "perMs": 0
+        },
+        "totalSqlCalls": 4314,
+        "estimatedSqlMs": 11
+      }
+    },
+    "POST /messages (send)": {
+      "avg": 5,
+      "p95": 21,
+      "p99": 21,
+      "min": 3,
+      "max": 21,
+      "samples": 20,
+      "errors": 0,
+      "all": [
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        5,
+        5,
+        5,
+        6,
+        21
+      ],
+      "sqlAnalysis": {
+        "insertMsg": {
+          "ms": "N/A(readonly)"
+        },
+        "selectMsg": {
+          "ms": 0.23,
+          "rows": 1
+        },
+        "selectMembers": {
+          "ms": 0.11,
+          "rows": 4,
+          "memberCount": 4
+        },
+        "broadcastNote": "io.to(c88d0d9d-18d0-484d-99b0-adae56c87679).emit('new_message') → 4 个成员房间",
+        "totalSqlCalls": 5,
+        "estimatedSqlMs": 0
+      }
+    },
+    "GET /messages/search": {
+      "avg": 7,
+      "p95": 9,
+      "p99": 9,
+      "min": 6,
+      "max": 9,
+      "samples": 20,
+      "errors": 0,
+      "all": [
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        8,
+        8,
+        8,
+        9
+      ],
+      "sqlAnalysis": {
+        "countQuery": {
+          "ms": 868.76,
+          "rows": 1
+        },
+        "dataQuery": {
+          "ms": 855.42,
+          "rows": 20,
+          "plan": "SEARCH c USING INDEX sqlite_autoindex_conversations_1 (id=?) | SEARCH m USING INDEX idx_messages_unread (conversation_id=?) | SEARCH u USING INDEX sqlite_autoindex_users_1 (id=?) | USE TEMP B-TREE FOR ORDER BY"
+        },
+        "n1_privName": {
+          "count": 0,
+          "totalMs": 0
+        },
+        "noFTSIndex": true,
+        "fullTableScan": true,
+        "totalSqlCalls": 4314,
+        "estimatedSqlMs": 1724
+      }
+    },
+    "GET /messages/:convId (history)": {
+      "avg": 6,
+      "p95": 9,
+      "p99": 9,
+      "min": 5,
+      "max": 9,
+      "samples": 20,
+      "errors": 0,
+      "all": [
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        7,
+        7,
+        7,
+        8,
+        8,
+        9
+      ],
+      "sqlAnalysis": {
+        "mainQuery": {
+          "ms": 0.85,
+          "rows": 20,
+          "plan": "SEARCH m USING INDEX idx_messages_unread (conversation_id=?) | SEARCH u USING INDEX sqlite_autoindex_users_1 (id=?)"
+        },
+        "n1_replyTo": {
+          "count": 0,
+          "totalMs": 0
+        },
+        "n1_reactions": {
+          "count": 20,
+          "totalMs": 2,
+          "perMs": 0.1
+        },
+        "readTimes": {
+          "ms": 1.53,
+          "rows": 0
+        },
+        "deliveryCheck": {
+          "ms": 7.98,
+          "rows": 0
+        },
+        "totalSqlCalls": 23,
+        "estimatedSqlMs": 4
+      }
+    },
+    "SQLite 写入基准": {
+      "avg": 8.44,
+      "p95": 21.137451,
+      "p99": -1,
+      "samples": 50,
+      "sqlAnalysis": {
+        "singleInsertAvgMs": 8.44,
+        "singleInsertP95Ms": 21.137451,
+        "batchTx50InsertMs": 10,
+        "perInsertInBatch": 0.2,
+        "walMode": true
+      }
+    }
+  },
+  "top10API": [
+    {
+      "api": "GET /conversations",
+      "avg": 366,
+      "p95": 498,
+      "p99": 498
+    },
+    {
+      "api": "GET /unread-counts",
+      "avg": 32,
+      "p95": 37,
+      "p99": 37
+    },
+    {
+      "api": "GET /missed",
+      "avg": 25,
+      "p95": 34,
+      "p99": 34
+    },
+    {
+      "api": "SQLite single INSERT",
+      "avg": 8.44,
+      "p95": 21.137451,
+      "p99": -1
+    },
+    {
+      "api": "GET /messages/search",
+      "avg": 7,
+      "p95": 9,
+      "p99": 9
+    },
+    {
+      "api": "GET /messages/:convId (history)",
+      "avg": 6,
+      "p95": 9,
+      "p99": 9
+    },
+    {
+      "api": "POST /messages (send)",
+      "avg": 5,
+      "p95": 21,
+      "p99": 21
+    },
+    {
+      "api": "SQLite batch tx(50)",
+      "avg": 0.2,
+      "p95": -1,
+      "p99": -1
+    }
+  ],
+  "top10SQL": [
+    {
+      "name": "未读数计数（correlated subquery in LEFT JOIN）",
+      "ms": 1428.23,
+      "rows": 4311,
+      "plan": "SEARCH cm USING INDEX idx_conv_members_user (user_id=?) | SEARCH m USING INDEX idx_messages_unread (conversation_id=? AND created_at>?) LEFT-JOIN | CORRELATED SCALAR SUBQUERY 1 | SEARCH cs USING INDEX sqlite_autoindex_conversation_settings_1 (user_id=? AND conversation_id=?) | USE TEMP B-TREE FOR GROUP BY",
+      "hasFullScan": false
+    },
+    {
+      "name": "消息搜索 LIKE全表扫（无FTS索引）",
+      "ms": 878.39,
+      "rows": 1,
+      "plan": "SEARCH m USING INDEX idx_messages_unread (conversation_id=?)",
+      "hasFullScan": false
+    },
+    {
+      "name": "会话列表主查询（含correlated subquery unread）",
+      "ms": 251.77,
+      "rows": 4311,
+      "plan": "SEARCH cm USING INDEX idx_conv_members_user (user_id=?) | SEARCH c USING INDEX sqlite_autoindex_conversations_1 (id=?) | SEARCH m USING INDEX sqlite_autoindex_messages_1 (id=?) LEFT-JOIN | CORRELATED SCALAR SUBQUERY 3 | SEARCH messages USING INDEX idx_messages_unread (conversation_id=?) | SEARCH cs USING INDEX sqlite_autoindex_conversation_settings_1 (user_id=? AND conversation_id=?) LEFT-JOIN | CORRELATED SCALAR SUBQUERY 2 | SEARCH mu USING COVERING INDEX idx_messages_unread (conversation_id=? AND created_at>?) | CORRELATED SCALAR SUBQUERY 1 | SEARCH cs2 USING INDEX sqlite_autoindex_conversation_settings_1 (user_id=? AND conversation_id=?) | USE TEMP B-TREE FOR ORDER BY",
+      "hasFullScan": false
+    },
+    {
+      "name": "补拉消息 IN(N个convId)",
+      "ms": 11.47,
+      "rows": 33,
+      "plan": "SEARCH m USING INDEX idx_messages_unread (conversation_id=? AND created_at>?) | SEARCH u USING INDEX sqlite_autoindex_users_1 (id=?) | USE TEMP B-TREE FOR ORDER BY",
+      "hasFullScan": false
+    },
+    {
+      "name": "消息历史主查询",
+      "ms": 2.01,
+      "rows": 20,
+      "plan": "SEARCH m USING INDEX idx_messages_unread (conversation_id=?) | SEARCH u USING INDEX sqlite_autoindex_users_1 (id=?)",
+      "hasFullScan": false
+    },
+    {
+      "name": "送达记录批量查（message_deliveries）",
+      "ms": 0.58,
+      "rows": 0,
+      "plan": "SEARCH message_deliveries USING COVERING INDEX idx_deliveries_msg (message_id=?)",
+      "hasFullScan": false
+    },
+    {
+      "name": "私聊对方信息 N+1",
+      "ms": 0.14,
+      "rows": 1,
+      "plan": "SEARCH cm USING COVERING INDEX sqlite_autoindex_conversation_members_1 (conversation_id=?) | SEARCH u USING INDEX sqlite_autoindex_users_1 (id=?)",
+      "hasFullScan": false
+    },
+    {
+      "name": "reactions N+1 per message",
+      "ms": 0.13,
+      "rows": 0,
+      "plan": "SEARCH message_reactions USING INDEX sqlite_autoindex_message_reactions_1 (message_id=?) | USE TEMP B-TREE FOR GROUP BY",
+      "hasFullScan": false
+    }
+  ],
+  "top10Functions": [
+    {
+      "fn": "search LIKE全表扫描",
+      "location": "routes/messages.js:228",
+      "ms": 1724,
+      "calls": 2,
+      "issue": "无 FTS 索引，content LIKE %q% 扫全表900k+行"
+    },
+    {
+      "fn": "unread-counts correlated subquery",
+      "location": "routes/messages.js:183",
+      "ms": 1458.03,
+      "calls": 1,
+      "issue": "LEFT JOIN 内嵌 correlated subquery，随会话数线性增长"
+    },
+    {
+      "fn": "GET /conversations → rows.map (N+1群查询)",
+      "location": "routes/messages.js:144",
+      "ms": 647,
+      "calls": 4310,
+      "issue": "N+1: 每个群额外一次 SELECT"
+    },
+    {
+      "fn": "conversations unread correlated subquery",
+      "location": "routes/messages.js:107",
+      "ms": 263.51,
+      "calls": 1,
+      "issue": "每个会话执行一次嵌套 SELECT COUNT(*) FROM messages"
+    },
+    {
+      "fn": "GET /missed → enriched.map (replyTo N+1)",
+      "location": "routes/messages.js:374",
+      "ms": 25,
+      "calls": 4311,
+      "issue": "N+1: 补拉消息的 reply_to 循环查"
+    },
+    {
+      "fn": "GET /conversations → rows.map (N+1私聊查询)",
+      "location": "routes/messages.js:130",
+      "ms": 2,
+      "calls": 1,
+      "issue": "N+1: 每个私聊额外一次 SELECT"
+    },
+    {
+      "fn": "GET /:convId → enriched.map (reactions N+1)",
+      "location": "routes/messages.js:726",
+      "ms": 2,
+      "calls": 20,
+      "issue": "N+1: 每条消息查一次 message_reactions"
+    },
+    {
+      "fn": "buildMessage(id) — 每次发消息重新SELECT",
+      "location": "routes/messages.js:20",
+      "ms": 0.23,
+      "calls": 1,
+      "issue": "发消息后立即 SELECT 回完整消息（含JOIN），可改为直接构造"
+    },
+    {
+      "fn": "GET /:convId → enriched.map (replyTo N+1)",
+      "location": "routes/messages.js:719",
+      "ms": 0,
+      "calls": 0,
+      "issue": "N+1: 每条有引用的消息额外一次 SELECT"
+    },
+    {
+      "fn": "GET /search → results.map (N+1私聊名)",
+      "location": "routes/messages.js:247",
+      "ms": 0,
+      "calls": 0,
+      "issue": "N+1: 每条私聊搜索结果查对方名字"
+    }
+  ],
+  "rootCauses": [
+    {
+      "rank": 1,
+      "issue": "N+1 查询：会话列表每个私聊/群额外查询",
+      "location": "routes/messages.js:130-149",
+      "severity": "CRITICAL",
+      "evidence": "私聊1次+群4310次额外查询，估计额外耗时649ms"
+    },
+    {
+      "rank": 2,
+      "issue": "N+1 查询：消息历史 reactions 每条消息一次查询",
+      "location": "routes/messages.js:726-730",
+      "severity": "HIGH",
+      "evidence": "50条消息=20次reaction查询，实测2ms"
+    },
+    {
+      "rank": 3,
+      "issue": "Correlated subquery：unread计数嵌套在主查询中",
+      "location": "routes/messages.js:107-114",
+      "severity": "HIGH",
+      "evidence": "每个会话执行一次 SELECT COUNT(*) FROM messages，随会话数O(N)增长"
+    },
+    {
+      "rank": 4,
+      "issue": "搜索无FTS索引：LIKE全表扫描90万+行",
+      "location": "routes/messages.js:228-242",
+      "severity": "HIGH",
+      "evidence": "sqlSearchT1=868.76ms + sqlSearchT2=855.42ms，无idx_messages_content索引"
+    },
+    {
+      "rank": 5,
+      "issue": "unread-counts：LEFT JOIN内嵌correlated subquery",
+      "location": "routes/messages.js:183",
+      "severity": "HIGH",
+      "evidence": "实测1458.03ms，随 conversation_members 行数O(N²)增长"
+    },
+    {
+      "rank": 6,
+      "issue": "补拉消息 replyTo N+1",
+      "location": "routes/messages.js:374-383",
+      "severity": "WARN",
+      "evidence": "每条有reply的补拉消息额外一次查询"
+    },
+    {
+      "rank": 7,
+      "issue": "API_SLOW周期性出现（2s+）与压测机器人并发相关",
+      "location": "socket/index.js:send_message",
+      "severity": "WARN",
+      "evidence": "Socket=116时延迟2000ms+，Socket=16时<50ms。SQLite单写锁争用"
+    }
+  ]
+}

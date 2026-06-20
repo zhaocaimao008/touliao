@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════╗
+  ║  v信 PC Demo — 高保真微信 4.1.10 UI 风格                 ║
+  ║  技术栈: 纯 HTML + Tailwind CSS CDN + Vanilla JS         ║
+  ║  版本: 1.0.0 | 布局: 三栏 68+290+flex                   ║
+  ║  功能: 登录页 / 主界面 / 设置页（Modal）                  ║
+  ╚══════════════════════════════════════════════════════════╝
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v信 PC</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          wx: {
+            green:  '#07C160',
+            greend: '#06a450',
+            bubble: '#95EC69',
+            side:   '#2C2C2C',
+            list:   '#F5F5F5',
+            chat:   '#EDEDED',
+          }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c8c8c8; border-radius: 4px; }
+
+  /* ── Glassmorphism ── */
+  .glass {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  /* ── QR scan line ── */
+  @keyframes scan { 0%{top:0} 100%{top:100%} }
+  .qr-line { animation: scan 2.2s linear infinite; position:absolute; left:0; right:0; height:2px;
+    background: linear-gradient(90deg,transparent,#07C160 40%,#07C160 60%,transparent); }
+
+  /* ── Message bubbles ── */
+  .bubble-s { background:#95EC69; border-radius:12px 2px 12px 12px; }
+  .bubble-r { background:#fff;    border-radius:2px 12px 12px 12px; box-shadow:0 1px 2px rgba(0,0,0,.08); }
+
+  /* ── Unread badge ── */
+  .badge { min-width:16px; height:16px; padding:0 4px; border-radius:8px;
+           background:#FA5151; color:#fff; font-size:10px; line-height:16px; text-align:center; }
+
+  /* ── Tooltip ── */
+  .tip { position:absolute; left:72px; top:50%; transform:translateY(-50%);
+         background:rgba(0,0,0,.72); color:#fff; padding:3px 8px; border-radius:5px;
+         font-size:12px; white-space:nowrap; opacity:0; pointer-events:none;
+         transition:opacity .15s; z-index:99; }
+  .nav-btn:hover .tip { opacity:1; }
+
+  /* ── Nav active ── */
+  .nav-on { background:rgba(255,255,255,.14) !important; }
+
+  /* ── Toggle switch ── */
+  .sw { width:44px; height:24px; border-radius:12px; background:#D9D9D9;
+        position:relative; cursor:pointer; transition:background .2s; flex-shrink:0; }
+  .sw.on { background:#07C160; }
+  .sw::after { content:''; position:absolute; width:20px; height:20px; border-radius:50%;
+               background:#fff; top:2px; left:2px; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .sw.on::after { transform:translateX(20px); }
+
+  /* ── Settings nav active ── */
+  .snav-on { background:rgba(7,193,96,.12) !important; color:#07C160 !important; }
+
+  /* ── Msg input placeholder ── */
+  #msgInput:empty::before { content:attr(data-ph); color:#aaa; pointer-events:none; }
+  #msgInput:focus { outline:none; }
+
+  /* ── Page transitions ── */
+  .fade-enter { opacity:0; transform:scale(.97); }
+  .fade-active { transition:opacity .35s ease, transform .35s ease; }
+
+  /* ── Emoji grid ── */
+  #emojiBox { display:none; }
+  #emojiBox.open { display:grid; }
+
+  /* ── Context menu ── */
+  .ctx-menu { position:fixed; background:#fff; border:1px solid #e5e5e5;
+              border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15);
+              padding:4px 0; z-index:200; min-width:120px; }
+  .ctx-item { padding:8px 16px; font-size:13px; cursor:pointer; color:#333; }
+  .ctx-item:hover { background:#f5f5f5; }
+  .ctx-item.red { color:#FA5151; }
+</style>
+</head>
+<body class="h-screen overflow-hidden select-none bg-wx-chat">
+
+<!-- ════════════════════════════════════════════════════
+     LOGIN PAGE
+════════════════════════════════════════════════════ -->
+<div id="loginPage" class="fixed inset-0 z-50 flex flex-col items-center justify-center"
+     style="background:linear-gradient(135deg,#f0f9f0 0%,#e8f5e9 50%,#f5f5f5 100%)">
+
+  <!-- macOS title bar -->
+  <div class="absolute top-0 inset-x-0 h-9 flex items-center px-4"
+       style="background:rgba(240,240,240,.95);border-bottom:1px solid #ddd;">
+    <div class="flex gap-1.5">
+      <span class="w-3 h-3 rounded-full bg-red-400 hover:bg-red-500 cursor-pointer block"></span>
+      <span class="w-3 h-3 rounded-full bg-yellow-400 cursor-pointer block"></span>
+      <span class="w-3 h-3 rounded-full bg-green-400 cursor-pointer block"></span>
+    </div>
+    <span class="absolute left-1/2 -translate-x-1/2 text-xs text-gray-500 font-medium">v信 PC 端</span>
+  </div>
+
+  <!-- Card -->
+  <div class="glass rounded-2xl shadow-2xl p-8 w-80" style="margin-top:36px">
+
+    <!-- QR panel -->
+    <div id="qrPanel" class="flex flex-col items-center">
+      <div class="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 shadow-lg"
+           style="background:linear-gradient(135deg,#07C160,#06a450)">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <h2 class="text-xl font-bold text-gray-800 mb-0.5">v信</h2>
+      <p class="text-xs text-gray-400 mb-5">扫码安全登录 · 微信 4.1.10 风格</p>
+
+      <!-- QR code -->
+      <div class="relative w-44 h-44 rounded-xl bg-white shadow-inner p-2.5 mb-5 overflow-hidden">
+        <canvas id="qrCanvas" width="152" height="152" class="rounded-lg"></canvas>
+        <div class="qr-line"></div>
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center shadow"
+               style="background:#07C160">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-sm text-gray-700 font-medium mb-1">用手机微信扫描二维码</p>
+      <p class="text-xs text-gray-400 mb-5">扫码后在手机上点击确认登录</p>
+
+      <button onclick="doLogin()" class="w-full py-2.5 rounded-xl text-white text-sm font-semibold
+              transition hover:opacity-90 active:scale-95 shadow-md"
+              style="background:linear-gradient(135deg,#07C160,#06a450)">
+        模拟扫码登录
+      </button>
+      <button onclick="showPwdPanel()" class="mt-3 text-xs text-gray-400 hover:text-wx-green transition-colors">
+        切换账号 / 密码登录
+      </button>
+    </div>
+
+    <!-- Password panel -->
+    <div id="pwdPanel" class="hidden flex-col items-center">
+      <div class="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 shadow-lg"
+           style="background:linear-gradient(135deg,#07C160,#06a450)">
+        <span class="text-white text-2xl font-bold">v</span>
+      </div>
+      <h2 class="text-xl font-bold text-gray-800 mb-5">密码登录</h2>
+
+      <div class="w-full space-y-3 mb-4">
+        <input type="text" value="demo@vxin.com" placeholder="手机号 / 微信号 / 邮箱"
+          class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm
+                 focus:outline-none focus:border-wx-green focus:bg-white transition-all">
+        <input type="password" value="●●●●●●●●" placeholder="密码"
+          class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm
+                 focus:outline-none focus:border-wx-green focus:bg-white transition-all">
+      </div>
+      <div class="w-full flex items-center justify-between text-xs text-gray-400 mb-4">
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" checked class="accent-wx-green"> 自动登录
+        </label>
+        <span class="hover:text-wx-green cursor-pointer transition-colors">忘记密码?</span>
+      </div>
+
+      <button onclick="doLogin()" class="w-full py-2.5 rounded-xl text-white text-sm font-semibold
+              transition hover:opacity-90 active:scale-95 shadow-md"
+              style="background:linear-gradient(135deg,#07C160,#06a450)">
+        登录
+      </button>
+      <button onclick="showQrPanel()" class="mt-3 text-xs text-gray-400 hover:text-wx-green transition-colors">
+        ← 返回扫码登录
+      </button>
+    </div>
+  </div>
+
+  <p class="mt-4 text-xs text-gray-300">v信 PC 1.0.0 · 基于微信 4.1.10 UI · 仅供学习参考</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════════════════ -->
+<div id="mainApp" class="fixed inset-0 hidden flex-col">
+
+  <!-- macOS title bar (dark) -->
+  <div class="flex-none h-9 flex items-center px-3 justify-between z-10"
+       style="background:#2C2C2C;border-bottom:1px solid #1a1a1a">
+    <div class="flex gap-1.5">
+      <span onclick="showToast('最小化')" class="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 cursor-pointer block"></span>
+      <span class="w-3 h-3 rounded-full bg-yellow-500 cursor-pointer block"></span>
+      <span class="w-3 h-3 rounded-full bg-green-500 cursor-pointer block"></span>
+    </div>
+    <span class="text-xs text-gray-500 font-medium">v信</span>
+    <div class="w-16"></div>
+  </div>
+
+  <!-- Body -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- ── LEFT SIDEBAR 68px ── -->
+    <div id="sidebar" class="flex-none flex flex-col items-center py-3 z-20"
+         style="width:68px;background:#2C2C2C">
+
+      <!-- Avatar -->
+      <div onclick="showToast('个人资料：v信 Demo 用户 | 微信号 vxin_demo')"
+           class="w-10 h-10 rounded-xl mb-5 cursor-pointer flex items-center justify-center
+                  text-white text-sm font-bold hover:ring-2 ring-wx-green transition-all"
+           style="background:#07C160" title="个人资料">我</div>
+
+      <!-- Top nav -->
+      <div class="flex-1 flex flex-col w-full items-center gap-0.5">
+        <div id="nav-msg" onclick="switchNav('msg')"
+             class="nav-btn nav-on relative w-full flex justify-center py-2.5 rounded-lg cursor-pointer transition-colors hover:bg-white/10"
+             title="消息">
+          <div class="relative">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span id="totalBadge" class="badge absolute -top-1.5 -right-1.5">3</span>
+          </div>
+          <span class="tip">消息</span>
+        </div>
+
+        <div id="nav-contacts" onclick="switchNav('contacts')"
+             class="nav-btn relative w-full flex justify-center py-2.5 rounded-lg cursor-pointer transition-colors hover:bg-white/10">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.65)" stroke-width="1.8">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span class="tip">通讯录</span>
+        </div>
+
+        <div id="nav-fav" onclick="switchNav('fav')"
+             class="nav-btn relative w-full flex justify-center py-2.5 rounded-lg cursor-pointer transition-colors hover:bg-white/10">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.65)" stroke-width="1.8">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          <span class="tip">收藏</span>
+        </div>
+
+        <div id="nav-files" onclick="switchNav('files')"
+             class="nav-btn relative w-full flex justify-center py-2.5 rounded-lg cursor-pointer transition-colors hover:bg-white/10">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.65)" stroke-width="1.8">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span class="tip">文件传输</span>
+        </div>
+
+        <div id="nav-mini" onclick="switchNav('mini')"
+             class="nav-btn relative w-full flex justify-center py-2.5 rounded-lg cursor-pointer transition-colors hover:bg-white/10">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.65)" stroke-width="1.8">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span class="tip">小程序</span>
+        </div>
+      </div>
+
+      <!-- Bottom nav -->
+      <div class="flex flex-col w-full items-center gap-0.5">
+        <div class="nav-btn relative w-full flex justify-center py-2.5 rounded-lg cursor-pointer transition-colors hover:bg-white/10"
+             onclick="focusSearch()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.8">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <span class="tip">搜索</span>
+        </div>
+
+        <div id="nav-settings" onclick="openSettings()"
+             class="nav-btn relative w-full flex justify-center py-2.5 rounded-lg cursor-pointer transition-colors hover:bg-white/10">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33
+                     1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33
+                     l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1
+                     0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65
+                     1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0
+                     0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21
+                     a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span class="tip">设置</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MIDDLE PANEL 290px ── -->
+    <div class="flex-none flex flex-col" style="width:290px;background:#F5F5F5;border-right:1px solid #E2E2E2">
+
+      <!-- MSG LIST PANEL -->
+      <div id="panel-msg" class="flex flex-col h-full">
+        <div class="flex-none px-3 pt-3 pb-2">
+          <div class="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 shadow-sm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2.2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input id="searchInput" type="text" placeholder="搜索"
+              class="flex-1 text-sm bg-transparent focus:outline-none text-gray-700 placeholder-gray-400"
+              oninput="filterList(this.value)">
+            <button id="searchClear" class="hidden text-gray-300 hover:text-gray-500" onclick="clearSearch()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div id="chatList" class="flex-1 overflow-y-auto"></div>
+      </div>
+
+      <!-- CONTACTS PANEL -->
+      <div id="panel-contacts" class="hidden flex-col h-full">
+        <div class="px-4 py-3.5 border-b border-gray-200">
+          <h2 class="text-sm font-semibold text-gray-800">通讯录</h2>
+        </div>
+        <div class="flex-1 overflow-y-auto p-2">
+          <div id="contactsMeta" class="space-y-0.5 mb-2">
+            <div class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-200 cursor-pointer transition-colors"
+                 onclick="showToast('新朋友：暂无新的好友申请')">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:#07C160">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-gray-800">新朋友</p>
+                <p class="text-xs text-gray-400">查看好友申请</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-200 cursor-pointer transition-colors"
+                 onclick="showToast('群聊：共 12 个群组')">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-500">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-gray-800">群聊</p>
+                <p class="text-xs text-gray-400">12 个群组</p>
+              </div>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 px-2.5 pb-1 pt-2">A — Z</p>
+          <div id="contactsList" class="space-y-0.5"></div>
+        </div>
+      </div>
+
+      <!-- FAVORITES PANEL -->
+      <div id="panel-fav" class="hidden flex-col h-full">
+        <div class="px-4 py-3.5 border-b border-gray-200">
+          <h2 class="text-sm font-semibold text-gray-800">收藏</h2>
+        </div>
+        <div class="flex-1 flex items-center justify-center flex-col gap-3 text-gray-300">
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          <p class="text-sm">暂无收藏内容</p>
+        </div>
+      </div>
+
+      <!-- FILES PANEL -->
+      <div id="panel-files" class="hidden flex-col h-full">
+        <div class="px-4 py-3.5 border-b border-gray-200">
+          <h2 class="text-sm font-semibold text-gray-800">文件传输助手</h2>
+        </div>
+        <div class="flex-1 overflow-y-auto p-3 space-y-2">
+          <div class="flex items-center gap-3 p-3 rounded-xl bg-white shadow-sm hover:shadow cursor-pointer transition-shadow">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-none" style="background:#07C160">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-800 truncate">project_v1.0.zip</p>
+              <p class="text-xs text-gray-400">2.4 MB · 刚刚</p>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </div>
+          <div class="flex items-center gap-3 p-3 rounded-xl bg-white shadow-sm hover:shadow cursor-pointer transition-shadow">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-none bg-blue-500">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-800 truncate">UI设计稿_v3.fig</p>
+              <p class="text-xs text-gray-400">38.6 MB · 昨天</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 p-3 rounded-xl bg-white shadow-sm hover:shadow cursor-pointer transition-shadow">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-none bg-orange-400">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="9" y1="21" x2="9" y2="9"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-800 truncate">需求文档.xlsx</p>
+              <p class="text-xs text-gray-400">1.2 MB · 上周</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MINI PROGRAMS PANEL -->
+      <div id="panel-mini" class="hidden flex-col h-full">
+        <div class="px-4 py-3.5 border-b border-gray-200">
+          <h2 class="text-sm font-semibold text-gray-800">小程序</h2>
+        </div>
+        <div class="p-3">
+          <p class="text-xs text-gray-400 mb-3">最近使用</p>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="flex flex-col items-center gap-1.5 cursor-pointer" onclick="showToast('打开小程序：微信读书')">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center" style="background:#FFA726">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M12 2l3 7h7l-6 4 2 7-6-4-6 4 2-7-6-4h7z"/></svg>
+              </div>
+              <p class="text-xs text-gray-600">微信读书</p>
+            </div>
+            <div class="flex flex-col items-center gap-1.5 cursor-pointer" onclick="showToast('打开小程序：腾讯地图')">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center bg-blue-500">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
+              <p class="text-xs text-gray-600">腾讯地图</p>
+            </div>
+            <div class="flex flex-col items-center gap-1.5 cursor-pointer" onclick="showToast('打开小程序：健康码')">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center" style="background:#07C160">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <p class="text-xs text-gray-600">健康码</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT CHAT WINDOW ── -->
+    <div class="flex-1 flex flex-col relative overflow-hidden" style="background:#EDEDED">
+
+      <!-- Empty state -->
+      <div id="emptyState" class="flex-1 flex flex-col items-center justify-center text-gray-300">
+        <div class="w-28 h-28 rounded-full flex items-center justify-center mb-4"
+             style="background:rgba(7,193,96,.08)">
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#07C160" stroke-width="1.4">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <p class="text-sm text-gray-400">选择一个聊天，开始对话</p>
+        <p class="text-xs text-gray-300 mt-1">v信 PC Demo · 微信 4.1.10 风格</p>
+      </div>
+
+      <!-- Active chat -->
+      <div id="chatWindow" class="hidden flex-1 flex flex-col">
+
+        <!-- Header -->
+        <div class="flex-none px-5 py-2.5 flex items-center justify-between"
+             style="background:#F7F7F7;border-bottom:1px solid #E2E2E2;min-height:52px">
+          <div class="flex items-center gap-3">
+            <div id="hdrAvatar" class="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-none"></div>
+            <div>
+              <h3 id="hdrName" class="text-sm font-semibold text-gray-800 leading-tight"></h3>
+              <p id="hdrSub" class="text-xs text-gray-400 leading-tight"></p>
+            </div>
+          </div>
+          <div class="flex items-center gap-0.5">
+            <button onclick="showToast('语音通话（Demo）')" class="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors" title="语音通话">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8a16 16 0 0 0 6.06 6.06l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </button>
+            <button onclick="showToast('视频通话（Demo）')" class="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors" title="视频通话">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <polygon points="23 7 16 12 23 17 23 7"/>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+            </button>
+            <button onclick="toggleChatInfo()" class="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors" title="聊天信息">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div id="msgArea" class="flex-1 overflow-y-auto px-5 py-4 space-y-3.5"></div>
+
+        <!-- Emoji panel -->
+        <div id="emojiBox" class="grid-cols-10 gap-2 p-3 border-t border-gray-200 bg-white"
+             style="background:#F7F7F7">
+          <!-- filled by JS -->
+        </div>
+
+        <!-- Input toolbar -->
+        <div class="flex-none" style="background:#F7F7F7;border-top:1px solid #E2E2E2">
+          <div class="flex items-center gap-0.5 px-3 pt-2">
+            <button id="emojiBtn" onclick="toggleEmoji()" title="表情"
+                    class="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+            </button>
+            <button onclick="doSendFile()" title="发送文件"
+                    class="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+            </button>
+            <button onclick="doScreenshot()" title="截图 (Alt+A)"
+                    class="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </button>
+            <button onclick="doVoice()" title="语音输入"
+                    class="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            </button>
+            <button onclick="showToast('视频片段（Demo）')" title="视频"
+                    class="p-2 rounded-lg hover:bg-gray-200 text-gray-500 transition-colors">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <polygon points="23 7 16 12 23 17 23 7"/>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+            </button>
+          </div>
+          <div class="px-3 pb-3 pt-1.5">
+            <div id="msgInput" contenteditable="true" data-ph="输入消息，Enter 发送"
+                 class="min-h-14 max-h-28 overflow-y-auto w-full bg-white rounded-xl px-3 py-2.5 text-sm text-gray-800"
+                 style="word-break:break-all"
+                 onkeydown="onMsgKey(event)"></div>
+            <div class="flex items-center justify-between mt-1.5">
+              <span class="text-xs text-gray-400">Enter 发送 · Shift+Enter 换行</span>
+              <button onclick="sendMsg()" class="px-5 py-1.5 rounded-lg text-white text-sm font-semibold
+                      transition hover:opacity-90 active:scale-95 shadow-sm"
+                      style="background:#07C160">发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Info Panel (slide) -->
+      <div id="chatInfoPanel" class="absolute top-0 right-0 bottom-0 w-72 bg-white z-30 hidden flex-col"
+           style="border-left:1px solid #E2E2E2;box-shadow:-4px 0 16px rgba(0,0,0,.08)">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <h3 class="text-sm font-semibold text-gray-800">聊天信息</h3>
+          <button onclick="toggleChatInfo()" class="p-1 rounded hover:bg-gray-100 text-gray-400 transition-colors">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4">
+          <div class="text-center mb-5">
+            <div id="infoAvatar" class="w-16 h-16 rounded-2xl mx-auto mb-2 flex items-center justify-center text-white text-2xl font-bold"></div>
+            <p id="infoName" class="font-semibold text-gray-800"></p>
+            <p class="text-xs text-gray-400 mt-0.5">微信号: vxin_demo</p>
+          </div>
+          <div class="space-y-0 divide-y divide-gray-100">
+            <div class="flex items-center justify-between py-3">
+              <span class="text-sm text-gray-600">消息免打扰</span>
+              <div class="sw" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="flex items-center justify-between py-3">
+              <span class="text-sm text-gray-600">置顶聊天</span>
+              <div class="sw" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="flex items-center justify-between py-3">
+              <span class="text-sm text-gray-600">强提醒</span>
+              <div class="sw" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div class="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2" onclick="showToast('消息记录搜索（Demo）')">
+              <span class="text-sm text-gray-600">查找聊天记录</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          </div>
+          <button onclick="showToast('已清空该聊天记录（Demo）')"
+                  class="mt-5 w-full py-2 text-sm text-red-400 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
+            删除聊天
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SETTINGS MODAL
+════════════════════════════════════════════════════ -->
+<div id="settingsOverlay" class="fixed inset-0 z-50 hidden items-center justify-center"
+     style="background:rgba(0,0,0,.45);backdrop-filter:blur(4px)"
+     onclick="onOverlayClick(event)">
+  <div class="flex rounded-2xl overflow-hidden shadow-2xl" style="width:700px;height:500px;max-width:96vw;max-height:92vh">
+
+    <!-- Settings sidebar -->
+    <div class="flex flex-col py-4" style="width:188px;background:#EFEFEF;border-right:1px solid #E0E0E0;flex-shrink:0">
+      <div class="px-4 mb-3">
+        <h2 class="text-sm font-semibold text-gray-700">设置</h2>
+      </div>
+      <div class="flex-1 overflow-y-auto space-y-0.5 px-2">
+        <div class="snav-item snav-on flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-sm font-medium" onclick="switchSettings('account',this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          账号与安全
+        </div>
+        <div class="snav-item flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-sm text-gray-600 hover:bg-gray-200" onclick="switchSettings('notif',this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          通知与声音
+        </div>
+        <div class="snav-item flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-sm text-gray-600 hover:bg-gray-200" onclick="switchSettings('general',this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          通用
+        </div>
+        <div class="snav-item flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-sm text-gray-600 hover:bg-gray-200" onclick="switchSettings('privacy',this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          隐私
+        </div>
+        <div class="snav-item flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-sm text-gray-600 hover:bg-gray-200" onclick="switchSettings('chat',this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          聊天
+        </div>
+        <div class="snav-item flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-sm text-gray-600 hover:bg-gray-200" onclick="switchSettings('hotkeys',this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          快捷键
+        </div>
+        <div class="snav-item flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-sm text-gray-600 hover:bg-gray-200" onclick="switchSettings('about',this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          关于 v信
+        </div>
+      </div>
+      <div class="px-3 pt-3 border-t border-gray-200">
+        <button onclick="doLogout()" class="w-full py-2 text-sm text-red-400 rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          退出登录
+        </button>
+      </div>
+    </div>
+
+    <!-- Settings content -->
+    <div class="flex-1 overflow-y-auto bg-white">
+
+      <!-- Account -->
+      <div id="sp-account" class="sp p-7">
+        <h3 class="text-sm font-semibold text-gray-800 mb-5">账号与安全</h3>
+        <div class="flex items-center gap-4 p-4 rounded-2xl mb-6" style="background:#F0FDF4">
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-bold flex-none shadow" style="background:#07C160">我</div>
+          <div class="flex-1">
+            <p class="font-semibold text-gray-800">v信 Demo 用户</p>
+            <p class="text-xs text-gray-500 mt-0.5">微信号: vxin_demo_2024</p>
+            <p class="text-xs mt-0.5" style="color:#07C160">已验证 ✓</p>
+          </div>
+          <button onclick="showToast('编辑个人资料（Demo）')" class="text-xs px-4 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">编辑</button>
+        </div>
+        <div class="divide-y divide-gray-100">
+          <div class="flex items-center justify-between py-3.5"><span class="text-sm text-gray-700">手机号</span><span class="text-sm text-gray-400">+86 138****8888</span></div>
+          <div class="flex items-center justify-between py-3.5"><span class="text-sm text-gray-700">邮箱</span><span class="text-sm text-gray-400">demo@vxin.com</span></div>
+          <div class="flex items-center justify-between py-3.5 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2" onclick="showToast('修改密码（Demo）')">
+            <span class="text-sm text-gray-700">微信密码</span>
+            <div class="flex items-center gap-1 text-gray-400 text-sm">已设置<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+          </div>
+          <div class="flex items-center justify-between py-3.5 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2" onclick="showToast('设备管理：共 2 台（Demo）')">
+            <span class="text-sm text-gray-700">登录设备管理</span>
+            <div class="flex items-center gap-1 text-gray-400 text-sm">2 台设备<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <span class="text-sm text-gray-700">两步验证</span>
+            <div class="sw on" onclick="this.classList.toggle('on')"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div id="sp-notif" class="sp hidden p-7">
+        <h3 class="text-sm font-semibold text-gray-800 mb-5">通知与声音</h3>
+        <div class="divide-y divide-gray-100">
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">消息通知</p><p class="text-xs text-gray-400 mt-0.5">接收新消息的桌面通知</p></div>
+            <div class="sw on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">消息声音</p><p class="text-xs text-gray-400 mt-0.5">收到消息时播放提示音</p></div>
+            <div class="sw on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">消息预览</p><p class="text-xs text-gray-400 mt-0.5">通知中显示消息内容</p></div>
+            <div class="sw" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <span class="text-sm text-gray-700">通知声音</span>
+            <select class="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:border-wx-green">
+              <option>默认铃声</option><option>清脆提示音</option><option>气泡声</option><option>静音</option>
+            </select>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">勿扰模式</p><p class="text-xs text-gray-400 mt-0.5">22:00 — 08:00 期间不提醒</p></div>
+            <div class="sw" onclick="this.classList.toggle('on')"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- General -->
+      <div id="sp-general" class="sp hidden p-7">
+        <h3 class="text-sm font-semibold text-gray-800 mb-5">通用</h3>
+        <div class="divide-y divide-gray-100">
+          <div class="flex items-center justify-between py-3.5">
+            <span class="text-sm text-gray-700">主题</span>
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full border-2 border-wx-green cursor-pointer block" style="background:#F5F5F5" onclick="showToast('主题：浅色')" title="浅色"></span>
+              <span class="w-6 h-6 rounded-full border border-gray-300 cursor-pointer block" style="background:#2C2C2C" onclick="showToast('主题：深色')" title="深色"></span>
+              <span class="w-6 h-6 rounded-full border border-gray-300 cursor-pointer block" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9)" onclick="showToast('主题：绿色')" title="绿色"></span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <span class="text-sm text-gray-700">字体大小</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-400">小</span>
+              <input type="range" min="12" max="18" value="14" class="w-20 accent-wx-green"
+                     oninput="document.getElementById('fsLabel').textContent=this.value+'px';document.getElementById('msgArea').style.fontSize=this.value+'px'">
+              <span class="text-xs text-gray-400">大</span>
+              <span id="fsLabel" class="text-xs text-gray-500 w-8">14px</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">开机自启</p><p class="text-xs text-gray-400 mt-0.5">系统启动时自动运行 v信</p></div>
+            <div class="sw on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">截图快捷键</p><p class="text-xs text-gray-400 mt-0.5">截图并发送到当前会话</p></div>
+            <div class="flex items-center gap-1">
+              <kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">Alt</kbd>
+              <span class="text-gray-300 text-xs">+</span>
+              <kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">A</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">翻译</p><p class="text-xs text-gray-400 mt-0.5">右键消息显示翻译</p></div>
+            <div class="sw on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <span class="text-sm text-gray-700">语言</span>
+            <select class="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none">
+              <option>简体中文</option><option>繁體中文</option><option>English</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Privacy -->
+      <div id="sp-privacy" class="sp hidden p-7">
+        <h3 class="text-sm font-semibold text-gray-800 mb-5">隐私</h3>
+        <div class="divide-y divide-gray-100">
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">加我为好友</p><p class="text-xs text-gray-400 mt-0.5">控制谁可以搜索到你</p></div>
+            <select class="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none">
+              <option>所有人</option><option>仅朋友的朋友</option><option>不允许</option>
+            </select>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <span class="text-sm text-gray-700">消息已读回执</span>
+            <div class="sw on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">朋友圈权限</p><p class="text-xs text-gray-400 mt-0.5">允许查看的时间范围</p></div>
+            <select class="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none">
+              <option>全部</option><option>最近三天</option><option>最近一个月</option>
+            </select>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <span class="text-sm text-gray-700">附近的人</span>
+            <div class="sw" onclick="this.classList.toggle('on')"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat settings -->
+      <div id="sp-chat" class="sp hidden p-7">
+        <h3 class="text-sm font-semibold text-gray-800 mb-5">聊天</h3>
+        <div class="divide-y divide-gray-100">
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">回车键发送消息</p><p class="text-xs text-gray-400 mt-0.5">Shift+Enter 换行</p></div>
+            <div class="sw on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <span class="text-sm text-gray-700">聊天记录备份</span>
+            <button onclick="showToast('备份中...请稍候（Demo）')" class="text-xs px-4 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">立即备份</button>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <div><p class="text-sm text-gray-700">表情包管理</p><p class="text-xs text-gray-400 mt-0.5">已下载 28 个表情包</p></div>
+            <button onclick="showToast('表情包管理（Demo）')" class="text-xs px-4 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">管理</button>
+          </div>
+          <div class="flex items-center justify-between py-3.5">
+            <span class="text-sm text-gray-700">清空聊天记录</span>
+            <button onclick="showToast('已清空所有聊天记录（Demo）')" class="text-xs px-4 py-1.5 border border-red-200 rounded-lg text-red-400 hover:bg-red-50 transition-colors">清空</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hotkeys -->
+      <div id="sp-hotkeys" class="sp hidden p-7">
+        <h3 class="text-sm font-semibold text-gray-800 mb-5">快捷键</h3>
+        <div class="space-y-0 divide-y divide-gray-100">
+          <div class="flex items-center justify-between py-3.5"><span class="text-sm text-gray-700">截图</span><div class="flex gap-1"><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">Alt</kbd><span class="text-gray-300 text-xs self-center">+</span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">A</kbd></div></div>
+          <div class="flex items-center justify-between py-3.5"><span class="text-sm text-gray-700">发送消息</span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">Enter</kbd></div>
+          <div class="flex items-center justify-between py-3.5"><span class="text-sm text-gray-700">搜索联系人</span><div class="flex gap-1"><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">Ctrl</kbd><span class="text-gray-300 text-xs self-center">+</span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">F</kbd></div></div>
+          <div class="flex items-center justify-between py-3.5"><span class="text-sm text-gray-700">锁定屏幕</span><div class="flex gap-1"><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">Ctrl</kbd><span class="text-gray-300 text-xs self-center">+</span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">L</kbd></div></div>
+          <div class="flex items-center justify-between py-3.5"><span class="text-sm text-gray-700">置顶窗口</span><div class="flex gap-1"><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">Ctrl</kbd><span class="text-gray-300 text-xs self-center">+</span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">T</kbd></div></div>
+          <div class="flex items-center justify-between py-3.5"><span class="text-sm text-gray-700">上一个会话</span><div class="flex gap-1"><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">Ctrl</kbd><span class="text-gray-300 text-xs self-center">+</span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">↑</kbd></div></div>
+        </div>
+      </div>
+
+      <!-- About -->
+      <div id="sp-about" class="sp hidden p-7">
+        <h3 class="text-sm font-semibold text-gray-800 mb-5">关于 v信</h3>
+        <div class="flex flex-col items-center py-4">
+          <div class="w-20 h-20 rounded-3xl flex items-center justify-center text-white text-4xl font-bold mb-4 shadow-xl"
+               style="background:linear-gradient(135deg,#07C160,#06a450)">v</div>
+          <h2 class="text-xl font-bold text-gray-800">v信 PC</h2>
+          <p class="text-sm text-gray-400 mt-1">版本 1.0.0 (Build 20240531)</p>
+          <p class="text-xs text-gray-300 mt-0.5">基于微信 4.1.10 / 4.1.8 UI 风格</p>
+
+          <div class="w-full mt-6 divide-y divide-gray-100">
+            <div class="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2" onclick="showToast('已是最新版本 ✓')">
+              <span class="text-sm text-gray-700">检查更新</span>
+              <span class="text-xs text-wx-green">已是最新版本 ✓</span>
+            </div>
+            <div class="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2" onclick="showToast('用户协议（Demo）')">
+              <span class="text-sm text-gray-700">用户协议</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+            <div class="flex items-center justify-between py-3 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2" onclick="showToast('隐私政策（Demo）')">
+              <span class="text-sm text-gray-700">隐私政策</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+            <div class="flex items-center justify-between py-3">
+              <span class="text-sm text-gray-700">技术栈</span>
+              <span class="text-xs text-gray-400">HTML + Tailwind CSS CDN</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-200 mt-6">© 2024 v信 Demo · 仅供学习参考 · 非官方</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-7 left-1/2 -translate-x-1/2 z-[200] pointer-events-none"
+     style="opacity:0;transition:opacity .25s;transform:translateX(-50%) translateY(8px)">
+  <div class="glass px-4 py-2.5 rounded-xl shadow-lg text-sm text-gray-700 flex items-center gap-2 border border-white/60">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#07C160" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="toastMsg"></span>
+  </div>
+</div>
+
+<!-- Context menu (right-click on messages) -->
+<div id="ctxMenu" class="ctx-menu hidden">
+  <div class="ctx-item" onclick="ctxAction('copy')">复制</div>
+  <div class="ctx-item" onclick="ctxAction('quote')">引用</div>
+  <div class="ctx-item" onclick="ctxAction('forward')">转发</div>
+  <div class="ctx-item" onclick="ctxAction('collect')">收藏</div>
+  <div class="ctx-item red" onclick="ctxAction('delete')">删除</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════ -->
+<script>
+// ── DATA ──────────────────────────────────────────────
+const CONTACTS = [
+  { id:1, name:'张 伟', color:'#1989FA', online:true,  unread:2,  time:'刚刚',
+    lastMsg:'好的，明天见！',
+    msgs:[
+      {t:'r', text:'你好，在吗？',           ts:'09:00'},
+      {t:'s', text:'在的，有什么事？',        ts:'09:01'},
+      {t:'r', text:'下午三点有个会，能来吗？', ts:'09:02'},
+      {t:'s', text:'可以的，B会议室吗？',     ts:'09:03'},
+      {t:'r', text:'对，B301。',              ts:'09:04'},
+      {t:'s', text:'好，我会准时到',          ts:'09:05'},
+      {t:'r', text:'好的，明天见！',          ts:'09:10'},
+    ]},
+  { id:2, name:'文件传输助手', color:'#07C160', online:true, unread:0, time:'10:30',
+    lastMsg:'收到文件: design_v3.fig',
+    msgs:[
+      {t:'sys', text:'文件传输助手'},
+      {t:'r', text:'📎 design_v3.fig',  ts:'10:30', file:true, size:'38.2 MB'},
+      {t:'r', text:'📎 prototype.xd',   ts:'10:31', file:true, size:'12.4 MB'},
+      {t:'r', text:'📎 requirements.docx', ts:'10:35', file:true, size:'2.1 MB'},
+    ]},
+  { id:3, name:'产品设计群', color:'#F78FB3', online:false, unread:5, time:'昨天', group:true,
+    lastMsg:'小李: 新版本稿件已上传',
+    msgs:[
+      {t:'sys', text:'产品设计群 (12人)'},
+      {t:'r', sender:'陈小明', text:'周四设计评审，大家注意一下',   ts:'昨天 14:00'},
+      {t:'r', sender:'王小红', text:'收到！我会准时参加',           ts:'昨天 14:05'},
+      {t:'s',             text:'我这边也没问题',                   ts:'昨天 14:08'},
+      {t:'r', sender:'李小华', text:'新版本设计稿已上传到共享文件夹', ts:'昨天 16:30'},
+      {t:'r', sender:'李小华', text:'📎 v3.0_design_final.fig',   ts:'昨天 16:31', file:true, size:'54.3 MB'},
+    ]},
+  { id:4, name:'李 梦', color:'#A29BFE', online:false, unread:1, time:'昨天',
+    lastMsg:'周末一起爬山吗？',
+    msgs:[
+      {t:'r', text:'最近忙什么呢？',     ts:'昨天 11:00'},
+      {t:'s', text:'在搞一个项目，有点忙', ts:'昨天 11:30'},
+      {t:'r', text:'加油！不要太累了',   ts:'昨天 11:32'},
+      {t:'r', text:'周末一起爬山吗？',   ts:'昨天 20:00'},
+    ]},
+  { id:5, name:'前端技术群', color:'#FD79A8', online:false, unread:12, time:'周一', group:true,
+    lastMsg:'分享一个新的 React 框架',
+    msgs:[
+      {t:'sys', text:'前端技术群 (48人)'},
+      {t:'r', sender:'技术大牛', text:'分享一个新的 React 框架，性能提升明显', ts:'周一 09:00'},
+      {t:'r', sender:'前端小白', text:'有文档吗？',         ts:'周一 09:05'},
+      {t:'r', sender:'技术大牛', text:'等我整理一下再分享', ts:'周一 09:06'},
+      {t:'s',             text:'期待！',                   ts:'周一 09:10'},
+    ]},
+  { id:6, name:'赵 强', color:'#00B894', online:false, unread:0, time:'周一',
+    lastMsg:'收到，下周跟进一下',
+    msgs:[
+      {t:'r', text:'项目进展如何？',           ts:'周一 08:30'},
+      {t:'s', text:'还在开发中，预计本周完成',  ts:'周一 08:35'},
+      {t:'r', text:'收到，下周跟进一下',       ts:'周一 08:40'},
+    ]},
+  { id:7, name:'妈妈', color:'#E17055', online:true, unread:0, time:'周日',
+    lastMsg:'记得按时吃饭啊！',
+    msgs:[
+      {t:'r', text:'你在外面吃饭了吗？', ts:'周日 12:00'},
+      {t:'s', text:'吃了吃了，放心吧',  ts:'周日 12:10'},
+      {t:'r', text:'多吃蔬菜，别总叫外卖', ts:'周日 12:11'},
+      {t:'r', text:'记得按时吃饭啊！',  ts:'周日 12:12'},
+    ]},
+  { id:8, name:'公司通知', color:'#636E72', online:false, unread:0, time:'上周',
+    lastMsg:'本月绩效已发布，请查看',
+    msgs:[
+      {t:'sys', text:'公司通知'},
+      {t:'r', text:'【假期通知】五一假期 5月1日至5日，共5天', ts:'上周 09:00'},
+      {t:'r', text:'本月绩效已发布，请登录 HR 系统查看详情',   ts:'上周 16:00'},
+    ]},
+];
+
+const EMOJIS = ['😀','😂','🥰','😎','🤔','😅','🙈','🎉','👍','❤️',
+                '🔥','💯','😭','🤣','😊','😍','🥳','👏','🙏','💪',
+                '😤','🤦','🙄','😴','🤩','🫡','💀','🫶','🌹','🎁'];
+
+const REPLIES = ['好的，收到了！','嗯嗯，没问题','明白了👍','哈哈，好的','这个不错！',
+                 '我待会儿看一下','没问题，我来处理','收到！','👍','好的好的'];
+
+let curId = null;
+let chatInfoOpen = false;
+
+// ── INIT ──────────────────────────────────────────────
+function init() {
+  drawQR();
+  buildEmojiPanel();
+  renderList(CONTACTS);
+  renderContactsList();
+}
+
+// ── QR CODE (canvas) ──────────────────────────────────
+function drawQR() {
+  const c = document.getElementById('qrCanvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const S = 152, M = 5;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0,0,S,S);
+  let seed = 0xDEAD;
+  const rnd = () => { seed ^= seed<<13; seed ^= seed>>17; seed ^= seed<<5; return ((seed>>>0)/0xFFFFFFFF); };
+  ctx.fillStyle = '#1a1a1a';
+  for (let r=0; r<S/M; r++) for (let c2=0; c2<S/M; c2++) if (rnd()>.48) ctx.fillRect(c2*M,r*M,M-.5,M-.5);
+
+  function mark(x,y,sz=7) {
+    const u=M;
+    ctx.fillStyle='#fff'; ctx.fillRect(x,y,sz*u,sz*u);
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(x,y,sz*u,sz*u);
+    ctx.fillStyle='#fff'; ctx.fillRect(x+u,y+u,(sz-2)*u,(sz-2)*u);
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(x+2*u,y+2*u,(sz-4)*u,(sz-4)*u);
+  }
+  mark(M,M); mark(S-36*M/5,M); mark(M,S-36*M/5);
+  ctx.fillStyle='#fff'; ctx.fillRect(S/2-18,S/2-18,36,36);
+}
+
+// ── EMOJI PANEL ───────────────────────────────────────
+function buildEmojiPanel() {
+  const box = document.getElementById('emojiBox');
+  EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.textContent = e;
+    btn.className = 'text-xl hover:bg-gray-200 rounded-lg p-1 transition-colors';
+    btn.onclick = () => insertEmoji(e);
+    box.appendChild(btn);
+  });
+}
+
+function insertEmoji(e) {
+  const el = document.getElementById('msgInput');
+  el.focus();
+  document.execCommand('insertText', false, e);
+}
+
+function toggleEmoji() {
+  document.getElementById('emojiBox').classList.toggle('open');
+}
+
+// ── LOGIN / LOGOUT ────────────────────────────────────
+function showPwdPanel() {
+  document.getElementById('qrPanel').style.display = 'none';
+  const p = document.getElementById('pwdPanel');
+  p.classList.remove('hidden');
+  p.style.display = 'flex';
+  p.style.flexDirection = 'column';
+  p.style.alignItems = 'center';
+}
+
+function showQrPanel() {
+  document.getElementById('pwdPanel').style.display = 'none';
+  document.getElementById('pwdPanel').classList.add('hidden');
+  document.getElementById('qrPanel').style.display = 'flex';
+}
+
+function doLogin() {
+  const lp = document.getElementById('loginPage');
+  const app = document.getElementById('mainApp');
+  lp.style.transition = 'opacity .35s,transform .35s';
+  lp.style.opacity = '0';
+  lp.style.transform = 'scale(1.04)';
+  setTimeout(() => {
+    lp.style.display = 'none';
+    app.style.display = 'flex';
+    app.style.opacity = '0';
+    app.style.transform = 'scale(.97)';
+    app.style.transition = 'opacity .35s,transform .35s';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      app.style.opacity = '1';
+      app.style.transform = 'scale(1)';
+    }));
+    setTimeout(() => selectChat(1), 450);
+  }, 350);
+}
+
+function doLogout() {
+  closeSettings();
+  const lp = document.getElementById('loginPage');
+  const app = document.getElementById('mainApp');
+  app.style.transition = 'opacity .3s';
+  app.style.opacity = '0';
+  curId = null;
+  setTimeout(() => {
+    app.style.display = 'none';
+    lp.style.display = 'flex';
+    lp.style.opacity = '0';
+    lp.style.transform = 'scale(.96)';
+    lp.style.transition = 'opacity .3s,transform .3s';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      lp.style.opacity = '1';
+      lp.style.transform = 'scale(1)';
+    }));
+  }, 300);
+}
+
+// ── RENDER CHAT LIST ──────────────────────────────────
+function renderList(items) {
+  const ul = document.getElementById('chatList');
+  ul.innerHTML = '';
+  if (!items.length) {
+    ul.innerHTML = '<p class="text-center text-sm text-gray-400 py-10">没有找到相关聊天</p>';
+    return;
+  }
+  items.forEach(c => {
+    const div = document.createElement('div');
+    div.id = 'li-'+c.id;
+    div.className = 'flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ' +
+                    (curId===c.id ? 'bg-gray-300' : 'hover:bg-gray-200');
+    div.onclick = () => selectChat(c.id);
+    const badge = c.unread>0 ? `<span class="badge">${c.unread>99?'99+':c.unread}</span>` : '';
+    const dot = c.online ? `<span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-gray-100"></span>` : '';
+    const grpIcon = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+    div.innerHTML = `
+      <div class="relative flex-none">
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold" style="background:${c.color}">
+          ${c.group ? grpIcon : c.name[0]}
+        </div>${dot}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium text-gray-800 truncate">${c.name}</span>
+          <span class="text-xs text-gray-400 flex-none ml-1">${c.time}</span>
+        </div>
+        <div class="flex items-center justify-between mt-0.5">
+          <span class="text-xs text-gray-500 truncate">${c.lastMsg}</span>
+          <div class="flex-none ml-1">${badge}</div>
+        </div>
+      </div>`;
+    ul.appendChild(div);
+  });
+  updateTotalBadge();
+}
+
+function updateTotalBadge() {
+  const total = CONTACTS.reduce((s,c)=>s+c.unread,0);
+  const el = document.getElementById('totalBadge');
+  if (total>0) { el.textContent=total>99?'99+':total; el.style.display='flex'; }
+  else el.style.display='none';
+}
+
+function renderContactsList() {
+  const ul = document.getElementById('contactsList');
+  ul.innerHTML = '';
+  CONTACTS.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-200 cursor-pointer transition-colors';
+    div.onclick = () => { switchNav('msg'); setTimeout(()=>selectChat(c.id),50); };
+    const grpIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+    div.innerHTML = `
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-none" style="background:${c.color}">
+        ${c.group ? grpIcon : c.name[0]}
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-800">${c.name}</p>
+        <p class="text-xs text-gray-400">${c.group?'群聊':'好友'}</p>
+      </div>`;
+    ul.appendChild(div);
+  });
+}
+
+// ── SELECT CHAT ───────────────────────────────────────
+function selectChat(id) {
+  const c = CONTACTS.find(x=>x.id===id);
+  if (!c) return;
+
+  if (curId) {
+    const prev = document.getElementById('li-'+curId);
+    if (prev) prev.className = prev.className.replace('bg-gray-300','hover:bg-gray-200');
+  }
+  curId = id;
+  const curr = document.getElementById('li-'+id);
+  if (curr) curr.className = curr.className.replace('hover:bg-gray-200','bg-gray-300');
+
+  c.unread = 0;
+  renderList(CONTACTS);
+
+  // Header
+  const ha = document.getElementById('hdrAvatar');
+  ha.style.background = c.color;
+  ha.innerHTML = c.group ? `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>` : c.name[0];
+  document.getElementById('hdrName').textContent = c.name;
+  document.getElementById('hdrSub').textContent = c.group ? `${c.msgs.filter(m=>m.t!=='sys').length} 条消息` : (c.online ? '在线' : '');
+
+  // Info panel
+  const ia = document.getElementById('infoAvatar');
+  ia.style.background = c.color;
+  ia.textContent = c.name[0];
+  document.getElementById('infoName').textContent = c.name;
+
+  // Show chat window
+  document.getElementById('emptyState').classList.add('hidden');
+  const cw = document.getElementById('chatWindow');
+  cw.classList.remove('hidden');
+  cw.classList.add('flex');
+
+  renderMsgs(c);
+}
+
+// ── RENDER MESSAGES ───────────────────────────────────
+function renderMsgs(c) {
+  const area = document.getElementById('msgArea');
+  area.innerHTML = '';
+  c.msgs.forEach(m => area.appendChild(buildMsg(m, c)));
+  requestAnimationFrame(() => area.scrollTop = area.scrollHeight);
+}
+
+function buildMsg(m, c) {
+  const wrap = document.createElement('div');
+
+  if (m.t === 'sys') {
+    wrap.className = 'flex justify-center';
+    wrap.innerHTML = `<span class="text-xs text-gray-400 bg-black/5 px-3 py-1 rounded-full">${m.text}</span>`;
+    return wrap;
+  }
+
+  const isSent = m.t === 's';
+  wrap.className = `flex items-end gap-2 ${isSent ? 'flex-row-reverse' : ''}`;
+  wrap.oncontextmenu = (e) => { e.preventDefault(); showCtx(e.clientX,e.clientY); };
+
+  const avatarBg = isSent ? '#07C160' : c.color;
+  const avatarTxt = isSent ? '我' : (m.sender ? m.sender[0] : c.name[0]);
+  const avatarEl = `<div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-none" style="background:${avatarBg}">${avatarTxt}</div>`;
+
+  let bubble;
+  if (m.file) {
+    const fileColor = isSent ? 'rgba(0,0,0,.12)' : '#EBF5FD';
+    const iconColor = isSent ? 'rgba(0,0,0,.5)' : '#1989FA';
+    bubble = `
+      <div class="${isSent?'bubble-s':'bubble-r'} flex items-center gap-3 px-4 py-3" style="max-width:220px;min-width:180px">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-none" style="background:${fileColor}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-gray-800 truncate">${m.text.replace('📎 ','')}</p>
+          <p class="text-xs text-gray-400">${m.size||'文件'}</p>
+        </div>
+      </div>`;
+  } else {
+    bubble = `<div class="${isSent?'bubble-s':'bubble-r'} px-3 py-2 text-sm text-gray-800" style="max-width:280px;word-break:break-word;line-height:1.5">${m.text}</div>`;
+  }
+
+  const sender = (!isSent && c.group && m.sender) ? `<p class="text-xs text-gray-400 mb-1 ${isSent?'text-right':'ml-1'}">${m.sender}</p>` : '';
+  const tick = isSent ? `<svg class="inline" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#07C160" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>` : '';
+  const meta = `<p class="text-xs text-gray-400 mt-0.5 ${isSent?'text-right mr-1':'ml-1'}">${m.ts||''} ${tick}</p>`;
+
+  const content = document.createElement('div');
+  content.innerHTML = `${sender}${bubble}${meta}`;
+
+  wrap.appendChild(isSent ? content : document.createRange().createContextualFragment(`${avatarEl}<div>${sender}${bubble}${meta}</div>`));
+  if (isSent) { wrap.appendChild(document.createRange().createContextualFragment(avatarEl)); wrap.insertBefore(content, wrap.firstChild); }
+  return wrap;
+}
+
+// ── SEND MESSAGE ──────────────────────────────────────
+function onMsgKey(e) {
+  if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+}
+
+function sendMsg() {
+  if (!curId) return;
+  const el = document.getElementById('msgInput');
+  const txt = el.innerText.trim();
+  if (!txt) { el.focus(); return; }
+
+  const c = CONTACTS.find(x=>x.id===curId);
+  const now = new Date();
+  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const msg = {t:'s', text:txt, ts};
+  c.msgs.push(msg);
+  c.lastMsg = txt.length>22 ? txt.slice(0,22)+'…' : txt;
+  c.time = '刚刚';
+  el.innerText = '';
+  document.getElementById('emojiBox').classList.remove('open');
+
+  const area = document.getElementById('msgArea');
+  area.appendChild(buildMsg(msg, c));
+  area.scrollTop = area.scrollHeight;
+  renderList(CONTACTS);
+
+  if (c.id!==2 && c.id!==8) {
+    const delay = 700 + Math.random()*900;
+    setTimeout(() => {
+      const reply = {t:'r', text:REPLIES[Math.floor(Math.random()*REPLIES.length)], ts};
+      if (c.group) reply.sender = c.name+'成员';
+      c.msgs.push(reply);
+      c.lastMsg = reply.text;
+      c.time = '刚刚';
+      if (curId===c.id) {
+        area.appendChild(buildMsg(reply, c));
+        area.scrollTop = area.scrollHeight;
+      } else {
+        c.unread = (c.unread||0)+1;
+      }
+      renderList(CONTACTS);
+    }, delay);
+  }
+}
+
+// ── SEARCH ────────────────────────────────────────────
+function filterList(q) {
+  document.getElementById('searchClear').style.display = q ? 'block' : 'none';
+  if (!q) { renderList(CONTACTS); return; }
+  renderList(CONTACTS.filter(c =>
+    c.name.toLowerCase().includes(q.toLowerCase()) ||
+    c.lastMsg.toLowerCase().includes(q.toLowerCase())
+  ));
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  filterList('');
+}
+
+function focusSearch() {
+  switchNav('msg');
+  setTimeout(()=>document.getElementById('searchInput').focus(),50);
+}
+
+// ── NAV SWITCHING ─────────────────────────────────────
+function switchNav(key) {
+  ['msg','contacts','fav','files','mini'].forEach(k => {
+    const nav = document.getElementById('nav-'+k);
+    const pnl = document.getElementById('panel-'+k);
+    if (k===key) {
+      if (nav) nav.classList.add('nav-on');
+      if (pnl) { pnl.classList.remove('hidden'); pnl.style.display='flex'; pnl.style.flexDirection='column'; }
+    } else {
+      if (nav) nav.classList.remove('nav-on');
+      if (pnl) { pnl.classList.add('hidden'); pnl.style.display=''; }
+    }
+  });
+  if (key!=='msg' && curId) {
+    document.getElementById('emptyState').classList.remove('hidden');
+    const cw = document.getElementById('chatWindow');
+    cw.classList.add('hidden'); cw.classList.remove('flex');
+    curId = null;
+  }
+}
+
+// ── SETTINGS ──────────────────────────────────────────
+function openSettings() {
+  const ov = document.getElementById('settingsOverlay');
+  ov.style.display = 'flex';
+  ov.style.opacity = '0';
+  setTimeout(()=>{ ov.style.transition='opacity .25s'; ov.style.opacity='1'; },10);
+}
+
+function closeSettings() {
+  const ov = document.getElementById('settingsOverlay');
+  ov.style.opacity = '0';
+  setTimeout(()=>{ ov.style.display='none'; ov.style.transition=''; },250);
+}
+
+function onOverlayClick(e) { if (e.target===document.getElementById('settingsOverlay')) closeSettings(); }
+
+function switchSettings(key, el) {
+  document.querySelectorAll('.sp').forEach(p=>p.classList.add('hidden'));
+  document.querySelectorAll('.snav-item').forEach(n=>{ n.classList.remove('snav-on'); n.style.color=''; });
+  document.getElementById('sp-'+key).classList.remove('hidden');
+  el.classList.add('snav-on');
+}
+
+// ── CHAT INFO PANEL ───────────────────────────────────
+function toggleChatInfo() {
+  chatInfoOpen = !chatInfoOpen;
+  const p = document.getElementById('chatInfoPanel');
+  if (chatInfoOpen) { p.classList.remove('hidden'); p.style.display='flex'; p.style.flexDirection='column'; }
+  else { p.classList.add('hidden'); p.style.display=''; }
+}
+
+// ── TOOLBAR ACTIONS ───────────────────────────────────
+function doScreenshot() {
+  showToast('📷 截图已完成，可粘贴到输入框发送（Alt+A）');
+}
+
+function doSendFile() {
+  if (!curId) { showToast('请先选择一个聊天'); return; }
+  const c = CONTACTS.find(x=>x.id===curId);
+  const msg = {t:'s', text:'📎 project_demo.zip', ts: nowTs(), file:true, size:'4.2 MB'};
+  c.msgs.push(msg);
+  c.lastMsg = '发送了一个文件';
+  c.time = '刚刚';
+  const area = document.getElementById('msgArea');
+  area.appendChild(buildMsg(msg, c));
+  area.scrollTop = area.scrollHeight;
+  renderList(CONTACTS);
+  showToast('📎 文件已发送');
+}
+
+function doVoice() {
+  showToast('🎤 语音消息：长按录音，松开发送（Demo）');
+}
+
+function nowTs() {
+  const n=new Date();
+  return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+}
+
+// ── CONTEXT MENU ──────────────────────────────────────
+function showCtx(x,y) {
+  const m = document.getElementById('ctxMenu');
+  m.style.left = x+'px';
+  m.style.top  = y+'px';
+  m.classList.remove('hidden');
+}
+
+function ctxAction(act) {
+  document.getElementById('ctxMenu').classList.add('hidden');
+  const msgs = {copy:'已复制到剪贴板',quote:'引用消息（Demo）',forward:'转发消息（Demo）',collect:'已添加到收藏',delete:'消息已删除'};
+  showToast(msgs[act]);
+}
+
+document.addEventListener('click', ()=>document.getElementById('ctxMenu').classList.add('hidden'));
+
+// ── TOAST ─────────────────────────────────────────────
+let _toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.style.opacity = '1';
+  t.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(()=>{
+    t.style.opacity='0';
+    t.style.transform='translateX(-50%) translateY(8px)';
+  },2400);
+}
+
+// ── KEYBOARD SHORTCUTS ────────────────────────────────
+document.addEventListener('keydown', e => {
+  if ((e.altKey && e.key==='a') || (e.altKey && e.key==='A')) doScreenshot();
+  if (e.key==='Escape') {
+    closeSettings();
+    document.getElementById('emojiBox').classList.remove('open');
+  }
+});
+
+init();
+</script>
+</body>
+</html>

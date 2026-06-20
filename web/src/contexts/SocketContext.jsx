@@ -73,9 +73,24 @@ export const SocketProvider = ({ children }) => {
       onDeliveredRef.current?.(payload);
     });
 
+    // 页面从后台恢复（手机息屏、PC 锁屏、切 Tab）时强制重连
+    // visibilitychange 比 focus/online 更可靠
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && !s.connected) {
+        s.connect();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    // 网络从离线恢复时重连
+    const onOnline = () => { if (!s.connected) s.connect(); };
+    window.addEventListener('online', onOnline);
+
     return () => {
       everConnectedRef.current = false;
       disconnectAtRef.current = 0;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
       s.disconnect();
       setSocket(null);
       setConnected(false);

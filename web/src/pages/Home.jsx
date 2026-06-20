@@ -3,6 +3,8 @@ import { showConfirm } from '../utils/toast';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
 import ChatWindow from '../components/ChatWindow';
+import ErrorBoundary from '../components/ErrorBoundary';
+import ChatWindowBoundary from '../components/ChatWindowBoundary';
 import ContactList from '../components/ContactList';
 import Profile from '../components/Profile';
 import Moments from '../components/Moments';
@@ -766,7 +768,11 @@ export default function Home() {
         {(!isMobile || showChat) && (
           <div className="home-chat-area">
             {activeConv
-              ? <ChatWindow conversation={activeConv} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} />
+              ? (
+                <ChatWindowBoundary convId={activeConv.id}>
+                  <ChatWindow key={activeConv.id} conversation={activeConv} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} />
+                </ChatWindowBoundary>
+              )
               : <WcEmpty />
             }
           </div>

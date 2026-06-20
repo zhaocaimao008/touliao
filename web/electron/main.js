@@ -9,9 +9,9 @@ const { net } = require('electron');
 
 // ── 唯一固定的配置入口 ─────────────────────────────────────
 // 客户端只硬编码这一个 URL：远程配置服务器地址。
-// 以后迁移服务器只需修改 config.vxin.com/config.json，
+// 以后迁移服务器只需修改 config.dipsin.com/config.json，
 // 客户端无需重新编译。
-const CONFIG_URL = 'https://config.vxin.com/config.json';
+const CONFIG_URL = 'https://config.dipsin.com/config.json';
 
 // ── 环境检测 ──────────────────────────────────────────────────
 const IS_DEV     = process.env.ELECTRON_DEV === '1';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { showToast, showConfirm } from '../utils/toast';
 import axios from 'axios';
@@ -198,17 +198,27 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   }, [conversation.id]);
   useEffect(() => {
     const sendRead = () => {
-      const lastMsg = messagesRef.current[messagesRef.current.length - 1];
-      if (!lastMsg) return;
-      // 使用 sendBeacon 确保页面关闭时请求也能发出
-      const body = JSON.stringify({ messageId: lastMsg.id });
-      const sent = navigator.sendBeacon?.(
-        `/api/messages/conversation/${convIdRef.current}/read`,
-        new Blob([body], { type: 'application/json' })
-      );
-      if (!sent) {
-        axios.post(`/api/messages/conversation/${convIdRef.current}/read`, { messageId: lastMsg.id }).catch(() => {});
-      }
+      try {
+        const lastMsg = messagesRef.current[messagesRef.current.length - 1];
+        if (!lastMsg) return;
+        const path = `/api/messages/conversation/${convIdRef.current}/read`;
+        const body = JSON.stringify({ messageId: lastMsg.id });
+        // 使用完整 URL（Electron file:// 下相对路径会解析到 file:/// 导致失败）
+        const base = (axios.defaults.baseURL || '').replace(/\/+$/, '');
+        const fullUrl = base ? `${base}${path}` : path;
+        // 只在 HTTP(S) 协议下使用 sendBeacon
+        if (location.protocol === 'http:' || location.protocol === 'https:') {
+          try {
+            const sent = navigator.sendBeacon?.(
+              fullUrl,
+              new Blob([body], { type: 'application/json' })
+            );
+            if (sent) return;
+          } catch { /* sendBeacon 不支持当前协议，降级 */ }
+        }
+        // 降级：fetch keepalive（兼容 file://，且能在页面关闭时投递）
+        fetch(fullUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
+      } catch { /* 清理函数中的异常静默忽略，不影响 React 卸载流程 */ }
     };
     window.addEventListener('beforeunload', sendRead);
     return () => {
@@ -362,32 +372,41 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     if (isAtBottom) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Load more on scroll to top（convIdRef 守卫防止慢响应污染新会话）
-  const handleScroll = useCallback(async () => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    // 滚动按钮：距离底部超过 300px 时显示
-    setShowScrollBtn(container.scrollTop < container.scrollHeight - container.clientHeight - 300);
-    if (loadingMore || !hasMore) return;
-    if (container.scrollTop < 60 && messages.length > 0) {
-      setLoadingMore(true);
-      const oldest    = messages[0]?.created_at;
-      const snapConvId = convIdRef.current; // 记录发请求时的会话 ID
-      try {
-        const data = await fetchMessages(oldest);
-        if (convIdRef.current !== snapConvId) return; // 已切换会话，丢弃
-        if (!data || data.length === 0) { setHasMore(false); }
-        else {
-          const prevScrollHeight = container.scrollHeight;
-          setMessages(prev => [...data, ...prev]);
-          setTimeout(() => { container.scrollTop = container.scrollHeight - prevScrollHeight; }, 0);
+  // Load more on scroll to top — RAF 节流，避免高频 scroll 事件触发多次 setState
+  const scrollRafRef = useRef(null);
+  const handleScroll = useCallback(() => {
+    if (scrollRafRef.current) return; // 已有待执行的帧，跳过
+    scrollRafRef.current = requestAnimationFrame(async () => {
+      scrollRafRef.current = null;
+      const container = messagesContainerRef.current;
+      if (!container) return;
+      const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      setShowScrollBtn(distFromBottom > 300);
+      if (loadingMore || !hasMore) return;
+      if (container.scrollTop < 60 && messages.length > 0) {
+        setLoadingMore(true);
+        const oldest     = messages[0]?.created_at;
+        const snapConvId = convIdRef.current;
+        try {
+          const data = await fetchMessages(oldest);
+          if (convIdRef.current !== snapConvId) return;
+          if (!data || data.length === 0) {
+            setHasMore(false);
+          } else {
+            // 锚定滚动位置：prepend 历史消息后保持当前视口位置不跳动
+            const prevHeight = container.scrollHeight;
+            setMessages(prev => [...data, ...prev]);
+            requestAnimationFrame(() => {
+              container.scrollTop += container.scrollHeight - prevHeight;
+            });
+          }
+        } catch (err) {
+          console.error('Failed to load more messages:', err);
+        } finally {
+          setLoadingMore(false);
         }
-      } catch (err) {
-        console.error('Failed to load more messages:', err);
-      } finally {
-        setLoadingMore(false);
       }
-    }
+    });
   }, [loadingMore, hasMore, messages, fetchMessages]);
 
   useEffect(() => {
@@ -584,7 +603,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       socket.off('message_pinned', onPinned);
       socket.off('message_unpinned', onUnpinned);
     };
-  }, [socket, conversation.id, user.id, messages, onClose]);
+  }, [socket, conversation.id, user.id, onClose]);
 
   // ── 重发失败消息（复用 pendingMsgsRef + ack 机制）─────────────
   const retryMessage = useCallback((failedMsg) => {
@@ -1203,7 +1222,9 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   // Location, Contact card, Red packet (removed)
 
   // Time dividers
-  const renderMessages = () => {
+  // useMemo：仅当消息列表本身、选择状态、高亮状态变化时重新计算，
+  // 避免输入框输入/emoji面板等无关状态变化触发全量重渲染
+  const renderedMessages = useMemo(() => {
     const items = [];
     let lastTime = 0;
     messages.forEach((msg, idx) => {
@@ -1218,7 +1239,10 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       items.push(renderMessage(msg, idx));
     });
     return items;
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, multiSelect, selectedMsgs, highlightedMsgId, conversation.id,
+      conversation.type, pinnedMessages, myGroupRole, members, groupSettings,
+      user.id, claiming]);
 
   const renderMessage = (msg, idx) => {
     if (msg.deleted) {
@@ -1635,7 +1659,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           {loadingMore && (
             <div className="wc-search-status" role="status">加载中...</div>
           )}
-          {renderMessages()}
+          {renderedMessages}
           {typingName && (
             <div className="cw-typing"><span></span><span></span><span></span> {typingName} 正在输入</div>
           )}

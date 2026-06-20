@@ -351,8 +351,8 @@ section{position:relative;z-index:1}
   <div class="container">
     <div class="reveal"><span class="section-label">🚀 立即开始</span><h2 class="section-title">随时随地，畅快沟通</h2><p class="section-sub">桌面端、移动端、Web 多平台支持，选择最适合你的方式。</p></div>
     <div class="cta-grid reveal r2">
-      <div class="cta-card" onclick="showToast('桌面版即将发布，敬请期待')"><span class="cta-card-icon">🖥️</span><div class="cta-card-t"><strong>桌面版下载</strong><span>Windows / macOS / Linux</span></div></div>
-      <div class="cta-card" onclick="showToast('移动端即将发布，敬请期待')"><span class="cta-card-icon">📱</span><div class="cta-card-t"><strong>移动端下载</strong><span>Android / iOS</span></div></div>
+      <a href="/vxin-windows-2.0.1-setup.exe" class="cta-card" download onclick="event.preventDefault();downloadFile('windows')"><span class="cta-card-icon">🖥️</span><div class="cta-card-t"><strong>桌面版下载</strong><span>Windows 安装包 (98 MB)</span></div></a>
+      <a href="/vxin-android-2.0.1-debug.apk" class="cta-card" download onclick="event.preventDefault();downloadFile('android')"><span class="cta-card-icon">📱</span><div class="cta-card-t"><strong>移动端下载</strong><span>Android APK (7.2 MB)</span></div></a>
       <a href="/app" class="cta-card"><span class="cta-card-icon">🌐</span><div class="cta-card-t"><strong>Web 版</strong><span>浏览器直接使用</span></div></a>
     </div>
   </div>
@@ -455,6 +455,25 @@ countUp(document.getElementById('stat3'),6,'');
 function showToast(msg){
   const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
   clearTimeout(t._hide);t._hide=setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ── Download handler ──
+function downloadFile(platform){
+  const urls={
+    windows:'/vxin-windows-2.0.1-setup.exe',
+    android:'/vxin-android-2.0.1-debug.apk',
+  };
+  const url=urls[platform];
+  if(!url){showToast('下载链接暂不可用');return;}
+  // 创建隐藏链接触发下载
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='';
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('正在开始下载...');
 }
 
 // ── Nav highlight ──

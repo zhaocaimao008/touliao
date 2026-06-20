@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta http-equiv="refresh" content="60">
+<title>V信自动化测试报告</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F2F2F7;color:#1C1C1E}
+.header{background:linear-gradient(135deg,#07C160,#06AE56);color:#fff;padding:28px 24px}
+.header h1{font-size:26px;font-weight:700;margin-bottom:4px}
+.header p{opacity:.8;font-size:13px}
+.badge{background:rgba(255,255,255,.2);border-radius:6px;padding:1px 8px;font-size:11px;margin-left:8px}
+.container{max-width:1200px;margin:20px auto;padding:0 14px}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px}
+.stat{background:#fff;border-radius:12px;padding:16px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.stat .num{font-size:30px;font-weight:700}
+.stat .lbl{font-size:11px;color:#8E8E93;margin-top:2px}
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.card h2{font-size:15px;margin-bottom:14px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.two-col{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#F2F2F7;padding:8px 6px;text-align:left;font-weight:600}
+td{padding:7px 6px;border-bottom:1px solid #F2F2F7;vertical-align:top;word-break:break-word}
+tr:last-child td{border-bottom:none}
+.sev{display:inline-block;padding:2px 7px;border-radius:9px;color:#fff;font-size:10px;font-weight:600}
+.metrics{display:flex;flex-wrap:wrap;gap:18px}
+.metric{text-align:center;min-width:80px}
+.metric .val{font-size:24px;font-weight:700;color:#07C160}
+code{background:#F2F2F7;padding:1px 5px;border-radius:4px;font-size:11px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>《V信自动化测试报告》<span class="badge">24/7</span></h1>
+  <p>更新: 2026/5/31 14:11:08 · 60s自刷新 · 累计 56 轮 · 规模: 100 bots / 100,000 消息 / 100 群</p>
+</div>
+<div class="container">
+
+<div class="summary">
+  <div class="stat"><div class="num" style="color:#07C160">92</div><div class="lbl">本轮通过</div></div>
+  <div class="stat"><div class="num" style="color:#FF3B30">13</div><div class="lbl">本轮失败</div></div>
+  <div class="stat"><div class="num" style="color:#FF3B30">3</div><div class="lbl">Critical</div></div>
+  <div class="stat"><div class="num" style="color:#FF9500">4</div><div class="lbl">High</div></div>
+  <div class="stat"><div class="num" style="color:#FFCC00">6</div><div class="lbl">Medium</div></div>
+  <div class="stat"><div class="num" style="color:#07C160">88%</div><div class="lbl">通过率</div></div>
+  <div class="stat"><div class="num">56</div><div class="lbl">累计轮次</div></div>
+  <div class="stat"><div class="num">19MB</div><div class="lbl">当前Heap</div></div>
+</div>
+
+
+  <div class="card">
+    <h2>📈 测试轮次趋势（最近 30 轮）</h2>
+    <canvas id="trendChart" height="90"></canvas>
+  </div>
+  <script>
+  (function(){
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ["#2","#3","#4","#5","#6","#7","#8","#9","#10","#11","#12","#13","#14","#15","#16","#17","#18","#19","#20","#21","#22","#23","#24","#25","#26","#27","#28","#1","#2","#3"],
+        datasets: [
+          { label: '通过率%', data: [95,94,94,94,95,95,95,95,95,95,95,95,95,95,95,95,94,95,94,94,94,94,94,94,94,94,94,92,87,88], borderColor:'#07C160', backgroundColor:'rgba(7,193,96,.08)', yAxisID:'y', tension:.3, fill:true },
+          { label: '失败数',  data: [4,7,9,11,13,15,17,19,21,23,25,27,29,31,33,36,39,41,44,46,48,50,52,55,58,62,70,3,9,13],  borderColor:'#FF3B30', backgroundColor:'rgba(255,59,48,.08)', yAxisID:'y2', tension:.3, fill:false },
+          { label: '平均延迟ms', data: [903,874,844,869,883,887,921,854,935,913,910,890,902,919,898,899,874,955,953,945,915,1001,1003,1270,902,903,1013,451,null,374],  borderColor:'#FF9500', yAxisID:'y2', tension:.3, fill:false, borderDash:[4,4] },
+          { label: '吞吐msg/s', data: [55,57,59,57,57,56,54,58,53,55,55,56,55,54,56,56,57,52,52,53,55,50,50,39,55,5,49,111,null,55], borderColor:'#5856D6', yAxisID:'y2', tension:.3, fill:false, borderDash:[2,4] },
+        ]
+      },
+      options: {
+        responsive:true, interaction:{mode:'index',intersect:false},
+        plugins:{legend:{position:'top'}},
+        scales:{
+          y:  {type:'linear',position:'left', min:0,max:100,title:{display:true,text:'通过率%'}},
+          y2: {type:'linear',position:'right',min:0,grid:{drawOnChartArea:false},title:{display:true,text:'数量/ms'}},
+        }
+      }
+    });
+  })();
+  </script>
+
+  <div class="card">
+    <h2>💾 内存趋势（最近 50 个采样点）</h2>
+    <canvas id="memChart" height="90"></canvas>
+  </div>
+  <script>
+  (function(){
+    const ctx = document.getElementById('memChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ["09:01:23","09:08:47","09:09:41","09:14:41","09:18:47","09:23:02","09:28:02","09:28:47","09:36:22","09:38:48","09:41:22","09:48:48","09:49:37","09:54:37","09:58:48","10:02:57","10:07:57","10:08:48","10:16:19","10:18:48","10:21:19","10:28:48","10:29:44","10:34:44","10:38:48","10:43:08","10:48:08","10:48:48","10:56:54","10:58:48","11:01:54","11:08:48","11:10:17","11:15:17","11:18:48","11:23:37","11:28:37","11:28:48","11:37:10","11:38:48","11:42:10","13:42:02","13:42:02","13:49:53","13:52:01","13:54:53","13:57:48","14:02:01","14:02:48","14:11:08"],
+        datasets: [
+          { label: 'RSS MB',     data: [90,135,136,90,134,135,91,112,136,91,92,136,137,92,138,139,93,116,139,94,94,138,139,93,139,140,96,117,112,112,112,141,143,142,143,145,146,143,145,145,145,72,85,134,91,91,131,90,90,96],   borderColor:'#5856D6', tension:.2, fill:false },
+          { label: 'Heap MB',    data: [13,20,34,13,32,35,13,21,31,13,13,32,31,13,29,30,13,23,36,13,13,35,31,13,30,32,14,25,25,23,23,30,39,26,21,36,37,28,29,32,32,12,14,22,14,14,24,15,15,19],  borderColor:'#FF9500', tension:.2, fill:false },
+          { label: 'EL Lag ms',  data: [0,2,11,0,1,9,0,1,11,0,0,13,9,0,1,13,1,0,11,0,0,6,9,0,1,11,1,0,18,0,0,2,11,0,1,0,0,0,11,0,1,335,4,13,0,0,1,0,0,1], borderColor:'#FF3B30', tension:.2, fill:false, yAxisID:'y2', borderDash:[4,4] },
+        ]
+      },
+      options: {
+        responsive:true, interaction:{mode:'index',intersect:false},
+        plugins:{legend:{position:'top'}},
+        scales:{
+          y:  {type:'linear',position:'left', min:0,title:{display:true,text:'MB'}},
+          y2: {type:'linear',position:'right',min:0,grid:{drawOnChartArea:false},title:{display:true,text:'ms'}},
+        }
+      }
+    });
+  })();
+  </script>
+
+  <div class="card">
+    <h2>⚡ 压力测试（100 bots / 100,000 消息目标）</h2>
+    <div class="metrics">
+      <div class="metric"><div class="val">16,727</div><div>发送消息</div></div>
+      <div class="metric"><div class="val" style="color:#FF3B30">10%</div><div>错误率</div></div>
+      <div class="metric"><div class="val">55</div><div>msg/s</div></div>
+      <div class="metric"><div class="val" style="color:#07C160">374ms</div><div>平均延迟</div></div>
+      <div class="metric"><div class="val">455ms</div><div>P95延迟</div></div>
+      <div class="metric"><div class="val">510ms</div><div>P99延迟</div></div>
+      <div class="metric"><div class="val">133MB</div><div>峰值RSS</div></div>
+      <div class="metric"><div class="val">34MB</div><div>峰值Heap</div></div>
+    </div>
+  </div>
+
+<div class="two-col">
+  <div class="card">
+    <h2>🗺 功能覆盖矩阵 (34 项)</h2>
+    <table><tr><th>功能</th><th>状态</th></tr><tr><td>注册/登录</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>好友关系</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>单聊发送接收</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>消息撤回</td><td style="color:#8E8E93;font-weight:600">⬜ 未覆盖</td></tr><tr><td>引用回复</td><td style="color:#8E8E93;font-weight:600">⬜ 未覆盖</td></tr><tr><td>未读计数</td><td style="color:#8E8E93;font-weight:600">⬜ 未覆盖</td></tr><tr><td>消息历史</td><td style="color:#8E8E93;font-weight:600">⬜ 未覆盖</td></tr><tr><td>断线补拉</td><td style="color:#8E8E93;font-weight:600">⬜ 未覆盖</td></tr><tr><td>群创建</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>群消息广播</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>@成员</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>群公告</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>群昵称</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>全群禁言</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>踢人</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>多端消息同步</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>多端撤回同步</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>多端已读同步</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>部分端断线</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>全端断线离线</td><td style="color:#FF3B30;font-weight:600">❌ 失败</td></tr><tr><td>PNG上传</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>EXE拦截</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>MIME伪造拦截</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>断网补拉</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>多次随机断线</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>设备切换</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>并发断线恢复</td><td style="color:#FF3B30;font-weight:600">❌ 失败</td></tr><tr><td>DB并发写入</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>DB全文搜索</td><td style="color:#FF3B30;font-weight:600">❌ 失败</td></tr><tr><td>DB分页拉取</td><td style="color:#FF3B30;font-weight:600">❌ 失败</td></tr><tr><td>随机机器人</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>压测错误率</td><td style="color:#FF3B30;font-weight:600">❌ 失败</td></tr><tr><td>压测延迟</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr><tr><td>压测吞吐量</td><td style="color:#07C160;font-weight:600">✅ 通过</td></tr></table>
+  </div>
+  <div class="card">
+    <h2>❌ 失败项 (13)</h2>
+    <div style="overflow-x:auto"><table><tr><th>时间</th><th>级别</th><th>测试</th><th>错误</th></tr>
+    <tr>
+      <td>2026-05-31 13:42:02</td>
+      <td><span class="sev" style="background:#FF3B30">🔴 CRITICAL</span></td>
+      <td><code>singleChat:tests</code></td>
+      <td>AxiosError: Request failed with status code 404</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 13:42:11</td>
+      <td><span class="sev" style="background:#FFCC00">🟡 MEDIUM</span></td>
+      <td><code>multiDevice:allDisconnect</code></td>
+      <td>Error: 状态为 online，应为 offline</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 13:42:31</td>
+      <td><span class="sev" style="background:#FF9500">🟠 HIGH</span></td>
+      <td><code>networkChaos:massBroadcastDisconnect</code></td>
+      <td>Error: 断线后无法发消息</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 13:54:53</td>
+      <td><span class="sev" style="background:#FF3B30">🔴 CRITICAL</span></td>
+      <td><code>singleChat:tests</code></td>
+      <td>AxiosError: Request failed with status code 404</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 13:55:03</td>
+      <td><span class="sev" style="background:#FFCC00">🟡 MEDIUM</span></td>
+      <td><code>multiDevice:allDisconnect</code></td>
+      <td>Error: 状态为 online，应为 offline</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 13:55:25</td>
+      <td><span class="sev" style="background:#FF9500">🟠 HIGH</span></td>
+      <td><code>networkChaos:massBroadcastDisconnect</code></td>
+      <td>Error: 断线后无法发消息</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 13:57:46</td>
+      <td><span class="sev" style="background:#FFCC00">🟡 MEDIUM</span></td>
+      <td><code>dbStress:search</code></td>
+      <td>Error: 搜索失败 50 次</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 13:57:48</td>
+      <td><span class="sev" style="background:#FFCC00">🟡 MEDIUM</span></td>
+      <td><code>dbStress:pagination</code></td>
+      <td>Error: 分页失败 50 次</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 13:57:48</td>
+      <td><span class="sev" style="background:#FFCC00">🟡 MEDIUM</span></td>
+      <td><code>loop:stressGroup</code></td>
+      <td>AggregateError</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 14:02:49</td>
+      <td><span class="sev" style="background:#FF3B30">🔴 CRITICAL</span></td>
+      <td><code>singleChat:tests</code></td>
+      <td>AxiosError: Request failed with status code 404</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 14:02:59</td>
+      <td><span class="sev" style="background:#FFCC00">🟡 MEDIUM</span></td>
+      <td><code>multiDevice:allDisconnect</code></td>
+      <td>Error: 状态为 online，应为 offline</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 14:03:22</td>
+      <td><span class="sev" style="background:#FF9500">🟠 HIGH</span></td>
+      <td><code>networkChaos:massBroadcastDisconnect</code></td>
+      <td>Error: 断线后无法发消息</td>
+    </tr>
+    <tr>
+      <td>2026-05-31 14:11:08</td>
+      <td><span class="sev" style="background:#FF9500">🟠 HIGH</span></td>
+      <td><code>stress:errorRate</code></td>
+      <td>Error: 错误率过高: 10%</td>
+    </tr></table></div>
+  </div>
+</div>
+
+
+  <div class="card">
+    <h2>🔍 泄漏检测 (7)</h2>
+    <table><tr><th>时间</th><th>类型</th><th>详情</th></tr>
+    <tr>
+      <td>2026-05-30 03:44:41</td>
+      <td><span class="sev" style="background:#FF3B30">MEMORY_LEAK</span></td>
+      <td>Heap 每小时增长 54MB (阈值 50MB)</td>
+    </tr>
+    <tr>
+      <td>2026-05-30 05:04:07</td>
+      <td><span class="sev" style="background:#FF3B30">MEMORY_LEAK</span></td>
+      <td>Heap 每小时增长 50MB (阈值 50MB)</td>
+    </tr>
+    <tr>
+      <td>2026-05-30 06:03:28</td>
+      <td><span class="sev" style="background:#FF3B30">MEMORY_LEAK</span></td>
+      <td>Heap 每小时增长 56MB (阈值 50MB)</td>
+    </tr>
+    <tr>
+      <td>2026-05-30 09:09:41</td>
+      <td><span class="sev" style="background:#FF3B30">MEMORY_LEAK</span></td>
+      <td>Heap 每小时增长 58MB (阈值 50MB)</td>
+    </tr>
+    <tr>
+      <td>2026-05-30 09:23:02</td>
+      <td><span class="sev" style="background:#FF3B30">MEMORY_LEAK</span></td>
+      <td>Heap 每小时增长 54MB (阈值 50MB)</td>
+    </tr>
+    <tr>
+      <td>2026-05-30 09:49:37</td>
+      <td><span class="sev" style="background:#FF3B30">MEMORY_LEAK</span></td>
+      <td>Heap 每小时增长 50MB (阈值 50MB)</td>
+    </tr>
+    <tr>
+      <td>2026-05-30 11:10:17</td>
+      <td><span class="sev" style="background:#FF3B30">MEMORY_LEAK</span></td>
+      <td>Heap 每小时增长 68MB (阈值 50MB)</td>
+    </tr></table>
+  </div>
+
+  <div class="card">
+    <h2>📋 历史轮次（最近20轮）</h2>
+    <div style="overflow-x:auto">
+    <table>
+      <tr><th>轮</th><th>时间</th><th>通过</th><th>失败</th><th>通过率</th><th>耗时</th><th>压测：消息|错误率|吞吐|延迟</th></tr>
+      
+    <tr>
+      <td>#3</td>
+      <td>2026-05-31 14:11:08</td>
+      <td style="color:#07C160">92</td>
+      <td style="color:#FF3B30">13</td>
+      <td style="color:#07C160">88%</td>
+      <td>500s</td>
+      <td>16,727 | 10% | 55msg/s | 374ms</td>
+    </tr>
+    <tr>
+      <td>#2</td>
+      <td>2026-05-31 13:57:48</td>
+      <td style="color:#07C160">61</td>
+      <td style="color:#FF3B30">9</td>
+      <td style="color:#07C160">87%</td>
+      <td>175s</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>#1</td>
+      <td>2026-05-31 13:49:53</td>
+      <td style="color:#07C160">34</td>
+      <td style="color:#FF3B30">3</td>
+      <td style="color:#07C160">92%</td>
+      <td>471s</td>
+      <td>33,266 | 0% | 111msg/s | 451ms</td>
+    </tr>
+    <tr>
+      <td>#28</td>
+      <td>2026-05-30 11:37:10</td>
+      <td style="color:#07C160">1027</td>
+      <td style="color:#FF3B30">70</td>
+      <td style="color:#07C160">94%</td>
+      <td>513s</td>
+      <td>14,822 | 0% | 49msg/s | 1013ms</td>
+    </tr>
+    <tr>
+      <td>#27</td>
+      <td>2026-05-30 11:23:37</td>
+      <td style="color:#07C160">998</td>
+      <td style="color:#FF3B30">62</td>
+      <td style="color:#07C160">94%</td>
+      <td>501s</td>
+      <td>1,496 | 65% | 5msg/s | 903ms</td>
+    </tr>
+    <tr>
+      <td>#26</td>
+      <td>2026-05-30 11:10:17</td>
+      <td style="color:#07C160">963</td>
+      <td style="color:#FF3B30">58</td>
+      <td style="color:#07C160">94%</td>
+      <td>503s</td>
+      <td>16,648 | 0% | 55msg/s | 902ms</td>
+    </tr>
+    <tr>
+      <td>#25</td>
+      <td>2026-05-30 10:56:54</td>
+      <td style="color:#07C160">926</td>
+      <td style="color:#FF3B30">55</td>
+      <td style="color:#07C160">94%</td>
+      <td>526s</td>
+      <td>11,848 | 0% | 39msg/s | 1270ms</td>
+    </tr>
+    <tr>
+      <td>#24</td>
+      <td>2026-05-30 10:43:08</td>
+      <td style="color:#07C160">890</td>
+      <td style="color:#FF3B30">52</td>
+      <td style="color:#07C160">94%</td>
+      <td>504s</td>
+      <td>14,987 | 0% | 50msg/s | 1003ms</td>
+    </tr>
+    <tr>
+      <td>#23</td>
+      <td>2026-05-30 10:29:44</td>
+      <td style="color:#07C160">853</td>
+      <td style="color:#FF3B30">50</td>
+      <td style="color:#07C160">94%</td>
+      <td>506s</td>
+      <td>15,012 | 0% | 50msg/s | 1001ms</td>
+    </tr>
+    <tr>
+      <td>#22</td>
+      <td>2026-05-30 10:16:19</td>
+      <td style="color:#07C160">816</td>
+      <td style="color:#FF3B30">48</td>
+      <td style="color:#07C160">94%</td>
+      <td>501s</td>
+      <td>16,415 | 0% | 55msg/s | 915ms</td>
+    </tr>
+    <tr>
+      <td>#21</td>
+      <td>2026-05-30 10:02:57</td>
+      <td style="color:#07C160">779</td>
+      <td style="color:#FF3B30">46</td>
+      <td style="color:#07C160">94%</td>
+      <td>500s</td>
+      <td>15,900 | 0% | 53msg/s | 945ms</td>
+    </tr>
+    <tr>
+      <td>#20</td>
+      <td>2026-05-30 09:49:37</td>
+      <td style="color:#07C160">742</td>
+      <td style="color:#FF3B30">44</td>
+      <td style="color:#07C160">94%</td>
+      <td>495s</td>
+      <td>15,770 | 0% | 52msg/s | 953ms</td>
+    </tr>
+    <tr>
+      <td>#19</td>
+      <td>2026-05-30 09:36:22</td>
+      <td style="color:#07C160">705</td>
+      <td style="color:#FF3B30">41</td>
+      <td style="color:#07C160">95%</td>
+      <td>499s</td>
+      <td>15,731 | 0% | 52msg/s | 955ms</td>
+    </tr>
+    <tr>
+      <td>#18</td>
+      <td>2026-05-30 09:23:02</td>
+      <td style="color:#07C160">668</td>
+      <td style="color:#FF3B30">39</td>
+      <td style="color:#07C160">94%</td>
+      <td>502s</td>
+      <td>17,193 | 0% | 57msg/s | 874ms</td>
+    </tr>
+    <tr>
+      <td>#17</td>
+      <td>2026-05-30 09:09:41</td>
+      <td style="color:#07C160">631</td>
+      <td style="color:#FF3B30">36</td>
+      <td style="color:#07C160">95%</td>
+      <td>497s</td>
+      <td>16,716 | 0% | 56msg/s | 899ms</td>
+    </tr>
+    <tr>
+      <td>#16</td>
+      <td>2026-05-30 08:56:23</td>
+      <td style="color:#07C160">594</td>
+      <td style="color:#FF3B30">33</td>
+      <td style="color:#07C160">95%</td>
+      <td>498s</td>
+      <td>16,734 | 0% | 56msg/s | 898ms</td>
+    </tr>
+    <tr>
+      <td>#15</td>
+      <td>2026-05-30 08:43:06</td>
+      <td style="color:#07C160">557</td>
+      <td style="color:#FF3B30">31</td>
+      <td style="color:#07C160">95%</td>
+      <td>497s</td>
+      <td>16,352 | 0% | 54msg/s | 919ms</td>
+    </tr>
+    <tr>
+      <td>#14</td>
+      <td>2026-05-30 08:29:48</td>
+      <td style="color:#07C160">520</td>
+      <td style="color:#FF3B30">29</td>
+      <td style="color:#07C160">95%</td>
+      <td>500s</td>
+      <td>16,646 | 0% | 55msg/s | 902ms</td>
+    </tr>
+    <tr>
+      <td>#13</td>
+      <td>2026-05-30 08:16:28</td>
+      <td style="color:#07C160">483</td>
+      <td style="color:#FF3B30">27</td>
+      <td style="color:#07C160">95%</td>
+      <td>502s</td>
+      <td>16,885 | 0% | 56msg/s | 890ms</td>
+    </tr>
+    <tr>
+      <td>#12</td>
+      <td>2026-05-30 08:03:06</td>
+      <td style="color:#07C160">446</td>
+      <td style="color:#FF3B30">25</td>
+      <td style="color:#07C160">95%</td>
+      <td>500s</td>
+      <td>16,517 | 0% | 55msg/s | 910ms</td>
+    </tr>
+    </table>
+    </div>
+  </div>
+
+<div class="card">
+  <h2>✅ 通过项（最近 50 条）</h2>
+  <table><tr><th>时间</th><th>测试</th><th>详情</th></tr><tr><td>14:11:08</td><td><code>stress:throughput</code></td><td>吞吐量 55 msg/s</td></tr><tr><td>14:11:08</td><td><code>stress:latency</code></td><td>平均延迟 374ms ≤ 500ms</td></tr><tr><td>14:06:01</td><td><code>dbStress:pagination</code></td><td>50 次分页 P95=9ms</td></tr><tr><td>14:05:59</td><td><code>dbStress:search</code></td><td>50 次搜索 P95=2091ms</td></tr><tr><td>14:05:37</td><td><code>dbStress:write</code></td><td>4000 条写入全部成功 P95=65ms</td></tr><tr><td>14:05:25</td><td><code>randomBots:completed</code></td><td>100 bots 活动结束</td></tr><tr><td>14:03:20</td><td><code>networkChaos:deviceSwitch</code></td><td>设备切换 web→desktop→mobile 均正常</td></tr><tr><td>14:03:19</td><td><code>networkChaos:randomDisconnects</code></td><td>10 次随机断线均无崩溃</td></tr><tr><td>14:03:05</td><td><code>networkChaos:reconnectCatchup</code></td><td>断线 3s 后补拉 3 条成功</td></tr><tr><td>14:03:01</td><td><code>fileUpload:block:fake.jpg</code></td><td>EXE 伪造为 JPEG 被正确拦截 (400: 400 Invalid File Type: 文件真实类型为 application/x-msdow)</td></tr><tr><td>14:03:01</td><td><code>fileUpload:block:bad.ps1</code></td><td>PowerShell 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)</td></tr><tr><td>14:03:00</td><td><code>fileUpload:block:virus.bat</code></td><td>BAT 批处理 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)</td></tr><tr><td>14:03:00</td><td><code>fileUpload:block:hack.sh</code></td><td>Shell 脚本 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)</td></tr><tr><td>14:03:00</td><td><code>fileUpload:block:evil.exe</code></td><td>EXE 文件 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)</td></tr><tr><td>14:03:00</td><td><code>fileUpload:test.txt</code></td><td>纯文本 上传成功 (200)</td></tr><tr><td>14:03:00</td><td><code>fileUpload:test.pdf</code></td><td>PDF 文档 上传成功 (200)</td></tr><tr><td>14:02:59</td><td><code>fileUpload:test.jpg</code></td><td>JPEG 图片 上传成功 (200)</td></tr><tr><td>14:02:59</td><td><code>fileUpload:test.png</code></td><td>PNG 图片 上传成功 (200)</td></tr><tr><td>14:02:58</td><td><code>multiDevice:partialDisconnect</code></td><td>2端断线后1端在线，状态仍为 online</td></tr><tr><td>14:02:58</td><td><code>multiDevice:readSync</code></td><td>已读后服务端未读数归零</td></tr><tr><td>14:02:57</td><td><code>multiDevice:recallSync</code></td><td>撤回同步到多端</td></tr><tr><td>14:02:57</td><td><code>multiDevice:messageSyncAll3</code></td><td>消息同步到全部3端</td></tr><tr><td>14:02:55</td><td><code>groupChat:bulkCreate</code></td><td>100 个群创建完成</td></tr><tr><td>14:02:49</td><td><code>groupChat:kick</code></td><td>踢人事件正常推送</td></tr><tr><td>14:02:49</td><td><code>groupChat:muteAll</code></td><td>全群禁言拦截正常</td></tr><tr><td>14:02:49</td><td><code>groupChat:nickname</code></td><td>群昵称设置正常</td></tr><tr><td>14:02:49</td><td><code>groupChat:announcement</code></td><td>群公告设置读取正常</td></tr><tr><td>14:02:49</td><td><code>groupChat:atMention</code></td><td>@成员消息正常传递</td></tr><tr><td>14:02:49</td><td><code>groupChat:broadcast</code></td><td>群消息广播正常</td></tr><tr><td>14:02:49</td><td><code>groupChat:create</code></td><td>群 59de07f7 创建成功，6 人</td></tr><tr><td>14:02:49</td><td><code>singleChat:sendReceive</code></td><td>Test 1780236169177</td></tr><tr><td>13:57:39</td><td><code>dbStress:write</code></td><td>4000 条写入全部成功 P95=53ms</td></tr><tr><td>13:57:28</td><td><code>randomBots:completed</code></td><td>100 bots 活动结束</td></tr><tr><td>13:55:23</td><td><code>networkChaos:deviceSwitch</code></td><td>设备切换 web→desktop→mobile 均正常</td></tr><tr><td>13:55:22</td><td><code>networkChaos:randomDisconnects</code></td><td>10 次随机断线均无崩溃</td></tr><tr><td>13:55:10</td><td><code>networkChaos:reconnectCatchup</code></td><td>断线 3s 后补拉 3 条成功</td></tr><tr><td>13:55:05</td><td><code>fileUpload:block:fake.jpg</code></td><td>EXE 伪造为 JPEG 被正确拦截 (400: 400 Invalid File Type: 文件真实类型为 application/x-msdow)</td></tr><tr><td>13:55:05</td><td><code>fileUpload:block:bad.ps1</code></td><td>PowerShell 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)</td></tr><tr><td>13:55:05</td><td><code>fileUpload:block:virus.bat</code></td><td>BAT 批处理 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)</td></tr><tr><td>13:55:05</td><td><code>fileUpload:block:hack.sh</code></td><td>Shell 脚本 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)</td></tr><tr><td>13:55:05</td><td><code>fileUpload:block:evil.exe</code></td><td>EXE 文件 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)</td></tr><tr><td>13:55:04</td><td><code>fileUpload:test.txt</code></td><td>纯文本 上传成功 (200)</td></tr><tr><td>13:55:04</td><td><code>fileUpload:test.pdf</code></td><td>PDF 文档 上传成功 (200)</td></tr><tr><td>13:55:04</td><td><code>fileUpload:test.jpg</code></td><td>JPEG 图片 上传成功 (200)</td></tr><tr><td>13:55:04</td><td><code>fileUpload:test.png</code></td><td>PNG 图片 上传成功 (200)</td></tr><tr><td>13:55:03</td><td><code>multiDevice:partialDisconnect</code></td><td>2端断线后1端在线，状态仍为 online</td></tr><tr><td>13:55:02</td><td><code>multiDevice:readSync</code></td><td>已读后服务端未读数归零</td></tr><tr><td>13:55:02</td><td><code>multiDevice:recallSync</code></td><td>撤回同步到多端</td></tr><tr><td>13:55:01</td><td><code>multiDevice:messageSyncAll3</code></td><td>消息同步到全部3端</td></tr><tr><td>13:55:00</td><td><code>groupChat:bulkCreate</code></td><td>100 个群创建完成</td></tr></table>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,355 @@
+{
+  "title": "V信上线前最终验收报告",
+  "generatedAt": "2026-05-30T14:03:49.731Z",
+  "verdict": "PASS",
+  "summary": {
+    "rounds": 1,
+    "totalPass": 47,
+    "totalFail": 0,
+    "passRate": "100%",
+    "hasCritical": false
+  },
+  "roundSummaries": [
+    {
+      "round": 1,
+      "passed": 47,
+      "failed": 0,
+      "skipped": 0,
+      "total": 47,
+      "elapsed": 8,
+      "criticals": 0,
+      "timestamp": "2026-05-30T14:03:49.730Z"
+    }
+  ],
+  "details": [
+    {
+      "suite": "消息一致性",
+      "name": "发送接收内容一致",
+      "status": "PASS",
+      "detail": "id=df2aafba",
+      "time": "2026-05-30T14:03:41.715Z"
+    },
+    {
+      "suite": "消息一致性",
+      "name": "Worker写入DB落盘",
+      "status": "PASS",
+      "detail": "id=df2aafba",
+      "time": "2026-05-30T14:03:41.772Z"
+    },
+    {
+      "suite": "消息一致性",
+      "name": "HTTP历史API能查到该消息",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:41.787Z"
+    },
+    {
+      "suite": "消息一致性",
+      "name": "DB消息时间戳单调有序",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:41.788Z"
+    },
+    {
+      "suite": "多端同步",
+      "name": "消息三端同时到达",
+      "status": "PASS",
+      "detail": "多端同步_1780149822329",
+      "time": "2026-05-30T14:03:42.333Z"
+    },
+    {
+      "suite": "多端同步",
+      "name": "撤回事件三端同步",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:42.551Z"
+    },
+    {
+      "suite": "多端同步",
+      "name": "撤回DB落盘deleted=1",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:42.551Z"
+    },
+    {
+      "suite": "多端同步",
+      "name": "2端断线后1端在线，状态=online",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:43.162Z"
+    },
+    {
+      "suite": "多端同步",
+      "name": "全部断线后状态=offline",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:43.769Z"
+    },
+    {
+      "suite": "未读同步",
+      "name": "unread-counts≥5 (=18)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:45.062Z"
+    },
+    {
+      "suite": "未读同步",
+      "name": "conversations.unreadCount≥5 (=18)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:45.070Z"
+    },
+    {
+      "suite": "未读同步",
+      "name": "标记已读后归零",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:45.485Z"
+    },
+    {
+      "suite": "未读同步",
+      "name": "DB last_read_at已更新",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:45.485Z"
+    },
+    {
+      "suite": "消息补拉",
+      "name": "补拉到全部10条",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:46.434Z"
+    },
+    {
+      "suite": "消息补拉",
+      "name": "补拉消息时间顺序正确(ASC)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:46.434Z"
+    },
+    {
+      "suite": "消息补拉",
+      "name": "补拉数(10)≤DB数(10)，无幽灵消息",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:46.434Z"
+    },
+    {
+      "suite": "消息补拉",
+      "name": "after=0 正确返回400",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:46.441Z"
+    },
+    {
+      "suite": "撤回一致性",
+      "name": "撤回Socket事件到对方",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:46.970Z"
+    },
+    {
+      "suite": "撤回一致性",
+      "name": "DB中deleted=1",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:46.970Z"
+    },
+    {
+      "suite": "撤回一致性",
+      "name": "历史API不返回已删消息",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:47.280Z"
+    },
+    {
+      "suite": "撤回一致性",
+      "name": "非发送者撤回正确拒绝(403)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:47.387Z"
+    },
+    {
+      "suite": "撤回一致性",
+      "name": "超时撤回检查：逻辑验证通过（服务端检查now-created_at>120s）",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:47.388Z"
+    },
+    {
+      "suite": "引用回复",
+      "name": "Socket事件replyTo.id正确",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:47.813Z"
+    },
+    {
+      "suite": "引用回复",
+      "name": "HTTP历史中reply_to_id正确",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:48.120Z"
+    },
+    {
+      "suite": "引用回复",
+      "name": "DB中reply_to_id落盘正确",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:48.122Z"
+    },
+    {
+      "suite": "引用回复",
+      "name": "被引用消息撤回后API不崩溃",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:48.338Z"
+    },
+    {
+      "suite": "群权限",
+      "name": "创建群成功 gid=7de7d456",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:48.350Z"
+    },
+    {
+      "suite": "群权限",
+      "name": "群主设置管理员成功",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:48.362Z"
+    },
+    {
+      "suite": "群权限",
+      "name": "普通成员修改角色被拒绝(403)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:48.367Z"
+    },
+    {
+      "suite": "群权限",
+      "name": "全群禁言后普通成员发送被拒绝",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:48.880Z"
+    },
+    {
+      "suite": "群权限",
+      "name": "解除全群禁言API无异常",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.087Z"
+    },
+    {
+      "suite": "群权限",
+      "name": "非成员访问消息历史正确拒绝(403)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.093Z"
+    },
+    {
+      "suite": "群权限",
+      "name": "踢人成功，成员列表已更新",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.307Z"
+    },
+    {
+      "suite": "群权限",
+      "name": "被踢成员发消息正确拒绝(403)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.313Z"
+    },
+    {
+      "suite": "文件权限",
+      "name": "PNG上传成功，返回file_url",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.341Z"
+    },
+    {
+      "suite": "文件权限",
+      "name": ".exe上传被拒绝(400)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.347Z"
+    },
+    {
+      "suite": "文件权限",
+      "name": "非成员上传被拒绝(403)",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.352Z"
+    },
+    {
+      "suite": "异常恢复",
+      "name": "无效token返回401",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.357Z"
+    },
+    {
+      "suite": "异常恢复",
+      "name": "超长消息被拒绝",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.665Z"
+    },
+    {
+      "suite": "异常恢复",
+      "name": "不存在会话返回403",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.670Z"
+    },
+    {
+      "suite": "异常恢复",
+      "name": "异常后服务正常响应conversations",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.674Z"
+    },
+    {
+      "suite": "DB备份",
+      "name": "备份脚本存在",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.675Z"
+    },
+    {
+      "suite": "DB备份",
+      "name": "热备份执行成功（WAL模式一致性备份）",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.719Z"
+    },
+    {
+      "suite": "DB备份",
+      "name": "备份文件存在 size=0MB",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.719Z"
+    },
+    {
+      "suite": "DB备份",
+      "name": "备份文件完整，消息数=46",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.722Z"
+    },
+    {
+      "suite": "DB备份",
+      "name": "备份消息数(46)≤生产(46)，数据一致",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.723Z"
+    },
+    {
+      "suite": "DB备份",
+      "name": "备份期间服务可用",
+      "status": "PASS",
+      "detail": "",
+      "time": "2026-05-30T14:03:49.730Z"
+    }
+  ]
+}

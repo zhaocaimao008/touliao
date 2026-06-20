@@ -1,0 +1,722 @@
+[
+  {
+    "round": 1,
+    "time": "2026-05-29T16:19:52.551Z",
+    "elapsed": 30,
+    "passed": 31,
+    "failed": 0,
+    "total": 31,
+    "passRate": 100,
+    "critical": 0,
+    "high": 0,
+    "stress": null
+  },
+  {
+    "round": 1,
+    "time": "2026-05-30T00:56:51.654Z",
+    "elapsed": 164,
+    "passed": 33,
+    "failed": 1,
+    "total": 34,
+    "passRate": 97,
+    "critical": 0,
+    "high": 1,
+    "stress": {
+      "sent": 954,
+      "errorRate": 9,
+      "avgLat": 9,
+      "p95Lat": 14
+    }
+  },
+  {
+    "round": 1,
+    "time": "2026-05-30T01:33:49.613Z",
+    "elapsed": 165,
+    "passed": 33,
+    "failed": 1,
+    "total": 34,
+    "passRate": 97,
+    "critical": 0,
+    "high": 1,
+    "stress": {
+      "sent": 955,
+      "errorRate": 9,
+      "avgLat": 10,
+      "p95Lat": 17
+    }
+  },
+  {
+    "round": 2,
+    "time": "2026-05-30T01:41:34.551Z",
+    "elapsed": 165,
+    "passed": 64,
+    "failed": 2,
+    "total": 66,
+    "passRate": 97,
+    "critical": 0,
+    "high": 2,
+    "stress": {
+      "sent": 949,
+      "errorRate": 9,
+      "avgLat": 10,
+      "p95Lat": 17
+    }
+  },
+  {
+    "round": 3,
+    "time": "2026-05-30T01:49:19.453Z",
+    "elapsed": 165,
+    "passed": 95,
+    "failed": 3,
+    "total": 98,
+    "passRate": 97,
+    "critical": 0,
+    "high": 3,
+    "stress": {
+      "sent": 943,
+      "errorRate": 9,
+      "avgLat": 9,
+      "p95Lat": 16
+    }
+  },
+  {
+    "round": 4,
+    "time": "2026-05-30T01:57:03.343Z",
+    "elapsed": 164,
+    "passed": 126,
+    "failed": 4,
+    "total": 130,
+    "passRate": 97,
+    "critical": 0,
+    "high": 4,
+    "stress": {
+      "sent": 959,
+      "errorRate": 9,
+      "avgLat": 9,
+      "p95Lat": 14
+    }
+  },
+  {
+    "round": 5,
+    "time": "2026-05-30T02:04:50.697Z",
+    "elapsed": 167,
+    "passed": 157,
+    "failed": 164,
+    "total": 321,
+    "passRate": 49,
+    "critical": 0,
+    "high": 5,
+    "stress": {
+      "sent": 961,
+      "errorRate": 76,
+      "avgLat": 10,
+      "p95Lat": 18
+    }
+  },
+  {
+    "round": 1,
+    "time": "2026-05-30T02:05:52.270Z",
+    "elapsed": 164,
+    "passed": 34,
+    "failed": 0,
+    "total": 34,
+    "passRate": 100,
+    "critical": 0,
+    "high": 0,
+    "stress": {
+      "sent": 1000,
+      "errorRate": 0,
+      "avgLat": 17,
+      "p95Lat": 38
+    }
+  },
+  {
+    "round": 6,
+    "time": "2026-05-30T02:12:34.469Z",
+    "elapsed": 164,
+    "passed": 188,
+    "failed": 165,
+    "total": 353,
+    "passRate": 53,
+    "critical": 0,
+    "high": 6,
+    "stress": {
+      "sent": 928,
+      "errorRate": 76,
+      "avgLat": 9,
+      "p95Lat": 14
+    }
+  },
+  {
+    "round": 1,
+    "time": "2026-05-30T02:18:33.801Z",
+    "elapsed": 164,
+    "passed": 34,
+    "failed": 0,
+    "total": 34,
+    "passRate": 100,
+    "critical": 0,
+    "high": 0,
+    "stress": {
+      "sent": 1000,
+      "errorRate": 0,
+      "avgLat": 21,
+      "p95Lat": 53
+    }
+  },
+  {
+    "round": 2,
+    "time": "2026-05-30T02:26:17.144Z",
+    "elapsed": 163,
+    "passed": 66,
+    "failed": 0,
+    "total": 66,
+    "passRate": 100,
+    "critical": 0,
+    "high": 0,
+    "stress": {
+      "sent": 1000,
+      "errorRate": 0,
+      "avgLat": 20,
+      "p95Lat": 47
+    }
+  },
+  {
+    "round": 3,
+    "time": "2026-05-30T02:34:00.925Z",
+    "elapsed": 164,
+    "passed": 98,
+    "failed": 0,
+    "total": 98,
+    "passRate": 100,
+    "critical": 0,
+    "high": 0,
+    "stress": {
+      "sent": 1000,
+      "errorRate": 0,
+      "avgLat": 23,
+      "p95Lat": 52
+    }
+  },
+  {
+    "round": 4,
+    "time": "2026-05-30T02:41:44.270Z",
+    "elapsed": 163,
+    "passed": 130,
+    "failed": 0,
+    "total": 130,
+    "passRate": 100,
+    "critical": 0,
+    "high": 0,
+    "stress": {
+      "sent": 1000,
+      "errorRate": 0,
+      "avgLat": 19,
+      "p95Lat": 46
+    }
+  },
+  {
+    "round": 1,
+    "time": "2026-05-30T02:52:12.354Z",
+    "elapsed": 485,
+    "passed": 39,
+    "failed": 2,
+    "total": 41,
+    "passRate": 95,
+    "critical": 0,
+    "high": 1,
+    "stress": {
+      "sent": 20681,
+      "errorRate": 0,
+      "avgLat": 726,
+      "p95Lat": 833,
+      "p99Lat": 928,
+      "throughput": 69
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 79,
+        "p95": 169,
+        "p99": 209
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 6,
+        "p95": 8,
+        "p99": 20
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 4,
+        "p95": 5,
+        "p99": 6
+      }
+    }
+  },
+  {
+    "round": 2,
+    "time": "2026-05-30T03:05:19.712Z",
+    "elapsed": 487,
+    "passed": 76,
+    "failed": 4,
+    "total": 80,
+    "passRate": 95,
+    "critical": 0,
+    "high": 2,
+    "stress": {
+      "sent": 16745,
+      "errorRate": 0,
+      "avgLat": 897,
+      "p95Lat": 1069,
+      "p99Lat": 1201,
+      "throughput": 56
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 84,
+        "p95": 193,
+        "p99": 295
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 6,
+        "p95": 9,
+        "p99": 14
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 5,
+        "p95": 6,
+        "p99": 7
+      }
+    }
+  },
+  {
+    "round": 3,
+    "time": "2026-05-30T03:18:26.444Z",
+    "elapsed": 487,
+    "passed": 113,
+    "failed": 6,
+    "total": 119,
+    "passRate": 95,
+    "critical": 0,
+    "high": 3,
+    "stress": {
+      "sent": 20054,
+      "errorRate": 0,
+      "avgLat": 749,
+      "p95Lat": 868,
+      "p99Lat": 978,
+      "throughput": 67
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 83,
+        "p95": 177,
+        "p99": 213
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 6,
+        "p95": 9,
+        "p99": 23
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 4,
+        "p95": 4,
+        "p99": 7
+      }
+    }
+  },
+  {
+    "round": 4,
+    "time": "2026-05-30T03:31:33.944Z",
+    "elapsed": 487,
+    "passed": 150,
+    "failed": 8,
+    "total": 158,
+    "passRate": 95,
+    "critical": 0,
+    "high": 4,
+    "stress": {
+      "sent": 19209,
+      "errorRate": 0,
+      "avgLat": 782,
+      "p95Lat": 913,
+      "p99Lat": 1005,
+      "throughput": 64
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 98,
+        "p95": 205,
+        "p99": 248
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 6,
+        "p95": 9,
+        "p99": 48
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 4,
+        "p95": 5,
+        "p99": 9
+      }
+    }
+  },
+  {
+    "round": 5,
+    "time": "2026-05-30T03:44:41.662Z",
+    "elapsed": 488,
+    "passed": 187,
+    "failed": 11,
+    "total": 198,
+    "passRate": 94,
+    "critical": 0,
+    "high": 6,
+    "stress": {
+      "sent": 17560,
+      "errorRate": 0,
+      "avgLat": 855,
+      "p95Lat": 1027,
+      "p99Lat": 1194,
+      "throughput": 58
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 94,
+        "p95": 200,
+        "p99": 233
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 6,
+        "p95": 9,
+        "p99": 15
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 4,
+        "p95": 5,
+        "p99": 8
+      }
+    }
+  },
+  {
+    "round": 6,
+    "time": "2026-05-30T03:57:53.654Z",
+    "elapsed": 492,
+    "passed": 224,
+    "failed": 13,
+    "total": 237,
+    "passRate": 95,
+    "critical": 0,
+    "high": 7,
+    "stress": {
+      "sent": 17578,
+      "errorRate": 0,
+      "avgLat": 854,
+      "p95Lat": 998,
+      "p99Lat": 1188,
+      "throughput": 58
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 107,
+        "p95": 222,
+        "p99": 280
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 5,
+        "p95": 8,
+        "p99": 16
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 4,
+        "p95": 5,
+        "p99": 8
+      }
+    }
+  },
+  {
+    "round": 7,
+    "time": "2026-05-30T04:11:06.118Z",
+    "elapsed": 492,
+    "passed": 261,
+    "failed": 15,
+    "total": 276,
+    "passRate": 95,
+    "critical": 0,
+    "high": 8,
+    "stress": {
+      "sent": 17001,
+      "errorRate": 0,
+      "avgLat": 884,
+      "p95Lat": 1019,
+      "p99Lat": 1126,
+      "throughput": 56
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 112,
+        "p95": 234,
+        "p99": 258
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 6,
+        "p95": 10,
+        "p99": 13
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 5,
+        "p95": 5,
+        "p99": 13
+      }
+    }
+  },
+  {
+    "round": 8,
+    "time": "2026-05-30T04:24:18.449Z",
+    "elapsed": 492,
+    "passed": 298,
+    "failed": 17,
+    "total": 315,
+    "passRate": 95,
+    "critical": 0,
+    "high": 9,
+    "stress": {
+      "sent": 17257,
+      "errorRate": 0,
+      "avgLat": 870,
+      "p95Lat": 1014,
+      "p99Lat": 1266,
+      "throughput": 57
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 115,
+        "p95": 234,
+        "p99": 273
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 5,
+        "p95": 8,
+        "p99": 25
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 4,
+        "p95": 5,
+        "p99": 14
+      }
+    }
+  },
+  {
+    "round": 9,
+    "time": "2026-05-30T04:37:34.049Z",
+    "elapsed": 496,
+    "passed": 335,
+    "failed": 19,
+    "total": 354,
+    "passRate": 95,
+    "critical": 0,
+    "high": 10,
+    "stress": {
+      "sent": 17089,
+      "errorRate": 0,
+      "avgLat": 879,
+      "p95Lat": 996,
+      "p99Lat": 1132,
+      "throughput": 57
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 127,
+        "p95": 259,
+        "p99": 301
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 5,
+        "p95": 8,
+        "p99": 17
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 4,
+        "p95": 5,
+        "p99": 25
+      }
+    }
+  },
+  {
+    "round": 10,
+    "time": "2026-05-30T04:50:50.728Z",
+    "elapsed": 497,
+    "passed": 372,
+    "failed": 21,
+    "total": 393,
+    "passRate": 95,
+    "critical": 0,
+    "high": 11,
+    "stress": {
+      "sent": 16711,
+      "errorRate": 0,
+      "avgLat": 899,
+      "p95Lat": 1016,
+      "p99Lat": 1109,
+      "throughput": 56
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 127,
+        "p95": 259,
+        "p99": 314
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 6,
+        "p95": 9,
+        "p99": 15
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 4,
+        "p95": 6,
+        "p99": 12
+      }
+    }
+  },
+  {
+    "round": 11,
+    "time": "2026-05-30T05:04:02.083Z",
+    "elapsed": 491,
+    "passed": 409,
+    "failed": 23,
+    "total": 432,
+    "passRate": 95,
+    "critical": 0,
+    "high": 12,
+    "stress": {
+      "sent": 17290,
+      "errorRate": 0,
+      "avgLat": 869,
+      "p95Lat": 978,
+      "p99Lat": 1172,
+      "throughput": 57
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 119,
+        "p95": 242,
+        "p99": 294
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 6,
+        "p95": 10,
+        "p99": 18
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 4,
+        "p95": 6,
+        "p99": 9
+      }
+    }
+  },
+  {
+    "round": 12,
+    "time": "2026-05-30T05:17:18.156Z",
+    "elapsed": 496,
+    "passed": 446,
+    "failed": 26,
+    "total": 472,
+    "passRate": 94,
+    "critical": 0,
+    "high": 14,
+    "stress": {
+      "sent": 16479,
+      "errorRate": 0,
+      "avgLat": 912,
+      "p95Lat": 1047,
+      "p99Lat": 1179,
+      "throughput": 55
+    },
+    "db": {
+      "write": {
+        "total": 4000,
+        "errors": 0,
+        "p50": 127,
+        "p95": 257,
+        "p99": 310
+      },
+      "search": {
+        "total": 50,
+        "errors": 0,
+        "p50": 6,
+        "p95": 10,
+        "p99": 16
+      },
+      "page": {
+        "total": 50,
+        "errors": 0,
+        "p50": 5,
+        "p95": 5,
+        "p99": 13
+      }
+    }
+  }
+]

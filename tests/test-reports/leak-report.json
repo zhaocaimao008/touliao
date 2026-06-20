@@ -1,0 +1,121 @@
+[
+  {
+    "time": "2026-05-30T03:44:41.657Z",
+    "type": "MEMORY_LEAK",
+    "detail": "Heap 每小时增长 54MB (阈值 50MB)",
+    "snap": {
+      "time": "2026-05-30T03:44:41.657Z",
+      "label": "round-5-end",
+      "rss": 127,
+      "heapUsed": 31,
+      "heapTotal": 57,
+      "external": 5,
+      "elLagMs": 17,
+      "handles": 100,
+      "requests": 0,
+      "socketConns": -1
+    }
+  },
+  {
+    "time": "2026-05-30T05:04:07.845Z",
+    "type": "MEMORY_LEAK",
+    "detail": "Heap 每小时增长 50MB (阈值 50MB)",
+    "snap": {
+      "time": "2026-05-30T05:04:07.845Z",
+      "label": "",
+      "rss": 126,
+      "heapUsed": 31,
+      "heapTotal": 58,
+      "external": 5,
+      "elLagMs": 0,
+      "handles": 0,
+      "requests": 0,
+      "socketConns": -1
+    }
+  },
+  {
+    "time": "2026-05-30T06:03:28.970Z",
+    "type": "MEMORY_LEAK",
+    "detail": "Heap 每小时增长 56MB (阈值 50MB)",
+    "snap": {
+      "time": "2026-05-30T06:03:28.970Z",
+      "label": "round-3-end",
+      "rss": 131,
+      "heapUsed": 35,
+      "heapTotal": 58,
+      "external": 5,
+      "elLagMs": 10,
+      "handles": 100,
+      "requests": 0,
+      "socketConns": -1
+    }
+  },
+  {
+    "time": "2026-05-30T09:09:41.023Z",
+    "type": "MEMORY_LEAK",
+    "detail": "Heap 每小时增长 58MB (阈值 50MB)",
+    "snap": {
+      "time": "2026-05-30T09:09:41.023Z",
+      "label": "round-17-end",
+      "rss": 136,
+      "heapUsed": 34,
+      "heapTotal": 59,
+      "external": 5,
+      "elLagMs": 11,
+      "handles": 100,
+      "requests": 0,
+      "socketConns": -1
+    }
+  },
+  {
+    "time": "2026-05-30T09:23:02.917Z",
+    "type": "MEMORY_LEAK",
+    "detail": "Heap 每小时增长 54MB (阈值 50MB)",
+    "snap": {
+      "time": "2026-05-30T09:23:02.917Z",
+      "label": "round-18-end",
+      "rss": 135,
+      "heapUsed": 35,
+      "heapTotal": 60,
+      "external": 5,
+      "elLagMs": 9,
+      "handles": 100,
+      "requests": 0,
+      "socketConns": -1
+    }
+  },
+  {
+    "time": "2026-05-30T09:49:37.597Z",
+    "type": "MEMORY_LEAK",
+    "detail": "Heap 每小时增长 50MB (阈值 50MB)",
+    "snap": {
+      "time": "2026-05-30T09:49:37.597Z",
+      "label": "round-20-end",
+      "rss": 137,
+      "heapUsed": 31,
+      "heapTotal": 61,
+      "external": 4,
+      "elLagMs": 9,
+      "handles": 100,
+      "requests": 0,
+      "socketConns": -1
+    }
+  },
+  {
+    "time": "2026-05-30T11:10:17.139Z",
+    "type": "MEMORY_LEAK",
+    "detail": "Heap 每小时增长 68MB (阈值 50MB)",
+    "snap": {
+      "time": "2026-05-30T11:10:17.139Z",
+      "label": "round-26-end",
+      "rss": 143,
+      "heapUsed": 39,
+      "heapTotal": 61,
+      "external": 5,
+      "elLagMs": 11,
+      "handles": 100,
+      "requests": 0,
+      "socketConns": -1
+    }
+  }
+]

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta http-equiv="refresh" content="120">
+<title>V信 24h 稳定性监控</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#F2F2F7;color:#1C1C1E}
+.header{background:linear-gradient(135deg,#1C1C1E,#3A3A3C);color:#fff;padding:28px 20px}
+.header h1{font-size:24px;font-weight:700;margin-bottom:4px}
+.header p{opacity:.7;font-size:12px}
+.container{max-width:1200px;margin:20px auto;padding:0 14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px}
+.stat{background:#fff;border-radius:12px;padding:14px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.stat .num{font-size:26px;font-weight:700}
+.stat .lbl{font-size:11px;color:#8E8E93;margin-top:3px}
+.card{background:#fff;border-radius:12px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.card h2{font-size:14px;margin-bottom:14px;font-weight:600}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.two-col{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#F2F2F7;padding:8px 6px;text-align:left;font-weight:600}
+td{padding:7px 6px;border-bottom:1px solid #F2F2F7}
+tr:last-child td{border-bottom:none}
+.ok{color:#07C160;font-weight:600}
+.warn{color:#FF9500;font-weight:600}
+.err{color:#FF3B30;font-weight:600}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>V信 24小时稳定性监控</h1>
+  <p>运行 3.8h / 24h · 剩余 20.5h · 采样 11 次 · 更新: 2026/5/30 10:28:19</p>
+</div>
+<div class="container">
+
+<div class="stats">
+  <div class="stat"><div class="num ok">6MB</div><div class="lbl">当前 Heap</div></div>
+  <div class="stat"><div class="num">82MB</div><div class="lbl">当前 RSS</div></div>
+  <div class="stat"><div class="num ok">18%</div><div class="lbl">CPU</div></div>
+  <div class="stat"><div class="num ok">1ms</div><div class="lbl">EL 延迟</div></div>
+  <div class="stat"><div class="num">116</div><div class="lbl">在线用户</div></div>
+  <div class="stat"><div class="num">919,662</div><div class="lbl">消息总数</div></div>
+  <div class="stat"><div class="num 21392MB</div><div class="lbl">DB 大小</div></div>
+  <div class="stat"><div class="num warn">2031ms</div><div class="lbl">API 延迟</div></div>
+  <div class="stat"><div class="num warn">6</div><div class="lbl">异常事件</div></div>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <h2>💾 Heap / RSS 趋势</h2>
+    <canvas id="memChart" height="120"></canvas>
+  </div>
+  <div class="card">
+    <h2>⚡ CPU / EventLoop 延迟</h2>
+    <canvas id="cpuChart" height="120"></canvas>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <h2>🔌 在线用户 / 消息增长</h2>
+    <canvas id="sockChart" height="120"></canvas>
+  </div>
+  <div class="card">
+    <h2>🌐 API 响应延迟</h2>
+    <canvas id="apiChart" height="120"></canvas>
+  </div>
+</div>
+
+<div class="card">
+  <h2>📊 指标统计摘要</h2>
+  <table>
+    <tr><th>指标</th><th>最小</th><th>平均</th><th>最大</th><th>当前</th><th>状态</th></tr>
+    <tr><td>Heap (MB)</td><td>5</td><td>5</td><td>6</td><td>6</td><td class="ok">正常</td></tr>
+    <tr><td>RSS (MB)</td><td>54</td><td>71</td><td>82</td><td>82</td><td class="ok">正常</td></tr>
+    <tr><td>CPU (%)</td><td>15</td><td>30</td><td>95</td><td>18</td><td class="warn">偏高</td></tr>
+    <tr><td>EL 延迟 (ms)</td><td>0</td><td>1</td><td>4</td><td>1</td><td class="ok">正常</td></tr>
+    <tr><td>API 延迟 (ms)</td><td>6</td><td>1038</td><td>2628</td><td>2031</td><td class="warn">偏慢</td></tr>
+  </table>
+</div>
+
+
+<div class="card">
+  <h2>⚠️ 异常事件 (6)</h2>
+  <table><tr><th>时间</th><th>类型</th><th>详情</th></tr>
+    <tr><td>2026-05-30 06:40:09</td>
+        <td><span style="background:#FF9500;color:#fff;padding:2px 8px;border-radius:8px;font-size:11px">API_SLOW</span></td>
+        <td>API 延迟 2304ms</td></tr>
+    <tr><td>2026-05-30 06:40:09</td>
+        <td><span style="background:#FF9500;color:#fff;padding:2px 8px;border-radius:8px;font-size:11px">CPU_HIGH</span></td>
+        <td>CPU 95%</td></tr>
+    <tr><td>2026-05-30 07:58:18</td>
+        <td><span style="background:#FF9500;color:#fff;padding:2px 8px;border-radius:8px;font-size:11px">API_SLOW</span></td>
+        <td>API 延迟 2174ms</td></tr>
+    <tr><td>2026-05-30 08:28:18</td>
+        <td><span style="background:#FF9500;color:#fff;padding:2px 8px;border-radius:8px;font-size:11px">API_SLOW</span></td>
+        <td>API 延迟 2153ms</td></tr>
+    <tr><td>2026-05-30 09:58:19</td>
+        <td><span style="background:#FF9500;color:#fff;padding:2px 8px;border-radius:8px;font-size:11px">API_SLOW</span></td>
+        <td>API 延迟 2628ms</td></tr>
+    <tr><td>2026-05-30 10:28:19</td>
+        <td><span style="background:#FF9500;color:#fff;padding:2px 8px;border-radius:8px;font-size:11px">API_SLOW</span></td>
+        <td>API 延迟 2031ms</td></tr></table>
+</div>
+
+</div>
+
+<script>
+const LABELS = ["06:40","06:57","06:57","06:58","07:28","07:58","08:28","08:58","09:28","09:58","10:28"];
+function mkChart(id, datasets, withY2=false) {
+  const ctx = document.getElementById(id).getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: { labels: LABELS, datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8 } },
+        y: { type: 'linear', position: 'left' },
+            ...(withY2 ? { y2: { type: 'linear', position: 'right', grid: { drawOnChartArea: false } } } : {})
+      }
+    }
+  });
+}
+
+mkChart('memChart', [
+  { label: 'Heap MB', data: [5,5,5,5,5,5,5,5,6,6,6], borderColor: '#5856D6', tension: .2, fill: false },
+  { label: 'RSS MB',  data: [54,54,54,54,81,81,81,81,81,82,82],  borderColor: '#FF9500', tension: .2, fill: false },
+], false);
+mkChart('cpuChart', [
+  { label: 'CPU %',    data: [95,43,42,26,16,19,19,16,15,17,18], borderColor: '#FF3B30', tension: .2, fill: false },
+  { label: 'EL 延迟ms', data: [4,2,2,2,0,0,1,0,1,0,1],  borderColor: '#FFCC00', tension: .2, fill: false, yAxisID: 'y2' },
+], true);
+mkChart('sockChart', [
+  { label: '在线用户', data: [116,16,16,16,16,116,116,16,16,116,116],  borderColor: '#07C160', tension: .2, fill: false },
+  { label: '消息数÷1000', data: [495523,531225,531225,531225,581618,639294,699719,754369,804432,861439,919662].map(v=>v?Math.round(v/1000):null), borderColor: '#5856D6', tension: .2, fill: false, yAxisID: 'y2' },
+], true);
+mkChart('apiChart', [
+  { label: 'API 延迟ms', data: [2304,35,32,31,12,2174,2153,6,9,2628,2031], borderColor: '#FF9500', tension: .2, fill: false },
+], false);
+</script>
+</body>
+</html>

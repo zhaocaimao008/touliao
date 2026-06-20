@@ -1,10 +1,6 @@
 'use strict';
 
-/**
- * 截图模块 — 使用 Electron desktopCapturer 截取全屏区域。
- * 返回截图图片的临时文件路径。
- */
-const { desktopCapturer, screen } = require('electron');
+const { desktopCapturer, screen, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 

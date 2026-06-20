@@ -1,42 +1,26 @@
 {
-  "release": "vxin-v2.0.0",
-  "buildTime": "2026-06-19T14:50:00+08:00",
-  "gitCommit": "3845bf5",
+  "version": "2.0.1",
+  "build_time": "2026-06-20T02:25:41Z",
   "files": {
-    "vxin-windows-2.0.0-setup.exe": {
-      "size": 70385867,
-      "sizeHuman": "67.1 MB",
-      "sha256": "36ef978cb45db70c7e5f6a440af02458222ec5fb784b282314420d6256f05163"
+    "vxin-windows-2.0.1-setup.exe": {
+      "sha256": "7206983c6978ebaeaf44d07730ca821dfa969c6999e654aa9d022e69150da137",
+      "size_bytes": 101905215
     },
-    "vxin-android-2.0.0-debug.apk": {
-      "size": 7309421,
-      "sizeHuman": "7.0 MB",
-      "sha256": "7ad1ba5e2a99778e0adbe833111543e1daaa64fbb403299075d5d24e8b4f5651"
+    "vxin-android-2.0.1-debug.apk": {
+      "sha256": "362fee27a4f9ad8db8367673fad27425231ac6d8c82f96fc4f521255f4a1e65e",
+      "size_bytes": 7518838
     },
-    "vxin-web-dist.zip": {
-      "size": 207305,
-      "sizeHuman": "0.2 MB",
-      "sha256": "32c41655cfd67fc711789b5db1edb5301457256cf949cb18e8b7b51be315418f"
+    "vxin-web-dist-2.0.1.zip": {
+      "sha256": "414e08b62d755f6572627d31ee1716f03ffdf62f08788df501e6f293fbe189c3",
+      "size_bytes": 207604
     },
-    "vxin-ios-project.zip": {
-      "size": 370774,
-      "sizeHuman": "0.4 MB",
-      "sha256": "c7f08dc1cff477f8b4addd46b55ae9634daf959ae6d507a1db9de2e55e2a5a04"
+    "vxin-ios-project-2.0.1.zip": {
+      "sha256": "5dda0c19c3741fab4cad5a688b6bc8b2c7ef10ecf2b3034e8ea0f1fe9187dbf1",
+      "size_bytes": 371072
     },
-    "BASELINE-REPORT.md": {
-      "size": 10117,
-      "sizeHuman": "9.9 KB",
-      "sha256": "cb75f90fe945c510dc797dfe68514b06fb4cedec4908b695d080f8b4e453ce32"
-    },
-    "BUILD.md": {
-      "size": 6282,
-      "sizeHuman": "6.1 KB",
-      "sha256": "88d0a098edbc175d4ef57a93097698c8a56d20bfff8fe1cc438dacd14e2dcfa8"
-    },
-    "README_RELEASE.md": {
-      "size": 4799,
-      "sizeHuman": "4.7 KB",
-      "sha256": "9808405e2e58d9bee9ca40ef5abbb728f551d725899ecccda55d3e80ebfd95c4"
+    "config.example.json": {
+      "sha256": "a96b402ae354915e2f527fa2adc03e4692593a032d12660fcde3a74659f6001e",
+      "size_bytes": 167
     }
   }
 }

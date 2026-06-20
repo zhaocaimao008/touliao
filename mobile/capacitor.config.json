@@ -6,7 +6,7 @@
   "server": {
     "cleartext": false,
     "allowNavigation": [
-      "config.vxin.com",
+      "config.dipsin.com",
       "*.vxin.com",
       "api.vxin.com",
       "ws.vxin.com",
@@ -16,7 +16,7 @@
   "android": {
     "allowMixedContent": false,
     "captureInput": true,
-    "webContentsDebuggingEnabled": true,
+    "webContentsDebuggingEnabled": false,
     "backgroundColor": "#1A2033",
     "minSdkVersion": 24,
     "targetSdkVersion": 34,
@@ -26,7 +26,8 @@
     "contentInset": "always",
     "backgroundColor": "#1A2033",
     "minVersion": "15.0",
-    "preferredContentMode": "mobile"
+    "preferredContentMode": "mobile",
+    "limitsNavigationsToAppBoundDomains": true
   },
   "plugins": {
     "PushNotifications": {
@@ -37,7 +38,7 @@
       ]
     },
     "SplashScreen": {
-      "launchShowDuration": 1000,
+      "launchShowDuration": 800,
       "backgroundColor": "#1A2033",
       "androidScaleType": "CENTER_CROP",
       "showSpinner": false
@@ -55,6 +56,11 @@
     "Camera": {
       "saveToGallery": false,
       "permissionType": "user"
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#07C160",
+      "sound": "beep.wav"
     }
   }
 }

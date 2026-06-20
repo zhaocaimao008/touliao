@@ -1,0 +1,51 @@
+{
+  "mode": "loop24",
+  "startedAt": "2026-05-31T13:42:01.703Z",
+  "updatedAt": "2026-05-31T13:42:10.764Z",
+  "totalRounds": 48,
+  "completedRounds": 1,
+  "totalPass": 46,
+  "totalFail": 1,
+  "criticalRounds": 0,
+  "rounds": [
+    {
+      "round": 1,
+      "passed": 46,
+      "failed": 1,
+      "skipped": 0,
+      "total": 47,
+      "elapsed": 9,
+      "criticals": 0,
+      "timestamp": "2026-05-31T13:42:10.763Z",
+      "metrics": {
+        "before": {
+          "heapUsedMB": 12,
+          "heapTotalMB": 21,
+          "rssMB": 82,
+          "cpu": 80,
+          "elLagMs": 0,
+          "ts": "2026-05-31T13:42:01.848Z"
+        },
+        "after": {
+          "heapUsedMB": 14,
+          "heapTotalMB": 17,
+          "rssMB": 84,
+          "cpu": 21,
+          "elLagMs": 0,
+          "ts": "2026-05-31T13:42:10.436Z"
+        },
+        "socketLatMs": 4,
+        "sqliteWriteMs": 106,
+        "heapDeltaMB": 2
+      },
+      "failures": [
+        {
+          "suite": "多端同步",
+          "name": "全断线后状态异常=online",
+          "detail": "",
+          "severity": "HIGH"
+        }
+      ]
+    }
+  ]
+}

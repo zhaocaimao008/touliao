@@ -28,9 +28,10 @@ export const SocketProvider = ({ children }) => {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 15,
-      reconnectionDelay: 1500,
-      timeout: 12000,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 30000,
+      timeout: 15000,
     });
 
     socketRef.current = s;

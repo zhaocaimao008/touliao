@@ -578,6 +578,16 @@
 /* ── 图片消息样式 ── */
 .wc-msg-img {
   cursor: zoom-in;
+  /* 防止图片加载完成后撑开容器导致滚动抖动 */
+  display: block;
+  max-width: 240px;
+  max-height: 320px;
+  min-width: 60px;
+  min-height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  /* 占位尺寸：图片未加载时保留空间，避免布局跳跃 */
+  background: rgba(0,0,0,.06);
 }
 
 /* ── 视频消息样式 ── */

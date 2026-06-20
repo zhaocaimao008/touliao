@@ -1,0 +1,240 @@
+{
+  "generatedAt": "2026-05-30T11:52:27.846Z",
+  "baseline": {
+    "p99": 1282,
+    "p95": 1151,
+    "avg": 993
+  },
+  "hotspots": [
+    {
+      "rank": 1,
+      "fn": "socket.on(connection) → convs.forEach(socket.join)",
+      "ms": 16,
+      "severity": "CRITICAL",
+      "where": "socket/index.js:73",
+      "issue": "用户有4000+会话，每次连接循环join 4000+房间，阻塞EventLoop"
+    },
+    {
+      "rank": 2,
+      "fn": "send_message → pushNewMessage (sync DB path)",
+      "ms": 3.4499999999999997,
+      "severity": "HIGH",
+      "where": "services/push.js",
+      "issue": "async函数在第一个await前同步执行多条DB查询（成员+settings+COUNT per user）"
+    },
+    {
+      "rank": 3,
+      "fn": "send_message → recordDeliveries (N INSERT tx)",
+      "ms": 7.524,
+      "severity": "HIGH",
+      "where": "socket/index.js:135",
+      "issue": "99名在线成员→99条INSERT在同步事务中，ACK后仍阻塞EventLoop"
+    },
+    {
+      "rank": 4,
+      "fn": "contacts.forEach → io.to(user_X).emit(user_online)",
+      "ms": 5.6000000000000005,
+      "severity": "HIGH",
+      "where": "socket/index.js:79",
+      "issue": "N=112联系人，循环N次emit，应改为批量room广播"
+    },
+    {
+      "rank": 5,
+      "fn": "contacts.forEach → io.to(user_X).emit(user_offline)",
+      "ms": 5.6000000000000005,
+      "severity": "HIGH",
+      "where": "socket/index.js:186",
+      "issue": "同上，断线时N次emit"
+    },
+    {
+      "rank": 6,
+      "fn": "send_message → SELECT members × 2 (重复查询)",
+      "ms": 0.152,
+      "severity": "MEDIUM",
+      "where": "socket/index.js:130+push.js",
+      "issue": "members 查询在send_message和pushNewMessage各一次，可复用"
+    },
+    {
+      "rank": 7,
+      "fn": "send_message → SELECT username for push",
+      "ms": 0.063,
+      "severity": "MEDIUM",
+      "where": "socket/index.js:145",
+      "issue": "msg对象已含senderName，多余的SELECT username"
+    },
+    {
+      "rank": 8,
+      "fn": "send_message → io.to(conversationId).emit",
+      "ms": "<1",
+      "severity": "OK",
+      "where": "socket/index.js:126",
+      "issue": "房间广播单次调用，Socket.IO内部高效，无问题"
+    },
+    {
+      "rank": 9,
+      "fn": "JSON.stringify(msg)",
+      "ms": "0.0053",
+      "severity": "OK",
+      "where": "socket.io内部",
+      "issue": "每次广播序列化496B，单次<0.05ms，无问题"
+    },
+    {
+      "rank": 10,
+      "fn": "onlineUserIdSet() 每消息创建新 Set",
+      "ms": "<0.1",
+      "severity": "LOW",
+      "where": "socket/index.js",
+      "issue": "每次send_message调用两次，可改为只在变更时更新"
+    }
+  ],
+  "rootCauses": [
+    {
+      "rank": 1,
+      "severity": "CRITICAL",
+      "cause": "socket.join 循环（4000+会话房间）阻塞连接",
+      "detail": "用户有 4000+ 会话，连接时 convs.forEach(socket.join) 阻塞 ~16ms。100 bots 连接 → 阻塞 EventLoop，延迟后续消息处理",
+      "location": "socket/index.js:72-73",
+      "fix": "延迟加入：连接时只加入 user_${uid} 房间，按需 join_conversation"
+    },
+    {
+      "rank": 2,
+      "severity": "HIGH",
+      "cause": "pushNewMessage 同步 DB 路径在当前 tick 执行",
+      "detail": "async 函数第一个 await 前的同步代码仍在当前 tick 执行：取成员列表 + 每个离线用户各 2 次 DB 查询，阻塞后续 send_message 处理",
+      "location": "services/push.js:62-80",
+      "fix": "pushNewMessage 改为 setImmediate 延后执行，或移到 worker_threads"
+    },
+    {
+      "rank": 3,
+      "severity": "HIGH",
+      "cause": "recordDeliveries N 次 INSERT（ACK 后仍同步执行）",
+      "detail": "99 名在线成员 → 99 次 INSERT 事务，ACK 返回后仍占用 EventLoop ~2-5ms，100 并发消息 = 积压",
+      "location": "socket/index.js:135-142",
+      "fix": "setImmediate 延后执行，或改为批量 INSERT … SELECT 形式"
+    },
+    {
+      "rank": 4,
+      "severity": "HIGH",
+      "cause": "for-loop emit: contacts.forEach(io.to(user).emit)",
+      "detail": "连接/断线时对 N 个联系人逐一调用 io.to().emit()，N=112 时触发 112 次独立 emit，在连接高峰期阻塞 EventLoop",
+      "location": "socket/index.js:79, 186",
+      "fix": "改为 io.to([...contactRooms]).emit() 批量广播（socket.io 4.x 支持数组 rooms）"
+    },
+    {
+      "rank": 5,
+      "severity": "MEDIUM",
+      "cause": "send_message 内重复查 SELECT username（senderName 已在 msg 对象中）",
+      "detail": "socket/index.js:145 额外一次 SELECT username，msg 已含 senderName",
+      "location": "socket/index.js:145",
+      "fix": "直接用 msg.senderName，删除该 SELECT"
+    },
+    {
+      "rank": 6,
+      "severity": "MEDIUM",
+      "cause": "message_delivered 携带 99 个 UUID 的数组",
+      "detail": "onlineRecipients 可达 99 个 UUID，每次推给发送者，payload ~3.5KB",
+      "location": "socket/index.js:137-142",
+      "fix": "改为只发 count（已送达人数），不发完整 UUID 列表"
+    }
+  ],
+  "serialization": [
+    {
+      "name": "典型消息对象 (典型 msg)",
+      "perOpMs": 0.005283654499053955,
+      "sizeBytes": 496
+    },
+    {
+      "name": "大消息对象  (长内容+20反应)",
+      "perOpMs": 0.023013120102882385,
+      "sizeBytes": 4434
+    },
+    {
+      "name": "message_delivered payload (99 recipients)",
+      "perOpMs": 0.006339339804649353,
+      "sizeBytes": 1807
+    },
+    {
+      "name": "user_online payload",
+      "perOpMs": 0.0003453063201904297,
+      "sizeBytes": 24
+    }
+  ],
+  "eventLoop": {
+    "idleAvg": 0,
+    "idleP95": 1
+  },
+  "sendMessagePath": {
+    "steps": [
+      {
+        "name": "JWT verify",
+        "avg": 1.304,
+        "p95": 0.477
+      },
+      {
+        "name": "SELECT role (member check)",
+        "avg": 0.059,
+        "p95": 0.087
+      },
+      {
+        "name": "SELECT mute_all (conv)",
+        "avg": 0.059,
+        "p95": 0.08
+      },
+      {
+        "name": "uuidv4()",
+        "avg": 0.023,
+        "p95": 0.04
+      },
+      {
+        "name": "SELECT msg after INSERT",
+        "avg": 0.129,
+        "p95": 0.187
+      },
+      {
+        "name": "SELECT members (delivery)",
+        "avg": 0.076,
+        "p95": 0.11
+      },
+      {
+        "name": "JSON.stringify(msg)",
+        "avg": 0.142,
+        "p95": 0.198
+      },
+      {
+        "name": "SELECT username (push sender)",
+        "avg": 0.063,
+        "p95": 0.087
+      },
+      {
+        "name": "pushNewMessage: SELECT members",
+        "avg": 0.078,
+        "p95": 0.116
+      },
+      {
+        "name": "pushNewMessage: SELECT settings per user (x10)",
+        "avg": 0.227,
+        "p95": 0.272
+      },
+      {
+        "name": "pushNewMessage: SELECT unread COUNT per user (x10, no LIMIT)",
+        "avg": 0.345,
+        "p95": 0.4
+      }
+    ],
+    "totalSyncMs": 3
+  },
+  "broadcast": {
+    "soloAvg": 561,
+    "soloP95": 676,
+    "soloP99": 677,
+    "c10avg": 2649,
+    "c10P95": 4770,
+    "c10P99": 5323,
+    "c50avg": 5433,
+    "c50P95": 9579,
+    "c50P99": 9897
+  },
+  "joinRooms": {
+    "avgConnectMs": 16
+  }
+}

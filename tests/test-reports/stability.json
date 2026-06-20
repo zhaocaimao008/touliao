@@ -1,0 +1,279 @@
+{
+  "startTime": "2026-05-30T06:40:05.740Z",
+  "samples": [
+    {
+      "time": "2026-05-30T06:40:09.025Z",
+      "label": "start",
+      "rss": 54,
+      "heapUsed": 5,
+      "heapTotal": 6,
+      "external": 2,
+      "cpu": 95,
+      "elLagMs": 4,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 116,
+      "backendOk": true,
+      "apiLatencyMs": 2304,
+      "db": {
+        "messages": 495523,
+        "users": 117,
+        "convs": 2152,
+        "onlineN": 116,
+        "dbSize": 11276
+      }
+    },
+    {
+      "time": "2026-05-30T06:57:04.660Z",
+      "label": "start",
+      "rss": 54,
+      "heapUsed": 5,
+      "heapTotal": 6,
+      "external": 2,
+      "cpu": 43,
+      "elLagMs": 2,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 16,
+      "backendOk": true,
+      "apiLatencyMs": 35,
+      "db": {
+        "messages": 531225,
+        "users": 117,
+        "convs": 2251,
+        "onlineN": 16,
+        "dbSize": 12172
+      }
+    },
+    {
+      "time": "2026-05-30T06:57:52.812Z",
+      "label": "start",
+      "rss": 54,
+      "heapUsed": 5,
+      "heapTotal": 6,
+      "external": 2,
+      "cpu": 42,
+      "elLagMs": 2,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 16,
+      "backendOk": true,
+      "apiLatencyMs": 32,
+      "db": {
+        "messages": 531225,
+        "users": 117,
+        "convs": 2251,
+        "onlineN": 16,
+        "dbSize": 12172
+      }
+    },
+    {
+      "time": "2026-05-30T06:58:16.432Z",
+      "label": "start",
+      "rss": 54,
+      "heapUsed": 5,
+      "heapTotal": 6,
+      "external": 2,
+      "cpu": 26,
+      "elLagMs": 2,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 16,
+      "backendOk": true,
+      "apiLatencyMs": 31,
+      "db": {
+        "messages": 531225,
+        "users": 117,
+        "convs": 2251,
+        "onlineN": 16,
+        "dbSize": 12172
+      }
+    },
+    {
+      "time": "2026-05-30T07:28:16.704Z",
+      "label": "",
+      "rss": 81,
+      "heapUsed": 5,
+      "heapTotal": 7,
+      "external": 2,
+      "cpu": 16,
+      "elLagMs": 0,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 16,
+      "backendOk": true,
+      "apiLatencyMs": 12,
+      "db": {
+        "messages": 581618,
+        "users": 117,
+        "convs": 2517,
+        "onlineN": 16,
+        "dbSize": 13377
+      }
+    },
+    {
+      "time": "2026-05-30T07:58:18.894Z",
+      "label": "",
+      "rss": 81,
+      "heapUsed": 5,
+      "heapTotal": 7,
+      "external": 2,
+      "cpu": 19,
+      "elLagMs": 0,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 116,
+      "backendOk": true,
+      "apiLatencyMs": 2174,
+      "db": {
+        "messages": 639294,
+        "users": 117,
+        "convs": 2746,
+        "onlineN": 116,
+        "dbSize": 14680
+      }
+    },
+    {
+      "time": "2026-05-30T08:28:18.988Z",
+      "label": "",
+      "rss": 81,
+      "heapUsed": 5,
+      "heapTotal": 7,
+      "external": 2,
+      "cpu": 19,
+      "elLagMs": 1,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 116,
+      "backendOk": true,
+      "apiLatencyMs": 2153,
+      "db": {
+        "messages": 699719,
+        "users": 117,
+        "convs": 2944,
+        "onlineN": 116,
+        "dbSize": 16167
+      }
+    },
+    {
+      "time": "2026-05-30T08:58:16.937Z",
+      "label": "",
+      "rss": 81,
+      "heapUsed": 5,
+      "heapTotal": 7,
+      "external": 2,
+      "cpu": 16,
+      "elLagMs": 0,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 16,
+      "backendOk": true,
+      "apiLatencyMs": 6,
+      "db": {
+        "messages": 754369,
+        "users": 117,
+        "convs": 3142,
+        "onlineN": 16,
+        "dbSize": 17489
+      }
+    },
+    {
+      "time": "2026-05-30T09:28:17.024Z",
+      "label": "",
+      "rss": 81,
+      "heapUsed": 6,
+      "heapTotal": 7,
+      "external": 2,
+      "cpu": 15,
+      "elLagMs": 1,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 16,
+      "backendOk": true,
+      "apiLatencyMs": 9,
+      "db": {
+        "messages": 804432,
+        "users": 117,
+        "convs": 3436,
+        "onlineN": 16,
+        "dbSize": 18685
+      }
+    },
+    {
+      "time": "2026-05-30T09:58:19.699Z",
+      "label": "",
+      "rss": 82,
+      "heapUsed": 6,
+      "heapTotal": 7,
+      "external": 2,
+      "cpu": 17,
+      "elLagMs": 0,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 116,
+      "backendOk": true,
+      "apiLatencyMs": 2628,
+      "db": {
+        "messages": 861439,
+        "users": 117,
+        "convs": 3637,
+        "onlineN": 116,
+        "dbSize": 19968
+      }
+    },
+    {
+      "time": "2026-05-30T10:28:19.217Z",
+      "label": "",
+      "rss": 82,
+      "heapUsed": 6,
+      "heapTotal": 7,
+      "external": 2,
+      "cpu": 18,
+      "elLagMs": 1,
+      "handles": 0,
+      "requests": 0,
+      "socketCount": 116,
+      "backendOk": true,
+      "apiLatencyMs": 2031,
+      "db": {
+        "messages": 919662,
+        "users": 117,
+        "convs": 3835,
+        "onlineN": 116,
+        "dbSize": 21392
+      }
+    }
+  ],
+  "anomalies": [
+    {
+      "type": "API_SLOW",
+      "detail": "API 延迟 2304ms",
+      "time": "2026-05-30T06:40:09.025Z"
+    },
+    {
+      "type": "CPU_HIGH",
+      "detail": "CPU 95%",
+      "time": "2026-05-30T06:40:09.025Z"
+    },
+    {
+      "type": "API_SLOW",
+      "detail": "API 延迟 2174ms",
+      "time": "2026-05-30T07:58:18.894Z"
+    },
+    {
+      "type": "API_SLOW",
+      "detail": "API 延迟 2153ms",
+      "time": "2026-05-30T08:28:18.988Z"
+    },
+    {
+      "type": "API_SLOW",
+      "detail": "API 延迟 2628ms",
+      "time": "2026-05-30T09:58:19.699Z"
+    },
+    {
+      "type": "API_SLOW",
+      "detail": "API 延迟 2031ms",
+      "time": "2026-05-30T10:28:19.217Z"
+    }
+  ]
+}

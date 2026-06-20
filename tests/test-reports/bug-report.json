@@ -1,0 +1,850 @@
+{
+  "bugs": [
+    {
+      "time": "2026-05-31T13:42:02.543Z",
+      "test": "singleChat:tests",
+      "error": "AxiosError: Request failed with status code 404",
+      "stack": "AxiosError: Request failed with status code 404\n    at settle (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:2069:12)\n    at IncomingMessage.handleStreamEnd (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:3713:11)\n    at IncomingMessage.emit (node:events:531:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)\n    at Axios.request (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:4992:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async Object.deleteMessage (/root/v信/tests/utils/api.js:97:13)\n    at async Object.runSingleChatTests (/root/v信/tests/cases/singleChat.js:23:5)\n    at async runOnce (/root/v信/tests/loop.js:102:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "critical",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T13:42:11.285Z",
+      "test": "multiDevice:allDisconnect",
+      "error": "Error: 状态为 online，应为 offline",
+      "stack": "Error: 状态为 online，应为 offline\n    at Object.runMultiDeviceTests (/root/v信/tests/cases/multiDevice.js:96:45)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async runOnce (/root/v信/tests/loop.js:112:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "medium",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T13:42:31.829Z",
+      "test": "networkChaos:massBroadcastDisconnect",
+      "error": "Error: 断线后无法发消息",
+      "stack": "Error: 断线后无法发消息\n    at Object.runNetworkChaosTests (/root/v信/tests/cases/networkChaos.js:150:58)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async runOnce (/root/v信/tests/loop.js:119:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "high",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T13:54:53.840Z",
+      "test": "singleChat:tests",
+      "error": "AxiosError: Request failed with status code 404",
+      "stack": "AxiosError: Request failed with status code 404\n    at settle (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:2069:12)\n    at IncomingMessage.handleStreamEnd (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:3713:11)\n    at IncomingMessage.emit (node:events:531:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)\n    at Axios.request (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:4992:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async Object.deleteMessage (/root/v信/tests/utils/api.js:97:13)\n    at async Object.runSingleChatTests (/root/v信/tests/cases/singleChat.js:23:5)\n    at async runOnce (/root/v信/tests/loop.js:102:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "critical",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T13:55:03.955Z",
+      "test": "multiDevice:allDisconnect",
+      "error": "Error: 状态为 online，应为 offline",
+      "stack": "Error: 状态为 online，应为 offline\n    at Object.runMultiDeviceTests (/root/v信/tests/cases/multiDevice.js:96:45)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async runOnce (/root/v信/tests/loop.js:112:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "medium",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T13:55:25.457Z",
+      "test": "networkChaos:massBroadcastDisconnect",
+      "error": "Error: 断线后无法发消息",
+      "stack": "Error: 断线后无法发消息\n    at Object.runNetworkChaosTests (/root/v信/tests/cases/networkChaos.js:150:58)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async runOnce (/root/v信/tests/loop.js:119:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "high",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T13:57:46.879Z",
+      "test": "dbStress:search",
+      "error": "Error: 搜索失败 50 次",
+      "stack": "Error: 搜索失败 50 次\n    at Object.runDbStressTests (/root/v信/tests/cases/dbStress.js:98:35)\n    at async runOnce (/root/v信/tests/loop.js:143:16)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "medium",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T13:57:48.538Z",
+      "test": "dbStress:pagination",
+      "error": "Error: 分页失败 50 次",
+      "stack": "Error: 分页失败 50 次\n    at Object.runDbStressTests (/root/v信/tests/cases/dbStress.js:124:39)\n    at async runOnce (/root/v信/tests/loop.js:143:16)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "medium",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T13:57:48.748Z",
+      "test": "loop:stressGroup",
+      "error": "AggregateError",
+      "stack": "AggregateError\n    at AxiosError.from (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:1268:24)\n    at RedirectableRequest.handleRequestError (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:3733:25)\n    at RedirectableRequest.emit (node:events:531:35)\n    at eventHandlers.<computed> (/root/v信/tests/node_modules/follow-redirects/index.js:56:24)\n    at ClientRequest.emit (node:events:519:28)\n    at emitErrorEvent (node:_http_client:108:11)\n    at Socket.socketErrorListener (node:_http_client:575:5)\n    at Socket.emit (node:events:531:35)\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at Axios.request (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:4992:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async Object.createGroup (/root/v信/tests/utils/api.js:82:13)\n    at async runOnce (/root/v信/tests/loop.js:153:20)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "medium",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T14:02:49.193Z",
+      "test": "singleChat:tests",
+      "error": "AxiosError: Request failed with status code 404",
+      "stack": "AxiosError: Request failed with status code 404\n    at settle (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:2069:12)\n    at IncomingMessage.handleStreamEnd (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:3713:11)\n    at IncomingMessage.emit (node:events:531:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)\n    at Axios.request (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:4992:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async Object.deleteMessage (/root/v信/tests/utils/api.js:97:13)\n    at async Object.runSingleChatTests (/root/v信/tests/cases/singleChat.js:23:5)\n    at async runOnce (/root/v信/tests/loop.js:102:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "critical",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T14:02:59.435Z",
+      "test": "multiDevice:allDisconnect",
+      "error": "Error: 状态为 online，应为 offline",
+      "stack": "Error: 状态为 online，应为 offline\n    at Object.runMultiDeviceTests (/root/v信/tests/cases/multiDevice.js:96:45)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async runOnce (/root/v信/tests/loop.js:112:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "medium",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T14:03:22.152Z",
+      "test": "networkChaos:massBroadcastDisconnect",
+      "error": "Error: 断线后无法发消息",
+      "stack": "Error: 断线后无法发消息\n    at Object.runNetworkChaosTests (/root/v信/tests/cases/networkChaos.js:150:58)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async runOnce (/root/v信/tests/loop.js:119:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "high",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T14:11:08.247Z",
+      "test": "stress:errorRate",
+      "error": "Error: 错误率过高: 10%",
+      "stack": "Error: 错误率过高: 10%\n    at Object.runStressTest (/root/v信/tests/stress/loadTest.js:107:36)\n    at runNextTicks (node:internal/process/task_queues:64:5)\n    at process.processTimers (node:internal/timers:518:9)\n    at async runOnce (/root/v信/tests/loop.js:157:22)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "high",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T14:16:16.360Z",
+      "test": "singleChat:tests",
+      "error": "Error: timeout",
+      "stack": "Error: timeout\n    at Timeout.<anonymous> (/root/v信/tests/node_modules/socket.io-client/build/cjs/manager.js:176:25)\n    at listOnTimeout (node:internal/timers:585:17)\n    at process.processTimers (node:internal/timers:521:7)",
+      "severity": "critical",
+      "steps": [],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T14:16:26.574Z",
+      "test": "groupChat:create",
+      "error": "AxiosError: timeout of 10000ms exceeded",
+      "stack": "AxiosError: timeout of 10000ms exceeded\n    at createTimeoutError (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:3323:14)\n    at RedirectableRequest.handleTimeout (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:3787:15)\n    at RedirectableRequest.emit (node:events:519:28)\n    at Timeout._onTimeout (/root/v信/tests/node_modules/follow-redirects/index.js:233:12)\n    at listOnTimeout (node:internal/timers:585:17)\n    at process.processTimers (node:internal/timers:521:7)\n    at Axios.request (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:4992:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async Object.createGroup (/root/v信/tests/utils/api.js:82:13)\n    at async Object.runGroupChatTests (/root/v信/tests/cases/groupChat.js:21:16)\n    at async runOnce (/root/v信/tests/loop.js:105:20)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "critical",
+      "steps": [
+        "POST /api/messages/conversation/group"
+      ],
+      "reproduced": false
+    },
+    {
+      "time": "2026-05-31T14:16:46.785Z",
+      "test": "loop:uncaught",
+      "error": "AxiosError: timeout of 10000ms exceeded",
+      "stack": "AxiosError: timeout of 10000ms exceeded\n    at createTimeoutError (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:3323:14)\n    at RedirectableRequest.handleTimeout (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:3787:15)\n    at RedirectableRequest.emit (node:events:519:28)\n    at Timeout._onTimeout (/root/v信/tests/node_modules/follow-redirects/index.js:233:12)\n    at listOnTimeout (node:internal/timers:585:17)\n    at process.processTimers (node:internal/timers:521:7)\n    at Axios.request (/root/v信/tests/node_modules/axios/dist/node/axios.cjs:4992:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async Object.createPrivateConv (/root/v信/tests/utils/api.js:77:13)\n    at async Object.runMultiDeviceTests (/root/v信/tests/cases/multiDevice.js:24:37)\n    at async runOnce (/root/v信/tests/loop.js:112:3)\n    at async main (/root/v信/tests/loop.js:235:16)",
+      "severity": "critical",
+      "steps": [],
+      "reproduced": false
+    }
+  ],
+  "passed": [
+    {
+      "time": "2026-05-31T13:42:02.057Z",
+      "test": "loadAccounts",
+      "detail": "500 个账号已就绪"
+    },
+    {
+      "time": "2026-05-31T13:42:02.138Z",
+      "test": "setupFriendships",
+      "detail": "前10个账号互为好友"
+    },
+    {
+      "time": "2026-05-31T13:42:02.533Z",
+      "test": "singleChat:sendReceive",
+      "detail": "Test 1780234922529"
+    },
+    {
+      "time": "2026-05-31T13:42:02.758Z",
+      "test": "groupChat:create",
+      "detail": "群 37a1f572 创建成功，6 人"
+    },
+    {
+      "time": "2026-05-31T13:42:03.074Z",
+      "test": "groupChat:broadcast",
+      "detail": "群消息广播正常"
+    },
+    {
+      "time": "2026-05-31T13:42:03.077Z",
+      "test": "groupChat:atMention",
+      "detail": "@成员消息正常传递"
+    },
+    {
+      "time": "2026-05-31T13:42:03.092Z",
+      "test": "groupChat:announcement",
+      "detail": "群公告设置读取正常"
+    },
+    {
+      "time": "2026-05-31T13:42:03.105Z",
+      "test": "groupChat:nickname",
+      "detail": "群昵称设置正常"
+    },
+    {
+      "time": "2026-05-31T13:42:03.114Z",
+      "test": "groupChat:muteAll",
+      "detail": "全群禁言拦截正常"
+    },
+    {
+      "time": "2026-05-31T13:42:03.131Z",
+      "test": "groupChat:kick",
+      "detail": "踢人事件正常推送"
+    },
+    {
+      "time": "2026-05-31T13:42:08.779Z",
+      "test": "groupChat:bulkCreate",
+      "detail": "100 个群创建完成"
+    },
+    {
+      "time": "2026-05-31T13:42:09.446Z",
+      "test": "multiDevice:messageSyncAll3",
+      "detail": "消息同步到全部3端"
+    },
+    {
+      "time": "2026-05-31T13:42:09.659Z",
+      "test": "multiDevice:recallSync",
+      "detail": "撤回同步到多端"
+    },
+    {
+      "time": "2026-05-31T13:42:10.274Z",
+      "test": "multiDevice:readSync",
+      "detail": "已读后服务端未读数归零"
+    },
+    {
+      "time": "2026-05-31T13:42:10.780Z",
+      "test": "multiDevice:partialDisconnect",
+      "detail": "2端断线后1端在线，状态仍为 online"
+    },
+    {
+      "time": "2026-05-31T13:42:11.502Z",
+      "test": "fileUpload:test.png",
+      "detail": "PNG 图片 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T13:42:11.711Z",
+      "test": "fileUpload:test.jpg",
+      "detail": "JPEG 图片 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T13:42:11.919Z",
+      "test": "fileUpload:test.pdf",
+      "detail": "PDF 文档 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T13:42:12.130Z",
+      "test": "fileUpload:test.txt",
+      "detail": "纯文本 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T13:42:12.337Z",
+      "test": "fileUpload:block:evil.exe",
+      "detail": "EXE 文件 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T13:42:12.543Z",
+      "test": "fileUpload:block:hack.sh",
+      "detail": "Shell 脚本 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T13:42:12.750Z",
+      "test": "fileUpload:block:virus.bat",
+      "detail": "BAT 批处理 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T13:42:12.957Z",
+      "test": "fileUpload:block:bad.ps1",
+      "detail": "PowerShell 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T13:42:13.167Z",
+      "test": "fileUpload:block:fake.jpg",
+      "detail": "EXE 伪造为 JPEG 被正确拦截 (400: 400 Invalid File Type: 文件真实类型为 application/x-msdow)"
+    },
+    {
+      "time": "2026-05-31T13:42:17.537Z",
+      "test": "networkChaos:reconnectCatchup",
+      "detail": "断线 3s 后补拉 3 条成功"
+    },
+    {
+      "time": "2026-05-31T13:42:28.941Z",
+      "test": "networkChaos:randomDisconnects",
+      "detail": "10 次随机断线均无崩溃"
+    },
+    {
+      "time": "2026-05-31T13:42:30.269Z",
+      "test": "networkChaos:deviceSwitch",
+      "detail": "设备切换 web→desktop→mobile 均正常"
+    },
+    {
+      "time": "2026-05-31T13:44:34.888Z",
+      "test": "randomBots:completed",
+      "detail": "100 bots 活动结束"
+    },
+    {
+      "time": "2026-05-31T13:44:46.114Z",
+      "test": "dbStress:write",
+      "detail": "4000 条写入全部成功 P95=61ms"
+    },
+    {
+      "time": "2026-05-31T13:44:50.205Z",
+      "test": "dbStress:search",
+      "detail": "50 次搜索 P95=149ms"
+    },
+    {
+      "time": "2026-05-31T13:44:51.945Z",
+      "test": "dbStress:pagination",
+      "detail": "50 次分页 P95=5ms"
+    },
+    {
+      "time": "2026-05-31T13:49:53.366Z",
+      "test": "stress:errorRate",
+      "detail": "错误率 0% ≤ 5%"
+    },
+    {
+      "time": "2026-05-31T13:49:53.366Z",
+      "test": "stress:latency",
+      "detail": "平均延迟 451ms ≤ 500ms"
+    },
+    {
+      "time": "2026-05-31T13:49:53.366Z",
+      "test": "stress:throughput",
+      "detail": "吞吐量 111 msg/s"
+    },
+    {
+      "time": "2026-05-31T13:54:53.828Z",
+      "test": "singleChat:sendReceive",
+      "detail": "Test 1780235693819"
+    },
+    {
+      "time": "2026-05-31T13:54:54.059Z",
+      "test": "groupChat:create",
+      "detail": "群 73b9870c 创建成功，6 人"
+    },
+    {
+      "time": "2026-05-31T13:54:54.398Z",
+      "test": "groupChat:broadcast",
+      "detail": "群消息广播正常"
+    },
+    {
+      "time": "2026-05-31T13:54:54.408Z",
+      "test": "groupChat:atMention",
+      "detail": "@成员消息正常传递"
+    },
+    {
+      "time": "2026-05-31T13:54:54.442Z",
+      "test": "groupChat:announcement",
+      "detail": "群公告设置读取正常"
+    },
+    {
+      "time": "2026-05-31T13:54:54.459Z",
+      "test": "groupChat:nickname",
+      "detail": "群昵称设置正常"
+    },
+    {
+      "time": "2026-05-31T13:54:54.473Z",
+      "test": "groupChat:muteAll",
+      "detail": "全群禁言拦截正常"
+    },
+    {
+      "time": "2026-05-31T13:54:54.490Z",
+      "test": "groupChat:kick",
+      "detail": "踢人事件正常推送"
+    },
+    {
+      "time": "2026-05-31T13:55:00.399Z",
+      "test": "groupChat:bulkCreate",
+      "detail": "100 个群创建完成"
+    },
+    {
+      "time": "2026-05-31T13:55:01.726Z",
+      "test": "multiDevice:messageSyncAll3",
+      "detail": "消息同步到全部3端"
+    },
+    {
+      "time": "2026-05-31T13:55:02.225Z",
+      "test": "multiDevice:recallSync",
+      "detail": "撤回同步到多端"
+    },
+    {
+      "time": "2026-05-31T13:55:02.935Z",
+      "test": "multiDevice:readSync",
+      "detail": "已读后服务端未读数归零"
+    },
+    {
+      "time": "2026-05-31T13:55:03.445Z",
+      "test": "multiDevice:partialDisconnect",
+      "detail": "2端断线后1端在线，状态仍为 online"
+    },
+    {
+      "time": "2026-05-31T13:55:04.181Z",
+      "test": "fileUpload:test.png",
+      "detail": "PNG 图片 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T13:55:04.392Z",
+      "test": "fileUpload:test.jpg",
+      "detail": "JPEG 图片 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T13:55:04.603Z",
+      "test": "fileUpload:test.pdf",
+      "detail": "PDF 文档 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T13:55:04.814Z",
+      "test": "fileUpload:test.txt",
+      "detail": "纯文本 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T13:55:05.022Z",
+      "test": "fileUpload:block:evil.exe",
+      "detail": "EXE 文件 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T13:55:05.230Z",
+      "test": "fileUpload:block:hack.sh",
+      "detail": "Shell 脚本 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T13:55:05.436Z",
+      "test": "fileUpload:block:virus.bat",
+      "detail": "BAT 批处理 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T13:55:05.641Z",
+      "test": "fileUpload:block:bad.ps1",
+      "detail": "PowerShell 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T13:55:05.850Z",
+      "test": "fileUpload:block:fake.jpg",
+      "detail": "EXE 伪造为 JPEG 被正确拦截 (400: 400 Invalid File Type: 文件真实类型为 application/x-msdow)"
+    },
+    {
+      "time": "2026-05-31T13:55:10.043Z",
+      "test": "networkChaos:reconnectCatchup",
+      "detail": "断线 3s 后补拉 3 条成功"
+    },
+    {
+      "time": "2026-05-31T13:55:22.486Z",
+      "test": "networkChaos:randomDisconnects",
+      "detail": "10 次随机断线均无崩溃"
+    },
+    {
+      "time": "2026-05-31T13:55:23.817Z",
+      "test": "networkChaos:deviceSwitch",
+      "detail": "设备切换 web→desktop→mobile 均正常"
+    },
+    {
+      "time": "2026-05-31T13:57:28.475Z",
+      "test": "randomBots:completed",
+      "detail": "100 bots 活动结束"
+    },
+    {
+      "time": "2026-05-31T13:57:39.139Z",
+      "test": "dbStress:write",
+      "detail": "4000 条写入全部成功 P95=53ms"
+    },
+    {
+      "time": "2026-05-31T14:02:49.183Z",
+      "test": "singleChat:sendReceive",
+      "detail": "Test 1780236169177"
+    },
+    {
+      "time": "2026-05-31T14:02:49.412Z",
+      "test": "groupChat:create",
+      "detail": "群 59de07f7 创建成功，6 人"
+    },
+    {
+      "time": "2026-05-31T14:02:49.755Z",
+      "test": "groupChat:broadcast",
+      "detail": "群消息广播正常"
+    },
+    {
+      "time": "2026-05-31T14:02:49.764Z",
+      "test": "groupChat:atMention",
+      "detail": "@成员消息正常传递"
+    },
+    {
+      "time": "2026-05-31T14:02:49.786Z",
+      "test": "groupChat:announcement",
+      "detail": "群公告设置读取正常"
+    },
+    {
+      "time": "2026-05-31T14:02:49.801Z",
+      "test": "groupChat:nickname",
+      "detail": "群昵称设置正常"
+    },
+    {
+      "time": "2026-05-31T14:02:49.811Z",
+      "test": "groupChat:muteAll",
+      "detail": "全群禁言拦截正常"
+    },
+    {
+      "time": "2026-05-31T14:02:49.826Z",
+      "test": "groupChat:kick",
+      "detail": "踢人事件正常推送"
+    },
+    {
+      "time": "2026-05-31T14:02:55.726Z",
+      "test": "groupChat:bulkCreate",
+      "detail": "100 个群创建完成"
+    },
+    {
+      "time": "2026-05-31T14:02:57.145Z",
+      "test": "multiDevice:messageSyncAll3",
+      "detail": "消息同步到全部3端"
+    },
+    {
+      "time": "2026-05-31T14:02:57.696Z",
+      "test": "multiDevice:recallSync",
+      "detail": "撤回同步到多端"
+    },
+    {
+      "time": "2026-05-31T14:02:58.413Z",
+      "test": "multiDevice:readSync",
+      "detail": "已读后服务端未读数归零"
+    },
+    {
+      "time": "2026-05-31T14:02:58.922Z",
+      "test": "multiDevice:partialDisconnect",
+      "detail": "2端断线后1端在线，状态仍为 online"
+    },
+    {
+      "time": "2026-05-31T14:02:59.671Z",
+      "test": "fileUpload:test.png",
+      "detail": "PNG 图片 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T14:02:59.885Z",
+      "test": "fileUpload:test.jpg",
+      "detail": "JPEG 图片 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T14:03:00.099Z",
+      "test": "fileUpload:test.pdf",
+      "detail": "PDF 文档 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T14:03:00.310Z",
+      "test": "fileUpload:test.txt",
+      "detail": "纯文本 上传成功 (200)"
+    },
+    {
+      "time": "2026-05-31T14:03:00.517Z",
+      "test": "fileUpload:block:evil.exe",
+      "detail": "EXE 文件 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T14:03:00.723Z",
+      "test": "fileUpload:block:hack.sh",
+      "detail": "Shell 脚本 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T14:03:00.929Z",
+      "test": "fileUpload:block:virus.bat",
+      "detail": "BAT 批处理 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T14:03:01.138Z",
+      "test": "fileUpload:block:bad.ps1",
+      "detail": "PowerShell 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)"
+    },
+    {
+      "time": "2026-05-31T14:03:01.359Z",
+      "test": "fileUpload:block:fake.jpg",
+      "detail": "EXE 伪造为 JPEG 被正确拦截 (400: 400 Invalid File Type: 文件真实类型为 application/x-msdow)"
+    },
+    {
+      "time": "2026-05-31T14:03:05.411Z",
+      "test": "networkChaos:reconnectCatchup",
+      "detail": "断线 3s 后补拉 3 条成功"
+    },
+    {
+      "time": "2026-05-31T14:03:19.227Z",
+      "test": "networkChaos:randomDisconnects",
+      "detail": "10 次随机断线均无崩溃"
+    },
+    {
+      "time": "2026-05-31T14:03:20.554Z",
+      "test": "networkChaos:deviceSwitch",
+      "detail": "设备切换 web→desktop→mobile 均正常"
+    },
+    {
+      "time": "2026-05-31T14:05:25.249Z",
+      "test": "randomBots:completed",
+      "detail": "100 bots 活动结束"
+    },
+    {
+      "time": "2026-05-31T14:05:37.215Z",
+      "test": "dbStress:write",
+      "detail": "4000 条写入全部成功 P95=65ms"
+    },
+    {
+      "time": "2026-05-31T14:05:59.952Z",
+      "test": "dbStress:search",
+      "detail": "50 次搜索 P95=2091ms"
+    },
+    {
+      "time": "2026-05-31T14:06:01.804Z",
+      "test": "dbStress:pagination",
+      "detail": "50 次分页 P95=9ms"
+    },
+    {
+      "time": "2026-05-31T14:11:08.272Z",
+      "test": "stress:latency",
+      "detail": "平均延迟 374ms ≤ 500ms"
+    },
+    {
+      "time": "2026-05-31T14:11:08.273Z",
+      "test": "stress:throughput",
+      "detail": "吞吐量 55 msg/s"
+    }
+  ],
+  "logs": [
+    "[2026-05-31T13:42:01.727Z] ════════════════════════════════════════════════════════",
+    "[2026-05-31T13:42:01.771Z]    V信 24/7 自动化测试  2026/5/31 13:42:01",
+    "[2026-05-31T13:42:01.771Z]    运行时长: 24h  轮间隔: 300s  Quick: false",
+    "[2026-05-31T13:42:01.780Z]    规模: 100 bots / 100,000 消息 / 100 群",
+    "[2026-05-31T13:42:01.780Z] ════════════════════════════════════════════════════════",
+    "[2026-05-31T13:42:01.911Z] ▶ 为 500 个账号生成 JWT token",
+    "[2026-05-31T13:42:02.057Z] ✅ PASS  loadAccounts — 500 个账号已就绪",
+    "[2026-05-31T13:42:02.059Z] \n════════════════════════════════════════════════════════",
+    "[2026-05-31T13:42:02.060Z]    第 1 轮   2026/5/31 13:42:02",
+    "[2026-05-31T13:42:02.060Z]    剩余时间: 24h",
+    "[2026-05-31T13:42:02.060Z] ════════════════════════════════════════════════════════",
+    "[2026-05-31T13:42:02.063Z] [MEM] RSS:72MB  Heap:12/19MB  EL:335ms  Handles:3  Sockets:-1",
+    "[2026-05-31T13:42:02.065Z] [MEM] RSS:85MB  Heap:14/30MB  EL:4ms  Handles:3  Sockets:-1",
+    "[2026-05-31T13:42:02.067Z] ▶ 建立好友关系 (前10个互为好友)",
+    "[2026-05-31T13:42:02.138Z] ✅ PASS  setupFriendships — 前10个账号互为好友",
+    "[2026-05-31T13:42:02.139Z] \n══ 单聊测试 ══",
+    "[2026-05-31T13:42:02.533Z] ✅ PASS  singleChat:sendReceive — Test 1780234922529",
+    "[2026-05-31T13:42:02.544Z] ❌ FAIL  [CRITICAL] singleChat:tests — AxiosError: Request failed with status code 404",
+    "[2026-05-31T13:42:02.747Z] \n══ 群聊测试 ══",
+    "[2026-05-31T13:42:02.758Z] ✅ PASS  groupChat:create — 群 37a1f572 创建成功，6 人",
+    "[2026-05-31T13:42:03.074Z] ✅ PASS  groupChat:broadcast — 群消息广播正常",
+    "[2026-05-31T13:42:03.077Z] ✅ PASS  groupChat:atMention — @成员消息正常传递",
+    "[2026-05-31T13:42:03.092Z] ✅ PASS  groupChat:announcement — 群公告设置读取正常",
+    "[2026-05-31T13:42:03.105Z] ✅ PASS  groupChat:nickname — 群昵称设置正常",
+    "[2026-05-31T13:42:03.114Z] ✅ PASS  groupChat:muteAll — 全群禁言拦截正常",
+    "[2026-05-31T13:42:03.131Z] ✅ PASS  groupChat:kick — 踢人事件正常推送",
+    "[2026-05-31T13:42:03.133Z]   批量创建 100 个群...",
+    "[2026-05-31T13:42:08.779Z] ✅ PASS  groupChat:bulkCreate — 100 个群创建完成",
+    "[2026-05-31T13:42:09.002Z] \n══ 多端同步测试 ══",
+    "[2026-05-31T13:42:09.446Z] ✅ PASS  multiDevice:messageSyncAll3 — 消息同步到全部3端",
+    "[2026-05-31T13:42:09.659Z] ✅ PASS  multiDevice:recallSync — 撤回同步到多端",
+    "[2026-05-31T13:42:10.274Z] ✅ PASS  multiDevice:readSync — 已读后服务端未读数归零",
+    "[2026-05-31T13:42:10.780Z] ✅ PASS  multiDevice:partialDisconnect — 2端断线后1端在线，状态仍为 online",
+    "[2026-05-31T13:42:11.285Z] ❌ FAIL  [MEDIUM] multiDevice:allDisconnect — Error: 状态为 online，应为 offline",
+    "[2026-05-31T13:42:11.487Z] \n══ 文件上传测试 ══",
+    "[2026-05-31T13:42:11.502Z] ✅ PASS  fileUpload:test.png — PNG 图片 上传成功 (200)",
+    "[2026-05-31T13:42:11.711Z] ✅ PASS  fileUpload:test.jpg — JPEG 图片 上传成功 (200)",
+    "[2026-05-31T13:42:11.919Z] ✅ PASS  fileUpload:test.pdf — PDF 文档 上传成功 (200)",
+    "[2026-05-31T13:42:12.130Z] ✅ PASS  fileUpload:test.txt — 纯文本 上传成功 (200)",
+    "[2026-05-31T13:42:12.337Z] ✅ PASS  fileUpload:block:evil.exe — EXE 文件 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T13:42:12.543Z] ✅ PASS  fileUpload:block:hack.sh — Shell 脚本 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T13:42:12.750Z] ✅ PASS  fileUpload:block:virus.bat — BAT 批处理 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T13:42:12.957Z] ✅ PASS  fileUpload:block:bad.ps1 — PowerShell 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T13:42:13.167Z] ✅ PASS  fileUpload:block:fake.jpg — EXE 伪造为 JPEG 被正确拦截 (400: 400 Invalid File Type: 文件真实类型为 application/x-msdow)",
+    "[2026-05-31T13:42:13.569Z] \n══ 断网混沌测试 ══",
+    "[2026-05-31T13:42:17.537Z] ✅ PASS  networkChaos:reconnectCatchup — 断线 3s 后补拉 3 条成功",
+    "[2026-05-31T13:42:28.941Z] ✅ PASS  networkChaos:randomDisconnects — 10 次随机断线均无崩溃",
+    "[2026-05-31T13:42:30.269Z] ✅ PASS  networkChaos:deviceSwitch — 设备切换 web→desktop→mobile 均正常",
+    "[2026-05-31T13:42:31.829Z] ❌ FAIL  [HIGH] networkChaos:massBroadcastDisconnect — Error: 断线后无法发消息",
+    "[2026-05-31T13:42:32.049Z] \n══ 随机机器人 (100 bots, 120s) ══",
+    "[2026-05-31T13:44:34.888Z] ✅ PASS  randomBots:completed — 100 bots 活动结束",
+    "[2026-05-31T13:44:35.101Z] \n══ 数据库压力测试 ══",
+    "[2026-05-31T13:44:35.101Z]   并发写入: 20 workers × 200 条...",
+    "[2026-05-31T13:44:46.105Z]   写入完成: 4000 成功 / 0 失败",
+    "[2026-05-31T13:44:46.112Z]   写入延迟: P50=37ms P95=61ms P99=73ms",
+    "[2026-05-31T13:44:46.115Z] ✅ PASS  dbStress:write — 4000 条写入全部成功 P95=61ms",
+    "[2026-05-31T13:44:46.115Z]   全文搜索: 50 次...",
+    "[2026-05-31T13:44:50.205Z]   搜索延迟: P50=5ms P95=149ms P99=185ms",
+    "[2026-05-31T13:44:50.205Z] ✅ PASS  dbStress:search — 50 次搜索 P95=149ms",
+    "[2026-05-31T13:44:50.205Z]   分页拉取: 50 次...",
+    "[2026-05-31T13:44:51.945Z]   分页延迟: P50=5ms P95=5ms P99=9ms",
+    "[2026-05-31T13:44:51.945Z] ✅ PASS  dbStress:pagination — 50 次分页 P95=5ms",
+    "[2026-05-31T13:44:52.150Z] \n▶ 压力测试（100 bots / 100k 消息）",
+    "[2026-05-31T13:44:52.177Z] \n══ 压力测试 ══",
+    "[2026-05-31T13:44:52.178Z]   Bots:100  Workers:50  目标:100000条  时限:300s",
+    "[2026-05-31T13:44:52.271Z]   Socket 连接: 20 成功 / 0 失败",
+    "[2026-05-31T13:44:52.403Z]   Socket 连接: 40 成功 / 0 失败",
+    "[2026-05-31T13:44:52.529Z]   Socket 连接: 60 成功 / 0 失败",
+    "[2026-05-31T13:44:52.644Z]   Socket 连接: 80 成功 / 0 失败",
+    "[2026-05-31T13:44:52.771Z]   Socket 连接: 100 成功 / 0 失败",
+    "[2026-05-31T13:44:52.821Z]   实际连接 100 个 WebSocket",
+    "[2026-05-31T13:49:53.365Z] \n  ── 压测结果 ──",
+    "[2026-05-31T13:49:53.365Z]   发送消息: 33266 / 100000  (300.5s)",
+    "[2026-05-31T13:49:53.366Z]   错误:     0 (0%)",
+    "[2026-05-31T13:49:53.366Z]   吞吐量:   111 msg/s",
+    "[2026-05-31T13:49:53.366Z]   延迟:     avg=451ms  P95=571ms  P99=651ms",
+    "[2026-05-31T13:49:53.366Z]   内存:     峰值 RSS 133MB  Heap 37MB",
+    "[2026-05-31T13:49:53.366Z] ✅ PASS  stress:errorRate — 错误率 0% ≤ 5%",
+    "[2026-05-31T13:49:53.366Z] ✅ PASS  stress:latency — 平均延迟 451ms ≤ 500ms",
+    "[2026-05-31T13:49:53.366Z] ✅ PASS  stress:throughput — 吞吐量 111 msg/s",
+    "[2026-05-31T13:49:53.391Z] [MEM] RSS:134MB  Heap:22/57MB  EL:13ms  Handles:105  Sockets:-1",
+    "[2026-05-31T13:49:53.401Z] \n════════════════════════════════════════════════════════",
+    "[2026-05-31T13:49:53.401Z]    第 1 轮完成 (471s)  通过:34  失败:3",
+    "[2026-05-31T13:49:53.401Z]    报告: /root/v信/tests/test-reports/test-report.html",
+    "[2026-05-31T13:49:53.402Z] ════════════════════════════════════════════════════════\n",
+    "[2026-05-31T13:49:53.403Z] ⏱  等待 300s 后开始第 2 轮...",
+    "[2026-05-31T13:52:01.728Z] [MEM] RSS:91MB  Heap:14/16MB  EL:0ms  Handles:3  Sockets:-1",
+    "[2026-05-31T13:54:53.403Z] \n════════════════════════════════════════════════════════",
+    "[2026-05-31T13:54:53.403Z]    第 2 轮   2026/5/31 13:54:53",
+    "[2026-05-31T13:54:53.403Z]    剩余时间: 23.8h",
+    "[2026-05-31T13:54:53.403Z] ════════════════════════════════════════════════════════",
+    "[2026-05-31T13:54:53.404Z] [MEM] RSS:91MB  Heap:14/16MB  EL:0ms  Handles:3  Sockets:-1",
+    "[2026-05-31T13:54:53.405Z] \n══ 单聊测试 ══",
+    "[2026-05-31T13:54:53.828Z] ✅ PASS  singleChat:sendReceive — Test 1780235693819",
+    "[2026-05-31T13:54:53.840Z] ❌ FAIL  [CRITICAL] singleChat:tests — AxiosError: Request failed with status code 404",
+    "[2026-05-31T13:54:54.041Z] \n══ 群聊测试 ══",
+    "[2026-05-31T13:54:54.059Z] ✅ PASS  groupChat:create — 群 73b9870c 创建成功，6 人",
+    "[2026-05-31T13:54:54.398Z] ✅ PASS  groupChat:broadcast — 群消息广播正常",
+    "[2026-05-31T13:54:54.408Z] ✅ PASS  groupChat:atMention — @成员消息正常传递",
+    "[2026-05-31T13:54:54.442Z] ✅ PASS  groupChat:announcement — 群公告设置读取正常",
+    "[2026-05-31T13:54:54.459Z] ✅ PASS  groupChat:nickname — 群昵称设置正常",
+    "[2026-05-31T13:54:54.473Z] ✅ PASS  groupChat:muteAll — 全群禁言拦截正常",
+    "[2026-05-31T13:54:54.490Z] ✅ PASS  groupChat:kick — 踢人事件正常推送",
+    "[2026-05-31T13:54:54.491Z]   批量创建 100 个群...",
+    "[2026-05-31T13:55:00.399Z] ✅ PASS  groupChat:bulkCreate — 100 个群创建完成",
+    "[2026-05-31T13:55:01.220Z] \n══ 多端同步测试 ══",
+    "[2026-05-31T13:55:01.726Z] ✅ PASS  multiDevice:messageSyncAll3 — 消息同步到全部3端",
+    "[2026-05-31T13:55:02.225Z] ✅ PASS  multiDevice:recallSync — 撤回同步到多端",
+    "[2026-05-31T13:55:02.935Z] ✅ PASS  multiDevice:readSync — 已读后服务端未读数归零",
+    "[2026-05-31T13:55:03.446Z] ✅ PASS  multiDevice:partialDisconnect — 2端断线后1端在线，状态仍为 online",
+    "[2026-05-31T13:55:03.955Z] ❌ FAIL  [MEDIUM] multiDevice:allDisconnect — Error: 状态为 online，应为 offline",
+    "[2026-05-31T13:55:04.156Z] \n══ 文件上传测试 ══",
+    "[2026-05-31T13:55:04.181Z] ✅ PASS  fileUpload:test.png — PNG 图片 上传成功 (200)",
+    "[2026-05-31T13:55:04.392Z] ✅ PASS  fileUpload:test.jpg — JPEG 图片 上传成功 (200)",
+    "[2026-05-31T13:55:04.603Z] ✅ PASS  fileUpload:test.pdf — PDF 文档 上传成功 (200)",
+    "[2026-05-31T13:55:04.814Z] ✅ PASS  fileUpload:test.txt — 纯文本 上传成功 (200)",
+    "[2026-05-31T13:55:05.022Z] ✅ PASS  fileUpload:block:evil.exe — EXE 文件 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T13:55:05.230Z] ✅ PASS  fileUpload:block:hack.sh — Shell 脚本 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T13:55:05.436Z] ✅ PASS  fileUpload:block:virus.bat — BAT 批处理 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T13:55:05.641Z] ✅ PASS  fileUpload:block:bad.ps1 — PowerShell 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T13:55:05.850Z] ✅ PASS  fileUpload:block:fake.jpg — EXE 伪造为 JPEG 被正确拦截 (400: 400 Invalid File Type: 文件真实类型为 application/x-msdow)",
+    "[2026-05-31T13:55:06.251Z] \n══ 断网混沌测试 ══",
+    "[2026-05-31T13:55:10.043Z] ✅ PASS  networkChaos:reconnectCatchup — 断线 3s 后补拉 3 条成功",
+    "[2026-05-31T13:55:22.486Z] ✅ PASS  networkChaos:randomDisconnects — 10 次随机断线均无崩溃",
+    "[2026-05-31T13:55:23.817Z] ✅ PASS  networkChaos:deviceSwitch — 设备切换 web→desktop→mobile 均正常",
+    "[2026-05-31T13:55:25.457Z] ❌ FAIL  [HIGH] networkChaos:massBroadcastDisconnect — Error: 断线后无法发消息",
+    "[2026-05-31T13:55:25.718Z] \n══ 随机机器人 (100 bots, 120s) ══",
+    "[2026-05-31T13:57:28.475Z] ✅ PASS  randomBots:completed — 100 bots 活动结束",
+    "[2026-05-31T13:57:28.697Z] \n══ 数据库压力测试 ══",
+    "[2026-05-31T13:57:28.698Z]   并发写入: 20 workers × 200 条...",
+    "[2026-05-31T13:57:39.132Z]   写入完成: 4000 成功 / 0 失败",
+    "[2026-05-31T13:57:39.137Z]   写入延迟: P50=35ms P95=53ms P99=63ms",
+    "[2026-05-31T13:57:39.139Z] ✅ PASS  dbStress:write — 4000 条写入全部成功 P95=53ms",
+    "[2026-05-31T13:57:39.139Z]   全文搜索: 50 次...",
+    "[2026-05-31T13:57:46.878Z]   搜索延迟: P50=0ms P95=0ms P99=0ms",
+    "[2026-05-31T13:57:46.879Z] ❌ FAIL  [MEDIUM] dbStress:search — Error: 搜索失败 50 次",
+    "[2026-05-31T13:57:46.881Z]   分页拉取: 50 次...",
+    "[2026-05-31T13:57:48.538Z]   分页延迟: P50=0ms P95=0ms P99=0ms",
+    "[2026-05-31T13:57:48.539Z] ❌ FAIL  [MEDIUM] dbStress:pagination — Error: 分页失败 50 次",
+    "[2026-05-31T13:57:48.744Z] \n▶ 压力测试（100 bots / 100k 消息）",
+    "[2026-05-31T13:57:48.748Z] ❌ FAIL  [MEDIUM] loop:stressGroup — AggregateError",
+    "[2026-05-31T13:57:48.751Z] [MEM] RSS:131MB  Heap:24/60MB  EL:1ms  Handles:4  Sockets:-1",
+    "[2026-05-31T13:57:48.761Z] \n════════════════════════════════════════════════════════",
+    "[2026-05-31T13:57:48.761Z]    第 2 轮完成 (175s)  通过:61  失败:9",
+    "[2026-05-31T13:57:48.761Z]    报告: /root/v信/tests/test-reports/test-report.html",
+    "[2026-05-31T13:57:48.761Z] ════════════════════════════════════════════════════════\n",
+    "[2026-05-31T13:57:48.762Z] ⏱  等待 300s 后开始第 3 轮...",
+    "[2026-05-31T14:02:01.728Z] [MEM] RSS:90MB  Heap:15/17MB  EL:0ms  Handles:3  Sockets:-1",
+    "[2026-05-31T14:02:48.763Z] \n════════════════════════════════════════════════════════",
+    "[2026-05-31T14:02:48.763Z]    第 3 轮   2026/5/31 14:02:48",
+    "[2026-05-31T14:02:48.763Z]    剩余时间: 23.7h",
+    "[2026-05-31T14:02:48.764Z] ════════════════════════════════════════════════════════",
+    "[2026-05-31T14:02:48.764Z] [MEM] RSS:90MB  Heap:15/17MB  EL:0ms  Handles:3  Sockets:-1",
+    "[2026-05-31T14:02:48.765Z] \n══ 单聊测试 ══",
+    "[2026-05-31T14:02:49.183Z] ✅ PASS  singleChat:sendReceive — Test 1780236169177",
+    "[2026-05-31T14:02:49.193Z] ❌ FAIL  [CRITICAL] singleChat:tests — AxiosError: Request failed with status code 404",
+    "[2026-05-31T14:02:49.395Z] \n══ 群聊测试 ══",
+    "[2026-05-31T14:02:49.412Z] ✅ PASS  groupChat:create — 群 59de07f7 创建成功，6 人",
+    "[2026-05-31T14:02:49.755Z] ✅ PASS  groupChat:broadcast — 群消息广播正常",
+    "[2026-05-31T14:02:49.764Z] ✅ PASS  groupChat:atMention — @成员消息正常传递",
+    "[2026-05-31T14:02:49.786Z] ✅ PASS  groupChat:announcement — 群公告设置读取正常",
+    "[2026-05-31T14:02:49.801Z] ✅ PASS  groupChat:nickname — 群昵称设置正常",
+    "[2026-05-31T14:02:49.811Z] ✅ PASS  groupChat:muteAll — 全群禁言拦截正常",
+    "[2026-05-31T14:02:49.826Z] ✅ PASS  groupChat:kick — 踢人事件正常推送",
+    "[2026-05-31T14:02:49.827Z]   批量创建 100 个群...",
+    "[2026-05-31T14:02:55.726Z] ✅ PASS  groupChat:bulkCreate — 100 个群创建完成",
+    "[2026-05-31T14:02:56.637Z] \n══ 多端同步测试 ══",
+    "[2026-05-31T14:02:57.145Z] ✅ PASS  multiDevice:messageSyncAll3 — 消息同步到全部3端",
+    "[2026-05-31T14:02:57.696Z] ✅ PASS  multiDevice:recallSync — 撤回同步到多端",
+    "[2026-05-31T14:02:58.413Z] ✅ PASS  multiDevice:readSync — 已读后服务端未读数归零",
+    "[2026-05-31T14:02:58.922Z] ✅ PASS  multiDevice:partialDisconnect — 2端断线后1端在线，状态仍为 online",
+    "[2026-05-31T14:02:59.435Z] ❌ FAIL  [MEDIUM] multiDevice:allDisconnect — Error: 状态为 online，应为 offline",
+    "[2026-05-31T14:02:59.637Z] \n══ 文件上传测试 ══",
+    "[2026-05-31T14:02:59.671Z] ✅ PASS  fileUpload:test.png — PNG 图片 上传成功 (200)",
+    "[2026-05-31T14:02:59.885Z] ✅ PASS  fileUpload:test.jpg — JPEG 图片 上传成功 (200)",
+    "[2026-05-31T14:03:00.099Z] ✅ PASS  fileUpload:test.pdf — PDF 文档 上传成功 (200)",
+    "[2026-05-31T14:03:00.310Z] ✅ PASS  fileUpload:test.txt — 纯文本 上传成功 (200)",
+    "[2026-05-31T14:03:00.517Z] ✅ PASS  fileUpload:block:evil.exe — EXE 文件 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T14:03:00.723Z] ✅ PASS  fileUpload:block:hack.sh — Shell 脚本 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T14:03:00.929Z] ✅ PASS  fileUpload:block:virus.bat — BAT 批处理 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T14:03:01.138Z] ✅ PASS  fileUpload:block:bad.ps1 — PowerShell 被正确拦截 (400: 400 Invalid File Type: 不支持的 Content-Type (applicat)",
+    "[2026-05-31T14:03:01.359Z] ✅ PASS  fileUpload:block:fake.jpg — EXE 伪造为 JPEG 被正确拦截 (400: 400 Invalid File Type: 文件真实类型为 application/x-msdow)",
+    "[2026-05-31T14:03:01.761Z] \n══ 断网混沌测试 ══",
+    "[2026-05-31T14:03:05.411Z] ✅ PASS  networkChaos:reconnectCatchup — 断线 3s 后补拉 3 条成功",
+    "[2026-05-31T14:03:19.227Z] ✅ PASS  networkChaos:randomDisconnects — 10 次随机断线均无崩溃",
+    "[2026-05-31T14:03:20.554Z] ✅ PASS  networkChaos:deviceSwitch — 设备切换 web→desktop→mobile 均正常",
+    "[2026-05-31T14:03:22.152Z] ❌ FAIL  [HIGH] networkChaos:massBroadcastDisconnect — Error: 断线后无法发消息",
+    "[2026-05-31T14:03:22.415Z] \n══ 随机机器人 (100 bots, 120s) ══",
+    "[2026-05-31T14:05:25.249Z] ✅ PASS  randomBots:completed — 100 bots 活动结束",
+    "[2026-05-31T14:05:25.487Z] \n══ 数据库压力测试 ══",
+    "[2026-05-31T14:05:25.487Z]   并发写入: 20 workers × 200 条...",
+    "[2026-05-31T14:05:37.208Z]   写入完成: 4000 成功 / 0 失败",
+    "[2026-05-31T14:05:37.213Z]   写入延迟: P50=41ms P95=65ms P99=73ms",
+    "[2026-05-31T14:05:37.215Z] ✅ PASS  dbStress:write — 4000 条写入全部成功 P95=65ms",
+    "[2026-05-31T14:05:37.215Z]   全文搜索: 50 次...",
+    "[2026-05-31T14:05:59.952Z]   搜索延迟: P50=5ms P95=2091ms P99=2120ms",
+    "[2026-05-31T14:05:59.952Z] ✅ PASS  dbStress:search — 50 次搜索 P95=2091ms",
+    "[2026-05-31T14:05:59.952Z]   分页拉取: 50 次...",
+    "[2026-05-31T14:06:01.803Z]   分页延迟: P50=6ms P95=9ms P99=16ms",
+    "[2026-05-31T14:06:01.804Z] ✅ PASS  dbStress:pagination — 50 次分页 P95=9ms",
+    "[2026-05-31T14:06:02.009Z] \n▶ 压力测试（100 bots / 100k 消息）",
+    "[2026-05-31T14:06:02.087Z] \n══ 压力测试 ══",
+    "[2026-05-31T14:06:02.087Z]   Bots:100  Workers:50  目标:100000条  时限:300s",
+    "[2026-05-31T14:06:02.305Z]   Socket 连接: 20 成功 / 0 失败",
+    "[2026-05-31T14:06:02.539Z]   Socket 连接: 40 成功 / 0 失败",
+    "[2026-05-31T14:06:02.768Z]   Socket 连接: 60 成功 / 0 失败",
+    "[2026-05-31T14:06:02.979Z]   Socket 连接: 80 成功 / 0 失败",
+    "[2026-05-31T14:06:03.183Z]   Socket 连接: 100 成功 / 0 失败",
+    "[2026-05-31T14:06:03.234Z]   实际连接 100 个 WebSocket",
+    "[2026-05-31T14:11:08.246Z] \n  ── 压测结果 ──",
+    "[2026-05-31T14:11:08.247Z]   发送消息: 16727 / 100000  (305.0s)",
+    "[2026-05-31T14:11:08.247Z]   错误:     1762 (10%)",
+    "[2026-05-31T14:11:08.247Z]   吞吐量:   55 msg/s",
+    "[2026-05-31T14:11:08.247Z]   延迟:     avg=374ms  P95=455ms  P99=510ms",
+    "[2026-05-31T14:11:08.247Z]   内存:     峰值 RSS 133MB  Heap 34MB",
+    "[2026-05-31T14:11:08.247Z] ❌ FAIL  [HIGH] stress:errorRate — Error: 错误率过高: 10%",
+    "[2026-05-31T14:11:08.272Z] ✅ PASS  stress:latency — 平均延迟 374ms ≤ 500ms",
+    "[2026-05-31T14:11:08.273Z] ✅ PASS  stress:throughput — 吞吐量 55 msg/s",
+    "[2026-05-31T14:11:08.281Z] [MEM] RSS:96MB  Heap:19/23MB  EL:1ms  Handles:3  Sockets:-1",
+    "[2026-05-31T14:11:08.322Z] \n════════════════════════════════════════════════════════",
+    "[2026-05-31T14:11:08.322Z]    第 3 轮完成 (500s)  通过:92  失败:13",
+    "[2026-05-31T14:11:08.322Z]    报告: /root/v信/tests/test-reports/test-report.html",
+    "[2026-05-31T14:11:08.322Z] ════════════════════════════════════════════════════════\n",
+    "[2026-05-31T14:11:08.324Z] ⏱  等待 300s 后开始第 4 轮...",
+    "[2026-05-31T14:12:01.729Z] [MEM] RSS:97MB  Heap:20/22MB  EL:1ms  Handles:3  Sockets:-1",
+    "[2026-05-31T14:16:08.324Z] \n════════════════════════════════════════════════════════",
+    "[2026-05-31T14:16:08.325Z]    第 4 轮   2026/5/31 14:16:08",
+    "[2026-05-31T14:16:08.325Z]    剩余时间: 23.4h",
+    "[2026-05-31T14:16:08.325Z] ════════════════════════════════════════════════════════",
+    "[2026-05-31T14:16:08.326Z] [MEM] RSS:97MB  Heap:20/22MB  EL:0ms  Handles:3  Sockets:-1",
+    "[2026-05-31T14:16:08.328Z] \n══ 单聊测试 ══",
+    "[2026-05-31T14:16:16.360Z] ❌ FAIL  [CRITICAL] singleChat:tests — Error: timeout",
+    "[2026-05-31T14:16:16.570Z] \n══ 群聊测试 ══",
+    "[2026-05-31T14:16:26.574Z] ❌ FAIL  [CRITICAL] groupChat:create — AxiosError: timeout of 10000ms exceeded",
+    "[2026-05-31T14:16:36.780Z] \n══ 多端同步测试 ══",
+    "[2026-05-31T14:16:46.785Z] ❌ FAIL  [CRITICAL] loop:uncaught — AxiosError: timeout of 10000ms exceeded"
+  ]
+}

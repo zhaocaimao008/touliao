@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="UTF-8">
+<meta http-equiv="refresh" content="60">
+<title>V信 24小时循环验收 进度</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+body{font-family:-apple-system,sans-serif;background:#0d1117;color:#c9d1d9;margin:0;padding:20px}
+h1{color:#58a6ff}h2{color:#79c0ff;margin-top:24px}
+.stat{display:inline-block;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 20px;margin:6px;text-align:center}
+.stat .val{font-size:26px;font-weight:bold}.stat .lbl{font-size:12px;color:#8b949e;margin-top:3px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;margin:10px 0;overflow:hidden;padding:12px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#21262d;color:#8b949e;padding:7px 10px;text-align:left}
+td{padding:6px 10px;border-bottom:1px solid #21262d}tr:last-child td{border-bottom:none}
+</style></head><body>
+<h1>📊 V信 24小时循环验收 — 实时进度</h1>
+<p>进度: 1/48 轮 · 更新: 2026-05-31 13:42:10 (每60秒自动刷新)</p>
+
+<div style="margin-bottom:12px">
+  <span class="stat"><span class="val" style="color:#FF9500">98%</span><br><span class="lbl">通过率</span></span>
+  <span class="stat"><span class="val" style="color:#34C759">46</span><br><span class="lbl">通过</span></span>
+  <span class="stat"><span class="val" style="color:#FF3B30">1</span><br><span class="lbl">失败</span></span>
+  <span class="stat"><span class="val" style="color:#34C759">0</span><br><span class="lbl">CRITICAL轮</span></span>
+  <span class="stat"><span class="val">1/48</span><br><span class="lbl">完成轮次</span></span>
+</div>
+
+<h2>📈 指标曲线</h2>
+<div class="card"><canvas id="passFail" height="60"></canvas></div>
+<div class="card"><canvas id="memChart" height="60"></canvas></div>
+<div class="card"><canvas id="latChart" height="60"></canvas></div>
+
+<h2>📋 轮次明细</h2>
+<div class="card"><table>
+<thead><tr><th>轮次</th><th>时间</th><th>结果</th><th>Heap</th><th>RSS</th><th>CPU</th><th>EL</th><th>Socket延迟</th><th>SQLite延迟</th><th>耗时</th></tr></thead>
+<tbody><tr>
+      <td>#1</td>
+      <td>13:42:10</td>
+      <td style="color:#FF9500">46✅ 1❌</td>
+      <td>14MB</td>
+      <td>84MB</td>
+      <td>21%</td>
+      <td>0ms</td>
+      <td>4ms</td>
+      <td>106ms</td>
+      <td>9s</td>
+    </tr></tbody></table></div>
+
+<h2>❌ 失败汇总</h2>
+<div class="card"><table>
+<thead><tr><th>轮次</th><th>模块</th><th>测试项</th><th>级别</th><th>详情</th></tr></thead>
+<tbody><tr><td>#1</td><td>多端同步</td><td>全断线后状态异常=online</td><td style="color:#FF9500">HIGH</td><td style="font-size:12px;color:#8e8e93"></td></tr></tbody></table></div>
+
+<script>
+const CHART_OPT = {
+  animation:false,
+  plugins:{legend:{labels:{color:'#8b949e',boxWidth:12}}},
+  scales:{
+    x:{ticks:{color:'#636366',maxTicksLimit:12},grid:{color:'#21262d'}},
+    y:{ticks:{color:'#636366'},grid:{color:'#21262d'}},
+    y2:{position:'right',ticks:{color:'#636366'},grid:{display:false}},
+  }
+};
+const LABELS = ["#1"];
+
+new Chart(document.getElementById('passFail').getContext('2d'),{
+  type:'line', data:{labels:LABELS,datasets:[
+    {label:'通过',data:[46],borderColor:'#34C759',backgroundColor:'rgba(52,199,89,.1)',fill:true,tension:.3},
+    {label:'失败',data:[1],borderColor:'#FF3B30',backgroundColor:'rgba(255,59,48,.1)',fill:true,tension:.3,yAxisID:'y2'},
+  ]}, options:{...CHART_OPT,plugins:{...CHART_OPT.plugins,title:{display:true,text:'每轮通过/失败数',color:'#c9d1d9'}}}
+});
+
+new Chart(document.getElementById('memChart').getContext('2d'),{
+  type:'line', data:{labels:LABELS,datasets:[
+    {label:'Heap(MB)',data:[14],borderColor:'#58a6ff',tension:.3},
+    {label:'RSS(MB)', data:[84], borderColor:'#79c0ff',borderDash:[4,4],tension:.3,yAxisID:'y2'},
+    {label:'CPU%',    data:[21], borderColor:'#FF9500',tension:.3,yAxisID:'y2'},
+  ]}, options:{...CHART_OPT,plugins:{...CHART_OPT.plugins,title:{display:true,text:'内存 / CPU 趋势',color:'#c9d1d9'}}}
+});
+
+new Chart(document.getElementById('latChart').getContext('2d'),{
+  type:'line', data:{labels:LABELS,datasets:[
+    {label:'Socket ACK(ms)', data:[4], borderColor:'#07C160',tension:.3},
+    {label:'SQLite写(ms)',   data:[106], borderColor:'#FF9500',tension:.3,yAxisID:'y2'},
+    {label:'EL lag(ms)',     data:[0],     borderColor:'#FF3B30',borderDash:[2,4],tension:.3,yAxisID:'y2'},
+  ]}, options:{...CHART_OPT,plugins:{...CHART_OPT.plugins,title:{display:true,text:'延迟曲线',color:'#c9d1d9'}}}
+});
+</script></body></html>

@@ -1,10 +1,10 @@
 /**
  * v信 远程配置模块
  *
- * 启动时从 https://config.vxin.com/config.json 读取服务器地址，
+ * 启动时从 https://config.dipsin.com/config.json 读取服务器地址，
  * 缓存到 localStorage。配置服务器挂了时读取缓存。
  *
- * 以后迁移服务器只需修改 config.vxin.com/config.json 内容，
+ * 以后迁移服务器只需修改 config.dipsin.com/config.json 内容，
  * 无需重新编译客户端。
  *
  * config.json 格式：
@@ -19,7 +19,7 @@
  * Electron / Capacitor：必须指定完整 URL。
  */
 
-const CONFIG_URL  = 'https://config.vxin.com/config.json';
+const CONFIG_URL  = 'https://config.dipsin.com/config.json';
 const CACHE_KEY   = 'vxin_remote_config';
 const CACHE_TS    = 'vxin_remote_config_ts';
 

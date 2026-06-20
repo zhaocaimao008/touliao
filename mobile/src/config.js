@@ -1,10 +1,10 @@
 // v信 移动端远程配置
 // 启动时从远程读取服务器地址，缓存到 AsyncStorage。
-// 以后迁移服务器只需修改 config.vxin.com/config.json，无需重新编译。
+// 以后迁移服务器只需修改 config.dipsin.com/config.json，无需重新编译。
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CONFIG_URL   = 'https://config.vxin.com/config.json';
+const CONFIG_URL   = 'https://config.dipsin.com/config.json';
 const STORAGE_KEY  = 'vxin_server_url';
 const CACHE_TS_KEY = 'vxin_server_url_ts';
 

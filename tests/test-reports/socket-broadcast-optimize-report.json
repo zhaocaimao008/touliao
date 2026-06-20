@@ -1,0 +1,120 @@
+{
+  "title": "V信 Socket广播优化报告",
+  "generatedAt": "2026-05-30T12:37:39.894Z",
+  "fixes": [
+    {
+      "id": "FIX-1",
+      "severity": "CRITICAL",
+      "name": "socket.join 延迟化",
+      "before": "convs.forEach(socket.join) 阻塞 ~16ms/连接",
+      "after": "setImmediate + socket.join(convIds[]) 单次数组调用，连接响应不受阻塞",
+      "file": "socket/index.js:57-62"
+    },
+    {
+      "id": "FIX-2",
+      "severity": "HIGH",
+      "name": "pushNewMessage 推迟到下一 tick",
+      "before": "async函数同步路径在当前tick执行多条DB查询",
+      "after": "整体放入 setImmediate 块，释放 EventLoop",
+      "file": "socket/index.js:97-113"
+    },
+    {
+      "id": "FIX-3",
+      "severity": "HIGH",
+      "name": "recordDeliveries 推迟到下一 tick",
+      "before": "N次INSERT事务在ACK后同步阻塞",
+      "after": "放入同一 setImmediate 块",
+      "file": "socket/index.js:97-113"
+    },
+    {
+      "id": "FIX-4",
+      "severity": "HIGH",
+      "name": "contacts for-loop → 批量广播",
+      "before": "contacts.forEach(c => io.to().emit()) = N次独立emit",
+      "after": "io.to([...rooms]).emit() 单次批量广播",
+      "file": "socket/index.js:68-71, 128-130"
+    },
+    {
+      "id": "FIX-5",
+      "severity": "MEDIUM",
+      "name": "复用 members 查询结果",
+      "before": "send_message + pushNewMessage 各查一次 conversation_members",
+      "after": "send_message 查询后传给 pushNewMessage 复用",
+      "file": "socket/index.js:100 + push.js:109"
+    },
+    {
+      "id": "FIX-6",
+      "severity": "MEDIUM",
+      "name": "消除重复 SELECT username",
+      "before": "msg 已含 senderName，仍额外 SELECT username FROM users",
+      "after": "直接用 msg.senderName",
+      "file": "socket/index.js:107"
+    },
+    {
+      "id": "FIX-7",
+      "severity": "LOW",
+      "name": "message_delivered payload 精简",
+      "before": "onlineRecipients 完整 UUID 数组 (~3.5KB)",
+      "after": "deliveredCount: number (不再发 UUID 列表)",
+      "file": "socket/index.js:104-108"
+    },
+    {
+      "id": "FIX-8",
+      "severity": "LOW",
+      "name": "push.js unread COUNT 加 LIMIT 99",
+      "before": "SELECT COUNT(*) 无上限，扫描全量",
+      "after": "LIMIT 99 早停，与 HTTP 接口保持一致",
+      "file": "push.js:128"
+    }
+  ],
+  "results": {
+    "before": {
+      "stress": {
+        "avg": 993,
+        "p95": 1151,
+        "p99": 1282,
+        "throughput": 50,
+        "sent": 15133
+      },
+      "solo": {
+        "avg": 561,
+        "p95": 676,
+        "p99": 677
+      },
+      "conc10": {
+        "avg": 2649,
+        "p95": 4770,
+        "p99": 5323
+      },
+      "conc50": {
+        "avg": 5433,
+        "p95": 9579,
+        "p99": 9897
+      }
+    },
+    "after": {
+      "stress": {
+        "avg": 906,
+        "p95": 1068,
+        "p99": 1211,
+        "throughput": 55,
+        "sent": 16566
+      },
+      "solo": {
+        "avg": 3,
+        "p95": 7,
+        "p99": 8
+      },
+      "conc10": {
+        "avg": 106,
+        "p95": 152,
+        "p99": 164
+      },
+      "conc50": {
+        "avg": 830,
+        "p95": 1138,
+        "p99": 1193
+      }
+    }
+  }
+}
