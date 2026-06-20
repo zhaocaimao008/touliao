@@ -19,16 +19,19 @@
  * Electron / Capacitor：必须指定完整 URL。
  */
 
-const CONFIG_URL  = 'https://config.dipsin.com/config.json';
+const CONFIG_URL  = 'https://dipsin.com/config.json';
 const CACHE_KEY   = 'vxin_remote_config';
 const CACHE_TS    = 'vxin_remote_config_ts';
 
 const DEFAULTS = {
   api:    '',    // Web 同域时为空（使用相对路径）
   socket: '',    // Web 同域时为空（使用相对路径）
-  cdn:    '',    // CDN 地址
-  version:'2.0.0',
+  cdn:    '',
+  version:'2.0.1',
 };
+
+// Electron 下远程配置和缓存均失败时的硬编码兜底
+const ELECTRON_FALLBACK = window?.__ELECTRON_CONFIG__ ? 'https://dipsin.com' : '';
 
 let _config   = null;
 let _loaded   = false;
@@ -70,8 +73,11 @@ export function loadRemoteConfig() {
       }
     } catch { /* 缓存损坏 */ }
 
-    // 3. 最终回退：空值（Web 同域相对路径仍可用）
-    _config = { ...DEFAULTS };
+    // 3. 最终回退：Electron 用硬编码地址，Web 用空值（同域相对路径）
+    _config = {
+      ...DEFAULTS,
+      ...(ELECTRON_FALLBACK ? { api: ELECTRON_FALLBACK, socket: ELECTRON_FALLBACK, cdn: ELECTRON_FALLBACK } : {}),
+    };
     _loaded = true;
     console.warn('[config] 无可用配置（远程+缓存均失败），使用默认值');
     return _config;
