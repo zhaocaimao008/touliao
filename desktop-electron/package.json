@@ -22,7 +22,11 @@
     },
     "files": [
       "src/**/*",
-      "../web/dist/**/*"
+      {
+        "from": "../web/dist",
+        "to": "web/dist",
+        "filter": ["**/*"]
+      }
     ],
     "win": {
       "target": ["nsis"],

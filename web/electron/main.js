@@ -70,11 +70,9 @@ function createWindow() {
     frame: false,
     ...(IS_MAC ? { titleBarStyle: 'hiddenInset' } : {}),
 
-    // 🔴 Windows Mica/Acrylic 毛玻璃材质 (Windows 11)
+      // Windows: solid background (transparent without transparent:true shows black)
     ...(IS_WIN ? {
-      vibrancy: 'acrylic',
-      visualEffectState: 'active',
-      backgroundColor: '#00000000', // 透明背景，配合毛玻璃
+      backgroundColor: '#1A2033',
     } : {}),
 
     // 🎯 运行时窗口图标（三端统一配置）

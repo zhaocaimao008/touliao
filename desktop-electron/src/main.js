@@ -72,7 +72,9 @@ function createWindow() {
     backgroundColor: '#1A2033',
   });
 
-  const webDist = path.join(__dirname, '../../web/dist/index.html');
+  const webDist = app.isPackaged
+    ? path.join(app.getAppPath(), 'web/dist/index.html')
+    : path.join(__dirname, '../../web/dist/index.html');
   mainWindow.loadFile(webDist);
 
   mainWindow.once('ready-to-show', () => {

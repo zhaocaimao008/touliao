@@ -60,11 +60,18 @@ contextBridge.exposeInMainWorld('vxinAPI', {
 
 });
 
-// ⚡ 向后兼容：暴露 __ELECTRON_CONFIG__ 给渲染进程
-// 渲染进程启动在 loadFile 之后，此时 config 也许已经就绪
-// 但为了确保渲染进程能正确识别 Electron 环境，同步设置一个标记
-// vxinAPI.getConfig() 可用于异步获取完整配置
+// Dispatch CustomEvent so ElectronTitlebar.jsx can use addEventListener
+ipcRenderer.on('maximize',   () => window.dispatchEvent(new CustomEvent('electron:maximized-change', { detail: true })));
+ipcRenderer.on('unmaximize', () => window.dispatchEvent(new CustomEvent('electron:maximized-change', { detail: false })));
+
+// electronAPI: matches what ElectronTitlebar.jsx expects
+contextBridge.exposeInMainWorld('electronAPI', {
+  minimize:    () => ipcRenderer.send('window:minimize'),
+  maximize:    () => ipcRenderer.send('window:maximize'),
+  close:       () => ipcRenderer.send('window:close'),
+  isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+});
+
 contextBridge.exposeInMainWorld('__ELECTRON_CONFIG__', {
   isElectron: true,
-  // serverUrl 字段不再硬编码，由渲染进程通过 config.js 模块从远程获取
 });
