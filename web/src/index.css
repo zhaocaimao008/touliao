@@ -282,7 +282,7 @@ img { display: block; }
 }
 .wc-search input::placeholder { color: var(--text-placeholder); }
 
-.wc-list { flex: 1; overflow-y: auto; overflow-x: hidden; contain: layout paint; }
+.wc-list { flex: 1; overflow: hidden; contain: layout paint; }
 
 /* Icon button */
 .wc-icon-btn {
@@ -443,6 +443,14 @@ img { display: block; }
   display: flex;
   flex-direction: column;
   background: #F5F5F5;  /* 比 #EDEDED 更干净 */
+}
+
+/* Virtual list mode: no padding (each Row adds its own) */
+.wc-messages-virt {
+  flex: 1;
+  overflow: hidden;
+  background: #F5F5F5;
+  position: relative;
 }
 
 .wc-msg-time {

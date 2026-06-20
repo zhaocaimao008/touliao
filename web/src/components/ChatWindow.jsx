@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer } from 'react';
 import { createPortal } from 'react-dom';
 import { showToast, showConfirm } from '../utils/toast';
 import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
+import VirtualMessageList from './VirtualMessageList';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
 const ALLOWED_MIME_SET = new Set([
@@ -39,10 +40,6 @@ import { mediaUrl } from '../utils/url';
 import './ChatWindow.css';
 
 const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
-
-// #5/#6：内存视图中最多保留的消息条数（超出时丢弃最旧的，向上滚动按需再拉历史）
-const MAX_MESSAGES_IN_VIEW = 300;
-const capMsgs = (arr) => (arr.length > MAX_MESSAGES_IN_VIEW ? arr.slice(-MAX_MESSAGES_IN_VIEW) : arr);
 
 export default function ChatWindow({ conversation: initialConv, onClose }) {
   const [conversation, setConversation] = useState(initialConv);
@@ -92,15 +89,20 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   const [claiming, setClaiming] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  // recalled content tracked in state so flatItems rebuilds when re-edit is clicked
+  const [recalledMessages, setRecalledMessages] = useState({});
   const dragCounterRef = useRef(0);
-  const recalledContentRef = useRef({}); // msgId -> originalContent
   const isUploadingRef    = useRef(false); // 防止并发上传
   const lastSendRef       = useRef({ text: '', time: 0 }); // 防止 Enter 连击重复发送
   const pendingMsgsRef    = useRef(new Map()); // tempId → timeoutHandle
   const confirmedMsgIds   = useRef(new Set()); // ack 已确认的真实 msg.id，onMsg 跳过
   const readerReadAtRef   = useRef({}); // uid → last known readAt (prevents duplicate readCount increments)
-  const messagesEndRef    = useRef(null);
-  const messagesContainerRef = useRef(null);
+  const claimingRef       = useRef(false); // mirror of claiming for stable callbacks
+  // Virtual list refs (replace messagesContainerRef + messagesEndRef)
+  const virtListRef  = useRef(null); // VirtualMessageList imperative handle
+  const listOuterRef = useRef(null); // actual scrollable DOM div from react-window
+  // Item cache for flatItems - preserve object identity for unchanged messages
+  const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
   const typingTimer = useRef(null);
   const recorderRef = useRef(null);
@@ -129,11 +131,10 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     const vv = window.visualViewport;
     if (!vv) return;
     const onResize = () => {
-      const c = messagesContainerRef.current;
-      if (!c) return;
-      // 如果用户原本在底部，键盘弹起后保持置底
-      if (c.scrollHeight - c.scrollTop - c.clientHeight < 200)
-        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      const outer = listOuterRef.current;
+      if (!outer) return;
+      if (outer.scrollHeight - outer.scrollTop - outer.clientHeight < 200)
+        outer.scrollTo({ top: outer.scrollHeight, behavior: 'instant' });
     };
     vv.addEventListener('resize', onResize);
     return () => vv.removeEventListener('resize', onResize);
@@ -260,7 +261,10 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           const existingIds = new Set(prev.map(m => m.id));
           const newMsgs = data.filter(m => !existingIds.has(m.id));
           if (!newMsgs.length) return prev;
-          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+          setTimeout(() => {
+            const outer = listOuterRef.current;
+            if (outer) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
+          }, 50);
           return [...prev, ...newMsgs];
         });
       })
@@ -296,6 +300,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         setHasMore(data.length === 40);
         // 搜索结果跳转：如果有 scrollToId，则滚到该消息；否则滚到底部
         setTimeout(() => {
+          const outer = listOuterRef.current;
+          if (!outer) return;
           const scrollToId = conversation.scrollToId;
           if (scrollToId) {
             const targetEl = document.getElementById(`msg-${scrollToId}`);
@@ -304,7 +310,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
               return;
             }
           }
-          messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+          outer.scrollTo({ top: outer.scrollHeight, behavior: 'auto' });
         }, 50);
       })
       .catch(err => { if (axios.isCancel?.(err) || err.code === 'ERR_CANCELED') return; });
@@ -338,8 +344,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   const markReadRef = useRef(null);
   useEffect(() => {
     if (!messages.length) return;
-    const container = messagesContainerRef.current;
-    const isAtBottom = !container || (container.scrollHeight - container.scrollTop - container.clientHeight < 120);
+    const outer = listOuterRef.current;
+    const isAtBottom = !outer || (outer.scrollHeight - outer.scrollTop - outer.clientHeight < 120);
     if (!isAtBottom) return;
     const lastMsg = messages[messages.length - 1];
     if (markReadRef.current === lastMsg.id) return;
@@ -366,19 +372,20 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
 
   // 发送/收到消息时若已接近底部则自动跟随（阈值 400px 避免平滑动画期间误判）
   useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 400;
-    if (isAtBottom) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const outer = listOuterRef.current;
+    if (!outer) return;
+    const isAtBottom = outer.scrollHeight - outer.scrollTop - outer.clientHeight < 400;
+    if (isAtBottom) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
   // Load more on scroll to top — RAF 节流，避免高频 scroll 事件触发多次 setState
   const scrollRafRef = useRef(null);
+  const handleScrollRef = useRef(null);
   const handleScroll = useCallback(() => {
-    if (scrollRafRef.current) return; // 已有待执行的帧，跳过
+    if (scrollRafRef.current) return;
     scrollRafRef.current = requestAnimationFrame(async () => {
       scrollRafRef.current = null;
-      const container = messagesContainerRef.current;
+      const container = listOuterRef.current;
       if (!container) return;
       const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
       setShowScrollBtn(distFromBottom > 300);
@@ -397,7 +404,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             const prevHeight = container.scrollHeight;
             setMessages(prev => [...data, ...prev]);
             requestAnimationFrame(() => {
-              container.scrollTop += container.scrollHeight - prevHeight;
+              if (listOuterRef.current)
+                listOuterRef.current.scrollTop += listOuterRef.current.scrollHeight - prevHeight;
             });
           }
         } catch (err) {
@@ -408,6 +416,16 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       }
     });
   }, [loadingMore, hasMore, messages, fetchMessages]);
+  handleScrollRef.current = handleScroll;
+
+  // Attach scroll listener to react-window outer div once after mount
+  useEffect(() => {
+    const outer = listOuterRef.current;
+    if (!outer) return;
+    const stableHandler = () => handleScrollRef.current?.();
+    outer.addEventListener('scroll', stableHandler, { passive: true });
+    return () => outer.removeEventListener('scroll', stableHandler);
+  });
 
   useEffect(() => {
     if (!socket) return;
@@ -421,11 +439,13 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       window.__vxinPerf?.recv(msg, user.id, 'socket');
       setMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
-        return capMsgs([...prev, msg]);
+        return [...prev, msg];
       });
       axios.post(`/api/messages/conversation/${currentConvId}/read`).catch(() => {});
-      // 收到新消息后始终滚到底部（等 React 渲染完再滚）
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      setTimeout(() => {
+        const outer = listOuterRef.current;
+        if (outer) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
+      }, 50);
     };
     // 批量合并消息：一次性 append + 单次 read 上报 + 单次滚动（避免逐条 setState/请求/滚动）
     const onMsgBatch = (arr) => {
@@ -441,10 +461,13 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       setMessages(prev => {
         const have = new Set(prev.map(m => m.id));
         const add = incoming.filter(m => !have.has(m.id));
-        return add.length ? capMsgs([...prev, ...add]) : prev;
+        return add.length ? [...prev, ...add] : prev;
       });
       axios.post(`/api/messages/conversation/${cur}/read`).catch(() => {});
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      setTimeout(() => {
+        const outer = listOuterRef.current;
+        if (outer) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
+      }, 50);
     };
     const onTyping = ({ userId, conversationId }) => {
       if (conversationId !== convIdRef.current || userId === user.id) return;
@@ -457,7 +480,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       setMessages(prev => {
         const target = prev.find(m => m.id === msgId);
         if (target && target.sender_id === user.id && target.type === 'text' && !target.deleted) {
-          recalledContentRef.current[msgId] = target.content;
+          setRecalledMessages(r => ({ ...r, [msgId]: target.content }));
         }
         return prev.map(m => m.id === msgId ? { ...m, deleted: 1, content: '消息已撤回' } : m);
       });
@@ -637,9 +660,11 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     });
   }, [socket]);
 
+  claimingRef.current = claiming;
+
   // 打开红包：拉详情，未领且未领完则先领取，再展示详情
-  const openRedPacket = async (packetId) => {
-    if (!packetId || claiming) return;
+  const openRedPacket = useCallback(async (packetId) => {
+    if (!packetId || claimingRef.current) return;
     setClaiming(true);
     try {
       let { data: detail } = await axios.get(`/api/redpackets/${packetId}`);
@@ -663,7 +688,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     } finally {
       setClaiming(false);
     }
-  };
+  }, []); // stable - reads claiming via claimingRef
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -713,7 +738,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     setReplyTo(null);
     setShowEmoji(false);
     socket.emit('stop_typing', { conversationId: conversation.id });
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 50);
 
     // 2. 5s 超时 → 标记失败
     const timer = setTimeout(() => {
@@ -771,7 +796,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       _status: 'sending', _tempId: tempId,
     };
     setMessages(prev => [...prev, optimistic]);
-    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 50);
     const timer = setTimeout(() => {
       pendingMsgsRef.current.delete(tempId);
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
@@ -937,7 +962,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             isUploadingRef.current = false;
             setUploadState(null);
             setReplyTo(null);
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
             return;
           }
           throw cloudErr;
@@ -951,7 +976,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           reply_to_id: replyTo?.id || null,
         });
         setReplyTo(null);
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
       } catch (err) {
         isUploadingRef.current = false;
         const errorMsg = err.response?.data?.error || err.message || '上传失败';
@@ -959,7 +984,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       }
     };
     await doUpload();
-  }, [uploadToCloud, uploadLocal, socket, conversation.id, replyTo, messagesEndRef]);
+  }, [uploadToCloud, uploadLocal, socket, conversation.id, replyTo, listOuterRef]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -989,9 +1014,9 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   const sendSticker = useCallback((stickerId) => {
     setShowStickers(false);
     axios.post('/api/stickers/send', { conversationId: conversation.id, stickerId })
-      .then(() => setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 80))
+      .then(() => setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 80))
       .catch(err => showToast(err.response?.data?.error || '发送失败', 'error'));
-  }, [conversation.id, messagesEndRef]);
+  }, [conversation.id, listOuterRef]);
 
   // 拖拽上传
   const handleDragEnter = (e) => {
@@ -1036,7 +1061,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             file_url: publicUrl,
             content:  'voice.webm',
           });
-          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+          setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
         } catch { setUploadState({ name: '语音', progress: 0, status: 'error', errorMsg: '发送失败' }); }
         stream.getTracks().forEach(t => t.stop());
       };
@@ -1219,252 +1244,122 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     new Audio(url).play();
   };
 
-  // Location, Contact card, Red packet (removed)
+  // Precompute the last mine message id to avoid O(n) per message in flatItems
+  const lastMineId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].sender_id === user.id && !messages[i].deleted) return messages[i].id;
+    }
+    return null;
+  }, [messages, user.id]);
 
-  // Time dividers
-  // useMemo：仅当消息列表本身、选择状态、高亮状态变化时重新计算，
-  // 避免输入框输入/emoji面板等无关状态变化触发全量重渲染
-  const renderedMessages = useMemo(() => {
+  // Build flat items array with per-item caching to preserve object identity for unchanged messages.
+  // Unchanged items keep the same reference → VirtualRow memo skips re-render.
+  const flatItems = useMemo(() => {
+    const cache = itemCacheRef.current;
+    const newCache = new Map();
     const items = [];
     let lastTime = 0;
-    messages.forEach((msg, idx) => {
+
+    for (const msg of messages) {
       if (msg.created_at - lastTime > 300) {
-        items.push(
-          <div key={`t_${msg.id}`} className="wc-msg-time">
-            <span>{formatFull(msg.created_at * 1000)}</span>
-          </div>
-        );
+        const key = `t_${msg.id}`;
+        const cached = cache.get(key);
+        const divider = (cached && cached.time === msg.created_at)
+          ? cached
+          : { type: 'divider', key, time: msg.created_at };
+        newCache.set(key, divider);
+        items.push(divider);
         lastTime = msg.created_at;
       }
-      items.push(renderMessage(msg, idx));
-    });
-    return items;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, multiSelect, selectedMsgs, highlightedMsgId, conversation.id,
-      conversation.type, pinnedMessages, myGroupRole, members, groupSettings,
-      user.id, claiming]);
 
-  const renderMessage = (msg, idx) => {
-    if (msg.deleted) {
-      const recalled = recalledContentRef.current[msg.id];
-      return (
-        <div key={msg.id} className="wc-deleted-msg">
-          <span className="wc-deleted-msg-text">
-            {msg.sender_id === user.id ? '你撤回了一条消息' : `"${msg.senderName}"撤回了一条消息`}
-          </span>
-          {recalled && (
-            <span
-              className="wc-reedit-link"
-              onClick={() => { setInput(recalled); textareaRef.current?.focus(); delete recalledContentRef.current[msg.id]; }}
-            >重新编辑</span>
-          )}
-        </div>
-      );
+      const isMine = msg.sender_id === user.id;
+      const isLastMine = isMine && msg.id === lastMineId;
+      const isSelected = multiSelect && selectedMsgs.has(msg.id);
+      const isHighlighted = highlightedMsgId === String(msg.id);
+      const recalledContent = msg.deleted ? (recalledMessages[msg.id] || null) : null;
+
+      const cached = cache.get(msg.id);
+      let item;
+      if (cached
+        && cached.msg === msg
+        && cached.isLastMine === isLastMine
+        && cached.isSelected === isSelected
+        && cached.isHighlighted === isHighlighted
+        && cached.multiSelect === multiSelect
+        && cached.convType === conversation.type
+        && cached.groupSettings === groupSettings
+        && cached.myGroupRole === myGroupRole
+        && cached.members === members
+        && cached.claiming === claiming
+        && cached.pinnedMessages === pinnedMessages
+        && cached.recalledContent === recalledContent
+      ) {
+        item = cached;
+      } else {
+        item = {
+          type: 'message',
+          key: msg.id,
+          msg,
+          isMine,
+          isLastMine,
+          isSelected,
+          isHighlighted,
+          multiSelect,
+          convType: conversation.type,
+          convId: conversation.id,
+          userId: user.id,
+          groupSettings,
+          myGroupRole,
+          members,
+          claiming,
+          pinnedMessages,
+          recalledContent,
+        };
+      }
+
+      newCache.set(msg.id, item);
+      items.push(item);
     }
 
-    const isMine = msg.sender_id === user.id;
-    const isLastMine = isMine && !messages.slice(idx + 1).find(m => m.sender_id === user.id && !m.deleted);
-    // 私聊状态指示：已读 > 已送达 > 已发送
-    const showRead      = isMine && msg._read      && conversation.type === 'private';
-    const showDelivered = isMine && msg._delivered && conversation.type === 'private' && !msg._read;
+    itemCacheRef.current = newCache;
+    return items;
+  }, [messages, multiSelect, selectedMsgs, highlightedMsgId, conversation.id,
+      conversation.type, pinnedMessages, myGroupRole, members, groupSettings,
+      user.id, claiming, lastMineId, recalledMessages]);
 
-    // 禁私聊权限判断：非管理员/群主 无法点击其他普通成员头像
-    const canClickAvatar = (() => {
-      if (isMine || conversation.type !== 'group') return true;
-      if (!groupSettings.no_private_chat) return true;          // 未开启禁私聊
-      if (myGroupRole === 'owner' || myGroupRole === 'admin') return true; // 管理员不受限
-      // 普通成员：检查对方是否也是普通成员
-      const senderMember = members.find(m => m.id === msg.sender_id);
-      return senderMember?.role === 'owner' || senderMember?.role === 'admin'; // 只能点管理员
-    })();
-
-    const handleAvatarClick = () => {
-      if (!canClickAvatar) {
-        // 给出一个轻提示（不打断体验）
-        const tip = document.createElement('div');
-        tip.textContent = '群主已开启禁止私聊';
-        Object.assign(tip.style, { position:'fixed', bottom:'80px', left:'50%', transform:'translateX(-50%)', background:'rgba(0,0,0,.6)', color:'#fff', padding:'7px 16px', borderRadius:'4px', fontSize:'13px', zIndex:'9999', pointerEvents:'none' });
-        document.body.appendChild(tip);
-        setTimeout(() => document.body.removeChild(tip), 2000);
-        return;
-      }
-      if (!isMine) setShowUserProfile(msg.sender_id);
-    };
-
-    return (
-      <div
-        key={msg.id}
-        id={`msg-${msg.id}`}
-        data-msg-id={msg.id}
-        className={`wc-msg-row${isMine ? ' mine' : ''}${multiSelect ? ' multiselect-row' : ''}${highlightedMsgId === String(msg.id) ? ' wc-msg-hl' : ''}`}
-        onClick={multiSelect ? () => toggleMsgSelect(msg.id) : undefined}
-        style={multiSelect ? { cursor: 'pointer' } : {}}
-      >
-        {/* 多选复选框 */}
-        {multiSelect && (
-          <div style={{ display: 'flex', alignItems: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'center' }}>
-            <div style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${selectedMsgs.has(msg.id) ? 'var(--green)' : '#D9D9D9'}`, background: selectedMsgs.has(msg.id) ? 'var(--green)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .1s' }}>
-              {selectedMsgs.has(msg.id) && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</span>}
-            </div>
-          </div>
-        )}
-        <div className="wc-msg-avatar" onClick={!multiSelect ? handleAvatarClick : undefined} style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}>
-          <Avatar src={msg.senderAvatar} name={msg.senderName} size={38} />
-        </div>
-        <div className="wc-msg-body">
-          {!isMine && conversation.type === 'group' && (
-            <div className="wc-msg-sender">{msg.senderName}</div>
-          )}
-          <div className="wc-msg-bubble-wrap">
-            {isMine && (
-              msg._status === 'sending' ? (
-                <div className="wc-msg-read"><span className="wc-msg-spinner" /></div>
-              ) : msg._status === 'error' ? (
-                <div
-                  className="wc-msg-read wc-msg-status-error-icon"
-                  title="发送失败，点击重发"
-                  onClick={() => retryMessage(msg)}
-                >❗</div>
-              ) : isLastMine && conversation.type === 'private' ? (
-                showRead
-                  ? <div className="wc-msg-read wc-msg-status-read">✓✓ 已读</div>
-                  : showDelivered
-                    ? <div className="wc-msg-read wc-msg-status-delivered">✓✓ 已送达</div>
-                    : <div className="wc-msg-read wc-msg-status-sent">✓ 已发送</div>
-              ) : null
-            )}
-            <div
-              className={`wc-msg-bubble ${isMine ? 'mine' : 'other'}`}
-              onContextMenu={e => handleContextMenu(e, msg)}
-            >
-              {msg.replyTo && (
-                <div className="wc-msg-reply gi-cp" onClick={(e) => {
-                  e.stopPropagation();
-                  const el = document.getElementById(`msg-${msg.replyTo.id}`);
-                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  setHighlightedMsgId(String(msg.replyTo.id));
-                  setTimeout(() => setHighlightedMsgId(null), 2000);
-                }}>
-                  <div className="wc-msg-reply-name">{msg.replyTo.senderName}</div>
-                  <div className="wc-msg-reply-text">
-                    {msg.replyTo.type === 'image' ? '[图片]' : msg.replyTo.type === 'voice' ? '[语音]' : msg.replyTo.type === 'video' ? '[视频]' : msg.replyTo.type === 'red_packet' ? '[红包]' : msg.replyTo.type === 'file' ? '[文件]' : msg.replyTo.content}
-                  </div>
-                </div>
-              )}
-              {msg.type === 'text' && (
-                <span>
-                  {msg.content}
-                  {msg.edited ? <span className="wc-msg-edited" style={{ color: isMine ? 'rgba(0,0,0,.35)' : '#B2B2B2' }}>已编辑</span> : null}
-                </span>
-              )}
-              {msg.type === 'image' && (
-                <img loading="lazy"
-                  src={mediaUrl(msg.file_url)}
-                  alt=""
-                  className="wc-msg-img"
-                  onClick={() => setLightboxUrl(mediaUrl(msg.file_url))}
-                  onLoad={() => {
-                    const c = messagesContainerRef.current;
-                    if (!c) return;
-                    if (c.scrollHeight - c.scrollTop - c.clientHeight < 200)
-                      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  onError={e => { e.currentTarget.onerror = null; e.currentTarget.style.cssText = 'width:80px;height:80px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center'; e.currentTarget.alt = '图片加载失败'; }}
-                />
-              )}
-              {msg.type === 'voice' && (
-                <VoicePlayer url={mediaUrl(msg.file_url)} />
-              )}
-              {msg.type === 'video' && (
-                <video
-                  src={mediaUrl(msg.file_url)}
-                  controls
-                  preload="metadata"
-                  className="wc-msg-video"
-                />
-              )}
-              {msg.type === 'file' && (
-                <a href={mediaUrl(msg.file_url)} download={msg.content} className="wc-msg-file-link">
-                  <div className="wc-msg-file-icon">📄</div>
-                  <div>
-                    <div className="wc-msg-file-name">{msg.content}</div>
-                    <div className="wc-msg-file-size">点击下载</div>
-                  </div>
-                </a>
-              )}
-              {/* location removed */}
-              {msg.type === 'contact_card' && (() => {
-                let card = {};
-                try { card = JSON.parse(msg.content); } catch { card = {}; }
-                return (
-                  <div
-                    onClick={() => card.uid && setShowUserProfile(card.uid)}
-                    className="wc-contact-card"
-                    role="button" tabIndex={0}
-                    onKeyDown={e => e.key === 'Enter' && card.uid && setShowUserProfile(card.uid)}
-                  >
-                    <div className="wc-contact-card-body">
-                      <Avatar src={card.avatar} name={card.username} size={44} style={{ borderRadius: 6, flexShrink: 0 }} />
-                      <div className="wc-contact-card-info">
-                        <div className="wc-contact-card-name">{card.username || '用户'}</div>
-                        {card.wechat_id && <div className="wc-contact-card-wechat">v信号：{card.wechat_id}</div>}
-                      </div>
-                    </div>
-                    <div className="wc-contact-card-footer">个人名片</div>
-                  </div>
-                );
-              })()}
-              {msg.type === 'red_packet' && (() => {
-                let rp = {};
-                try { rp = JSON.parse(msg.content); } catch { rp = {}; }
-                return (
-                  <div
-                    onClick={() => openRedPacket(rp.packetId)}
-                    className="wc-redpacket-card"
-                    role="button" tabIndex={0}
-                    onKeyDown={e => e.key === 'Enter' && openRedPacket(rp.packetId)}
-                  >
-                    <div className="wc-redpacket-body">
-                      <div className="wc-redpacket-icon">🧧</div>
-                      <div className="wc-redpacket-info">
-                        <div className="wc-redpacket-greeting">
-                          {rp.greeting || '恭喜发财，大吉大利'}
-                        </div>
-                        <div className="wc-redpacket-hint">点击领取红包</div>
-                      </div>
-                    </div>
-                    <div className="wc-redpacket-footer">
-                      v信红包
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-          {/* 群消息已读数 */}
-          {conversation.type === 'group' && isMine && msg.readCount > 0 && (
-            <div className="wc-group-read-count">{msg.readCount}人已读</div>
-          )}
-          {msg.reactions?.length > 0 && (
-            <div className="wc-reactions">
-              {msg.reactions.map(r => (
-                <div
-                  key={r.emoji}
-                  className={`wc-reaction-pill${r.userIds.map(String).includes(String(user.id)) ? ' mine' : ''}`}
-                  onClick={() => axios.post(`/api/messages/${msg.id}/react`, { emoji: r.emoji })}
-                  role="button" tabIndex={0}
-                  onKeyDown={e => e.key === 'Enter' && axios.post(`/api/messages/${msg.id}/react`, { emoji: r.emoji })}
-                >
-                  <span>{r.emoji}</span>
-                  {r.count > 1 && <span>{r.count}</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+  // Stable callbacks ref - MessageItem reads from this ref when rendering
+  const callbacksRef = useRef(null);
+  if (!callbacksRef.current) callbacksRef.current = {};
+  callbacksRef.current.handleContextMenu = handleContextMenu;
+  callbacksRef.current.toggleMsgSelect = (msgId) =>
+    setSelectedMsgs(prev => { const s = new Set(prev); s.has(msgId) ? s.delete(msgId) : s.add(msgId); return s; });
+  callbacksRef.current.retryMessage = retryMessage;
+  callbacksRef.current.setLightboxUrl = setLightboxUrl;
+  callbacksRef.current.setHighlightedMsgId = setHighlightedMsgId;
+  callbacksRef.current.setShowUserProfile = setShowUserProfile;
+  callbacksRef.current.openRedPacket = openRedPacket;
+  callbacksRef.current.onReedit = (msgId, content) => {
+    setInput(content);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+    setRecalledMessages(prev => { const n = { ...prev }; delete n[msgId]; return n; });
   };
+  callbacksRef.current.onImageLoad = () => {
+    const outer = listOuterRef.current;
+    if (outer && outer.scrollHeight - outer.scrollTop - outer.clientHeight < 200)
+      outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
+  };
+  callbacksRef.current.scrollToMsg = (msgId) => {
+    const idx = flatItems.findIndex(it => it.type === 'message' && it.msg?.id === msgId);
+    if (idx >= 0) {
+      virtListRef.current?.scrollToItem(idx, 'center');
+      setHighlightedMsgId(String(msgId));
+      setTimeout(() => setHighlightedMsgId(null), 2000);
+    } else {
+      const el = document.getElementById(`msg-${msgId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
 
   const memberCount = conversation.type === 'group' ? (members.length || '') : null;
 
@@ -1580,22 +1475,15 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
                     key={msg.id}
                     className="wc-search-result-item"
                     onClick={() => {
-                      // 跳转到该消息（添加到消息列表并高亮）
                       const exists = messages.find(m => m.id === msg.id);
                       if (!exists) setMessages(prev => [...prev, { ...msg, _highlighted: true }]);
-                      setTimeout(() => {
-                        const el = document.getElementById(`msg-${msg.id}`);
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
+                      setTimeout(() => callbacksRef.current.scrollToMsg(msg.id), 100);
                     }}
                     role="button" tabIndex={0}
                     onKeyDown={e => e.key === 'Enter' && (() => {
                       const exists = messages.find(m => m.id === msg.id);
                       if (!exists) setMessages(prev => [...prev, { ...msg, _highlighted: true }]);
-                      setTimeout(() => {
-                        const el = document.getElementById(`msg-${msg.id}`);
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
+                      setTimeout(() => callbacksRef.current.scrollToMsg(msg.id), 100);
                     })()}
                   >
                     <div className="wc-search-result-body">
@@ -1654,25 +1542,31 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       )}
 
       {/* ── Body ── */}
-      <div className="wc-messages-wrap">
-        <div className="wc-messages" ref={messagesContainerRef} onScroll={handleScroll}>
+      <div className="wc-messages-wrap" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Messages virtual list + overlays */}
+        <div className="wc-messages-virt">
           {loadingMore && (
-            <div className="wc-search-status" role="status">加载中...</div>
+            <div className="wc-search-status" role="status" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, background: 'rgba(245,245,245,.92)', textAlign: 'center', padding: '6px 0', fontSize: 12 }}>加载中...</div>
           )}
-          {renderedMessages}
+          <VirtualMessageList
+            ref={virtListRef}
+            outerRef={listOuterRef}
+            items={flatItems}
+            cbRef={callbacksRef}
+          />
           {typingName && (
-            <div className="cw-typing"><span></span><span></span><span></span> {typingName} 正在输入</div>
+            <div className="cw-typing" style={{ position: 'absolute', bottom: 4, left: 20, right: 20, pointerEvents: 'none', zIndex: 1 }}>
+              <span></span><span></span><span></span> {typingName} 正在输入
+            </div>
           )}
-          <div ref={messagesEndRef} />
+          {showScrollBtn && (
+            <button
+              className="cw-scroll-bottom"
+              onClick={() => virtListRef.current?.scrollToBottom('smooth')}
+              aria-label="滚动到底部"
+            ></button>
+          )}
         </div>
-        {/* 滚动到底部按钮 */}
-        {showScrollBtn && (
-          <button
-            className="cw-scroll-bottom"
-            onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-            aria-label="滚动到底部"
-          ></button>
-        )}
 
         {showGroupInfo && conversation.type === 'group' && (
           <GroupInfo
@@ -2131,106 +2025,6 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   );
 }
 
-/* ── Voice Player Component ── */
-function VoicePlayer({ url }) {
-  const [playing, setPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const audioRef = useRef(null);
-
-  const formatTime_ = (s) => {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${m}:${sec.toString().padStart(2, '0')}`;
-  };
-
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (playing) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(() => {});
-    }
-  };
-
-  const handleSeek = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pct = Math.max(0, Math.min(1, x / rect.width));
-    if (audioRef.current && duration) {
-      audioRef.current.currentTime = pct * duration;
-      setCurrentTime(pct * duration);
-    }
-  };
-
-  useEffect(() => {
-    const audio = new Audio(url);
-    audio.preload = 'metadata';
-    const onLoadedMetadata = () => { setDuration(audio.duration || 0); setLoaded(true); };
-    const onTimeUpdate    = () => { setCurrentTime(audio.currentTime); };
-    const onEnded         = () => { setPlaying(false); setCurrentTime(0); };
-    const onPlay          = () => setPlaying(true);
-    const onPause         = () => setPlaying(false);
-    audio.addEventListener('loadedmetadata', onLoadedMetadata);
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('ended', onEnded);
-    audio.addEventListener('play', onPlay);
-    audio.addEventListener('pause', onPause);
-    audioRef.current = audio;
-    return () => {
-      audio.pause();
-      audio.src = '';
-      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('ended', onEnded);
-      audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('pause', onPause);
-    };
-  }, [url]);
-
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-
-  return (
-    <div
-      className="wc-msg-voice-player wc-voice-player"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* Play/Pause button */}
-      <button
-        onClick={togglePlay}
-        className="wc-voice-play-btn"
-      >
-        {playing ? (
-          <svg viewBox="0 0 24 24" className="wc-voice-play-icon">
-            <rect x="6" y="4" width="4" height="16" rx="1"/>
-            <rect x="14" y="4" width="4" height="16" rx="1"/>
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" className="wc-voice-play-icon-offset">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-        )}
-      </button>
-
-      {/* Progress bar */}
-      <div
-        onClick={handleSeek}
-        className="wc-voice-progress-track"
-      >
-        <div
-          className="wc-voice-progress-fill"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-
-      {/* Duration */}
-      <span className="wc-voice-duration">
-        {loaded ? formatTime_(currentTime) + ' / ' + formatTime_(duration) : formatTime_(0)}
-      </span>
-    </div>
-  );
-}
 
 function PrivateChatSettings({ conversation, onClose, onConvUpdate, onCleared }) {
   const [muted, setMuted] = useState(!!conversation.muted);

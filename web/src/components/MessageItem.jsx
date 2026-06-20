@@ -1,0 +1,227 @@
+import React, { memo } from 'react';
+import Avatar from './Avatar';
+import { mediaUrl } from '../utils/url';
+import { formatFull } from '../utils/time';
+import axios from 'axios';
+import VoicePlayer from './VoicePlayer';
+
+// Time divider rendered as a list item
+export const TimeDivider = memo(function TimeDivider({ time }) {
+  return (
+    <div className="wc-msg-time">
+      <span>{formatFull(time * 1000)}</span>
+    </div>
+  );
+});
+
+const MessageItem = memo(function MessageItem({ item, cbRef }) {
+  const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
+    convType, userId, groupSettings, myGroupRole, members, claiming,
+    recalledContent, pinnedMessages } = item;
+
+  const cbs = cbRef.current;
+
+  if (msg.deleted) {
+    return (
+      <div className="wc-deleted-msg">
+        <span className="wc-deleted-msg-text">
+          {msg.sender_id === userId ? '你撤回了一条消息' : `"${msg.senderName}"撤回了一条消息`}
+        </span>
+        {recalledContent && (
+          <span
+            className="wc-reedit-link"
+            onClick={() => cbs.onReedit(msg.id, recalledContent)}
+          >重新编辑</span>
+        )}
+      </div>
+    );
+  }
+
+  const showRead      = isMine && msg._read      && convType === 'private';
+  const showDelivered = isMine && msg._delivered && convType === 'private' && !msg._read;
+
+  const canClickAvatar = (() => {
+    if (isMine || convType !== 'group') return true;
+    if (!groupSettings.no_private_chat) return true;
+    if (myGroupRole === 'owner' || myGroupRole === 'admin') return true;
+    const senderMember = members.find(m => m.id === msg.sender_id);
+    return senderMember?.role === 'owner' || senderMember?.role === 'admin';
+  })();
+
+  const handleAvatarClick = () => {
+    if (!canClickAvatar) {
+      const tip = document.createElement('div');
+      tip.textContent = '群主已开启禁止私聊';
+      Object.assign(tip.style, { position:'fixed', bottom:'80px', left:'50%', transform:'translateX(-50%)', background:'rgba(0,0,0,.6)', color:'#fff', padding:'7px 16px', borderRadius:'4px', fontSize:'13px', zIndex:'9999', pointerEvents:'none' });
+      document.body.appendChild(tip);
+      setTimeout(() => document.body.removeChild(tip), 2000);
+      return;
+    }
+    if (!isMine) cbs.setShowUserProfile(msg.sender_id);
+  };
+
+  return (
+    <div
+      id={`msg-${msg.id}`}
+      data-msg-id={msg.id}
+      className={`wc-msg-row${isMine ? ' mine' : ''}${multiSelect ? ' multiselect-row' : ''}${isHighlighted ? ' wc-msg-hl' : ''}`}
+      onClick={multiSelect ? () => cbs.toggleMsgSelect(msg.id) : undefined}
+      style={multiSelect ? { cursor: 'pointer' } : {}}
+    >
+      {multiSelect && (
+        <div style={{ display: 'flex', alignItems: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'center' }}>
+          <div style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${isSelected ? 'var(--green)' : '#D9D9D9'}`, background: isSelected ? 'var(--green)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .1s' }}>
+            {isSelected && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+          </div>
+        </div>
+      )}
+      <div className="wc-msg-avatar" onClick={!multiSelect ? handleAvatarClick : undefined} style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}>
+        <Avatar src={msg.senderAvatar} name={msg.senderName} size={38} />
+      </div>
+      <div className="wc-msg-body">
+        {!isMine && convType === 'group' && (
+          <div className="wc-msg-sender">{msg.senderName}</div>
+        )}
+        <div className="wc-msg-bubble-wrap">
+          {isMine && (
+            msg._status === 'sending' ? (
+              <div className="wc-msg-read"><span className="wc-msg-spinner" /></div>
+            ) : msg._status === 'error' ? (
+              <div
+                className="wc-msg-read wc-msg-status-error-icon"
+                title="发送失败，点击重发"
+                onClick={() => cbs.retryMessage(msg)}
+              >❗</div>
+            ) : isLastMine && convType === 'private' ? (
+              showRead
+                ? <div className="wc-msg-read wc-msg-status-read">✓✓ 已读</div>
+                : showDelivered
+                  ? <div className="wc-msg-read wc-msg-status-delivered">✓✓ 已送达</div>
+                  : <div className="wc-msg-read wc-msg-status-sent">✓ 已发送</div>
+            ) : null
+          )}
+          <div
+            className={`wc-msg-bubble ${isMine ? 'mine' : 'other'}`}
+            onContextMenu={e => cbs.handleContextMenu(e, msg)}
+          >
+            {msg.replyTo && (
+              <div className="wc-msg-reply gi-cp" onClick={(e) => {
+                e.stopPropagation();
+                cbs.scrollToMsg(msg.replyTo.id);
+              }}>
+                <div className="wc-msg-reply-name">{msg.replyTo.senderName}</div>
+                <div className="wc-msg-reply-text">
+                  {msg.replyTo.type === 'image' ? '[图片]' : msg.replyTo.type === 'voice' ? '[语音]' : msg.replyTo.type === 'video' ? '[视频]' : msg.replyTo.type === 'red_packet' ? '[红包]' : msg.replyTo.type === 'file' ? '[文件]' : msg.replyTo.content}
+                </div>
+              </div>
+            )}
+            {msg.type === 'text' && (
+              <span>
+                {msg.content}
+                {msg.edited ? <span className="wc-msg-edited" style={{ color: isMine ? 'rgba(0,0,0,.35)' : '#B2B2B2' }}>已编辑</span> : null}
+              </span>
+            )}
+            {msg.type === 'image' && (
+              <img loading="lazy"
+                src={mediaUrl(msg.file_url)}
+                alt=""
+                className="wc-msg-img"
+                onClick={() => cbs.setLightboxUrl(mediaUrl(msg.file_url))}
+                onLoad={cbs.onImageLoad}
+                onError={e => { e.currentTarget.onerror = null; e.currentTarget.style.cssText = 'width:80px;height:80px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center'; e.currentTarget.alt = '图片加载失败'; }}
+              />
+            )}
+            {msg.type === 'voice' && (
+              <VoicePlayer url={mediaUrl(msg.file_url)} />
+            )}
+            {msg.type === 'video' && (
+              <video
+                src={mediaUrl(msg.file_url)}
+                controls
+                preload="metadata"
+                className="wc-msg-video"
+              />
+            )}
+            {msg.type === 'file' && (
+              <a href={mediaUrl(msg.file_url)} download={msg.content} className="wc-msg-file-link">
+                <div className="wc-msg-file-icon">📄</div>
+                <div>
+                  <div className="wc-msg-file-name">{msg.content}</div>
+                  <div className="wc-msg-file-size">点击下载</div>
+                </div>
+              </a>
+            )}
+            {msg.type === 'sticker' && (
+              <img loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" style={{ maxWidth: 120, maxHeight: 120 }} />
+            )}
+            {msg.type === 'contact_card' && (() => {
+              let card = {};
+              try { card = JSON.parse(msg.content); } catch { card = {}; }
+              return (
+                <div
+                  onClick={() => card.uid && cbs.setShowUserProfile(card.uid)}
+                  className="wc-contact-card"
+                  role="button" tabIndex={0}
+                  onKeyDown={e => e.key === 'Enter' && card.uid && cbs.setShowUserProfile(card.uid)}
+                >
+                  <div className="wc-contact-card-body">
+                    <Avatar src={card.avatar} name={card.username} size={44} style={{ borderRadius: 6, flexShrink: 0 }} />
+                    <div className="wc-contact-card-info">
+                      <div className="wc-contact-card-name">{card.username || '用户'}</div>
+                      {card.wechat_id && <div className="wc-contact-card-wechat">v信号：{card.wechat_id}</div>}
+                    </div>
+                  </div>
+                  <div className="wc-contact-card-footer">个人名片</div>
+                </div>
+              );
+            })()}
+            {msg.type === 'red_packet' && (() => {
+              let rp = {};
+              try { rp = JSON.parse(msg.content); } catch { rp = {}; }
+              return (
+                <div
+                  onClick={() => cbs.openRedPacket(rp.packetId)}
+                  className="wc-redpacket-card"
+                  role="button" tabIndex={0}
+                  onKeyDown={e => e.key === 'Enter' && cbs.openRedPacket(rp.packetId)}
+                >
+                  <div className="wc-redpacket-body">
+                    <div className="wc-redpacket-icon">🧧</div>
+                    <div className="wc-redpacket-info">
+                      <div className="wc-redpacket-greeting">
+                        {rp.greeting || '恭喜发财，大吉大利'}
+                      </div>
+                      <div className="wc-redpacket-hint">点击领取红包</div>
+                    </div>
+                  </div>
+                  <div className="wc-redpacket-footer">v信红包</div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+        {convType === 'group' && isMine && msg.readCount > 0 && (
+          <div className="wc-group-read-count">{msg.readCount}人已读</div>
+        )}
+        {msg.reactions?.length > 0 && (
+          <div className="wc-reactions">
+            {msg.reactions.map(r => (
+              <div
+                key={r.emoji}
+                className={`wc-reaction-pill${r.userIds.map(String).includes(String(userId)) ? ' mine' : ''}`}
+                onClick={() => axios.post(`/api/messages/${msg.id}/react`, { emoji: r.emoji })}
+                role="button" tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && axios.post(`/api/messages/${msg.id}/react`, { emoji: r.emoji })}
+              >
+                <span>{r.emoji}</span>
+                {r.count > 1 && <span>{r.count}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}, (prev, next) => prev.item === next.item && prev.cbRef === next.cbRef);
+
+export default MessageItem;
