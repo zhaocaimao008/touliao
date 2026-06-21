@@ -1,5 +1,6 @@
 package com.vxin.app.feature.contacts
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,17 +23,23 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
 import com.vxin.app.data.model.SearchUser
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
@@ -42,9 +49,17 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 @Composable
 fun AddFriendScreen(
     onBack: () -> Unit,
+    onOpenMyQr: () -> Unit = {},
     viewModel: AddFriendViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scanner = remember {
+        GmsBarcodeScanning.getClient(
+            context,
+            GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build(),
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -59,6 +74,20 @@ fun AddFriendScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = {
+                        scanner.startScan()
+                            .addOnSuccessListener { barcode -> barcode.rawValue?.let { viewModel.addByQrPayload(it) } }
+                            .addOnFailureListener { }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+                    modifier = Modifier.weight(1f),
+                ) { Text("扫一扫") }
+                OutlinedButton(onClick = onOpenMyQr, modifier = Modifier.weight(1f)) { Text("我的二维码") }
+            }
+            Spacer(Modifier.size(12.dp))
+
             OutlinedTextField(
                 value = state.query,
                 onValueChange = viewModel::onQueryChange,

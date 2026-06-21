@@ -28,4 +28,9 @@ final class ProfileRepository {
         )
         return res.avatar
     }
+
+    /// 我的二维码 PNG 字节（需 Bearer）
+    func qrcodeData() async throws -> Data {
+        try await api.fetchData("api/users/me/qrcode")
+    }
 }

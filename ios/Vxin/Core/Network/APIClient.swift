@@ -55,6 +55,23 @@ final class APIClient {
         return try handle(data: data, response: response)
     }
 
+    /// 取原始字节（带 Bearer），用于二维码 PNG 等非 JSON 响应。
+    func fetchData(_ path: String) async throws -> Data {
+        let request = try makeRequest(path: path, method: "GET", authorized: true)
+        let (data, response): (Data, URLResponse)
+        do { (data, response) = try await URLSession.shared.data(for: request) }
+        catch { throw APIError.network }
+        guard let http = response as? HTTPURLResponse else { throw APIError.network }
+        switch http.statusCode {
+        case 200..<300: return data
+        case 401:
+            KeychainStore.shared.token = nil
+            NotificationCenter.default.post(name: Self.unauthorizedNotification, object: nil)
+            throw APIError.unauthorized
+        default: throw APIError.server(http.statusCode, nil)
+        }
+    }
+
     // MARK: - 媒体上传（multipart/form-data，字段名固定 file）
     func upload<T: Decodable>(
         _ path: String,

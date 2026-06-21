@@ -41,6 +41,7 @@ import com.vxin.app.feature.contacts.CreateGroupScreen
 import com.vxin.app.feature.contacts.FriendRequestsScreen
 import com.vxin.app.feature.group.GroupInfoScreen
 import com.vxin.app.feature.group.InviteMembersScreen
+import com.vxin.app.feature.profile.MyQrCodeScreen
 import com.vxin.app.feature.profile.ProfileScreen
 import com.vxin.app.feature.search.SearchScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -61,6 +62,7 @@ private object Routes {
     const val PROFILE = "profile"
     const val CONTACTS = "contacts"
     const val ADD_FRIEND = "addFriend"
+    const val MY_QRCODE = "myQrCode"
     const val REQUESTS = "requests"
     const val CREATE_GROUP = "createGroup"
     const val SEARCH = "search"
@@ -170,7 +172,13 @@ private fun MainFlow() {
                 )
             }
             composable(Routes.ADD_FRIEND) {
-            AddFriendScreen(onBack = { navController.popBackStack() })
+            AddFriendScreen(
+                onBack = { navController.popBackStack() },
+                onOpenMyQr = { navController.navigate(Routes.MY_QRCODE) },
+            )
+        }
+        composable(Routes.MY_QRCODE) {
+            MyQrCodeScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.REQUESTS) {
             FriendRequestsScreen(onBack = { navController.popBackStack() })

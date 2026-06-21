@@ -2,9 +2,28 @@ import SwiftUI
 
 struct AddFriendView: View {
     @StateObject private var vm = AddFriendViewModel()
+    @EnvironmentObject private var session: SessionStore
+    @State private var showScanner = false
 
     var body: some View {
         VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Button { showScanner = true } label: {
+                    Label("扫一扫", systemImage: "qrcode.viewfinder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).tint(.vxinGreen)
+
+                NavigationLink {
+                    MyQRCodeView()
+                } label: {
+                    Label("我的二维码", systemImage: "qrcode")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.horizontal)
+
             HStack {
                 TextField("手机号 / v信号 / 用户名", text: $vm.query)
                     .textFieldStyle(.roundedBorder)
@@ -51,5 +70,15 @@ struct AddFriendView: View {
         .padding(.top, 12)
         .navigationTitle("添加好友")
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $showScanner) {
+            QRScannerView(
+                onResult: { value in
+                    showScanner = false
+                    vm.addByQrPayload(value, myId: session.currentUser?.id)
+                },
+                onCancel: { showScanner = false }
+            )
+            .ignoresSafeArea()
+        }
     }
 }

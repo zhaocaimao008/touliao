@@ -22,4 +22,7 @@ class ProfileRepository @Inject constructor(
 
     suspend fun changePassword(oldPassword: String, newPassword: String) =
         authApi.changePassword(ChangePasswordRequest(oldPassword, newPassword))
+
+    /** 我的二维码 PNG 字节（需 Bearer） */
+    suspend fun qrcodeBytes(): ByteArray = userApi.qrcode().bytes()
 }
