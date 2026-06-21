@@ -1,3 +1,4 @@
+import './perf-monitor.js';   // 端到端性能打点（注入 window.__vxinPerf，须在 App 之前）
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
@@ -32,9 +33,9 @@ import { loadRemoteConfig, getConfig } from './utils/config';
   // 跨域请求必须携带 Cookie，全局开启
   axios.defaults.withCredentials = true;
 
-  // 3. Electron 恢复 Bearer token
-  if (isElectron) {
-    const stored = sessionStorage.getItem('vxin_electron_token');
+  // 3. Electron / 移动端恢复 Bearer token（localStorage 持久化）
+  if (isElectron || isMobile) {
+    const stored = localStorage.getItem('vxin_electron_token');
     if (stored) axios.defaults.headers.common['Authorization'] = `Bearer ${stored}`;
   }
 

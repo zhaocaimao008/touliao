@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { format } from '../utils/time';
 import { showConfirm } from '../utils/toast';
 import { FixedSizeList } from 'react-window';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
+import AutoSizer from 'react-virtualized-auto-sizer';
 
 const ITEM_HEIGHT = 64;
 
@@ -211,16 +211,18 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         ) : (
           <AutoSizer>
             {({ height, width }) => (
-              <FixedSizeList
-                height={height}
-                width={width}
-                itemCount={filtered.length}
-                itemSize={ITEM_HEIGHT}
-                itemData={listData}
-                overscanCount={5}
-              >
-                {ConvRow}
-              </FixedSizeList>
+              (!height || !width) ? null : (
+                <FixedSizeList
+                  height={height}
+                  width={width}
+                  itemCount={filtered.length}
+                  itemSize={ITEM_HEIGHT}
+                  itemData={listData}
+                  overscanCount={5}
+                >
+                  {ConvRow}
+                </FixedSizeList>
+              )
             )}
           </AutoSizer>
         )}

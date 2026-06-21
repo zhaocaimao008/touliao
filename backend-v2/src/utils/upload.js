@@ -64,7 +64,7 @@ function sanitizeFilename(name) {
     .replace(/[^\w.\-一-龥\s]/g, '_').trim().slice(0, 200) || 'file';
 }
 
-async function verifyMagicBytes(filePath, allowedMimes) {
+async function verifyMagicBytes(filePath, allowedMimes, claimedMime = '') {
   let fd;
   try {
     const buf = Buffer.alloc(16);
@@ -74,6 +74,11 @@ async function verifyMagicBytes(filePath, allowedMimes) {
 
     const detected = await fileType.fromBuffer(buf.slice(0, bytesRead));
     if (!detected) {
+      // 声明为二进制媒体类型(图片/音视频)却无法识别真实魔数 → 内容与声明不符，拒绝
+      // （防止文本/脚本伪装成 image/png 等绕过校验被存为媒体消息）
+      if (/^(image|video|audio)\//.test(claimedMime)) {
+        return { ok: false, reason: `声明为 ${claimedMime} 但文件内容非该类型` };
+      }
       if (allowedMimes.has('text/plain')) return { ok: true, mime: 'text/plain' };
       return { ok: false, reason: '无法识别文件类型（可能为可执行文件或未知格式）' };
     }
@@ -97,7 +102,7 @@ function makeMagicBytesMiddleware(allowedMimes) {
         fs.unlink(file.path, () => {});
         return res.status(400).json({ error: `400 Invalid File Type: 禁止上传 ${origExt} 类型文件` });
       }
-      const result = await verifyMagicBytes(file.path, allowedMimes);
+      const result = await verifyMagicBytes(file.path, allowedMimes, file.mimetype);
       if (!result.ok) {
         fs.unlink(file.path, () => {});
         return res.status(400).json({ error: `400 Invalid File Type: ${result.reason}` });
@@ -166,5 +171,5 @@ function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 
 
 module.exports = {
   ALLOWED_CHAT_MIMES, ALLOWED_IMAGE_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS,
-  sanitizeFilename, makeChatUploader, makeImageUploader,
+  sanitizeFilename, makeChatUploader, makeImageUploader, verifyMagicBytes,
 };

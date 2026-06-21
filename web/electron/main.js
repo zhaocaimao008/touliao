@@ -8,7 +8,11 @@ const path = require('path');
 const fs   = require('fs');
 const { net } = require('electron');
 
-const CONFIG_URL  = 'https://dipsin.com/config.json';
+// 引导配置地址（按顺序尝试，任意一个成功即用）— 与 web/src/utils/config.js 保持一致
+const CONFIG_URLS = [
+  'https://cdn.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json',
+  'https://dipsin.com/config.json',
+];
 const PROD_INDEX  = path.join(__dirname, '../dist/index.html');
 const IS_DEV      = process.env.ELECTRON_DEV === '1';
 const IS_LINUX    = process.platform === 'linux';
@@ -24,9 +28,10 @@ let g_config = {
 };
 
 async function fetchRemoteConfig() {
-  try {
-    const res = await net.fetch(CONFIG_URL, { method: 'GET' });
-    if (res.ok) {
+  for (const url of CONFIG_URLS) {
+    try {
+      const res = await net.fetch(url, { method: 'GET' });
+      if (!res.ok) continue;
       const data = await res.json();
       g_config = {
         api:    data.api    || 'https://dipsin.com',
@@ -35,10 +40,11 @@ async function fetchRemoteConfig() {
         version:data.version|| '2.0.1',
       };
       return true;
+    } catch (e) {
+      console.warn('[config] 引导地址不可达，尝试下一个:', url, e.message);
     }
-  } catch (e) {
-    console.warn('[config] 远程配置加载失败，使用默认值:', e.message);
   }
+  console.warn('[config] 所有引导地址均失败，使用默认值');
   return false;
 }
 

@@ -1,11 +1,12 @@
 /**
- * v信 远程配置模块
+ * v信 远程配置模块（永不重编译换服务器）
  *
- * 启动时从 https://config.dipsin.com/config.json 读取服务器地址，
- * 缓存到 localStorage。配置服务器挂了时读取缓存。
+ * 启动时依次尝试 CONFIG_URLS 里的每个地址读取服务器配置，任意一个成功即用，
+ * 全部失败再读 localStorage 缓存，最后才用硬编码兜底。
  *
- * 以后迁移服务器只需修改 config.dipsin.com/config.json 内容，
- * 无需重新编译客户端。
+ * 关键设计：把「去哪找配置」(CONFIG_URLS) 和「配置里写的服务器」(api/socket/cdn)
+ * 彻底分开。以后换服务器只需改 config.json 内容，无需重新编译任何端。
+ * CONFIG_URLS 里放多个互不依赖的稳定地址（CDN / 应用服务器），单点挂掉不影响引导。
  *
  * config.json 格式：
  * {
@@ -15,11 +16,18 @@
  *   "version":"2.0.0"                     // 版本号
  * }
  *
+ * 换服务器步骤：编辑 vxin-config 仓库的 config.json → git push（jsDelivr 自动同步，
+ * 需立即生效可调 https://purge.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json）。
+ *
  * Web 端：api/socket 为空时使用同源相对路径（默认行为）。
  * Electron / Capacitor：必须指定完整 URL。
  */
 
-const CONFIG_URL  = 'https://dipsin.com/config.json';
+// 引导配置地址（按顺序尝试，任意一个成功即用）。互不依赖，单点故障不影响整体。
+const CONFIG_URLS = [
+  'https://cdn.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json', // 主：GitHub+jsDelivr CDN
+  'https://dipsin.com/config.json',                                          // 兜底：当前应用服务器（过渡期）
+];
 const CACHE_KEY   = 'vxin_remote_config';
 const CACHE_TS    = 'vxin_remote_config_ts';
 
@@ -46,10 +54,11 @@ export function loadRemoteConfig() {
   if (_loading) return _loading;
 
   _loading = (async () => {
-    // 1. 尝试远程拉取
-    try {
-      const res = await fetch(CONFIG_URL, { signal: AbortSignal.timeout(5000) });
-      if (res.ok) {
+    // 1. 依次尝试每个引导地址，任意一个成功即用
+    for (const url of CONFIG_URLS) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) continue;
         const data = await res.json();
         _config = { ...DEFAULTS, ...data };
         // 缓存到 localStorage
@@ -59,8 +68,8 @@ export function loadRemoteConfig() {
         } catch { /* localStorage 不可用时静默忽略 */ }
         _loaded = true;
         return _config;
-      }
-    } catch { /* 网络错误，静默走缓存 */ }
+      } catch { /* 该地址不可达，尝试下一个 */ }
+    }
 
     // 2. 回退到缓存
     try {

@@ -61,7 +61,10 @@ app.use(express.urlencoded({ extended: true }));
 const jwt = require('jsonwebtoken');
 const { isBlacklisted } = require('./utils/tokenBlacklist');
 app.use('/uploads', (req, res, next) => {
-  const token = req.cookies?.[config.cookieName] || req.cookies?.[config.admin.cookieName];
+  // Cookie 优先；Electron/移动端用 Bearer 鉴权、<img> 无法带 header，故同时支持 ?token= 查询参数与 Bearer 兜底
+  const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
+  const token = req.cookies?.[config.cookieName] || req.cookies?.[config.admin.cookieName]
+    || req.query?.token || bearer;
   if (!token) return res.status(401).json({ error: '未授权' });
   try {
     jwt.verify(token, config.jwtSecret);

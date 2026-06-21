@@ -85,6 +85,12 @@ const TABS = [
   { key: 'settings',  Icon: IcoSettings, label: '设置' },
 ];
 
+// 朋友圈 / 通话记录 / 收藏：功能代码保留，暂在前端隐藏。
+// 需恢复入口时把对应 key 从此集合移除即可。
+const HIDDEN_TABS = new Set(['moments', 'calls', 'favorites']);
+const visibleTabs = (features) =>
+  TABS.filter(t => !HIDDEN_TABS.has(t.key) && (!t.feature || features[t.feature] !== false));
+
 
 /* ── 左上角头像 — 点击展开账号切换/添加下拉面板 ── */
 function AccountSwitcher() {
@@ -628,21 +634,17 @@ export default function Home() {
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
   const badges = { chats: totalUnread, contacts: friendReqCount };
 
-  const isMobile = window.innerWidth < 768;
-  const [showPanel, setShowPanel] = useState(true);
+  const [isMobile, setIsMobile] = useState(() =>
+    window.innerWidth < 768 || !!window.Capacitor?.isNativePlatform?.());
+  const [showPanel, setShowPanel] = useState(true);   // 桌面布局保留
   const [showChat, setShowChat] = useState(false);
 
-  const handleMobileSelectConv = useCallback((conv) => {
-    handleSelectConv(conv);
-    if (isMobile) { setShowPanel(false); setShowChat(true); }
-  }, [handleSelectConv, isMobile]);
-
-  const handleMobileBack = useCallback(() => { setShowPanel(true); setShowChat(false); }, []);
+  const handleMobileSelectConv = useCallback((conv) => { handleSelectConv(conv); }, [handleSelectConv]);
+  const handleMobileBack = useCallback(() => { setActiveConv(null); }, []);
 
   useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth >= 768) { setShowPanel(true); setShowChat(false); }
-    };
+    const onResize = () =>
+      setIsMobile(window.innerWidth < 768 || !!window.Capacitor?.isNativePlatform?.());
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -690,6 +692,113 @@ export default function Home() {
     setAddFriendRequest(n => n + 1);
   };
 
+  // 各端共用的浮层（二维码 / 添加菜单 / 建群 / 网络搜索）
+  const overlays = (
+    <>
+      {showQR && (
+        <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
+          <div className="wc-modal home-qr-modal" onClick={e => e.stopPropagation()}>
+            <div className="wc-modal-header">
+              <span className="wc-modal-title">我的二维码</span>
+              <button className="wc-modal-close" aria-label="关闭二维码" onClick={() => setShowQR(false)}>✕</button>
+            </div>
+            <div className="wc-modal-body home-qr-body">
+              <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="home-qr-img" />
+              <p className="home-qr-text">扫描二维码添加我为好友</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {showAddMenu && addMenuPos && (
+        <>
+          <div className="home-add-overlay" onClick={closeAddMenu} />
+          <div className="home-add-dropdown" style={{ top: addMenuPos.top, right: addMenuPos.right }}>
+            <AddDropItem icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
+              label="发起群聊" onClick={handleCreateGroup} />
+            <div className="home-add-divider" />
+            <AddDropItem icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
+              label="添加朋友" onClick={handleAddFriend} />
+          </div>
+        </>
+      )}
+      {showCreateGroup && (
+        <CreateGroupModal onClose={() => setShowCreateGroup(false)}
+          onCreated={(conv) => { setShowCreateGroup(false); handleSelectConv(conv); }} />
+      )}
+      {netSearchQ !== null && (
+        <AddFriendModal initialQuery={netSearchQ} onClose={() => setNetSearchQ(null)} />
+      )}
+    </>
+  );
+
+  // ── 移动端布局（宽度 < 768 或原生 App）：底部 TabBar + 全屏页 + 全屏聊天 ──
+  if (isMobile) {
+    const M_LABEL = { chats: '消息', contacts: '通讯录', moments: '发现', settings: '我的' };
+    const mobileTabs = ['chats', 'contacts', 'moments', 'settings']
+      .map(k => TABS.find(t => t.key === k))
+      .filter(t => t && !HIDDEN_TABS.has(t.key) && (!t.feature || features[t.feature] !== false));
+
+    return (
+      <div className="m-shell">
+        {activeConv ? (
+          <div className="m-chat-page">
+            <ChatWindowBoundary convId={activeConv.id}>
+              <ChatWindow key={activeConv.id} conversation={activeConv} onClose={handleMobileBack} />
+            </ChatWindowBoundary>
+          </div>
+        ) : (
+          <>
+            <div className="m-page">
+              {(tab === 'chats' || tab === 'contacts') && (
+                <>
+                  <div className="m-topbar">
+                    <span className="m-title">{M_LABEL[tab]}</span>
+                    {tab === 'chats' && (
+                      <button ref={addBtnRef} className="m-topbar-add" onClick={toggleAddMenu} aria-label="发起">
+                        <IcoAdd />
+                      </button>
+                    )}
+                  </div>
+                  <div className="m-search">
+                    <span className="m-search-icon"><IcoSearch /></span>
+                    <input placeholder="搜索" aria-label="搜索" value={search}
+                      onChange={e => setSearch(e.target.value)} />
+                    {search && <button className="m-search-clear" aria-label="清除" onClick={() => setSearch('')}>✕</button>}
+                  </div>
+                </>
+              )}
+              <div className="m-content">
+                {search.trim() ? (
+                  <GlobalSearch query={search}
+                    onSelectConv={(conv) => { handleMobileSelectConv(conv); setSearch(''); }}
+                    onNetworkSearch={(q) => setNetSearchQ(q || search)} />
+                ) : tab === 'chats' ? (
+                  <ChatList onSelectConv={handleMobileSelectConv} activeConvId={activeConv?.id}
+                    unread={unread} searchQuery={search} />
+                ) : renderMain()}
+              </div>
+            </div>
+
+            <nav className="m-tabbar">
+              {mobileTabs.map(({ key, Icon }) => {
+                const count = badges[key] || 0;
+                return (
+                  <button key={key} className={`m-tab${tab === key ? ' active' : ''}`}
+                    onClick={() => handleTabChange(key)}>
+                    <span className="m-tab-ico"><Icon /></span>
+                    <span className="m-tab-label">{M_LABEL[key]}</span>
+                    {count > 0 && <span className="m-tab-badge">{count > 99 ? '99+' : count}</span>}
+                  </button>
+                );
+              })}
+            </nav>
+          </>
+        )}
+        {overlays}
+      </div>
+    );
+  }
+
   return (
     <div className={`wc-app${isMobile ? ' wc-mobile' : ''}`}>
 
@@ -698,7 +807,7 @@ export default function Home() {
         <AccountSwitcher />
         {/* Tab 按钮紧跟头像，不用 spacer 下推，防止小屏被裁切 */}
         <div className="wc-sidebar-btns">
-          {TABS.filter(t => !t.feature || features[t.feature] !== false).map(({ key, Icon, label }) => {
+          {visibleTabs(features).map(({ key, Icon, label }) => {
             const count = badges[key] || 0;
             return (
               <div key={key}
@@ -779,56 +888,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* 二维码弹窗 */}
-      {showQR && (
-        <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
-          <div className="wc-modal home-qr-modal" onClick={e => e.stopPropagation()}>
-            <div className="wc-modal-header">
-              <span className="wc-modal-title">我的二维码</span>
-              <button className="wc-modal-close" aria-label="关闭二维码" onClick={() => setShowQR(false)}>✕</button>
-            </div>
-            <div className="wc-modal-body home-qr-body">
-              <AuthImage src="/api/users/me/qrcode" alt="我的二维码"
-                className="home-qr-img" />
-              <p className="home-qr-text">扫描二维码添加我为好友</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* + 号下拉菜单（position:fixed 避免 backdrop-filter 堆叠层问题） */}
-      {showAddMenu && addMenuPos && (
-        <>
-          <div className="home-add-overlay" onClick={closeAddMenu} />
-          <div className="home-add-dropdown"
-            style={{ top: addMenuPos.top, right: addMenuPos.right }}>
-            <AddDropItem
-              icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
-              label="发起群聊"
-              onClick={handleCreateGroup}
-            />
-            <div className="home-add-divider" />
-            <AddDropItem
-              icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
-              label="添加朋友"
-              onClick={handleAddFriend}
-            />
-          </div>
-        </>
-      )}
-
-      {/* 发起群聊弹窗 */}
-      {showCreateGroup && (
-        <CreateGroupModal
-          onClose={() => setShowCreateGroup(false)}
-          onCreated={(conv) => { setShowCreateGroup(false); handleSelectConv(conv); }}
-        />
-      )}
-
-      {/* 主搜索框「去网络搜索」兜底：带关键词打开添加好友 */}
-      {netSearchQ !== null && (
-        <AddFriendModal initialQuery={netSearchQ} onClose={() => setNetSearchQ(null)} />
-      )}
+      {overlays}
     </div>
   );
 }

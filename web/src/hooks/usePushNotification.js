@@ -14,6 +14,35 @@ export function usePushNotification(user) {
 
   useEffect(() => {
     if (!user) return;
+
+    // 原生 App（Capacitor / Android·iOS）：走 FCM/APNs 设备令牌，而非 Web Push
+    if (window.Capacitor?.isNativePlatform?.()) {
+      let cleanup = () => {};
+      (async () => {
+        try {
+          const { PushNotifications } = await import('@capacitor/push-notifications');
+          let perm = await PushNotifications.checkPermissions();
+          if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
+            perm = await PushNotifications.requestPermissions();
+          }
+          if (perm.receive !== 'granted') return;
+          const regL = await PushNotifications.addListener('registration', (token) => {
+            const platform = window.Capacitor.getPlatform?.() === 'ios' ? 'ios' : 'android';
+            axios.post('/api/notifications/device-token', { token: token.value, platform }).catch(() => {});
+          });
+          const errL = await PushNotifications.addListener('registrationError', () => {});
+          // 点击推送 → 跳转到对应会话
+          const actL = await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+            const cid = action?.notification?.data?.conversationId;
+            if (cid) window.dispatchEvent(new CustomEvent('vxin:open-conversation', { detail: { conversationId: cid } }));
+          });
+          await PushNotifications.register();
+          cleanup = () => { regL.remove?.(); errL.remove?.(); actL.remove?.(); };
+        } catch { /* 插件不可用时静默 */ }
+      })();
+      return () => cleanup();
+    }
+
     // Electron 桌面端用原生通知（window.electron.showNotification），
     // 且 file:// 下无法注册 Service Worker，直接跳过 web-push。
     if (window.__ELECTRON_CONFIG__) return;

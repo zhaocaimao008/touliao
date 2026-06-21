@@ -370,12 +370,23 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     return () => window.removeEventListener('vxin:remark-changed', handler);
   }, [conversation.type, conversation.otherUser?.id]);
 
-  // 发送/收到消息时若已接近底部则自动跟随（阈值 400px 避免平滑动画期间误判）
+  // 发送/收到消息时若已接近底部则自动跟随。
+  // 新消息行高由 ResizeObserver 异步测得，单次 scrollTo 会因高度未定而滚不到底，
+  // 故用多帧 sticky 滚动持续贴底，直到高度测量稳定。
   useEffect(() => {
     const outer = listOuterRef.current;
     if (!outer) return;
     const isAtBottom = outer.scrollHeight - outer.scrollTop - outer.clientHeight < 400;
-    if (isAtBottom) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
+    if (!isAtBottom) return;
+    let n = 0, raf = 0;
+    const step = () => {
+      const o = listOuterRef.current;
+      if (!o) return;
+      o.scrollTop = o.scrollHeight;
+      if (++n < 10) raf = requestAnimationFrame(step);
+    };
+    step();
+    return () => cancelAnimationFrame(raf);
   }, [messages]);
 
   // Load more on scroll to top — RAF 节流，避免高频 scroll 事件触发多次 setState
@@ -912,6 +923,44 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     });
   }, [conversation.id, replyTo]);
 
+  // ── 分片 / 断点续传上传（大文件，云存储未配置时的本地大文件通道）──
+  const uploadChunked = useCallback(async (file, onProgress) => {
+    // 计算 SHA-256（用作断点续传的唯一键 + 完整性校验）
+    const buf = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buf);
+    const hash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const { data: init } = await axios.post(`/api/messages/${conversation.id}/upload-init`, {
+      filename: file.name, size: file.size, hash, mime: file.type || 'application/octet-stream',
+    });
+    const chunkSize = init.chunkSize || 4 * 1024 * 1024;
+    let received = init.received || 0; // 断点续传起点
+    while (received < file.size) {
+      const end = Math.min(received + chunkSize, file.size);
+      const slice = buf.slice(received, end);
+      let attempt = 0;
+      for (;;) {
+        try {
+          const { data } = await axios.put(
+            `/api/messages/${conversation.id}/upload-chunk/${init.uploadId}?offset=${received}`,
+            slice, { headers: { 'Content-Type': 'application/octet-stream' } }
+          );
+          received = data.received;
+          break;
+        } catch (e) {
+          // 偏移不一致(409) → 以服务端 received 为准续传；其它错误最多重试 3 次
+          if (e.response?.status === 409 && typeof e.response.data?.received === 'number') {
+            received = e.response.data.received; break;
+          }
+          if (++attempt >= 3) throw e;
+          await new Promise(r => setTimeout(r, 500 * attempt));
+        }
+      }
+      onProgress?.(Math.round(received / file.size * 100));
+    }
+    await axios.post(`/api/messages/${conversation.id}/upload-finish/${init.uploadId}`,
+      replyTo?.id ? { reply_to_id: replyTo.id } : {});
+  }, [conversation.id, replyTo]);
+
   // ── 统一文件处理入口（handleFileUpload / handleDrop 共用）────
   const handleFileSelect = useCallback(async (file) => {
     // 阻断并发上传：防止用户疯狂拖入多个文件
@@ -956,9 +1005,11 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         try {
           publicUrl = await uploadToCloud(file, file.type, file.name, onProg);
         } catch (cloudErr) {
-          // 云存储未配置(503) → 回退本地上传；后端 /upload 自己入库+广播，无需再 emit
+          // 云存储未配置(503) → 回退本地上传；后端自己入库+广播，无需再 emit
+          // 大文件(>8MB)走分片/断点续传通道，突破单次 50MB 上限并支持断点续传
           if (cloudErr.response?.status === 503) {
-            await uploadLocal(file, onProg);
+            if (file.size > 8 * 1024 * 1024) await uploadChunked(file, onProg);
+            else await uploadLocal(file, onProg);
             isUploadingRef.current = false;
             setUploadState(null);
             setReplyTo(null);
@@ -1259,8 +1310,10 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     const newCache = new Map();
     const items = [];
     let lastTime = 0;
+    let prevSenderId = null;
 
     for (const msg of messages) {
+      let dividerInserted = false;
       if (msg.created_at - lastTime > 300) {
         const key = `t_${msg.id}`;
         const cached = cache.get(key);
@@ -1270,7 +1323,11 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         newCache.set(key, divider);
         items.push(divider);
         lastTime = msg.created_at;
+        dividerInserted = true;
       }
+      // 同一发送者、且中间无时间分割线 → 连续消息（隐藏重复头像、收紧间距）
+      const consecutive = !dividerInserted && prevSenderId === msg.sender_id && !msg.deleted;
+      prevSenderId = msg.sender_id;
 
       const isMine = msg.sender_id === user.id;
       const isLastMine = isMine && msg.id === lastMineId;
@@ -1293,6 +1350,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         && cached.claiming === claiming
         && cached.pinnedMessages === pinnedMessages
         && cached.recalledContent === recalledContent
+        && cached.consecutive === consecutive
       ) {
         item = cached;
       } else {
@@ -1300,6 +1358,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           type: 'message',
           key: msg.id,
           msg,
+          consecutive,
           isMine,
           isLastMine,
           isSelected,
@@ -1936,7 +1995,10 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             )}
             {/* 转发：所有类型消息都可转发 */}
             <div className="wc-ctx-item" onClick={() => ctxAction('forward')}>转发</div>
-            <div className="wc-ctx-item" onClick={() => ctxAction('collect')}>收藏</div>
+            {/* 收藏功能暂在前端隐藏（逻辑保留，改为 true 即可恢复入口） */}
+            {false && (
+              <div className="wc-ctx-item" onClick={() => ctxAction('collect')}>收藏</div>
+            )}
             {conversation.type === 'group' && (
               <div className="wc-ctx-item" onClick={() => ctxAction('pin')}>
                 {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}

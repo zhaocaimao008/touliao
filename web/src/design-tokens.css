@@ -225,8 +225,8 @@
   /* ── 组件专属圆角 ── */
   --radius-avatar:     6px;    /* 头像（方形，仿企业微信）*/
   --radius-avatar-lg:  10px;   /* 大头像（个人主页）*/
-  --radius-bubble:     10px;   /* 气泡（主圆角）*/
-  --radius-bubble-tip: 3px;    /* 气泡尖角一侧（保留拟物感）*/
+  --radius-bubble:     12px;   /* 气泡（主圆角，四角统一）*/
+  --radius-bubble-tip: 12px;   /* 气泡尖角一侧 — 与主圆角一致，避免尖角异常 */
   --radius-input:      8px;    /* 输入框 */
   --radius-button:     6px;    /* 常规按钮 */
   --radius-button-sm:  4px;    /* 小按钮（B 端操作）*/

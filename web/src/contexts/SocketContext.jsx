@@ -33,8 +33,8 @@ export const SocketProvider = ({ children }) => {
     const cfg = getConfig();
     const serverUrl = manualUrl || cfg.socket || import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_BASE || '/';
 
-    const electronToken = window.__ELECTRON_CONFIG__
-      ? sessionStorage.getItem('vxin_electron_token')
+    const electronToken = (window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.())
+      ? localStorage.getItem('vxin_electron_token')
       : null;
 
     const s = io(serverUrl, {

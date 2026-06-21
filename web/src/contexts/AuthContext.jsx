@@ -35,14 +35,17 @@ const AuthContext = createContext(null);
 // Electron 模式下 Cookie 跨域无法自动携带，用 sessionStorage 存 token，
 // 设到 axios Authorization header 实现 Bearer 鉴权
 const ELECTRON_TOKEN_KEY = 'vxin_electron_token';
+// Electron(file://)与移动端(Capacitor 跨域 https://localhost)均无法可靠使用 Cookie，
+// 统一改用 Bearer token；用 localStorage 持久化，App 重启后免重新登录。
+const isBearerClient = () => !!(window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.());
 
 function setElectronToken(token) {
-  if (!window.__ELECTRON_CONFIG__) return;
+  if (!isBearerClient()) return;
   if (token) {
-    sessionStorage.setItem(ELECTRON_TOKEN_KEY, token);
+    localStorage.setItem(ELECTRON_TOKEN_KEY, token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   } else {
-    sessionStorage.removeItem(ELECTRON_TOKEN_KEY);
+    localStorage.removeItem(ELECTRON_TOKEN_KEY);
     delete axios.defaults.headers.common['Authorization'];
   }
 }
@@ -102,8 +105,8 @@ export const AuthProvider = ({ children }) => {
 
   // ── 初始化：恢复 Electron Bearer token，然后验证身份 ────────
   useEffect(() => {
-    if (window.__ELECTRON_CONFIG__) {
-      const stored = sessionStorage.getItem(ELECTRON_TOKEN_KEY);
+    if (isBearerClient()) {
+      const stored = localStorage.getItem(ELECTRON_TOKEN_KEY);
       if (stored) axios.defaults.headers.common['Authorization'] = `Bearer ${stored}`;
     }
     axios.get('/api/auth/me')

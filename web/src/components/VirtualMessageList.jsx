@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, forwardRef, useImperativeHandle, memo } from 'react';
 import { VariableSizeList } from 'react-window';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
+import AutoSizer from 'react-virtualized-auto-sizer';
 import MessageItem, { TimeDivider } from './MessageItem';
 
 // Height estimates per item type
@@ -109,10 +109,16 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
 
   // Expose imperative API to parent (ChatWindow)
   useImperativeHandle(ref, () => ({
-    scrollToBottom(behavior = 'smooth') {
-      const outer = outerRef?.current;
-      if (!outer) return;
-      outer.scrollTo({ top: outer.scrollHeight, behavior });
+    scrollToBottom() {
+      // 多帧 sticky 贴底，兼容行高异步测量（react-window + ResizeObserver）
+      let n = 0;
+      const step = () => {
+        const o = outerRef?.current;
+        if (!o) return;
+        o.scrollTop = o.scrollHeight;
+        if (++n < 10) requestAnimationFrame(step);
+      };
+      step();
     },
     scrollToItem(index, align = 'auto') {
       listRef.current?.scrollToItem(index, align);
@@ -126,20 +132,22 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
   return (
     <AutoSizer>
       {({ height, width }) => (
-        <VariableSizeList
-          ref={listRef}
-          outerRef={outerRef}
-          height={height}
-          width={width}
-          itemCount={items.length}
-          itemSize={getItemSize}
-          estimatedItemSize={82}
-          itemData={itemData}
-          overscanCount={8}
-          style={{ overflowX: 'hidden', background: '#F5F5F5' }}
-        >
-          {Row}
-        </VariableSizeList>
+        (!height || !width) ? null : (
+          <VariableSizeList
+            ref={listRef}
+            outerRef={outerRef}
+            height={height}
+            width={width}
+            itemCount={items.length}
+            itemSize={getItemSize}
+            estimatedItemSize={82}
+            itemData={itemData}
+            overscanCount={8}
+            style={{ overflowX: 'hidden', background: '#F5F5F5' }}
+          >
+            {Row}
+          </VariableSizeList>
+        )
       )}
     </AutoSizer>
   );

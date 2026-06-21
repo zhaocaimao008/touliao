@@ -918,6 +918,14 @@ router.post('/:conversationId', auth, sendMsgLimiter, msg.send);
  */
 router.post('/:conversationId/upload', auth, msg.uploadGuard, ...msg.uploadMiddlewares, msg.uploadHandle);
 
+// ── 分片 / 断点续传上传（大文件）───────────────────────────────
+const chunkUp = require('../upload/chunk');
+const rawChunk = require('express').raw({ type: '*/*', limit: chunkUp.MAX_CHUNK + 1024 });
+router.post('/:conversationId/upload-init',         auth, chunkUp.init);
+router.get ('/:conversationId/upload-status/:uploadId', auth, chunkUp.status);
+router.put ('/:conversationId/upload-chunk/:uploadId',  auth, rawChunk, chunkUp.chunk);
+router.post('/:conversationId/upload-finish/:uploadId', auth, chunkUp.finish);
+
 // ── 单段 DELETE 通配：撤回消息 ──────────────────────────────────
 
 /**

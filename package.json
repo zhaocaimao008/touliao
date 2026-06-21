@@ -5,13 +5,9 @@
   "scripts": {
     "dev:web": "cd web && npx vite --host",
     "dev:desktop": "cd desktop-electron && npm run dev",
-    "dev:android": "cd mobile && npm run dev:android",
-    "dev:ios": "cd mobile && npm run dev:ios",
 
     "build:web": "cd web && npx vite build",
     "build:desktop": "cd web && npx vite build --mode desktop && cd ../desktop-electron && npx electron-builder --win --x64",
-    "build:android": "cd mobile && npm run build:android",
-    "build:ios": "cd mobile && npm run build:ios",
 
     "build:desktop:all": "cd desktop-electron && npm run build:web && npx electron-builder --win --x64 --mac --x64 --linux --x64",
     "build:desktop:win": "cd desktop-electron && npm run build:win",
@@ -19,8 +15,7 @@
     "build:desktop:linux": "cd desktop-electron && npm run build:linux",
 
     "setup:desktop": "cd desktop-electron && npm install",
-    "setup:mobile": "cd mobile && npm install && npx cap sync",
-    "setup:all": "cd web && npm install && cd ../desktop-electron && npm install && cd ../mobile && npm install"
+    "setup:all": "cd web && npm install && cd ../desktop-electron && npm install"
   },
   "engines": {
     "node": ">=20.0.0"

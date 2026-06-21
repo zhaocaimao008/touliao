@@ -17,7 +17,7 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
 const MessageItem = memo(function MessageItem({ item, cbRef }) {
   const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
     convType, userId, groupSettings, myGroupRole, members, claiming,
-    recalledContent, pinnedMessages } = item;
+    recalledContent, pinnedMessages, consecutive } = item;
 
   const cbs = cbRef.current;
 
@@ -64,7 +64,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
     <div
       id={`msg-${msg.id}`}
       data-msg-id={msg.id}
-      className={`wc-msg-row${isMine ? ' mine' : ''}${multiSelect ? ' multiselect-row' : ''}${isHighlighted ? ' wc-msg-hl' : ''}`}
+      className={`wc-msg-row${isMine ? ' mine' : ''}${consecutive ? ' consecutive' : ''}${multiSelect ? ' multiselect-row' : ''}${isHighlighted ? ' wc-msg-hl' : ''}`}
       onClick={multiSelect ? () => cbs.toggleMsgSelect(msg.id) : undefined}
       style={multiSelect ? { cursor: 'pointer' } : {}}
     >
@@ -76,10 +76,10 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
         </div>
       )}
       <div className="wc-msg-avatar" onClick={!multiSelect ? handleAvatarClick : undefined} style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}>
-        <Avatar src={msg.senderAvatar} name={msg.senderName} size={38} />
+        <Avatar src={msg.senderAvatar} name={msg.senderName} size={36} />
       </div>
       <div className="wc-msg-body">
-        {!isMine && convType === 'group' && (
+        {!isMine && convType === 'group' && !consecutive && (
           <div className="wc-msg-sender">{msg.senderName}</div>
         )}
         <div className="wc-msg-bubble-wrap">
