@@ -20,6 +20,7 @@ final class ChatViewModel: ObservableObject {
     @Published var recording = false
     @Published var peerTyping = false
     @Published var peerReadAt: Double = 0      // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
+    @Published var replyingTo: Message?        // 正在回复的消息
     @Published var error: String?
 
     let conversationId: String
@@ -50,8 +51,37 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] e in Task { @MainActor in self?.onRead(e) } }
             .store(in: &cancellables)
 
+        repo.messageDeletedPublisher
+            .sink { [weak self] msgId in Task { @MainActor in self?.messages.removeAll { $0.id == msgId } } }
+            .store(in: &cancellables)
+
+        repo.reactionPublisher
+            .sink { [weak self] (msgId, reactions) in Task { @MainActor in self?.applyReactions(msgId, reactions) } }
+            .store(in: &cancellables)
+
         repo.joinConversation(conversationId)
         Task { await loadHistory() }
+    }
+
+    // MARK: - 消息操作:回复/撤回/表情回应
+    func startReply(_ msg: Message) { replyingTo = msg }
+    func cancelReply() { replyingTo = nil }
+
+    func recall(_ msg: Message) {
+        Task { await repo.deleteMessage(msg.id) }   // 实时事件移除
+    }
+
+    func react(_ msg: Message, emoji: String) {
+        Task {
+            let reactions = await repo.react(msg.id, emoji: emoji)
+            applyReactions(msg.id, reactions)
+        }
+    }
+
+    private func applyReactions(_ msgId: String, _ reactions: [MessageReaction]) {
+        if let idx = messages.firstIndex(where: { $0.id == msgId }) {
+            messages[idx].reactions = reactions
+        }
     }
 
     func resolveMediaUrl(_ url: String?) -> String? { MediaUrlResolver.resolve(url) }
@@ -116,12 +146,14 @@ final class ChatViewModel: ObservableObject {
     func sendText() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !sending else { return }
+        let replyId = replyingTo?.id
         input = ""
+        replyingTo = nil
         sending = true
         error = nil
         repo.emitStopTyping(conversationId)
         Task {
-            let result = await repo.sendText(conversationId: conversationId, content: text)
+            let result = await repo.sendText(conversationId: conversationId, content: text, replyToId: replyId)
             sending = false
             switch result {
             case .success(let msg): appendUnique(msg)

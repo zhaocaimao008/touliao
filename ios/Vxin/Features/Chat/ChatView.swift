@@ -71,6 +71,16 @@ struct ChatView: View {
     // MARK: - 输入栏
     private var inputBar: some View {
         VStack(spacing: 0) {
+            if let r = vm.replyingTo {
+                HStack {
+                    Text("回复 \(r.senderName): \(replyPreviewText(r))")
+                        .font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                    Spacer()
+                    Button { vm.cancelReply() } label: { Image(systemName: "xmark.circle.fill").foregroundColor(.vxinTextSecondary) }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Color.gray.opacity(0.12))
+            }
             if vm.recording {
                 Text("● 录音中…点击麦克风停止并发送")
                     .font(.footnote)
@@ -100,6 +110,14 @@ struct ChatView: View {
     }
 
     // MARK: - 交互
+    private func replyPreviewText(_ msg: Message) -> String {
+        switch msg.type {
+        case "image": return "[图片]"; case "voice": return "[语音]"
+        case "video": return "[视频]"; case "file": return "[文件]"
+        default: return msg.content
+        }
+    }
+
     private func onMicTap() {
         if vm.recording { vm.stopRecordingAndSend() }
         else { Task { if await AudioRecorder.shared.requestPermission() { vm.startRecording() } } }
@@ -142,7 +160,37 @@ private struct MessageBubble: View {
                 if !isMine && !msg.senderName.isEmpty {
                     Text(msg.senderName).font(.caption2).foregroundColor(.vxinTextSecondary)
                 }
+                if let rt = msg.replyTo {
+                    Text("\(rt.senderName): \(replyPreview(rt))")
+                        .font(.caption2).foregroundColor(.vxinTextSecondary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Color.gray.opacity(0.15)).clipShape(RoundedRectangle(cornerRadius: 6))
+                }
                 content
+                    .contextMenu {
+                        ForEach(["👍", "❤️", "😂", "😮", "😢", "🙏"], id: \.self) { e in
+                            Button(e) { vm.react(msg, emoji: e) }
+                        }
+                        Divider()
+                        if msg.type == "text" {
+                            Button("复制") { UIPasteboard.general.string = msg.content }
+                        }
+                        Button("回复") { vm.startReply(msg) }
+                        if isMine {
+                            Button("撤回", role: .destructive) { vm.recall(msg) }
+                        }
+                    }
+                if !msg.reactions.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(msg.reactions, id: \.emoji) { r in
+                            Text("\(r.emoji) \(r.count)")
+                                .font(.caption2)
+                                .padding(.horizontal, 6).padding(.vertical, 1)
+                                .background(Color.gray.opacity(0.15)).clipShape(Capsule())
+                        }
+                    }
+                }
                 if isMine {
                     let read = vm.isReadByPeer(msg)
                     Text(read ? "✓✓ 已读" : "✓")
@@ -173,6 +221,14 @@ private struct MessageBubble: View {
             card { Text("🎬 视频") }.onTapGesture { openFile() }
         default:
             card { Text(msg.content) }
+        }
+    }
+
+    private func replyPreview(_ rt: ReplyPreview) -> String {
+        switch rt.type {
+        case "image": return "[图片]"; case "voice": return "[语音]"
+        case "video": return "[视频]"; case "file": return "[文件]"
+        default: return rt.content
         }
     }
 

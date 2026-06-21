@@ -4,6 +4,7 @@ import android.util.Log
 import com.vxin.app.core.storage.ServerConfig
 import com.vxin.app.core.storage.TokenStore
 import com.vxin.app.data.model.Message
+import com.vxin.app.data.model.MessageReaction
 import io.socket.client.Ack
 import io.socket.client.IO
 import io.socket.client.Socket
@@ -25,6 +26,7 @@ enum class SocketStatus { DISCONNECTED, CONNECTING, CONNECTED }
 
 data class TypingEvent(val userId: String, val conversationId: String, val isTyping: Boolean)
 data class ReadEvent(val userId: String, val conversationId: String, val readAt: Long, val lastReadMessageId: String?)
+data class ReactionEvent(val msgId: String, val reactions: List<MessageReaction>)
 
 /**
  * Socket.IO 实时通道（官方 io.socket:socket.io-client）。
@@ -64,6 +66,14 @@ class SocketManager @Inject constructor(
     /** 新会话（如被拉入群聊）→ 提示列表刷新 */
     private val _newConversation = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
     val newConversationEvents: SharedFlow<Unit> = _newConversation.asSharedFlow()
+
+    /** 消息撤回/删除 → msgId */
+    private val _messageDeleted = MutableSharedFlow<String>(extraBufferCapacity = 64)
+    val messageDeletedEvents: SharedFlow<String> = _messageDeleted.asSharedFlow()
+
+    /** 表情回应更新 */
+    private val _reaction = MutableSharedFlow<ReactionEvent>(extraBufferCapacity = 64)
+    val reactionEvents: SharedFlow<ReactionEvent> = _reaction.asSharedFlow()
 
     @Synchronized
     fun connect() {
@@ -121,13 +131,27 @@ class SocketManager @Inject constructor(
                 ?.takeIf { it.isNotEmpty() }?.let(_unreadCleared::tryEmit)
         }
         s.on("new_conversation") { _newConversation.tryEmit(Unit) }
+        s.on("message_deleted") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("msgId")?.takeIf { it.isNotEmpty() }?.let(_messageDeleted::tryEmit)
+        }
+        s.on("message_reaction") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val msgId = o.optString("msgId")
+                val arr = o.optJSONArray("reactions")
+                val list = mutableListOf<MessageReaction>()
+                if (arr != null) for (i in 0 until arr.length()) {
+                    arr.optJSONObject(i)?.let { r -> list.add(MessageReaction(r.optString("emoji"), r.optInt("count"))) }
+                }
+                if (msgId.isNotEmpty()) _reaction.tryEmit(ReactionEvent(msgId, list))
+            }
+        }
 
         _status.value = SocketStatus.CONNECTING
         s.connect()
     }
 
     /** 通过 socket 发送文本消息；ack 返回服务端落库后的完整 Message */
-    suspend fun sendMessage(conversationId: String, content: String): Result<Message> =
+    suspend fun sendMessage(conversationId: String, content: String, replyToId: String? = null): Result<Message> =
         suspendCancellableCoroutine { cont ->
             val s = socket
             if (s == null || !s.connected()) {
@@ -137,6 +161,7 @@ class SocketManager @Inject constructor(
             val payload = JSONObject()
                 .put("conversationId", conversationId)
                 .put("content", content)
+            if (replyToId != null) payload.put("reply_to_id", replyToId)
 
             s.emit("send_message", payload, Ack { ackArgs ->
                 if (!cont.isActive) return@Ack

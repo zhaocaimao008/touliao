@@ -56,9 +56,11 @@ struct Message: Decodable, Identifiable, Equatable {
     var createdAt: Double = 0             // epoch 秒
     var senderName: String = ""
     var senderAvatar: String = ""
+    var reactions: [MessageReaction] = []
+    var replyTo: ReplyPreview?
 
     enum CodingKeys: String, CodingKey {
-        case id, type, content
+        case id, type, content, reactions, replyTo
         case conversationId = "conversation_id"
         case senderId = "sender_id"
         case fileUrl = "file_url"
@@ -79,5 +81,19 @@ struct Message: Decodable, Identifiable, Equatable {
         createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
         senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
         senderAvatar = (try? c.decode(String.self, forKey: .senderAvatar)) ?? ""
+        reactions = (try? c.decode([MessageReaction].self, forKey: .reactions)) ?? []
+        replyTo = try? c.decode(ReplyPreview.self, forKey: .replyTo)
     }
+}
+
+struct MessageReaction: Decodable, Equatable {
+    var emoji: String = ""
+    var count: Int = 0
+}
+
+struct ReplyPreview: Decodable, Equatable {
+    var id: String = ""
+    var type: String = "text"
+    var content: String = ""
+    var senderName: String = ""
 }

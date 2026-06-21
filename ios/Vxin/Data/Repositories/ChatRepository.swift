@@ -19,6 +19,8 @@ final class ChatRepository {
     var readPublisher: AnyPublisher<ReadEvent, Never> { socket.read.eraseToAnyPublisher() }
     var unreadClearedPublisher: AnyPublisher<String, Never> { socket.unreadCleared.eraseToAnyPublisher() }
     var newConversationPublisher: AnyPublisher<Void, Never> { socket.newConversation.eraseToAnyPublisher() }
+    var messageDeletedPublisher: AnyPublisher<String, Never> { socket.messageDeleted.eraseToAnyPublisher() }
+    var reactionPublisher: AnyPublisher<(String, [MessageReaction]), Never> { socket.reaction.eraseToAnyPublisher() }
 
     func joinConversation(_ id: String) { socket.joinConversation(id) }
     func emitTyping(_ id: String) { socket.emitTyping(id) }
@@ -34,8 +36,23 @@ final class ChatRepository {
         return try await api.send(path)
     }
 
-    func sendText(conversationId: String, content: String) async -> Result<Message, Error> {
-        await socket.sendMessage(conversationId: conversationId, content: content)
+    func sendText(conversationId: String, content: String, replyToId: String? = nil) async -> Result<Message, Error> {
+        await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId)
+    }
+
+    /// 撤回/删除消息
+    func deleteMessage(_ msgId: String, forEveryone: Bool = true) async {
+        let _: EmptyResponse? = try? await api.send(
+            "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: forEveryone)
+        )
+    }
+
+    /// 表情回应(切换)
+    func react(_ msgId: String, emoji: String) async -> [MessageReaction] {
+        let resp: ReactResponse? = try? await api.send(
+            "api/messages/\(msgId)/react", method: "POST", body: ReactBody(emoji: emoji)
+        )
+        return resp?.reactions ?? []
     }
 
     /// 上传媒体（图片/语音/文件）；返回服务端创建的消息（同时经 Socket 广播给其他端）
@@ -54,3 +71,6 @@ final class ChatRepository {
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }
+private struct DeleteMessageBody: Encodable { let forEveryone: Bool }
+private struct ReactBody: Encodable { let emoji: String }
+private struct ReactResponse: Decodable { let reactions: [MessageReaction] }

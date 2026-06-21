@@ -4,11 +4,15 @@ import com.vxin.app.data.model.Conversation
 import com.vxin.app.data.model.CreateConversationResponse
 import com.vxin.app.data.model.CreateGroupBody
 import com.vxin.app.data.model.CreatePrivateBody
+import com.vxin.app.data.model.DeleteMessageBody
 import com.vxin.app.data.model.MarkReadRequest
 import com.vxin.app.data.model.Message
+import com.vxin.app.data.model.ReactBody
+import com.vxin.app.data.model.ReactResponse
 import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
@@ -51,4 +55,12 @@ interface MessageApi {
     /** 创建群聊 */
     @POST("api/messages/conversation/group")
     suspend fun createGroup(@Body body: CreateGroupBody): CreateConversationResponse
+
+    /** 撤回/删除消息 */
+    @HTTP(method = "DELETE", path = "api/messages/{msgId}", hasBody = true)
+    suspend fun deleteMessage(@Path("msgId") msgId: String, @Body body: DeleteMessageBody)
+
+    /** 表情回应(切换) */
+    @POST("api/messages/{msgId}/react")
+    suspend fun react(@Path("msgId") msgId: String, @Body body: ReactBody): ReactResponse
 }

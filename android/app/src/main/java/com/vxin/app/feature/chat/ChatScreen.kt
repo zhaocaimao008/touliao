@@ -7,6 +7,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -115,24 +122,39 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            MessageInputBar(
-                value = state.input,
-                sending = state.sending,
-                recording = state.recording,
-                onValueChange = viewModel::onInputChange,
-                onSend = viewModel::send,
-                onPickImage = { imagePicker.launch("image/*") },
-                onPickFile = { filePicker.launch("*/*") },
-                onMicClick = {
-                    if (state.recording) {
-                        viewModel.stopRecordingAndSend()
-                    } else {
-                        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                            PackageManager.PERMISSION_GRANTED
-                        if (granted) viewModel.startRecording() else recordPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            Column {
+                state.replyingTo?.let { r ->
+                    Row(
+                        Modifier.fillMaxWidth().background(Color(0x11000000)).padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "回复 ${r.senderName.ifBlank { "" }}: ${replyPreviewOf(r)}",
+                            Modifier.weight(1f), color = VxinTextSecondary, fontSize = 12.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text("✕", Modifier.clickable { viewModel.cancelReply() }.padding(start = 8.dp), color = VxinTextSecondary)
                     }
-                },
-            )
+                }
+                MessageInputBar(
+                    value = state.input,
+                    sending = state.sending,
+                    recording = state.recording,
+                    onValueChange = viewModel::onInputChange,
+                    onSend = viewModel::send,
+                    onPickImage = { imagePicker.launch("image/*") },
+                    onPickFile = { filePicker.launch("*/*") },
+                    onMicClick = {
+                        if (state.recording) {
+                            viewModel.stopRecordingAndSend()
+                        } else {
+                            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                                PackageManager.PERMISSION_GRANTED
+                            if (granted) viewModel.startRecording() else recordPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -153,6 +175,9 @@ fun ChatScreen(
                             resolveUrl = viewModel::resolveMediaUrl,
                             onPlayVoice = { viewModel.playVoice(msg.file_url) },
                             onOpenFile = { openUrl(context, viewModel.resolveMediaUrl(msg.file_url)) },
+                            onReply = { viewModel.startReply(msg) },
+                            onRecall = { viewModel.recall(msg) },
+                            onReact = { emoji -> viewModel.react(msg, emoji) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -171,6 +196,9 @@ fun ChatScreen(
     }
 }
 
+private val REACTION_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "🙏")
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
     msg: Message,
@@ -179,7 +207,13 @@ private fun MessageBubble(
     resolveUrl: (String?) -> String?,
     onPlayVoice: () -> Unit,
     onOpenFile: () -> Unit,
+    onReply: () -> Unit,
+    onRecall: () -> Unit,
+    onReact: (String) -> Unit,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
@@ -193,13 +227,87 @@ private fun MessageBubble(
                 Text(msg.senderName, color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall)
             }
             if (isMine) {
-                // 已读双勾（绿）/ 已发单勾（灰）
                 Text(
                     text = if (isRead) "✓✓ 已读" else "✓",
                     fontSize = 10.sp,
                     color = if (isRead) VxinGreen else VxinTextSecondary,
                 )
             }
+            // 被回复消息引用条
+            msg.replyTo?.let { rt ->
+                Box(
+                    Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(6.dp))
+                        .background(Color(0x11000000)).padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        "${rt.senderName}: ${replyPreviewText(rt)}",
+                        color = VxinTextSecondary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.size(2.dp))
+            }
+            // 气泡本体(长按弹菜单)
+            Box {
+                Box(Modifier.combinedClickable(onClick = {}, onLongClick = { menuOpen = true })) {
+                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile)
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    // 表情回应行
+                    Row(Modifier.padding(horizontal = 8.dp)) {
+                        REACTION_EMOJIS.forEach { e ->
+                            Text(e, fontSize = 20.sp, modifier = Modifier
+                                .padding(4.dp)
+                                .clickable { onReact(e); menuOpen = false })
+                        }
+                    }
+                    HorizontalDivider()
+                    if (msg.type == "text") {
+                        DropdownMenuItem(text = { Text("复制") }, onClick = {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(msg.content)); menuOpen = false
+                        })
+                    }
+                    DropdownMenuItem(text = { Text("回复") }, onClick = { onReply(); menuOpen = false })
+                    if (isMine) {
+                        DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { onRecall(); menuOpen = false })
+                    }
+                }
+            }
+            // 表情回应展示
+            if (msg.reactions.isNotEmpty()) {
+                Spacer(Modifier.size(2.dp))
+                Row {
+                    msg.reactions.forEach { r ->
+                        Box(
+                            Modifier.padding(end = 4.dp).clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x11000000)).padding(horizontal = 6.dp, vertical = 1.dp),
+                        ) { Text("${r.emoji} ${r.count}", fontSize = 11.sp) }
+                    }
+                }
+            }
+        }
+        if (isMine) Spacer(Modifier.size(6.dp))
+    }
+}
+
+private fun replyPreviewText(rt: com.vxin.app.data.model.ReplyPreview): String = when (rt.type) {
+    "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
+    else -> rt.content
+}
+
+private fun replyPreviewOf(msg: Message): String = when (msg.type) {
+    "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
+    else -> msg.content
+}
+
+@Composable
+private fun MessageContent(
+    msg: Message,
+    isMine: Boolean,
+    resolveUrl: (String?) -> String?,
+    onPlayVoice: () -> Unit,
+    onOpenFile: () -> Unit,
+) {
+    Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             when (msg.type) {
                 "image" -> AsyncImage(
                     model = resolveUrl(msg.file_url),
@@ -217,8 +325,6 @@ private fun MessageBubble(
                 "video" -> MediaCard(isMine, onClick = onOpenFile) { Text("🎬 视频", color = bubbleTextColor(isMine)) }
                 else -> TextBubble(msg.content, isMine)
             }
-        }
-        if (isMine) Spacer(Modifier.size(6.dp))
     }
 }
 

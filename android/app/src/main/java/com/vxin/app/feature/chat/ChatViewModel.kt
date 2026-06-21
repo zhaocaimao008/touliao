@@ -45,6 +45,7 @@ data class ChatUiState(
     val recording: Boolean = false,
     val peerTyping: Boolean = false,
     val peerReadAt: Long = 0,         // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
+    val replyingTo: Message? = null,  // 正在回复的消息
     val error: String? = null,
 )
 
@@ -77,6 +78,44 @@ class ChatViewModel @Inject constructor(
         observeIncoming()
         observeTyping()
         observeRead()
+        observeDeleted()
+        observeReaction()
+    }
+
+    // ── 消息操作:回复/撤回/表情回应 ──────────────────────
+    fun startReply(msg: Message) = _uiState.update { it.copy(replyingTo = msg) }
+    fun cancelReply() = _uiState.update { it.copy(replyingTo = null) }
+
+    fun recall(msg: Message) {
+        viewModelScope.launch { chatRepository.deleteMessage(msg.id, forEveryone = true) }
+        // 实时事件 message_deleted 会移除;此处不乐观删除以保持一致
+    }
+
+    fun react(msg: Message, emoji: String) {
+        viewModelScope.launch {
+            chatRepository.react(msg.id, emoji)
+                .onSuccess { resp -> updateReactions(msg.id, resp.reactions) }
+        }
+    }
+
+    private fun observeDeleted() {
+        viewModelScope.launch {
+            chatRepository.messageDeletedEvents.collect { msgId ->
+                _uiState.update { it.copy(messages = it.messages.filterNot { m -> m.id == msgId }) }
+            }
+        }
+    }
+
+    private fun observeReaction() {
+        viewModelScope.launch {
+            chatRepository.reactionEvents.collect { e -> updateReactions(e.msgId, e.reactions) }
+        }
+    }
+
+    private fun updateReactions(msgId: String, reactions: List<com.vxin.app.data.model.MessageReaction>) {
+        _uiState.update { s ->
+            s.copy(messages = s.messages.map { if (it.id == msgId) it.copy(reactions = reactions) else it })
+        }
     }
 
     /** /uploads 相对路径 → 带 token 的绝对地址，供 Coil/播放器加载 */
@@ -163,10 +202,11 @@ class ChatViewModel @Inject constructor(
     fun send() {
         val text = _uiState.value.input.trim()
         if (text.isEmpty() || _uiState.value.sending) return
-        _uiState.update { it.copy(input = "", sending = true, error = null) }
+        val replyId = _uiState.value.replyingTo?.id
+        _uiState.update { it.copy(input = "", sending = true, error = null, replyingTo = null) }
         chatRepository.emitStopTyping(conversationId)
         viewModelScope.launch {
-            chatRepository.sendText(conversationId, text)
+            chatRepository.sendText(conversationId, text, replyId)
                 .onSuccess { msg -> appendUnique(msg); _uiState.update { it.copy(sending = false) } }
                 .onFailure { e -> _uiState.update { it.copy(sending = false, input = text, error = e.toUserMessage("发送失败")) } }
         }

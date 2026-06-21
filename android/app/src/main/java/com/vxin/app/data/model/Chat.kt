@@ -34,4 +34,27 @@ data class Message(
     val created_at: Long = 0,               // epoch 秒
     val senderName: String = "",
     val senderAvatar: String = "",
+    val reactions: List<MessageReaction> = emptyList(),
+    val replyTo: ReplyPreview? = null,
 )
+
+@Serializable
+data class MessageReaction(val emoji: String = "", val count: Int = 0)
+
+/** 被回复消息的摘要(后端 history/new_message 的 replyTo 字段) */
+@Serializable
+data class ReplyPreview(
+    val id: String = "",
+    val type: String = "text",
+    val content: String = "",
+    val senderName: String = "",
+)
+
+@Serializable
+data class DeleteMessageBody(val forEveryone: Boolean = true)
+
+@Serializable
+data class ReactBody(val emoji: String)
+
+@Serializable
+data class ReactResponse(val reactions: List<MessageReaction> = emptyList())

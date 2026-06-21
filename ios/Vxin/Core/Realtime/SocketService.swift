@@ -44,6 +44,10 @@ final class SocketService {
     let unreadCleared = PassthroughSubject<String, Never>()
     /// 新会话（如被拉入群聊）→ 提示列表刷新
     let newConversation = PassthroughSubject<Void, Never>()
+    /// 消息撤回/删除 → msgId
+    let messageDeleted = PassthroughSubject<String, Never>()
+    /// 表情回应更新 → (msgId, reactions)
+    let reaction = PassthroughSubject<(String, [MessageReaction]), Never>()
 
     private let decoder = JSONDecoder()
 
@@ -96,6 +100,17 @@ final class SocketService {
             }
         }
         sock.on("new_conversation") { [weak self] _, _ in self?.newConversation.send(()) }
+        sock.on("message_deleted") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["msgId"] as? String, !id.isEmpty {
+                self?.messageDeleted.send(id)
+            }
+        }
+        sock.on("message_reaction") { [weak self] data, _ in
+            guard let dict = data.first as? [String: Any], let msgId = dict["msgId"] as? String else { return }
+            let arr = (dict["reactions"] as? [[String: Any]]) ?? []
+            let reactions = arr.map { MessageReaction(emoji: $0["emoji"] as? String ?? "", count: ($0["count"] as? NSNumber)?.intValue ?? 0) }
+            self?.reaction.send((msgId, reactions))
+        }
 
         manager = mgr
         socket = sock
@@ -104,12 +119,14 @@ final class SocketService {
     }
 
     /// 通过 socket 发送文本消息；ack 返回服务端落库后的 Message（消息收发阶段调用）
-    func sendMessage(conversationId: String, content: String) async -> Result<Message, Error> {
+    func sendMessage(conversationId: String, content: String, replyToId: String? = nil) async -> Result<Message, Error> {
         guard let sock = socket, sock.status == .connected else {
             return .failure(SocketError.notConnected)
         }
+        var payload: [String: Any] = ["conversationId": conversationId, "content": content]
+        if let replyToId { payload["reply_to_id"] = replyToId }
         return await withCheckedContinuation { continuation in
-            sock.emitWithAck("send_message", ["conversationId": conversationId, "content": content])
+            sock.emitWithAck("send_message", payload)
                 .timingOut(after: 15) { [weak self] ackData in
                     guard let self else { return }
                     guard let dict = ackData.first as? [String: Any] else {
