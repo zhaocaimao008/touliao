@@ -1,0 +1,52 @@
+name: Vxin
+options:
+  bundleIdPrefix: com.vxin
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  SocketIO:
+    url: https://github.com/socketio/socket.io-client-swift
+    from: "16.1.0"
+  Kingfisher:
+    url: https://github.com/onevcat/Kingfisher
+    from: "7.10.0"
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "11.4.0"
+
+targets:
+  Vxin:
+    type: application
+    platform: iOS
+    sources:
+      - Vxin
+    dependencies:
+      - package: SocketIO
+      - package: Kingfisher
+      - package: Firebase
+        product: FirebaseMessaging
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vxin.app
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.9"
+    info:
+      path: Vxin/Info.plist
+      properties:
+        CFBundleDisplayName: v信
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # 后台收推送（远程通知）
+        UIBackgroundModes:
+          - remote-notification
+        # 录音 / 相册 用途说明（聊天媒体阶段需要）
+        NSMicrophoneUsageDescription: 用于录制语音消息
+        NSPhotoLibraryUsageDescription: 用于发送图片
+        # 开发期允许 http（生产请走 https 并移除）
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true

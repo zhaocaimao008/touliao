@@ -1,0 +1,71 @@
+import Foundation
+import Combine
+
+/// 全局会话状态的单一事实来源（对应 Android SessionManager）。
+/// - 启动 restoreSession
+/// - 订阅 401 通知 → 自动登出
+/// - 登录成功 / 登出更新状态
+/// 后续聊天阶段在此挂载 SocketManager 的 connect()/disconnect()。
+@MainActor
+final class SessionStore: ObservableObject {
+
+    enum AuthState: Equatable {
+        case loading
+        case unauthenticated
+        case authenticated(User)
+    }
+
+    @Published private(set) var state: AuthState = .loading
+
+    private let repo = AuthRepository.shared
+    private var observer: NSObjectProtocol?
+
+    init() {
+        observer = NotificationCenter.default.addObserver(
+            forName: APIClient.unauthorizedNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                SocketService.shared.disconnect()
+                self?.state = .unauthenticated
+            }
+        }
+        Task { await restoreSession() }
+    }
+
+    deinit {
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+    }
+
+    func restoreSession() async {
+        if let user = await repo.restoreSession() {
+            SocketService.shared.connect()
+            PushManager.shared.requestAuthorizationAndRegister()
+            state = .authenticated(user)
+        } else {
+            state = .unauthenticated
+        }
+    }
+
+    func onAuthenticated(_ user: User) {
+        SocketService.shared.connect()
+        PushManager.shared.requestAuthorizationAndRegister()
+        state = .authenticated(user)
+    }
+
+    var currentUser: User? {
+        if case .authenticated(let user) = state { return user }
+        return nil
+    }
+
+    /// 资料更新后刷新当前用户（不改变登录态）
+    func updateCurrentUser(_ user: User) {
+        if case .authenticated = state { state = .authenticated(user) }
+    }
+
+    func logout() async {
+        await PushManager.shared.unregister()
+        SocketService.shared.disconnect()
+        await repo.logout()
+        state = .unauthenticated
+    }
+}
