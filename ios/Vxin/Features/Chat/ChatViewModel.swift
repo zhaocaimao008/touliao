@@ -22,6 +22,9 @@ final class ChatViewModel: ObservableObject {
     @Published var peerReadAt: Double = 0      // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     @Published var replyingTo: Message?        // 正在回复的消息
     @Published var stickers: [Sticker] = []
+    // ── 红包 ──
+    @Published var redPacketDetail: RedPacketDetail?   // 非空 = 显示红包详情弹窗
+    @Published var claimedAmount: Int?                 // 刚领取到的金额
     @Published var error: String?
 
     let conversationId: String
@@ -58,6 +61,10 @@ final class ChatViewModel: ObservableObject {
 
         repo.reactionPublisher
             .sink { [weak self] (msgId, reactions) in Task { @MainActor in self?.applyReactions(msgId, reactions) } }
+            .store(in: &cancellables)
+
+        repo.redPacketClaimedPublisher
+            .sink { [weak self] (packetId, _, _) in Task { @MainActor in self?.onRedPacketClaimed(packetId) } }
             .store(in: &cancellables)
 
         repo.joinConversation(conversationId)
@@ -108,6 +115,59 @@ final class ChatViewModel: ObservableObject {
     }
 
     func resolveMediaUrl(_ url: String?) -> String? { MediaUrlResolver.resolve(url) }
+
+    // MARK: - 红包
+    /// 解析 red_packet 消息的 content（失败返回 nil）
+    func parseRedPacket(_ msg: Message) -> RedPacketContent? {
+        guard msg.type == "red_packet", let data = msg.content.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(RedPacketContent.self, from: data)
+    }
+
+    func sendRedPacket(totalAmount: Int, totalCount: Int, greeting: String) {
+        Task {
+            do {
+                let resp = try await RedPacketRepository.shared.send(
+                    conversationId: conversationId, totalAmount: totalAmount, totalCount: totalCount,
+                    greeting: greeting.trimmingCharacters(in: .whitespaces)
+                )
+                if let msg = resp.message { appendUnique(msg) }   // socket 通常也会广播，appendUnique 去重
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "发送红包失败" }
+        }
+    }
+
+    /// 点击红包消息 → 拉详情并弹窗
+    func openRedPacket(_ msg: Message) {
+        guard let packetId = parseRedPacket(msg)?.packetId, !packetId.isEmpty else { return }
+        claimedAmount = nil
+        Task {
+            do { redPacketDetail = try await RedPacketRepository.shared.detail(packetId) }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "打开红包失败" }
+        }
+    }
+
+    func claimOpenedRedPacket() {
+        guard let packetId = redPacketDetail?.id else { return }
+        Task {
+            do {
+                let resp = try await RedPacketRepository.shared.claim(packetId)
+                claimedAmount = resp.amount
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "手慢了，红包没抢到" }
+            await refreshRedPacketDetail(packetId)
+        }
+    }
+
+    func closeRedPacket() { redPacketDetail = nil; claimedAmount = nil }
+
+    private func refreshRedPacketDetail(_ packetId: String) async {
+        if let d = try? await RedPacketRepository.shared.detail(packetId), redPacketDetail?.id == packetId {
+            redPacketDetail = d
+        }
+    }
+
+    private func onRedPacketClaimed(_ packetId: String) {
+        guard redPacketDetail?.id == packetId else { return }
+        Task { await refreshRedPacketDetail(packetId) }
+    }
 
     // MARK: - 历史 / 实时
     func loadHistory() async {

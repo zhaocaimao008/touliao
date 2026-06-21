@@ -108,4 +108,9 @@ object AppModule {
     @Provides
     @Singleton
     fun provideStickerApi(retrofit: Retrofit): StickerApi = retrofit.create(StickerApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideRedPacketApi(retrofit: Retrofit): com.vxin.app.data.api.RedPacketApi =
+        retrofit.create(com.vxin.app.data.api.RedPacketApi::class.java)
 }

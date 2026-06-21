@@ -9,6 +9,7 @@ struct ChatView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showFileImporter = false
     @State private var showStickerPanel = false
+    @State private var showRedPacketSend = false
     private let isGroup: Bool
     private let onOpenGroupInfo: () -> Void
 
@@ -41,6 +42,22 @@ struct ChatView: View {
         .onChange(of: photoItem) { item in handlePhoto(item) }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
             handleFile(result)
+        }
+        .sheet(isPresented: $showRedPacketSend) {
+            SendRedPacketSheet { amount, count, greeting in
+                vm.sendRedPacket(totalAmount: amount, totalCount: count, greeting: greeting)
+                showRedPacketSend = false
+            }
+        }
+        .sheet(isPresented: Binding(get: { vm.redPacketDetail != nil }, set: { if !$0 { vm.closeRedPacket() } })) {
+            if let detail = vm.redPacketDetail {
+                RedPacketDetailSheet(
+                    detail: detail,
+                    claimedAmount: vm.claimedAmount,
+                    onClaim: { vm.claimOpenedRedPacket() },
+                    onClose: { vm.closeRedPacket() }
+                )
+            }
         }
     }
 
@@ -95,6 +112,7 @@ struct ChatView: View {
                     Text("🖼").font(.title3)
                 }
                 Button { showFileImporter = true } label: { Text("📎").font(.title3) }
+                Button { showRedPacketSend = true } label: { Text("🧧").font(.title3) }
                 Button { onMicTap() } label: { Text(vm.recording ? "⏹" : "🎤").font(.title3) }
 
                 TextField("输入消息…", text: $vm.input, axis: .vertical)
@@ -260,9 +278,27 @@ private struct MessageBubble: View {
                 .onTapGesture { openFile() }
         case "video":
             card { Text("🎬 视频") }.onTapGesture { openFile() }
+        case "red_packet":
+            redPacketCard.onTapGesture { vm.openRedPacket(msg) }
         default:
             card { Text(msg.content) }
         }
+    }
+
+    @ViewBuilder private var redPacketCard: some View {
+        let rp = vm.parseRedPacket(msg)
+        HStack(spacing: 10) {
+            Text("🧧").font(.system(size: 28))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(rp?.greeting.isEmpty == false ? rp!.greeting : "恭喜发财，大吉大利")
+                    .foregroundColor(.white).font(.subheadline).lineLimit(1)
+                Text("领取红包").foregroundColor(Color(red: 0.99, green: 0.89, blue: 0.66)).font(.caption)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: 240, alignment: .leading)
+        .background(Color(red: 0.91, green: 0.31, blue: 0.23))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private func replyPreview(_ rt: ReplyPreview) -> String {
@@ -324,6 +360,103 @@ private struct PendingBubbleView: View {
         case "voice": return "语音上传中…"
         case "video": return "视频上传中…"
         default: return "\(pending.name) 上传中…"
+        }
+    }
+}
+
+// MARK: - 发红包
+private struct SendRedPacketSheet: View {
+    var onSend: (Int, Int, String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var amount = ""
+    @State private var count = "1"
+    @State private var greeting = ""
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("总金币 (1-20000)", text: $amount).keyboardType(.numberPad)
+                TextField("红包个数 (1-100)", text: $count).keyboardType(.numberPad)
+                TextField("祝福语（可选）", text: $greeting)
+                if let error { Text(error).foregroundColor(.vxinError).font(.footnote) }
+            }
+            .navigationTitle("发红包")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("塞钱进红包") {
+                        let a = Int(amount) ?? 0, c = Int(count) ?? 0
+                        error = validate(a, c)
+                        if error == nil { onSend(a, c, String(greeting.prefix(100))) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func validate(_ a: Int, _ c: Int) -> String? {
+        if a < 1 || a > 20000 { return "总金币范围 1-20000" }
+        if c < 1 || c > 100 { return "红包个数 1-100" }
+        if a < c { return "总金币不能小于红包个数" }
+        return nil
+    }
+}
+
+// MARK: - 红包详情 / 领取
+private struct RedPacketDetailSheet: View {
+    let detail: RedPacketDetail
+    let claimedAmount: Int?
+    var onClaim: () -> Void
+    var onClose: () -> Void
+
+    private var canClaim: Bool { detail.myClaim == nil && claimedAmount == nil && detail.claimedCount < detail.totalCount }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                Text("🧧").font(.system(size: 44))
+                Text("\(detail.senderName.isEmpty ? "好友" : detail.senderName) 的红包").font(.headline)
+                Text(detail.greeting.isEmpty ? "恭喜发财，大吉大利" : detail.greeting)
+                    .foregroundColor(.vxinTextSecondary)
+
+                if let mine = detail.myClaim {
+                    Text("你领取了 \(mine.amount) 金币").font(.title3).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
+                } else if let claimedAmount {
+                    Text("你领取了 \(claimedAmount) 金币").font(.title3).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
+                } else if detail.claimedCount >= detail.totalCount {
+                    Text("手慢了，红包已被领完").foregroundColor(.vxinTextSecondary)
+                }
+
+                if canClaim {
+                    Button(action: onClaim) {
+                        Text("开").font(.title2).foregroundColor(.white)
+                            .frame(width: 80, height: 80)
+                            .background(Color(red: 0.91, green: 0.31, blue: 0.23)).clipShape(Circle())
+                    }
+                }
+
+                Text("已领 \(detail.claimedCount)/\(detail.totalCount) 个").font(.caption).foregroundColor(.vxinTextSecondary)
+
+                if !detail.claims.isEmpty {
+                    List(detail.claims) { c in
+                        HStack {
+                            Text(c.username.isEmpty ? "用户" : c.username)
+                            Spacer()
+                            Text("\(c.amount) 金币").foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
+                        }
+                    }
+                    .listStyle(.plain)
+                } else {
+                    Spacer()
+                }
+            }
+            .padding()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("关闭") { onClose() } }
+            }
         }
     }
 }

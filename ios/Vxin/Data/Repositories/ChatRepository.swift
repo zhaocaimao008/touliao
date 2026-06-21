@@ -21,6 +21,7 @@ final class ChatRepository {
     var newConversationPublisher: AnyPublisher<Void, Never> { socket.newConversation.eraseToAnyPublisher() }
     var messageDeletedPublisher: AnyPublisher<String, Never> { socket.messageDeleted.eraseToAnyPublisher() }
     var reactionPublisher: AnyPublisher<(String, [MessageReaction]), Never> { socket.reaction.eraseToAnyPublisher() }
+    var redPacketClaimedPublisher: AnyPublisher<(String, String, Int), Never> { socket.redPacketClaimed.eraseToAnyPublisher() }
 
     func joinConversation(_ id: String) { socket.joinConversation(id) }
     func emitTyping(_ id: String) { socket.emitTyping(id) }

@@ -32,8 +32,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -57,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,6 +82,7 @@ fun ChatScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val context = LocalContext.current
+    var showRedPacketSend by remember { mutableStateOf(false) }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.uploadFromUri(it, previewLocal = true) }
@@ -151,6 +155,7 @@ fun ChatScreen(
                     onPickImage = { imagePicker.launch("image/*") },
                     onPickFile = { filePicker.launch("*/*") },
                     onTogglePanel = { showPanel = !showPanel },
+                    onRedPacket = { showRedPacketSend = true },
                     onMicClick = {
                         if (state.recording) {
                             viewModel.stopRecordingAndSend()
@@ -194,6 +199,8 @@ fun ChatScreen(
                             onRecall = { viewModel.recall(msg) },
                             onReact = { emoji -> viewModel.react(msg, emoji) },
                             onCollectSticker = { viewModel.collectSticker(msg.file_url) },
+                            redPacket = viewModel.parseRedPacket(msg),
+                            onOpenRedPacket = { viewModel.openRedPacket(msg) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -209,6 +216,26 @@ fun ChatScreen(
                 )
             }
         }
+    }
+
+    if (showRedPacketSend) {
+        SendRedPacketDialog(
+            onDismiss = { showRedPacketSend = false },
+            onSend = { amount, count, greeting ->
+                viewModel.sendRedPacket(amount, count, greeting)
+                showRedPacketSend = false
+            },
+        )
+    }
+
+    state.redPacketDetail?.let { detail ->
+        RedPacketDetailDialog(
+            detail = detail,
+            myId = viewModel.myId,
+            claimedAmount = state.claimedAmount,
+            onClaim = viewModel::claimOpenedRedPacket,
+            onDismiss = viewModel::closeRedPacket,
+        )
     }
 }
 
@@ -227,6 +254,8 @@ private fun MessageBubble(
     onRecall: () -> Unit,
     onReact: (String) -> Unit,
     onCollectSticker: () -> Unit,
+    redPacket: com.vxin.app.data.model.RedPacketContent? = null,
+    onOpenRedPacket: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -262,6 +291,11 @@ private fun MessageBubble(
                     )
                 }
                 Spacer(Modifier.size(2.dp))
+            }
+            // 红包消息：点击打开领取弹窗，无长按菜单
+            if (redPacket != null) {
+                RedPacketCard(redPacket, isMine, onClick = onOpenRedPacket)
+                return@Column
             }
             // 气泡本体(长按弹菜单)
             Box {
@@ -436,6 +470,7 @@ private fun MessageInputBar(
     onPickFile: () -> Unit,
     onMicClick: () -> Unit,
     onTogglePanel: () -> Unit,
+    onRedPacket: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().imePadding()) {
         if (recording) {
@@ -452,6 +487,7 @@ private fun MessageInputBar(
             IconButton(onClick = onTogglePanel) { Text("😀", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onPickImage) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onPickFile) { Text("📎", style = MaterialTheme.typography.titleMedium) }
+            IconButton(onClick = onRedPacket) { Text("🧧", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onMicClick) { Text(if (recording) "⏹" else "🎤", style = MaterialTheme.typography.titleMedium) }
             OutlinedTextField(
                 value = value,
@@ -526,4 +562,138 @@ private fun StickerEmojiPanel(
             }
         }
     }
+}
+
+private val RedPacketRed = Color(0xFFE8503A)
+private val RedPacketGold = Color(0xFFFCE2A8)
+
+@Composable
+private fun RedPacketCard(
+    content: com.vxin.app.data.model.RedPacketContent,
+    isMine: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .widthIn(max = 240.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(RedPacketRed)
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("🧧", fontSize = 28.sp)
+        Spacer(Modifier.size(10.dp))
+        Column {
+            Text(
+                content.greeting.ifBlank { "恭喜发财，大吉大利" },
+                color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text("领取红包", color = RedPacketGold, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun SendRedPacketDialog(
+    onDismiss: () -> Unit,
+    onSend: (Int, Int, String) -> Unit,
+) {
+    var amount by remember { mutableStateOf("") }
+    var count by remember { mutableStateOf("1") }
+    var greeting by remember { mutableStateOf("") }
+    var err by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("发红包") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = amount, onValueChange = { amount = it.filter { c -> c.isDigit() } },
+                    label = { Text("总金币 (1-20000)") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.size(8.dp))
+                OutlinedTextField(
+                    value = count, onValueChange = { count = it.filter { c -> c.isDigit() } },
+                    label = { Text("红包个数 (1-100)") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.size(8.dp))
+                OutlinedTextField(
+                    value = greeting, onValueChange = { greeting = it.take(100) },
+                    label = { Text("祝福语（可选）") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                err?.let { Text(it, color = Color(0xFFFA5151), fontSize = 12.sp) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val a = amount.toIntOrNull() ?: 0
+                val c = count.toIntOrNull() ?: 0
+                err = when {
+                    a < 1 || a > 20000 -> "总金币范围 1-20000"
+                    c < 1 || c > 100 -> "红包个数 1-100"
+                    a < c -> "总金币不能小于红包个数"
+                    else -> null
+                }
+                if (err == null) onSend(a, c, greeting)
+            }) { Text("塞钱进红包", color = RedPacketRed) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun RedPacketDetailDialog(
+    detail: com.vxin.app.data.model.RedPacketDetail,
+    myId: String,
+    claimedAmount: Int?,
+    onClaim: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val mine = detail.myClaim
+    val finished = detail.claimed_count >= detail.total_count
+    val canClaim = mine == null && claimedAmount == null && !finished
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("🧧 ${detail.senderName.ifBlank { "好友" }} 的红包") },
+        text = {
+            Column {
+                Text(detail.greeting.ifBlank { "恭喜发财，大吉大利" }, color = VxinTextSecondary)
+                Spacer(Modifier.size(8.dp))
+                when {
+                    mine != null -> Text("你领取了 ${mine.amount} 金币", color = RedPacketRed, fontSize = 18.sp)
+                    claimedAmount != null -> Text("你领取了 $claimedAmount 金币", color = RedPacketRed, fontSize = 18.sp)
+                    finished -> Text("手慢了，红包已被领完", color = VxinTextSecondary)
+                    else -> Text("点击「开」领取红包", color = VxinTextSecondary)
+                }
+                Spacer(Modifier.size(8.dp))
+                Text("已领 ${detail.claimed_count}/${detail.total_count} 个", color = VxinTextSecondary, fontSize = 12.sp)
+                if (detail.claims.isNotEmpty()) {
+                    Spacer(Modifier.size(6.dp))
+                    detail.claims.take(20).forEach { c ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            Text(c.username.ifBlank { "用户" }, Modifier.weight(1f), fontSize = 13.sp)
+                            Text("${c.amount} 金币", fontSize = 13.sp, color = RedPacketRed)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (canClaim) {
+                TextButton(onClick = onClaim) { Text("开", color = RedPacketRed, fontSize = 18.sp) }
+            } else {
+                TextButton(onClick = onDismiss) { Text("关闭") }
+            }
+        },
+        dismissButton = {
+            if (canClaim) TextButton(onClick = onDismiss) { Text("关闭") }
+        },
+    )
 }

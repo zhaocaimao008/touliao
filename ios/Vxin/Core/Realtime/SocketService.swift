@@ -48,6 +48,8 @@ final class SocketService {
     let messageDeleted = PassthroughSubject<String, Never>()
     /// 表情回应更新 → (msgId, reactions)
     let reaction = PassthroughSubject<(String, [MessageReaction]), Never>()
+    /// 红包被领取 → (packetId, userId, amount)
+    let redPacketClaimed = PassthroughSubject<(String, String, Int), Never>()
 
     private let decoder = JSONDecoder()
 
@@ -110,6 +112,12 @@ final class SocketService {
             let arr = (dict["reactions"] as? [[String: Any]]) ?? []
             let reactions = arr.map { MessageReaction(emoji: $0["emoji"] as? String ?? "", count: ($0["count"] as? NSNumber)?.intValue ?? 0) }
             self?.reaction.send((msgId, reactions))
+        }
+        sock.on("red_packet_claimed") { [weak self] data, _ in
+            guard let dict = data.first as? [String: Any], let packetId = dict["packetId"] as? String, !packetId.isEmpty else { return }
+            let userId = dict["userId"] as? String ?? ""
+            let amount = (dict["amount"] as? NSNumber)?.intValue ?? 0
+            self?.redPacketClaimed.send((packetId, userId, amount))
         }
 
         manager = mgr

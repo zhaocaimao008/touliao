@@ -27,6 +27,7 @@ enum class SocketStatus { DISCONNECTED, CONNECTING, CONNECTED }
 data class TypingEvent(val userId: String, val conversationId: String, val isTyping: Boolean)
 data class ReadEvent(val userId: String, val conversationId: String, val readAt: Long, val lastReadMessageId: String?)
 data class ReactionEvent(val msgId: String, val reactions: List<MessageReaction>)
+data class RedPacketClaimedEvent(val packetId: String, val userId: String, val username: String, val amount: Int)
 
 /**
  * Socket.IO 实时通道（官方 io.socket:socket.io-client）。
@@ -74,6 +75,10 @@ class SocketManager @Inject constructor(
     /** 表情回应更新 */
     private val _reaction = MutableSharedFlow<ReactionEvent>(extraBufferCapacity = 64)
     val reactionEvents: SharedFlow<ReactionEvent> = _reaction.asSharedFlow()
+
+    /** 红包被领取 */
+    private val _redPacketClaimed = MutableSharedFlow<RedPacketClaimedEvent>(extraBufferCapacity = 64)
+    val redPacketClaimedEvents: SharedFlow<RedPacketClaimedEvent> = _redPacketClaimed.asSharedFlow()
 
     @Synchronized
     fun connect() {
@@ -143,6 +148,21 @@ class SocketManager @Inject constructor(
                     arr.optJSONObject(i)?.let { r -> list.add(MessageReaction(r.optString("emoji"), r.optInt("count"))) }
                 }
                 if (msgId.isNotEmpty()) _reaction.tryEmit(ReactionEvent(msgId, list))
+            }
+        }
+        s.on("red_packet_claimed") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val packetId = o.optString("packetId")
+                if (packetId.isNotEmpty()) {
+                    _redPacketClaimed.tryEmit(
+                        RedPacketClaimedEvent(
+                            packetId = packetId,
+                            userId = o.optString("userId"),
+                            username = o.optString("username"),
+                            amount = o.optInt("amount"),
+                        )
+                    )
+                }
             }
         }
 

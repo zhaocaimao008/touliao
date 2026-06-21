@@ -12,8 +12,12 @@ import com.vxin.app.core.media.MediaUploader
 import com.vxin.app.core.network.toUserMessage
 import com.vxin.app.core.util.MediaUrlResolver
 import com.vxin.app.data.model.Message
+import com.vxin.app.data.model.RedPacketContent
+import com.vxin.app.data.model.RedPacketDetail
 import com.vxin.app.data.repository.ChatRepository
+import com.vxin.app.data.repository.RedPacketRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -47,6 +51,10 @@ data class ChatUiState(
     val peerReadAt: Long = 0,         // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     val replyingTo: Message? = null,  // 正在回复的消息
     val stickers: List<com.vxin.app.data.model.Sticker> = emptyList(),
+    // ── 红包 ──
+    val redPacketDetail: RedPacketDetail? = null,   // 非空 = 显示红包详情弹窗
+    val redPacketLoading: Boolean = false,
+    val claimedAmount: Int? = null,                 // 刚领取到的金额（一次性提示）
     val error: String? = null,
 )
 
@@ -54,6 +62,7 @@ data class ChatUiState(
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val stickerRepository: com.vxin.app.data.repository.StickerRepository,
+    private val redPacketRepository: RedPacketRepository,
     private val mediaUploader: MediaUploader,
     private val audioRecorder: AudioRecorder,
     private val audioPlayer: AudioPlayer,
@@ -73,6 +82,7 @@ class ChatViewModel @Inject constructor(
 
     private var lastTypingEmit = 0L
     private var typingClearJob: Job? = null
+    private val json = Json { ignoreUnknownKeys = true }
 
     init {
         chatRepository.joinConversation(conversationId)
@@ -82,6 +92,61 @@ class ChatViewModel @Inject constructor(
         observeRead()
         observeDeleted()
         observeReaction()
+        observeRedPacketClaimed()
+    }
+
+    // ── 红包 ──────────────────────────────────────────────
+    /** 解析 red_packet 消息的 content（失败返回 null） */
+    fun parseRedPacket(msg: Message): RedPacketContent? =
+        if (msg.type == "red_packet") runCatching { json.decodeFromString<RedPacketContent>(msg.content) }.getOrNull() else null
+
+    fun sendRedPacket(totalAmount: Int, totalCount: Int, greeting: String) {
+        viewModelScope.launch {
+            runCatching { redPacketRepository.send(conversationId, totalAmount, totalCount, greeting.trim()) }
+                .onSuccess { resp -> resp.message?.let { appendUnique(it) } } // 通常 socket 也会广播，appendUnique 去重
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("发送红包失败")) } }
+        }
+    }
+
+    /** 点击红包消息 → 拉详情并弹窗 */
+    fun openRedPacket(msg: Message) {
+        val packetId = parseRedPacket(msg)?.packetId ?: return
+        _uiState.update { it.copy(redPacketLoading = true, claimedAmount = null) }
+        viewModelScope.launch {
+            runCatching { redPacketRepository.detail(packetId) }
+                .onSuccess { d -> _uiState.update { it.copy(redPacketLoading = false, redPacketDetail = d) } }
+                .onFailure { e -> _uiState.update { it.copy(redPacketLoading = false, error = e.toUserMessage("打开红包失败")) } }
+        }
+    }
+
+    fun claimOpenedRedPacket() {
+        val packetId = _uiState.value.redPacketDetail?.id ?: return
+        viewModelScope.launch {
+            runCatching { redPacketRepository.claim(packetId) }
+                .onSuccess { resp ->
+                    _uiState.update { it.copy(claimedAmount = resp.amount) }
+                    refreshRedPacketDetail(packetId)
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("手慢了，红包没抢到")) }; refreshRedPacketDetail(packetId) }
+        }
+    }
+
+    fun closeRedPacket() = _uiState.update { it.copy(redPacketDetail = null, claimedAmount = null) }
+
+    private fun refreshRedPacketDetail(packetId: String) {
+        viewModelScope.launch {
+            runCatching { redPacketRepository.detail(packetId) }
+                .onSuccess { d -> _uiState.update { if (it.redPacketDetail?.id == packetId) it.copy(redPacketDetail = d) else it } }
+        }
+    }
+
+    private fun observeRedPacketClaimed() {
+        viewModelScope.launch {
+            chatRepository.redPacketClaimedEvents.collect { e ->
+                // 详情弹窗开着且是同一个红包 → 刷新领取记录
+                if (_uiState.value.redPacketDetail?.id == e.packetId) refreshRedPacketDetail(e.packetId)
+            }
+        }
     }
 
     // ── 表情/贴纸 ──────────────────────────────────────

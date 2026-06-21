@@ -2,6 +2,7 @@ package com.vxin.app.data.repository
 
 import com.vxin.app.core.realtime.ReactionEvent
 import com.vxin.app.core.realtime.ReadEvent
+import com.vxin.app.core.realtime.RedPacketClaimedEvent
 import com.vxin.app.core.realtime.SocketManager
 import com.vxin.app.core.realtime.SocketStatus
 import com.vxin.app.core.realtime.TypingEvent
@@ -36,6 +37,7 @@ class ChatRepository @Inject constructor(
     val newConversationEvents: SharedFlow<Unit> = socketManager.newConversationEvents
     val messageDeletedEvents: SharedFlow<String> = socketManager.messageDeletedEvents
     val reactionEvents: SharedFlow<ReactionEvent> = socketManager.reactionEvents
+    val redPacketClaimedEvents: SharedFlow<RedPacketClaimedEvent> = socketManager.redPacketClaimedEvents
 
     fun joinConversation(conversationId: String) = socketManager.joinConversation(conversationId)
     fun emitTyping(conversationId: String) = socketManager.emitTyping(conversationId)
