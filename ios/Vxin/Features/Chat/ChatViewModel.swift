@@ -21,6 +21,7 @@ final class ChatViewModel: ObservableObject {
     @Published var peerTyping = false
     @Published var peerReadAt: Double = 0      // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     @Published var replyingTo: Message?        // 正在回复的消息
+    @Published var stickers: [Sticker] = []
     @Published var error: String?
 
     let conversationId: String
@@ -61,6 +62,28 @@ final class ChatViewModel: ObservableObject {
 
         repo.joinConversation(conversationId)
         Task { await loadHistory() }
+    }
+
+    // MARK: - 表情/贴纸
+    func appendEmoji(_ emoji: String) { input += emoji }
+
+    func loadStickers() {
+        Task { stickers = (try? await StickerRepository.shared.list()) ?? stickers }
+    }
+
+    func sendSticker(_ sticker: Sticker) {
+        Task {
+            do { let msg = try await StickerRepository.shared.send(conversationId: conversationId, stickerId: sticker.id); appendUnique(msg) }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "发送失败" }
+        }
+    }
+
+    func collectSticker(_ url: String) {
+        Task {
+            await StickerRepository.shared.collect(url: url)
+            error = "已添加到表情"
+            loadStickers()
+        }
     }
 
     // MARK: - 消息操作:回复/撤回/表情回应

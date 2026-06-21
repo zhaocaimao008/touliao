@@ -46,12 +46,14 @@ data class ChatUiState(
     val peerTyping: Boolean = false,
     val peerReadAt: Long = 0,         // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     val replyingTo: Message? = null,  // 正在回复的消息
+    val stickers: List<com.vxin.app.data.model.Sticker> = emptyList(),
     val error: String? = null,
 )
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
+    private val stickerRepository: com.vxin.app.data.repository.StickerRepository,
     private val mediaUploader: MediaUploader,
     private val audioRecorder: AudioRecorder,
     private val audioPlayer: AudioPlayer,
@@ -80,6 +82,31 @@ class ChatViewModel @Inject constructor(
         observeRead()
         observeDeleted()
         observeReaction()
+    }
+
+    // ── 表情/贴纸 ──────────────────────────────────────
+    fun appendEmoji(emoji: String) = _uiState.update { it.copy(input = it.input + emoji) }
+
+    fun loadStickers() {
+        viewModelScope.launch {
+            runCatching { stickerRepository.list() }.onSuccess { list -> _uiState.update { it.copy(stickers = list) } }
+        }
+    }
+
+    fun sendSticker(sticker: com.vxin.app.data.model.Sticker) {
+        viewModelScope.launch {
+            runCatching { stickerRepository.send(conversationId, sticker.id) }
+                .onSuccess { msg -> appendUnique(msg) }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("发送失败")) } }
+        }
+    }
+
+    fun collectSticker(fileUrl: String) {
+        viewModelScope.launch {
+            runCatching { stickerRepository.collect(fileUrl) }
+                .onSuccess { _uiState.update { it.copy(error = "已添加到表情") }; loadStickers() }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("收藏失败")) } }
+        }
     }
 
     // ── 消息操作:回复/撤回/表情回应 ──────────────────────

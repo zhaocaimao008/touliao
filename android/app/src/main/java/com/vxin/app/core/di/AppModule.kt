@@ -10,6 +10,7 @@ import com.vxin.app.data.api.GroupApi
 import com.vxin.app.data.api.MessageApi
 import com.vxin.app.data.api.NotificationApi
 import com.vxin.app.data.api.SearchApi
+import com.vxin.app.data.api.StickerApi
 import com.vxin.app.data.api.UserApi
 import dagger.Module
 import dagger.Provides
@@ -103,4 +104,8 @@ object AppModule {
     @Provides
     @Singleton
     fun provideSearchApi(retrofit: Retrofit): SearchApi = retrofit.create(SearchApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStickerApi(retrofit: Retrofit): StickerApi = retrofit.create(StickerApi::class.java)
 }

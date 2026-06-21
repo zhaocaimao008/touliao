@@ -29,6 +29,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -122,6 +126,8 @@ fun ChatScreen(
             )
         },
         bottomBar = {
+            var showPanel by remember { mutableStateOf(false) }
+            LaunchedEffect(showPanel) { if (showPanel) viewModel.loadStickers() }
             Column {
                 state.replyingTo?.let { r ->
                     Row(
@@ -144,6 +150,7 @@ fun ChatScreen(
                     onSend = viewModel::send,
                     onPickImage = { imagePicker.launch("image/*") },
                     onPickFile = { filePicker.launch("*/*") },
+                    onTogglePanel = { showPanel = !showPanel },
                     onMicClick = {
                         if (state.recording) {
                             viewModel.stopRecordingAndSend()
@@ -154,6 +161,14 @@ fun ChatScreen(
                         }
                     },
                 )
+                if (showPanel) {
+                    StickerEmojiPanel(
+                        stickers = state.stickers,
+                        resolveUrl = viewModel::resolveMediaUrl,
+                        onEmoji = viewModel::appendEmoji,
+                        onSticker = { viewModel.sendSticker(it); showPanel = false },
+                    )
+                }
             }
         },
     ) { padding ->
@@ -178,6 +193,7 @@ fun ChatScreen(
                             onReply = { viewModel.startReply(msg) },
                             onRecall = { viewModel.recall(msg) },
                             onReact = { emoji -> viewModel.react(msg, emoji) },
+                            onCollectSticker = { viewModel.collectSticker(msg.file_url) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -210,6 +226,7 @@ private fun MessageBubble(
     onReply: () -> Unit,
     onRecall: () -> Unit,
     onReact: (String) -> Unit,
+    onCollectSticker: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -267,6 +284,9 @@ private fun MessageBubble(
                         })
                     }
                     DropdownMenuItem(text = { Text("回复") }, onClick = { onReply(); menuOpen = false })
+                    if (msg.type == "image") {
+                        DropdownMenuItem(text = { Text("收藏表情") }, onClick = { onCollectSticker(); menuOpen = false })
+                    }
                     if (isMine) {
                         DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { onRecall(); menuOpen = false })
                     }
@@ -415,6 +435,7 @@ private fun MessageInputBar(
     onPickImage: () -> Unit,
     onPickFile: () -> Unit,
     onMicClick: () -> Unit,
+    onTogglePanel: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().imePadding()) {
         if (recording) {
@@ -428,6 +449,7 @@ private fun MessageInputBar(
             modifier = Modifier.fillMaxWidth().padding(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            IconButton(onClick = onTogglePanel) { Text("😀", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onPickImage) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onPickFile) { Text("📎", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onMicClick) { Text(if (recording) "⏹" else "🎤", style = MaterialTheme.typography.titleMedium) }
@@ -458,5 +480,50 @@ private fun openUrl(context: android.content.Context, url: String?) {
     if (url.isNullOrBlank()) return
     runCatching {
         context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+}
+
+private val EMOJIS = listOf(
+    "😀","😁","😂","🤣","😊","😍","😘","😎","🤔","😅","😉","😴","😭","😡","🥺","👍",
+    "👎","🙏","👏","💪","🎉","❤️","💔","🔥","⭐","✅","❌","🌹","🍺","☕","🤝","👌",
+)
+
+@Composable
+private fun StickerEmojiPanel(
+    stickers: List<com.vxin.app.data.model.Sticker>,
+    resolveUrl: (String?) -> String?,
+    onEmoji: (String) -> Unit,
+    onSticker: (com.vxin.app.data.model.Sticker) -> Unit,
+) {
+    var tab by remember { mutableStateOf(0) }
+    Column(Modifier.fillMaxWidth().heightIn(max = 240.dp).background(Color(0xFFF2F2F2))) {
+        Row(Modifier.padding(8.dp)) {
+            TextButton(onClick = { tab = 0 }) { Text("表情", color = if (tab == 0) VxinGreen else VxinTextSecondary) }
+            TextButton(onClick = { tab = 1 }) { Text("贴纸", color = if (tab == 1) VxinGreen else VxinTextSecondary) }
+        }
+        if (tab == 0) {
+            LazyVerticalGrid(columns = GridCells.Fixed(8), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp)) {
+                gridItems(EMOJIS) { e ->
+                    Text(e, fontSize = 22.sp, modifier = Modifier.padding(6.dp).clickable { onEmoji(e) })
+                }
+            }
+        } else {
+            if (stickers.isEmpty()) {
+                Box(Modifier.fillMaxWidth().heightIn(min = 80.dp), Alignment.Center) {
+                    Text("还没有表情，长按聊天图片可「收藏表情」", color = VxinTextSecondary, fontSize = 12.sp)
+                }
+            } else {
+                LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp)) {
+                    gridItems(stickers, key = { it.id }) { s ->
+                        AsyncImage(
+                            model = resolveUrl(s.url),
+                            contentDescription = "表情",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.padding(6.dp).size(64.dp).clickable { onSticker(s) },
+                        )
+                    }
+                }
+            }
+        }
     }
 }

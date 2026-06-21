@@ -8,6 +8,7 @@ struct ChatView: View {
     @StateObject private var vm: ChatViewModel
     @State private var photoItem: PhotosPickerItem?
     @State private var showFileImporter = false
+    @State private var showStickerPanel = false
     private let isGroup: Bool
     private let onOpenGroupInfo: () -> Void
 
@@ -89,6 +90,7 @@ struct ChatView: View {
                     .padding(.horizontal, 16).padding(.vertical, 4)
             }
             HStack(spacing: 6) {
+                Button { showStickerPanel.toggle(); if showStickerPanel { vm.loadStickers() } } label: { Text("😀").font(.title3) }
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Text("🖼").font(.title3)
                 }
@@ -106,7 +108,43 @@ struct ChatView: View {
                 .disabled(vm.input.isEmpty || vm.sending)
             }
             .padding(8)
+
+            if showStickerPanel {
+                stickerEmojiPanel
+            }
         }
+    }
+
+    private let emojis = ["😀","😁","😂","🤣","😊","😍","😘","😎","🤔","😅","😉","😴","😭","😡","🥺","👍","👎","🙏","👏","💪","🎉","❤️","💔","🔥","⭐","✅","❌","🌹","🍺","☕","🤝","👌"]
+
+    private var stickerEmojiPanel: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHGrid(rows: [GridItem(.fixed(34)), GridItem(.fixed(34))], spacing: 6) {
+                    ForEach(emojis, id: \.self) { e in
+                        Text(e).font(.title3).onTapGesture { vm.appendEmoji(e) }
+                    }
+                }
+                .padding(.horizontal, 8)
+            }
+            if !vm.stickers.isEmpty {
+                Divider()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(vm.stickers) { s in
+                            KFImage(URL(string: vm.resolveMediaUrl(s.url) ?? ""))
+                                .resizable().scaledToFit().frame(width: 60, height: 60)
+                                .onTapGesture { vm.sendSticker(s); showStickerPanel = false }
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                }
+            } else {
+                Text("还没有表情，长按聊天图片可「收藏表情」").font(.caption2).foregroundColor(.vxinTextSecondary).padding(8)
+            }
+        }
+        .frame(height: 150)
+        .background(Color(.secondarySystemBackground))
     }
 
     // MARK: - 交互
@@ -177,6 +215,9 @@ private struct MessageBubble: View {
                             Button("复制") { UIPasteboard.general.string = msg.content }
                         }
                         Button("回复") { vm.startReply(msg) }
+                        if msg.type == "image" {
+                            Button("收藏表情") { vm.collectSticker(msg.fileUrl) }
+                        }
                         if isMine {
                             Button("撤回", role: .destructive) { vm.recall(msg) }
                         }
