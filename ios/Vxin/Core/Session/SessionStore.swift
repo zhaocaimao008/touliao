@@ -29,7 +29,11 @@ final class SessionStore: ObservableObject {
                 self?.state = .unauthenticated
             }
         }
-        Task { await restoreSession() }
+        // 先拉远程配置确定服务器地址，再恢复会话
+        Task {
+            await RemoteConfig.refresh()
+            await restoreSession()
+        }
     }
 
     deinit {

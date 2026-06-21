@@ -30,6 +30,7 @@ class SessionManager @Inject constructor(
     private val authRepository: AuthRepository,
     private val socketManager: SocketManager,
     private val pushManager: com.vxin.app.core.push.PushManager,
+    private val remoteConfig: com.vxin.app.core.config.RemoteConfig,
     authInterceptor: AuthInterceptor,
     @AppScope private val scope: CoroutineScope,
 ) {
@@ -43,7 +44,11 @@ class SessionManager @Inject constructor(
                 _state.value = AuthState.Unauthenticated
             }
         }
-        scope.launch { restoreSession() }
+        // 先拉远程配置确定服务器地址，再恢复会话（确保后续请求/Socket 用对地址）
+        scope.launch {
+            remoteConfig.refresh()
+            restoreSession()
+        }
     }
 
     suspend fun restoreSession() {
