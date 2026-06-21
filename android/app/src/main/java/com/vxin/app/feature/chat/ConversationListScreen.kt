@@ -16,9 +16,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,6 +48,7 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 @Composable
 fun ConversationListScreen(
     onOpenConversation: (Conversation) -> Unit,
+    onOpenSearch: () -> Unit = {},
     viewModel: ConversationListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -74,6 +79,11 @@ fun ConversationListScreen(
                             fontSize = 11.sp,
                             color = if (socketStatus == SocketStatus.CONNECTED) VxinGreen else VxinTextSecondary,
                         )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenSearch) {
+                        Icon(Icons.Filled.Search, contentDescription = "搜索")
                     }
                 },
             )

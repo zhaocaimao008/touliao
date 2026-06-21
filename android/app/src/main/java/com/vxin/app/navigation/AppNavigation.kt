@@ -42,6 +42,7 @@ import com.vxin.app.feature.contacts.FriendRequestsScreen
 import com.vxin.app.feature.group.GroupInfoScreen
 import com.vxin.app.feature.group.InviteMembersScreen
 import com.vxin.app.feature.profile.ProfileScreen
+import com.vxin.app.feature.search.SearchScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
@@ -62,6 +63,7 @@ private object Routes {
     const val ADD_FRIEND = "addFriend"
     const val REQUESTS = "requests"
     const val CREATE_GROUP = "createGroup"
+    const val SEARCH = "search"
     const val GROUP_INFO = "groupInfo/{conversationId}"
     const val INVITE_MEMBERS = "inviteMembers/{conversationId}"
     const val CHAT = "chat/{conversationId}?title={title}&type={type}"
@@ -140,6 +142,13 @@ private fun MainFlow() {
             composable(Routes.CONVERSATIONS) {
                 ConversationListScreen(
                     onOpenConversation = { conv -> navController.navigate(Routes.chat(conv.id, conv.name, conv.type)) },
+                    onOpenSearch = { navController.navigate(Routes.SEARCH) },
+                )
+            }
+            composable(Routes.SEARCH) {
+                SearchScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenResult = { r -> navController.navigate(Routes.chat(r.conversation_id, r.convName, r.convType)) },
                 )
             }
             composable(Routes.CONTACTS) {

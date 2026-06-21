@@ -24,9 +24,17 @@ struct ConversationListView: View {
                                 .foregroundColor(vm.socketStatus == .connected ? .vxinGreen : .vxinTextSecondary)
                         }
                     }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button { path.append(SearchRoute.search) } label: { Image(systemName: "magnifyingglass") }
+                    }
                 }
                 .navigationDestination(for: Conversation.self) { conv in
                     ChatView(conversation: conv, myId: myId, onOpenGroupInfo: { path.append(GroupRoute.info(conv.id)) })
+                }
+                .navigationDestination(for: SearchRoute.self) { _ in
+                    SearchView(onOpenResult: { r in
+                        path.append(Conversation(id: r.conversationId, type: r.convType, name: r.convName))
+                    })
                 }
                 .navigationDestination(for: GroupRoute.self) { route in
                     switch route {
