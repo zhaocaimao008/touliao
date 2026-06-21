@@ -37,9 +37,11 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 @Composable
 fun LoginScreen(
     onNavigateRegister: () -> Unit,
+    onSuccess: () -> Unit = {},
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(state.loggedIn) { if (state.loggedIn) onSuccess() }
     var showServerConfig by remember { mutableStateOf(false) }
 
     Column(

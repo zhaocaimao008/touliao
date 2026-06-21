@@ -13,6 +13,7 @@ struct ProfileView: View {
     @State private var message: String?
     @State private var photoItem: PhotosPickerItem?
     @State private var showPasswordSheet = false
+    @State private var showAddAccount = false
 
     private let repo = ProfileRepository.shared
 
@@ -45,6 +46,32 @@ struct ProfileView: View {
                 .disabled(saving || username.isEmpty)
             }
 
+            Section("设置") {
+                NavigationLink("设备管理") { Text("设备管理").navigationTitle("设备管理") }
+                NavigationLink("隐私与安全") { Text("隐私与安全").navigationTitle("隐私与安全") }
+                NavigationLink("外观") { Text("外观").navigationTitle("外观") }
+                NavigationLink("通知") { Text("通知").navigationTitle("通知") }
+            }
+
+            Section("账号") {
+                ForEach(session.accounts()) { acc in
+                    HStack {
+                        InitialAvatar(name: acc.username.isEmpty ? "?" : acc.username, size: 32)
+                        Text(acc.username.isEmpty ? "未命名" : acc.username)
+                        Spacer()
+                        if acc.id == session.activeAccountId {
+                            Text("当前").font(.caption).foregroundColor(.vxinGreen)
+                        } else {
+                            Button("移除", role: .destructive) { session.removeAccount(acc.id) }
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { if acc.id != session.activeAccountId { session.switchAccount(acc.id) } }
+                }
+                Button("添加账号") { showAddAccount = true }
+            }
+
             if let message { Section { Text(message).foregroundColor(.vxinGreen).font(.footnote) } }
 
             Section {
@@ -53,6 +80,9 @@ struct ProfileView: View {
             }
         }
         .navigationTitle("我")
+        .sheet(isPresented: $showAddAccount) {
+            NavigationStack { LoginView() }
+        }
         .onAppear {
             if username.isEmpty { username = session.currentUser?.username ?? "" }
             if bio.isEmpty { bio = session.currentUser?.bio ?? "" }
@@ -67,12 +97,14 @@ struct ProfileView: View {
 
     @ViewBuilder private var avatarView: some View {
         let user = session.currentUser
-        if let avatar = user?.avatar, !avatar.isEmpty, let url = MediaUrlResolver.resolve(avatar) {
-            KFImage(URL(string: url))
-                .resizable().scaledToFill()
-                .frame(width: 80, height: 80).clipShape(Circle())
-        } else {
-            InitialAvatar(name: user?.username ?? "?", size: 80)
+        PhotosPicker(selection: $photoItem, matching: .images) {
+            if let avatar = user?.avatar, !avatar.isEmpty, let url = MediaUrlResolver.resolve(avatar) {
+                KFImage(URL(string: url))
+                    .resizable().scaledToFill()
+                    .frame(width: 80, height: 80).clipShape(Circle())
+            } else {
+                InitialAvatar(name: user?.username ?? "?", size: 80)
+            }
         }
     }
 

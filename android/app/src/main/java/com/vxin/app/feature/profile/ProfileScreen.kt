@@ -47,9 +47,14 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
+fun ProfileScreen(
+    onAddAccount: () -> Unit = {},
+    viewModel: ProfileViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val user = state.user
+    androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.refreshAccounts() }
 
     var username by remember(user?.id) { mutableStateOf(user?.username ?: "") }
     var bio by remember(user?.id) { mutableStateOf(user?.bio ?: "") }
@@ -114,6 +119,26 @@ fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
             }
 
             Spacer(Modifier.size(24.dp))
+            HorizontalDivider()
+
+            // ── 账号切换 ──
+            Text("账号", Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+            accounts.forEach { acc ->
+                val isActive = acc.id == viewModel.activeAccountId
+                Row(
+                    Modifier.fillMaxWidth().clickable(enabled = !isActive) { viewModel.switchAccount(acc.id) }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    InitialAvatar(name = acc.username.ifBlank { "?" }, size = 36.dp)
+                    Spacer(Modifier.size(10.dp))
+                    Text(acc.username.ifBlank { "未命名" }, Modifier.weight(1f))
+                    if (isActive) Text("当前", color = VxinGreen, style = MaterialTheme.typography.bodySmall)
+                    else TextButton(onClick = { viewModel.removeAccount(acc.id) }) { Text("移除", color = androidx.compose.ui.graphics.Color(0xFFFA5151)) }
+                }
+            }
+            OutlinedButton(onClick = onAddAccount, modifier = Modifier.fillMaxWidth()) { Text("添加账号") }
+
+            Spacer(Modifier.size(12.dp))
             HorizontalDivider()
             Spacer(Modifier.size(12.dp))
 

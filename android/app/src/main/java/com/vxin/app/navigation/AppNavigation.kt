@@ -64,6 +64,7 @@ private object Routes {
     const val REQUESTS = "requests"
     const val CREATE_GROUP = "createGroup"
     const val SEARCH = "search"
+    const val ADD_ACCOUNT = "addAccount"
     const val GROUP_INFO = "groupInfo/{conversationId}"
     const val INVITE_MEMBERS = "inviteMembers/{conversationId}"
     const val CHAT = "chat/{conversationId}?title={title}&type={type}"
@@ -160,7 +161,13 @@ private fun MainFlow() {
                 )
             }
             composable(Routes.PROFILE) {
-                ProfileScreen()
+                ProfileScreen(onAddAccount = { navController.navigate(Routes.ADD_ACCOUNT) })
+            }
+            composable(Routes.ADD_ACCOUNT) {
+                LoginScreen(
+                    onNavigateRegister = { navController.navigate(Routes.REGISTER) },
+                    onSuccess = { navController.popBackStack() },
+                )
             }
             composable(Routes.ADD_FRIEND) {
             AddFriendScreen(onBack = { navController.popBackStack() })

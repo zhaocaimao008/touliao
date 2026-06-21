@@ -38,6 +38,15 @@ class ProfileViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ProfileUiState(user = sessionManager.currentUser))
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
+    // ── 多账号 ──────────────────────────────────────────
+    private val _accounts = MutableStateFlow(sessionManager.accounts())
+    val accounts: StateFlow<List<com.vxin.app.data.model.Account>> = _accounts.asStateFlow()
+    val activeAccountId: String? get() = sessionManager.activeAccountId()
+
+    fun refreshAccounts() { _accounts.value = sessionManager.accounts() }
+    fun switchAccount(id: String) { sessionManager.switchAccount(id) }
+    fun removeAccount(id: String) { sessionManager.removeAccount(id); refreshAccounts() }
+
     fun resolveAvatarUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     fun saveProfile(username: String, bio: String) {

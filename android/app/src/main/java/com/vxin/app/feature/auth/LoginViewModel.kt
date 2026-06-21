@@ -19,6 +19,7 @@ data class LoginUiState(
     val password: String = "",
     val serverUrl: String = "",
     val loading: Boolean = false,
+    val loggedIn: Boolean = false,   // 成功后用于「添加账号」流程返回
     val error: String? = null,
 ) {
     val canSubmit: Boolean get() = phone.isNotBlank() && password.isNotBlank() && !loading
@@ -52,7 +53,7 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { authRepository.login(s.phone, s.password) }
                 .onSuccess { user ->
-                    _uiState.update { it.copy(loading = false) }
+                    _uiState.update { it.copy(loading = false, loggedIn = true) }
                     sessionManager.onAuthenticated(user)   // 触发全局状态切到主页
                 }
                 .onFailure { e ->

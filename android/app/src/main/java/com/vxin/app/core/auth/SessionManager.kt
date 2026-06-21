@@ -31,6 +31,8 @@ class SessionManager @Inject constructor(
     private val socketManager: SocketManager,
     private val pushManager: com.vxin.app.core.push.PushManager,
     private val remoteConfig: com.vxin.app.core.config.RemoteConfig,
+    private val tokenStore: com.vxin.app.core.storage.TokenStore,
+    private val accountStore: com.vxin.app.core.storage.AccountStore,
     authInterceptor: AuthInterceptor,
     @AppScope private val scope: CoroutineScope,
 ) {
@@ -74,6 +76,28 @@ class SessionManager @Inject constructor(
     }
 
     val currentUser: User? get() = (_state.value as? AuthState.Authenticated)?.user
+
+    // ── 多账号 ──────────────────────────────────────────
+    fun accounts(): List<com.vxin.app.data.model.Account> = accountStore.accounts()
+    fun activeAccountId(): String? = accountStore.activeId()
+
+    /** 移除非当前账号（当前账号请用退出登录） */
+    fun removeAccount(accountId: String) {
+        if (accountId != accountStore.activeId()) accountStore.remove(accountId)
+    }
+
+    /** 切换到已登录的另一账号（本地有 token，免重登） */
+    fun switchAccount(accountId: String) {
+        val token = accountStore.tokenFor(accountId) ?: return
+        scope.launch {
+            socketManager.disconnect()
+            accountStore.setActive(accountId)
+            tokenStore.token = token
+            socketManager.connect()
+            pushManager.registerCurrentToken()
+            restoreSession()
+        }
+    }
 
     suspend fun logout() {
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前

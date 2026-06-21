@@ -66,6 +66,24 @@ final class SessionStore: ObservableObject {
         if case .authenticated = state { state = .authenticated(user) }
     }
 
+    // MARK: - 多账号
+    func accounts() -> [StoredAccount] { AccountStore.shared.accounts() }
+    var activeAccountId: String? { AccountStore.shared.activeId() }
+
+    func switchAccount(_ id: String) {
+        guard let token = AccountStore.shared.token(for: id) else { return }
+        SocketService.shared.disconnect()
+        AccountStore.shared.setActive(id)
+        KeychainStore.shared.token = token
+        SocketService.shared.connect()
+        PushManager.shared.requestAuthorizationAndRegister()
+        Task { await restoreSession() }
+    }
+
+    func removeAccount(_ id: String) {
+        if id != AccountStore.shared.activeId() { AccountStore.shared.remove(id) }
+    }
+
     func logout() async {
         await PushManager.shared.unregister()
         SocketService.shared.disconnect()

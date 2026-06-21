@@ -13,8 +13,13 @@ final class AuthRepository {
             body: LoginBody(phone: phone.trimmingCharacters(in: .whitespaces), password: password),
             authorized: false
         )
-        KeychainStore.shared.token = res.token   // 先存 token，后续请求自动带 Bearer
+        applyAuth(res)
         return res.user
+    }
+
+    private func applyAuth(_ res: AuthResponse) {
+        KeychainStore.shared.token = res.token   // active token
+        AccountStore.shared.upsertActive(StoredAccount(id: res.user.id, username: res.user.username, avatar: res.user.avatar, token: res.token))
     }
 
     func register(phone: String, password: String, username: String) async throws -> User {
@@ -27,7 +32,7 @@ final class AuthRepository {
             ),
             authorized: false
         )
-        KeychainStore.shared.token = res.token
+        applyAuth(res)
         return res.user
     }
 
@@ -39,6 +44,7 @@ final class AuthRepository {
 
     func logout() async {
         let _: EmptyResponse? = try? await api.send("api/auth/logout", method: "POST")
+        if let active = AccountStore.shared.activeId() { AccountStore.shared.remove(active) }
         KeychainStore.shared.clear()
     }
 }
