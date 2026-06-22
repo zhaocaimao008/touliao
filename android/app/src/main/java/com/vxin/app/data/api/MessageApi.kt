@@ -18,6 +18,7 @@ import retrofit2.http.GET
 import retrofit2.http.HTTP
 import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -66,6 +67,14 @@ interface MessageApi {
     /** 表情回应(切换) */
     @POST("api/messages/{msgId}/react")
     suspend fun react(@Path("msgId") msgId: String, @Body body: ReactBody): ReactResponse
+
+    /** 编辑消息（本人文本，2 分钟内） */
+    @PUT("api/messages/{msgId}/edit")
+    suspend fun editMessage(@Path("msgId") msgId: String, @Body body: com.vxin.app.data.model.EditMessageBody)
+
+    /** 转发消息到多个会话 */
+    @POST("api/messages/forward")
+    suspend fun forward(@Body body: com.vxin.app.data.model.ForwardBody)
 
     /** 会话置顶（pinned: 1/0） */
     @POST("api/messages/conversation/{convId}/pin")

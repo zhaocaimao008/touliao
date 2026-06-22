@@ -41,6 +41,7 @@ class ChatRepository @Inject constructor(
     val pinChangedEvents: SharedFlow<String> = socketManager.pinChangedEvents
     val groupGoneEvents: SharedFlow<String> = socketManager.groupGoneEvents
     val groupChangedEvents: SharedFlow<String> = socketManager.groupChangedEvents
+    val messageEditedEvents: SharedFlow<com.vxin.app.core.realtime.MessageEditedEvent> = socketManager.messageEditedEvents
 
     fun joinConversation(conversationId: String) = socketManager.joinConversation(conversationId)
     fun emitTyping(conversationId: String) = socketManager.emitTyping(conversationId)
@@ -88,4 +89,10 @@ class ChatRepository @Inject constructor(
         api.muteConversation(conversationId, com.vxin.app.data.model.MuteConversationBody(if (muted) 1 else 0))
 
     suspend fun clearMessages(conversationId: String) = api.clearMessages(conversationId)
+
+    suspend fun editMessage(msgId: String, content: String) =
+        api.editMessage(msgId, com.vxin.app.data.model.EditMessageBody(content))
+
+    suspend fun forward(msgId: String, conversationIds: List<String>) =
+        api.forward(com.vxin.app.data.model.ForwardBody(msgId, conversationIds))
 }

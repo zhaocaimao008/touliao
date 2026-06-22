@@ -27,6 +27,7 @@ enum class SocketStatus { DISCONNECTED, CONNECTING, CONNECTED }
 data class TypingEvent(val userId: String, val conversationId: String, val isTyping: Boolean)
 data class ReadEvent(val userId: String, val conversationId: String, val readAt: Long, val lastReadMessageId: String?)
 data class ReactionEvent(val msgId: String, val reactions: List<MessageReaction>)
+data class MessageEditedEvent(val msgId: String, val content: String, val conversationId: String)
 data class RedPacketClaimedEvent(val packetId: String, val userId: String, val username: String, val amount: Int)
 
 // ── WebRTC 通话信令 ──
@@ -98,6 +99,10 @@ class SocketManager @Inject constructor(
     /** 群资料/设置/角色/成员变更 → convId（需刷新） */
     private val _groupChanged = MutableSharedFlow<String>(extraBufferCapacity = 32)
     val groupChangedEvents: SharedFlow<String> = _groupChanged.asSharedFlow()
+
+    /** 消息被编辑 */
+    private val _messageEdited = MutableSharedFlow<MessageEditedEvent>(extraBufferCapacity = 32)
+    val messageEditedEvents: SharedFlow<MessageEditedEvent> = _messageEdited.asSharedFlow()
 
     // ── 通话信令流 ──
     private val _callIncoming = MutableSharedFlow<CallIncomingEvent>(extraBufferCapacity = 16)
@@ -181,6 +186,12 @@ class SocketManager @Inject constructor(
                     arr.optJSONObject(i)?.let { r -> list.add(MessageReaction(r.optString("emoji"), r.optInt("count"))) }
                 }
                 if (msgId.isNotEmpty()) _reaction.tryEmit(ReactionEvent(msgId, list))
+            }
+        }
+        s.on("message_edited") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val msgId = o.optString("msgId")
+                if (msgId.isNotEmpty()) _messageEdited.tryEmit(MessageEditedEvent(msgId, o.optString("content"), o.optString("conversationId")))
             }
         }
         s.on("message_pinned") { args ->

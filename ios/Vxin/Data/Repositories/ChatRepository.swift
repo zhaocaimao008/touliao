@@ -25,6 +25,7 @@ final class ChatRepository {
     var pinChangedPublisher: AnyPublisher<String, Never> { socket.pinChanged.eraseToAnyPublisher() }
     var groupGonePublisher: AnyPublisher<String, Never> { socket.groupGone.eraseToAnyPublisher() }
     var groupChangedPublisher: AnyPublisher<String, Never> { socket.groupChanged.eraseToAnyPublisher() }
+    var messageEditedPublisher: AnyPublisher<(String, String, String), Never> { socket.messageEdited.eraseToAnyPublisher() }
 
     func joinConversation(_ id: String) { socket.joinConversation(id) }
     func emitTyping(_ id: String) { socket.emitTyping(id) }
@@ -108,12 +109,26 @@ final class ChatRepository {
             "api/messages/conversation/\(conversationId)/messages", method: "DELETE"
         )
     }
+
+    func editMessage(_ msgId: String, content: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/\(msgId)/edit", method: "PUT", body: EditBody(content: content)
+        )
+    }
+
+    func forward(msgId: String, conversationIds: [String]) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/forward", method: "POST", body: ForwardBody(msgId: msgId, conversationIds: conversationIds)
+        )
+    }
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }
 private struct PinMessageBody: Encodable { let msgId: String }
 private struct PinConvBody: Encodable { let pinned: Int }
 private struct MuteConvBody: Encodable { let muted: Int }
+private struct EditBody: Encodable { let content: String }
+private struct ForwardBody: Encodable { let msgId: String; let conversationIds: [String] }
 private struct DeleteMessageBody: Encodable { let forEveryone: Bool }
 private struct ReactBody: Encodable { let emoji: String }
 private struct ReactResponse: Decodable { let reactions: [MessageReaction] }

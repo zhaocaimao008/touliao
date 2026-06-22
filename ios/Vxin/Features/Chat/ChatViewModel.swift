@@ -23,6 +23,9 @@ final class ChatViewModel: ObservableObject {
     @Published var replyingTo: Message?        // 正在回复的消息
     @Published var stickers: [Sticker] = []
     @Published var pinnedMessages: [PinnedMessage] = []
+    @Published var forwardTargets: [Conversation] = []
+    @Published var editTarget: Message?
+    @Published var forwardTarget: Message?
     @Published var closed = false   // 被踢/群解散 → 关闭聊天页
     // ── 红包 ──
     @Published var redPacketDetail: RedPacketDetail?   // 非空 = 显示红包详情弹窗
@@ -65,6 +68,10 @@ final class ChatViewModel: ObservableObject {
 
         repo.reactionPublisher
             .sink { [weak self] (msgId, reactions) in Task { @MainActor in self?.applyReactions(msgId, reactions) } }
+            .store(in: &cancellables)
+
+        repo.messageEditedPublisher
+            .sink { [weak self] (msgId, content, convId) in Task { @MainActor in self?.applyEdit(msgId, content, convId) } }
             .store(in: &cancellables)
 
         repo.redPacketClaimedPublisher
@@ -146,6 +153,41 @@ final class ChatViewModel: ObservableObject {
     private func applyReactions(_ msgId: String, _ reactions: [MessageReaction]) {
         if let idx = messages.firstIndex(where: { $0.id == msgId }) {
             messages[idx].reactions = reactions
+        }
+    }
+
+    // MARK: - 编辑 / 转发
+    private func applyEdit(_ msgId: String, _ content: String, _ convId: String) {
+        guard convId == conversationId, let idx = messages.firstIndex(where: { $0.id == msgId }) else { return }
+        messages[idx].content = content
+        messages[idx].edited = 1
+    }
+
+    /// 本人文本消息且 2 分钟内可编辑
+    func canEdit(_ msg: Message) -> Bool {
+        msg.senderId == myId && msg.type == "text" && (Date().timeIntervalSince1970 - msg.createdAt) <= 120
+    }
+
+    func editMessage(_ msg: Message, newText: String) {
+        let text = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        Task {
+            do {
+                try await repo.editMessage(msg.id, content: text)
+                if let idx = messages.firstIndex(where: { $0.id == msg.id }) { messages[idx].content = text; messages[idx].edited = 1 }
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "编辑失败" }
+        }
+    }
+
+    func loadForwardTargets() {
+        Task { forwardTargets = (try? await repo.loadConversations()) ?? forwardTargets }
+    }
+
+    func forward(_ msg: Message, conversationIds: [String]) {
+        guard !conversationIds.isEmpty else { return }
+        Task {
+            do { try await repo.forward(msgId: msg.id, conversationIds: conversationIds); error = "已转发" }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "转发失败" }
         }
     }
 

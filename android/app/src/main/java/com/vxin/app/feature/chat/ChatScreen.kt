@@ -84,6 +84,8 @@ fun ChatScreen(
     val context = LocalContext.current
     var showRedPacketSend by remember { mutableStateOf(false) }
     var showPinnedList by remember { mutableStateOf(false) }
+    var editTarget by remember { mutableStateOf<Message?>(null) }
+    var forwardTarget by remember { mutableStateOf<Message?>(null) }
 
     // 通话发起：先申请权限再拨打
     var pendingCallVideo by remember { mutableStateOf<Boolean?>(null) }
@@ -230,6 +232,9 @@ fun ChatScreen(
                             canPin = viewModel.isGroup,
                             isPinned = viewModel.isPinned(msg.id),
                             onTogglePin = { if (viewModel.isPinned(msg.id)) viewModel.unpinMessage(msg.id) else viewModel.pinMessage(msg) },
+                            canEdit = viewModel.canEdit(msg),
+                            onEdit = { editTarget = msg },
+                            onForward = { forwardTarget = msg; viewModel.loadForwardTargets() },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -290,6 +295,44 @@ fun ChatScreen(
             confirmButton = { TextButton(onClick = { showPinnedList = false }) { Text("关闭") } },
         )
     }
+
+    editTarget?.let { target ->
+        var text by remember(target.id) { mutableStateOf(target.content) }
+        AlertDialog(
+            onDismissRequest = { editTarget = null },
+            title = { Text("编辑消息") },
+            text = { OutlinedTextField(text, { text = it }, modifier = Modifier.fillMaxWidth(), minLines = 1) },
+            confirmButton = { TextButton(onClick = { viewModel.editMessage(target, text); editTarget = null }, enabled = text.isNotBlank()) { Text("保存") } },
+            dismissButton = { TextButton(onClick = { editTarget = null }) { Text("取消") } },
+        )
+    }
+
+    forwardTarget?.let { target ->
+        var selected by remember(target.id) { mutableStateOf(setOf<String>()) }
+        AlertDialog(
+            onDismissRequest = { forwardTarget = null },
+            title = { Text("转发到") },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(state.forwardTargets, key = { it.id }) { conv ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                selected = if (conv.id in selected) selected - conv.id else selected + conv.id
+                            }.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(if (conv.id in selected) "☑" else "☐", Modifier.padding(end = 8.dp))
+                            InitialAvatar(name = conv.name.ifBlank { "?" }, size = 32.dp)
+                            Spacer(Modifier.size(8.dp))
+                            Text(conv.name.ifBlank { "未命名会话" }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { viewModel.forward(target, selected.toList()); forwardTarget = null }, enabled = selected.isNotEmpty()) { Text("转发") } },
+            dismissButton = { TextButton(onClick = { forwardTarget = null }) { Text("取消") } },
+        )
+    }
 }
 
 private fun pinnedPreview(p: com.vxin.app.data.model.PinnedMessage): String = when (p.type) {
@@ -331,6 +374,9 @@ private fun MessageBubble(
     canPin: Boolean = false,
     isPinned: Boolean = false,
     onTogglePin: () -> Unit = {},
+    canEdit: Boolean = false,
+    onEdit: () -> Unit = {},
+    onForward: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -393,6 +439,12 @@ private fun MessageBubble(
                         })
                     }
                     DropdownMenuItem(text = { Text("回复") }, onClick = { onReply(); menuOpen = false })
+                    if (msg.type != "red_packet") {
+                        DropdownMenuItem(text = { Text("转发") }, onClick = { onForward(); menuOpen = false })
+                    }
+                    if (canEdit) {
+                        DropdownMenuItem(text = { Text("编辑") }, onClick = { onEdit(); menuOpen = false })
+                    }
                     if (canPin) {
                         DropdownMenuItem(text = { Text(if (isPinned) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
                     }
@@ -403,6 +455,9 @@ private fun MessageBubble(
                         DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { onRecall(); menuOpen = false })
                     }
                 }
+            }
+            if (msg.edited == 1) {
+                Text("已编辑", color = VxinTextSecondary, fontSize = 10.sp)
             }
             // 表情回应展示
             if (msg.reactions.isNotEmpty()) {

@@ -40,6 +40,7 @@ data class Message(
     val created_at: Long = 0,               // epoch 秒
     val senderName: String = "",
     val senderAvatar: String = "",
+    val edited: Int = 0,                    // 1 = 已编辑
     val reactions: List<MessageReaction> = emptyList(),
     val replyTo: ReplyPreview? = null,
 )
@@ -64,6 +65,12 @@ data class ReactBody(val emoji: String)
 
 @Serializable
 data class ReactResponse(val reactions: List<MessageReaction> = emptyList())
+
+@Serializable
+data class EditMessageBody(val content: String)
+
+@Serializable
+data class ForwardBody(val msgId: String, val conversationIds: List<String>)
 
 @Serializable
 data class PinMessageBody(val msgId: String)

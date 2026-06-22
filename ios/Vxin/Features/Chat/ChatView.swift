@@ -13,6 +13,8 @@ struct ChatView: View {
     @State private var showStickerPanel = false
     @State private var showRedPacketSend = false
     @State private var showPinnedList = false
+    @State private var editText = ""
+    @State private var forwardSelected = Set<String>()
     private let isGroup: Bool
     private let onOpenGroupInfo: () -> Void
 
@@ -89,6 +91,37 @@ struct ChatView: View {
                 .navigationTitle("置顶消息 (\(vm.pinnedMessages.count))")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { showPinnedList = false } } }
+            }
+        }
+        .alert("编辑消息", isPresented: Binding(get: { vm.editTarget != nil }, set: { if !$0 { vm.editTarget = nil } })) {
+            TextField("内容", text: $editText)
+            Button("取消", role: .cancel) { vm.editTarget = nil }
+            Button("保存") { if let m = vm.editTarget { vm.editMessage(m, newText: editText) }; vm.editTarget = nil }
+        }
+        .onChange(of: vm.editTarget?.id) { _ in editText = vm.editTarget?.content ?? "" }
+        .sheet(isPresented: Binding(get: { vm.forwardTarget != nil }, set: { if !$0 { vm.forwardTarget = nil } })) {
+            NavigationStack {
+                List(vm.forwardTargets) { conv in
+                    Button {
+                        if forwardSelected.contains(conv.id) { forwardSelected.remove(conv.id) } else { forwardSelected.insert(conv.id) }
+                    } label: {
+                        HStack {
+                            Image(systemName: forwardSelected.contains(conv.id) ? "checkmark.circle.fill" : "circle").foregroundColor(.vxinGreen)
+                            InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32)
+                            Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.primary).lineLimit(1)
+                        }
+                    }
+                }
+                .navigationTitle("转发到").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("取消") { vm.forwardTarget = nil; forwardSelected = [] } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("转发") {
+                            if let m = vm.forwardTarget { vm.forward(m, conversationIds: Array(forwardSelected)) }
+                            vm.forwardTarget = nil; forwardSelected = []
+                        }.disabled(forwardSelected.isEmpty)
+                    }
+                }
             }
         }
     }
@@ -288,6 +321,12 @@ private struct MessageBubble: View {
                             Button("复制") { UIPasteboard.general.string = msg.content }
                         }
                         Button("回复") { vm.startReply(msg) }
+                        if msg.type != "red_packet" {
+                            Button("转发") { vm.loadForwardTargets(); vm.forwardTarget = msg }
+                        }
+                        if vm.canEdit(msg) {
+                            Button("编辑") { vm.editTarget = msg }
+                        }
                         if vm.isGroup {
                             Button(vm.isPinned(msg.id) ? "取消置顶" : "置顶") {
                                 if vm.isPinned(msg.id) { vm.unpinMessage(msg.id) } else { vm.pinMessage(msg) }
@@ -309,6 +348,9 @@ private struct MessageBubble: View {
                                 .background(Color.gray.opacity(0.15)).clipShape(Capsule())
                         }
                     }
+                }
+                if msg.edited == 1 {
+                    Text("已编辑").font(.caption2).foregroundColor(.vxinTextSecondary)
                 }
                 if isMine {
                     let read = vm.isReadByPeer(msg)

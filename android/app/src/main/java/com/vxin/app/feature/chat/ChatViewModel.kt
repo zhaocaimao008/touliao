@@ -53,6 +53,7 @@ data class ChatUiState(
     val closed: Boolean = false,      // 被踢/群解散 → 关闭聊天页
     val stickers: List<com.vxin.app.data.model.Sticker> = emptyList(),
     val pinnedMessages: List<com.vxin.app.data.model.PinnedMessage> = emptyList(),
+    val forwardTargets: List<com.vxin.app.data.model.Conversation> = emptyList(),  // 转发可选会话
     // ── 红包 ──
     val redPacketDetail: RedPacketDetail? = null,   // 非空 = 显示红包详情弹窗
     val redPacketLoading: Boolean = false,
@@ -95,6 +96,7 @@ class ChatViewModel @Inject constructor(
         observeRead()
         observeDeleted()
         observeReaction()
+        observeEdited()
         observeRedPacketClaimed()
         if (isGroup) {
             loadPinned()
@@ -259,6 +261,51 @@ class ChatViewModel @Inject constructor(
     private fun observeReaction() {
         viewModelScope.launch {
             chatRepository.reactionEvents.collect { e -> updateReactions(e.msgId, e.reactions) }
+        }
+    }
+
+    // ── 消息编辑 / 转发 ──────────────────────────────────
+    private fun observeEdited() {
+        viewModelScope.launch {
+            chatRepository.messageEditedEvents.collect { e ->
+                if (e.conversationId != conversationId) return@collect
+                _uiState.update { s ->
+                    s.copy(messages = s.messages.map { if (it.id == e.msgId) it.copy(content = e.content, edited = 1) else it })
+                }
+            }
+        }
+    }
+
+    /** 是否可编辑：本人文本消息且 2 分钟内 */
+    fun canEdit(msg: Message): Boolean =
+        msg.sender_id == myId && msg.type == "text" &&
+            (System.currentTimeMillis() / 1000 - msg.created_at) <= 120
+
+    fun editMessage(msg: Message, newText: String) {
+        val text = newText.trim()
+        if (text.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { chatRepository.editMessage(msg.id, text) }
+                .onSuccess {
+                    _uiState.update { s -> s.copy(messages = s.messages.map { if (it.id == msg.id) it.copy(content = text, edited = 1) else it }) }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("编辑失败")) } }
+        }
+    }
+
+    fun loadForwardTargets() {
+        viewModelScope.launch {
+            runCatching { chatRepository.loadConversations() }
+                .onSuccess { list -> _uiState.update { it.copy(forwardTargets = list) } }
+        }
+    }
+
+    fun forward(msg: Message, conversationIds: List<String>) {
+        if (conversationIds.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { chatRepository.forward(msg.id, conversationIds) }
+                .onSuccess { _uiState.update { it.copy(error = "已转发") } }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("转发失败")) } }
         }
     }
 
