@@ -92,6 +92,9 @@ dependencies {
     // 扫码（Google Code Scanner，按需下载模块，免相机权限）
     implementation(libs.play.services.code.scanner)
 
+    // WebRTC 音视频通话
+    implementation(libs.webrtc)
+
     // Push (Firebase Cloud Messaging)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)

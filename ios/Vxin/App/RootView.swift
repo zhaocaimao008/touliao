@@ -13,6 +13,7 @@ struct RootView: View {
             NavigationStack { LoginView() }
         case .authenticated(let user):
             MainTabView(myId: user.id)
+                .overlay(CallHostView())
         }
     }
 }

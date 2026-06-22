@@ -158,6 +158,17 @@ final class ChatViewModel: ObservableObject {
 
     func closeRedPacket() { redPacketDetail = nil; claimedAmount = nil }
 
+    // MARK: - 音视频通话
+    /// 私聊对方 userId：取历史里第一条非本人消息的发送者
+    private func peerId() -> String? { messages.first(where: { $0.senderId != myId })?.senderId }
+
+    /// 发起通话；无法确定对方（如无消息）返回 false
+    func startCall(video: Bool, callerName: String) -> Bool {
+        guard let peer = peerId() else { return false }
+        CallManager.shared.startCall(peerId: peer, peerName: title, video: video, callerName: callerName)
+        return true
+    }
+
     private func refreshRedPacketDetail(_ packetId: String) async {
         if let d = try? await RedPacketRepository.shared.detail(packetId), redPacketDetail?.id == packetId {
             redPacketDetail = d

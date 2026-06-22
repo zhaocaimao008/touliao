@@ -51,6 +51,14 @@ final class SocketService {
     /// 红包被领取 → (packetId, userId, amount)
     let redPacketClaimed = PassthroughSubject<(String, String, Int), Never>()
 
+    // ── WebRTC 通话信令 ──
+    let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String), Never>()
+    let callResponse = PassthroughSubject<(from: String, accepted: Bool), Never>()
+    let callOffer = PassthroughSubject<(from: String, sdp: String), Never>()
+    let callAnswer = PassthroughSubject<(from: String, sdp: String), Never>()
+    let callIce = PassthroughSubject<(from: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32), Never>()
+    let callEnd = PassthroughSubject<String, Never>()
+
     private let decoder = JSONDecoder()
 
     func connect() {
@@ -119,6 +127,38 @@ final class SocketService {
             let amount = (dict["amount"] as? NSNumber)?.intValue ?? 0
             self?.redPacketClaimed.send((packetId, userId, amount))
         }
+        // ── 通话信令接收 ──
+        sock.on("call:incoming") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
+            let type = d["type"] as? String ?? "audio"
+            let name = (d["caller"] as? [String: Any])?["name"] as? String ?? ""
+            self?.callIncoming.send((from, type, name))
+        }
+        sock.on("call:response") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
+            self?.callResponse.send((from, (d["accepted"] as? Bool) ?? false))
+        }
+        sock.on("call:offer") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any], let from = d["from"] as? String,
+                  let sdp = (d["offer"] as? [String: Any])?["sdp"] as? String, !sdp.isEmpty else { return }
+            self?.callOffer.send((from, sdp))
+        }
+        sock.on("call:answer") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any], let from = d["from"] as? String,
+                  let sdp = (d["answer"] as? [String: Any])?["sdp"] as? String, !sdp.isEmpty else { return }
+            self?.callAnswer.send((from, sdp))
+        }
+        sock.on("call:ice") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any], let from = d["from"] as? String,
+                  let cand = d["candidate"] as? [String: Any], let c = cand["candidate"] as? String else { return }
+            let sdpMid = cand["sdpMid"] as? String
+            let idx = (cand["sdpMLineIndex"] as? NSNumber)?.int32Value ?? 0
+            self?.callIce.send((from, c, sdpMid, idx))
+        }
+        sock.on("call:end") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
+            self?.callEnd.send(from)
+        }
 
         manager = mgr
         socket = sock
@@ -162,6 +202,28 @@ final class SocketService {
 
     func emitStopTyping(_ conversationId: String) {
         socket?.emit("stop_typing", ["conversationId": conversationId])
+    }
+
+    // ── 通话信令发送 ──
+    func emitCallRequest(to: String, type: String, callerName: String) {
+        socket?.emit("call:request", ["to": to, "type": type, "caller": ["name": callerName]])
+    }
+    func emitCallResponse(to: String, accepted: Bool) {
+        socket?.emit("call:response", ["to": to, "accepted": accepted])
+    }
+    func emitCallOffer(to: String, sdp: String) {
+        socket?.emit("call:offer", ["to": to, "offer": ["type": "offer", "sdp": sdp]])
+    }
+    func emitCallAnswer(to: String, sdp: String) {
+        socket?.emit("call:answer", ["to": to, "answer": ["type": "answer", "sdp": sdp]])
+    }
+    func emitCallIce(to: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32) {
+        var cand: [String: Any] = ["candidate": candidate, "sdpMLineIndex": sdpMLineIndex]
+        if let sdpMid { cand["sdpMid"] = sdpMid }
+        socket?.emit("call:ice", ["to": to, "candidate": cand])
+    }
+    func emitCallEnd(to: String) {
+        socket?.emit("call:end", ["to": to])
     }
 
     func disconnect() {

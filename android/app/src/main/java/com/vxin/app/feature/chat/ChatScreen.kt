@@ -84,6 +84,21 @@ fun ChatScreen(
     val context = LocalContext.current
     var showRedPacketSend by remember { mutableStateOf(false) }
 
+    // 通话发起：先申请权限再拨打
+    var pendingCallVideo by remember { mutableStateOf<Boolean?>(null) }
+    val callPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        val v = pendingCallVideo
+        pendingCallVideo = null
+        if (v != null && res.values.all { it }) viewModel.startCall(v)
+    }
+    fun launchCall(video: Boolean) {
+        pendingCallVideo = video
+        callPermLauncher.launch(
+            if (video) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+            else arrayOf(Manifest.permission.RECORD_AUDIO)
+        )
+    }
+
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.uploadFromUri(it, previewLocal = true) }
     }
@@ -125,6 +140,9 @@ fun ChatScreen(
                         IconButton(onClick = { onOpenGroupInfo(viewModel.conversationId) }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "群聊信息")
                         }
+                    } else {
+                        IconButton(onClick = { launchCall(false) }) { Text("📞", style = MaterialTheme.typography.titleMedium) }
+                        IconButton(onClick = { launchCall(true) }) { Text("📹", style = MaterialTheme.typography.titleMedium) }
                     }
                 },
             )

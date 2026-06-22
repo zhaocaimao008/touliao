@@ -29,6 +29,13 @@ data class ReadEvent(val userId: String, val conversationId: String, val readAt:
 data class ReactionEvent(val msgId: String, val reactions: List<MessageReaction>)
 data class RedPacketClaimedEvent(val packetId: String, val userId: String, val username: String, val amount: Int)
 
+// ── WebRTC 通话信令 ──
+data class CallIncomingEvent(val from: String, val type: String, val callerName: String)
+data class CallResponseEvent(val from: String, val accepted: Boolean)
+data class CallSdpEvent(val from: String, val sdp: String)            // offer / answer 的 sdp
+data class CallIceEvent(val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
+data class CallEndEvent(val from: String)
+
 /**
  * Socket.IO 实时通道（官方 io.socket:socket.io-client）。
  *
@@ -79,6 +86,20 @@ class SocketManager @Inject constructor(
     /** 红包被领取 */
     private val _redPacketClaimed = MutableSharedFlow<RedPacketClaimedEvent>(extraBufferCapacity = 64)
     val redPacketClaimedEvents: SharedFlow<RedPacketClaimedEvent> = _redPacketClaimed.asSharedFlow()
+
+    // ── 通话信令流 ──
+    private val _callIncoming = MutableSharedFlow<CallIncomingEvent>(extraBufferCapacity = 16)
+    val callIncomingEvents: SharedFlow<CallIncomingEvent> = _callIncoming.asSharedFlow()
+    private val _callResponse = MutableSharedFlow<CallResponseEvent>(extraBufferCapacity = 16)
+    val callResponseEvents: SharedFlow<CallResponseEvent> = _callResponse.asSharedFlow()
+    private val _callOffer = MutableSharedFlow<CallSdpEvent>(extraBufferCapacity = 16)
+    val callOfferEvents: SharedFlow<CallSdpEvent> = _callOffer.asSharedFlow()
+    private val _callAnswer = MutableSharedFlow<CallSdpEvent>(extraBufferCapacity = 16)
+    val callAnswerEvents: SharedFlow<CallSdpEvent> = _callAnswer.asSharedFlow()
+    private val _callIce = MutableSharedFlow<CallIceEvent>(extraBufferCapacity = 64)
+    val callIceEvents: SharedFlow<CallIceEvent> = _callIce.asSharedFlow()
+    private val _callEnd = MutableSharedFlow<CallEndEvent>(extraBufferCapacity = 16)
+    val callEndEvents: SharedFlow<CallEndEvent> = _callEnd.asSharedFlow()
 
     @Synchronized
     fun connect() {
@@ -165,6 +186,54 @@ class SocketManager @Inject constructor(
                 }
             }
         }
+        // ── 通话信令接收 ──
+        s.on("call:incoming") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val from = o.optString("from")
+                val caller = o.optJSONObject("caller")?.optString("name").orEmpty()
+                if (from.isNotEmpty()) _callIncoming.tryEmit(CallIncomingEvent(from, o.optString("type", "audio"), caller))
+            }
+        }
+        s.on("call:response") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val from = o.optString("from")
+                if (from.isNotEmpty()) _callResponse.tryEmit(CallResponseEvent(from, o.optBoolean("accepted")))
+            }
+        }
+        s.on("call:offer") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val from = o.optString("from")
+                val sdp = o.optJSONObject("offer")?.optString("sdp").orEmpty()
+                if (from.isNotEmpty() && sdp.isNotEmpty()) _callOffer.tryEmit(CallSdpEvent(from, sdp))
+            }
+        }
+        s.on("call:answer") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val from = o.optString("from")
+                val sdp = o.optJSONObject("answer")?.optString("sdp").orEmpty()
+                if (from.isNotEmpty() && sdp.isNotEmpty()) _callAnswer.tryEmit(CallSdpEvent(from, sdp))
+            }
+        }
+        s.on("call:ice") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val from = o.optString("from")
+                val cand = o.optJSONObject("candidate")
+                if (from.isNotEmpty() && cand != null) {
+                    _callIce.tryEmit(
+                        CallIceEvent(
+                            from = from,
+                            candidate = cand.optString("candidate"),
+                            sdpMid = cand.optString("sdpMid").takeIf { it.isNotEmpty() },
+                            sdpMLineIndex = cand.optInt("sdpMLineIndex"),
+                        )
+                    )
+                }
+            }
+        }
+        s.on("call:end") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("from")?.takeIf { it.isNotEmpty() }
+                ?.let { _callEnd.tryEmit(CallEndEvent(it)) }
+        }
 
         _status.value = SocketStatus.CONNECTING
         s.connect()
@@ -209,6 +278,40 @@ class SocketManager @Inject constructor(
 
     fun emitStopTyping(conversationId: String) {
         socket?.emit("stop_typing", JSONObject().put("conversationId", conversationId))
+    }
+
+    // ── 通话信令发送 ──
+    fun emitCallRequest(to: String, type: String, callerName: String) {
+        socket?.emit("call:request", JSONObject()
+            .put("to", to).put("type", type)
+            .put("caller", JSONObject().put("name", callerName)))
+    }
+
+    fun emitCallResponse(to: String, accepted: Boolean) {
+        socket?.emit("call:response", JSONObject().put("to", to).put("accepted", accepted))
+    }
+
+    fun emitCallOffer(to: String, sdp: String) {
+        socket?.emit("call:offer", JSONObject()
+            .put("to", to).put("offer", JSONObject().put("type", "offer").put("sdp", sdp)))
+    }
+
+    fun emitCallAnswer(to: String, sdp: String) {
+        socket?.emit("call:answer", JSONObject()
+            .put("to", to).put("answer", JSONObject().put("type", "answer").put("sdp", sdp)))
+    }
+
+    fun emitCallIce(to: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int) {
+        socket?.emit("call:ice", JSONObject()
+            .put("to", to)
+            .put("candidate", JSONObject()
+                .put("candidate", candidate)
+                .put("sdpMid", sdpMid ?: JSONObject.NULL)
+                .put("sdpMLineIndex", sdpMLineIndex)))
+    }
+
+    fun emitCallEnd(to: String) {
+        socket?.emit("call:end", JSONObject().put("to", to))
     }
 
     @Synchronized

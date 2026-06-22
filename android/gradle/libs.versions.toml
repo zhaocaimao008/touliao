@@ -19,6 +19,7 @@ coroutines = "1.7.3"
 socketio = "2.1.0"
 coil = "2.6.0"
 codeScanner = "16.1.0"
+webrtc = "125.6422.07"
 googleServices = "4.4.2"
 firebaseBom = "33.5.1"
 
@@ -50,6 +51,7 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 socketio-client = { group = "io.socket", name = "socket.io-client", version.ref = "socketio" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "codeScanner" }
+webrtc = { group = "io.github.webrtc-sdk", name = "android", version.ref = "webrtc" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
 

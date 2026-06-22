@@ -63,6 +63,7 @@ class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val stickerRepository: com.vxin.app.data.repository.StickerRepository,
     private val redPacketRepository: RedPacketRepository,
+    private val callManager: com.vxin.app.core.call.CallManager,
     private val mediaUploader: MediaUploader,
     private val audioRecorder: AudioRecorder,
     private val audioPlayer: AudioPlayer,
@@ -132,6 +133,18 @@ class ChatViewModel @Inject constructor(
     }
 
     fun closeRedPacket() = _uiState.update { it.copy(redPacketDetail = null, claimedAmount = null) }
+
+    // ── 音视频通话 ─────────────────────────────────────────
+    /** 私聊对方 userId：取历史里第一条非本人消息的发送者 */
+    private fun peerId(): String? = _uiState.value.messages.firstOrNull { it.sender_id != myId }?.sender_id
+
+    /** 发起通话；无法确定对方（如群聊/无消息）返回 false */
+    fun startCall(video: Boolean): Boolean {
+        if (isGroup) return false
+        val peer = peerId() ?: return false
+        callManager.startCall(peer, _uiState.value.title, video)
+        return true
+    }
 
     private fun refreshRedPacketDetail(packetId: String) {
         viewModelScope.launch {

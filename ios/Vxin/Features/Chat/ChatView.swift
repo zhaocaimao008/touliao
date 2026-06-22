@@ -6,6 +6,7 @@ import Kingfisher
 
 struct ChatView: View {
     @StateObject private var vm: ChatViewModel
+    @EnvironmentObject private var session: SessionStore
     @State private var photoItem: PhotosPickerItem?
     @State private var showFileImporter = false
     @State private var showStickerPanel = false
@@ -34,6 +35,15 @@ struct ChatView: View {
             if isGroup {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: onOpenGroupInfo) { Image(systemName: "ellipsis") }
+                }
+            } else {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button { _ = vm.startCall(video: false, callerName: session.currentUser?.username ?? "") } label: {
+                        Image(systemName: "phone.fill")
+                    }
+                    Button { _ = vm.startCall(video: true, callerName: session.currentUser?.username ?? "") } label: {
+                        Image(systemName: "video.fill")
+                    }
                 }
             }
         }

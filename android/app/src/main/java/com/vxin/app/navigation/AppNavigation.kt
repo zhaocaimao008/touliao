@@ -33,6 +33,7 @@ import com.vxin.app.core.auth.AuthState
 import com.vxin.app.core.auth.SessionManager
 import com.vxin.app.feature.auth.LoginScreen
 import com.vxin.app.feature.auth.RegisterScreen
+import com.vxin.app.feature.call.CallHost
 import com.vxin.app.feature.chat.ChatScreen
 import com.vxin.app.feature.chat.ConversationListScreen
 import com.vxin.app.feature.contacts.AddFriendScreen
@@ -115,6 +116,7 @@ private fun MainFlow() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         bottomBar = {
             if (currentRoute in TAB_ROUTES) {
@@ -226,6 +228,8 @@ private fun MainFlow() {
             )
         }
         }
+    }
+        CallHost()
     }
 }
 

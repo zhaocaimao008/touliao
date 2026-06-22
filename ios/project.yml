@@ -15,6 +15,9 @@ packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk
     from: "11.4.0"
+  WebRTC:
+    url: https://github.com/stasel/WebRTC
+    from: "125.0.0"
 
 targets:
   Vxin:
@@ -27,6 +30,7 @@ targets:
       - package: Kingfisher
       - package: Firebase
         product: FirebaseMessaging
+      - package: WebRTC
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vxin.app
@@ -45,9 +49,9 @@ targets:
         UIBackgroundModes:
           - remote-notification
         # 录音 / 相册 用途说明（聊天媒体阶段需要）
-        NSMicrophoneUsageDescription: 用于录制语音消息
+        NSMicrophoneUsageDescription: 用于录制语音消息与音视频通话
         NSPhotoLibraryUsageDescription: 用于发送图片
-        NSCameraUsageDescription: 用于扫描二维码添加好友
+        NSCameraUsageDescription: 用于扫码添加好友与视频通话
         # 开发期允许 http（生产请走 https 并移除）
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
