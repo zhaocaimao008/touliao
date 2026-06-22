@@ -47,6 +47,7 @@ struct ProfileView: View {
             }
 
             Section {
+                NavigationLink("朋友圈") { MomentsView() }
                 NavigationLink("收藏") { FavoritesView() }
             }
 

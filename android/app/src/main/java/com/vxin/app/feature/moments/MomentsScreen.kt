@@ -1,0 +1,224 @@
+package com.vxin.app.feature.moments
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import com.vxin.app.core.util.formatChatTime
+import com.vxin.app.data.model.Moment
+import com.vxin.app.ui.components.InitialAvatar
+import com.vxin.app.ui.theme.VxinGreen
+import com.vxin.app.ui.theme.VxinTextSecondary
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MomentsScreen(
+    onBack: () -> Unit,
+    onCompose: () -> Unit = {},
+    viewModel: MomentsViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    var commentingId by remember { mutableStateOf<String?>(null) }
+    var commentText by remember { mutableStateOf("") }
+    var deleteTarget by remember { mutableStateOf<Moment?>(null) }
+
+    // 回到该页刷新（发布后）
+    LaunchedEffect(Unit) { viewModel.refresh() }
+
+    // 触底加载更多
+    ReachedEndEffect(listState) { viewModel.loadMore() }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("朋友圈") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                actions = { IconButton(onClick = onCompose) { Text("📷", fontSize = 18.sp) } },
+            )
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            when {
+                state.loading && state.moments.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.moments.isEmpty() -> Text("还没有朋友圈动态", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    items(state.moments, key = { it.id }) { m ->
+                        MomentCard(
+                            moment = m,
+                            isMine = m.user_id == viewModel.myId,
+                            resolveUrl = viewModel::resolveUrl,
+                            onLike = { viewModel.toggleLike(m) },
+                            onComment = { commentingId = if (commentingId == m.id) null else m.id; commentText = "" },
+                            onLongPress = { if (m.user_id == viewModel.myId) deleteTarget = m },
+                            commenting = commentingId == m.id,
+                            commentText = commentText,
+                            onCommentTextChange = { commentText = it },
+                            onSubmitComment = { viewModel.comment(m, commentText); commentingId = null; commentText = "" },
+                        )
+                        HorizontalDivider(thickness = 6.dp, color = Color(0x11000000))
+                    }
+                    if (state.loadingMore) {
+                        item { Box(Modifier.fillMaxWidth().padding(16.dp), Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) } }
+                    }
+                }
+            }
+            state.error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
+            }
+        }
+    }
+
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("删除动态") },
+            text = { Text("确认删除这条朋友圈？") },
+            confirmButton = { TextButton(onClick = { viewModel.delete(target); deleteTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } },
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MomentCard(
+    moment: Moment,
+    isMine: Boolean,
+    resolveUrl: (String?) -> String?,
+    onLike: () -> Unit,
+    onComment: () -> Unit,
+    onLongPress: () -> Unit,
+    commenting: Boolean,
+    commentText: String,
+    onCommentTextChange: (String) -> Unit,
+    onSubmitComment: () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxWidth()
+            .combinedClickable(onClick = {}, onLongClick = onLongPress)
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            InitialAvatar(name = moment.author.username.ifBlank { "?" }, size = 40.dp)
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(moment.author.username.ifBlank { "未命名" }, color = VxinGreen, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        if (moment.content.isNotBlank()) {
+            Spacer(Modifier.size(6.dp))
+            Text(moment.content, style = MaterialTheme.typography.bodyLarge)
+        }
+        if (moment.images.isNotEmpty()) {
+            Spacer(Modifier.size(8.dp))
+            ImageGrid(moment.images, resolveUrl)
+        }
+        Spacer(Modifier.size(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(formatChatTime(moment.created_at), color = VxinTextSecondary, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = onLike) { Text(if (moment.liked) "已赞" else "赞", color = VxinGreen) }
+            TextButton(onClick = onComment) { Text("评论", color = VxinGreen) }
+        }
+        // 点赞名单
+        if (moment.likes.isNotEmpty()) {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(Color(0x11000000)).padding(8.dp)) {
+                Text("❤ " + moment.likes.joinToString("，") { it.username.ifBlank { "用户" } }, color = VxinGreen, fontSize = 13.sp)
+            }
+        }
+        // 评论列表
+        moment.comments.forEach { c ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                Text("${c.username.ifBlank { "用户" }}：", color = VxinGreen, fontSize = 13.sp)
+                Text(c.content, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (commenting) {
+            Spacer(Modifier.size(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(commentText, onCommentTextChange, Modifier.weight(1f), placeholder = { Text("评论…") }, singleLine = true)
+                TextButton(onClick = onSubmitComment, enabled = commentText.isNotBlank()) { Text("发送", color = VxinGreen) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?) {
+    val cols = if (images.size == 1) 1 else 3
+    images.chunked(cols).forEach { rowImgs ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            rowImgs.forEach { img ->
+                AsyncImage(
+                    model = resolveUrl(img),
+                    contentDescription = "图片",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .weight(1f)
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(6.dp)),
+                )
+            }
+            repeat(cols - rowImgs.size) { Spacer(Modifier.weight(1f)) }
+        }
+        Spacer(Modifier.size(4.dp))
+    }
+}
+
+/** 监听列表滚动到末尾触发回调 */
+@Composable
+private fun ReachedEndEffect(listState: androidx.compose.foundation.lazy.LazyListState, onEnd: () -> Unit) {
+    val reached by remember {
+        androidx.compose.runtime.derivedStateOf {
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val total = listState.layoutInfo.totalItemsCount
+            total > 0 && last >= total - 2
+        }
+    }
+    LaunchedEffect(reached) { if (reached) onEnd() }
+}

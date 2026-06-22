@@ -50,6 +50,7 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 fun ProfileScreen(
     onAddAccount: () -> Unit = {},
     onOpenFavorites: () -> Unit = {},
+    onOpenMoments: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -143,6 +144,8 @@ fun ProfileScreen(
             HorizontalDivider()
             Spacer(Modifier.size(12.dp))
 
+            OutlinedButton(onClick = onOpenMoments, modifier = Modifier.fillMaxWidth()) { Text("朋友圈") }
+            Spacer(Modifier.size(12.dp))
             OutlinedButton(onClick = onOpenFavorites, modifier = Modifier.fillMaxWidth()) { Text("收藏") }
             Spacer(Modifier.size(12.dp))
             OutlinedButton(onClick = { showPwdDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("修改密码") }

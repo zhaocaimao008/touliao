@@ -42,6 +42,7 @@ import com.vxin.app.feature.contacts.ContactsScreen
 import com.vxin.app.feature.contacts.CreateGroupScreen
 import com.vxin.app.feature.contacts.FriendRequestsScreen
 import com.vxin.app.feature.favorites.FavoritesScreen
+import com.vxin.app.feature.moments.MomentsScreen
 import com.vxin.app.feature.group.GroupInfoScreen
 import com.vxin.app.feature.group.GroupQrScreen
 import com.vxin.app.feature.group.InviteMembersScreen
@@ -69,6 +70,7 @@ private object Routes {
     const val MY_QRCODE = "myQrCode"
     const val BLOCKED = "blocked"
     const val FAVORITES = "favorites"
+    const val MOMENTS = "moments"
     const val REQUESTS = "requests"
     const val CREATE_GROUP = "createGroup"
     const val SEARCH = "search"
@@ -176,10 +178,14 @@ private fun MainFlow() {
                 ProfileScreen(
                     onAddAccount = { navController.navigate(Routes.ADD_ACCOUNT) },
                     onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
+                    onOpenMoments = { navController.navigate(Routes.MOMENTS) },
                 )
             }
             composable(Routes.FAVORITES) {
                 FavoritesScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.MOMENTS) {
+                MomentsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.ADD_ACCOUNT) {
                 LoginScreen(

@@ -118,4 +118,9 @@ object AppModule {
     @Singleton
     fun provideFavoritesApi(retrofit: Retrofit): com.vxin.app.data.api.FavoritesApi =
         retrofit.create(com.vxin.app.data.api.FavoritesApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideMomentApi(retrofit: Retrofit): com.vxin.app.data.api.MomentApi =
+        retrofit.create(com.vxin.app.data.api.MomentApi::class.java)
 }
