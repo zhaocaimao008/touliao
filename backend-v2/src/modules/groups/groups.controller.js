@@ -51,6 +51,11 @@ exports.setRole = asyncHandler(async (req, res) => {
   res.json({ success: true, role: req.body.role });
 });
 
+exports.transferOwner = asyncHandler(async (req, res) => {
+  svc.transferOwner(io(req), req.params.convId, req.user.id, req.body.userId);
+  res.json({ success: true });
+});
+
 exports.pinMessage   = asyncHandler(async (req, res) => { svc.pinMessage(io(req), req.params.convId, req.user.id, req.body.msgId); res.json({ success: true }); });
 exports.unpinMessage = asyncHandler(async (req, res) => { svc.unpinMessage(io(req), req.params.convId, req.user.id, req.params.msgId); res.json({ success: true }); });
 exports.listPinned   = asyncHandler(async (req, res) => res.json(svc.listPinned(req.params.convId, req.user.id)));

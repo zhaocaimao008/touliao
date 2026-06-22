@@ -81,6 +81,15 @@ final class GroupInfoViewModel: ObservableObject {
         }
     }
 
+    func transferOwner(_ member: GroupMember) {
+        Task {
+            do {
+                try await repo.transferOwner(conversationId, userId: member.id)
+                await refresh()   // 我已变普通成员，刷新权限
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "转让群主失败" }
+        }
+    }
+
     func setManage(muteAll: Bool? = nil, noPrivateChat: Bool? = nil, noAddFriend: Bool? = nil) {
         Task {
             do {

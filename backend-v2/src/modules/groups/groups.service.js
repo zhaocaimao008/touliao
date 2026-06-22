@@ -179,6 +179,29 @@ function manage(io, convId, userId, body) {
 }
 
 // ── 设置/取消管理员（仅群主）────────────────────────────────────
+// 转让群主：当前群主 → newOwnerId（新群主），原群主降为普通成员
+function transferOwner(io, convId, ownerId, newOwnerId) {
+  if (!newOwnerId) throw badRequest('参数缺失');
+  const conv = db.prepare('SELECT owner_id FROM conversations WHERE id=?').get(convId);
+  if (!conv) throw notFound('群不存在');
+  if (conv.owner_id !== ownerId) throw forbidden('仅群主可转让');
+  if (newOwnerId === ownerId) throw badRequest('不能转让给自己');
+  const target = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, newOwnerId);
+  if (!target) throw notFound('成员不存在');
+
+  db.transaction(() => {
+    db.prepare('UPDATE conversations SET owner_id=? WHERE id=?').run(newOwnerId, convId);
+    db.prepare("UPDATE conversation_members SET role='owner' WHERE conversation_id=? AND user_id=?").run(convId, newOwnerId);
+    db.prepare("UPDATE conversation_members SET role='member' WHERE conversation_id=? AND user_id=?").run(convId, ownerId);
+  })();
+
+  if (io) {
+    io.to(convId).emit('group_updated', { id: convId, owner_id: newOwnerId });
+    io.to(`user_${newOwnerId}`).emit('role_changed', { conversationId: convId, role: 'owner' });
+    io.to(`user_${ownerId}`).emit('role_changed', { conversationId: convId, role: 'member' });
+  }
+}
+
 function setRole(io, convId, ownerId, uid, role) {
   if (!['admin', 'member'].includes(role)) throw badRequest('无效角色');
   const conv = db.prepare('SELECT owner_id FROM conversations WHERE id=?').get(convId);
@@ -229,6 +252,6 @@ function listPinned(convId, userId) {
 
 module.exports = {
   setNickname, createInviteLink, getQrCode, joinByToken,
-  updateInfo, setAvatar, invite, kick, leave, info, manage, setRole,
+  updateInfo, setAvatar, invite, kick, leave, info, manage, setRole, transferOwner,
   pinMessage, unpinMessage, listPinned,
 };

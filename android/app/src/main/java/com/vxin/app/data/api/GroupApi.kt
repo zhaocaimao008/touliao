@@ -9,6 +9,7 @@ import com.vxin.app.data.model.ManageBody
 import com.vxin.app.data.model.NicknameBody
 import com.vxin.app.data.model.RenameGroupBody
 import com.vxin.app.data.model.SetRoleBody
+import com.vxin.app.data.model.TransferOwnerBody
 import com.vxin.app.data.model.UpdateGroupBody
 import okhttp3.MultipartBody
 import retrofit2.http.Body
@@ -49,6 +50,10 @@ interface GroupApi {
     /** 设置成员角色（仅群主） */
     @PUT("api/messages/conversation/{id}/members/{uid}/role")
     suspend fun setRole(@Path("id") id: String, @Path("uid") uid: String, @Body body: SetRoleBody)
+
+    /** 转让群主（仅群主） */
+    @POST("api/messages/conversation/{id}/transfer-owner")
+    suspend fun transferOwner(@Path("id") id: String, @Body body: TransferOwnerBody)
 
     /** 邀请成员 */
     @POST("api/messages/conversation/{id}/invite")

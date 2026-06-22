@@ -11,6 +11,7 @@ private struct ManageBody: Encodable {
     var no_add_friend: Bool?
 }
 private struct SetRoleBody: Encodable { let role: String }
+private struct TransferOwnerBody: Encodable { let userId: String }
 
 /// 群成员管理。与 Android GroupRepository 等价。
 final class GroupRepository {
@@ -59,6 +60,12 @@ final class GroupRepository {
     func setRole(_ conversationId: String, userId: String, role: String) async throws {
         let _: EmptyResponse = try await api.send(
             "api/messages/conversation/\(conversationId)/members/\(userId)/role", method: "PUT", body: SetRoleBody(role: role)
+        )
+    }
+
+    func transferOwner(_ conversationId: String, userId: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/transfer-owner", method: "POST", body: TransferOwnerBody(userId: userId)
         )
     }
 

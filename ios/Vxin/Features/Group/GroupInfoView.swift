@@ -23,6 +23,7 @@ struct GroupInfoView: View {
     @State private var announcementText = ""
     @State private var photoItem: PhotosPickerItem?
     @State private var kickTarget: GroupMember?
+    @State private var transferTarget: GroupMember?
     @State private var showLeaveConfirm = false
 
     private var myId: String { session.currentUser?.id ?? "" }
@@ -130,6 +131,8 @@ struct GroupInfoView: View {
                                 if info.isOwner && member.role != "owner" {
                                     Button(member.role == "admin" ? "取消管理" : "设管理") { vm.setRole(member, makeAdmin: member.role != "admin") }
                                         .buttonStyle(.borderless).font(.caption)
+                                    Button("转让") { transferTarget = member }
+                                        .buttonStyle(.borderless).font(.caption)
                                 }
                                 if info.canManage && member.role != "owner" {
                                     Button("移除", role: .destructive) { kickTarget = member }
@@ -196,6 +199,12 @@ struct GroupInfoView: View {
             Button("移除", role: .destructive) { if let m = kickTarget { vm.kick(m) }; kickTarget = nil }
         } message: {
             Text("确认将「\(kickTarget?.displayName ?? "")」移出群聊？")
+        }
+        .alert("转让群主", isPresented: .constant(transferTarget != nil)) {
+            Button("取消", role: .cancel) { transferTarget = nil }
+            Button("转让", role: .destructive) { if let m = transferTarget { vm.transferOwner(m) }; transferTarget = nil }
+        } message: {
+            Text("确认将群主转让给「\(transferTarget?.displayName ?? "")」？转让后你将成为普通成员。")
         }
         .alert("退出群聊", isPresented: $showLeaveConfirm) {
             Button("取消", role: .cancel) {}

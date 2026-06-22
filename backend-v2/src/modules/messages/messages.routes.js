@@ -522,6 +522,7 @@ router.put   ('/conversation/:convId/manage',         auth, grp.manage);
  *         description: Role updated
  */
 router.put   ('/conversation/:convId/members/:uid/role', auth, grp.setRole);
+router.post  ('/conversation/:convId/transfer-owner',    auth, grp.transferOwner);
 
 // ── 会话设置 ────────────────────────────────────────────────────
 

@@ -68,6 +68,7 @@ fun GroupInfoScreen(
     var showNickname by remember { mutableStateOf(false) }
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var kickTarget by remember { mutableStateOf<GroupMember?>(null) }
+    var transferTarget by remember { mutableStateOf<GroupMember?>(null) }
 
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.setAvatar(it) }
@@ -190,7 +191,9 @@ fun GroupInfoScreen(
                             member = member,
                             canKick = info.canManage && member.role != "owner",
                             canSetRole = info.isOwner && member.role != "owner",
+                            canTransfer = info.isOwner && member.role != "owner",
                             onToggleRole = { viewModel.setRole(member, makeAdmin = member.role != "admin") },
+                            onTransfer = { transferTarget = member },
                             onKick = { kickTarget = member },
                         )
                         HorizontalDivider(Modifier.padding(start = 72.dp), thickness = 0.5.dp)
@@ -254,6 +257,15 @@ fun GroupInfoScreen(
             dismissButton = { TextButton(onClick = { kickTarget = null }) { Text("取消") } },
         )
     }
+    transferTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { transferTarget = null },
+            title = { Text("转让群主") },
+            text = { Text("确认将群主转让给「${target.displayName}」？转让后你将成为普通成员。") },
+            confirmButton = { TextButton(onClick = { viewModel.transferOwner(target); transferTarget = null }) { Text("转让") } },
+            dismissButton = { TextButton(onClick = { transferTarget = null }) { Text("取消") } },
+        )
+    }
     if (showLeaveConfirm) {
         AlertDialog(
             onDismissRequest = { showLeaveConfirm = false },
@@ -270,7 +282,9 @@ private fun MemberRow(
     member: GroupMember,
     canKick: Boolean,
     canSetRole: Boolean,
+    canTransfer: Boolean,
     onToggleRole: () -> Unit,
+    onTransfer: () -> Unit,
     onKick: () -> Unit,
 ) {
     Row(
@@ -289,6 +303,9 @@ private fun MemberRow(
             TextButton(onClick = onToggleRole) {
                 Text(if (member.role == "admin") "取消管理" else "设管理", color = VxinGreen)
             }
+        }
+        if (canTransfer) {
+            TextButton(onClick = onTransfer) { Text("转让", color = VxinGreen) }
         }
         if (canKick) {
             TextButton(onClick = onKick) { Text("移除", color = Color(0xFFFA5151)) }

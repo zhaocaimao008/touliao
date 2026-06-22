@@ -36,6 +36,9 @@ class GroupRepository @Inject constructor(
     suspend fun setRole(conversationId: String, userId: String, role: String) =
         groupApi.setRole(conversationId, userId, SetRoleBody(role))
 
+    suspend fun transferOwner(conversationId: String, userId: String) =
+        groupApi.transferOwner(conversationId, com.vxin.app.data.model.TransferOwnerBody(userId))
+
     suspend fun invite(conversationId: String, userIds: List<String>) =
         groupApi.invite(conversationId, InviteBody(userIds))
 

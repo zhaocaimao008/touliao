@@ -213,6 +213,21 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     setInfo(i => ({ ...i, members: i.members.map(m => m.id === uid ? { ...m, role: newRole } : m) }));
   };
 
+  /* 转让群主（仅群主） */
+  const transferOwner = async (uid) => {
+    const name = info.members.find(m => m.id === uid)?.username || '未知用户';
+    if (!(await showConfirm(`确认将群主转让给「${name}」？转让后你将成为普通成员。`))) return;
+    await axios.post(`/api/messages/conversation/${conversation.id}/transfer-owner`, { userId: uid });
+    setInfo(i => ({
+      ...i,
+      owner_id: uid,
+      myRole: 'member',
+      members: i.members.map(m =>
+        m.id === uid ? { ...m, role: 'owner' } : (m.role === 'owner' ? { ...m, role: 'member' } : m)
+      ),
+    }));
+  };
+
   /* 移出成员 */
   const kickMember = async (uid) => {
     const name = info.members.find(m => m.id === uid)?.username || '未知用户';
@@ -524,6 +539,14 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                       style={{ color: m.role === 'admin' ? '#888' : 'var(--green)', border: `1px solid ${m.role === 'admin' ? '#E0E0E0' : 'var(--green)'}` }}
                       onClick={() => toggleAdmin(m.id, m.role)}
                     >{m.role === 'admin' ? '撤销管理员' : '设为管理员'}</button>
+                  )}
+                  {/* 群主可以转让群主 */}
+                  {isOwner && m.role !== 'owner' && (
+                    <button
+                      className="gi-btn-admin"
+                      style={{ color: 'var(--green)', border: '1px solid var(--green)' }}
+                      onClick={() => transferOwner(m.id)}
+                    >转让群主</button>
                   )}
                   {/* 群主和管理员可以踢普通成员（管理员不能踢管理员） */}
                   {isAdmin && m.id !== currentUserId && m.role === 'member' && (

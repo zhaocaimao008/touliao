@@ -44,6 +44,10 @@ data class ManageBody(
 @Serializable
 data class SetRoleBody(val role: String)   // admin | member
 
+/** 转让群主（POST .../transfer-owner，仅群主） */
+@Serializable
+data class TransferOwnerBody(val userId: String)
+
 /** 群二维码 + 邀请链接（GET .../qr-code） */
 @Serializable
 data class GroupQr(

@@ -128,6 +128,14 @@ class GroupInfoViewModel @Inject constructor(
         }
     }
 
+    fun transferOwner(member: GroupMember) {
+        viewModelScope.launch {
+            runCatching { groupRepository.transferOwner(conversationId, member.id) }
+                .onSuccess { refresh() }   // 我已变普通成员，重新拉取刷新权限
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("转让群主失败")) } }
+        }
+    }
+
     fun setManage(muteAll: Boolean? = null, noPrivateChat: Boolean? = null, noAddFriend: Boolean? = null) {
         if (_uiState.value.updating) return
         _uiState.update { it.copy(updating = true, error = null) }
