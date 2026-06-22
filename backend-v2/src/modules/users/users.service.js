@@ -1,8 +1,9 @@
 'use strict';
 const { db } = require('../../db/connection');
-const { notFound, badRequest } = require('../../utils/http');
+const { notFound, badRequest, conflict } = require('../../utils/http');
 const cache = require('../../utils/cache');
 const { v4: uuidv4 } = require('uuid');
+const { collectionDedupKey } = require('../../utils/collections');
 
 // ── 设置序列化 ──────────────────────────────────────────────────
 const settingDefaults = {
@@ -148,15 +149,19 @@ function getCollections(userId) {
     .map(i => ({ ...i, extra: JSON.parse(i.extra || '{}') }));
 }
 
-// 添加收藏（幂等：同一消息内容+类型不重复收藏）
+// 添加收藏（去重：同一 user + 类型 + 内容标识 不重复收藏，重复返回 409）
 function addCollection(userId, { type, content, extra }) {
-  const id = uuidv4();
   const safeType    = ['text', 'image', 'file', 'video'].includes(type) ? type : 'text';
   const safeContent = (typeof content === 'string' ? content : JSON.stringify(content)).slice(0, 2000);
-  const safeExtra   = JSON.stringify(extra || {});
-  try {
-    db.prepare('INSERT INTO collections (id,user_id,type,content,extra) VALUES (?,?,?,?,?)').run(id, userId, safeType, safeContent, safeExtra);
-  } catch { /* unique constraint — already collected */ }
+  const safeExtra   = extra && typeof extra === 'object' ? extra : {};
+  const dedupKey    = collectionDedupKey(safeType, safeContent, safeExtra);
+
+  const existing = db.prepare('SELECT id FROM collections WHERE user_id=? AND dedup_key=?').get(userId, dedupKey);
+  if (existing) throw conflict('已收藏', 'COLLECTION_DUPLICATE');
+
+  const id = uuidv4();
+  db.prepare('INSERT INTO collections (id,user_id,type,content,extra,dedup_key) VALUES (?,?,?,?,?,?)')
+    .run(id, userId, safeType, safeContent, JSON.stringify(safeExtra), dedupKey);
   return { success: true, id };
 }
 

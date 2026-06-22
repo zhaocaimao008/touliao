@@ -7,7 +7,8 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const { writeAsync, writeBatch } = require('../../db/writer');
 const config = require('../../config');
-const { badRequest, forbidden, notFound } = require('../../utils/http');
+const { badRequest, forbidden, notFound, conflict } = require('../../utils/http');
+const { collectionDedupKey } = require('../../utils/collections');
 const { isMember, requireMember, memberRole, buildMessage } = require('./shared');
 const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
@@ -312,9 +313,14 @@ async function collect(userId, msgId) {
   const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
   if (!msg) throw notFound('消息不存在');
   requireMember(msg.conversation_id, userId, '无权操作');
+  const extra = { file_url: msg.file_url, source_msg_id: msg.id };
+  const dedupKey = collectionDedupKey(msg.type, msg.content, extra);
+  // 去重：同一内容已收藏则 409（唯一索引兜底竞态，避免重复行）
+  const existing = db.prepare('SELECT id FROM collections WHERE user_id=? AND dedup_key=?').get(userId, dedupKey);
+  if (existing) throw conflict('已收藏', 'COLLECTION_DUPLICATE');
   // P0-1：worker 异步写
-  await writeAsync('INSERT INTO collections (id,user_id,type,content,extra) VALUES (?,?,?,?,?)',
-    [uuidv4(), userId, msg.type, msg.content, JSON.stringify({ file_url: msg.file_url, source_msg_id: msg.id })]
+  await writeAsync('INSERT INTO collections (id,user_id,type,content,extra,dedup_key) VALUES (?,?,?,?,?,?)',
+    [uuidv4(), userId, msg.type, msg.content, JSON.stringify(extra), dedupKey]
   );
 }
 

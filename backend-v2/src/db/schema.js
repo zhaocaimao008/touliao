@@ -321,6 +321,11 @@ function applySchema(db) {
       created_at INTEGER DEFAULT (strftime('%s','now'))
     )`,
     "CREATE INDEX IF NOT EXISTS idx_user_stickers ON user_stickers(user_id, created_at DESC)",
+    // ── 收藏去重（CO1）：dedup_key 由应用层计算，局部唯一索引仅约束新行，
+    //    存量行 dedup_key=NULL 不受约束，迁移不会因历史重复数据失败 ──
+    "ALTER TABLE collections ADD COLUMN dedup_key TEXT DEFAULT NULL",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_collections_dedup ON collections(user_id, dedup_key) WHERE dedup_key IS NOT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_collections_user ON collections(user_id, created_at DESC)",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }
