@@ -238,4 +238,50 @@ router.post  ('/:id/like',        auth, m.like);
  */
 router.post  ('/:id/comment',     auth, m.comment);
 
+/**
+ * @swagger
+ * /moments/{id}/likes:
+ *   get:
+ *     tags: [Moments]
+ *     summary: 点赞列表（分页）
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer }
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "{ items, total, hasMore }"
+ * /moments/{id}/comments:
+ *   get:
+ *     tags: [Moments]
+ *     summary: 评论列表（分页）
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer }
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "{ items, total, hasMore }"
+ */
+router.get   ('/:id/likes',       auth, m.likes);
+router.get   ('/:id/comments',    auth, m.comments);
+
 module.exports = router;

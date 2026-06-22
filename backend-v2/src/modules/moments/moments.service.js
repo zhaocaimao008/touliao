@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const config = require('../../config');
 const { pushToUser } = require('../../utils/push');
-const { badRequest, forbidden, notFound } = require('../../utils/http');
+const { badRequest, forbidden, notFound, paginated } = require('../../utils/http');
 
 // ── 互动通知（MO2）：actor≠author 才记。删动态由 FK ON DELETE CASCADE 清理 ──
 function addInteractNotification({ recipientId, actorId, momentId, type, commentId = null }) {
@@ -159,14 +159,52 @@ function addComment(io, userId, momentId, { content, replyToUser }) {
   if (!text) throw badRequest('评论不能为空');
   if (text.length > 500) throw badRequest('评论过长');
 
+  // MO4：reply_to_user 必须是真实存在的 userId（此前存任意字符串、无校验）
+  let replyTo = '';
+  if (replyToUser) {
+    if (typeof replyToUser !== 'string' || !db.prepare('SELECT 1 FROM users WHERE id=?').get(replyToUser)) {
+      throw badRequest('回复对象不存在');
+    }
+    replyTo = replyToUser;
+  }
+
   const id = uuidv4();
   db.prepare('INSERT INTO moment_comments (id,moment_id,user_id,content,reply_to_user) VALUES (?,?,?,?,?)')
-    .run(id, momentId, userId, text, replyToUser || '');
+    .run(id, momentId, userId, text, replyTo);
   if (io && m.user_id !== userId) io.to(`user_${m.user_id}`).emit('moment_commented', { momentId, userId });
   addInteractNotification({ recipientId: m.user_id, actorId: userId, momentId, type: 'comment', commentId: id });
   return db.prepare(
     'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.id=?'
   ).get(id);
+}
+
+// ── 点赞 / 评论分页列表（MO3）──────────────────────────────────
+// enrich 一次性全查点赞/评论，热门动态评论多时开销大；提供独立分页接口。
+// 均走 assertVisible 门控，返回 { items, total, hasMore }（新列表契约）。
+function listLikes(viewerId, momentId, { limit = 20, offset = 0 } = {}) {
+  const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
+  if (!m) throw notFound('动态不存在');
+  assertVisible(viewerId, m);
+  const n = Math.min(Number(limit) || 20, 50);
+  const off = Math.max(Number(offset) || 0, 0);
+  const total = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(momentId).n;
+  const rows = db.prepare(
+    'SELECT ml.user_id, ml.created_at, u.username, u.avatar FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id=? ORDER BY ml.created_at LIMIT ? OFFSET ?'
+  ).all(momentId, n, off);
+  return paginated(rows, { total, limit: n, offset: off });
+}
+
+function listComments(viewerId, momentId, { limit = 20, offset = 0 } = {}) {
+  const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
+  if (!m) throw notFound('动态不存在');
+  assertVisible(viewerId, m);
+  const n = Math.min(Number(limit) || 20, 50);
+  const off = Math.max(Number(offset) || 0, 0);
+  const total = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(momentId).n;
+  const rows = db.prepare(
+    'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id=? ORDER BY mc.created_at LIMIT ? OFFSET ?'
+  ).all(momentId, n, off);
+  return paginated(rows, { total, limit: n, offset: off });
 }
 
 // ── 删评论（评论作者或动态作者）────────────────────────────────
@@ -228,6 +266,6 @@ function markNotificationsRead(userId) {
 
 module.exports = {
   createMoment, timeline, userMoments, getMoment, deleteMoment,
-  toggleLike, addComment, deleteComment,
+  toggleLike, addComment, deleteComment, listLikes, listComments,
   listNotifications, unreadNotificationCount, markNotificationsRead,
 };

@@ -12,6 +12,8 @@ exports.remove        = asyncHandler(async (req, res) => res.json(svc.deleteMome
 exports.like          = asyncHandler(async (req, res) => res.json(svc.toggleLike(io(req), req.user.id, req.params.id)));
 exports.comment       = asyncHandler(async (req, res) => res.json(svc.addComment(io(req), req.user.id, req.params.id, req.body)));
 exports.deleteComment = asyncHandler(async (req, res) => res.json(svc.deleteComment(req.user.id, req.params.commentId)));
+exports.likes         = asyncHandler(async (req, res) => res.json(svc.listLikes(req.user.id, req.params.id, req.query)));
+exports.comments      = asyncHandler(async (req, res) => res.json(svc.listComments(req.user.id, req.params.id, req.query)));
 
 // ── 互动通知 feed（MO2）──────────────────────────────────────────
 exports.notifications     = asyncHandler(async (req, res) => res.json(svc.listNotifications(req.user.id, req.query)));
