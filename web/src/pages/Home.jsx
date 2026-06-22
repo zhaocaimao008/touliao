@@ -736,10 +736,10 @@ export default function Home() {
 
   // ── 移动端布局（宽度 < 768 或原生 App）：底部 TabBar + 全屏页 + 全屏聊天 ──
   if (isMobile) {
-    const M_LABEL = { chats: '消息', contacts: '通讯录', moments: '发现', me: '我' };
-    const mobileTabs = ['chats', 'contacts', 'moments', 'me']
-      .map(k => TABS.find(t => t.key === k))
-      .filter(t => t && !HIDDEN_TABS.has(t.key) && (!t.feature || features[t.feature] !== false));
+    // 底部栏与桌面侧边栏同源（visibleTabs）：tab 集合与文案保持一致，
+    // 含「收藏」，moments 统一显示「朋友圈」（不再用 M_LABEL 覆盖成「发现」）。
+    const mobileTabs = visibleTabs(features);
+    const mLabel = (k) => TABS.find(t => t.key === k)?.label || '';
 
     return (
       <div className="m-shell">
@@ -755,7 +755,7 @@ export default function Home() {
               {(tab === 'chats' || tab === 'contacts') && (
                 <>
                   <div className="m-topbar">
-                    <span className="m-title">{M_LABEL[tab]}</span>
+                    <span className="m-title">{mLabel(tab)}</span>
                     {tab === 'chats' && (
                       <button ref={addBtnRef} className="m-topbar-add" onClick={toggleAddMenu} aria-label="发起">
                         <IcoAdd />
@@ -784,13 +784,13 @@ export default function Home() {
             </div>
 
             <nav className="m-tabbar">
-              {mobileTabs.map(({ key, Icon }) => {
+              {mobileTabs.map(({ key, Icon, label }) => {
                 const count = badges[key] || 0;
                 return (
                   <button key={key} className={`m-tab${tab === key ? ' active' : ''}`}
                     onClick={() => handleTabChange(key)}>
                     <span className="m-tab-ico"><Icon /></span>
-                    <span className="m-tab-label">{M_LABEL[key]}</span>
+                    <span className="m-tab-label">{label}</span>
                     {count > 0 && <span className="m-tab-badge">{count > 99 ? '99+' : count}</span>}
                   </button>
                 );
