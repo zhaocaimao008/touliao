@@ -52,15 +52,32 @@ import com.vxin.app.feature.group.InviteMembersScreen
 import com.vxin.app.feature.profile.MyQrCodeScreen
 import com.vxin.app.feature.profile.ProfileScreen
 import com.vxin.app.feature.search.SearchScreen
+import com.vxin.app.data.api.ConfigApi
+import com.vxin.app.data.model.Features
 import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class AppViewModel @Inject constructor(
     sessionManager: SessionManager,
+    private val configApi: ConfigApi,
 ) : ViewModel() {
     val authState: StateFlow<AuthState> = sessionManager.state
+
+    // 后台功能开关（朋友圈/收藏）。默认全开，拉取失败不误伤已有功能。
+    private val _features = MutableStateFlow(Features())
+    val features: StateFlow<Features> = _features.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            runCatching { configApi.getConfig() }.onSuccess { _features.value = it.features }
+        }
+    }
 }
 
 private object Routes {
@@ -93,10 +110,11 @@ private object Routes {
 @Composable
 fun AppNavigation(appViewModel: AppViewModel = hiltViewModel()) {
     val authState by appViewModel.authState.collectAsStateWithLifecycle()
+    val features by appViewModel.features.collectAsStateWithLifecycle()
 
     when (authState) {
         is AuthState.Loading -> SplashScreen()
-        is AuthState.Authenticated -> MainFlow()
+        is AuthState.Authenticated -> MainFlow(features)
         is AuthState.Unauthenticated -> AuthFlow()
     }
 }
@@ -126,17 +144,26 @@ private val TAB_ITEMS = listOf(
 private val TAB_ROUTES = TAB_ITEMS.map { it.route }.toSet()
 
 @Composable
-private fun MainFlow() {
+private fun MainFlow(features: Features) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    // 后台开关：隐藏朋友圈/收藏 tab（拉取失败时默认全开，见 AppViewModel）
+    val visibleTabs = TAB_ITEMS.filter { tab ->
+        when (tab.route) {
+            Routes.MOMENTS -> features.moments
+            Routes.FAVORITES -> features.collect
+            else -> true
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
         bottomBar = {
             if (currentRoute in TAB_ROUTES) {
                 NavigationBar {
-                    TAB_ITEMS.forEach { tab ->
+                    visibleTabs.forEach { tab ->
                         NavigationBarItem(
                             selected = currentRoute == tab.route,
                             onClick = {

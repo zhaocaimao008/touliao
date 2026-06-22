@@ -99,6 +99,11 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideConfigApi(retrofit: Retrofit): com.vxin.app.data.api.ConfigApi =
+        retrofit.create(com.vxin.app.data.api.ConfigApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideGroupApi(retrofit: Retrofit): GroupApi = retrofit.create(GroupApi::class.java)
 
     @Provides
