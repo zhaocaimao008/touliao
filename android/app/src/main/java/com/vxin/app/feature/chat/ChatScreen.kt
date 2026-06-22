@@ -674,7 +674,7 @@ private fun TextBubble(content: String, isMine: Boolean) {
         modifier = Modifier
             .widthIn(max = 280.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isMine) VxinGreen else Color.White)
+            .background(if (isMine) VxinGreen else MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(highlightMentions(content, isMine), color = bubbleTextColor(isMine))
@@ -706,7 +706,7 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
         modifier = Modifier
             .widthIn(max = 240.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isMine) VxinGreen else Color.White)
+            .background(if (isMine) VxinGreen else MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) { content() }
