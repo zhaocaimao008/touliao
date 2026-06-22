@@ -67,7 +67,7 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.material.ExperimentalMaterialApi::class)
 @Composable
 fun MomentsScreen(
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,   // null = 作为底部 Tab 使用（不显示返回箭头）
     onCompose: () -> Unit = {},
     viewModel: MomentsViewModel = hiltViewModel(),
 ) {
@@ -88,7 +88,7 @@ fun MomentsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("朋友圈") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { onBack?.let { cb -> IconButton(onClick = cb) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } } },
                 actions = { IconButton(onClick = onCompose) { Text("📷", fontSize = 18.sp) } },
             )
         },

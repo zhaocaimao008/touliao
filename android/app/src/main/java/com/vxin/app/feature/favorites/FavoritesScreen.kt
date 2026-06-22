@@ -42,7 +42,7 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FavoritesScreen(
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,   // null = 作为底部 Tab 使用（不显示返回箭头）
     viewModel: FavoritesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -53,7 +53,7 @@ fun FavoritesScreen(
             TopAppBar(
                 title = { Text("收藏") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
+                    onBack?.let { cb -> IconButton(onClick = cb) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }
                 },
             )
         },

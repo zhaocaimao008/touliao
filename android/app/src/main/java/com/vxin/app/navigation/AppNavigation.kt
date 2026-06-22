@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -117,6 +119,8 @@ private data class TabItem(val route: String, val label: String, val icon: Image
 private val TAB_ITEMS = listOf(
     TabItem(Routes.CONVERSATIONS, "消息", Icons.Filled.Email),
     TabItem(Routes.CONTACTS, "通讯录", Icons.Filled.Person),
+    TabItem(Routes.MOMENTS, "朋友圈", Icons.Filled.DateRange),
+    TabItem(Routes.FAVORITES, "收藏", Icons.Filled.Star),
     TabItem(Routes.PROFILE, "我", Icons.Filled.AccountCircle),
 )
 private val TAB_ROUTES = TAB_ITEMS.map { it.route }.toSet()
@@ -184,11 +188,12 @@ private fun MainFlow() {
                 )
             }
             composable(Routes.FAVORITES) {
-                FavoritesScreen(onBack = { navController.popBackStack() })
+                // 作为底部 Tab：不传 onBack（无返回箭头）
+                FavoritesScreen()
             }
             composable(Routes.MOMENTS) {
+                // 作为底部 Tab：不传 onBack（无返回箭头）
                 MomentsScreen(
-                    onBack = { navController.popBackStack() },
                     onCompose = { navController.navigate(Routes.MOMENT_COMPOSE) },
                 )
             }

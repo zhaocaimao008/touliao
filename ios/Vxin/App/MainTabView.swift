@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 底部 Tab：消息 / 通讯录 / 我
+/// 底部 Tab：消息 / 通讯录 / 朋友圈 / 收藏 / 我（四端一致）
 struct MainTabView: View {
     let myId: String
 
@@ -11,6 +11,12 @@ struct MainTabView: View {
 
             ContactsTab(myId: myId)
                 .tabItem { Label("通讯录", systemImage: "person.2") }
+
+            NavigationStack { MomentsView().navigationTitle("朋友圈") }
+                .tabItem { Label("朋友圈", systemImage: "photo.on.rectangle") }
+
+            NavigationStack { FavoritesView() }
+                .tabItem { Label("收藏", systemImage: "star") }
 
             NavigationStack { ProfileView() }
                 .tabItem { Label("我", systemImage: "person.crop.circle") }
