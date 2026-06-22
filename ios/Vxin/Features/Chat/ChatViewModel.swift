@@ -23,6 +23,9 @@ final class ChatViewModel: ObservableObject {
     @Published var replyingTo: Message?        // 正在回复的消息
     @Published var stickers: [Sticker] = []
     @Published var pinnedMessages: [PinnedMessage] = []
+    @Published var loadingEarlier = false
+    @Published var reachedStart = false
+    @Published var fullImageURL: String?
     @Published var forwardTargets: [Conversation] = []
     @Published var editTarget: Message?
     @Published var forwardTarget: Message?
@@ -268,8 +271,23 @@ final class ChatViewModel: ObservableObject {
     func loadHistory() async {
         do {
             messages = try await repo.loadHistory(conversationId)
+            reachedStart = messages.count < 50
             markReadLatest()   // 打开会话即标记已读
         } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载消息失败" }
+    }
+
+    /// 上滑加载更早消息
+    func loadEarlier() {
+        guard !loadingEarlier, !reachedStart, let before = messages.first?.createdAt else { return }
+        loadingEarlier = true
+        Task {
+            defer { loadingEarlier = false }
+            if let older = try? await repo.loadHistory(conversationId, before: before) {
+                let existing = Set(messages.map { $0.id })
+                messages = older.filter { !existing.contains($0.id) } + messages
+                reachedStart = older.count < 50
+            }
+        }
     }
 
     private func onIncoming(_ msg: Message) {

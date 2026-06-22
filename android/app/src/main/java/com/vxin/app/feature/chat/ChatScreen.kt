@@ -6,6 +6,9 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material3.DropdownMenu
@@ -86,6 +89,7 @@ fun ChatScreen(
     var showPinnedList by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Message?>(null) }
     var forwardTarget by remember { mutableStateOf<Message?>(null) }
+    var fullImageUrl by remember { mutableStateOf<String?>(null) }
 
     // 通话发起：先申请权限再拨打
     var pendingCallVideo by remember { mutableStateOf<Boolean?>(null) }
@@ -112,8 +116,10 @@ fun ChatScreen(
         if (granted) viewModel.startRecording()
     }
 
+    // 仅在「最新一条变化」或上传项变化时滚到底，避免加载更早(前插)时跳动
+    val lastMsgId = state.messages.lastOrNull()?.id
     val totalCount = state.messages.size + state.pending.size
-    LaunchedEffect(totalCount) {
+    LaunchedEffect(lastMsgId, state.pending.size) {
         if (totalCount > 0) listState.animateScrollToItem(totalCount - 1)
     }
 
@@ -214,6 +220,17 @@ fun ChatScreen(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (!state.reachedStart && state.messages.isNotEmpty()) {
+                        item(key = "load_earlier") {
+                            Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                if (state.loadingEarlier) {
+                                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Text("查看更早消息", color = VxinGreen, modifier = Modifier.clickable { viewModel.loadEarlier() }.padding(8.dp))
+                                }
+                            }
+                        }
+                    }
                     items(state.messages, key = { it.id }) { msg ->
                         val isMine = msg.sender_id == viewModel.myId
                         MessageBubble(
@@ -236,6 +253,7 @@ fun ChatScreen(
                             onEdit = { editTarget = msg },
                             onForward = { forwardTarget = msg; viewModel.loadForwardTargets() },
                             onCollect = { viewModel.collectMessage(msg) },
+                            onImageClick = { url -> url?.let { fullImageUrl = it } },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -334,6 +352,36 @@ fun ChatScreen(
             dismissButton = { TextButton(onClick = { forwardTarget = null }) { Text("取消") } },
         )
     }
+
+    fullImageUrl?.let { url ->
+        FullScreenImage(url = url, onDismiss = { fullImageUrl = null })
+    }
+}
+
+@Composable
+private fun FullScreenImage(url: String, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        var scale by remember { mutableStateOf(1f) }
+        Box(
+            Modifier.fillMaxSize().background(Color.Black).clickable { onDismiss() },
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = url,
+                contentDescription = "图片",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(scaleX = scale, scaleY = scale)
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, _, zoom, _ -> scale = (scale * zoom).coerceIn(1f, 4f) }
+                    },
+            )
+        }
+    }
 }
 
 private fun pinnedPreview(p: com.vxin.app.data.model.PinnedMessage): String = when (p.type) {
@@ -379,6 +427,7 @@ private fun MessageBubble(
     onEdit: () -> Unit = {},
     onForward: () -> Unit = {},
     onCollect: () -> Unit = {},
+    onImageClick: (String?) -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -423,7 +472,7 @@ private fun MessageBubble(
             // 气泡本体(长按弹菜单)
             Box {
                 Box(Modifier.combinedClickable(onClick = {}, onLongClick = { menuOpen = true })) {
-                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile)
+                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick)
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     // 表情回应行
@@ -498,6 +547,7 @@ private fun MessageContent(
     resolveUrl: (String?) -> String?,
     onPlayVoice: () -> Unit,
     onOpenFile: () -> Unit,
+    onImageClick: (String?) -> Unit = {},
 ) {
     Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             when (msg.type) {
@@ -508,7 +558,8 @@ private fun MessageContent(
                     modifier = Modifier
                         .widthIn(max = 220.dp)
                         .heightIn(max = 280.dp)
-                        .clip(RoundedCornerShape(10.dp)),
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onImageClick(resolveUrl(msg.file_url)) },
                 )
                 "voice" -> MediaCard(isMine, onClick = onPlayVoice) { Text(if (isMine) "🎙 语音  ▶" else "▶  🎙 语音", color = bubbleTextColor(isMine)) }
                 "file" -> MediaCard(isMine, onClick = onOpenFile) {

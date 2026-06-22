@@ -30,6 +30,8 @@ import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
 
+private const val HISTORY_PAGE = 50   // 与 MessageApi.history 默认 limit 一致
+
 /** 上传中的占位项（成功后被真实 Message 替换） */
 data class PendingUpload(
     val tempId: String,
@@ -51,6 +53,8 @@ data class ChatUiState(
     val peerReadAt: Long = 0,         // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     val replyingTo: Message? = null,  // 正在回复的消息
     val closed: Boolean = false,      // 被踢/群解散 → 关闭聊天页
+    val loadingEarlier: Boolean = false,
+    val reachedStart: Boolean = false,   // 已加载到最早
     val stickers: List<com.vxin.app.data.model.Sticker> = emptyList(),
     val pinnedMessages: List<com.vxin.app.data.model.PinnedMessage> = emptyList(),
     val forwardTargets: List<com.vxin.app.data.model.Conversation> = emptyList(),  // 转发可选会话
@@ -335,10 +339,29 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { chatRepository.loadHistory(conversationId) }
                 .onSuccess { list ->
-                    _uiState.update { it.copy(loading = false, messages = list) }
+                    _uiState.update { it.copy(loading = false, messages = list, reachedStart = list.size < HISTORY_PAGE) }
                     markReadLatest()   // 打开会话即标记已读
                 }
                 .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载消息失败")) } }
+        }
+    }
+
+    /** 上滑加载更早消息（按最早一条的时间向前翻页） */
+    fun loadEarlier() {
+        val s = _uiState.value
+        if (s.loadingEarlier || s.reachedStart || s.messages.isEmpty()) return
+        val before = s.messages.first().created_at
+        _uiState.update { it.copy(loadingEarlier = true) }
+        viewModelScope.launch {
+            runCatching { chatRepository.loadHistory(conversationId, before = before) }
+                .onSuccess { older ->
+                    _uiState.update { st ->
+                        val existing = st.messages.map { it.id }.toSet()
+                        val merged = older.filterNot { it.id in existing } + st.messages
+                        st.copy(loadingEarlier = false, messages = merged, reachedStart = older.size < HISTORY_PAGE)
+                    }
+                }
+                .onFailure { _uiState.update { it.copy(loadingEarlier = false) } }
         }
     }
 

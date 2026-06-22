@@ -99,6 +99,9 @@ struct ChatView: View {
             Button("保存") { if let m = vm.editTarget { vm.editMessage(m, newText: editText) }; vm.editTarget = nil }
         }
         .onChange(of: vm.editTarget?.id) { _ in editText = vm.editTarget?.content ?? "" }
+        .fullScreenCover(isPresented: Binding(get: { vm.fullImageURL != nil }, set: { if !$0 { vm.fullImageURL = nil } })) {
+            if let url = vm.fullImageURL { FullScreenImageView(url: url) { vm.fullImageURL = nil } }
+        }
         .sheet(isPresented: Binding(get: { vm.forwardTarget != nil }, set: { if !$0 { vm.forwardTarget = nil } })) {
             NavigationStack {
                 List(vm.forwardTargets) { conv in
@@ -154,6 +157,13 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 8) {
+                    if !vm.reachedStart && !vm.messages.isEmpty {
+                        Group {
+                            if vm.loadingEarlier { ProgressView() }
+                            else { Button("查看更早消息") { vm.loadEarlier() }.foregroundColor(.vxinGreen) }
+                        }
+                        .padding(.vertical, 8)
+                    }
                     ForEach(vm.messages) { msg in
                         MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm)
                             .id(msg.id)
@@ -167,7 +177,8 @@ struct ChatView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
-            .onChange(of: vm.messages.count) { _ in withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) } }
+            // 仅最新一条变化时滚到底，避免加载更早(前插)跳动
+            .onChange(of: vm.messages.last?.id) { _ in withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) } }
             .onChange(of: vm.pending.count) { _ in withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) } }
         }
     }
@@ -374,6 +385,7 @@ private struct MessageBubble: View {
                 .scaledToFit()
                 .frame(maxWidth: 220, maxHeight: 280)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
+                .onTapGesture { vm.fullImageURL = vm.resolveMediaUrl(msg.fileUrl) }
         case "voice":
             card { Text("🎙 语音  ▶") }.onTapGesture { vm.playVoice(msg) }
         case "file":
@@ -504,6 +516,31 @@ private struct SendRedPacketSheet: View {
         if c < 1 || c > 100 { return "红包个数 1-100" }
         if a < c { return "总金币不能小于红包个数" }
         return nil
+    }
+}
+
+// MARK: - 全屏图片查看（双指缩放，点击关闭）
+private struct FullScreenImageView: View {
+    let url: String
+    var onClose: () -> Void
+    @State private var scale: CGFloat = 1
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            KFImage(URL(string: url))
+                .resizable().scaledToFit()
+                .scaleEffect(scale)
+                .gesture(MagnificationGesture().onChanged { scale = max(1, min($0, 4)) }.onEnded { _ in if scale < 1 { scale = 1 } })
+                .onTapGesture { onClose() }
+            VStack {
+                HStack {
+                    Button { onClose() } label: { Image(systemName: "xmark").foregroundColor(.white).padding() }
+                    Spacer()
+                }
+                Spacer()
+            }
+        }
     }
 }
 
