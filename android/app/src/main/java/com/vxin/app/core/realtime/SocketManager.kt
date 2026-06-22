@@ -87,6 +87,10 @@ class SocketManager @Inject constructor(
     private val _redPacketClaimed = MutableSharedFlow<RedPacketClaimedEvent>(extraBufferCapacity = 64)
     val redPacketClaimedEvents: SharedFlow<RedPacketClaimedEvent> = _redPacketClaimed.asSharedFlow()
 
+    /** 群置顶消息变化（置顶/取消）→ convId，UI 据此重拉置顶列表 */
+    private val _pinChanged = MutableSharedFlow<String>(extraBufferCapacity = 32)
+    val pinChangedEvents: SharedFlow<String> = _pinChanged.asSharedFlow()
+
     // ── 通话信令流 ──
     private val _callIncoming = MutableSharedFlow<CallIncomingEvent>(extraBufferCapacity = 16)
     val callIncomingEvents: SharedFlow<CallIncomingEvent> = _callIncoming.asSharedFlow()
@@ -170,6 +174,12 @@ class SocketManager @Inject constructor(
                 }
                 if (msgId.isNotEmpty()) _reaction.tryEmit(ReactionEvent(msgId, list))
             }
+        }
+        s.on("message_pinned") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("convId")?.takeIf { it.isNotEmpty() }?.let(_pinChanged::tryEmit)
+        }
+        s.on("message_unpinned") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("convId")?.takeIf { it.isNotEmpty() }?.let(_pinChanged::tryEmit)
         }
         s.on("red_packet_claimed") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->

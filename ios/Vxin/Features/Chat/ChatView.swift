@@ -11,6 +11,7 @@ struct ChatView: View {
     @State private var showFileImporter = false
     @State private var showStickerPanel = false
     @State private var showRedPacketSend = false
+    @State private var showPinnedList = false
     private let isGroup: Bool
     private let onOpenGroupInfo: () -> Void
 
@@ -20,12 +21,14 @@ struct ChatView: View {
         _vm = StateObject(wrappedValue: ChatViewModel(
             conversationId: conversation.id,
             title: conversation.name,
-            myId: myId
+            myId: myId,
+            isGroup: conversation.type == "group"
         ))
     }
 
     var body: some View {
         VStack(spacing: 0) {
+            if !vm.pinnedMessages.isEmpty { pinnedBanner }
             messageList
             inputBar
         }
@@ -68,6 +71,46 @@ struct ChatView: View {
                     onClose: { vm.closeRedPacket() }
                 )
             }
+        }
+        .sheet(isPresented: $showPinnedList) {
+            NavigationStack {
+                List(vm.pinnedMessages) { p in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(p.senderName.isEmpty ? "成员" : p.senderName).font(.caption).foregroundColor(.vxinTextSecondary)
+                            Text(pinnedPreview(p)).lineLimit(2)
+                        }
+                        Spacer()
+                        Button("取消", role: .destructive) { vm.unpinMessage(p.msgId) }.buttonStyle(.borderless)
+                    }
+                }
+                .navigationTitle("置顶消息 (\(vm.pinnedMessages.count))")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { showPinnedList = false } } }
+            }
+        }
+    }
+
+    private var pinnedBanner: some View {
+        Button { showPinnedList = true } label: {
+            HStack(spacing: 8) {
+                Text("📌").font(.caption)
+                Text(vm.pinnedMessages.first.map(pinnedPreview) ?? "").lineLimit(1).font(.footnote)
+                Spacer()
+                if vm.pinnedMessages.count > 1 { Text("\(vm.pinnedMessages.count) 条").font(.caption).foregroundColor(.vxinTextSecondary) }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(Color(red: 1.0, green: 0.97, blue: 0.9))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func pinnedPreview(_ p: PinnedMessage) -> String {
+        switch p.type {
+        case "image": return "[图片]"; case "voice": return "[语音]"; case "video": return "[视频]"
+        case "file": return "[文件]"; case "red_packet": return "[红包]"
+        default: return p.content
         }
     }
 
@@ -243,6 +286,11 @@ private struct MessageBubble: View {
                             Button("复制") { UIPasteboard.general.string = msg.content }
                         }
                         Button("回复") { vm.startReply(msg) }
+                        if vm.isGroup {
+                            Button(vm.isPinned(msg.id) ? "取消置顶" : "置顶") {
+                                if vm.isPinned(msg.id) { vm.unpinMessage(msg.id) } else { vm.pinMessage(msg) }
+                            }
+                        }
                         if msg.type == "image" {
                             Button("收藏表情") { vm.collectSticker(msg.fileUrl) }
                         }

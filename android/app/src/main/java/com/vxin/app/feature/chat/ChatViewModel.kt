@@ -51,6 +51,7 @@ data class ChatUiState(
     val peerReadAt: Long = 0,         // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     val replyingTo: Message? = null,  // 正在回复的消息
     val stickers: List<com.vxin.app.data.model.Sticker> = emptyList(),
+    val pinnedMessages: List<com.vxin.app.data.model.PinnedMessage> = emptyList(),
     // ── 红包 ──
     val redPacketDetail: RedPacketDetail? = null,   // 非空 = 显示红包详情弹窗
     val redPacketLoading: Boolean = false,
@@ -94,6 +95,42 @@ class ChatViewModel @Inject constructor(
         observeDeleted()
         observeReaction()
         observeRedPacketClaimed()
+        if (isGroup) {
+            loadPinned()
+            observePinChanged()
+        }
+    }
+
+    // ── 群置顶消息 ─────────────────────────────────────────
+    fun isPinned(msgId: String): Boolean = _uiState.value.pinnedMessages.any { it.msgId == msgId }
+
+    private fun loadPinned() {
+        viewModelScope.launch {
+            runCatching { chatRepository.pinnedMessages(conversationId) }
+                .onSuccess { list -> _uiState.update { it.copy(pinnedMessages = list) } }
+        }
+    }
+
+    fun pinMessage(msg: Message) {
+        viewModelScope.launch {
+            runCatching { chatRepository.pinMessage(conversationId, msg.id) }
+                .onSuccess { loadPinned() }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("置顶失败")) } }
+        }
+    }
+
+    fun unpinMessage(msgId: String) {
+        viewModelScope.launch {
+            runCatching { chatRepository.unpinMessage(conversationId, msgId) }
+                .onSuccess { loadPinned() }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("取消置顶失败")) } }
+        }
+    }
+
+    private fun observePinChanged() {
+        viewModelScope.launch {
+            chatRepository.pinChangedEvents.collect { convId -> if (convId == conversationId) loadPinned() }
+        }
     }
 
     // ── 红包 ──────────────────────────────────────────────

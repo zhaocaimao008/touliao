@@ -38,6 +38,7 @@ class ChatRepository @Inject constructor(
     val messageDeletedEvents: SharedFlow<String> = socketManager.messageDeletedEvents
     val reactionEvents: SharedFlow<ReactionEvent> = socketManager.reactionEvents
     val redPacketClaimedEvents: SharedFlow<RedPacketClaimedEvent> = socketManager.redPacketClaimedEvents
+    val pinChangedEvents: SharedFlow<String> = socketManager.pinChangedEvents
 
     fun joinConversation(conversationId: String) = socketManager.joinConversation(conversationId)
     fun emitTyping(conversationId: String) = socketManager.emitTyping(conversationId)
@@ -67,4 +68,13 @@ class ChatRepository @Inject constructor(
     /** 表情回应(切换) */
     suspend fun react(msgId: String, emoji: String) =
         runCatching { api.react(msgId, ReactBody(emoji)) }
+
+    // ── 群置顶消息 ──
+    suspend fun pinMessage(conversationId: String, msgId: String) =
+        api.pinMessage(conversationId, com.vxin.app.data.model.PinMessageBody(msgId))
+
+    suspend fun unpinMessage(conversationId: String, msgId: String) =
+        api.unpinMessage(conversationId, msgId)
+
+    suspend fun pinnedMessages(conversationId: String) = api.pinnedMessages(conversationId)
 }

@@ -83,6 +83,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val context = LocalContext.current
     var showRedPacketSend by remember { mutableStateOf(false) }
+    var showPinnedList by remember { mutableStateOf(false) }
 
     // 通话发起：先申请权限再拨打
     var pendingCallVideo by remember { mutableStateOf<Boolean?>(null) }
@@ -196,6 +197,11 @@ fun ChatScreen(
         },
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+          Column(Modifier.fillMaxSize()) {
+            if (state.pinnedMessages.isNotEmpty()) {
+                PinnedBanner(state.pinnedMessages) { showPinnedList = true }
+            }
+          Box(Modifier.weight(1f).fillMaxWidth()) {
             if (state.loading && state.messages.isEmpty()) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             } else {
@@ -219,6 +225,9 @@ fun ChatScreen(
                             onCollectSticker = { viewModel.collectSticker(msg.file_url) },
                             redPacket = viewModel.parseRedPacket(msg),
                             onOpenRedPacket = { viewModel.openRedPacket(msg) },
+                            canPin = viewModel.isGroup,
+                            isPinned = viewModel.isPinned(msg.id),
+                            onTogglePin = { if (viewModel.isPinned(msg.id)) viewModel.unpinMessage(msg.id) else viewModel.pinMessage(msg) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -226,6 +235,8 @@ fun ChatScreen(
                     }
                 }
             }
+          }
+          }
             state.error?.let {
                 Text(
                     it,
@@ -255,6 +266,47 @@ fun ChatScreen(
             onDismiss = viewModel::closeRedPacket,
         )
     }
+
+    if (showPinnedList) {
+        AlertDialog(
+            onDismissRequest = { showPinnedList = false },
+            title = { Text("置顶消息 (${state.pinnedMessages.size})") },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn {
+                    items(state.pinnedMessages, key = { it.msgId }) { p ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(p.senderName.ifBlank { "成员" }, fontSize = 12.sp, color = VxinTextSecondary)
+                                Text(pinnedPreview(p), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                            TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = Color(0xFFFA5151)) }
+                        }
+                        HorizontalDivider(thickness = 0.5.dp)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showPinnedList = false }) { Text("关闭") } },
+        )
+    }
+}
+
+private fun pinnedPreview(p: com.vxin.app.data.model.PinnedMessage): String = when (p.type) {
+    "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"; "red_packet" -> "[红包]"
+    else -> p.content
+}
+
+@Composable
+private fun PinnedBanner(pinned: List<com.vxin.app.data.model.PinnedMessage>, onClick: () -> Unit) {
+    val latest = pinned.firstOrNull() ?: return
+    Row(
+        modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF7E6)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("📌", fontSize = 14.sp)
+        Spacer(Modifier.size(8.dp))
+        Text(pinnedPreview(latest), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+        if (pinned.size > 1) Text("${pinned.size} 条", color = VxinTextSecondary, fontSize = 12.sp)
+    }
 }
 
 private val REACTION_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "🙏")
@@ -274,6 +326,9 @@ private fun MessageBubble(
     onCollectSticker: () -> Unit,
     redPacket: com.vxin.app.data.model.RedPacketContent? = null,
     onOpenRedPacket: () -> Unit = {},
+    canPin: Boolean = false,
+    isPinned: Boolean = false,
+    onTogglePin: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -336,6 +391,9 @@ private fun MessageBubble(
                         })
                     }
                     DropdownMenuItem(text = { Text("回复") }, onClick = { onReply(); menuOpen = false })
+                    if (canPin) {
+                        DropdownMenuItem(text = { Text(if (isPinned) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
+                    }
                     if (msg.type == "image") {
                         DropdownMenuItem(text = { Text("收藏表情") }, onClick = { onCollectSticker(); menuOpen = false })
                     }

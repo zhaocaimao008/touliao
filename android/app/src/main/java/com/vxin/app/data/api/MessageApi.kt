@@ -7,10 +7,13 @@ import com.vxin.app.data.model.CreatePrivateBody
 import com.vxin.app.data.model.DeleteMessageBody
 import com.vxin.app.data.model.MarkReadRequest
 import com.vxin.app.data.model.Message
+import com.vxin.app.data.model.PinMessageBody
+import com.vxin.app.data.model.PinnedMessage
 import com.vxin.app.data.model.ReactBody
 import com.vxin.app.data.model.ReactResponse
 import okhttp3.MultipartBody
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.HTTP
 import retrofit2.http.Multipart
@@ -63,4 +66,16 @@ interface MessageApi {
     /** 表情回应(切换) */
     @POST("api/messages/{msgId}/react")
     suspend fun react(@Path("msgId") msgId: String, @Body body: ReactBody): ReactResponse
+
+    /** 置顶消息（群内，任意成员） */
+    @POST("api/messages/conversation/{convId}/pin-message")
+    suspend fun pinMessage(@Path("convId") convId: String, @Body body: PinMessageBody)
+
+    /** 取消置顶 */
+    @DELETE("api/messages/conversation/{convId}/pin-message/{msgId}")
+    suspend fun unpinMessage(@Path("convId") convId: String, @Path("msgId") msgId: String)
+
+    /** 置顶消息列表 */
+    @GET("api/messages/conversation/{convId}/pinned-messages")
+    suspend fun pinnedMessages(@Path("convId") convId: String): List<PinnedMessage>
 }

@@ -22,6 +22,7 @@ final class ChatViewModel: ObservableObject {
     @Published var peerReadAt: Double = 0      // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     @Published var replyingTo: Message?        // 正在回复的消息
     @Published var stickers: [Sticker] = []
+    @Published var pinnedMessages: [PinnedMessage] = []
     // ── 红包 ──
     @Published var redPacketDetail: RedPacketDetail?   // 非空 = 显示红包详情弹窗
     @Published var claimedAmount: Int?                 // 刚领取到的金额
@@ -30,6 +31,7 @@ final class ChatViewModel: ObservableObject {
     let conversationId: String
     let title: String
     let myId: String
+    let isGroup: Bool
 
     private let repo = ChatRepository.shared
     private let recorder = AudioRecorder.shared
@@ -38,10 +40,11 @@ final class ChatViewModel: ObservableObject {
     private var lastTypingEmit = Date.distantPast
     private var typingClearTask: Task<Void, Never>?
 
-    init(conversationId: String, title: String, myId: String) {
+    init(conversationId: String, title: String, myId: String, isGroup: Bool = false) {
         self.conversationId = conversationId
         self.title = title
         self.myId = myId
+        self.isGroup = isGroup
 
         repo.incomingPublisher
             .sink { [weak self] msg in Task { @MainActor in self?.onIncoming(msg) } }
@@ -67,8 +70,36 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] (packetId, _, _) in Task { @MainActor in self?.onRedPacketClaimed(packetId) } }
             .store(in: &cancellables)
 
+        if isGroup {
+            repo.pinChangedPublisher
+                .sink { [weak self] convId in Task { @MainActor in if convId == self?.conversationId { await self?.loadPinned() } } }
+                .store(in: &cancellables)
+        }
+
         repo.joinConversation(conversationId)
         Task { await loadHistory() }
+        if isGroup { Task { await loadPinned() } }
+    }
+
+    // MARK: - 群置顶消息
+    func isPinned(_ msgId: String) -> Bool { pinnedMessages.contains { $0.msgId == msgId } }
+
+    func loadPinned() async {
+        pinnedMessages = (try? await repo.pinnedMessages(conversationId: conversationId)) ?? pinnedMessages
+    }
+
+    func pinMessage(_ msg: Message) {
+        Task {
+            do { try await repo.pinMessage(conversationId: conversationId, msgId: msg.id); await loadPinned() }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "置顶失败" }
+        }
+    }
+
+    func unpinMessage(_ msgId: String) {
+        Task {
+            do { try await repo.unpinMessage(conversationId: conversationId, msgId: msgId); await loadPinned() }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "取消置顶失败" }
+        }
     }
 
     // MARK: - 表情/贴纸

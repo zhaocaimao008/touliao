@@ -97,3 +97,30 @@ struct ReplyPreview: Decodable, Equatable {
     var content: String = ""
     var senderName: String = ""
 }
+
+/// 群置顶消息（GET .../pinned-messages）
+struct PinnedMessage: Decodable, Identifiable, Equatable {
+    var msgId: String = ""
+    var type: String = "text"
+    var content: String = ""
+    var fileUrl: String = ""
+    var senderName: String = ""
+    var pinnedByName: String = ""
+
+    var id: String { msgId }
+
+    enum CodingKeys: String, CodingKey {
+        case msgId, type, content, senderName, pinnedByName
+        case fileUrl = "file_url"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        msgId = (try? c.decode(String.self, forKey: .msgId)) ?? ""
+        type = (try? c.decode(String.self, forKey: .type)) ?? "text"
+        content = (try? c.decode(String.self, forKey: .content)) ?? ""
+        fileUrl = (try? c.decode(String.self, forKey: .fileUrl)) ?? ""
+        senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
+        pinnedByName = (try? c.decode(String.self, forKey: .pinnedByName)) ?? ""
+    }
+}

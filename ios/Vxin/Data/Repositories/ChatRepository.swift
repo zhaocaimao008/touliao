@@ -22,6 +22,7 @@ final class ChatRepository {
     var messageDeletedPublisher: AnyPublisher<String, Never> { socket.messageDeleted.eraseToAnyPublisher() }
     var reactionPublisher: AnyPublisher<(String, [MessageReaction]), Never> { socket.reaction.eraseToAnyPublisher() }
     var redPacketClaimedPublisher: AnyPublisher<(String, String, Int), Never> { socket.redPacketClaimed.eraseToAnyPublisher() }
+    var pinChangedPublisher: AnyPublisher<String, Never> { socket.pinChanged.eraseToAnyPublisher() }
 
     func joinConversation(_ id: String) { socket.joinConversation(id) }
     func emitTyping(_ id: String) { socket.emitTyping(id) }
@@ -69,9 +70,27 @@ final class ChatRepository {
             body: MarkReadBody(messageId: messageId)
         )
     }
+
+    // ── 群置顶消息 ──
+    func pinMessage(conversationId: String, msgId: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/pin-message", method: "POST", body: PinMessageBody(msgId: msgId)
+        )
+    }
+
+    func unpinMessage(conversationId: String, msgId: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/pin-message/\(msgId)", method: "DELETE"
+        )
+    }
+
+    func pinnedMessages(conversationId: String) async throws -> [PinnedMessage] {
+        try await api.send("api/messages/conversation/\(conversationId)/pinned-messages")
+    }
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }
+private struct PinMessageBody: Encodable { let msgId: String }
 private struct DeleteMessageBody: Encodable { let forEveryone: Bool }
 private struct ReactBody: Encodable { let emoji: String }
 private struct ReactResponse: Decodable { let reactions: [MessageReaction] }

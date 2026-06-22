@@ -58,3 +58,17 @@ data class ReactBody(val emoji: String)
 
 @Serializable
 data class ReactResponse(val reactions: List<MessageReaction> = emptyList())
+
+@Serializable
+data class PinMessageBody(val msgId: String)
+
+/** 群置顶消息（GET .../pinned-messages） */
+@Serializable
+data class PinnedMessage(
+    val msgId: String = "",
+    val type: String = "text",
+    val content: String = "",
+    val file_url: String = "",
+    val senderName: String = "",
+    val pinnedByName: String = "",
+)
