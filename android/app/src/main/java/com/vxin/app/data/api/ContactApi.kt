@@ -31,6 +31,9 @@ interface ContactApi {
     @GET("api/users/friend-requests")
     suspend fun receivedRequests(): List<FriendRequest>
 
+    @GET("api/users/friend-requests/sent")
+    suspend fun sentRequests(): List<com.vxin.app.data.model.SentRequest>
+
     /** action = accept | reject */
     @POST("api/users/friend-request/{id}/handle")
     suspend fun handleRequest(@Path("id") id: String, @Body body: HandleRequestBody)

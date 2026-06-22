@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 struct FriendRequestBody: Encodable { let toId: String; let message: String }
 struct HandleRequestBody: Encodable { let action: String }
@@ -7,6 +8,23 @@ struct CreatePrivateBody: Encodable { let userId: String }
 struct CreateGroupBody: Encodable { let name: String; let memberIds: [String] }
 struct CreateConversationResponse: Decodable { let conversationId: String; let groupNumber: String? }
 private struct RemarkBody: Encodable { let remark: String }
+
+struct SentRequest: Decodable, Identifiable {
+    let id: String
+    var status: String = ""
+    var message: String = ""
+    var username: String = ""
+    var avatar: String = ""
+    enum CodingKeys: String, CodingKey { case id, status, message, username, avatar }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        status = (try? c.decode(String.self, forKey: .status)) ?? ""
+        message = (try? c.decode(String.self, forKey: .message)) ?? ""
+        username = (try? c.decode(String.self, forKey: .username)) ?? ""
+        avatar = (try? c.decode(String.self, forKey: .avatar)) ?? ""
+    }
+}
 
 struct BlockedUser: Decodable, Identifiable {
     let id: String
@@ -44,6 +62,12 @@ final class ContactRepository {
     func receivedRequests() async throws -> [FriendRequest] {
         try await api.send("api/users/friend-requests")
     }
+
+    func sentRequests() async throws -> [SentRequest] {
+        try await api.send("api/users/friend-requests/sent")
+    }
+
+    var friendEventsPublisher: AnyPublisher<Void, Never> { SocketService.shared.friendEvents.eraseToAnyPublisher() }
 
     func handleRequest(id: String, accept: Bool) async throws {
         let _: EmptyResponse = try await api.send(

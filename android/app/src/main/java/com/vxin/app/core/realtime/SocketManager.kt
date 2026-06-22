@@ -104,6 +104,10 @@ class SocketManager @Inject constructor(
     private val _messageEdited = MutableSharedFlow<MessageEditedEvent>(extraBufferCapacity = 32)
     val messageEditedEvents: SharedFlow<MessageEditedEvent> = _messageEdited.asSharedFlow()
 
+    /** 好友申请相关（新申请 / 申请被通过）→ 提示刷新通讯录与申请列表 */
+    private val _friendEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
+    val friendEvents: SharedFlow<Unit> = _friendEvents.asSharedFlow()
+
     // ── 通话信令流 ──
     private val _callIncoming = MutableSharedFlow<CallIncomingEvent>(extraBufferCapacity = 16)
     val callIncomingEvents: SharedFlow<CallIncomingEvent> = _callIncoming.asSharedFlow()
@@ -188,6 +192,8 @@ class SocketManager @Inject constructor(
                 if (msgId.isNotEmpty()) _reaction.tryEmit(ReactionEvent(msgId, list))
             }
         }
+        s.on("new_friend_request") { _ -> _friendEvents.tryEmit(Unit) }
+        s.on("friend_request_accepted") { _ -> _friendEvents.tryEmit(Unit) }
         s.on("message_edited") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val msgId = o.optString("msgId")

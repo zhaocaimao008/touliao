@@ -58,6 +58,8 @@ final class SocketService {
     let groupChanged = PassthroughSubject<String, Never>()
     /// 消息被编辑 → (msgId, content, conversationId)
     let messageEdited = PassthroughSubject<(String, String, String), Never>()
+    /// 好友申请相关（新申请/被通过）→ 提示刷新
+    let friendEvents = PassthroughSubject<Void, Never>()
 
     // ── WebRTC 通话信令 ──
     let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String), Never>()
@@ -129,6 +131,8 @@ final class SocketService {
             let reactions = arr.map { MessageReaction(emoji: $0["emoji"] as? String ?? "", count: ($0["count"] as? NSNumber)?.intValue ?? 0) }
             self?.reaction.send((msgId, reactions))
         }
+        sock.on("new_friend_request") { [weak self] _, _ in self?.friendEvents.send(()) }
+        sock.on("friend_request_accepted") { [weak self] _, _ in self?.friendEvents.send(()) }
         sock.on("message_edited") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let msgId = d["msgId"] as? String, !msgId.isEmpty else { return }
             self?.messageEdited.send((msgId, d["content"] as? String ?? "", d["conversationId"] as? String ?? ""))

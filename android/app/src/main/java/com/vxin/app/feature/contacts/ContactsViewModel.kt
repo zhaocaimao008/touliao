@@ -34,7 +34,10 @@ class ContactsViewModel @Inject constructor(
     private val _openChat = MutableStateFlow<ConversationTarget?>(null)
     val openChat: StateFlow<ConversationTarget?> = _openChat.asStateFlow()
 
-    init { refresh() }
+    init {
+        refresh()
+        viewModelScope.launch { contactRepository.friendEvents.collect { refresh() } }
+    }
 
     fun refresh() {
         _uiState.update { it.copy(loading = true, error = null) }

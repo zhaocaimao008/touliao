@@ -17,7 +17,11 @@ import javax.inject.Singleton
 class ContactRepository @Inject constructor(
     private val contactApi: ContactApi,
     private val messageApi: MessageApi,
+    socketManager: com.vxin.app.core.realtime.SocketManager,
 ) {
+    /** 好友申请相关实时事件（新申请/被通过） */
+    val friendEvents = socketManager.friendEvents
+
     suspend fun contacts(): List<Contact> = contactApi.contacts()
 
     suspend fun search(q: String): List<SearchUser> = contactApi.search(q)
@@ -26,6 +30,8 @@ class ContactRepository @Inject constructor(
         contactApi.sendRequest(FriendRequestBody(toId, message))
 
     suspend fun receivedRequests(): List<FriendRequest> = contactApi.receivedRequests()
+
+    suspend fun sentRequests() = contactApi.sentRequests()
 
     suspend fun handleRequest(id: String, accept: Boolean) =
         contactApi.handleRequest(id, HandleRequestBody(if (accept) "accept" else "reject"))

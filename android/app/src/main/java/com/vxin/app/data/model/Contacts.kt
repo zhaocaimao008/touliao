@@ -42,6 +42,19 @@ data class FriendRequest(
 @Serializable
 data class FriendRequestBody(val toId: String, val message: String = "")
 
+/** 已发送的好友申请（GET friend-requests/sent） */
+@Serializable
+data class SentRequest(
+    val id: String,
+    val status: String = "",        // pending | accepted | rejected
+    val message: String = "",
+    val created_at: Long = 0,
+    val toId: String = "",
+    val username: String = "",
+    val avatar: String = "",
+    val wechat_id: String = "",
+)
+
 @Serializable
 data class RemarkBody(val remark: String)
 

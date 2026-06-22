@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vxin.app.core.network.toUserMessage
 import com.vxin.app.data.model.FriendRequest
+import com.vxin.app.data.model.SentRequest
 import com.vxin.app.data.repository.ContactRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +17,7 @@ import javax.inject.Inject
 data class FriendRequestsUiState(
     val loading: Boolean = false,
     val requests: List<FriendRequest> = emptyList(),
+    val sent: List<SentRequest> = emptyList(),
     val handling: Set<String> = emptySet(),
     val error: String? = null,
 )
@@ -28,7 +30,10 @@ class FriendRequestsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(FriendRequestsUiState(loading = true))
     val uiState: StateFlow<FriendRequestsUiState> = _uiState.asStateFlow()
 
-    init { refresh() }
+    init {
+        refresh()
+        viewModelScope.launch { contactRepository.friendEvents.collect { refresh() } }
+    }
 
     fun refresh() {
         _uiState.update { it.copy(loading = true, error = null) }
@@ -36,6 +41,8 @@ class FriendRequestsViewModel @Inject constructor(
             runCatching { contactRepository.receivedRequests() }
                 .onSuccess { list -> _uiState.update { it.copy(loading = false, requests = list) } }
                 .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载失败")) } }
+            runCatching { contactRepository.sentRequests() }
+                .onSuccess { list -> _uiState.update { it.copy(sent = list) } }
         }
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @MainActor
 final class ContactsViewModel: ObservableObject {
@@ -8,6 +9,13 @@ final class ContactsViewModel: ObservableObject {
     @Published var error: String?
 
     private let repo = ContactRepository.shared
+    private var cancellables = Set<AnyCancellable>()
+
+    init() {
+        repo.friendEventsPublisher
+            .sink { [weak self] in Task { @MainActor in await self?.refresh() } }
+            .store(in: &cancellables)
+    }
 
     func refresh() async {
         loading = true
