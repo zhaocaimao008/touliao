@@ -4,6 +4,7 @@ import Combine
 @MainActor
 final class ContactsViewModel: ObservableObject {
     @Published var contacts: [Contact] = []
+    @Published var onlineIds: Set<String> = []
     @Published var loading = false
     @Published var requestCount = 0
     @Published var error: String?
@@ -15,12 +16,22 @@ final class ContactsViewModel: ObservableObject {
         repo.friendEventsPublisher
             .sink { [weak self] in Task { @MainActor in await self?.refresh() } }
             .store(in: &cancellables)
+        repo.presencePublisher
+            .sink { [weak self] (userId, online) in
+                Task { @MainActor in
+                    if online { self?.onlineIds.insert(userId) } else { self?.onlineIds.remove(userId) }
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func refresh() async {
         loading = true
         error = nil
-        do { contacts = try await repo.contacts() }
+        do {
+            contacts = try await repo.contacts()
+            onlineIds = Set(contacts.filter { $0.status == "online" }.map { $0.id })
+        }
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载联系人失败" }
         loading = false
         requestCount = (try? await repo.receivedRequests().count) ?? requestCount

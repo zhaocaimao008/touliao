@@ -1,8 +1,10 @@
 package com.vxin.app.feature.contacts
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,6 +50,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vxin.app.data.model.Contact
 import com.vxin.app.ui.components.InitialAvatar
+import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -127,6 +131,7 @@ fun ContactsScreen(
                         items(state.contacts, key = { it.id }) { contact ->
                             ContactRow(
                                 contact,
+                                online = contact.id in state.onlineIds,
                                 onClick = { viewModel.startPrivateChat(contact) },
                                 onRemark = { remarkTarget = contact },
                                 onBlock = { blockTarget = contact },
@@ -174,6 +179,7 @@ fun ContactsScreen(
 @Composable
 private fun ContactRow(
     contact: Contact,
+    online: Boolean = false,
     onClick: () -> Unit,
     onRemark: () -> Unit = {},
     onBlock: () -> Unit = {},
@@ -187,7 +193,16 @@ private fun ContactRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 48.dp)
+        Box {
+            InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 48.dp)
+            if (online) {
+                Box(
+                    Modifier.align(Alignment.BottomEnd).size(12.dp)
+                        .clip(CircleShape).background(Color.White).padding(2.dp)
+                        .clip(CircleShape).background(VxinGreen),
+                )
+            }
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(contact.displayName.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)

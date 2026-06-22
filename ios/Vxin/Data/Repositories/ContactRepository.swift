@@ -68,6 +68,7 @@ final class ContactRepository {
     }
 
     var friendEventsPublisher: AnyPublisher<Void, Never> { SocketService.shared.friendEvents.eraseToAnyPublisher() }
+    var presencePublisher: AnyPublisher<(String, Bool), Never> { SocketService.shared.presence.eraseToAnyPublisher() }
 
     func handleRequest(id: String, accept: Bool) async throws {
         let _: EmptyResponse = try await api.send(

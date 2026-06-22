@@ -28,6 +28,7 @@ data class TypingEvent(val userId: String, val conversationId: String, val isTyp
 data class ReadEvent(val userId: String, val conversationId: String, val readAt: Long, val lastReadMessageId: String?)
 data class ReactionEvent(val msgId: String, val reactions: List<MessageReaction>)
 data class MessageEditedEvent(val msgId: String, val content: String, val conversationId: String)
+data class PresenceEvent(val userId: String, val online: Boolean)
 data class RedPacketClaimedEvent(val packetId: String, val userId: String, val username: String, val amount: Int)
 
 // ── WebRTC 通话信令 ──
@@ -107,6 +108,10 @@ class SocketManager @Inject constructor(
     /** 好友申请相关（新申请 / 申请被通过）→ 提示刷新通讯录与申请列表 */
     private val _friendEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
     val friendEvents: SharedFlow<Unit> = _friendEvents.asSharedFlow()
+
+    /** 联系人在线/离线 */
+    private val _presence = MutableSharedFlow<PresenceEvent>(extraBufferCapacity = 64)
+    val presenceEvents: SharedFlow<PresenceEvent> = _presence.asSharedFlow()
 
     // ── 通话信令流 ──
     private val _callIncoming = MutableSharedFlow<CallIncomingEvent>(extraBufferCapacity = 16)
@@ -194,6 +199,12 @@ class SocketManager @Inject constructor(
         }
         s.on("new_friend_request") { _ -> _friendEvents.tryEmit(Unit) }
         s.on("friend_request_accepted") { _ -> _friendEvents.tryEmit(Unit) }
+        s.on("user_online") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("userId")?.takeIf { it.isNotEmpty() }?.let { _presence.tryEmit(PresenceEvent(it, true)) }
+        }
+        s.on("user_offline") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("userId")?.takeIf { it.isNotEmpty() }?.let { _presence.tryEmit(PresenceEvent(it, false)) }
+        }
         s.on("message_edited") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val msgId = o.optString("msgId")

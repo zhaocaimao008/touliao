@@ -19,6 +19,7 @@ data class ConversationTarget(val conversationId: String, val title: String)
 data class ContactsUiState(
     val loading: Boolean = false,
     val contacts: List<Contact> = emptyList(),
+    val onlineIds: Set<String> = emptySet(),
     val requestCount: Int = 0,
     val error: String? = null,
 )
@@ -37,13 +38,20 @@ class ContactsViewModel @Inject constructor(
     init {
         refresh()
         viewModelScope.launch { contactRepository.friendEvents.collect { refresh() } }
+        viewModelScope.launch {
+            contactRepository.presenceEvents.collect { e ->
+                _uiState.update { s ->
+                    s.copy(onlineIds = if (e.online) s.onlineIds + e.userId else s.onlineIds - e.userId)
+                }
+            }
+        }
     }
 
     fun refresh() {
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             runCatching { contactRepository.contacts() }
-                .onSuccess { list -> _uiState.update { it.copy(loading = false, contacts = list) } }
+                .onSuccess { list -> _uiState.update { it.copy(loading = false, contacts = list, onlineIds = list.filter { c -> c.status == "online" }.map { c -> c.id }.toSet()) } }
                 .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载联系人失败")) } }
             runCatching { contactRepository.receivedRequests().size }
                 .onSuccess { n -> _uiState.update { it.copy(requestCount = n) } }

@@ -21,6 +21,8 @@ class ContactRepository @Inject constructor(
 ) {
     /** 好友申请相关实时事件（新申请/被通过） */
     val friendEvents = socketManager.friendEvents
+    /** 联系人在线/离线 */
+    val presenceEvents = socketManager.presenceEvents
 
     suspend fun contacts(): List<Contact> = contactApi.contacts()
 

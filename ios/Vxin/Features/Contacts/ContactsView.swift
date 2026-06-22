@@ -55,6 +55,12 @@ struct ContactsView: View {
                     Button { Task { if let conv = await vm.startPrivateChat(contact) { onStartChat(conv) } } } label: {
                         HStack(spacing: 12) {
                             InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 44)
+                                .overlay(alignment: .bottomTrailing) {
+                                    if vm.onlineIds.contains(contact.id) {
+                                        Circle().fill(.green).frame(width: 12, height: 12)
+                                            .overlay(Circle().stroke(.white, lineWidth: 2))
+                                    }
+                                }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.primary)
                                 if !contact.bio.isEmpty {
