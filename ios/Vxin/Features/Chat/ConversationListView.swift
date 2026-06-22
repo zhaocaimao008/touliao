@@ -3,6 +3,7 @@ import SwiftUI
 struct ConversationListView: View {
     @StateObject private var vm: ConversationListViewModel
     @State private var path = NavigationPath()
+    @State private var clearTarget: Conversation?
     private let myId: String
 
     init(myId: String) {
@@ -59,8 +60,20 @@ struct ConversationListView: View {
                 NavigationLink(value: conv) {
                     ConversationRow(conversation: conv)
                 }
+                .listRowBackground(conv.pinned == 1 ? Color.gray.opacity(0.08) : Color.clear)
+                .contextMenu {
+                    Button(conv.pinned == 1 ? "取消置顶" : "置顶") { vm.togglePin(conv) }
+                    Button(conv.muted == 1 ? "取消免打扰" : "消息免打扰") { vm.toggleMute(conv) }
+                    Button("清空聊天记录", role: .destructive) { clearTarget = conv }
+                }
             }
             .listStyle(.plain)
+            .alert("清空聊天记录", isPresented: .constant(clearTarget != nil)) {
+                Button("取消", role: .cancel) { clearTarget = nil }
+                Button("清空", role: .destructive) { if let c = clearTarget { vm.clearMessages(c) }; clearTarget = nil }
+            } message: {
+                Text("确认清空与「\(clearTarget?.name ?? "该会话")」的聊天记录？此操作不可恢复。")
+            }
         }
     }
 
@@ -93,7 +106,9 @@ private struct ConversationRow: View {
                 Text(formatChatTime(conversation.lastTime))
                     .font(.caption2)
                     .foregroundColor(.vxinTextSecondary)
-                if conversation.unreadCount > 0 {
+                if conversation.muted == 1 {
+                    Image(systemName: "bell.slash.fill").font(.caption2).foregroundColor(.vxinTextSecondary)
+                } else if conversation.unreadCount > 0 {
                     Text(conversation.unreadCount > 99 ? "99+" : "\(conversation.unreadCount)")
                         .font(.caption2)
                         .foregroundColor(.white)

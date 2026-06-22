@@ -87,10 +87,31 @@ final class ChatRepository {
     func pinnedMessages(conversationId: String) async throws -> [PinnedMessage] {
         try await api.send("api/messages/conversation/\(conversationId)/pinned-messages")
     }
+
+    // ── 会话操作 ──
+    func setConversationPinned(_ conversationId: String, pinned: Bool) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/pin", method: "POST", body: PinConvBody(pinned: pinned ? 1 : 0)
+        )
+    }
+
+    func setConversationMuted(_ conversationId: String, muted: Bool) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/mute", method: "POST", body: MuteConvBody(muted: muted ? 1 : 0)
+        )
+    }
+
+    func clearMessages(_ conversationId: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/messages", method: "DELETE"
+        )
+    }
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }
 private struct PinMessageBody: Encodable { let msgId: String }
+private struct PinConvBody: Encodable { let pinned: Int }
+private struct MuteConvBody: Encodable { let muted: Int }
 private struct DeleteMessageBody: Encodable { let forEveryone: Bool }
 private struct ReactBody: Encodable { let emoji: String }
 private struct ReactResponse: Decodable { let reactions: [MessageReaction] }

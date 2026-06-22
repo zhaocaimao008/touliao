@@ -77,4 +77,13 @@ class ChatRepository @Inject constructor(
         api.unpinMessage(conversationId, msgId)
 
     suspend fun pinnedMessages(conversationId: String) = api.pinnedMessages(conversationId)
+
+    // ── 会话操作 ──
+    suspend fun setConversationPinned(conversationId: String, pinned: Boolean) =
+        api.pinConversation(conversationId, com.vxin.app.data.model.PinConversationBody(if (pinned) 1 else 0))
+
+    suspend fun setConversationMuted(conversationId: String, muted: Boolean) =
+        api.muteConversation(conversationId, com.vxin.app.data.model.MuteConversationBody(if (muted) 1 else 0))
+
+    suspend fun clearMessages(conversationId: String) = api.clearMessages(conversationId)
 }

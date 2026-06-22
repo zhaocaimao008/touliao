@@ -48,6 +48,37 @@ final class ConversationListViewModel: ObservableObject {
         Task { await refresh() }
     }
 
+    // ── 会话操作：置顶/免打扰/清空 ──
+    func togglePin(_ conv: Conversation) {
+        let pinned = conv.pinned != 1
+        Task {
+            do { try await repo.setConversationPinned(conv.id, pinned: pinned); await refresh() }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "操作失败" }
+        }
+    }
+
+    func toggleMute(_ conv: Conversation) {
+        let muted = conv.muted != 1
+        Task {
+            do {
+                try await repo.setConversationMuted(conv.id, muted: muted)
+                if let idx = conversations.firstIndex(where: { $0.id == conv.id }) { conversations[idx].muted = muted ? 1 : 0 }
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "操作失败" }
+        }
+    }
+
+    func clearMessages(_ conv: Conversation) {
+        Task {
+            do {
+                try await repo.clearMessages(conv.id)
+                if let idx = conversations.firstIndex(where: { $0.id == conv.id }) {
+                    conversations[idx].lastMessage = nil
+                    conversations[idx].lastMessageType = nil
+                }
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "清空失败" }
+        }
+    }
+
     private func clearUnread(_ conversationId: String) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }),
               conversations[idx].unreadCount != 0 else { return }

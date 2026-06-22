@@ -71,6 +71,37 @@ class ConversationListViewModel @Inject constructor(
         }
     }
 
+    // ── 会话操作：置顶/免打扰/清空 ──
+    fun togglePin(conv: Conversation) {
+        val pinned = conv.pinned != 1
+        viewModelScope.launch {
+            runCatching { chatRepository.setConversationPinned(conv.id, pinned) }
+                .onSuccess { refresh() }   // 重拉以重新排序（置顶靠前）
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("操作失败")) } }
+        }
+    }
+
+    fun toggleMute(conv: Conversation) {
+        val muted = conv.muted != 1
+        viewModelScope.launch {
+            runCatching { chatRepository.setConversationMuted(conv.id, muted) }
+                .onSuccess {
+                    _uiState.update { s -> s.copy(conversations = s.conversations.map { if (it.id == conv.id) it.copy(muted = if (muted) 1 else 0) else it }) }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("操作失败")) } }
+        }
+    }
+
+    fun clearMessages(conv: Conversation) {
+        viewModelScope.launch {
+            runCatching { chatRepository.clearMessages(conv.id) }
+                .onSuccess {
+                    _uiState.update { s -> s.copy(conversations = s.conversations.map { if (it.id == conv.id) it.copy(lastMessage = null, lastMessageType = null) else it }) }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("清空失败")) } }
+        }
+    }
+
     fun refresh() {
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {

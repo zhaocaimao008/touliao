@@ -21,6 +21,12 @@ data class Conversation(
 @Serializable
 data class MarkReadRequest(val messageId: String? = null)
 
+@Serializable
+data class PinConversationBody(val pinned: Int)
+
+@Serializable
+data class MuteConversationBody(val muted: Int)
+
 /** 消息 —— REST history 与 Socket new_message 共用同一结构 */
 @Serializable
 data class Message(

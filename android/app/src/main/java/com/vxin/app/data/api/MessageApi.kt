@@ -67,6 +67,18 @@ interface MessageApi {
     @POST("api/messages/{msgId}/react")
     suspend fun react(@Path("msgId") msgId: String, @Body body: ReactBody): ReactResponse
 
+    /** 会话置顶（pinned: 1/0） */
+    @POST("api/messages/conversation/{convId}/pin")
+    suspend fun pinConversation(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.PinConversationBody)
+
+    /** 会话免打扰（muted: 1/0） */
+    @POST("api/messages/conversation/{convId}/mute")
+    suspend fun muteConversation(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.MuteConversationBody)
+
+    /** 清空聊天记录 */
+    @DELETE("api/messages/conversation/{convId}/messages")
+    suspend fun clearMessages(@Path("convId") convId: String)
+
     /** 置顶消息（群内，任意成员） */
     @POST("api/messages/conversation/{convId}/pin-message")
     suspend fun pinMessage(@Path("convId") convId: String, @Body body: PinMessageBody)
