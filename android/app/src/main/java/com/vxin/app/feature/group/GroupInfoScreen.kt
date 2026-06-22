@@ -1,5 +1,7 @@
 package com.vxin.app.feature.group
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,10 +40,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.vxin.app.data.model.GroupMember
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
@@ -57,8 +62,14 @@ fun GroupInfoScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showRename by remember { mutableStateOf(false) }
+    var showAnnouncement by remember { mutableStateOf(false) }
+    var showNickname by remember { mutableStateOf(false) }
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var kickTarget by remember { mutableStateOf<GroupMember?>(null) }
+
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.setAvatar(it) }
+    }
 
     LaunchedEffect(state.left) { if (state.left) onLeft() }
     // 邀请后返回刷新
@@ -82,6 +93,27 @@ fun GroupInfoScreen(
                 info == null -> Text(state.error ?: "加载失败", color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     item {
+                        // 群头像
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable(enabled = info.canManage) { avatarPicker.launch("image/*") }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("群头像", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                            Box(contentAlignment = Alignment.Center) {
+                                val url = viewModel.resolveUrl(info.avatar)
+                                if (info.avatar.isNotBlank()) {
+                                    AsyncImage(model = url, contentDescription = "群头像", modifier = Modifier.size(48.dp).clip(CircleShape))
+                                } else {
+                                    InitialAvatar(name = info.name.ifBlank { "群" }, size = 48.dp)
+                                }
+                                if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(20.dp))
+                            }
+                            if (info.canManage) { Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary) }
+                        }
+                        HorizontalDivider()
+                        // 群名称
                         Row(
                             modifier = Modifier.fillMaxWidth()
                                 .clickable(enabled = info.canManage) { showRename = true }
@@ -91,6 +123,34 @@ fun GroupInfoScreen(
                             Text("群名称", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             Text(info.name.ifBlank { "未命名群聊" }, color = VxinTextSecondary)
                             if (info.canManage) { Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary) }
+                        }
+                        HorizontalDivider()
+                        // 群公告
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable(enabled = info.canManage) { showAnnouncement = true }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Text("群公告", Modifier.width(72.dp), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                info.announcement.ifBlank { if (info.canManage) "点击设置群公告" else "暂无群公告" },
+                                Modifier.weight(1f).padding(start = 8.dp),
+                                color = VxinTextSecondary,
+                            )
+                            if (info.canManage) { Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary) }
+                        }
+                        HorizontalDivider()
+                        // 我的群昵称
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { showNickname = true }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("我的群昵称", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                            Text(info.myNickname(viewModel.myId).ifBlank { "未设置" }, color = VxinTextSecondary)
+                            Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary)
                         }
                         HorizontalDivider()
                         Text(
@@ -137,6 +197,28 @@ fun GroupInfoScreen(
 
     if (showRename && info != null) {
         RenameDialog(initial = info.name, busy = state.renaming, onConfirm = { viewModel.rename(it); showRename = false }, onDismiss = { showRename = false })
+    }
+    if (showAnnouncement && info != null) {
+        EditTextDialog(
+            title = "群公告",
+            initial = info.announcement,
+            busy = state.updating,
+            singleLine = false,
+            allowEmpty = true,
+            onConfirm = { viewModel.setAnnouncement(it); showAnnouncement = false },
+            onDismiss = { showAnnouncement = false },
+        )
+    }
+    if (showNickname && info != null) {
+        EditTextDialog(
+            title = "我的群昵称",
+            initial = info.myNickname(viewModel.myId),
+            busy = state.updating,
+            singleLine = true,
+            allowEmpty = true,
+            onConfirm = { viewModel.setNickname(it); showNickname = false },
+            onDismiss = { showNickname = false },
+        )
     }
     kickTarget?.let { target ->
         AlertDialog(
@@ -186,6 +268,35 @@ private fun RenameDialog(initial: String, busy: Boolean, onConfirm: (String) -> 
         title = { Text("修改群名称") },
         text = { OutlinedTextField(name, { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
         confirmButton = { TextButton(onClick = { onConfirm(name) }, enabled = !busy && name.isNotBlank()) { Text("确定") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun EditTextDialog(
+    title: String,
+    initial: String,
+    busy: Boolean,
+    singleLine: Boolean,
+    allowEmpty: Boolean,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                text, { text = it },
+                singleLine = singleLine,
+                minLines = if (singleLine) 1 else 3,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text) }, enabled = !busy && (allowEmpty || text.isNotBlank())) { Text("确定") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
 }

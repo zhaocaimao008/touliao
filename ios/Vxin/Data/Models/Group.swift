@@ -26,14 +26,16 @@ struct GroupInfo: Decodable {
     let id: String
     var name: String = ""
     var avatar: String = ""
+    var announcement: String = ""
     var ownerId: String = ""
     var myRole: String = "member"
     var members: [GroupMember] = []
 
     var canManage: Bool { myRole == "owner" || myRole == "admin" }
+    func myNickname(_ myId: String) -> String { members.first { $0.id == myId }?.nickname ?? "" }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, avatar, myRole, members
+        case id, name, avatar, announcement, myRole, members
         case ownerId = "owner_id"
     }
 
@@ -42,6 +44,7 @@ struct GroupInfo: Decodable {
         id = try c.decode(String.self, forKey: .id)
         name = (try? c.decode(String.self, forKey: .name)) ?? ""
         avatar = (try? c.decode(String.self, forKey: .avatar)) ?? ""
+        announcement = (try? c.decode(String.self, forKey: .announcement)) ?? ""
         ownerId = (try? c.decode(String.self, forKey: .ownerId)) ?? ""
         myRole = (try? c.decode(String.self, forKey: .myRole)) ?? "member"
         members = (try? c.decode([GroupMember].self, forKey: .members)) ?? []

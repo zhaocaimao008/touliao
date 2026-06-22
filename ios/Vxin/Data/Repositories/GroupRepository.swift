@@ -2,6 +2,9 @@ import Foundation
 
 struct RenameGroupBody: Encodable { let name: String }
 struct InviteBody: Encodable { let userIds: [String] }
+private struct AnnouncementBody: Encodable { let announcement: String }
+private struct NicknameBody: Encodable { let nickname: String }
+private struct GroupAvatarResponse: Decodable { let avatar: String }
 
 /// 群成员管理。与 Android GroupRepository 等价。
 final class GroupRepository {
@@ -18,6 +21,26 @@ final class GroupRepository {
         let _: EmptyResponse = try await api.send(
             "api/messages/conversation/\(conversationId)", method: "PUT", body: RenameGroupBody(name: name)
         )
+    }
+
+    func setAnnouncement(_ conversationId: String, announcement: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)", method: "PUT", body: AnnouncementBody(announcement: announcement)
+        )
+    }
+
+    func setNickname(_ conversationId: String, nickname: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/nickname", method: "PUT", body: NicknameBody(nickname: nickname)
+        )
+    }
+
+    func setAvatar(_ conversationId: String, data: Data, fileName: String) async throws -> String {
+        let res: GroupAvatarResponse = try await api.upload(
+            "api/messages/conversation/\(conversationId)/avatar", fileData: data, fileName: fileName,
+            mimeType: "image/jpeg", fieldName: "avatar", method: "PUT"
+        )
+        return res.avatar
     }
 
     func invite(_ conversationId: String, userIds: [String]) async throws {

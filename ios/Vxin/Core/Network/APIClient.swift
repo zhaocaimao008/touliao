@@ -78,9 +78,10 @@ final class APIClient {
         fileData: Data,
         fileName: String,
         mimeType: String,
-        fieldName: String = "file"
+        fieldName: String = "file",
+        method: String = "POST"
     ) async throws -> T {
-        var request = try makeRequest(path: path, method: "POST", authorized: true)
+        var request = try makeRequest(path: path, method: method, authorized: true)
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 

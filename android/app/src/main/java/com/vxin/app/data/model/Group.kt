@@ -19,15 +19,25 @@ data class GroupInfo(
     val id: String,
     val name: String = "",
     val avatar: String = "",
+    val announcement: String = "",
     val owner_id: String = "",
     val myRole: String = "member",
     val members: List<GroupMember> = emptyList(),
 ) {
     val canManage: Boolean get() = myRole == "owner" || myRole == "admin"
+    fun myNickname(myId: String): String = members.firstOrNull { it.id == myId }?.nickname.orEmpty()
 }
 
 @Serializable
 data class RenameGroupBody(val name: String)
+
+/** 更新群信息（群名 / 群公告，仅群主、管理员） */
+@Serializable
+data class UpdateGroupBody(val name: String? = null, val announcement: String? = null)
+
+/** 设置我的群昵称 */
+@Serializable
+data class NicknameBody(val nickname: String)
 
 @Serializable
 data class InviteBody(val userIds: List<String>)

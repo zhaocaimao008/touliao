@@ -3,7 +3,10 @@ package com.vxin.app.data.repository
 import com.vxin.app.data.api.GroupApi
 import com.vxin.app.data.model.GroupInfo
 import com.vxin.app.data.model.InviteBody
+import com.vxin.app.data.model.NicknameBody
 import com.vxin.app.data.model.RenameGroupBody
+import com.vxin.app.data.model.UpdateGroupBody
+import okhttp3.MultipartBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -15,6 +18,15 @@ class GroupRepository @Inject constructor(
 
     suspend fun rename(conversationId: String, name: String) =
         groupApi.rename(conversationId, RenameGroupBody(name))
+
+    suspend fun setAnnouncement(conversationId: String, announcement: String) =
+        groupApi.updateInfo(conversationId, UpdateGroupBody(announcement = announcement))
+
+    suspend fun setAvatar(conversationId: String, part: MultipartBody.Part): String =
+        groupApi.setAvatar(conversationId, part).avatar
+
+    suspend fun setNickname(conversationId: String, nickname: String) =
+        groupApi.setNickname(conversationId, NicknameBody(nickname))
 
     suspend fun invite(conversationId: String, userIds: List<String>) =
         groupApi.invite(conversationId, InviteBody(userIds))
