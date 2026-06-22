@@ -114,6 +114,7 @@
       <button class="tab" data-tab="messages">消息监控</button>
       <button class="tab" data-tab="metrics">实时监控</button>
       <button class="tab" data-tab="groups">群组管理</button>
+      <button class="tab" data-tab="reports">举报</button>
       <button class="tab" data-tab="security">安全</button>
       <button class="tab" data-tab="settings">设置</button>
     </div>
@@ -148,6 +149,20 @@
       <div class="bar"><input class="search" id="gq" placeholder="搜索 群名 / 群号" /><span class="muted" id="gcount"></span></div>
       <table class="tbl"><thead><tr><th>群名</th><th>群号</th><th>群主</th><th>成员</th><th>消息</th><th>创建</th><th>操作</th></tr></thead><tbody id="gbody"></tbody></table>
       <div class="page" id="gpage"></div>
+    </div>
+
+    <!-- 举报 -->
+    <div id="tab-reports" class="hidden">
+      <div class="bar">
+        <select class="search" id="rstatus" style="max-width:160px">
+          <option value="pending">待处理</option>
+          <option value="dismissed">已忽略</option>
+          <option value="reviewed">已处理</option>
+        </select>
+        <span class="muted" id="rcount"></span>
+      </div>
+      <table class="tbl"><thead><tr><th>动态内容</th><th>作者</th><th>举报人</th><th>理由</th><th>举报数</th><th>时间</th><th>操作</th></tr></thead><tbody id="rbody"></tbody></table>
+      <div class="page" id="rpage"></div>
     </div>
 
     <!-- 安全 -->
@@ -266,11 +281,12 @@ function clearMsgFilter(){mState.period='';mState.offset=0;updateMsgChip();loadM
 // ── tabs ──
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===name));
-  ['users','messages','metrics','groups','security','settings'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));
+  ['users','messages','metrics','groups','reports','security','settings'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));
   if(name==='users')loadUsers();
   if(name==='messages')loadMessages();
   if(name==='metrics')startMetrics();else stopMetrics();
   if(name==='groups')loadGroups();
+  if(name==='reports')loadReports();
   if(name==='security')loadSecurity();
   if(name==='settings'){loadInvite();loadFeatures();}
 }
@@ -371,6 +387,27 @@ async function loadGroups(){
 }
 async function viewGroup(id){try{const g=await api('/groups/'+id);const rows=g.members.map(m=>`<tr><td>${avatar(m)}${esc(m.username)}</td><td>${m.role==='owner'?'群主':m.role==='admin'?'管理员':'成员'}</td><td class="muted">${fmtDate(m.joined_at)}</td></tr>`).join('');showModal(`<h3>${esc(g.name||'(未命名)')} · ${g.members.length}人</h3><div class="muted" style="margin-bottom:14px">群号 ${esc(g.group_number)} · 公告：${esc(g.announcement||'无')}</div><table class="tbl"><thead><tr><th>成员</th><th>角色</th><th>加入</th></tr></thead><tbody>${rows}</tbody></table>`);}catch(e){toast(e.message,1);}}
 async function dismiss(id,name){if(!confirm(`⚠ 解散群「${name}」？\n将移除所有成员并删除该群，不可恢复！`))return;try{await api('/groups/'+id,{method:'DELETE'});toast('已解散');loadGroups();loadStats();}catch(e){toast(e.message,1);}}
+
+// ── 举报 ──
+const rState={status:'pending',offset:0,limit:30};
+$('rstatus')&&($('rstatus').onchange=e=>{rState.status=e.target.value;rState.offset=0;loadReports();});
+async function loadReports(){
+  try{
+    const r=await api(`/reports?status=${rState.status}&limit=${rState.limit}&offset=${rState.offset}`);
+    $('rcount').textContent=`共 ${r.total} 条`;
+    $('rbody').innerHTML=r.reports.map(x=>{
+      const imgs=(x.momentImages&&x.momentImages.length)?`<span class="muted">[图${x.momentImages.length}]</span> `:'';
+      const body=x.momentContent?esc(x.momentContent.slice(0,40)):((x.momentImages&&x.momentImages.length)?'':'<span class="muted">(动态已删)</span>');
+      const acts=x.status==='pending'
+        ?`<div class="acts"><button class="mini" onclick="dismissReport('${x.id}')">忽略</button><button class="mini danger" onclick="delReported('${x.id}')">删动态</button></div>`
+        :`<span class="muted">${x.status==='dismissed'?'已忽略':'已处理'}</span>`;
+      return `<tr><td>${imgs}${body}</td><td>${esc(x.authorName||'-')}</td><td>${esc(x.reporterName||'-')}</td><td>${esc(x.reason||'-')}</td><td>${x.reportCount}</td><td class="muted">${fmtDate(x.created_at)}</td><td>${acts}</td></tr>`;
+    }).join('')||`<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">无举报</td></tr>`;
+    renderPage('rpage',rState,r.total,loadReports);
+  }catch(e){toast(e.message,1);}
+}
+async function dismissReport(id){try{await api(`/reports/${id}/resolve`,{method:'POST',body:{action:'dismiss'}});toast('已忽略');loadReports();}catch(e){toast(e.message,1);}}
+async function delReported(id){if(!confirm('⚠ 删除这条被举报的动态？\n将连同其评论/点赞一并删除，不可恢复！'))return;try{await api(`/reports/${id}/resolve`,{method:'POST',body:{action:'delete'}});toast('动态已删除');loadReports();}catch(e){toast(e.message,1);}}
 
 // ── 安全 ──
 async function loadSecurity(){

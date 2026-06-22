@@ -431,4 +431,8 @@ router.post('/invite-code/generate', adminAuth, c.generateInviteCode);
 router.get('/features', adminAuth, c.getFeatures);
 router.put('/features', adminAuth, c.setFeatures);
 
+// ── 朋友圈举报队列（MO6）──────────────────────────────────────────
+router.get ('/reports',             adminAuth, c.listReports);
+router.post('/reports/:id/resolve', adminAuth, c.resolveReport);
+
 module.exports = router;

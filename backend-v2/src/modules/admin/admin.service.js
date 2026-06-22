@@ -240,9 +240,54 @@ function setFeatures({ moments, collect }) {
   return getFeatures();
 }
 
+// ── 朋友圈举报队列（MO6 后台）──────────────────────────────────
+function listReports({ status = 'pending', limit = 30, offset = 0 } = {}) {
+  const lim = Math.min(parseInt(limit) || 30, 100);
+  const off = Math.max(parseInt(offset) || 0, 0);
+  const st = ['pending', 'reviewed', 'dismissed'].includes(status) ? status : 'pending';
+  const total = db.prepare('SELECT COUNT(*) n FROM moment_reports WHERE status=?').get(st).n;
+  const rows = db.prepare(`
+    SELECT r.id, r.moment_id, r.reason, r.status, r.created_at,
+           ru.username AS reporterName,
+           m.content AS momentContent, m.images AS momentImages, m.user_id AS authorId,
+           au.username AS authorName,
+           (SELECT COUNT(*) FROM moment_reports x WHERE x.moment_id = r.moment_id) AS reportCount
+    FROM moment_reports r
+    LEFT JOIN users ru ON ru.id = r.reporter_id
+    LEFT JOIN moments m ON m.id = r.moment_id
+    LEFT JOIN users au ON au.id = m.user_id
+    WHERE r.status = ?
+    ORDER BY r.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(st, lim, off);
+  return {
+    total, limit: lim, offset: off,
+    reports: rows.map(r => ({ ...r, momentImages: JSON.parse(r.momentImages || '[]') })),
+  };
+}
+
+// 处理举报：dismiss=忽略(仅标记)；delete=删被举报动态(连带评论/点赞/通知/举报)
+function resolveReport(reportId, action) {
+  const r = db.prepare('SELECT * FROM moment_reports WHERE id=?').get(reportId);
+  if (!r) throw notFound('举报不存在');
+  if (action === 'delete') {
+    db.transaction(() => {
+      db.prepare('DELETE FROM moment_comments WHERE moment_id=?').run(r.moment_id);
+      db.prepare('DELETE FROM moment_likes WHERE moment_id=?').run(r.moment_id);
+      db.prepare('DELETE FROM moment_notifications WHERE moment_id=?').run(r.moment_id);
+      db.prepare('DELETE FROM moment_reports WHERE moment_id=?').run(r.moment_id);
+      db.prepare('DELETE FROM moments WHERE id=?').run(r.moment_id);
+    })();
+    return { success: true, action: 'deleted' };
+  }
+  db.prepare("UPDATE moment_reports SET status='dismissed' WHERE id=?").run(reportId);
+  return { success: true, action: 'dismissed' };
+}
+
 module.exports = {
   verifyCredentials, stats, listUsers, userDetail, setBanned, resetPassword,
   deleteUser, listMessages, listGroups, groupDetail, dismissGroup,
   getInviteCode, setInviteCode, generateInviteCode,
   getFeatures, setFeatures,
+  listReports, resolveReport,
 };
