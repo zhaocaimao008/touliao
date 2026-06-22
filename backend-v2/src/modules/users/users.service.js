@@ -1,6 +1,6 @@
 'use strict';
 const { db } = require('../../db/connection');
-const { notFound, badRequest, conflict } = require('../../utils/http');
+const { notFound, badRequest, conflict, paginated } = require('../../utils/http');
 const cache = require('../../utils/cache');
 const { v4: uuidv4 } = require('uuid');
 const { collectionDedupKey } = require('../../utils/collections');
@@ -177,6 +177,34 @@ function addCollection(userId, { type, content, extra }) {
   return { success: true, ...row, extra: JSON.parse(row.extra || '{}') };
 }
 
+// CO6：收藏搜索（按 content 模糊匹配，可选 type 过滤），返回 { items, total, hasMore }
+// 注：放在 getCollection 之前定义无所谓，路由层须保证 /search 在 /:id 之前注册
+function searchCollections(userId, { q, type, limit = 20, offset = 0 } = {}) {
+  const kw = (typeof q === 'string' ? q : '').trim();
+  const lim = Math.min(Math.max(parseInt(limit) || 20, 1), 50);
+  const off = Math.max(parseInt(offset) || 0, 0);
+  if (!kw) return paginated([], { total: 0, limit: lim, offset: off });
+
+  const conds = ['user_id=?', 'content LIKE ? ESCAPE \'\\\''];
+  const like = `%${kw.replace(/[\\%_]/g, c => '\\' + c)}%`; // 转义 LIKE 通配符
+  const params = [userId, like];
+  if (type && ['text', 'image', 'file', 'video'].includes(type)) { conds.push('type=?'); params.push(type); }
+  const where = conds.join(' AND ');
+
+  const total = db.prepare(`SELECT COUNT(*) AS n FROM collections WHERE ${where}`).get(...params).n;
+  const rows = db.prepare(`SELECT * FROM collections WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .all(...params, lim, off)
+    .map(i => ({ ...i, extra: JSON.parse(i.extra || '{}') }));
+  return paginated(rows, { total, limit: lim, offset: off });
+}
+
+// CO5：单条收藏详情（仅本人）
+function getCollection(userId, collectionId) {
+  const row = db.prepare('SELECT * FROM collections WHERE id=? AND user_id=?').get(collectionId, userId);
+  if (!row) throw notFound('收藏不存在');
+  return { ...row, extra: JSON.parse(row.extra || '{}') };
+}
+
 // 取消收藏（仅能删自己的，幂等：不存在则报 404）
 function removeCollection(userId, collectionId) {
   const r = db.prepare('DELETE FROM collections WHERE id=? AND user_id=?').run(collectionId, userId);
@@ -204,4 +232,5 @@ module.exports = {
   ensureSettings, serializeSettings, getSettings, updateSettings,
   qrPayload, search, updateProfile, setAvatar, setCover,
   getUserDetail, getCollections, addCollection, removeCollection, getCallLogs,
+  searchCollections, getCollection,
 };

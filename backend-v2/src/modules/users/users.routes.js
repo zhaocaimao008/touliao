@@ -410,9 +410,53 @@ router.get ('/:id', auth, u.getUserDetail);
  *       200:
  *         description: Item removed
  */
-router.get   ('/me/collections',     auth, u.getCollections);
-router.post  ('/me/collections',     auth, u.addCollection);
-router.delete('/me/collections/:id', auth, u.removeCollection);
+/**
+ * @swagger
+ * /users/me/collections/search:
+ *   get:
+ *     tags: [Users]
+ *     summary: 搜索收藏（按内容模糊匹配，分页）
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema: { type: string }
+ *       - in: query
+ *         name: type
+ *         schema: { type: string }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer }
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "{ items, total, hasMore }"
+ * /users/me/collections/{id}:
+ *   get:
+ *     tags: [Users]
+ *     summary: 单条收藏详情
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 收藏详情
+ *       404:
+ *         description: 收藏不存在
+ */
+router.get   ('/me/collections',        auth, u.getCollections);
+router.post  ('/me/collections',        auth, u.addCollection);
+// ⚠ /search 静态路径必须在 /:id 之前注册，否则 search 会被当作收藏 id
+router.get   ('/me/collections/search', auth, u.searchCollections);
+router.get   ('/me/collections/:id',    auth, u.getCollection);
+router.delete('/me/collections/:id',    auth, u.removeCollection);
 
 /**
  * @swagger

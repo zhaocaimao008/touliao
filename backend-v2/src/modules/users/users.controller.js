@@ -36,4 +36,6 @@ exports.getUserDetail  = asyncHandler(async (req, res) => res.json(await svc.get
 exports.getCollections    = asyncHandler(async (req, res) => res.json(svc.getCollections(req.user.id, req.query)));
 exports.addCollection     = asyncHandler(async (req, res) => res.json(svc.addCollection(req.user.id, req.body)));
 exports.removeCollection  = asyncHandler(async (req, res) => res.json(svc.removeCollection(req.user.id, req.params.id)));
+exports.searchCollections = asyncHandler(async (req, res) => res.json(svc.searchCollections(req.user.id, req.query)));
+exports.getCollection     = asyncHandler(async (req, res) => res.json(svc.getCollection(req.user.id, req.params.id)));
 exports.getCallLogs = asyncHandler(async (req, res) => res.json(svc.getCallLogs(req.user.id, req.query.limit)));
