@@ -339,6 +339,18 @@ function applySchema(db) {
       FOREIGN KEY (moment_id) REFERENCES moments(id) ON DELETE CASCADE
     )`,
     "CREATE INDEX IF NOT EXISTS idx_moment_notif_user ON moment_notifications(user_id, created_at DESC)",
+    // ── 朋友圈举报（MO6）：用户举报某条动态，落库供后台审核。动态删除时级联清理 ──
+    `CREATE TABLE IF NOT EXISTS moment_reports (
+      id          TEXT PRIMARY KEY,
+      moment_id   TEXT NOT NULL,
+      reporter_id TEXT NOT NULL,           -- 举报人
+      reason      TEXT DEFAULT '',         -- 举报理由（可选短文本）
+      status      TEXT DEFAULT 'pending',  -- 'pending' | 'reviewed' | 'dismissed'
+      created_at  INTEGER DEFAULT (strftime('%s','now')),
+      FOREIGN KEY (moment_id) REFERENCES moments(id) ON DELETE CASCADE,
+      UNIQUE(moment_id, reporter_id)       -- 同一人对同一动态只记一次
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_moment_reports_status ON moment_reports(status, created_at DESC)",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const config = require('../../config');
 const { pushToUser } = require('../../utils/push');
-const { badRequest, forbidden, notFound, paginated } = require('../../utils/http');
+const { badRequest, forbidden, notFound, conflict, paginated } = require('../../utils/http');
 
 // ── 互动通知（MO2）：actor≠author 才记。删动态由 FK ON DELETE CASCADE 清理 ──
 function addInteractNotification({ recipientId, actorId, momentId, type, commentId = null }) {
@@ -29,9 +29,17 @@ function isFriend(viewerId, authorId) {
   return !!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, authorId);
 }
 
-// 可见性门控：本人可见全部；他人需好友且非 private
+// MO6：拉黑双向门控——任一方拉黑了对方，朋友圈互不可见
+function isBlockedBetween(a, b) {
+  return !!db.prepare(
+    'SELECT 1 FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?) LIMIT 1'
+  ).get(a, b, b, a);
+}
+
+// 可见性门控：本人可见全部；他人需好友、非 private、且双方无拉黑
 function assertVisible(viewerId, m) {
   if (m.user_id === viewerId) return;
+  if (isBlockedBetween(viewerId, m.user_id)) throw forbidden('无权查看该动态');
   if (m.visibility === 'private') throw forbidden('无权查看该动态');
   if (!isFriend(viewerId, m.user_id)) throw forbidden('无权查看该动态');
 }
@@ -84,14 +92,20 @@ function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
     SELECT m.* FROM moments m
     WHERE (m.user_id=? OR m.user_id IN (SELECT contact_id FROM contacts WHERE user_id=?))
       AND (m.visibility != 'private' OR m.user_id=?)
+      -- MO6：排除我拉黑的人 / 拉黑我的人的动态（本人动态不受影响）
+      AND (m.user_id=? OR m.user_id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE user_id=?
+        UNION SELECT user_id FROM blocked_users WHERE blocked_id=?
+      ))
     ORDER BY m.created_at DESC
     LIMIT ? OFFSET ?
-  `).all(viewerId, viewerId, viewerId, n, off);
+  `).all(viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, n, off);
   return rows.map(m => enrich(viewerId, m));
 }
 
 // ── 某用户的动态（好友或本人）──────────────────────────────────
 function userMoments(viewerId, targetId) {
+  if (targetId !== viewerId && isBlockedBetween(viewerId, targetId)) throw forbidden('无权查看该动态');
   if (targetId !== viewerId && !isFriend(viewerId, targetId)) throw forbidden('仅好友可见');
   const rows = db.prepare(`
     SELECT * FROM moments
@@ -221,6 +235,23 @@ function deleteComment(userId, commentId) {
   return { success: true };
 }
 
+// ── 举报动态（MO6）：落库供后台审核，不直接下架 ──────────────────
+function reportMoment(userId, momentId, { reason } = {}) {
+  const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
+  if (!m) throw notFound('动态不存在');
+  if (m.user_id === userId) throw badRequest('不能举报自己的动态');
+  assertVisible(userId, m); // 看不到的动态不能举报
+  const text = (typeof reason === 'string' ? reason : '').trim().slice(0, 200);
+  try {
+    db.prepare('INSERT INTO moment_reports (id,moment_id,reporter_id,reason) VALUES (?,?,?,?)')
+      .run(uuidv4(), momentId, userId, text);
+  } catch {
+    // UNIQUE(moment_id, reporter_id)：同一人重复举报同一条
+    throw conflict('已举报该动态', 'MOMENT_ALREADY_REPORTED');
+  }
+  return { success: true };
+}
+
 // ── 互动通知 feed（MO2）──────────────────────────────────────────
 function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
   const n = Math.min(Number(limit) || 20, 50);
@@ -267,5 +298,6 @@ function markNotificationsRead(userId) {
 module.exports = {
   createMoment, timeline, userMoments, getMoment, deleteMoment,
   toggleLike, addComment, deleteComment, listLikes, listComments,
+  reportMoment,
   listNotifications, unreadNotificationCount, markNotificationsRead,
 };

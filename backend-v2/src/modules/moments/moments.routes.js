@@ -284,4 +284,33 @@ router.post  ('/:id/comment',     auth, m.comment);
 router.get   ('/:id/likes',       auth, m.likes);
 router.get   ('/:id/comments',    auth, m.comments);
 
+/**
+ * @swagger
+ * /moments/{id}/report:
+ *   post:
+ *     tags: [Moments]
+ *     summary: 举报动态（落库供后台审核）
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 已举报
+ *       409:
+ *         description: 已举报过该动态
+ */
+router.post  ('/:id/report',      auth, m.report);
+
 module.exports = router;

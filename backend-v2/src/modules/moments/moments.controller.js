@@ -14,6 +14,7 @@ exports.comment       = asyncHandler(async (req, res) => res.json(svc.addComment
 exports.deleteComment = asyncHandler(async (req, res) => res.json(svc.deleteComment(req.user.id, req.params.commentId)));
 exports.likes         = asyncHandler(async (req, res) => res.json(svc.listLikes(req.user.id, req.params.id, req.query)));
 exports.comments      = asyncHandler(async (req, res) => res.json(svc.listComments(req.user.id, req.params.id, req.query)));
+exports.report        = asyncHandler(async (req, res) => res.json(svc.reportMoment(req.user.id, req.params.id, req.body)));
 
 // ── 互动通知 feed（MO2）──────────────────────────────────────────
 exports.notifications     = asyncHandler(async (req, res) => res.json(svc.listNotifications(req.user.id, req.query)));
