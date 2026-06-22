@@ -27,8 +27,8 @@ struct SearchView: View {
                             InitialAvatar(name: r.convName.isEmpty ? "?" : r.convName, size: 44)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(r.convName.isEmpty ? "会话" : r.convName).foregroundColor(.primary).lineLimit(1)
-                                Text(r.senderName.isEmpty ? r.content : "\(r.senderName): \(r.content)")
-                                    .font(.subheadline).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                Text(highlighted(prefix: r.senderName.isEmpty ? "" : "\(r.senderName): ", content: r.content, query: vm.query))
+                                    .font(.subheadline).lineLimit(1)
                             }
                             Spacer()
                         }
@@ -39,5 +39,24 @@ struct SearchView: View {
         }
         .navigationTitle("搜索")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 内容中匹配 query 的片段高亮为绿色加粗；发送者名前缀不高亮。
+    private func highlighted(prefix: String, content: String, query: String) -> AttributedString {
+        var attr = AttributedString(prefix)
+        attr.foregroundColor = .vxinTextSecondary
+        var body = AttributedString(content)
+        body.foregroundColor = .vxinTextSecondary
+        let q = query.trimmingCharacters(in: .whitespaces)
+        if !q.isEmpty {
+            var search = body.startIndex
+            while let range = body[search...].range(of: q, options: .caseInsensitive) {
+                body[range].foregroundColor = .vxinGreen
+                body[range].font = .subheadline.bold()
+                search = range.upperBound
+            }
+        }
+        attr.append(body)
+        return attr
     }
 }

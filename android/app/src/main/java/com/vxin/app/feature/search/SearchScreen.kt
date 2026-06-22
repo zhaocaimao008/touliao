@@ -27,7 +27,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
+import com.vxin.app.ui.theme.VxinGreen
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -91,11 +97,36 @@ private fun ResultRow(r: SearchResult, query: String, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(r.convName.ifBlank { "会话" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val prefix = if (r.senderName.isNotBlank()) "${r.senderName}: " else ""
             Text(
-                buildString { if (r.senderName.isNotBlank()) append("${r.senderName}: "); append(r.content) },
+                highlightQuery(prefix + r.content, query, prefixLen = prefix.length),
                 color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
+        }
+    }
+}
+
+/** 高亮文本中所有匹配 query 的片段（大小写不敏感）。prefixLen 之前的发送者名不参与高亮匹配。 */
+private fun highlightQuery(text: String, query: String, prefixLen: Int = 0): AnnotatedString {
+    val q = query.trim()
+    if (q.isEmpty()) return AnnotatedString(text)
+    return buildAnnotatedString {
+        val lower = text.lowercase()
+        val lq = q.lowercase()
+        var i = 0
+        while (i < text.length) {
+            val idx = lower.indexOf(lq, i)
+            if (idx < 0) { append(text.substring(i)); break }
+            append(text.substring(i, idx))
+            if (idx < prefixLen) {           // 命中发送者名前缀，不高亮，继续向后找
+                append(text.substring(idx, idx + q.length))
+            } else {
+                withStyle(SpanStyle(color = VxinGreen, fontWeight = FontWeight.Bold)) {
+                    append(text.substring(idx, idx + q.length))
+                }
+            }
+            i = idx + q.length
         }
     }
 }

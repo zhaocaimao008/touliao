@@ -2,7 +2,13 @@ package com.vxin.app.feature.moments
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +24,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -55,7 +64,7 @@ import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material.ExperimentalMaterialApi::class)
 @Composable
 fun MomentsScreen(
     onBack: () -> Unit,
@@ -67,6 +76,7 @@ fun MomentsScreen(
     var commentingId by remember { mutableStateOf<String?>(null) }
     var commentText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<Moment?>(null) }
+    var gallery by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
 
     // 回到该页刷新（发布后）
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -83,7 +93,9 @@ fun MomentsScreen(
             )
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        val refreshing = state.loading && state.moments.isNotEmpty()
+        val pullState = rememberPullRefreshState(refreshing = refreshing, onRefresh = { viewModel.refresh() })
+        Box(Modifier.fillMaxSize().padding(padding).pullRefresh(pullState)) {
             when {
                 state.loading && state.moments.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.moments.isEmpty() -> Text("还没有朋友圈动态", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
@@ -100,6 +112,7 @@ fun MomentsScreen(
                             commentText = commentText,
                             onCommentTextChange = { commentText = it },
                             onSubmitComment = { viewModel.comment(m, commentText); commentingId = null; commentText = "" },
+                            onImageClick = { idx -> gallery = m.images to idx },
                         )
                         HorizontalDivider(thickness = 6.dp, color = Color(0x11000000))
                     }
@@ -111,6 +124,7 @@ fun MomentsScreen(
             state.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
             }
+            PullRefreshIndicator(refreshing, pullState, Modifier.align(Alignment.TopCenter))
         }
     }
 
@@ -122,6 +136,42 @@ fun MomentsScreen(
             confirmButton = { TextButton(onClick = { viewModel.delete(target); deleteTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } },
         )
+    }
+
+    gallery?.let { (imgs, start) ->
+        ImageGallery(images = imgs.map { viewModel.resolveUrl(it) ?: it }, startIndex = start, onDismiss = { gallery = null })
+    }
+}
+
+/** 全屏图片画廊：多图左右滑 + 双指缩放 */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ImageGallery(images: List<String>, startIndex: Int, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        val pagerState = rememberPagerState(initialPage = startIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0)), pageCount = { images.size })
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                var scale by remember { mutableStateOf(1f) }
+                Box(Modifier.fillMaxSize().clickable { onDismiss() }, contentAlignment = Alignment.Center) {
+                    AsyncImage(
+                        model = images[page],
+                        contentDescription = "图片",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                            .graphicsLayer(scaleX = scale, scaleY = scale)
+                            .pointerInput(Unit) { detectTransformGestures { _, _, zoom, _ -> scale = (scale * zoom).coerceIn(1f, 4f) } },
+                    )
+                }
+            }
+            Text(
+                "${pagerState.currentPage + 1}/${images.size}",
+                color = Color.White, fontSize = 13.sp,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp),
+            )
+        }
     }
 }
 
@@ -138,6 +188,7 @@ private fun MomentCard(
     commentText: String,
     onCommentTextChange: (String) -> Unit,
     onSubmitComment: () -> Unit,
+    onImageClick: (Int) -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxWidth()
@@ -157,7 +208,7 @@ private fun MomentCard(
         }
         if (moment.images.isNotEmpty()) {
             Spacer(Modifier.size(8.dp))
-            ImageGrid(moment.images, resolveUrl)
+            ImageGrid(moment.images, resolveUrl, onImageClick)
         }
         Spacer(Modifier.size(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -189,11 +240,12 @@ private fun MomentCard(
 }
 
 @Composable
-private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?) {
+private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?, onImageClick: (Int) -> Unit) {
     val cols = if (images.size == 1) 1 else 3
-    images.chunked(cols).forEach { rowImgs ->
+    images.chunked(cols).forEachIndexed { rowIdx, rowImgs ->
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            rowImgs.forEach { img ->
+            rowImgs.forEachIndexed { i, img ->
+                val index = rowIdx * cols + i
                 AsyncImage(
                     model = resolveUrl(img),
                     contentDescription = "图片",
@@ -201,7 +253,8 @@ private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?) {
                     modifier = Modifier
                         .weight(1f)
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(6.dp)),
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onImageClick(index) },
                 )
             }
             repeat(cols - rowImgs.size) { Spacer(Modifier.weight(1f)) }

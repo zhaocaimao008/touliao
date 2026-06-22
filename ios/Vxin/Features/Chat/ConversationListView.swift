@@ -68,6 +68,7 @@ struct ConversationListView: View {
                 }
             }
             .listStyle(.plain)
+            .refreshable { await vm.refresh() }
             .alert("清空聊天记录", isPresented: .constant(clearTarget != nil)) {
                 Button("取消", role: .cancel) { clearTarget = nil }
                 Button("清空", role: .destructive) { if let c = clearTarget { vm.clearMessages(c) }; clearTarget = nil }

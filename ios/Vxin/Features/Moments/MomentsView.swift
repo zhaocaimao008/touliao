@@ -86,6 +86,7 @@ struct MomentsView: View {
     @State private var commentText = ""
     @State private var deleteTarget: Moment?
     @State private var showCompose = false
+    @State private var gallery: GalleryData?
 
     init() {
         // myId 在 onAppear 用 session 不便于 init；用占位，body 内对比 author/userId
@@ -109,12 +110,14 @@ struct MomentsView: View {
                             onLike: { vm.toggleLike(m) },
                             onComment: { commentingId = (commentingId == m.id ? nil : m.id); commentText = "" },
                             onSubmitComment: { vm.comment(m, text: commentText); commentingId = nil; commentText = "" },
-                            onDelete: { deleteTarget = m }
+                            onDelete: { deleteTarget = m },
+                            onImageTap: { idx in gallery = GalleryData(images: m.images.map { MediaUrlResolver.resolve($0) ?? "" }, start: idx) }
                         )
                         .onAppear { if m.id == vm.moments.last?.id { vm.loadMore() } }
                     }
                 }
                 .listStyle(.plain)
+                .refreshable { await vm.refresh() }
             }
         }
         .navigationTitle("朋友圈")
@@ -126,6 +129,9 @@ struct MomentsView: View {
         }
         .sheet(isPresented: $showCompose) {
             MomentComposeView(onPublished: { showCompose = false; Task { await vm.refresh() } })
+        }
+        .fullScreenCover(item: $gallery) { g in
+            MomentGalleryView(images: g.images, start: g.start) { gallery = nil }
         }
         .task { vm.myId = session.currentUser?.id ?? ""; await vm.refresh() }
         .alert("删除动态", isPresented: .constant(deleteTarget != nil)) {
@@ -144,6 +150,7 @@ private struct MomentCard: View {
     var onComment: () -> Void
     var onSubmitComment: () -> Void
     var onDelete: () -> Void
+    var onImageTap: (Int) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -184,19 +191,60 @@ private struct MomentCard: View {
 
     @ViewBuilder private var imageGrid: some View {
         let cols = moment.images.count == 1 ? 1 : 3
-        let rows = stride(from: 0, to: moment.images.count, by: cols).map { Array(moment.images[$0..<min($0 + cols, moment.images.count)]) }
+        let rowStarts = Array(stride(from: 0, to: moment.images.count, by: cols))
         VStack(spacing: 4) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, rowImgs in
+            ForEach(rowStarts, id: \.self) { rowStart in
+                let end = min(rowStart + cols, moment.images.count)
                 HStack(spacing: 4) {
-                    ForEach(rowImgs, id: \.self) { img in
-                        KFImage(URL(string: MediaUrlResolver.resolve(img) ?? ""))
+                    ForEach(rowStart..<end, id: \.self) { i in
+                        KFImage(URL(string: MediaUrlResolver.resolve(moment.images[i]) ?? ""))
                             .resizable().scaledToFill()
                             .frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit)
                             .clipped().clipShape(RoundedRectangle(cornerRadius: 6))
+                            .onTapGesture { onImageTap(i) }
                     }
-                    ForEach(0..<(cols - rowImgs.count), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit) }
+                    ForEach(0..<(cols - (end - rowStart)), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit) }
                 }
             }
         }
+    }
+}
+
+struct GalleryData: Identifiable {
+    let id = UUID()
+    let images: [String]
+    let start: Int
+}
+
+/// 朋友圈多图全屏查看：左右滑 + 双指缩放。
+private struct MomentGalleryView: View {
+    let images: [String]
+    let start: Int
+    var onClose: () -> Void
+    @State private var page = 0
+    @State private var scale: CGFloat = 1
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Color.black.ignoresSafeArea()
+            TabView(selection: $page) {
+                ForEach(Array(images.enumerated()), id: \.offset) { idx, url in
+                    KFImage(URL(string: url))
+                        .resizable().scaledToFit()
+                        .scaleEffect(idx == page ? scale : 1)
+                        .gesture(MagnificationGesture().onChanged { scale = max(1, min($0, 4)) }.onEnded { _ in if scale < 1 { scale = 1 } })
+                        .tag(idx)
+                        .onTapGesture { onClose() }
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .ignoresSafeArea()
+            HStack {
+                Button { onClose() } label: { Image(systemName: "xmark").foregroundColor(.white).padding() }
+                Spacer()
+                Text("\(page + 1)/\(images.count)").foregroundColor(.white).padding()
+            }
+        }
+        .onAppear { page = min(max(start, 0), max(images.count - 1, 0)) }
     }
 }

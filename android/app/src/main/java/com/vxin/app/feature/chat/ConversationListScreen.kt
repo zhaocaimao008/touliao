@@ -5,6 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,7 +56,7 @@ import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material.ExperimentalMaterialApi::class)
 @Composable
 fun ConversationListScreen(
     onOpenConversation: (Conversation) -> Unit,
@@ -99,7 +102,9 @@ fun ConversationListScreen(
             )
         },
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        val refreshing = state.loading && state.conversations.isNotEmpty()
+        val pullState = rememberPullRefreshState(refreshing = refreshing, onRefresh = { viewModel.refresh() })
+        Box(modifier = Modifier.fillMaxSize().padding(padding).pullRefresh(pullState)) {
             when {
                 state.loading && state.conversations.isEmpty() ->
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -127,6 +132,7 @@ fun ConversationListScreen(
                     }
                 }
             }
+            PullRefreshIndicator(refreshing, pullState, Modifier.align(Alignment.TopCenter))
         }
     }
 
