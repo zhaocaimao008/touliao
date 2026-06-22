@@ -58,6 +58,7 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 fun GroupInfoScreen(
     onBack: () -> Unit,
     onInvite: (String) -> Unit,   // conversationId
+    onOpenQr: (String) -> Unit = {},
     onLeft: () -> Unit,
     viewModel: GroupInfoViewModel = hiltViewModel(),
 ) {
@@ -151,6 +152,18 @@ fun GroupInfoScreen(
                         ) {
                             Text("我的群昵称", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             Text(info.myNickname(viewModel.myId).ifBlank { "未设置" }, color = VxinTextSecondary)
+                            Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary)
+                        }
+                        HorizontalDivider()
+                        // 群聊二维码
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { onOpenQr(viewModel.conversationId) }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("群聊二维码", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                            Text("邀请进群", color = VxinTextSecondary)
                             Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary)
                         }
                         HorizontalDivider()

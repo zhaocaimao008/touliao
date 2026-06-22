@@ -79,4 +79,12 @@ final class GroupRepository {
             "api/messages/conversation/\(conversationId)/leave", method: "POST"
         )
     }
+
+    func qrCode(_ conversationId: String) async throws -> GroupQr {
+        try await api.send("api/messages/conversation/\(conversationId)/qr-code")
+    }
+
+    func join(token: String) async throws -> JoinGroupResult {
+        try await api.send("api/messages/join/\(token)", method: "POST")
+    }
 }

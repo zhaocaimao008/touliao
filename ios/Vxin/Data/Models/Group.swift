@@ -1,5 +1,17 @@
 import Foundation
 
+struct GroupQr: Decodable {
+    var qrCode: String = ""   // data:image/png;base64,...
+    var url: String = ""
+    var token: String = ""
+}
+
+struct JoinGroupResult: Decodable {
+    var success: Bool = false
+    var conversationId: String = ""
+    var alreadyMember: Bool = false
+}
+
 struct GroupMember: Decodable, Identifiable, Hashable {
     let id: String
     var username: String = ""

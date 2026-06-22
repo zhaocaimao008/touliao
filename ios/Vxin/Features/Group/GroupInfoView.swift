@@ -96,6 +96,17 @@ struct GroupInfoView: View {
                                 Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary)
                             }
                         }
+
+                        // 群聊二维码
+                        NavigationLink {
+                            GroupQrView(conversationId: conversationId)
+                        } label: {
+                            HStack {
+                                Text("群聊二维码").foregroundColor(.primary)
+                                Spacer()
+                                Text("邀请进群").foregroundColor(.vxinTextSecondary)
+                            }
+                        }
                     }
 
                     Section("群成员 (\(info.members.count))") {

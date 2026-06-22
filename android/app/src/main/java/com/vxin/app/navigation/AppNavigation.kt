@@ -41,6 +41,7 @@ import com.vxin.app.feature.contacts.ContactsScreen
 import com.vxin.app.feature.contacts.CreateGroupScreen
 import com.vxin.app.feature.contacts.FriendRequestsScreen
 import com.vxin.app.feature.group.GroupInfoScreen
+import com.vxin.app.feature.group.GroupQrScreen
 import com.vxin.app.feature.group.InviteMembersScreen
 import com.vxin.app.feature.profile.MyQrCodeScreen
 import com.vxin.app.feature.profile.ProfileScreen
@@ -69,11 +70,13 @@ private object Routes {
     const val SEARCH = "search"
     const val ADD_ACCOUNT = "addAccount"
     const val GROUP_INFO = "groupInfo/{conversationId}"
+    const val GROUP_QR = "groupQr/{conversationId}"
     const val INVITE_MEMBERS = "inviteMembers/{conversationId}"
     const val CHAT = "chat/{conversationId}?title={title}&type={type}"
     fun chat(conversationId: String, title: String, type: String) =
         "chat/$conversationId?title=${Uri.encode(title)}&type=$type"
     fun groupInfo(conversationId: String) = "groupInfo/$conversationId"
+    fun groupQr(conversationId: String) = "groupQr/$conversationId"
     fun inviteMembers(conversationId: String) = "inviteMembers/$conversationId"
 }
 
@@ -215,8 +218,15 @@ private fun MainFlow() {
             GroupInfoScreen(
                 onBack = { navController.popBackStack() },
                 onInvite = { convId -> navController.navigate(Routes.inviteMembers(convId)) },
+                onOpenQr = { convId -> navController.navigate(Routes.groupQr(convId)) },
                 onLeft = { navController.popBackStack(Routes.CONVERSATIONS, inclusive = false) },
             )
+        }
+        composable(
+            route = Routes.GROUP_QR,
+            arguments = listOf(navArgument("conversationId") { type = NavType.StringType }),
+        ) {
+            GroupQrScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = Routes.INVITE_MEMBERS,

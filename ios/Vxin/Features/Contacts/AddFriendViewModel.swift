@@ -46,8 +46,13 @@ final class AddFriendViewModel: ObservableObject {
         }
     }
 
-    /// 扫码结果：解析 vxin 二维码并发起好友申请
+    /// 扫码结果：vxin 用户码 → 加好友；群邀请链接(/join/TOKEN) → 进群
     func addByQrPayload(_ raw: String, myId: String?) {
+        if let r = raw.range(of: "/join/") {
+            let rest = String(raw[r.upperBound...])
+            let token = rest.split(whereSeparator: { $0 == "?" || $0 == "/" }).first.map(String.init) ?? ""
+            if !token.isEmpty { joinGroup(token); return }
+        }
         guard let data = raw.data(using: .utf8),
               let payload = try? JSONDecoder().decode(QRPayload.self, from: data),
               payload.type == "vxin-user", !payload.id.isEmpty else {
@@ -65,6 +70,17 @@ final class AddFriendViewModel: ObservableObject {
                 message = (resp.autoAccepted == true) ? "已添加为好友" : "好友申请已发送"
             } catch {
                 message = (error as? LocalizedError)?.errorDescription ?? "添加失败"
+            }
+        }
+    }
+
+    private func joinGroup(_ token: String) {
+        Task {
+            do {
+                let r = try await GroupRepository.shared.join(token: token)
+                message = r.alreadyMember ? "你已在该群" : "已加入群聊"
+            } catch {
+                message = (error as? LocalizedError)?.errorDescription ?? "进群失败"
             }
         }
     }

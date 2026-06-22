@@ -2,7 +2,9 @@ package com.vxin.app.data.api
 
 import com.vxin.app.data.model.AvatarResponse
 import com.vxin.app.data.model.GroupInfo
+import com.vxin.app.data.model.GroupQr
 import com.vxin.app.data.model.InviteBody
+import com.vxin.app.data.model.JoinGroupResult
 import com.vxin.app.data.model.ManageBody
 import com.vxin.app.data.model.NicknameBody
 import com.vxin.app.data.model.RenameGroupBody
@@ -59,4 +61,12 @@ interface GroupApi {
     /** 退出群聊 */
     @POST("api/messages/conversation/{id}/leave")
     suspend fun leave(@Path("id") id: String)
+
+    /** 群二维码 + 邀请链接（任意成员） */
+    @GET("api/messages/conversation/{id}/qr-code")
+    suspend fun qrCode(@Path("id") id: String): GroupQr
+
+    /** 通过邀请 token 进群 */
+    @POST("api/messages/join/{token}")
+    suspend fun join(@Path("token") token: String): JoinGroupResult
 }

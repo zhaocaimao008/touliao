@@ -44,6 +44,22 @@ data class ManageBody(
 @Serializable
 data class SetRoleBody(val role: String)   // admin | member
 
+/** 群二维码 + 邀请链接（GET .../qr-code） */
+@Serializable
+data class GroupQr(
+    val qrCode: String = "",   // data:image/png;base64,...
+    val url: String = "",      // 邀请链接 appUrl/join/TOKEN
+    val token: String = "",
+)
+
+/** 通过 token 进群（POST /join/:token） */
+@Serializable
+data class JoinGroupResult(
+    val success: Boolean = false,
+    val conversationId: String = "",
+    val alreadyMember: Boolean = false,
+)
+
 @Serializable
 data class RenameGroupBody(val name: String)
 

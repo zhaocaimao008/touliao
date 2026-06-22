@@ -28,6 +28,7 @@ data class AddFriendUiState(
 @HiltViewModel
 class AddFriendViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
+    private val groupRepository: com.vxin.app.data.repository.GroupRepository,
     private val sessionManager: SessionManager,
 ) : ViewModel() {
 
@@ -36,8 +37,13 @@ class AddFriendViewModel @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** 扫码结果：解析 vxin 二维码并发起好友申请 */
+    /** 扫码结果：vxin 用户码 → 加好友；群邀请链接(/join/TOKEN) → 进群 */
     fun addByQrPayload(raw: String) {
+        // 群邀请链接
+        if (raw.contains("/join/")) {
+            val token = raw.substringAfterLast("/join/").substringBefore("?").substringBefore("/").trim()
+            if (token.isNotEmpty()) { joinGroup(token); return }
+        }
         val payload = runCatching { json.decodeFromString<QrPayload>(raw) }.getOrNull()
         if (payload == null || payload.type != "vxin-user" || payload.id.isBlank()) {
             _uiState.update { it.copy(message = "无法识别的二维码") }
@@ -58,6 +64,14 @@ class AddFriendViewModel @Inject constructor(
                     }
                 }
                 .onFailure { e -> _uiState.update { it.copy(message = e.toUserMessage("添加失败")) } }
+        }
+    }
+
+    private fun joinGroup(token: String) {
+        viewModelScope.launch {
+            runCatching { groupRepository.join(token) }
+                .onSuccess { r -> _uiState.update { it.copy(message = if (r.alreadyMember) "你已在该群" else "已加入群聊") } }
+                .onFailure { e -> _uiState.update { it.copy(message = e.toUserMessage("进群失败")) } }
         }
     }
 
