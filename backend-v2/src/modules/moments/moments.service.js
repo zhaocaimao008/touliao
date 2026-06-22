@@ -8,7 +8,22 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
+const config = require('../../config');
+const { pushToUser } = require('../../utils/push');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
+
+// ── 互动通知（MO2）：actor≠author 才记。删动态由 FK ON DELETE CASCADE 清理 ──
+function addInteractNotification({ recipientId, actorId, momentId, type, commentId = null }) {
+  if (recipientId === actorId) return;
+  db.prepare('INSERT INTO moment_notifications (id,user_id,actor_id,moment_id,type,comment_id) VALUES (?,?,?,?,?,?)')
+    .run(uuidv4(), recipientId, actorId, momentId, type, commentId);
+  if (!config.moments.pushOnInteract) return;
+  const actor = db.prepare('SELECT username FROM users WHERE id=?').get(actorId);
+  const name = actor?.username || '有人';
+  const body = type === 'like' ? `${name} 赞了你的朋友圈` : `${name} 评论了你的朋友圈`;
+  // 离线推送 best-effort，不阻塞、不抛错
+  pushToUser(recipientId, { title: '朋友圈', senderName: '朋友圈', body, type: 'moment', momentId }).catch(() => {});
+}
 
 function isFriend(viewerId, authorId) {
   return !!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, authorId);
@@ -121,10 +136,15 @@ function toggleLike(io, userId, momentId) {
   if (existing) {
     db.prepare('DELETE FROM moment_likes WHERE moment_id=? AND user_id=?').run(momentId, userId);
     liked = false;
+    // 取消赞：默认保留通知（历史记录）；配置开启时才删
+    if (config.moments.deleteNotifOnCancel) {
+      db.prepare("DELETE FROM moment_notifications WHERE moment_id=? AND actor_id=? AND type='like'").run(momentId, userId);
+    }
   } else {
     db.prepare('INSERT INTO moment_likes (moment_id,user_id) VALUES (?,?)').run(momentId, userId);
     liked = true;
     if (io && m.user_id !== userId) io.to(`user_${m.user_id}`).emit('moment_liked', { momentId, userId });
+    addInteractNotification({ recipientId: m.user_id, actorId: userId, momentId, type: 'like' });
   }
   const likeCount = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(momentId).n;
   return { liked, likeCount };
@@ -143,6 +163,7 @@ function addComment(io, userId, momentId, { content, replyToUser }) {
   db.prepare('INSERT INTO moment_comments (id,moment_id,user_id,content,reply_to_user) VALUES (?,?,?,?,?)')
     .run(id, momentId, userId, text, replyToUser || '');
   if (io && m.user_id !== userId) io.to(`user_${m.user_id}`).emit('moment_commented', { momentId, userId });
+  addInteractNotification({ recipientId: m.user_id, actorId: userId, momentId, type: 'comment', commentId: id });
   return db.prepare(
     'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.id=?'
   ).get(id);
@@ -155,10 +176,58 @@ function deleteComment(userId, commentId) {
   const m = db.prepare('SELECT user_id FROM moments WHERE id=?').get(c.moment_id);
   if (c.user_id !== userId && m?.user_id !== userId) throw forbidden('无权删除该评论');
   db.prepare('DELETE FROM moment_comments WHERE id=?').run(commentId);
+  // 默认保留对应通知（历史记录）；配置开启时才删
+  if (config.moments.deleteNotifOnCancel) {
+    db.prepare('DELETE FROM moment_notifications WHERE comment_id=?').run(commentId);
+  }
+  return { success: true };
+}
+
+// ── 互动通知 feed（MO2）──────────────────────────────────────────
+function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
+  const n = Math.min(Number(limit) || 20, 50);
+  const off = Math.max(Number(offset) || 0, 0);
+  const rows = db.prepare(`
+    SELECT mn.id, mn.type, mn.moment_id, mn.comment_id, mn.is_read, mn.created_at,
+           u.id AS actor_id, u.username AS actor_name, u.avatar AS actor_avatar,
+           m.content AS moment_content, m.images AS moment_images
+    FROM moment_notifications mn
+    JOIN users u ON u.id = mn.actor_id
+    LEFT JOIN moments m ON m.id = mn.moment_id
+    WHERE mn.user_id = ?
+    ORDER BY mn.created_at DESC, mn.rowid DESC
+    LIMIT ? OFFSET ?
+  `).all(userId, n, off);
+  return rows.map(r => {
+    const images = JSON.parse(r.moment_images || '[]');
+    const commentContent = r.comment_id
+      ? (db.prepare('SELECT content FROM moment_comments WHERE id=?').get(r.comment_id)?.content || '')
+      : '';
+    return {
+      id: r.id,
+      type: r.type,
+      momentId: r.moment_id,
+      commentId: r.comment_id,
+      read: !!r.is_read,
+      createdAt: r.created_at,
+      actor: { id: r.actor_id, username: r.actor_name, avatar: r.actor_avatar },
+      moment: { content: r.moment_content || '', thumb: images[0] || '' },
+      commentContent,
+    };
+  });
+}
+
+function unreadNotificationCount(userId) {
+  return db.prepare('SELECT COUNT(*) AS n FROM moment_notifications WHERE user_id=? AND is_read=0').get(userId).n;
+}
+
+function markNotificationsRead(userId) {
+  db.prepare('UPDATE moment_notifications SET is_read=1 WHERE user_id=? AND is_read=0').run(userId);
   return { success: true };
 }
 
 module.exports = {
   createMoment, timeline, userMoments, getMoment, deleteMoment,
   toggleLike, addComment, deleteComment,
+  listNotifications, unreadNotificationCount, markNotificationsRead,
 };

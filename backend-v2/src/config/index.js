@@ -83,6 +83,13 @@ const config = {
     privateKey: process.env.VAPID_PRIVATE_KEY,
     email:      process.env.VAPID_EMAIL || 'mailto:admin@vxin.app',
   },
+
+  moments: {
+    // 取消赞 / 删评论时是否同步删除互动通知。默认 false（保留历史，对标微信）
+    deleteNotifOnCancel: process.env.MOMENTS_DELETE_NOTIF_ON_CANCEL === 'true',
+    // like/comment 离线推送。默认 true（可置 'false' 关闭）
+    pushOnInteract: process.env.MOMENTS_PUSH_ON_INTERACT !== 'false',
+  },
 };
 
 if (!config.jwtSecret) {

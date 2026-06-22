@@ -13,6 +13,11 @@ exports.like          = asyncHandler(async (req, res) => res.json(svc.toggleLike
 exports.comment       = asyncHandler(async (req, res) => res.json(svc.addComment(io(req), req.user.id, req.params.id, req.body)));
 exports.deleteComment = asyncHandler(async (req, res) => res.json(svc.deleteComment(req.user.id, req.params.commentId)));
 
+// ── 互动通知 feed（MO2）──────────────────────────────────────────
+exports.notifications     = asyncHandler(async (req, res) => res.json(svc.listNotifications(req.user.id, req.query)));
+exports.notifUnreadCount  = asyncHandler(async (req, res) => res.json({ count: svc.unreadNotificationCount(req.user.id) }));
+exports.notifMarkRead     = asyncHandler(async (req, res) => res.json(svc.markNotificationsRead(req.user.id)));
+
 exports.uploadImages = asyncHandler(async (req, res) => {
   const files = req.files || [];
   if (!files.length) throw badRequest('请选择图片');

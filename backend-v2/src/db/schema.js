@@ -326,6 +326,19 @@ function applySchema(db) {
     "ALTER TABLE collections ADD COLUMN dedup_key TEXT DEFAULT NULL",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_collections_dedup ON collections(user_id, dedup_key) WHERE dedup_key IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_collections_user ON collections(user_id, created_at DESC)",
+    // ── 朋友圈互动通知（MO2）：谁赞了/评论了你的动态。动态删除时级联清理 ──
+    `CREATE TABLE IF NOT EXISTS moment_notifications (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL,           -- 接收者（动态作者）
+      actor_id   TEXT NOT NULL,           -- 触发者（点赞/评论的人）
+      moment_id  TEXT NOT NULL,
+      type       TEXT NOT NULL,           -- 'like' | 'comment'
+      comment_id TEXT DEFAULT NULL,
+      is_read    INTEGER DEFAULT 0,
+      created_at INTEGER DEFAULT (strftime('%s','now')),
+      FOREIGN KEY (moment_id) REFERENCES moments(id) ON DELETE CASCADE
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_moment_notif_user ON moment_notifications(user_id, created_at DESC)",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

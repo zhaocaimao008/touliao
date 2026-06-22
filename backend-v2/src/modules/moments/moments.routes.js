@@ -80,6 +80,48 @@ router.get   ('/user/:userId',    auth, m.userMoments);
 
 /**
  * @swagger
+ * /moments/notifications:
+ *   get:
+ *     tags: [Moments]
+ *     summary: 朋友圈互动通知列表（谁赞了/评论了你）
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer }
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 通知列表
+ * /moments/notifications/unread-count:
+ *   get:
+ *     tags: [Moments]
+ *     summary: 未读互动通知数
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "{ count }"
+ * /moments/notifications/read:
+ *   post:
+ *     tags: [Moments]
+ *     summary: 标记互动通知全部已读
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 已读
+ */
+// ⚠ 必须在 GET /:id 之前注册，否则 /notifications 会被 /:id 吞掉
+router.get   ('/notifications',              auth, m.notifications);
+router.get   ('/notifications/unread-count', auth, m.notifUnreadCount);
+router.post  ('/notifications/read',         auth, m.notifMarkRead);
+
+/**
+ * @swagger
  * /moments/comments/{commentId}:
  *   delete:
  *     tags:
