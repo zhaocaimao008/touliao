@@ -68,6 +68,10 @@ interface MessageApi {
     @POST("api/messages/{msgId}/react")
     suspend fun react(@Path("msgId") msgId: String, @Body body: ReactBody): ReactResponse
 
+    /** 收藏消息 */
+    @POST("api/messages/{msgId}/collect")
+    suspend fun collectMessage(@Path("msgId") msgId: String)
+
     /** 编辑消息（本人文本，2 分钟内） */
     @PUT("api/messages/{msgId}/edit")
     suspend fun editMessage(@Path("msgId") msgId: String, @Body body: com.vxin.app.data.model.EditMessageBody)

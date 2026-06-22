@@ -121,6 +121,10 @@ final class ChatRepository {
             "api/messages/forward", method: "POST", body: ForwardBody(msgId: msgId, conversationIds: conversationIds)
         )
     }
+
+    func collectMessage(_ msgId: String) async throws {
+        let _: EmptyResponse = try await api.send("api/messages/\(msgId)/collect", method: "POST")
+    }
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }

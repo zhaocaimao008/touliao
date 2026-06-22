@@ -226,6 +226,14 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun collectMessage(msg: Message) {
+        viewModelScope.launch {
+            runCatching { chatRepository.collectMessage(msg.id) }
+                .onSuccess { _uiState.update { it.copy(error = "已收藏") } }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("收藏失败")) } }
+        }
+    }
+
     fun collectSticker(fileUrl: String) {
         viewModelScope.launch {
             runCatching { stickerRepository.collect(fileUrl) }

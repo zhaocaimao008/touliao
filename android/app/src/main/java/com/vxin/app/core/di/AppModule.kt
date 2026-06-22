@@ -113,4 +113,9 @@ object AppModule {
     @Singleton
     fun provideRedPacketApi(retrofit: Retrofit): com.vxin.app.data.api.RedPacketApi =
         retrofit.create(com.vxin.app.data.api.RedPacketApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideFavoritesApi(retrofit: Retrofit): com.vxin.app.data.api.FavoritesApi =
+        retrofit.create(com.vxin.app.data.api.FavoritesApi::class.java)
 }

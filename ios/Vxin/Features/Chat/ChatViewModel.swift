@@ -127,6 +127,13 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    func collectMessage(_ msg: Message) {
+        Task {
+            do { try await repo.collectMessage(msg.id); error = "已收藏" }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "收藏失败" }
+        }
+    }
+
     func collectSticker(_ url: String) {
         Task {
             await StickerRepository.shared.collect(url: url)

@@ -46,6 +46,10 @@ struct ProfileView: View {
                 .disabled(saving || username.isEmpty)
             }
 
+            Section {
+                NavigationLink("收藏") { FavoritesView() }
+            }
+
             Section("设置") {
                 NavigationLink("设备管理") { Text("设备管理").navigationTitle("设备管理") }
                 NavigationLink("隐私与安全") { Text("隐私与安全").navigationTitle("隐私与安全") }

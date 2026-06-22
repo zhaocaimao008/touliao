@@ -95,4 +95,6 @@ class ChatRepository @Inject constructor(
 
     suspend fun forward(msgId: String, conversationIds: List<String>) =
         api.forward(com.vxin.app.data.model.ForwardBody(msgId, conversationIds))
+
+    suspend fun collectMessage(msgId: String) = api.collectMessage(msgId)
 }

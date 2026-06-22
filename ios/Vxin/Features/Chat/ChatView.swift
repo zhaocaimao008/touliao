@@ -323,6 +323,7 @@ private struct MessageBubble: View {
                         Button("回复") { vm.startReply(msg) }
                         if msg.type != "red_packet" {
                             Button("转发") { vm.loadForwardTargets(); vm.forwardTarget = msg }
+                            Button("收藏") { vm.collectMessage(msg) }
                         }
                         if vm.canEdit(msg) {
                             Button("编辑") { vm.editTarget = msg }

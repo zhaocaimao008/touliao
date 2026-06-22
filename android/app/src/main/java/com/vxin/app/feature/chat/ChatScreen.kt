@@ -235,6 +235,7 @@ fun ChatScreen(
                             canEdit = viewModel.canEdit(msg),
                             onEdit = { editTarget = msg },
                             onForward = { forwardTarget = msg; viewModel.loadForwardTargets() },
+                            onCollect = { viewModel.collectMessage(msg) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -377,6 +378,7 @@ private fun MessageBubble(
     canEdit: Boolean = false,
     onEdit: () -> Unit = {},
     onForward: () -> Unit = {},
+    onCollect: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -447,6 +449,9 @@ private fun MessageBubble(
                     }
                     if (canPin) {
                         DropdownMenuItem(text = { Text(if (isPinned) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
+                    }
+                    if (msg.type != "red_packet") {
+                        DropdownMenuItem(text = { Text("收藏") }, onClick = { onCollect(); menuOpen = false })
                     }
                     if (msg.type == "image") {
                         DropdownMenuItem(text = { Text("收藏表情") }, onClick = { onCollectSticker(); menuOpen = false })
