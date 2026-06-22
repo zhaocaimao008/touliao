@@ -22,6 +22,7 @@ final class ChatViewModel: ObservableObject {
     @Published var peerReadAt: Double = 0      // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     @Published var replyingTo: Message?        // 正在回复的消息
     @Published var stickers: [Sticker] = []
+    @Published var groupMembers: [GroupMember] = []
     @Published var pinnedMessages: [PinnedMessage] = []
     @Published var loadingEarlier = false
     @Published var reachedStart = false
@@ -95,7 +96,21 @@ final class ChatViewModel: ObservableObject {
 
         repo.joinConversation(conversationId)
         Task { await loadHistory() }
-        if isGroup { Task { await loadPinned() } }
+        if isGroup {
+            Task { await loadPinned() }
+            Task { await loadGroupMembers() }
+        }
+    }
+
+    // MARK: - @提及
+    func loadGroupMembers() async {
+        if let info = try? await GroupRepository.shared.info(conversationId) {
+            groupMembers = info.members.filter { $0.id != myId }
+        }
+    }
+
+    func appendMention(_ member: GroupMember) {
+        input += "@\(member.username) "
     }
 
     // MARK: - 群置顶消息

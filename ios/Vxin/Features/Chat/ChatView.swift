@@ -15,6 +15,7 @@ struct ChatView: View {
     @State private var showPinnedList = false
     @State private var editText = ""
     @State private var forwardSelected = Set<String>()
+    @State private var showMentionPicker = false
     private let isGroup: Bool
     private let onOpenGroupInfo: () -> Void
 
@@ -101,6 +102,20 @@ struct ChatView: View {
         .onChange(of: vm.editTarget?.id) { _ in editText = vm.editTarget?.content ?? "" }
         .fullScreenCover(isPresented: Binding(get: { vm.galleryImages != nil }, set: { if !$0 { vm.galleryImages = nil } })) {
             if let imgs = vm.galleryImages { ChatImageGalleryView(images: imgs, start: vm.galleryStart) { vm.galleryImages = nil } }
+        }
+        .sheet(isPresented: $showMentionPicker) {
+            NavigationStack {
+                List(vm.groupMembers) { m in
+                    Button { vm.appendMention(m); showMentionPicker = false } label: {
+                        HStack(spacing: 12) {
+                            InitialAvatar(name: m.displayName.isEmpty ? "?" : m.displayName, size: 36)
+                            Text(m.displayName.isEmpty ? "未命名" : m.displayName).foregroundColor(.primary)
+                        }
+                    }
+                }
+                .navigationTitle("选择要 @ 的成员").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { showMentionPicker = false } } }
+            }
         }
         .sheet(isPresented: Binding(get: { vm.forwardTarget != nil }, set: { if !$0 { vm.forwardTarget = nil } })) {
             NavigationStack {
@@ -210,6 +225,9 @@ struct ChatView: View {
             }
             HStack(spacing: 6) {
                 Button { showStickerPanel.toggle(); if showStickerPanel { vm.loadStickers() } } label: { Text("😀").font(.title3) }
+                if vm.isGroup {
+                    Button { showMentionPicker = true } label: { Text("@").font(.title3) }
+                }
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Text("🖼").font(.title3)
                 }
@@ -403,8 +421,30 @@ private struct MessageBubble: View {
         case "red_packet":
             redPacketCard.onTapGesture { vm.openRedPacket(msg) }
         default:
-            card { Text(msg.content) }
+            card { Text(mentionHighlighted(msg.content, mine: isMine)) }
         }
+    }
+
+    /// 高亮 @用户名
+    private func mentionHighlighted(_ text: String, mine: Bool) -> AttributedString {
+        guard text.contains("@"), let re = try? NSRegularExpression(pattern: "@[^\\s@]+") else { return AttributedString(text) }
+        let color: Color = mine ? Color(red: 1, green: 0.94, blue: 0.66) : .vxinGreen
+        let ns = text as NSString
+        var result = AttributedString("")
+        var last = 0
+        re.enumerateMatches(in: text, range: NSRange(location: 0, length: ns.length)) { m, _, _ in
+            guard let m = m else { return }
+            if m.range.location > last {
+                result += AttributedString(ns.substring(with: NSRange(location: last, length: m.range.location - last)))
+            }
+            var token = AttributedString(ns.substring(with: m.range))
+            token.foregroundColor = color
+            token.font = .body.bold()
+            result += token
+            last = m.range.location + m.range.length
+        }
+        if last < ns.length { result += AttributedString(ns.substring(from: last)) }
+        return result
     }
 
     @ViewBuilder private var redPacketCard: some View {

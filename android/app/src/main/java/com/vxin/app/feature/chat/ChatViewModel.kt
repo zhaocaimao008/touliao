@@ -56,6 +56,7 @@ data class ChatUiState(
     val loadingEarlier: Boolean = false,
     val reachedStart: Boolean = false,   // 已加载到最早
     val stickers: List<com.vxin.app.data.model.Sticker> = emptyList(),
+    val groupMembers: List<com.vxin.app.data.model.GroupMember> = emptyList(),
     val pinnedMessages: List<com.vxin.app.data.model.PinnedMessage> = emptyList(),
     val forwardTargets: List<com.vxin.app.data.model.Conversation> = emptyList(),  // 转发可选会话
     // ── 红包 ──
@@ -71,6 +72,7 @@ class ChatViewModel @Inject constructor(
     private val stickerRepository: com.vxin.app.data.repository.StickerRepository,
     private val redPacketRepository: RedPacketRepository,
     private val callManager: com.vxin.app.core.call.CallManager,
+    private val groupRepository: com.vxin.app.data.repository.GroupRepository,
     private val mediaUploader: MediaUploader,
     private val audioRecorder: AudioRecorder,
     private val audioPlayer: AudioPlayer,
@@ -106,7 +108,20 @@ class ChatViewModel @Inject constructor(
             loadPinned()
             observePinChanged()
             observeGroupGone()
+            loadGroupMembers()
         }
+    }
+
+    // ── @提及 ──────────────────────────────────────────────
+    private fun loadGroupMembers() {
+        viewModelScope.launch {
+            runCatching { groupRepository.info(conversationId).members }
+                .onSuccess { list -> _uiState.update { it.copy(groupMembers = list.filterNot { m -> m.id == myId }) } }
+        }
+    }
+
+    fun appendMention(member: com.vxin.app.data.model.GroupMember) {
+        _uiState.update { it.copy(input = it.input + "@${member.username} ") }
     }
 
     private fun observeGroupGone() {

@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
 import kotlinx.coroutines.launch
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.clickable
@@ -93,6 +94,7 @@ fun ChatScreen(
     var galleryImages by remember { mutableStateOf<List<String>?>(null) }
     var galleryStart by remember { mutableStateOf(0) }
     var highlightedMsgId by remember { mutableStateOf<String?>(null) }
+    var showMentionPicker by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     // 通话发起：先申请权限再拨打
@@ -189,6 +191,8 @@ fun ChatScreen(
                     onPickFile = { filePicker.launch("*/*") },
                     onTogglePanel = { showPanel = !showPanel },
                     onRedPacket = { showRedPacketSend = true },
+                    showMention = viewModel.isGroup,
+                    onMention = { showMentionPicker = true },
                     onMicClick = {
                         if (state.recording) {
                             viewModel.stopRecordingAndSend()
@@ -373,6 +377,28 @@ fun ChatScreen(
 
     galleryImages?.let { imgs ->
         if (imgs.isNotEmpty()) ChatImageGallery(images = imgs, startIndex = galleryStart, onDismiss = { galleryImages = null })
+    }
+
+    if (showMentionPicker) {
+        AlertDialog(
+            onDismissRequest = { showMentionPicker = false },
+            title = { Text("选择要 @ 的成员") },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(state.groupMembers, key = { it.id }) { m ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { viewModel.appendMention(m); showMentionPicker = false }.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            InitialAvatar(name = m.displayName.ifBlank { "?" }, size = 32.dp)
+                            Spacer(Modifier.size(8.dp))
+                            Text(m.displayName.ifBlank { "未命名" })
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showMentionPicker = false }) { Text("取消") } },
+        )
     }
 }
 
@@ -651,7 +677,26 @@ private fun TextBubble(content: String, isMine: Boolean) {
             .background(if (isMine) VxinGreen else Color.White)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Text(content, color = bubbleTextColor(isMine))
+        Text(highlightMentions(content, isMine), color = bubbleTextColor(isMine))
+    }
+}
+
+private val MENTION_RE = Regex("@[^\\s@]+")
+
+/** 高亮文本中的 @用户名 */
+private fun highlightMentions(content: String, isMine: Boolean): androidx.compose.ui.text.AnnotatedString {
+    if (!content.contains('@')) return androidx.compose.ui.text.AnnotatedString(content)
+    val color = if (isMine) Color(0xFFFFF1A8) else VxinGreen
+    return androidx.compose.ui.text.buildAnnotatedString {
+        var last = 0
+        MENTION_RE.findAll(content).forEach { mr ->
+            append(content.substring(last, mr.range.first))
+            withStyle(androidx.compose.ui.text.SpanStyle(color = color, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)) {
+                append(mr.value)
+            }
+            last = mr.range.last + 1
+        }
+        if (last < content.length) append(content.substring(last))
     }
 }
 
@@ -690,6 +735,8 @@ private fun MessageInputBar(
     onMicClick: () -> Unit,
     onTogglePanel: () -> Unit,
     onRedPacket: () -> Unit,
+    showMention: Boolean = false,
+    onMention: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxWidth().imePadding()) {
         if (recording) {
@@ -704,6 +751,7 @@ private fun MessageInputBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onTogglePanel) { Text("😀", style = MaterialTheme.typography.titleMedium) }
+            if (showMention) IconButton(onClick = onMention) { Text("@", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onPickImage) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onPickFile) { Text("📎", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onRedPacket) { Text("🧧", style = MaterialTheme.typography.titleMedium) }
