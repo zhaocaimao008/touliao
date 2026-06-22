@@ -75,6 +75,17 @@ function debug(message, meta = {}) {
   logger.debug(message, meta);
 }
 
+// 敏感 query 字段脱敏（避免手机号/验证码/token 等明文落日志）
+const SENSITIVE_QUERY_KEYS = ['password', 'oldpassword', 'newpassword', 'token', 'secret', 'code', 'otp', 'totp', 'phone'];
+function redactQuery(query) {
+  if (!query || !Object.keys(query).length) return undefined;
+  const out = {};
+  for (const [k, v] of Object.entries(query)) {
+    out[k] = SENSITIVE_QUERY_KEYS.includes(k.toLowerCase()) ? '***' : v;
+  }
+  return out;
+}
+
 // API 请求日志中间件
 function requestLogger(req, res, next) {
   const start = Date.now();
@@ -85,9 +96,10 @@ function requestLogger(req, res, next) {
     const logLevel = res.statusCode >= 400 ? 'warn' : 'info';
 
     logger[logLevel]('HTTP Request', {
+      requestId: req.id,
       method: req.method,
       path: req.path,
-      query: Object.keys(req.query).length ? req.query : undefined,
+      query: redactQuery(req.query),
       status: res.statusCode,
       duration: `${duration}ms`,
       userId: req.user?.id,

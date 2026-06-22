@@ -30,8 +30,9 @@ function errorHandler(err, req, res, next) {
     return res.status(err.status).json({ error: err.message, error_code: code });
   }
   // 未预期错误 → 500：结构化记录堆栈到 winston（error.log + combined.log），不再走 console
-  logError('Unhandled error', err, { method: req.method, url: req.originalUrl, userId: req.user?.id, ip: req.ip });
-  res.status(500).json({ error: '服务器内部错误', error_code: 'INTERNAL_ERROR' });
+  logError('Unhandled error', err, { requestId: req.id, method: req.method, url: req.originalUrl, userId: req.user?.id, ip: req.ip });
+  // 响应附 request_id，便于用户报障时凭它定位日志
+  res.status(500).json({ error: '服务器内部错误', error_code: 'INTERNAL_ERROR', request_id: req.id });
 }
 
 module.exports = { notFoundHandler, errorHandler };

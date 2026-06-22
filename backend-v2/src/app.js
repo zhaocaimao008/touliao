@@ -11,6 +11,7 @@ const cookieParser = require('cookie-parser');
 const swaggerUi = require('swagger-ui-express');
 const config = require('./config');
 const csrfProtection = require('./middleware/csrf');
+const requestId = require('./middleware/requestId');
 const { notFoundHandler, errorHandler } = require('./middleware/error');
 const { requestLogger, warn } = require('./utils/logger');
 const { metricsMiddleware, metrics } = require('./utils/monitoring');
@@ -50,7 +51,8 @@ app.use(cors({
   credentials: true,
 }));
 
-// 日志和监控中间件
+// 请求 ID（贯穿日志/错误响应）→ 日志和监控中间件
+app.use(requestId);
 app.use(requestLogger);
 app.use(metricsMiddleware);
 
