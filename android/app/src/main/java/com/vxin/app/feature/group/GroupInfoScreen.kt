@@ -29,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -175,9 +176,20 @@ fun GroupInfoScreen(
                         MemberRow(
                             member = member,
                             canKick = info.canManage && member.role != "owner",
+                            canSetRole = info.isOwner && member.role != "owner",
+                            onToggleRole = { viewModel.setRole(member, makeAdmin = member.role != "admin") },
                             onKick = { kickTarget = member },
                         )
                         HorizontalDivider(Modifier.padding(start = 72.dp), thickness = 0.5.dp)
+                    }
+                    if (info.canManage) {
+                        item {
+                            HorizontalDivider()
+                            Text("群管理", Modifier.padding(16.dp), color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                            ToggleRow("全员禁言", info.mute_all == 1, !state.updating) { viewModel.setManage(muteAll = it) }
+                            ToggleRow("禁止成员间私聊", info.no_private_chat == 1, !state.updating) { viewModel.setManage(noPrivateChat = it) }
+                            ToggleRow("禁止成员互加好友", info.no_add_friend == 1, !state.updating) { viewModel.setManage(noAddFriend = it) }
+                        }
                     }
                     item {
                         Spacer(Modifier.size(24.dp))
@@ -241,7 +253,13 @@ fun GroupInfoScreen(
 }
 
 @Composable
-private fun MemberRow(member: GroupMember, canKick: Boolean, onKick: () -> Unit) {
+private fun MemberRow(
+    member: GroupMember,
+    canKick: Boolean,
+    canSetRole: Boolean,
+    onToggleRole: () -> Unit,
+    onKick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -254,9 +272,25 @@ private fun MemberRow(member: GroupMember, canKick: Boolean, onKick: () -> Unit)
                 Text(if (member.role == "owner") "群主" else "管理员", color = VxinGreen, style = MaterialTheme.typography.bodySmall)
             }
         }
+        if (canSetRole) {
+            TextButton(onClick = onToggleRole) {
+                Text(if (member.role == "admin") "取消管理" else "设管理", color = VxinGreen)
+            }
+        }
         if (canKick) {
             TextButton(onClick = onKick) { Text("移除", color = Color(0xFFFA5151)) }
         }
+    }
+}
+
+@Composable
+private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }
 

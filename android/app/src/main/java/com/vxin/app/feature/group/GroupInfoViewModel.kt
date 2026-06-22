@@ -114,6 +114,38 @@ class GroupInfoViewModel @Inject constructor(
         }
     }
 
+    fun setRole(member: GroupMember, makeAdmin: Boolean) {
+        val role = if (makeAdmin) "admin" else "member"
+        viewModelScope.launch {
+            runCatching { groupRepository.setRole(conversationId, member.id, role) }
+                .onSuccess {
+                    _uiState.update { s ->
+                        val members = s.info?.members?.map { if (it.id == member.id) it.copy(role = role) else it }.orEmpty()
+                        s.copy(info = s.info?.copy(members = members))
+                    }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("设置角色失败")) } }
+        }
+    }
+
+    fun setManage(muteAll: Boolean? = null, noPrivateChat: Boolean? = null, noAddFriend: Boolean? = null) {
+        if (_uiState.value.updating) return
+        _uiState.update { it.copy(updating = true, error = null) }
+        viewModelScope.launch {
+            runCatching { groupRepository.manage(conversationId, com.vxin.app.data.model.ManageBody(muteAll, noPrivateChat, noAddFriend)) }
+                .onSuccess {
+                    _uiState.update { s ->
+                        s.copy(updating = false, info = s.info?.copy(
+                            mute_all = muteAll?.let { if (it) 1 else 0 } ?: s.info.mute_all,
+                            no_private_chat = noPrivateChat?.let { if (it) 1 else 0 } ?: s.info.no_private_chat,
+                            no_add_friend = noAddFriend?.let { if (it) 1 else 0 } ?: s.info.no_add_friend,
+                        ))
+                    }
+                }
+                .onFailure { e -> _uiState.update { it.copy(updating = false, error = e.toUserMessage("设置失败")) } }
+        }
+    }
+
     fun kick(member: GroupMember) {
         viewModelScope.launch {
             runCatching { groupRepository.kick(conversationId, member.id) }

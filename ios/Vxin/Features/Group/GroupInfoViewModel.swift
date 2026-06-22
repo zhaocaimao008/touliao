@@ -69,6 +69,29 @@ final class GroupInfoViewModel: ObservableObject {
         }
     }
 
+    func setRole(_ member: GroupMember, makeAdmin: Bool) {
+        let role = makeAdmin ? "admin" : "member"
+        Task {
+            do {
+                try await repo.setRole(conversationId, userId: member.id, role: role)
+                if let idx = info?.members.firstIndex(where: { $0.id == member.id }) {
+                    info?.members[idx].role = role
+                }
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "设置角色失败" }
+        }
+    }
+
+    func setManage(muteAll: Bool? = nil, noPrivateChat: Bool? = nil, noAddFriend: Bool? = nil) {
+        Task {
+            do {
+                try await repo.manage(conversationId, muteAll: muteAll, noPrivateChat: noPrivateChat, noAddFriend: noAddFriend)
+                if let v = muteAll { info?.muteAll = v ? 1 : 0 }
+                if let v = noPrivateChat { info?.noPrivateChat = v ? 1 : 0 }
+                if let v = noAddFriend { info?.noAddFriend = v ? 1 : 0 }
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "设置失败" }
+        }
+    }
+
     func kick(_ member: GroupMember) {
         Task {
             do {

@@ -29,14 +29,21 @@ struct GroupInfo: Decodable {
     var announcement: String = ""
     var ownerId: String = ""
     var myRole: String = "member"
+    var muteAll: Int = 0
+    var noPrivateChat: Int = 0
+    var noAddFriend: Int = 0
     var members: [GroupMember] = []
 
     var canManage: Bool { myRole == "owner" || myRole == "admin" }
+    var isOwner: Bool { myRole == "owner" }
     func myNickname(_ myId: String) -> String { members.first { $0.id == myId }?.nickname ?? "" }
 
     enum CodingKeys: String, CodingKey {
         case id, name, avatar, announcement, myRole, members
         case ownerId = "owner_id"
+        case muteAll = "mute_all"
+        case noPrivateChat = "no_private_chat"
+        case noAddFriend = "no_add_friend"
     }
 
     init(from decoder: Decoder) throws {
@@ -47,6 +54,9 @@ struct GroupInfo: Decodable {
         announcement = (try? c.decode(String.self, forKey: .announcement)) ?? ""
         ownerId = (try? c.decode(String.self, forKey: .ownerId)) ?? ""
         myRole = (try? c.decode(String.self, forKey: .myRole)) ?? "member"
+        muteAll = (try? c.decode(Int.self, forKey: .muteAll)) ?? 0
+        noPrivateChat = (try? c.decode(Int.self, forKey: .noPrivateChat)) ?? 0
+        noAddFriend = (try? c.decode(Int.self, forKey: .noAddFriend)) ?? 0
         members = (try? c.decode([GroupMember].self, forKey: .members)) ?? []
     }
 }

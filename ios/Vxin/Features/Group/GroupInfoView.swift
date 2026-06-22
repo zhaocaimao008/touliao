@@ -116,11 +116,23 @@ struct GroupInfoView: View {
                                     }
                                 }
                                 Spacer()
+                                if info.isOwner && member.role != "owner" {
+                                    Button(member.role == "admin" ? "取消管理" : "设管理") { vm.setRole(member, makeAdmin: member.role != "admin") }
+                                        .buttonStyle(.borderless).font(.caption)
+                                }
                                 if info.canManage && member.role != "owner" {
                                     Button("移除", role: .destructive) { kickTarget = member }
                                         .buttonStyle(.borderless)
                                 }
                             }
+                        }
+                    }
+
+                    if info.canManage {
+                        Section("群管理") {
+                            Toggle("全员禁言", isOn: Binding(get: { vm.info?.muteAll == 1 }, set: { vm.setManage(muteAll: $0) }))
+                            Toggle("禁止成员间私聊", isOn: Binding(get: { vm.info?.noPrivateChat == 1 }, set: { vm.setManage(noPrivateChat: $0) }))
+                            Toggle("禁止成员互加好友", isOn: Binding(get: { vm.info?.noAddFriend == 1 }, set: { vm.setManage(noAddFriend: $0) }))
                         }
                     }
 

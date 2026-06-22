@@ -3,8 +3,10 @@ package com.vxin.app.data.api
 import com.vxin.app.data.model.AvatarResponse
 import com.vxin.app.data.model.GroupInfo
 import com.vxin.app.data.model.InviteBody
+import com.vxin.app.data.model.ManageBody
 import com.vxin.app.data.model.NicknameBody
 import com.vxin.app.data.model.RenameGroupBody
+import com.vxin.app.data.model.SetRoleBody
 import com.vxin.app.data.model.UpdateGroupBody
 import okhttp3.MultipartBody
 import retrofit2.http.Body
@@ -37,6 +39,14 @@ interface GroupApi {
     /** 设置我的群昵称（任意成员） */
     @PUT("api/messages/conversation/{id}/nickname")
     suspend fun setNickname(@Path("id") id: String, @Body body: NicknameBody)
+
+    /** 群管理设置：全员禁言 / 禁止私聊 / 禁止加好友（群主、管理员） */
+    @PUT("api/messages/conversation/{id}/manage")
+    suspend fun manage(@Path("id") id: String, @Body body: ManageBody)
+
+    /** 设置成员角色（仅群主） */
+    @PUT("api/messages/conversation/{id}/members/{uid}/role")
+    suspend fun setRole(@Path("id") id: String, @Path("uid") uid: String, @Body body: SetRoleBody)
 
     /** 邀请成员 */
     @POST("api/messages/conversation/{id}/invite")

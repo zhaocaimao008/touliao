@@ -22,11 +22,27 @@ data class GroupInfo(
     val announcement: String = "",
     val owner_id: String = "",
     val myRole: String = "member",
+    val mute_all: Int = 0,
+    val no_private_chat: Int = 0,
+    val no_add_friend: Int = 0,
     val members: List<GroupMember> = emptyList(),
 ) {
     val canManage: Boolean get() = myRole == "owner" || myRole == "admin"
+    val isOwner: Boolean get() = myRole == "owner"
     fun myNickname(myId: String): String = members.firstOrNull { it.id == myId }?.nickname.orEmpty()
 }
+
+/** 群管理设置（PUT .../manage，群主/管理员） */
+@Serializable
+data class ManageBody(
+    val mute_all: Boolean? = null,
+    val no_private_chat: Boolean? = null,
+    val no_add_friend: Boolean? = null,
+)
+
+/** 设置成员角色（PUT .../members/:uid/role，仅群主） */
+@Serializable
+data class SetRoleBody(val role: String)   // admin | member
 
 @Serializable
 data class RenameGroupBody(val name: String)
