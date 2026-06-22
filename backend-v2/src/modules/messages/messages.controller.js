@@ -37,8 +37,8 @@ exports.edit = asyncHandler(async (req, res) =>
   res.json({ success: true, content: await svc.edit(io(req), req.user.id, req.params.msgId, req.body.content) }));
 
 exports.collect = asyncHandler(async (req, res) => {
-  await svc.collect(req.user.id, req.params.msgId);
-  res.json({ success: true });
+  const row = await svc.collect(req.user.id, req.params.msgId);
+  res.json({ success: true, ...row });
 });
 
 exports.searchGlobal = asyncHandler(async (req, res) => res.json(await svc.searchGlobal(req.user.id, req.query)));

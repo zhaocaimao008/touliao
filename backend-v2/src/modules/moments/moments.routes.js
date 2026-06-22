@@ -102,6 +102,31 @@ router.delete('/comments/:commentId', auth, m.deleteComment);
 /**
  * @swagger
  * /moments/{id}:
+ *   get:
+ *     tags:
+ *       - Moments
+ *     summary: Get single moment detail
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Moment detail
+ *       403:
+ *         description: Not visible to viewer
+ *       404:
+ *         description: Moment not found
+ */
+router.get   ('/:id',             auth, m.detail);
+
+/**
+ * @swagger
+ * /moments/{id}:
  *   delete:
  *     tags:
  *       - Moments

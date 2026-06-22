@@ -144,12 +144,23 @@ async function getUserDetail(viewerId, targetId) {
 }
 
 // ── 收藏 ────────────────────────────────────────────────────────
-function getCollections(userId) {
-  return db.prepare('SELECT * FROM collections WHERE user_id=? ORDER BY created_at DESC').all(userId)
-    .map(i => ({ ...i, extra: JSON.parse(i.extra || '{}') }));
+// CO2：支持 type 过滤 + limit/offset 分页。无 limit 时维持「返回全部」（向后兼容，仍裸数组）
+function getCollections(userId, { type, limit, offset } = {}) {
+  const conds = ['user_id=?'];
+  const params = [userId];
+  if (type && ['text', 'image', 'file', 'video'].includes(type)) { conds.push('type=?'); params.push(type); }
+  let sql = `SELECT * FROM collections WHERE ${conds.join(' AND ')} ORDER BY created_at DESC`;
+  if (limit !== undefined) {
+    const lim = Math.min(Math.max(parseInt(limit) || 0, 1), 100);
+    const off = Math.max(parseInt(offset) || 0, 0);
+    sql += ' LIMIT ? OFFSET ?';
+    params.push(lim, off);
+  }
+  return db.prepare(sql).all(...params).map(i => ({ ...i, extra: JSON.parse(i.extra || '{}') }));
 }
 
 // 添加收藏（去重：同一 user + 类型 + 内容标识 不重复收藏，重复返回 409）
+// CO3：返回新建的收藏对象（保留 success 向后兼容）
 function addCollection(userId, { type, content, extra }) {
   const safeType    = ['text', 'image', 'file', 'video'].includes(type) ? type : 'text';
   const safeContent = (typeof content === 'string' ? content : JSON.stringify(content)).slice(0, 2000);
@@ -162,7 +173,8 @@ function addCollection(userId, { type, content, extra }) {
   const id = uuidv4();
   db.prepare('INSERT INTO collections (id,user_id,type,content,extra,dedup_key) VALUES (?,?,?,?,?,?)')
     .run(id, userId, safeType, safeContent, JSON.stringify(safeExtra), dedupKey);
-  return { success: true, id };
+  const row = db.prepare('SELECT * FROM collections WHERE id=?').get(id);
+  return { success: true, ...row, extra: JSON.parse(row.extra || '{}') };
 }
 
 // 取消收藏（仅能删自己的，幂等：不存在则报 404）

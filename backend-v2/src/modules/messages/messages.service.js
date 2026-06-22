@@ -319,9 +319,13 @@ async function collect(userId, msgId) {
   const existing = db.prepare('SELECT id FROM collections WHERE user_id=? AND dedup_key=?').get(userId, dedupKey);
   if (existing) throw conflict('已收藏', 'COLLECTION_DUPLICATE');
   // P0-1：worker 异步写
+  const id = uuidv4();
   await writeAsync('INSERT INTO collections (id,user_id,type,content,extra,dedup_key) VALUES (?,?,?,?,?,?)',
-    [uuidv4(), userId, msg.type, msg.content, JSON.stringify(extra), dedupKey]
+    [id, userId, msg.type, msg.content, JSON.stringify(extra), dedupKey]
   );
+  // CO3：回传新建的收藏对象
+  const row = db.prepare('SELECT * FROM collections WHERE id=?').get(id);
+  return row ? { ...row, extra: JSON.parse(row.extra || '{}') } : { id };
 }
 
 // ── 全局搜索（普通 LIKE 搜索 + 成员范围限定）──────────────────────

@@ -90,6 +90,14 @@ function userMoments(viewerId, targetId) {
   return rows.map(m => enrich(viewerId, m));
 }
 
+// ── 单条动态详情（本人或可见好友）──────────────────────────────
+function getMoment(viewerId, momentId) {
+  const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
+  if (!m) throw notFound('动态不存在');
+  assertVisible(viewerId, m);
+  return enrich(viewerId, m);
+}
+
 // ── 删除动态（仅作者，级联清理点赞/评论）──────────────────────
 function deleteMoment(userId, momentId) {
   const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
@@ -151,6 +159,6 @@ function deleteComment(userId, commentId) {
 }
 
 module.exports = {
-  createMoment, timeline, userMoments, deleteMoment,
+  createMoment, timeline, userMoments, getMoment, deleteMoment,
   toggleLike, addComment, deleteComment,
 };
