@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 private struct CreateMomentBody: Encodable { let content: String; let images: [String]; let visibility: String }
 private struct CommentBody: Encodable { let content: String }
@@ -8,6 +9,8 @@ final class MomentRepository {
     private init() {}
 
     private let api = APIClient.shared
+
+    var eventsPublisher: AnyPublisher<Void, Never> { SocketService.shared.moments.eraseToAnyPublisher() }
 
     func timeline(limit: Int = 20, offset: Int = 0) async throws -> [Moment] {
         try await api.send("api/moments?limit=\(limit)&offset=\(offset)")

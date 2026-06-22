@@ -12,7 +12,11 @@ import javax.inject.Singleton
 @Singleton
 class MomentRepository @Inject constructor(
     private val momentApi: MomentApi,
+    socketManager: com.vxin.app.core.realtime.SocketManager,
 ) {
+    /** 朋友圈实时事件（新动态/点赞/评论） */
+    val momentEvents = socketManager.momentEvents
+
     suspend fun timeline(limit: Int = 20, offset: Int = 0): List<Moment> = momentApi.timeline(limit, offset)
 
     suspend fun create(content: String, images: List<String>, visibility: String): Moment =

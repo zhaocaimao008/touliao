@@ -113,6 +113,10 @@ class SocketManager @Inject constructor(
     private val _presence = MutableSharedFlow<PresenceEvent>(extraBufferCapacity = 64)
     val presenceEvents: SharedFlow<PresenceEvent> = _presence.asSharedFlow()
 
+    /** 朋友圈相关（新动态/被点赞/被评论）→ 提示刷新 */
+    private val _momentEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
+    val momentEvents: SharedFlow<Unit> = _momentEvents.asSharedFlow()
+
     // ── 通话信令流 ──
     private val _callIncoming = MutableSharedFlow<CallIncomingEvent>(extraBufferCapacity = 16)
     val callIncomingEvents: SharedFlow<CallIncomingEvent> = _callIncoming.asSharedFlow()
@@ -199,6 +203,9 @@ class SocketManager @Inject constructor(
         }
         s.on("new_friend_request") { _ -> _friendEvents.tryEmit(Unit) }
         s.on("friend_request_accepted") { _ -> _friendEvents.tryEmit(Unit) }
+        s.on("new_moment") { _ -> _momentEvents.tryEmit(Unit) }
+        s.on("moment_liked") { _ -> _momentEvents.tryEmit(Unit) }
+        s.on("moment_commented") { _ -> _momentEvents.tryEmit(Unit) }
         s.on("user_online") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("userId")?.takeIf { it.isNotEmpty() }?.let { _presence.tryEmit(PresenceEvent(it, true)) }
         }

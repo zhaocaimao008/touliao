@@ -42,6 +42,7 @@ import com.vxin.app.feature.contacts.ContactsScreen
 import com.vxin.app.feature.contacts.CreateGroupScreen
 import com.vxin.app.feature.contacts.FriendRequestsScreen
 import com.vxin.app.feature.favorites.FavoritesScreen
+import com.vxin.app.feature.moments.MomentComposeScreen
 import com.vxin.app.feature.moments.MomentsScreen
 import com.vxin.app.feature.group.GroupInfoScreen
 import com.vxin.app.feature.group.GroupQrScreen
@@ -71,6 +72,7 @@ private object Routes {
     const val BLOCKED = "blocked"
     const val FAVORITES = "favorites"
     const val MOMENTS = "moments"
+    const val MOMENT_COMPOSE = "momentCompose"
     const val REQUESTS = "requests"
     const val CREATE_GROUP = "createGroup"
     const val SEARCH = "search"
@@ -185,7 +187,16 @@ private fun MainFlow() {
                 FavoritesScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.MOMENTS) {
-                MomentsScreen(onBack = { navController.popBackStack() })
+                MomentsScreen(
+                    onBack = { navController.popBackStack() },
+                    onCompose = { navController.navigate(Routes.MOMENT_COMPOSE) },
+                )
+            }
+            composable(Routes.MOMENT_COMPOSE) {
+                MomentComposeScreen(
+                    onBack = { navController.popBackStack() },
+                    onPublished = { navController.popBackStack() },
+                )
             }
             composable(Routes.ADD_ACCOUNT) {
                 LoginScreen(

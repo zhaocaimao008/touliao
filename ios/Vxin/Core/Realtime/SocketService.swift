@@ -62,6 +62,8 @@ final class SocketService {
     let friendEvents = PassthroughSubject<Void, Never>()
     /// 联系人在线/离线 → (userId, online)
     let presence = PassthroughSubject<(String, Bool), Never>()
+    /// 朋友圈相关（新动态/点赞/评论）→ 提示刷新
+    let moments = PassthroughSubject<Void, Never>()
 
     // ── WebRTC 通话信令 ──
     let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String), Never>()
@@ -135,6 +137,9 @@ final class SocketService {
         }
         sock.on("new_friend_request") { [weak self] _, _ in self?.friendEvents.send(()) }
         sock.on("friend_request_accepted") { [weak self] _, _ in self?.friendEvents.send(()) }
+        sock.on("new_moment") { [weak self] _, _ in self?.moments.send(()) }
+        sock.on("moment_liked") { [weak self] _, _ in self?.moments.send(()) }
+        sock.on("moment_commented") { [weak self] _, _ in self?.moments.send(()) }
         sock.on("user_online") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["userId"] as? String, !id.isEmpty { self?.presence.send((id, true)) }
         }

@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import Kingfisher
 
 @MainActor
@@ -10,9 +11,15 @@ final class MomentsViewModel: ObservableObject {
 
     private let repo = MomentRepository.shared
     private let page = 20
+    private var cancellables = Set<AnyCancellable>()
     var myId: String
 
-    init(myId: String) { self.myId = myId }
+    init(myId: String) {
+        self.myId = myId
+        repo.eventsPublisher
+            .sink { [weak self] in Task { @MainActor in await self?.refresh() } }
+            .store(in: &cancellables)
+    }
 
     func refresh() async {
         loading = true; error = nil
@@ -78,6 +85,7 @@ struct MomentsView: View {
     @State private var commentingId: String?
     @State private var commentText = ""
     @State private var deleteTarget: Moment?
+    @State private var showCompose = false
 
     init() {
         // myId 在 onAppear 用 session 不便于 init；用占位，body 内对比 author/userId
@@ -111,6 +119,14 @@ struct MomentsView: View {
         }
         .navigationTitle("朋友圈")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { showCompose = true } label: { Image(systemName: "camera") }
+            }
+        }
+        .sheet(isPresented: $showCompose) {
+            MomentComposeView(onPublished: { showCompose = false; Task { await vm.refresh() } })
+        }
         .task { vm.myId = session.currentUser?.id ?? ""; await vm.refresh() }
         .alert("删除动态", isPresented: .constant(deleteTarget != nil)) {
             Button("取消", role: .cancel) { deleteTarget = nil }

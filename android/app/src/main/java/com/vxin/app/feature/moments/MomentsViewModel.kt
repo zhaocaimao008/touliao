@@ -39,7 +39,10 @@ class MomentsViewModel @Inject constructor(
 
     fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
-    init { refresh() }
+    init {
+        refresh()
+        viewModelScope.launch { momentRepository.momentEvents.collect { refresh() } }
+    }
 
     fun refresh() {
         _uiState.update { it.copy(loading = true, error = null) }
