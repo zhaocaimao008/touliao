@@ -49,8 +49,6 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 @Composable
 fun ProfileScreen(
     onAddAccount: () -> Unit = {},
-    onOpenFavorites: () -> Unit = {},
-    onOpenMoments: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -144,10 +142,7 @@ fun ProfileScreen(
             HorizontalDivider()
             Spacer(Modifier.size(12.dp))
 
-            OutlinedButton(onClick = onOpenMoments, modifier = Modifier.fillMaxWidth()) { Text("朋友圈") }
-            Spacer(Modifier.size(12.dp))
-            OutlinedButton(onClick = onOpenFavorites, modifier = Modifier.fillMaxWidth()) { Text("收藏") }
-            Spacer(Modifier.size(12.dp))
+            // 朋友圈 / 收藏 已是底部 Tab，移除「我」页内重复入口（四端一致）
             OutlinedButton(onClick = { showPwdDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("修改密码") }
             Spacer(Modifier.size(12.dp))
             Button(

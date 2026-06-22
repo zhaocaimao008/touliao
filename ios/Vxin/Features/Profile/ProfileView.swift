@@ -46,10 +46,7 @@ struct ProfileView: View {
                 .disabled(saving || username.isEmpty)
             }
 
-            Section {
-                NavigationLink("朋友圈") { MomentsView() }
-                NavigationLink("收藏") { FavoritesView() }
-            }
+            // 朋友圈 / 收藏 已是底部 Tab，移除「我」页内重复入口（四端一致）
 
             Section("设置") {
                 NavigationLink("设备管理") { Text("设备管理").navigationTitle("设备管理") }

@@ -183,8 +183,6 @@ private fun MainFlow() {
             composable(Routes.PROFILE) {
                 ProfileScreen(
                     onAddAccount = { navController.navigate(Routes.ADD_ACCOUNT) },
-                    onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
-                    onOpenMoments = { navController.navigate(Routes.MOMENTS) },
                 )
             }
             composable(Routes.FAVORITES) {
