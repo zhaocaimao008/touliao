@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.clickable
@@ -89,7 +90,10 @@ fun ChatScreen(
     var showPinnedList by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Message?>(null) }
     var forwardTarget by remember { mutableStateOf<Message?>(null) }
-    var fullImageUrl by remember { mutableStateOf<String?>(null) }
+    var galleryImages by remember { mutableStateOf<List<String>?>(null) }
+    var galleryStart by remember { mutableStateOf(0) }
+    var highlightedMsgId by remember { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     // 通话发起：先申请权限再拨打
     var pendingCallVideo by remember { mutableStateOf<Boolean?>(null) }
@@ -253,7 +257,21 @@ fun ChatScreen(
                             onEdit = { editTarget = msg },
                             onForward = { forwardTarget = msg; viewModel.loadForwardTargets() },
                             onCollect = { viewModel.collectMessage(msg) },
-                            onImageClick = { url -> url?.let { fullImageUrl = it } },
+                            highlighted = highlightedMsgId == msg.id,
+                            onImageClick = {
+                                val imgs = state.messages.filter { it.type == "image" }
+                                galleryImages = imgs.mapNotNull { viewModel.resolveMediaUrl(it.file_url) }
+                                galleryStart = imgs.indexOfFirst { it.id == msg.id }.coerceAtLeast(0)
+                            },
+                            onReplyClick = { targetId ->
+                                val headerOffset = if (!state.reachedStart && state.messages.isNotEmpty()) 1 else 0
+                                val idx = state.messages.indexOfFirst { it.id == targetId }
+                                if (idx >= 0) {
+                                    scope.launch { listState.animateScrollToItem(idx + headerOffset) }
+                                    highlightedMsgId = targetId
+                                    scope.launch { kotlinx.coroutines.delay(1500); if (highlightedMsgId == targetId) highlightedMsgId = null }
+                                }
+                            },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -353,33 +371,39 @@ fun ChatScreen(
         )
     }
 
-    fullImageUrl?.let { url ->
-        FullScreenImage(url = url, onDismiss = { fullImageUrl = null })
+    galleryImages?.let { imgs ->
+        if (imgs.isNotEmpty()) ChatImageGallery(images = imgs, startIndex = galleryStart, onDismiss = { galleryImages = null })
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun FullScreenImage(url: String, onDismiss: () -> Unit) {
+private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: () -> Unit) {
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        var scale by remember { mutableStateOf(1f) }
-        Box(
-            Modifier.fillMaxSize().background(Color.Black).clickable { onDismiss() },
-            contentAlignment = Alignment.Center,
-        ) {
-            AsyncImage(
-                model = url,
-                contentDescription = "图片",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(scaleX = scale, scaleY = scale)
-                    .pointerInput(Unit) {
-                        detectTransformGestures { _, _, zoom, _ -> scale = (scale * zoom).coerceIn(1f, 4f) }
-                    },
-            )
+        val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+            initialPage = startIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0)), pageCount = { images.size },
+        )
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            androidx.compose.foundation.pager.HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                var scale by remember { mutableStateOf(1f) }
+                Box(Modifier.fillMaxSize().clickable { onDismiss() }, contentAlignment = Alignment.Center) {
+                    AsyncImage(
+                        model = images[page],
+                        contentDescription = "图片",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                            .graphicsLayer(scaleX = scale, scaleY = scale)
+                            .pointerInput(Unit) { detectTransformGestures { _, _, zoom, _ -> scale = (scale * zoom).coerceIn(1f, 4f) } },
+                    )
+                }
+            }
+            if (images.size > 1) {
+                Text("${pagerState.currentPage + 1}/${images.size}", color = Color.White, fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp))
+            }
         }
     }
 }
@@ -427,13 +451,16 @@ private fun MessageBubble(
     onEdit: () -> Unit = {},
     onForward: () -> Unit = {},
     onCollect: () -> Unit = {},
-    onImageClick: (String?) -> Unit = {},
+    onImageClick: () -> Unit = {},
+    highlighted: Boolean = false,
+    onReplyClick: (String) -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val highlightBg = if (highlighted) Color(0x3307C160) else Color.Transparent
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().background(highlightBg).padding(vertical = 2.dp),
         horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
     ) {
         if (!isMine) {
@@ -455,7 +482,9 @@ private fun MessageBubble(
             msg.replyTo?.let { rt ->
                 Box(
                     Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(6.dp))
-                        .background(Color(0x11000000)).padding(horizontal = 8.dp, vertical = 4.dp),
+                        .background(Color(0x11000000))
+                        .clickable { rt.id.takeIf { it.isNotBlank() }?.let(onReplyClick) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
                     Text(
                         "${rt.senderName}: ${replyPreviewText(rt)}",
@@ -474,6 +503,7 @@ private fun MessageBubble(
                 Box(Modifier.combinedClickable(onClick = {}, onLongClick = { menuOpen = true })) {
                     MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick)
                 }
+                // (highlight via Row background above)
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     // 表情回应行
                     Row(Modifier.padding(horizontal = 8.dp)) {
@@ -547,7 +577,7 @@ private fun MessageContent(
     resolveUrl: (String?) -> String?,
     onPlayVoice: () -> Unit,
     onOpenFile: () -> Unit,
-    onImageClick: (String?) -> Unit = {},
+    onImageClick: () -> Unit = {},
 ) {
     Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             when (msg.type) {
@@ -559,7 +589,7 @@ private fun MessageContent(
                         .widthIn(max = 220.dp)
                         .heightIn(max = 280.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .clickable { onImageClick(resolveUrl(msg.file_url)) },
+                        .clickable { onImageClick() },
                 )
                 "voice" -> MediaCard(isMine, onClick = onPlayVoice) { Text(if (isMine) "🎙 语音  ▶" else "▶  🎙 语音", color = bubbleTextColor(isMine)) }
                 "file" -> MediaCard(isMine, onClick = onOpenFile) {

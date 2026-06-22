@@ -25,7 +25,10 @@ final class ChatViewModel: ObservableObject {
     @Published var pinnedMessages: [PinnedMessage] = []
     @Published var loadingEarlier = false
     @Published var reachedStart = false
-    @Published var fullImageURL: String?
+    @Published var galleryImages: [String]?
+    @Published var galleryStart = 0
+    @Published var scrollTarget: String?
+    @Published var highlightedId: String?
     @Published var forwardTargets: [Conversation] = []
     @Published var editTarget: Message?
     @Published var forwardTarget: Message?
@@ -128,6 +131,21 @@ final class ChatViewModel: ObservableObject {
             do { let msg = try await StickerRepository.shared.send(conversationId: conversationId, stickerId: sticker.id); appendUnique(msg) }
             catch { self.error = (error as? LocalizedError)?.errorDescription ?? "发送失败" }
         }
+    }
+
+    /// 点击图片：打开本会话所有图片的画廊，定位到该张
+    func openImage(_ msg: Message) {
+        let imgs = messages.filter { $0.type == "image" }
+        galleryImages = imgs.map { MediaUrlResolver.resolve($0.fileUrl) ?? "" }
+        galleryStart = imgs.firstIndex { $0.id == msg.id } ?? 0
+    }
+
+    /// 点击引用条：滚动到原消息并高亮
+    func jumpTo(_ msgId: String) {
+        guard messages.contains(where: { $0.id == msgId }) else { return }
+        scrollTarget = msgId
+        highlightedId = msgId
+        Task { try? await Task.sleep(nanoseconds: 1_500_000_000); if highlightedId == msgId { highlightedId = nil } }
     }
 
     func collectMessage(_ msg: Message) {

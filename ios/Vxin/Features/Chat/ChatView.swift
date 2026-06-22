@@ -99,8 +99,8 @@ struct ChatView: View {
             Button("保存") { if let m = vm.editTarget { vm.editMessage(m, newText: editText) }; vm.editTarget = nil }
         }
         .onChange(of: vm.editTarget?.id) { _ in editText = vm.editTarget?.content ?? "" }
-        .fullScreenCover(isPresented: Binding(get: { vm.fullImageURL != nil }, set: { if !$0 { vm.fullImageURL = nil } })) {
-            if let url = vm.fullImageURL { FullScreenImageView(url: url) { vm.fullImageURL = nil } }
+        .fullScreenCover(isPresented: Binding(get: { vm.galleryImages != nil }, set: { if !$0 { vm.galleryImages = nil } })) {
+            if let imgs = vm.galleryImages { ChatImageGalleryView(images: imgs, start: vm.galleryStart) { vm.galleryImages = nil } }
         }
         .sheet(isPresented: Binding(get: { vm.forwardTarget != nil }, set: { if !$0 { vm.forwardTarget = nil } })) {
             NavigationStack {
@@ -180,6 +180,9 @@ struct ChatView: View {
             // 仅最新一条变化时滚到底，避免加载更早(前插)跳动
             .onChange(of: vm.messages.last?.id) { _ in withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) } }
             .onChange(of: vm.pending.count) { _ in withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) } }
+            .onChange(of: vm.scrollTarget) { target in
+                if let target { withAnimation { proxy.scrollTo(target, anchor: .center) }; vm.scrollTarget = nil }
+            }
         }
     }
 
@@ -321,6 +324,7 @@ private struct MessageBubble: View {
                         .lineLimit(1)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Color.gray.opacity(0.15)).clipShape(RoundedRectangle(cornerRadius: 6))
+                        .onTapGesture { if !rt.id.isEmpty { vm.jumpTo(rt.id) } }
                 }
                 content
                     .contextMenu {
@@ -375,6 +379,9 @@ private struct MessageBubble: View {
                 InitialAvatar(name: msg.senderName.isEmpty ? "我" : msg.senderName, size: 36)
             }
         }
+        .padding(.vertical, 2)
+        .background(vm.highlightedId == msg.id ? Color.vxinGreen.opacity(0.18) : Color.clear)
+        .animation(.easeInOut, value: vm.highlightedId)
     }
 
     @ViewBuilder private var content: some View {
@@ -385,7 +392,7 @@ private struct MessageBubble: View {
                 .scaledToFit()
                 .frame(maxWidth: 220, maxHeight: 280)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                .onTapGesture { vm.fullImageURL = vm.resolveMediaUrl(msg.fileUrl) }
+                .onTapGesture { vm.openImage(msg) }
         case "voice":
             card { Text("🎙 语音  ▶") }.onTapGesture { vm.playVoice(msg) }
         case "file":
@@ -519,28 +526,36 @@ private struct SendRedPacketSheet: View {
     }
 }
 
-// MARK: - 全屏图片查看（双指缩放，点击关闭）
-private struct FullScreenImageView: View {
-    let url: String
+// MARK: - 全屏图片画廊（多图左右滑，双指缩放，点击关闭）
+private struct ChatImageGalleryView: View {
+    let images: [String]
+    let start: Int
     var onClose: () -> Void
+    @State private var page = 0
     @State private var scale: CGFloat = 1
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Color.black.ignoresSafeArea()
-            KFImage(URL(string: url))
-                .resizable().scaledToFit()
-                .scaleEffect(scale)
-                .gesture(MagnificationGesture().onChanged { scale = max(1, min($0, 4)) }.onEnded { _ in if scale < 1 { scale = 1 } })
-                .onTapGesture { onClose() }
-            VStack {
-                HStack {
-                    Button { onClose() } label: { Image(systemName: "xmark").foregroundColor(.white).padding() }
-                    Spacer()
+            TabView(selection: $page) {
+                ForEach(Array(images.enumerated()), id: \.offset) { idx, url in
+                    KFImage(URL(string: url))
+                        .resizable().scaledToFit()
+                        .scaleEffect(idx == page ? scale : 1)
+                        .gesture(MagnificationGesture().onChanged { scale = max(1, min($0, 4)) }.onEnded { _ in if scale < 1 { scale = 1 } })
+                        .tag(idx)
+                        .onTapGesture { onClose() }
                 }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .ignoresSafeArea()
+            HStack {
+                Button { onClose() } label: { Image(systemName: "xmark").foregroundColor(.white).padding() }
                 Spacer()
+                if images.count > 1 { Text("\(page + 1)/\(images.count)").foregroundColor(.white).padding() }
             }
         }
+        .onAppear { page = min(max(start, 0), max(images.count - 1, 0)) }
     }
 }
 
