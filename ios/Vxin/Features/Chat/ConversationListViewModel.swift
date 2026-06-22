@@ -45,6 +45,15 @@ final class ConversationListViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // 被踢/群解散 → 从列表移除
+        repo.groupGonePublisher
+            .sink { [weak self] convId in Task { @MainActor in self?.conversations.removeAll { $0.id == convId } } }
+            .store(in: &cancellables)
+        // 群资料变更 → 刷新
+        repo.groupChangedPublisher
+            .sink { [weak self] _ in Task { @MainActor in await self?.refresh() } }
+            .store(in: &cancellables)
+
         Task { await refresh() }
     }
 

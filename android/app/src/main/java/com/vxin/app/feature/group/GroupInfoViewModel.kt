@@ -48,7 +48,19 @@ class GroupInfoViewModel @Inject constructor(
 
     fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
-    init { refresh() }
+    init {
+        refresh()
+        observeGroupEvents()
+    }
+
+    private fun observeGroupEvents() {
+        viewModelScope.launch {
+            groupRepository.groupChangedEvents.collect { convId -> if (convId == conversationId) refresh() }
+        }
+        viewModelScope.launch {
+            groupRepository.groupGoneEvents.collect { convId -> if (convId == conversationId) _uiState.update { it.copy(left = true) } }
+        }
+    }
 
     fun refresh() {
         _uiState.update { it.copy(loading = true, error = null) }

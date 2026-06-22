@@ -52,6 +52,10 @@ final class SocketService {
     let redPacketClaimed = PassthroughSubject<(String, String, Int), Never>()
     /// 群置顶消息变化（置顶/取消）→ convId
     let pinChanged = PassthroughSubject<String, Never>()
+    /// 被踢/群解散 → convId（本端已出局）
+    let groupGone = PassthroughSubject<String, Never>()
+    /// 群资料/设置/角色/成员变更 → convId
+    let groupChanged = PassthroughSubject<String, Never>()
 
     // ── WebRTC 通话信令 ──
     let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String), Never>()
@@ -128,6 +132,25 @@ final class SocketService {
         }
         sock.on("message_unpinned") { [weak self] data, _ in
             if let convId = (data.first as? [String: Any])?["convId"] as? String, !convId.isEmpty { self?.pinChanged.send(convId) }
+        }
+        // ── 群实时事件 ──
+        sock.on("group_kicked") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupGone.send(id) }
+        }
+        sock.on("group_dismissed") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupGone.send(id) }
+        }
+        sock.on("group_updated") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["id"] as? String, !id.isEmpty { self?.groupChanged.send(id) }
+        }
+        sock.on("group_settings_updated") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["id"] as? String, !id.isEmpty { self?.groupChanged.send(id) }
+        }
+        sock.on("role_changed") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupChanged.send(id) }
+        }
+        sock.on("group_member_added") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupChanged.send(id) }
         }
         sock.on("red_packet_claimed") { [weak self] data, _ in
             guard let dict = data.first as? [String: Any], let packetId = dict["packetId"] as? String, !packetId.isEmpty else { return }

@@ -7,6 +7,7 @@ import Kingfisher
 struct ChatView: View {
     @StateObject private var vm: ChatViewModel
     @EnvironmentObject private var session: SessionStore
+    @Environment(\.dismiss) private var dismiss
     @State private var photoItem: PhotosPickerItem?
     @State private var showFileImporter = false
     @State private var showStickerPanel = false
@@ -51,6 +52,7 @@ struct ChatView: View {
             }
         }
         .onChange(of: vm.input) { _ in vm.userIsTyping() }
+        .onChange(of: vm.closed) { closed in if closed { dismiss() } }
         .onDisappear { vm.onLeave() }
         .onChange(of: photoItem) { item in handlePhoto(item) }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in

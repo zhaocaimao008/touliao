@@ -39,6 +39,8 @@ class ChatRepository @Inject constructor(
     val reactionEvents: SharedFlow<ReactionEvent> = socketManager.reactionEvents
     val redPacketClaimedEvents: SharedFlow<RedPacketClaimedEvent> = socketManager.redPacketClaimedEvents
     val pinChangedEvents: SharedFlow<String> = socketManager.pinChangedEvents
+    val groupGoneEvents: SharedFlow<String> = socketManager.groupGoneEvents
+    val groupChangedEvents: SharedFlow<String> = socketManager.groupChangedEvents
 
     fun joinConversation(conversationId: String) = socketManager.joinConversation(conversationId)
     fun emitTyping(conversationId: String) = socketManager.emitTyping(conversationId)

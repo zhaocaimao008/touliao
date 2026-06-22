@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import UIKit
 
 @MainActor
@@ -11,9 +12,23 @@ final class GroupInfoViewModel: ObservableObject {
 
     let conversationId: String
     private let repo = GroupRepository.shared
+    private var cancellables = Set<AnyCancellable>()
 
     init(conversationId: String) {
         self.conversationId = conversationId
+
+        ChatRepository.shared.groupChangedPublisher
+            .sink { [weak self] convId in
+                guard let self, convId == self.conversationId else { return }
+                Task { @MainActor in await self.refresh() }
+            }
+            .store(in: &cancellables)
+        ChatRepository.shared.groupGonePublisher
+            .sink { [weak self] convId in
+                guard let self, convId == self.conversationId else { return }
+                Task { @MainActor in self.left = true }
+            }
+            .store(in: &cancellables)
     }
 
     func refresh() async {

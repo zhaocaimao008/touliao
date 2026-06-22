@@ -119,6 +119,8 @@ fun ChatScreen(
     DisposableEffect(Unit) {
         onDispose { viewModel.onLeave() }
     }
+    // 被踢/群解散 → 自动返回
+    LaunchedEffect(state.closed) { if (state.closed) onBack() }
 
     Scaffold(
         topBar = {

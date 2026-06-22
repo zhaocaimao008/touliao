@@ -15,7 +15,13 @@ import javax.inject.Singleton
 @Singleton
 class GroupRepository @Inject constructor(
     private val groupApi: GroupApi,
+    socketManager: com.vxin.app.core.realtime.SocketManager,
 ) {
+    /** 群资料/设置/角色/成员变更 → convId */
+    val groupChangedEvents = socketManager.groupChangedEvents
+    /** 被踢/群解散 → convId */
+    val groupGoneEvents = socketManager.groupGoneEvents
+
     suspend fun info(conversationId: String): GroupInfo = groupApi.info(conversationId)
 
     suspend fun rename(conversationId: String, name: String) =

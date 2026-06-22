@@ -91,6 +91,14 @@ class SocketManager @Inject constructor(
     private val _pinChanged = MutableSharedFlow<String>(extraBufferCapacity = 32)
     val pinChangedEvents: SharedFlow<String> = _pinChanged.asSharedFlow()
 
+    /** 被踢/群解散 → convId（本端已出局，需收尾） */
+    private val _groupGone = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    val groupGoneEvents: SharedFlow<String> = _groupGone.asSharedFlow()
+
+    /** 群资料/设置/角色/成员变更 → convId（需刷新） */
+    private val _groupChanged = MutableSharedFlow<String>(extraBufferCapacity = 32)
+    val groupChangedEvents: SharedFlow<String> = _groupChanged.asSharedFlow()
+
     // ── 通话信令流 ──
     private val _callIncoming = MutableSharedFlow<CallIncomingEvent>(extraBufferCapacity = 16)
     val callIncomingEvents: SharedFlow<CallIncomingEvent> = _callIncoming.asSharedFlow()
@@ -177,6 +185,25 @@ class SocketManager @Inject constructor(
         }
         s.on("message_pinned") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("convId")?.takeIf { it.isNotEmpty() }?.let(_pinChanged::tryEmit)
+        }
+        // ── 群实时事件 ──
+        s.on("group_kicked") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_groupGone::tryEmit)
+        }
+        s.on("group_dismissed") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_groupGone::tryEmit)
+        }
+        s.on("group_updated") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("id")?.takeIf { it.isNotEmpty() }?.let(_groupChanged::tryEmit)
+        }
+        s.on("group_settings_updated") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("id")?.takeIf { it.isNotEmpty() }?.let(_groupChanged::tryEmit)
+        }
+        s.on("role_changed") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_groupChanged::tryEmit)
+        }
+        s.on("group_member_added") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_groupChanged::tryEmit)
         }
         s.on("message_unpinned") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("convId")?.takeIf { it.isNotEmpty() }?.let(_pinChanged::tryEmit)

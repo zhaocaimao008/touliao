@@ -23,6 +23,7 @@ final class ChatViewModel: ObservableObject {
     @Published var replyingTo: Message?        // 正在回复的消息
     @Published var stickers: [Sticker] = []
     @Published var pinnedMessages: [PinnedMessage] = []
+    @Published var closed = false   // 被踢/群解散 → 关闭聊天页
     // ── 红包 ──
     @Published var redPacketDetail: RedPacketDetail?   // 非空 = 显示红包详情弹窗
     @Published var claimedAmount: Int?                 // 刚领取到的金额
@@ -73,6 +74,9 @@ final class ChatViewModel: ObservableObject {
         if isGroup {
             repo.pinChangedPublisher
                 .sink { [weak self] convId in Task { @MainActor in if convId == self?.conversationId { await self?.loadPinned() } } }
+                .store(in: &cancellables)
+            repo.groupGonePublisher
+                .sink { [weak self] convId in Task { @MainActor in if convId == self?.conversationId { self?.closed = true } } }
                 .store(in: &cancellables)
         }
 

@@ -47,6 +47,19 @@ class ConversationListViewModel @Inject constructor(
         observeReconnect()
         observeUnreadCleared()
         observeNewConversation()
+        observeGroupEvents()
+    }
+
+    /** 被踢/解散 → 从列表移除；群资料变更 → 刷新 */
+    private fun observeGroupEvents() {
+        viewModelScope.launch {
+            chatRepository.groupGoneEvents.collect { convId ->
+                _uiState.update { s -> s.copy(conversations = s.conversations.filterNot { it.id == convId }) }
+            }
+        }
+        viewModelScope.launch {
+            chatRepository.groupChangedEvents.collect { refresh() }
+        }
     }
 
     /** 被拉入群聊/新会话 → 整表刷新 */
