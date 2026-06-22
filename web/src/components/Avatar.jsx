@@ -9,7 +9,7 @@ function getColor(name) {
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
-export default function Avatar({ src, name = '', size = 40, style = {}, online = false, className = '' }) {
+export default function Avatar({ src, name = '', size = 40, style = {}, online = false, className = '', onClick }) {
   const radius = Math.round(size * 0.22);
   const baseStyle = { width: size, height: size, borderRadius: radius, overflow: 'hidden', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', ...style };
   const letter = (name || '?')[0].toUpperCase();
@@ -20,7 +20,7 @@ export default function Avatar({ src, name = '', size = 40, style = {}, online =
   const showImg = src && !errored;
 
   return (
-    <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0, ...style }}>
+    <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0, cursor: onClick ? 'pointer' : undefined, ...style }} onClick={onClick}>
       {showImg
         ? <img src={mediaUrl(src)} alt={name} loading="lazy" onError={() => setErrored(true)} style={{ ...baseStyle, objectFit: 'cover' }} />
         : <div style={{ ...baseStyle, background: getColor(name), color: '#fff', fontSize: size * 0.42, fontWeight: 600 }}>{letter}</div>

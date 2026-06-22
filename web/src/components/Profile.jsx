@@ -137,6 +137,61 @@ function EditName({ user, updateUser, onBack }) {
   );
 }
 
+/* ── 修改个性签名 ── */
+function EditBio({ user, updateUser, onBack }) {
+  const [bio, setBio] = useState(user?.bio || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const MAX = 100;
+
+  const save = async () => {
+    const trimmed = bio.trim();
+    if (trimmed.length > MAX) { setError(`签名最多 ${MAX} 个字符`); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const { data } = await axios.put('/api/users/profile', { bio: trimmed });
+      updateUser(data);
+      onBack();
+    } catch (err) {
+      setError(err.response?.data?.error || '保存失败，请重试');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <PageBg>
+      <PageHeader title="修改个性签名" onBack={onBack}
+        right={
+          <button className="wc-save-btn" onClick={save} disabled={saving}>
+            {saving ? '保存中' : '保存'}
+          </button>
+        }
+      />
+      <div className="wc-edit-pad">
+        <Card>
+          <div className="wc-edit-wrap">
+            <textarea
+              value={bio}
+              onChange={e => { setBio(e.target.value); setError(''); }}
+              maxLength={MAX}
+              autoFocus
+              placeholder="请输入个性签名"
+              aria-label="修改个性签名"
+              className="wc-edit-input wc-edit-textarea"
+              rows={3}
+            />
+            <span className="wc-edit-counter">{bio.length}/{MAX}</span>
+          </div>
+        </Card>
+        {error && <div className="wc-edit-error" role="alert">{error}</div>}
+        <div className="wc-edit-hint">个性签名会在好友资料中显示</div>
+      </div>
+    </PageBg>
+  );
+}
+
 /* ── 设备列表 ── */
 function DeviceList({ onBack }) {
   const [sessions, setSessions] = useState([]);
@@ -441,6 +496,63 @@ async function doLogout(logout) {
   goLogin();
 }
 
+/* ── 个人资料详情页 ── */
+function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleAvatarClick = () => {
+    fileRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('avatar', file);
+      const { data } = await axios.post('/api/users/avatar', fd);
+      if (data?.avatar) {
+        updateUser({ ...user, avatar: data.avatar });
+      }
+    } catch (err) {
+      // 头像上传失败 — suppressed
+    }
+    setUploading(false);
+  };
+
+  return (
+    <PageBg>
+      <PageHeader title="个人资料" onBack={onBack} />
+      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+      <div className="wc-section-pad">
+        <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px', gap: 8 }}>
+          <div onClick={handleAvatarClick} style={{ cursor: 'pointer', position: 'relative' }}>
+            <Avatar src={user?.avatar} name={user?.username} size={80} />
+            {uploading && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', borderRadius: 14, color: '#fff', fontSize: 12 }}>上传中</div>}
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>{user?.username || '未设置昵称'}</div>
+          <div style={{ fontSize: 13, color: 'var(--green)' }}>点击更换头像</div>
+        </Card>
+      </div>
+      <div className="wc-section-pad">
+        <Card>
+          <CRow label="昵称" value={user?.username || ''} onClick={() => navigateTo?.('edit-name')} />
+          <CRow label="个性签名" value={user?.bio || '未设置'} onClick={() => navigateTo?.('edit-bio')} />
+        </Card>
+      </div>
+      <SLabel>账号信息</SLabel>
+      <div className="wc-section-pad">
+        <Card>
+          <CRow label="v信号" value={user?.wechat_id || ''} />
+          <CRow label="手机号" value={user?.phone || ''} />
+        </Card>
+      </div>
+    </PageBg>
+  );
+}
+
 /* ── 设置总览页（二级） ── */
 function ServerSettings({ onBack }) {
   const { changeServer } = useAuth();
@@ -555,7 +667,9 @@ export default function Profile() {
   const [subPage, setSubPage] = useState(null);
 
   /* ── 子页 ── */
+  if (subPage === 'profile-detail') return <ProfileDetail user={user} updateUser={updateUser} onBack={() => setSubPage(null)} navigateTo={setSubPage} />;
   if (subPage === 'edit-name')     return <EditName user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
+  if (subPage === 'edit-bio')      return <EditBio user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
   if (subPage === 'devices')       return <DeviceList onBack={() => setSubPage(null)} />;
   if (subPage === 'appearance')    return <AppearanceSettings onBack={() => setSubPage(null)} />;
   if (subPage === 'notifications') return <NotificationSettings onBack={() => setSubPage(null)} />;
@@ -565,6 +679,21 @@ export default function Profile() {
   /* ── 默认：直接显示设置内容 ── */
   return (
     <PageBg>
+      {/* ── 个人信息 ── */}
+      <div className="wc-section-pad" style={{ marginTop: 0 }}>
+        <Card onClick={() => setSubPage('profile-detail')} className="wc-profile-card">
+          <Avatar src={user?.avatar} name={user?.username} size={60} onClick={e => { e.stopPropagation(); setSubPage('profile-detail'); }} />
+          <div className="wc-profile-info">
+            <div className="wc-profile-name">{user?.username || '未设置昵称'}</div>
+            <div className="wc-profile-bio"
+              onClick={e => { e.stopPropagation(); setSubPage('edit-bio'); }}>
+              {user?.bio || '未设置个性签名'}
+            </div>
+          </div>
+          <ChevronRight />
+        </Card>
+      </div>
+
       <SLabel>设备与安全</SLabel>
       <div className="wc-section-pad">
         <Card>

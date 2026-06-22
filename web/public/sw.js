@@ -1,5 +1,5 @@
 /* V信 Service Worker — Web Push 推送处理 */
-const CACHE_NAME = 'vxin-v1';
+const CACHE_NAME = 'vxin-v2';
 
 // ── 安装 ─────────────────────────────────────────────────────────
 self.addEventListener('install', () => {

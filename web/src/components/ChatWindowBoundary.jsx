@@ -19,7 +19,7 @@ export default class ChatWindowBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error('[ChatWindowBoundary] 捕获异常:', error, info?.componentStack);
+    // [ChatWindowBoundary] 捕获异常 — suppressed (keep fetch report)
     // 静默上报，不影响降级 UI
     try {
       fetch('/api/client-errors', {

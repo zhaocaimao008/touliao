@@ -77,7 +77,7 @@ function previewMsg(conv, user) {
   return conv.lastMessage;
 }
 
-export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '' }) {
+export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0 }) {
   const [conversations, setConversations] = useState([]);
   const [ctxMenu, setCtxMenu] = useState(null);
   const { socket, reconnectCount } = useSocket();
@@ -95,6 +95,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     if (reconnectCount === 0) return;
     fetchConvs();
   }, [reconnectCount, fetchConvs]);
+
+  // 好友通过 / new_conversation 事件触发时刷新
+  useEffect(() => { fetchConvs(); }, [convRefreshKey, fetchConvs]);
 
   useEffect(() => {
     if (!socket) return;

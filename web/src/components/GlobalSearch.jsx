@@ -31,7 +31,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
         setContacts(r.data || []);
       })
       .catch(err => {
-        console.error('[GlobalSearch] Failed to load contacts:', err.response?.status, err.message);
+        // [GlobalSearch] Failed to load contacts — suppressed
       });
 
     axios.get('/api/messages/conversations')
@@ -43,7 +43,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
         const errorMsg = err.response?.status === 401
           ? '认证失败，请重新登录'
           : err.response?.data?.error || err.message;
-        console.error('[GlobalSearch] Failed to load conversations:', err.response?.status, errorMsg);
+        // [GlobalSearch] Failed to load conversations — suppressed
         setConvError(errorMsg);
       });
   }, []);
@@ -96,7 +96,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
         setMessages(msgs);
       })
       .catch(err => {
-        console.error('[GlobalSearch] Failed to search messages:', err.response?.status, err.message);
+        // [GlobalSearch] Failed to search messages — suppressed
         setMessages([]);
       })
       .finally(() => setSearchingMsg(false));
@@ -132,9 +132,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     <div className="gs-scroll">
       {/* 数据加载状态 */}
       {q && (
-        <div className="gs-status-bar">
-          {convError ? `❌ 群聊加载失败: ${convError}` : `✓ 联系人:${contacts.length} 群聊:${conversations.length} 消息:${messages.length + (searchingMsg ? '+' : '')}`}
-        </div>
+        {/* 状态调试栏已清理 */}
       )}
 
       {/* 联系人 */}

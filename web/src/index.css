@@ -1000,6 +1000,7 @@ img { display: block; }
 .wc-profile-info { flex: 1; }
 .wc-profile-name { font-size: 19px; font-weight: 600; margin-bottom: 4px; color: var(--text-primary); letter-spacing: -.2px; }
 .wc-profile-wid { font-size: 13px; color: var(--text-secondary); }
+.wc-profile-bio { font-size: 14px; color: var(--text-secondary); cursor: pointer; }
 .wc-menu-section { background: #fff; margin-bottom: 10px; border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
 .wc-menu-item {
   display: flex;

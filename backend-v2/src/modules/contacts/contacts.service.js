@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const usersSvc = require('../users/users.service');
+const { getOrCreatePrivate } = require('../conversations/conversations.service');
 
 // ── 联系人 ──────────────────────────────────────────────────────
 function listContacts(userId) {
@@ -50,7 +51,15 @@ function sendFriendRequest(io, fromId, { toId, message }) {
     add.run(uuidv4(), fromId, toId);
     add.run(uuidv4(), toId, fromId);
     const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
+    const target = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(toId);
+    const { conversationId } = getOrCreatePrivate(fromId, toId);
     if (io) io.to(`user_${toId}`).emit('friend_request_accepted', { accepter: sender, autoAccepted: true });
+    if (io) {
+      const convForSender = { id: conversationId, type: 'private', name: target?.username || '', avatar: target?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
+      const convForTarget = { id: conversationId, type: 'private', name: sender?.username || '', avatar: sender?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
+      io.to(`user_${fromId}`).emit('new_conversation', convForSender);
+      io.to(`user_${toId}`).emit('new_conversation', convForTarget);
+    }
     return { success: true, autoAccepted: true };
   }
 
@@ -95,7 +104,18 @@ function handleRequest(io, userId, requestId, action) {
   })();
   if (action === 'accepted') {
     const accepter = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(userId);
+    const requester = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(request.from_id);
+    // 创建私聊会话
+    const { conversationId } = getOrCreatePrivate(request.from_id, request.to_id);
+    // 通知请求方好友已通过
     if (io) io.to(`user_${request.from_id}`).emit('friend_request_accepted', { accepter });
+    // 双方都收到 new_conversation 事件（自动置顶到会话列表）
+    if (io) {
+      const convForAccepter = { id: conversationId, type: 'private', name: requester?.username || '', avatar: requester?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
+      const convForRequester = { id: conversationId, type: 'private', name: accepter?.username || '', avatar: accepter?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
+      io.to(`user_${userId}`).emit('new_conversation', convForAccepter);
+      io.to(`user_${request.from_id}`).emit('new_conversation', convForRequester);
+    }
   }
 }
 

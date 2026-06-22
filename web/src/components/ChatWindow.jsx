@@ -420,7 +420,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             });
           }
         } catch (err) {
-          console.error('Failed to load more messages:', err);
+          // Failed to load more messages — suppressed
         } finally {
           setLoadingMore(false);
         }

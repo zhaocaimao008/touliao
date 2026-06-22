@@ -62,8 +62,8 @@ const IcoAdd = () => (
 const IcoAddAccount = () => (
   <svg viewBox="0 0 24 24"><path d="M13 8c0-2.21-1.79-4-4-4S5 5.79 5 8s1.79 4 4 4 4-1.79 4-4zm-2 0c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-4 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm8 0v3h3v3h2v-3h3v-2h-3v-3h-2v3h-3z"/></svg>
 );
-const IcoSettings = () => (
-  <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.03-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+const IcoMe = () => (
+  <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
 );
 
 const IcoMoments = () => (
@@ -82,12 +82,12 @@ const TABS = [
   { key: 'moments',   Icon: IcoMoments,  label: '朋友圈', feature: 'moments' },
   { key: 'calls',     Icon: IcoCall,     label: '通话' },
   { key: 'favorites', Icon: IcoStar,     label: '收藏',   feature: 'collect' },
-  { key: 'settings',  Icon: IcoSettings, label: '设置' },
+  { key: 'me',        Icon: IcoMe,       label: '我' },
 ];
 
 // 朋友圈 / 通话记录 / 收藏：功能代码保留，暂在前端隐藏。
 // 需恢复入口时把对应 key 从此集合移除即可。
-const HIDDEN_TABS = new Set(['moments', 'calls', 'favorites']);
+const HIDDEN_TABS = new Set(['calls']);
 const visibleTabs = (features) =>
   TABS.filter(t => !HIDDEN_TABS.has(t.key) && (!t.feature || features[t.feature] !== false));
 
@@ -498,6 +498,7 @@ export default function Home() {
   const [addMenuPos, setAddMenuPos] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [addFriendRequest, setAddFriendRequest] = useState(0);
+  const [convRefreshKey, setConvRefreshKey] = useState(0);
   const { socket, reconnectCount, registerUnreadCleared } = useSocket();
   const { user, updateUser } = useAuth();
   usePushNotification(user);
@@ -593,6 +594,8 @@ export default function Home() {
     const onFriendAccepted = (data) => {
       const name = data?.accepter?.username || '对方';
       showNotification('好友申请已通过', `${name} 已通过你的好友申请`);
+      // 刷新会话列表（新好友会话自动置顶）
+      setConvRefreshKey(k => k + 1);
     };
     const onMsgBatch = (arr) => { if (Array.isArray(arr)) for (const m of arr) onMsg(m); };
     socket.on('new_message', onMsg);
@@ -652,7 +655,7 @@ export default function Home() {
   const renderMain = () => {
     switch (tab) {
       case 'chats':
-        return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} />;
+        return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} convRefreshKey={convRefreshKey} />;
       case 'contacts':
         return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} />;
       case 'moments':
@@ -662,7 +665,7 @@ export default function Home() {
       case 'favorites':
         return <Collections />;
       case 'profile':
-      case 'settings':
+      case 'me':
         return <Profile />;
       default:
         return null;
@@ -733,8 +736,8 @@ export default function Home() {
 
   // ── 移动端布局（宽度 < 768 或原生 App）：底部 TabBar + 全屏页 + 全屏聊天 ──
   if (isMobile) {
-    const M_LABEL = { chats: '消息', contacts: '通讯录', moments: '发现', settings: '我的' };
-    const mobileTabs = ['chats', 'contacts', 'moments', 'settings']
+    const M_LABEL = { chats: '消息', contacts: '通讯录', moments: '发现', me: '我' };
+    const mobileTabs = ['chats', 'contacts', 'moments', 'me']
       .map(k => TABS.find(t => t.key === k))
       .filter(t => t && !HIDDEN_TABS.has(t.key) && (!t.feature || features[t.feature] !== false));
 
@@ -774,7 +777,8 @@ export default function Home() {
                     onNetworkSearch={(q) => setNetSearchQ(q || search)} />
                 ) : tab === 'chats' ? (
                   <ChatList onSelectConv={handleMobileSelectConv} activeConvId={activeConv?.id}
-                    unread={unread} searchQuery={search} />
+                    unread={unread} searchQuery={search}
+                    convRefreshKey={convRefreshKey} />
                 ) : renderMain()}
               </div>
             </div>
