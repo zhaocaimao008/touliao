@@ -37,6 +37,7 @@ import com.vxin.app.feature.call.CallHost
 import com.vxin.app.feature.chat.ChatScreen
 import com.vxin.app.feature.chat.ConversationListScreen
 import com.vxin.app.feature.contacts.AddFriendScreen
+import com.vxin.app.feature.contacts.BlockedScreen
 import com.vxin.app.feature.contacts.ContactsScreen
 import com.vxin.app.feature.contacts.CreateGroupScreen
 import com.vxin.app.feature.contacts.FriendRequestsScreen
@@ -65,6 +66,7 @@ private object Routes {
     const val CONTACTS = "contacts"
     const val ADD_FRIEND = "addFriend"
     const val MY_QRCODE = "myQrCode"
+    const val BLOCKED = "blocked"
     const val REQUESTS = "requests"
     const val CREATE_GROUP = "createGroup"
     const val SEARCH = "search"
@@ -165,6 +167,7 @@ private fun MainFlow() {
                     onAddFriend = { navController.navigate(Routes.ADD_FRIEND) },
                     onRequests = { navController.navigate(Routes.REQUESTS) },
                     onCreateGroup = { navController.navigate(Routes.CREATE_GROUP) },
+                    onOpenBlocked = { navController.navigate(Routes.BLOCKED) },
                 )
             }
             composable(Routes.PROFILE) {
@@ -184,6 +187,9 @@ private fun MainFlow() {
         }
         composable(Routes.MY_QRCODE) {
             MyQrCodeScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.BLOCKED) {
+            BlockedScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.REQUESTS) {
             FriendRequestsScreen(onBack = { navController.popBackStack() })

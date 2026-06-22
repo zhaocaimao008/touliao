@@ -30,6 +30,17 @@ class ContactRepository @Inject constructor(
     suspend fun handleRequest(id: String, accept: Boolean) =
         contactApi.handleRequest(id, HandleRequestBody(if (accept) "accept" else "reject"))
 
+    suspend fun deleteContact(id: String) = contactApi.deleteContact(id)
+
+    suspend fun setRemark(id: String, remark: String) =
+        contactApi.setRemark(id, com.vxin.app.data.model.RemarkBody(remark))
+
+    suspend fun block(id: String) = contactApi.block(id)
+
+    suspend fun unblock(id: String) = contactApi.unblock(id)
+
+    suspend fun blocked() = contactApi.blocked()
+
     /** 创建/获取私聊会话，返回 conversationId */
     suspend fun createPrivate(userId: String): String =
         messageApi.createPrivate(CreatePrivateBody(userId)).conversationId

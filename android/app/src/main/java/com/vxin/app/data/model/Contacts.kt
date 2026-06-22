@@ -43,6 +43,16 @@ data class FriendRequest(
 data class FriendRequestBody(val toId: String, val message: String = "")
 
 @Serializable
+data class RemarkBody(val remark: String)
+
+@Serializable
+data class BlockedUser(
+    val id: String,
+    val username: String = "",
+    val avatar: String = "",
+)
+
+@Serializable
 data class HandleRequestBody(val action: String)   // accept | reject
 
 @Serializable

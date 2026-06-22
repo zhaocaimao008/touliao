@@ -28,4 +28,29 @@ final class ContactsViewModel: ObservableObject {
             return nil
         }
     }
+
+    // ── 好友管理：备注/删除/拉黑 ──
+    func setRemark(_ contact: Contact, remark: String) {
+        let trimmed = remark.trimmingCharacters(in: .whitespaces)
+        Task {
+            do {
+                try await repo.setRemark(contact.id, remark: trimmed)
+                if let idx = contacts.firstIndex(where: { $0.id == contact.id }) { contacts[idx].remark = trimmed.isEmpty ? nil : trimmed }
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "设置备注失败" }
+        }
+    }
+
+    func deleteContact(_ contact: Contact) {
+        Task {
+            do { try await repo.deleteContact(contact.id); contacts.removeAll { $0.id == contact.id } }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "删除好友失败" }
+        }
+    }
+
+    func block(_ contact: Contact) {
+        Task {
+            do { try await repo.block(contact.id); contacts.removeAll { $0.id == contact.id }; error = "已加入黑名单" }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "拉黑失败" }
+        }
+    }
 }

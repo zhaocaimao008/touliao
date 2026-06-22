@@ -6,6 +6,7 @@ enum ContactRoute: Hashable {
     case addFriend
     case requests
     case createGroup
+    case blocked
 }
 
 struct ContactsView: View {
@@ -13,8 +14,13 @@ struct ContactsView: View {
     var onAddFriend: () -> Void
     var onRequests: () -> Void
     var onCreateGroup: () -> Void
+    var onOpenBlocked: () -> Void = {}
 
     @StateObject private var vm = ContactsViewModel()
+    @State private var remarkTarget: Contact?
+    @State private var remarkText = ""
+    @State private var deleteTarget: Contact?
+    @State private var blockTarget: Contact?
 
     var body: some View {
         List {
@@ -29,6 +35,13 @@ struct ContactsView: View {
                                 .padding(.horizontal, 6).padding(.vertical, 2)
                                 .background(Color.vxinError).clipShape(Capsule())
                         }
+                        Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                    }
+                }
+                Button(action: onOpenBlocked) {
+                    HStack {
+                        Text("黑名单").foregroundColor(.primary)
+                        Spacer()
                         Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
                     }
                 }
@@ -51,10 +64,32 @@ struct ContactsView: View {
                             Spacer()
                         }
                     }
+                    .contextMenu {
+                        Button("设置备注") { remarkText = contact.remark ?? ""; remarkTarget = contact }
+                        Button("加入黑名单", role: .destructive) { blockTarget = contact }
+                        Button("删除好友", role: .destructive) { deleteTarget = contact }
+                    }
                 }
             }
         }
         .listStyle(.plain)
+        .alert("设置备注", isPresented: .constant(remarkTarget != nil)) {
+            TextField("留空恢复默认昵称", text: $remarkText)
+            Button("取消", role: .cancel) { remarkTarget = nil }
+            Button("确定") { if let c = remarkTarget { vm.setRemark(c, remark: remarkText) }; remarkTarget = nil }
+        }
+        .alert("删除好友", isPresented: .constant(deleteTarget != nil)) {
+            Button("取消", role: .cancel) { deleteTarget = nil }
+            Button("删除", role: .destructive) { if let c = deleteTarget { vm.deleteContact(c) }; deleteTarget = nil }
+        } message: {
+            Text("确认删除好友「\(deleteTarget?.displayName ?? "")」？将同时删除聊天记录。")
+        }
+        .alert("加入黑名单", isPresented: .constant(blockTarget != nil)) {
+            Button("取消", role: .cancel) { blockTarget = nil }
+            Button("加入", role: .destructive) { if let c = blockTarget { vm.block(c) }; blockTarget = nil }
+        } message: {
+            Text("加入黑名单后，将不再收到「\(blockTarget?.displayName ?? "")」的消息。")
+        }
         .navigationTitle("通讯录")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

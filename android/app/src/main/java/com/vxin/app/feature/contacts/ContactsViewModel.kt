@@ -56,4 +56,33 @@ class ContactsViewModel @Inject constructor(
     }
 
     fun consumeOpenChat() { _openChat.value = null }
+
+    // ── 好友管理：备注/删除/拉黑 ──
+    fun setRemark(contact: Contact, remark: String) {
+        viewModelScope.launch {
+            runCatching { contactRepository.setRemark(contact.id, remark.trim()) }
+                .onSuccess {
+                    _uiState.update { s ->
+                        s.copy(contacts = s.contacts.map { if (it.id == contact.id) it.copy(remark = remark.trim().ifBlank { null }) else it })
+                    }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("设置备注失败")) } }
+        }
+    }
+
+    fun deleteContact(contact: Contact) {
+        viewModelScope.launch {
+            runCatching { contactRepository.deleteContact(contact.id) }
+                .onSuccess { _uiState.update { s -> s.copy(contacts = s.contacts.filterNot { it.id == contact.id }) } }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("删除好友失败")) } }
+        }
+    }
+
+    fun block(contact: Contact) {
+        viewModelScope.launch {
+            runCatching { contactRepository.block(contact.id) }
+                .onSuccess { _uiState.update { s -> s.copy(contacts = s.contacts.filterNot { it.id == contact.id }, error = "已加入黑名单") } }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("拉黑失败")) } }
+        }
+    }
 }

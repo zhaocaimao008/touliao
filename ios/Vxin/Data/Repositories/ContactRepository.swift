@@ -6,6 +6,20 @@ struct SendRequestResponse: Decodable { let success: Bool?; let autoAccepted: Bo
 struct CreatePrivateBody: Encodable { let userId: String }
 struct CreateGroupBody: Encodable { let name: String; let memberIds: [String] }
 struct CreateConversationResponse: Decodable { let conversationId: String; let groupNumber: String? }
+private struct RemarkBody: Encodable { let remark: String }
+
+struct BlockedUser: Decodable, Identifiable {
+    let id: String
+    var username: String = ""
+    var avatar: String = ""
+    enum CodingKeys: String, CodingKey { case id, username, avatar }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        username = (try? c.decode(String.self, forKey: .username)) ?? ""
+        avatar = (try? c.decode(String.self, forKey: .avatar)) ?? ""
+    }
+}
 
 /// 联系人/好友/会话创建。与 Android ContactRepository 等价。
 final class ContactRepository {
@@ -52,5 +66,26 @@ final class ContactRepository {
             "api/messages/conversation/group", method: "POST", body: CreateGroupBody(name: name, memberIds: memberIds)
         )
         return res.conversationId
+    }
+
+    // ── 好友管理：删除/备注/拉黑 ──
+    func deleteContact(_ id: String) async throws {
+        let _: EmptyResponse = try await api.send("api/users/contacts/\(id)", method: "DELETE")
+    }
+
+    func setRemark(_ id: String, remark: String) async throws {
+        let _: EmptyResponse = try await api.send("api/users/contacts/\(id)/remark", method: "PUT", body: RemarkBody(remark: remark))
+    }
+
+    func block(_ id: String) async throws {
+        let _: EmptyResponse = try await api.send("api/users/block/\(id)", method: "POST")
+    }
+
+    func unblock(_ id: String) async throws {
+        let _: EmptyResponse = try await api.send("api/users/block/\(id)", method: "DELETE")
+    }
+
+    func listBlocked() async throws -> [BlockedUser] {
+        try await api.send("api/users/me/blocked")
     }
 }

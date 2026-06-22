@@ -1,5 +1,7 @@
 package com.vxin.app.feature.contacts
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,14 +16,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -29,8 +35,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -46,10 +56,14 @@ fun ContactsScreen(
     onAddFriend: () -> Unit,
     onRequests: () -> Unit,
     onCreateGroup: () -> Unit,
+    onOpenBlocked: () -> Unit = {},
     viewModel: ContactsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val openChat by viewModel.openChat.collectAsStateWithLifecycle()
+    var remarkTarget by remember { mutableStateOf<Contact?>(null) }
+    var deleteTarget by remember { mutableStateOf<Contact?>(null) }
+    var blockTarget by remember { mutableStateOf<Contact?>(null) }
 
     LaunchedEffect(openChat) {
         openChat?.let { onOpenChat(it); viewModel.consumeOpenChat() }
@@ -89,6 +103,15 @@ fun ContactsScreen(
                     Text("›", color = VxinTextSecondary)
                 }
                 HorizontalDivider()
+                // 黑名单入口
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenBlocked).padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("黑名单", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    Text("›", color = VxinTextSecondary)
+                }
+                HorizontalDivider()
 
                 when {
                     state.loading && state.contacts.isEmpty() ->
@@ -102,7 +125,13 @@ fun ContactsScreen(
                         }
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(state.contacts, key = { it.id }) { contact ->
-                            ContactRow(contact) { viewModel.startPrivateChat(contact) }
+                            ContactRow(
+                                contact,
+                                onClick = { viewModel.startPrivateChat(contact) },
+                                onRemark = { remarkTarget = contact },
+                                onBlock = { blockTarget = contact },
+                                onDelete = { deleteTarget = contact },
+                            )
                             HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
                         }
                     }
@@ -113,12 +142,49 @@ fun ContactsScreen(
             }
         }
     }
+
+    remarkTarget?.let { target ->
+        RemarkDialog(
+            initial = target.remark.orEmpty(),
+            onConfirm = { viewModel.setRemark(target, it); remarkTarget = null },
+            onDismiss = { remarkTarget = null },
+        )
+    }
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("删除好友") },
+            text = { Text("确认删除好友「${target.displayName}」？将同时删除聊天记录。") },
+            confirmButton = { TextButton(onClick = { viewModel.deleteContact(target); deleteTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } },
+        )
+    }
+    blockTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { blockTarget = null },
+            title = { Text("加入黑名单") },
+            text = { Text("加入黑名单后，将不再收到「${target.displayName}」的消息。") },
+            confirmButton = { TextButton(onClick = { viewModel.block(target); blockTarget = null }) { Text("加入", color = Color(0xFFFA5151)) } },
+            dismissButton = { TextButton(onClick = { blockTarget = null }) { Text("取消") } },
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ContactRow(contact: Contact, onClick: () -> Unit) {
+private fun ContactRow(
+    contact: Contact,
+    onClick: () -> Unit,
+    onRemark: () -> Unit = {},
+    onBlock: () -> Unit = {},
+    onDelete: () -> Unit = {},
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 48.dp)
@@ -130,4 +196,22 @@ private fun ContactRow(contact: Contact, onClick: () -> Unit) {
             }
         }
     }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(text = { Text("设置备注") }, onClick = { onRemark(); menuOpen = false })
+            DropdownMenuItem(text = { Text("加入黑名单") }, onClick = { onBlock(); menuOpen = false })
+            DropdownMenuItem(text = { Text("删除好友", color = Color(0xFFFA5151)) }, onClick = { onDelete(); menuOpen = false })
+        }
+    }
+}
+
+@Composable
+private fun RemarkDialog(initial: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("设置备注") },
+        text = { OutlinedTextField(text, { text = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text("留空恢复默认昵称") }) },
+        confirmButton = { TextButton(onClick = { onConfirm(text) }) { Text("确定") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }
