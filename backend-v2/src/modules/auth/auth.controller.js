@@ -1,12 +1,18 @@
 'use strict';
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const config = require('../../config');
-const { authCookieOptions, walletCookieOptions } = require('../../utils/cookies');
+const { authCookieOptions, walletCookieOptions, csrfCookieOptions } = require('../../utils/cookies');
 const { asyncHandler, badRequest } = require('../../utils/http');
 const svc = require('./auth.service');
 
 function setAuthCookie(req, res, token) {
   res.cookie(config.cookieName, token, authCookieOptions(req));
+  // 同时下发 csrf_token 双提交 Cookie：否则登录后"第一个"鉴权写请求会落在
+  // CSRF 门控的"无 csrf Cookie 即放行"窗口里（auth 中间件要到该请求才补发 Cookie）。
+  // 在登录/注册即补发，关闭该窗口。
+  const csrf = jwt.decode(token)?.csrf;
+  if (csrf) res.cookie(config.csrfCookie, csrf, csrfCookieOptions(req));
 }
 
 // 取本设备 wallet id（多账号丝滑切换）：无则生成并下发长效 httpOnly Cookie
