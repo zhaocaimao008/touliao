@@ -67,43 +67,50 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
           DEPLOY_PATH: /root/v信/backend-v2
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ssh -i ~/.ssh/deploy_key ${DEPLOY_USER}@${DEPLOY_HOST} << 'DEPLOY_SCRIPT'
+          # ⚠ 用单引号 heredoc 保持脚本字面量；把变量通过远端 bash -s 的命令行 env 传进去
+          #   （原脚本把 env 设在 runner 上，heredoc 里 $DEPLOY_PATH 在服务器端是空的 → cd 到家目录 → git 找不到仓库）
+          ssh -i ~/.ssh/deploy_key ${DEPLOY_USER}@${DEPLOY_HOST} \
+            "DEPLOY_PATH='${DEPLOY_PATH}' GH_TOKEN='${GH_TOKEN}' bash -s" << 'DEPLOY_SCRIPT'
           set -e
+          REPO_ROOT="$(dirname "$DEPLOY_PATH")"   # git 仓库根 = backend-v2 的上一级（/root/v信）
+          AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/zhaocaimao008/vxin-1.0.git"
+          CLEAN_URL="https://github.com/zhaocaimao008/vxin-1.0.git"
 
-          echo "📋 V信后端自动部署开始"
-          echo "时间: $(date)"
-          echo "================================"
+          echo "📋 V信后端自动部署 $(date)"
+          echo "仓库根: $REPO_ROOT | 应用目录: $DEPLOY_PATH"
 
-          # 进入应用目录
-          cd $DEPLOY_PATH || exit 1
+          # 首次部署：仓库根没有 .git 时，bootstrap 把 git 历史引导进现有目录
+          if [ ! -d "$REPO_ROOT/.git" ]; then
+            echo "🆕 首次部署：克隆 git 历史到 $REPO_ROOT"
+            TMP="$(mktemp -d)"
+            git clone --no-checkout "$AUTH_URL" "$TMP/repo"
+            mv "$TMP/repo/.git" "$REPO_ROOT/.git"
+            rm -rf "$TMP"
+            git -C "$REPO_ROOT" remote set-url origin "$CLEAN_URL"
+          fi
 
-          echo "📥 步骤 1: 获取最新代码"
-          git fetch origin
-          git checkout main
-          git reset --hard origin/main
+          echo "📥 步骤 1: 拉取最新代码 (main)"
+          # 用带 token 的 URL 显式 fetch（token 不落盘到 remote 配置）
+          git -C "$REPO_ROOT" fetch "$AUTH_URL" main
+          git -C "$REPO_ROOT" reset --hard FETCH_HEAD
 
-          echo "📦 步骤 2: 安装依赖（仅生产依赖；保留 lock 文件，git reset 已恢复）"
+          echo "📦 步骤 2: 安装生产依赖"
+          cd "$DEPLOY_PATH"
           npm ci --omit=dev
 
-          echo "🚀 步骤 3: 重启应用（pm2 托管：vxin-server-v2）"
+          echo "🚀 步骤 3: 重启应用（pm2: vxin-server-v2）"
           pm2 restart vxin-server-v2 --update-env || PORT=3002 pm2 start src/server.js --name vxin-server-v2
           pm2 save || true
 
-          echo "✅ 步骤 4: 验证部署"
+          echo "✅ 步骤 4: 健康检查"
           sleep 5
-          for i in {1..15}; do
-            if curl -s http://localhost:3002/health | grep -q "ok"; then
-              echo "✅ 应用健康检查通过！"
-              break
-            fi
-            echo "等待应用启动... ($i/15)"
-            sleep 1
+          for i in $(seq 1 15); do
+            if curl -s http://localhost:3002/health | grep -q "ok"; then echo "✅ 健康检查通过"; break; fi
+            echo "等待启动... ($i/15)"; sleep 1
           done
-
-          echo "================================"
-          echo "🎉 部署成功！"
-          echo "时间: $(date)"
+          echo "🎉 部署完成 $(date)"
 
           DEPLOY_SCRIPT
 
