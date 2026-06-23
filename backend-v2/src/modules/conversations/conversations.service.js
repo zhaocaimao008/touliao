@@ -109,6 +109,7 @@ async function listConversations(uid) {
       su.username  AS lastSenderName,
       COALESCE(cs.pinned, 0)                AS pinned,
       COALESCE(cs.muted,  0)                AS muted,
+      COALESCE(cs.background, '')           AS background,
       COALESCE(cs.last_read_at, 0)          AS last_read_at,
       COALESCE(cs.last_read_message_id, '') AS last_read_message_id,
       (SELECT COUNT(*) FROM (
@@ -241,6 +242,19 @@ async function setMuted(userId, convId, muted) {
   await cache.del(cache.keys.conversations(userId));
 }
 
+// ── 聊天专属背景（按用户按会话）：空串/null = 清除，回退到全局默认 ──
+async function setBackground(userId, convId, background) {
+  requireMember(convId, userId, '无权操作');
+  const bg = (typeof background === 'string' && background.trim()) ? background.trim().slice(0, 2048) : null;
+  await writeAsync(`
+    INSERT INTO conversation_settings (user_id, conversation_id, background) VALUES (?, ?, ?)
+    ON CONFLICT(user_id, conversation_id) DO UPDATE SET background=excluded.background
+  `, [userId, convId, bg]);
+  convCache.delete(userId);
+  await cache.del(cache.keys.conversations(userId));
+  return { background: bg || '' };
+}
+
 // ── 标记已读（io 用于已读回执 + 多端同步清零）────────────────────
 async function markRead(io, userId, convId, messageId) {
   if (!isMember(convId, userId)) return { readAt: 0, lastReadMessageId: null };
@@ -320,6 +334,6 @@ function media(userId, { type = 'image', limit, before }) {
 
 module.exports = {
   getOrCreatePrivate, getOrCreateFileHelper, createGroup, listConversations, listMembers,
-  unreadCounts, myGroups, setPinned, setMuted, markRead,
+  unreadCounts, myGroups, setPinned, setMuted, setBackground, markRead,
   clearConversation, clearAllConversations, media,
 };

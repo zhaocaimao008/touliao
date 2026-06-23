@@ -83,7 +83,7 @@ function RoleBadge({ role }) {
 }
 
 /* ── 主组件 ── */
-export default function GroupInfo({ conversation, currentUserId, onClose, onLeave, onConvUpdate, onCleared }) {
+export default function GroupInfo({ conversation, currentUserId, onClose, onLeave, onConvUpdate, onPickBackground, onClearBackground, onCleared }) {
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editName, setEditName] = useState(false);
@@ -579,7 +579,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               }}
             />
           </div>
-          <div className="gi-row gi-row-noborder">
+          <div className="gi-row">
             <span className="gi-label">置顶聊天</span>
             <Toggle
               on={myPinned}
@@ -595,6 +595,15 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               }}
             />
           </div>
+          <div className={`gi-row${conversation.background ? '' : ' gi-row-noborder'}`} style={{ cursor: 'pointer' }} onClick={() => onPickBackground?.()}>
+            <span className="gi-label">设置聊天背景</span>
+            <span style={{ color: '#888', fontSize: 13 }}>{conversation.background ? '更换 ›' : '选择图片 ›'}</span>
+          </div>
+          {conversation.background && (
+            <div className="gi-row gi-row-noborder" style={{ cursor: 'pointer' }} onClick={() => onClearBackground?.()}>
+              <span className="gi-label" style={{ color: '#fa5151' }}>清除聊天背景</span>
+            </div>
+          )}
         </div>
 
         {/* 群昵称 */}

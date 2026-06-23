@@ -36,12 +36,33 @@ function isBlockedBetween(a, b) {
   ).get(a, b, b, a);
 }
 
-// 可见性门控：本人可见全部；他人需好友、非 private、且双方无拉黑
+// 作者的"最近 N 天可见"设置（0=全部可见）
+function authorVisibleDays(authorId) {
+  return db.prepare('SELECT moments_visible_days AS d FROM user_settings WHERE user_id=?').get(authorId)?.d || 0;
+}
+
+// 可见性门控：本人可见全部；他人需好友、非 private、双方无拉黑，
+// 并满足分组可见(include/exclude)与"最近 N 天可见"时间窗
 function assertVisible(viewerId, m) {
   if (m.user_id === viewerId) return;
   if (isBlockedBetween(viewerId, m.user_id)) throw forbidden('无权查看该动态');
   if (m.visibility === 'private') throw forbidden('无权查看该动态');
   if (!isFriend(viewerId, m.user_id)) throw forbidden('无权查看该动态');
+
+  // 分组可见：include=白名单内可见，exclude=黑名单外可见
+  if (m.visibility === 'include' || m.visibility === 'exclude') {
+    let list = [];
+    try { list = JSON.parse(m.visible_to || '[]'); } catch { list = []; }
+    const inList = list.map(String).includes(String(viewerId));
+    if (m.visibility === 'include' && !inList) throw forbidden('无权查看该动态');
+    if (m.visibility === 'exclude' && inList) throw forbidden('无权查看该动态');
+  }
+
+  // 最近 N 天可见
+  const days = authorVisibleDays(m.user_id);
+  if (days > 0 && m.created_at < Math.floor(Date.now() / 1000) - days * 86400) {
+    throw forbidden('无权查看该动态');
+  }
 }
 
 // 单条动态装配（作者、图片、点赞、评论、本人是否已赞）
@@ -61,8 +82,9 @@ function enrich(viewerId, m, { likeLimit = 0, commentLimit = 0 } = {}) {
   const comments = db.prepare(
     `SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id=? ORDER BY mc.created_at${commentCap}`
   ).all(m.id);
+  const { visible_to, ...mPub } = m; // 不外泄分组可见名单
   return {
-    ...m,
+    ...mPub,
     images: JSON.parse(m.images || '[]'),
     author,
     likes,
@@ -118,8 +140,9 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
     const comments = commentsMap.get(m.id);
     const likeCount = likeCountMap.get(m.id);
     const commentCount = commentCountMap.get(m.id);
+    const { visible_to, ...mPub } = m; // 不外泄分组可见名单
     return {
-      ...m,
+      ...mPub,
       images: JSON.parse(m.images || '[]'),
       author: authorMap.get(m.user_id),
       likes,
@@ -134,20 +157,38 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
 }
 
 // ── 发布 ────────────────────────────────────────────────────────
-function createMoment(io, userId, { content, images, visibility }) {
+function createMoment(io, userId, { content, images, visibility, visibleTo }) {
   const text = (content || '').trim();
   const imgs = Array.isArray(images) ? images.slice(0, 9) : [];
   if (!text && imgs.length === 0) throw badRequest('内容不能为空');
   if (text.length > 5000) throw badRequest('内容过长');
-  const vis = ['all', 'friends', 'private'].includes(visibility) ? visibility : 'all';
+  const vis = ['all', 'friends', 'private', 'include', 'exclude'].includes(visibility) ? visibility : 'all';
+
+  // 分组可见：visible_to 仅保留确为好友的 id（防越权 / 脏数据）
+  let visList = null;
+  if (vis === 'include' || vis === 'exclude') {
+    const arr = Array.isArray(visibleTo) ? [...new Set(visibleTo.map(String))].slice(0, 500) : [];
+    if (arr.length) {
+      const ph = arr.map(() => '?').join(',');
+      const friends = db.prepare(`SELECT contact_id FROM contacts WHERE user_id=? AND contact_id IN (${ph})`)
+        .all(userId, ...arr).map(r => r.contact_id);
+      visList = JSON.stringify(friends);
+    } else {
+      visList = '[]';
+    }
+    if (vis === 'include' && JSON.parse(visList).length === 0) throw badRequest('请至少选择一位可见的好友');
+  }
 
   const id = uuidv4();
-  db.prepare('INSERT INTO moments (id,user_id,content,images,visibility) VALUES (?,?,?,?,?)')
-    .run(id, userId, text, JSON.stringify(imgs), vis);
+  db.prepare('INSERT INTO moments (id,user_id,content,images,visibility,visible_to) VALUES (?,?,?,?,?,?)')
+    .run(id, userId, text, JSON.stringify(imgs), vis, visList);
 
+  // 新动态推送：按可见性收敛推送名单
   if (io && vis !== 'private') {
-    const friends = db.prepare('SELECT contact_id FROM contacts WHERE user_id=?').all(userId);
-    if (friends.length) io.to(friends.map(f => `user_${f.contact_id}`)).emit('new_moment', { momentId: id, userId });
+    let targets = db.prepare('SELECT contact_id FROM contacts WHERE user_id=?').all(userId).map(f => f.contact_id);
+    if (vis === 'include') { const set = new Set(JSON.parse(visList)); targets = targets.filter(t => set.has(t)); }
+    else if (vis === 'exclude') { const set = new Set(JSON.parse(visList)); targets = targets.filter(t => !set.has(t)); }
+    if (targets.length) io.to(targets.map(t => `user_${t}`)).emit('new_moment', { momentId: id, userId });
   }
   return enrich(userId, db.prepare('SELECT * FROM moments WHERE id=?').get(id));
 }
@@ -158,8 +199,23 @@ function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
   const off = Math.max(Number(offset) || 0, 0);
   const rows = db.prepare(`
     SELECT m.* FROM moments m
+    LEFT JOIN user_settings us ON us.user_id = m.user_id
     WHERE (m.user_id=? OR m.user_id IN (SELECT contact_id FROM contacts WHERE user_id=?))
-      AND (m.visibility != 'private' OR m.user_id=?)
+      AND (
+        m.user_id=?  -- 本人动态全部可见，不受可见性/时间窗约束
+        OR (
+          m.visibility != 'private'
+          -- 分组可见：include 白名单内、exclude 黑名单外
+          AND (
+            m.visibility IN ('all','friends')
+            OR (m.visibility='include' AND EXISTS (SELECT 1 FROM json_each(COALESCE(m.visible_to,'[]')) WHERE value=?))
+            OR (m.visibility='exclude' AND NOT EXISTS (SELECT 1 FROM json_each(COALESCE(m.visible_to,'[]')) WHERE value=?))
+          )
+          -- 最近 N 天可见（作者设置；0=全部）
+          AND (COALESCE(us.moments_visible_days,0)=0
+               OR m.created_at >= (CAST(strftime('%s','now') AS INTEGER) - us.moments_visible_days*86400))
+        )
+      )
       -- MO6：排除我拉黑的人 / 拉黑我的人的动态（本人动态不受影响）
       AND (m.user_id=? OR m.user_id NOT IN (
         SELECT blocked_id FROM blocked_users WHERE user_id=?
@@ -167,7 +223,7 @@ function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
       ))
     ORDER BY m.created_at DESC
     LIMIT ? OFFSET ?
-  `).all(viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, n, off);
+  `).all(viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, n, off);
   return batchEnrich(viewerId, rows, { likeLimit: 50, commentLimit: 10 });
 }
 
@@ -175,15 +231,27 @@ function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
 function userMoments(viewerId, targetId) {
   if (targetId !== viewerId && isBlockedBetween(viewerId, targetId)) throw forbidden('无权查看该动态');
   if (targetId !== viewerId && !isFriend(viewerId, targetId)) throw forbidden('仅好友可见');
-  const rows = db.prepare(`
-    SELECT * FROM moments
-    WHERE user_id=? AND (
-      visibility='all'
-      OR (visibility='friends' AND ? IN (SELECT contact_id FROM contacts WHERE user_id=?))
-      OR user_id=?
-    )
-    ORDER BY created_at DESC LIMIT 50
-  `).all(targetId, viewerId, targetId, viewerId);
+
+  let rows;
+  if (targetId === viewerId) {
+    // 看自己的相册：全部可见
+    rows = db.prepare('SELECT * FROM moments WHERE user_id=? ORDER BY created_at DESC LIMIT 50').all(targetId);
+  } else {
+    rows = db.prepare(`
+      SELECT m.* FROM moments m
+      LEFT JOIN user_settings us ON us.user_id = m.user_id
+      WHERE m.user_id=?
+        AND m.visibility != 'private'
+        AND (
+          m.visibility IN ('all','friends')
+          OR (m.visibility='include' AND EXISTS (SELECT 1 FROM json_each(COALESCE(m.visible_to,'[]')) WHERE value=?))
+          OR (m.visibility='exclude' AND NOT EXISTS (SELECT 1 FROM json_each(COALESCE(m.visible_to,'[]')) WHERE value=?))
+        )
+        AND (COALESCE(us.moments_visible_days,0)=0
+             OR m.created_at >= (CAST(strftime('%s','now') AS INTEGER) - us.moments_visible_days*86400))
+      ORDER BY m.created_at DESC LIMIT 50
+    `).all(targetId, viewerId, viewerId);
+  }
   return batchEnrich(viewerId, rows, { likeLimit: 50, commentLimit: 10 });
 }
 

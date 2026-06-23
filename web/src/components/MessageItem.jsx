@@ -37,6 +37,19 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
     );
   }
 
+  // 拍一拍：居中系统提示「你 拍了拍 X」/「X 拍了拍 你」/「X 拍了拍 Y」
+  if (msg.type === 'nudge') {
+    let n = {};
+    try { n = JSON.parse(msg.content); } catch { n = {}; }
+    const actorName = String(n.actor) === String(userId) ? '你' : (n.actorName || '某人');
+    const targetName = String(n.target) === String(userId) ? '你' : (n.targetName || '某人');
+    return (
+      <div className="wc-msg-time">
+        <span>{actorName} 拍了拍 {targetName}</span>
+      </div>
+    );
+  }
+
   const showRead      = isMine && msg._read      && convType === 'private';
   const showDelivered = isMine && msg._delivered && convType === 'private' && !msg._read;
 
@@ -75,7 +88,13 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
           </div>
         </div>
       )}
-      <div className="wc-msg-avatar" onClick={!multiSelect ? handleAvatarClick : undefined} style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}>
+      <div
+        className="wc-msg-avatar"
+        onClick={!multiSelect ? handleAvatarClick : undefined}
+        onDoubleClick={!multiSelect && !isMine ? () => cbs.onNudge?.(msg.sender_id) : undefined}
+        title={!isMine ? '双击拍一拍' : undefined}
+        style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}
+      >
         <Avatar src={msg.senderAvatar} name={msg.senderName} size={36} />
       </div>
       <div className="wc-msg-body">

@@ -361,6 +361,14 @@ function applySchema(db) {
       expires_at INTEGER NOT NULL
     )`,
     "CREATE INDEX IF NOT EXISTS idx_token_blacklist_exp ON token_blacklist(expires_at)",
+    // ── 聊天专属背景（P2）：按用户按会话的背景图 URL；NULL=用全局默认 ──
+    "ALTER TABLE conversation_settings ADD COLUMN background TEXT DEFAULT NULL",
+    // ── 全局默认聊天背景（P2）：NULL/'' = 无背景 ──
+    "ALTER TABLE user_settings ADD COLUMN chat_background TEXT DEFAULT NULL",
+    // ── 朋友圈"最近 N 天可见"（P2）：他人查看本人动态的时间窗，0=全部可见 ──
+    "ALTER TABLE user_settings ADD COLUMN moments_visible_days INTEGER DEFAULT 0",
+    // ── 朋友圈分组可见（P2）：visibility=include 时为白名单、exclude 时为黑名单的好友 id JSON 数组 ──
+    "ALTER TABLE moments ADD COLUMN visible_to TEXT DEFAULT NULL",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

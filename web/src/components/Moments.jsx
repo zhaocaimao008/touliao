@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
+import ImagePreview from './ImagePreview';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast, showConfirm } from '../utils/toast';
 
@@ -21,6 +22,7 @@ function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onL
   const [text, setText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [lightbox, setLightbox] = useState(null); // { urls, idx } | null
 
   const viewAllComments = async () => {
     setLoadingComments(true);
@@ -64,9 +66,14 @@ function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onL
         {m.images?.length > 0 && (
           <div className="wc-moment-images" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
             {m.images.map((src, i) => (
-              <img loading="lazy" key={i} src={src} alt="" />
+              <img loading="lazy" key={i} src={src} alt="" style={{ cursor: 'zoom-in' }}
+                onClick={() => setLightbox({ urls: m.images, idx: i })} />
             ))}
           </div>
+        )}
+        {lightbox && (
+          <ImagePreview urls={lightbox.urls} initialIdx={lightbox.idx}
+            url={lightbox.urls[lightbox.idx]} onClose={() => setLightbox(null)} />
         )}
 
         <div className="wc-moment-actions">
@@ -138,6 +145,14 @@ export default function Moments() {
   const [images, setImages] = useState([]); // [{previewUrl, file}]
   const [posting, setPosting] = useState(false);
   const [composing, setComposing] = useState(false);
+  const [visibility, setVisibility] = useState('all'); // all | friends | private | include | exclude
+  const [visibleTo, setVisibleTo] = useState([]); // 分组可见的好友 id 列表
+  const [showFriendPicker, setShowFriendPicker] = useState(false);
+  const [friends, setFriends] = useState([]); // 联系人（分组可见选人用）
+  const [notifCount, setNotifCount] = useState(0);
+  const [notifList, setNotifList] = useState(null); // null = 面板关闭；[] = 已打开
+  const [showSettings, setShowSettings] = useState(false);
+  const [visibleDays, setVisibleDays] = useState(0); // 最近 N 天可见：0=全部
   const imgInputRef = useRef(null);
 
   const load = useCallback(() => {
@@ -145,6 +160,41 @@ export default function Moments() {
     axios.get('/api/moments').then(r => setList(r.data)).catch(() => {}).finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // 朋友圈"最近 N 天可见"设置初值
+  useEffect(() => {
+    axios.get('/api/users/me/settings')
+      .then(r => setVisibleDays(Number(r.data?.momentsVisibleDays) || 0)).catch(() => {});
+  }, []);
+
+  // 分组可见：首次需要选人时按需加载联系人
+  const ensureFriends = useCallback(() => {
+    if (friends.length) return;
+    axios.get('/api/users/contacts').then(r => setFriends(r.data || [])).catch(() => {});
+  }, [friends.length]);
+
+  const saveVisibleDays = async (d) => {
+    setVisibleDays(d);
+    try { await axios.put('/api/users/me/settings', { momentsVisibleDays: d }); }
+    catch { /* 静默失败，下次进入重置 */ }
+  };
+
+  // 互动通知未读数（谁赞了/评论了我的动态）
+  useEffect(() => {
+    axios.get('/api/moments/notifications/unread-count')
+      .then(r => setNotifCount(r.data.count || 0)).catch(() => {});
+  }, []);
+
+  const openNotif = async () => {
+    try {
+      const { data } = await axios.get('/api/moments/notifications', { params: { limit: 30 } });
+      setNotifList(data || []);
+      if (notifCount > 0) {
+        axios.post('/api/moments/notifications/read').catch(() => {});
+        setNotifCount(0);
+      }
+    } catch { setNotifList([]); }
+  };
 
   const handleImagePick = (e) => {
     const files = Array.from(e.target.files || []);
@@ -167,11 +217,25 @@ export default function Moments() {
     images.forEach(img => URL.revokeObjectURL(img.previewUrl));
     setImages([]);
     setText('');
+    setVisibility('all');
+    setVisibleTo([]);
     setComposing(false);
+  };
+
+  const onVisibilityChange = (v) => {
+    setVisibility(v);
+    if (v === 'include' || v === 'exclude') { ensureFriends(); setShowFriendPicker(true); }
+  };
+
+  const toggleVisibleFriend = (id) => {
+    setVisibleTo(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const publish = async () => {
     if (!text.trim() && images.length === 0) return;
+    if (visibility === 'include' && visibleTo.length === 0) {
+      setShowFriendPicker(true); return;
+    }
     setPosting(true);
     try {
       let imageUrls = [];
@@ -181,7 +245,9 @@ export default function Moments() {
         const { data } = await axios.post('/api/moments/images', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
         imageUrls = data.urls || [];
       }
-      const { data } = await axios.post('/api/moments', { content: text.trim(), images: imageUrls });
+      const payload = { content: text.trim(), images: imageUrls, visibility };
+      if (visibility === 'include' || visibility === 'exclude') payload.visibleTo = visibleTo;
+      const { data } = await axios.post('/api/moments', payload);
       setList(p => [data, ...p]);
       resetCompose();
     } catch (e) { showToast(e.response?.data?.error || '发布失败', 'error'); }
@@ -235,6 +301,108 @@ export default function Moments() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* 互动通知入口 */}
+      <div className="wc-moment-notif-bar" onClick={openNotif} role="button" tabIndex={0}
+        onKeyDown={e => e.key === 'Enter' && openNotif()}>
+        <span className="wc-moment-notif-icon">🔔</span>
+        <span className="wc-moment-notif-label">互动消息</span>
+        {notifCount > 0 && <span className="wc-moment-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
+        <div style={{ flex: 1 }} />
+        <button
+          className="wc-moment-settings-btn"
+          title="朋友圈设置"
+          onClick={e => { e.stopPropagation(); setShowSettings(true); }}
+        >⚙️</button>
+      </div>
+
+      {/* 朋友圈设置：最近 N 天可见 */}
+      {showSettings && (
+        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowSettings(false)}>
+          <div className="wc-modal" style={{ maxWidth: 360, width: '90%' }}>
+            <div className="wc-modal-header">
+              <span className="wc-modal-title">朋友圈设置</span>
+              <button className="wc-modal-close" onClick={() => setShowSettings(false)} aria-label="关闭">✕</button>
+            </div>
+            <div style={{ padding: '8px 0' }}>
+              <div style={{ padding: '10px 18px', fontSize: 13, color: '#888' }}>允许朋友查看朋友圈的范围</div>
+              {[{ d: 0, label: '全部' }, { d: 1, label: '最近一天' }, { d: 3, label: '最近三天' }, { d: 30, label: '最近一个月' }].map(o => (
+                <div key={o.d} className="wc-moment-vis-opt"
+                  onClick={() => saveVisibleDays(o.d)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', borderTop: '1px solid var(--border-color,#eee)' }}>
+                  <span>{o.label}</span>
+                  {visibleDays === o.d && <span style={{ color: 'var(--green,#07c160)' }}>✓</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 分组可见：选择好友 */}
+      {showFriendPicker && (
+        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowFriendPicker(false)}>
+          <div className="wc-modal" style={{ maxWidth: 420, width: '90%' }}>
+            <div className="wc-modal-header">
+              <span className="wc-modal-title">{visibility === 'include' ? '选择可见的好友' : '选择不给谁看'}</span>
+              <button className="wc-modal-close" onClick={() => setShowFriendPicker(false)} aria-label="关闭">✕</button>
+            </div>
+            <div className="wc-moment-notif-list" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+              {friends.length === 0 ? (
+                <div className="wc-moment-state" style={{ padding: 40 }}>暂无好友</div>
+              ) : friends.map(f => {
+                const checked = visibleTo.includes(f.id);
+                return (
+                  <div key={f.id} className="wc-moment-notif-item" style={{ cursor: 'pointer' }}
+                    onClick={() => toggleVisibleFriend(f.id)}>
+                    <Avatar src={f.avatar} name={f.remark || f.username} size={36} />
+                    <div className="wc-moment-notif-body">
+                      <div className="wc-moment-notif-text">{f.remark || f.username}</div>
+                    </div>
+                    <span style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${checked ? 'var(--green,#07c160)' : '#ccc'}`, background: checked ? 'var(--green,#07c160)' : '#fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{checked ? '✓' : ''}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ padding: 12, textAlign: 'right', borderTop: '1px solid var(--border-color,#eee)' }}>
+              <button className="wc-moment-editor-publish" onClick={() => setShowFriendPicker(false)}>
+                确定 ({visibleTo.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 互动通知面板 */}
+      {notifList !== null && (
+        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setNotifList(null)}>
+          <div className="wc-modal" style={{ maxWidth: 420, width: '90%' }}>
+            <div className="wc-modal-header">
+              <span className="wc-modal-title">互动消息</span>
+              <button className="wc-modal-close" onClick={() => setNotifList(null)} aria-label="关闭">✕</button>
+            </div>
+            <div className="wc-moment-notif-list">
+              {notifList.length === 0 ? (
+                <div className="wc-moment-state" style={{ padding: 40 }}>暂无互动消息</div>
+              ) : notifList.map(n => (
+                <div key={n.id} className="wc-moment-notif-item">
+                  <Avatar src={n.actor?.avatar} name={n.actor?.username} size={36} />
+                  <div className="wc-moment-notif-body">
+                    <div className="wc-moment-notif-text">
+                      <b>{n.actor?.username || '用户'}</b>
+                      {n.type === 'like' ? ' 赞了你的动态' : ` 评论：${n.commentContent || ''}`}
+                    </div>
+                    <div className="wc-moment-notif-time">{ago(n.createdAt)}</div>
+                  </div>
+                  {n.moment?.thumb
+                    ? <img className="wc-moment-notif-thumb" src={n.moment.thumb} alt="" loading="lazy" />
+                    : <div className="wc-moment-notif-snippet">{(n.moment?.content || '').slice(0, 12)}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 发布区 */}
       <div className="wc-moment-publish-bar">
         {!composing ? (
@@ -263,6 +431,21 @@ export default function Moments() {
               </button>
               <input ref={imgInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
                 onChange={handleImagePick} />
+              <select className="wc-moment-vis-select" value={visibility}
+                onChange={e => onVisibilityChange(e.target.value)} title="谁可以看">
+                <option value="all">🌐 公开</option>
+                <option value="friends">👥 仅好友</option>
+                <option value="private">🔒 仅自己</option>
+                <option value="include">✅ 部分可见</option>
+                <option value="exclude">🚫 不给谁看</option>
+              </select>
+              {(visibility === 'include' || visibility === 'exclude') && (
+                <button className="wc-moment-img-btn" type="button"
+                  onClick={() => { ensureFriends(); setShowFriendPicker(true); }}
+                  title="选择好友">
+                  {visibility === 'include' ? '可见' : '不给看'} ({visibleTo.length})
+                </button>
+              )}
               <div style={{ flex: 1 }} />
               <button className="wc-moment-editor-cancel"
                 onClick={resetCompose}>取消</button>

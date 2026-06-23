@@ -913,6 +913,30 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     });
   }, [conversation.id]);
 
+  // ── 聊天专属背景：设置/清除（按会话）──────────────────────────
+  const setChatBackground = useCallback((url) => {
+    return axios.put(`/api/messages/conversation/${conversation.id}/background`, { background: url })
+      .then(() => setConversation(prev => ({ ...prev, background: url })))
+      .catch(() => { showToast('设置失败', 'error'); });
+  }, [conversation.id]);
+
+  const pickBackground = useCallback(() => {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*';
+    inp.onchange = async () => {
+      const file = inp.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) { showToast('请选择图片', 'error'); return; }
+      try {
+        const url = await uploadToCloud(file, file.type, file.name);
+        await setChatBackground(url);
+        showToast('已设置聊天背景');
+      } catch (e) { showToast(e.message || '上传失败', 'error'); }
+    };
+    inp.click();
+  }, [uploadToCloud, setChatBackground]);
+
   // ── 本地上传回退：云存储未配置(503)时，直传后端 /upload（入库+广播由后端完成）──
   const uploadLocal = useCallback(async (file, onProgress) => {
     const form = new FormData();
@@ -1404,6 +1428,10 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   callbacksRef.current.setHighlightedMsgId = setHighlightedMsgId;
   callbacksRef.current.setShowUserProfile = setShowUserProfile;
   callbacksRef.current.openRedPacket = openRedPacket;
+  // 拍一拍：双击对方头像，服务端落库并广播系统消息
+  callbacksRef.current.onNudge = (targetId) => {
+    socket?.emit('nudge', { conversationId: conversation.id, targetId });
+  };
   callbacksRef.current.onReedit = (msgId, content) => {
     setInput(content);
     setTimeout(() => textareaRef.current?.focus(), 0);
@@ -1615,7 +1643,15 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       {/* ── Body ── */}
       <div className="wc-messages-wrap" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Messages virtual list + overlays */}
-        <div className="wc-messages-virt">
+        <div
+          className="wc-messages-virt"
+          style={conversation.background ? {
+            backgroundImage: `url(${mediaUrl(conversation.background)})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          } : undefined}
+        >
           {loadingMore && (
             <div className="wc-search-status" role="status" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, background: 'rgba(245,245,245,.92)', textAlign: 'center', padding: '6px 0', fontSize: 12 }}>加载中...</div>
           )}
@@ -1644,6 +1680,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             conversation={conversation}
             currentUserId={user.id}
             onClose={() => setShowGroupInfo(false)}
+            onPickBackground={pickBackground}
+            onClearBackground={() => setChatBackground('')}
             onLeave={() => { setShowGroupInfo(false); onClose?.(); }}
             onConvUpdate={(data) => {
               setConversation(prev => ({ ...prev, ...data }));
@@ -1659,6 +1697,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             conversation={conversation}
             onClose={() => setShowGroupInfo(false)}
             onConvUpdate={(data) => setConversation(prev => ({ ...prev, ...data }))}
+            onPickBackground={pickBackground}
+            onClearBackground={() => setChatBackground('')}
             onCleared={() => { setMessages([]); setPinnedMessages([]); }}
           />
         )}
@@ -2011,11 +2051,9 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             {false && (
               <div className="wc-ctx-item" onClick={() => ctxAction('collect')}>收藏</div>
             )}
-            {conversation.type === 'group' && (
-              <div className="wc-ctx-item" onClick={() => ctxAction('pin')}>
-                {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}
-              </div>
-            )}
+            <div className="wc-ctx-item" onClick={() => ctxAction('pin')}>
+              {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}
+            </div>
             {ctxMenu.msg.type === 'image' && (
               <div className="wc-ctx-item" onClick={() => ctxAction('addSticker')}>添加到表情</div>
             )}
@@ -2100,7 +2138,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
 }
 
 
-function PrivateChatSettings({ conversation, onClose, onConvUpdate, onCleared }) {
+function PrivateChatSettings({ conversation, onClose, onConvUpdate, onPickBackground, onClearBackground, onCleared }) {
   const [muted, setMuted] = useState(!!conversation.muted);
   const [pinned, setPinned] = useState(!!conversation.pinned);
   const [saving, setSaving] = useState(false);
@@ -2161,6 +2199,15 @@ function PrivateChatSettings({ conversation, onClose, onConvUpdate, onCleared })
               <div className={`wc-settings-toggle-thumb${pinned ? ' on' : ' off'}`} />
             </div>
           </div>
+          <div className="wc-settings-row wc-settings-row-clickable" onClick={() => onPickBackground?.()}>
+            <span className="wc-settings-row-label">设置聊天背景</span>
+            <span className="wc-settings-row-action">{conversation.background ? '更换 ›' : '选择图片 ›'}</span>
+          </div>
+          {conversation.background && (
+            <div className="wc-settings-row wc-settings-row-clickable" onClick={() => onClearBackground?.()}>
+              <span className="wc-settings-row-label" style={{ color: '#fa5151' }}>清除聊天背景</span>
+            </div>
+          )}
         </div>
         <button
           onClick={clearMessages}

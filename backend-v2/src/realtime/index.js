@@ -15,6 +15,7 @@ const prodMetrics = require('../utils/prodMetrics');
 const registerMessage = require('./handlers/message');
 const registerFile    = require('./handlers/file');
 const registerTyping  = require('./handlers/typing');
+const registerNudge   = require('./handlers/nudge');
 const registerCall    = require('./handlers/call');
 
 module.exports = function setupRealtime(io, app) {
@@ -73,6 +74,7 @@ module.exports = function setupRealtime(io, app) {
     registerFile(io, socket);
     const typing = registerTyping(io, socket);
     registerCall(io, socket);
+    registerNudge(io, socket);
 
     // ── 断线 ──────────────────────────────────────────────────
     socket.on('disconnect', () => {

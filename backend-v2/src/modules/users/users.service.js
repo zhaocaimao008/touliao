@@ -9,9 +9,12 @@ const { collectionDedupKey } = require('../../utils/collections');
 const settingDefaults = {
   add_by_vxin_id: 1, add_by_phone: 1, require_verify: 1, profile_visible: 1,
   block_unknown_messages: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0,
+  chat_background: null, moments_visible_days: 0,
 };
 const toBool = v => !!Number(v);
 const toIntBool = v => (v ? 1 : 0);
+// 朋友圈"最近 N 天可见"允许的取值：0=全部 / 1=今天 / 3=三天 / 30=半年
+const MOMENTS_DAY_OPTIONS = [0, 1, 3, 30];
 
 function ensureSettings(userId) {
   db.prepare('INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)').run(userId);
@@ -25,6 +28,7 @@ function serializeSettings(row) {
     requireVerify: toBool(s.require_verify), profileVisible: toBool(s.profile_visible),
     blockUnknownMessages: toBool(s.block_unknown_messages), messageNotify: toBool(s.message_notify),
     detailPreview: toBool(s.detail_preview), sound: toBool(s.sound), vibrate: toBool(s.vibrate),
+    chatBackground: s.chat_background || '', momentsVisibleDays: Number(s.moments_visible_days) || 0,
   };
 }
 
@@ -37,6 +41,15 @@ function normalizeSettings(body) {
   const patch = {};
   for (const [k, dbKey] of Object.entries(map)) {
     if (body[k] !== undefined) patch[dbKey] = toIntBool(body[k]);
+  }
+  // 非布尔字段：全局默认聊天背景（字符串/清空）与朋友圈可见天数（枚举）
+  if (body.chatBackground !== undefined) {
+    const bg = typeof body.chatBackground === 'string' ? body.chatBackground.trim().slice(0, 2048) : '';
+    patch.chat_background = bg || null;
+  }
+  if (body.momentsVisibleDays !== undefined) {
+    const d = Number(body.momentsVisibleDays);
+    patch.moments_visible_days = MOMENTS_DAY_OPTIONS.includes(d) ? d : 0;
   }
   return patch;
 }

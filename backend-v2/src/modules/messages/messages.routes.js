@@ -586,6 +586,9 @@ router.post  ('/conversation/:convId/pin',  auth, conv.pin);
  */
 router.post  ('/conversation/:convId/mute', auth, conv.mute);
 
+// 聊天专属背景：body { background } 传 URL 设置、空串清除
+router.put   ('/conversation/:convId/background', auth, conv.background);
+
 /**
  * @swagger
  * /messages/conversation/{convId}/read:

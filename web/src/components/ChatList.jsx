@@ -71,6 +71,14 @@ function previewMsg(conv, user) {
   if (t === 'contact_card' || t === 'contact') return '[名片]';
   if (t === 'red_packet') return '[红包]';
   if (t === 'sticker') return '[表情]';
+  if (t === 'nudge') {
+    try {
+      const n = JSON.parse(conv.lastMessage);
+      const a = String(n.actor) === String(user?.id) ? '你' : (n.actorName || '某人');
+      const b = String(n.target) === String(user?.id) ? '你' : (n.targetName || '某人');
+      return `${a} 拍了拍 ${b}`;
+    } catch { return '[拍一拍]'; }
+  }
   if (!conv.lastMessage) return '';
   if (conv.type === 'group' && conv.lastSenderName && conv.lastSenderName !== user?.username)
     return `${conv.lastSenderName}: ${conv.lastMessage}`;

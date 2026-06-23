@@ -946,6 +946,9 @@
   font-size: 14px;
   color: var(--text-primary);
 }
+.wc-settings-row-clickable { cursor: pointer; }
+.wc-settings-row-clickable:hover { background: var(--hover-bg, rgba(0,0,0,.03)); }
+.wc-settings-row-action { font-size: 13px; color: var(--text-secondary, #888); }
 .wc-settings-toggle {
   width: 44px;
   height: 26px;
