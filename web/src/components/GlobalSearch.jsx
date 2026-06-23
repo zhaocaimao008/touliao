@@ -82,24 +82,24 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     return results;
   }, [conversations, q]);
 
-  // 搜历史消息(实时搜，支持单聊和群聊)
+  // 搜历史消息(防抖 300ms，减少请求次数)
   useEffect(() => {
-    if (!q || q.length < 1) { setMessages([]); return; }  // 允许单字符搜索
-    setSearchingMsg(true);
-    axios.get(`/api/messages/search?q=${encodeURIComponent(q)}&limit=20`)
-      .then(r => {
-        const msgs = (r.data.results || []).map(m => ({
-          ...m,
-          preview: m.content,
-          msgType: m.type,
-        }));
-        setMessages(msgs);
-      })
-      .catch(err => {
-        // [GlobalSearch] Failed to search messages — suppressed
-        setMessages([]);
-      })
-      .finally(() => setSearchingMsg(false));
+    if (!q || q.length < 1) { setMessages([]); return; }
+    const timer = setTimeout(() => {
+      setSearchingMsg(true);
+      axios.get(`/api/messages/search?q=${encodeURIComponent(q)}&limit=20`)
+        .then(r => {
+          const msgs = (r.data.results || []).map(m => ({
+            ...m,
+            preview: m.content,
+            msgType: m.type,
+          }));
+          setMessages(msgs);
+        })
+        .catch(() => setMessages([]))
+        .finally(() => setSearchingMsg(false));
+    }, 300);
+    return () => clearTimeout(timer);
   }, [q]);
 
   const openContact = async (c) => {

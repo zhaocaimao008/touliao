@@ -351,6 +351,16 @@ function applySchema(db) {
       UNIQUE(moment_id, reporter_id)       -- 同一人对同一动态只记一次
     )`,
     "CREATE INDEX IF NOT EXISTS idx_moment_reports_status ON moment_reports(status, created_at DESC)",
+    // ── 缺失索引补全 ──
+    "CREATE INDEX IF NOT EXISTS idx_blocked_users_user ON blocked_users(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_friend_req_from ON friend_requests(from_id)",
+    "CREATE INDEX IF NOT EXISTS idx_friend_req_to ON friend_requests(to_id)",
+    // ── token 黑名单持久化（Redis 不可用时的 SQLite 备用）──
+    `CREATE TABLE IF NOT EXISTS token_blacklist (
+      token      TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_token_blacklist_exp ON token_blacklist(expires_at)",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

@@ -13,11 +13,14 @@ function ago(sec) {
   return new Date(sec * 1000).toLocaleDateString('zh-CN');
 }
 
+const CONTENT_LIMIT = 120;
+
 /* 单条动态 */
 function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments }) {
   const [commenting, setCommenting] = useState(false);
   const [text, setText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const viewAllComments = async () => {
     setLoadingComments(true);
@@ -42,7 +45,20 @@ function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onL
             <button className="wc-moment-delete" onClick={() => onDelete(m)}>删除</button>
           )}
         </div>
-        {m.content && <div className="wc-moment-text">{m.content}</div>}
+        {m.content && (() => {
+          const needsTruncate = m.content.length > CONTENT_LIMIT;
+          const display = needsTruncate && !expanded ? m.content.slice(0, CONTENT_LIMIT) + '…' : m.content;
+          return (
+            <div className="wc-moment-text">
+              {display}
+              {needsTruncate && (
+                <button className="wc-moment-expand-btn" onClick={() => setExpanded(v => !v)}>
+                  {expanded ? '收起' : '查看全文'}
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 图片九宫格 */}
         {m.images?.length > 0 && (

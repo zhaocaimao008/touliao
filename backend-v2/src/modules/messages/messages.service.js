@@ -328,8 +328,7 @@ async function collect(userId, msgId) {
   return row ? { ...row, extra: JSON.parse(row.extra || '{}') } : { id };
 }
 
-// ── 全局搜索（普通 LIKE 搜索 + 成员范围限定）──────────────────────
-//   P2 缓存：15ms → 5ms（65% 性能改进）
+// ── 全局搜索（FTS5 trigram 全文索引 + 成员范围限定）──────────────
 async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
   if (!q || !q.trim()) return { results: [], total: 0 };
   if (q.length > 100) throw badRequest('搜索词过长');
@@ -337,38 +336,37 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
   const safeLimit = Math.min(parseInt(limit) || 20, 50);
   const safeOffset = Math.min(Math.max(parseInt(offset) || 0, 0), 10000);
 
-  // P2 优化：尝试从缓存获取搜索结果（TTL: 10 分钟）
   const cacheKey = `search:${userId}:${q}:${safeLimit}:${safeOffset}`;
-  let cachedResult = await cache.get(cacheKey);
-  if (cachedResult) {
-    return cachedResult;
-  }
+  const cachedResult = await cache.get(cacheKey);
+  if (cachedResult) return cachedResult;
 
-  const escaped = q.replace(/[%_\\]/g, '\\$&');
-  const searchTerm = `%${escaped}%`;
+  // FTS5 phrase query: double-quote wrap 防止特殊字符被解析为 FTS5 语法
+  const ftsQuery = '"' + q.trim().replace(/"/g, '""') + '"';
 
   const total = db.prepare(`
     SELECT COUNT(*) AS cnt
-    FROM messages m
-    JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
-    WHERE m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
-  `).get(userId, searchTerm)?.cnt || 0;
+    FROM messages_fts
+    JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
+    JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
+    WHERE messages_fts MATCH ?
+  `).get(userId, ftsQuery)?.cnt || 0;
 
   const rows = db.prepare(`
     SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
            u.username AS senderName, u.avatar AS senderAvatar,
            c.name AS convName, c.type AS convType,
            ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
-    FROM messages m
-    JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
+    FROM messages_fts
+    JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
+    JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
     JOIN users u ON u.id = m.sender_id
     JOIN conversations c ON c.id = m.conversation_id
     LEFT JOIN conversation_members cm_o
            ON cm_o.conversation_id = m.conversation_id AND cm_o.user_id != ? AND c.type = 'private'
     LEFT JOIN users ou ON ou.id = cm_o.user_id
-    WHERE m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
+    WHERE messages_fts MATCH ?
     ORDER BY m.created_at DESC LIMIT ? OFFSET ?
-  `).all(userId, userId, searchTerm, safeLimit, safeOffset);
+  `).all(userId, userId, ftsQuery, safeLimit, safeOffset);
 
   const results = rows.map(({ ou_id, ou_username, ou_avatar, ou_status, ...msg }) => {
     if (msg.convType === 'private') {
@@ -379,10 +377,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
   });
 
   const result = { results, total, limit: safeLimit, offset: safeOffset };
-
-  // 写入缓存（TTL: 10 分钟）
   await cache.set(cacheKey, result, 600);
-
   return result;
 }
 

@@ -75,6 +75,64 @@ function enrich(viewerId, m, { likeLimit = 0, commentLimit = 0 } = {}) {
   };
 }
 
+// 批量装配（timeline/userMoments 用）：6 次查询覆盖全部动态，消除 N+1
+function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
+  if (!rows.length) return [];
+  const ids = rows.map(m => m.id);
+  const ph = ids.map(() => '?').join(',');
+
+  const authorIds = [...new Set(rows.map(m => m.user_id))];
+  const authorPh = authorIds.map(() => '?').join(',');
+  const authorMap = new Map();
+  db.prepare(`SELECT id, username, avatar FROM users WHERE id IN (${authorPh})`).all(...authorIds)
+    .forEach(u => authorMap.set(u.id, u));
+
+  const likeCountMap = new Map(ids.map(id => [id, 0]));
+  db.prepare(`SELECT moment_id, COUNT(*) AS n FROM moment_likes WHERE moment_id IN (${ph}) GROUP BY moment_id`).all(...ids)
+    .forEach(r => likeCountMap.set(r.moment_id, r.n));
+
+  const commentCountMap = new Map(ids.map(id => [id, 0]));
+  db.prepare(`SELECT moment_id, COUNT(*) AS n FROM moment_comments WHERE moment_id IN (${ph}) GROUP BY moment_id`).all(...ids)
+    .forEach(r => commentCountMap.set(r.moment_id, r.n));
+
+  const likedSet = new Set();
+  db.prepare(`SELECT moment_id FROM moment_likes WHERE moment_id IN (${ph}) AND user_id=?`).all(...ids, viewerId)
+    .forEach(r => likedSet.add(r.moment_id));
+
+  const likesMap = new Map(ids.map(id => [id, []]));
+  db.prepare(`SELECT ml.moment_id, ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id IN (${ph}) ORDER BY ml.moment_id, ml.created_at`).all(...ids)
+    .forEach(r => {
+      const arr = likesMap.get(r.moment_id);
+      if (!likeLimit || arr.length < likeLimit) arr.push({ user_id: r.user_id, username: r.username });
+    });
+
+  const commentsMap = new Map(ids.map(id => [id, []]));
+  db.prepare(`SELECT mc.moment_id, mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id IN (${ph}) ORDER BY mc.moment_id, mc.created_at`).all(...ids)
+    .forEach(({ moment_id, ...rest }) => {
+      const arr = commentsMap.get(moment_id);
+      if (!commentLimit || arr.length < commentLimit) arr.push(rest);
+    });
+
+  return rows.map(m => {
+    const likes = likesMap.get(m.id);
+    const comments = commentsMap.get(m.id);
+    const likeCount = likeCountMap.get(m.id);
+    const commentCount = commentCountMap.get(m.id);
+    return {
+      ...m,
+      images: JSON.parse(m.images || '[]'),
+      author: authorMap.get(m.user_id),
+      likes,
+      likeCount,
+      liked: likedSet.has(m.id),
+      comments,
+      commentCount,
+      hasMoreLikes: likeCount > likes.length,
+      hasMoreComments: commentCount > comments.length,
+    };
+  });
+}
+
 // ── 发布 ────────────────────────────────────────────────────────
 function createMoment(io, userId, { content, images, visibility }) {
   const text = (content || '').trim();
@@ -110,7 +168,7 @@ function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
     ORDER BY m.created_at DESC
     LIMIT ? OFFSET ?
   `).all(viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, n, off);
-  return rows.map(m => enrich(viewerId, m, { likeLimit: 50, commentLimit: 10 }));
+  return batchEnrich(viewerId, rows, { likeLimit: 50, commentLimit: 10 });
 }
 
 // ── 某用户的动态（好友或本人）──────────────────────────────────
@@ -126,7 +184,7 @@ function userMoments(viewerId, targetId) {
     )
     ORDER BY created_at DESC LIMIT 50
   `).all(targetId, viewerId, targetId, viewerId);
-  return rows.map(m => enrich(viewerId, m, { likeLimit: 50, commentLimit: 10 }));
+  return batchEnrich(viewerId, rows, { likeLimit: 50, commentLimit: 10 });
 }
 
 // ── 单条动态详情（本人或可见好友）──────────────────────────────
