@@ -6,7 +6,7 @@
 
 export const site = {
   name: 'v信',
-  tagline: '端到端加密的私密通讯',
+  tagline: '私有化部署的私密通讯',
   // 站点规范地址（用于 OG/canonical）。当前指向已部署的 Web 应用域名，
   // 若落地页另起独立域名，改这里即可。
   url: 'https://chat.91aigu.com',
@@ -31,16 +31,16 @@ export const nav = {
 } as const;
 
 export const hero = {
-  pill: '🔒 端到端加密 · 隐私优先',
-  title: ['只有你和对方', '能看见'],
+  pill: '🔒 私有化部署 · 隐私优先',
+  title: ['你的数据', '你做主'],
   subtitle:
-    'v信 —— 端到端加密的私密通讯。聊天、朋友圈、收藏，三端实时同步，安全感拉满。',
+    'v信 —— 私有化部署的私密通讯。聊天、朋友圈、收藏，三端实时同步，数据自主可控。',
   primary: { label: '立即下载', href: '#download' },
   secondary: { label: '网页版体验', href: site.links.webApp },
   trustBar: [
-    { icon: '🔒', label: '端到端加密' },
+    { icon: '🔒', label: '全程加密传输' },
     { icon: '📱', label: '三端一致' },
-    { icon: '🚫', label: '不留存明文' },
+    { icon: '🏠', label: '私有化部署' },
   ],
 } as const;
 
@@ -50,8 +50,8 @@ export const valueProps = {
   cards: [
     {
       icon: '🔐',
-      title: '端到端加密',
-      desc: '消息全程加密，服务器与第三方都无法读取你的内容。',
+      title: '全程加密传输',
+      desc: '消息经 HTTPS/TLS 全程加密传输，配合私有化部署，数据掌握在自己手里。',
     },
     {
       icon: '🔄',
@@ -108,8 +108,8 @@ export const security = {
   items: [
     {
       icon: '🔐',
-      title: '端到端加密',
-      desc: '消息内容仅在你的设备与对方设备间可解，传输与存储全程加密。',
+      title: '全程加密传输',
+      desc: '所有通信经 HTTPS/TLS 加密传输；支持私有化部署，数据掌握在你自己手里。',
     },
     {
       icon: '🧾',

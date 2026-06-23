@@ -12,7 +12,7 @@ const ICONS = {
 };
 
 const FEATURES = [
-  { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>', title: '端到端加密', desc: '消息全程加密传输，私密对话不留痕' },
+  { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>', title: '全程加密传输', desc: '消息经 HTTPS/TLS 全程加密传输，配合私有化部署，数据自主可控' },
   { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>', title: '多端同步', desc: '手机、电脑、网页实时同步，无缝切换' },
   { icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>', title: '极速送达', desc: '毫秒级消息推送，稳定可靠不掉线' },
 ];

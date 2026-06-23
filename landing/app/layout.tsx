@@ -6,12 +6,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: `${site.name} — ${site.tagline}`,
   description:
-    'v信 是一款端到端加密的私密通讯应用：聊天、朋友圈、收藏三端实时同步，安全感拉满。',
-  keywords: ['v信', '端到端加密', '私密通讯', '即时通讯', '朋友圈', '收藏'],
+    'v信 是一款私有化部署的私密通讯应用：聊天、朋友圈、收藏三端实时同步，数据自主可控。',
+  keywords: ['v信', '私有化部署', '私密通讯', '即时通讯', '朋友圈', '收藏'],
   openGraph: {
     title: `${site.name} — ${site.tagline}`,
     description:
-      '端到端加密的私密通讯。聊天、朋友圈、收藏，三端实时同步。',
+      '私有化部署的私密通讯。聊天、朋友圈、收藏，三端实时同步。',
     siteName: site.name,
     type: 'website',
     locale: 'zh_CN',
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: `${site.name} — ${site.tagline}`,
-    description: '端到端加密的私密通讯。三端实时同步。',
+    description: '私有化部署的私密通讯。三端实时同步。',
   },
 };
 
