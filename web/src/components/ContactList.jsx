@@ -10,8 +10,11 @@ import AddFriendModal from './AddFriendModal';
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0 }) {
   const [contacts, setContacts] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [sentRequests, setSentRequests] = useState([]);
+  const [blockedUsers, setBlockedUsers] = useState([]);
   const [groups, setGroups] = useState([]);
   const [tab, setTab] = useState('contacts');
+  const [requestsSubTab, setRequestsSubTab] = useState('received');
   const [onlineIds, setOnlineIds] = useState(new Set());
   const [activeChar, setActiveChar] = useState(null);
   const [viewProfile, setViewProfile] = useState(null);
@@ -24,19 +27,23 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     axios.get('/api/users/contacts').then(r => setContacts(Array.isArray(r.data) ? r.data : [])).catch(() => setContacts([])), []);
   const fetchRequests = useCallback(() =>
     axios.get('/api/users/friend-requests').then(r => setRequests(Array.isArray(r.data) ? r.data : [])).catch(() => setRequests([])), []);
+  const fetchSent = useCallback(() =>
+    axios.get('/api/users/friend-requests/sent').then(r => setSentRequests(Array.isArray(r.data) ? r.data : [])).catch(() => setSentRequests([])), []);
+  const fetchBlocked = useCallback(() =>
+    axios.get('/api/users/me/blocked').then(r => setBlockedUsers(Array.isArray(r.data) ? r.data : [])).catch(() => setBlockedUsers([])), []);
   const fetchGroups = useCallback(() =>
     axios.get('/api/messages/my-groups').then(r => setGroups(Array.isArray(r.data) ? r.data : [])).catch(() => setGroups([])), []);
 
   useEffect(() => {
-    fetchContacts(); fetchRequests(); fetchGroups();
-  }, [fetchContacts, fetchRequests, fetchGroups]);
+    fetchContacts(); fetchRequests(); fetchSent(); fetchGroups();
+  }, [fetchContacts, fetchRequests, fetchSent, fetchGroups]);
 
   useEffect(() => {
     if (!socket) return;
     const onOnline = ({ userId }) => setOnlineIds(prev => new Set([...prev, userId]));
     const onOffline = ({ userId }) => setOnlineIds(prev => { const s = new Set(prev); s.delete(userId); return s; });
     const onFriendReq = (req) => setRequests(prev => [req, ...prev]);
-    const onAccepted = () => { fetchContacts(); fetchRequests(); };
+    const onAccepted = () => { fetchContacts(); fetchRequests(); fetchSent(); };
     const onNewConv = () => fetchGroups();
     socket.on('user_online', onOnline);
     socket.on('user_offline', onOffline);
@@ -52,7 +59,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       socket.off('new_conversation', onNewConv);
       socket.off('group_updated', onNewConv);
     };
-  }, [socket, fetchContacts, fetchGroups, fetchRequests]);
+  }, [socket, fetchContacts, fetchGroups, fetchRequests, fetchSent]);
 
   useEffect(() => {
     const handler = ({ detail }) => {
@@ -74,6 +81,11 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     await axios.post(`/api/users/friend-request/${id}/handle`, { action });
     setRequests(prev => prev.filter(r => r.id !== id));
     if (action === 'accepted') fetchContacts();
+  };
+
+  const unblock = async (userId) => {
+    await axios.delete(`/api/users/block/${userId}`);
+    setBlockedUsers(prev => prev.filter(u => u.id !== userId));
   };
 
   const startChat = (contact) => {
@@ -125,6 +137,11 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
               color="#FF7A45" label="添加好友" badge={0}
               onClick={() => setShowAddFriend(true)}
+            />
+            <EntryRow
+              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>}
+              color="#FF4D4F" label="黑名单" badge={0}
+              onClick={() => { fetchBlocked(); setTab('blocked'); }}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>}
@@ -187,25 +204,83 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'requests' && (
           <>
             <SectionHeader title="新的朋友" onBack={() => setTab('contacts')} />
-            {requests.length === 0 && (
+            <div className="cl-subtabs">
+              <button className={`cl-subtab${requestsSubTab === 'received' ? ' active' : ''}`}
+                onClick={() => setRequestsSubTab('received')}>
+                收到{requests.length > 0 ? ` (${requests.length})` : ''}
+              </button>
+              <button className={`cl-subtab${requestsSubTab === 'sent' ? ' active' : ''}`}
+                onClick={() => { setRequestsSubTab('sent'); fetchSent(); }}>
+                已发送
+              </button>
+            </div>
+
+            {requestsSubTab === 'received' && (
+              <>
+                {requests.length === 0 && (
+                  <div className="cl-empty" role="status">
+                    <svg viewBox="0 0 24 24" width="40" height="40" fill="#D0D7E3" className="cl-empty-icon">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                    <div className="cl-empty-text">暂无新申请</div>
+                  </div>
+                )}
+                {requests.map(r => (
+                  <div key={r.id} className="req-item">
+                    <Avatar src={r.avatar || r.from?.avatar} name={r.username || r.from?.username} size={46} className="cl-avatar-rounded" />
+                    <div className="req-info">
+                      <div className="req-name">{r.username || r.from?.username}</div>
+                      <div className="req-msg">{r.message || '请求添加您为好友'}</div>
+                    </div>
+                    <div className="req-btns">
+                      <button className="req-accept" onClick={() => handleRequest(r.id, 'accepted')}>接受</button>
+                      <button className="req-reject" onClick={() => handleRequest(r.id, 'rejected')}>拒绝</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {requestsSubTab === 'sent' && (
+              <>
+                {sentRequests.length === 0 && (
+                  <div className="cl-empty" role="status">
+                    <div className="cl-empty-text">暂无已发送申请</div>
+                  </div>
+                )}
+                {sentRequests.map(r => (
+                  <div key={r.id} className="req-item">
+                    <Avatar src={r.avatar} name={r.username} size={46} className="cl-avatar-rounded" />
+                    <div className="req-info">
+                      <div className="req-name">{r.username}</div>
+                      <div className="req-msg">{r.message || '请求添加对方为好友'}</div>
+                    </div>
+                    <span className={`req-status req-status-${r.status}`}>
+                      {r.status === 'pending' ? '等待验证' : r.status === 'accepted' ? '已添加' : '已拒绝'}
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
+          </>
+        )}
+
+        {/* 黑名单 */}
+        {tab === 'blocked' && (
+          <>
+            <SectionHeader title="黑名单" onBack={() => setTab('contacts')} />
+            {blockedUsers.length === 0 && (
               <div className="cl-empty" role="status">
-                <svg viewBox="0 0 24 24" width="40" height="40" fill="#D0D7E3" className="cl-empty-icon">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-                </svg>
-                <div className="cl-empty-text">暂无新申请</div>
+                <div className="cl-empty-text">黑名单为空</div>
               </div>
             )}
-            {requests.map(r => (
-              <div key={r.id} className="req-item">
-                <Avatar src={r.avatar || r.from?.avatar} name={r.username || r.from?.username} size={46} className="cl-avatar-rounded" />
+            {blockedUsers.map(u => (
+              <div key={u.id} className="req-item">
+                <Avatar src={u.avatar} name={u.username} size={46} className="cl-avatar-rounded" />
                 <div className="req-info">
-                  <div className="req-name">{r.username || r.from?.username}</div>
-                  <div className="req-msg">{r.message || '请求添加您为好友'}</div>
+                  <div className="req-name">{u.username}</div>
                 </div>
-                <div className="req-btns">
-                  <button className="req-accept" onClick={() => handleRequest(r.id, 'accepted')}>接受</button>
-                  <button className="req-reject" onClick={() => handleRequest(r.id, 'rejected')}>拒绝</button>
-                </div>
+                <button className="req-reject" onClick={() => unblock(u.id)}>移除</button>
               </div>
             ))}
           </>

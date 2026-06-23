@@ -2785,6 +2785,21 @@ body {
 }
 .req-reject:hover { background: var(--bg-hover); }
 
+/* 好友申请子分栏（收到/已发送） */
+.cl-subtabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg-primary); }
+.cl-subtab {
+  flex: 1; padding: 10px 0; font-size: 13px; font-weight: 500;
+  color: var(--text-secondary); border: none; background: transparent;
+  cursor: pointer; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+}
+.cl-subtab.active { color: var(--green); border-bottom-color: var(--green); }
+
+/* 已发送申请状态标签 */
+.req-status { font-size: 12px; flex-shrink: 0; padding: 3px 8px; border-radius: 10px; }
+.req-status-pending { color: var(--text-secondary); background: var(--bg-secondary); }
+.req-status-accepted { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+.req-status-rejected { color: var(--text-tertiary); background: var(--bg-secondary); }
+
 /* 联系人列表空状态 */
 .cl-empty {
   display: flex; flex-direction: column; align-items: center;
