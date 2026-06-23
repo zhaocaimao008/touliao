@@ -335,19 +335,18 @@ function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
   const rows = db.prepare(`
     SELECT mn.id, mn.type, mn.moment_id, mn.comment_id, mn.is_read, mn.created_at,
            u.id AS actor_id, u.username AS actor_name, u.avatar AS actor_avatar,
-           m.content AS moment_content, m.images AS moment_images
+           m.content AS moment_content, m.images AS moment_images,
+           mc.content AS comment_content
     FROM moment_notifications mn
     JOIN users u ON u.id = mn.actor_id
     LEFT JOIN moments m ON m.id = mn.moment_id
+    LEFT JOIN moment_comments mc ON mc.id = mn.comment_id
     WHERE mn.user_id = ?
     ORDER BY mn.created_at DESC, mn.rowid DESC
     LIMIT ? OFFSET ?
   `).all(userId, n, off);
   return rows.map(r => {
     const images = JSON.parse(r.moment_images || '[]');
-    const commentContent = r.comment_id
-      ? (db.prepare('SELECT content FROM moment_comments WHERE id=?').get(r.comment_id)?.content || '')
-      : '';
     return {
       id: r.id,
       type: r.type,
@@ -357,7 +356,7 @@ function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
       createdAt: r.created_at,
       actor: { id: r.actor_id, username: r.actor_name, avatar: r.actor_avatar },
       moment: { content: r.moment_content || '', thumb: images[0] || '' },
-      commentContent,
+      commentContent: r.comment_content || '',
     };
   });
 }

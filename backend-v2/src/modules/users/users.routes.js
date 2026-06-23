@@ -232,49 +232,6 @@ router.post('/friend-request/:id/handle', auth, c.handleRequest);
  *       200:
  *         description: Remark set
  */
-/**
- * @swagger
- * /users/contacts/{contactId}:
- *   delete:
- *     tags:
- *       - Contacts
- *     summary: Delete contact
- *     parameters:
- *       - in: path
- *         name: contactId
- *         required: true
- *         schema:
- *           type: string
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Contact deleted
- *   put:
- *     tags:
- *       - Contacts
- *     summary: Set contact remark
- *     parameters:
- *       - in: path
- *         name: contactId
- *         required: true
- *         schema:
- *           type: string
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               remark:
- *                 type: string
- *     responses:
- *       200:
- *         description: Remark updated
- */
 router.delete('/contacts/:contactId',     auth, c.deleteContact);
 router.put ('/contacts/:contactId/remark',auth, c.setRemark);
 

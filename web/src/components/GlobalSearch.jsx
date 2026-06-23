@@ -130,11 +130,6 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
 
   return (
     <div className="gs-scroll">
-      {/* 数据加载状态 */}
-      {q && (
-        {/* 状态调试栏已清理 */}
-      )}
-
       {/* 联系人 */}
       {matchedContacts.length > 0 && (
         <>

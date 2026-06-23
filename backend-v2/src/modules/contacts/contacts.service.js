@@ -92,6 +92,7 @@ function listSentRequests(userId) {
 }
 
 function handleRequest(io, userId, requestId, action) {
+  if (!['accepted', 'rejected'].includes(action)) throw badRequest('无效操作');
   const request = db.prepare('SELECT * FROM friend_requests WHERE id=? AND to_id=?').get(requestId, userId);
   if (!request) throw notFound('请求不存在');
   db.transaction(() => {

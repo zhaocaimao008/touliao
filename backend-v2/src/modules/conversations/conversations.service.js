@@ -12,20 +12,30 @@ const { isMember, requireMember } = require('../messages/shared');
 const cache = require('../../utils/cache');
 
 // ── 私聊会话：取或建 ────────────────────────────────────────────
-function getOrCreatePrivate(myId, otherId) {
-  if (!otherId) throw badRequest('参数缺失');
-  const existing = db.prepare(`
-    SELECT c.id FROM conversations c
-    JOIN conversation_members cm1 ON cm1.conversation_id=c.id AND cm1.user_id=?
-    JOIN conversation_members cm2 ON cm2.conversation_id=c.id AND cm2.user_id=?
-    WHERE c.type='private'
-  `).get(myId, otherId);
-  if (existing) return { conversationId: existing.id };
-
-  const id = uuidv4();
+const _findPrivate = db.prepare(`
+  SELECT c.id FROM conversations c
+  JOIN conversation_members cm1 ON cm1.conversation_id=c.id AND cm1.user_id=?
+  JOIN conversation_members cm2 ON cm2.conversation_id=c.id AND cm2.user_id=?
+  WHERE c.type='private'
+`);
+const _createPrivate = db.transaction((myId, otherId, id) => {
   db.prepare('INSERT INTO conversations (id,type) VALUES (?,?)').run(id, 'private');
   db.prepare('INSERT INTO conversation_members (conversation_id,user_id) VALUES (?,?)').run(id, myId);
   db.prepare('INSERT INTO conversation_members (conversation_id,user_id) VALUES (?,?)').run(id, otherId);
+});
+function getOrCreatePrivate(myId, otherId) {
+  if (!otherId) throw badRequest('参数缺失');
+  const existing = _findPrivate.get(myId, otherId);
+  if (existing) return { conversationId: existing.id };
+  const id = uuidv4();
+  try {
+    _createPrivate(myId, otherId, id);
+  } catch {
+    // concurrent creation: return whichever row won
+    const won = _findPrivate.get(myId, otherId);
+    if (won) return { conversationId: won.id };
+    throw new Error('无法创建私聊会话');
+  }
   return { conversationId: id };
 }
 
@@ -208,27 +218,32 @@ function myGroups(userId) {
 
 // ── 置顶 / 免打扰 ───────────────────────────────────────────────
 async function setPinned(userId, convId, pinned) {
+  requireMember(convId, userId, '无权操作');
   // P0-1：worker 异步写
   await writeAsync(`
     INSERT INTO conversation_settings (user_id, conversation_id, pinned) VALUES (?, ?, ?)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET pinned=excluded.pinned
   `, [userId, convId, pinned ? 1 : 0]);
   // P2 优化：删除缓存，下次查询重新加载
+  convCache.delete(userId);
   await cache.del(cache.keys.conversations(userId));
 }
 
 async function setMuted(userId, convId, muted) {
+  requireMember(convId, userId, '无权操作');
   // P0-1：worker 异步写
   await writeAsync(`
     INSERT INTO conversation_settings (user_id, conversation_id, muted) VALUES (?, ?, ?)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET muted=excluded.muted
   `, [userId, convId, muted ? 1 : 0]);
   // P2 优化：删除缓存，下次查询重新加载
+  convCache.delete(userId);
   await cache.del(cache.keys.conversations(userId));
 }
 
 // ── 标记已读（io 用于已读回执 + 多端同步清零）────────────────────
 async function markRead(io, userId, convId, messageId) {
+  if (!isMember(convId, userId)) return { readAt: 0, lastReadMessageId: null };
   let readAt = Math.floor(Date.now() / 1000);
   let readMsgId = messageId || null;
 
@@ -248,6 +263,7 @@ async function markRead(io, userId, convId, messageId) {
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET
       last_read_at = excluded.last_read_at, last_read_message_id = excluded.last_read_message_id
   `, [userId, convId, readAt, readMsgId]);
+  convCache.delete(userId);
   cache.del(cache.keys.conversations(userId)).catch(() => {});
 
   if (io) {

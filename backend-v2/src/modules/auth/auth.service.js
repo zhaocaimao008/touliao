@@ -118,7 +118,7 @@ function deleteSession(userId, sessionId) {
 
 async function changePassword(userId, { oldPassword, newPassword, currentToken }) {
   if (!oldPassword || !newPassword) throw badRequest('请填写完整');
-  if (newPassword.length < 6) throw badRequest('新密码至少6位');
+  if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword)) throw badRequest('新密码至少8位且需包含字母和数字');
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');

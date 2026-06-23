@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { showToast, showConfirm } from '../utils/toast';
 import axios from 'axios';
@@ -195,6 +195,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     return () => {
       if (recorderRef.current) stopRecording();
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      clearTimeout(typingTimer.current);
     };
   }, [conversation.id]);
   useEffect(() => {
@@ -436,7 +437,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     const stableHandler = () => handleScrollRef.current?.();
     outer.addEventListener('scroll', stableHandler, { passive: true });
     return () => outer.removeEventListener('scroll', stableHandler);
-  });
+  }, []);
 
   useEffect(() => {
     if (!socket) return;

@@ -127,9 +127,9 @@ async function getUserDetail(viewerId, targetId) {
   }
 
   // 关系信息不缓存（每次实时查询）
-  const isFriend  = !!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, targetId);
-  const isBlocked = !!db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(viewerId, targetId);
   const contact   = db.prepare('SELECT remark FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, targetId);
+  const isFriend  = !!contact;
+  const isBlocked = !!db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(viewerId, targetId);
   const settings  = serializeSettings(ensureSettings(targetId));
   const visible   = isFriend || targetId === viewerId || settings.profileVisible;
   const pendingReq = db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(viewerId, targetId, 'pending');
