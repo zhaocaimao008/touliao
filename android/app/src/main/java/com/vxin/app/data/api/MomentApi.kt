@@ -1,5 +1,6 @@
 package com.vxin.app.data.api
 
+import com.vxin.app.data.model.CommentPage
 import com.vxin.app.data.model.CreateMomentBody
 import com.vxin.app.data.model.Moment
 import com.vxin.app.data.model.MomentComment
@@ -33,6 +34,9 @@ interface MomentApi {
 
     @POST("api/moments/{id}/comment")
     suspend fun comment(@Path("id") id: String, @Body body: MomentCommentBody): MomentComment
+
+    @GET("api/moments/{id}/comments")
+    suspend fun comments(@Path("id") id: String, @Query("limit") limit: Int = 50, @Query("offset") offset: Int = 0): CommentPage
 
     @DELETE("api/moments/{id}")
     suspend fun delete(@Path("id") id: String)

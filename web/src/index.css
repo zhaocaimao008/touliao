@@ -1285,6 +1285,12 @@ img { display: block; }
   margin-left: 6px; font-size: 11px; color: var(--text-tertiary);
   background: none; cursor: pointer; border: none; font-family: inherit;
 }
+.wc-moment-comment-viewall {
+  display: block; margin-top: 4px; padding: 2px 0;
+  font-size: 13px; color: #576B95; background: none; border: none;
+  cursor: pointer; font-family: inherit;
+}
+.wc-moment-comment-viewall:disabled { color: var(--text-tertiary); cursor: default; }
 .wc-moment-comment-input {
   display: flex; gap: 6px; margin-top: 8px;
 }

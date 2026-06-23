@@ -71,3 +71,6 @@ struct Moment: Decodable, Identifiable {
 
 struct MomentLikeResponse: Decodable { var liked: Bool = false; var likeCount: Int = 0 }
 struct MomentImagesResponse: Decodable { var urls: [String] = [] }
+
+// GET /moments/:id/comments 分页响应（查看全部评论用）
+struct CommentPage: Decodable { var items: [MomentComment] = []; var total: Int = 0; var hasMore: Bool = false }

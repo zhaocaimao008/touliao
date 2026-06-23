@@ -6,6 +6,7 @@ import com.vxin.app.core.auth.SessionManager
 import com.vxin.app.core.network.toUserMessage
 import com.vxin.app.core.util.MediaUrlResolver
 import com.vxin.app.data.model.Moment
+import com.vxin.app.data.model.MomentComment
 import com.vxin.app.data.repository.MomentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,6 +88,23 @@ class MomentsViewModel @Inject constructor(
                     }
                 }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("评论失败")) } }
+        }
+    }
+
+    // 热门动态：timeline 只返回前 N 条评论，点「查看全部」时分页拉全量替换
+    fun loadAllComments(moment: Moment) {
+        viewModelScope.launch {
+            val all = mutableListOf<MomentComment>()
+            var offset = 0
+            while (true) {
+                val page = runCatching { momentRepository.comments(moment.id, 50, offset) }.getOrNull() ?: break
+                all += page.items
+                if (!page.hasMore || page.items.isEmpty()) break
+                offset += 50
+            }
+            _uiState.update { s ->
+                s.copy(moments = s.moments.map { m -> if (m.id == moment.id) m.copy(comments = all, commentCount = all.size) else m })
+            }
         }
     }
 

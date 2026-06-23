@@ -71,6 +71,24 @@ final class MomentsViewModel: ObservableObject {
         }
     }
 
+    // 热门动态：timeline 只返回前 N 条评论，点「查看全部」时分页拉全量替换
+    func loadAllComments(_ m: Moment) {
+        Task {
+            var all: [MomentComment] = []
+            var offset = 0
+            while true {
+                guard let page = try? await repo.comments(m.id, limit: 50, offset: offset) else { break }
+                all.append(contentsOf: page.items)
+                if !page.hasMore || page.items.isEmpty { break }
+                offset += 50
+            }
+            if let idx = moments.firstIndex(where: { $0.id == m.id }) {
+                moments[idx].comments = all
+                moments[idx].commentCount = all.count
+            }
+        }
+    }
+
     func delete(_ m: Moment) {
         Task {
             do { try await repo.delete(m.id); moments.removeAll { $0.id == m.id } }
@@ -111,6 +129,7 @@ struct MomentsView: View {
                             onComment: { commentingId = (commentingId == m.id ? nil : m.id); commentText = "" },
                             onSubmitComment: { vm.comment(m, text: commentText); commentingId = nil; commentText = "" },
                             onDelete: { deleteTarget = m },
+                            onViewAllComments: { vm.loadAllComments(m) },
                             onImageTap: { idx in gallery = GalleryData(images: m.images.map { MediaUrlResolver.resolve($0) ?? "" }, start: idx) }
                         )
                         .onAppear { if m.id == vm.moments.last?.id { vm.loadMore() } }
@@ -150,6 +169,7 @@ private struct MomentCard: View {
     var onComment: () -> Void
     var onSubmitComment: () -> Void
     var onDelete: () -> Void
+    var onViewAllComments: () -> Void = {}
     var onImageTap: (Int) -> Void = { _ in }
 
     var body: some View {
@@ -178,6 +198,11 @@ private struct MomentCard: View {
             ForEach(moment.comments) { c in
                 (Text("\(c.username.isEmpty ? "用户" : c.username)：").foregroundColor(.vxinGreen) + Text(c.content))
                     .font(.footnote)
+            }
+            // 热门动态：timeline 只返回前 N 条，按需加载全部
+            if moment.commentCount > moment.comments.count {
+                Button("查看全部 \(moment.commentCount) 条评论") { onViewAllComments() }
+                    .font(.footnote).foregroundColor(.vxinGreen)
             }
             if commenting {
                 HStack {

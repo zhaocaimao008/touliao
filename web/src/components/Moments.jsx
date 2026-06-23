@@ -14,9 +14,16 @@ function ago(sec) {
 }
 
 /* 单条动态 */
-function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment }) {
+function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments }) {
   const [commenting, setCommenting] = useState(false);
   const [text, setText] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
+
+  const viewAllComments = async () => {
+    setLoadingComments(true);
+    try { await onLoadComments(m); } finally { setLoadingComments(false); }
+  };
+  const hasMoreComments = (m.commentCount || 0) > (m.comments?.length || 0);
 
   const submit = () => {
     if (!text.trim()) return;
@@ -82,6 +89,12 @@ function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment }) {
                 )}
               </div>
             ))}
+            {/* 热门动态：timeline 只返回前 N 条，按需加载全部 */}
+            {hasMoreComments && (
+              <button className="wc-moment-comment-viewall" disabled={loadingComments} onClick={viewAllComments}>
+                {loadingComments ? '加载中…' : `查看全部 ${m.commentCount} 条评论`}
+              </button>
+            )}
           </div>
         )}
 
@@ -180,6 +193,18 @@ export default function Moments() {
     } catch (e) { showToast(e.response?.data?.error || '评论失败', 'error'); }
   };
 
+  // 热门动态：timeline 只返回前 N 条评论，点「查看全部」时分页拉全量替换
+  const onLoadComments = async (m) => {
+    let all = [], offset = 0;
+    for (;;) {
+      const { data } = await axios.get(`/api/moments/${m.id}/comments`, { params: { limit: 50, offset } });
+      all = all.concat(data.items || []);
+      if (!data.hasMore || (data.items || []).length === 0) break;
+      offset += 50;
+    }
+    setList(p => p.map(x => x.id === m.id ? { ...x, comments: all, commentCount: all.length } : x));
+  };
+
   const onDelete = async (m) => {
     if (!(await showConfirm('删除这条动态？'))) return;
     try { await axios.delete(`/api/moments/${m.id}`); setList(p => p.filter(x => x.id !== m.id)); } catch {}
@@ -243,7 +268,8 @@ export default function Moments() {
         ) : (
           list.map(m => (
             <MomentCard key={m.id} m={m} meId={meId}
-              onLike={onLike} onComment={onComment} onDelete={onDelete} onDeleteComment={onDeleteComment} />
+              onLike={onLike} onComment={onComment} onDelete={onDelete} onDeleteComment={onDeleteComment}
+              onLoadComments={onLoadComments} />
           ))
         )}
       </div>

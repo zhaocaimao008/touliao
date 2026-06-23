@@ -47,3 +47,11 @@ data class MomentLikeResponse(val liked: Boolean = false, val likeCount: Int = 0
 
 @Serializable
 data class MomentImagesResponse(val urls: List<String> = emptyList())
+
+// GET /moments/:id/comments 分页响应（查看全部评论用）
+@Serializable
+data class CommentPage(
+    val items: List<MomentComment> = emptyList(),
+    val total: Int = 0,
+    val hasMore: Boolean = false,
+)

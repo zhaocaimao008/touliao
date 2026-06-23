@@ -112,6 +112,7 @@ fun MomentsScreen(
                             commentText = commentText,
                             onCommentTextChange = { commentText = it },
                             onSubmitComment = { viewModel.comment(m, commentText); commentingId = null; commentText = "" },
+                            onViewAllComments = { viewModel.loadAllComments(m) },
                             onImageClick = { idx -> gallery = m.images to idx },
                         )
                         HorizontalDivider(thickness = 6.dp, color = Color(0x11000000))
@@ -188,6 +189,7 @@ private fun MomentCard(
     commentText: String,
     onCommentTextChange: (String) -> Unit,
     onSubmitComment: () -> Unit,
+    onViewAllComments: () -> Unit = {},
     onImageClick: (Int) -> Unit = {},
 ) {
     Column(
@@ -227,6 +229,12 @@ private fun MomentCard(
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                 Text("${c.username.ifBlank { "用户" }}：", color = VxinGreen, fontSize = 13.sp)
                 Text(c.content, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        // 热门动态：timeline 只返回前 N 条，按需加载全部
+        if (moment.commentCount > moment.comments.size) {
+            TextButton(onClick = onViewAllComments) {
+                Text("查看全部 ${moment.commentCount} 条评论", color = VxinGreen, fontSize = 13.sp)
             }
         }
         if (commenting) {
