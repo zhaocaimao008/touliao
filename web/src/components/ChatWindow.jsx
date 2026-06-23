@@ -87,7 +87,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   // 红包：详情弹窗 { packet, claims, myClaim, justClaimed } | null
   const [redPacketDetail, setRedPacketDetail] = useState(null);
   const [claiming, setClaiming] = useState(false);
-  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [lightboxState, setLightboxState] = useState(null); // { urls, idx } or null
   const [isDragOver, setIsDragOver] = useState(false);
   // recalled content tracked in state so flatItems rebuilds when re-edit is clicked
   const [recalledMessages, setRecalledMessages] = useState({});
@@ -1393,7 +1393,13 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   callbacksRef.current.toggleMsgSelect = (msgId) =>
     setSelectedMsgs(prev => { const s = new Set(prev); s.has(msgId) ? s.delete(msgId) : s.add(msgId); return s; });
   callbacksRef.current.retryMessage = retryMessage;
-  callbacksRef.current.setLightboxUrl = setLightboxUrl;
+  callbacksRef.current.setLightboxUrl = (clickedUrl) => {
+    const imageUrls = flatItems
+      .filter(it => it.type === 'image' && it.file_url)
+      .map(it => mediaUrl(it.file_url));
+    const idx = imageUrls.indexOf(clickedUrl);
+    setLightboxState({ urls: imageUrls, idx: idx >= 0 ? idx : 0 });
+  };
   callbacksRef.current.setHighlightedMsgId = setHighlightedMsgId;
   callbacksRef.current.setShowUserProfile = setShowUserProfile;
   callbacksRef.current.openRedPacket = openRedPacket;
@@ -1448,9 +1454,14 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           <span>拖放文件到此处上传</span>
         </div>
       )}
-      {/* ── 图片灯箱 ── */}
-      {lightboxUrl && (
-        <ImagePreview url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
+      {/* ── 图片灯箱（画廊模式） ── */}
+      {lightboxState && (
+        <ImagePreview
+          urls={lightboxState.urls}
+          initialIdx={lightboxState.idx}
+          url={lightboxState.urls[lightboxState.idx]}
+          onClose={() => setLightboxState(null)}
+        />
       )}
       {/* ── 通话弹窗 ── */}
       {activeCall && (

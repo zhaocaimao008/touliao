@@ -1,15 +1,27 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 
-export default function ImagePreview({ url, onClose }) {
+export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose }) {
+  // Gallery mode: urls array + current index; single mode: just url
+  const gallery = urls && urls.length > 1;
+  const [idx, setIdx] = useState(initialIdx);
+  const currentUrl = gallery ? urls[idx] : url;
+
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const posStart = useRef({ x: 0, y: 0 });
 
+  const resetTransform = () => { setScale(1); setPosition({ x: 0, y: 0 }); };
+
+  const prev = useCallback(() => { setIdx(i => i > 0 ? i - 1 : urls.length - 1); resetTransform(); }, [urls]);
+  const next = useCallback(() => { setIdx(i => i < urls.length - 1 ? i + 1 : 0); resetTransform(); }, [urls]);
+
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') onClose();
-  }, [onClose]);
+    if (gallery && e.key === 'ArrowLeft') prev();
+    if (gallery && e.key === 'ArrowRight') next();
+  }, [onClose, gallery, prev, next]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -29,11 +41,14 @@ export default function ImagePreview({ url, onClose }) {
 
   // Pinch zoom (touch)
   const lastPinchDist = useRef(null);
+  const touchStartX = useRef(null);
   const handleTouchStart = (e) => {
     if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       lastPinchDist.current = Math.sqrt(dx * dx + dy * dy);
+    } else if (e.touches.length === 1 && scale === 1) {
+      touchStartX.current = e.touches[0].clientX;
     }
   };
   const handleTouchMove = (e) => {
@@ -46,7 +61,14 @@ export default function ImagePreview({ url, onClose }) {
       lastPinchDist.current = dist;
     }
   };
-  const handleTouchEnd = () => { lastPinchDist.current = null; };
+  const handleTouchEnd = (e) => {
+    lastPinchDist.current = null;
+    if (gallery && scale === 1 && touchStartX.current !== null && e.changedTouches.length === 1) {
+      const dx = e.changedTouches[0].clientX - touchStartX.current;
+      if (Math.abs(dx) > 50) dx < 0 ? next() : prev();
+    }
+    touchStartX.current = null;
+  };
 
   // Drag to pan (when zoomed in)
   const handleMouseDown = (e) => {
@@ -56,7 +78,6 @@ export default function ImagePreview({ url, onClose }) {
       posStart.current = { ...position };
     }
   };
-
   const handleMouseMove = (e) => {
     if (dragging && scale > 1) {
       const dx = e.clientX - dragStart.current.x;
@@ -64,7 +85,6 @@ export default function ImagePreview({ url, onClose }) {
       setPosition({ x: posStart.current.x + dx, y: posStart.current.y + dy });
     }
   };
-
   const handleMouseUp = () => setDragging(false);
 
   return (
@@ -87,7 +107,8 @@ export default function ImagePreview({ url, onClose }) {
       onMouseLeave={handleMouseUp}
     >
       <img
-        src={url}
+        key={currentUrl}
+        src={currentUrl}
         alt=""
         loading="lazy"
         draggable={false}
@@ -104,9 +125,21 @@ export default function ImagePreview({ url, onClose }) {
         }}
       />
 
+      {/* Gallery navigation arrows */}
+      {gallery && (
+        <>
+          <button onClick={(e) => { e.stopPropagation(); prev(); }} style={arrowStyle('left')} aria-label="上一张">‹</button>
+          <button onClick={(e) => { e.stopPropagation(); next(); }} style={arrowStyle('right')} aria-label="下一张">›</button>
+          <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
+            color: 'rgba(255,255,255,.7)', fontSize: 13, zIndex: 10, pointerEvents: 'none' }}>
+            {idx + 1} / {urls.length}
+          </div>
+        </>
+      )}
+
       {/* Download button */}
       <a
-        href={url}
+        href={currentUrl}
         download
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -154,8 +187,21 @@ export default function ImagePreview({ url, onClose }) {
           pointerEvents: 'none',
         }}
       >
-        {scale !== 1 ? `${Math.round(scale * 100)}%` : '滚轮缩放'}
+        {scale !== 1 ? `${Math.round(scale * 100)}%` : gallery ? '← → 切换  滚轮缩放' : '滚轮缩放'}
       </div>
     </div>
   );
+}
+
+function arrowStyle(side) {
+  return {
+    position: 'absolute', [side]: 16, top: '50%', transform: 'translateY(-50%)',
+    color: '#fff', fontSize: 48, lineHeight: 1,
+    background: 'rgba(255,255,255,.1)',
+    width: 48, height: 80, borderRadius: 8,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    border: 'none', cursor: 'pointer', zIndex: 10,
+    backdropFilter: 'blur(6px)',
+    transition: 'background .15s',
+  };
 }
