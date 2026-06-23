@@ -99,9 +99,9 @@ jobs:
           git -C "$REPO_ROOT" fetch "$AUTH_URL" main
           git -C "$REPO_ROOT" reset --hard FETCH_HEAD
 
-          echo "🌐 步骤 2a: 构建 Web 前端（如有 node_modules 则跳过 install）"
+          echo "🌐 步骤 2a: 构建 Web 前端"
           cd "$REPO_ROOT/web"
-          if [ ! -d node_modules ]; then npm ci; fi
+          npm ci
           npm run build
           echo "✅ Web 构建完成（dist/ 已更新）"
 
