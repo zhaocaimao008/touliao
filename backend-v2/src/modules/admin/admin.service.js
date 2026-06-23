@@ -5,6 +5,7 @@ const config = require('../../config');
 const { db } = require('../../db/connection');
 const { badRequest, notFound, unauthorized } = require('../../utils/http');
 const { purgeConversation } = require('../messages/shared');
+const moments = require('../moments/moments.service');
 
 // ── 凭证校验（恒定时间比较，防时序侧信道）──────────────────────
 function timingSafeEqual(a, b) {
@@ -271,13 +272,7 @@ function resolveReport(reportId, action) {
   const r = db.prepare('SELECT * FROM moment_reports WHERE id=?').get(reportId);
   if (!r) throw notFound('举报不存在');
   if (action === 'delete') {
-    db.transaction(() => {
-      db.prepare('DELETE FROM moment_comments WHERE moment_id=?').run(r.moment_id);
-      db.prepare('DELETE FROM moment_likes WHERE moment_id=?').run(r.moment_id);
-      db.prepare('DELETE FROM moment_notifications WHERE moment_id=?').run(r.moment_id);
-      db.prepare('DELETE FROM moment_reports WHERE moment_id=?').run(r.moment_id);
-      db.prepare('DELETE FROM moments WHERE id=?').run(r.moment_id);
-    })();
+    moments.purgeMoment(r.moment_id);   // 复用 moments.service 的级联删除
     return { success: true, action: 'deleted' };
   }
   db.prepare("UPDATE moment_reports SET status='dismissed' WHERE id=?").run(reportId);
