@@ -7,6 +7,7 @@ final class MomentsViewModel: ObservableObject {
     @Published var moments: [Moment] = []
     @Published var loading = true
     @Published var reachedEnd = false
+    @Published var visibleDays = 0           // 朋友圈"最近 N 天可见"：0=全部
     @Published var error: String?
 
     private let repo = MomentRepository.shared
@@ -19,6 +20,20 @@ final class MomentsViewModel: ObservableObject {
         repo.eventsPublisher
             .sink { [weak self] in Task { @MainActor in await self?.refresh() } }
             .store(in: &cancellables)
+        Task { await loadSettings() }
+    }
+
+    // ── 朋友圈"最近 N 天可见" ──
+    func loadSettings() async {
+        if let s = try? await ProfileRepository.shared.settings() { visibleDays = s.momentsVisibleDays }
+    }
+
+    func setVisibleDays(_ days: Int) {
+        visibleDays = days
+        Task {
+            do { try await ProfileRepository.shared.setMomentsVisibleDays(days) }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "设置失败" }
+        }
     }
 
     func refresh() async {
@@ -104,6 +119,7 @@ struct MomentsView: View {
     @State private var commentText = ""
     @State private var deleteTarget: Moment?
     @State private var showCompose = false
+    @State private var showSettings = false
     @State private var gallery: GalleryData?
 
     init() {
@@ -142,12 +158,32 @@ struct MomentsView: View {
         .navigationTitle("朋友圈")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button { showSettings = true } label: { Image(systemName: "gearshape") }
                 Button { showCompose = true } label: { Image(systemName: "camera") }
             }
         }
         .sheet(isPresented: $showCompose) {
             MomentComposeView(onPublished: { showCompose = false; Task { await vm.refresh() } })
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                List {
+                    Section("允许朋友查看朋友圈的范围") {
+                        ForEach([(0, "全部"), (1, "最近一天"), (3, "最近三天"), (30, "最近一个月")], id: \.0) { day, label in
+                            Button { vm.setVisibleDays(day) } label: {
+                                HStack {
+                                    Text(label).foregroundColor(.primary)
+                                    Spacer()
+                                    if vm.visibleDays == day { Image(systemName: "checkmark").foregroundColor(.vxinGreen) }
+                                }
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("朋友圈设置").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showSettings = false } } }
+            }
         }
         .fullScreenCover(item: $gallery) { g in
             MomentGalleryView(images: g.images, start: g.start) { gallery = nil }

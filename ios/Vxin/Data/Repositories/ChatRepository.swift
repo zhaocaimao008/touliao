@@ -31,6 +31,18 @@ final class ChatRepository {
     func emitTyping(_ id: String) { socket.emitTyping(id) }
     func emitStopTyping(_ id: String) { socket.emitStopTyping(id) }
 
+    /// 拍一拍（私聊可省略 targetId，服务端自动取对方）
+    func nudge(conversationId: String, targetId: String? = nil) {
+        socket.emitNudge(conversationId: conversationId, targetId: targetId)
+    }
+
+    /// 设置/清除聊天专属背景（空串=清除）
+    func setConversationBackground(_ conversationId: String, background: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/background", method: "PUT", body: BackgroundBody(background: background)
+        )
+    }
+
     func loadConversations() async throws -> [Conversation] {
         try await api.send("api/messages/conversations")
     }
@@ -128,6 +140,7 @@ final class ChatRepository {
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }
+private struct BackgroundBody: Encodable { let background: String }
 private struct PinMessageBody: Encodable { let msgId: String }
 private struct PinConvBody: Encodable { let pinned: Int }
 private struct MuteConvBody: Encodable { let muted: Int }

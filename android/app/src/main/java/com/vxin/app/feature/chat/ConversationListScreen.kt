@@ -220,6 +220,9 @@ private fun previewText(conv: Conversation): String = when (conv.lastMessageType
     "voice" -> "[语音]"
     "video" -> "[视频]"
     "file" -> "[文件]"
+    "red_packet" -> "[红包]"
+    "sticker" -> "[表情]"
+    "nudge" -> "[拍一拍]"
     else -> conv.lastMessage ?: ""
 }
 

@@ -258,6 +258,13 @@ final class SocketService {
         socket?.emit("stop_typing", ["conversationId": conversationId])
     }
 
+    /// 拍一拍：服务端落库 type='nudge' 消息并广播（私聊可省略 targetId）
+    func emitNudge(conversationId: String, targetId: String?) {
+        var payload: [String: Any] = ["conversationId": conversationId]
+        if let targetId { payload["targetId"] = targetId }
+        socket?.emit("nudge", payload)
+    }
+
     // ── 通话信令发送 ──
     func emitCallRequest(to: String, type: String, callerName: String) {
         socket?.emit("call:request", ["to": to, "type": type, "caller": ["name": callerName]])

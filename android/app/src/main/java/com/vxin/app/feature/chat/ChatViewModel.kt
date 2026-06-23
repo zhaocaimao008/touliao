@@ -52,6 +52,7 @@ data class ChatUiState(
     val peerTyping: Boolean = false,
     val peerReadAt: Long = 0,         // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     val replyingTo: Message? = null,  // 正在回复的消息
+    val background: String = "",      // 聊天专属背景图 URL（空=无）
     val closed: Boolean = false,      // 被踢/群解散 → 关闭聊天页
     val loadingEarlier: Boolean = false,
     val reachedStart: Boolean = false,   // 已加载到最早
@@ -73,6 +74,7 @@ class ChatViewModel @Inject constructor(
     private val redPacketRepository: RedPacketRepository,
     private val callManager: com.vxin.app.core.call.CallManager,
     private val groupRepository: com.vxin.app.data.repository.GroupRepository,
+    private val momentRepository: com.vxin.app.data.repository.MomentRepository,
     private val mediaUploader: MediaUploader,
     private val audioRecorder: AudioRecorder,
     private val audioPlayer: AudioPlayer,
@@ -97,6 +99,7 @@ class ChatViewModel @Inject constructor(
     init {
         chatRepository.joinConversation(conversationId)
         loadHistory()
+        loadBackground()
         observeIncoming()
         observeTyping()
         observeRead()
@@ -210,6 +213,57 @@ class ChatViewModel @Inject constructor(
         val peer = peerId() ?: return false
         callManager.startCall(peer, _uiState.value.title, video)
         return true
+    }
+
+    // ── 拍一拍 ─────────────────────────────────────────────
+    /** 拍一拍某人（双击头像）。系统会广播 type='nudge' 消息，经 incomingMessages 回流入列表。 */
+    fun nudge(targetId: String) {
+        if (targetId == myId) return
+        chatRepository.nudge(conversationId, targetId)
+    }
+
+    /** 解析 nudge 消息为展示文案：「你/X 拍了拍 你/Y」 */
+    fun nudgeText(msg: Message): String {
+        val o = runCatching { json.parseToJsonElement(msg.content) }.getOrNull()
+        val obj = (o as? kotlinx.serialization.json.JsonObject)
+        fun str(k: String) = (obj?.get(k) as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+        val actor = str("actor"); val target = str("target")
+        val actorName = if (actor == myId) "你" else str("actorName").ifEmpty { "某人" }
+        val targetName = if (target == myId) "你" else str("targetName").ifEmpty { "某人" }
+        return "$actorName 拍了拍 $targetName"
+    }
+
+    // ── 聊天背景 ───────────────────────────────────────────
+    private fun loadBackground() {
+        viewModelScope.launch {
+            runCatching { chatRepository.loadConversations().firstOrNull { it.id == conversationId }?.background }
+                .onSuccess { bg -> if (!bg.isNullOrEmpty()) _uiState.update { it.copy(background = bg) } }
+        }
+    }
+
+    /** 选定图片 → 上传得 URL → 设为本会话背景 */
+    fun setBackground(uri: Uri) {
+        viewModelScope.launch {
+            val part = withContext(Dispatchers.IO) {
+                runCatching { mediaUploader.prepareFromUri(uri, fieldName = "images")?.part }.getOrNull()
+            } ?: run { _uiState.update { it.copy(error = "无法读取图片") }; return@launch }
+            runCatching {
+                val url = momentRepository.uploadImages(listOf(part)).firstOrNull().orEmpty()
+                if (url.isEmpty()) error("上传失败")
+                chatRepository.setConversationBackground(conversationId, url)
+                url
+            }
+                .onSuccess { url -> _uiState.update { it.copy(background = url, error = "已设置聊天背景") } }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("设置背景失败")) } }
+        }
+    }
+
+    fun clearBackground() {
+        viewModelScope.launch {
+            runCatching { chatRepository.setConversationBackground(conversationId, "") }
+                .onSuccess { _uiState.update { it.copy(background = "") } }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("清除失败")) } }
+        }
     }
 
     private fun refreshRedPacketDetail(packetId: String) {

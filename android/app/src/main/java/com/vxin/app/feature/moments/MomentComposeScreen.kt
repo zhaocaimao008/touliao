@@ -44,7 +44,7 @@ import coil.compose.AsyncImage
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun MomentComposeScreen(
     onBack: () -> Unit,
@@ -100,9 +100,21 @@ fun MomentComposeScreen(
             }
             Spacer(Modifier.size(16.dp))
             Text("谁可以看", color = VxinTextSecondary)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("all" to "公开", "friends" to "好友", "private" to "私密").forEach { (v, label) ->
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    "all" to "公开", "friends" to "好友", "private" to "私密",
+                    "include" to "部分可见", "exclude" to "不给谁看",
+                ).forEach { (v, label) ->
                     FilterChip(selected = state.visibility == v, onClick = { viewModel.setVisibility(v) }, label = { Text(label) })
+                }
+            }
+            if (state.visibility == "include" || state.visibility == "exclude") {
+                Spacer(Modifier.size(8.dp))
+                TextButton(onClick = viewModel::openFriendPicker) {
+                    Text(
+                        if (state.visibility == "include") "选择可见好友 (${state.visibleTo.size})" else "选择不给谁看 (${state.visibleTo.size})",
+                        color = VxinGreen,
+                    )
                 }
             }
             state.error?.let {
@@ -110,5 +122,31 @@ fun MomentComposeScreen(
                 Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error)
             }
         }
+    }
+
+    if (state.showFriendPicker) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::dismissFriendPicker,
+            confirmButton = { TextButton(onClick = viewModel::dismissFriendPicker) { Text("确定 (${state.visibleTo.size})", color = VxinGreen) } },
+            title = { Text(if (state.visibility == "include") "选择可见好友" else "选择不给谁看") },
+            text = {
+                if (state.friends.isEmpty()) {
+                    Text("暂无好友", color = VxinTextSecondary)
+                } else {
+                    Column(Modifier.fillMaxWidth()) {
+                        state.friends.forEach { f ->
+                            val checked = state.visibleTo.contains(f.id)
+                            Row(
+                                Modifier.fillMaxWidth().clickable { viewModel.toggleVisibleFriend(f.id) }.padding(vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(f.displayName.ifBlank { "用户" }, modifier = Modifier.weight(1f))
+                                Text(if (checked) "✓" else "", color = VxinGreen)
+                            }
+                        }
+                    }
+                }
+            },
+        )
     }
 }

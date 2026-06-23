@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-private struct CreateMomentBody: Encodable { let content: String; let images: [String]; let visibility: String }
+private struct CreateMomentBody: Encodable { let content: String; let images: [String]; let visibility: String; let visibleTo: [String] }
 private struct CommentBody: Encodable { let content: String }
 
 final class MomentRepository {
@@ -16,8 +16,8 @@ final class MomentRepository {
         try await api.send("api/moments?limit=\(limit)&offset=\(offset)")
     }
 
-    func create(content: String, images: [String], visibility: String) async throws -> Moment {
-        try await api.send("api/moments", method: "POST", body: CreateMomentBody(content: content, images: images, visibility: visibility))
+    func create(content: String, images: [String], visibility: String, visibleTo: [String] = []) async throws -> Moment {
+        try await api.send("api/moments", method: "POST", body: CreateMomentBody(content: content, images: images, visibility: visibility, visibleTo: visibleTo))
     }
 
     func uploadImages(_ datas: [(data: Data, name: String)]) async throws -> [String] {

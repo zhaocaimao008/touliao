@@ -25,4 +25,11 @@ class ProfileRepository @Inject constructor(
 
     /** 我的二维码 PNG 字节（需 Bearer） */
     suspend fun qrcodeBytes(): ByteArray = userApi.qrcode().bytes()
+
+    // ── 个人设置 ──
+    suspend fun settings() = userApi.settings()
+
+    /** 朋友圈"最近 N 天可见"：0=全部 / 1 / 3 / 30 */
+    suspend fun setMomentsVisibleDays(days: Int) =
+        userApi.updateSettings(com.vxin.app.data.model.UpdateSettingsBody(momentsVisibleDays = days))
 }

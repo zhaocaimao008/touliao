@@ -37,7 +37,12 @@ data class Moment(
 )
 
 @Serializable
-data class CreateMomentBody(val content: String, val images: List<String> = emptyList(), val visibility: String = "all")
+data class CreateMomentBody(
+    val content: String,
+    val images: List<String> = emptyList(),
+    val visibility: String = "all",          // all | friends | private | include | exclude
+    val visibleTo: List<String> = emptyList() // include/exclude 时的好友 id 名单
+)
 
 @Serializable
 data class MomentCommentBody(val content: String, val replyToUser: String = "")

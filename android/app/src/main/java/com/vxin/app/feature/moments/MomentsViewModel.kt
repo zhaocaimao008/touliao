@@ -21,6 +21,8 @@ data class MomentsUiState(
     val moments: List<Moment> = emptyList(),
     val loadingMore: Boolean = false,
     val reachedEnd: Boolean = false,
+    val visibleDays: Int = 0,          // 朋友圈"最近 N 天可见"：0=全部
+    val showSettings: Boolean = false,
     val error: String? = null,
 )
 
@@ -29,6 +31,7 @@ private const val PAGE = 20
 @HiltViewModel
 class MomentsViewModel @Inject constructor(
     private val momentRepository: MomentRepository,
+    private val profileRepository: com.vxin.app.data.repository.ProfileRepository,
     private val mediaUrlResolver: MediaUrlResolver,
     sessionManager: SessionManager,
 ) : ViewModel() {
@@ -42,7 +45,27 @@ class MomentsViewModel @Inject constructor(
 
     init {
         refresh()
+        loadSettings()
         viewModelScope.launch { momentRepository.momentEvents.collect { refresh() } }
+    }
+
+    // ── 朋友圈"最近 N 天可见" ──
+    private fun loadSettings() {
+        viewModelScope.launch {
+            runCatching { profileRepository.settings() }
+                .onSuccess { s -> _uiState.update { it.copy(visibleDays = s.momentsVisibleDays) } }
+        }
+    }
+
+    fun openSettings() = _uiState.update { it.copy(showSettings = true) }
+    fun dismissSettings() = _uiState.update { it.copy(showSettings = false) }
+
+    fun setVisibleDays(days: Int) {
+        _uiState.update { it.copy(visibleDays = days) }
+        viewModelScope.launch {
+            runCatching { profileRepository.setMomentsVisibleDays(days) }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("设置失败")) } }
+        }
     }
 
     fun refresh() {

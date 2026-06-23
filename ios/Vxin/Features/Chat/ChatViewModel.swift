@@ -34,6 +34,7 @@ final class ChatViewModel: ObservableObject {
     @Published var editTarget: Message?
     @Published var forwardTarget: Message?
     @Published var closed = false   // 被踢/群解散 → 关闭聊天页
+    @Published var background = ""   // 聊天专属背景图 URL（空=无）
     // ── 红包 ──
     @Published var redPacketDetail: RedPacketDetail?   // 非空 = 显示红包详情弹窗
     @Published var claimedAmount: Int?                 // 刚领取到的金额
@@ -96,9 +97,55 @@ final class ChatViewModel: ObservableObject {
 
         repo.joinConversation(conversationId)
         Task { await loadHistory() }
+        Task { await loadBackground() }
         if isGroup {
             Task { await loadPinned() }
             Task { await loadGroupMembers() }
+        }
+    }
+
+    // MARK: - 拍一拍
+    /// 拍一拍某人（双击头像）。系统会广播 type='nudge' 消息，经 incomingPublisher 回流入列表。
+    func nudge(_ targetId: String) {
+        guard targetId != myId else { return }
+        repo.nudge(conversationId: conversationId, targetId: targetId)
+    }
+
+    /// 解析 nudge 消息为展示文案：「你/X 拍了拍 你/Y」
+    func nudgeText(_ msg: Message) -> String {
+        guard let data = msg.content.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return "拍一拍" }
+        let actor = obj["actor"] as? String ?? ""
+        let target = obj["target"] as? String ?? ""
+        let actorName = actor == myId ? "你" : ((obj["actorName"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "某人")
+        let targetName = target == myId ? "你" : ((obj["targetName"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "某人")
+        return "\(actorName) 拍了拍 \(targetName)"
+    }
+
+    // MARK: - 聊天背景
+    func loadBackground() async {
+        if let conv = try? await repo.loadConversations().first(where: { $0.id == conversationId }) {
+            if !conv.background.isEmpty { background = conv.background }
+        }
+    }
+
+    /// 选定图片 → 上传得 URL → 设为本会话背景
+    func setBackground(data: Data, fileName: String) {
+        Task {
+            do {
+                let urls = try await MomentRepository.shared.uploadImages([(data: data, name: fileName)])
+                guard let url = urls.first, !url.isEmpty else { throw APIError.server(0, "上传失败") }
+                try await repo.setConversationBackground(conversationId, background: url)
+                background = url
+                error = "已设置聊天背景"
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "设置背景失败" }
+        }
+    }
+
+    func clearBackground() {
+        Task {
+            do { try await repo.setConversationBackground(conversationId, background: ""); background = "" }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "清除失败" }
         }
     }
 

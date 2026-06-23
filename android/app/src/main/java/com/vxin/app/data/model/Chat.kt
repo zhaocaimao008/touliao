@@ -16,6 +16,7 @@ data class Conversation(
     val unreadCount: Int = 0,
     val pinned: Int = 0,
     val muted: Int = 0,
+    val background: String = "",            // 聊天专属背景图（空=无）
 )
 
 @Serializable
@@ -26,6 +27,10 @@ data class PinConversationBody(val pinned: Int)
 
 @Serializable
 data class MuteConversationBody(val muted: Int)
+
+/** 设置聊天背景（空串=清除） */
+@Serializable
+data class BackgroundBody(val background: String)
 
 /** 消息 —— REST history 与 Socket new_message 共用同一结构 */
 @Serializable

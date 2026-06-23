@@ -19,8 +19,13 @@ class MomentRepository @Inject constructor(
 
     suspend fun timeline(limit: Int = 20, offset: Int = 0): List<Moment> = momentApi.timeline(limit, offset)
 
-    suspend fun create(content: String, images: List<String>, visibility: String): Moment =
-        momentApi.create(CreateMomentBody(content, images, visibility))
+    suspend fun create(
+        content: String,
+        images: List<String>,
+        visibility: String,
+        visibleTo: List<String> = emptyList(),
+    ): Moment =
+        momentApi.create(CreateMomentBody(content, images, visibility, visibleTo))
 
     suspend fun uploadImages(parts: List<MultipartBody.Part>): List<String> =
         momentApi.uploadImages(parts).urls

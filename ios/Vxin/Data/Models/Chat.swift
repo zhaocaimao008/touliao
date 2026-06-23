@@ -13,11 +13,12 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
     var unreadCount: Int = 0
     var pinned: Int = 0
     var muted: Int = 0
+    var background: String = ""           // 聊天专属背景图（空=无）
 
     enum CodingKeys: String, CodingKey {
         case id, type, name, avatar
         case lastMessage, lastMessageType, lastTime, lastSenderName
-        case unreadCount, pinned, muted
+        case unreadCount, pinned, muted, background
     }
 
     /// 本地构建（如刚创建的私聊会话），用于导航跳转
@@ -41,6 +42,7 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
         unreadCount = (try? c.decode(Int.self, forKey: .unreadCount)) ?? 0
         pinned = (try? c.decode(Int.self, forKey: .pinned)) ?? 0
         muted = (try? c.decode(Int.self, forKey: .muted)) ?? 0
+        background = (try? c.decode(String.self, forKey: .background)) ?? ""
     }
 }
 

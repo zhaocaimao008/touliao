@@ -9,6 +9,7 @@ struct ChatView: View {
     @EnvironmentObject private var session: SessionStore
     @Environment(\.dismiss) private var dismiss
     @State private var photoItem: PhotosPickerItem?
+    @State private var bgPhotoItem: PhotosPickerItem?
     @State private var showFileImporter = false
     @State private var showStickerPanel = false
     @State private var showRedPacketSend = false
@@ -34,6 +35,11 @@ struct ChatView: View {
         VStack(spacing: 0) {
             if !vm.pinnedMessages.isEmpty { pinnedBanner }
             messageList
+                .background(alignment: .center) {
+                    if !vm.background.isEmpty, let url = URL(string: vm.resolveMediaUrl(vm.background) ?? "") {
+                        KFImage(url).resizable().scaledToFill().clipped().ignoresSafeArea()
+                    }
+                }
             inputBar
         }
         .navigationTitle(vm.peerTyping ? "对方正在输入…" : (vm.title.isEmpty ? "聊天" : vm.title))
@@ -53,7 +59,19 @@ struct ChatView: View {
                     }
                 }
             }
+            // 聊天背景设置
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    PhotosPicker(selection: $bgPhotoItem, matching: .images) {
+                        Label(vm.background.isEmpty ? "设置聊天背景" : "更换聊天背景", systemImage: "photo")
+                    }
+                    if !vm.background.isEmpty {
+                        Button(role: .destructive) { vm.clearBackground() } label: { Label("清除聊天背景", systemImage: "trash") }
+                    }
+                } label: { Image(systemName: "photo.on.rectangle") }
+            }
         }
+        .onChange(of: bgPhotoItem) { item in handleBgPhoto(item) }
         .onChange(of: vm.input) { _ in vm.userIsTyping() }
         .onChange(of: vm.closed) { closed in if closed { dismiss() } }
         .onDisappear { vm.onLeave() }
@@ -180,8 +198,16 @@ struct ChatView: View {
                         .padding(.vertical, 8)
                     }
                     ForEach(vm.messages) { msg in
-                        MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm)
-                            .id(msg.id)
+                        if msg.type == "nudge" {
+                            Text(vm.nudgeText(msg))
+                                .font(.caption).foregroundColor(.vxinTextSecondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 4)
+                                .id(msg.id)
+                        } else {
+                            MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm)
+                                .id(msg.id)
+                        }
                     }
                     ForEach(vm.pending) { p in
                         PendingBubbleView(pending: p) { vm.dismissFailed(p.id) }
@@ -311,6 +337,17 @@ struct ChatView: View {
         }
     }
 
+    private func handleBgPhoto(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            defer { bgPhotoItem = nil }
+            guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+            let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.85) ?? data
+            let name = "bg_\(Int(Date().timeIntervalSince1970)).jpg"
+            vm.setBackground(data: jpeg, fileName: name)
+        }
+    }
+
     private func handleFile(_ result: Result<[URL], Error>) {
         guard case .success(let urls) = result, let url = urls.first else { return }
         let access = url.startAccessingSecurityScopedResource()
@@ -331,6 +368,7 @@ private struct MessageBubble: View {
         HStack(alignment: .top, spacing: 6) {
             if isMine { Spacer(minLength: 40) } else {
                 InitialAvatar(name: msg.senderName.isEmpty ? "?" : msg.senderName, size: 36)
+                    .onTapGesture(count: 2) { vm.nudge(msg.senderId) }
             }
             VStack(alignment: isMine ? .trailing : .leading, spacing: 2) {
                 if !isMine && !msg.senderName.isEmpty {

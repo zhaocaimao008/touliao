@@ -121,6 +121,10 @@ fun ChatScreen(
     val recordPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) viewModel.startRecording()
     }
+    val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.setBackground(it) }
+    }
+    var showChatMenu by remember { mutableStateOf(false) }
 
     // 仅在「最新一条变化」或上传项变化时滚到底，避免加载更早(前插)时跳动
     val lastMsgId = state.messages.lastOrNull()?.id
@@ -160,6 +164,20 @@ fun ChatScreen(
                     } else {
                         IconButton(onClick = { launchCall(false) }) { Text("📞", style = MaterialTheme.typography.titleMedium) }
                         IconButton(onClick = { launchCall(true) }) { Text("📹", style = MaterialTheme.typography.titleMedium) }
+                    }
+                    // 聊天背景设置
+                    Box {
+                        IconButton(onClick = { showChatMenu = true }) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
+                        DropdownMenu(expanded = showChatMenu, onDismissRequest = { showChatMenu = false }) {
+                            DropdownMenuItem(text = { Text(if (state.background.isBlank()) "设置聊天背景" else "更换聊天背景") }, onClick = {
+                                showChatMenu = false; backgroundPicker.launch("image/*")
+                            })
+                            if (state.background.isNotBlank()) {
+                                DropdownMenuItem(text = { Text("清除聊天背景", color = Color(0xFFFA5151)) }, onClick = {
+                                    showChatMenu = false; viewModel.clearBackground()
+                                })
+                            }
+                        }
                     }
                 },
             )
@@ -215,6 +233,14 @@ fun ChatScreen(
         },
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+          if (state.background.isNotBlank()) {
+              AsyncImage(
+                  model = viewModel.resolveMediaUrl(state.background),
+                  contentDescription = null,
+                  contentScale = ContentScale.Crop,
+                  modifier = Modifier.fillMaxSize(),
+              )
+          }
           Column(Modifier.fillMaxSize()) {
             if (state.pinnedMessages.isNotEmpty()) {
                 PinnedBanner(state.pinnedMessages) { showPinnedList = true }
@@ -240,10 +266,17 @@ fun ChatScreen(
                         }
                     }
                     items(state.messages, key = { it.id }) { msg ->
+                        if (msg.type == "nudge") {
+                            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                                Text(viewModel.nudgeText(msg), color = VxinTextSecondary, fontSize = 12.sp)
+                            }
+                            return@items
+                        }
                         val isMine = msg.sender_id == viewModel.myId
                         MessageBubble(
                             msg = msg,
                             isMine = isMine,
+                            onNudge = { viewModel.nudge(msg.sender_id) },
                             isRead = isMine && viewModel.isReadByPeer(msg),
                             resolveUrl = viewModel::resolveMediaUrl,
                             onPlayVoice = { viewModel.playVoice(msg.file_url) },
@@ -478,6 +511,7 @@ private fun MessageBubble(
     onForward: () -> Unit = {},
     onCollect: () -> Unit = {},
     onImageClick: () -> Unit = {},
+    onNudge: () -> Unit = {},
     highlighted: Boolean = false,
     onReplyClick: (String) -> Unit = {},
 ) {
@@ -490,7 +524,9 @@ private fun MessageBubble(
         horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
     ) {
         if (!isMine) {
-            InitialAvatar(name = msg.senderName.ifBlank { "?" }, size = 36.dp)
+            Box(Modifier.combinedClickable(onClick = {}, onDoubleClick = onNudge)) {
+                InitialAvatar(name = msg.senderName.ifBlank { "?" }, size = 36.dp)
+            }
             Spacer(Modifier.size(6.dp))
         }
         Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {

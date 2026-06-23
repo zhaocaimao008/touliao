@@ -47,6 +47,13 @@ class ChatRepository @Inject constructor(
     fun emitTyping(conversationId: String) = socketManager.emitTyping(conversationId)
     fun emitStopTyping(conversationId: String) = socketManager.emitStopTyping(conversationId)
 
+    /** 拍一拍（私聊可省略 targetId，服务端自动取对方） */
+    fun nudge(conversationId: String, targetId: String? = null) = socketManager.emitNudge(conversationId, targetId)
+
+    /** 设置/清除聊天专属背景（空串=清除） */
+    suspend fun setConversationBackground(conversationId: String, background: String) =
+        api.setBackground(conversationId, com.vxin.app.data.model.BackgroundBody(background))
+
     /** 标记会话已读 */
     suspend fun markRead(conversationId: String, messageId: String?) {
         runCatching { api.markRead(conversationId, MarkReadRequest(messageId)) }

@@ -89,7 +89,10 @@ fun MomentsScreen(
             TopAppBar(
                 title = { Text("朋友圈") },
                 navigationIcon = { onBack?.let { cb -> IconButton(onClick = cb) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } } },
-                actions = { IconButton(onClick = onCompose) { Text("📷", fontSize = 18.sp) } },
+                actions = {
+                    IconButton(onClick = { viewModel.openSettings() }) { Text("⚙️", fontSize = 16.sp) }
+                    IconButton(onClick = onCompose) { Text("📷", fontSize = 18.sp) }
+                },
             )
         },
     ) { padding ->
@@ -141,6 +144,29 @@ fun MomentsScreen(
 
     gallery?.let { (imgs, start) ->
         ImageGallery(images = imgs.map { viewModel.resolveUrl(it) ?: it }, startIndex = start, onDismiss = { gallery = null })
+    }
+
+    if (state.showSettings) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissSettings() },
+            title = { Text("朋友圈设置") },
+            text = {
+                Column {
+                    Text("允许朋友查看朋友圈的范围", color = VxinTextSecondary, fontSize = 13.sp)
+                    Spacer(Modifier.size(8.dp))
+                    listOf(0 to "全部", 1 to "最近一天", 3 to "最近三天", 30 to "最近一个月").forEach { (d, label) ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { viewModel.setVisibleDays(d) }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(label, modifier = Modifier.weight(1f))
+                            if (state.visibleDays == d) Text("✓", color = VxinGreen)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { viewModel.dismissSettings() }) { Text("完成", color = VxinGreen) } },
+        )
     }
 }
 

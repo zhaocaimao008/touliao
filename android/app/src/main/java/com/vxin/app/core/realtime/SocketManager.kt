@@ -352,6 +352,13 @@ class SocketManager @Inject constructor(
         socket?.emit("stop_typing", JSONObject().put("conversationId", conversationId))
     }
 
+    /** 拍一拍：服务端落库 type='nudge' 消息并广播（私聊可省略 targetId） */
+    fun emitNudge(conversationId: String, targetId: String?) {
+        val payload = JSONObject().put("conversationId", conversationId)
+        if (targetId != null) payload.put("targetId", targetId)
+        socket?.emit("nudge", payload)
+    }
+
     // ── 通话信令发送 ──
     fun emitCallRequest(to: String, type: String, callerName: String) {
         socket?.emit("call:request", JSONObject()

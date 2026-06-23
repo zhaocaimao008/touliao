@@ -19,7 +19,10 @@ import javax.inject.Inject
 data class MomentComposeUiState(
     val content: String = "",
     val images: List<Uri> = emptyList(),
-    val visibility: String = "all",   // all | friends | private
+    val visibility: String = "all",   // all | friends | private | include | exclude
+    val visibleTo: List<String> = emptyList(),  // include/exclude 选中的好友 id
+    val friends: List<com.vxin.app.data.model.Contact> = emptyList(),
+    val showFriendPicker: Boolean = false,
     val publishing: Boolean = false,
     val done: Boolean = false,
     val error: String? = null,
@@ -28,6 +31,7 @@ data class MomentComposeUiState(
 @HiltViewModel
 class MomentComposeViewModel @Inject constructor(
     private val momentRepository: MomentRepository,
+    private val contactRepository: com.vxin.app.data.repository.ContactRepository,
     private val mediaUploader: MediaUploader,
 ) : ViewModel() {
 
@@ -35,7 +39,28 @@ class MomentComposeViewModel @Inject constructor(
     val uiState: StateFlow<MomentComposeUiState> = _uiState.asStateFlow()
 
     fun onContentChange(v: String) = _uiState.update { it.copy(content = v) }
-    fun setVisibility(v: String) = _uiState.update { it.copy(visibility = v) }
+
+    fun setVisibility(v: String) {
+        _uiState.update { it.copy(visibility = v) }
+        if (v == "include" || v == "exclude") {
+            ensureFriends()
+            _uiState.update { it.copy(showFriendPicker = true) }
+        }
+    }
+
+    private fun ensureFriends() {
+        if (_uiState.value.friends.isNotEmpty()) return
+        viewModelScope.launch {
+            runCatching { contactRepository.contacts() }
+                .onSuccess { list -> _uiState.update { it.copy(friends = list) } }
+        }
+    }
+
+    fun openFriendPicker() { ensureFriends(); _uiState.update { it.copy(showFriendPicker = true) } }
+    fun dismissFriendPicker() = _uiState.update { it.copy(showFriendPicker = false) }
+    fun toggleVisibleFriend(id: String) = _uiState.update {
+        it.copy(visibleTo = if (it.visibleTo.contains(id)) it.visibleTo - id else it.visibleTo + id)
+    }
 
     fun addImages(uris: List<Uri>) = _uiState.update {
         it.copy(images = (it.images + uris).take(9))
@@ -49,6 +74,11 @@ class MomentComposeViewModel @Inject constructor(
             _uiState.update { it.copy(error = "请输入内容或选择图片") }
             return
         }
+        if (s.visibility == "include" && s.visibleTo.isEmpty()) {
+            _uiState.update { it.copy(error = "请选择至少一位可见的好友", showFriendPicker = true) }
+            return
+        }
+        val visList = if (s.visibility == "include" || s.visibility == "exclude") s.visibleTo else emptyList()
         _uiState.update { it.copy(publishing = true, error = null) }
         viewModelScope.launch {
             runCatching {
@@ -58,7 +88,7 @@ class MomentComposeViewModel @Inject constructor(
                     }
                     momentRepository.uploadImages(parts)
                 }
-                momentRepository.create(s.content.trim(), urls, s.visibility)
+                momentRepository.create(s.content.trim(), urls, s.visibility, visList)
             }
                 .onSuccess { _uiState.update { it.copy(publishing = false, done = true) } }
                 .onFailure { e -> _uiState.update { it.copy(publishing = false, error = e.toUserMessage("发布失败")) } }
