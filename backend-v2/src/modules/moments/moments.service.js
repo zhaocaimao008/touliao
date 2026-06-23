@@ -45,23 +45,33 @@ function assertVisible(viewerId, m) {
 }
 
 // 单条动态装配（作者、图片、点赞、评论、本人是否已赞）
-function enrich(viewerId, m) {
+// 列表(timeline/userMoments)传 caps 限制内联返回的点赞/评论条数，避免热门动态把上万条全拉下来；
+// 计数走 COUNT(*)、liked 走直查——即便数组被截断也准确。详情(getMoment)不传 caps = 全量。
+// hasMoreLikes/hasMoreComments 为加法字段，前端可据此用分页接口加载剩余（不传也优雅降级）。
+function enrich(viewerId, m, { likeLimit = 0, commentLimit = 0 } = {}) {
   const author = db.prepare('SELECT id, username, avatar FROM users WHERE id=?').get(m.user_id);
+  const likeCount = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(m.id).n;
+  const commentCount = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(m.id).n;
+  const liked = !!db.prepare('SELECT 1 FROM moment_likes WHERE moment_id=? AND user_id=?').get(m.id, viewerId);
+  const likeCap = likeLimit > 0 ? ` LIMIT ${parseInt(likeLimit, 10)}` : '';
+  const commentCap = commentLimit > 0 ? ` LIMIT ${parseInt(commentLimit, 10)}` : '';
   const likes = db.prepare(
-    'SELECT ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id=? ORDER BY ml.created_at'
+    `SELECT ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id=? ORDER BY ml.created_at${likeCap}`
   ).all(m.id);
   const comments = db.prepare(
-    'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id=? ORDER BY mc.created_at'
+    `SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id=? ORDER BY mc.created_at${commentCap}`
   ).all(m.id);
   return {
     ...m,
     images: JSON.parse(m.images || '[]'),
     author,
     likes,
-    likeCount: likes.length,
-    liked: likes.some(l => l.user_id === viewerId),
+    likeCount,
+    liked,
     comments,
-    commentCount: comments.length,
+    commentCount,
+    hasMoreLikes: likeCount > likes.length,
+    hasMoreComments: commentCount > comments.length,
   };
 }
 
@@ -100,7 +110,7 @@ function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
     ORDER BY m.created_at DESC
     LIMIT ? OFFSET ?
   `).all(viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, n, off);
-  return rows.map(m => enrich(viewerId, m));
+  return rows.map(m => enrich(viewerId, m, { likeLimit: 50, commentLimit: 10 }));
 }
 
 // ── 某用户的动态（好友或本人）──────────────────────────────────
@@ -116,7 +126,7 @@ function userMoments(viewerId, targetId) {
     )
     ORDER BY created_at DESC LIMIT 50
   `).all(targetId, viewerId, targetId, viewerId);
-  return rows.map(m => enrich(viewerId, m));
+  return rows.map(m => enrich(viewerId, m, { likeLimit: 50, commentLimit: 10 }));
 }
 
 // ── 单条动态详情（本人或可见好友）──────────────────────────────
