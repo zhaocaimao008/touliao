@@ -102,10 +102,12 @@ function AccountSwitcher() {
   const [switchTarget, setSwitchTarget] = useState(null); // 非空=正在切换到某个已登录账号(显示其昵称)
   const [err, setErr] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [avatarErr, setAvatarErr] = useState(false); // 头像加载失败时回退字母，避免显示浏览器碎图
   const phoneRef = useRef(null);
   const passwordRef = useRef(null);
   const containerRef = useRef(null);
   const letter = (user?.username || '?')[0].toUpperCase();
+  useEffect(() => { setAvatarErr(false); }, [user?.avatar]);
 
   /* 点外部关闭，不用全屏遮罩（遮罩会挡住头像按钮本身） */
   useEffect(() => {
@@ -185,8 +187,8 @@ function AccountSwitcher() {
       <div className="as-avatar-btn" onClick={() => setOpen(v => !v)} title="账号切换">
         <div className="as-avatar-inner"
           style={{ outlineColor: open ? 'rgba(255,255,255,.9)' : 'transparent' }}>
-          {user?.avatar
-            ? <img src={mediaUrl(user.avatar)} alt="" loading="lazy" className="as-avatar-img" />
+          {user?.avatar && !avatarErr
+            ? <img src={mediaUrl(user.avatar)} alt="" loading="lazy" className="as-avatar-img" onError={() => setAvatarErr(true)} />
             : letter
           }
         </div>

@@ -1866,6 +1866,15 @@ body.dark-mode .wc-settings-entry:hover {
   --glass-shadow-soft: 0 8px 22px rgba(15,23,42,.08);
 }
 
+/* 暗色：glass 边框/分隔/阴影补暗色值。此前只在 :root(浅色) 定义白色边框，
+   暗色下未覆盖，导致 .as-dropdown 等毛玻璃面板在深色背景上带刺眼白边（不协调）。 */
+body.dark-mode {
+  --glass-border: rgba(255,255,255,.12);
+  --glass-line: rgba(255,255,255,.08);
+  --glass-shadow: 0 18px 42px rgba(0,0,0,.45);
+  --glass-shadow-soft: 0 8px 22px rgba(0,0,0,.35);
+}
+
 body {
   background:
     radial-gradient(circle at 8% 8%, rgba(26,32,51,.06), transparent 30%),
