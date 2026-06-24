@@ -20,9 +20,9 @@ function fmtDuration(s) {
 // 状态 → 中文 + 颜色
 const STATUS = {
   completed: { label: '已接通', color: 'var(--text-tertiary)' },
-  missed:    { label: '未接听', color: '#FA5151' },
-  canceled:  { label: '已取消', color: '#FA5151' },
-  rejected:  { label: '已拒绝', color: '#FA5151' },
+  missed:    { label: '未接听', color: 'var(--color-badge)' },
+  canceled:  { label: '已取消', color: 'var(--color-badge)' },
+  rejected:  { label: '已拒绝', color: 'var(--color-badge)' },
   ongoing:   { label: '通话中', color: 'var(--green)' },
 };
 
@@ -48,7 +48,7 @@ export default function CallHistory() {
             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)' }}>
               <Avatar src={c.peer_avatar} name={c.peer_name} size={42} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 500, color: isMissed ? '#FA5151' : 'var(--text-primary)' }}>{c.peer_name || '用户'}</div>
+                <div style={{ fontSize: 14.5, fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || '用户'}</div>
                 <div style={{ fontSize: 12, color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                   {/* 方向箭头 */}
                   <span style={{ transform: c.direction === 'out' ? 'none' : 'scaleX(-1)' }}>{c.direction === 'out' ? '↗' : '↙'}</span>

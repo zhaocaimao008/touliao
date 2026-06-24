@@ -25,7 +25,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         role="button"
         tabIndex={0}
         onContextMenu={e => { e.preventDefault(); onCtxMenu({ x: e.clientX, y: e.clientY, conv }); }}
-        style={{ background: conv.pinned && conv.id !== activeConvId ? '#F9F9F9' : undefined }}
+        style={{ background: conv.pinned && conv.id !== activeConvId ? 'var(--bg-pinned)' : undefined }}
       >
         <div className="wc-chat-item-avatar">
           {conv.type === 'group'
@@ -218,7 +218,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)' }}>
       <div className="wc-list" style={{ flex: 1 }}>
         {filtered.length === 0 ? (
-          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: '#B2B2B2', fontSize: 13 }}>暂无聊天</div>
+          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 13 }}>暂无聊天</div>
         ) : (
           <AutoSizer>
             {({ height, width }) => (

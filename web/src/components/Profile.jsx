@@ -530,7 +530,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
         <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px', gap: 8 }}>
           <div onClick={handleAvatarClick} style={{ cursor: 'pointer', position: 'relative' }}>
             <Avatar src={user?.avatar} name={user?.username} size={80} />
-            {uploading && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', borderRadius: 14, color: '#fff', fontSize: 12 }}>上传中</div>}
+            {uploading && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', borderRadius: 14, color: 'var(--text-inverse)', fontSize: 12 }}>上传中</div>}
           </div>
           <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>{user?.username || '未设置昵称'}</div>
           <div style={{ fontSize: 13, color: 'var(--green)' }}>点击更换头像</div>
@@ -594,7 +594,7 @@ function ServerSettings({ onBack }) {
           className="wc-server-input"
         />
         {testResult && (
-          <div style={{ marginTop: 8, fontSize: 13, color: testResult.ok ? 'var(--green)' : '#FA5151' }}>
+          <div style={{ marginTop: 8, fontSize: 13, color: testResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
             {testResult.msg}
           </div>
         )}

@@ -47,7 +47,7 @@ export default function SearchResults({ results, query, searching, onSelect, onC
             <div style={{
               width: 32, height: 32, borderRadius: 4, flexShrink: 0,
               background: 'var(--green)',
-              color: '#fff', display: 'flex', alignItems: 'center',
+              color: 'var(--text-inverse)', display: 'flex', alignItems: 'center',
               justifyContent: 'center', fontSize: 13, fontWeight: 600,
             }}>
               {(msg.senderName || '?')[0]}

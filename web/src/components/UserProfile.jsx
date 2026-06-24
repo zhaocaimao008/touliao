@@ -149,7 +149,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             <div className="up-row" onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }}>
               <span className="up-row-label">备注名</span>
               <span className="up-row-value">{user.remark || <span style={{ color: 'var(--text-tertiary)' }}>未设置</span>}</span>
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="#C7C7CC"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
             </div>
             {user.phone && (
               <div className="up-row">

@@ -125,7 +125,7 @@ export default function ForwardModal({ message, onClose }) {
         {done ? (
           <div className="fwd-done-wrap">
             <div className="fwd-done-icon">
-              <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'none', stroke: '#fff', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
+              <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'none', stroke: 'var(--text-inverse)', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>

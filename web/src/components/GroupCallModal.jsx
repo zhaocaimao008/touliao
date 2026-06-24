@@ -193,7 +193,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
   const cols = tileCount <= 1 ? 1 : tileCount <= 4 ? 2 : 3;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(18,18,18,0.97)', display: 'flex', flexDirection: 'column', color: '#fff' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(18,18,18,0.97)', display: 'flex', flexDirection: 'column', color: 'var(--text-inverse)' }}>
       <div style={{ textAlign: 'center', padding: '14px 0 6px', fontSize: 15, color: 'rgba(255,255,255,.85)' }}>
         群{isVideo ? '视频' : '语音'}通话 · {tileCount} 人
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', marginLeft: 8 }}>
@@ -213,7 +213,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
       <div style={{ display: 'flex', justifyContent: 'center', gap: 28, padding: '18px 0 34px' }}>
         {isVideo && <CtrlBtn icon={cameraOff ? '📷' : '📹'} label={cameraOff ? '开摄像头' : '关摄像头'} bg={cameraOff ? '#555' : 'rgba(255,255,255,.18)'} onClick={toggleCamera} />}
         <CtrlBtn icon={muted ? '🔇' : '🎙️'} label={muted ? '取消静音' : '静音'} bg="rgba(255,255,255,.18)" onClick={toggleMute} />
-        <CtrlBtn icon="📵" label="挂断" bg="#FA5151" size={64} onClick={hangup} />
+        <CtrlBtn icon="📵" label="挂断" bg="var(--color-badge)" size={64} onClick={hangup} />
       </div>
     </div>
   );
@@ -229,7 +229,7 @@ function Tile({ stream, streamForRef, muted, isVideo, info, self }) {
       <video ref={ref} autoPlay playsInline muted={muted}
         style={{ width: '100%', height: '100%', objectFit: 'cover', display: isVideo ? 'block' : 'none' }} />
       {!isVideo && <Avatar src={info?.avatar} name={info?.name || '?'} size={72} style={{ borderRadius: 16 }} />}
-      <div style={{ position: 'absolute', bottom: 6, left: 8, fontSize: 12, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{info?.name}</div>
+      <div style={{ position: 'absolute', bottom: 6, left: 8, fontSize: 12, color: 'var(--text-inverse)', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{info?.name}</div>
     </div>
   );
 }

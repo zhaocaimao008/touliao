@@ -289,7 +289,7 @@ export default function CallModal({ socket, user, call, onClose }) {
       position: 'fixed', inset: 0, zIndex: 2000,
       background: isVideo ? '#000' : 'rgba(22,22,22,0.96)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      color: '#fff',
+      color: 'var(--text-inverse)',
     }}>
       {/* 远端视频全屏 */}
       {isVideo && (
@@ -323,7 +323,7 @@ export default function CallModal({ socket, user, call, onClose }) {
       <div style={{ position: 'absolute', bottom: 48, zIndex: 3, display: 'flex', alignItems: 'center', gap: 32 }}>
         {/* 来电：拒绝 + 接听 */}
         {status === 'incoming' && <>
-          <CtrlBtn icon="📵"                        label="拒绝" bg="#FA5151" size={64} onClick={reject} />
+          <CtrlBtn icon="📵"                        label="拒绝" bg="var(--color-badge)" size={64} onClick={reject} />
           <CtrlBtn icon={isVideo ? '📹' : '📞'}    label="接听" bg="var(--green)" size={64} onClick={accept} />
         </>}
 
@@ -343,7 +343,7 @@ export default function CallModal({ socket, user, call, onClose }) {
             bg="rgba(255,255,255,.18)"
             onClick={toggleMute}
           />
-          <CtrlBtn icon="📵" label="挂断" bg="#FA5151" size={64} onClick={() => endCall(true)} />
+          <CtrlBtn icon="📵" label="挂断" bg="var(--color-badge)" size={64} onClick={() => endCall(true)} />
         </>}
       </div>
     </div>

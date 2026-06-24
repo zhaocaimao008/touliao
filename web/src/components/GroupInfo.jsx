@@ -9,10 +9,10 @@ function GroupGridCell({ member = {}, cellSize }) {
   const [err, setErr] = useState(false);
   useEffect(() => { setErr(false); }, [member.avatar]);
   return (
-    <div style={{ width: cellSize, height: cellSize, borderRadius: 2, overflow: 'hidden', background: '#C0C0C0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ width: cellSize, height: cellSize, borderRadius: 2, overflow: 'hidden', background: 'var(--gray-400)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {member.avatar && !err
         ? <img loading="lazy" src={mediaUrl(member.avatar)} alt="" className="gi-avatar-img" onError={() => setErr(true)} />
-        : <span style={{ fontSize: cellSize * 0.45, fontWeight: 600, color: '#fff' }}>{(member.username || '?')[0]}</span>}
+        : <span style={{ fontSize: cellSize * 0.45, fontWeight: 600, color: 'var(--text-inverse)' }}>{(member.username || '?')[0]}</span>}
     </div>
   );
 }
@@ -31,7 +31,7 @@ export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
   const grid = n <= 4 ? 2 : 3;
   const cellSize = Math.floor((size - (grid + 1) * 2) / grid);
   return (
-    <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), background: '#DCDCDC', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), background: 'var(--bg-app)', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
       {members.slice(0, grid * grid).map((m, i) => (
         <GroupGridCell key={i} member={m} cellSize={cellSize} />
       ))}
@@ -83,7 +83,7 @@ function Toggle({ on, onChange, disabled }) {
     <div
       onClick={() => !disabled && onChange(!on)}
       className="gi-toggle"
-      style={{ background: on ? 'var(--green)' : '#D8D8D8', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }}
+      style={{ background: on ? 'var(--green)' : 'var(--border-default)', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }}
     >
       <div className="gi-toggle-thumb" style={{ left: on ? 21 : 3 }} />
     </div>
@@ -551,7 +551,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   {isOwner && m.role !== 'owner' && (
                     <button
                       className="gi-btn-admin"
-                      style={{ color: m.role === 'admin' ? '#888' : 'var(--green)', border: `1px solid ${m.role === 'admin' ? '#E0E0E0' : 'var(--green)'}` }}
+                      style={{ color: m.role === 'admin' ? 'var(--text-tertiary)' : 'var(--green)', border: `1px solid ${m.role === 'admin' ? 'var(--border-default)' : 'var(--green)'}` }}
                       onClick={() => toggleAdmin(m.id, m.role)}
                     >{m.role === 'admin' ? '撤销管理员' : '设为管理员'}</button>
                   )}
@@ -616,7 +616,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           </div>
           {conversation.background && (
             <div className="gi-row gi-row-noborder" style={{ cursor: 'pointer' }} onClick={() => onClearBackground?.()}>
-              <span className="gi-label" style={{ color: '#fa5151' }}>清除聊天背景</span>
+              <span className="gi-label" style={{ color: 'var(--color-badge)' }}>清除聊天背景</span>
             </div>
           )}
         </div>

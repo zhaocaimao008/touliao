@@ -65,7 +65,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
     if (!canClickAvatar) {
       const tip = document.createElement('div');
       tip.textContent = '群主已开启禁止私聊';
-      Object.assign(tip.style, { position:'fixed', bottom:'80px', left:'50%', transform:'translateX(-50%)', background:'rgba(0,0,0,.6)', color:'#fff', padding:'7px 16px', borderRadius:'4px', fontSize:'13px', zIndex:'9999', pointerEvents:'none' });
+      Object.assign(tip.style, { position:'fixed', bottom:'80px', left:'50%', transform:'translateX(-50%)', background:'rgba(0,0,0,.6)', color:'var(--text-inverse)', padding:'7px 16px', borderRadius:'4px', fontSize:'13px', zIndex:'9999', pointerEvents:'none' });
       document.body.appendChild(tip);
       setTimeout(() => document.body.removeChild(tip), 2000);
       return;
@@ -83,8 +83,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
     >
       {multiSelect && (
         <div style={{ display: 'flex', alignItems: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'center' }}>
-          <div style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${isSelected ? 'var(--green)' : '#D9D9D9'}`, background: isSelected ? 'var(--green)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .1s' }}>
-            {isSelected && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+          <div style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${isSelected ? 'var(--green)' : 'var(--border-default)'}`, background: isSelected ? 'var(--green)' : 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .1s' }}>
+            {isSelected && <span style={{ color: 'var(--text-inverse)', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</span>}
           </div>
         </div>
       )}
@@ -137,7 +137,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
             {msg.type === 'text' && (
               <span>
                 {msg.content}
-                {msg.edited ? <span className="wc-msg-edited" style={{ color: isMine ? 'rgba(0,0,0,.35)' : '#B2B2B2' }}>已编辑</span> : null}
+                {msg.edited ? <span className="wc-msg-edited" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>已编辑</span> : null}
               </span>
             )}
             {msg.type === 'image' && (

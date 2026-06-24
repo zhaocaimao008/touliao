@@ -359,7 +359,7 @@ export default function Moments() {
                     <div className="wc-moment-notif-body">
                       <div className="wc-moment-notif-text">{f.remark || f.username}</div>
                     </div>
-                    <span style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${checked ? 'var(--green,#07c160)' : '#ccc'}`, background: checked ? 'var(--green,#07c160)' : '#fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{checked ? '✓' : ''}</span>
+                    <span style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${checked ? 'var(--green,#07c160)' : '#ccc'}`, background: checked ? 'var(--green,#07c160)' : 'var(--text-inverse)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{checked ? '✓' : ''}</span>
                   </div>
                 );
               })}

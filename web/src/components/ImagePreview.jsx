@@ -146,7 +146,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         style={{
           position: 'absolute', bottom: 30, left: '50%',
           transform: 'translateX(-50%)',
-          color: '#fff', fontSize: 13,
+          color: 'var(--text-inverse)', fontSize: 13,
           background: 'rgba(255,255,255,.18)',
           padding: '8px 20px', borderRadius: 20,
           textDecoration: 'none',
@@ -155,7 +155,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           zIndex: 10,
         }}
       >
-        <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: '#fff' }}>
+        <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
           <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
         </svg>
         下载
@@ -166,7 +166,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         onClick={(e) => { e.stopPropagation(); onClose(); }}
         style={{
           position: 'absolute', top: 18, right: 18,
-          color: '#fff', fontSize: 24, lineHeight: 1,
+          color: 'var(--text-inverse)', fontSize: 24, lineHeight: 1,
           background: 'rgba(255,255,255,.12)',
           width: 36, height: 36, borderRadius: 18,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -197,7 +197,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
 function arrowStyle(side) {
   return {
     position: 'absolute', [side]: 16, top: '50%', transform: 'translateY(-50%)',
-    color: '#fff', fontSize: 48, lineHeight: 1,
+    color: 'var(--text-inverse)', fontSize: 48, lineHeight: 1,
     background: 'rgba(255,255,255,.1)',
     width: 48, height: 80, borderRadius: 8,
     display: 'flex', alignItems: 'center', justifyContent: 'center',

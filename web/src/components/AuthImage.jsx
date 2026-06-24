@@ -24,7 +24,7 @@ export default function AuthImage({ src, alt = '', style, className }) {
     return () => { revoked = true; if (objUrl) URL.revokeObjectURL(objUrl); };
   }, [src]);
 
-  if (failed) return <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#B0BAC5', fontSize: 12 }} className={className}>加载失败</div>;
-  if (!blobUrl) return <div style={{ ...style, background: '#F0F2F5' }} className={className} />;
+  if (failed) return <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }} className={className}>加载失败</div>;
+  if (!blobUrl) return <div style={{ ...style, background: 'var(--bg-search)' }} className={className} />;
   return <img src={blobUrl} alt={alt} loading="lazy" style={style} className={className} />;
 }
