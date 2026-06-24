@@ -67,6 +67,7 @@ function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onL
           <div className="wc-moment-images" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
             {m.images.map((src, i) => (
               <img loading="lazy" key={i} src={src} alt="" style={{ cursor: 'zoom-in' }}
+                onError={e => { e.currentTarget.style.display = 'none'; }}
                 onClick={() => setLightbox({ urls: m.images, idx: i })} />
             ))}
           </div>
@@ -394,7 +395,7 @@ export default function Moments() {
                     <div className="wc-moment-notif-time">{ago(n.createdAt)}</div>
                   </div>
                   {n.moment?.thumb
-                    ? <img className="wc-moment-notif-thumb" src={n.moment.thumb} alt="" loading="lazy" />
+                    ? <img className="wc-moment-notif-thumb" src={n.moment.thumb} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none'; }} />
                     : <div className="wc-moment-notif-snippet">{(n.moment?.content || '').slice(0, 12)}</div>}
                 </div>
               ))}

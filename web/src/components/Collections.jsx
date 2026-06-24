@@ -24,7 +24,7 @@ export default function Collections() {
   const renderContent = (c) => {
     if (c.type === 'image') {
       const url = c.extra?.file_url || c.content;
-      return <img loading="lazy" src={mediaUrl(url)} alt="" style={{ maxWidth: 180, maxHeight: 180, borderRadius: 8, objectFit: 'cover' }} />;
+      return <img loading="lazy" src={mediaUrl(url)} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} style={{ maxWidth: 180, maxHeight: 180, borderRadius: 8, objectFit: 'cover' }} />;
     }
     if (c.type === 'file') {
       return <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>📎 {c.content || '文件'}</span>;

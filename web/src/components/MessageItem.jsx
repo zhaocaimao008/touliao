@@ -171,7 +171,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
               </a>
             )}
             {msg.type === 'sticker' && (
-              <img loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" style={{ maxWidth: 120, maxHeight: 120 }} />
+              <img loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" onError={e => { e.currentTarget.style.display = 'none'; }} style={{ maxWidth: 120, maxHeight: 120 }} />
             )}
             {msg.type === 'contact_card' && (() => {
               let card = {};

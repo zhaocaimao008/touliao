@@ -1018,35 +1018,6 @@ img { display: block; }
 .wc-menu-arrow { color: var(--text-tertiary); font-size: 17px; line-height: 1; }
 
 /* ============================================================
-   Auth（登录 / 注册）
-   ============================================================ */
-.wc-auth { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #EDEDED; }
-.wc-auth-card { background: #fff; border-radius: var(--radius-sm); padding: 40px 32px 36px; width: 360px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
-.wc-auth-logo { text-align: center; margin-bottom: 24px; }
-.wc-auth-logo-icon { display: inline-flex; align-items: center; justify-content: center; width: 76px; height: 76px; background: var(--green); border-radius: var(--radius-2xl); color: #fff; font-size: 26px; font-weight: 700; letter-spacing: -1px; }
-.wc-auth-title { text-align: center; font-size: 20px; font-weight: 600; margin-bottom: 24px; color: var(--text-primary); }
-.wc-auth-field { margin-bottom: 12px; }
-.wc-auth-field label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
-.wc-auth-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-button-sm); font-size: 14px; background: #FAFAFA; color: var(--text-primary); transition: border-color var(--dur); }
-.wc-auth-input:focus { border-color: var(--green); background: #fff; outline: none; }
-.wc-auth-error { color: #E24C4C; font-size: 12px; margin-bottom: 8px; text-align: center; }
-.wc-auth-btn { width: 100%; padding: 11px; background: var(--green); color: #fff; border-radius: var(--radius-button-sm); font-size: 15px; font-weight: 500; margin-top: 6px; cursor: pointer; transition: background var(--dur); }
-.wc-auth-btn:hover { background: var(--green-hover); }
-.wc-auth-btn:disabled { background: #BDBDBD; cursor: not-allowed; }
-.wc-auth-link { text-align: center; margin-top: 16px; font-size: 13px; color: var(--text-secondary); }
-.wc-auth-link a { color: var(--link-color); }
-.wc-auth-accounts { margin: -8px 0 18px; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden; background: #FAFAFA; }
-.wc-auth-accounts-title { padding: 8px 12px; font-size: 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); }
-.wc-auth-account { display: flex; align-items: stretch; border-bottom: 1px solid var(--border-color); }
-.wc-auth-account:last-child { border-bottom: none; }
-.wc-auth-account-main { flex: 1; min-width: 0; text-align: left; padding: 9px 12px; }
-.wc-auth-account-main:hover { background: #fff; }
-.wc-auth-account-main span { display: block; font-size: 14px; color: var(--text-primary); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wc-auth-account-main em { display: block; margin-top: 2px; font-size: 11px; color: var(--text-tertiary); font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wc-auth-account-remove { width: 54px; color: var(--color-badge); font-size: 12px; border-left: 1px solid var(--border-color); }
-.wc-auth-account-remove:hover { background: rgba(250,81,81,.08); }
-
-/* ============================================================
    Auth Pages — 暗色现代设计
    ============================================================ */
 .auth-page {
@@ -1427,9 +1398,6 @@ body.dark-mode .wc-input-box textarea { background: var(--bg-input-search) !impo
 body.dark-mode .wc-tool-btn:hover,
 body.dark-mode .wc-chat-header-btn:hover { background: var(--bg-hover) !important; }
 body.dark-mode .wc-menu-item:hover { background: var(--bg-hover); }
-body.dark-mode .wc-auth { background: transparent; }
-body.dark-mode .wc-auth-card { background: var(--bg-card); }
-body.dark-mode .wc-auth-input { background: var(--bg-input-search); border-color: var(--border-default); color: var(--text-primary); }
 body.dark-mode .wc-modal { background: var(--bg-modal) !important; }
 body.dark-mode .wc-modal-input { background: var(--bg-input-search); border-color: var(--border-default); color: var(--text-primary); }
 body.dark-mode .af-modal { background: var(--bg-card) !important; }
@@ -1561,12 +1529,6 @@ body.dark-mode .wc-settings-entry:hover {
     background: rgba(245,245,250,.9);
   }
 
-  /* 登录页 */
-  .wc-auth { padding: 16px; align-items: flex-start; padding-top: 60px; }
-  .wc-auth-card { width: 100%; max-width: 400px; border-radius: var(--radius-xl); padding: 32px 24px 28px;
-    background: rgba(255,255,255,.78); backdrop-filter: blur(32px);
-    -webkit-backdrop-filter: blur(32px); box-shadow: 0 4px 24px rgba(0,0,0,.08); }
-  .wc-auth-titlebar { display: none; }
 
   /* Bottom bar → 底部 Tab Bar (iOS 风格) */
   .wc-bottom-bar {

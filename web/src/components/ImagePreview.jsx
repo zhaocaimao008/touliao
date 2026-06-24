@@ -112,6 +112,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         alt=""
         loading="lazy"
         draggable={false}
+        onError={e => { e.currentTarget.style.opacity = '.25'; e.currentTarget.alt = '图片加载失败'; }}
         onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: '90vw',
