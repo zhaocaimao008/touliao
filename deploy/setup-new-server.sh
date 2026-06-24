@@ -1,45 +1,48 @@
 #!/usr/bin/env bash
 # ===================================================================
-# v信 一键部署脚本（新服务器）
+# v信 一键部署脚本（新服务器，一条命令全包）
 #
-# 用法（在新服务器上，先 git clone 本仓库，然后）：
-#   bash deploy/setup-new-server.sh https://你的域名.com
+# 用法（在新服务器上，以 root 运行）：
+#   git clone https://github.com/zhaocaimao008/vxin-1.0.git
+#   cd vxin-1.0
+#   bash deploy/setup-new-server.sh https://你的域名.com [你的邮箱(用于HTTPS证书,可选)]
 #
-# 它会：装依赖 → 自动生成全新随机密钥写好 .env → 用 pm2 启动后端。
-# nginx + HTTPS + 前端托管是一次性手动步骤，脚本末尾会打印指引。
+# 它会全自动：装依赖 → 生成全新密钥写 .env → pm2 启动后端 →
+#            构建网页前端 → 配好 nginx(反代+WebSocket+前端托管) →
+#            （给了邮箱则）申请 HTTPS 证书。
+# 跑完只剩最后一步：去 vxin-config 仓库 Actions「切换服务器」填本域名。
 # ===================================================================
 set -euo pipefail
 
 APP_URL="${1:-}"
+EMAIL="${2:-}"
 if [ -z "$APP_URL" ]; then
-  echo "用法: bash deploy/setup-new-server.sh https://你的域名.com"
+  echo "用法: bash deploy/setup-new-server.sh https://你的域名.com [邮箱(HTTPS可选)]"
   exit 1
 fi
-APP_URL="${APP_URL%/}"                       # 去掉结尾斜杠
+APP_URL="${APP_URL%/}"
 HOST="${APP_URL#https://}"; HOST="${HOST#http://}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BE="$ROOT/backend-v2"
+WEBROOT="/var/www/vxin"
 
-echo "==> [1/5] 检查环境"
-command -v node >/dev/null || { echo "❌ 未装 Node.js，请先安装 Node 18+"; exit 1; }
-NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-[ "$NODE_MAJOR" -ge 18 ] || { echo "❌ Node 版本过低（需 ≥18，当前 $(node -v)）"; exit 1; }
+apt_install() { command -v apt-get >/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" || true; }
+
+echo "==> [1/7] 检查环境"
+command -v node >/dev/null || { echo "❌ 未装 Node.js，请先装 Node 18+"; exit 1; }
+[ "$(node -p 'process.versions.node.split(".")[0]')" -ge 18 ] || { echo "❌ Node 需 ≥18（当前 $(node -v)）"; exit 1; }
 command -v npm >/dev/null || { echo "❌ 未装 npm"; exit 1; }
-if ! command -v pm2 >/dev/null; then echo "   安装 pm2..."; npm i -g pm2; fi
-# better-sqlite3 需要编译工具
-command -v make >/dev/null && command -v g++ >/dev/null || \
-  echo "⚠ 未检测到 g++/make，若 npm ci 失败请先: apt install -y build-essential python3"
+command -v pm2 >/dev/null || { echo "   装 pm2..."; npm i -g pm2; }
+command -v make >/dev/null && command -v g++ >/dev/null || { echo "   装编译工具..."; apt_install build-essential python3; }
 
-echo "==> [2/5] 安装后端依赖"
-cd "$BE"
-npm ci
+echo "==> [2/7] 安装后端依赖"
+cd "$BE"; npm ci
 
 if [ ! -f .env ]; then
-  echo "==> [3/5] 生成 .env（含全新随机密钥，绝不沿用历史泄露值）"
-  JWT="$(openssl rand -hex 48)"
-  AJWT="$(openssl rand -hex 48)"
+  echo "==> [3/7] 生成 .env（全新随机密钥）"
+  JWT="$(openssl rand -hex 48)"; AJWT="$(openssl rand -hex 48)"
   APW="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)"
   read -r VPUB VPRIV < <(node -e "const w=require('web-push');const k=w.generateVAPIDKeys();process.stdout.write(k.publicKey+' '+k.privateKey)")
   cat > .env <<EOF
@@ -55,42 +58,71 @@ VAPID_PRIVATE_KEY=$VPRIV
 VAPID_EMAIL=mailto:admin@$HOST
 EOF
   echo "$APW" > ADMIN_PASSWORD.txt
-  echo "   ✅ 已写 .env；后台管理员账号 admin / 密码见 $BE/ADMIN_PASSWORD.txt"
+  echo "   ✅ admin 密码已存 $BE/ADMIN_PASSWORD.txt"
 else
-  echo "==> [3/5] 已存在 .env，跳过（不覆盖你现有配置）"
+  echo "==> [3/7] 已有 .env，跳过（不覆盖）"
 fi
 
-echo "==> [4/5] 启动后端 (pm2)"
+echo "==> [4/7] 启动后端 (pm2)"
 pm2 start ecosystem.config.js --update-env 2>/dev/null || pm2 restart vxin-server-v2 --update-env
 pm2 save || true
+pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true   # 开机自启
 
-echo "==> [5/5] 健康检查"
-sleep 2
-if curl -fs http://127.0.0.1:3002/health >/dev/null 2>&1; then
-  echo "   ✅ 后端已在 127.0.0.1:3002 运行正常"
+echo "==> [5/7] 构建网页前端并部署"
+cd "$ROOT/web"; npm ci; npm run build
+mkdir -p "$WEBROOT"; rm -rf "${WEBROOT:?}/"*; cp -r dist/* "$WEBROOT"/
+echo "   ✅ 前端已部署到 $WEBROOT"
+
+echo "==> [6/7] 配置 nginx"
+command -v nginx >/dev/null || { echo "   装 nginx..."; apt_install nginx; }
+CONF=/etc/nginx/sites-available/vxin
+cat > "$CONF" <<NGINX
+server {
+    listen 80;
+    server_name $HOST;
+    root $WEBROOT;
+    index index.html;
+    client_max_body_size 50m;
+
+    location /api/      { proxy_pass http://127.0.0.1:3002; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; }
+    location /uploads/  { proxy_pass http://127.0.0.1:3002; proxy_set_header Host \$host; }
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_read_timeout 3600s;
+    }
+    location / { try_files \$uri \$uri/ /index.html; }
+}
+NGINX
+ln -sf "$CONF" /etc/nginx/sites-enabled/vxin
+[ -e /etc/nginx/sites-enabled/default ] && rm -f /etc/nginx/sites-enabled/default || true
+nginx -t && { systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || service nginx reload; }
+echo "   ✅ nginx 已配置并加载（HTTP）"
+
+echo "==> [7/7] HTTPS 证书"
+if [ -n "$EMAIL" ]; then
+  command -v certbot >/dev/null || apt_install certbot python3-certbot-nginx
+  if certbot --nginx -d "$HOST" --non-interactive --agree-tos -m "$EMAIL" --redirect; then
+    echo "   ✅ HTTPS 已启用"
+  else
+    echo "   ⚠ 证书申请失败（多半是域名 DNS 还没指到本机）。DNS 生效后再跑: certbot --nginx -d $HOST"
+  fi
 else
-  echo "   ⚠ 健康检查未通过，看日志: pm2 logs vxin-server-v2"
+  echo "   ⏭ 未提供邮箱，跳过 HTTPS。DNS 指好后运行: certbot --nginx -d $HOST"
 fi
 
-cat <<TIP
-
-============================================================
-后端已就绪。剩下一次性手动步骤：
-
-1) nginx 反代到 127.0.0.1:3002（支持 WebSocket）。
-   参考样例: $ROOT/deploy/nginx-vxin.conf.example （把域名改成 $HOST）
-
-2) 申请 HTTPS 证书:
-     apt install -y certbot python3-certbot-nginx
-     certbot --nginx -d $HOST
-
-3) 部署网页前端（同域托管，零额外配置）:
-     cd $ROOT/web && npm ci && npm run build
-     # 把 web/dist/ 交给 nginx 在 $APP_URL 根路径托管
-
-4) 通话要能接通：装 coturn，见 backend-v2/docs/COTURN_SETUP.md
-
-5) 最后一步让全端连过来：去 GitHub 的 vxin-config 仓库 → Actions →
-   「切换服务器」→ 填 $APP_URL → Run。几分钟后所有 App 自动连到这里。
-============================================================
-TIP
+echo ""
+echo "============================================================"
+echo "✅ 部署完成。后端 + 前端 + nginx 都就绪。"
+curl -fs http://127.0.0.1:3002/health >/dev/null 2>&1 && echo "   后端健康检查: 通过" || echo "   ⚠ 后端健康检查未过，看 pm2 logs vxin-server-v2"
+echo ""
+echo "最后一步（让所有 App 连过来）："
+echo "  GitHub → vxin-config 仓库 → Actions →「切换服务器」→ 填 $APP_URL → Run"
+echo ""
+echo "通话要能接通：装 coturn，见 backend-v2/docs/COTURN_SETUP.md"
+echo "============================================================"
