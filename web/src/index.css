@@ -32,6 +32,15 @@
   --green-rgb:        7, 193, 96;
 }
 
+/* 暗色补齐：上面 :root 把 design-tokens 的别名覆盖成了浅色却漏了暗色覆盖，
+   导致暗色下 输入框(--bg-search)、收到消息气泡/群信息分区(--bg-msg-other)、
+   占位符(--text-placeholder) 仍是浅色 → 浅底浅字、亮盒子浮在深色界面上极不协调。 */
+body.dark-mode {
+  --bg-search:        var(--bg-input-search);
+  --bg-msg-other:     var(--bg-input-search);
+  --text-placeholder: var(--text-muted);
+}
+
 /* ── prefers-reduced-motion: 尊重用户无障碍设置 ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1393,6 +1402,8 @@ body.dark-mode .wc-panel-topbar,
 body.dark-mode .wc-chat-header,
 body.dark-mode .wc-sub-header  { background: var(--bg-panel-header) !important; border-color: var(--border-subtle) !important; }
 body.dark-mode .wc-input-area   { background: var(--bg-input) !important; border-top-color: var(--border-subtle) !important; }
+/* 输入框外层容器：浅色用半透明白，暗色须置透明，否则深色 textarea 外会套一圈白框 */
+body.dark-mode .wc-input-box { background: transparent; }
 body.dark-mode .wc-textarea,
 body.dark-mode .wc-input-box textarea { background: var(--bg-input-search) !important; border-color: var(--border-medium) !important; }
 body.dark-mode .wc-tool-btn:hover,
