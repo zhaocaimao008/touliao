@@ -103,8 +103,8 @@
   --bg-panel:             #F7F7F7;
   --bg-panel-header:      #F0F1F5;
   --bg-panel-item-hover:  rgba(0, 0, 0, .04);
-  --bg-panel-item-active: #DADADA;       /* 微信灰选中 */
-  --bg-panel-item-active-hover: #D0D0D0;
+  --bg-panel-item-active: #F0F0F0;       /* 微信浅灰选中 */
+  --bg-panel-item-active-hover: #E8E8E8;
 
   /* 聊天区域 */
   --bg-chat:              #FFFFFF;
@@ -526,8 +526,8 @@ body.dark-mode {
   --bg-panel:             #1C1C1E;
   --bg-panel-header:      #1C1C1E;
   --bg-panel-item-hover:  rgba(255, 255, 255, .06);
-  --bg-panel-item-active: rgba(255,255,255,.10);
-  --bg-panel-item-active-hover: rgba(255,255,255,.14);
+  --bg-panel-item-active: rgba(255,255,255,.06);
+  --bg-panel-item-active-hover: rgba(255,255,255,.10);
   --bg-chat:              #111111;
   --bg-chat-header:       #1C1C1E;
   --bg-messages:          #111111;

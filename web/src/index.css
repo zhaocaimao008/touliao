@@ -1430,7 +1430,7 @@ body.dark-mode .wc-chat-item:hover,
 body.dark-mode .wc-contact-item:hover,
 body.dark-mode .wc-menu-item:hover,
 body.dark-mode .wc-discover-item:hover { background: var(--bg-hover); }
-body.dark-mode .wc-chat-item.active { background: rgba(255,255,255,.10); }
+body.dark-mode .wc-chat-item.active { background: var(--bg-active); }
 body.dark-mode .wc-search { background: var(--bg-input-search); border-color: var(--border-subtle); box-shadow: none; }
 body.dark-mode .wc-panel-topbar,
 body.dark-mode .wc-chat-header,

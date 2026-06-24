@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { mediaUrl } from '../utils/url';
 
 // 低饱和灰蓝系：统一干净，按名字 hash 取色仍可区分不同人
-const COLORS = ['#8A93A6','#7F8A9B','#939DAD','#76808F','#9BA4B2'];
+const COLORS = ['#A6ABB2']; // 单一中性灰：所有首字头像统一(最像微信默认灰头像)
 
 function getColor(name) {
   let hash = 0;
