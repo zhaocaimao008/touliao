@@ -34,12 +34,18 @@ jobs:
         working-directory: desktop-electron
         run: npm run build:win
 
-      - name: Upload installer
+      - name: Upload installer + update feed
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: vxin-windows-setup
+          # latest.yml / *.blockmap 是 electron-updater 自动更新所必需：必须与 .exe
+          # 一并上传到更新源 https://dipsin.com/downloads/updates，否则客户端拉不到更新。
           path: |
             desktop-electron/dist/*.exe
+            desktop-electron/dist/latest.yml
+            desktop-electron/dist/*.blockmap
             desktop-electron/release/*.exe
+            desktop-electron/release/latest.yml
+            desktop-electron/release/*.blockmap
           if-no-files-found: warn
