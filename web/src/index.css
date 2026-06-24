@@ -10,7 +10,7 @@
 
   /* ── Surface (覆盖 design-tokens LEGACY ALIASES) ── */
   --bg-search:        #F0F2F5;
-  --bg-msg-mine:      #95EC69;
+  --bg-msg-mine:      #EAF0F7;
   --bg-msg-other:     #FFFFFF;
 
   /* ── Text ── */
@@ -536,6 +536,7 @@ img { display: block; }
 .wc-msg-bubble.mine {
   background: var(--bg-msg-mine);
   color: var(--text-primary);
+  border: 1px solid rgba(0,0,0,.05);
 }
 .wc-msg-bubble.other {
   background: var(--bg-msg-other);
@@ -1418,7 +1419,7 @@ body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
 
 /* 气泡 — 暗色模式下绿气泡保留 #1A6E3C（微信经典深绿）*/
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }
-body.dark-mode .wc-msg-bubble.mine { background: #1A6E3C; color: #fff; border-color: rgba(255,255,255,.08); }
+body.dark-mode .wc-msg-bubble.mine { background: #3A4654; color: #e6e6e6; border-color: rgba(255,255,255,.08); }
 body.dark-mode .wc-msg-bubble.other { background: var(--bg-input-search); color: #e6e6e6; backdrop-filter: none; -webkit-backdrop-filter: none; border-color: rgba(255,255,255,.06); }
 body.dark-mode .wc-msg-bubble.mine::after { border-color: transparent transparent transparent #1A6E3C; }
 body.dark-mode .wc-msg-bubble.other::after { border-color: transparent var(--bg-input-search) transparent transparent; }
@@ -2898,8 +2899,8 @@ body {
 .wc-add-label { flex: 1; font-size: 14px; color: var(--text-primary); transition: color .15s; }
 .wc-add-chevron { width: 14px; height: 14px; fill: var(--text-tertiary); transition: transform .2s; flex-shrink: 0; }
 .wc-add-form { padding: 0 14px 14px; border-top: 1px solid var(--border-color); }
-.wc-add-info { margin: 10px 0; padding: 8px 10px; background: rgba(var(--green-rgb),.08); border-radius: var(--radius-input); border: 1px solid rgba(var(--green-rgb),.18); }
-.wc-add-info-text { font-size: 12px; color: var(--green); line-height: 1.5; }
+.wc-add-info { margin: 10px 0; padding: 8px 10px; background: var(--bg-search); border-radius: var(--radius-input); border: 1px solid var(--border-color); }
+.wc-add-info-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 .wc-add-form-inner { display: flex; flex-direction: column; gap: 10px; }
 .wc-add-form-input { padding: 11px 14px; border-radius: var(--radius-card); border: 1px solid var(--border-color); font-size: 14px; background: var(--bg-search); color: var(--text-primary); outline: none; transition: border-color .15s; }
 .wc-add-form-input:focus { border-color: var(--green); }

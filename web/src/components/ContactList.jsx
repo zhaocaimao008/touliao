@@ -130,22 +130,22 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
-              color="#1677FF" label="群聊" badge={0}
+              color="#8A93A6" label="群聊" badge={0}
               onClick={() => setTab('groups')}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
-              color="#FF7A45" label="添加好友" badge={0}
+              color="#8A93A6" label="添加好友" badge={0}
               onClick={() => setShowAddFriend(true)}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>}
-              color="#FF4D4F" label="黑名单" badge={0}
+              color="#8A93A6" label="黑名单" badge={0}
               onClick={() => { fetchBlocked(); setTab('blocked'); }}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>}
-              color="#10AEFF" label="文件传输助手" badge={0}
+              color="#8A93A6" label="文件传输助手" badge={0}
               onClick={async () => {
                 try {
                   const { data } = await axios.get('/api/messages/file-helper');

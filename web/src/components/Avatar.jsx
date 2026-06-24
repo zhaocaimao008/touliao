@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { mediaUrl } from '../utils/url';
 
-const COLORS = ['#1ABC9C','#3498DB','#9B59B6','#E67E22','#E74C3C','#2ECC71','#F39C12','#07C160','#16A085','#8E44AD'];
+// 低饱和灰蓝系：统一干净，按名字 hash 取色仍可区分不同人
+const COLORS = ['#8A93A6','#7F8A9B','#939DAD','#76808F','#9BA4B2'];
 
 function getColor(name) {
   let hash = 0;

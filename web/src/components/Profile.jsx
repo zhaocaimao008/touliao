@@ -625,8 +625,8 @@ function SettingsPage({ user, setSubPage, logout }) {
       <SLabel>设备与安全</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<IcoDesktop />} bg="#AF52DE" label="设备管理" desc="查看同时登录的设备" onClick={() => setSubPage('devices')} />
-          <CRow icon={<IcoShield />} bg="#636366" label="隐私与安全" desc="添加方式和好友权限" onClick={() => setSubPage('privacy')} />
+          <CRow icon={<IcoDesktop />} bg="#8A93A6" label="设备管理" desc="查看同时登录的设备" onClick={() => setSubPage('devices')} />
+          <CRow icon={<IcoShield />} bg="#8A93A6" label="隐私与安全" desc="添加方式和好友权限" onClick={() => setSubPage('privacy')} />
         </Card>
       </div>
 
@@ -634,8 +634,8 @@ function SettingsPage({ user, setSubPage, logout }) {
       <SLabel>偏好设置</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<IcoMoon />} bg="#5856D6" label="外观" desc="日间和夜间模式" onClick={() => setSubPage('appearance')} />
-          <CRow icon={<IcoBell />} bg="#FF3B30" label="通知" desc="锁屏通知和声音" onClick={() => setSubPage('notifications')} />
+          <CRow icon={<IcoMoon />} bg="#8A93A6" label="外观" desc="日间和夜间模式" onClick={() => setSubPage('appearance')} />
+          <CRow icon={<IcoBell />} bg="#8A93A6" label="通知" desc="锁屏通知和声音" onClick={() => setSubPage('notifications')} />
         </Card>
       </div>
 
@@ -645,7 +645,7 @@ function SettingsPage({ user, setSubPage, logout }) {
           <SLabel>连接</SLabel>
           <div className="wc-section-pad">
             <Card>
-              <CRow icon={<IcoServer />} bg="#34C759" label="服务器地址"
+              <CRow icon={<IcoServer />} bg="#8A93A6" label="服务器地址"
                 desc={(localStorage.getItem('vxin_server_url') || '').replace(/^https?:\/\//, '') || '远程配置'}
                 onClick={() => setSubPage('server')} />
             </Card>
@@ -697,16 +697,16 @@ export default function Profile() {
       <SLabel>设备与安全</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<IcoDesktop />} bg="#AF52DE" label="设备管理" desc="查看同时登录的设备" onClick={() => setSubPage('devices')} />
-          <CRow icon={<IcoShield />}  bg="#636366" label="隐私与安全" desc="添加方式和好友权限" onClick={() => setSubPage('privacy')} />
+          <CRow icon={<IcoDesktop />} bg="#8A93A6" label="设备管理" desc="查看同时登录的设备" onClick={() => setSubPage('devices')} />
+          <CRow icon={<IcoShield />}  bg="#8A93A6" label="隐私与安全" desc="添加方式和好友权限" onClick={() => setSubPage('privacy')} />
         </Card>
       </div>
 
       <SLabel>偏好设置</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<IcoMoon />} bg="#5856D6" label="外观"  desc="日间和夜间模式"   onClick={() => setSubPage('appearance')} />
-          <CRow icon={<IcoBell />} bg="#FF3B30" label="通知"  desc="锁屏通知和声音"   onClick={() => setSubPage('notifications')} />
+          <CRow icon={<IcoMoon />} bg="#8A93A6" label="外观"  desc="日间和夜间模式"   onClick={() => setSubPage('appearance')} />
+          <CRow icon={<IcoBell />} bg="#8A93A6" label="通知"  desc="锁屏通知和声音"   onClick={() => setSubPage('notifications')} />
         </Card>
       </div>
 
@@ -715,7 +715,7 @@ export default function Profile() {
           <SLabel>连接</SLabel>
           <div className="wc-section-pad">
             <Card>
-              <CRow icon={<IcoServer />} bg="#34C759" label="服务器地址"
+              <CRow icon={<IcoServer />} bg="#8A93A6" label="服务器地址"
                 desc={(localStorage.getItem('vxin_server_url') || '').replace(/^https?:\/\//, '') || '远程配置'}
                 onClick={() => setSubPage('server')} />
             </Card>
