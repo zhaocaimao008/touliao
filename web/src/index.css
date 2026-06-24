@@ -3178,11 +3178,12 @@ body {
   width:260px;
   z-index:300;
   border-radius:var(--radius-modal);
-  background:var(--glass-bg-strong);
-  backdrop-filter:blur(28px) saturate(1.3);
-  -webkit-backdrop-filter:blur(28px) saturate(1.3);
-  border:1px solid var(--glass-border);
-  box-shadow:0 8px 32px rgba(0,0,0,.22);
+  /* 与 app 其它弹窗(.wc-modal 等)统一为实色卡片+主题描边：
+     原先半透明毛玻璃+saturate+白色描边，在亮色背景上面板边缘"化"在背景里、显得突兀不协调。
+     --bg-card / --border-color 自动适配亮(#fff/#E3E7EE)暗(#2C2C2E/#3A3A3C)两套主题。 */
+  background:var(--bg-card);
+  border:1px solid var(--border-color);
+  box-shadow:0 12px 40px rgba(0,0,0,.18);
   overflow:hidden;
 }
 
@@ -3203,7 +3204,7 @@ body {
 .as-active-badge {
   position:absolute; bottom:-1px; right:-1px;
   width:13px; height:13px; border-radius:50%;
-  background:var(--green); border:2px solid var(--glass-bg-strong);
+  background:var(--green); border:2px solid var(--bg-card);
   display:flex; align-items:center; justify-content:center;
 }
 .as-check-icon { width:7px; height:7px; fill:#fff; }
