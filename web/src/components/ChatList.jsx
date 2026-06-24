@@ -29,8 +29,8 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
       >
         <div className="wc-chat-item-avatar">
           {conv.type === 'group'
-            ? <GroupAvatar members={conv.members || []} avatar={conv.avatar} size={46} />
-            : <Avatar src={conv.avatar} name={conv.name} size={46} />
+            ? <GroupAvatar members={conv.members || []} avatar={conv.avatar} size={40} />
+            : <Avatar src={conv.avatar} name={conv.name} size={40} />
           }
           {count > 0 && <span className={`wc-chat-item-badge${conv.muted ? ' muted' : ''}`}>{count > 99 ? '99+' : count}</span>}
         </div>
