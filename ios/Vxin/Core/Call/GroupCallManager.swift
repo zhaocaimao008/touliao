@@ -147,8 +147,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         }.store(in: &cancellables)
 
         socket.gcPeerJoined.receive(on: DispatchQueue.main).sink { [weak self] (callId, userId) in
-            guard let self, callId == self.state.callId else { return }
-            let entry = self.peerFor(userId)
+            guard let self, callId == self.state.callId, let entry = self.peerFor(userId) else { return }
             self.state.participants = Array(self.peers.keys)
             entry.pc.offer(for: self.mediaConstraints()) { [weak self] desc, err in
                 guard let self, let desc, err == nil else { return }
@@ -158,8 +157,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         }.store(in: &cancellables)
 
         socket.gcOffer.receive(on: DispatchQueue.main).sink { [weak self] (callId, from, sdp) in
-            guard let self, callId == self.state.callId else { return }
-            let entry = self.peerFor(from)
+            guard let self, callId == self.state.callId, let entry = self.peerFor(from) else { return }
             self.state.participants = Array(self.peers.keys)
             entry.pc.setRemoteDescription(RTCSessionDescription(type: .offer, sdp: sdp)) { [weak self] err in
                 guard let self, err == nil else { return }
@@ -242,14 +240,14 @@ final class GroupCallManager: NSObject, ObservableObject {
         capturer.startCapture(with: device, format: format, fps: Int(min(fps, 30)))
     }
 
-    private func peerFor(_ peerId: String) -> PeerEntry {
+    private func peerFor(_ peerId: String) -> PeerEntry? {
         if let e = peers[peerId] { return e }
         let config = RTCConfiguration()
         config.iceServers = iceServers
         config.sdpSemantics = .unifiedPlan
         let delegate = GCPeerDelegate(peerId: peerId, manager: self)
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
-        let pc = factory.peerConnection(with: config, constraints: constraints, delegate: delegate)
+        guard let pc = factory.peerConnection(with: config, constraints: constraints, delegate: delegate) else { return nil }
         if let a = localAudioTrack { pc.add(a, streamIds: ["g_stream"]) }
         if let v = localVideoTrack { pc.add(v, streamIds: ["g_stream"]) }
         let entry = PeerEntry(pc: pc, delegate: delegate)
