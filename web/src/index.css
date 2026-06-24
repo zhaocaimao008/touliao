@@ -1940,20 +1940,13 @@ body {
 .wc-sidebar-btn:hover .wc-sidebar-label { color: rgba(255,255,255,.80); }
 .wc-sidebar-btn:active { transform: scale(.95); }
 /* 企业微信激活态：左侧绿色指示线 + 图标高亮 */
+/* 微信 PC：激活态仅图标变绿，无背景框、无指示条 */
 .wc-sidebar-btn.active {
-  background: rgba(var(--green-rgb),.14);
+  background: transparent;
 }
 .wc-sidebar-btn.active .icon svg { fill: var(--green); }
 .wc-sidebar-btn.active .wc-sidebar-label { color: var(--green); }
-.wc-sidebar-btn.active::before {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: 12px; bottom: 12px;
-  width: 3px;
-  background: var(--green);
-  border-radius: 0 var(--radius-bubble-tip) var(--radius-bubble-tip) 0;
-}
+.wc-sidebar-btn.active::before { display: none; }
 .wc-sidebar-badge {
   position: absolute;
   top: 4px; right: 4px;
@@ -2514,14 +2507,7 @@ body {
 }
 
 /* 侧边栏当前选中 Tab 激活下方细线 */
-.wc-sidebar-btn.active::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 8px; bottom: 8px;
-  width: 2.5px;
-  background: var(--green);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-}
+.wc-sidebar-btn.active::before { display: none; } /* 微信无激活竖条 */
 
 /* 置顶图钉图标（聊天列表） */
 .wc-pin-icon {
