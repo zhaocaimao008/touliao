@@ -1,0 +1,45 @@
+name: Windows Desktop Build
+
+# 在云端 Windows runner 上用 electron-builder 打 Windows 安装包（NSIS .exe）。
+# 无需本地/服务器装 wine。用法：Actions →「Windows Desktop Build」→ Run workflow，
+# 跑完在底部 Artifacts 下载 vxin-windows-setup。
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+
+      - name: Install desktop deps
+        working-directory: desktop-electron
+        run: npm ci
+
+      - name: Build Windows installer
+        working-directory: desktop-electron
+        run: npm run build:win
+
+      - name: Upload installer
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vxin-windows-setup
+          path: |
+            desktop-electron/dist/*.exe
+            desktop-electron/release/*.exe
+          if-no-files-found: warn
