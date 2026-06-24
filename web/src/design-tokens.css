@@ -488,10 +488,12 @@
   --avatar-session:   var(--size-avatar-session);
   --avatar-msg:       var(--size-avatar-message);
   --radius-avatar:    6px;
-  --radius-bubble:    var(--radius-bubble);
-  --radius-sm:        var(--radius-sm);
-  --radius-md:        var(--radius-md);
-  --radius-lg:        var(--radius-lg);
+  /* 修复自引用 bug：原为 var(--自身)，压缩去重后变无效值→border-radius 回退 0→直角。
+     弹窗/输入框/按钮/气泡一直被迫方形。改回具体值；气泡顺势加大到 16px 更圆润。 */
+  --radius-bubble:    16px;
+  --radius-sm:        4px;
+  --radius-md:        8px;
+  --radius-lg:        12px;
 }
 
 /* ================================================================
