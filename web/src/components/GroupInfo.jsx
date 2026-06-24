@@ -4,11 +4,26 @@ import Avatar from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 
+/* ── 宫格单元：头像加载失败回退首字母，避免碎图 ── */
+function GroupGridCell({ member = {}, cellSize }) {
+  const [err, setErr] = useState(false);
+  useEffect(() => { setErr(false); }, [member.avatar]);
+  return (
+    <div style={{ width: cellSize, height: cellSize, borderRadius: 2, overflow: 'hidden', background: '#C0C0C0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {member.avatar && !err
+        ? <img loading="lazy" src={mediaUrl(member.avatar)} alt="" className="gi-avatar-img" onError={() => setErr(true)} />
+        : <span style={{ fontSize: cellSize * 0.45, fontWeight: 600, color: '#fff' }}>{(member.username || '?')[0]}</span>}
+    </div>
+  );
+}
+
 /* ── 群头像拼图（微信风格 N宫格，支持自定义头像） ── */
 export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
-  // 有自定义群头像直接显示
-  if (avatar) {
-    return <img src={mediaUrl(avatar)} alt="" loading="lazy" style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), objectFit: 'cover', flexShrink: 0 }} />;
+  const [avatarErr, setAvatarErr] = useState(false);
+  useEffect(() => { setAvatarErr(false); }, [avatar]);
+  // 有自定义群头像直接显示；加载失败则回退到下面的宫格拼图
+  if (avatar && !avatarErr) {
+    return <img src={mediaUrl(avatar)} alt="" loading="lazy" onError={() => setAvatarErr(true)} style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), objectFit: 'cover', flexShrink: 0 }} />;
   }
   const n = Math.min(members.length, 9);
   if (n === 0) return <Avatar name="群" size={size} />;
@@ -18,9 +33,7 @@ export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
   return (
     <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.22), background: '#DCDCDC', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
       {members.slice(0, grid * grid).map((m, i) => (
-        <div key={i} style={{ width: cellSize, height: cellSize, borderRadius: 2, overflow: 'hidden', background: '#C0C0C0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {m.avatar ? <img loading="lazy" src={mediaUrl(m.avatar)} alt="" className="gi-avatar-img" /> : <span style={{ fontSize: cellSize * 0.45, fontWeight: 600, color: '#fff' }}>{(m.username || '?')[0]}</span>}
-        </div>
+        <GroupGridCell key={i} member={m} cellSize={cellSize} />
       ))}
     </div>
   );
@@ -29,6 +42,8 @@ export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
 /* ── 群头像上传（管理员 hover 显示相机图标） ── */
 function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, onChange }) {
   const [hovered, setHovered] = useState(false);
+  const [avErr, setAvErr] = useState(false);
+  useEffect(() => { setAvErr(false); }, [info.avatar]);
   const r = Math.round(50 * 0.22);
   return (
     <div
@@ -38,8 +53,8 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
       onClick={onAvatarClick}
       title={isAdmin ? '点击更换群头像' : undefined}
     >
-      {info.avatar
-        ? <img src={mediaUrl(info.avatar)} alt="" loading="lazy" className="gi-av-img" style={{ borderRadius: r }} />
+      {info.avatar && !avErr
+        ? <img src={mediaUrl(info.avatar)} alt="" loading="lazy" className="gi-av-img" onError={() => setAvErr(true)} style={{ borderRadius: r }} />
         : <GroupAvatar members={info.members} size={50} />
       }
       {isAdmin && (hovered || uploading) && (

@@ -1875,6 +1875,14 @@ body.dark-mode {
   --glass-shadow-soft: 0 8px 22px rgba(0,0,0,.35);
 }
 
+/* 补齐被引用但从未定义的变量（之前 .cl-subtabs 子标签栏、.req-status-* 状态徽章
+   因变量缺失而背景/边框失效=透明，显得不协调）。指向主题感知 token，亮暗自动适配。 */
+:root {
+  --bg-primary: var(--bg-panel);
+  --bg-secondary: var(--bg-hover);
+  --border: var(--border-color);
+}
+
 body {
   background:
     radial-gradient(circle at 8% 8%, rgba(26,32,51,.06), transparent 30%),

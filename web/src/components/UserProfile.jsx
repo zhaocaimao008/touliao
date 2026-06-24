@@ -121,7 +121,8 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {/* 顶部封面区 */}
         <div className="up-header">
           {user.cover_photo
-            ? <img src={mediaUrl(user.cover_photo)} loading="lazy" className="up-cover" alt="" />
+            ? <img src={mediaUrl(user.cover_photo)} loading="lazy" className="up-cover" alt=""
+                   onError={e => { e.currentTarget.onerror = null; e.currentTarget.className = 'up-cover-default'; e.currentTarget.removeAttribute('src'); }} />
             : <div className="up-cover-default" />
           }
           <button className="up-close-btn" onClick={onClose}>
