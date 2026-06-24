@@ -7,13 +7,13 @@
 export const site = {
   name: 'v信',
   tagline: '私有化部署的私密通讯',
-  // 站点规范地址（用于 OG/canonical）。当前指向已部署的 Web 应用域名，
-  // 若落地页另起独立域名，改这里即可。
-  url: 'https://chat.91aigu.com',
+  // 站点规范地址（用于 OG/canonical）。Web 应用部署在 dipsin.com 根路径，
+  // 落地页本身挪到 dipsin.com/welcome。
+  url: 'https://dipsin.com',
   // 真实下载/体验入口
   links: {
-    // 网页版 = 已部署的 Web 应用（见 backend OPERATIONS.md：nginx 服务 chat.91aigu.com）
-    webApp: 'https://chat.91aigu.com',
+    // 网页版 = dipsin.com 根路径的 Web 应用（同源 /api 反代，见 BUILD.md）
+    webApp: 'https://dipsin.com/',
     // 安卓/Windows 指向 GitHub Release「latest」稳定直链（公开、CDN 托管，出新版无需改链接）
     android: 'https://github.com/zhaocaimao008/vxin-1.0/releases/latest/download/vxin.apk',
     windows: 'https://github.com/zhaocaimao008/vxin-1.0/releases/latest/download/vxin-setup.exe',
