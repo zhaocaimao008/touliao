@@ -1,0 +1,34 @@
+# v信 nginx 反向代理样例
+# 用法：把 your-domain.com 改成你的域名，放到 /etc/nginx/sites-available/vxin，
+#       ln -s 到 sites-enabled/，nginx -t && systemctl reload nginx。
+# 之后跑 certbot --nginx -d your-domain.com 自动加 HTTPS。
+#
+# ⚠ 别把 .bak 文件放进 sites-enabled/（nginx 会一起加载导致冲突）。
+
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # 网页前端（web/dist 构建产物）
+    root /var/www/vxin;            # 把 web 构建的 dist/ 放这里
+    index index.html;
+
+    client_max_body_size 50m;     # 允许较大文件上传
+
+    # 后端 API + WebSocket → Node(127.0.0.1:3002)
+    location /api/      { proxy_pass http://127.0.0.1:3002; include /etc/nginx/proxy_params; }
+    location /uploads/  { proxy_pass http://127.0.0.1:3002; include /etc/nginx/proxy_params; }
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;     # WebSocket 必需
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 3600s;                   # 长连接
+    }
+
+    # 前端单页应用路由兜底
+    location / { try_files $uri $uri/ /index.html; }
+}
