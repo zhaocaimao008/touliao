@@ -3165,9 +3165,18 @@ body {
 
 /* ── AccountSwitcher ── */
 .as-container { position:relative; width:100%; }
-.as-avatar-btn { cursor:pointer; width:100%; }
-/* 头像 inner — outline 颜色保持内联(动态) */
-.as-avatar-inner { outline-width:2.5px; outline-style:solid; outline-offset:2px; transition:outline-color .15s; overflow:hidden; }
+.as-avatar-btn { cursor:pointer; width:100%; display:flex; justify-content:center; }
+/* 头像 inner — 固定尺寸的头像盒：有图时 <img> 铺满，无图/加载失败时显示居中首字母。
+   原先无尺寸/背景，回退首字母时塌成"模糊的点"。outline 颜色保持内联(动态高亮)。 */
+.as-avatar-inner {
+  width:34px; height:34px;
+  border-radius:var(--radius-md);
+  display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg, var(--green), #06AD56);
+  color:#fff; font-size:15px; font-weight:600; line-height:1;
+  outline-width:2.5px; outline-style:solid; outline-offset:2px;
+  transition:outline-color .15s; overflow:hidden;
+}
 .as-avatar-img { width:34px; height:34px; border-radius:var(--radius-md); object-fit:cover; display:block; }
 
 /* 下拉面板 */
