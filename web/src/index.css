@@ -483,7 +483,7 @@ img { display: block; }
   display: flex;
   align-items: flex-start;
   /* 用 padding 而非 margin：保证间距被 react-window 的高度测量计入，避免气泡重叠 */
-  padding-top: 10px;
+  padding-top: 13px;
   flex-shrink: 0;
   content-visibility: auto;
   contain-intrinsic-size: auto 62px; /* auto = 使用上次渲染的实际尺寸，62px = 首次估计 */
@@ -521,25 +521,25 @@ img { display: block; }
 
 /* 气泡 — 企业微信更大圆角 */
 .wc-msg-bubble {
-  padding: 10px 14px;
+  padding: 11px 15px;
   border-radius: var(--radius-bubble);
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
   position: relative;
   font-size: var(--font-msg);
-  line-height: 1.5;
+  line-height: 1.6;
   cursor: default;
   user-select: text;
   min-width: 0;
 }
 .wc-msg-bubble.mine {
   background: var(--bg-msg-mine);
-  color: #1a1a1a;
+  color: #2b2b2b;
 }
 .wc-msg-bubble.other {
   background: var(--bg-msg-other);
-  color: #1a1a1a;
+  color: #2b2b2b;
   border: 1px solid rgba(0,0,0,.05);
 }
 
