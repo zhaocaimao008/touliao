@@ -32,7 +32,6 @@ function WcEmpty() {
         <path d="M53 46l5 5 9-9" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
       <p className="we-empty-title">选择一个会话开始聊天</p>
-      <p className="we-empty-desc">安全、高效的企业级通讯</p>
     </div>
   );
 }
@@ -855,11 +854,6 @@ export default function Home() {
                     onClick={() => setSearch('')}>✕</button>
                 )}
               </div>
-
-              {/* 二维码按钮 */}
-              <button className="wc-icon-btn" title="我的二维码" onClick={() => setShowQR(true)}>
-                <IcoQR />
-              </button>
 
               {/* 添加按钮 */}
               <button ref={addBtnRef} className="wc-icon-btn" title="发起" onClick={toggleAddMenu}>

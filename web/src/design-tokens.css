@@ -201,7 +201,7 @@
   --sp-16:  64px;
 
   /* ── 布局固定尺寸 ── */
-  --size-nav:     64px;   /* 侧边导航栏宽度 */
+  --size-nav:     56px;   /* 微信 PC 窄导航栏 */
   --size-panel:   280px;  /* 会话面板宽度 */
   --size-header:  54px;   /* 顶栏高度 */
   --size-session: 64px;   /* 会话列表条目高度 */
