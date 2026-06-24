@@ -31,8 +31,9 @@ WEBROOT="/var/www/vxin"
 apt_install() { command -v apt-get >/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" || true; }
 
 echo "==> [1/7] 检查环境"
-command -v node >/dev/null || { echo "❌ 未装 Node.js，请先装 Node 18+"; exit 1; }
-[ "$(node -p 'process.versions.node.split(".")[0]')" -ge 18 ] || { echo "❌ Node 需 ≥18（当前 $(node -v)）"; exit 1; }
+command -v node >/dev/null || { echo "❌ 未装 Node.js，请先装 Node 20+"; exit 1; }
+# @aws-sdk/client-s3 等依赖 engines 要求 node>=20（与 CI deploy.yml 一致），18/19 装得上但运行会崩
+[ "$(node -p 'process.versions.node.split(".")[0]')" -ge 20 ] || { echo "❌ Node 需 ≥20（当前 $(node -v)）"; exit 1; }
 command -v npm >/dev/null || { echo "❌ 未装 npm"; exit 1; }
 command -v pm2 >/dev/null || { echo "   装 pm2..."; npm i -g pm2; }
 command -v make >/dev/null && command -v g++ >/dev/null || { echo "   装编译工具..."; apt_install build-essential python3; }
@@ -96,6 +97,7 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_read_timeout 3600s;
     }
+    location /admin/ { alias $ROOT/admin/; index index.html; try_files \$uri \$uri/ /admin/index.html; }
     location / { try_files \$uri \$uri/ /index.html; }
 }
 NGINX
