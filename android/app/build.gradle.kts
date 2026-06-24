@@ -22,6 +22,20 @@ android {
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://dipsin.com\"")
     }
 
+    // release 签名：密钥从环境变量读取（CI 用 GitHub Secrets 注入）。
+    // 未配置时（如本地普通构建）不签名，不影响 debug 构建与编译验证。
+    val ksPath = System.getenv("ANDROID_KEYSTORE_FILE")
+    signingConfigs {
+        create("release") {
+            if (ksPath != null && file(ksPath).exists()) {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
@@ -29,6 +43,9 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (ksPath != null && file(ksPath).exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
