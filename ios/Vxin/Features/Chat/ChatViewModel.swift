@@ -336,6 +336,12 @@ final class ChatViewModel: ObservableObject {
         return true
     }
 
+    /// 发起群通话（mesh）。仅群聊有效。
+    func startGroupCall(video: Bool) {
+        guard isGroup else { return }
+        GroupCallManager.shared.start(conversationId: conversationId, video: video)
+    }
+
     private func refreshRedPacketDetail(_ packetId: String) async {
         if let d = try? await RedPacketRepository.shared.detail(packetId), redPacketDetail?.id == packetId {
             redPacketDetail = d

@@ -38,6 +38,15 @@ data class CallSdpEvent(val from: String, val sdp: String)            // offer /
 data class CallIceEvent(val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
 data class CallEndEvent(val from: String)
 
+// ── 群通话(mesh) 信令事件 ──
+data class GroupCallInviteEvent(val callId: String, val conversationId: String, val type: String, val from: String, val fromName: String)
+data class GroupCallStartedEvent(val callId: String, val type: String)
+data class GroupCallPeersEvent(val callId: String, val type: String, val peers: List<String>)
+data class GroupCallPeerEvent(val callId: String, val userId: String)               // peer_joined / peer_left
+data class GroupCallSdpEvent(val callId: String, val from: String, val sdp: String) // offer / answer
+data class GroupCallIceEvent(val callId: String, val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
+data class GroupCallErrorEvent(val reason: String)
+
 /**
  * Socket.IO 实时通道（官方 io.socket:socket.io-client）。
  *
@@ -130,6 +139,26 @@ class SocketManager @Inject constructor(
     val callIceEvents: SharedFlow<CallIceEvent> = _callIce.asSharedFlow()
     private val _callEnd = MutableSharedFlow<CallEndEvent>(extraBufferCapacity = 16)
     val callEndEvents: SharedFlow<CallEndEvent> = _callEnd.asSharedFlow()
+
+    // ── 群通话信令流 ──
+    private val _gcInvite = MutableSharedFlow<GroupCallInviteEvent>(extraBufferCapacity = 16)
+    val groupCallInviteEvents: SharedFlow<GroupCallInviteEvent> = _gcInvite.asSharedFlow()
+    private val _gcStarted = MutableSharedFlow<GroupCallStartedEvent>(extraBufferCapacity = 8)
+    val groupCallStartedEvents: SharedFlow<GroupCallStartedEvent> = _gcStarted.asSharedFlow()
+    private val _gcPeers = MutableSharedFlow<GroupCallPeersEvent>(extraBufferCapacity = 8)
+    val groupCallPeersEvents: SharedFlow<GroupCallPeersEvent> = _gcPeers.asSharedFlow()
+    private val _gcPeerJoined = MutableSharedFlow<GroupCallPeerEvent>(extraBufferCapacity = 16)
+    val groupCallPeerJoinedEvents: SharedFlow<GroupCallPeerEvent> = _gcPeerJoined.asSharedFlow()
+    private val _gcPeerLeft = MutableSharedFlow<GroupCallPeerEvent>(extraBufferCapacity = 16)
+    val groupCallPeerLeftEvents: SharedFlow<GroupCallPeerEvent> = _gcPeerLeft.asSharedFlow()
+    private val _gcOffer = MutableSharedFlow<GroupCallSdpEvent>(extraBufferCapacity = 32)
+    val groupCallOfferEvents: SharedFlow<GroupCallSdpEvent> = _gcOffer.asSharedFlow()
+    private val _gcAnswer = MutableSharedFlow<GroupCallSdpEvent>(extraBufferCapacity = 32)
+    val groupCallAnswerEvents: SharedFlow<GroupCallSdpEvent> = _gcAnswer.asSharedFlow()
+    private val _gcIce = MutableSharedFlow<GroupCallIceEvent>(extraBufferCapacity = 128)
+    val groupCallIceEvents: SharedFlow<GroupCallIceEvent> = _gcIce.asSharedFlow()
+    private val _gcError = MutableSharedFlow<GroupCallErrorEvent>(extraBufferCapacity = 8)
+    val groupCallErrorEvents: SharedFlow<GroupCallErrorEvent> = _gcError.asSharedFlow()
 
     @Synchronized
     fun connect() {
@@ -307,6 +336,62 @@ class SocketManager @Inject constructor(
                 ?.let { _callEnd.tryEmit(CallEndEvent(it)) }
         }
 
+        // ── 群通话信令接收 ──
+        s.on("group_call:invite") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                _gcInvite.tryEmit(GroupCallInviteEvent(
+                    o.optString("callId"), o.optString("conversationId"),
+                    o.optString("type", "audio"), o.optString("from"), o.optString("fromName")))
+            }
+        }
+        s.on("group_call:started") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                _gcStarted.tryEmit(GroupCallStartedEvent(o.optString("callId"), o.optString("type", "audio")))
+            }
+        }
+        s.on("group_call:peers") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val arr = o.optJSONArray("peers")
+                val peers = if (arr != null) (0 until arr.length()).map { arr.optString(it) } else emptyList()
+                _gcPeers.tryEmit(GroupCallPeersEvent(o.optString("callId"), o.optString("type", "audio"), peers))
+            }
+        }
+        s.on("group_call:peer_joined") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                _gcPeerJoined.tryEmit(GroupCallPeerEvent(o.optString("callId"), o.optString("userId")))
+            }
+        }
+        s.on("group_call:peer_left") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                _gcPeerLeft.tryEmit(GroupCallPeerEvent(o.optString("callId"), o.optString("userId")))
+            }
+        }
+        s.on("group_call:offer") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val sdp = o.optJSONObject("offer")?.optString("sdp").orEmpty()
+                if (sdp.isNotEmpty()) _gcOffer.tryEmit(GroupCallSdpEvent(o.optString("callId"), o.optString("from"), sdp))
+            }
+        }
+        s.on("group_call:answer") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val sdp = o.optJSONObject("answer")?.optString("sdp").orEmpty()
+                if (sdp.isNotEmpty()) _gcAnswer.tryEmit(GroupCallSdpEvent(o.optString("callId"), o.optString("from"), sdp))
+            }
+        }
+        s.on("group_call:ice") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val cand = o.optJSONObject("candidate") ?: return@let
+                _gcIce.tryEmit(GroupCallIceEvent(
+                    o.optString("callId"), o.optString("from"),
+                    cand.optString("candidate"),
+                    cand.optString("sdpMid").takeIf { it.isNotEmpty() },
+                    cand.optInt("sdpMLineIndex")))
+            }
+        }
+        s.on("group_call:error") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o -> _gcError.tryEmit(GroupCallErrorEvent(o.optString("reason"))) }
+        }
+
         _status.value = SocketStatus.CONNECTING
         s.connect()
     }
@@ -391,6 +476,32 @@ class SocketManager @Inject constructor(
 
     fun emitCallEnd(to: String) {
         socket?.emit("call:end", JSONObject().put("to", to))
+    }
+
+    // ── 群通话信令发送 ──
+    fun emitGroupCallStart(conversationId: String, type: String) {
+        socket?.emit("group_call:start", JSONObject().put("conversationId", conversationId).put("type", type))
+    }
+    fun emitGroupCallJoin(callId: String) {
+        socket?.emit("group_call:join", JSONObject().put("callId", callId))
+    }
+    fun emitGroupCallOffer(callId: String, to: String, sdp: String) {
+        socket?.emit("group_call:offer", JSONObject().put("callId", callId).put("to", to)
+            .put("offer", JSONObject().put("type", "offer").put("sdp", sdp)))
+    }
+    fun emitGroupCallAnswer(callId: String, to: String, sdp: String) {
+        socket?.emit("group_call:answer", JSONObject().put("callId", callId).put("to", to)
+            .put("answer", JSONObject().put("type", "answer").put("sdp", sdp)))
+    }
+    fun emitGroupCallIce(callId: String, to: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int) {
+        socket?.emit("group_call:ice", JSONObject().put("callId", callId).put("to", to)
+            .put("candidate", JSONObject()
+                .put("candidate", candidate)
+                .put("sdpMid", sdpMid ?: JSONObject.NULL)
+                .put("sdpMLineIndex", sdpMLineIndex)))
+    }
+    fun emitGroupCallLeave(callId: String) {
+        socket?.emit("group_call:leave", JSONObject().put("callId", callId))
     }
 
     @Synchronized

@@ -102,7 +102,9 @@ fun ChatScreen(
     val callPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
         val v = pendingCallVideo
         pendingCallVideo = null
-        if (v != null && res.values.all { it }) viewModel.startCall(v)
+        if (v != null && res.values.all { it }) {
+            if (viewModel.isGroup) viewModel.startGroupCall(v) else viewModel.startCall(v)
+        }
     }
     fun launchCall(video: Boolean) {
         pendingCallVideo = video
@@ -157,13 +159,12 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { launchCall(false) }) { Text("📞", style = MaterialTheme.typography.titleMedium) }
+                    IconButton(onClick = { launchCall(true) }) { Text("📹", style = MaterialTheme.typography.titleMedium) }
                     if (viewModel.isGroup) {
                         IconButton(onClick = { onOpenGroupInfo(viewModel.conversationId) }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "群聊信息")
                         }
-                    } else {
-                        IconButton(onClick = { launchCall(false) }) { Text("📞", style = MaterialTheme.typography.titleMedium) }
-                        IconButton(onClick = { launchCall(true) }) { Text("📹", style = MaterialTheme.typography.titleMedium) }
                     }
                     // 聊天背景设置
                     Box {

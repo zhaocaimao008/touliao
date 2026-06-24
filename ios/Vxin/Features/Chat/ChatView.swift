@@ -46,7 +46,9 @@ struct ChatView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if isGroup {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button { vm.startGroupCall(video: false) } label: { Image(systemName: "phone.fill") }
+                    Button { vm.startGroupCall(video: true) } label: { Image(systemName: "video.fill") }
                     Button(action: onOpenGroupInfo) { Image(systemName: "ellipsis") }
                 }
             } else {

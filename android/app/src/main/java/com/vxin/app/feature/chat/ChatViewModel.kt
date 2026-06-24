@@ -73,6 +73,7 @@ class ChatViewModel @Inject constructor(
     private val stickerRepository: com.vxin.app.data.repository.StickerRepository,
     private val redPacketRepository: RedPacketRepository,
     private val callManager: com.vxin.app.core.call.CallManager,
+    private val groupCallManager: com.vxin.app.core.call.GroupCallManager,
     private val groupRepository: com.vxin.app.data.repository.GroupRepository,
     private val momentRepository: com.vxin.app.data.repository.MomentRepository,
     private val mediaUploader: MediaUploader,
@@ -212,6 +213,13 @@ class ChatViewModel @Inject constructor(
         if (isGroup) return false
         val peer = peerId() ?: return false
         callManager.startCall(peer, _uiState.value.title, video)
+        return true
+    }
+
+    /** 发起群通话（mesh）。仅群聊有效。 */
+    fun startGroupCall(video: Boolean): Boolean {
+        if (!isGroup) return false
+        groupCallManager.start(conversationId, video)
         return true
     }
 

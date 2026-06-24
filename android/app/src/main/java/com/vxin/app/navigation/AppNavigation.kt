@@ -301,6 +301,7 @@ private fun MainFlow(features: Features) {
         }
     }
         CallHost()
+        com.vxin.app.feature.call.GroupCallHost()
     }
 }
 

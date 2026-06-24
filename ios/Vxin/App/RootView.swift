@@ -14,6 +14,7 @@ struct RootView: View {
         case .authenticated(let user):
             MainTabView(myId: user.id)
                 .overlay(CallHostView())
+                .overlay(GroupCallHostView())
         }
     }
 }
