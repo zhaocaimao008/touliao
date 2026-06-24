@@ -535,11 +535,11 @@ img { display: block; }
 }
 .wc-msg-bubble.mine {
   background: var(--bg-msg-mine);
-  color: #2b2b2b;
+  color: var(--text-primary);
 }
 .wc-msg-bubble.other {
   background: var(--bg-msg-other);
-  color: #2b2b2b;
+  color: var(--text-primary);
   border: 1px solid rgba(0,0,0,.05);
 }
 
@@ -686,7 +686,7 @@ img { display: block; }
   color: #606060;
   transition: background var(--dur-fast), color var(--dur-fast);
 }
-.wc-tool-btn:hover { background: rgba(0,0,0,.07); color: #333; }
+.wc-tool-btn:hover { background: rgba(0,0,0,.07); color: var(--text-primary); }
 .wc-tool-btn.active { background: rgba(0,0,0,.08); }
 .wc-tool-btn svg { width: 18px; height: 18px; fill: currentColor; }
 .wc-tool-svg { width: 22px; height: 22px; fill: currentColor; }
@@ -1146,7 +1146,7 @@ img { display: block; }
 .wc-modal-btn.primary { background: var(--green); color: #fff; }
 .wc-modal-btn.primary:hover { background: var(--green-hover); }
 .wc-modal-btn.primary:disabled { background: #BDBDBD; cursor: not-allowed; }
-.wc-modal-btn.secondary { background: #F5F5F5; color: #333; }
+.wc-modal-btn.secondary { background: var(--bg-search); color: var(--text-primary); }
 .wc-modal-btn.secondary:hover { background: #EBEBEB; }
 .wc-modal-field { padding: 11px 20px; }
 .wc-modal-field label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
