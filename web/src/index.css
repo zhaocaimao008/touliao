@@ -540,17 +540,13 @@ img { display: block; }
 .wc-msg-bubble.other {
   background: var(--bg-msg-other);
   color: #1a1a1a;
-  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+  border: 1px solid rgba(0,0,0,.05);
 }
 
-/* 气泡尾巴 — 每个气泡仅一个，靠近头像，用 ::after 实现，绝对定位不占布局 */
+/* 气泡尾巴：去掉尖角，采用现代 IM 干净无尾气泡（尖角在不同圆角/缩放下易显歪、不协调） */
 .wc-msg-bubble.mine::after,
 .wc-msg-bubble.other::after {
-  content: '';
-  position: absolute;
-  top: 9px;
-  width: 0; height: 0;
-  border-style: solid;
+  display: none;
 }
 .wc-msg-bubble.mine::after {
   right: -5px;
@@ -696,7 +692,8 @@ img { display: block; }
 .wc-tool-svg { width: 22px; height: 22px; fill: currentColor; }
 
 /* 输入框区域 */
-.wc-input-box { padding: 6px 14px 4px; position: relative; background: rgba(255,255,255,.45); border-radius: var(--radius-lg); margin: 0 10px; }
+.wc-input-box { padding: 8px 12px; position: relative; background: var(--bg-search); border: 1px solid var(--border-color); border-radius: var(--radius-lg); margin: 0 10px; transition: border-color .15s; }
+.wc-input-box:focus-within { border-color: rgba(var(--green-rgb),.45); }
 .wc-textarea {
   width: 100%;
   min-height: 72px;
@@ -1402,10 +1399,9 @@ body.dark-mode .wc-panel-topbar,
 body.dark-mode .wc-chat-header,
 body.dark-mode .wc-sub-header  { background: var(--bg-panel-header) !important; border-color: var(--border-subtle) !important; }
 body.dark-mode .wc-input-area   { background: var(--bg-input) !important; border-top-color: var(--border-subtle) !important; }
-/* 输入框外层容器：浅色用半透明白，暗色须置透明，否则深色 textarea 外会套一圈白框 */
-body.dark-mode .wc-input-box { background: transparent; }
+/* .wc-input-box 现用主题感知的 --bg-search/--border-color，亮暗自适配；textarea 透明融入容器 */
 body.dark-mode .wc-textarea,
-body.dark-mode .wc-input-box textarea { background: var(--bg-input-search) !important; border-color: var(--border-medium) !important; }
+body.dark-mode .wc-input-box textarea { background: transparent !important; border-color: var(--border-medium) !important; }
 body.dark-mode .wc-tool-btn:hover,
 body.dark-mode .wc-chat-header-btn:hover { background: var(--bg-hover) !important; }
 body.dark-mode .wc-menu-item:hover { background: var(--bg-hover); }
@@ -1437,7 +1433,7 @@ body.dark-mode .wc-chat-header,
 body.dark-mode .wc-sub-header { background: var(--glass-panel-bg) !important; backdrop-filter: var(--glass-panel-blur) !important; -webkit-backdrop-filter: var(--glass-panel-blur) !important; border-color: var(--border-subtle) !important; }
 body.dark-mode .wc-input-area { background: var(--bg-input) !important; backdrop-filter: none; -webkit-backdrop-filter: none; border-top-color: var(--border-subtle) !important; }
 body.dark-mode .wc-textarea,
-body.dark-mode .wc-input-box textarea { background: var(--bg-input-search) !important; border-color: var(--border-subtle) !important; box-shadow: none !important; }
+body.dark-mode .wc-input-box textarea { background: transparent !important; border-color: var(--border-subtle) !important; box-shadow: none !important; }
 body.dark-mode .wc-chat[class],
 body.dark-mode .wc-messages[class] { background: var(--bg-chat) !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
 body.dark-mode .fwd-tabs-wrap { background: var(--glass-panel-bg) !important; border-bottom-color: var(--border-subtle) !important; }
