@@ -1,7 +1,0 @@
-{
-  "api":    "https://api.vxin.com",
-  "socket": "https://ws.vxin.com",
-  "cdn":    "https://cdn.vxin.com",
-  "upload": "https://api.vxin.com",
-  "version":"2.0.1"
-}

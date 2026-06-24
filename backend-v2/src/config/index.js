@@ -41,8 +41,10 @@ const config = {
     const extra = process.env.CORS_ORIGINS
       ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
       : [];
+    // 自动放行 APP_URL 域名：新服务器只设 APP_URL 即可，CORS 无需另配（去掉结尾斜杠）
+    const appOrigin = process.env.APP_URL ? [process.env.APP_URL.trim().replace(/\/+$/, '')] : [];
     if (process.env.CORS_ORIGINS_ONLY === 'true') {
-      return [...new Set([...extra, 'http://localhost:3000', 'http://localhost:5173'])];
+      return [...new Set([...appOrigin, ...extra, 'http://localhost:3000', 'http://localhost:5173'])];
     }
     const defaults = [
       'https://chat.91aigu.com',
@@ -57,7 +59,7 @@ const config = {
       'http://104.244.95.70:8086',
       'http://93.179.127.50:8086',
     ];
-    return [...new Set([...defaults, ...extra])];
+    return [...new Set([...appOrigin, ...defaults, ...extra])];
   })(),
 
   // ── 应用 ────────────────────────────────────────────────────
