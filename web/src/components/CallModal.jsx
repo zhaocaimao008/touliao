@@ -1,15 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
 import Avatar from './Avatar';
 
-const ICE_SERVERS = {
+// 仅在拉取 /api/turn/credentials 失败时兜底（STUN-only，对称 NAT 下可能接不通）
+const FALLBACK_ICE = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'turn:openrelay.metered.ca:80',            username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443',           username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
   ],
 };
+
+// 向后端动态拉取 ICE（含时效 TURN 凭证）。失败回退 STUN，绝不阻断通话建立。
+async function fetchIceConfig() {
+  try {
+    const { data } = await axios.get('/api/turn/credentials');
+    if (data && Array.isArray(data.iceServers) && data.iceServers.length) {
+      return { iceServers: data.iceServers };
+    }
+  } catch { /* 离线/未配 TURN：用兜底 */ }
+  return FALLBACK_ICE;
+}
 
 const CALL_TIMEOUT_MS = 30000;
 
@@ -92,7 +102,8 @@ export default function CallModal({ socket, user, call, onClose }) {
     localStreamRef.current = stream;
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+    const iceConfig = await fetchIceConfig();
+    const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
 

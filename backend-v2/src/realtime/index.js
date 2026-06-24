@@ -17,6 +17,7 @@ const registerFile    = require('./handlers/file');
 const registerTyping  = require('./handlers/typing');
 const registerNudge   = require('./handlers/nudge');
 const registerCall    = require('./handlers/call');
+const registerGroupCall = require('./handlers/groupCall');
 
 module.exports = function setupRealtime(io, app) {
   broadcaster.setIo(io); // 广播调度器绑定 io 实例（分片削峰派发）
@@ -74,6 +75,7 @@ module.exports = function setupRealtime(io, app) {
     registerFile(io, socket);
     const typing = registerTyping(io, socket);
     registerCall(io, socket);
+    registerGroupCall(io, socket);
     registerNudge(io, socket);
 
     // ── 断线 ──────────────────────────────────────────────────

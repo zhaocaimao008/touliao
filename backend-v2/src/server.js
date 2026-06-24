@@ -36,20 +36,17 @@ setupRealtime(io, app);
 require('./utils/prodMetrics').startSampler();
 
 // ── 定时维护（每10分钟）─────────────────────────────────────────
-//   1) 红包过期标记：24h 未领完的标记 expired（系统无钱包，仅状态回收）
+//   1) 红包过期回收：24h 未领完的标记 expired，剩余金额退回发送者钱包（reclaimExpired）
 //   2) 清理过期群邀请令牌
+//   启动时立即跑一次回收（startExpiryReclaim 内含首扫 + 自身10分钟定时）。
 const MAINT_INTERVAL = 10 * 60 * 1000;
-const RED_PACKET_TTL = 24 * 3600;
+const { startExpiryReclaim } = require('./modules/redpackets/redpackets.service');
+startExpiryReclaim();
 setInterval(() => {
   try {
     const now = Math.floor(Date.now() / 1000);
-    const rp = db.prepare(
-      "UPDATE red_packets SET status='expired' WHERE status='active' AND claimed_count < total_count AND created_at < ?"
-    ).run(now - RED_PACKET_TTL);
     const tok = db.prepare('DELETE FROM group_invite_tokens WHERE expires_at < ?').run(now);
-    if (rp.changes || tok.changes) {
-      console.log(`[maintenance] 红包过期标记 ${rp.changes}，清理过期群邀请 ${tok.changes}`);
-    }
+    if (tok.changes) console.log(`[maintenance] 清理过期群邀请 ${tok.changes}`);
   } catch (e) {
     console.warn('[maintenance] 失败:', e.message);
   }

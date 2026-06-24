@@ -369,6 +369,37 @@ function applySchema(db) {
     "ALTER TABLE user_settings ADD COLUMN moments_visible_days INTEGER DEFAULT 0",
     // ── 朋友圈分组可见（P2）：visibility=include 时为白名单、exclude 时为黑名单的好友 id JSON 数组 ──
     "ALTER TABLE moments ADD COLUMN visible_to TEXT DEFAULT NULL",
+    // ── 钱包账本（红包真实扣款/入账）──────────────────────────────
+    //   balance 单位=金币(整数)。每次增减都在 wallet_transactions 留一条带 balance_after 的流水，
+    //   余额与流水在同一事务内更新，保证可对账、不丢账。
+    `CREATE TABLE IF NOT EXISTS wallets (
+      user_id    TEXT PRIMARY KEY,
+      balance    INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER DEFAULT (strftime('%s','now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS wallet_transactions (
+      id            TEXT PRIMARY KEY,
+      user_id       TEXT NOT NULL,
+      amount        INTEGER NOT NULL,        -- 带符号：正=入账，负=出账
+      balance_after INTEGER NOT NULL,        -- 变动后余额，便于对账
+      type          TEXT NOT NULL,           -- recharge|red_packet_send|red_packet_claim|red_packet_refund
+      ref_id        TEXT DEFAULT NULL,       -- 关联业务 id（如红包 id）
+      memo          TEXT DEFAULT '',
+      created_at    INTEGER DEFAULT (strftime('%s','now'))
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_wallet_tx_user ON wallet_transactions(user_id, created_at DESC)",
+    // ── 群音视频通话记录（mesh 多人通话）。1对1 仍走 call_logs，互不污染 ──
+    `CREATE TABLE IF NOT EXISTS group_call_logs (
+      id                TEXT PRIMARY KEY,
+      conversation_id   TEXT NOT NULL,
+      started_by        TEXT NOT NULL,
+      type              TEXT NOT NULL,           -- audio|video
+      status            TEXT DEFAULT 'ongoing',  -- ongoing|ended
+      participant_count INTEGER DEFAULT 1,       -- 累计参与过的人数峰值
+      started_at        INTEGER DEFAULT (strftime('%s','now')),
+      ended_at          INTEGER DEFAULT NULL
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_group_call_conv ON group_call_logs(conversation_id, started_at DESC)",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

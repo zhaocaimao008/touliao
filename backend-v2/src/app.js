@@ -144,6 +144,8 @@ app.use('/api/notifications', require('./modules/notifications/notifications.rou
 app.use('/api/upload',        require('./modules/upload/upload.routes'));
 app.use('/api/stickers',      require('./modules/stickers/stickers.routes'));
 app.use('/api/redpackets',    require('./modules/redpackets/redpackets.routes'));
+app.use('/api/wallet',        require('./modules/wallet/wallet.routes'));
+app.use('/api/turn',          require('./modules/turn/turn.routes'));
 app.use('/api/admin',         require('./modules/admin/admin.routes'));
 
 // 公开配置（前端读取功能开关，决定朋友圈/收藏入口显隐）

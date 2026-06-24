@@ -1,12 +1,14 @@
 'use strict';
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
-const { writeBatch } = require('../../db/writer');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember } = require('../messages/shared');
+const wallet = require('../wallet/wallet.service');
 const broadcaster = require('../../realtime/broadcaster');
 
-// ── 发红包（建红包 + 发一条 red_packet 类型消息）─────────────────
+// ── 发红包（扣款 + 建红包 + 发一条 red_packet 类型消息，单事务原子）──
+// ⚠ 与 claim 同理：扣余额是「读余额→判断够不够→扣→写」的读-判-写闭环，
+//   必须与建红包在同一同步事务内完成（不可拆 worker），否则可能扣了钱没建包、或余额穿透。
 async function send(io, userId, { conversationId, totalAmount, totalCount, greeting }) {
   if (!conversationId || !totalAmount || !totalCount) throw badRequest('参数缺失');
   if (totalAmount < 1 || totalAmount > 20000) throw badRequest('金额范围 1-20000 金币');
@@ -20,13 +22,21 @@ async function send(io, userId, { conversationId, totalAmount, totalCount, greet
   const greet = (typeof greeting === 'string' && greeting.trim()) ? greeting.trim() : '恭喜发财，大吉大利';
   const msgContent = JSON.stringify({ packetId, greeting: greet, totalCount, totalAmount });
   const msgId = uuidv4();
-  // P0-1：建红包 + 发红包消息原子批次走 worker（两条要么全成功要么全失败），await 落库后读回
-  await writeBatch([
-    { sql: 'INSERT INTO red_packets (id,sender_id,conversation_id,total_amount,total_count,greeting) VALUES (?,?,?,?,?,?)',
-      params: [packetId, userId, conversationId, totalAmount, totalCount, greet] },
-    { sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content) VALUES (?,?,?,?,?)',
-      params: [msgId, conversationId, userId, 'red_packet', msgContent] },
-  ]);
+
+  try {
+    db.transaction(() => {
+      wallet.applyDeltaTx(userId, -totalAmount, 'red_packet_send', packetId, '发红包');
+      db.prepare('INSERT INTO red_packets (id,sender_id,conversation_id,total_amount,total_count,greeting) VALUES (?,?,?,?,?,?)')
+        .run(packetId, userId, conversationId, totalAmount, totalCount, greet);
+      db.prepare('INSERT INTO messages (id,conversation_id,sender_id,type,content) VALUES (?,?,?,?,?)')
+        .run(msgId, conversationId, userId, 'red_packet', msgContent);
+    })();
+  } catch (e) {
+    if (e.status) throw e;       // ApiError（如余额不足）原样抛给前端
+    console.error('[redpacket] send 失败:', e.code, e.message);
+    throw new Error('发红包失败，请重试');
+  }
+
   const msg = db.prepare('SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?').get(msgId);
   msg.reactions = [];
   broadcaster.broadcastMessage(conversationId, msg);
@@ -76,6 +86,7 @@ function claim(io, userId, packetId) {
       }
       db.prepare('INSERT INTO red_packet_claims (packet_id,user_id,amount) VALUES (?,?,?)').run(packetId, userId, amount);
       db.prepare('UPDATE red_packets SET claimed_count=claimed_count+1 WHERE id=?').run(packetId);
+      wallet.applyDeltaTx(userId, amount, 'red_packet_claim', packetId, '领红包');  // 入账（同事务）
       return { amount };
     }).exclusive();   // ← 单次调用执行 EXCLUSIVE 事务（原版误写 .exclusive()() 双重调用，生产环境领红包恒报 500）
   } catch (e) {
@@ -94,4 +105,42 @@ function claim(io, userId, packetId) {
   return { amount: claimResult.amount };
 }
 
-module.exports = { send, detail, claim };
+// ── 过期回收：24h 未领完的红包，把剩余金额退回发送者钱包并标记 expired ──
+//   每个红包独立事务（一条失败不影响其他）；status 从 'active'→'expired' 保证只退一次。
+function reclaimExpired() {
+  const cutoff = Math.floor(Date.now() / 1000) - 24 * 3600;
+  const expired = db.prepare(
+    "SELECT id, sender_id, total_amount FROM red_packets WHERE status='active' AND created_at < ?"
+  ).all(cutoff);
+  let refunded = 0;
+  for (const p of expired) {
+    try {
+      db.transaction(() => {
+        // 行级二次确认 + 抢占 status，避免与并发 claim/重复回收竞争
+        const upd = db.prepare("UPDATE red_packets SET status='expired' WHERE id=? AND status='active'").run(p.id);
+        if (upd.changes === 0) return;            // 已被其他过程回收
+        const { s } = db.prepare('SELECT COALESCE(SUM(amount),0) AS s FROM red_packet_claims WHERE packet_id=?').get(p.id);
+        const remaining = p.total_amount - s;
+        if (remaining > 0) {
+          wallet.applyDeltaTx(p.sender_id, remaining, 'red_packet_refund', p.id, '红包过期退款');
+          refunded += 1;
+        }
+      })();
+    } catch (e) {
+      console.error('[redpacket] reclaimExpired 失败:', p.id, e.message);
+    }
+  }
+  return { scanned: expired.length, refunded };
+}
+
+// 启动时回收一次，之后每 10 分钟扫描一次
+function startExpiryReclaim() {
+  try { reclaimExpired(); } catch (e) { console.error('[redpacket] 启动回收失败:', e.message); }
+  const timer = setInterval(() => {
+    try { reclaimExpired(); } catch (e) { console.error('[redpacket] 定时回收失败:', e.message); }
+  }, 10 * 60 * 1000);
+  timer.unref?.();
+  return timer;
+}
+
+module.exports = { send, detail, claim, reclaimExpired, startExpiryReclaim };

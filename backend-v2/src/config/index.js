@@ -84,6 +84,20 @@ const config = {
     email:      process.env.VAPID_EMAIL || 'mailto:admin@vxin.app',
   },
 
+  // ── WebRTC ICE / TURN ───────────────────────────────────────
+  // 通话 NAT 穿透。STUN 始终下发；配置 TURN_SECRET + TURN_URLS 后启用
+  // coturn 时效凭证（use-auth-secret 模式），三端通过 GET /api/turn/credentials 动态拉取。
+  turn: {
+    // coturn static-auth-secret（与 coturn 配置一致）。为空=不签发 TURN，仅返回 STUN。
+    secret: process.env.TURN_SECRET || '',
+    // TURN 服务器 URL（逗号分隔），如 turn:turn.example.com:3478,turns:turn.example.com:5349
+    urls: (process.env.TURN_URLS || '').split(',').map(s => s.trim()).filter(Boolean),
+    ttl: parseInt(process.env.TURN_TTL, 10) || 3600, // 凭证有效期（秒）
+    // 公共/自建 STUN 兜底（逗号分隔），始终下发
+    stun: (process.env.STUN_URLS || 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302')
+      .split(',').map(s => s.trim()).filter(Boolean),
+  },
+
   moments: {
     // 取消赞 / 删评论时是否同步删除互动通知。默认 false（保留历史，对标微信）
     deleteNotifOnCancel: process.env.MOMENTS_DELETE_NOTIF_ON_CANCEL === 'true',

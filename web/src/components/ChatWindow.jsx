@@ -33,6 +33,7 @@ import UserProfile from './UserProfile';
 import RedPacketModal from './RedPacketModal';
 import ForwardModal from './ForwardModal';
 import CallModal from './CallModal';
+import GroupCallModal from './GroupCallModal';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { format, formatFull } from '../utils/time';
@@ -76,6 +77,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   const [hasMore, setHasMore] = useState(true);
   // 通话状态
   const [activeCall, setActiveCall] = useState(null);
+  const [groupCall, setGroupCall] = useState(null);        // 进行中的群通话 session
+  const [groupCallInvite, setGroupCallInvite] = useState(null); // 收到的群通话邀请
   // 文件上传进度：null | { name, progress:0-100, status:'uploading'|'error', retryFn? }
   const [uploadState, setUploadState] = useState(null);
   // 搜索消息
@@ -183,6 +186,31 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     socket.on('call:incoming', onIncoming);
     return () => socket.off('call:incoming', onIncoming);
   }, [socket, conversation.otherUser?.id]);
+
+  // 发起群通话（群聊）
+  const startGroupCall = useCallback((type) => {
+    if (conversation.type !== 'group' || groupCall) return;
+    setGroupCallInvite(null);
+    setGroupCall({ mode: 'start', conversationId: conversation.id, type });
+  }, [conversation.type, conversation.id, groupCall]);
+
+  // 监听本群的群通话邀请（仅当前打开的群，避免与 1:1 来电逻辑冲突）
+  useEffect(() => {
+    if (!socket) return;
+    const onInvite = (inv) => {
+      if (inv.conversationId !== conversation.id) return;     // 只提示当前群
+      if (groupCall) return;                                  // 已在通话中
+      setGroupCallInvite(inv);
+    };
+    socket.on('group_call:invite', onInvite);
+    return () => socket.off('group_call:invite', onInvite);
+  }, [socket, conversation.id, groupCall]);
+
+  const joinGroupCall = useCallback(() => {
+    if (!groupCallInvite) return;
+    setGroupCall({ mode: 'join', callId: groupCallInvite.callId, conversationId: groupCallInvite.conversationId, type: groupCallInvite.type });
+    setGroupCallInvite(null);
+  }, [groupCallInvite]);
 
   // 组件卸载（关闭会话/切换会话）时标记已读
   const convIdRef   = useRef(conversation.id);
@@ -1501,6 +1529,23 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           onClose={() => setActiveCall(null)}
         />
       )}
+      {groupCall && (
+        <GroupCallModal
+          socket={socket}
+          user={user}
+          session={groupCall}
+          onClose={() => setGroupCall(null)}
+        />
+      )}
+      {groupCallInvite && !groupCall && (
+        <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: 2100, background: '#2c2c2e', color: '#fff', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 28px rgba(0,0,0,.4)' }}>
+          <span style={{ fontSize: 14 }}>
+            {groupCallInvite.fromName || '群成员'} 发起了群{groupCallInvite.type === 'video' ? '视频' : '语音'}通话
+          </span>
+          <button onClick={joinGroupCall} style={{ background: 'var(--green,#07C160)', color: '#fff', border: 0, borderRadius: 8, padding: '6px 14px', cursor: 'pointer' }}>加入</button>
+          <button onClick={() => setGroupCallInvite(null)} style={{ background: 'transparent', color: 'rgba(255,255,255,.6)', border: 0, cursor: 'pointer' }}>忽略</button>
+        </div>
+      )}
       {/* ── Header ── */}
       <div className="wc-chat-header">
         <button className="wc-chat-header-back wc-back-btn" onClick={onClose} title="返回">
@@ -1531,6 +1576,10 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             <button className="wc-chat-header-btn" title="语音通话" onClick={() => startCall('audio')}><IcoVoiceCall /></button>
             <button className="wc-chat-header-btn" title="视频通话" onClick={() => startCall('video')}><IcoVideoCall /></button>
             <button className="wc-chat-header-btn" title="查看资料" onClick={() => setShowUserProfile(conversation.otherUser?.id)}><IcoPerson /></button>
+          </>}
+          {conversation.type === 'group' && <>
+            <button className="wc-chat-header-btn" title="群语音通话" onClick={() => startGroupCall('audio')}><IcoVoiceCall /></button>
+            <button className="wc-chat-header-btn" title="群视频通话" onClick={() => startGroupCall('video')}><IcoVideoCall /></button>
           </>}
           <button
             className={`wc-chat-header-btn${showGroupInfo ? ' active' : ''}`}

@@ -16,6 +16,17 @@ struct CallState {
     var remoteVideoActive: Bool = false
 }
 
+/// GET /api/turn/credentials 响应。
+struct TurnCredentials: Decodable {
+    struct IceServerDTO: Decodable {
+        let urls: [String]
+        let username: String?
+        let credential: String?
+    }
+    let iceServers: [IceServerDTO]
+    let ttl: Int?
+}
+
 /// WebRTC 1对1 音视频通话。信令走 SocketService（call:* 事件）。与 Android CallManager 等价。
 final class CallManager: NSObject, ObservableObject {
     static let shared = CallManager()
@@ -34,9 +45,29 @@ final class CallManager: NSObject, ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let socket = SocketService.shared
 
-    private let iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
+    // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表
+    private let fallbackIceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
+    private var iceServers: [RTCIceServer]
+
+    /// 通话建立前刷新 ICE（含时效 TURN 凭证）。失败保留兜底，不阻断通话。
+    private func refreshIceServers() async {
+        do {
+            let creds: TurnCredentials = try await APIClient.shared.send("api/turn/credentials")
+            let servers = creds.iceServers.compactMap { dto -> RTCIceServer? in
+                guard !dto.urls.isEmpty else { return nil }
+                if let u = dto.username, let c = dto.credential {
+                    return RTCIceServer(urlStrings: dto.urls, username: u, credential: c)
+                }
+                return RTCIceServer(urlStrings: dto.urls)
+            }
+            if !servers.isEmpty { iceServers = servers }
+        } catch {
+            // 离线/未配 TURN：保留兜底 STUN
+        }
+    }
 
     private override init() {
+        iceServers = fallbackIceServers
         RTCInitializeSSL()
         factory = RTCPeerConnectionFactory(
             encoderFactory: RTCDefaultVideoEncoderFactory(),
@@ -53,17 +84,25 @@ final class CallManager: NSObject, ObservableObject {
     func startCall(peerId: String, peerName: String, video: Bool, callerName: String) {
         guard state.stage == .idle || state.stage == .ended else { return }
         state = CallState(stage: .outgoing, peerId: peerId, peerName: peerName, isVideo: video, isCaller: true)
-        createPeerConnection()
-        createLocalTracks(video: video)
-        socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
+        Task { @MainActor in
+            await refreshIceServers()           // 先拿到含 TURN 的 ICE，再建连接
+            guard state.stage != .ended else { return }   // 期间被取消
+            createPeerConnection()
+            createLocalTracks(video: video)
+            socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
+        }
     }
 
     func accept() {
         guard state.stage == .incoming else { return }
         state.stage = .connecting
-        createPeerConnection()
-        createLocalTracks(video: state.isVideo)
-        socket.emitCallResponse(to: state.peerId, accepted: true)
+        Task { @MainActor in
+            await refreshIceServers()
+            guard state.stage != .ended else { return }
+            createPeerConnection()
+            createLocalTracks(video: state.isVideo)
+            socket.emitCallResponse(to: state.peerId, accepted: true)
+        }
     }
 
     func reject() {

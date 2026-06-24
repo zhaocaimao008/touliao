@@ -55,6 +55,7 @@ class CallManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val socketManager: SocketManager,
     private val sessionManager: SessionManager,
+    private val turnApi: com.vxin.app.data.api.TurnApi,
     @AppScope private val scope: CoroutineScope,
 ) {
     val eglBase: EglBase = EglBase.create()
@@ -78,9 +79,29 @@ class CallManager @Inject constructor(
     private val _state = MutableStateFlow(CallState())
     val state: StateFlow<CallState> = _state.asStateFlow()
 
-    private val iceServers = listOf(
+    // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表
+    private val fallbackIceServers = listOf(
         PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
     )
+    @Volatile
+    private var iceServers: List<PeerConnection.IceServer> = fallbackIceServers
+
+    /** 通话建立前刷新 ICE（含时效 TURN 凭证）。失败保留兜底，不阻断通话。 */
+    private suspend fun refreshIceServers() {
+        try {
+            val creds = turnApi.getCredentials()
+            val servers = creds.iceServers.mapNotNull { dto ->
+                if (dto.urls.isEmpty()) return@mapNotNull null
+                PeerConnection.IceServer.builder(dto.urls).apply {
+                    dto.username?.let { setUsername(it) }
+                    dto.credential?.let { setPassword(it) }
+                }.createIceServer()
+            }
+            if (servers.isNotEmpty()) iceServers = servers
+        } catch (e: Exception) {
+            Log.w("CallManager", "refreshIceServers failed, using fallback STUN", e)
+        }
+    }
 
     init {
         ensureFactory()
@@ -103,10 +124,14 @@ class CallManager @Inject constructor(
     fun startCall(peerId: String, peerName: String, video: Boolean) {
         if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) return
         _state.value = CallState(CallStage.OUTGOING, peerId, peerName, isVideo = video, isCaller = true)
-        createPeerConnection()
-        createLocalTracks(video)
-        val name = sessionManager.currentUser?.username.orEmpty()
-        socketManager.emitCallRequest(peerId, if (video) "video" else "audio", name)
+        scope.launch {
+            refreshIceServers()                 // 先拿到含 TURN 的 ICE，再建连接
+            if (_state.value.stage == CallStage.ENDED) return@launch  // 期间被取消
+            createPeerConnection()
+            createLocalTracks(video)
+            val name = sessionManager.currentUser?.username.orEmpty()
+            socketManager.emitCallRequest(peerId, if (video) "video" else "audio", name)
+        }
     }
 
     /** 被叫接听 */
@@ -114,10 +139,14 @@ class CallManager @Inject constructor(
         val s = _state.value
         if (s.stage != CallStage.INCOMING) return
         _state.update { it.copy(stage = CallStage.CONNECTING) }
-        createPeerConnection()
-        createLocalTracks(s.isVideo)
-        socketManager.emitCallResponse(s.peerId, true)
-        // 等待主叫的 call:offer
+        scope.launch {
+            refreshIceServers()
+            if (_state.value.stage == CallStage.ENDED) return@launch
+            createPeerConnection()
+            createLocalTracks(s.isVideo)
+            socketManager.emitCallResponse(s.peerId, true)
+            // 等待主叫的 call:offer
+        }
     }
 
     /** 被叫拒接 */

@@ -344,6 +344,7 @@ async function loadUsers(){
       <td><div class="acts">
         ${u.banned?`<button class="mini" onclick="unban('${u.id}')">解封</button>`:`<button class="mini warn" onclick="ban('${u.id}','${esc(u.username)}')">封禁</button>`}
         <button class="mini" onclick="resetPw('${u.id}','${esc(u.username)}')">改密</button>
+        <button class="mini" onclick="grantCoins('${u.id}','${esc(u.username)}')">发币</button>
         <button class="mini danger" onclick="delUser('${u.id}','${esc(u.username)}')">删除</button>
       </div></td></tr>`).join('')||`<tr><td colspan="8" class="muted" style="text-align:center;padding:30px">无数据</td></tr>`;
     renderPage('upage',uState,r.total,loadUsers);
@@ -352,6 +353,7 @@ async function loadUsers(){
 async function ban(id,name){if(!confirm(`确定封禁「${name}」？该用户将无法登录。`))return;try{await api(`/users/${id}/ban`,{method:'POST'});toast('已封禁');loadUsers();loadStats();}catch(e){toast(e.message,1);}}
 async function unban(id){try{await api(`/users/${id}/unban`,{method:'POST'});toast('已解封');loadUsers();loadStats();}catch(e){toast(e.message,1);}}
 async function resetPw(id,name){const p=prompt(`为「${name}」设置新密码（至少6位）：`);if(!p)return;try{await api(`/users/${id}/reset-password`,{method:'POST',body:{newPassword:p}});toast('密码已重置');}catch(e){toast(e.message,1);}}
+async function grantCoins(id,name){const s=prompt(`给「${name}」发放金币数量（正数发币，负数扣减）：`);if(s===null)return;const amt=parseInt(s,10);if(!Number.isInteger(amt)||amt===0){toast('请输入非零整数',1);return;}try{const r=await api(`/users/${id}/grant-coins`,{method:'POST',body:{amount:amt}});toast(`已${amt>0?'发放':'扣减'} ${Math.abs(amt)} 金币，余额 ${r.balance}`);}catch(e){toast(e.message,1);}}
 async function delUser(id,name){if(!confirm(`⚠ 彻底删除「${name}」？\n将清除该用户及其所有消息、好友、群成员关系，不可恢复！`))return;try{await api(`/users/${id}`,{method:'DELETE'});toast('已删除');loadUsers();loadStats();}catch(e){toast(e.message,1);}}
 
 // ── 消息监控 ──

@@ -6,6 +6,7 @@ const { db } = require('../../db/connection');
 const { badRequest, notFound, unauthorized } = require('../../utils/http');
 const { purgeConversation } = require('../messages/shared');
 const moments = require('../moments/moments.service');
+const wallet = require('../wallet/wallet.service');
 
 // ── 凭证校验（恒定时间比较，防时序侧信道）──────────────────────
 function timingSafeEqual(a, b) {
@@ -78,7 +79,20 @@ function userDetail(id) {
   user.messageCount = db.prepare('SELECT COUNT(*) n FROM messages WHERE sender_id=? AND deleted=0').get(id).n;
   user.groupCount   = db.prepare("SELECT COUNT(*) n FROM conversation_members cm JOIN conversations c ON c.id=cm.conversation_id AND c.type='group' WHERE cm.user_id=?").get(id).n;
   user.sessions     = db.prepare('SELECT device, platform, ip, last_seen FROM user_sessions WHERE user_id=? ORDER BY last_seen DESC').all(id);
+  user.balance      = wallet.getBalance(id);
   return user;
+}
+
+// ── 后台发币（给指定用户钱包入账，走账本+流水）─────────────────────
+function grantCoins(id, amount, memo) {
+  const amt = Number(amount);
+  if (!Number.isInteger(amt) || amt === 0 || amt < -1000000 || amt > 1000000)
+    throw badRequest('发币金额需为非零整数，绝对值≤1000000');
+  const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
+  if (!user) throw notFound('用户不存在');
+  // amt 可正可负（负=扣减/冲正）。applyDelta 内置余额不足保护。
+  const balance = wallet.applyDelta(id, amt, 'admin_grant', null, memo || (amt > 0 ? '后台发币' : '后台扣减'));
+  return { id, balance, granted: amt };
 }
 
 // ── 封禁 / 解封 ─────────────────────────────────────────────────
@@ -281,7 +295,7 @@ function resolveReport(reportId, action) {
 
 module.exports = {
   verifyCredentials, stats, listUsers, userDetail, setBanned, resetPassword,
-  deleteUser, listMessages, listGroups, groupDetail, dismissGroup,
+  grantCoins, deleteUser, listMessages, listGroups, groupDetail, dismissGroup,
   getInviteCode, setInviteCode, generateInviteCode,
   getFeatures, setFeatures,
   listReports, resolveReport,
