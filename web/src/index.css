@@ -2412,13 +2412,9 @@ body {
    v信 2.0 UI 精细化补丁
    ============================================================ */
 
-/* 消息气泡阴影与圆角强化 */
-.wc-msg-bubble.other {
-  box-shadow: 0 1px 3px rgba(0,0,0,.10), 0 0 0 .5px rgba(0,0,0,.04);
-}
-.wc-msg-bubble.mine {
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
-}
+/* 干净无尾气泡：收到的用细描边(见基础规则)、发送的扁平，去掉投影更利落一致 */
+.wc-msg-bubble.other { box-shadow: none; }
+.wc-msg-bubble.mine { box-shadow: none; }
 
 /* 会话列表：active 状态左侧绿色指示线 */
 .wc-chat-item.active::before {
