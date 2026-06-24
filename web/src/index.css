@@ -10,7 +10,7 @@
 
   /* ── Surface (覆盖 design-tokens LEGACY ALIASES) ── */
   --bg-search:        #F0F2F5;
-  --bg-msg-mine:      #EAF0F7;
+  --bg-msg-mine:      #95EC69;
   --bg-msg-other:     #FFFFFF;
 
   /* ── Text ── */
@@ -536,18 +536,21 @@ img { display: block; }
 .wc-msg-bubble.mine {
   background: var(--bg-msg-mine);
   color: var(--text-primary);
-  border: 1px solid rgba(0,0,0,.05);
 }
 .wc-msg-bubble.other {
   background: var(--bg-msg-other);
   color: var(--text-primary);
-  border: 1px solid rgba(0,0,0,.05);
+  border: 1px solid rgba(0,0,0,.04);
 }
 
-/* 气泡尾巴：去掉尖角，采用现代 IM 干净无尾气泡（尖角在不同圆角/缩放下易显歪、不协调） */
+/* 气泡尾巴（微信 PC 风：小三角指向头像侧）*/
 .wc-msg-bubble.mine::after,
 .wc-msg-bubble.other::after {
-  display: none;
+  content: '';
+  position: absolute;
+  top: 11px;
+  width: 0; height: 0;
+  border-style: solid;
 }
 .wc-msg-bubble.mine::after {
   right: -5px;
@@ -1419,7 +1422,7 @@ body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
 
 /* 气泡 — 暗色模式下绿气泡保留 #1A6E3C（微信经典深绿）*/
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }
-body.dark-mode .wc-msg-bubble.mine { background: #3A4654; color: #e6e6e6; border-color: rgba(255,255,255,.08); }
+body.dark-mode .wc-msg-bubble.mine { background: #1A6E3C; color: #fff; border-color: rgba(255,255,255,.08); }
 body.dark-mode .wc-msg-bubble.other { background: var(--bg-input-search); color: #e6e6e6; backdrop-filter: none; -webkit-backdrop-filter: none; border-color: rgba(255,255,255,.06); }
 body.dark-mode .wc-msg-bubble.mine::after { border-color: transparent transparent transparent #1A6E3C; }
 body.dark-mode .wc-msg-bubble.other::after { border-color: transparent var(--bg-input-search) transparent transparent; }
