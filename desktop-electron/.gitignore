@@ -1,0 +1,11 @@
+# 更新元数据签名私钥 —— 绝不入库（由发布方离线保管）
+update-private-key.pem
+*.private-key.pem
+
+# 构建产物
+dist/
+out/
+node_modules/
+
+# electron-log / 本地缓存
+*.log

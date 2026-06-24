@@ -47,10 +47,27 @@
 
 **Linux**——AppImage/deb 无系统级签名链，建议对发布产物附 GPG `.asc` 分发校验。
 
-### 建议增强（纵深防御）
+### 纵深防御 —— latest.yml Ed25519 二次签名（已在代码层完成，待启用密钥）
 
-- 对 `latest.yml` 增加独立的 **Ed25519/GPG 二次签名**，客户端启动时校验，使
-  更新真实性不单纯依赖 TLS + 服务器目录的可信。
+客户端 `src/main.js`（`verifyUpdateSignature()`）已实现：`update-available` 时关闭
+`autoDownload`，先从更新源拉取 `latest*.yml` 与同名 `.sig`，用内置公钥
+`src/update-public-key.pem` 做 Ed25519 验签，通过后才 `downloadUpdate()`；签名无效
+判定为篡改并阻止下载。使更新真实性不单纯依赖 TLS + 服务器目录可信。
+
+**启用步骤（发布前一次性）：**
+
+1. `node scripts/gen-update-keys.js` —— 生成 Ed25519 密钥对：
+   - `src/update-public-key.pem`（公钥，覆盖占位文件后**提交入库**，随客户端内置）；
+   - `update-private-key.pem`（私钥，已被 `.gitignore`，**离线/HSM/CI secret 保管，切勿提交外发**）。
+2. 每次发布：`electron-builder` 打包后运行
+   `node scripts/sign-update.js dist`，为 `dist/latest*.yml` 生成 `*.sig`。
+3. 把 `latest*.yml` 与对应 `*.sig` **一并**上传到更新源
+   （`https://dipsin.com/downloads/updates`）。
+
+> 公钥仍为 `PLACEHOLDER` 占位（或 `.sig` 缺失/网络失败）时，客户端自动跳过验签、
+> 回退仅 TLS 信任，不阻断合法更新；故可先发版、后启用密钥而不破坏在网客户端。
+> 私钥泄露 = 可伪造更新元数据，轮换公钥需加 `--force` 且会使旧客户端无法校验新签名。
+
 - 更新目录所在主机最小权限，写入走单独的发布流水线，禁止人工直接覆盖。
 
 ## 已在代码层完成（本次）
@@ -80,10 +97,11 @@
 
 ## 残留 / 已知取舍
 
-- CSP `script-src` 含 `'unsafe-inline' 'unsafe-eval'`：因渲染层是 Vite 内联打包脚本，
-  严格策略会白屏。后续可在打包时为内联脚本注入 per-build `sha256` 哈希以去除
-  `unsafe-inline`（哈希每次构建变动，需打包钩子生成）。在 sandbox + contextIsolation +
-  关闭 nodeIntegration + `connect-src` 收敛的前提下，残留风险为渲染层 XSS，不可触达 Node。
-- `package.json` 与 `src/package.json` 均含 `build`/`main` 且已轻微漂移：构建请**固定从
-  `desktop-electron/` 根目录执行**（使用根 `package.json`）。建议后续删除 `src/package.json`
-  中冗余的 `build` 段，避免从错误目录构建产出错配安装包。
+- CSP `script-src`：已去除 `'unsafe-inline'` —— `setupSecurity()` 启动时按本次构建实际
+  随包发行的 `web/dist/index.html` 现算各内联 `<script>` 的 `sha256`，以哈希白名单放行
+  （`inlineScriptHashes()`，无需打包钩子，天然匹配构建）；现算失败才回退 `'unsafe-inline'`。
+  `'unsafe-eval'` 暂保留：打包产物 grep 未见 `eval`/`new Function`，可在 GUI 验证无白屏后
+  移除。在 sandbox + contextIsolation + 关闭 nodeIntegration + `connect-src` 收敛前提下，
+  残留风险为渲染层 XSS，不可触达 Node。
+- 构建请**固定从 `desktop-electron/` 根目录执行**（使用根 `package.json`）；`src/package.json`
+  的冗余 `build` 段已删除，避免从错误目录构建产出错配安装包。

@@ -4,9 +4,15 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
         globalShortcut, screen, Notification, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const https = require('https');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const Store = require('electron-store');
+
+// 更新源回退地址（须与 package.json build.publish.url 一致；运行时优先读
+// app-update.yml，读取失败才用此常量）。更新源在打包时固化，不随用户切换后端而变。
+const UPDATE_FEED_FALLBACK = 'https://dipsin.com/downloads/updates';
 
 // ── 配置持久化 ─────────────────────────────────────────────
 const store = new Store({
@@ -26,6 +32,9 @@ autoUpdater.logger.transports.file.level = 'info';
 // 经用户在 UI 中显式确认后由 update:install 触发，避免无确认的代码落地。
 // ⚠️ 生产前必须对安装包做代码签名，详见 desktop-electron/SECURITY-RELEASE.md
 autoUpdater.autoInstallOnAppQuit = false;
+// 安全：关闭自动下载，改由 update-available 事件中先对更新元数据(latest.yml)做
+// Ed25519 二次验签，通过后再 downloadUpdate()。使更新真实性不单纯依赖 TLS。
+autoUpdater.autoDownload = false;
 log.info('v信 Desktop v2 启动');
 
 // 截图读取上限，防止超大 temp 文件导致 OOM
@@ -62,25 +71,55 @@ const API_ORIGIN = (() => {
 })();
 const WS_ORIGIN = API_ORIGIN.replace(/^http/, 'ws');
 
-// 渲染进程从本地 file:// 加载 Vite 打包产物（含内联 module 脚本），
-// 故 script-src 必须允许 inline；CSP 的价值集中在：禁止跨源脚本/插件/
-// iframe、限制 connect 仅到后端、锁定 base-uri 与 form-action。
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "media-src 'self' blob: data: https:",
-  "font-src 'self' data:",
-  `connect-src 'self' ${API_ORIGIN} ${WS_ORIGIN}`,
-  "worker-src 'self' blob:",
-  "child-src 'self' blob:",
-  "object-src 'none'",
-  "frame-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join('; ');
+// 渲染进程加载的 Vite 打包产物 index.html 路径（开发/打包两种布局）
+function indexHtmlPath() {
+  return app.isPackaged
+    ? path.join(app.getAppPath(), 'web/dist/index.html')
+    : path.join(__dirname, '../../web/dist/index.html');
+}
+
+// 计算 index.html 中内联 <script>（无 src）的 sha256，用于 CSP script-src
+// 以哈希白名单替代 'unsafe-inline'：注入的 <script>/onerror= 等内联脚本将被拦截。
+// 哈希在启动时从实际随包发行的 index.html 现算，天然匹配该次构建，无需打包钩子。
+function inlineScriptHashes() {
+  try {
+    const html = fs.readFileSync(indexHtmlPath(), 'utf8');
+    const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+    const hashes = [];
+    let m;
+    while ((m = re.exec(html)) !== null) {
+      if (/\bsrc\s*=/i.test(m[1])) continue;           // 外部脚本由 'self' 覆盖
+      const digest = crypto.createHash('sha256').update(m[2], 'utf8').digest('base64');
+      hashes.push(`'sha256-${digest}'`);
+    }
+    return hashes;
+  } catch (e) {
+    log.warn('计算内联脚本哈希失败，CSP 回退 unsafe-inline:', e.message);
+    return null;
+  }
+}
+
+// CSP 价值：禁跨源脚本/插件/iframe、connect 仅限后端、锁 base-uri/form-action。
+// scriptSrc 由调用方传入（哈希白名单优先，失败回退 unsafe-inline）。
+// style-src 保留 unsafe-inline：存在内联 <style> 且运行时有动态样式注入，风险低。
+function buildCSP(scriptSrc) {
+  return [
+    "default-src 'self'",
+    `script-src ${scriptSrc}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: data: https:",
+    "font-src 'self' data:",
+    `connect-src 'self' ${API_ORIGIN} ${WS_ORIGIN}`,
+    "worker-src 'self' blob:",
+    "child-src 'self' blob:",
+    "object-src 'none'",
+    "frame-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
 
 // 权限白名单：聊天客户端需要的最小集合，其余一律拒绝
 // （geolocation / serial / hid / usb / bluetooth / midiSysex 等敏感权限均拒绝）
@@ -96,6 +135,16 @@ const ALLOWED_PERMISSIONS = new Set([
 // ── 安全加固：CSP / 权限 / 导航 / webview（应用级，覆盖所有 webContents）──
 function setupSecurity() {
   const ses = session.defaultSession;
+
+  // 启动时按本次构建的内联脚本现算哈希；成功则去掉 'unsafe-inline'，失败回退。
+  // 'unsafe-eval' 暂保留：打包产物经 grep 未见 eval/new Function，可在 GUI 验证
+  // 无白屏后移除（详见 SECURITY-RELEASE.md）。
+  const hashes = inlineScriptHashes();
+  const scriptSrc = (hashes && hashes.length)
+    ? `'self' ${hashes.join(' ')} 'unsafe-eval'`
+    : `'self' 'unsafe-inline' 'unsafe-eval'`;
+  if (hashes && hashes.length) log.info(`CSP: 已用 ${hashes.length} 个内联脚本哈希替代 unsafe-inline`);
+  const CSP = buildCSP(scriptSrc);
 
   // 为主文档响应注入 CSP（不影响后端 API/WebSocket 响应）
   ses.webRequest.onHeadersReceived((details, callback) => {
@@ -170,10 +219,7 @@ function createWindow() {
     backgroundColor: '#1A2033',
   });
 
-  const webDist = app.isPackaged
-    ? path.join(app.getAppPath(), 'web/dist/index.html')
-    : path.join(__dirname, '../../web/dist/index.html');
-  mainWindow.loadFile(webDist);
+  mainWindow.loadFile(indexHtmlPath());
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -197,11 +243,113 @@ function createWindow() {
   mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window:maximized-change', false));
 }
 
-// ── 自动更新（用户确认后安装，不强制重启）────────────────────
+// ── 更新元数据 Ed25519 二次验签 ─────────────────────────────
+// 信任锚是 latest.yml（含安装包 sha512）：只要 latest.yml 经我方私钥签名且校验
+// 通过，安装包完整性即被绑定。公钥随包内置（src/update-public-key.pem），私钥由
+// 发布方离线保管，发布时用 scripts/sign-update.js 生成 *.sig 上传至更新源。
+
+// 读取内置更新公钥；未配置(文件缺失/占位)返回 null → 跳过验签(回退 TLS)。
+function loadUpdatePublicKey() {
+  try {
+    const pem = fs.readFileSync(path.join(__dirname, 'update-public-key.pem'), 'utf8');
+    if (!pem.includes('BEGIN PUBLIC KEY') || pem.includes('PLACEHOLDER')) return null;
+    return crypto.createPublicKey(pem);
+  } catch {
+    return null;
+  }
+}
+
+// 更新源根地址：优先读 app-update.yml(打包固化)，失败回退常量。
+function updateFeedBase() {
+  try {
+    const cfg = app.isPackaged
+      ? path.join(process.resourcesPath, 'app-update.yml')
+      : path.join(__dirname, '../dev-app-update.yml');
+    const m = fs.readFileSync(cfg, 'utf8').match(/^\s*url:\s*["']?([^"'\s]+)/m);
+    if (m && m[1]) return m[1].replace(/\/+$/, '');
+  } catch { /* fall through */ }
+  return UPDATE_FEED_FALLBACK;
+}
+
+// 当前平台/通道对应的更新元数据文件名
+function channelYmlName() {
+  if (process.platform === 'darwin') return 'latest-mac.yml';
+  if (process.platform === 'linux') return 'latest-linux.yml';
+  return 'latest.yml';
+}
+
+// 拉取一个 https 资源为 Buffer；404 → 返回 null；其余错误 → reject。带超时与大小上限。
+function fetchBuffer(url, { allowMissing = false } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { timeout: 15000 }, (res) => {
+      if (allowMissing && (res.statusCode === 404 || res.statusCode === 403)) {
+        res.resume(); return resolve(null);
+      }
+      if (res.statusCode !== 200) {
+        res.resume(); return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+      }
+      const chunks = [];
+      let size = 0;
+      res.on('data', (c) => {
+        size += c.length;
+        if (size > 5 * 1024 * 1024) { req.destroy(); reject(new Error('元数据过大')); return; }
+        chunks.push(c);
+      });
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+    req.on('timeout', () => req.destroy(new Error('请求超时')));
+    req.on('error', reject);
+  });
+}
+
+// 验证更新元数据签名。返回：'ok' | 'skip'(未启用) | 'fail'(疑似篡改/校验失败)
+async function verifyUpdateSignature() {
+  const pub = loadUpdatePublicKey();
+  if (!pub) {
+    log.warn('更新验签：未配置公钥，回退仅 TLS 信任');
+    return 'skip';
+  }
+  const base = updateFeedBase();
+  const ymlUrl = `${base}/${channelYmlName()}`;
+  const sigUrl = `${ymlUrl}.sig`;
+  let ymlBuf, sigBuf;
+  try {
+    [ymlBuf, sigBuf] = await Promise.all([
+      fetchBuffer(ymlUrl),
+      fetchBuffer(sigUrl, { allowMissing: true }),
+    ]);
+  } catch (e) {
+    // 网络/拉取异常：不阻断合法更新(electron-updater 已能取到 yml)，回退 TLS。
+    log.warn('更新验签：拉取元数据失败，回退仅 TLS：', e.message);
+    return 'skip';
+  }
+  if (!sigBuf) {
+    log.warn('更新验签：未找到 .sig，签名分发尚未启用，回退仅 TLS');
+    return 'skip';
+  }
+  try {
+    const ok = crypto.verify(null, ymlBuf, pub, sigBuf);
+    if (ok) { log.info('更新验签：元数据签名校验通过'); return 'ok'; }
+    log.error('更新验签：签名无效，疑似篡改，已阻止下载');
+    return 'fail';
+  } catch (e) {
+    log.error('更新验签：校验异常，已阻止下载：', e.message);
+    return 'fail';
+  }
+}
+
+// ── 自动更新（验签 → 下载 → 用户确认后安装，不强制重启）──────────
 function setupAutoUpdater() {
-  autoUpdater.on('update-available', (info) => {
+  autoUpdater.on('update-available', async (info) => {
     log.info('发现新版本:', info.version);
     mainWindow?.webContents.send('update:available', info);
+    const verdict = await verifyUpdateSignature();
+    if (verdict === 'fail') {
+      mainWindow?.webContents.send('update:error', '更新校验失败，已阻止下载');
+      return;
+    }
+    // 'ok' 或 'skip'(未启用/网络回退) 均放行下载；安装仍需用户确认。
+    autoUpdater.downloadUpdate().catch((e) => log.error('下载更新失败:', e.message));
   });
 
   autoUpdater.on('update-not-available', () => log.info('已是最新版本'));
