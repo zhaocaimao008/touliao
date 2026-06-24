@@ -722,26 +722,23 @@ img { display: block; }
 .wc-input-hint { font-size: 11px; color: var(--text-tertiary); }
 .wc-send-btn {
   padding: 6px 18px;
-  background: rgba(var(--green-rgb),.12);
-  color: rgba(var(--green-rgb),.45);
+  background: var(--bg-search);
+  color: var(--text-muted);
   border-radius: var(--radius-button);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: not-allowed;
-  transition: background var(--dur), color var(--dur), box-shadow var(--dur), transform var(--dur-fast);
-  letter-spacing: .3px;
+  transition: background var(--dur), color var(--dur), transform var(--dur-fast);
   min-width: 66px;
 }
 .wc-send-btn.active {
-  background: var(--green);
-  color: #fff;
+  background: var(--bg-search);
+  color: var(--green);
   cursor: pointer;
-  box-shadow: 0 2px 12px rgba(var(--green-rgb),.30);
 }
 .wc-send-btn.active:hover {
-  background: var(--green-hover);
-  box-shadow: 0 3px 10px rgba(var(--green-rgb),.40);
-  transform: translateY(-0.5px);
+  background: var(--bg-hover);
+  color: var(--green-hover);
 }
 
 /* 语音按钮 */

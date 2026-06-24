@@ -2043,7 +2043,6 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             )}
             {!voiceMode && (
               <div className="wc-input-footer">
-                <span className="wc-input-hint">Enter 发送，Shift+Enter 换行</span>
                 <button
                   className={`wc-send-btn${input.trim() ? ' active' : ''}`}
                   onClick={sendMessage}
