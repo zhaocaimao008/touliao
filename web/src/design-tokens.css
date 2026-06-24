@@ -100,16 +100,16 @@
   --bg-nav-item-active:   rgba(255, 255, 255, .13);
 
   /* 会话面板 */
-  --bg-panel:             #F0F1F5;
+  --bg-panel:             #F7F7F7;
   --bg-panel-header:      #F0F1F5;
   --bg-panel-item-hover:  rgba(0, 0, 0, .04);
-  --bg-panel-item-active: #E4EDFF;       /* 蓝色选中背景 */
-  --bg-panel-item-active-hover: #D6E4FF;
+  --bg-panel-item-active: #DADADA;       /* 微信灰选中 */
+  --bg-panel-item-active-hover: #D0D0D0;
 
   /* 聊天区域 */
   --bg-chat:              #FFFFFF;
   --bg-chat-header:       #FFFFFF;
-  --bg-messages:          #ECEFF3;       /* 消息列表底色：带蓝调的浅灰 */
+  --bg-messages:          #F5F5F5;   /* 微信 PC 中性浅灰 */
 
   /* 输入区 */
   --bg-input:             #FFFFFF;
@@ -453,7 +453,7 @@
   --green-bubble:     var(--bubble-mine);
   --green-hover:      #0D9460;
   --link-color:       var(--brand-500);
-  --bg-panel:         #F4F6FA;
+  --bg-panel:         #F7F7F7;
   --bg-panel-header:  #F4F6FA;
   --bg-chat:          #FFFFFF;
   --bg-chat-header:   #FFFFFF;
@@ -526,8 +526,8 @@ body.dark-mode {
   --bg-panel:             #1C1C1E;
   --bg-panel-header:      #1C1C1E;
   --bg-panel-item-hover:  rgba(255, 255, 255, .06);
-  --bg-panel-item-active: rgba(62, 142, 255, .14);
-  --bg-panel-item-active-hover: rgba(62, 142, 255, .20);
+  --bg-panel-item-active: rgba(255,255,255,.10);
+  --bg-panel-item-active-hover: rgba(255,255,255,.14);
   --bg-chat:              #111111;
   --bg-chat-header:       #1C1C1E;
   --bg-messages:          #111111;

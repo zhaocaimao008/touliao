@@ -1430,7 +1430,7 @@ body.dark-mode .wc-chat-item:hover,
 body.dark-mode .wc-contact-item:hover,
 body.dark-mode .wc-menu-item:hover,
 body.dark-mode .wc-discover-item:hover { background: var(--bg-hover); }
-body.dark-mode .wc-chat-item.active { background: rgba(var(--green-rgb),.12); box-shadow: inset 3px 0 0 rgba(var(--green-rgb),.4); }
+body.dark-mode .wc-chat-item.active { background: rgba(255,255,255,.10); }
 body.dark-mode .wc-search { background: var(--bg-input-search); border-color: var(--border-subtle); box-shadow: none; }
 body.dark-mode .wc-panel-topbar,
 body.dark-mode .wc-chat-header,
@@ -1621,7 +1621,7 @@ body.dark-mode .wc-settings-entry:hover {
 
   /* 会话列表 — 紧凑 */
   .wc-chat-item { height: 56px; padding: 0 10px; gap: 8px; }
-  .wc-chat-item.active { background: rgba(var(--green-rgb),.1); }
+  .wc-chat-item.active { background: var(--bg-active); }
   .wc-chat-item-name { font-size: 14px; }
   .wc-chat-item-preview { font-size: 11px; }
 
