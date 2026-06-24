@@ -100,11 +100,11 @@
   --bg-nav-item-active:   rgba(255, 255, 255, .13);
 
   /* 会话面板 */
-  --bg-panel:             #EDEDED;
-  --bg-panel-header:      #EDEDED;
+  --bg-panel:             #F7F7F7;
+  --bg-panel-header:      #F7F7F7;
   --bg-panel-item-hover:  rgba(0, 0, 0, .04);
-  --bg-panel-item-active: #C9C9C9;       /* 微信选中灰(比面板深才可见) */
-  --bg-panel-item-active-hover: #BFBFBF;
+  --bg-panel-item-active: #E6E6E6;       /* 微信淡灰选中(对照官方截图) */
+  --bg-panel-item-active-hover: #DDDDDD;
 
   /* 聊天区域 */
   --bg-chat:              #FFFFFF;
@@ -453,8 +453,8 @@
   --green-bubble:     var(--bubble-mine);
   --green-hover:      #0D9460;
   --link-color:       var(--brand-500);
-  --bg-panel:         #EDEDED;
-  --bg-panel-header:  #EDEDED;
+  --bg-panel:         #F7F7F7;
+  --bg-panel-header:  #F7F7F7;
   --bg-chat:          #FFFFFF;
   --bg-chat-header:   #FFFFFF;
   --bg-input:         #FFFFFF;
