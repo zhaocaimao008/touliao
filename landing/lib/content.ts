@@ -14,7 +14,9 @@ export const site = {
   links: {
     // 网页版 = 已部署的 Web 应用（见 backend OPERATIONS.md：nginx 服务 chat.91aigu.com）
     webApp: 'https://chat.91aigu.com',
-    android: '/downloads/vxin-android-2.1.0-signed.apk',
+    // 安卓/Windows 指向 GitHub Release「latest」稳定直链（公开、CDN 托管，出新版无需改链接）
+    android: 'https://github.com/zhaocaimao008/vxin-1.0/releases/latest/download/vxin.apk',
+    windows: 'https://github.com/zhaocaimao008/vxin-1.0/releases/latest/download/vxin-setup.exe',
     ios: '', // 留空 = 即将上线（暂无 TestFlight/App Store 链接）
     email: 'admin@vxin.app',
   },
@@ -149,6 +151,15 @@ export const download = {
       desc: '直接下载安装包 APK',
       cta: '下载 APK',
       href: site.links.android,
+      available: true,
+    },
+    {
+      key: 'windows',
+      icon: '🪟',
+      name: 'Windows',
+      desc: '桌面客户端安装包',
+      cta: '下载 Windows 版',
+      href: site.links.windows,
       available: true,
     },
     {
