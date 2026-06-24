@@ -325,7 +325,7 @@ export default function Moments() {
               <button className="wc-modal-close" onClick={() => setShowSettings(false)} aria-label="关闭">✕</button>
             </div>
             <div style={{ padding: '8px 0' }}>
-              <div style={{ padding: '10px 18px', fontSize: 13, color: '#888' }}>允许朋友查看朋友圈的范围</div>
+              <div style={{ padding: '10px 18px', fontSize: 13, color: 'var(--text-secondary)' }}>允许朋友查看朋友圈的范围</div>
               {[{ d: 0, label: '全部' }, { d: 1, label: '最近一天' }, { d: 3, label: '最近三天' }, { d: 30, label: '最近一个月' }].map(o => (
                 <div key={o.d} className="wc-moment-vis-opt"
                   onClick={() => saveVisibleDays(o.d)}

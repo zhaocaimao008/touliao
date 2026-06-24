@@ -7,7 +7,7 @@ export default function SearchResults({ results, query, searching, onSelect, onC
     <div style={{
       position: 'absolute',
       top: '100%', left: 0, right: 0,
-      background: '#fff',
+      background: 'var(--bg-card)',
       border: '1px solid var(--border-color)',
       borderTop: 'none',
       borderRadius: '0 0 8px 8px',

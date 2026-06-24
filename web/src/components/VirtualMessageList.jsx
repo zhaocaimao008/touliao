@@ -143,7 +143,7 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
             estimatedItemSize={82}
             itemData={itemData}
             overscanCount={8}
-            style={{ overflowX: 'hidden', background: '#F5F5F5' }}
+            style={{ overflowX: 'hidden', background: 'var(--bg-messages)' }}
           >
             {Row}
           </VariableSizeList>

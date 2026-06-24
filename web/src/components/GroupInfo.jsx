@@ -612,7 +612,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           </div>
           <div className={`gi-row${conversation.background ? '' : ' gi-row-noborder'}`} style={{ cursor: 'pointer' }} onClick={() => onPickBackground?.()}>
             <span className="gi-label">设置聊天背景</span>
-            <span style={{ color: '#888', fontSize: 13 }}>{conversation.background ? '更换 ›' : '选择图片 ›'}</span>
+            <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>{conversation.background ? '更换 ›' : '选择图片 ›'}</span>
           </div>
           {conversation.background && (
             <div className="gi-row gi-row-noborder" style={{ cursor: 'pointer' }} onClick={() => onClearBackground?.()}>
