@@ -44,9 +44,18 @@ let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 
+// 引导配置地址（与 web/src/utils/config.js、Android/iOS RemoteConfig 一致）：
+// 主进程在建窗口前据此拉 config.json，使 CSP connect-src 跟随远程配置，
+// 实现「改 vxin-config 即可换服务器、桌面端无需重编译」。互不依赖，单点故障不影响引导。
+const CONFIG_URLS = [
+  'https://cdn.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json',
+  'https://dipsin.com/config.json',
+];
+
 // 安全：校验存储中的 serverUrl，防止被篡改的配置污染 CSP connect-src/origin 推导
 const _storedServerUrl = store.get('serverUrl');
-const SERVER_URL = isValidServerUrl(_storedServerUrl) ? _storedServerUrl : 'https://dipsin.com';
+// SERVER_URL / API_ORIGIN / WS_ORIGIN 为 let：启动时 loadRemoteServerUrl() 可据远程配置更新。
+let SERVER_URL = isValidServerUrl(_storedServerUrl) ? _storedServerUrl : 'https://dipsin.com';
 
 // ── 安全：仅允许读取 temp 目录下的截图文件 ──────────────────
 function isSafeReadPath(filePath) {
@@ -66,10 +75,35 @@ function isValidServerUrl(url) {
 }
 
 // ── 安全：后端来源（用于 CSP connect-src）──────────────────────
-const API_ORIGIN = (() => {
+let API_ORIGIN = (() => {
   try { return new URL(SERVER_URL).origin; } catch { return 'https://dipsin.com'; }
 })();
-const WS_ORIGIN = API_ORIGIN.replace(/^http/, 'ws');
+let WS_ORIGIN = API_ORIGIN.replace(/^http/, 'ws');
+
+// 启动时从 CONFIG_URLS 依次拉 config.json，取 api(回退 socket) 作为后端地址并据此
+// 刷新 SERVER_URL/API_ORIGIN/WS_ORIGIN（驱动 CSP connect-src）。须在 setupSecurity()
+// 与 createWindow() 之前 await 调用。远程全部不可达则沿用 store/默认（manual override
+// 仍生效，与渲染端 remote→cache→fallback 行为一致）。
+async function loadRemoteServerUrl() {
+  for (const url of CONFIG_URLS) {
+    try {
+      const buf = await fetchBuffer(url);
+      const cfg = JSON.parse(buf.toString('utf8'));
+      const api = (cfg.api && String(cfg.api).trim()) || (cfg.socket && String(cfg.socket).trim()) || '';
+      if (api && isValidServerUrl(api)) {
+        SERVER_URL = new URL(api).origin;
+        API_ORIGIN = SERVER_URL;
+        WS_ORIGIN  = API_ORIGIN.replace(/^http/, 'ws');
+        store.set('serverUrl', SERVER_URL);   // 缓存，供下次冷启动(联网前)使用
+        log.info(`[RemoteConfig] server = ${SERVER_URL} (from ${url})`);
+        return;
+      }
+    } catch (e) {
+      log.warn(`[RemoteConfig] ${url} 失败: ${e.message}`);
+    }
+  }
+  log.info(`[RemoteConfig] 远程不可达，沿用 store/默认: ${SERVER_URL}`);
+}
 
 // 渲染进程加载的 Vite 打包产物 index.html 路径（开发/打包两种布局）
 function indexHtmlPath() {
@@ -573,6 +607,9 @@ if (!app.requestSingleInstanceLock()) {
     if (store.get('autoLaunch')) {
       app.setLoginItemSettings({ openAtLogin: true });
     }
+
+    // 先据远程 config.json 解析后端地址，再建窗口/装 CSP，使 connect-src 跟随远程配置
+    await loadRemoteServerUrl();
 
     setupSecurity();
     setupIPC();
