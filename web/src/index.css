@@ -3648,3 +3648,69 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 }
 .m-chat-page .wc-chat-header-back svg { width: 24px; height: 24px; fill: currentColor; display: block; }
 .m-chat-page .wc-input-area { padding-bottom: env(safe-area-inset-bottom); }
+
+/* ============================================================
+   微信扁平化收尾(纯皮)：设置/我的页/群信息/弹窗 去液态玻璃
+   —— 仅视觉，不改结构与功能；放文件末尾确保覆盖前面的 glass 层
+   ============================================================ */
+
+/* 我的页/菜单/发现 的页内分区：不透明纯色、通栏、无毛玻璃/圆角/投影 */
+.wc-profile-card,
+.wc-menu-section,
+.wc-discover-section {
+  background: var(--bg-card, #fff) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* 设置分组卡：通栏白底，去圆角/侧边框/投影/毛玻璃 */
+.wc-card {
+  background: var(--bg-card, #fff) !important;
+  border-radius: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: 1px solid var(--divider) !important;
+  border-bottom: 1px solid var(--divider) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.wc-section-pad { padding-left: 0 !important; padding-right: 0 !important; }
+
+/* 分组小标题：去全大写与字间距，回归普通灰标签 */
+.wc-slabel { text-transform: none !important; letter-spacing: normal !important; }
+
+/* 退出登录：通栏白底红字行(微信式)，无圆角卡片/投影 */
+.wc-logout-div { padding-left: 0 !important; padding-right: 0 !important; }
+.wc-logout-btn {
+  border-radius: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: none !important;
+  border-top: 1px solid var(--divider) !important;
+  border-bottom: 1px solid var(--divider) !important;
+}
+
+/* 群信息侧栏：不透明纯色、去毛玻璃(docked 面板不浮投影) */
+.wc-group-info {
+  background: var(--bg-card, #fff) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 浮层弹窗：不透明白底 + 干净阴影(保留圆角，弹窗本就该浮起) */
+.wc-modal,
+.wc-forward-modal,
+.wc-user-profile-card {
+  background: var(--bg-modal, #fff) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid var(--border-default) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
