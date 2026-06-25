@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import Avatar from './Avatar';
+import Avatar, { getColor } from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 
@@ -9,7 +9,7 @@ function GroupGridCell({ member = {}, cellSize }) {
   const [err, setErr] = useState(false);
   useEffect(() => { setErr(false); }, [member.avatar]);
   return (
-    <div style={{ width: cellSize, height: cellSize, borderRadius: 2, overflow: 'hidden', background: 'var(--gray-400)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ width: cellSize, height: cellSize, borderRadius: 2, overflow: 'hidden', background: getColor(member.username || '?'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {member.avatar && !err
         ? <img loading="lazy" src={mediaUrl(member.avatar)} alt="" className="gi-avatar-img" onError={() => setErr(true)} />
         : <span style={{ fontSize: cellSize * 0.45, fontWeight: 600, color: 'var(--text-inverse)' }}>{(member.username || '?')[0]}</span>}
