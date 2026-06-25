@@ -1,5 +1,6 @@
 'use strict';
 const { asyncHandler } = require('../../utils/http');
+const { error: logError } = require('../../utils/logger');
 const svc = require('./conversations.service');
 
 const io = req => req.app.get('io');
@@ -17,8 +18,20 @@ exports.mute = asyncHandler(async (req, res) => { await svc.setMuted(req.user.id
 exports.background = asyncHandler(async (req, res) => { const r = await svc.setBackground(req.user.id, req.params.convId, req.body.background); res.json({ success: true, ...r }); });
 
 exports.read = asyncHandler(async (req, res) => {
-  const r = await svc.markRead(io(req), req.user.id, req.params.convId, req.body.messageId);
-  res.json({ success: true, ...r });
+  // 标记已读是「最终一致」的非关键高频接口：失败时柔性返回而非 500，
+  // 避免偶发错误干扰"打开会话"体验(前端本就 .catch 静默)。
+  // 同时显式打印真实错误栈——此前偶发 500 走通用错误处理无栈可查。
+  try {
+    const r = await svc.markRead(io(req), req.user.id, req.params.convId, req.body.messageId);
+    res.json({ success: true, ...r });
+  } catch (err) {
+    logError('[markRead] failed (soft-degraded)', err, {
+      convId: req.params.convId,
+      userId: req.user && req.user.id,
+      messageId: req.body && req.body.messageId,
+    });
+    res.json({ success: false, readAt: 0, lastReadMessageId: null });
+  }
 });
 
 exports.clearConversation = asyncHandler(async (req, res) => {
