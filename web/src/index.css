@@ -8,14 +8,22 @@
   --green-bubble:     #07C160;
   --green-hover:      #06AE56;
 
-  /* ── Surface (覆盖 design-tokens LEGACY ALIASES) ── */
-  --bg-search:        #F0F2F5;
+  /* ── Surface ── 微信式：更白的壳层 + 去蓝调中性灰(不再冷灰) ── */
+  --bg-app:           #E2E2E2;   /* 面板缝隙：中性灰，去蓝调 */
+  --bg-panel:         #FBFBFB;   /* 会话列表：近白，比原 #F7F7F7 更亮 */
+  --bg-panel-header:  #FFFFFF;   /* 顶栏纯白(微信聊天顶栏为白) */
+  --bg-messages:      #F5F5F5;   /* 聊天区微信浅灰(保留，与白气泡形成层次) */
+  --bg-search:        #EDEDED;   /* 搜索框中性灰，去蓝调 */
+  --bg-input-search:  #EDEDED;   /* 收到气泡/输入搜索同上 */
   --bg-msg-mine:      #95EC69;
   --bg-msg-other:     #FFFFFF;
 
-  /* ── Text ── */
-  --text-tertiary:    #B0BAC5;
-  --text-placeholder: #B0BAC5;
+  /* ── Text ── 去蓝调，回归微信中性近黑/中性灰 ── */
+  --text-title:       #191919;
+  --text-primary:     #1A1A1A;   /* 正文近黑(原 #28333F 偏蓝) */
+  --text-secondary:   #888888;   /* 辅助中性灰(原 #7A8694 偏蓝) */
+  --text-tertiary:    #B2B2B2;
+  --text-placeholder: #B2B2B2;
 
   /* ── Border ── */
   --border-strong:    rgba(0,0,0,.08);
