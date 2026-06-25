@@ -10,7 +10,7 @@
 
   /* ── Surface ── 微信式：更白的壳层 + 去蓝调中性灰(不再冷灰) ── */
   --bg-app:           #E2E2E2;   /* 面板缝隙：中性灰，去蓝调 */
-  --bg-panel:         #FBFBFB;   /* 会话列表：近白，比原 #F7F7F7 更亮 */
+  --bg-panel:         #FFFFFF;   /* 会话列表：纯白(微信 4.0 明快观感) */
   --bg-panel-header:  #FFFFFF;   /* 顶栏纯白(微信聊天顶栏为白) */
   --bg-messages:      #F5F5F5;   /* 聊天区微信浅灰(保留，与白气泡形成层次) */
   --bg-search:        #EDEDED;   /* 搜索框中性灰，去蓝调 */

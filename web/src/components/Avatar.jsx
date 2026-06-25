@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { mediaUrl } from '../utils/url';
 
-// 低饱和灰蓝系：统一干净，按名字 hash 取色仍可区分不同人
-const COLORS = ['#A6ABB2']; // 单一中性灰：所有首字头像统一(最像微信默认灰头像)
+// 无头像时的字母头像配色：明快多彩(含微信绿)，按名字 hash 稳定取色，去掉"整页灰"
+const COLORS = [
+  '#07C160', // 微信绿
+  '#10AEFF', // 天蓝
+  '#FA9D3B', // 橙
+  '#6A8DFF', // 蓝紫
+  '#FF7A45', // 橙红
+  '#13C2C2', // 青
+  '#9B59E8', // 紫
+  '#52C41A', // 草绿
+  '#FF85A2', // 粉
+  '#36C5C0', // 蓝绿
+];
 
 function getColor(name) {
   let hash = 0;
