@@ -5,7 +5,13 @@ import androidx.compose.ui.graphics.Color
 // v信 品牌色（微信绿系，对齐 Web 端 --green #07C160）
 val VxinGreen = Color(0xFF07C160)
 val VxinGreenDark = Color(0xFF06AD56)
-val VxinBg = Color(0xFFF7F8FA)
-val VxinTextPrimary = Color(0xFF1F2D3D)
-val VxinTextSecondary = Color(0xFF7A8694)
+val VxinBg = Color(0xFFF7F7F7)            // 浅灰壳层，去蓝调，对齐 web
+val VxinTextPrimary = Color(0xFF1A1A1A)   // 正文近黑，去蓝调，对齐 web --text-primary
+val VxinTextSecondary = Color(0xFF888888) // 辅助中性灰，去蓝调，对齐 web --text-secondary
 val VxinError = Color(0xFFFA5151)
+
+// 聊天气泡（对齐 web/微信）：我的=浅绿 #95EC69 + 深字；对方=白 + 深字
+val VxinBubbleMine = Color(0xFF95EC69)
+val VxinBubbleText = Color(0xFF1A1A1A)
+val VxinBubbleOtherDark = Color(0xFF2C2C2E)   // 暗色下对方气泡
+val VxinBubbleTextDark = Color(0xFFE5E5E5)    // 暗色下对方气泡文字

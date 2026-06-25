@@ -468,7 +468,7 @@ private struct MessageBubble: View {
     /// 高亮 @用户名
     private func mentionHighlighted(_ text: String, mine: Bool) -> AttributedString {
         guard text.contains("@"), let re = try? NSRegularExpression(pattern: "@[^\\s@]+") else { return AttributedString(text) }
-        let color: Color = mine ? Color(red: 1, green: 0.94, blue: 0.66) : .vxinGreen
+        let color: Color = .vxinGreen   // @提及高亮：浅绿/白气泡上都用品牌绿，保证可读
         let ns = text as NSString
         var result = AttributedString("")
         var last = 0
@@ -513,9 +513,10 @@ private struct MessageBubble: View {
 
     private func card<V: View>(@ViewBuilder _ inner: () -> V) -> some View {
         inner()
-            .foregroundColor(isMine ? .white : .primary)
+            // 对齐 web/微信：我的=浅绿#95EC69+深字；对方=系统浅底(暗色自适应)+主色字
+            .foregroundColor(isMine ? Color.vxinBubbleText : .primary)
             .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(isMine ? Color.vxinGreen : Color(.secondarySystemBackground))
+            .background(isMine ? Color.vxinBubbleMine : Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 

@@ -75,7 +75,13 @@ import coil.compose.AsyncImage
 import com.vxin.app.data.model.Message
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
+import com.vxin.app.ui.theme.VxinGreenDark
 import com.vxin.app.ui.theme.VxinTextSecondary
+import com.vxin.app.ui.theme.VxinBubbleMine
+import com.vxin.app.ui.theme.VxinBubbleText
+import com.vxin.app.ui.theme.VxinBubbleOtherDark
+import com.vxin.app.ui.theme.VxinBubbleTextDark
+import androidx.compose.foundation.isSystemInDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -711,7 +717,7 @@ private fun TextBubble(content: String, isMine: Boolean) {
         modifier = Modifier
             .widthIn(max = 280.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isMine) VxinGreen else MaterialTheme.colorScheme.surfaceVariant)
+            .background(bubbleBg(isMine))
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(highlightMentions(content, isMine), color = bubbleTextColor(isMine))
@@ -723,7 +729,7 @@ private val MENTION_RE = Regex("@[^\\s@]+")
 /** 高亮文本中的 @用户名 */
 private fun highlightMentions(content: String, isMine: Boolean): androidx.compose.ui.text.AnnotatedString {
     if (!content.contains('@')) return androidx.compose.ui.text.AnnotatedString(content)
-    val color = if (isMine) Color(0xFFFFF1A8) else VxinGreen
+    val color = VxinGreenDark   // @提及高亮：浅绿/白气泡上都用深绿，保证可读
     return androidx.compose.ui.text.buildAnnotatedString {
         var last = 0
         MENTION_RE.findAll(content).forEach { mr ->
@@ -743,15 +749,23 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
         modifier = Modifier
             .widthIn(max = 240.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (isMine) VxinGreen else MaterialTheme.colorScheme.surfaceVariant)
+            .background(bubbleBg(isMine))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) { content() }
 }
 
+// 气泡背景：对齐 web/微信——我的=浅绿；对方=白(暗色下深灰)
+@Composable
+private fun bubbleBg(isMine: Boolean): Color =
+    if (isMine) VxinBubbleMine
+    else if (isSystemInDarkTheme()) VxinBubbleOtherDark else Color.White
+
+// 气泡文字：浅绿/白底上都用深字(暗色下对方气泡用浅字)
 @Composable
 private fun bubbleTextColor(isMine: Boolean): Color =
-    if (isMine) Color.White else MaterialTheme.colorScheme.onSurface
+    if (isMine) VxinBubbleText
+    else if (isSystemInDarkTheme()) VxinBubbleTextDark else VxinBubbleText
 
 private fun placeholderLabel(p: PendingUpload): String = when (p.type) {
     "image" -> "图片上传中…"
