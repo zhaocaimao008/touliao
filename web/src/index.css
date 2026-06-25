@@ -696,8 +696,8 @@ img { display: block; }
 .wc-tool-svg { width: 22px; height: 22px; fill: currentColor; }
 
 /* 输入框区域 */
-.wc-input-box { padding: 8px 12px; position: relative; background: var(--bg-search); border: 1px solid var(--border-color); border-radius: var(--radius-lg); margin: 0 10px; transition: border-color .15s; }
-.wc-input-box:focus-within { border-color: rgba(var(--green-rgb),.45); }
+/* 微信输入区无边框无圆角卡片，直接平铺白底 */
+.wc-input-box { padding: 4px 14px 2px; position: relative; background: transparent; border: none; border-radius: 0; margin: 0; }
 .wc-textarea {
   width: 100%;
   min-height: 72px;
@@ -1961,28 +1961,22 @@ body {
   border: 1.5px solid #1A2033;
 }
 
+/* 微信扁平化：面板/顶栏/聊天区一律不透明纯色，去毛玻璃与绿色渐变 */
 .wc-panel {
-  background: rgba(248,249,251,.9);
-  backdrop-filter: blur(20px) saturate(1.15);
-  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  background: var(--bg-panel);
   border-right: 1px solid rgba(0,0,0,.07);
-  box-shadow: 1px 0 0 rgba(255,255,255,.5);
 }
 
 .wc-panel-topbar,
 .wc-chat-header,
 .wc-sub-header {
-  background: rgba(249,250,251,.85) !important;
-  backdrop-filter: blur(20px) saturate(1.15);
-  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  background: var(--bg-panel-header) !important;
   border-bottom: 1px solid rgba(0,0,0,.06) !important;
 }
 
 .wc-chat,
 .wc-messages {
-  background:
-    radial-gradient(circle at 16% 14%, rgba(var(--green-rgb),.06), transparent 36%),
-    linear-gradient(180deg, rgba(242,244,247,.82), rgba(248,249,251,.88)) !important;
+  background: var(--bg-messages) !important;
 }
 
 .wc-search,
@@ -1997,9 +1991,9 @@ body {
 }
 
 .wc-search {
-  background: rgba(255,255,255,.62) !important;
-  border: 1px solid rgba(255,255,255,.88);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.72), 0 6px 18px rgba(15,23,42,.05);
+  background: var(--bg-search) !important;
+  border: 1px solid transparent;
+  box-shadow: none;
 }
 
 .wc-chat-item,
@@ -2012,17 +2006,15 @@ body {
 .wc-contact-item:hover,
 .wc-menu-item:hover,
 .wc-discover-item:hover {
-  background: rgba(255,255,255,.56) !important;
+  background: var(--bg-panel-item-hover) !important;
 }
-.wc-chat-item:active,
-.wc-contact-item:active,
-.wc-menu-item:active,
-.wc-discover-item:active {
-  transform: scale(.992);
-}
+/* 微信选中态：纯灰底，无绿色渐变、无竖条、无投影 */
 .wc-chat-item.active {
-  background: linear-gradient(90deg, rgba(var(--green-rgb),.18), rgba(255,255,255,.52)) !important;
-  box-shadow: inset 3px 0 0 rgba(var(--green-rgb),.82);
+  background: var(--bg-panel-item-active) !important;
+  box-shadow: none;
+}
+.wc-chat-item.active:hover {
+  background: var(--bg-panel-item-active-hover) !important;
 }
 
 .wc-msg-bubble {
@@ -2031,11 +2023,8 @@ body {
 /* mine/other 背景与圆角统一在前面的主气泡规则里定义，这里不再覆盖 */
 
 .wc-input-area {
-  background: rgba(249,250,251,.9);
-  backdrop-filter: blur(20px) saturate(1.15);
-  -webkit-backdrop-filter: blur(20px) saturate(1.15);
-  border-top: 1px solid rgba(0,0,0,.05) !important;
-  box-shadow: 0 -1px 0 rgba(255,255,255,.6);
+  background: var(--bg-chat);
+  border-top: 1px solid rgba(0,0,0,.08) !important;
 }
 .wc-search,
 .wc-search input,
@@ -2054,7 +2043,7 @@ body {
 }
 .wc-tool-btn:hover,
 .wc-chat-header-btn:hover {
-  background: rgba(255,255,255,.64) !important;
+  background: rgba(0,0,0,.06) !important;
 }
 .wc-tool-btn:active,
 .wc-send-btn:active,
@@ -2065,7 +2054,7 @@ body {
   opacity: .82;
 }
 .wc-send-btn.active {
-  box-shadow: 0 8px 18px rgba(var(--green-rgb),.22);
+  box-shadow: none;
 }
 
 .wc-profile,
@@ -2405,54 +2394,39 @@ body {
 .wc-msg-bubble.other { box-shadow: none; }
 .wc-msg-bubble.mine { box-shadow: none; }
 
-/* 会话列表：active 状态左侧绿色指示线 */
-.wc-chat-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 12px; bottom: 12px;
-  width: 3px;
-  background: var(--green);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-}
+/* 微信会话列表选中态不带左侧绿条 —— 去除 */
 
-/* 消息区时间戳更精致 */
+/* 消息区时间戳：微信是居中浅灰纯文字，无底色药丸 */
 .wc-msg-time span {
-  background: rgba(0,0,0,.075);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border-radius: var(--radius-sm);
+  background: transparent;
+  border-radius: 0;
   letter-spacing: .2px;
 }
 
-/* 发送按钮激活态增加轻微阴影 */
+/* 微信发送按钮：浅绿底+绿字的扁平小按钮，无阴影 */
 .wc-send-btn.active {
-  box-shadow: 0 2px 6px rgba(var(--green-rgb),.32);
+  background: rgba(var(--green-rgb),.12);
+  box-shadow: none;
 }
 .wc-send-btn.active:hover {
-  box-shadow: 0 2px 8px rgba(var(--green-rgb),.44);
-  transform: translateY(-0.5px);
+  background: rgba(var(--green-rgb),.18);
+  box-shadow: none;
+  transform: none;
 }
-.wc-send-btn { transition: background var(--dur), color var(--dur), box-shadow var(--dur), transform var(--dur-fast); }
+.wc-send-btn { transition: background var(--dur), color var(--dur); }
 
 /* 输入框聚焦状态 */
 .wc-input-area:focus-within {
   border-top-color: rgba(var(--green-rgb),.2);
 }
 
-/* 面板顶栏搜索框聚焦 */
+/* 面板顶栏搜索框聚焦：微信仅微微变深，无绿色描边 */
 .wc-search:focus-within {
-  background: #DFDFDF;
-  box-shadow: 0 0 0 1.5px rgba(var(--green-rgb),.3);
+  background: #E3E3E3;
+  box-shadow: none;
 }
 
-/* 未读徽章脉冲动画 */
-@keyframes badgePulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
-}
-.wc-chat-item-badge:not(.muted) {
-  animation: badgePulse 2.4s ease-in-out infinite;
-}
+/* 微信未读徽章为静态，去除脉冲动画 */
 
 /* 图片消息悬浮放大提示 */
 .wc-msg-image {
