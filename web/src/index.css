@@ -1325,9 +1325,10 @@ img { display: block; }
 .wc-moment-vis-select { background: none; border: 1px solid var(--border-color); border-radius: var(--radius-button); padding: 4px 8px; font-size: 12px; color: var(--text-secondary); cursor: pointer; margin-left: 8px; }
 .wc-moment-notif-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--border-color); }
 .wc-moment-notif-bar:hover { background: var(--bg-hover); }
-.wc-moment-settings-btn { background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px 6px; border-radius: 6px; line-height: 1; }
+.wc-moment-settings-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 4px 6px; border-radius: 6px; line-height: 0; display: inline-flex; align-items: center; }
+.wc-moment-settings-btn:hover { background: rgba(0,0,0,.05); color: var(--text-primary); }
 .wc-moment-settings-btn:hover { background: var(--bg-hover); }
-.wc-moment-notif-icon { font-size: 16px; }
+.wc-moment-notif-icon { display: inline-flex; align-items: center; color: var(--text-secondary); }
 .wc-moment-notif-label { font-size: 14px; color: var(--text-primary); flex: 1; }
 .wc-moment-notif-badge { background: #FF4D4F; color: #fff; font-size: 11px; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
 .wc-moment-notif-list { max-height: 60vh; overflow-y: auto; }
@@ -2584,7 +2585,8 @@ body {
 .up-cover { width: 100%; height: 100%; object-fit: cover; display: block; }
 .up-cover-default {
   width: 100%; height: 100%;
-  background: linear-gradient(135deg, #1A2033 0%, #2A3558 100%);
+  /* 对齐微信：默认封面用浅灰，而非突兀深蓝 */
+  background: linear-gradient(135deg, #E9ECF1 0%, #DDE2EA 100%);
 }
 .up-close-btn {
   position: absolute; top: 10px; right: 10px;
