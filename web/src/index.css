@@ -1917,6 +1917,9 @@ body {
   padding: 0 6px;
   margin-top: 4px;
 }
+/* 微信 PC：桌面端把最后一项「我」推到导航栏底部(上下分组)；移动端保持顶部排布不裁切 */
+.wc-app:not(.wc-mobile) .wc-sidebar-btns { flex: 1 1 auto; }
+.wc-app:not(.wc-mobile) .wc-sidebar-btns > .wc-sidebar-btn:last-child { margin-top: auto; margin-bottom: 6px; }
 .wc-sidebar-btn {
   width: 100%;
   height: 48px;
@@ -3088,7 +3091,7 @@ body {
 
 /* ── WcEmpty ── */
 .we-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; }
-.we-empty-svg { width:80px; height:64px; margin-bottom:18px; }
+.we-empty-svg { width:72px; height:72px; margin-bottom:0; opacity:.9; }
 .we-empty-title { font-size:14px; font-weight:500; color:var(--text-primary); margin-bottom:6px; }
 .we-empty-desc { font-size:12px; color:var(--text-secondary); }
 
@@ -3425,7 +3428,7 @@ body {
 .cl-empty-text { color: #7A8694; font-size: 14px; }
 .cl-empty-sub { color: #B0BAC5; font-size: 12px; margin-top: 4px; }
 .cl-empty-groups { color: #7A8694; font-size: 14px; }
-.cl-entry-icon-box { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.cl-entry-icon-box { width: 40px; height: 40px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .cl-entry-name { flex: 1; }
 .cl-entry-badge { background: var(--color-badge); color: #fff; border-radius: 9px; font-size: 10px; min-width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; padding: 0 4px; margin-right: 4px; }
 .cl-entry-arrow { flex-shrink: 0; }

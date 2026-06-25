@@ -1564,18 +1564,10 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           )}
         </div>
         <div className="wc-chat-header-right">
-          {/* 搜索聊天记录 */}
-          <button
-            className={`wc-chat-header-btn${showMsgSearch ? ' active' : ''}`}
-            title="搜索聊天记录"
-            onClick={() => { setShowMsgSearch(v => !v); setMsgSearchQ(''); setMsgSearchResults([]); }}
-          >
-            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-          </button>
+          {/* 顶栏对齐微信：去搜索/查看资料(资料点名字即可看)，仅保留通话与更多 */}
           {conversation.type === 'private' && <>
             <button className="wc-chat-header-btn" title="语音通话" onClick={() => startCall('audio')}><IcoVoiceCall /></button>
             <button className="wc-chat-header-btn" title="视频通话" onClick={() => startCall('video')}><IcoVideoCall /></button>
-            <button className="wc-chat-header-btn" title="查看资料" onClick={() => setShowUserProfile(conversation.otherUser?.id)}><IcoPerson /></button>
           </>}
           {conversation.type === 'group' && <>
             <button className="wc-chat-header-btn" title="群语音通话" onClick={() => startGroupCall('audio')}><IcoVoiceCall /></button>

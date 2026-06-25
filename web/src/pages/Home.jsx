@@ -20,18 +20,15 @@ import { usePushNotification } from '../hooks/usePushNotification';
 import { mediaUrl, goLogin } from '../utils/url';
 
 function WcEmpty() {
+  // 对齐微信 PC：未选会话时近乎纯净留白，仅一枚极淡的单色图标，无文字、无彩色
   return (
     <div className="we-empty">
-      <svg className="we-empty-svg" viewBox="0 0 80 64">
-        <rect x="4" y="8" width="50" height="34" rx="8" fill="#EEF2F8"/>
-        <rect x="8" y="15" width="30" height="3" rx="1.5" fill="#B8C4D4"/>
-        <rect x="8" y="22" width="22" height="3" rx="1.5" fill="#B8C4D4"/>
-        <rect x="8" y="29" width="26" height="3" rx="1.5" fill="#B8C4D4"/>
-        <path d="M4 42l8-8" stroke="#EEF2F8" strokeWidth="2"/>
-        <circle cx="60" cy="46" r="16" fill="#1A2033"/>
-        <path d="M53 46l5 5 9-9" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <svg className="we-empty-svg" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="6" y="12" width="44" height="32" rx="9" fill="#E6E9EF"/>
+        <path d="M16 50l0-9 9 0z" fill="#E6E9EF"/>
+        <rect x="14" y="22" width="28" height="3" rx="1.5" fill="#CFD5DF"/>
+        <rect x="14" y="30" width="20" height="3" rx="1.5" fill="#CFD5DF"/>
       </svg>
-      <p className="we-empty-title">选择一个会话开始聊天</p>
     </div>
   );
 }
