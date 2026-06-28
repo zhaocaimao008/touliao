@@ -60,4 +60,11 @@ const momentImageLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
-module.exports = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter };
+// 测试模式:DISABLE_RATE_LIMIT=1 时所有限流变 no-op,供 e2e 自动化批量造号/发消息。
+// 生产默认不设此变量,限流照常生效。
+const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter };
+if (process.env.DISABLE_RATE_LIMIT === '1') {
+  const noop = (req, res, next) => next();
+  for (const k of Object.keys(limiters)) limiters[k] = noop;
+}
+module.exports = limiters;
