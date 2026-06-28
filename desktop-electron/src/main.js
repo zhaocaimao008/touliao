@@ -27,7 +27,15 @@ const store = new Store({
 });
 
 autoUpdater.logger = log;
-autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.logger.transports.file.level = app.isPackaged ? 'error' : 'info';
+
+// 全局异常兜底：主进程未捕获异常/未处理 Promise 拒绝写入日志，避免静默崩溃且无痕迹。
+process.on('uncaughtException', (err) => {
+  log.error('[main] 未捕获异常:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  log.error('[main] 未处理的 Promise 拒绝:', reason);
+});
 // 安全：禁止"退出时静默安装"。下载可自动（仅字节，不执行），但安装必须
 // 经用户在 UI 中显式确认后由 update:install 触发，避免无确认的代码落地。
 // ⚠️ 生产前必须对安装包做代码签名，详见 desktop-electron/SECURITY-RELEASE.md

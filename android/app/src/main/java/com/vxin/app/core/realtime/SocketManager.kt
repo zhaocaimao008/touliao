@@ -39,7 +39,7 @@ data class CallIceEvent(val from: String, val candidate: String, val sdpMid: Str
 data class CallEndEvent(val from: String)
 
 // ── 群通话(mesh) 信令事件 ──
-data class GroupCallInviteEvent(val callId: String, val conversationId: String, val type: String, val from: String, val fromName: String)
+data class GroupCallInviteEvent(val callId: String, val conversationId: String, val type: String, val from: String, val fromName: String, val fromAvatar: String = "")
 data class GroupCallStartedEvent(val callId: String, val type: String)
 data class GroupCallPeersEvent(val callId: String, val type: String, val peers: List<String>)
 data class GroupCallPeerEvent(val callId: String, val userId: String)               // peer_joined / peer_left
@@ -348,7 +348,7 @@ class SocketManager @Inject constructor(
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 _gcInvite.tryEmit(GroupCallInviteEvent(
                     o.optString("callId"), o.optString("conversationId"),
-                    o.optString("type", "audio"), o.optString("from"), o.optString("fromName")))
+                    o.optString("type", "audio"), o.optString("from"), o.optString("fromName"), o.optString("fromAvatar")))
             }
         }
         s.on("group_call:started") { args ->

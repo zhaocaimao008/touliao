@@ -46,6 +46,7 @@ data class Message(
     val senderName: String = "",
     val senderAvatar: String = "",
     val edited: Int = 0,                    // 1 = 已编辑
+    val deleted: Int = 0,                   // 1 = 已撤回/删除（后端 schema 字段，避免反序列化丢字段）
     val reactions: List<MessageReaction> = emptyList(),
     val replyTo: ReplyPreview? = null,
 )
