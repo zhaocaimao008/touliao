@@ -92,6 +92,10 @@ function listSentRequests(userId) {
 }
 
 function handleRequest(io, userId, requestId, action) {
+  // 兼容移动端历史写法 accept/reject(安卓 ContactRepository.kt、iOS ContactRepository.swift
+  // 发的是 accept/reject)，归一化为 DB 状态值 accepted/rejected，使存量 App 无需重发版即可加好友。
+  if (action === 'accept') action = 'accepted';
+  else if (action === 'reject') action = 'rejected';
   if (!['accepted', 'rejected'].includes(action)) throw badRequest('无效操作');
   const request = db.prepare('SELECT * FROM friend_requests WHERE id=? AND to_id=?').get(requestId, userId);
   if (!request) throw notFound('请求不存在');

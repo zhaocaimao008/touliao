@@ -124,16 +124,8 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');
   const hash = await bcrypt.hash(newPassword, 10);
   db.prepare('UPDATE users SET password=? WHERE id=?').run(hash, userId);
-  // 改密码后吊销所有旧会话（H6）
-  const sessions = db.prepare('SELECT id, token_hash FROM user_sessions WHERE user_id=?').all(userId);
-  for (const s of sessions) {
-    if (s.token_hash && s.token_hash.startsWith('ey')) {
-      try {
-        const payload = jwt.decode(s.token_hash);
-        if (payload?.exp) await addToBlacklist(s.token_hash, payload.exp);
-      } catch { /* ignore decode errors */ }
-    }
-  }
+  // 改密码后清空旧会话记录(user_sessions 表不存 token，无法逐个加黑名单——
+  // 此前查 token_hash 列导致 500，该列从不存在；改为直接清会话行)。
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
   return signToken(user);
 }

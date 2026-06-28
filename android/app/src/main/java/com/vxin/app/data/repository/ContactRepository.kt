@@ -36,7 +36,7 @@ class ContactRepository @Inject constructor(
     suspend fun sentRequests() = contactApi.sentRequests()
 
     suspend fun handleRequest(id: String, accept: Boolean) =
-        contactApi.handleRequest(id, HandleRequestBody(if (accept) "accept" else "reject"))
+        contactApi.handleRequest(id, HandleRequestBody(if (accept) "accepted" else "rejected"))
 
     suspend fun deleteContact(id: String) = contactApi.deleteContact(id)
 

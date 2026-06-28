@@ -73,7 +73,7 @@ final class ContactRepository {
     func handleRequest(id: String, accept: Bool) async throws {
         let _: EmptyResponse = try await api.send(
             "api/users/friend-request/\(id)/handle", method: "POST",
-            body: HandleRequestBody(action: accept ? "accept" : "reject")
+            body: HandleRequestBody(action: accept ? "accepted" : "rejected")
         )
     }
 
