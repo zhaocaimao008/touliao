@@ -160,7 +160,7 @@ function AccountSwitcher() {
     setErr(''); setSubmitting(true);
     try {
       const { data } = await axios.post('/api/auth/login', form);
-      login(data.user);
+      login(data.user, data.token); // 必须传 token:Bearer端(Electron/移动)漏传会清掉鉴权头→reload后被登出
       window.location.reload();
     } catch (ex) {
       setErr(ex.response?.data?.error || '手机号或密码错误');

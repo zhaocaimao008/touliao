@@ -104,7 +104,11 @@ async function loadRemoteServerUrl() {
       if (api && isValidServerUrl(api)) {
         SERVER_URL = new URL(api).origin;
         API_ORIGIN = SERVER_URL;
-        WS_ORIGIN  = API_ORIGIN.replace(/^http/, 'ws');
+        // socket 可与 api 分属不同主机(config.json 的 socket 字段)。单独解析,
+        // 使 CSP connect-src 白名单包含真实 ws 主机,否则分离部署时桌面端实时连接被自家CSP拦死。
+        const sock = (cfg.socket && String(cfg.socket).trim()) || '';
+        const wsBase = (sock && isValidServerUrl(sock)) ? sock : API_ORIGIN;
+        WS_ORIGIN  = new URL(wsBase).origin.replace(/^http/, 'ws');
         store.set('serverUrl', SERVER_URL);   // 缓存，供下次冷启动(联网前)使用
         // 更新源：config.json 可选 updates 字段；缺省则随后端同源 /downloads/updates。
         // 换服务器后，老客户端据此拿到新更新源，不被打包时固化的旧地址卡死。
@@ -196,15 +200,16 @@ function setupSecurity() {
     ? `'self' ${hashes.join(' ')} 'unsafe-eval'`
     : `'self' 'unsafe-inline' 'unsafe-eval'`;
   if (hashes && hashes.length) log.info(`CSP: 已用 ${hashes.length} 个内联脚本哈希替代 unsafe-inline`);
-  const CSP = buildCSP(scriptSrc);
 
-  // 为主文档响应注入 CSP（不影响后端 API/WebSocket 响应）
+  // 为主文档响应注入 CSP（不影响后端 API/WebSocket 响应）。
+  // 每次按【当前】API_ORIGIN/WS_ORIGIN/CDN_ORIGIN 动态拼装,不冻结为常量——
+  // 否则渲染层 switchServer 切到新服务器并 reload 后,CSP 仍是旧 origin→新后端连接被拦死。
   ses.webRequest.onHeadersReceived((details, callback) => {
     if (details.resourceType === 'mainFrame') {
       callback({
         responseHeaders: {
           ...details.responseHeaders,
-          'Content-Security-Policy': [CSP],
+          'Content-Security-Policy': [buildCSP(scriptSrc)],
           'X-Content-Type-Options': ['nosniff'],
         },
       });

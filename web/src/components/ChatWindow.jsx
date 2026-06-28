@@ -304,6 +304,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   useEffect(() => {
     setMessages([]);
     setReplyTo(null);
+    setEditingMsg(null); // 清编辑态:否则在A会话编辑中切到B会话,发送会PUT改A的消息(跨会话误编辑)
     setShowEmoji(false);
     setShowMore(false);
     setVoiceMode(false);
@@ -488,9 +489,11 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         if (prev.find(m => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
-      axios.post(`/api/messages/conversation/${currentConvId}/read`).catch(() => {});
+      // 不在此无条件上报已读:已读由 markReadRef effect 在 messages 变化后处理,
+      // 且仅当滚动在底部时才标(line ~375)。此前无条件上报会让"翻历史时收到的消息"
+      // 也被标已读→污染对方已读回执 + 每条消息一个 POST 的请求风暴。
     };
-    // 批量合并消息：一次性 append + 单次 read 上报 + 单次滚动（避免逐条 setState/请求/滚动）
+    // 批量合并消息：一次性 append + 单次滚动（已读由 markReadRef effect 统一处理）
     const onMsgBatch = (arr) => {
       if (!Array.isArray(arr) || !arr.length) return;
       const cur = convIdRef.current;
@@ -506,7 +509,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         const add = incoming.filter(m => !have.has(m.id));
         return add.length ? [...prev, ...add] : prev;
       });
-      axios.post(`/api/messages/conversation/${cur}/read`).catch(() => {});
+      // 已读由 markReadRef effect 统一处理(仅在底部),不在此无条件上报。
       setTimeout(() => {
         const outer = listOuterRef.current;
         if (outer) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
@@ -1481,9 +1484,11 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     setSelectedMsgs(prev => { const s = new Set(prev); s.has(msgId) ? s.delete(msgId) : s.add(msgId); return s; });
   callbacksRef.current.retryMessage = retryMessage;
   callbacksRef.current.setLightboxUrl = (clickedUrl) => {
+    // 收集会话内所有图片做画廊左右切换。flatItems 的项 type 是 'message'/'divider',
+    // 图片在 it.msg.type==='image'(此前误用 it.type==='image' 恒空→画廊只能看单张)。
     const imageUrls = flatItems
-      .filter(it => it.type === 'image' && it.file_url)
-      .map(it => mediaUrl(it.file_url));
+      .filter(it => it.type === 'message' && it.msg?.type === 'image' && it.msg.file_url)
+      .map(it => mediaUrl(it.msg.file_url));
     const idx = imageUrls.indexOf(clickedUrl);
     setLightboxState({ urls: imageUrls, idx: idx >= 0 ? idx : 0 });
   };
