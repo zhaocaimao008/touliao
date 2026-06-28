@@ -1061,14 +1061,20 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         try {
           publicUrl = await uploadToCloud(file, file.type, file.name, onProg);
         } catch (cloudErr) {
-          // 云存储未配置(503) → 回退本地上传；后端自己入库+广播，无需再 emit
-          // 大文件(>8MB)走分片/断点续传通道，突破单次 50MB 上限并支持断点续传
-          if (cloudErr.response?.status === 503) {
+          // 云直传失败 → 一律回退本地上传(后端自己入库+广播,无需再 emit)。
+          // 不止 503(云存储未配置)：Electron CSP 拦截云域名 / CORS / 云不可达 都会
+          // 抛无 .response 的网络错误,此前只认 503 导致这些情况直接报"网络错误"上传失败。
+          // 本地上传走后端 /upload,CSP 必放行,是可靠兜底。
+          // 大文件(>8MB)走分片/断点续传,突破单次上限并支持断点续传。
+          const status = cloudErr.response?.status;
+          const isClientAbort = status === 400 || status === 403; // 真正的参数/权限错,不该回退
+          if (!isClientAbort) {
             if (file.size > 8 * 1024 * 1024) await uploadChunked(file, onProg);
             else await uploadLocal(file, onProg);
             isUploadingRef.current = false;
             setUploadState(null);
             setReplyTo(null);
+            forceScrollRef.current = true;
             setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
             return;
           }

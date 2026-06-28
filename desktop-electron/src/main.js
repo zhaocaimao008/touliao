@@ -87,6 +87,9 @@ let API_ORIGIN = (() => {
   try { return new URL(SERVER_URL).origin; } catch { return 'https://dipsin.com'; }
 })();
 let WS_ORIGIN = API_ORIGIN.replace(/^http/, 'ws');
+// 云存储/CDN 来源（用于 CSP connect-src，使图片/文件直传 xhr PUT 不被拦）。
+// 从 config.json 的 cdn 字段解析；默认空(只走后端直传)。
+let CDN_ORIGIN = '';
 
 // 启动时从 CONFIG_URLS 依次拉 config.json，取 api(回退 socket) 作为后端地址并据此
 // 刷新 SERVER_URL/API_ORIGIN/WS_ORIGIN（驱动 CSP connect-src）。须在 setupSecurity()
@@ -107,6 +110,9 @@ async function loadRemoteServerUrl() {
         // 换服务器后，老客户端据此拿到新更新源，不被打包时固化的旧地址卡死。
         const upd = (cfg.updates && String(cfg.updates).trim()) || `${SERVER_URL}/downloads/updates`;
         if (isValidServerUrl(upd)) store.set('updateFeed', upd);
+        // 云存储域名加入 CSP connect-src，使图片/文件直传(xhr PUT 预签名URL)不被拦截
+        const cdn = (cfg.cdn && String(cfg.cdn).trim()) || '';
+        if (cdn && isValidServerUrl(cdn)) { try { CDN_ORIGIN = new URL(cdn).origin; } catch {} }
         log.info(`[RemoteConfig] server = ${SERVER_URL} (from ${url})`);
         return;
       }
@@ -156,7 +162,7 @@ function buildCSP(scriptSrc) {
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: data: https:",
     "font-src 'self' data:",
-    `connect-src 'self' ${API_ORIGIN} ${WS_ORIGIN}`,
+    `connect-src 'self' ${API_ORIGIN} ${WS_ORIGIN}${CDN_ORIGIN && CDN_ORIGIN !== API_ORIGIN ? ' ' + CDN_ORIGIN : ''}`,
     "worker-src 'self' blob:",
     "child-src 'self' blob:",
     "object-src 'none'",
