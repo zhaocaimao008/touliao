@@ -39,3 +39,6 @@ backend-v2/uploads/
 
 # 独立配置仓库（自带 .git，单独管理）
 vxin-config/
+
+# 图标生成临时目录
+.icon-build/
