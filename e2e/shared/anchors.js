@@ -23,6 +23,11 @@ const A = {
   navTab:            (key) => `nav-tab-${key}`,   // chats|contacts|moments|me
   accountSwitcher:   'account-switcher',
   accountLogout:     'account-logout-btn',
+  accountRow:        (id) => `account-row-${id}`,   // 账户面板某账号行(点切换)
+  accountAddRow:     'account-add-row',              // "添加账户"展开
+  accountAddPhone:   'account-add-phone',
+  accountAddPassword:'account-add-password',
+  accountAddSubmit:  'account-add-submit',
 
   // ── 会话列表 ──
   convList:          'conv-list',
@@ -46,6 +51,7 @@ const A = {
   msgRecalled:       'msg-recalled',
   msgReplyPreview:   'msg-reply-preview',
   msgReadStatus:     'msg-read-status',
+  msgSendFailed:     'msg-send-failed',   // 发送失败/重发态(❗)
   msgImage:          'msg-image',
   // 右键/长按消息菜单项
   ctxEdit:           'ctx-edit',
@@ -64,12 +70,17 @@ const A = {
   lightboxClose:     'lightbox-close',
 
   // ── 群 ──
-  groupCreateBtn:    'group-create-btn',
+  addMenuBtn:        'add-menu-btn',      // 顶部 + 添加菜单
+  createGroupEntry:  'create-group-entry',// "发起群聊"菜单项
+  groupNameInput:    'group-name-input',   // 建群:群名输入
+  groupMemberRow:    (userId) => `group-member-row-${userId}`, // 建群:成员勾选行
+  groupCreateBtn:    'group-create-btn',   // 建群:创建按钮
+  groupInfoBtn:      'chat-group-info-btn',// 聊天顶栏:打开群信息/更多
   groupConfirmBtn:   'group-confirm-btn',
-  groupNameInput:    'group-name-input',
-  groupRenameSave:   'group-rename-save',
+  groupRenameInput:  'group-rename-input', // 群信息:改名输入
+  groupRenameSave:   'group-rename-save',  // 群信息:保存群名
   groupMemberRemove: (userId) => `group-member-remove-${userId}`,
-  groupLeaveBtn:     'group-leave-btn',
+  groupLeaveBtn:     'group-leave-btn',    // 群信息:退群
 
   // ── 通话 ──
   callModal:         'call-modal',

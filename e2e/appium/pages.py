@@ -98,3 +98,43 @@ class App:
 
     def hangup(self):
         self.el(A.CALL_HANGUP_BTN).click()
+
+    # ── 群管理 ──
+    def create_group(self, name, member_ids):
+        self.el(A.ADD_MENU_BTN).click()
+        self.wait(A.CREATE_GROUP_ENTRY).click()
+        self.wait(A.GROUP_NAME_INPUT).send_keys(name)
+        for uid in member_ids:
+            self.el(A.GROUP_MEMBER_ROW(uid)).click()
+        self.el(A.GROUP_CREATE_BTN).click()
+        self.wait(A.CHAT_MSG_INPUT)
+
+    def open_group_info(self):
+        self.el(A.GROUP_INFO_BTN).click()
+
+    def leave_group(self):
+        self.wait(A.GROUP_LEAVE_BTN).click()
+        if self.exists(A.CONFIRM_OK):
+            self.el(A.CONFIRM_OK).click()
+
+    # ── 账户 ──
+    def add_account(self, phone, password):
+        self.el(A.ACCOUNT_SWITCHER).click()
+        self.wait(A.ACCOUNT_ADD_ROW).click()
+        self.el(A.ACCOUNT_ADD_PHONE).send_keys(phone)
+        self.el(A.ACCOUNT_ADD_PASSWORD).send_keys(password)
+        self.el(A.ACCOUNT_ADD_SUBMIT).click()
+
+    def switch_to(self, account_id):
+        self.el(A.ACCOUNT_SWITCHER).click()
+        self.wait(A.ACCOUNT_ROW(account_id)).click()
+
+    # ── 网络(移动端用 driver 切网络) ──
+    def set_network(self, enabled):
+        """Android: set_network_connection;iOS 模拟器有限,降级为不操作(README 说明)"""
+        if self.platform == "android":
+            # 6 = wifi+data, 1 = airplane(off)
+            try:
+                self.d.set_network_connection(6 if enabled else 1)
+            except Exception:
+                pass

@@ -34,14 +34,17 @@ Web+Electron 用 **Playwright**,Android+iOS 用 **Appium**。四端共用一份*
 | CALL-01 | 语音通话→通话窗→挂断 | W E A I | [M] | web/call, appium/test_call | ✅web(fake media) 🟡A/I |
 | CALL-02 | 视频通话→通话窗 | W E A I | [M] | web/call, appium/test_call | ✅web 🟡A/I |
 | CALL-03 | 群通话 | W E A I | [S] | — | 跳过(媒体,手测) |
-| GRP-01..05 | 群建/发/已读/改名/踢退 | W E A I | [A] | — | ⬜锚点部分就位,待补 spec |
-| ACC-01 | 账户切换 | W E A I | [A] | — | ⬜锚点就位(已修登出bug),待补 |
-| NET-01/02 | 断网超时/重连 | W E | [M] | — | ⬜Playwright setOffline,待补 |
+| GRP-01/02 | 建群→群发文本 | W E A I | [A] | web/group, appium/test_group | ✅web 🟡A/I |
+| GRP-05 | 退群→会话移除 | W E A I | [A] | web/group, appium/test_group | ✅web 🟡A/I |
+| ACC-01 | 添加账号→切换(不被登出) | W E A I | [A] | web/account-switch, appium/test_account | ✅web 🟡A/I |
+| NET-01 | 断网发消息→发送失败 | W E A | [M] | web/network, appium/test_account | ✅web 🟡A(Android driver) |
+| NET-02 | 恢复网络→重连 | W E | [M] | web/network | ✅web |
 | WIN-01/02 | 窗口控制/服务器切换 | E | [A] | — | ⬜骨架,root环境跳过 |
 
-**已实跑通过(web): 12 用例** — AUTH-01/02/06, CHAT-02/04/05/08/09, LB-01/02, CALL-01/02。
+**已实跑通过(web): 16 用例** — AUTH-01/02/06, CHAT-02/04/05/08/09, LB-01/02, CALL-01/02,
+GRP-01/02/05, ACC-01, NET-01/02。
 Electron 共用 web POM+spec(root 环境跳过,非 root 可跑)。Android/iOS 同名锚点已就位,
-test_auth/test_chat/test_edit_recall/test_call 骨架可在设备/模拟器上跑。
+test_auth/test_chat/test_edit_recall/test_call/test_group/test_account 骨架可在设备/模拟器上跑。
 
 **自动化策略**:文件上传 W/E 用 `setInputFiles` 绕系统框=全自动;A/I 需 `driver.push_file` 注入沙盒。语音不模拟麦克风,改"后端注入voice消息→验渲染"。通话只测 signaling/UI,不验媒体流。
 

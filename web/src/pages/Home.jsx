@@ -200,6 +200,7 @@ function AccountSwitcher() {
             return (
               <div key={a.id} onClick={() => { if (!active) doSwitch(a.id); }}
                 className={`wc-account-row${active ? ' active' : ''}`}
+                data-testid={`account-row-${a.id}`}
                 role="button" tabIndex={0}
                 onKeyDown={e => e.key === 'Enter' && !active && doSwitch(a.id)}>
                 <div className="as-avatar-wrap">
@@ -235,6 +236,7 @@ function AccountSwitcher() {
           {/* 添加账户行 */}
           <div onClick={toggleForm}
             className={`wc-add-row${showForm ? ' open' : ''}`}
+            data-testid="account-add-row"
             role="button" tabIndex={0}
             onKeyDown={e => e.key === 'Enter' && toggleForm(e)}>
             <div className={`wc-add-icon-wrap${showForm ? ' open' : ''}`}>
@@ -263,15 +265,15 @@ function AccountSwitcher() {
                   readOnly={!!switchTarget}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   className="wc-add-form-input"
-                  aria-label="手机号"
+                  aria-label="手机号" data-testid="account-add-phone"
                   style={{ background: switchTarget ? 'var(--bg-panel, #f0f0f0)' : 'var(--bg-search)', color: switchTarget ? 'var(--text-secondary)' : 'var(--text-primary)' }} />
                 <input ref={passwordRef} type="password" placeholder="密码" value={form.password}
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   className="wc-add-form-input"
-                  aria-label="密码" />
+                  aria-label="密码" data-testid="account-add-password" />
                 {err && <div className="wc-add-form-error" role="alert">{err}</div>}
                 <button type="submit" disabled={submitting}
-                  className="wc-add-form-submit">
+                  className="wc-add-form-submit" data-testid="account-add-submit">
                   {submitting ? '登录中...' : (switchTarget ? '登录并切换' : '登录并添加')}
                 </button>
               </form>
@@ -330,6 +332,7 @@ function AccountSwitcher() {
 function CgMemberRow({ contact: c, checked, onToggle }) {
   return (
     <div onClick={onToggle}
+      data-testid={`group-member-row-${c.id}`}
       className="cg-row">
       <div className={`cg-checkbox${checked ? ' checked' : ''}`}>
         {checked && <svg className="cg-check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
@@ -410,6 +413,7 @@ function CreateGroupModal({ onClose, onCreated }) {
             onChange={e => { setName(e.target.value); setError(''); }}
             placeholder="请输入群名称"
             aria-label="群名称"
+            data-testid="group-name-input"
             maxLength={30}
             className="cgm-name-input"
           />
@@ -474,6 +478,7 @@ function CreateGroupModal({ onClose, onCreated }) {
               取消
             </button>
             <button onClick={create} disabled={loading || selected.size === 0}
+              data-testid="group-create-btn"
               className="cgm-create">
               {loading ? '创建中…' : `创建群聊${selected.size > 0 ? `（${selected.size}人）` : ''}`}
             </button>
@@ -715,7 +720,7 @@ export default function Home() {
         <>
           <div className="home-add-overlay" onClick={closeAddMenu} />
           <div className="home-add-dropdown" style={{ top: addMenuPos.top, right: addMenuPos.right }}>
-            <AddDropItem icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
+            <AddDropItem testid="create-group-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
               label="发起群聊" onClick={handleCreateGroup} />
             <div className="home-add-divider" />
             <AddDropItem icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
@@ -756,7 +761,7 @@ export default function Home() {
                   <div className="m-topbar">
                     <span className="m-title">{mLabel(tab)}</span>
                     {tab === 'chats' && (
-                      <button ref={addBtnRef} className="m-topbar-add" onClick={toggleAddMenu} aria-label="发起">
+                      <button ref={addBtnRef} className="m-topbar-add" data-testid="add-menu-btn" onClick={toggleAddMenu} aria-label="发起">
                         <IcoAdd />
                       </button>
                     )}
@@ -855,7 +860,7 @@ export default function Home() {
               </div>
 
               {/* 添加按钮 */}
-              <button ref={addBtnRef} className="wc-icon-btn" title="发起" onClick={toggleAddMenu}>
+              <button ref={addBtnRef} className="wc-icon-btn" data-testid="add-menu-btn" title="发起" onClick={toggleAddMenu}>
                 <IcoAdd />
               </button>
             </div>
@@ -892,9 +897,9 @@ export default function Home() {
   );
 }
 
-function AddDropItem({ icon, label, onClick }) {
+function AddDropItem({ icon, label, onClick, testid }) {
   return (
-    <div onClick={onClick}
+    <div onClick={onClick} data-testid={testid}
       className="adi-row">
       <span className="adi-icon">{icon}</span>
       <span className="adi-label">{label}</span>

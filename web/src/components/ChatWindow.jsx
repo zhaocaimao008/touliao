@@ -1615,6 +1615,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           <button
             className={`wc-chat-header-btn${showGroupInfo ? ' active' : ''}`}
             title={conversation.type === 'group' ? '群聊信息' : '更多'}
+            data-testid="chat-group-info-btn"
             onClick={() => setShowGroupInfo(v => !v)}
           ><IcoMore /></button>
         </div>

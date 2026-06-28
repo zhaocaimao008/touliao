@@ -101,6 +101,49 @@ class ChatPage {
 
   /** 当前会话顶部未读红点数 / 列表项 */
   convItem(convId) { return this.tid(A.convItem(convId)); }
+
+  // ── 群管理 ──
+  /** 建群:开 + 菜单 → 发起群聊 → 填名 → 勾选成员 → 创建。返回创建后是否进入群会话 */
+  async createGroup(name, memberIds) {
+    await this.tid(A.addMenuBtn).first().click();
+    await this.tid(A.createGroupEntry).click();
+    await this.tid(A.groupNameInput).waitFor({ state: 'visible' });
+    await this.tid(A.groupNameInput).fill(name);
+    for (const uid of memberIds) {
+      await this.tid(A.groupMemberRow(uid)).click();
+    }
+    await this.tid(A.groupCreateBtn).click();
+    // 建群成功后进入群聊页(输入框出现)
+    await this.tid(A.chatMsgInput).waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  /** 打开群信息面板 */
+  async openGroupInfo() {
+    await this.tid(A.groupInfoBtn).click();
+  }
+
+  /** 退群(群信息面板 → 退群 → 确认) */
+  async leaveGroup() {
+    await this.tid(A.groupLeaveBtn).scrollIntoViewIfNeeded().catch(() => {});
+    await this.tid(A.groupLeaveBtn).click();
+    await this.tid(A.confirmOk).click().catch(() => {});
+  }
+
+  // ── 账户 ──
+  /** 在账户面板里添加第二个账号(登录并添加,不退当前) */
+  async addAccount(phone, password) {
+    await this.tid(A.accountSwitcher).click();
+    await this.tid(A.accountAddRow).click();
+    await this.tid(A.accountAddPhone).fill(phone);
+    await this.tid(A.accountAddPassword).fill(password);
+    await this.tid(A.accountAddSubmit).click();
+  }
+
+  /** 打开账户面板并切换到某账号 */
+  async switchTo(accountId) {
+    await this.tid(A.accountSwitcher).click();
+    await this.tid(A.accountRow(accountId)).click();
+  }
 }
 
 module.exports = { ChatPage };

@@ -340,9 +340,9 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             {editName ? (
               <div className="gi-fca gi-gap6">
                 <input value={nameVal} onChange={e => setNameVal(e.target.value)}
-                  className="gi-name-edit"
+                  className="gi-name-edit" data-testid="group-rename-input"
                   autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
-                <button className="gi-btn-edit" onClick={saveName}>保存</button>
+                <button className="gi-btn-edit" data-testid="group-rename-save" onClick={saveName}>保存</button>
                 <button className="gi-btn-xl" onClick={() => setEditName(false)}>取消</button>
               </div>
             ) : (
@@ -668,6 +668,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           </button>
           <button
             onClick={leaveGroup}
+            data-testid="group-leave-btn"
             className="gi-btn-danger"
             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
             onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-msg-other)'}

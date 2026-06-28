@@ -108,6 +108,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
             ) : msg._status === 'error' ? (
               <div
                 className="wc-msg-read wc-msg-status-error-icon"
+                data-testid="msg-send-failed"
                 title="发送失败，点击重发"
                 onClick={() => cbs.retryMessage(msg)}
               >❗</div>
