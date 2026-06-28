@@ -103,6 +103,10 @@ async function loadRemoteServerUrl() {
         API_ORIGIN = SERVER_URL;
         WS_ORIGIN  = API_ORIGIN.replace(/^http/, 'ws');
         store.set('serverUrl', SERVER_URL);   // 缓存，供下次冷启动(联网前)使用
+        // 更新源：config.json 可选 updates 字段；缺省则随后端同源 /downloads/updates。
+        // 换服务器后，老客户端据此拿到新更新源，不被打包时固化的旧地址卡死。
+        const upd = (cfg.updates && String(cfg.updates).trim()) || `${SERVER_URL}/downloads/updates`;
+        if (isValidServerUrl(upd)) store.set('updateFeed', upd);
         log.info(`[RemoteConfig] server = ${SERVER_URL} (from ${url})`);
         return;
       }
@@ -301,8 +305,13 @@ function loadUpdatePublicKey() {
   }
 }
 
-// 更新源根地址：优先读 app-update.yml(打包固化)，失败回退常量。
+// 更新源根地址：优先用远程 config.json 下发并缓存的 updateFeed（换服务器后能切换），
+// 其次读 app-update.yml(打包固化)，最后回退常量。
 function updateFeedBase() {
+  const remote = store.get('updateFeed');
+  if (remote && typeof remote === 'string' && isValidServerUrl(remote)) {
+    return remote.replace(/\/+$/, '');
+  }
   try {
     const cfg = app.isPackaged
       ? path.join(process.resourcesPath, 'app-update.yml')

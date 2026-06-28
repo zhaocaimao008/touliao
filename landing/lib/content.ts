@@ -4,19 +4,23 @@
  * { zh: {...}, en: {...} } 而无需改动组件。
  */
 
+// 站点基址：换服务器时只需设环境变量 NEXT_PUBLIC_SITE_URL=https://新域名
+// （构建时注入），不填则默认 dipsin.com。下方所有下载/体验链接据此拼接，
+// 与三端 App 的 vxin-config 一键切换机制对齐——换域名无需改本文件。
+const BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://dipsin.com').replace(/\/$/, '');
+
 export const site = {
   name: 'v信',
   tagline: '私有化部署的私密通讯',
-  // 站点规范地址（用于 OG/canonical）。Web 应用部署在 dipsin.com 根路径，
-  // 落地页本身挪到 dipsin.com/welcome。
-  url: 'https://dipsin.com',
-  // 真实下载/体验入口
+  // 站点规范地址（用于 OG/canonical）。Web 应用部署在根路径，落地页挪到 /welcome。
+  url: BASE,
+  // 真实下载/体验入口（均由 BASE 拼接，随 NEXT_PUBLIC_SITE_URL 自动切换）
   links: {
-    // 网页版 = dipsin.com 根路径的 Web 应用（同源 /api 反代，见 BUILD.md）
-    webApp: 'https://dipsin.com/',
-    // 安卓/Windows 指向 dipsin.com 自托管下载（CDN 零依赖，出新版只需替换文件）
-    android: 'https://dipsin.com/downloads/vxin-android-latest.apk',
-    windows: 'https://dipsin.com/downloads/vxin-windows-latest-setup.exe',
+    // 网页版 = 根路径的 Web 应用（同源 /api 反代，见 BUILD.md）
+    webApp: `${BASE}/`,
+    // 安卓/Windows 指向自托管下载（CDN 零依赖，出新版只需替换文件）
+    android: `${BASE}/downloads/vxin-android-latest.apk`,
+    windows: `${BASE}/downloads/vxin-windows-latest-setup.exe`,
     ios: '', // 留空 = 即将上线（暂无 TestFlight/App Store 链接）
     email: 'admin@vxin.app',
   },
