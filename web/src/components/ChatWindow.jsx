@@ -104,6 +104,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   // Virtual list refs (replace messagesContainerRef + messagesEndRef)
   const virtListRef  = useRef(null); // VirtualMessageList imperative handle
   const listOuterRef = useRef(null); // actual scrollable DOM div from react-window
+  const forceScrollRef = useRef(false); // 置位→下次 messages 变化无条件贴底(自己发消息时用)
   // Item cache for flatItems - preserve object identity for unchanged messages
   const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
@@ -399,20 +400,24 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     return () => window.removeEventListener('vxin:remark-changed', handler);
   }, [conversation.type, conversation.otherUser?.id]);
 
-  // 发送/收到消息时若已接近底部则自动跟随。
+  // 发送/收到消息时自动跟随到底部。
   // 新消息行高由 ResizeObserver 异步测得，单次 scrollTo 会因高度未定而滚不到底，
   // 故用多帧 sticky 滚动持续贴底，直到高度测量稳定。
+  // forceScrollRef：自己发消息时置位 → 无条件贴底（即使之前在翻历史），
+  //   修复"在上方查看历史时发消息看不到自己刚发的消息"。收到他人消息仍只在接近底部时跟随。
   useEffect(() => {
     const outer = listOuterRef.current;
     if (!outer) return;
+    const force = forceScrollRef.current;
+    forceScrollRef.current = false;
     const isAtBottom = outer.scrollHeight - outer.scrollTop - outer.clientHeight < 400;
-    if (!isAtBottom) return;
+    if (!force && !isAtBottom) return;
     let n = 0, raf = 0;
     const step = () => {
       const o = listOuterRef.current;
       if (!o) return;
       o.scrollTop = o.scrollHeight;
-      if (++n < 10) raf = requestAnimationFrame(step);
+      if (++n < 12) raf = requestAnimationFrame(step);
     };
     step();
     return () => cancelAnimationFrame(raf);
@@ -477,15 +482,13 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         return;
       }
       window.__vxinPerf?.recv(msg, user.id, 'socket');
+      // 自己发的消息(如文件/图片经后端广播回来)：无条件贴底，与文本发送一致
+      if (msg.sender_id === user.id) forceScrollRef.current = true;
       setMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
       axios.post(`/api/messages/conversation/${currentConvId}/read`).catch(() => {});
-      setTimeout(() => {
-        const outer = listOuterRef.current;
-        if (outer) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
-      }, 50);
     };
     // 批量合并消息：一次性 append + 单次 read 上报 + 单次滚动（避免逐条 setState/请求/滚动）
     const onMsgBatch = (arr) => {
@@ -772,13 +775,13 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       _status:         'sending',
       _tempId:         tempId,
     };
+    forceScrollRef.current = true; // 自己发消息：无条件滚到底(多帧贴底 effect 接管)
     setMessages(prev => [...prev, optimistic]);
     setInput('');
     localStorage.removeItem(`draft_${conversation.id}`);
     setReplyTo(null);
     setShowEmoji(false);
     socket.emit('stop_typing', { conversationId: conversation.id });
-    setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 50);
 
     // 2. 5s 超时 → 标记失败
     const timer = setTimeout(() => {
@@ -835,8 +838,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       reply_to_id: null, replyTo: null, deleted: 0, edited: 0, reactions: [],
       _status: 'sending', _tempId: tempId,
     };
+    forceScrollRef.current = true; // 自己发名片：无条件滚到底
     setMessages(prev => [...prev, optimistic]);
-    setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 50);
     const timer = setTimeout(() => {
       pendingMsgsRef.current.delete(tempId);
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
