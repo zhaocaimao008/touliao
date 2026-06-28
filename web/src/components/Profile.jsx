@@ -245,6 +245,77 @@ function ChangePassword({ onBack }) {
   );
 }
 
+/* ── 我的钱包（余额 + 流水 + 充值）── */
+function Wallet({ onBack }) {
+  const [balance, setBalance] = useState(null);
+  const [txns, setTxns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [recharging, setRecharging] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [b, t] = await Promise.all([
+        axios.get('/api/wallet'),
+        axios.get('/api/wallet/transactions', { params: { limit: 50 } }),
+      ]);
+      setBalance(b.data?.balance ?? 0);
+      setTxns(Array.isArray(t.data) ? t.data : []);
+    } catch { /* 静默：余额显示为 — */ }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const recharge = async () => {
+    const v = window.prompt('充值金币数量（1-100000）');
+    if (!v) return;
+    const amt = parseInt(v, 10);
+    if (!Number.isInteger(amt) || amt < 1 || amt > 100000) { setError('请输入 1-100000 的整数'); return; }
+    setRecharging(true); setError('');
+    try {
+      const { data } = await axios.post('/api/wallet/recharge', { amount: amt });
+      setBalance(data?.balance ?? balance);
+      load();
+    } catch (e) { setError(e.response?.data?.error || '充值失败'); }
+    setRecharging(false);
+  };
+
+  const TYPE_LABEL = { recharge: '充值', red_packet: '发红包', red_packet_refund: '红包退回', red_packet_claim: '领红包' };
+  const fmtTime = (s) => { try { return new Date(s * 1000).toLocaleString(); } catch { return ''; } };
+
+  return (
+    <PageBg>
+      <PageHeader title="我的钱包" onBack={onBack}
+        right={<button className="wc-save-btn" onClick={recharge} disabled={recharging}>{recharging ? '充值中' : '充值'}</button>} />
+      <div className="wc-section-pad">
+        <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 6 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>金币余额</div>
+          <div style={{ fontSize: 34, fontWeight: 700, color: 'var(--green)' }}>{loading ? '…' : (balance ?? '—')}</div>
+        </Card>
+        {error && <div className="wc-edit-error" role="alert">{error}</div>}
+      </div>
+      <SLabel>交易记录</SLabel>
+      <div className="wc-section-pad">
+        <Card>
+          {loading ? (
+            <CRow label="加载中…" />
+          ) : txns.length === 0 ? (
+            <CRow label="暂无交易记录" />
+          ) : txns.map(t => (
+            <CRow key={t.id}
+              label={TYPE_LABEL[t.type] || t.memo || t.type}
+              desc={fmtTime(t.created_at)}
+              right={<span style={{ color: t.amount >= 0 ? 'var(--green)' : 'var(--text-primary)', fontWeight: 600 }}>
+                {t.amount >= 0 ? '+' : ''}{t.amount}
+              </span>} />
+          ))}
+        </Card>
+      </div>
+    </PageBg>
+  );
+}
+
 /* ── 设备列表 ── */
 function DeviceList({ onBack }) {
   const [sessions, setSessions] = useState([]);
@@ -728,6 +799,7 @@ export default function Profile() {
   if (subPage === 'profile-detail') return <ProfileDetail user={user} updateUser={updateUser} onBack={() => setSubPage(null)} navigateTo={setSubPage} />;
   if (subPage === 'edit-name')     return <EditName user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
   if (subPage === 'edit-bio')      return <EditBio user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
+  if (subPage === 'wallet')        return <Wallet onBack={() => setSubPage(null)} />;
   if (subPage === 'devices')       return <DeviceList onBack={() => setSubPage(null)} />;
   if (subPage === 'appearance')    return <AppearanceSettings onBack={() => setSubPage(null)} />;
   if (subPage === 'notifications') return <NotificationSettings onBack={() => setSubPage(null)} />;
@@ -749,6 +821,13 @@ export default function Profile() {
             </div>
           </div>
           <ChevronRight />
+        </Card>
+      </div>
+
+      <div className="wc-section-pad">
+        <Card>
+          <CRow icon={<Ico d="M21 7H3a1 1 0 00-1 1v9a2 2 0 002 2h14a2 2 0 002-2v-2h-7a2 2 0 010-4h7V8a1 1 0 00-1-1zm-4 6h5v2h-5a1 1 0 010-2zM3 5h13a1 1 0 010 2H3a1 1 0 010-2z" />}
+            bg="#F0A020" label="钱包" desc="金币余额与交易记录" onClick={() => setSubPage('wallet')} />
         </Card>
       </div>
 
