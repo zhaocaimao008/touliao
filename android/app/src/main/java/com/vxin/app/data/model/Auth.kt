@@ -25,6 +25,7 @@ data class RegisterRequest(
     val phone: String,
     val password: String,
     val username: String,
+    val inviteCode: String,
 )
 
 /** POST /api/auth/login | /register 的响应 */
@@ -32,6 +33,19 @@ data class RegisterRequest(
 data class AuthResponse(
     val token: String,
     val user: User,
+)
+
+/** POST /api/auth/reset-password — 忘记密码（手机号 + 邀请码验证） */
+@Serializable
+data class ResetPasswordRequest(
+    val phone: String,
+    val inviteCode: String,
+    val newPassword: String,
+)
+
+@Serializable
+data class SuccessResponse(
+    val success: Boolean = true,
 )
 
 /** 后端统一错误体 { "error": "..." } */

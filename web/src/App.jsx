@@ -5,6 +5,7 @@ import { SettingsProvider } from './contexts/SettingsContext';
 import { SocketProvider } from './contexts/SocketContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Home from './pages/Home';
 import ElectronTitlebar from './components/ElectronTitlebar';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -37,6 +38,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/*" element={
               <PrivateRoute>
                 {/* 内层边界：聊天主页崩溃时不连累已登录外壳，可单独重试 */}

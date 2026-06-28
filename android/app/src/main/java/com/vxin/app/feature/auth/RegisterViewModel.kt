@@ -17,11 +17,18 @@ data class RegisterUiState(
     val username: String = "",
     val phone: String = "",
     val password: String = "",
+    val inviteCode: String = "",
     val loading: Boolean = false,
     val error: String? = null,
 ) {
     val canSubmit: Boolean
-        get() = username.isNotBlank() && phone.isNotBlank() && password.length >= 6 && !loading
+        get() = username.isNotBlank() &&
+            phone.isNotBlank() &&
+            inviteCode.length == 6 &&
+            password.length >= 8 &&
+            password.any(Char::isLetter) &&
+            password.any(Char::isDigit) &&
+            !loading
 }
 
 @HiltViewModel
@@ -36,13 +43,14 @@ class RegisterViewModel @Inject constructor(
     fun onUsernameChange(v: String) = _uiState.update { it.copy(username = v, error = null) }
     fun onPhoneChange(v: String) = _uiState.update { it.copy(phone = v, error = null) }
     fun onPasswordChange(v: String) = _uiState.update { it.copy(password = v, error = null) }
+    fun onInviteCodeChange(v: String) = _uiState.update { it.copy(inviteCode = v.filter(Char::isDigit).take(6), error = null) }
 
     fun submit() {
         val s = _uiState.value
         if (!s.canSubmit) return
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            runCatching { authRepository.register(s.phone, s.password, s.username) }
+            runCatching { authRepository.register(s.phone, s.password, s.username, s.inviteCode) }
                 .onSuccess { user ->
                     _uiState.update { it.copy(loading = false) }
                     sessionManager.onAuthenticated(user)

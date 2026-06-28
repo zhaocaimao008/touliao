@@ -90,6 +90,10 @@ class SocketManager @Inject constructor(
     private val _messageDeleted = MutableSharedFlow<String>(extraBufferCapacity = 64)
     val messageDeletedEvents: SharedFlow<String> = _messageDeleted.asSharedFlow()
 
+    /** 多端清空会话消息（另一端清空/对齐 web）→ conversationId */
+    private val _conversationCleared = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    val conversationClearedEvents: SharedFlow<String> = _conversationCleared.asSharedFlow()
+
     /** 表情回应更新 */
     private val _reaction = MutableSharedFlow<ReactionEvent>(extraBufferCapacity = 64)
     val reactionEvents: SharedFlow<ReactionEvent> = _reaction.asSharedFlow()
@@ -218,6 +222,9 @@ class SocketManager @Inject constructor(
         s.on("new_conversation") { _newConversation.tryEmit(Unit) }
         s.on("message_deleted") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("msgId")?.takeIf { it.isNotEmpty() }?.let(_messageDeleted::tryEmit)
+        }
+        s.on("conversation_messages_cleared") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_conversationCleared::tryEmit)
         }
         s.on("message_reaction") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->

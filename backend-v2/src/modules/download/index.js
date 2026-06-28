@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 
-const VERSION = '1.0.0';
+const VERSION = '2.0.0';
 
 // 平台 SVG 图标（24x24，currentColor）
 const ICONS = {
@@ -22,19 +22,13 @@ const DOWNLOADS = [
     platform: 'windows', icon: ICONS.windows,
     name: 'Windows 安装版',
     desc: 'Windows 7 / 10 / 11 · 64 位 · 含安装向导',
-    file: 'vxin-setup-1.0.0.exe', size: '74 MB', tag: '推荐',
-  },
-  {
-    platform: 'windows', icon: ICONS.windows,
-    name: 'Windows 便携版',
-    desc: '免安装 · 解压即用 · 不写注册表',
-    file: 'vxin-portable-1.0.0.exe', size: '74 MB',
+    file: 'vxin-windows-latest-setup.exe', size: '74 MB', tag: '推荐',
   },
   {
     platform: 'android', icon: ICONS.android,
     name: 'Android',
     desc: 'Android 5.0 及以上 · 需允许安装未知来源',
-    file: 'vxin-android-1.0.0.apk', size: '60 MB',
+    file: 'vxin-android-latest.apk', size: '12 MB',
   },
   {
     platform: 'ios', icon: ICONS.apple,

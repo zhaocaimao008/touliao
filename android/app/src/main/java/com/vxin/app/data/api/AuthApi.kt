@@ -26,4 +26,8 @@ interface AuthApi {
 
     @PUT("api/auth/change-password")
     suspend fun changePassword(@Body body: com.vxin.app.data.model.ChangePasswordRequest)
+
+    /** 忘记密码：手机号 + 邀请码验证后重置 */
+    @POST("api/auth/reset-password")
+    suspend fun resetPassword(@Body body: com.vxin.app.data.model.ResetPasswordRequest): com.vxin.app.data.model.SuccessResponse
 }

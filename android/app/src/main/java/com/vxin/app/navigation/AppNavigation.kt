@@ -33,6 +33,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.vxin.app.core.auth.AuthState
 import com.vxin.app.core.auth.SessionManager
+import com.vxin.app.feature.auth.ForgotPasswordScreen
 import com.vxin.app.feature.auth.LoginScreen
 import com.vxin.app.feature.auth.RegisterScreen
 import com.vxin.app.feature.call.CallHost
@@ -83,6 +84,7 @@ class AppViewModel @Inject constructor(
 private object Routes {
     const val LOGIN = "login"
     const val REGISTER = "register"
+    const val FORGOT_PASSWORD = "forgotPassword"
     const val CONVERSATIONS = "conversations"
     const val PROFILE = "profile"
     const val CONTACTS = "contacts"
@@ -124,10 +126,16 @@ private fun AuthFlow() {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = Routes.LOGIN) {
         composable(Routes.LOGIN) {
-            LoginScreen(onNavigateRegister = { navController.navigate(Routes.REGISTER) })
+            LoginScreen(
+                onNavigateRegister = { navController.navigate(Routes.REGISTER) },
+                onNavigateForgotPassword = { navController.navigate(Routes.FORGOT_PASSWORD) },
+            )
         }
         composable(Routes.REGISTER) {
             RegisterScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.FORGOT_PASSWORD) {
+            ForgotPasswordScreen(onBack = { navController.popBackStack() })
         }
     }
 }

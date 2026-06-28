@@ -23,3 +23,19 @@ web/node_modules/
 .DS_Store
 Thumbs.db
 *.log
+
+# 构建产物 / 安装包（别进 git，太大）
+*.exe
+downloads/
+backend-v2/downloads/
+landing/public/downloads/
+
+# 用户上传文件（运行时数据，别进 git）
+backend/uploads/
+backend-v2/uploads/
+
+# 源码备份
+*.bak
+
+# 独立配置仓库（自带 .git，单独管理）
+vxin-config/

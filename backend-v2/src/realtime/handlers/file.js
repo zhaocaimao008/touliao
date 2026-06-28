@@ -10,6 +10,19 @@ const prodMetrics = require('../../utils/prodMetrics');
 
 const TYPE_FALLBACK = { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]' };
 
+/**
+ * 幂等性检测：如果该消息已有 client_msg_id 且 database 中已存在相同(sender_id, client_msg_id)，
+ * 则直接返回已落库的消息，不重复写入。（fix: 防止弱网 ack 超时重发导致消息重复）
+ */
+function checkDedup(userId, clientMsgId) {
+  if (!clientMsgId) return null;
+  return readDb.prepare(`
+    SELECT m.*, u.username as senderName, u.avatar as senderAvatar
+    FROM messages m JOIN users u ON u.id=m.sender_id
+    WHERE m.sender_id=? AND m.client_msg_id=? LIMIT 1
+  `).get(userId, clientMsgId);
+}
+
 module.exports = function registerFileHandler(io, socket) {
   const userId = socket.user.id;
 
@@ -25,7 +38,7 @@ module.exports = function registerFileHandler(io, socket) {
       _ack?.(resp);
     };
     try {
-    const { conversationId, type, file_url, content, reply_to_id } = data;
+    const { conversationId, type, file_url, content, reply_to_id, clientMsgId } = data;
     const duration = Math.max(0, Math.min(parseInt(data.duration, 10) || 0, 600)); // 语音/视频时长(秒)，上限10分钟
     const ALLOWED = new Set(['image', 'voice', 'video', 'file']);
 
@@ -36,6 +49,27 @@ module.exports = function registerFileHandler(io, socket) {
     const publicBase = getPublicBase();
     if (!publicBase || !file_url.startsWith(publicBase + '/')) {
       ack?.({ success: false, error: '文件 URL 非法：不属于已配置的云存储域名' }); return;
+    }
+
+    // ── 幂等性去重（fix: 防止弱网 ack 超时重发导致消息重复）──
+    if (clientMsgId) {
+      const existing = checkDedup(userId, clientMsgId);
+      if (existing) {
+        const msg = {
+          id: existing.id, conversation_id: existing.conversation_id,
+          sender_id: existing.sender_id, type: existing.type,
+          content: existing.content, file_url: existing.file_url || '',
+          duration: existing.duration || 0,
+          reply_to_id: existing.reply_to_id || null,
+          deleted: existing.deleted, edited: existing.edited,
+          created_at: existing.created_at,
+          senderName: existing.senderName || '',
+          senderAvatar: existing.senderAvatar || '',
+          reactions: [], replyTo: null,
+        };
+        ack?.({ success: true, message: msg });
+        return;
+      }
     }
 
     const member = readDb.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(conversationId, userId);
@@ -58,8 +92,8 @@ module.exports = function registerFileHandler(io, socket) {
 
     if (reply_to_id) {
       await writeAsync(
-        'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-        [id, conversationId, userId, type, safeContent, file_url, duration, reply_to_id, created_at]
+        'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        [id, conversationId, userId, type, safeContent, file_url, duration, reply_to_id, created_at, clientMsgId || null]
       );
       msg.replyTo = readDb.prepare(`
         SELECT m.id, m.type, m.content, m.file_url, u.username AS senderName
@@ -68,8 +102,8 @@ module.exports = function registerFileHandler(io, socket) {
       `).get(reply_to_id, conversationId) || null;
     } else {
       await writeAsync(
-        'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-        [id, conversationId, userId, type, safeContent, file_url, duration, null, created_at]
+        'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        [id, conversationId, userId, type, safeContent, file_url, duration, null, created_at, clientMsgId || null]
       );
     }
 

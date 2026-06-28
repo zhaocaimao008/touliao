@@ -37,6 +37,7 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 @Composable
 fun LoginScreen(
     onNavigateRegister: () -> Unit,
+    onNavigateForgotPassword: () -> Unit = {},
     onSuccess: () -> Unit = {},
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
@@ -109,6 +110,9 @@ fun LoginScreen(
         Spacer(Modifier.height(12.dp))
         TextButton(onClick = onNavigateRegister) {
             Text("注册账号", color = VxinGreen)
+        }
+        TextButton(onClick = onNavigateForgotPassword) {
+            Text("忘记密码", color = VxinTextSecondary, fontSize = 13.sp)
         }
 
         TextButton(onClick = { showServerConfig = !showServerConfig }) {

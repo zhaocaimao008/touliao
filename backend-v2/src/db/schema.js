@@ -400,6 +400,9 @@ function applySchema(db) {
       ended_at          INTEGER DEFAULT NULL
     )`,
     "CREATE INDEX IF NOT EXISTS idx_group_call_conv ON group_call_logs(conversation_id, started_at DESC)",
+    // ── 消息幂等：clientMsgId (sender_id + client_msg_id 唯一索引) ──
+    "ALTER TABLE messages ADD COLUMN client_msg_id TEXT DEFAULT NULL",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_client_msg ON messages(sender_id, client_msg_id) WHERE client_msg_id IS NOT NULL",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

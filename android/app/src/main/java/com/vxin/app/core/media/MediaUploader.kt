@@ -24,6 +24,8 @@ class MediaUploader @Inject constructor(
         val displayName: String,
         /** image | voice | video | file —— 与后端按 MIME 推断保持一致，仅用于本地占位展示 */
         val localType: String,
+        val file: File,
+        val mime: String,
     )
 
     /** 从相册/文件选择器返回的 Uri 准备上传（IO 操作，请在 Dispatchers.IO 调用） */
@@ -51,7 +53,7 @@ class MediaUploader @Inject constructor(
             mime.startsWith("video/") -> "video"
             else -> "file"
         }
-        return Prepared(part, displayName, type)
+        return Prepared(part, displayName, type, file, mime)
     }
 
     private fun queryDisplayName(uri: Uri): String? = runCatching {

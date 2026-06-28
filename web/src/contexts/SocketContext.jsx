@@ -73,6 +73,14 @@ export const SocketProvider = ({ children }) => {
       onDeliveredRef.current?.(payload);
     });
 
+    // 实时朋友圈（对齐安卓/iOS）：好友发新动态 / 赞了我 / 评论了我
+    // 解耦广播 window 事件，朋友圈页挂载时据此刷新 feed / 互动红点。
+    ['new_moment', 'moment_liked', 'moment_commented'].forEach((ev) => {
+      s.on(ev, (payload) => {
+        try { window.dispatchEvent(new CustomEvent('vxin:moment', { detail: { type: ev, payload } })); } catch {}
+      });
+    });
+
     // 页面从后台恢复（手机息屏、PC 锁屏、切 Tab）时强制重连
     // visibilitychange 比 focus/online 更可靠
     const onVisible = () => {

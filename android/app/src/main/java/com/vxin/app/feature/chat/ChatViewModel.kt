@@ -105,6 +105,7 @@ class ChatViewModel @Inject constructor(
         observeTyping()
         observeRead()
         observeDeleted()
+        observeCleared()
         observeReaction()
         observeEdited()
         observeRedPacketClaimed()
@@ -347,6 +348,15 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    // 多端清空同步（对齐 web）：另一端清空了本会话 → 本端也清空消息列表
+    private fun observeCleared() {
+        viewModelScope.launch {
+            chatRepository.conversationClearedEvents.collect { convId ->
+                if (convId == conversationId) _uiState.update { it.copy(messages = emptyList()) }
+            }
+        }
+    }
+
     private fun observeReaction() {
         viewModelScope.launch {
             chatRepository.reactionEvents.collect { e -> updateReactions(e.msgId, e.reactions) }
@@ -531,7 +541,8 @@ class ChatViewModel @Inject constructor(
                 name = prepared.displayName,
                 localUri = if (previewLocal) uri.toString() else null,
             )
-            runUpload(pending) { chatRepository.uploadMedia(conversationId, prepared.part) }
+            val replyId = _uiState.value.replyingTo?.id
+            runUpload(pending) { chatRepository.uploadPrepared(conversationId, prepared, replyId) }
         }
     }
 
@@ -556,7 +567,8 @@ class ChatViewModel @Inject constructor(
                 mediaUploader.prepareFromFile(file, audioRecorder.mimeType, file.name)
             }
             val pending = PendingUpload(UUID.randomUUID().toString(), "voice", "语音")
-            runUpload(pending) { chatRepository.uploadMedia(conversationId, prepared.part) }
+            val replyId = _uiState.value.replyingTo?.id
+            runUpload(pending) { chatRepository.uploadPrepared(conversationId, prepared, replyId) }
         }
     }
 

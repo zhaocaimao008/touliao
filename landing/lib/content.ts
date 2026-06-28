@@ -14,9 +14,9 @@ export const site = {
   links: {
     // 网页版 = dipsin.com 根路径的 Web 应用（同源 /api 反代，见 BUILD.md）
     webApp: 'https://dipsin.com/',
-    // 安卓/Windows 指向 GitHub Release「latest」稳定直链（公开、CDN 托管，出新版无需改链接）
-    android: 'https://github.com/zhaocaimao008/vxin-1.0/releases/latest/download/vxin.apk',
-    windows: 'https://github.com/zhaocaimao008/vxin-1.0/releases/latest/download/vxin-setup.exe',
+    // 安卓/Windows 指向 dipsin.com 自托管下载（CDN 零依赖，出新版只需替换文件）
+    android: 'https://dipsin.com/downloads/vxin-android-latest.apk',
+    windows: 'https://dipsin.com/downloads/vxin-windows-latest-setup.exe',
     ios: '', // 留空 = 即将上线（暂无 TestFlight/App Store 链接）
     email: 'admin@vxin.app',
   },

@@ -9,9 +9,14 @@ import com.vxin.app.data.model.MarkReadRequest
 import com.vxin.app.data.model.Message
 import com.vxin.app.data.model.PinMessageBody
 import com.vxin.app.data.model.PinnedMessage
+import com.vxin.app.data.model.ChunkReceivedResponse
 import com.vxin.app.data.model.ReactBody
 import com.vxin.app.data.model.ReactResponse
+import com.vxin.app.data.model.UploadFinishBody
+import com.vxin.app.data.model.UploadInitBody
+import com.vxin.app.data.model.UploadInitResponse
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -43,6 +48,30 @@ interface MessageApi {
     suspend fun upload(
         @Path("conversationId") conversationId: String,
         @Part file: MultipartBody.Part,
+    ): Message
+
+    /** 分片上传：初始化会话 */
+    @POST("api/messages/{conversationId}/upload-init")
+    suspend fun uploadInit(
+        @Path("conversationId") conversationId: String,
+        @Body body: UploadInitBody,
+    ): UploadInitResponse
+
+    /** 分片上传：上传一块原始数据（application/octet-stream） */
+    @PUT("api/messages/{conversationId}/upload-chunk/{uploadId}")
+    suspend fun uploadChunk(
+        @Path("conversationId") conversationId: String,
+        @Path("uploadId") uploadId: String,
+        @Query("offset") offset: Long,
+        @Body body: RequestBody,
+    ): ChunkReceivedResponse
+
+    /** 分片上传：合并并完成，返回消息对象 */
+    @POST("api/messages/{conversationId}/upload-finish/{uploadId}")
+    suspend fun uploadFinish(
+        @Path("conversationId") conversationId: String,
+        @Path("uploadId") uploadId: String,
+        @Body body: UploadFinishBody = UploadFinishBody(),
     ): Message
 
     /** 标记会话已读（服务端会向房间发 message_read、向本人各端发 sync:unread_cleared） */

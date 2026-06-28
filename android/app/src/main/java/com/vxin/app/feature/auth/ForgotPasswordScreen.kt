@@ -32,9 +32,9 @@ import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
 @Composable
-fun RegisterScreen(
+fun ForgotPasswordScreen(
     onBack: () -> Unit,
-    viewModel: RegisterViewModel = hiltViewModel(),
+    viewModel: ForgotPasswordViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -46,23 +46,26 @@ fun RegisterScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("注册账号", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = VxinGreen)
+        Text("忘记密码", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = VxinGreen)
         Spacer(Modifier.height(8.dp))
         Text(
-            "需要6位邀请码，可向已有用户或管理员获取",
+            "使用注册时的手机号和邀请码重置密码",
             fontSize = 13.sp,
             color = VxinTextSecondary,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(28.dp))
 
-        OutlinedTextField(
-            value = state.username,
-            onValueChange = viewModel::onUsernameChange,
-            label = { Text("昵称") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(16.dp))
+        if (state.success) {
+            Text("密码已重置，请返回登录", color = VxinGreen, fontSize = 15.sp)
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = onBack,
+                colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+            ) { Text("返回登录") }
+            return@Column
+        }
+
         OutlinedTextField(
             value = state.phone,
             onValueChange = viewModel::onPhoneChange,
@@ -71,7 +74,7 @@ fun RegisterScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
         OutlinedTextField(
             value = state.inviteCode,
             onValueChange = viewModel::onInviteCodeChange,
@@ -80,11 +83,21 @@ fun RegisterScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
         OutlinedTextField(
-            value = state.password,
-            onValueChange = viewModel::onPasswordChange,
-            label = { Text("密码（至少8位，含字母和数字）") },
+            value = state.newPassword,
+            onValueChange = viewModel::onNewPasswordChange,
+            label = { Text("新密码（至少8位，含字母和数字）") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(14.dp))
+        OutlinedTextField(
+            value = state.confirmPassword,
+            onValueChange = viewModel::onConfirmPasswordChange,
+            label = { Text("确认新密码") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -96,14 +109,12 @@ fun RegisterScreen(
             Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
         }
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(24.dp))
         Button(
             onClick = viewModel::submit,
             enabled = state.canSubmit,
             colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
+            modifier = Modifier.fillMaxWidth().height(48.dp),
         ) {
             if (state.loading) {
                 CircularProgressIndicator(
@@ -112,7 +123,7 @@ fun RegisterScreen(
                     strokeWidth = 2.dp,
                 )
             } else {
-                Text("注册并登录")
+                Text("重置密码")
             }
         }
         Spacer(Modifier.height(12.dp))

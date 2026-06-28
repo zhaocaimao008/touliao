@@ -162,6 +162,10 @@ export default function Login() {
             </div>
           )}
 
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <Link to="/forgot-password" className="auth-link" style={{ fontSize: 13 }}>忘记密码？</Link>
+          </div>
+
           <button type="submit" className="auth-submit" disabled={loading || !phone || !password}>
             {loading ? (
               <span className="auth-spinner" />

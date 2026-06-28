@@ -70,6 +70,15 @@ router.post('/forget',          forgetLimiter, c.forget);
 
 /**
  * @swagger
+ * /auth/reset-password:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Reset password with phone and invite code
+ */
+router.post('/reset-password', registerLimiter, c.resetPassword);
+
+/**
+ * @swagger
  * /auth/me:
  *   get:
  *     tags:

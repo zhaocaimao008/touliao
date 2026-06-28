@@ -181,10 +181,21 @@ export default function Moments() {
   };
 
   // 互动通知未读数（谁赞了/评论了我的动态）
-  useEffect(() => {
+  const loadNotifCount = useCallback(() => {
     axios.get('/api/moments/notifications/unread-count')
       .then(r => setNotifCount(r.data.count || 0)).catch(() => {});
   }, []);
+  useEffect(() => { loadNotifCount(); }, [loadNotifCount]);
+
+  // 实时朋友圈（对齐安卓/iOS）：socket 广播 → 刷新互动红点；好友发新动态 → 刷新 feed
+  useEffect(() => {
+    const onMoment = (e) => {
+      loadNotifCount();
+      if (e?.detail?.type === 'new_moment') load();
+    };
+    window.addEventListener('vxin:moment', onMoment);
+    return () => window.removeEventListener('vxin:moment', onMoment);
+  }, [load, loadNotifCount]);
 
   const openNotif = async () => {
     try {

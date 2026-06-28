@@ -168,8 +168,25 @@ function switchAccount(walletId, userId) {
   return { token: signToken(user), user: serializeUser(user) };
 }
 
+/** 忘记密码：手机号 + 邀请码验证后重置（无需登录） */
+async function resetPassword({ phone, inviteCode, newPassword }) {
+  if (!phone || !inviteCode || !newPassword) throw badRequest('请填写所有字段');
+  if (typeof phone !== 'string' || phone.length < 5 || phone.length > 20 || !/^\+?[\d\s\-]{5,20}$/.test(phone))
+    throw badRequest('手机号格式不正确');
+  if (!/^\d{6}$/.test(inviteCode)) throw badRequest('邀请码必须是6位数字');
+  if (!isValidInviteCode(inviteCode)) throw badRequest('邀请码不正确');
+  if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword))
+    throw badRequest('密码必须至少8位，且至少包含1个字母和1个数字');
+  const user = db.prepare('SELECT id FROM users WHERE phone=?').get(phone);
+  if (!user) throw badRequest('该手机号未注册');
+  const hash = await bcrypt.hash(newPassword, 10);
+  db.prepare('UPDATE users SET password=? WHERE id=?').run(hash, user.id);
+  db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(user.id);
+  return { success: true };
+}
+
 module.exports = {
   register, login, getMe, refreshToken, upsertSession,
-  listSessions, deleteSession, changePassword,
+  listSessions, deleteSession, changePassword, resetPassword,
   recordDeviceAccount, removeDeviceAccount, switchAccount,
 };

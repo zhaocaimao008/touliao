@@ -73,8 +73,8 @@ module.exports = function registerNudgeHandler(io, socket) {
       const content = JSON.stringify(payload);
 
       await writeAsync(
-        'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at) VALUES (?,?,?,?,?,?,?)',
-        [id, conversationId, userId, 'nudge', content, null, created_at]
+        `INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?)`,
+                [id, conversationId, userId, 'nudge', content, null, created_at, null]
       );
 
       const msg = {

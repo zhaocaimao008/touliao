@@ -109,3 +109,8 @@ exports.changePassword = asyncHandler(async (req, res) => {
   setAuthCookie(req, res, token);
   res.json({ success: true });
 });
+
+exports.resetPassword = asyncHandler(async (req, res) => {
+  await svc.resetPassword(req.body);
+  res.json({ success: true });
+});

@@ -3,6 +3,8 @@ package com.vxin.app.data.repository
 import com.vxin.app.core.realtime.ReactionEvent
 import com.vxin.app.core.realtime.ReadEvent
 import com.vxin.app.core.realtime.RedPacketClaimedEvent
+import com.vxin.app.core.media.ChunkUploader
+import com.vxin.app.core.media.MediaUploader
 import com.vxin.app.core.realtime.SocketManager
 import com.vxin.app.core.realtime.SocketStatus
 import com.vxin.app.core.realtime.TypingEvent
@@ -22,6 +24,7 @@ import javax.inject.Singleton
 @Singleton
 class ChatRepository @Inject constructor(
     private val api: MessageApi,
+    private val chunkUploader: ChunkUploader,
     private val socketManager: SocketManager,
 ) {
     /** 实时连接状态（供 UI 显示「连接中/已连接」） */
@@ -36,6 +39,7 @@ class ChatRepository @Inject constructor(
     val unreadClearedEvents: SharedFlow<String> = socketManager.unreadClearedEvents
     val newConversationEvents: SharedFlow<Unit> = socketManager.newConversationEvents
     val messageDeletedEvents: SharedFlow<String> = socketManager.messageDeletedEvents
+    val conversationClearedEvents: SharedFlow<String> = socketManager.conversationClearedEvents
     val reactionEvents: SharedFlow<ReactionEvent> = socketManager.reactionEvents
     val redPacketClaimedEvents: SharedFlow<RedPacketClaimedEvent> = socketManager.redPacketClaimedEvents
     val pinChangedEvents: SharedFlow<String> = socketManager.pinChangedEvents
@@ -70,6 +74,29 @@ class ChatRepository @Inject constructor(
     /** 上传媒体并返回服务端创建的消息（同时会经 Socket 广播给其他端） */
     suspend fun uploadMedia(conversationId: String, part: MultipartBody.Part): Message =
         api.upload(conversationId, part)
+
+    /**
+     * 按文件大小自动选择单次上传或分片上传（>8MB 走分片，对齐 Web）。
+     */
+    suspend fun uploadPrepared(
+        conversationId: String,
+        prepared: MediaUploader.Prepared,
+        replyToId: String? = null,
+        onProgress: ((Int) -> Unit)? = null,
+    ): Message {
+        return if (prepared.file.length() > ChunkUploader.CHUNK_THRESHOLD) {
+            chunkUploader.upload(
+                conversationId,
+                prepared.file,
+                prepared.displayName,
+                prepared.mime,
+                replyToId,
+                onProgress,
+            )
+        } else {
+            api.upload(conversationId, prepared.part)
+        }
+    }
 
     /** 撤回/删除消息 */
     suspend fun deleteMessage(msgId: String, forEveryone: Boolean = true) =
