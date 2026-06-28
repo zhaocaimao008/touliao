@@ -691,6 +691,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       content:        failedMsg.content,
       type:           failedMsg.type,
       reply_to_id:    failedMsg.reply_to_id || null,
+      clientMsgId:    failedMsg.id, // 复用首发的 tempId 作幂等键:重发若原消息已落库,后端去重不产生重复
     }, (ack) => {
       clearTimeout(pendingMsgsRef.current.get(newTempId));
       pendingMsgsRef.current.delete(newTempId);
@@ -798,6 +799,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       content,
       type:           'text',
       reply_to_id:    replySnap?.id || null,
+      clientMsgId:    tempId, // 幂等键:后端据(sender_id,client_msg_id)去重,弱网重发不产生重复消息
     }, (ack) => {
       clearTimeout(pendingMsgsRef.current.get(tempId));
       pendingMsgsRef.current.delete(tempId);
@@ -845,7 +847,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
     }, 5000);
     pendingMsgsRef.current.set(tempId, timer);
-    socket.emit('send_message', { conversationId: conversation.id, content, type: 'contact_card' }, (ack) => {
+    socket.emit('send_message', { conversationId: conversation.id, content, type: 'contact_card', clientMsgId: tempId }, (ack) => {
       clearTimeout(pendingMsgsRef.current.get(tempId));
       pendingMsgsRef.current.delete(tempId);
       if (ack?.success && ack.message) {
@@ -1087,6 +1089,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           conversationId: conversation.id, type,
           file_url: publicUrl, content: file.name,
           reply_to_id: replyTo?.id || null,
+          clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
         });
         setReplyTo(null);
         setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
@@ -1163,16 +1166,32 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         const blob = new Blob(chunks, { type: 'audio/webm' });
         if (blob.size < 1000) return; // too short
         setUploadState({ name: '语音', progress: 0, status: 'uploading' });
+        const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
         try {
-          const publicUrl = await uploadToCloud(blob, 'audio/webm', 'voice.webm', (p) => {
-            setUploadState(s => s ? { ...s, progress: p } : null);
-          });
+          let publicUrl;
+          try {
+            publicUrl = await uploadToCloud(blob, 'audio/webm', 'voice.webm', onProg);
+          } catch (cloudErr) {
+            // 与图片/文件一致:云直传失败(非400/403)回退本地上传(走后端/upload,CSP必放行)。
+            // 修复"未配置云存储/Electron CSP拦截时语音消息100%失败"。
+            const status = cloudErr.response?.status;
+            if (status === 400 || status === 403) throw cloudErr;
+            const voiceFile = new File([blob], 'voice.webm', { type: 'audio/webm' });
+            await uploadLocal(voiceFile, onProg); // 后端入库+广播,无需再 emit
+            setUploadState(null);
+            forceScrollRef.current = true;
+            setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
+            stream.getTracks().forEach(t => t.stop());
+            return;
+          }
           setUploadState(null);
+          forceScrollRef.current = true;
           socket?.emit('send_file_message', {
             conversationId: conversation.id,
             type:     'voice',
             file_url: publicUrl,
             content:  'voice.webm',
+            clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
           });
           setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
         } catch { setUploadState({ name: '语音', progress: 0, status: 'error', errorMsg: '发送失败' }); }
