@@ -46,8 +46,13 @@ struct LoginView: View {
             .disabled(!vm.canLogin)
             .padding(.top, 8)
 
-            NavigationLink("注册账号") { RegisterView() }
-                .foregroundColor(.vxinGreen)
+            HStack {
+                NavigationLink("注册账号") { RegisterView() }
+                    .foregroundColor(.vxinGreen)
+                Spacer()
+                NavigationLink("忘记密码") { ForgotPasswordView() }
+                    .foregroundColor(.vxinTextSecondary)
+            }
 
             Button(showServerConfig ? "收起" : "切换服务器") { showServerConfig.toggle() }
                 .font(.caption)

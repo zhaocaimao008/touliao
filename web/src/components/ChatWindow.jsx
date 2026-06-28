@@ -965,7 +965,13 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         const url = await uploadToCloud(file, file.type, file.name);
         await setChatBackground(url);
         showToast('已设置聊天背景');
-      } catch (e) { showToast(e.message || '上传失败', 'error'); }
+      } catch (e) {
+        // 聊天背景需公开URL,只能走云存储;未配置(503)/直传失败时给明确提示而非笼统"网络错误"
+        const msg = e.response?.status === 503
+          ? '设置背景需服务器开启云存储'
+          : (e.message || '设置失败');
+        showToast(msg, 'error');
+      }
     };
     inp.click();
   }, [uploadToCloud, setChatBackground]);

@@ -192,6 +192,59 @@ function EditBio({ user, updateUser, onBack }) {
   );
 }
 
+/* ── 修改密码 ── */
+function ChangePassword({ onBack }) {
+  const [oldPassword, setOld] = useState('');
+  const [newPassword, setNew] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+
+  const save = async () => {
+    if (!oldPassword || !newPassword) { setError('请填写完整'); return; }
+    if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword)) { setError('新密码至少8位且需包含字母和数字'); return; }
+    if (newPassword !== confirm) { setError('两次输入的新密码不一致'); return; }
+    setSaving(true); setError('');
+    try {
+      await axios.put('/api/auth/change-password', { oldPassword, newPassword });
+      setDone(true);
+      setTimeout(onBack, 1200);
+    } catch (err) {
+      setError(err.response?.data?.error || '修改失败，请重试');
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <PageBg>
+      <PageHeader title="修改密码" onBack={onBack}
+        right={<button className="wc-save-btn" onClick={save} disabled={saving || done}>{saving ? '保存中' : '保存'}</button>}
+      />
+      <div className="wc-edit-pad">
+        <Card>
+          <div className="wc-edit-wrap">
+            <input type="password" value={oldPassword} onChange={e => { setOld(e.target.value); setError(''); }}
+              autoFocus placeholder="当前密码" aria-label="当前密码" className="wc-edit-input" />
+          </div>
+        </Card>
+        <Card>
+          <div className="wc-edit-wrap">
+            <input type="password" value={newPassword} onChange={e => { setNew(e.target.value); setError(''); }}
+              placeholder="新密码（≥8位，含字母和数字）" aria-label="新密码" className="wc-edit-input" />
+          </div>
+          <div className="wc-edit-wrap">
+            <input type="password" value={confirm} onChange={e => { setConfirm(e.target.value); setError(''); }}
+              placeholder="确认新密码" aria-label="确认新密码" className="wc-edit-input" />
+          </div>
+        </Card>
+        {error && <div className="wc-edit-error" role="alert">{error}</div>}
+        {done && <div className="wc-edit-hint">✓ 密码已修改</div>}
+        <div className="wc-edit-hint">修改后其它设备需重新登录</div>
+      </div>
+    </PageBg>
+  );
+}
+
 /* ── 设备列表 ── */
 function DeviceList({ onBack }) {
   const [sessions, setSessions] = useState([]);
@@ -363,6 +416,8 @@ function PrivacySettings({ user, onBack }) {
     }
   };
 
+  if (page === 'change-password') return <ChangePassword onBack={() => setPage('main')} />;
+
   if (page === 'add-methods') return (
     <PageBg>
       <PageHeader title="添加我的方式" onBack={() => setPage('main')} />
@@ -390,6 +445,9 @@ function PrivacySettings({ user, onBack }) {
           <CRow label="添加我的方式" desc="ID号、手机号、二维码、用户名" onClick={() => setPage('add-methods')} />
           <CRow label="需要验证才能添加好友" desc="关闭后对方可直接添加你"
             right={<Toggle checked={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
+        </Card>
+        <Card className="wc-privacy-card-mt">
+          <CRow label="修改密码" desc="定期修改可提升账号安全" onClick={() => setPage('change-password')} />
         </Card>
       </div>
     </PageBg>
