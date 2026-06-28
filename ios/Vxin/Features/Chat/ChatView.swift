@@ -27,7 +27,8 @@ struct ChatView: View {
             conversationId: conversation.id,
             title: conversation.name,
             myId: myId,
-            isGroup: conversation.type == "group"
+            isGroup: conversation.type == "group",
+            peerUserId: conversation.peerId   // 私聊对端id,使通话发起可靠(对端未发言也能拨)
         ))
     }
 

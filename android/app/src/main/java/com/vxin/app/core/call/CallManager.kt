@@ -7,6 +7,8 @@ import com.vxin.app.core.di.AppScope
 import com.vxin.app.core.realtime.SocketManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +64,7 @@ class CallManager @Inject constructor(
 
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
+    private var callTimeoutJob: Job? = null   // 主叫呼出超时:对方无应答/断线时自动收尾,防卡死"呼叫中"
     private var audioSource: org.webrtc.AudioSource? = null
     private var videoSource: VideoSource? = null
     private var localAudioTrack: AudioTrack? = null
@@ -124,6 +127,17 @@ class CallManager @Inject constructor(
     fun startCall(peerId: String, peerName: String, video: Boolean) {
         if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) return
         _state.value = CallState(CallStage.OUTGOING, peerId, peerName, isVideo = video, isCaller = true)
+        // 本地呼出超时:60s 内未接通(对方不接/断线,后端 timeout 不向主叫发事件)则自动挂断收尾,
+        // 防止界面永远卡在"呼叫中"。接通(CONNECTED)或挂断时取消(见 cleanup / IceConnectionState)。
+        callTimeoutJob?.cancel()
+        callTimeoutJob = scope.launch {
+            delay(60_000)
+            val st = _state.value.stage
+            if (st == CallStage.OUTGOING || st == CallStage.CONNECTING) {
+                if (_state.value.peerId.isNotEmpty()) socketManager.emitCallEnd(_state.value.peerId)
+                cleanup(CallStage.ENDED)
+            }
+        }
         scope.launch {
             refreshIceServers()                 // 先拿到含 TURN 的 ICE，再建连接
             if (_state.value.stage == CallStage.ENDED) return@launch  // 期间被取消
@@ -345,6 +359,7 @@ class CallManager @Inject constructor(
 
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage) {
+        callTimeoutJob?.cancel(); callTimeoutJob = null   // 接通/挂断/被拒 → 取消呼出超时
         runCatching { videoCapturer?.stopCapture() }
         runCatching { videoCapturer?.dispose() }
         videoCapturer = null

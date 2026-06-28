@@ -24,6 +24,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
 
@@ -58,6 +59,12 @@ object AppModule {
             level = HttpLoggingInterceptor.Level.BASIC
         }
         return OkHttpClient.Builder()
+            // 超时:默认仅 10s,弱网/大文件(分片上传单片、视频、二维码下载)必触发 SocketTimeout。
+            // 连接 20s;读写 60s 容纳慢上传/下载;callTimeout=0 不设总时长上限,靠读写超时兜底。
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS)
             .addInterceptor(hostSelectionInterceptor)
             .addInterceptor(authInterceptor)
             .addInterceptor(logging)

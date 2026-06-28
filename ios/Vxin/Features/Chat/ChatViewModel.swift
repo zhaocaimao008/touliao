@@ -44,6 +44,9 @@ final class ChatViewModel: ObservableObject {
     let title: String
     let myId: String
     let isGroup: Bool
+    /// 私聊对端 userId(来自 Conversation.otherUser.id)。可靠取对端的首选;
+    /// 通话发起用。为空时回退扫历史消息。
+    private var peerUserId: String?
 
     private let repo = ChatRepository.shared
     private let recorder = AudioRecorder.shared
@@ -52,11 +55,12 @@ final class ChatViewModel: ObservableObject {
     private var lastTypingEmit = Date.distantPast
     private var typingClearTask: Task<Void, Never>?
 
-    init(conversationId: String, title: String, myId: String, isGroup: Bool = false) {
+    init(conversationId: String, title: String, myId: String, isGroup: Bool = false, peerUserId: String? = nil) {
         self.conversationId = conversationId
         self.title = title
         self.myId = myId
         self.isGroup = isGroup
+        self.peerUserId = peerUserId
 
         repo.incomingPublisher
             .sink { [weak self] msg in Task { @MainActor in self?.onIncoming(msg) } }
@@ -126,6 +130,7 @@ final class ChatViewModel: ObservableObject {
     func loadBackground() async {
         if let conv = try? await repo.loadConversations().first(where: { $0.id == conversationId }) {
             if !conv.background.isEmpty { background = conv.background }
+            if peerUserId == nil, let pid = conv.peerId { peerUserId = pid }  // 回填对端id,供通话用
         }
     }
 
@@ -326,8 +331,11 @@ final class ChatViewModel: ObservableObject {
     func closeRedPacket() { redPacketDetail = nil; claimedAmount = nil }
 
     // MARK: - 音视频通话
-    /// 私聊对方 userId：取历史里第一条非本人消息的发送者
-    private func peerId() -> String? { messages.first(where: { $0.senderId != myId })?.senderId }
+    /// 私聊对方 userId：优先用 Conversation.otherUser.id(可靠,对端没发过消息也能拿到);
+    /// 回退取历史里第一条非本人消息的发送者。修复"对端未发言时通话按钮无反应"。
+    private func peerId() -> String? {
+        peerUserId ?? messages.first(where: { $0.senderId != myId })?.senderId
+    }
 
     /// 发起通话；无法确定对方（如无消息）返回 false
     func startCall(video: Bool, callerName: String) -> Bool {
