@@ -215,7 +215,7 @@ img { display: block; }
   fill: currentColor;
 }
 .wc-bottom-tab.active .wc-bottom-icon { color: var(--green); }
-.wc-bottom-tab:hover .wc-bottom-icon { color: rgba(255,255,255,.75); }
+.wc-bottom-tab:hover .wc-bottom-icon { color: #fff; }
 .wc-bottom-badge {
   position: absolute;
   top: 1px;
@@ -1074,7 +1074,7 @@ img { display: block; }
 .auth-brand-desc { font-size: 13px; color: rgba(255,255,255,.38); letter-spacing: .3px; }
 .auth-accounts {
   background: rgba(255,255,255,.05);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+
   border-radius: var(--radius-lg); margin-bottom: 16px; overflow: hidden;
   border: 1px solid rgba(255,255,255,.1);
 }
@@ -1087,13 +1087,13 @@ img { display: block; }
 .auth-account-btn:hover { background: rgba(255,255,255,.06); }
 .auth-account-avatar { width: 36px; height: 36px; border-radius: var(--radius-md); background: linear-gradient(135deg, var(--green), #06AD56); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; flex-shrink: 0; }
 .auth-account-info { min-width: 0; flex: 1; }
-.auth-account-name { display: block; font-size: 14px; color: rgba(255,255,255,.85); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-account-name { display: block; font-size: 14px; color: #fff; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auth-account-id { display: block; font-size: 11px; color: rgba(255,255,255,.35); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auth-account-remove { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.2); font-size: 13px; cursor: pointer; transition: color .12s; flex-shrink: 0; }
 .auth-account-remove:hover { color: #FF6B6B; }
 .auth-form {
   background: rgba(255,255,255,.07);
-  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+
   border-radius: var(--radius-xl); padding: 28px 28px 24px;
   border: 1px solid rgba(255,255,255,.12);
   box-shadow: 0 24px 64px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.07);
@@ -1121,7 +1121,7 @@ img { display: block; }
 /* 桌面端登录页服务器切换 */
 .auth-server { margin-top: 16px; text-align: center; }
 .auth-server-toggle { background: none; border: none; color: rgba(255,255,255,.4); font-size: 12px; cursor: pointer; padding: 6px 10px; border-radius: var(--radius-button); transition: color .15s, background .15s; }
-.auth-server-toggle:hover { color: rgba(255,255,255,.7); background: rgba(255,255,255,.05); }
+.auth-server-toggle:hover { color: #fff; background: rgba(255,255,255,.05); }
 .auth-server-panel { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: var(--radius-lg); padding: 16px; text-align: left; animation: scaleIn .2s var(--ease); }
 .auth-server-title { font-size: 12px; color: rgba(255,255,255,.5); margin-bottom: 8px; }
 .auth-server-input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 13px; background: rgba(255,255,255,.06); border: 1.5px solid rgba(255,255,255,.12); border-radius: var(--radius-md); color: #fff; outline: none; font-family: inherit; }
@@ -1131,16 +1131,16 @@ img { display: block; }
 .auth-server-btns { display: flex; gap: 8px; margin-top: 12px; }
 .auth-server-btn { flex: 1; padding: 10px 0; border-radius: var(--radius-md); font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: opacity .15s; }
 .auth-server-btn:hover { opacity: .85; }
-.auth-server-btn.ghost { background: rgba(255,255,255,.08); color: rgba(255,255,255,.8); border: 1px solid rgba(255,255,255,.12); }
+.auth-server-btn.ghost { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.12); }
 .auth-server-btn.primary { background: var(--green); color: #fff; }
 .auth-server-cancel { display: block; width: 100%; margin-top: 8px; background: none; border: none; color: rgba(255,255,255,.4); font-size: 12px; cursor: pointer; padding: 4px; }
-.auth-server-cancel:hover { color: rgba(255,255,255,.7); }
+.auth-server-cancel:hover { color: #fff; }
 
 
 /* ============================================================
    Modal / Dialog
    ============================================================ */
-.wc-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.32); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 1000; animation: fadeIn 180ms ease-out both; }
+.wc-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.32); display: flex; align-items: center; justify-content: center; z-index: 1000; animation: fadeIn 180ms ease-out both; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .wc-modal { background: #fff; border-radius: var(--radius-lg); overflow: hidden; width: 340px; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.22), 0 0 0 .5px rgba(0,0,0,.06); animation: slideUp 200ms ease-out both; isolation: isolate; }
 @keyframes slideUp { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -1170,7 +1170,7 @@ img { display: block; }
 
 /* ── 转发弹窗 ── */
 .fwd-modal { width: 460px; height: 540px; }
-.wc-modal.fwd-modal { background: #fff !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; border: none !important; }
+.wc-modal.fwd-modal { background: #fff !important; border: none !important; }
 .fwd-header { background: var(--bg-panel); border-bottom: 1px solid var(--divider); padding: 13px 18px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 .fwd-preview { padding: 9px 16px; background: var(--bg-panel); border-bottom: 1px solid var(--divider); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .fwd-preview-label { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; }
@@ -1423,13 +1423,13 @@ body.dark-mode .up-card { background: var(--bg-card) !important; }
 body.dark-mode .up-avatar-wrap { border-color: var(--bg-panel) !important; }
 body.dark-mode .up-remark-input { background: var(--bg-input-search) !important; border-color: var(--border-medium) !important; }
 body.dark-mode .up-remark-box { background: var(--bg-input) !important; }
-body.dark-mode .wc-panel { background: var(--glass-panel-bg-strong) !important; backdrop-filter: var(--glass-panel-blur) !important; -webkit-backdrop-filter: var(--glass-panel-blur) !important; border-right-color: var(--border-subtle) !important; }
+body.dark-mode .wc-panel { background: var(--glass-panel-bg-strong) !important; border-right-color: var(--border-subtle) !important; }
 body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
 
 /* 气泡 — 暗色模式下绿气泡保留 #1A6E3C（微信经典深绿）*/
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }
 body.dark-mode .wc-msg-bubble.mine { background: #1A6E3C; color: #fff; border-color: rgba(255,255,255,.08); }
-body.dark-mode .wc-msg-bubble.other { background: var(--bg-input-search); color: #e6e6e6; backdrop-filter: none; -webkit-backdrop-filter: none; border-color: rgba(255,255,255,.06); }
+body.dark-mode .wc-msg-bubble.other { background: var(--bg-input-search); color: #e6e6e6; border-color: rgba(255,255,255,.06); }
 body.dark-mode .wc-msg-bubble.mine::after { border-color: transparent transparent transparent #1A6E3C; }
 body.dark-mode .wc-msg-bubble.other::after { border-color: transparent var(--bg-input-search) transparent transparent; }
 body.dark-mode .wc-chat-item:hover,
@@ -1440,12 +1440,12 @@ body.dark-mode .wc-chat-item.active { background: var(--bg-active); }
 body.dark-mode .wc-search { background: var(--bg-input-search); border-color: var(--border-subtle); box-shadow: none; }
 body.dark-mode .wc-panel-topbar,
 body.dark-mode .wc-chat-header,
-body.dark-mode .wc-sub-header { background: var(--glass-panel-bg) !important; backdrop-filter: var(--glass-panel-blur) !important; -webkit-backdrop-filter: var(--glass-panel-blur) !important; border-color: var(--border-subtle) !important; }
-body.dark-mode .wc-input-area { background: var(--bg-input) !important; backdrop-filter: none; -webkit-backdrop-filter: none; border-top-color: var(--border-subtle) !important; }
+body.dark-mode .wc-sub-header { background: var(--glass-panel-bg) !important; border-color: var(--border-subtle) !important; }
+body.dark-mode .wc-input-area { background: var(--bg-input) !important; border-top-color: var(--border-subtle) !important; }
 body.dark-mode .wc-textarea,
 body.dark-mode .wc-input-box textarea { background: transparent !important; border-color: var(--border-subtle) !important; box-shadow: none !important; }
 body.dark-mode .wc-chat[class],
-body.dark-mode .wc-messages[class] { background: var(--bg-chat) !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
+body.dark-mode .wc-messages[class] { background: var(--bg-chat) !important; }
 body.dark-mode .fwd-tabs-wrap { background: var(--glass-panel-bg) !important; border-bottom-color: var(--border-subtle) !important; }
 body.dark-mode .fwd-tabs { background: var(--bg-hover) !important; }
 body.dark-mode .fwd-tab { color: var(--text-secondary); }
@@ -1478,23 +1478,23 @@ body.dark-mode .wc-settings-entry:hover {
    ============================================================ */
 .wc-glass {
   background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+
+
 }
 .wc-glass-dark {
   background: var(--glass-bg-strong);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+
+
 }
 .wc-glass-panel {
   background: var(--glass-panel-bg);
-  backdrop-filter: var(--glass-panel-blur);
-  -webkit-backdrop-filter: var(--glass-panel-blur);
+
+
 }
 .wc-glass-input {
   background: var(--glass-bg-input);
-  backdrop-filter: var(--glass-input-blur);
-  -webkit-backdrop-filter: var(--glass-input-blur);
+
+
 }
 
 /* ============================================================
@@ -1510,8 +1510,8 @@ body.dark-mode .wc-settings-entry:hover {
   .wc-app {
     flex-direction: column !important;
     background: rgba(242,242,247,.85);
-    backdrop-filter: blur(40px) saturate(1.3);
-    -webkit-backdrop-filter: blur(40px) saturate(1.3);
+
+
     padding-bottom: 50px;
     position: relative;
   }
@@ -1552,9 +1552,9 @@ body.dark-mode .wc-settings-entry:hover {
     position: fixed; bottom: 0; left: 0; right: 0;
     height: 50px;
     padding: 0 env(safe-area-inset-right, 8px) env(safe-area-inset-bottom, 4px) env(safe-area-inset-left, 8px);
-    background: rgba(255,255,255,.82);
-    backdrop-filter: blur(30px) saturate(1.5);
-    -webkit-backdrop-filter: blur(30px) saturate(1.5);
+    background: #fff;
+
+
     border-top: 1px solid rgba(0,0,0,.06);
     z-index: 100;
   }
@@ -1580,7 +1580,7 @@ body.dark-mode .wc-settings-entry:hover {
   }
   .wc-bottom-tab .wc-bottom-icon { width: 22px; height: 22px; color: rgba(0,0,0,.35); }
   .wc-bottom-tab.active .wc-bottom-icon { color: var(--green); }
-  .wc-bottom-badge { top: 2px; right: 50%; margin-right: -20px; border-color: rgba(255,255,255,.8); }
+  .wc-bottom-badge { top: 2px; right: 50%; margin-right: -20px; border-color: #fff; }
   .wc-tip { display: none !important; }
 
   /* 面板 → 全屏 */
@@ -1592,9 +1592,9 @@ body.dark-mode .wc-settings-entry:hover {
 
   /* 面板头部 — 紧凑毛玻璃 */
   .wc-panel-topbar {
-    background: rgba(255,255,255,.65) !important;
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    background: #fff !important;
+
+
     height: 44px; padding: 0 10px;
     border-bottom: 1px solid rgba(0,0,0,.06);
   }
@@ -1604,9 +1604,9 @@ body.dark-mode .wc-settings-entry:hover {
 
   /* 聊天头部 — 紧凑毛玻璃 */
   .wc-chat-header {
-    background: rgba(255,255,255,.65) !important;
-    backdrop-filter: blur(24px) !important;
-    -webkit-backdrop-filter: blur(24px) !important;
+    background: #fff !important;
+
+
     height: 44px; padding: 0 8px 0 12px;
   }
   .wc-chat-header-name { font-size: 15px; }
@@ -1616,9 +1616,9 @@ body.dark-mode .wc-settings-entry:hover {
 
   /* 输入区域 — 紧凑毛玻璃 */
   .wc-input-area {
-    background: rgba(255,255,255,.8) !important;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: #fff !important;
+
+
   }
   .wc-input-toolbar { padding: 4px 8px 0; height: 32px; }
   .wc-input-box { padding: 4px 10px 2px; }
@@ -1634,8 +1634,8 @@ body.dark-mode .wc-settings-entry:hover {
   /* 搜索栏 */
   .wc-search {
     background: rgba(232,232,232,.7);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+
+
     height: 28px; border-radius: var(--radius-input);
   }
   .wc-search input { font-size: 13px; }
@@ -1653,18 +1653,18 @@ body.dark-mode .wc-settings-entry:hover {
 
   /* Profile — 毛玻璃卡片 */
   .wc-profile { background: rgba(242,242,247,.85); }
-  .wc-profile-card { background: rgba(255,255,255,.72); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: var(--radius-card); margin: 12px; border: none; }
-  .wc-menu-section { background: rgba(255,255,255,.72); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: var(--radius-card); margin: 0 12px 10px; border: none; overflow: hidden; }
+  .wc-profile-card { background: #fff; border-radius: var(--radius-card); margin: 12px; border: none; }
+  .wc-menu-section { background: #fff; border-radius: var(--radius-card); margin: 0 12px 10px; border: none; overflow: hidden; }
   .wc-menu-item { padding: 11px 14px; }
   .wc-settings { background: rgba(242,242,247,.85); padding-bottom: 50px; }
   .wc-sub-header { height: 44px; }
 
   /* Discover 毛玻璃 */
   .wc-discover { background: transparent; padding-bottom: 50px; }
-  .wc-discover-section { background: rgba(255,255,255,.72); backdrop-filter: blur(20px); border-radius: var(--radius-modal); margin: 0 12px 10px; border: none; overflow: hidden; }
+  .wc-discover-section { background: #fff; border-radius: var(--radius-modal); margin: 0 12px 10px; border: none; overflow: hidden; }
 
   /* 设置子页面毛玻璃 */
-  .wc-settings .wc-sub-header { background: rgba(255,255,255,.65) !important; backdrop-filter: blur(24px); }
+  .wc-settings .wc-sub-header { background: #fff !important; }
   .wc-settings > div:not(.wc-sub-header) { padding-left: 12px; padding-right: 12px; }
   .wc-settings > div > div { border-radius: var(--radius-modal) !important; overflow: hidden; }
 
@@ -1837,9 +1837,9 @@ body.dark-mode .wc-settings-entry:hover {
    Glass WeChat Theme Overrides
    ============================================================ */
 :root {
-  --glass-bg: rgba(255,255,255,.70);
-  --glass-bg-strong: rgba(255,255,255,.84);
-  --glass-border: rgba(255,255,255,.72);
+  --glass-bg: #fff;
+  --glass-bg-strong: #fff;
+  --glass-border: #fff;
   --glass-line: rgba(210,214,220,.62);
   --glass-shadow: 0 18px 42px rgba(15,23,42,.12);
   --glass-shadow-soft: 0 8px 22px rgba(15,23,42,.08);
@@ -1948,8 +1948,8 @@ body {
   display: none; /* 微信 PC 导航为纯图标，无文字标签 */
 }
 .wc-sidebar-btn:hover { background: rgba(255,255,255,.08); }
-.wc-sidebar-btn:hover .icon svg { fill: rgba(255,255,255,.80); }
-.wc-sidebar-btn:hover .wc-sidebar-label { color: rgba(255,255,255,.80); }
+.wc-sidebar-btn:hover .icon svg { fill: #fff; }
+.wc-sidebar-btn:hover .wc-sidebar-label { color: #fff; }
 .wc-sidebar-btn:active { transform: scale(.95); }
 /* 企业微信激活态：左侧绿色指示线 + 图标高亮 */
 /* 微信 PC：激活态仅图标变绿，无背景框、无指示条 */
@@ -1991,17 +1991,6 @@ body {
   background: var(--bg-messages) !important;
 }
 
-.wc-search,
-.wc-search input,
-.wc-chat-search,
-.wc-input-area,
-.wc-input-box,
-.wc-more-panel,
-.wc-emoji-picker {
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-}
-
 .wc-search {
   background: var(--bg-search) !important;
   border: 1px solid transparent;
@@ -2037,14 +2026,6 @@ body {
 .wc-input-area {
   background: var(--bg-chat);
   border-top: 1px solid rgba(0,0,0,.08) !important;
-}
-.wc-search,
-.wc-search input,
-.wc-chat-search,
-.wc-more-panel,
-.wc-emoji-picker {
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
 }
 .wc-tool-btn,
 .wc-send-btn,
@@ -2084,8 +2065,8 @@ body {
 .wc-group-info,
 .wc-user-profile-card {
   background: var(--glass-bg) !important;
-  backdrop-filter: blur(26px) saturate(1.22);
-  -webkit-backdrop-filter: blur(26px) saturate(1.22);
+
+
   border: 1px solid var(--glass-border) !important;
   box-shadow: var(--glass-shadow);
 }
@@ -2095,8 +2076,8 @@ body {
   overflow: hidden;
   border-radius: var(--radius-modal);
   background: var(--glass-bg) !important;
-  backdrop-filter: blur(26px) saturate(1.22);
-  -webkit-backdrop-filter: blur(26px) saturate(1.22);
+
+
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow-soft);
 }
@@ -2224,7 +2205,7 @@ body {
   height: 40px;
   border-radius: var(--radius-input);
   border: 1px solid rgba(210,214,220,.78);
-  background: rgba(255,255,255,.78);
+  background: #fff;
   padding: 0 12px;
   font-size: 14px;
   color: var(--text-primary);
@@ -2262,7 +2243,7 @@ body {
 .wc-user-profile-top {
   position: relative;
   padding: 24px 20px 18px;
-  background: rgba(255,255,255,.92);
+  background: #fff;
   border-bottom: 1px solid rgba(230,232,236,.9);
 }
 .wc-user-profile-close {
@@ -2317,7 +2298,7 @@ body {
   padding: 10px 0;
 }
 .wc-user-profile-section {
-  background: rgba(255,255,255,.92);
+  background: #fff;
   margin-bottom: 10px;
   border-top: 1px solid rgba(230,232,236,.9);
   border-bottom: 1px solid rgba(230,232,236,.9);
@@ -2371,8 +2352,8 @@ body {
 }
 .wc-user-profile-primary { background: var(--green); color: #fff; }
 .wc-user-profile-primary:hover { background: #06AE56; }
-.wc-user-profile-secondary { background: rgba(255,255,255,.92); color: #191919; }
-.wc-user-profile-danger { background: rgba(255,255,255,.92); color: var(--color-badge); }
+.wc-user-profile-secondary { background: #fff; color: #191919; }
+.wc-user-profile-danger { background: #fff; color: var(--color-badge); }
 .wc-user-profile-remark {
   padding: 14px 20px 16px;
   border-top: 1px solid rgba(230,232,236,.9);
@@ -2384,18 +2365,17 @@ body {
     radial-gradient(circle at center, rgba(255,255,255,.54), transparent 52%);
 }
 
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .wc-panel,
-  .wc-panel-topbar,
-  .wc-chat-header,
-  .wc-input-area,
-  .wc-profile-card,
-  .wc-menu-section,
-  .wc-discover-section,
-  .wc-moment-card,
-  .wc-modal {
-    background: rgba(255,255,255,.92) !important;
-  }
+/* 面板/弹窗统一纯白不透明（原毛玻璃降级块，去玻璃后转为常规规则） */
+.wc-panel,
+.wc-panel-topbar,
+.wc-chat-header,
+.wc-input-area,
+.wc-profile-card,
+.wc-menu-section,
+.wc-discover-section,
+.wc-moment-card,
+.wc-modal {
+  background: #fff !important;
 }
 
 /* ============================================================
@@ -2467,8 +2447,8 @@ body {
 .wc-ctx-menu {
   border-radius: var(--radius-card);
   box-shadow: 0 8px 24px rgba(0,0,0,.16), 0 2px 6px rgba(0,0,0,.08), 0 0 0 .5px rgba(0,0,0,.06);
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+
+
   overflow: hidden;
   animation: scaleIn .12s var(--ease);
   transform-origin: top left;
@@ -2601,7 +2581,7 @@ body {
   width: 28px; height: 28px;
   background: rgba(0,0,0,.35); border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  color: rgba(255,255,255,.9); cursor: pointer;
+  color: #fff; cursor: pointer;
   transition: background var(--dur-fast);
 }
 .up-close-btn:hover { background: rgba(0,0,0,.55); }
@@ -3667,8 +3647,8 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 .wc-menu-section,
 .wc-discover-section {
   background: var(--bg-card, #fff) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+
+
   border-radius: 0 !important;
   border-left: none !important;
   border-right: none !important;
@@ -3686,8 +3666,8 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   border-top: 1px solid var(--divider) !important;
   border-bottom: 1px solid var(--divider) !important;
   box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+
+
 }
 .wc-section-pad { padding-left: 0 !important; padding-right: 0 !important; }
 
@@ -3708,8 +3688,8 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 /* 群信息侧栏：不透明纯色、去毛玻璃(docked 面板不浮投影) */
 .wc-group-info {
   background: var(--bg-card, #fff) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+
+
 }
 
 /* 浮层弹窗：不透明白底 + 干净阴影(保留圆角，弹窗本就该浮起) */
@@ -3717,8 +3697,8 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 .wc-forward-modal,
 .wc-user-profile-card {
   background: var(--bg-modal, #fff) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+
+
   border: 1px solid var(--border-default) !important;
   box-shadow: var(--shadow-lg) !important;
 }
