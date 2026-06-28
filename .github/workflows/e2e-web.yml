@@ -1,0 +1,79 @@
+name: E2E Web Tests
+
+# push 到 main 且改动 web/backend/e2e 时,自动跑 Playwright web 16 用例。
+# 起隔离 backend-v2(独立DB+测试端口)+静态serve web/dist,chromium headless 实跑。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'backend-v2/**'
+      - 'e2e/**'
+      - '.github/workflows/e2e-web.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'backend-v2/**'
+      - 'e2e/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    # Redis 可选:backend-v2 在 Redis 不可达时降级 SQLite(tokenBlacklist.js),
+    # 但起一个更接近真实环境。
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend-v2 deps (起测试后端用)
+        working-directory: backend-v2
+        run: npm ci
+
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+
+      - name: Build web dist (供静态serve + electron)
+        working-directory: web
+        run: npm run build
+
+      - name: Install e2e deps
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E web (16 用例)
+        working-directory: e2e
+        env:
+          REDIS_URL: redis://127.0.0.1:6379
+        run: npm run test:web
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore

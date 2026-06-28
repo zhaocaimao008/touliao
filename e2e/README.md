@@ -1,7 +1,12 @@
 # v信 四端全功能自动化测试
 
+[![E2E Web Tests](https://github.com/zhaocaimao008/vxin-1.0/actions/workflows/e2e-web.yml/badge.svg)](https://github.com/zhaocaimao008/vxin-1.0/actions/workflows/e2e-web.yml)
+
 Web / Windows(Electron) / Android / iOS 四端端到端自动化测试。
 Web+Electron 用 **Playwright**,Android+iOS 用 **Appium**。四端共用一份**锚点字典**和**测试后端**。
+
+> **CI**: push 到 main(改 web/backend-v2/e2e)时,GitHub Actions 自动跑 Playwright **web 16 用例**
+> (起隔离后端+chromium headless 实跑),见 `.github/workflows/e2e-web.yml`。移动端需真机/模拟器,本地跑。
 
 ## 设计要点
 - **锚点统一**:`shared/anchors.js` 是唯一真相源。四端 `data-testid` / Compose `testTag` / iOS `accessibilityIdentifier` 值**完全相同** → 同一用例跨端一致。Python 侧用 `node shared/gen-anchors-py.js` 生成 `appium/anchors.py` 镜像。
@@ -81,58 +86,163 @@ npm run test:electron       # 本机 headless 需: xvfb-run -a npm run test:elec
 ```
 **注意**: desktop-electron 的 `main.js` 调用 `app.enableSandbox()`,在 **root 环境**下与 Electron 沙箱限制冲突会 FATAL → 测试自动跳过(见 `electron/launch.js: skipReason`)。**用非 root 用户运行**即可正常。Electron 与 Web 共用 web/dist + 锚点,业务逻辑已由 web 测试覆盖。
 
-## 运行 — Android (Appium)
-**前置**: Android SDK + 模拟器(或真机) + Appium。
-```bash
-pip install -r requirements.txt
-npm i -g appium
-appium driver install uiautomator2
-node shared/gen-anchors-py.js          # 生成 appium/anchors.py
+## 运行 — Android (Appium) — 完整指南
 
-# 1. 起模拟器,确认: adb devices
-# 2. 构建并装 APK: 
-#    cd ../android && ./gradlew assembleDebug
-#    adb install app/build/outputs/apk/debug/app-debug.apk
-# 3. App 内登录页"切换服务器"填 http://10.0.2.2:3099 (10.0.2.2=模拟器访问宿主localhost)
-# 4. 起 Appium server:
-appium &                               # 默认 :4723
-# 5. 跑测试(conftest 自动起测试后端+造号):
-cd appium
-pytest test_auth.py test_chat.py --platform=android -v \
+### 0. 环境准备(一次性)
+```bash
+# Java 17 + Android SDK(含 platform-tools / emulator / 一个 system image)
+#   推荐用 Android Studio 装,或命令行 sdkmanager:
+#   sdkmanager "platform-tools" "emulator" "platforms;android-34" \
+#              "system-images;android-34;google_apis;x86_64"
+# 环境变量(加到 ~/.bashrc):
+export ANDROID_HOME=$HOME/Android/Sdk
+export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
+
+# Node + Appium + Python
+npm i -g appium
+appium driver install uiautomator2          # UiAutomator2 driver
+cd e2e && pip install -r requirements.txt
+```
+
+### 1. 起模拟器(或接真机)
+```bash
+# 创建 AVD(一次性):
+avdmanager create avd -n vxin-test -k "system-images;android-34;google_apis;x86_64"
+# 启动:
+emulator -avd vxin-test -no-snapshot -no-audio &
+adb wait-for-device
+adb devices                                  # 确认有设备 online
+```
+真机:USB 调试打开 + `adb devices` 确认即可。
+
+### 2. 构建并安装 APK
+```bash
+cd ../android
+./gradlew assembleDebug                       # 产物: app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+APK 已含测试锚点(MainActivity 设 `testTagsAsResourceId=true`,使 Compose 元素可被 `AppiumBy.ID` 定位)。
+
+### 3. 让 App 连测试后端
+App 登录页 → "切换服务器" → 填 **`http://10.0.2.2:3099`**(模拟器里 `10.0.2.2`=宿主机 localhost;
+真机填宿主机局域网 IP 如 `http://192.168.x.x:3099`,并确保后端 PORT_V2=3099 监听 0.0.0.0)。
+> conftest 起的测试后端默认 127.0.0.1,真机访问需改 fixture 绑定 0.0.0.0(见"真机注意")。
+
+### 4. 起 Appium + 跑测试
+```bash
+appium &                                      # 默认 :4723
+cd ../e2e/appium
+node ../shared/gen-anchors-py.js              # 生成/更新 anchors.py
+
+# conftest 自动起隔离测试后端 + 造号 + 建会话
+pytest test_auth.py test_chat.py test_edit_recall.py test_call.py test_group.py test_account.py \
+  --platform=android -v \
   --app=../../android/app/build/outputs/apk/debug/app-debug.apk
 ```
-**关键**: Compose 元素能用 `AppiumBy.ID` 定位,依赖 `MainActivity` 已设 `testTagsAsResourceId=true`(已就位)。
 
-## 运行 — iOS (Appium,需 macOS)
-**前置**: macOS + Xcode + 模拟器 + Appium。
+### 真机注意
+- 后端绑定:`e2e/shared/backend/fixture.js` 起的后端走 backend-v2 默认 `127.0.0.1`。真机需后端监听
+  `0.0.0.0` — 临时改 `backend-v2/src/server.js` 的 `server.listen(config.port, '0.0.0.0', ...)`,
+  或用反向代理 `adb reverse tcp:3099 tcp:3099`(真机访问 `http://127.0.0.1:3099`,免改后端)。
+  **推荐 `adb reverse`**:`adb reverse tcp:3099 tcp:3099` 后真机也填 `http://127.0.0.1:3099`。
+- 权限:capabilities 已设 `autoGrantPermissions=true`(麦克风/相机/存储自动授权)。
+
+---
+
+## 运行 — iOS (Appium,需 macOS) — 完整指南
+
+### 0. 环境准备(一次性,仅 macOS)
 ```bash
-pip install -r requirements.txt
+# Xcode(App Store) + 命令行工具
+xcode-select --install
+# XcodeGen(生成工程) + Appium XCUITest
+brew install xcodegen
+npm i -g appium
 appium driver install xcuitest
-node shared/gen-anchors-py.js
-
-# 1. 生成并构建 .app:
-#    cd ../ios && xcodegen generate
-#    xcodebuild -project Vxin.xcodeproj -scheme Vxin -sdk iphonesimulator \
-#               -configuration Debug -derivedDataPath build
-#    → build/Build/Products/Debug-iphonesimulator/Vxin.app
-# 2. 模拟器: xcrun simctl list
-# 3. App 登录页"切换服务器"填 http://127.0.0.1:3099
-appium &
-cd appium
-pytest test_auth.py test_chat.py --platform=ios -v \
-  --app=../../ios/build/Build/Products/Debug-iphonesimulator/Vxin.app
+cd e2e && pip install -r requirements.txt
 ```
 
+### 1. 生成并构建 .app
+```bash
+cd ../ios
+xcodegen generate                             # 由 project.yml 生成 Vxin.xcodeproj(锚点已在源码)
+xcodebuild -project Vxin.xcodeproj -scheme Vxin -sdk iphonesimulator \
+           -configuration Debug -derivedDataPath build
+#   产物: build/Build/Products/Debug-iphonesimulator/Vxin.app
+```
+
+### 2. 起模拟器
+```bash
+xcrun simctl list devices                     # 看可用模拟器及 UDID
+xcrun simctl boot "iPhone 15"                 # 启动(或在 Simulator.app 里开)
+open -a Simulator
+```
+
+### 3. 连测试后端 + 跑测试
+App 登录页 → "切换服务器" → 填 **`http://127.0.0.1:3099`**(iOS 模拟器与宿主共享网络栈,直接 localhost)。
+```bash
+appium &
+cd ../e2e/appium
+node ../shared/gen-anchors-py.js
+pytest test_auth.py test_chat.py test_edit_recall.py test_call.py test_group.py test_account.py \
+  --platform=ios -v \
+  --app=../../ios/build/Build/Products/Debug-iphonesimulator/Vxin.app
+# 可指定具体模拟器: IOS_DEVICE="iPhone 15" IOS_VERSION="17.5" pytest ... --platform=ios
+```
+capabilities 已设 `autoAcceptAlerts=true`(权限弹窗自动允许)。元素用 `AppiumBy.ACCESSIBILITY_ID` 定位。
+
+---
+
 ## 设备/后端地址速查
-| 端 | 后端地址 | 定位方式 |
-|----|----------|----------|
-| Web | localStorage.vxin_server_url=测试后端(fixture注入) | data-testid |
-| Electron | 同 web(渲染层注入) | data-testid |
-| Android 模拟器 | http://10.0.2.2:3099 | AppiumBy.ID(testTagsAsResourceId) |
-| iOS 模拟器 | http://127.0.0.1:3099 | AppiumBy.ACCESSIBILITY_ID |
+| 端 | 后端地址 | 定位方式 | 运行环境 |
+|----|----------|----------|----------|
+| Web | localStorage.vxin_server_url=测试后端(fixture 注入) | data-testid | 任意(含 CI) |
+| Electron | 同 web(渲染层注入) | data-testid | 非 root 桌面 |
+| Android 模拟器 | `http://10.0.2.2:3099` | AppiumBy.ID(testTagsAsResourceId) | 有 SDK+模拟器 |
+| Android 真机 | `adb reverse` 后 `http://127.0.0.1:3099` | 同上 | 有真机 |
+| iOS 模拟器 | `http://127.0.0.1:3099` | AppiumBy.ACCESSIBILITY_ID | macOS+Xcode |
+
+## 故障排查
+- **Android `AppiumBy.ID` 找不到元素**: 确认 MainActivity 的 `testTagsAsResourceId=true` 已生效(本仓库已设),且 APK 是含锚点的最新构建。
+- **App 连不上后端**: 模拟器用 `10.0.2.2`(android)/`127.0.0.1`(ios);真机用 `adb reverse` 或宿主局域网 IP。
+- **造号失败/限流**: 测试后端已 `DISABLE_RATE_LIMIT=1`;若手动起后端记得带该环境变量。
+- **iOS 编译失败**: 先 `xcodegen generate` 再 `xcodebuild`;ForgotPasswordView 等新文件由 `sources: Vxin` 自动纳入。
 
 ## 扩展用例
 1. 在 `shared/anchors.js` 加锚点(若需新元素),四端 UI 加同名锚点,`gen-anchors-py.js` 重生成。
 2. Playwright: 在 `playwright/pages/` 加 POM 方法,`playwright/web/*.spec.js` 加用例。
 3. Appium: `appium/pages.py` 加方法,`appium/test_*.py` 加用例。
 4. 同一用例四端共享步骤,只是 driver 实现不同。
+
+---
+
+## 最终交付清单
+
+### ✅ 已交付且 web 实跑通过(16 用例)
+| 模块 | 文件 |
+|------|------|
+| 锚点真相源 | `shared/anchors.js` + `appium/anchors.py`(生成器 `gen-anchors-py.js`) |
+| 隔离后端 | `shared/backend/fixture.js`(起停)+`seed.js`(造号/建好友会话) |
+| 环境常量 | `shared/env.js` |
+| Playwright 配置 | `playwright.config.js` + `global-setup/teardown.js` + `fixtures.js` |
+| Web POM | `playwright/pages/LoginPage.js` + `ChatPage.js` |
+| **Web spec(8 文件 16 用例)** | auth / chat / edit-recall / lightbox / read / call / group / account-switch / network |
+| Electron driver | `playwright/electron/launch.js`(root 跳过)+ `smoke.spec.js` |
+| Appium 框架 | `appium/conftest.py` + `pages.py` |
+| **Appium spec(6 文件骨架)** | test_auth / test_chat / test_edit_recall / test_call / test_group / test_account |
+| CI | `.github/workflows/e2e-web.yml`(push 自动跑 web 16 用例) |
+| 文档 | 本 README(矩阵 + 四端运行指南 + 设备准备 + 故障排查) |
+
+### 四端测试锚点(已埋入产品代码,纯增属性不改逻辑)
+- **Web**(=Electron): Login/Register/Home/ChatList/ChatWindow/MessageItem/ImagePreview/CallModal/GroupInfo/toast `data-testid`
+- **Android**: feature/auth, feature/chat, AppNavigation `Modifier.testTag` + MainActivity `testTagsAsResourceId=true`
+- **iOS**: LoginView/RegisterView/MainTabView/ConversationListView/ChatView `.accessibilityIdentifier`
+
+### 后端测试支持开关(生产默认不开)
+`DISABLE_RATE_LIMIT` / `DISABLE_CSRF` / `CORS_ORIGINS` — 仅 e2e fixture 设置,使隔离后端可被自动化驱动。
+
+### 一句话上手
+```bash
+cd e2e && npm install && npm run pw:install && npm run build:web && npm run test:web   # web 16 用例
+```
+移动端见上方 Android/iOS 完整指南。CI 在 push 到 main 时自动跑 web 用例。
