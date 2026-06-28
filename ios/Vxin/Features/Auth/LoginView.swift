@@ -21,16 +21,19 @@ struct LoginView: View {
                 .keyboardType(.phonePad)
                 .textContentType(.telephoneNumber)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("login-phone-input")
 
             SecureField("密码", text: $vm.password)
                 .textContentType(.password)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("login-password-input")
 
             if let error = vm.error {
                 Text(error)
                     .font(.footnote)
                     .foregroundColor(.vxinError)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("auth-error-text")
             }
 
             Button(action: vm.login) {
@@ -45,6 +48,7 @@ struct LoginView: View {
             .cornerRadius(8)
             .disabled(!vm.canLogin)
             .padding(.top, 8)
+            .accessibilityIdentifier("login-submit-btn")
 
             HStack {
                 NavigationLink("注册账号") { RegisterView() }

@@ -60,6 +60,7 @@ struct ConversationListView: View {
                 NavigationLink(value: conv) {
                     ConversationRow(conversation: conv)
                 }
+                .accessibilityIdentifier("conv-item-\(conv.id)")
                 .listRowBackground(conv.pinned == 1 ? Color.gray.opacity(0.08) : Color.clear)
                 .contextMenu {
                     Button(conv.pinned == 1 ? "取消置顶" : "置顶") { vm.togglePin(conv) }
@@ -97,6 +98,7 @@ private struct ConversationRow: View {
                 Text(conversation.name.isEmpty ? "未命名会话" : conversation.name)
                     .font(.body)
                     .lineLimit(1)
+                    .accessibilityIdentifier("conv-item-name")
                 Text(previewText)
                     .font(.subheadline)
                     .foregroundColor(.vxinTextSecondary)

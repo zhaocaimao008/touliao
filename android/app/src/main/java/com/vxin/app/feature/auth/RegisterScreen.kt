@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -60,7 +61,7 @@ fun RegisterScreen(
             onValueChange = viewModel::onUsernameChange,
             label = { Text("昵称") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("register-username-input"),
         )
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
@@ -69,7 +70,7 @@ fun RegisterScreen(
             label = { Text("手机号") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("register-phone-input"),
         )
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
@@ -78,7 +79,7 @@ fun RegisterScreen(
             label = { Text("邀请码（6位数字）") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("register-invite-input"),
         )
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
@@ -88,7 +89,7 @@ fun RegisterScreen(
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("register-password-input"),
         )
 
         if (state.error != null) {
@@ -103,7 +104,8 @@ fun RegisterScreen(
             colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .height(48.dp)
+                .testTag("register-submit-btn"),
         ) {
             if (state.loading) {
                 CircularProgressIndicator(

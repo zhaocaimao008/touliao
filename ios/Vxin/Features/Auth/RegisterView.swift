@@ -16,14 +16,18 @@ struct RegisterView: View {
 
             TextField("昵称", text: $vm.username)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("register-username-input")
             TextField("手机号", text: $vm.phone)
                 .keyboardType(.phonePad)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("register-phone-input")
             SecureField("密码（≥8位，含字母和数字）", text: $vm.password)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("register-password-input")
             TextField("邀请码（6位数字）", text: $vm.inviteCode)
                 .keyboardType(.numberPad)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("register-invite-input")
 
             if let error = vm.error {
                 Text(error)
@@ -44,6 +48,7 @@ struct RegisterView: View {
             .cornerRadius(8)
             .disabled(!vm.canRegister)
             .padding(.top, 8)
+            .accessibilityIdentifier("register-submit-btn")
 
             Spacer()
         }

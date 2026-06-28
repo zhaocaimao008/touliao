@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -161,6 +162,7 @@ private fun ConversationRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("conv-item-${conv.id}")
             .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
             .background(if (conv.pinned == 1) Color(0x11000000) else Color.Transparent)
             .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -174,6 +176,7 @@ private fun ConversationRow(
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("conv-item-name"),
             )
             Spacer(Modifier.size(2.dp))
             Text(

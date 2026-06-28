@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -140,14 +141,14 @@ private fun AuthFlow() {
     }
 }
 
-private data class TabItem(val route: String, val label: String, val icon: ImageVector)
+private data class TabItem(val route: String, val label: String, val icon: ImageVector, val testKey: String)
 
 private val TAB_ITEMS = listOf(
-    TabItem(Routes.CONVERSATIONS, "消息", Icons.Filled.Email),
-    TabItem(Routes.CONTACTS, "通讯录", Icons.Filled.Person),
-    TabItem(Routes.MOMENTS, "朋友圈", Icons.Filled.DateRange),
-    TabItem(Routes.FAVORITES, "收藏", Icons.Filled.Star),
-    TabItem(Routes.PROFILE, "我", Icons.Filled.AccountCircle),
+    TabItem(Routes.CONVERSATIONS, "消息", Icons.Filled.Email, "chats"),
+    TabItem(Routes.CONTACTS, "通讯录", Icons.Filled.Person, "contacts"),
+    TabItem(Routes.MOMENTS, "朋友圈", Icons.Filled.DateRange, "moments"),
+    TabItem(Routes.FAVORITES, "收藏", Icons.Filled.Star, "favorites"),
+    TabItem(Routes.PROFILE, "我", Icons.Filled.AccountCircle, "me"),
 )
 private val TAB_ROUTES = TAB_ITEMS.map { it.route }.toSet()
 
@@ -173,6 +174,7 @@ private fun MainFlow(features: Features) {
                 NavigationBar {
                     visibleTabs.forEach { tab ->
                         NavigationBarItem(
+                            modifier = Modifier.testTag("nav-tab-${tab.testKey}"),
                             selected = currentRoute == tab.route,
                             onClick = {
                                 navController.navigate(tab.route) {

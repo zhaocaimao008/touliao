@@ -64,6 +64,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -153,7 +154,7 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(state.title.ifBlank { "聊天" })
+                        Text(state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"))
                         if (state.peerTyping) {
                             Text("对方正在输入…", fontSize = 11.sp, color = VxinGreen)
                         }
@@ -165,8 +166,8 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { launchCall(false) }) { Text("📞", style = MaterialTheme.typography.titleMedium) }
-                    IconButton(onClick = { launchCall(true) }) { Text("📹", style = MaterialTheme.typography.titleMedium) }
+                    IconButton(onClick = { launchCall(false) }, modifier = Modifier.testTag("chat-call-audio-btn")) { Text("📞", style = MaterialTheme.typography.titleMedium) }
+                    IconButton(onClick = { launchCall(true) }, modifier = Modifier.testTag("chat-call-video-btn")) { Text("📹", style = MaterialTheme.typography.titleMedium) }
                     if (viewModel.isGroup) {
                         IconButton(onClick = { onOpenGroupInfo(viewModel.conversationId) }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "群聊信息")
@@ -527,7 +528,7 @@ private fun MessageBubble(
     val highlightBg = if (highlighted) Color(0x3307C160) else Color.Transparent
 
     Row(
-        modifier = Modifier.fillMaxWidth().background(highlightBg).padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().testTag("msg-bubble-${msg.id}").background(highlightBg).padding(vertical = 2.dp),
         horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
     ) {
         if (!isMine) {
@@ -803,19 +804,19 @@ private fun MessageInputBar(
         ) {
             IconButton(onClick = onTogglePanel) { Text("😀", style = MaterialTheme.typography.titleMedium) }
             if (showMention) IconButton(onClick = onMention) { Text("@", style = MaterialTheme.typography.titleMedium) }
-            IconButton(onClick = onPickImage) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
+            IconButton(onClick = onPickImage, modifier = Modifier.testTag("chat-attach-image")) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onPickFile) { Text("📎", style = MaterialTheme.typography.titleMedium) }
             IconButton(onClick = onRedPacket) { Text("🧧", style = MaterialTheme.typography.titleMedium) }
-            IconButton(onClick = onMicClick) { Text(if (recording) "⏹" else "🎤", style = MaterialTheme.typography.titleMedium) }
+            IconButton(onClick = onMicClick, modifier = Modifier.testTag("chat-voice-btn")) { Text(if (recording) "⏹" else "🎤", style = MaterialTheme.typography.titleMedium) }
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).testTag("chat-msg-input"),
                 placeholder = { Text("输入消息…") },
                 maxLines = 4,
             )
             Spacer(Modifier.size(4.dp))
-            IconButton(onClick = onSend, enabled = value.isNotBlank() && !sending) {
+            IconButton(onClick = onSend, enabled = value.isNotBlank() && !sending, modifier = Modifier.testTag("chat-send-btn")) {
                 if (sending) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {

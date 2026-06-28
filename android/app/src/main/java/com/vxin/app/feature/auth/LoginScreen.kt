@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -64,7 +65,7 @@ fun LoginScreen(
             label = { Text("手机号") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("login-phone-input"),
         )
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
@@ -74,7 +75,7 @@ fun LoginScreen(
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("login-password-input"),
         )
 
         if (state.error != null) {
@@ -83,7 +84,7 @@ fun LoginScreen(
                 text = state.error!!,
                 color = MaterialTheme.colorScheme.error,
                 fontSize = 13.sp,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("auth-error-text"),
             )
         }
 
@@ -94,7 +95,8 @@ fun LoginScreen(
             colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .height(48.dp)
+                .testTag("login-submit-btn"),
         ) {
             if (state.loading) {
                 CircularProgressIndicator(

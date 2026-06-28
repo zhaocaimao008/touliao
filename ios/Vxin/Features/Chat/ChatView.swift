@@ -49,7 +49,9 @@ struct ChatView: View {
             if isGroup {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button { vm.startGroupCall(video: false) } label: { Image(systemName: "phone.fill") }
+                        .accessibilityIdentifier("chat-call-audio-btn")
                     Button { vm.startGroupCall(video: true) } label: { Image(systemName: "video.fill") }
+                        .accessibilityIdentifier("chat-call-video-btn")
                     Button(action: onOpenGroupInfo) { Image(systemName: "ellipsis") }
                 }
             } else {
@@ -57,9 +59,11 @@ struct ChatView: View {
                     Button { _ = vm.startCall(video: false, callerName: session.currentUser?.username ?? "") } label: {
                         Image(systemName: "phone.fill")
                     }
+                    .accessibilityIdentifier("chat-call-audio-btn")
                     Button { _ = vm.startCall(video: true, callerName: session.currentUser?.username ?? "") } label: {
                         Image(systemName: "video.fill")
                     }
+                    .accessibilityIdentifier("chat-call-video-btn")
                 }
             }
             // 聊天背景设置
@@ -210,6 +214,7 @@ struct ChatView: View {
                         } else {
                             MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm)
                                 .id(msg.id)
+                                .accessibilityIdentifier("msg-bubble-\(msg.id)")
                         }
                     }
                     ForEach(vm.pending) { p in
@@ -260,19 +265,23 @@ struct ChatView: View {
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Text("🖼").font(.title3)
                 }
+                .accessibilityIdentifier("chat-attach-image")
                 Button { showFileImporter = true } label: { Text("📎").font(.title3) }
                 Button { showRedPacketSend = true } label: { Text("🧧").font(.title3) }
                 Button { onMicTap() } label: { Text(vm.recording ? "⏹" : "🎤").font(.title3) }
+                    .accessibilityIdentifier("chat-voice-btn")
 
                 TextField("输入消息…", text: $vm.input, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...4)
+                    .accessibilityIdentifier("chat-msg-input")
 
                 Button { vm.sendText() } label: {
                     if vm.sending { ProgressView() }
                     else { Image(systemName: "paperplane.fill").foregroundColor(vm.input.isEmpty ? .vxinTextSecondary : .vxinGreen) }
                 }
                 .disabled(vm.input.isEmpty || vm.sending)
+                .accessibilityIdentifier("chat-send-btn")
             }
             .padding(8)
 

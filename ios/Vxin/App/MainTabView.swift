@@ -13,22 +13,27 @@ struct MainTabView: View {
         TabView {
             ConversationListView(myId: myId)
                 .tabItem { Label("消息", systemImage: "message") }
+                .accessibilityIdentifier("nav-tab-chats")
 
             ContactsTab(myId: myId)
                 .tabItem { Label("通讯录", systemImage: "person.2") }
+                .accessibilityIdentifier("nav-tab-contacts")
 
             if showMoments {
                 NavigationStack { MomentsView().navigationTitle("朋友圈") }
                     .tabItem { Label("朋友圈", systemImage: "photo.on.rectangle") }
+                    .accessibilityIdentifier("nav-tab-moments")
             }
 
             if showFavorites {
                 NavigationStack { FavoritesView() }
                     .tabItem { Label("收藏", systemImage: "star") }
+                    .accessibilityIdentifier("nav-tab-favorites")
             }
 
             NavigationStack { ProfileView() }
                 .tabItem { Label("我", systemImage: "person.crop.circle") }
+                .accessibilityIdentifier("nav-tab-me")
         }
         .tint(.vxinGreen)
         .task { await loadFeatures() }
