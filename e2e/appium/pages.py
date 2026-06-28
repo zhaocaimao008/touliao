@@ -59,3 +59,42 @@ class App:
     # ── 导航 ──
     def switch_tab(self, key):
         self.el(A.NAV_TAB(key)).click()
+
+    # ── 编辑/撤回(移动端长按消息弹菜单) ──
+    def long_press_last_bubble(self):
+        """长按最后一条气泡弹出操作菜单(Android/iOS 通用手势)"""
+        from selenium.webdriver.common.actions.action_builder import ActionBuilder
+        from selenium.webdriver.common.actions.pointer_input import PointerInput
+        bubbles = self.d.find_elements(self._by(), A.MSG_BUBBLE("") )  # 注:实际用 startswith,见 README
+        # 简化:对最后一个可见气泡长按。具体定位策略按工程实际调整。
+        el = bubbles[-1] if bubbles else None
+        if not el:
+            return
+        actions = ActionBuilder(self.d, mouse=PointerInput("touch", "finger"))
+        rect = el.rect
+        x, y = rect["x"] + rect["width"] // 2, rect["y"] + rect["height"] // 2
+        actions.pointer_action.move_to_location(x, y).pointer_down().pause(1.0).pointer_up()
+        actions.perform()
+
+    def edit_last(self, new_text):
+        self.long_press_last_bubble()
+        self.wait(A.CTX_EDIT).click()
+        inp = self.el(A.CHAT_MSG_INPUT)
+        inp.clear()
+        inp.send_keys(new_text)
+        self.el(A.CHAT_SEND_BTN).click()
+
+    def recall_last(self):
+        self.long_press_last_bubble()
+        self.wait(A.CTX_RECALL).click()
+        if self.exists(A.CONFIRM_OK):
+            self.el(A.CONFIRM_OK).click()
+
+    # ── 通话(仅 UI/signaling) ──
+    def start_call(self, kind="audio"):
+        tid = A.CHAT_CALL_VIDEO_BTN if kind == "video" else A.CHAT_CALL_AUDIO_BTN
+        self.el(tid).click()
+        self.wait(A.CALL_MODAL)
+
+    def hangup(self):
+        self.el(A.CALL_HANGUP_BTN).click()

@@ -29,8 +29,8 @@ function ToastRoot() {
           <div className="wc-confirm-box">
             <div className="wc-confirm-msg">{confirmState.msg}</div>
             <div className="wc-confirm-btns">
-              <button className="wc-confirm-cancel" onClick={() => { confirmState.resolve(false); setConfirm(null); }}>取消</button>
-              <button className="wc-confirm-ok" onClick={() => { confirmState.resolve(true); setConfirm(null); }}>确认</button>
+              <button className="wc-confirm-cancel" data-testid="confirm-cancel" onClick={() => { confirmState.resolve(false); setConfirm(null); }}>取消</button>
+              <button className="wc-confirm-ok" data-testid="confirm-ok" onClick={() => { confirmState.resolve(true); setConfirm(null); }}>确认</button>
             </div>
           </div>
         </div>

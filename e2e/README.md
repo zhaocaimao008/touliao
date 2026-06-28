@@ -15,26 +15,33 @@ Web+Electron 用 **Playwright**,Android+iOS 用 **Appium**。四端共用一份*
 ## Test Case 矩阵
 端: W=Web E=Electron A=Android I=iOS。等级: [A]全自动 / [M]需注入或mock / [S]跳过仅手测。
 
-| ID | 用例 | 端 | 等级 | 已实现 |
-|----|------|----|------|--------|
-| AUTH-01 | 登录成功→主界面 | W E A I | [A] | ✅ web 实跑,A/I 骨架 |
-| AUTH-02 | 错误密码→错误提示 | W E A I | [A] | ✅ web 实跑,A/I 骨架 |
-| AUTH-03 | 注册成功 | W E A I | [A] | 骨架 |
-| AUTH-06 | 登出 | W E A I | [A] | 骨架 |
-| CHAT-02 | 发送文本→气泡 | W E A I | [A] | ✅ web 实跑,A/I 骨架 |
-| CHAT-04 | 已读回执 | W E A I | [A] | 骨架 |
-| CHAT-05 | 发图片 | W E | [A] | ✅ web 实跑(setInputFiles) |
-| CHAT-05 | 发图片 | A I | [M] | 骨架(需 push_file 注入沙盒) |
-| CHAT-07 | 发语音 | W E A I | [M] | 不模拟麦克风,注入voice消息验渲染 |
-| CHAT-08 | 编辑消息 | W E A I | [A] | 待补(锚点已就位) |
-| CHAT-09 | 撤回重编 | W E A I | [A] | 待补 |
-| LB-01/02 | 灯箱开关/画廊翻页 | W E A I | [A] | 锚点就位,web 待补 spec |
-| GRP-01..05 | 群建/发/已读/改名/踢退 | W E A I | [A] | 锚点就位,待补 |
-| ACC-01 | 账户切换 | W E A I | [A] | 锚点就位(已修添加账户登出 bug) |
-| CALL-01/02 | 私聊语音/视频(UI态) | W E A I | [M] | 仅断言呼叫UI,不验媒体流 |
-| CALL-03 | 群通话 | W E A I | [S] | 跳过 |
-| NET-01/02 | 断网超时/重连 | W E | [M] | Playwright setOffline;移动端 driver toggle |
-| WIN-01/02 | 窗口控制/服务器切换 | E | [A] | 骨架 |
+状态: ✅web实跑通过 / 🟡骨架(A/I待设备跑) / ⬜待补
+
+| ID | 用例 | 端 | 等级 | spec 文件 | 状态 |
+|----|------|----|------|----------|------|
+| AUTH-01 | 登录成功→主界面 | W E A I | [A] | web/auth, appium/test_auth | ✅web 🟡A/I |
+| AUTH-02 | 错误密码→错误提示 | W E A I | [A] | web/auth, appium/test_auth | ✅web 🟡A/I |
+| AUTH-06 | 登出→回登录页 | W E A I | [A] | web/account | ✅web 🟡A/I |
+| CHAT-02 | 发送文本→气泡 | W E A I | [A] | web/chat, appium/test_chat | ✅web 🟡A/I |
+| CHAT-04 | 已读回执(双账号) | W E A I | [A] | web/read | ✅web 🟡A/I |
+| CHAT-05 | 发图片→图片气泡 | W E | [A] | web/chat | ✅web(setInputFiles) |
+| CHAT-05 | 发图片 | A I | [M] | — | ⬜需 push_file 注入沙盒 |
+| CHAT-07 | 发语音 | W E A I | [M] | — | ⬜注入voice消息验渲染 |
+| CHAT-08 | 编辑消息→已编辑+新文本 | W E A I | [A] | web/edit-recall, appium/test_edit_recall | ✅web 🟡A/I |
+| CHAT-09 | 撤回消息→撤回提示 | W E A I | [A] | web/edit-recall, appium/test_edit_recall | ✅web 🟡A/I |
+| LB-01 | 灯箱开关(Esc) | W E A I | [A] | web/lightbox | ✅web 🟡A/I |
+| LB-02 | 画廊翻页(→切图) | W E A I | [A] | web/lightbox | ✅web(验证画廊bug已修) 🟡A/I |
+| CALL-01 | 语音通话→通话窗→挂断 | W E A I | [M] | web/call, appium/test_call | ✅web(fake media) 🟡A/I |
+| CALL-02 | 视频通话→通话窗 | W E A I | [M] | web/call, appium/test_call | ✅web 🟡A/I |
+| CALL-03 | 群通话 | W E A I | [S] | — | 跳过(媒体,手测) |
+| GRP-01..05 | 群建/发/已读/改名/踢退 | W E A I | [A] | — | ⬜锚点部分就位,待补 spec |
+| ACC-01 | 账户切换 | W E A I | [A] | — | ⬜锚点就位(已修登出bug),待补 |
+| NET-01/02 | 断网超时/重连 | W E | [M] | — | ⬜Playwright setOffline,待补 |
+| WIN-01/02 | 窗口控制/服务器切换 | E | [A] | — | ⬜骨架,root环境跳过 |
+
+**已实跑通过(web): 12 用例** — AUTH-01/02/06, CHAT-02/04/05/08/09, LB-01/02, CALL-01/02。
+Electron 共用 web POM+spec(root 环境跳过,非 root 可跑)。Android/iOS 同名锚点已就位,
+test_auth/test_chat/test_edit_recall/test_call 骨架可在设备/模拟器上跑。
 
 **自动化策略**:文件上传 W/E 用 `setInputFiles` 绕系统框=全自动;A/I 需 `driver.push_file` 注入沙盒。语音不模拟麦克风,改"后端注入voice消息→验渲染"。通话只测 signaling/UI,不验媒体流。
 

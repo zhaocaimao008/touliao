@@ -47,6 +47,14 @@ const A = {
   msgReplyPreview:   'msg-reply-preview',
   msgReadStatus:     'msg-read-status',
   msgImage:          'msg-image',
+  // 右键/长按消息菜单项
+  ctxEdit:           'ctx-edit',
+  ctxRecall:         'ctx-recall',
+  ctxReply:          'ctx-reply',
+  ctxForward:        'ctx-forward',
+  // 确认弹窗
+  confirmOk:         'confirm-ok',
+  confirmCancel:     'confirm-cancel',
 
   // ── 灯箱 ──
   lightbox:          'lightbox',

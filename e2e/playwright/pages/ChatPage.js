@@ -53,6 +53,54 @@ class ChatPage {
     await this.tid(A.msgImage).last().click();
     await this.tid(A.lightbox).waitFor({ state: 'visible' });
   }
+
+  /** 右键最后一条气泡弹出菜单 */
+  async openCtxMenuOnLast() {
+    await this.lastBubble().click({ button: 'right' });
+  }
+
+  /** 编辑最后一条自己发的消息 */
+  async editLast(newText) {
+    await this.openCtxMenuOnLast();
+    await this.tid(A.ctxEdit).click();
+    // 编辑态:输入框被填入原文,清空后输入新文本再发送
+    const input = this.tid(A.chatMsgInput);
+    await input.fill(newText);
+    await this.tid(A.chatSendBtn).click();
+  }
+
+  /** 撤回最后一条自己发的消息(有确认弹窗) */
+  async recallLast() {
+    await this.openCtxMenuOnLast();
+    await this.tid(A.ctxRecall).click();
+    // 撤回有"确认撤回这条消息？"弹窗,点确认
+    await this.tid(A.confirmOk).click();
+  }
+
+  /** 发起语音/视频通话,等通话窗出现 */
+  async startCall(type = 'audio') {
+    await this.tid(type === 'video' ? A.chatCallVideoBtn : A.chatCallAudioBtn).first().click();
+    await this.tid(A.callModal).waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  async hangup() {
+    await this.tid(A.callHangupBtn).click();
+  }
+
+  /** 灯箱:键盘翻页 / 关闭。返回当前大图 src */
+  async lightboxImageSrc() {
+    return this.tid(A.lightboxImage).first().getAttribute('src');
+  }
+  async lightboxNextByKey() { await this.page.keyboard.press('ArrowRight'); }
+  async lightboxCloseByKey() { await this.page.keyboard.press('Escape'); }
+
+  /** 已读状态文本(私聊"已读") */
+  async readStatusVisible() {
+    return this.tid(A.msgReadStatus).first().isVisible().catch(() => false);
+  }
+
+  /** 当前会话顶部未读红点数 / 列表项 */
+  convItem(convId) { return this.tid(A.convItem(convId)); }
 }
 
 module.exports = { ChatPage };

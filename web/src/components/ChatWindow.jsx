@@ -1605,8 +1605,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         <div className="wc-chat-header-right">
           {/* 顶栏对齐微信：去搜索/查看资料(资料点名字即可看)，仅保留通话与更多 */}
           {conversation.type === 'private' && <>
-            <button className="wc-chat-header-btn" title="语音通话" onClick={() => startCall('audio')}><IcoVoiceCall /></button>
-            <button className="wc-chat-header-btn" title="视频通话" onClick={() => startCall('video')}><IcoVideoCall /></button>
+            <button className="wc-chat-header-btn" data-testid="chat-call-audio-btn" title="语音通话" onClick={() => startCall('audio')}><IcoVoiceCall /></button>
+            <button className="wc-chat-header-btn" data-testid="chat-call-video-btn" title="视频通话" onClick={() => startCall('video')}><IcoVideoCall /></button>
           </>}
           {conversation.type === 'group' && <>
             <button className="wc-chat-header-btn" title="群语音通话" onClick={() => startGroupCall('audio')}><IcoVoiceCall /></button>
@@ -2117,19 +2117,19 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
               ))}
             </div>
             <div className="wc-ctx-divider" />
-            <div className="wc-ctx-item" onClick={() => ctxAction('reply')}>回复</div>
+            <div className="wc-ctx-item" data-testid="ctx-reply" onClick={() => ctxAction('reply')}>回复</div>
             {/* 编辑：仅限自己的文字消息，2分钟内 */}
             {ctxMenu.msg.sender_id === user.id &&
              ctxMenu.msg.type === 'text' &&
              !ctxMenu.msg.deleted &&
              (Math.floor(Date.now()/1000) - ctxMenu.msg.created_at) <= 120 && (
-              <div className="wc-ctx-item" onClick={() => ctxAction('edit')}>编辑</div>
+              <div className="wc-ctx-item" data-testid="ctx-edit" onClick={() => ctxAction('edit')}>编辑</div>
             )}
             {ctxMenu.msg.type === 'text' && (
               <div className="wc-ctx-item" onClick={() => ctxAction('copy')}>复制</div>
             )}
             {/* 转发：所有类型消息都可转发 */}
-            <div className="wc-ctx-item" onClick={() => ctxAction('forward')}>转发</div>
+            <div className="wc-ctx-item" data-testid="ctx-forward" onClick={() => ctxAction('forward')}>转发</div>
             {/* 收藏功能暂在前端隐藏（逻辑保留，改为 true 即可恢复入口） */}
             {false && (
               <div className="wc-ctx-item" onClick={() => ctxAction('collect')}>收藏</div>
@@ -2145,7 +2145,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             {(ctxMenu.msg.sender_id === user.id ||
               ((myGroupRole === 'owner' || myGroupRole === 'admin') && conversation.type === 'group')
             ) && (
-              <div className="wc-ctx-item danger" onClick={() => ctxAction('delete')}>
+              <div className="wc-ctx-item danger" data-testid="ctx-recall" onClick={() => ctxAction('delete')}>
                 {ctxMenu.msg.sender_id === user.id ? '撤回' : '删除'}
               </div>
             )}

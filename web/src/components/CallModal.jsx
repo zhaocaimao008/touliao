@@ -285,7 +285,7 @@ export default function CallModal({ socket, user, call, onClose }) {
   const inProgress = ['calling', 'connecting', 'connected'].includes(status);
 
   return (
-    <div style={{
+    <div data-testid="call-modal" style={{
       position: 'fixed', inset: 0, zIndex: 2000,
       background: isVideo ? '#000' : 'rgba(22,22,22,0.96)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -323,8 +323,8 @@ export default function CallModal({ socket, user, call, onClose }) {
       <div style={{ position: 'absolute', bottom: 48, zIndex: 3, display: 'flex', alignItems: 'center', gap: 32 }}>
         {/* 来电：拒绝 + 接听 */}
         {status === 'incoming' && <>
-          <CtrlBtn icon="📵"                        label="拒绝" bg="var(--color-badge)" size={64} onClick={reject} />
-          <CtrlBtn icon={isVideo ? '📹' : '📞'}    label="接听" bg="var(--green)" size={64} onClick={accept} />
+          <CtrlBtn icon="📵"                        label="拒绝" bg="var(--color-badge)" size={64} onClick={reject} testid="call-reject-btn" />
+          <CtrlBtn icon={isVideo ? '📹' : '📞'}    label="接听" bg="var(--green)" size={64} onClick={accept} testid="call-accept-btn" />
         </>}
 
         {/* 通话进行中 */}
@@ -343,18 +343,19 @@ export default function CallModal({ socket, user, call, onClose }) {
             bg="rgba(255,255,255,.18)"
             onClick={toggleMute}
           />
-          <CtrlBtn icon="📵" label="挂断" bg="var(--color-badge)" size={64} onClick={() => endCall(true)} />
+          <CtrlBtn icon="📵" label="挂断" bg="var(--color-badge)" size={64} onClick={() => endCall(true)} testid="call-hangup-btn" />
         </>}
       </div>
     </div>
   );
 }
 
-function CtrlBtn({ icon, label, bg, size = 52, onClick }) {
+function CtrlBtn({ icon, label, bg, size = 52, onClick, testid }) {
   return (
     <div
       role="button"
       aria-label={label}
+      data-testid={testid}
       tabIndex={0}
       onKeyDown={e => e.key === 'Enter' && onClick(e)}
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer' }}
