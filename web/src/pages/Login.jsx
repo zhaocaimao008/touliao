@@ -120,6 +120,7 @@ export default function Login() {
               </svg>
               <input
                 id="login-phone"
+                data-testid="login-phone-input"
                 className="auth-field-input"
                 type="tel"
                 placeholder="请输入手机号"
@@ -141,6 +142,7 @@ export default function Login() {
               </svg>
               <input
                 id="login-password"
+                data-testid="login-password-input"
                 className="auth-field-input"
                 type="password"
                 placeholder="请输入密码"
@@ -154,7 +156,7 @@ export default function Login() {
           </div>
 
           {error && (
-            <div className="auth-error" role="alert">
+            <div className="auth-error" role="alert" data-testid="auth-error-text">
               <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
                 <path d="M8 1a7 7 0 100 14A7 7 0 008 1zM7 5h2v4H7V5zm0 5h2v2H7v-2z"/>
               </svg>
@@ -166,7 +168,7 @@ export default function Login() {
             <Link to="/forgot-password" className="auth-link" style={{ fontSize: 13 }}>忘记密码？</Link>
           </div>
 
-          <button type="submit" className="auth-submit" disabled={loading || !phone || !password}>
+          <button type="submit" className="auth-submit" data-testid="login-submit-btn" disabled={loading || !phone || !password}>
             {loading ? (
               <span className="auth-spinner" />
             ) : (

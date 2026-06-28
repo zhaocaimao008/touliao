@@ -23,7 +23,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
 
   if (msg.deleted) {
     return (
-      <div className="wc-deleted-msg">
+      <div className="wc-deleted-msg" data-testid="msg-recalled">
         <span className="wc-deleted-msg-text">
           {msg.sender_id === userId ? '你撤回了一条消息' : `"${msg.senderName}"撤回了一条消息`}
         </span>
@@ -113,18 +113,19 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
               >❗</div>
             ) : isLastMine && convType === 'private' ? (
               showRead
-                ? <div className="wc-msg-read wc-msg-status-read">✓✓ 已读</div>
+                ? <div className="wc-msg-read wc-msg-status-read" data-testid="msg-read-status">✓✓ 已读</div>
                 : showDelivered
                   ? <div className="wc-msg-read wc-msg-status-delivered">✓✓ 已送达</div>
                   : <div className="wc-msg-read wc-msg-status-sent">✓ 已发送</div>
             ) : null
           )}
           <div
+            data-testid={`msg-bubble-${msg.id}`}
             className={`wc-msg-bubble ${isMine ? 'mine' : 'other'}`}
             onContextMenu={e => cbs.handleContextMenu(e, msg)}
           >
             {msg.replyTo && (
-              <div className="wc-msg-reply gi-cp" onClick={(e) => {
+              <div className="wc-msg-reply gi-cp" data-testid="msg-reply-preview" onClick={(e) => {
                 e.stopPropagation();
                 cbs.scrollToMsg(msg.replyTo.id);
               }}>
@@ -137,11 +138,12 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
             {msg.type === 'text' && (
               <span>
                 {msg.content}
-                {msg.edited ? <span className="wc-msg-edited" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>已编辑</span> : null}
+                {msg.edited ? <span className="wc-msg-edited" data-testid="msg-edited-flag" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>已编辑</span> : null}
               </span>
             )}
             {msg.type === 'image' && (
               <img loading="lazy"
+                data-testid="msg-image"
                 src={mediaUrl(msg.file_url)}
                 alt=""
                 className="wc-msg-img"

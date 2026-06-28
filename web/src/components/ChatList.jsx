@@ -19,6 +19,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
   return (
     <div style={style}>
       <div
+        data-testid={`conv-item-${conv.id}`}
         className={`wc-chat-item${conv.id === activeConvId ? ' active' : ''}${conv.pinned ? ' pinned' : ''}`}
         onClick={() => onSelectConv(conv)}
         onKeyDown={e => e.key === 'Enter' && onSelectConv(conv)}
@@ -36,7 +37,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         </div>
         <div className="wc-chat-item-info">
           <div className="wc-chat-item-row1">
-            <span className="wc-chat-item-name">{conv.name || '未知'}</span>
+            <span className="wc-chat-item-name" data-testid="conv-item-name">{conv.name || '未知'}</span>
             <span className="wc-chat-item-time">{conv.lastTime ? format(conv.lastTime * 1000) : ''}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>

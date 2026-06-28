@@ -13,6 +13,8 @@ const config = require('../config');
 const CSRF_EXEMPT = ['/auth/login', '/auth/register'];
 
 module.exports = function csrfProtection(req, res, next) {
+  // 测试模式:e2e 跨端口前端读不到 csrf cookie,关双提交校验(生产默认不开)
+  if (process.env.DISABLE_CSRF === '1') return next();
   if (/^(GET|HEAD|OPTIONS)$/i.test(req.method)) return next();
   if (CSRF_EXEMPT.includes(req.path)) return next();
 

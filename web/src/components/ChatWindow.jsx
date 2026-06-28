@@ -1591,7 +1591,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
         </button>
         <div className="wc-header-name-container">
-          <div className="wc-chat-header-name">
+          <div className="wc-chat-header-name" data-testid="chat-title">
             {conversation.name || '聊天'}
             {memberCount
               ? <span className="wc-header-member-count">({memberCount})</span>
@@ -1936,13 +1936,14 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
 
           <label className="wc-tool-btn wc-tool-label" title="图片">
             <IcoImage />
-            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
+            <input type="file" data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
           </label>
 
           <label className="wc-tool-btn wc-tool-label" title="文件">
             <IcoFile />
             <input
               type="file"
+              data-testid="chat-attach-file"
               ref={fileInputRef}
               className="wc-hidden-input"
               accept="image/*,audio/*,video/mp4,video/quicktime,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-rar-compressed,text/plain"
@@ -2007,11 +2008,11 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
                 }
               } },
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/></svg>, label:'文件', action:()=>fileInputRef.current?.click() },
-              { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:'视频通话', action:()=>{ setShowMore(false); startCall('video'); } },
-              { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:'语音通话', action:()=>{ setShowMore(false); startCall('audio'); } },
+              { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:'视频通话', testid:'chat-call-video-btn', action:()=>{ setShowMore(false); startCall('video'); } },
+              { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:'语音通话', testid:'chat-call-audio-btn', action:()=>{ setShowMore(false); startCall('audio'); } },
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:'名片', action: openCardPicker },
             ].map(item => (
-              <div key={item.label} className="wc-more-item" onClick={item.action}>
+              <div key={item.label} data-testid={item.testid} className="wc-more-item" onClick={item.action}>
                 <div className="wc-more-icon" style={{ background: item.bg }}>{item.svg}</div>
                 <span className="wc-more-label">{item.label}</span>
               </div>
@@ -2029,6 +2030,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             {voiceMode ? (
               <div className="wc-voice-container">
                 <button
+                  data-testid="chat-voice-btn"
                   className={`wc-voice-btn${recording ? ' recording' : ''}`}
                   onMouseDown={startRecording}
                   onMouseUp={stopRecording}
@@ -2055,6 +2057,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
                 )}
                 <textarea
                   ref={textareaRef}
+                  data-testid="chat-msg-input"
                   className="wc-textarea"
                   aria-label="输入消息"
                   value={input}
@@ -2075,6 +2078,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             {!voiceMode && (
               <div className="wc-input-footer">
                 <button
+                  data-testid="chat-send-btn"
                   className={`wc-send-btn${input.trim() ? ' active' : ''}`}
                   onClick={sendMessage}
                   disabled={!input.trim()}

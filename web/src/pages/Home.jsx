@@ -180,7 +180,7 @@ function AccountSwitcher() {
   return (
     <div ref={containerRef} className="as-container">
       {/* 头像按钮 */}
-      <div className="as-avatar-btn" onClick={() => setOpen(v => !v)} title="账号切换">
+      <div className="as-avatar-btn" data-testid="account-switcher" onClick={() => setOpen(v => !v)} title="账号切换">
         <div className="as-avatar-inner"
           style={{ outlineColor: open ? 'rgba(255,255,255,.9)' : 'transparent' }}>
           {user?.avatar && !avatarErr
@@ -785,7 +785,7 @@ export default function Home() {
               {mobileTabs.map(({ key, Icon, label }) => {
                 const count = badges[key] || 0;
                 return (
-                  <button key={key} className={`m-tab${tab === key ? ' active' : ''}`}
+                  <button key={key} data-testid={`nav-tab-${key}`} className={`m-tab${tab === key ? ' active' : ''}`}
                     onClick={() => handleTabChange(key)}>
                     <span className="m-tab-ico"><Icon /></span>
                     <span className="m-tab-label">{label}</span>
@@ -813,6 +813,7 @@ export default function Home() {
             const count = badges[key] || 0;
             return (
               <div key={key}
+                data-testid={`nav-tab-${key}`}
                 className={`wc-sidebar-btn${tab === key ? ' active' : ''}`}
                 onClick={() => handleTabChange(key)} title={label}
                 role="tab" tabIndex={0}

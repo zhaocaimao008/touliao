@@ -1,0 +1,18 @@
+{
+  "name": "vxin-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "v信 四端全功能自动化测试(Playwright web+electron / Appium android+ios)",
+  "scripts": {
+    "pw:install": "playwright install chromium",
+    "build:web": "cd ../web && npm run build",
+    "test:web": "playwright test --project=web",
+    "test:electron": "npm run build:web && playwright test --project=electron",
+    "test": "playwright test",
+    "gen:anchors-py": "node shared/gen-anchors-py.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "playwright": "^1.48.0"
+  }
+}

@@ -85,6 +85,7 @@ export default function Register() {
               <div className="auth-field-input-wrap">
                 <span className="auth-field-icon" aria-hidden="true">{f.icon}</span>
                 <input
+                  data-testid={f.key === 'inviteCode' ? 'register-invite-input' : `register-${f.key}-input`}
                   id={`reg-${f.key}`}
                   className="auth-field-input"
                   type={f.type}
@@ -109,7 +110,7 @@ export default function Register() {
             </div>
           )}
 
-          <button type="submit" className="auth-submit" disabled={loading || !form.username || !form.phone || !form.password || !form.inviteCode}>
+          <button type="submit" data-testid="register-submit-btn" className="auth-submit" disabled={loading || !form.username || !form.phone || !form.password || !form.inviteCode}>
             {loading ? <span className="auth-spinner" /> : '注册'}
           </button>
         </form>
