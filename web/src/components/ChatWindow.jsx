@@ -284,7 +284,9 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     if (reconnectCount === 0) return; // 首次连接不触发
     const after = disconnectAtRef.current;
     if (!after) return;
-    axios.get(`/api/messages/${conversation.id}`, { params: { after, limit: 100 } })
+    // after-1: 覆盖同秒边界 — DB created_at 是秒精度，断线和消息落库可能同秒，
+    // 用 > after 会漏掉。-1s 扩大窗口，重复消息由下方 existingIds 去重。
+    axios.get(`/api/messages/${conversation.id}`, { params: { after: after - 1, limit: 100 } })
       .then(({ data }) => {
         if (!data.length) return;
         setMessages(prev => {
