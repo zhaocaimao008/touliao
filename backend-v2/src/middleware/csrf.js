@@ -2,6 +2,9 @@
 /**
  * CSRF 双提交 Cookie 校验（全域门控，注册在路由之前）。
  *   - 安全方法 GET/HEAD/OPTIONS 跳过
+ *   - Bearer token 请求（移动端/Electron）跳过：第三方网站无法设置自定义 header，
+ *     Bearer 鉴权天然不受 CSRF 攻击；且 Capacitor WebView 会把 session cookie
+ *     带过来，sessionStorage 重启后清空，导致 cookie 有而 header 无 → 误报 403
  *   - 对比 csrf_token Cookie 与 X-CSRF-Token header
  *   - 无 CSRF Cookie = 尚未鉴权，放行交给 auth 处理 401
  */
@@ -17,6 +20,8 @@ module.exports = function csrfProtection(req, res, next) {
   if (process.env.DISABLE_CSRF === '1') return next();
   if (/^(GET|HEAD|OPTIONS)$/i.test(req.method)) return next();
   if (CSRF_EXEMPT.includes(req.path)) return next();
+  // Bearer token（移动端 Capacitor / Electron）：无 CSRF 风险，直接跳过
+  if (req.headers['authorization']?.startsWith('Bearer ')) return next();
 
   const cookieToken = req.cookies?.[config.csrfCookie];
   if (!cookieToken) return next();
