@@ -80,16 +80,17 @@ async function del(key) {
   } catch { /* noop */ }
 }
 
-// 删除匹配模式的缓存（如用户的所有缓存）
+// 删除匹配模式的缓存（SCAN 替代 KEYS，避免阻塞 Redis）
 async function delPattern(pattern) {
   try {
     if (disabled) return;
     await init();
     if (disabled || !client?.isReady) return;
-    const keys = await client.keys(pattern);
-    if (keys.length > 0) {
-      await client.del(keys);
+    const toDelete = [];
+    for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+      toDelete.push(key);
     }
+    if (toDelete.length > 0) await client.del(toDelete);
   } catch { /* noop */ }
 }
 

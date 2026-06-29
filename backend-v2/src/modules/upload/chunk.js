@@ -21,7 +21,12 @@ const FILES_DIR = path.join(config.uploadsRoot, 'files');
 fs.mkdirSync(CHUNK_DIR, { recursive: true });
 fs.mkdirSync(FILES_DIR, { recursive: true });
 
-const meta = new Map(); // uploadId -> {userId,convId,filename,size,mime,hash}
+const meta = new Map(); // uploadId -> {userId,convId,filename,size,mime,hash,createdAt}
+// 每小时清理超过 24h 未完成的上传元数据（磁盘 .part 有 sweep 清理，内存 Map 同步清理）
+setInterval(() => {
+  const cutoff = Date.now() - 24 * 3600 * 1000;
+  for (const [id, m] of meta) { if (m.createdAt < cutoff) meta.delete(id); }
+}, 3600 * 1000).unref?.();
 const partPath = (id) => path.join(CHUNK_DIR, id + '.part');
 const received = (id) => { try { return fs.statSync(partPath(id)).size; } catch { return 0; } };
 const makeId = (userId, convId, hash) =>
@@ -37,7 +42,7 @@ function init(req, res) {
   const ext = path.extname(filename).toLowerCase();
   if (BLOCKED_EXTENSIONS.has(ext)) return res.status(400).json({ error: `禁止上传 ${ext} 类型文件` });
   const id = makeId(req.user.id, conversationId, hash);
-  meta.set(id, { userId: req.user.id, convId: conversationId, filename, size: total, mime: mime || '', hash });
+  meta.set(id, { userId: req.user.id, convId: conversationId, filename, size: total, mime: mime || '', hash, createdAt: Date.now() });
   return res.json({ uploadId: id, received: received(id), chunkSize: MAX_CHUNK });
 }
 
@@ -57,7 +62,7 @@ function chunk(req, res) {
   if (!Buffer.isBuffer(body) || body.length === 0) return res.status(400).json({ error: '空分片' });
   if (body.length > MAX_CHUNK) return res.status(413).json({ error: '单片过大' });
   if (cur + body.length > m.size) return res.status(400).json({ error: '超出声明大小' });
-  fs.appendFileSync(partPath(uploadId), body);
+  await fs.promises.appendFile(partPath(uploadId), body);
   return res.json({ received: received(uploadId) });
 }
 
@@ -74,8 +79,11 @@ async function finish(req, res) {
   const check = await verifyMagicBytes(part, ALLOWED_CHAT_MIMES, m.mime);
   if (!check.ok) { fs.unlink(part, () => {}); meta.delete(uploadId); return res.status(400).json({ error: `400 Invalid File Type: ${check.reason}` }); }
 
-  // hash 完整性校验
-  const realHash = crypto.createHash('sha256').update(fs.readFileSync(part)).digest('hex');
+  // hash 完整性校验（流式读取，避免大文件全量载入内存）
+  const realHash = await new Promise((resolve, reject) => {
+    const h = crypto.createHash('sha256');
+    fs.createReadStream(part).on('data', d => h.update(d)).on('end', () => resolve(h.digest('hex'))).on('error', reject);
+  });
   if (m.hash && /^[a-f0-9]{64}$/i.test(m.hash) && realHash.toLowerCase() !== m.hash.toLowerCase()) {
     fs.unlink(part, () => {}); meta.delete(uploadId);
     return res.status(400).json({ error: '文件校验失败(hash 不一致)' });

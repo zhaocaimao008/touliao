@@ -95,8 +95,11 @@ function invite(io, convId, userId, userIds) {
   requireMember(convId, userId, '不在群内');
   const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id) VALUES (?,?)');
   const added = [];
+  // 一次批量查询校验用户是否存在，避免 N+1
+  const ph = userIds.map(() => '?').join(',');
+  const validSet = new Set(db.prepare(`SELECT id FROM users WHERE id IN (${ph})`).all(userIds).map(r => r.id));
   userIds.forEach(uid => {
-    if (!db.prepare('SELECT 1 FROM users WHERE id=?').get(uid)) return;
+    if (!validSet.has(uid)) return;
     if (add.run(convId, uid).changes > 0) added.push(uid);
   });
   if (io && added.length > 0) {

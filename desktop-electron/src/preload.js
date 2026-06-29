@@ -6,7 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('__ELECTRON_CONFIG__', {
   isElectron: true,
   serverUrl: 'https://dipsin.com',
-  appVersion: '2.0.0',
+  appVersion: require('../../package.json').version,
 });
 
 // ── 白名单 IPC API（最小暴露原则）──────────────────────────

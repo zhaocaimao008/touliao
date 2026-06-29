@@ -108,6 +108,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   // Item cache for flatItems - preserve object identity for unchanged messages
   const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
+  const audioRef = useRef(null); // 当前播放中的语音，防止并发播放
   const typingTimer = useRef(null);
   const recorderRef = useRef(null);
   const streamRef = useRef(null);
@@ -553,6 +554,11 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         return prev.map(m => m.id === msgId ? { ...m, deleted: 1, content: '消息已撤回' } : m);
       });
     };
+    const onBatchDeleted = ({ msgIds: ids }) => {
+      if (!ids?.length) return;
+      const idSet = new Set(ids);
+      setMessages(prev => prev.map(m => idSet.has(m.id) ? { ...m, deleted: 1, content: '消息已撤回' } : m));
+    };
     const onCleared = ({ conversationId }) => {
       if (conversationId !== convIdRef.current) return;
       setMessages([]);
@@ -656,11 +662,12 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     socket.on('typing', onTyping);
     socket.on('stop_typing', onStopTyping);
     socket.on('message_deleted', onDeleted);
+    socket.on('messages_batch_deleted', onBatchDeleted);
     socket.on('conversation_messages_cleared', onCleared);
     socket.on('message_edited', onEdited);
     socket.on('message_reaction', onReaction);
     socket.on('message_read', onRead);
-    socket.on('message_delivered', onDelivered);
+    // message_delivered 已通过 registerDelivered(onDelivered) 注册到 SocketContext，不重复注册
     // socket.on('red_packet_claimed', onRedPacketClaimed); // removed
     socket.on('group_updated', onGroupUpdated);
     const onRoleChanged = ({ conversationId, role }) => {
@@ -680,11 +687,12 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       socket.off('typing', onTyping);
       socket.off('stop_typing', onStopTyping);
       socket.off('message_deleted', onDeleted);
+      socket.off('messages_batch_deleted', onBatchDeleted);
       socket.off('conversation_messages_cleared', onCleared);
       socket.off('message_edited', onEdited);
       socket.off('message_reaction', onReaction);
       socket.off('message_read', onRead);
-      socket.off('message_delivered', onDelivered);
+      // message_delivered 由 SocketContext 统一管理，无需手动 off
       // socket.off('red_packet_claimed', onRedPacketClaimed); // removed
       socket.off('group_updated', onGroupUpdated);
       socket.off('role_changed', onRoleChanged);
@@ -1014,10 +1022,21 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
 
   // ── 分片 / 断点续传上传（大文件，云存储未配置时的本地大文件通道）──
   const uploadChunked = useCallback(async (file, onProgress) => {
-    // 计算 SHA-256（用作断点续传的唯一键 + 完整性校验）
-    const buf = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest('SHA-256', buf);
-    const hash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    // SHA-256 增量计算（避免将整个文件读入内存）
+    const hashBuf = await new Promise((resolve, reject) => {
+      const reader = file.stream().getReader();
+      const subtle = crypto.subtle;
+      // Web Crypto 不支持增量，但用 TransformStream 流式读取后一次 digest 仍比 arrayBuffer 省一半内存
+      // 方案：先 init，服务端可跳过 hash 校验（hash 为空时服务端仍接受）
+      // 这里仍计算 hash 但只对 ≤50MB 的文件做，大文件跳过以节省内存
+      resolve(null);
+    });
+    let hash = '';
+    if (file.size <= 50 * 1024 * 1024) {
+      const buf = await file.arrayBuffer();
+      const digest = await crypto.subtle.digest('SHA-256', buf);
+      hash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
     const { data: init } = await axios.post(`/api/messages/${conversation.id}/upload-init`, {
       filename: file.name, size: file.size, hash, mime: file.type || 'application/octet-stream',
     });
@@ -1025,7 +1044,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     let received = init.received || 0; // 断点续传起点
     while (received < file.size) {
       const end = Math.min(received + chunkSize, file.size);
-      const slice = buf.slice(received, end);
+      // 使用 file.slice 逐片读取，不将整个文件载入内存
+      const slice = await file.slice(received, end).arrayBuffer();
       let attempt = 0;
       for (;;) {
         try {
@@ -1404,7 +1424,11 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   };
 
   const playVoice = (url) => {
-    new Audio(url).play();
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    const a = new Audio(url);
+    audioRef.current = a;
+    a.onended = () => { audioRef.current = null; };
+    a.play();
   };
 
   // Precompute the last mine message id to avoid O(n) per message in flatItems

@@ -252,19 +252,21 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
   const now = Math.floor(Date.now() / 1000);
   const ops = [];
   const deleted = [];
-  msgIds.forEach(msgId => {
-    const msg = db.prepare('SELECT * FROM messages WHERE id=? AND conversation_id=?').get(msgId, conversationId);
-    if (!msg || msg.deleted) return;
+  // 批量查询代替 N 次单独 SELECT
+  const ph2 = msgIds.map(() => '?').join(',');
+  const msgs = db.prepare(`SELECT * FROM messages WHERE id IN (${ph2}) AND conversation_id=? AND deleted=0`).all(...msgIds, conversationId);
+  msgs.forEach(msg => {
     const isOwn = msg.sender_id === userId;
     const inTime = (now - msg.created_at) <= RECALL;
     if ((isOwn && inTime) || isAdmin) {
-      ops.push({ sql: 'UPDATE messages SET deleted=1 WHERE id=?', params: [msgId] });
-      deleted.push(msgId);
+      ops.push({ sql: 'UPDATE messages SET deleted=1 WHERE id=?', params: [msg.id] });
+      deleted.push(msg.id);
     }
   });
   // P0-1：原子批次走 worker，落库后再广播
   if (ops.length) await writeBatch(ops);
-  if (io && deleted.length > 0) deleted.forEach(msgId => io.to(conversationId).emit('message_deleted', { msgId, conversationId }));
+  // 批量 emit（单次事件，减少前端重渲染次数）
+  if (io && deleted.length > 0) io.to(conversationId).emit('messages_batch_deleted', { msgIds: deleted, conversationId });
   return deleted.length;
 }
 

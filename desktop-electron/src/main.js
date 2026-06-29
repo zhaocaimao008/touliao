@@ -519,9 +519,8 @@ function setupIPC() {
 
   // 截图：主进程截取 → 写入 temp → 返回路径
   ipcMain.handle('screenshot:capture', async () => {
-    mainWindow?.minimize();
     return new Promise((resolve) => {
-      setTimeout(async () => {
+      mainWindow?.once('minimize', async () => {
         try {
           const { createCapturer } = require('./screenshot');
           const imgPath = await createCapturer();
@@ -533,7 +532,8 @@ function setupIPC() {
           mainWindow?.show();
           mainWindow?.focus();
         }
-      }, 300);
+      });
+      mainWindow?.minimize();
     });
   });
 

@@ -80,10 +80,11 @@ const convCache = new Map();
 const CONV_CACHE_TTL = 2000;
 
 async function listConversations(uid) {
-  // 检查内存缓存
+  // 检查内存缓存（过期时主动删除，防止无限累积）
   const cached = convCache.get(uid);
-  if (cached && Date.now() - cached.ts < CONV_CACHE_TTL) {
-    return cached.data;
+  if (cached) {
+    if (Date.now() - cached.ts < CONV_CACHE_TTL) return cached.data;
+    convCache.delete(uid);
   }
   // 确保用户有 filehelper 会话（自动创建）
   // 不经此 service，无法可靠失效(大群逐成员失效又太贵)。Redis 启用后若缓存会导致
