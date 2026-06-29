@@ -163,7 +163,24 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   if (typeof content === 'string' && content.length > MAX) throw badRequest(`消息内容不能超过 ${MAX} 个字符`);
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
-  const conv = db.prepare('SELECT mute_all FROM conversations WHERE id=?').get(convId);
+  const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
+  // 屏蔽陌生人消息：私聊会话中，若对方开启了该设置且双方互不是联系人，则拒绝发送
+  if (conv?.type === 'private') {
+    const recipient = db.prepare(
+      'SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?'
+    ).get(convId, userId);
+    if (recipient) {
+      const setting = db.prepare(
+        "SELECT block_unknown_messages FROM user_settings WHERE user_id=?"
+      ).get(recipient.user_id);
+      if (setting?.block_unknown_messages) {
+        const isFriend = db.prepare(
+          'SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?'
+        ).get(recipient.user_id, userId);
+        if (!isFriend) throw forbidden('对方已开启屏蔽陌生人消息');
+      }
+    }
+  }
   if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
   const id = uuidv4();
   // P0-1：改走 worker 异步写，主线程不再同步抢 WAL 写锁；await 保证落库后再 buildMessage 读回

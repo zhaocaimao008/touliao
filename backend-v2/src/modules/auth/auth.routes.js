@@ -1,7 +1,7 @@
 'use strict';
 const router = require('express').Router();
 const auth = require('../../middleware/auth');
-const { loginLimiter, registerLimiter, switchLimiter, forgetLimiter } = require('../../middleware/rateLimiters');
+const { loginLimiter, registerLimiter, switchLimiter, forgetLimiter, resetPasswordLimiter } = require('../../middleware/rateLimiters');
 const c = require('./auth.controller');
 
 /**
@@ -75,7 +75,7 @@ router.post('/forget',          forgetLimiter, c.forget);
  *     tags: [Authentication]
  *     summary: Reset password with phone and invite code
  */
-router.post('/reset-password', registerLimiter, c.resetPassword);
+router.post('/reset-password', resetPasswordLimiter, c.resetPassword);
 
 /**
  * @swagger

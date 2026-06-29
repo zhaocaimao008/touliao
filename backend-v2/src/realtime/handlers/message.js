@@ -100,9 +100,21 @@ module.exports = function registerMessageHandler(io, socket) {
     const member = readDb.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(conversationId, userId);
     if (!member) { ack?.({ success: false, error: '非群成员' }); return; }
 
-    const conv = readDb.prepare('SELECT mute_all FROM conversations WHERE id=?').get(conversationId);
+    const conv = readDb.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(conversationId);
     if (conv?.mute_all && member.role === 'member') {
       ack?.({ success: false, error: '全员禁言中，您没有发言权限' }); return;
+    }
+
+    // 屏蔽陌生人消息（私聊）
+    if (conv?.type === 'private') {
+      const recipient = readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?').get(conversationId, userId);
+      if (recipient) {
+        const setting = readDb.prepare('SELECT block_unknown_messages FROM user_settings WHERE user_id=?').get(recipient.user_id);
+        if (setting?.block_unknown_messages) {
+          const isFriend = readDb.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(recipient.user_id, userId);
+          if (!isFriend) { ack?.({ success: false, error: '对方已开启屏蔽陌生人消息' }); return; }
+        }
+      }
     }
 
     const id = uuidv4();
