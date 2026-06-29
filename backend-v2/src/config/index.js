@@ -18,8 +18,10 @@ const config = {
   jwtSecret:    process.env.JWT_SECRET,
   adminJwtSecret: (() => {
     const s = process.env.ADMIN_JWT_SECRET;
-    if (!s) throw new Error('环境变量 ADMIN_JWT_SECRET 未配置，启动中止');
-    return s;
+    if (!s && process.env.NODE_ENV === 'production') {
+      throw new Error('环境变量 ADMIN_JWT_SECRET 未配置，启动中止');
+    }
+    return s || process.env.JWT_SECRET;
   })(),
   cookieName:   'vxin_token',
   csrfCookie:   'csrf_token',
