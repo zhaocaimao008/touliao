@@ -1,8 +1,8 @@
 name: Android Release APK (signed)
 
-# 云端打「正式签名版」APK：用同一套密钥签名，可覆盖升级、可上架。
+# 云端打「正式签名版」原生 APK（Kotlin/Compose）：用同一套密钥签名，可覆盖升级、可上架。
 # 用法：本仓库 → Actions → 「Android Release APK (signed)」→ Run workflow。
-# 跑完在运行页底部 Artifacts 下载 vxin-release-apk。
+# 跑完在运行页底部 Artifacts 下载 vxin-release-apk，同时自动部署到香港服务器。
 # 需要 4 个仓库 Secret：ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD /
 #                       ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD（已配置）。
 on:
@@ -19,24 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: 构建 Web 前端
-        working-directory: web
-        run: |
-          npm ci
-          npm run build
-          echo "✅ Web 构建完成，dist/ 已更新"
-
-      - name: 复制 Web 资产到 Android
-        run: |
-          mkdir -p web/android/app/src/main/assets/public
-          cp -r web/dist/* web/android/app/src/main/assets/public/
-          echo "✅ Web 资产已复制到 Android assets"
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -47,6 +29,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Make gradlew executable
+        working-directory: android
+        run: chmod +x gradlew
+
       - name: Decode keystore
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -55,14 +41,13 @@ jobs:
           echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/vxin-release.jks"
 
       - name: Build signed release APK
-        working-directory: web/android
+        working-directory: android
         env:
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/vxin-release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          chmod +x gradlew
           ./gradlew assembleRelease --stacktrace --no-daemon
 
       - name: Upload signed APK
@@ -70,7 +55,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: vxin-release-apk
-          path: web/android/app/build/outputs/apk/release/*.apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
 
       - name: 部署 APK 到香港服务器
@@ -83,7 +68,7 @@ jobs:
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          APK=$(find web/android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
           echo "部署: $APK → /var/www/downloads/vxin-android-latest.apk"
           ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /var/www/downloads"
           scp -i ~/.ssh/deploy_key "$APK" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/vxin-android-latest.apk"
