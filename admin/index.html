@@ -234,7 +234,10 @@ async function doLogin(){
   $('lbtn').disabled=true;
   try{
     const body={username,password};if(code)body.code=code;
-    const r=await api('/login',{method:'POST',body});
+    const headers={'Content-Type':'application/json',credentials:'include'};
+    const t=getCookie('csrf_token');if(t)headers['X-CSRF-Token']=t;
+    const r2=await fetch('/api/vxin-admin-login',{method:'POST',headers,body:JSON.stringify(body),credentials:'include'});
+    const r=await r2.json();if(!r2.ok)throw Object.assign(new Error(r.error||'登录失败'),{status:r2.status});
     enterApp(r.username);
     if(r.needsTotpSetup){ toast('建议立即绑定谷歌验证器加固后台'); switchTab('security'); }
   }catch(e){

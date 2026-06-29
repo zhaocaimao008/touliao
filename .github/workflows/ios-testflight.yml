@@ -120,18 +120,12 @@ jobs:
           IPA=$(ls /tmp/vxin-ipa/*.ipa | head -1)
           echo "上传: $IPA"
 
-          xcrun altool --upload-app \
-            --type ios \
-            --file "$IPA" \
-            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
-            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" \
-            --verbose \
-          || \
-          xcrun altool --upload-app \
-            --type ios \
-            --file "$IPA" \
-            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
-            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+          # 使用 xcrun notarytool（altool 已于 Xcode 14 废弃）
+          xcrun notarytool submit "$IPA" \
+            --key ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
+            --key-id "$APP_STORE_CONNECT_API_KEY_ID" \
+            --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
+            --wait
 
       - name: 保存 IPA artifact
         if: always()

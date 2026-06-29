@@ -38,6 +38,8 @@ final class SocketService {
 
     let status = CurrentValueSubject<SocketStatus, Never>(.disconnected)
     let incoming = PassthroughSubject<Message, Never>()
+    /// @mention：(conversationId, msgId)
+    let mentioned = PassthroughSubject<(convId: String, msgId: String), Never>()
     let typing = PassthroughSubject<TypingEvent, Never>()
     let read = PassthroughSubject<ReadEvent, Never>()
     /// 本人某会话已读（多端同步 + 本端 markRead 回声）→ conversationId
@@ -145,6 +147,12 @@ final class SocketService {
             let arr = (dict["reactions"] as? [[String: Any]]) ?? []
             let reactions = arr.map { MessageReaction(emoji: $0["emoji"] as? String ?? "", count: ($0["count"] as? NSNumber)?.intValue ?? 0) }
             self?.reaction.send((msgId, reactions))
+        }
+        sock.on("mentioned") { [weak self] data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let convId = dict["conversationId"] as? String,
+                  let msgId = dict["msgId"] as? String else { return }
+            self?.mentioned.send((convId: convId, msgId: msgId))
         }
         sock.on("new_friend_request") { [weak self] _, _ in self?.friendEvents.send(()) }
         sock.on("friend_request_accepted") { [weak self] _, _ in self?.friendEvents.send(()) }

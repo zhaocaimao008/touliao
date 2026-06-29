@@ -124,9 +124,9 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');
   const hash = await bcrypt.hash(newPassword, 12);
   db.prepare('UPDATE users SET password=? WHERE id=?').run(hash, userId);
-  // 改密码后清空旧会话记录(user_sessions 表不存 token，无法逐个加黑名单——
-  // 此前查 token_hash 列导致 500，该列从不存在；改为直接清会话行)。
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
+  // 将当前 token 加入黑名单，防止改密后旧 token 继续有效（最长 7 天）
+  if (currentToken) await addToBlacklist(currentToken);
   return signToken(user);
 }
 

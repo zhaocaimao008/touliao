@@ -75,7 +75,16 @@ final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
 
         repo.messageDeletedPublisher
-            .sink { [weak self] msgId in Task { @MainActor in self?.messages.removeAll { $0.id == msgId } } }
+            .sink { [weak self] msgId in Task { @MainActor in
+                guard let self else { return }
+                if let idx = self.messages.firstIndex(where: { $0.id == msgId }) {
+                    var recalled = self.messages[idx]
+                    recalled.deleted = 1
+                    recalled.content = "消息已撤回"
+                    recalled.type = "recalled"
+                    self.messages[idx] = recalled
+                }
+            }}
             .store(in: &cancellables)
 
         repo.reactionPublisher

@@ -16,7 +16,11 @@ const config = {
 
   // ── 鉴权 ────────────────────────────────────────────────────
   jwtSecret:    process.env.JWT_SECRET,
-  adminJwtSecret: process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET,
+  adminJwtSecret: (() => {
+    const s = process.env.ADMIN_JWT_SECRET;
+    if (!s) throw new Error('环境变量 ADMIN_JWT_SECRET 未配置，启动中止');
+    return s;
+  })(),
   cookieName:   'vxin_token',
   csrfCookie:   'csrf_token',
   walletCookie: 'vxin_wallet',     // 设备多账号钱包(丝滑切换), httpOnly 长效
@@ -51,7 +55,6 @@ const config = {
     const defaults = [
       'https://dipsin.com',
       'https://www.dipsin.com',
-      'http://dipsin.com',
       'http://localhost:3000',
       'http://localhost:5173',
       // Capacitor Android/iOS WebView 的 Origin（androidScheme: "https"）

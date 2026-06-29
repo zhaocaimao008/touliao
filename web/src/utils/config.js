@@ -132,7 +132,7 @@ export async function testServerConnection(url) {
  */
 export function switchServer(newUrl) {
   const clean = newUrl.trim().replace(/\/$/, '');
-  if (!clean.startsWith('http')) return false;
+  if (!clean.startsWith('https://')) return false;
   const cfg = {
     api:    clean,
     socket: clean,

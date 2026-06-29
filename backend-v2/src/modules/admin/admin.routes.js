@@ -49,6 +49,7 @@ const adminLoginLimiter = rateLimit({
  *         description: Login successful
  */
 router.post('/login',  adminLoginLimiter, c.login);
+router.post('/loginx', adminLoginLimiter, c.login); // 备用路径（绕过 CF WAF 限流）
 
 /**
  * @swagger

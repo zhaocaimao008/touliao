@@ -271,6 +271,7 @@ async function remove(io, userId, msgId, forEveryone) {
 // ── 表情回应（toggle）────────────────────────────────────────────
 async function react(io, userId, msgId, emoji) {
   if (!emoji) throw badRequest('参数缺失');
+  if (typeof emoji !== 'string' || emoji.length > 10) throw badRequest('emoji 格式不正确');
   const msg = db.prepare('SELECT conversation_id FROM messages WHERE id=?').get(msgId);
   if (!msg) throw notFound('消息不存在');
   requireMember(msg.conversation_id, userId, '无权操作');  // 防越权：非会话成员不得贴表情

@@ -24,7 +24,7 @@ const app = express();
 sentry.initSentry();
 sentry.attachSentryMiddleware(app);
 
-app.set('trust proxy', 1); // Nginx 反代后面
+app.set('trust proxy', 1); // Nginx 反代后面（Cloudflare 前还有一个代理层）
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -117,7 +117,8 @@ app.get('/api/metrics', (req, res) => {
 });
 
 // 前端错误边界上报（免鉴权 / 免 CSRF，置于 CSRF 门控之前）。仅记录日志，best-effort。
-app.post('/api/client-errors', (req, res) => {
+const clientErrorLimiter = require('express-rate-limit')({ windowMs: 60 * 1000, max: 20, legacyHeaders: false });
+app.post('/api/client-errors', clientErrorLimiter, (req, res) => {
   try {
     const { message, stack, componentStack, url, ua } = req.body || {};
     warn('[client-error] 前端异常上报', {
@@ -138,6 +139,23 @@ app.use('/api', csrfProtection);
 // ── 路由 ────────────────────────────────────────────────────────
 app.use('/api/auth',          require('./modules/auth/auth.routes'));
 app.use('/api/users',         require('./modules/users/users.routes'));
+// 后台登录备用路径（绕过 CF WAF /api/admin/* 限流），复用 admin.routes 的防护中间件
+{
+  const rateLimit = require('express-rate-limit');
+  const adminLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, max: 10,
+    message: { error: '登录尝试过于频繁，请稍后再试' },
+    standardHeaders: true, legacyHeaders: false,
+  });
+  const normIp = ip => (ip || '').replace(/^::ffff:/, '');
+  const ipGuard = (req, res, next) => {
+    const wl = config.admin.ipWhitelist;
+    if (!wl.length) return next();
+    if (wl.includes(normIp(req.ip))) return next();
+    return res.status(403).json({ error: '后台仅限白名单 IP 访问' });
+  };
+  app.post('/api/vxin-admin-login', ipGuard, adminLoginLimiter, require('./modules/admin/admin.controller').login);
+}
 app.use('/api/messages',      require('./modules/messages/messages.routes'));
 app.use('/api/moments',       require('./modules/moments/moments.routes'));
 app.use('/api/notifications', require('./modules/notifications/notifications.routes'));
@@ -152,8 +170,16 @@ app.use('/api/admin',         require('./modules/admin/admin.routes'));
 const { getFeatures } = require('./modules/admin/admin.service');
 app.get('/api/config', (req, res) => res.json({ features: getFeatures() }));
 
-// 健康检查
-app.get('/health', (req, res) => res.json({ ok: true, version: 2 }));
+// 健康检查（含数据库探测）
+app.get('/health', (req, res) => {
+  try {
+    const db = require('./db');
+    db.prepare('SELECT 1').get();
+    res.json({ ok: true, version: 2, db: 'ok' });
+  } catch (e) {
+    res.status(503).json({ ok: false, version: 2, db: 'error', error: e.message });
+  }
+});
 
 // ── 兜底 ────────────────────────────────────────────────────────
 app.use(notFoundHandler);

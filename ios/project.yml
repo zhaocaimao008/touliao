@@ -53,6 +53,5 @@ targets:
         NSMicrophoneUsageDescription: 用于录制语音消息与音视频通话
         NSPhotoLibraryUsageDescription: 用于发送图片
         NSCameraUsageDescription: 用于扫码添加好友与视频通话
-        # 开发期允许 http（生产请走 https 并移除）
         NSAppTransportSecurity:
-          NSAllowsArbitraryLoads: true
+          NSAllowsArbitraryLoads: false

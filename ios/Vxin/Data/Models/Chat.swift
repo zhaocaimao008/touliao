@@ -70,11 +70,12 @@ struct Message: Decodable, Identifiable, Equatable {
     var senderName: String = ""
     var senderAvatar: String = ""
     var edited: Int = 0
+    var deleted: Int = 0
     var reactions: [MessageReaction] = []
     var replyTo: ReplyPreview?
 
     enum CodingKeys: String, CodingKey {
-        case id, type, content, reactions, replyTo, edited
+        case id, type, content, reactions, replyTo, edited, deleted
         case conversationId = "conversation_id"
         case senderId = "sender_id"
         case fileUrl = "file_url"
@@ -96,6 +97,7 @@ struct Message: Decodable, Identifiable, Equatable {
         senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
         senderAvatar = (try? c.decode(String.self, forKey: .senderAvatar)) ?? ""
         edited = (try? c.decode(Int.self, forKey: .edited)) ?? 0
+        deleted = (try? c.decode(Int.self, forKey: .deleted)) ?? 0
         reactions = (try? c.decode([MessageReaction].self, forKey: .reactions)) ?? []
         replyTo = try? c.decode(ReplyPreview.self, forKey: .replyTo)
     }

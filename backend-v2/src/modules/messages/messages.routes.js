@@ -13,7 +13,7 @@
  */
 const router = require('express').Router();
 const auth = require('../../middleware/auth');
-const { sendMsgLimiter } = require('../../middleware/rateLimiters');
+const { sendMsgLimiter, reactLimiter } = require('../../middleware/rateLimiters');
 
 const conv = require('../conversations/conversations.controller');
 const msg  = require('./messages.controller');
@@ -992,7 +992,7 @@ router.delete('/:msgId', auth, msg.remove);
  *       200:
  *         description: Reaction added or removed
  */
-router.post('/:msgId/react', auth, msg.react);
+router.post('/:msgId/react', auth, reactLimiter, msg.react);
 
 /**
  * @swagger
