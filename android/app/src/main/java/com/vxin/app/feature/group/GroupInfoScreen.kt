@@ -67,6 +67,7 @@ fun GroupInfoScreen(
     var showAnnouncement by remember { mutableStateOf(false) }
     var showNickname by remember { mutableStateOf(false) }
     var showLeaveConfirm by remember { mutableStateOf(false) }
+    var showDissolveConfirm by remember { mutableStateOf(false) }
     var kickTarget by remember { mutableStateOf<GroupMember?>(null) }
     var transferTarget by remember { mutableStateOf<GroupMember?>(null) }
 
@@ -209,11 +210,19 @@ fun GroupInfoScreen(
                     }
                     item {
                         Spacer(Modifier.size(24.dp))
-                        Button(
-                            onClick = { showLeaveConfirm = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFA5151)),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        ) { Text("退出群聊") }
+                        if (info.isOwner) {
+                            Button(
+                                onClick = { showDissolveConfirm = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFA5151)),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            ) { Text("解散群聊") }
+                        } else {
+                            Button(
+                                onClick = { showLeaveConfirm = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFA5151)),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            ) { Text("退出群聊") }
+                        }
                     }
                 }
             }
@@ -273,6 +282,15 @@ fun GroupInfoScreen(
             text = { Text("退出后将不再接收该群消息。") },
             confirmButton = { TextButton(onClick = { viewModel.leave(); showLeaveConfirm = false }) { Text("退出") } },
             dismissButton = { TextButton(onClick = { showLeaveConfirm = false }) { Text("取消") } },
+        )
+    }
+    if (showDissolveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDissolveConfirm = false },
+            title = { Text("解散群聊") },
+            text = { Text("解散后所有成员将无法继续聊天，且不可恢复。") },
+            confirmButton = { TextButton(onClick = { viewModel.dissolve(); showDissolveConfirm = false }) { Text("解散") } },
+            dismissButton = { TextButton(onClick = { showDissolveConfirm = false }) { Text("取消") } },
         )
     }
 }

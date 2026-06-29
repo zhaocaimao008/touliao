@@ -87,6 +87,12 @@ final class GroupRepository {
         )
     }
 
+    func dissolve(_ conversationId: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/dissolve", method: "POST"
+        )
+    }
+
     func qrCode(_ conversationId: String) async throws -> GroupQr {
         try await api.send("api/messages/conversation/\(conversationId)/qr-code")
     }

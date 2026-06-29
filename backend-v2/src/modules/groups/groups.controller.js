@@ -43,6 +43,11 @@ exports.leave = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+exports.dissolve = asyncHandler(async (req, res) => {
+  svc.dissolve(io(req), req.params.convId, req.user.id);
+  res.json({ success: true });
+});
+
 exports.info   = asyncHandler(async (req, res) => res.json(svc.info(req.params.convId, req.user.id)));
 exports.manage = asyncHandler(async (req, res) => res.json(svc.manage(io(req), req.params.convId, req.user.id, req.body)));
 

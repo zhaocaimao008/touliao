@@ -63,9 +63,13 @@ interface GroupApi {
     @DELETE("api/messages/conversation/{id}/members/{uid}")
     suspend fun kick(@Path("id") id: String, @Path("uid") uid: String)
 
-    /** 退出群聊 */
+    /** 退出群聊（非群主专用） */
     @POST("api/messages/conversation/{id}/leave")
     suspend fun leave(@Path("id") id: String)
+
+    /** 解散群聊（仅群主） */
+    @POST("api/messages/conversation/{id}/dissolve")
+    suspend fun dissolve(@Path("id") id: String)
 
     /** 群二维码 + 邀请链接（任意成员） */
     @GET("api/messages/conversation/{id}/qr-code")

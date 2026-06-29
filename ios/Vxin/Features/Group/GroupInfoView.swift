@@ -25,6 +25,7 @@ struct GroupInfoView: View {
     @State private var kickTarget: GroupMember?
     @State private var transferTarget: GroupMember?
     @State private var showLeaveConfirm = false
+    @State private var showDissolveConfirm = false
 
     private var myId: String { session.currentUser?.id ?? "" }
 
@@ -151,7 +152,11 @@ struct GroupInfoView: View {
                     }
 
                     Section {
-                        Button("退出群聊", role: .destructive) { showLeaveConfirm = true }
+                        if info.isOwner {
+                            Button("解散群聊", role: .destructive) { showDissolveConfirm = true }
+                        } else {
+                            Button("退出群聊", role: .destructive) { showLeaveConfirm = true }
+                        }
                     }
                 }
             } else {
@@ -211,6 +216,12 @@ struct GroupInfoView: View {
             Button("退出", role: .destructive) { vm.leave() }
         } message: {
             Text("退出后将不再接收该群消息。")
+        }
+        .alert("解散群聊", isPresented: $showDissolveConfirm) {
+            Button("取消", role: .cancel) {}
+            Button("解散", role: .destructive) { vm.dissolve() }
+        } message: {
+            Text("解散后所有成员将无法继续聊天，且不可恢复。")
         }
     }
 

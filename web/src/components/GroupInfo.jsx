@@ -266,11 +266,17 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     load();
   };
 
-  /* 退出/解散 */
+  /* 退出群聊（非群主）*/
   const leaveGroup = async () => {
-    const msg = isOwner ? '解散群聊后所有成员将无法继续聊天，确认解散？' : '确认退出群聊？';
-    if (!(await showConfirm(msg))) return;
+    if (!(await showConfirm('确认退出群聊？'))) return;
     await axios.post(`/api/messages/conversation/${conversation.id}/leave`);
+    onLeave?.();
+  };
+
+  /* 解散群聊（仅群主）*/
+  const dissolveGroup = async () => {
+    if (!(await showConfirm('解散群聊后所有成员将无法继续聊天，确认解散？'))) return;
+    await axios.post(`/api/messages/conversation/${conversation.id}/dissolve`);
     onLeave?.();
   };
 
@@ -666,15 +672,27 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           >
             双向删除聊天记录
           </button>
-          <button
-            onClick={leaveGroup}
-            data-testid="group-leave-btn"
-            className="gi-btn-danger"
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-msg-other)'}
-          >
-            {isOwner ? '解散群聊' : '退出群聊'}
-          </button>
+          {isOwner ? (
+            <button
+              onClick={dissolveGroup}
+              data-testid="group-dissolve-btn"
+              className="gi-btn-danger"
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-msg-other)'}
+            >
+              解散群聊
+            </button>
+          ) : (
+            <button
+              onClick={leaveGroup}
+              data-testid="group-leave-btn"
+              className="gi-btn-danger"
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-msg-other)'}
+            >
+              退出群聊
+            </button>
+          )}
         </div>
       </div>
 

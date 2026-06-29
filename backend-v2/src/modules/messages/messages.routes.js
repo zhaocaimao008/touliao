@@ -438,6 +438,7 @@ router.delete('/conversation/:convId/members/:uid',   auth, grp.kick);
  *         description: Left group successfully
  */
 router.post  ('/conversation/:convId/leave',          auth, grp.leave);
+router.post  ('/conversation/:convId/dissolve',       auth, grp.dissolve);
 
 /**
  * @swagger

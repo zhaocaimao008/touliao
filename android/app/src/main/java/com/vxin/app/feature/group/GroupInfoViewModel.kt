@@ -185,4 +185,12 @@ class GroupInfoViewModel @Inject constructor(
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("退群失败")) } }
         }
     }
+
+    fun dissolve() {
+        viewModelScope.launch {
+            runCatching { groupRepository.dissolve(conversationId) }
+                .onSuccess { _uiState.update { it.copy(left = true) } }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("解散失败")) } }
+        }
+    }
 }

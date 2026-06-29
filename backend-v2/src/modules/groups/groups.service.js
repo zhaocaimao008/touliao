@@ -134,17 +134,23 @@ function kick(io, convId, callerId, uid) {
   }
 }
 
-// ── 退群 / 群主解散 ─────────────────────────────────────────────
+// ── 退群（非群主专用）────────────────────────────────────────────
+// 群主不可直接退群：必须先转让群主，成为普通成员后再退；或调 dissolve 解散。
 function leave(io, convId, userId) {
   const conv = db.prepare('SELECT owner_id FROM conversations WHERE id=?').get(convId);
   if (!conv) throw notFound('群不存在');
-  if (conv.owner_id === userId) {
-    purgeConversation(convId); // 完整级联清理，含消息（修复外键约束 500）
-    if (io) io.to(convId).emit('group_dismissed', { conversationId: convId });
-  } else {
-    db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, userId);
-    if (io) io.to(convId).emit('group_updated', { id: convId });
-  }
+  if (conv.owner_id === userId) throw badRequest('群主不能直接退出群聊，请先转让群主后再退出，或解散群聊');
+  db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, userId);
+  if (io) io.to(convId).emit('group_updated', { id: convId });
+}
+
+// ── 解散群聊（仅群主）────────────────────────────────────────────
+function dissolve(io, convId, userId) {
+  const conv = db.prepare('SELECT owner_id FROM conversations WHERE id=?').get(convId);
+  if (!conv) throw notFound('群不存在');
+  if (conv.owner_id !== userId) throw forbidden('仅群主可解散群聊');
+  purgeConversation(convId);
+  if (io) io.to(convId).emit('group_dismissed', { conversationId: convId });
 }
 
 // ── 群详情 ──────────────────────────────────────────────────────
@@ -261,6 +267,6 @@ function listPinned(convId, userId) {
 
 module.exports = {
   setNickname, createInviteLink, getQrCode, joinByToken,
-  updateInfo, setAvatar, invite, kick, leave, info, manage, setRole, transferOwner,
+  updateInfo, setAvatar, invite, kick, leave, dissolve, info, manage, setRole, transferOwner,
   pinMessage, unpinMessage, listPinned,
 };

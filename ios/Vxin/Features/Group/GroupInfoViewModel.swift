@@ -131,4 +131,11 @@ final class GroupInfoViewModel: ObservableObject {
             catch { self.error = (error as? LocalizedError)?.errorDescription ?? "退群失败" }
         }
     }
+
+    func dissolve() {
+        Task {
+            do { try await repo.dissolve(conversationId); left = true }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "解散失败" }
+        }
+    }
 }

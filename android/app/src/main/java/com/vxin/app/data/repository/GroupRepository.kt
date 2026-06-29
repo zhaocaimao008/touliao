@@ -52,6 +52,7 @@ class GroupRepository @Inject constructor(
         groupApi.kick(conversationId, userId)
 
     suspend fun leave(conversationId: String) = groupApi.leave(conversationId)
+    suspend fun dissolve(conversationId: String) = groupApi.dissolve(conversationId)
 
     suspend fun qrCode(conversationId: String) = groupApi.qrCode(conversationId)
 
