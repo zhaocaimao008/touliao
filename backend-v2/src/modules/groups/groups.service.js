@@ -50,6 +50,8 @@ function joinByToken(io, userId, token) {
   if (isMember(invite.conversation_id, userId)) {
     return { success: true, conversationId: invite.conversation_id, alreadyMember: true };
   }
+  const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(invite.conversation_id).n;
+  if (curCount >= config.limits.maxGroupMembers) throw badRequest(`群成员已达上限 ${config.limits.maxGroupMembers} 人`);
   db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)')
     .run(invite.conversation_id, userId, 'member');
   const conv = db.prepare('SELECT id,type,name,avatar FROM conversations WHERE id=?').get(invite.conversation_id);
@@ -92,7 +94,11 @@ function setAvatar(io, convId, userId, url) {
 // ── 邀请成员 ────────────────────────────────────────────────────
 function invite(io, convId, userId, userIds) {
   if (!userIds?.length) throw badRequest('参数缺失');
+  if (userIds.length > 100) throw badRequest('单次最多邀请 100 人');
   requireMember(convId, userId, '不在群内');
+  const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(convId).n;
+  if (curCount + userIds.length > config.limits.maxGroupMembers)
+    throw badRequest(`邀请后群成员将超过上限 ${config.limits.maxGroupMembers} 人`);
   const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id) VALUES (?,?)');
   const added = [];
   // 一次批量查询校验用户是否存在，避免 N+1
@@ -226,6 +232,8 @@ function setRole(io, convId, ownerId, uid, role) {
 function pinMessage(io, convId, userId, msgId) {
   if (!msgId) throw badRequest('参数缺失');
   requireMember(convId, userId, '不在会话中');
+  const role = memberRole(convId, userId);
+  if (role === 'member') throw forbidden('仅群主和管理员可置顶消息');
   const msg = db.prepare('SELECT id,type,content,sender_id FROM messages WHERE id=? AND conversation_id=?').get(msgId, convId);
   if (!msg) throw notFound('消息不存在');
   db.prepare('INSERT OR REPLACE INTO pinned_messages (id,conversation_id,message_id,pinned_by) VALUES (?,?,?,?)')
@@ -236,6 +244,8 @@ function pinMessage(io, convId, userId, msgId) {
 
 function unpinMessage(io, convId, userId, msgId) {
   requireMember(convId, userId, '不在会话中');
+  const role = memberRole(convId, userId);
+  if (role === 'member') throw forbidden('仅群主和管理员可取消置顶');
   db.prepare('DELETE FROM pinned_messages WHERE conversation_id=? AND message_id=?').run(convId, msgId);
   if (io) io.to(convId).emit('message_unpinned', { msgId, convId });
 }

@@ -658,7 +658,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
 
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
-    socket.on('@mention', onAtMention);
+    socket.on('mentioned', onAtMention);
     socket.on('typing', onTyping);
     socket.on('stop_typing', onStopTyping);
     socket.on('message_deleted', onDeleted);
@@ -681,7 +681,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     socket.on('message_pinned', onPinned);
     socket.on('message_unpinned', onUnpinned);
     return () => {
-      socket.off('@mention', onAtMention);
+      registerDelivered(null); // 清除 stale closure，防止已卸载的组件收到送达回执
+      socket.off('mentioned', onAtMention);
       socket.off('new_message', onMsg);
       socket.off('new_message_batch', onMsgBatch);
       socket.off('typing', onTyping);
@@ -692,8 +693,6 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       socket.off('message_edited', onEdited);
       socket.off('message_reaction', onReaction);
       socket.off('message_read', onRead);
-      // message_delivered 由 SocketContext 统一管理，无需手动 off
-      // socket.off('red_packet_claimed', onRedPacketClaimed); // removed
       socket.off('group_updated', onGroupUpdated);
       socket.off('role_changed', onRoleChanged);
       socket.off('group_kicked', onGroupKicked);
@@ -1428,7 +1427,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     const a = new Audio(url);
     audioRef.current = a;
     a.onended = () => { audioRef.current = null; };
-    a.play();
+    a.play().catch(() => { audioRef.current = null; });
   };
 
   // Precompute the last mine message id to avoid O(n) per message in flatItems

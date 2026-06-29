@@ -123,10 +123,11 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');
   const hash = await bcrypt.hash(newPassword, 12);
-  db.prepare('UPDATE users SET password=? WHERE id=?').run(hash, userId);
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, now, userId);
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
   // 将当前 token 加入黑名单，防止改密后旧 token 继续有效（最长 7 天）
-  if (currentToken) await addToBlacklist(currentToken);
+  if (currentToken) await addToBlacklist(currentToken, jwt.decode(currentToken)?.exp);
   return signToken(user);
 }
 
@@ -172,7 +173,8 @@ async function resetPassword({ phone, inviteCode, newPassword }) {
   const user = db.prepare('SELECT id FROM users WHERE phone=?').get(phone);
   if (!user) throw badRequest('该手机号未注册');
   const hash = await bcrypt.hash(newPassword, 12);
-  db.prepare('UPDATE users SET password=? WHERE id=?').run(hash, user.id);
+  const resetAt = Math.floor(Date.now() / 1000);
+  db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, resetAt, user.id);
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(user.id);
   return { success: true };
 }

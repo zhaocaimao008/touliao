@@ -228,14 +228,15 @@ function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
 }
 
 // ── 某用户的动态（好友或本人）──────────────────────────────────
-function userMoments(viewerId, targetId) {
+function userMoments(viewerId, targetId, { limit = 20, offset = 0 } = {}) {
   if (targetId !== viewerId && isBlockedBetween(viewerId, targetId)) throw forbidden('无权查看该动态');
   if (targetId !== viewerId && !isFriend(viewerId, targetId)) throw forbidden('仅好友可见');
 
+  const n = Math.min(parseInt(limit) || 20, 50);
+  const off = Math.max(parseInt(offset) || 0, 0);
   let rows;
   if (targetId === viewerId) {
-    // 看自己的相册：全部可见
-    rows = db.prepare('SELECT * FROM moments WHERE user_id=? ORDER BY created_at DESC LIMIT 50').all(targetId);
+    rows = db.prepare('SELECT * FROM moments WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(targetId, n, off);
   } else {
     rows = db.prepare(`
       SELECT m.* FROM moments m
@@ -249,8 +250,8 @@ function userMoments(viewerId, targetId) {
         )
         AND (COALESCE(us.moments_visible_days,0)=0
              OR m.created_at >= (CAST(strftime('%s','now') AS INTEGER) - us.moments_visible_days*86400))
-      ORDER BY m.created_at DESC LIMIT 50
-    `).all(targetId, viewerId, viewerId);
+      ORDER BY m.created_at DESC LIMIT ? OFFSET ?
+    `).all(targetId, viewerId, viewerId, n, off);
   }
   return batchEnrich(viewerId, rows, { likeLimit: 50, commentLimit: 10 });
 }

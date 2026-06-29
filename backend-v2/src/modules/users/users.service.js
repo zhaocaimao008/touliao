@@ -4,6 +4,7 @@ const { notFound, badRequest, conflict, paginated } = require('../../utils/http'
 const cache = require('../../utils/cache');
 const { v4: uuidv4 } = require('uuid');
 const { collectionDedupKey } = require('../../utils/collections');
+const presence = require('../../realtime/presence');
 
 // ── 设置序列化 ──────────────────────────────────────────────────
 const settingDefaults = {
@@ -108,15 +109,15 @@ async function updateProfile(userId, { username, bio }) {
     const safeBio = typeof bio === 'string' ? bio.slice(0, 500) : '';
     db.prepare('UPDATE users SET bio=? WHERE id=?').run(safeBio, userId);
   }
-  // P2 优化：删除用户缓存，下次查询重新加载
   await cache.del(cache.keys.user(userId));
+  presence.dropProfile(userId); // 刷新在线状态中的昵称缓存，避免发消息时仍用旧名字
   return db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo FROM users WHERE id=?').get(userId);
 }
 
 async function setAvatar(userId, url) {
   db.prepare('UPDATE users SET avatar=? WHERE id=?').run(url, userId);
-  // P2 优化：删除缓存
   await cache.del(cache.keys.user(userId));
+  presence.dropProfile(userId);
 }
 
 async function setCover(userId, url) {

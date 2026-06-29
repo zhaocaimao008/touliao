@@ -103,7 +103,14 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] msgIds in Task { @MainActor in
                 guard let self else { return }
                 let idSet = Set(msgIds)
-                self.messages.removeAll { idSet.contains($0.id) }
+                self.messages = self.messages.map { msg in
+                    guard idSet.contains(msg.id) else { return msg }
+                    var recalled = msg
+                    recalled.deleted = 1
+                    recalled.content = "消息已撤回"
+                    recalled.type = "recalled"
+                    return recalled
+                }
             }}
             .store(in: &cancellables)
 
@@ -473,7 +480,8 @@ final class ChatViewModel: ObservableObject {
         sending = true
         error = nil
         repo.emitStopTyping(conversationId)
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             let result = await repo.sendText(conversationId: conversationId, content: text, replyToId: replyId)
             sending = false
             switch result {
@@ -489,7 +497,8 @@ final class ChatViewModel: ObservableObject {
     func upload(data: Data, fileName: String, mimeType: String, localType: String, preview: UIImage?) {
         let item = PendingUpload(type: localType, name: fileName, previewImage: preview)
         pending.append(item)
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             do {
                 let msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: fileName, mimeType: mimeType)
                 removePending(item.id)
@@ -511,7 +520,8 @@ final class ChatViewModel: ObservableObject {
         guard recording else { return }
         recording = false
         guard let url = recorder.stop() else { error = "录音失败"; return }
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             guard let data = try? Data(contentsOf: url) else { error = "读取录音失败"; return }
             upload(data: data, fileName: url.lastPathComponent, mimeType: recorder.mimeType, localType: "voice", preview: nil)
         }

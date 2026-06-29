@@ -217,6 +217,7 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
 // ── 转发 ────────────────────────────────────────────────────────
 async function forward(io, userId, { msgId, conversationIds }) {
   if (!msgId || !conversationIds?.length) throw badRequest('参数缺失');
+  if (conversationIds.length > 20) throw badRequest('单次最多转发到 20 个会话');
   const msg = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(msgId);
   if (!msg) throw notFound('消息不存在');
   requireMember(msg.conversation_id, userId, '无权转发该消息');
@@ -282,7 +283,7 @@ async function remove(io, userId, msgId, forEveryone) {
     const callerRole = memberRole(msg.conversation_id, userId);
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
-    if (isOwn && Math.floor(Date.now() / 1000) - msg.created_at > RECALL) throw badRequest('超过2分钟无法撤回');
+    if (isOwn && !isAdmin && Math.floor(Date.now() / 1000) - msg.created_at > RECALL) throw badRequest('超过2分钟无法撤回');
     // P0-1：worker 异步写，await 落库后再广播
     await writeAsync('UPDATE messages SET deleted=1 WHERE id=?', [msgId]);
     if (io) io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });

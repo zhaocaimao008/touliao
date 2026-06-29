@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../config');
 const { csrfCookieOptions } = require('../utils/cookies');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
+const { readDb } = require('../db/connection');
 
 module.exports = function auth(req, res, next) {
   // Cookie first (web); fall back to Bearer header (Electron desktop)
@@ -24,7 +25,16 @@ module.exports = function auth(req, res, next) {
     }
 
     try {
-      req.user = jwt.verify(token, config.jwtSecret);
+      const payload = jwt.verify(token, config.jwtSecret);
+      // 检查 token 签发时间是否早于密码修改时间（resetPassword / changePassword 均会更新）
+      if (payload.iat && payload.id) {
+        const row = readDb.prepare('SELECT password_changed_at FROM users WHERE id=?').get(payload.id);
+        if (row?.password_changed_at && payload.iat < row.password_changed_at) {
+          res.clearCookie(config.cookieName, { path: '/' });
+          return res.status(401).json({ error: '密码已修改，请重新登录' });
+        }
+      }
+      req.user = payload;
       req.token = token;  // 保存 token 供 logout 使用
       req.csrfToken = req.user.csrf;
       res.cookie(config.csrfCookie, req.csrfToken, csrfCookieOptions(req));
