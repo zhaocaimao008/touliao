@@ -596,8 +596,10 @@ export default function Home() {
       showNotification('新的好友申请', `${name} 请求添加您为好友`);
     };
     const onFriendAccepted = (data) => {
-      const name = data?.accepter?.username || '对方';
-      showNotification('好友申请已通过', `${name} 已通过你的好友申请`);
+      // accepter 存在 = 我是请求方，对方通过了我的申请；newFriend 存在 = 我是接受方，仅触发刷新
+      if (data?.accepter?.username) {
+        showNotification('好友申请已通过', `${data.accepter.username} 已通过你的好友申请`);
+      }
       // 刷新会话列表（新好友会话自动置顶）
       setConvRefreshKey(k => k + 1);
     };

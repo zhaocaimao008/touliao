@@ -114,8 +114,10 @@ function handleRequest(io, userId, requestId, action) {
     const requester = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(request.from_id);
     // 创建私聊会话
     const { conversationId } = getOrCreatePrivate(request.from_id, request.to_id);
-    // 通知请求方好友已通过
+    // 通知请求方好友已通过（带 accepter 信息，用于弹通知）
     if (io) io.to(`user_${request.from_id}`).emit('friend_request_accepted', { accepter });
+    // 通知接受方自己（不带 accepter 信息，仅触发通讯录刷新，不弹"对方通过了你"提示）
+    if (io) io.to(`user_${userId}`).emit('friend_request_accepted', { newFriend: requester });
     // 双方都收到 new_conversation 事件（自动置顶到会话列表）
     if (io) {
       const convForAccepter = { id: conversationId, type: 'private', name: requester?.username || '', avatar: requester?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };

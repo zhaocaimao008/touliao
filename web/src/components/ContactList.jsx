@@ -78,9 +78,13 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   }, [addFriendRequest]);
 
   const handleRequest = async (id, action) => {
-    await axios.post(`/api/users/friend-request/${id}/handle`, { action });
-    setRequests(prev => prev.filter(r => r.id !== id));
-    if (action === 'accepted') fetchContacts();
+    try {
+      await axios.post(`/api/users/friend-request/${id}/handle`, { action });
+      setRequests(prev => prev.filter(r => r.id !== id));
+      if (action === 'accepted') fetchContacts();
+    } catch (err) {
+      alert(err.response?.data?.error || '操作失败，请重试');
+    }
   };
 
   const unblock = async (userId) => {
