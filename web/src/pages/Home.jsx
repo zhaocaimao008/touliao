@@ -672,7 +672,7 @@ export default function Home() {
         return <Collections />;
       case 'profile':
       case 'me':
-        return <Profile />;
+        return <Profile isMobile={isMobile} />;
       default:
         return null;
     }

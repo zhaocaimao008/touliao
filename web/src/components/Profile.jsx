@@ -797,7 +797,7 @@ function SettingsPage({ user, setSubPage, logout }) {
 }
 
 /* ── 主页面 ── */
-export default function Profile() {
+export default function Profile({ isMobile = false }) {
   const { user, updateUser, logout, accounts, login, switchAccount } = useAuth();
   const [subPage, setSubPage] = useState(null);
   const [showQR, setShowQR] = useState(false);
@@ -889,11 +889,15 @@ export default function Profile() {
         </>
       )}
 
-      {/* ── 账号管理 ── */}
-      <SLabel>账号</SLabel>
-      <div className="wc-section-pad">
-        <AccountSwitcher user={user} accounts={accounts} login={login} switchAccount={switchAccount} />
-      </div>
+      {/* ── 账号管理（仅手机端：桌面端侧边栏已有账号切换器） ── */}
+      {isMobile && (
+        <>
+          <SLabel>账号</SLabel>
+          <div className="wc-section-pad">
+            <AccountSwitcher user={user} accounts={accounts} login={login} switchAccount={switchAccount} />
+          </div>
+        </>
+      )}
 
       {/* ── 退出 ── */}
       <div className="wc-logout-div">
