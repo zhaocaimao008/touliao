@@ -94,11 +94,7 @@ function setAvatar(io, convId, userId, url) {
 // ── 邀请成员 ────────────────────────────────────────────────────
 function invite(io, convId, userId, userIds) {
   if (!userIds?.length) throw badRequest('参数缺失');
-  if (userIds.length > 100) throw badRequest('单次最多邀请 100 人');
   requireMember(convId, userId, '不在群内');
-  const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(convId).n;
-  if (curCount + userIds.length > config.limits.maxGroupMembers)
-    throw badRequest(`邀请后群成员将超过上限 ${config.limits.maxGroupMembers} 人`);
   const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id) VALUES (?,?)');
   const added = [];
   // 一次批量查询校验用户是否存在，避免 N+1

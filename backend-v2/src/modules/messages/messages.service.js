@@ -217,7 +217,6 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
 // ── 转发 ────────────────────────────────────────────────────────
 async function forward(io, userId, { msgId, conversationIds }) {
   if (!msgId || !conversationIds?.length) throw badRequest('参数缺失');
-  if (conversationIds.length > 20) throw badRequest('单次最多转发到 20 个会话');
   const msg = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(msgId);
   if (!msg) throw notFound('消息不存在');
   requireMember(msg.conversation_id, userId, '无权转发该消息');
