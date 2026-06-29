@@ -80,9 +80,15 @@ async function getPresignedPutUrl(key, contentType) {
   return { uploadUrl, publicUrl: `${publicBase}/${key}` };
 }
 
+async function uploadFile(key, buffer, contentType) {
+  const { client, bucket, publicBase } = buildConfig();
+  await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: contentType }));
+  return `${publicBase}/${key}`;
+}
+
 function getPublicBase() {
   if (!isConfigured()) return null;
   return buildConfig().publicBase;
 }
 
-module.exports = { isConfigured, getPresignedPutUrl, getPublicBase };
+module.exports = { isConfigured, getPresignedPutUrl, uploadFile, getPublicBase };
