@@ -104,6 +104,13 @@ const config = {
     // like/comment 离线推送。默认 true（可置 'false' 关闭）
     pushOnInteract: process.env.MOMENTS_PUSH_ON_INTERACT !== 'false',
   },
+
+  // ── 错误监控 Sentry ─────────────────────────────────────────────
+  // 获取 DSN: https://sentry.io → 新建 Node.js 项目 → Project Settings → Client Keys
+  sentry: {
+    dsn: process.env.SENTRY_DSN || '',
+    tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'),
+  },
 };
 
 if (!config.jwtSecret) {
