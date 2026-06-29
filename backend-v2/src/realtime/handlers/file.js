@@ -88,6 +88,7 @@ module.exports = function registerFileHandler(io, socket) {
       duration, reply_to_id: reply_to_id || null, deleted: 0, edited: 0, created_at,
       senderName: profile.username || '', senderAvatar: profile.avatar || '',
       reactions: [], replyTo: null,
+      client_msg_id: clientMsgId || null, // 带回客户端用于乐观消息匹配,防重连重发双显
     };
 
     if (reply_to_id) {

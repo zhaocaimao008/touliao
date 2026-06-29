@@ -59,7 +59,14 @@ module.exports = async () => {
   catch (e) { console.warn('[e2e] 建好友/会话失败(CHAT用例可能跳过):', e.message); }
   fs.writeFileSync(STATE_FILE, JSON.stringify({ users, convAB, backendUrl: env.BACKEND_URL }, null, 2));
 
-  // 3. 静态 web(仅 web project 需要;electron 用 dist 直接 loadFile,不依赖此)
+  // 3. 生成大文件 fixture(9MB,>8MB 触发分片上传用例 EDGE-01)
+  const bigfilePath = path.join(__dirname, '..', 'fixtures', 'bigfile.txt');
+  if (!fs.existsSync(bigfilePath)) {
+    fs.writeFileSync(bigfilePath, Buffer.alloc(9 * 1024 * 1024, 65)); // 9MB 'A'
+    console.log('[e2e] 生成 fixtures/bigfile.txt (9MB)');
+  }
+
+  // 4. 静态 web(仅 web project 需要;electron 用 dist 直接 loadFile,不依赖此)
   if (fs.existsSync(WEB_DIST)) {
     const webUrl = new URL(env.WEB_URL);
     global.__E2E_WEB__ = await startStaticServer(WEB_DIST, webUrl.port);

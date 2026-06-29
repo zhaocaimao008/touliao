@@ -487,6 +487,16 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       if (msg.sender_id === user.id) forceScrollRef.current = true;
       setMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
+        // 用 client_msg_id 匹配并替换本地乐观消息(tempId),否则 socket 重连自动重发后
+        // 广播回来的真实消息(新id) 会与乐观消息并存 → 重复显示。
+        if (msg.client_msg_id) {
+          const idx = prev.findIndex(m => (m._tempId === msg.client_msg_id || m.id === msg.client_msg_id));
+          if (idx >= 0) {
+            const next = prev.slice();
+            next[idx] = msg;
+            return next;
+          }
+        }
         return [...prev, msg];
       });
       // 不在此无条件上报已读:已读由 markReadRef effect 在 messages 变化后处理,
@@ -506,8 +516,18 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       if (!incoming.length) return;
       setMessages(prev => {
         const have = new Set(prev.map(m => m.id));
-        const add = incoming.filter(m => !have.has(m.id));
-        return add.length ? [...prev, ...add] : prev;
+        let next = prev.slice();
+        let changed = false;
+        for (const msg of incoming) {
+          if (have.has(msg.id)) continue;
+          // 同 onMsg:用 client_msg_id 替换乐观消息,防重连重发双显
+          if (msg.client_msg_id) {
+            const idx = next.findIndex(m => (m._tempId === msg.client_msg_id || m.id === msg.client_msg_id));
+            if (idx >= 0) { next[idx] = msg; changed = true; continue; }
+          }
+          next.push(msg); changed = true;
+        }
+        return changed ? next : prev;
       });
       // 已读由 markReadRef effect 统一处理(仅在底部),不在此无条件上报。
       setTimeout(() => {

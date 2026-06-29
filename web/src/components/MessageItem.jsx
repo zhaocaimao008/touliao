@@ -165,7 +165,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
               />
             )}
             {msg.type === 'file' && (
-              <a href={mediaUrl(msg.file_url)} download={msg.content} className="wc-msg-file-link">
+              <a href={mediaUrl(msg.file_url)} download={msg.content} className="wc-msg-file-link" data-testid="msg-file">
                 <div className="wc-msg-file-icon">📄</div>
                 <div>
                   <div className="wc-msg-file-name">{msg.content}</div>

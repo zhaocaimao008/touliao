@@ -1,6 +1,6 @@
 name: E2E Web Tests
 
-# push 到 main 且改动 web/backend/e2e 时,自动跑 Playwright web 16 用例。
+# push 到 main 且改动 web/backend/e2e 时,自动跑 Playwright web 24 用例。
 # 起隔离 backend-v2(独立DB+测试端口)+静态serve web/dist,chromium headless 实跑。
 on:
   push:
@@ -23,7 +23,7 @@ permissions:
 jobs:
   e2e-web:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     # Redis 可选:backend-v2 在 Redis 不可达时降级 SQLite(tokenBlacklist.js),
     # 但起一个更接近真实环境。
@@ -63,7 +63,7 @@ jobs:
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
-      - name: Run E2E web (16 用例)
+      - name: Run E2E web (24 用例)
         working-directory: e2e
         env:
           REDIS_URL: redis://127.0.0.1:6379

@@ -48,3 +48,5 @@ e2e/node_modules/
 e2e/test-results/
 e2e/playwright-report/
 /tmp/vxin-e2e-*
+e2e/fixtures/bigfile.txt
+e2e/.e2e-state.json

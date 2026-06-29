@@ -48,6 +48,16 @@ class ChatPage {
     await this.tid(A.chatAttachImage).setInputFiles(filePath);
   }
 
+  /** 发文件(>8MB 触发分片上传) */
+  async sendFile(filePath) {
+    await this.tid(A.chatAttachFile).setInputFiles(filePath);
+  }
+
+  /** 消息总数(气泡) */
+  async bubbleCount() {
+    return this.page.locator('[data-testid^="msg-bubble-"]').count();
+  }
+
   /** 点击最后一张图片打开灯箱 */
   async openLastImageLightbox() {
     await this.tid(A.msgImage).last().click();

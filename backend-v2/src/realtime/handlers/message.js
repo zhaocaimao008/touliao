@@ -114,6 +114,7 @@ module.exports = function registerMessageHandler(io, socket) {
       file_url: '', reply_to_id: reply_to_id || null, deleted: 0, edited: 0, created_at,
       senderName: profile.username || '', senderAvatar: profile.avatar || '',
       reactions: [], replyTo: null,
+      client_msg_id: clientMsgId || null, // 带回客户端,使其用此匹配并替换乐观消息(防重连自动重发后乐观+广播双显)
     };
 
     // 一律等 worker commit 后再广播/回执，确保消息已落库（消除丢失与读后不一致）

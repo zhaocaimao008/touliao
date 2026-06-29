@@ -53,6 +53,7 @@ const A = {
   msgReadStatus:     'msg-read-status',
   msgSendFailed:     'msg-send-failed',   // 发送失败/重发态(❗)
   msgImage:          'msg-image',
+  msgFile:           'msg-file',          // 文件消息气泡
   // 右键/长按消息菜单项
   ctxEdit:           'ctx-edit',
   ctxRecall:         'ctx-recall',
