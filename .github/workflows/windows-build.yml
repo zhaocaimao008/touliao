@@ -35,7 +35,6 @@ jobs:
         run: npm run build:win
 
       - name: Upload installer + update feed
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: vxin-windows-setup
@@ -50,23 +49,34 @@ jobs:
             desktop-electron/release/*.blockmap
           if-no-files-found: warn
 
-      - name: 部署 EXE 到香港服务器
-        if: success()
-        shell: bash
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+  deploy:
+    name: 部署到香港服务器
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: vxin-windows-setup
+          path: artifacts
+
+      - name: 配置 SSH
         run: |
           mkdir -p ~/.ssh
-          printf '%s' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          EXE=$(find desktop-electron/dist desktop-electron/release -name "*.exe" 2>/dev/null | head -1)
-          echo "部署: $EXE → /var/www/downloads/vxin-windows-latest-setup.exe"
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /var/www/downloads/updates"
-          scp -i ~/.ssh/deploy_key "$EXE" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/vxin-windows-latest-setup.exe"
-          # 自动更新 feed（latest.yml + blockmap），客户端拉更新用
-          for f in desktop-electron/dist/latest.yml desktop-electron/dist/*.blockmap; do
-            [ -f "$f" ] && scp -i ~/.ssh/deploy_key "$f" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/updates/" || true
+          ssh-keyscan -H "${{ secrets.DEPLOY_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: SCP 到服务器
+        run: |
+          EXE=$(find artifacts -name "*.exe" | head -1)
+          echo "部署: $EXE"
+          ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
+            "mkdir -p /var/www/downloads/updates"
+          scp -i ~/.ssh/deploy_key "$EXE" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/vxin-windows-latest-setup.exe"
+          for f in artifacts/latest.yml artifacts/*.blockmap; do
+            [ -f "$f" ] && scp -i ~/.ssh/deploy_key "$f" \
+              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/" || true
           done
-          echo "✅ Windows 安装包已发布到 https://dipsin.com/downloads/vxin-windows-latest-setup.exe"
+          echo "✅ 已发布到 https://dipsin.com/downloads/vxin-windows-latest-setup.exe"
