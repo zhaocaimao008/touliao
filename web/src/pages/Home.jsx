@@ -758,7 +758,7 @@ export default function Home() {
         ) : (
           <>
             <div className="m-page">
-              {(tab === 'chats' || tab === 'contacts') && (
+              {(tab === 'chats' || tab === 'contacts') ? (
                 <>
                   <div className="m-topbar">
                     <span className="m-title">{mLabel(tab)}</span>
@@ -775,6 +775,10 @@ export default function Home() {
                     {search && <button className="m-search-clear" aria-label="清除" onClick={() => setSearch('')}>✕</button>}
                   </div>
                 </>
+              ) : (
+                <div className="m-topbar">
+                  <span className="m-title">{mLabel(tab)}</span>
+                </div>
               )}
               <div className="m-content">
                 {search.trim() ? (

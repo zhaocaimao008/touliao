@@ -3621,7 +3621,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
    移动端专属布局 (Mobile IM) — 底部 TabBar + 全屏页 + 全屏聊天
    宽度 < 768px 或 Capacitor 原生 App 启用，不显示 PC 侧边栏
    ============================================================ */
-.m-shell { position: fixed; inset: 0; display: flex; flex-direction: column; background: #ededed; overflow: hidden; }
+.m-shell { position: fixed; top: 0; left: 0; right: 0; height: 100dvh; display: flex; flex-direction: column; background: #ededed; overflow: hidden; }
 .m-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .m-topbar {
   flex-shrink: 0; min-height: 50px; padding-top: env(safe-area-inset-top);
@@ -3630,7 +3630,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 }
 .m-title { font-size: 17px; font-weight: 600; color: #181818; }
 .m-topbar-add {
-  position: absolute; right: 8px; bottom: 7px; width: 36px; height: 36px;
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   border: none; background: transparent; color: #181818; cursor: pointer;
 }
@@ -3660,7 +3660,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   background: #fa5151; color: #fff; font-size: 10px; line-height: 16px; border-radius: 8px; text-align: center;
 }
 /* 全屏聊天页 */
-.m-chat-page { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #f5f5f5; }
+.m-chat-page { position: fixed; top: 0; left: 0; right: 0; height: 100dvh; z-index: 60; display: flex; flex-direction: column; background: #f5f5f5; }
 .m-chat-page > .wc-chat { flex: 1; min-height: 0; height: 100%; }
 .m-chat-page .wc-chat-header { padding-top: env(safe-area-inset-top); }
 .m-chat-page .wc-chat-header-back {

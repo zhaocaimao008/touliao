@@ -12,7 +12,12 @@ axios.defaults.withCredentials = true;
 axios.interceptors.response.use(
   (res) => {
     const csrfHeader = res.headers['x-csrf-token'];
-    if (csrfHeader) sessionStorage.setItem('csrf_token', csrfHeader);
+    if (csrfHeader) {
+      sessionStorage.setItem('csrf_token', csrfHeader);
+      // 移动端浏览器刷新后 sessionStorage 清空但 Cookie 保留会导致 403，
+      // 用 localStorage 作为兜底，避免首次 POST 前 token 尚未到达时失败。
+      localStorage.setItem('csrf_token_cache', csrfHeader);
+    }
     return res;
   },
   (err) => Promise.reject(err)
@@ -22,7 +27,7 @@ axios.interceptors.response.use(
 axios.interceptors.request.use(
   (config) => {
     if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())) {
-      const csrfToken = sessionStorage.getItem('csrf_token');
+      const csrfToken = sessionStorage.getItem('csrf_token') || localStorage.getItem('csrf_token_cache');
       if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken;
     }
     return config;
