@@ -54,6 +54,10 @@ const config = {
       'http://dipsin.com',
       'http://localhost:3000',
       'http://localhost:5173',
+      // Capacitor Android/iOS WebView 的 Origin（androidScheme: "https"）
+      'https://localhost',
+      'capacitor://localhost',
+      'ionic://localhost',
     ];
     return [...new Set([...appOrigin, ...defaults, ...extra])];
   })(),
