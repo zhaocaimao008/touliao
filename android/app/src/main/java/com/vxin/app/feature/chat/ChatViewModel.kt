@@ -87,6 +87,7 @@ class ChatViewModel @Inject constructor(
     val conversationId: String = savedStateHandle.get<String>("conversationId").orEmpty()
     private val title: String = savedStateHandle.get<String>("title").orEmpty()
     val isGroup: Boolean = savedStateHandle.get<String>("type") == "group"
+    private val savedPeerUserId: String = savedStateHandle.get<String>("peerUserId").orEmpty()
 
     val myId: String = (sessionManager.state.value as? AuthState.Authenticated)?.user?.id.orEmpty()
 
@@ -206,8 +207,10 @@ class ChatViewModel @Inject constructor(
     fun closeRedPacket() = _uiState.update { it.copy(redPacketDetail = null, claimedAmount = null) }
 
     // ── 音视频通话 ─────────────────────────────────────────
-    /** 私聊对方 userId：取历史里第一条非本人消息的发送者 */
-    private fun peerId(): String? = _uiState.value.messages.firstOrNull { it.sender_id != myId }?.sender_id
+    /** 私聊对方 userId：优先用导航传入的 peerUserId，其次从消息历史推断（兜底） */
+    private fun peerId(): String? =
+        savedPeerUserId.ifEmpty { null }
+            ?: _uiState.value.messages.firstOrNull { it.sender_id != myId }?.sender_id
 
     /** 发起通话；无法确定对方（如群聊/无消息）返回 false */
     fun startCall(video: Boolean): Boolean {

@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /** 新建/打开会话的目标，供 UI 跳转到聊天页 */
-data class ConversationTarget(val conversationId: String, val title: String)
+data class ConversationTarget(val conversationId: String, val title: String, val peerUserId: String = "")
 
 data class ContactsUiState(
     val loading: Boolean = false,
@@ -61,7 +61,7 @@ class ContactsViewModel @Inject constructor(
     fun startPrivateChat(contact: Contact) {
         viewModelScope.launch {
             runCatching { contactRepository.createPrivate(contact.id) }
-                .onSuccess { convId -> _openChat.value = ConversationTarget(convId, contact.displayName) }
+                .onSuccess { convId -> _openChat.value = ConversationTarget(convId, contact.displayName, contact.id) }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("发起聊天失败")) } }
         }
     }

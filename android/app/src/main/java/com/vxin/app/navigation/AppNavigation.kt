@@ -102,9 +102,9 @@ private object Routes {
     const val GROUP_INFO = "groupInfo/{conversationId}"
     const val GROUP_QR = "groupQr/{conversationId}"
     const val INVITE_MEMBERS = "inviteMembers/{conversationId}"
-    const val CHAT = "chat/{conversationId}?title={title}&type={type}"
-    fun chat(conversationId: String, title: String, type: String) =
-        "chat/$conversationId?title=${Uri.encode(title)}&type=$type"
+    const val CHAT = "chat/{conversationId}?title={title}&type={type}&peerUserId={peerUserId}"
+    fun chat(conversationId: String, title: String, type: String, peerUserId: String = "") =
+        "chat/$conversationId?title=${Uri.encode(title)}&type=$type&peerUserId=${Uri.encode(peerUserId)}"
     fun groupInfo(conversationId: String) = "groupInfo/$conversationId"
     fun groupQr(conversationId: String) = "groupQr/$conversationId"
     fun inviteMembers(conversationId: String) = "inviteMembers/$conversationId"
@@ -210,7 +210,7 @@ private fun MainFlow(features: Features) {
             }
             composable(Routes.CONTACTS) {
                 ContactsScreen(
-                    onOpenChat = { target -> navController.navigate(Routes.chat(target.conversationId, target.title, "private")) },
+                    onOpenChat = { target -> navController.navigate(Routes.chat(target.conversationId, target.title, "private", target.peerUserId)) },
                     onAddFriend = { navController.navigate(Routes.ADD_FRIEND) },
                     onRequests = { navController.navigate(Routes.REQUESTS) },
                     onCreateGroup = { navController.navigate(Routes.CREATE_GROUP) },
@@ -275,6 +275,7 @@ private fun MainFlow(features: Features) {
                 navArgument("conversationId") { type = NavType.StringType },
                 navArgument("title") { type = NavType.StringType; defaultValue = "" },
                 navArgument("type") { type = NavType.StringType; defaultValue = "private" },
+                navArgument("peerUserId") { type = NavType.StringType; defaultValue = "" },
             ),
         ) {
             ChatScreen(
