@@ -60,8 +60,18 @@ step "检查 adb"
 for candidate in "$HOME/Android/Sdk" "$HOME/Library/Android/sdk" "/opt/android-sdk"; do
   [[ -z "${ANDROID_HOME:-}" && -d "$candidate/platform-tools" ]] && export ANDROID_HOME="$candidate"
 done
-[[ -n "${ANDROID_HOME:-}" ]] && export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
+[[ -n "${ANDROID_HOME:-}" ]] && export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin"
 command -v adb &>/dev/null || die "找不到 adb。请先运行 bash e2e/scripts/setup-appium.sh"
+
+# 检查 KVM(模拟器依赖)
+if ! $USE_REAL && [[ ! -e /dev/kvm ]]; then
+  die "/dev/kvm 不存在 → Android 模拟器无法在此机器运行。
+解决方案:
+  1. 用有 KVM 的 Linux 机器(ls -la /dev/kvm)
+  2. 用 macOS(内置 Hypervisor.framework)
+  3. 接真机: bash $0 --real (手机USB+adb tcpip 5555 也可)
+  详见: e2e/scripts/manual-checklist.md"
+fi
 
 # ── 启动模拟器 or 检查真机 ────────────────────────────────────────────────────
 if $USE_REAL; then

@@ -53,10 +53,10 @@ if [[ -z "${ANDROID_HOME:-}" ]]; then
   warn "未设置 ANDROID_HOME。"
   warn "请安装 Android Studio 并在 ~/.bashrc 中加入:"
   warn "  export ANDROID_HOME=\$HOME/Android/Sdk"
-  warn "  export PATH=\$PATH:\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/emulator"
+  warn "  export PATH=\$PATH:\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/emulator:\$ANDROID_HOME/cmdline-tools/latest/bin"
   warn "或使用 sdkmanager 命令行安装 SDK。跳过 adb 检查继续..."
 else
-  export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
+  export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin"
   if command -v adb &>/dev/null; then
     ok "adb $(adb version | head -1)"
   else
