@@ -57,9 +57,15 @@ ADMIN_JWT_SECRET=$AJWT
 VAPID_PUBLIC_KEY=$VPUB
 VAPID_PRIVATE_KEY=$VPRIV
 VAPID_EMAIL=mailto:admin@$HOST
+# ⚠️  安全加固（部署后手动填写以下两项）:
+# ADMIN_IP_WHITELIST=<你的IP>         # 限制管理后台访问 IP（逗号分隔多个）
+# SENTRY_DSN=https://xxx@sentry.io/xxx  # 错误监控（可选）
 EOF
   echo "$APW" > ADMIN_PASSWORD.txt
   echo "   ✅ admin 密码已存 $BE/ADMIN_PASSWORD.txt"
+  echo ""
+  echo "   ⚠️  安全提醒：请在 .env 中设置 ADMIN_IP_WHITELIST=<你的IP>"
+  echo "      否则管理后台对外网开放！"
 else
   echo "==> [3/7] 已有 .env，跳过（不覆盖）"
 fi

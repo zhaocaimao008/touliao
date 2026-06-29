@@ -77,7 +77,7 @@ async function register({ username, phone, password, inviteCode }) {
   if (db.prepare('SELECT id FROM users WHERE phone=? OR username=?').get(phone, username))
     throw badRequest('用户名或手机号已存在');
 
-  const hash = await bcrypt.hash(password, 10);
+  const hash = await bcrypt.hash(password, 12);
   const id = uuidv4();
   const wechatId = generateVxinId();
   db.prepare('INSERT INTO users (id,username,phone,password,wechat_id) VALUES (?,?,?,?,?)')
@@ -122,7 +122,7 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');
-  const hash = await bcrypt.hash(newPassword, 10);
+  const hash = await bcrypt.hash(newPassword, 12);
   db.prepare('UPDATE users SET password=? WHERE id=?').run(hash, userId);
   // 改密码后清空旧会话记录(user_sessions 表不存 token，无法逐个加黑名单——
   // 此前查 token_hash 列导致 500，该列从不存在；改为直接清会话行)。
@@ -171,7 +171,7 @@ async function resetPassword({ phone, inviteCode, newPassword }) {
     throw badRequest('密码必须至少8位，且至少包含1个字母和1个数字');
   const user = db.prepare('SELECT id FROM users WHERE phone=?').get(phone);
   if (!user) throw badRequest('该手机号未注册');
-  const hash = await bcrypt.hash(newPassword, 10);
+  const hash = await bcrypt.hash(newPassword, 12);
   db.prepare('UPDATE users SET password=? WHERE id=?').run(hash, user.id);
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(user.id);
   return { success: true };

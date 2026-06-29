@@ -108,7 +108,7 @@ async function resetPassword(id, newPassword) {
   if (!newPassword || newPassword.length < 6) throw badRequest('新密码至少6位');
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
   if (!user) throw notFound('用户不存在');
-  const hash = await bcrypt.hash(newPassword, 10);
+  const hash = await bcrypt.hash(newPassword, 12);
   db.prepare('UPDATE users SET password=? WHERE id=?').run(hash, id);
   // 踢掉该用户所有会话
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(id);
