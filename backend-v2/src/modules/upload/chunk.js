@@ -88,18 +88,7 @@ async function finish(req, res) {
 
   const mime = check.mime || m.mime || '';
   const type = mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'voice' : mime.startsWith('video/') ? 'video' : 'file';
-
-  // 若配置了云存储（R2/OSS/COS），上传到云端，fileUrl 存绝对地址，换服务器文件仍可访问。
-  // 未配置则退回本地 /uploads/files/（本地文件随服务器走）。
-  let fileUrl = `/uploads/files/${finalName}`;
-  const cloud = require('../../utils/cloudStorage');
-  if (cloud.isConfigured()) {
-    try {
-      fileUrl = await cloud.uploadFile(`files/${finalName}`, fs.readFileSync(finalPath), mime);
-    } catch (e) {
-      console.error('[cloud] 上传失败，回退本地存储:', e.message);
-    }
-  }
+  const fileUrl = `/uploads/files/${finalName}`;
 
   const svc = require('../messages/messages.service');
   const io = req.app.get('io');
