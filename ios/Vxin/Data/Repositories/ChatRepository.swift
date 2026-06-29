@@ -20,6 +20,7 @@ final class ChatRepository {
     var unreadClearedPublisher: AnyPublisher<String, Never> { socket.unreadCleared.eraseToAnyPublisher() }
     var newConversationPublisher: AnyPublisher<Void, Never> { socket.newConversation.eraseToAnyPublisher() }
     var messageDeletedPublisher: AnyPublisher<String, Never> { socket.messageDeleted.eraseToAnyPublisher() }
+    var messageVanishedPublisher: AnyPublisher<String, Never> { socket.messageVanished.eraseToAnyPublisher() }
     var batchDeletedPublisher: AnyPublisher<[String], Never> { socket.batchDeleted.eraseToAnyPublisher() }
     var conversationClearedPublisher: AnyPublisher<String, Never> { socket.conversationCleared.eraseToAnyPublisher() }
     var reconnectedPublisher: AnyPublisher<Void, Never> { socket.reconnected.eraseToAnyPublisher() }
@@ -63,7 +64,14 @@ final class ChatRepository {
     /// 撤回/删除消息
     func deleteMessage(_ msgId: String, forEveryone: Bool = true) async {
         let _: EmptyResponse? = try? await api.send(
-            "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: forEveryone)
+            "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: forEveryone, vanish: nil)
+        )
+    }
+
+    /// 彻底删除不留痕迹
+    func vanishMessage(_ msgId: String) async {
+        let _: EmptyResponse? = try? await api.send(
+            "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: false, vanish: true)
         )
     }
 
@@ -149,6 +157,6 @@ private struct PinConvBody: Encodable { let pinned: Int }
 private struct MuteConvBody: Encodable { let muted: Int }
 private struct EditBody: Encodable { let content: String }
 private struct ForwardBody: Encodable { let msgId: String; let conversationIds: [String] }
-private struct DeleteMessageBody: Encodable { let forEveryone: Bool }
+private struct DeleteMessageBody: Encodable { let forEveryone: Bool; let vanish: Bool? }
 private struct ReactBody: Encodable { let emoji: String }
 private struct ReactResponse: Decodable { let reactions: [MessageReaction] }

@@ -421,6 +421,7 @@ private struct MessageBubble: View {
                         }
                         if isMine {
                             Button("撤回", role: .destructive) { vm.recall(msg) }
+                            Button("删除不留痕迹", role: .destructive) { vm.vanish(msg) }
                         }
                     }
                 if !msg.reactions.isEmpty {

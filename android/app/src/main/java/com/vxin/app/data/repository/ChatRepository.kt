@@ -39,6 +39,7 @@ class ChatRepository @Inject constructor(
     val unreadClearedEvents: SharedFlow<String> = socketManager.unreadClearedEvents
     val newConversationEvents: SharedFlow<Unit> = socketManager.newConversationEvents
     val messageDeletedEvents: SharedFlow<String> = socketManager.messageDeletedEvents
+    val messageVanishedEvents: SharedFlow<String> = socketManager.messageVanishedEvents
     val conversationClearedEvents: SharedFlow<String> = socketManager.conversationClearedEvents
     val reactionEvents: SharedFlow<ReactionEvent> = socketManager.reactionEvents
     val redPacketClaimedEvents: SharedFlow<RedPacketClaimedEvent> = socketManager.redPacketClaimedEvents
@@ -101,6 +102,9 @@ class ChatRepository @Inject constructor(
     /** 撤回/删除消息 */
     suspend fun deleteMessage(msgId: String, forEveryone: Boolean = true) =
         runCatching { api.deleteMessage(msgId, DeleteMessageBody(forEveryone)) }
+
+    suspend fun vanishMessage(msgId: String) =
+        runCatching { api.deleteMessage(msgId, DeleteMessageBody(vanish = true)) }
 
     /** 表情回应(切换) */
     suspend fun react(msgId: String, emoji: String) =

@@ -274,16 +274,26 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
 }
 
 // ── 单条撤回 ────────────────────────────────────────────────────
-async function remove(io, userId, msgId, forEveryone) {
+async function remove(io, userId, msgId, forEveryone, vanish) {
   const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
   if (!msg) throw notFound('消息不存在');
+
+  if (vanish) {
+    // 彻底删除不留痕迹：内容清空，deleted=2，对方也不见任何提示
+    const callerRole = memberRole(msg.conversation_id, userId);
+    const isAdmin = callerRole === 'owner' || callerRole === 'admin';
+    if (msg.sender_id !== userId && !isAdmin) throw forbidden('无权删除该消息');
+    await writeAsync("UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", [msgId]);
+    if (io) io.to(msg.conversation_id).emit('message_vanished', { msgId, conversationId: msg.conversation_id });
+    return;
+  }
+
   if (forEveryone) {
     const isOwn = msg.sender_id === userId;
     const callerRole = memberRole(msg.conversation_id, userId);
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
     if (isOwn && !isAdmin && Math.floor(Date.now() / 1000) - msg.created_at > RECALL) throw badRequest('超过2分钟无法撤回');
-    // P0-1：worker 异步写，await 落库后再广播
     await writeAsync('UPDATE messages SET deleted=1 WHERE id=?', [msgId]);
     if (io) io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });
   }

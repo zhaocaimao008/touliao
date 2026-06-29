@@ -336,6 +336,14 @@ class ChatViewModel @Inject constructor(
         // 实时事件 message_deleted 会移除;此处不乐观删除以保持一致
     }
 
+    fun vanish(msg: Message) {
+        viewModelScope.launch {
+            chatRepository.vanishMessage(msg.id)
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("删除失败")) } }
+        }
+        // 实时事件 message_vanished 驱动列表更新
+    }
+
     fun react(msg: Message, emoji: String) {
         viewModelScope.launch {
             chatRepository.react(msg.id, emoji)
@@ -346,6 +354,11 @@ class ChatViewModel @Inject constructor(
     private fun observeDeleted() {
         viewModelScope.launch {
             chatRepository.messageDeletedEvents.collect { msgId ->
+                _uiState.update { it.copy(messages = it.messages.filterNot { m -> m.id == msgId }) }
+            }
+        }
+        viewModelScope.launch {
+            chatRepository.messageVanishedEvents.collect { msgId ->
                 _uiState.update { it.copy(messages = it.messages.filterNot { m -> m.id == msgId }) }
             }
         }

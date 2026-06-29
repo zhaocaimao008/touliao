@@ -291,6 +291,7 @@ fun ChatScreen(
                             onOpenFile = { openUrl(context, viewModel.resolveMediaUrl(msg.file_url)) },
                             onReply = { viewModel.startReply(msg) },
                             onRecall = { viewModel.recall(msg) },
+                            onVanish = { viewModel.vanish(msg) },
                             onReact = { emoji -> viewModel.react(msg, emoji) },
                             onCollectSticker = { viewModel.collectSticker(msg.file_url) },
                             redPacket = viewModel.parseRedPacket(msg),
@@ -522,6 +523,7 @@ private fun MessageBubble(
     onNudge: () -> Unit = {},
     highlighted: Boolean = false,
     onReplyClick: (String) -> Unit = {},
+    onVanish: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -607,6 +609,7 @@ private fun MessageBubble(
                     }
                     if (isMine) {
                         DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { onRecall(); menuOpen = false })
+                        DropdownMenuItem(text = { Text("删除不留痕迹", color = Color(0xFFFA5151)) }, onClick = { onVanish(); menuOpen = false })
                     }
                 }
             }

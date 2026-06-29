@@ -42,6 +42,49 @@ import './ChatWindow.css';
 
 const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
 
+// ── 粉碎动画（删除不留痕迹）────────────────────────────────────
+// 找到消息气泡，用 N 条色块覆盖后交替旋转下落，结束后调 onDone
+function playShredAnimation(msgId, onDone) {
+  const msgRow = document.getElementById(`msg-${msgId}`);
+  const bubble = msgRow?.querySelector(`[data-testid="msg-bubble-${msgId}"]`);
+  if (!bubble) { onDone?.(); return; }
+
+  const rect = bubble.getBoundingClientRect();
+  const isMine = bubble.classList.contains('mine');
+  const N = 9;
+  const stripW = rect.width / N;
+
+  const wrap = document.createElement('div');
+  Object.assign(wrap.style, {
+    position: 'fixed', top: `${rect.top}px`, left: `${rect.left}px`,
+    width: `${rect.width}px`, height: `${rect.height}px`,
+    zIndex: '9999', pointerEvents: 'none',
+    display: 'flex', overflow: 'visible',
+  });
+
+  for (let i = 0; i < N; i++) {
+    const strip = document.createElement('div');
+    const isOdd = i % 2 === 0;
+    Object.assign(strip.style, {
+      width: `${stripW + 0.5}px`,   // +0.5 防止间隙
+      flexShrink: '0',
+      height: `${rect.height}px`,
+      background: isMine ? '#95EC69' : '#ffffff',
+      borderRadius: i === 0 ? '12px 0 0 12px' : i === N - 1 ? '0 12px 12px 0' : '0',
+      boxShadow: isMine ? 'none' : '0 0 0 0.5px rgba(0,0,0,0.08)',
+      animation: `shred-${isOdd ? 'odd' : 'even'} 0.46s ${i * 28}ms ease-in both`,
+    });
+    wrap.appendChild(strip);
+  }
+
+  bubble.style.visibility = 'hidden';
+  document.body.appendChild(wrap);
+
+  // 最后一条 strip: 8*28=224ms + 460ms = ~684ms
+  const totalMs = (N - 1) * 28 + 480;
+  setTimeout(() => { wrap.remove(); onDone?.(); }, totalMs);
+}
+
 export default function ChatWindow({ conversation: initialConv, onClose }) {
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
@@ -64,6 +107,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   const [forwardMsg, setForwardMsg] = useState(null);
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [vanishingMsgs, setVanishingMsgs] = useState(new Set());
   // 多选模式
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedMsgs, setSelectedMsgs] = useState(new Set());
@@ -554,6 +598,12 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         return prev.map(m => m.id === msgId ? { ...m, deleted: 1, content: '消息已撤回' } : m);
       });
     };
+    const onVanished = ({ msgId }) => {
+      playShredAnimation(msgId, () => {
+        setMessages(prev => prev.filter(m => m.id !== msgId));
+        setVanishingMsgs(prev => { const s = new Set(prev); s.delete(msgId); return s; });
+      });
+    };
     const onBatchDeleted = ({ msgIds: ids }) => {
       if (!ids?.length) return;
       const idSet = new Set(ids);
@@ -662,6 +712,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     socket.on('typing', onTyping);
     socket.on('stop_typing', onStopTyping);
     socket.on('message_deleted', onDeleted);
+    socket.on('message_vanished', onVanished);
     socket.on('messages_batch_deleted', onBatchDeleted);
     socket.on('conversation_messages_cleared', onCleared);
     socket.on('message_edited', onEdited);
@@ -688,6 +739,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       socket.off('typing', onTyping);
       socket.off('stop_typing', onStopTyping);
       socket.off('message_deleted', onDeleted);
+      socket.off('message_vanished', onVanished);
       socket.off('messages_batch_deleted', onBatchDeleted);
       socket.off('conversation_messages_cleared', onCleared);
       socket.off('message_edited', onEdited);
@@ -1392,6 +1444,19 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         } else if (isOwn && !inTime) {
           showToast('超过2分钟，无法撤回');
         }
+        break;
+      }
+
+      case 'vanish': {
+        const isOwn = msg.sender_id === user.id;
+        const isAdmin = myGroupRole === 'owner' || myGroupRole === 'admin';
+        if (!isOwn && !isAdmin) break;
+        if (!(await showConfirm('彻底删除这条消息？对方也不会看到任何提示，且无法恢复。'))) break;
+        // 乐观：先播动画，再发请求（由 socket 广播 message_vanished 驱动最终状态）
+        playShredAnimation(msg.id, () => {
+          setMessages(prev => prev.filter(m => m.id !== msg.id));
+        });
+        await axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } }).catch(() => {});
         break;
       }
 
@@ -2193,6 +2258,14 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
             ) && (
               <div className="wc-ctx-item danger" data-testid="ctx-recall" onClick={() => ctxAction('delete')}>
                 {ctxMenu.msg.sender_id === user.id ? '撤回' : '删除'}
+              </div>
+            )}
+            {/* 删除不留痕迹：自己的消息，或群主/管理员 */}
+            {(ctxMenu.msg.sender_id === user.id ||
+              ((myGroupRole === 'owner' || myGroupRole === 'admin') && conversation.type === 'group')
+            ) && (
+              <div className="wc-ctx-item danger" data-testid="ctx-vanish" onClick={() => ctxAction('vanish')}>
+                删除不留痕迹
               </div>
             )}
           </div>

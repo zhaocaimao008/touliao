@@ -87,6 +87,12 @@ final class ChatViewModel: ObservableObject {
             }}
             .store(in: &cancellables)
 
+        repo.messageVanishedPublisher
+            .sink { [weak self] msgId in Task { @MainActor in
+                self?.messages.removeAll { $0.id == msgId }
+            }}
+            .store(in: &cancellables)
+
         repo.reactionPublisher
             .sink { [weak self] (msgId, reactions) in Task { @MainActor in self?.applyReactions(msgId, reactions) } }
             .store(in: &cancellables)
@@ -274,6 +280,10 @@ final class ChatViewModel: ObservableObject {
 
     func recall(_ msg: Message) {
         Task { await repo.deleteMessage(msg.id) }   // 实时事件移除
+    }
+
+    func vanish(_ msg: Message) {
+        Task { await repo.vanishMessage(msg.id) }   // 实时事件 message_vanished 移除，无痕
     }
 
     func react(_ msg: Message, emoji: String) {

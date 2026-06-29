@@ -48,6 +48,8 @@ final class SocketService {
     let newConversation = PassthroughSubject<Void, Never>()
     /// 消息撤回/删除 → msgId
     let messageDeleted = PassthroughSubject<String, Never>()
+    /// 彻底删除不留痕迹 → msgId
+    let messageVanished = PassthroughSubject<String, Never>()
     /// 批量消息删除 → [msgId]
     let batchDeleted = PassthroughSubject<[String], Never>()
     /// 会话消息被清空（仅针对本人）→ conversationId
@@ -150,6 +152,11 @@ final class SocketService {
         sock.on("message_deleted") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["msgId"] as? String, !id.isEmpty {
                 self?.messageDeleted.send(id)
+            }
+        }
+        sock.on("message_vanished") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["msgId"] as? String, !id.isEmpty {
+                self?.messageVanished.send(id)
             }
         }
         sock.on("messages_batch_deleted") { [weak self] data, _ in

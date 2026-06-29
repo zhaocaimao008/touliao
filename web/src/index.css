@@ -71,6 +71,20 @@ body.dark-mode {
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* ── 粉碎动画 (删除不留痕迹) ── */
+@keyframes shred-odd {
+  0%   { transform: translateY(0) rotate(0deg) scaleX(1); opacity: 1; }
+  20%  { transform: translateY(18px) rotate(-3deg) scaleX(0.97); opacity: 0.95; }
+  60%  { transform: translateY(60px) rotate(-9deg) scaleX(0.8); opacity: 0.5; }
+  100% { transform: translateY(130px) rotate(-14deg) scaleX(0.4); opacity: 0; }
+}
+@keyframes shred-even {
+  0%   { transform: translateY(0) rotate(0deg) scaleX(1); opacity: 1; }
+  20%  { transform: translateY(18px) rotate(3deg) scaleX(0.97); opacity: 0.95; }
+  60%  { transform: translateY(60px) rotate(9deg) scaleX(0.8); opacity: 0.5; }
+  100% { transform: translateY(130px) rotate(14deg) scaleX(0.4); opacity: 0; }
+}
+
 /* ── Skip-link：键盘聚焦时可见 ── */
 .skip-link:focus {
   position: fixed !important;
