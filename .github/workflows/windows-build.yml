@@ -49,3 +49,24 @@ jobs:
             desktop-electron/release/latest.yml
             desktop-electron/release/*.blockmap
           if-no-files-found: warn
+
+      - name: 部署 EXE 到香港服务器
+        if: success()
+        shell: bash
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          EXE=$(find desktop-electron/dist desktop-electron/release -name "*.exe" 2>/dev/null | head -1)
+          echo "部署: $EXE → /var/www/downloads/vxin-windows-latest-setup.exe"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /var/www/downloads/updates"
+          scp -i ~/.ssh/deploy_key "$EXE" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/vxin-windows-latest-setup.exe"
+          # 自动更新 feed（latest.yml + blockmap），客户端拉更新用
+          for f in desktop-electron/dist/latest.yml desktop-electron/dist/*.blockmap; do
+            [ -f "$f" ] && scp -i ~/.ssh/deploy_key "$f" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/updates/" || true
+          done
+          echo "✅ Windows 安装包已发布到 https://dipsin.com/downloads/vxin-windows-latest-setup.exe"

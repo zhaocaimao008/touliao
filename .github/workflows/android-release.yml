@@ -54,3 +54,19 @@ jobs:
           name: vxin-release-apk
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
+
+      - name: 部署 APK 到香港服务器
+        if: success()
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "部署: $APK → /var/www/downloads/vxin-android-latest.apk"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /var/www/downloads"
+          scp -i ~/.ssh/deploy_key "$APK" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/vxin-android-latest.apk"
+          echo "✅ APK 已发布到 https://dipsin.com/downloads/vxin-android-latest.apk"
