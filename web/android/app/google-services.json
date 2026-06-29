@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "301798014154",
+    "project_id": "vxin-a1230",
+    "storage_bucket": "vxin-a1230.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:301798014154:android:0e5f442546667e9d998833",
+        "android_client_info": {
+          "package_name": "com.vxin.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUIc71g2NIDr7-v7quisWS_6srASvfnxI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

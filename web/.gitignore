@@ -36,6 +36,6 @@ yarn-error.log*
 .cache/
 .gradle/
 
-# Mobile native projects (由 cap add 生成)
-android/
+# Mobile native projects
+# android/ 已纳入 git 管理（只排除 build/ 和 assets/public，参见 android/.gitignore）
 ios/

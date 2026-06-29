@@ -31,11 +31,11 @@ jobs:
           npm run build
           echo "✅ Web 构建完成，dist/ 已更新"
 
-      - name: 同步 Web 资产到 Android（cap sync）
-        working-directory: web
+      - name: 复制 Web 资产到 Android
         run: |
-          npx @capacitor/cli sync android
-          echo "✅ cap sync 完成，Android assets 已更新"
+          mkdir -p web/android/app/src/main/assets/public
+          cp -r web/dist/* web/android/app/src/main/assets/public/
+          echo "✅ Web 资产已复制到 Android assets"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
