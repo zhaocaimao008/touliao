@@ -15,11 +15,18 @@ export default function Register() {
     e.preventDefault();
     setError(''); setLoading(true);
 
-    // 🔴 前端验证邀请码
+    // 前端基础校验
+    if (!form.username || form.username.trim().length < 2 || form.username.trim().length > 20) {
+      setError('昵称需在 2~20 个字符之间'); setLoading(false); return;
+    }
+    if (!/^\d{11}$/.test(form.phone)) {
+      setError('请输入 11 位手机号'); setLoading(false); return;
+    }
+    if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(form.password)) {
+      setError('密码至少8位且需包含字母和数字'); setLoading(false); return;
+    }
     if (!form.inviteCode || !/^\d{6}$/.test(form.inviteCode)) {
-      setError('邀请码必须是6位数字');
-      setLoading(false);
-      return;
+      setError('邀请码必须是6位数字'); setLoading(false); return;
     }
 
     try {

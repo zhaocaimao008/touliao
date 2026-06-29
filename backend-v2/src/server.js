@@ -19,6 +19,8 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   transports: ['websocket'], // 仅 websocket 防集群握手死锁
+  pingInterval: 25000,  // 25s 心跳间隔
+  pingTimeout: 20000,   // 20s 无响应视为断线
   cors: {
     origin: config.allowedOrigins,
     credentials: true,

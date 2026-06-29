@@ -18,6 +18,7 @@ module.exports = {
       autorestart: true,
       max_restarts: 15,
       min_uptime: '10s',
+      restart_delay: 3000,  // 崩溃后等 3s 再重启，避免数据库未完全关闭
       kill_timeout: 5000,
       env: {
         NODE_ENV: 'production',

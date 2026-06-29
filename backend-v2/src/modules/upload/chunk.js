@@ -22,12 +22,23 @@ fs.mkdirSync(CHUNK_DIR, { recursive: true });
 fs.mkdirSync(FILES_DIR, { recursive: true });
 
 const meta = new Map(); // uploadId -> {userId,convId,filename,size,mime,hash,createdAt}
+const metaPath = (id) => path.join(CHUNK_DIR, id + '.meta.json');
+const partPath = (id) => path.join(CHUNK_DIR, id + '.part');
+
+function loadMeta(uploadId) {
+  if (meta.has(uploadId)) return meta.get(uploadId);
+  try {
+    const m = JSON.parse(fs.readFileSync(metaPath(uploadId), 'utf8'));
+    meta.set(uploadId, m);
+    return m;
+  } catch { return null; }
+}
+
 // 每小时清理超过 24h 未完成的上传元数据（磁盘 .part 有 sweep 清理，内存 Map 同步清理）
 setInterval(() => {
   const cutoff = Date.now() - 24 * 3600 * 1000;
   for (const [id, m] of meta) { if (m.createdAt < cutoff) meta.delete(id); }
 }, 3600 * 1000).unref?.();
-const partPath = (id) => path.join(CHUNK_DIR, id + '.part');
 const received = (id) => { try { return fs.statSync(partPath(id)).size; } catch { return 0; } };
 const makeId = (userId, convId, hash) =>
   crypto.createHash('sha1').update(`${userId}:${convId}:${hash}`).digest('hex');
@@ -42,7 +53,9 @@ function init(req, res) {
   const ext = path.extname(filename).toLowerCase();
   if (BLOCKED_EXTENSIONS.has(ext)) return res.status(400).json({ error: `禁止上传 ${ext} 类型文件` });
   const id = makeId(req.user.id, conversationId, hash);
-  meta.set(id, { userId: req.user.id, convId: conversationId, filename, size: total, mime: mime || '', hash, createdAt: Date.now() });
+  const m = { userId: req.user.id, convId: conversationId, filename, size: total, mime: mime || '', hash, createdAt: Date.now() };
+  meta.set(id, m);
+  fs.writeFileSync(metaPath(id), JSON.stringify(m));
   return res.json({ uploadId: id, received: received(id), chunkSize: MAX_CHUNK });
 }
 
@@ -51,9 +64,9 @@ function status(req, res) {
   return res.json({ received: received(uploadId), size: meta.get(uploadId)?.size || null });
 }
 
-function chunk(req, res) {
+async function chunk(req, res) {
   const { uploadId } = req.params;
-  const m = meta.get(uploadId);
+  const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在或已过期，请重新 init' });
   const offset = parseInt(req.query.offset, 10) || 0;
   const cur = received(uploadId);
@@ -68,7 +81,7 @@ function chunk(req, res) {
 
 async function finish(req, res) {
   const { conversationId, uploadId } = req.params;
-  const m = meta.get(uploadId);
+  const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在' });
   if (!isMember(conversationId, req.user.id)) return res.status(403).json({ error: '无权发送' });
   const part = partPath(uploadId);
@@ -93,6 +106,7 @@ async function finish(req, res) {
   const finalPath = path.join(FILES_DIR, finalName);
   fs.renameSync(part, finalPath);
   meta.delete(uploadId);
+  fs.unlink(metaPath(uploadId), () => {});
 
   const mime = check.mime || m.mime || '';
   const type = mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'voice' : mime.startsWith('video/') ? 'video' : 'file';
@@ -112,7 +126,7 @@ function sweep() {
     const now = Date.now();
     for (const f of fs.readdirSync(CHUNK_DIR)) {
       const p = path.join(CHUNK_DIR, f);
-      if (now - fs.statSync(p).mtimeMs > 24 * 3600 * 1000) fs.unlink(p, () => {});
+      try { if (now - fs.statSync(p).mtimeMs > 24 * 3600 * 1000) fs.unlink(p, () => {}); } catch {}
     }
   } catch {}
 }

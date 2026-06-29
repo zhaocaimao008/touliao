@@ -288,31 +288,33 @@ async function markRead(io, userId, convId, messageId) {
   return { readAt, lastReadMessageId: readMsgId };
 }
 
-// ── 双向清空单会话 / 全部会话 ───────────────────────────────────
+// ── 按用户清空会话（H-2）：仅对操作者隐藏，对方消息不受影响 ──────
 function clearConversation(io, userId, convId) {
   requireMember(convId, userId, '无权操作该会话');
-  const result = db.prepare('UPDATE messages SET deleted=1 WHERE conversation_id=? AND deleted=0').run(convId);
-  db.prepare('DELETE FROM pinned_messages WHERE conversation_id=?').run(convId);
-  if (io) io.to(convId).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId });
-  return result.changes || 0;
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare(`
+    INSERT INTO conversation_clears (user_id, conversation_id, cleared_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at
+  `).run(userId, convId, now);
+  if (io) io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId });
+  return 1;
 }
 
 function clearAllConversations(io, userId) {
   const convs = db.prepare('SELECT conversation_id FROM conversation_members WHERE user_id=?').all(userId);
   if (!convs.length) return { conversations: 0, deleted: 0 };
-  const update = db.prepare('UPDATE messages SET deleted=1 WHERE conversation_id=? AND deleted=0');
-  const clearPins = db.prepare('DELETE FROM pinned_messages WHERE conversation_id=?');
-  let deleted = 0;
-  db.transaction(() => {
-    for (const { conversation_id } of convs) {
-      deleted += update.run(conversation_id).changes || 0;
-      clearPins.run(conversation_id);
-    }
-  })();
+  const now = Math.floor(Date.now() / 1000);
+  const upsert = db.prepare(`
+    INSERT INTO conversation_clears (user_id, conversation_id, cleared_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at
+  `);
+  db.transaction(() => { for (const { conversation_id } of convs) upsert.run(userId, conversation_id, now); })();
   if (io) for (const { conversation_id } of convs) {
-    io.to(conversation_id).emit('conversation_messages_cleared', { conversationId: conversation_id, clearedBy: userId });
+    io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: conversation_id, clearedBy: userId });
   }
-  return { conversations: convs.length, deleted };
+  return { conversations: convs.length, deleted: convs.length };
 }
 
 // ── 媒体列表 ────────────────────────────────────────────────────

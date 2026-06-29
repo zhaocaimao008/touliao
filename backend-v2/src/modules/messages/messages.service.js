@@ -27,11 +27,14 @@ function history(convId, userId, { before, after, limit }) {
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id=m.sender_id
     WHERE m.conversation_id=? AND m.deleted=0
+      AND m.created_at > COALESCE(
+        (SELECT cleared_at FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0
+      )
   `;
-  const params = [convId];
+  const params = [convId, userId];
   if (before) { query += ' AND m.created_at < ?'; params.push(Number(before)); }
   if (after)  { query += ' AND m.created_at > ?'; params.push(Number(after)); }
-  query += after ? ' ORDER BY m.created_at ASC LIMIT ?' : ' ORDER BY m.created_at DESC LIMIT ?';
+  query += after ? ' ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?' : ' ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?';
   params.push(lim);
 
   const raw = db.prepare(query).all(...params);

@@ -20,6 +20,9 @@ final class ChatRepository {
     var unreadClearedPublisher: AnyPublisher<String, Never> { socket.unreadCleared.eraseToAnyPublisher() }
     var newConversationPublisher: AnyPublisher<Void, Never> { socket.newConversation.eraseToAnyPublisher() }
     var messageDeletedPublisher: AnyPublisher<String, Never> { socket.messageDeleted.eraseToAnyPublisher() }
+    var batchDeletedPublisher: AnyPublisher<[String], Never> { socket.batchDeleted.eraseToAnyPublisher() }
+    var conversationClearedPublisher: AnyPublisher<String, Never> { socket.conversationCleared.eraseToAnyPublisher() }
+    var reconnectedPublisher: AnyPublisher<Void, Never> { socket.reconnected.eraseToAnyPublisher() }
     var reactionPublisher: AnyPublisher<(String, [MessageReaction]), Never> { socket.reaction.eraseToAnyPublisher() }
     var redPacketClaimedPublisher: AnyPublisher<(String, String, Int), Never> { socket.redPacketClaimed.eraseToAnyPublisher() }
     var pinChangedPublisher: AnyPublisher<String, Never> { socket.pinChanged.eraseToAnyPublisher() }

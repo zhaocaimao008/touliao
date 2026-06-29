@@ -48,6 +48,12 @@ final class SocketService {
     let newConversation = PassthroughSubject<Void, Never>()
     /// 消息撤回/删除 → msgId
     let messageDeleted = PassthroughSubject<String, Never>()
+    /// 批量消息删除 → [msgId]
+    let batchDeleted = PassthroughSubject<[String], Never>()
+    /// 会话消息被清空（仅针对本人）→ conversationId
+    let conversationCleared = PassthroughSubject<String, Never>()
+    /// Socket 重连成功（用于触发错过消息拉取）
+    let reconnected = PassthroughSubject<Void, Never>()
     /// 表情回应更新 → (msgId, reactions)
     let reaction = PassthroughSubject<(String, [MessageReaction]), Never>()
     /// 红包被领取 → (packetId, userId, amount)
@@ -104,8 +110,12 @@ final class SocketService {
         ])
         let sock = mgr.defaultSocket
 
+        var hasConnectedBefore = false
         sock.on(clientEvent: .connect) { [weak self] _, _ in
-            self?.status.send(.connected)
+            guard let self else { return }
+            if hasConnectedBefore { self.reconnected.send(()) }
+            hasConnectedBefore = true
+            self.status.send(.connected)
         }
         sock.on(clientEvent: .disconnect) { [weak self] _, _ in
             self?.status.send(.disconnected)
@@ -140,6 +150,16 @@ final class SocketService {
         sock.on("message_deleted") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["msgId"] as? String, !id.isEmpty {
                 self?.messageDeleted.send(id)
+            }
+        }
+        sock.on("messages_batch_deleted") { [weak self] data, _ in
+            if let ids = (data.first as? [String: Any])?["msgIds"] as? [String], !ids.isEmpty {
+                self?.batchDeleted.send(ids)
+            }
+        }
+        sock.on("conversation_messages_cleared") { [weak self] data, _ in
+            if let convId = (data.first as? [String: Any])?["conversationId"] as? String, !convId.isEmpty {
+                self?.conversationCleared.send(convId)
             }
         }
         sock.on("message_reaction") { [weak self] data, _ in

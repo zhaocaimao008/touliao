@@ -99,6 +99,28 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] (packetId, _, _) in Task { @MainActor in self?.onRedPacketClaimed(packetId) } }
             .store(in: &cancellables)
 
+        repo.batchDeletedPublisher
+            .sink { [weak self] msgIds in Task { @MainActor in
+                guard let self else { return }
+                let idSet = Set(msgIds)
+                self.messages.removeAll { idSet.contains($0.id) }
+            }}
+            .store(in: &cancellables)
+
+        repo.conversationClearedPublisher
+            .sink { [weak self] convId in Task { @MainActor in
+                guard let self, convId == self.conversationId else { return }
+                self.messages.removeAll()
+            }}
+            .store(in: &cancellables)
+
+        repo.reconnectedPublisher
+            .sink { [weak self] in Task { @MainActor in
+                guard let self else { return }
+                await self.loadHistory()
+            }}
+            .store(in: &cancellables)
+
         if isGroup {
             repo.pinChangedPublisher
                 .sink { [weak self] convId in Task { @MainActor in if convId == self?.conversationId { await self?.loadPinned() } } }

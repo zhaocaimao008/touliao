@@ -21,6 +21,7 @@ function deleteContact(userId, contactId) {
 }
 
 function setRemark(userId, contactId, remark) {
+  if (remark && remark.length > 20) throw badRequest('备注最长 20 个字符');
   db.prepare('UPDATE contacts SET remark=? WHERE user_id=? AND contact_id=?').run(remark || '', userId, contactId);
 }
 
@@ -28,6 +29,7 @@ function setRemark(userId, contactId, remark) {
 // 返回 { result, sideEffects } —— controller 负责 io.emit（service 不碰 io）
 function sendFriendRequest(io, fromId, { toId, message }) {
   if (!toId) throw badRequest('参数缺失');
+  if (message && message.length > 100) throw badRequest('验证消息最长 100 个字符');
   if (toId === fromId) throw badRequest('不能添加自己');
   if (!db.prepare('SELECT id FROM users WHERE id=?').get(toId)) throw notFound('用户不存在');
   if (db.prepare('SELECT id FROM contacts WHERE user_id=? AND contact_id=?').get(fromId, toId)) throw badRequest('已是好友');

@@ -89,7 +89,7 @@ async function register({ username, phone, password, inviteCode }) {
 
 async function login({ phone, password }) {
   if (!phone || !password) throw badRequest('请填写手机号和密码');
-  const user = db.prepare('SELECT * FROM users WHERE phone=?').get(phone);
+  const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,password,banned FROM users WHERE phone=?').get(phone);
   if (!user || !await bcrypt.compare(password, user?.password || '')) throw badRequest('手机号或密码错误');
   if (user.banned) throw forbidden('账号已被封禁，请联系管理员');
   return { token: signToken(user), user: serializeUser(user) };
@@ -119,7 +119,7 @@ function deleteSession(userId, sessionId) {
 async function changePassword(userId, { oldPassword, newPassword, currentToken }) {
   if (!oldPassword || !newPassword) throw badRequest('请填写完整');
   if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword)) throw badRequest('新密码至少8位且需包含字母和数字');
-  const user = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
+  const user = db.prepare('SELECT id,username,password,banned FROM users WHERE id=?').get(userId);
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');
   const hash = await bcrypt.hash(newPassword, 12);
@@ -152,7 +152,7 @@ function switchAccount(walletId, userId) {
   if (!walletId) throw badRequest('请重新登录');
   const owned = db.prepare('SELECT 1 FROM device_accounts WHERE wallet_id=? AND user_id=?').get(walletId, userId);
   if (!owned) throw forbidden('该账号未在本设备登录过，请重新登录');
-  const user = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
+  const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,banned FROM users WHERE id=?').get(userId);
   if (!user) { removeDeviceAccount(walletId, userId); throw notFound('用户不存在'); }
   if (user.banned) { removeDeviceAccount(walletId, userId); throw forbidden('账号已被封禁'); }
   db.prepare('UPDATE device_accounts SET last_used=? WHERE wallet_id=? AND user_id=?')

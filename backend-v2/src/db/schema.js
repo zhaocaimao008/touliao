@@ -403,6 +403,13 @@ function applySchema(db) {
     // ── 消息幂等：clientMsgId (sender_id + client_msg_id 唯一索引) ──
     "ALTER TABLE messages ADD COLUMN client_msg_id TEXT DEFAULT NULL",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_client_msg ON messages(sender_id, client_msg_id) WHERE client_msg_id IS NOT NULL",
+    // ── 按用户清空会话（H-2）：每人各自的清空时间戳，history 按此过滤 ──
+    `CREATE TABLE IF NOT EXISTS conversation_clears (
+      user_id         TEXT NOT NULL,
+      conversation_id TEXT NOT NULL,
+      cleared_at      INTEGER NOT NULL,
+      PRIMARY KEY (user_id, conversation_id)
+    )`,
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

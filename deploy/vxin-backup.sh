@@ -28,15 +28,28 @@ command -v sqlite3 >/dev/null || { log "❌ sqlite3 未安装: apt install sqlit
 mkdir -p "$BACKUP_DIR"
 
 DATE=$(date +%Y%m%d_%H%M%S)
+
+# 1. 数据库备份
 log "备份 $DB → $BACKUP_DIR/vxin-$DATE.db"
 sqlite3 "$DB" ".backup $BACKUP_DIR/vxin-$DATE.db"
 gzip "$BACKUP_DIR/vxin-$DATE.db"
-SIZE=$(du -sh "$BACKUP_DIR/vxin-$DATE.db.gz" | cut -f1)
-log "✅ 完成: vxin-$DATE.db.gz ($SIZE)"
+DB_SIZE=$(du -sh "$BACKUP_DIR/vxin-$DATE.db.gz" | cut -f1)
+log "✅ 数据库: vxin-$DATE.db.gz ($DB_SIZE)"
+
+# 2. 用户上传文件备份
+if [[ -d "$UPLOADS_DIR" ]]; then
+  UPLOADS_BAK="$BACKUP_DIR/uploads-$DATE.tar.gz"
+  tar -czf "$UPLOADS_BAK" -C "$(dirname "$UPLOADS_DIR")" "$(basename "$UPLOADS_DIR")" 2>/dev/null || true
+  UP_SIZE=$(du -sh "$UPLOADS_BAK" 2>/dev/null | cut -f1 || echo "0")
+  log "✅ 上传文件: uploads-$DATE.tar.gz ($UP_SIZE)"
+fi
+
+SIZE="$DB_SIZE"
 
 # 清理过期备份
 DELETED=$(find "$BACKUP_DIR" -name "vxin-*.db.gz" -mtime +"$KEEP_DAYS" -print -delete | wc -l)
-[[ "$DELETED" -gt 0 ]] && log "清理 ${DELETED} 个 >$KEEP_DAYS 天的备份"
+find "$BACKUP_DIR" -name "uploads-*.tar.gz" -mtime +"$KEEP_DAYS" -delete 2>/dev/null || true
+[[ "$DELETED" -gt 0 ]] && log "清理 ${DELETED} 个 >$KEEP_DAYS 天的数据库备份"
 
 # 磁盘告警
 DISK=$(df "$BACKUP_DIR" | awk 'NR==2{print $5}' | tr -d '%')
@@ -46,4 +59,4 @@ if [[ "${DISK:-0}" -gt 85 ]]; then
 fi
 
 log "备份目录: $(du -sh "$BACKUP_DIR" | cut -f1)"
-tg "✅ v信备份成功 $DATE ($SIZE)"
+tg "✅ v信备份成功 $DATE (DB:$DB_SIZE)"

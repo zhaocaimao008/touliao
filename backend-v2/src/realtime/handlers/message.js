@@ -11,7 +11,7 @@ const prodMetrics = require('../../utils/prodMetrics');
 const MAX = config.limits.maxMsgLength;
 
 // @提及检测：解析 content 中的 @用户名，向群内匹配成员推送
-function handleMentions(io, userId, conversationId, content) {
+function handleMentions(io, userId, conversationId, content, msgId) {
   if (typeof content !== 'string') return;
   const mentionRe = /@([^\s,，。！？]+)/g;
   const mentioned = [];
@@ -36,9 +36,9 @@ function handleMentions(io, userId, conversationId, content) {
 
   for (const u of matched) {
     if (u.id !== userId) {
-      io.to(`user_${u.id}`).emit('@mention', {
+      io.to(`user_${u.id}`).emit('mentioned', {
         fromUserId: userId, fromUserName: senderName, groupName,
-        messagePreview: preview, conversationId,
+        messagePreview: preview, conversationId, msgId: msgId || '',
       });
     }
   }
@@ -150,7 +150,7 @@ module.exports = function registerMessageHandler(io, socket) {
     broadcaster.broadcastMessage(conversationId, msg); // 批量合并派发（客户端按 id 去重，发送者收到自身消息会被忽略）
     ack?.({ success: true, message: msg });
 
-    if (type === 'text') handleMentions(io, userId, conversationId, content);
+    if (type === 'text') handleMentions(io, userId, conversationId, content, id);
 
     setImmediate(() => {
       const members = readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(conversationId);
