@@ -89,13 +89,10 @@ lint/tmp/
 # Android Profiling
 *.hprof
 
-# Cordova plugins for Capacitor
-capacitor-cordova-android-plugins
-
-# Copied web assets
+# Capacitor 生成的 web 资产（由 CI 在构建时复制 web/dist/ 写入，不提交）
 app/src/main/assets/public
 
-# Generated Config files
-app/src/main/assets/capacitor.config.json
-app/src/main/assets/capacitor.plugins.json
-app/src/main/res/xml/config.xml
+# Capacitor Config（由 cap sync 生成，已提交静态版本）
+# app/src/main/assets/capacitor.config.json  ← 已提交
+# app/src/main/assets/capacitor.plugins.json ← 已提交
+# capacitor-cordova-android-plugins          ← 已提交

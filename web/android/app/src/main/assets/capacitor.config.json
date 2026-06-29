@@ -1,0 +1,84 @@
+{
+	"appId": "com.vxin.app",
+	"appName": "vxin",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https",
+		"iosScheme": "https",
+		"errorPath": "index.html"
+	},
+	"plugins": {
+		"StatusBar": {
+			"style": "dark",
+			"backgroundColor": "#ededed",
+			"overlaysWebView": false
+		},
+		"SafeArea": {
+			"marginTop": 0,
+			"marginBottom": 0
+		},
+		"Camera": {
+			"permissions": [
+				"camera"
+			]
+		},
+		"Filesystem": {
+			"permissions": [
+				"read",
+				"write"
+			]
+		},
+		"Geolocation": {
+			"permissions": [
+				"location"
+			]
+		},
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		},
+		"Network": {
+			"permissions": [
+				"network"
+			]
+		}
+	},
+	"platforms": {
+		"ios": {
+			"cordova": {
+				"preferences": {
+					"WKWebViewOnly": "true",
+					"AllowInlineMediaPlayback": "YES",
+					"MediaPlaybackAllowsAirPlay": "YES",
+					"StatusBarBackgroundColor": "#1c1c1e",
+					"StatusBarStyle": "lightcontent",
+					"StatusBarDefaultScrollToTop": "NO",
+					"AutoHideSplashScreen": "false",
+					"SplashScreenDelay": 2000,
+					"Orientation": "Portrait"
+				}
+			},
+			"capacitorPlatform": "ios",
+			"webDir": "dist",
+			"scheme": "capacitor"
+		},
+		"android": {
+			"cordova": {
+				"preferences": {
+					"Orientation": "portrait",
+					"BackgroundColor": "0xff1c1c1e",
+					"HardwareBackButton": "false",
+					"AndroidMaxVersionAllowed": "99",
+					"AndroidMinVersionAllowed": "21",
+					"android:usesCleartextTraffic": "false"
+				}
+			},
+			"capacitorPlatform": "android",
+			"webDir": "dist",
+			"scheme": "capacitor"
+		}
+	}
+}
