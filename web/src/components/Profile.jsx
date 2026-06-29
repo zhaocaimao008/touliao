@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
+import AuthImage from './AuthImage';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { goLogin } from '../utils/url';
@@ -35,6 +36,11 @@ const IcoShield  = () => <Ico d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-
 const IcoGear    = () => <Ico d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>;
 const IcoServer  = () => <Ico d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zM6 4a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>;
 const IcoEdit    = () => <Ico d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>;
+const IcoQR      = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+    <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2z"/>
+  </svg>
+);
 
 /* ─── 通用 UI 零件 ─── */
 function PageBg({ children }) {
@@ -792,8 +798,9 @@ function SettingsPage({ user, setSubPage, logout }) {
 
 /* ── 主页面 ── */
 export default function Profile() {
-  const { user, updateUser, logout } = useAuth();
+  const { user, updateUser, logout, accounts, login, switchAccount } = useAuth();
   const [subPage, setSubPage] = useState(null);
+  const [showQR, setShowQR] = useState(false);
 
   /* ── 子页 ── */
   if (subPage === 'profile-detail') return <ProfileDetail user={user} updateUser={updateUser} onBack={() => setSubPage(null)} navigateTo={setSubPage} />;
@@ -806,24 +813,43 @@ export default function Profile() {
   if (subPage === 'privacy')       return <PrivacySettings user={user} onBack={() => setSubPage(null)} />;
   if (subPage === 'server')        return <ServerSettings onBack={() => setSubPage(null)} />;
 
-  /* ── 默认：直接显示设置内容 ── */
   return (
     <PageBg>
-      {/* ── 个人信息 ── */}
-      <div className="wc-section-pad" style={{ marginTop: 0 }}>
-        <Card onClick={() => setSubPage('profile-detail')} className="wc-profile-card">
-          <Avatar src={user?.avatar} name={user?.username} size={60} onClick={e => { e.stopPropagation(); setSubPage('profile-detail'); }} />
-          <div className="wc-profile-info">
-            <div className="wc-profile-name">{user?.username || '未设置昵称'}</div>
-            <div className="wc-profile-bio"
-              onClick={e => { e.stopPropagation(); setSubPage('edit-bio'); }}>
-              {user?.bio || '未设置个性签名'}
-            </div>
-          </div>
+      {/* ── 个人信息头部 ── */}
+      <div className="wc-me-header" onClick={() => setSubPage('profile-detail')}>
+        <div className="wc-me-avatar-wrap">
+          <Avatar src={user?.avatar} name={user?.username} size={64} />
+        </div>
+        <div className="wc-me-info">
+          <div className="wc-me-name">{user?.username || '未设置昵称'}</div>
+          {user?.wechat_id && <div className="wc-me-vid">v信号：{user.wechat_id}</div>}
+          {user?.bio && <div className="wc-me-bio">{user.bio}</div>}
+        </div>
+        <div className="wc-me-actions">
+          <button className="wc-me-qr-btn" onClick={e => { e.stopPropagation(); setShowQR(true); }} title="我的二维码">
+            <IcoQR />
+          </button>
           <ChevronRight />
-        </Card>
+        </div>
       </div>
 
+      {/* ── 二维码弹窗 ── */}
+      {showQR && (
+        <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
+          <div className="wc-modal home-qr-modal" onClick={e => e.stopPropagation()}>
+            <div className="wc-modal-header">
+              <span className="wc-modal-title">我的二维码</span>
+              <button className="wc-modal-close" onClick={() => setShowQR(false)}>✕</button>
+            </div>
+            <div className="wc-modal-body home-qr-body">
+              <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="home-qr-img" />
+              <p className="home-qr-text">扫描二维码添加我为好友</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 钱包 ── */}
       <div className="wc-section-pad">
         <Card>
           <CRow icon={<Ico d="M21 7H3a1 1 0 00-1 1v9a2 2 0 002 2h14a2 2 0 002-2v-2h-7a2 2 0 010-4h7V8a1 1 0 00-1-1zm-4 6h5v2h-5a1 1 0 010-2zM3 5h13a1 1 0 010 2H3a1 1 0 010-2z" />}
@@ -831,6 +857,7 @@ export default function Profile() {
         </Card>
       </div>
 
+      {/* ── 设备与安全 ── */}
       <SLabel>设备与安全</SLabel>
       <div className="wc-section-pad">
         <Card>
@@ -839,6 +866,7 @@ export default function Profile() {
         </Card>
       </div>
 
+      {/* ── 偏好设置 ── */}
       <SLabel>偏好设置</SLabel>
       <div className="wc-section-pad">
         <Card>
@@ -847,6 +875,7 @@ export default function Profile() {
         </Card>
       </div>
 
+      {/* ── 服务器（仅桌面端） ── */}
       {window.__ELECTRON_CONFIG__ && (
         <>
           <SLabel>连接</SLabel>
@@ -860,6 +889,13 @@ export default function Profile() {
         </>
       )}
 
+      {/* ── 账号管理 ── */}
+      <SLabel>账号</SLabel>
+      <div className="wc-section-pad">
+        <AccountSwitcher user={user} accounts={accounts} login={login} switchAccount={switchAccount} />
+      </div>
+
+      {/* ── 退出 ── */}
       <div className="wc-logout-div">
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>退出登录</button>
       </div>

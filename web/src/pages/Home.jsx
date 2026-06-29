@@ -83,7 +83,7 @@ const TABS = [
 
 // 朋友圈 / 通话记录 / 收藏：功能代码保留，暂在前端隐藏。
 // 需恢复入口时把对应 key 从此集合移除即可。
-const HIDDEN_TABS = new Set(['calls']);
+const HIDDEN_TABS = new Set(['calls', 'moments', 'favorites']);
 const visibleTabs = (features) =>
   TABS.filter(t => !HIDDEN_TABS.has(t.key) && (!t.feature || features[t.feature] !== false));
 
