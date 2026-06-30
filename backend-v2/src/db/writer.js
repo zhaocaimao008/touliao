@@ -33,7 +33,7 @@ function updateOverload() {
 
 let worker        = null;
 let _reqId        = 0;
-const _pending    = new Map();   // reqId → resolve
+const _pending    = new Map();   // reqId → handler(err)
 const _pendingOps = new Map();   // reqId → 原始外发消息对象（write 或 writeBatch），崩溃重启时原样重放
 const retryQueue  = [];
 let isRestarting  = false;
@@ -43,10 +43,11 @@ function createWorker() {
 
   w.on('message', msg => {
     if (msg.type === 'ack') {
+      const err = msg.error ? new Error(msg.error) : null;
       for (const id of msg.ids) {
         _pendingOps.delete(id);
-        const resolve = _pending.get(id);
-        if (resolve) { _pending.delete(id); resolve(); }
+        const handler = _pending.get(id);
+        if (handler) { _pending.delete(id); handler(err); }
       }
     }
   });
@@ -98,8 +99,8 @@ function writeAsync(sql, params = []) {
   const msg = { type: 'write', sql, params, reqId: id };
   _pendingOps.set(id, msg);
   const t0 = performance.now();
-  return new Promise(resolve => {
-    _pending.set(id, () => { prodMetrics.recordSqliteWrite(performance.now() - t0); resolve(); });
+  return new Promise((resolve, reject) => {
+    _pending.set(id, (err) => { prodMetrics.recordSqliteWrite(performance.now() - t0); if (err) reject(err); else resolve(); });
     postMsg(msg);
   });
 }
@@ -118,8 +119,8 @@ function writeBatch(ops) {
   const msg = { type: 'writeBatch', ops, reqId: id };
   _pendingOps.set(id, msg);
   const t0 = performance.now();
-  return new Promise(resolve => {
-    _pending.set(id, () => { prodMetrics.recordSqliteWrite(performance.now() - t0); resolve(); });
+  return new Promise((resolve, reject) => {
+    _pending.set(id, (err) => { prodMetrics.recordSqliteWrite(performance.now() - t0); if (err) reject(err); else resolve(); });
     postMsg(msg);
   });
 }

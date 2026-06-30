@@ -70,7 +70,7 @@ module.exports = function registerMessageHandler(io, socket) {
     // 允许文本与名片(contact_card)；名片的 content 是被分享用户的 JSON 快照
     const type = ['text', 'contact_card'].includes(data.type) ? data.type : 'text';
 
-    if (!conversationId || !content) return;
+    if (!conversationId || !content) { ack?.({ success: false, error: '参数不完整' }); return; }
     if (!presence.checkMsgRate(userId)) { ack?.({ success: false, error: '发送频率过高，请稍后再试' }); return; }
     if (typeof content === 'string' && content.length > MAX) {
       ack?.({ success: false, error: `消息内容不能超过 ${MAX} 个字符` }); return;
@@ -136,7 +136,7 @@ module.exports = function registerMessageHandler(io, socket) {
         [id, conversationId, userId, type, content, reply_to_id, created_at, clientMsgId || null]
       );
       msg.replyTo = readDb.prepare(`
-        SELECT m.id, m.type, m.content, m.file_url, u.username AS senderName
+        SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
         FROM messages m JOIN users u ON u.id = m.sender_id
         WHERE m.id = ? AND m.conversation_id = ?
       `).get(reply_to_id, conversationId) || null;

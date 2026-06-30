@@ -156,7 +156,10 @@ function dissolve(io, convId, userId) {
   if (!conv) throw notFound('群不存在');
   if (conv.owner_id !== userId) throw forbidden('仅群主可解散群聊');
   purgeConversation(convId);
-  if (io) io.to(convId).emit('group_dismissed', { conversationId: convId });
+  if (io) {
+    io.in(convId).socketsLeave(convId);
+    io.to(convId).emit('group_dismissed', { conversationId: convId });
+  }
 }
 
 // ── 群详情 ──────────────────────────────────────────────────────

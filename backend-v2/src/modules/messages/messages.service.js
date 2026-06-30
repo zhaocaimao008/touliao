@@ -67,8 +67,8 @@ function history(convId, userId, { before, after, limit }) {
     const ph = replyIds.map(() => '?').join(',');
     db.prepare(`
       SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
-      FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id IN (${ph})
-    `).all(...replyIds).forEach(r => replyMap.set(r.id, r));
+      FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id IN (${ph}) AND m.conversation_id = ?
+    `).all(...replyIds, convId).forEach(r => replyMap.set(r.id, r));
   }
 
   // 批量 reactions
@@ -118,10 +118,11 @@ function missed(io, userId, after) {
   const replyMap = new Map();
   if (replyIds.length > 0) {
     const rph = replyIds.map(() => '?').join(',');
+    const convPh = convIds.map(() => '?').join(',');
     db.prepare(`
       SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
-      FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id IN (${rph})
-    `).all(...replyIds).forEach(r => replyMap.set(r.id, r));
+      FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id IN (${rph}) AND m.conversation_id IN (${convPh})
+    `).all(...replyIds, ...convIds).forEach(r => replyMap.set(r.id, r));
   }
 
   // 批量 reactions (fix missed() reactions bug)
@@ -227,6 +228,7 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
 // ── 转发 ────────────────────────────────────────────────────────
 async function forward(io, userId, { msgId, conversationIds }) {
   if (!msgId || !conversationIds?.length) throw badRequest('参数缺失');
+  if (conversationIds.length > 20) throw badRequest('单次转发最多20个会话');
   const msg = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(msgId);
   if (!msg) throw notFound('消息不存在');
   requireMember(msg.conversation_id, userId, '无权转发该消息');
