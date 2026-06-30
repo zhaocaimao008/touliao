@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db, generateGroupNumber } = require('../../db/connection');
 const { writeAsync, write } = require('../../db/writer');
 const config = require('../../config');
-const { badRequest } = require('../../utils/http');
+const { badRequest, forbidden } = require('../../utils/http');
 const { isMember, requireMember } = require('../messages/shared');
 const cache = require('../../utils/cache');
 
@@ -294,7 +294,7 @@ async function markRead(io, userId, convId, messageId) {
 
 // ── 手动标记未读 ────────────────────────────────────────────────
 async function markUnread(userId, convId) {
-  if (!isMember(convId, userId)) throw badRequest('无权操作');
+  if (!isMember(convId, userId)) throw forbidden('无权操作');
   await writeAsync(`
     INSERT INTO conversation_settings (user_id, conversation_id, manually_unread) VALUES (?, ?, 1)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET manually_unread=1

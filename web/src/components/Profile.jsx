@@ -486,12 +486,14 @@ function NotificationSettings({ onBack }) {
   const saveSettings = async (key, value) => {
     setSaving(true);
     try {
-      const payload = {
-        [key]: value ? 1 : 0,
-      };
-      await axios.put('/api/users/me/settings', payload);
+      await axios.put('/api/users/me/settings', { [key]: value ? 1 : 0 });
       localStorage.setItem(key === 'message_notify' ? 'wc_lock_screen' : 'wc_notify_preview', value ? '1' : '0');
-    } catch {}
+    } catch {
+      // 回滚 UI 状态
+      if (key === 'message_notify') setMessageNotify(!value);
+      else if (key === 'detail_preview') setPreview(!value);
+      else if (key === 'vibrate') setVibrate(!value);
+    }
     setSaving(false);
   };
 
@@ -554,9 +556,9 @@ function PrivacySettings({ user, onBack }) {
           <CRow label="手机号" desc={user?.phone || ''}
             right={<Toggle checked={settings.addByPhone} onChange={v => setFlag('addByPhone', v)} />} />
           <CRow label="二维码"
-            right={<Toggle checked={settings.addByQRCode} onChange={v => setSettings(s => ({ ...s, addByQRCode: v }))} />} />
+            right={<Toggle checked={settings.addByQRCode} onChange={v => setFlag('addByQRCode', v)} />} />
           <CRow label="用户名"
-            right={<Toggle checked={settings.addByUsername} onChange={v => setSettings(s => ({ ...s, addByUsername: v }))} />} />
+            right={<Toggle checked={settings.addByUsername} onChange={v => setFlag('addByUsername', v)} />} />
         </Card>
       </div>
     </PageBg>
@@ -592,8 +594,7 @@ function DeleteAccount({ onBack, logout }) {
     setError('');
     try {
       await axios.post('/api/auth/delete-account', { password });
-      logout();
-      goLogin();
+      doLogout(logout);
     } catch (err) {
       setError(err.response?.data?.error || '注销失败，请重试');
       setLoading(false);

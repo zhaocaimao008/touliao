@@ -412,12 +412,14 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
   };
 
   const toggleMember = async (labelId, friendId, isMember) => {
-    if (isMember) {
-      await axios.delete(`/api/friend-labels/${labelId}/members/${friendId}`).catch(() => {});
-    } else {
-      await axios.post(`/api/friend-labels/${labelId}/members`, { friendId }).catch(() => {});
-    }
-    onUpdate();
+    try {
+      if (isMember) {
+        await axios.delete(`/api/friend-labels/${labelId}/members/${friendId}`);
+      } else {
+        await axios.post(`/api/friend-labels/${labelId}/members`, { friendId });
+      }
+      onUpdate();
+    } catch {}
   };
 
   if (editLabel) {

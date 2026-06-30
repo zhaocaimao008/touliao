@@ -199,13 +199,15 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
   const toggleMarkUnread = async (conv) => {
     setCtxMenu(null);
-    if (conv.manually_unread) {
-      await axios.post(`/api/messages/conversation/${conv.id}/read`).catch(() => {});
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, manually_unread: 0 } : c));
-    } else {
-      await axios.post(`/api/messages/conversation/${conv.id}/mark-unread`).catch(() => {});
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, manually_unread: 1 } : c));
-    }
+    try {
+      if (conv.manually_unread) {
+        await axios.post(`/api/messages/conversation/${conv.id}/read`);
+        setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, manually_unread: 0 } : c));
+      } else {
+        await axios.post(`/api/messages/conversation/${conv.id}/mark-unread`);
+        setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, manually_unread: 1 } : c));
+      }
+    } catch {}
   };
 
   // Merge unread counts into conversation objects so ConvRow gets them via item reference
