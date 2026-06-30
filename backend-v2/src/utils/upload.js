@@ -107,6 +107,8 @@ function makeMagicBytesMiddleware(allowedMimes) {
         fs.unlink(file.path, () => {});
         return res.status(400).json({ error: `400 Invalid File Type: ${result.reason}` });
       }
+      // 用真实检测到的 MIME 覆盖客户端声明的 Content-Type，确保消息类型正确
+      if (result.mime) file.mimetype = result.mime;
     }
     next();
   };

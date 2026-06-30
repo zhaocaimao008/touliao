@@ -3613,6 +3613,9 @@ body.dark-mode .wc-pinned-text { color: var(--text-primary); }
 body.dark-mode .wc-voice-btn { background: var(--bg-search); border-color: var(--border-default); }
 body.dark-mode .wc-voice-btn.recording { background: rgba(var(--green-rgb),.15); }
 
+/* Reply bar dark mode */
+body.dark-mode .wc-reply-bar { background: var(--bg-search); border-top-color: var(--border-subtle); }
+
 /* More panel & emoji dark mode */
 body.dark-mode .wc-more-panel { background: var(--bg-panel); }
 body.dark-mode .wc-emoji-picker { background: var(--bg-card); }

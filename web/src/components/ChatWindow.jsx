@@ -69,7 +69,7 @@ function playShredAnimation(msgId, onDone) {
       width: `${stripW + 0.5}px`,   // +0.5 防止间隙
       flexShrink: '0',
       height: `${rect.height}px`,
-      background: isMine ? '#95EC69' : '#ffffff',
+      background: getComputedStyle(bubble).backgroundColor || (isMine ? '#95EC69' : '#ffffff'),
       borderRadius: i === 0 ? '12px 0 0 12px' : i === N - 1 ? '0 12px 12px 0' : '0',
       boxShadow: isMine ? 'none' : '0 0 0 0.5px rgba(0,0,0,0.08)',
       animation: `shred-${isOdd ? 'odd' : 'even'} 0.46s ${i * 28}ms ease-in both`,
@@ -258,21 +258,21 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     setGroupCallInvite(null);
   }, [groupCallInvite]);
 
-  // 阅后即焚：跟踪已调度的消息 id，避免重复注册定时器
-  const burnScheduledRef = useRef(new Set());
+  // 阅后即焚：Map msgId → setTimeout handle，切换会话时统一取消
+  const burnTimersRef = useRef(new Map());
   const scheduleBurn = React.useCallback((msgs) => {
     const ba = conversation.burn_after || 0;
     if (!ba || !msgs.length) return;
     const now = Date.now() / 1000;
     msgs.forEach(msg => {
-      if (!msg?.id || burnScheduledRef.current.has(msg.id)) return;
-      burnScheduledRef.current.add(msg.id);
+      if (!msg?.id || burnTimersRef.current.has(msg.id)) return;
       const remaining = Math.max(0, ba - (now - msg.created_at)) * 1000;
-      setTimeout(() => {
+      const handle = setTimeout(() => {
         axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } }).catch(() => {});
         setMessages(prev => prev.filter(m => m.id !== msg.id));
-        burnScheduledRef.current.delete(msg.id);
+        burnTimersRef.current.delete(msg.id);
       }, remaining);
+      burnTimersRef.current.set(msg.id, handle);
     });
   }, [conversation.burn_after]);
 
@@ -280,14 +280,19 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   const convIdRef   = useRef(conversation.id);
   const convTypeRef = useRef(conversation.type);
   const messagesRef = useRef([]);
+  const membersRef  = useRef([]);
   useEffect(() => { convIdRef.current   = conversation.id;   }, [conversation.id]);
   useEffect(() => { convTypeRef.current = conversation.type; }, [conversation.type]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { membersRef.current  = members;  }, [members]);
   useEffect(() => {
     return () => {
       if (recorderRef.current) stopRecording();
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       clearTimeout(typingTimer.current);
+      // 切换会话时取消所有阅后即焚定时器，防止旧会话定时器影响新会话消息状态
+      burnTimersRef.current.forEach(handle => clearTimeout(handle));
+      burnTimersRef.current.clear();
     };
   }, [conversation.id]);
   useEffect(() => {
@@ -596,7 +601,14 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         }
         return changed ? next : prev;
       });
-      // 已读由 markReadRef effect 统一处理(仅在底部),不在此无条件上报。
+      // 仅在底部附近或自己发的消息才跟随，与 onMsg 逻辑保持一致
+      const hasMine = incoming.some(m => m.sender_id === user.id);
+      if (hasMine) forceScrollRef.current = true;
+      else {
+        const outer = listOuterRef.current;
+        const isAtBottom = outer && (outer.scrollHeight - outer.scrollTop - outer.clientHeight < 400);
+        if (!isAtBottom) return;
+      }
       setTimeout(() => {
         const outer = listOuterRef.current;
         if (outer) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
@@ -604,7 +616,10 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     };
     const onTyping = ({ userId, conversationId }) => {
       if (conversationId !== convIdRef.current || userId === user.id) return;
-      setTypingName(messagesRef.current.find(m => m.sender_id === userId)?.senderName || '对方');
+      const name = membersRef.current.find(m => m.id === userId)?.username
+        || messagesRef.current.find(m => m.sender_id === userId)?.senderName
+        || '对方';
+      setTypingName(name);
     };
     const onStopTyping = ({ conversationId }) => {
       if (conversationId === convIdRef.current) setTypingName('');
@@ -1023,7 +1038,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   };
 
   const insertAtMention = (member) => {
-    setInput(prev => prev + `@${member.username} `);
+    // prev 末尾是用户按 @ 键写入的 '@'，替换掉它再拼上完整提及
+    setInput(prev => prev.endsWith('@') ? prev.slice(0, -1) + `@${member.username} ` : prev + `@${member.username} `);
     setAtList(null);
     textareaRef.current?.focus();
   };
@@ -1786,13 +1802,21 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
                     className="wc-search-result-item"
                     onClick={() => {
                       const exists = messages.find(m => m.id === msg.id);
-                      if (!exists) setMessages(prev => [...prev, { ...msg, _highlighted: true }]);
+                      if (!exists) setMessages(prev => {
+                        const idx = prev.findIndex(m => m.created_at > msg.created_at);
+                        const entry = { ...msg, _highlighted: true };
+                        return idx >= 0 ? [...prev.slice(0, idx), entry, ...prev.slice(idx)] : [...prev, entry];
+                      });
                       setTimeout(() => callbacksRef.current.scrollToMsg(msg.id), 100);
                     }}
                     role="button" tabIndex={0}
                     onKeyDown={e => e.key === 'Enter' && (() => {
                       const exists = messages.find(m => m.id === msg.id);
-                      if (!exists) setMessages(prev => [...prev, { ...msg, _highlighted: true }]);
+                      if (!exists) setMessages(prev => {
+                        const idx = prev.findIndex(m => m.created_at > msg.created_at);
+                        const entry = { ...msg, _highlighted: true };
+                        return idx >= 0 ? [...prev.slice(0, idx), entry, ...prev.slice(idx)] : [...prev, entry];
+                      });
                       setTimeout(() => callbacksRef.current.scrollToMsg(msg.id), 100);
                     })()}
                   >
@@ -1800,7 +1824,13 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
                       <div className="wc-search-result-meta">
                         <span className="wc-search-result-sender">{msg.senderName}</span>
                         <span className="wc-search-result-time">
-                          {new Date(msg.created_at * 1000).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                          {(() => {
+                            const d = new Date(msg.created_at * 1000);
+                            const opts = d.getFullYear() !== new Date().getFullYear()
+                              ? { year: 'numeric', month: 'short', day: 'numeric' }
+                              : { month: 'short', day: 'numeric' };
+                            return d.toLocaleDateString('zh-CN', opts);
+                          })()}
                         </span>
                       </div>
                       <div className="wc-search-result-preview">

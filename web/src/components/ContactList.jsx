@@ -5,6 +5,7 @@ import UserProfile from './UserProfile';
 import { GroupAvatar } from './GroupInfo';
 import { useSocket } from '../contexts/SocketContext';
 import AddFriendModal from './AddFriendModal';
+import { showToast, showConfirm } from '../utils/toast';
 
 /* ── 主组件 ── */
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0 }) {
@@ -86,7 +87,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       setRequests(prev => prev.filter(r => r.id !== id));
       if (action === 'accepted') fetchContacts();
     } catch (err) {
-      alert(err.response?.data?.error || '操作失败，请重试');
+      showToast(err.response?.data?.error || '操作失败，请重试', 'error');
     }
   };
 
@@ -406,7 +407,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
   };
 
   const deleteLabel = async (id) => {
-    if (!window.confirm('确认删除此标签？')) return;
+    if (!await showConfirm('确认删除此标签？')) return;
     await axios.delete(`/api/friend-labels/${id}`).catch(() => {});
     onUpdate();
   };

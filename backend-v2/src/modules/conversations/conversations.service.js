@@ -59,11 +59,13 @@ function createGroup(io, ownerId, { name, memberIds }) {
   if (!name || !memberIds?.length) throw badRequest('参数缺失');
   const id = uuidv4();
   const groupNumber = generateGroupNumber();
-  db.prepare('INSERT INTO conversations (id,type,name,owner_id,group_number) VALUES (?,?,?,?,?)')
-    .run(id, 'group', name, ownerId, groupNumber);
-  db.prepare('INSERT INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)').run(id, ownerId, 'owner');
-  const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)');
-  memberIds.forEach(uid => add.run(id, uid, 'member'));
+  const addMember = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)');
+  db.transaction(() => {
+    db.prepare('INSERT INTO conversations (id,type,name,owner_id,group_number) VALUES (?,?,?,?,?)')
+      .run(id, 'group', name, ownerId, groupNumber);
+    db.prepare('INSERT INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)').run(id, ownerId, 'owner');
+    memberIds.forEach(uid => addMember.run(id, uid, 'member'));
+  })();
 
   if (io) {
     const conv = { id, type: 'group', name, avatar: '', pinned: 0, muted: 0, group_number: groupNumber };
@@ -78,6 +80,13 @@ function createGroup(io, ownerId, { name, memberIds }) {
 //   使用内存缓存 + 2s TTL 减少重复查询
 const convCache = new Map();
 const CONV_CACHE_TTL = 2000;
+// 每分钟清理过期缓存条目，防止长期不活跃用户累积内存
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of convCache) {
+    if (now - val.ts >= CONV_CACHE_TTL) convCache.delete(key);
+  }
+}, 60_000).unref();
 
 async function listConversations(uid) {
   // 检查内存缓存（过期时主动删除，防止无限累积）
@@ -96,9 +105,7 @@ async function listConversations(uid) {
     WHERE c.type='filehelper'
   `).get(uid);
   if (!hasFileHelper) {
-    const id = uuidv4();
-    db.prepare("INSERT INTO conversations (id,type,name) VALUES (?,?,?)").run(id, 'filehelper', '文件传输助手');
-    db.prepare('INSERT INTO conversation_members (conversation_id,user_id) VALUES (?,?)').run(id, uid);
+    getOrCreateFileHelper(uid);
   }
 
   const rows = db.prepare(`
@@ -183,7 +190,7 @@ function listMembers(convId, userId) {
   return db.prepare(`
     SELECT u.id, u.username, u.avatar FROM users u
     JOIN conversation_members cm ON cm.user_id=u.id
-    WHERE cm.conversation_id=? ORDER BY u.username
+    WHERE cm.conversation_id=? ORDER BY u.username LIMIT 500
   `).all(convId);
 }
 

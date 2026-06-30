@@ -433,6 +433,7 @@ function applySchema(db) {
       FOREIGN KEY (label_id) REFERENCES friend_labels(id) ON DELETE CASCADE
     )`,
     "CREATE INDEX IF NOT EXISTS idx_friend_labels_user ON friend_labels(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_conv_settings_conv ON conversation_settings(conversation_id)",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }
@@ -459,21 +460,26 @@ function applyFts(db) {
       `).run();
     }
 
+    // Drop and recreate triggers so condition changes take effect on existing DBs
     db.exec(`
-      CREATE TRIGGER IF NOT EXISTS fts_messages_insert
+      DROP TRIGGER IF EXISTS fts_messages_insert;
+      DROP TRIGGER IF EXISTS fts_messages_delete;
+      DROP TRIGGER IF EXISTS fts_messages_edit;
+
+      CREATE TRIGGER fts_messages_insert
       AFTER INSERT ON messages WHEN NEW.type='text' AND NEW.deleted=0
       BEGIN
         INSERT INTO messages_fts(message_id, conversation_id, content)
         VALUES (NEW.id, NEW.conversation_id, NEW.content);
       END;
 
-      CREATE TRIGGER IF NOT EXISTS fts_messages_delete
-      AFTER UPDATE OF deleted ON messages WHEN NEW.deleted=1
+      CREATE TRIGGER fts_messages_delete
+      AFTER UPDATE OF deleted ON messages WHEN NEW.deleted != 0
       BEGIN
         DELETE FROM messages_fts WHERE message_id = OLD.id;
       END;
 
-      CREATE TRIGGER IF NOT EXISTS fts_messages_edit
+      CREATE TRIGGER fts_messages_edit
       AFTER UPDATE OF content ON messages WHEN NEW.type='text' AND NEW.deleted=0
       BEGIN
         DELETE FROM messages_fts WHERE message_id = OLD.id;

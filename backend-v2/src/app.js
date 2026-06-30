@@ -24,7 +24,9 @@ const app = express();
 sentry.initSentry();
 sentry.attachSentryMiddleware(app);
 
-app.set('trust proxy', 1); // Nginx 反代后面（Cloudflare 前还有一个代理层）
+// Cloudflare → Nginx → Node 双层代理，trust proxy:2 确保 req.ip 取到真实客户端 IP
+// 限流器(sendMsgLimiter 等)以此为 key，若取到 Nginx 内网 IP 则所有用户共享同一限流桶
+app.set('trust proxy', 2);
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },

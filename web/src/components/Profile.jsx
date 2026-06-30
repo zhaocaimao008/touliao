@@ -205,6 +205,8 @@ function ChangePassword({ onBack }) {
   const [oldPassword, setOld] = useState('');
   const [newPassword, setNew] = useState('');
   const [confirm, setConfirm] = useState('');
+  const backTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(backTimerRef.current), []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -217,7 +219,7 @@ function ChangePassword({ onBack }) {
     try {
       await axios.put('/api/auth/change-password', { oldPassword, newPassword });
       setDone(true);
-      setTimeout(onBack, 1200);
+      backTimerRef.current = setTimeout(onBack, 1200);
     } catch (err) {
       setError(err.response?.data?.error || '修改失败，请重试');
     } finally { setSaving(false); }
@@ -260,6 +262,8 @@ function Wallet({ onBack }) {
   const [loading, setLoading] = useState(true);
   const [recharging, setRecharging] = useState(false);
   const [error, setError] = useState('');
+  const [rechargeInput, setRechargeInput] = useState('');
+  const [showRecharge, setShowRecharge] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -276,14 +280,14 @@ function Wallet({ onBack }) {
   useEffect(() => { load(); }, []);
 
   const recharge = async () => {
-    const v = window.prompt('充值金币数量（1-100000）');
-    if (!v) return;
-    const amt = parseInt(v, 10);
+    const amt = parseInt(rechargeInput, 10);
     if (!Number.isInteger(amt) || amt < 1 || amt > 100000) { setError('请输入 1-100000 的整数'); return; }
     setRecharging(true); setError('');
     try {
       const { data } = await axios.post('/api/wallet/recharge', { amount: amt });
       setBalance(data?.balance ?? balance);
+      setRechargeInput('');
+      setShowRecharge(false);
       load();
     } catch (e) { setError(e.response?.data?.error || '充值失败'); }
     setRecharging(false);
@@ -295,12 +299,28 @@ function Wallet({ onBack }) {
   return (
     <PageBg>
       <PageHeader title="我的钱包" onBack={onBack}
-        right={<button className="wc-save-btn" onClick={recharge} disabled={recharging}>{recharging ? '充值中' : '充值'}</button>} />
+        right={<button className="wc-save-btn" onClick={() => { setShowRecharge(v => !v); setError(''); }}>{showRecharge ? '取消' : '充值'}</button>} />
       <div className="wc-section-pad">
         <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 6 }}>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>金币余额</div>
           <div style={{ fontSize: 34, fontWeight: 700, color: 'var(--green)' }}>{loading ? '…' : (balance ?? '—')}</div>
         </Card>
+        {showRecharge && (
+          <Card style={{ marginTop: 12, padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="number" min="1" max="100000"
+              placeholder="充值金币数量（1-100000）"
+              value={rechargeInput}
+              onChange={e => { setRechargeInput(e.target.value); setError(''); }}
+              className="wc-server-input"
+              style={{ marginTop: 0, flex: 1 }}
+              onKeyDown={e => e.key === 'Enter' && recharge()}
+            />
+            <button className="wc-save-btn" onClick={recharge} disabled={recharging || !rechargeInput}>
+              {recharging ? '充值中' : '确认'}
+            </button>
+          </Card>
+        )}
         {error && <div className="wc-edit-error" role="alert">{error}</div>}
       </div>
       <SLabel>交易记录</SLabel>

@@ -232,8 +232,14 @@ async function forward(io, userId, { msgId, conversationIds }) {
   const insertSql = 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration) VALUES (?,?,?,?,?,?,?)';
   const ops = [];
   const targets = [];   // { convId, id }
+  // 批量查询一次，避免 N+1
+  const placeholders = conversationIds.map(() => '?').join(',');
+  const memberConvIds = new Set(
+    db.prepare(`SELECT conversation_id FROM conversation_members WHERE user_id=? AND conversation_id IN (${placeholders})`)
+      .all(userId, ...conversationIds).map(r => r.conversation_id)
+  );
   conversationIds.forEach(convId => {
-    if (!isMember(convId, userId)) return;
+    if (!memberConvIds.has(convId)) return;
     const id = uuidv4();
     ops.push({ sql: insertSql, params: [id, convId, userId, msg.type, msg.content, msg.file_url || '', msg.duration || 0] });
     targets.push({ convId, id });
@@ -316,13 +322,15 @@ async function react(io, userId, msgId, emoji) {
   if (!msg) throw notFound('消息不存在');
   requireMember(msg.conversation_id, userId, '无权操作');  // 防越权：非会话成员不得贴表情
 
-  const existing = db.prepare('SELECT * FROM message_reactions WHERE message_id=? AND user_id=?').get(msgId, userId);
-  // P0-1：worker 异步写，await 落库后再聚合读回（读后写一致）
-  if (existing && existing.emoji === emoji) {
-    await writeAsync('DELETE FROM message_reactions WHERE message_id=? AND user_id=?', [msgId, userId]);
-  } else {
-    await writeAsync('INSERT OR REPLACE INTO message_reactions (message_id,user_id,emoji) VALUES (?,?,?)', [msgId, userId, emoji]);
-  }
+  // 读-判断-写在事务内原子执行，防止快速双击 toggle 时的竞态
+  db.transaction(() => {
+    const existing = db.prepare('SELECT emoji FROM message_reactions WHERE message_id=? AND user_id=?').get(msgId, userId);
+    if (existing && existing.emoji === emoji) {
+      db.prepare('DELETE FROM message_reactions WHERE message_id=? AND user_id=?').run(msgId, userId);
+    } else {
+      db.prepare('INSERT OR REPLACE INTO message_reactions (message_id,user_id,emoji) VALUES (?,?,?)').run(msgId, userId, emoji);
+    }
+  })();
   const result = db.prepare(`
     SELECT emoji, GROUP_CONCAT(user_id) as userIds, COUNT(*) as count
     FROM message_reactions WHERE message_id=? GROUP BY emoji
@@ -435,15 +443,16 @@ async function searchInConversation(convId, userId, q) {
     return cachedResult;
   }
 
-  const escapedQ = q.replace(/[%_\\]/g, '\\$&');
-  const searchTerm = `%${escapedQ}%`;
+  // 使用 FTS5 全文索引，避免 LIKE '%kw%' 全表扫描
+  const ftsQuery = q.split(/\s+/).filter(Boolean).map(t => `"${t.replace(/"/g, '""')}"`).join(' OR ');
   const result = db.prepare(`
     SELECT m.*, u.username AS senderName, u.avatar AS senderAvatar
-    FROM messages m
+    FROM messages_fts
+    JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
     JOIN users u ON u.id = m.sender_id
-    WHERE m.conversation_id = ? AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
+    WHERE messages_fts MATCH ? AND messages_fts.conversation_id = ?
     ORDER BY m.created_at DESC LIMIT 30
-  `).all(convId, searchTerm);
+  `).all(ftsQuery, convId);
 
   // 写入缓存（TTL: 10 分钟）
   await cache.set(cacheKey, result, 600);

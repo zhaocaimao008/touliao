@@ -143,6 +143,7 @@ export const AuthProvider = ({ children }) => {
     const next = upsertAccount(data.user);
     setAccounts(next);
     setUser(data.user);
+    sessionStorage.removeItem('csrf_token');
     window.location.reload();
   };
 
@@ -198,7 +199,8 @@ export const AuthProvider = ({ children }) => {
       const updated = { ...prev, ...data };
       const next = readAccounts().map(a => a.id === updated.id ? { ...a, user: updated } : a);
       writeAccounts(next);
-      setAccounts(next);
+      // 在 updater 外部异步同步 accounts，避免在 updater 函数里调 setState
+      setTimeout(() => setAccounts(next), 0);
       return updated;
     });
   };
