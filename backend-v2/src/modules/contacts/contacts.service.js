@@ -73,7 +73,13 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   }
 
   const id = uuidv4();
-  db.prepare('INSERT INTO friend_requests (id,from_id,to_id,message) VALUES (?,?,?,?)').run(id, fromId, toId, message || '');
+  let inserted = false;
+  db.transaction(() => {
+    if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) return;
+    db.prepare('INSERT INTO friend_requests (id,from_id,to_id,message) VALUES (?,?,?,?)').run(id, fromId, toId, message || '');
+    inserted = true;
+  })();
+  if (!inserted) throw badRequest('请求已发送');
   const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
   if (io) io.to(`user_${toId}`).emit('new_friend_request', { id, from: sender, message: message || '' });
   return { success: true, id };

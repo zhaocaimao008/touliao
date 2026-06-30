@@ -44,14 +44,16 @@ function stats(onlineCount) {
 }
 
 // ── 用户列表（搜索 + 分页）──────────────────────────────────────
+const escapeLike = s => s.replace(/[%_\\]/g, c => '\\' + c);
+
 function listUsers({ q, limit = 30, offset = 0, banned, period, online }) {
   const lim = Math.min(parseInt(limit) || 30, 100);
   const off = Math.max(parseInt(offset) || 0, 0);
-  const like = q ? `%${q}%` : null;
+  const like = q ? `%${escapeLike(q)}%` : null;
   const truthy = v => v === '1' || v === 1 || v === true;
 
   const conds = [], args = [];
-  if (q) { conds.push('(u.username LIKE ? OR u.phone LIKE ? OR u.wechat_id LIKE ?)'); args.push(like, like, like); }
+  if (q) { conds.push("(u.username LIKE ? ESCAPE '\\' OR u.phone LIKE ? ESCAPE '\\' OR u.wechat_id LIKE ? ESCAPE '\\')"); args.push(like, like, like); }
   if (truthy(banned)) conds.push('u.banned=1');
   if (truthy(online)) conds.push("u.status='online'");
   if (period === 'today') { conds.push('u.created_at > ?'); args.push(Math.floor(Date.now() / 1000) - 86400); }
@@ -145,6 +147,12 @@ function deleteUser(id) {
     db.prepare('DELETE FROM device_tokens WHERE user_id=?').run(id);
     db.prepare('DELETE FROM collections WHERE user_id=?').run(id);
     db.prepare('DELETE FROM red_packet_claims WHERE user_id=?').run(id);
+    db.prepare('DELETE FROM red_packet_claims WHERE red_packet_id IN (SELECT id FROM red_packets WHERE sender_id=?)').run(id);
+    db.prepare('DELETE FROM red_packets WHERE sender_id=?').run(id);
+    db.prepare('DELETE FROM wallet_transactions WHERE user_id=?').run(id);
+    db.prepare('DELETE FROM wallets WHERE user_id=?').run(id);
+    db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(id);
+    db.prepare('DELETE FROM user_stickers WHERE user_id=?').run(id);
     // 先清该用户对他人动态的互动记录（自身动态的互动由 ON DELETE CASCADE 随 moments 删除）
     db.prepare('DELETE FROM moment_likes WHERE user_id=?').run(id);
     db.prepare('DELETE FROM moment_comments WHERE user_id=?').run(id);
@@ -166,7 +174,7 @@ function listMessages({ q, period, limit = 30, offset = 0 }) {
   const off = Math.max(parseInt(offset) || 0, 0);
   const conds = ['m.deleted=0'], args = [];
   if (period === 'today') { conds.push('m.created_at > ?'); args.push(Math.floor(Date.now() / 1000) - 86400); }
-  if (q) { conds.push('m.content LIKE ?'); args.push(`%${q}%`); }
+  if (q) { conds.push("m.content LIKE ? ESCAPE '\\'"); args.push(`%${escapeLike(q)}%`); }
   const where = 'WHERE ' + conds.join(' AND ');
 
   const total = db.prepare(`SELECT COUNT(*) n FROM messages m ${where}`).get(...args).n;

@@ -28,7 +28,10 @@ function displayName(conversationId, userId) {
 module.exports = function registerNudgeHandler(io, socket) {
   const userId = socket.user.id;
 
-  socket.on('disconnect', () => lastNudgeAt.delete(userId));
+  socket.on('disconnect', () => {
+    const remaining = (presence.onlineUsers.get(userId)?.size || 0) - 1;
+    if (remaining <= 0) lastNudgeAt.delete(userId);
+  });
 
   socket.on('nudge', async ({ conversationId, targetId } = {}, ack) => {
     try {

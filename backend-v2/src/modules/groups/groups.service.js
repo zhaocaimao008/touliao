@@ -99,17 +99,18 @@ function setAvatar(io, convId, userId, url) {
 function invite(io, convId, userId, userIds) {
   if (!userIds?.length) throw badRequest('参数缺失');
   requireMember(convId, userId, '不在群内');
-  const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(convId).n;
-  if (curCount + userIds.length > config.limits.maxGroupMembers) throw badRequest(`群成员将超过上限 ${config.limits.maxGroupMembers} 人`);
-  const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id) VALUES (?,?)');
-  const added = [];
-  // 一次批量查询校验用户是否存在，避免 N+1
   const ph = userIds.map(() => '?').join(',');
   const validSet = new Set(db.prepare(`SELECT id FROM users WHERE id IN (${ph})`).all(userIds).map(r => r.id));
-  userIds.forEach(uid => {
-    if (!validSet.has(uid)) return;
-    if (add.run(convId, uid).changes > 0) added.push(uid);
-  });
+  const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id) VALUES (?,?)');
+  const added = [];
+  db.transaction(() => {
+    const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(convId).n;
+    if (curCount + userIds.length > config.limits.maxGroupMembers) throw badRequest(`群成员将超过上限 ${config.limits.maxGroupMembers} 人`);
+    userIds.forEach(uid => {
+      if (!validSet.has(uid)) return;
+      if (add.run(convId, uid).changes > 0) added.push(uid);
+    });
+  })();
   if (io && added.length > 0) {
     const conv = db.prepare('SELECT id,type,name,avatar FROM conversations WHERE id=?').get(convId);
     added.forEach(uid => {

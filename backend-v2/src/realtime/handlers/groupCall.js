@@ -21,6 +21,7 @@
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const { isMember } = require('../../modules/messages/shared');
+const presence = require('../presence');
 
 const MAX_PARTICIPANTS = 9;
 const nowSec = () => Math.floor(Date.now() / 1000);
@@ -112,10 +113,13 @@ module.exports = function registerGroupCallHandler(io, socket) {
 
   socket.on('group_call:leave', ({ callId }) => removeMember(io, callId, userId));
 
-  // 断线：从其所在群通话移除（socket 级；同账号多端时仅该端离开，userCall 以最后状态为准）
+  // 断线：仅当该账号所有 socket 都断开时才移除通话（多端场景：一端断线不应踢出通话）
   socket.on('disconnect', () => {
     const callId = userCall.get(userId);
-    if (callId) removeMember(io, callId, userId);
+    if (!callId) return;
+    // disconnect 触发时 presence 尚未调用 removeSocket，size 仍含本 socket，减 1 得剩余数
+    const remaining = (presence.onlineUsers.get(userId)?.size || 0) - 1;
+    if (remaining <= 0) removeMember(io, callId, userId);
   });
 };
 

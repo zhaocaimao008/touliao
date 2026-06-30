@@ -29,18 +29,12 @@ const stmt = sql => {
 let queue = [];
 let timer = null;
 
-function flush() {
-  timer = null;
-  if (!queue.length) return;
+function runItem(item) {
+  if (item.ops) { for (const op of item.ops) stmt(op.sql).run(...op.params); }
+  else stmt(item.sql).run(...item.params);
+}
 
-  const batch = queue.splice(0, MAX_BATCH);
-
-  // 执行单个队列项：普通单语句 {sql,params} 或原子批次 {ops:[{sql,params}]}
-  const runItem = (item) => {
-    if (item.ops) { for (const op of item.ops) stmt(op.sql).run(...op.params); }
-    else stmt(item.sql).run(...item.params);
-  };
-
+function flushBatch(batch) {
   try {
     db.transaction(() => {
       for (const item of batch) runItem(item);
@@ -60,7 +54,12 @@ function flush() {
       }
     }
   }
+}
 
+function flush() {
+  timer = null;
+  if (!queue.length) return;
+  flushBatch(queue.splice(0, MAX_BATCH));
   if (queue.length > 0) setImmediate(flush);
 }
 
@@ -87,7 +86,8 @@ parentPort.on('message', msg => {
       schedule();
       break;
     case 'shutdown':
-      flush();
+      if (timer) { clearTimeout(timer); timer = null; }
+      while (queue.length > 0) flushBatch(queue.splice(0, MAX_BATCH));
       db.close();
       process.exit(0);
       break;
