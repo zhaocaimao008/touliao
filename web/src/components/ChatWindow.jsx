@@ -1656,8 +1656,10 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     const el = document.getElementById(`msg-${msgId}`);
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     // 消息不在当前窗口，从服务端加载上下文
+    const snapConvId = conversation.id;
     try {
-      const { data } = await axios.get(`/api/messages/${conversation.id}/around/${msgId}`);
+      const { data } = await axios.get(`/api/messages/${snapConvId}/around/${msgId}`);
+      if (conversation.id !== snapConvId) return; // 用户已切换对话
       if (!data?.messages?.length) { showToast('无法定位该消息', 'info'); return; }
       setMessages(data.messages);
       setHasMore(data.hasMore);

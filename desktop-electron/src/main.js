@@ -441,7 +441,10 @@ function setupAutoUpdater() {
     }
   });
 
-  autoUpdater.on('error', (err) => log.error('更新错误:', err.message));
+  autoUpdater.on('error', (err) => {
+    log.error('更新错误:', err.message);
+    mainWindow?.webContents.send('update:error', err.message);
+  });
 }
 
 // ── 系统托盘 ───────────────────────────────────────────────

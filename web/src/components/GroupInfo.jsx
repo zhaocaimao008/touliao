@@ -98,6 +98,53 @@ function RoleBadge({ role }) {
   return null;
 }
 
+/* ── 成员行（提升到组件外以保证 react-window 引用稳定）── */
+const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }) {
+  const { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, transferOwner, kickMember } = data;
+  const m = filtered[index];
+  const q = kickSearch.toLowerCase();
+  return (
+    <div className="gi-mi" style={style}>
+      <Avatar src={m.avatar} name={m.username} size={38} />
+      <div className="gi-f1">
+        <div className="gi-mn">
+          {kickSearch && m.username.toLowerCase().includes(q)
+            ? (() => {
+                const idx = m.username.toLowerCase().indexOf(q);
+                return (
+                  <>
+                    {m.username.slice(0, idx)}
+                    <span className="gi-search-hl">{m.username.slice(idx, idx + kickSearch.length)}</span>
+                    {m.username.slice(idx + kickSearch.length)}
+                  </>
+                );
+              })()
+            : m.username
+          }
+          <RoleBadge role={m.role} />
+        </div>
+      </div>
+      {isOwner && m.role !== 'owner' && (
+        <button
+          className="gi-btn-admin"
+          style={{ color: m.role === 'admin' ? 'var(--text-tertiary)' : 'var(--green)', border: `1px solid ${m.role === 'admin' ? 'var(--border-default)' : 'var(--green)'}` }}
+          onClick={() => toggleAdmin(m.id, m.role)}
+        >{m.role === 'admin' ? '撤销管理员' : '设为管理员'}</button>
+      )}
+      {isOwner && m.role !== 'owner' && (
+        <button
+          className="gi-btn-admin"
+          style={{ color: 'var(--green)', border: '1px solid var(--green)' }}
+          onClick={() => transferOwner(m.id)}
+        >转让群主</button>
+      )}
+      {isAdmin && m.id !== currentUserId && m.role === 'member' && (
+        <button className="gi-btn-kick" onClick={() => kickMember(m.id)}>移出</button>
+      )}
+    </div>
+  );
+});
+
 /* ── 主组件 ── */
 export default function GroupInfo({ conversation, currentUserId, onClose, onLeave, onConvUpdate, onPickBackground, onClearBackground, onCleared }) {
   const [info, setInfo] = useState(null);
@@ -291,6 +338,17 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   const uploadAvatar = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      showToast('仅支持 JPG、PNG、GIF、WebP 格式', 'error');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('图片大小不能超过 5MB', 'error');
+      e.target.value = '';
+      return;
+    }
     setUploadingAvatar(true);
     try {
       const fd = new FormData();
@@ -532,52 +590,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               if (kickSearch && filtered.length === 0) {
                 return <div className="gi-no-match">未找到匹配成员</div>;
               }
-              const MemberRow = ({ index, style }) => {
-                const m = filtered[index];
-                return (
-                  <div key={m.id} className="gi-mi" style={style}>
-                    <Avatar src={m.avatar} name={m.username} size={38} />
-                    <div className="gi-f1">
-                      <div className="gi-mn">
-                        {kickSearch && m.username.toLowerCase().includes(kickSearch.toLowerCase())
-                          ? (() => {
-                              const idx = m.username.toLowerCase().indexOf(kickSearch.toLowerCase());
-                              return (
-                                <>
-                                  {m.username.slice(0, idx)}
-                                  <span className="gi-search-hl">{m.username.slice(idx, idx + kickSearch.length)}</span>
-                                  {m.username.slice(idx + kickSearch.length)}
-                                </>
-                              );
-                            })()
-                          : m.username
-                        }
-                        <RoleBadge role={m.role} />
-                      </div>
-                    </div>
-                    {isOwner && m.role !== 'owner' && (
-                      <button
-                        className="gi-btn-admin"
-                        style={{ color: m.role === 'admin' ? 'var(--text-tertiary)' : 'var(--green)', border: `1px solid ${m.role === 'admin' ? 'var(--border-default)' : 'var(--green)'}` }}
-                        onClick={() => toggleAdmin(m.id, m.role)}
-                      >{m.role === 'admin' ? '撤销管理员' : '设为管理员'}</button>
-                    )}
-                    {isOwner && m.role !== 'owner' && (
-                      <button
-                        className="gi-btn-admin"
-                        style={{ color: 'var(--green)', border: '1px solid var(--green)' }}
-                        onClick={() => transferOwner(m.id)}
-                      >转让群主</button>
-                    )}
-                    {isAdmin && m.id !== currentUserId && m.role === 'member' && (
-                      <button
-                        className="gi-btn-kick"
-                        onClick={() => kickMember(m.id)}
-                      >移出</button>
-                    )}
-                  </div>
-                );
-              };
+              const itemData = { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, transferOwner, kickMember };
               if (filtered.length > 50) {
                 return (
                   <FixedSizeList
@@ -585,12 +598,15 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     itemCount={filtered.length}
                     itemSize={52}
                     width="100%"
+                    itemData={itemData}
                   >
-                    {MemberRow}
+                    {GroupMemberRow}
                   </FixedSizeList>
                 );
               }
-              return filtered.map((_, index) => <MemberRow key={filtered[index].id} index={index} style={{}} />);
+              return filtered.map((m, index) => (
+                <GroupMemberRow key={m.id} index={index} style={{}} data={itemData} />
+              ));
             })()}
           </div>
         </div>

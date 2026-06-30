@@ -211,10 +211,19 @@ export default function Moments() {
     } catch { setNotifList([]); }
   };
 
+  const ALLOWED_IMG_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   const handleImagePick = (e) => {
     const files = Array.from(e.target.files || []);
     const remaining = 9 - images.length;
     files.slice(0, remaining).forEach(file => {
+      if (!ALLOWED_IMG_TYPES.includes(file.type)) {
+        showToast(`${file.name} 格式不支持，仅限 JPG/PNG/GIF/WebP`, 'error');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showToast(`${file.name} 超过 5MB 限制`, 'error');
+        return;
+      }
       const previewUrl = URL.createObjectURL(file);
       setImages(prev => [...prev, { previewUrl, file }]);
     });

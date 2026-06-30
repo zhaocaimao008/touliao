@@ -480,23 +480,33 @@ async function searchInConversation(convId, userId, q) {
 function aroundMessage(convId, msgId, userId) {
   requireMember(convId, userId);
 
-  const target = db.prepare('SELECT created_at FROM messages WHERE id=? AND conversation_id=? AND deleted=0').get(msgId, convId);
+  const clearClause = `AND m.created_at > COALESCE(
+    (SELECT cleared_at FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0
+  )`;
+
+  const target = db.prepare(`
+    SELECT created_at FROM messages
+    WHERE id=? AND conversation_id=? AND deleted=0
+    AND created_at > COALESCE(
+      (SELECT cleared_at FROM conversation_clears WHERE user_id=? AND conversation_id=?), 0
+    )
+  `).get(msgId, convId, userId, convId);
   if (!target) return null;
 
   const HALF = 25;
   const before = db.prepare(`
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id=m.sender_id
-    WHERE m.conversation_id=? AND m.created_at<=? AND m.deleted=0
+    WHERE m.conversation_id=? AND m.created_at<=? AND m.deleted=0 ${clearClause}
     ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?
-  `).all(convId, target.created_at, HALF + 1);
+  `).all(convId, target.created_at, userId, HALF + 1);
 
   const after = db.prepare(`
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id=m.sender_id
-    WHERE m.conversation_id=? AND m.created_at>? AND m.deleted=0
+    WHERE m.conversation_id=? AND m.created_at>? AND m.deleted=0 ${clearClause}
     ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?
-  `).all(convId, target.created_at, HALF);
+  `).all(convId, target.created_at, userId, HALF);
 
   const hasMore = before.length > HALF;
   const messages = [...before.slice(0, HALF).reverse(), ...after];
