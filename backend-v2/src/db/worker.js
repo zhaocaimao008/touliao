@@ -18,6 +18,7 @@ db.pragma('synchronous = NORMAL');
 db.pragma('cache_size = -32000');
 db.pragma('temp_store = MEMORY');
 db.pragma('mmap_size = 268435456');
+db.pragma('foreign_keys = ON');
 
 const stmtCache = new Map();
 const stmt = sql => {

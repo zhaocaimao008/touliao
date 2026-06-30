@@ -11,6 +11,7 @@ const broadcaster = require('../../realtime/broadcaster');
 //   必须与建红包在同一同步事务内完成（不可拆 worker），否则可能扣了钱没建包、或余额穿透。
 async function send(io, userId, { conversationId, totalAmount, totalCount, greeting }) {
   if (!conversationId || !totalAmount || !totalCount) throw badRequest('参数缺失');
+  if (!Number.isInteger(totalAmount) || !Number.isInteger(totalCount)) throw badRequest('金额和个数必须为整数');
   if (totalAmount < 1 || totalAmount > 20000) throw badRequest('金额范围 1-20000 金币');
   if (totalCount < 1 || totalCount > 100) throw badRequest('红包个数 1-100');
   if (totalAmount < totalCount) throw badRequest('总金额不能小于红包个数（每个至少 1 金币）');

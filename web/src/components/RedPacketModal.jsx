@@ -8,9 +8,9 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
-  const amountNum = parseFloat(amount) || 0;
+  const amountNum = Math.floor(parseFloat(amount) || 0);
   const countNum = parseInt(count) || 0;
-  const perPerson = countNum > 0 ? (amountNum / countNum).toFixed(2) : 0;
+  const perPerson = countNum > 0 ? Math.floor(amountNum / countNum) : 0;
   const canSend = amountNum >= countNum && amountNum > 0 && countNum > 0 && amountNum <= 20000 && countNum <= 100;
 
   const send = async () => {

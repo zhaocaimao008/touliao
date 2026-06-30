@@ -155,6 +155,9 @@ export default function Moments() {
   const [showSettings, setShowSettings] = useState(false);
   const [visibleDays, setVisibleDays] = useState(0); // 最近 N 天可见：0=全部
   const imgInputRef = useRef(null);
+  const imagesRef = useRef(images);
+  useEffect(() => { imagesRef.current = images; }, [images]);
+  useEffect(() => () => { imagesRef.current.forEach(img => URL.revokeObjectURL(img.previewUrl)); }, []);
 
   const load = useCallback(() => {
     setLoading(true);
