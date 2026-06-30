@@ -124,6 +124,7 @@ export default function CallModal({ socket, call, onClose }) {
   const remoteAudioRef  = useRef(null);
   const pendingOfferRef = useRef(null);
   const timeoutRef      = useRef(null);
+  const iceTimeoutRef   = useRef(null);
   const disconnectRef   = useRef(null);
 
   const timer = useCallTimer(status === 'connected');
@@ -164,6 +165,7 @@ export default function CallModal({ socket, call, onClose }) {
 
   const cleanup = useCallback(() => {
     clearTimeout(timeoutRef.current);
+    clearTimeout(iceTimeoutRef.current);
     clearTimeout(disconnectRef.current);
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     if (pcRef.current) {
@@ -204,6 +206,7 @@ export default function CallModal({ socket, call, onClose }) {
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
       if (s === 'connected' && statusRef.current === 'connecting') {
+        clearTimeout(iceTimeoutRef.current);
         setStatus('connected');
       } else if (s === 'disconnected') {
         disconnectRef.current = setTimeout(() => {
@@ -256,6 +259,10 @@ export default function CallModal({ socket, call, onClose }) {
         return;
       }
       setStatus('connecting');
+      // ICE 协商超时保护：对称 NAT 无 TURN 时 connectionState 可能永远不变
+      iceTimeoutRef.current = setTimeout(() => {
+        if (statusRef.current === 'connecting') endCall(true, 'timeout');
+      }, 30000);
       const pc = pcRef.current;
       if (!pc) return;
       const offer = await pc.createOffer();

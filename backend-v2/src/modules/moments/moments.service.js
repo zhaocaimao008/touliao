@@ -11,6 +11,7 @@ const { db } = require('../../db/connection');
 const config = require('../../config');
 const { pushToUser } = require('../../utils/push');
 const { badRequest, forbidden, notFound, conflict, paginated } = require('../../utils/http');
+const { isConfigured, getPublicBase } = require('../../utils/cloudStorage');
 
 // ── 互动通知（MO2）：actor≠author 才记。删动态由 FK ON DELETE CASCADE 清理 ──
 function addInteractNotification({ recipientId, actorId, momentId, type, commentId = null }) {
@@ -159,7 +160,16 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
 // ── 发布 ────────────────────────────────────────────────────────
 function createMoment(io, userId, { content, images, visibility, visibleTo }) {
   const text = (content || '').trim();
-  const imgs = Array.isArray(images) ? images.slice(0, 9) : [];
+  const rawImgs = Array.isArray(images) ? images.slice(0, 9) : [];
+  // URL 白名单：只允许本服务器 uploads 目录或已配置的云存储域名
+  const localPrefix = config.appUrl + '/uploads/';
+  const cloudBase = isConfigured() ? getPublicBase() : null;
+  const imgs = rawImgs.filter(url => {
+    if (typeof url !== 'string') return false;
+    if (url.startsWith(localPrefix) || url.startsWith('/uploads/')) return true;
+    if (cloudBase && url.startsWith(cloudBase + '/')) return true;
+    return false;
+  });
   if (!text && imgs.length === 0) throw badRequest('内容不能为空');
   if (text.length > 5000) throw badRequest('内容过长');
   const vis = ['all', 'friends', 'private', 'include', 'exclude'].includes(visibility) ? visibility : 'all';

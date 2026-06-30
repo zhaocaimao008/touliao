@@ -17,7 +17,9 @@ function listContacts(userId) {
 }
 
 function deleteContact(userId, contactId) {
-  db.prepare('DELETE FROM contacts WHERE user_id=? AND contact_id=?').run(userId, contactId);
+  // 同步删除双向记录：A删除B后，B不再能通过好友关系查看A的私密朋友圈
+  db.prepare('DELETE FROM contacts WHERE (user_id=? AND contact_id=?) OR (user_id=? AND contact_id=?)')
+    .run(userId, contactId, contactId, userId);
 }
 
 function setRemark(userId, contactId, remark) {

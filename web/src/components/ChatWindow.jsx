@@ -368,6 +368,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     setMultiSelect(false);
     setSelectedMsgs(new Set());
     setPinnedMessages([]);
+    setPendingScrollId(null);
     // 草稿自动加载
     const savedDraft = localStorage.getItem(`draft_${conversation.id}`);
     setInput(savedDraft || '');

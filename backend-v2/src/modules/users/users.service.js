@@ -82,18 +82,19 @@ function qrPayload(userId) {
 function search(userId, q) {
   if (!q) return [];
   if (q.length > 50) throw badRequest('搜索内容过长');
+  const like = '%' + q.replace(/[\\%_]/g, c => '\\' + c) + '%';
   return db.prepare(`
     SELECT u.id, u.username, u.avatar, u.bio, u.wechat_id
     FROM users u
     LEFT JOIN user_settings s ON s.user_id = u.id
     WHERE u.id != ?
       AND (
-        u.username LIKE ?
+        u.username LIKE ? ESCAPE '\\'
         OR (u.wechat_id = ? AND COALESCE(s.add_by_vxin_id, 1) = 1)
         OR (u.phone = ? AND COALESCE(s.add_by_phone, 1) = 1)
       )
     LIMIT 20
-  `).all(userId, `%${q}%`, q, q);
+  `).all(userId, like, q, q);
 }
 
 // ── 资料 ────────────────────────────────────────────────────────

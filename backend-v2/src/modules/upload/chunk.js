@@ -85,6 +85,7 @@ async function finish(req, res) {
   const { conversationId, uploadId } = req.params;
   const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在' });
+  if (conversationId !== m.convId) return res.status(400).json({ error: '会话不匹配' });
   if (!isMember(conversationId, req.user.id)) return res.status(403).json({ error: '无权发送' });
   const part = partPath(uploadId);
   const got = received(uploadId);
