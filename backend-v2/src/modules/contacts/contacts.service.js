@@ -35,6 +35,9 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   if (db.prepare('SELECT id FROM contacts WHERE user_id=? AND contact_id=?').get(fromId, toId)) throw badRequest('已是好友');
   if (db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(toId, fromId)) throw forbidden('对方已将你加入黑名单');
   if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) throw badRequest('请求已发送');
+  // 对方已有 pending 请求 → 直接互接，避免双向 pending 共存
+  const reverseReq = db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(toId, fromId, 'pending');
+  if (reverseReq) return handleRequest(io, fromId, reverseReq.id, 'accepted');
 
   const restricted = db.prepare(`
     SELECT c.name FROM conversation_members cm1
@@ -47,11 +50,13 @@ function sendFriendRequest(io, fromId, { toId, message }) {
 
   const targetSettings = usersSvc.serializeSettings(usersSvc.ensureSettings(toId));
 
-  // 免验证：直接互加
+  // 免验证：直接互加（事务保证两条 INSERT 原子完成，避免单向联系人）
   if (!targetSettings.requireVerify) {
-    const add = db.prepare('INSERT OR IGNORE INTO contacts (id,user_id,contact_id) VALUES (?,?,?)');
-    add.run(uuidv4(), fromId, toId);
-    add.run(uuidv4(), toId, fromId);
+    db.transaction(() => {
+      const add = db.prepare('INSERT OR IGNORE INTO contacts (id,user_id,contact_id) VALUES (?,?,?)');
+      add.run(uuidv4(), fromId, toId);
+      add.run(uuidv4(), toId, fromId);
+    })();
     const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
     const target = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(toId);
     const { conversationId } = getOrCreatePrivate(fromId, toId);

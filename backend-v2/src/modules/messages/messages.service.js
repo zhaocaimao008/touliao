@@ -446,7 +446,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
 
 // ── 会话内搜索 ──────────────────────────────────────────────────
 async function searchInConversation(convId, userId, q) {
-  if (!q) return [];
+  if (!q || !q.trim()) return [];
   if (q.length > 100) throw badRequest('搜索词过长');
   requireMember(convId, userId);
 
@@ -458,7 +458,9 @@ async function searchInConversation(convId, userId, q) {
   }
 
   // 使用 FTS5 全文索引，避免 LIKE '%kw%' 全表扫描
-  const ftsQuery = q.split(/\s+/).filter(Boolean).map(t => `"${t.replace(/"/g, '""')}"`).join(' OR ');
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (!tokens.length) return [];
+  const ftsQuery = tokens.map(t => `"${t.replace(/"/g, '""')}"`).join(' OR ');
   const result = db.prepare(`
     SELECT m.*, u.username AS senderName, u.avatar AS senderAvatar
     FROM messages_fts

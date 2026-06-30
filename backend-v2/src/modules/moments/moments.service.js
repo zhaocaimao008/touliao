@@ -267,6 +267,9 @@ function getMoment(viewerId, momentId) {
 // 物理删除一条动态及其级联数据（评论/点赞/通知/举报）。不做权限校验，调用方负责鉴权。
 // 作者删除(deleteMoment) 与 后台举报处理(admin.resolveReport) 共用，避免重复。
 function purgeMoment(momentId) {
+  const m = db.prepare('SELECT images FROM moments WHERE id=?').get(momentId);
+  const images = JSON.parse(m?.images || '[]');
+
   db.transaction(() => {
     db.prepare('DELETE FROM moment_comments WHERE moment_id=?').run(momentId);
     db.prepare('DELETE FROM moment_likes WHERE moment_id=?').run(momentId);
@@ -274,6 +277,19 @@ function purgeMoment(momentId) {
     db.prepare('DELETE FROM moment_reports WHERE moment_id=?').run(momentId);
     db.prepare('DELETE FROM moments WHERE id=?').run(momentId);
   })();
+
+  // 异步清理本地存储图片（OSS 图片为外部 URL，跳过）
+  const fs = require('fs');
+  const path = require('path');
+  for (const url of images) {
+    try {
+      const rel = String(url).replace(/^https?:\/\/[^/]+/, '').replace(/^\/uploads\//, '');
+      const abs = path.join(config.uploadsRoot, rel);
+      if (abs.startsWith(config.uploadsRoot) && rel && !rel.includes('..')) {
+        fs.unlink(abs, () => {});
+      }
+    } catch {}
+  }
 }
 
 // ── 删除动态（仅作者，级联清理点赞/评论）──────────────────────
