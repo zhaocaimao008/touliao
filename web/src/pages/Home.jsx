@@ -9,6 +9,7 @@ import ContactList from '../components/ContactList';
 import Profile from '../components/Profile';
 import Moments from '../components/Moments';
 import CallHistory from '../components/CallHistory';
+import CallModal from '../components/CallModal';
 import Collections from '../components/Collections';
 import GlobalSearch from '../components/GlobalSearch';
 import AddFriendModal from '../components/AddFriendModal';
@@ -627,6 +628,23 @@ export default function Home() {
     return () => socket.off('group_kicked', onGroupKicked);
   }, [socket]);
 
+  // 全局来电监听（不论哪个会话打开，都能收到来电）
+  useEffect(() => {
+    if (!socket) return;
+    const onIncoming = ({ from, type, caller }) => {
+      setActiveCall(prev => {
+        // 通话中忽略新来电（busy）
+        if (prev) {
+          socket.emit('call:response', { to: from, accepted: false, busy: true });
+          return prev;
+        }
+        return { type, direction: 'incoming', remoteUser: { id: from, name: caller?.name, avatar: caller?.avatar }, remoteId: from };
+      });
+    };
+    socket.on('call:incoming', onIncoming);
+    return () => socket.off('call:incoming', onIncoming);
+  }, [socket]);
+
   const handleSelectConv = useCallback((conv) => {
     setActiveConv(conv);
     setUnread(prev => ({ ...prev, [conv.id]: 0 }));
@@ -642,6 +660,12 @@ export default function Home() {
 
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
   const badges = { chats: totalUnread, contacts: friendReqCount };
+
+  const [activeCall, setActiveCall] = useState(null);
+
+  const handleStartCall = useCallback((callData) => {
+    setActiveCall(callData);
+  }, []);
 
   const [isMobile, setIsMobile] = useState(() =>
     window.innerWidth < 768 || !!window.Capacitor?.isNativePlatform?.());
@@ -701,9 +725,17 @@ export default function Home() {
     setAddFriendRequest(n => n + 1);
   };
 
-  // 各端共用的浮层（二维码 / 添加菜单 / 建群 / 网络搜索）
+  // 各端共用的浮层（二维码 / 添加菜单 / 建群 / 网络搜索 / 通话）
   const overlays = (
     <>
+      {activeCall && (
+        <CallModal
+          socket={socket}
+          user={user}
+          call={activeCall}
+          onClose={() => setActiveCall(null)}
+        />
+      )}
       {showQR && (
         <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
           <div className="wc-modal home-qr-modal" onClick={e => e.stopPropagation()}>
@@ -752,7 +784,7 @@ export default function Home() {
         {activeConv ? (
           <div className="m-chat-page">
             <ChatWindowBoundary convId={activeConv.id}>
-              <ChatWindow key={activeConv.id} conversation={activeConv} onClose={handleMobileBack} />
+              <ChatWindow key={activeConv.id} conversation={activeConv} onClose={handleMobileBack} onStartCall={handleStartCall} />
             </ChatWindowBoundary>
           </div>
         ) : (
@@ -889,7 +921,7 @@ export default function Home() {
             {activeConv
               ? (
                 <ChatWindowBoundary convId={activeConv.id}>
-                  <ChatWindow key={activeConv.id} conversation={activeConv} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} />
+                  <ChatWindow key={activeConv.id} conversation={activeConv} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} />
                 </ChatWindowBoundary>
               )
               : <WcEmpty />

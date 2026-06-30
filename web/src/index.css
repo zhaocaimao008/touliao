@@ -85,6 +85,11 @@ body.dark-mode {
   100% { transform: translateY(130px) rotate(14deg) scaleX(0.4); opacity: 0; }
 }
 
+@keyframes callPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(7, 193, 96, 0.5); }
+  50%       { box-shadow: 0 0 0 8px rgba(7, 193, 96, 0); }
+}
+
 /* ── Skip-link：键盘聚焦时可见 ── */
 .skip-link:focus {
   position: fixed !important;

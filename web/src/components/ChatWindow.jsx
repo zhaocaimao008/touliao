@@ -32,7 +32,6 @@ import GroupInfo, { GroupAvatar } from './GroupInfo';
 import UserProfile from './UserProfile';
 import RedPacketModal from './RedPacketModal';
 import ForwardModal from './ForwardModal';
-import CallModal from './CallModal';
 import GroupCallModal from './GroupCallModal';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -85,7 +84,7 @@ function playShredAnimation(msgId, onDone) {
   setTimeout(() => { wrap.remove(); onDone?.(); }, totalMs);
 }
 
-export default function ChatWindow({ conversation: initialConv, onClose }) {
+export default function ChatWindow({ conversation: initialConv, onClose, onStartCall }) {
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -120,7 +119,6 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   // 通话状态
-  const [activeCall, setActiveCall] = useState(null);
   const [groupCall, setGroupCall] = useState(null);        // 进行中的群通话 session
   const [groupCallInvite, setGroupCallInvite] = useState(null); // 收到的群通话邀请
   // 文件上传进度：null | { name, progress:0-100, status:'uploading'|'error', retryFn? }
@@ -209,7 +207,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     if (!ac.signal.aborted) setMsgSearching(false);
   }, [conversation.id]);
 
-  // 发起通话
+  // 发起通话（状态提升到 Home，通知父组件）
   const startCall = useCallback((type) => {
     if (conversation.type !== 'private') return;
     const remoteUser = { id: conversation.otherUser?.id, name: conversation.name, avatar: conversation.avatar };
@@ -218,20 +216,8 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       type,
       caller: { id: user.id, name: user.username, avatar: user.avatar },
     });
-    setActiveCall({ type, direction: 'outgoing', remoteUser, remoteId: conversation.otherUser?.id });
-  }, [socket, conversation, user]);
-
-  // 监听来电（本 ChatWindow 对应的联系人打来的电话）
-  useEffect(() => {
-    if (!socket) return;
-    const onIncoming = ({ from, type, caller }) => {
-      // 只响应当前打开的私聊对方
-      if (from !== conversation.otherUser?.id) return;
-      setActiveCall({ type, direction: 'incoming', remoteUser: { id: from, name: caller?.name, avatar: caller?.avatar }, remoteId: from });
-    };
-    socket.on('call:incoming', onIncoming);
-    return () => socket.off('call:incoming', onIncoming);
-  }, [socket, conversation.otherUser?.id]);
+    onStartCall?.({ type, direction: 'outgoing', remoteUser, remoteId: conversation.otherUser?.id });
+  }, [socket, conversation, user, onStartCall]);
 
   // 发起群通话（群聊）
   const startGroupCall = useCallback((type) => {
@@ -1694,15 +1680,6 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
           initialIdx={lightboxState.idx}
           url={lightboxState.urls[lightboxState.idx]}
           onClose={() => setLightboxState(null)}
-        />
-      )}
-      {/* ── 通话弹窗 ── */}
-      {activeCall && (
-        <CallModal
-          socket={socket}
-          user={user}
-          call={activeCall}
-          onClose={() => setActiveCall(null)}
         />
       )}
       {groupCall && (
