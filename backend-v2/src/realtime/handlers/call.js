@@ -20,6 +20,10 @@ const { db } = require('../../db/connection');
 // 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）
 const CALL_TIMEOUT_MS = 120_000;
 
+// 防骚扰：同一主叫每 5s 只能发起一次通话（不影响 activeCalls 逻辑，仅拦截高频重拨）
+const CALL_COOLDOWN_MS = 5_000;
+const callRateMap = new Map();
+
 // 模块级共享（单进程 fork 实例）：key = `${callerId}>${calleeId}`
 const activeCalls = new Map();
 
@@ -55,8 +59,11 @@ function cleanupUserCalls(userId) {
           // 已接通的通话 → completed（断线视为通话结束）
           db.prepare("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?")
             .run(end, Math.max(0, end - c.answeredAt), c.id);
+        } else if (a === userId) {
+          // 主叫断线且未接通 → canceled（而非 missed，missed 是被叫未接的语义）
+          db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(end, c.id);
         }
-        // 未接通的通话 DB 已有 missed 记录，无需额外写
+        // 被叫断线且未接通 → 保留 missed 状态
       } catch (e) { console.warn('[call] disconnect 落库失败:', e.message); }
       activeCalls.delete(k);
     }
@@ -66,8 +73,12 @@ function cleanupUserCalls(userId) {
 module.exports = function registerCallHandler(io, socket) {
   const userId = socket.user.id;
 
-  socket.on('call:request', ({ to, type, caller }) => {
+  socket.on('call:request', ({ to, type }) => {
     if (!to || to === userId) return;
+    // 频率限制：5s 内同一主叫只能发起一次（防呼叫骚扰）
+    const now = Date.now();
+    if (now - (callRateMap.get(userId) || 0) < CALL_COOLDOWN_MS) return;
+    callRateMap.set(userId, now);
     // 防骚扰 / 防绕过拉黑：被叫已拉黑主叫，或双方无私聊会话(非任意ID都能拨)，则拒接。
     const blocked = db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(to, userId);
     const shareConv = db.prepare(`
@@ -82,15 +93,23 @@ module.exports = function registerCallHandler(io, socket) {
     const id = uuidv4();
     const t = type === 'video' ? 'video' : 'audio';
     const key = `${userId}>${to}`;
-    // 重复拨号时清除旧 timer，防止旧 timer 到期时污染新通话记录
-    clearTimeout(activeCalls.get(key)?.timer);
+    // 重复拨号时更新旧记录状态，防止留下永久 missed 孤儿行
+    const old = activeCalls.get(key);
+    if (old) {
+      if (old.timer) clearTimeout(old.timer);
+      if (!old.answeredAt) {
+        try { db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(nowSec(), old.id); } catch {}
+      }
+    }
     const timer = scheduleCallTimeout(key);
     activeCalls.set(key, { id, answeredAt: null, timer });
     try {
       db.prepare('INSERT INTO call_logs (id,caller_id,callee_id,type,status,started_at) VALUES (?,?,?,?,?,?)')
         .run(id, userId, to, t, 'missed', nowSec());
     } catch (e) { console.warn('[call] log insert 失败:', e.message); }
-    io.to(`user_${to}`).emit('call:incoming', { from: userId, type, caller });
+    // 服务端从 DB 取真实用户信息，不透传客户端 caller 字段（防视觉身份冒充）
+    const callerInfo = db.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
+    io.to(`user_${to}`).emit('call:incoming', { from: userId, type: t, caller: { id: userId, name: callerInfo?.username, avatar: callerInfo?.avatar } });
   });
 
   socket.on('call:response', ({ to, accepted, busy, reason }) => {

@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db, generateGroupNumber } = require('../../db/connection');
 const { writeAsync, write } = require('../../db/writer');
 const config = require('../../config');
-const { badRequest, forbidden } = require('../../utils/http');
+const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember } = require('../messages/shared');
 const cache = require('../../utils/cache');
 
@@ -23,8 +23,17 @@ const _createPrivate = db.transaction((myId, otherId, id) => {
   db.prepare('INSERT INTO conversation_members (conversation_id,user_id) VALUES (?,?)').run(id, myId);
   db.prepare('INSERT INTO conversation_members (conversation_id,user_id) VALUES (?,?)').run(id, otherId);
 });
-function getOrCreatePrivate(myId, otherId) {
+function getOrCreatePrivate(myId, otherId, { internal = false } = {}) {
   if (!otherId) throw badRequest('参数缺失');
+  if (!internal) {
+    if (!db.prepare('SELECT 1 FROM users WHERE id=?').get(otherId)) throw notFound('用户不存在');
+    const blocked = db.prepare(
+      'SELECT 1 FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?) LIMIT 1'
+    ).get(myId, otherId, otherId, myId);
+    if (blocked) throw forbidden('无法与该用户创建会话');
+    if (!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(myId, otherId))
+      throw forbidden('请先添加对方为好友');
+  }
   const existing = _findPrivate.get(myId, otherId);
   if (existing) return { conversationId: existing.id };
   const id = uuidv4();
@@ -66,6 +75,16 @@ function getOrCreateFileHelper(myId) {
 // ── 群聊：创建（io 由 controller 传入用于广播）──────────────────
 function createGroup(io, ownerId, { name, memberIds }) {
   if (!name || !memberIds?.length) throw badRequest('参数缺失');
+  if (memberIds.length > config.limits.maxGroupMembers)
+    throw badRequest(`单次邀请成员数不能超过 ${config.limits.maxGroupMembers}`);
+  // 过滤：只允许添加确实存在的联系人（防止注入不存在的 userId 产生幽灵成员）
+  const ph = memberIds.map(() => '?').join(',');
+  const validSet = new Set(
+    db.prepare(`SELECT contact_id FROM contacts WHERE user_id=? AND contact_id IN (${ph})`)
+      .all(ownerId, ...memberIds).map(r => r.contact_id)
+  );
+  const validMemberIds = memberIds.filter(id => validSet.has(id));
+
   const id = uuidv4();
   const groupNumber = generateGroupNumber();
   const addMember = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)');
@@ -73,12 +92,12 @@ function createGroup(io, ownerId, { name, memberIds }) {
     db.prepare('INSERT INTO conversations (id,type,name,owner_id,group_number) VALUES (?,?,?,?,?)')
       .run(id, 'group', name, ownerId, groupNumber);
     db.prepare('INSERT INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)').run(id, ownerId, 'owner');
-    memberIds.forEach(uid => addMember.run(id, uid, 'member'));
+    validMemberIds.forEach(uid => addMember.run(id, uid, 'member'));
   })();
 
   if (io) {
     const conv = { id, type: 'group', name, avatar: '', pinned: 0, muted: 0, group_number: groupNumber };
-    [ownerId, ...memberIds].forEach(uid => io.to(`user_${uid}`).emit('new_conversation', conv));
+    [ownerId, ...validMemberIds].forEach(uid => io.to(`user_${uid}`).emit('new_conversation', conv));
   }
   return { conversationId: id, groupNumber };
 }

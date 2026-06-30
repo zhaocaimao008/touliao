@@ -300,7 +300,8 @@ function purgeMoment(momentId) {
     try {
       const rel = String(url).replace(/^https?:\/\/[^/]+/, '').replace(/^\/uploads\//, '');
       const abs = path.join(config.uploadsRoot, rel);
-      if (abs.startsWith(config.uploadsRoot) && rel && !rel.includes('..')) {
+      const safeRoot = config.uploadsRoot.endsWith(path.sep) ? config.uploadsRoot : config.uploadsRoot + path.sep;
+      if (abs.startsWith(safeRoot) && rel && !rel.includes('..')) {
         fs.unlink(abs, () => {});
       }
     } catch {}
@@ -370,6 +371,11 @@ function addComment(io, userId, momentId, { content, replyToUser }) {
     .run(id, momentId, userId, text, replyTo);
   if (io && m.user_id !== userId) io.to(`user_${m.user_id}`).emit('moment_commented', { momentId, userId });
   addInteractNotification({ recipientId: m.user_id, actorId: userId, momentId, type: 'comment', commentId: id });
+  // 被回复人≠动态作者 且 被回复人≠评论者 时，另行通知
+  if (replyTo && replyTo !== m.user_id && replyTo !== userId) {
+    if (io) io.to(`user_${replyTo}`).emit('moment_commented', { momentId, userId });
+    addInteractNotification({ recipientId: replyTo, actorId: userId, momentId, type: 'comment', commentId: id });
+  }
   return db.prepare(
     'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.id=?'
   ).get(id);

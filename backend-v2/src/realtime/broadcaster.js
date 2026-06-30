@@ -84,8 +84,8 @@ function flushAll() {
   if (stats.flushes % 500 === 0) {
     info('[broadcast] 合并派发', { msgs: stats.totalMessages, emits: stats.totalEmits, batched: stats.batchedEmits, maxBatch: stats.maxBatchSize, lastFlushMs: stats.lastFlushMs });
   }
-  // 还有积压房间：让出事件循环后继续
-  if (pending.size) setImmediate(flushAll);
+  // 还有积压房间：让出事件循环后继续（用 timer 守卫，防止 broadcastMessage 同时设 setTimeout 产生双重唤醒）
+  if (pending.size && !timer) timer = setTimeout(flushAll, 0);
 }
 
 /**

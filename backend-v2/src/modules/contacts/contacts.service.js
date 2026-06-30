@@ -61,7 +61,7 @@ function sendFriendRequest(io, fromId, { toId, message }) {
     })();
     const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
     const target = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(toId);
-    const { conversationId } = getOrCreatePrivate(fromId, toId);
+    const { conversationId } = getOrCreatePrivate(fromId, toId, { internal: true });
     if (io) io.to(`user_${toId}`).emit('friend_request_accepted', { accepter: sender, autoAccepted: true });
     if (io) {
       const convForSender = { id: conversationId, type: 'private', name: target?.username || '', avatar: target?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
@@ -126,7 +126,7 @@ function handleRequest(io, userId, requestId, action) {
     const accepter = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(userId);
     const requester = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(request.from_id);
     // 创建私聊会话
-    const { conversationId } = getOrCreatePrivate(request.from_id, request.to_id);
+    const { conversationId } = getOrCreatePrivate(request.from_id, request.to_id, { internal: true });
     // 通知请求方好友已通过（带 accepter 信息，用于弹通知）
     if (io) io.to(`user_${request.from_id}`).emit('friend_request_accepted', { accepter });
     // 通知接受方自己（不带 accepter 信息，仅触发通讯录刷新，不弹"对方通过了你"提示）
