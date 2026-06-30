@@ -203,7 +203,9 @@ export default function CallModal({ socket, call, onClose }) {
     pc.ontrack = (e) => attachRemoteStream(e.streams[0]);
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
-      if (s === 'disconnected') {
+      if (s === 'connected' && statusRef.current === 'connecting') {
+        setStatus('connected');
+      } else if (s === 'disconnected') {
         disconnectRef.current = setTimeout(() => {
           if (pcRef.current?.connectionState === 'disconnected' && statusRef.current === 'connected')
             endCall(false, 'network');
@@ -224,7 +226,7 @@ export default function CallModal({ socket, call, onClose }) {
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     socket?.emit('call:answer', { to: remoteId, answer });
-    setStatus('connected');
+    setStatus('connecting');
   }, [socket, remoteId]);
 
   const accept = useCallback(async () => {
@@ -253,7 +255,7 @@ export default function CallModal({ socket, call, onClose }) {
         setTimeout(onClose, 1800);
         return;
       }
-      setStatus('connected');
+      setStatus('connecting');
       const pc = pcRef.current;
       if (!pc) return;
       const offer = await pc.createOffer();

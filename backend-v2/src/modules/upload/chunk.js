@@ -61,7 +61,9 @@ function init(req, res) {
 
 function status(req, res) {
   const { uploadId } = req.params;
-  return res.json({ received: received(uploadId), size: meta.get(uploadId)?.size || null });
+  const m = loadMeta(uploadId);
+  if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在或已过期' });
+  return res.json({ received: received(uploadId), size: m.size });
 }
 
 async function chunk(req, res) {

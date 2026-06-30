@@ -13,7 +13,7 @@
  */
 const router = require('express').Router();
 const auth = require('../../middleware/auth');
-const { sendMsgLimiter, reactLimiter } = require('../../middleware/rateLimiters');
+const { sendMsgLimiter, reactLimiter, chunkInitLimiter, chunkUploadLimiter } = require('../../middleware/rateLimiters');
 
 const conv = require('../conversations/conversations.controller');
 const msg  = require('./messages.controller');
@@ -928,9 +928,9 @@ router.post('/:conversationId/upload', auth, msg.uploadGuard, ...msg.uploadMiddl
 // ── 分片 / 断点续传上传（大文件）───────────────────────────────
 const chunkUp = require('../upload/chunk');
 const rawChunk = require('express').raw({ type: '*/*', limit: chunkUp.MAX_CHUNK + 1024 });
-router.post('/:conversationId/upload-init',         auth, chunkUp.init);
+router.post('/:conversationId/upload-init',         auth, chunkInitLimiter, chunkUp.init);
 router.get ('/:conversationId/upload-status/:uploadId', auth, chunkUp.status);
-router.put ('/:conversationId/upload-chunk/:uploadId',  auth, rawChunk, chunkUp.chunk);
+router.put ('/:conversationId/upload-chunk/:uploadId',  auth, chunkUploadLimiter, rawChunk, chunkUp.chunk);
 router.post('/:conversationId/upload-finish/:uploadId', auth, chunkUp.finish);
 
 // ── 单段 DELETE 通配：撤回消息 ──────────────────────────────────

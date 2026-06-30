@@ -92,7 +92,7 @@ module.exports = function registerCallHandler(io, socket) {
     io.to(`user_${to}`).emit('call:incoming', { from: userId, type, caller });
   });
 
-  socket.on('call:response', ({ to, accepted }) => {
+  socket.on('call:response', ({ to, accepted, busy, reason }) => {
     // 被叫(userId)回应主叫(to)：key 方向为 主叫>被叫 = to>userId
     const key = `${to}>${userId}`;
     const c = activeCalls.get(key);
@@ -108,14 +108,14 @@ module.exports = function registerCallHandler(io, socket) {
         }
       } catch (e) { console.warn('[call] response 落库失败:', e.message); }
     }
-    io.to(`user_${to}`).emit('call:response', { from: userId, accepted });
+    io.to(`user_${to}`).emit('call:response', { from: userId, accepted, busy, reason });
   });
 
   socket.on('call:offer',  ({ to, offer })     => { if (!to) return; io.to(`user_${to}`).emit('call:offer',  { from: userId, offer }); });
   socket.on('call:answer', ({ to, answer })    => { if (!to) return; io.to(`user_${to}`).emit('call:answer', { from: userId, answer }); });
   socket.on('call:ice',    ({ to, candidate }) => { if (!to) return; io.to(`user_${to}`).emit('call:ice',    { from: userId, candidate }); });
 
-  socket.on('call:end', ({ to }) => {
+  socket.on('call:end', ({ to, reason }) => {
     // 挂断可能来自任一方，两个方向都查
     const k1 = `${userId}>${to}`;
     const k2 = `${to}>${userId}`;
@@ -134,7 +134,7 @@ module.exports = function registerCallHandler(io, socket) {
       activeCalls.delete(k1);
       activeCalls.delete(k2);
     }
-    io.to(`user_${to}`).emit('call:end', { from: userId });
+    io.to(`user_${to}`).emit('call:end', { from: userId, reason });
   });
 
   // ── 断线清理（fix: 网络闪断时不走 call:end，需主动释放所有资源）──

@@ -1214,7 +1214,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
           file_url: publicUrl, content: file.name,
           reply_to_id: replyTo?.id || null,
           clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
-        });
+        }, (res) => { if (!res?.success) showToast(res?.error || '文件消息发送失败', 'error'); });
         setReplyTo(null);
         setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
       } catch (err) {
@@ -1288,7 +1288,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.onstop = async () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
-        if (blob.size < 1000) return; // too short
+        if (blob.size < 1000) { stream.getTracks().forEach(t => t.stop()); return; } // too short
         setUploadState({ name: '语音', progress: 0, status: 'uploading' });
         const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
         try {
@@ -1316,7 +1316,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             file_url: publicUrl,
             content:  'voice.webm',
             clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
-          });
+          }, (res) => { if (!res?.success) showToast(res?.error || '语音发送失败', 'error'); });
           setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
         } catch { setUploadState({ name: '语音', progress: 0, status: 'error', errorMsg: '发送失败' }); }
         stream.getTracks().forEach(t => t.stop());

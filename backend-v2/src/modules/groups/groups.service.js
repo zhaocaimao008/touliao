@@ -47,13 +47,17 @@ function joinByToken(io, userId, token) {
     .get(token, Math.floor(Date.now() / 1000));
   if (!invite) throw notFound('邀请链接无效或已过期');
 
-  if (isMember(invite.conversation_id, userId)) {
+  let alreadyMember = false;
+  db.transaction(() => {
+    if (isMember(invite.conversation_id, userId)) { alreadyMember = true; return; }
+    const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(invite.conversation_id).n;
+    if (curCount >= config.limits.maxGroupMembers) throw badRequest(`群成员已达上限 ${config.limits.maxGroupMembers} 人`);
+    db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)')
+      .run(invite.conversation_id, userId, 'member');
+  })();
+  if (alreadyMember) {
     return { success: true, conversationId: invite.conversation_id, alreadyMember: true };
   }
-  const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(invite.conversation_id).n;
-  if (curCount >= config.limits.maxGroupMembers) throw badRequest(`群成员已达上限 ${config.limits.maxGroupMembers} 人`);
-  db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)')
-    .run(invite.conversation_id, userId, 'member');
   const conv = db.prepare('SELECT id,type,name,avatar FROM conversations WHERE id=?').get(invite.conversation_id);
   if (io) {
     io.to(`user_${userId}`).emit('new_conversation', conv);

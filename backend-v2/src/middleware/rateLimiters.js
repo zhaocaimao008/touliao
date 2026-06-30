@@ -26,10 +26,12 @@ const registerLimiter = rateLimit({
   message: json('注册过于频繁，请1小时后再试'),
 });
 
-// HTTP 发消息：单 IP 每分钟 60 条
+// HTTP 发消息：单用户每分钟 60 条（用 userId 而非 IP，避免 NAT 用户共享同一桶）
 const sendMsgLimiter = rateLimit({
   ...base, windowMs: 60 * 1000, max: 60,
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
   message: json('发送消息过于频繁，请稍后再试'),
+  validate: { xForwardedForHeader: false },
 });
 
 // 上传凭证：单用户 10 分钟 30 次
@@ -76,9 +78,23 @@ const reactLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
+// 本地分块上传：init 每分钟 10 次，chunk 每分钟 120 片（单用户）
+const chunkInitLimiter = rateLimit({
+  ...base, windowMs: 60 * 1000, max: 10,
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  message: json('上传请求过于频繁，请稍后再试'),
+  validate: { xForwardedForHeader: false },
+});
+const chunkUploadLimiter = rateLimit({
+  ...base, windowMs: 60 * 1000, max: 120,
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  message: json('上传过于频繁，请稍后再试'),
+  validate: { xForwardedForHeader: false },
+});
+
 // 测试模式:DISABLE_RATE_LIMIT=1 时所有限流变 no-op,供 e2e 自动化批量造号/发消息。
 // 生产默认不设此变量,限流照常生效。
-const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter };
+const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter };
 if (process.env.DISABLE_RATE_LIMIT === '1') {
   const noop = (req, res, next) => next();
   for (const k of Object.keys(limiters)) limiters[k] = noop;
