@@ -274,8 +274,7 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
   const msgs = db.prepare(`SELECT * FROM messages WHERE id IN (${ph2}) AND conversation_id=? AND deleted=0`).all(...msgIds, conversationId);
   msgs.forEach(msg => {
     const isOwn = msg.sender_id === userId;
-    const inTime = (now - msg.created_at) <= RECALL;
-    if ((isOwn && inTime) || isAdmin) {
+    if (isOwn || isAdmin) {
       ops.push({ sql: 'UPDATE messages SET deleted=1 WHERE id=?', params: [msg.id] });
       deleted.push(msg.id);
     }
@@ -307,7 +306,6 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
     const callerRole = memberRole(msg.conversation_id, userId);
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
-    if (isOwn && !isAdmin && Math.floor(Date.now() / 1000) - msg.created_at > RECALL) throw badRequest('超过2分钟无法撤回');
     await writeAsync('UPDATE messages SET deleted=1 WHERE id=?', [msgId]);
     if (io) io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });
   }

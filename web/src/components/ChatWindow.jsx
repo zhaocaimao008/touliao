@@ -1465,20 +1465,11 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       }
 
       case 'delete': {
-        const now = Math.floor(Date.now() / 1000);
         const isOwn = msg.sender_id === user.id;
-        const inTime = (now - msg.created_at) <= 120;
         const isAdmin = myGroupRole === 'owner' || myGroupRole === 'admin';
-        if (isOwn && inTime) {
-          if (await showConfirm('确认撤回这条消息？')) {
-            await axios.delete(`/api/messages/${msg.id}`, { data: { forEveryone: true } }).catch(() => {});
-          }
-        } else if (!isOwn && isAdmin && conversation.type === 'group') {
-          if (await showConfirm('删除该消息（对全员生效）？')) {
-            await axios.delete(`/api/messages/${msg.id}`, { data: { forEveryone: true } }).catch(() => {});
-          }
-        } else if (isOwn && !inTime) {
-          showToast('超过2分钟，无法撤回');
+        const prompt = isOwn ? '确认撤回这条消息？' : '删除该消息（对全员生效）？';
+        if ((isOwn || (isAdmin && conversation.type === 'group')) && await showConfirm(prompt)) {
+          await axios.delete(`/api/messages/${msg.id}`, { data: { forEveryone: true } }).catch(() => {});
         }
         break;
       }
@@ -2302,7 +2293,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
               <div className="wc-ctx-item" onClick={() => ctxAction('addSticker')}>添加到表情</div>
             )}
             <div className="wc-ctx-divider" />
-            {/* 撤回：自己的消息2分钟内，或群主/管理员删除任意消息 */}
+            {/* 撤回：自己的消息不限时间，或群主/管理员删除任意消息 */}
             {(ctxMenu.msg.sender_id === user.id ||
               ((myGroupRole === 'owner' || myGroupRole === 'admin') && conversation.type === 'group')
             ) && (
