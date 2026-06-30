@@ -618,7 +618,9 @@ router.put   ('/conversation/:convId/background', auth, conv.background);
  *       200:
  *         description: Marked as read
  */
-router.post  ('/conversation/:convId/read', auth, conv.read);
+router.post  ('/conversation/:convId/read',       auth, conv.read);
+router.post  ('/conversation/:convId/mark-unread', auth, conv.markUnread);
+router.post  ('/conversation/:convId/burn-after',  auth, conv.setBurnAfter);
 
 /**
  * @swagger

@@ -48,11 +48,16 @@ function history(convId, userId, { before, after, limit }) {
   }
 
   let deliverySet = new Set();
+  let peerLastReadAt = 0;
   if (conv?.type === 'private' && messages.length > 0) {
     const ids = messages.map(m => m.id);
     const ph = ids.map(() => '?').join(',');
     db.prepare(`SELECT message_id FROM message_deliveries WHERE message_id IN (${ph})`).all(...ids)
       .forEach(r => deliverySet.add(r.message_id));
+    const peerRow = db.prepare(
+      'SELECT last_read_at FROM conversation_settings WHERE conversation_id=? AND user_id!=? LIMIT 1'
+    ).get(convId, userId);
+    peerLastReadAt = peerRow?.last_read_at || 0;
   }
 
   // 批量 replyTo
@@ -83,7 +88,10 @@ function history(convId, userId, { before, after, limit }) {
   return messages.map(msg => {
     msg.replyTo   = msg.reply_to_id ? (replyMap.get(msg.reply_to_id) || null) : null;
     msg.reactions = reactionsMap.get(msg.id) || [];
-    if (conv?.type === 'private') msg._delivered = deliverySet.has(msg.id);
+    if (conv?.type === 'private') {
+      msg._delivered = deliverySet.has(msg.id);
+      if (msg.sender_id === userId && peerLastReadAt > 0) msg._read = msg.created_at <= peerLastReadAt;
+    }
     if (memberReadTimes && conv?.type === 'group') {
       msg.readCount = memberReadTimes.filter(m => m.user_id !== msg.sender_id && m.last_read_at >= msg.created_at).length;
     }

@@ -258,6 +258,24 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
     setGroupCallInvite(null);
   }, [groupCallInvite]);
 
+  // 阅后即焚：跟踪已调度的消息 id，避免重复注册定时器
+  const burnScheduledRef = useRef(new Set());
+  const scheduleBurn = React.useCallback((msgs) => {
+    const ba = conversation.burn_after || 0;
+    if (!ba || !msgs.length) return;
+    const now = Date.now() / 1000;
+    msgs.forEach(msg => {
+      if (!msg?.id || burnScheduledRef.current.has(msg.id)) return;
+      burnScheduledRef.current.add(msg.id);
+      const remaining = Math.max(0, ba - (now - msg.created_at)) * 1000;
+      setTimeout(() => {
+        axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } }).catch(() => {});
+        setMessages(prev => prev.filter(m => m.id !== msg.id));
+        burnScheduledRef.current.delete(msg.id);
+      }, remaining);
+    });
+  }, [conversation.burn_after]);
+
   // 组件卸载（关闭会话/切换会话）时标记已读
   const convIdRef   = useRef(conversation.id);
   const convTypeRef = useRef(conversation.type);
@@ -375,6 +393,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
       .then(data => {
         if (ac.signal.aborted) return; // 会话已切走，丢弃结果
         setMessages(data);
+        scheduleBurn(data);
         setHasMore(data.length === 40);
         // 搜索结果跳转：如果有 scrollToId，则滚到该消息；否则滚到底部
         setTimeout(() => {
@@ -546,6 +565,7 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
         }
         return [...prev, msg];
       });
+      scheduleBurn([msg]);
       // 不在此无条件上报已读:已读由 markReadRef effect 在 messages 变化后处理,
       // 且仅当滚动在底部时才标(line ~375)。此前无条件上报会让"翻历史时收到的消息"
       // 也被标已读→污染对方已读回执 + 每条消息一个 POST 的请求风暴。
@@ -2340,9 +2360,21 @@ export default function ChatWindow({ conversation: initialConv, onClose }) {
 }
 
 
+const BURN_OPTIONS = [
+  { value: 0,      label: '关闭' },
+  { value: 10,     label: '10秒' },
+  { value: 30,     label: '30秒' },
+  { value: 60,     label: '1分钟' },
+  { value: 300,    label: '5分钟' },
+  { value: 3600,   label: '1小时' },
+  { value: 86400,  label: '24小时' },
+  { value: 604800, label: '7天' },
+];
+
 function PrivateChatSettings({ conversation, onClose, onConvUpdate, onPickBackground, onClearBackground, onCleared }) {
   const [muted, setMuted] = useState(!!conversation.muted);
   const [pinned, setPinned] = useState(!!conversation.pinned);
+  const [burnAfter, setBurnAfter] = useState(conversation.burn_after || 0);
   const [saving, setSaving] = useState(false);
 
   const toggleMute = async (val) => {
@@ -2379,6 +2411,15 @@ function PrivateChatSettings({ conversation, onClose, onConvUpdate, onPickBackgr
     setSaving(false);
   };
 
+  const changeBurnAfter = async (val) => {
+    const s = parseInt(val) || 0;
+    setBurnAfter(s);
+    try {
+      await axios.post(`/api/messages/conversation/${conversation.id}/burn-after`, { seconds: s });
+      onConvUpdate?.({ burn_after: s });
+    } catch { showToast('设置失败', 'error'); }
+  };
+
   return (
     <div className="wc-settings-panel">
       <div className="wc-settings-header">
@@ -2410,6 +2451,17 @@ function PrivateChatSettings({ conversation, onClose, onConvUpdate, onPickBackgr
               <span className="wc-settings-row-label" style={{ color: 'var(--color-badge)' }}>清除聊天背景</span>
             </div>
           )}
+          <div className="wc-settings-row">
+            <span className="wc-settings-row-label">阅后即焚</span>
+            <select
+              value={burnAfter}
+              onChange={e => changeBurnAfter(e.target.value)}
+              className="wc-settings-select"
+              style={{ fontSize: 13, color: burnAfter > 0 ? 'var(--green)' : 'var(--text-secondary)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
+              {BURN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
         </div>
         <button
           onClick={clearMessages}

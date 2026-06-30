@@ -34,6 +34,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
             : <Avatar src={conv.avatar} name={conv.name} size={40} />
           }
           {count > 0 && <span className={`wc-chat-item-badge${conv.muted ? ' muted' : ''}`}>{count > 99 ? '99+' : count}</span>}
+          {count === 0 && !!conv.manually_unread && <span className="wc-chat-item-unread-dot" />}
         </div>
         <div className="wc-chat-item-info">
           <div className="wc-chat-item-row1">
@@ -55,7 +56,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
 }, (prev, next) => {
   const pi = prev.data.items[prev.index];
   const ni = next.data.items[next.index];
-  return pi === ni && prev.data.activeConvId === next.data.activeConvId && prev.style.top === next.style.top;
+  return pi === ni && prev.data.activeConvId === next.data.activeConvId && prev.style.top === next.style.top && pi?.manually_unread === ni?.manually_unread;
 });
 
 function previewMsg(conv, user) {
@@ -91,6 +92,13 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     const { data } = await axios.get('/api/messages/conversations');
     setConversations(data);
   }, []);
+
+  const handleSelectConv = useCallback((conv) => {
+    if (conv.manually_unread) {
+      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, manually_unread: 0 } : c));
+    }
+    onSelectConv(conv);
+  }, [onSelectConv]);
 
   useEffect(() => { fetchConvs(); }, [fetchConvs]);
 
@@ -189,6 +197,17 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     setConversations(prev => prev.filter(c => c.id !== conv.id));
   };
 
+  const toggleMarkUnread = async (conv) => {
+    setCtxMenu(null);
+    if (conv.manually_unread) {
+      await axios.post(`/api/messages/conversation/${conv.id}/read`).catch(() => {});
+      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, manually_unread: 0 } : c));
+    } else {
+      await axios.post(`/api/messages/conversation/${conv.id}/mark-unread`).catch(() => {});
+      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, manually_unread: 1 } : c));
+    }
+  };
+
   // Merge unread counts into conversation objects so ConvRow gets them via item reference
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -204,11 +223,11 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   const listData = useMemo(() => ({
     items: filtered,
     activeConvId,
-    onSelectConv,
+    onSelectConv: handleSelectConv,
     onCtxMenu: setCtxMenu,
     previewMsg,
     user,
-  }), [filtered, activeConvId, onSelectConv, user]);
+  }), [filtered, activeConvId, handleSelectConv, user]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)' }}>
@@ -239,6 +258,11 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setCtxMenu(null)} />
           <div className="wc-ctx-menu" style={{ left: ctxMenu.x, top: ctxMenu.y, zIndex: 9999 }}>
+            <div className="wc-ctx-item" onClick={() => toggleMarkUnread(ctxMenu.conv)}
+              role="button" tabIndex={0}
+              onKeyDown={e => e.key === 'Enter' && toggleMarkUnread(ctxMenu.conv)}>
+              {ctxMenu.conv.manually_unread ? '取消标记' : '标记为未读'}
+            </div>
             <div className="wc-ctx-item" onClick={() => pin(ctxMenu.conv, !ctxMenu.conv.pinned)}
               role="button" tabIndex={0}
               onKeyDown={e => e.key === 'Enter' && pin(ctxMenu.conv, !ctxMenu.conv.pinned)}>

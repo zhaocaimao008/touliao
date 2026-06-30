@@ -13,6 +13,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const [sentRequests, setSentRequests] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [labels, setLabels] = useState([]);
   const [tab, setTab] = useState('contacts');
   const [requestsSubTab, setRequestsSubTab] = useState('received');
   const [onlineIds, setOnlineIds] = useState(new Set());
@@ -33,10 +34,12 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     axios.get('/api/users/me/blocked').then(r => setBlockedUsers(Array.isArray(r.data) ? r.data : [])).catch(() => setBlockedUsers([])), []);
   const fetchGroups = useCallback(() =>
     axios.get('/api/messages/my-groups').then(r => setGroups(Array.isArray(r.data) ? r.data : [])).catch(() => setGroups([])), []);
+  const fetchLabels = useCallback(() =>
+    axios.get('/api/friend-labels').then(r => setLabels(Array.isArray(r.data) ? r.data : [])).catch(() => setLabels([])), []);
 
   useEffect(() => {
-    fetchContacts(); fetchRequests(); fetchSent(); fetchGroups();
-  }, [fetchContacts, fetchRequests, fetchSent, fetchGroups]);
+    fetchContacts(); fetchRequests(); fetchSent(); fetchGroups(); fetchLabels();
+  }, [fetchContacts, fetchRequests, fetchSent, fetchGroups, fetchLabels]);
 
   useEffect(() => {
     if (!socket) return;
@@ -146,6 +149,11 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>}
               color="#8A93A6" label="黑名单" badge={0}
               onClick={() => { fetchBlocked(); setTab('blocked'); }}
+            />
+            <EntryRow
+              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>}
+              color="#FF6B35" label="好友标签" badge={0}
+              onClick={() => { fetchLabels(); setTab('labels'); }}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>}
@@ -290,6 +298,16 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
           </>
         )}
 
+        {/* 好友标签 */}
+        {tab === 'labels' && (
+          <LabelsTab
+            labels={labels}
+            contacts={contacts}
+            onBack={() => setTab('contacts')}
+            onUpdate={fetchLabels}
+          />
+        )}
+
         {/* 群聊列表 */}
         {tab === 'groups' && (
           <>
@@ -347,6 +365,146 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         />
       )}
     </div>
+  );
+}
+
+/* ── 好友标签 Tab ── */
+function LabelsTab({ labels, contacts, onBack, onUpdate }) {
+  const [editLabel, setEditLabel] = useState(null); // null | 'new' | labelObject
+  const [nameInput, setNameInput] = useState('');
+  const [colorInput, setColorInput] = useState('#07C160');
+  const [showMembers, setShowMembers] = useState(null); // labelId
+  const [saving, setSaving] = useState(false);
+
+  const COLORS = ['#07C160', '#FA5151', '#4A8CFF', '#FF9A00', '#FF6B35', '#8A93A6', '#10AEFF', '#7D4BF0'];
+
+  const startCreate = () => {
+    setEditLabel('new');
+    setNameInput('');
+    setColorInput('#07C160');
+  };
+
+  const startEdit = (label) => {
+    setEditLabel(label);
+    setNameInput(label.name);
+    setColorInput(label.color || '#07C160');
+  };
+
+  const saveLabel = async () => {
+    if (!nameInput.trim()) return;
+    setSaving(true);
+    try {
+      if (editLabel === 'new') {
+        await axios.post('/api/friend-labels', { name: nameInput.trim(), color: colorInput });
+      } else {
+        await axios.put(`/api/friend-labels/${editLabel.id}`, { name: nameInput.trim(), color: colorInput });
+      }
+      onUpdate();
+      setEditLabel(null);
+    } catch {}
+    setSaving(false);
+  };
+
+  const deleteLabel = async (id) => {
+    if (!window.confirm('确认删除此标签？')) return;
+    await axios.delete(`/api/friend-labels/${id}`).catch(() => {});
+    onUpdate();
+  };
+
+  const toggleMember = async (labelId, friendId, isMember) => {
+    if (isMember) {
+      await axios.delete(`/api/friend-labels/${labelId}/members/${friendId}`).catch(() => {});
+    } else {
+      await axios.post(`/api/friend-labels/${labelId}/members`, { friendId }).catch(() => {});
+    }
+    onUpdate();
+  };
+
+  if (editLabel) {
+    return (
+      <>
+        <SectionHeader title={editLabel === 'new' ? '新建标签' : '编辑标签'} onBack={() => setEditLabel(null)} />
+        <div style={{ padding: '12px 16px' }}>
+          <input
+            value={nameInput}
+            onChange={e => setNameInput(e.target.value)}
+            placeholder="标签名称"
+            maxLength={20}
+            style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1px solid var(--divider)', borderRadius: 8, background: 'var(--bg-card)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+          />
+          <div style={{ marginTop: 12, marginBottom: 6, fontSize: 13, color: 'var(--text-secondary)' }}>颜色</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {COLORS.map(c => (
+              <div key={c} onClick={() => setColorInput(c)}
+                style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer',
+                  border: colorInput === c ? '2.5px solid var(--text-primary)' : '2px solid transparent',
+                  boxShadow: colorInput === c ? '0 0 0 2px rgba(0,0,0,.1)' : 'none' }} />
+            ))}
+          </div>
+          <button onClick={saveLabel} disabled={saving || !nameInput.trim()}
+            style={{ marginTop: 16, width: '100%', padding: '12px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, cursor: 'pointer' }}>
+            {saving ? '保存中...' : '保存'}
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  if (showMembers) {
+    const label = labels.find(l => l.id === showMembers);
+    if (!label) return null;
+    const memberIds = new Set((label.members || []).map(m => m.id));
+    return (
+      <>
+        <SectionHeader title={`${label.name} — 成员管理`} onBack={() => setShowMembers(null)} />
+        <div style={{ padding: '8px 0' }}>
+          {contacts.map(c => {
+            const inLabel = memberIds.has(c.id);
+            return (
+              <div key={c.id} className="wc-contact-item" onClick={() => { toggleMember(label.id, c.id, inLabel); memberIds[inLabel ? 'delete' : 'add'](c.id); }}>
+                <Avatar src={c.avatar} name={c.remark || c.username} size={40} style={{ borderRadius: 6 }} />
+                <div className="cl-contact-info">
+                  <div className="wc-contact-item-name">{c.remark || c.username}</div>
+                </div>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${inLabel ? 'var(--green)' : 'var(--divider)'}`, background: inLabel ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {inLabel && <svg viewBox="0 0 24 24" width="12" height="12" fill="#fff"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
+                </div>
+              </div>
+            );
+          })}
+          {contacts.length === 0 && <div className="cl-empty"><div className="cl-empty-text">暂无联系人</div></div>}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <SectionHeader title="好友标签" onBack={onBack} />
+      <div style={{ padding: '12px 16px 4px', display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={startCreate}
+          style={{ padding: '6px 14px', fontSize: 13, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, cursor: 'pointer' }}>
+          + 新建标签
+        </button>
+      </div>
+      {labels.length === 0 && (
+        <div className="cl-empty"><div className="cl-empty-text">还没有标签</div><div className="cl-empty-sub">可以给好友分组打标签</div></div>
+      )}
+      {labels.map(label => (
+        <div key={label.id} className="wc-contact-item">
+          <div style={{ width: 40, height: 40, borderRadius: 8, background: label.color || '#07C160', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>
+          </div>
+          <div className="cl-contact-info" style={{ flex: 1 }}>
+            <div className="wc-contact-item-name">{label.name}</div>
+            <div className="wc-contact-item-sub">{(label.members || []).length} 人</div>
+          </div>
+          <button onClick={() => setShowMembers(label.id)} style={{ marginRight: 8, padding: '4px 10px', fontSize: 12, background: 'transparent', border: '1px solid var(--divider)', borderRadius: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>成员</button>
+          <button onClick={() => startEdit(label)} style={{ marginRight: 4, padding: '4px 10px', fontSize: 12, background: 'transparent', border: '1px solid var(--divider)', borderRadius: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>编辑</button>
+          <button onClick={() => deleteLabel(label.id)} style={{ padding: '4px 10px', fontSize: 12, background: 'transparent', border: '1px solid var(--divider)', borderRadius: 12, color: 'var(--color-badge)', cursor: 'pointer' }}>删除</button>
+        </div>
+      ))}
+    </>
   );
 }
 

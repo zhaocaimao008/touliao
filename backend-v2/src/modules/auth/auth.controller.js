@@ -104,6 +104,21 @@ exports.deleteSession = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+exports.deleteAllSessions = asyncHandler(async (req, res) => {
+  const { device, platform } = svc.detectDevice(req.headers['user-agent']);
+  svc.deleteAllOtherSessions(req.user.id, device, platform);
+  res.json({ success: true });
+});
+
+exports.deleteAccount = asyncHandler(async (req, res) => {
+  const { password } = req.body || {};
+  if (!password) throw badRequest('请输入密码确认注销');
+  await svc.deleteAccount(req.user.id, password);
+  res.clearCookie(config.cookieName, { path: '/' });
+  res.clearCookie(config.csrfCookie, { path: '/' });
+  res.json({ success: true });
+});
+
 exports.changePassword = asyncHandler(async (req, res) => {
   const token = await svc.changePassword(req.user.id, { ...req.body, currentToken: req.token });
   setAuthCookie(req, res, token);

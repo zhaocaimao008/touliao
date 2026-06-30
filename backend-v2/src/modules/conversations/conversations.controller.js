@@ -34,6 +34,16 @@ exports.read = asyncHandler(async (req, res) => {
   }
 });
 
+exports.markUnread = asyncHandler(async (req, res) => {
+  await svc.markUnread(req.user.id, req.params.convId);
+  res.json({ success: true });
+});
+
+exports.setBurnAfter = asyncHandler(async (req, res) => {
+  const r = await svc.setBurnAfter(req.user.id, req.params.convId, req.body.seconds);
+  res.json({ success: true, ...r });
+});
+
 exports.clearConversation = asyncHandler(async (req, res) => {
   const deleted = svc.clearConversation(io(req), req.user.id, req.params.convId);
   res.json({ success: true, deleted });

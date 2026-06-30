@@ -154,7 +154,9 @@ router.get ('/sessions',        auth,            c.sessions);
  *       200:
  *         description: Session deleted
  */
+router.delete('/sessions',      auth,            c.deleteAllSessions);
 router.delete('/sessions/:id',  auth,            c.deleteSession);
+router.post  ('/delete-account',auth,            c.deleteAccount);
 
 /**
  * @swagger

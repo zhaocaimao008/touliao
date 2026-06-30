@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import AuthImage from './AuthImage';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
+import { useI18n, SUPPORTED_LANGS } from '../contexts/I18nContext';
 import { goLogin } from '../utils/url';
+import { showConfirm } from '../utils/toast';
 
 /* ─── 小工具 ─── */
 const ChevronRight = () => (
@@ -339,6 +341,12 @@ function DeviceList({ onBack }) {
     setSessions(s => s.filter(x => x.id !== id));
   };
 
+  const removeAllSessions = async () => {
+    if (!(await showConfirm('确定将此账号从其他所有设备退出？'))) return;
+    await axios.delete('/api/auth/sessions').catch(() => {});
+    setSessions(s => s.filter(x => x.current));
+  };
+
   const icon = (p = '') => {
     const pl = p.toLowerCase();
     if (pl.includes('windows')) return '🖥️';
@@ -377,6 +385,11 @@ function DeviceList({ onBack }) {
           </Card>
         )}
         <div className="wc-device-hint">点击"退出"可远程下线该设备</div>
+        {sessions.some(s => !s.current) && (
+          <div className="wc-section-pad" style={{ marginTop: 8 }}>
+            <button className="wc-btn-exit-all" onClick={removeAllSessions}>一键退出其他全部设备</button>
+          </div>
+        )}
       </div>
     </PageBg>
   );
@@ -384,7 +397,14 @@ function DeviceList({ onBack }) {
 
 /* ── 外观 ── */
 function AppearanceSettings({ onBack }) {
-  const { darkMode, setDarkMode } = useSettings();
+  const { darkMode, setDarkMode, fontSize, setFontSize } = useSettings();
+  const { lang, setLang } = useI18n();
+  const FONT_OPTIONS = [
+    { key: 'small',  label: '小',   size: 12 },
+    { key: 'normal', label: '标准', size: 14 },
+    { key: 'large',  label: '大',   size: 16 },
+    { key: 'xlarge', label: '特大', size: 18 },
+  ];
   return (
     <PageBg>
       <PageHeader title="外观" onBack={onBack} />
@@ -407,6 +427,34 @@ function AppearanceSettings({ onBack }) {
             </button>
           ))}
         </div>
+      </div>
+      <SLabel>字体大小</SLabel>
+      <div className="wc-section-pad">
+        <Card>
+          <div className="wc-font-size-row">
+            {FONT_OPTIONS.map(({ key, label, size }) => (
+              <button key={key} type="button"
+                className={`wc-font-btn${fontSize === key ? ' active' : ''}`}
+                onClick={() => setFontSize(key)}>
+                <span className="wc-font-preview" style={{ fontSize: size }}>A</span>
+                <span className="wc-font-label">{label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="wc-font-demo">
+            <span style={{ fontSize: 'var(--font-msg, 14px)' }}>消息示例：今天天气真好！</span>
+          </div>
+        </Card>
+      </div>
+      <SLabel>语言</SLabel>
+      <div className="wc-section-pad">
+        <Card>
+          {SUPPORTED_LANGS.map(({ code, name }) => (
+            <CRow key={code} label={name} onClick={() => setLang(code)}
+              right={lang === code ? <svg viewBox="0 0 24 24" width="18" height="18" fill="var(--green)"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> : null}
+            />
+          ))}
+        </Card>
       </div>
     </PageBg>
   );
@@ -526,6 +574,63 @@ function PrivacySettings({ user, onBack }) {
         <Card className="wc-privacy-card-mt">
           <CRow label="修改密码" desc="定期修改可提升账号安全" onClick={() => setPage('change-password')} />
         </Card>
+      </div>
+    </PageBg>
+  );
+}
+
+/* ── 注销账号 ── */
+function DeleteAccount({ onBack, logout }) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleDelete = async () => {
+    if (!password) { setError('请输入密码'); return; }
+    if (!(await showConfirm('注销后所有数据将清除，且无法恢复。确认注销？'))) return;
+    setLoading(true);
+    setError('');
+    try {
+      await axios.post('/api/auth/delete-account', { password });
+      logout();
+      goLogin();
+    } catch (err) {
+      setError(err.response?.data?.error || '注销失败，请重试');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <PageBg>
+      <PageHeader title="注销账号" onBack={onBack} />
+      <div className="wc-section-pad">
+        <div style={{ padding: '16px 0 8px', fontSize: 14, color: 'var(--color-badge)', lineHeight: 1.6 }}>
+          注销后您的账号信息将被清除，无法登录，且此操作不可撤销。
+        </div>
+      </div>
+      <div className="wc-section-pad">
+        <Card>
+          <div style={{ padding: '12px 16px' }}>
+            <input
+              type="password"
+              placeholder="请输入当前密码确认"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setError(''); }}
+              className="wc-server-input"
+              style={{ marginTop: 0 }}
+            />
+            {error && <div style={{ color: 'var(--color-badge)', fontSize: 13, marginTop: 6 }}>{error}</div>}
+          </div>
+        </Card>
+      </div>
+      <div className="wc-section-pad">
+        <button
+          className="wc-logout-btn"
+          style={{ background: 'var(--color-badge)', width: '100%' }}
+          onClick={handleDelete}
+          disabled={loading}>
+          {loading ? '注销中...' : '确认注销账号'}
+        </button>
       </div>
     </PageBg>
   );
@@ -769,7 +874,7 @@ function SettingsPage({ user, setSubPage, logout }) {
       <SLabel>偏好设置</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<IcoMoon />} bg="#8A93A6" label="外观" desc="日间和夜间模式" onClick={() => setSubPage('appearance')} />
+          <CRow icon={<IcoMoon />} bg="#8A93A6" label="外观" desc="主题与字体大小" onClick={() => setSubPage('appearance')} />
           <CRow icon={<IcoBell />} bg="#8A93A6" label="通知" desc="锁屏通知和声音" onClick={() => setSubPage('notifications')} />
         </Card>
       </div>
@@ -788,9 +893,10 @@ function SettingsPage({ user, setSubPage, logout }) {
         </>
       )}
 
-      {/* 退出 */}
+      {/* 账号操作 */}
       <div className="wc-logout-div">
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>退出登录</button>
+        <button className="wc-delete-account-btn" onClick={() => setSubPage('delete-account')}>注销账号</button>
       </div>
     </PageBg>
   );
@@ -812,6 +918,7 @@ export default function Profile({ isMobile = false }) {
   if (subPage === 'notifications') return <NotificationSettings onBack={() => setSubPage(null)} />;
   if (subPage === 'privacy')       return <PrivacySettings user={user} onBack={() => setSubPage(null)} />;
   if (subPage === 'server')        return <ServerSettings onBack={() => setSubPage(null)} />;
+  if (subPage === 'delete-account') return <DeleteAccount onBack={() => setSubPage(null)} logout={logout} />;
 
   return (
     <PageBg>
@@ -902,6 +1009,7 @@ export default function Profile({ isMobile = false }) {
       {/* ── 退出 ── */}
       <div className="wc-logout-div">
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>退出登录</button>
+        <button className="wc-delete-account-btn" onClick={() => setSubPage('delete-account')}>注销账号</button>
       </div>
     </PageBg>
   );

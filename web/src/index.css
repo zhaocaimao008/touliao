@@ -3750,3 +3750,79 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   border: 1px solid var(--border-default) !important;
   box-shadow: var(--shadow-lg) !important;
 }
+
+/* ── 字体大小选择器 ── */
+.wc-font-size-row {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--divider);
+}
+.wc-font-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 8px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--divider);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background .15s;
+}
+.wc-font-btn:last-child { border-right: none; }
+.wc-font-btn.active { color: var(--green); background: rgba(7,193,96,.06); }
+.wc-font-btn.active .wc-font-preview { color: var(--green); font-weight: 700; }
+.wc-font-preview { font-weight: 600; color: var(--text-primary); }
+.wc-font-label { font-size: 11px; }
+.wc-font-demo {
+  padding: 12px 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* ── 一键退出全部设备 ── */
+.wc-btn-exit-all {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+  color: var(--color-badge, #fa5151);
+  font-size: 16px;
+  cursor: pointer;
+  text-align: center;
+}
+.wc-btn-exit-all:hover { background: rgba(250,81,81,.06); }
+
+/* ── 注销账号按钮 ── */
+.wc-delete-account-btn {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--divider);
+  color: var(--text-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 2px;
+}
+.wc-delete-account-btn:hover { color: var(--color-badge, #fa5151); }
+
+/* ── 标记未读小红点 ── */
+.wc-chat-item-unread-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-badge, #fa5151);
+  border: 1.5px solid var(--bg-panel);
+}

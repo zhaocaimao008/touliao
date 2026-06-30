@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
+import { I18nProvider } from './contexts/I18nContext';
 import { SocketProvider } from './contexts/SocketContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -24,6 +25,7 @@ export default function App() {
   return (
     // 最外层兜底：任何子树渲染异常都降级为友好错误页，绝不白屏
     <ErrorBoundary>
+    <I18nProvider>
     <SettingsProvider>
     <AuthProvider>
       {/* ── Skip-link：无障碍跳过导航 ── */}
@@ -54,6 +56,7 @@ export default function App() {
       </div>
     </AuthProvider>
     </SettingsProvider>
+    </I18nProvider>
     </ErrorBoundary>
   );
 }

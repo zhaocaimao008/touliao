@@ -116,6 +116,27 @@ function deleteSession(userId, sessionId) {
   db.prepare('DELETE FROM user_sessions WHERE id=? AND user_id=?').run(sessionId, userId);
 }
 
+function deleteAllOtherSessions(userId, device, platform) {
+  db.prepare('DELETE FROM user_sessions WHERE user_id=? AND NOT (device=? AND platform=?)').run(userId, device, platform);
+}
+
+async function deleteAccount(userId, password) {
+  const user = db.prepare('SELECT password FROM users WHERE id=?').get(userId);
+  if (!user) throw notFound('用户不存在');
+  if (!await bcrypt.compare(password, user.password)) throw badRequest('密码错误，注销失败');
+  const rand = Math.random().toString(36).slice(2, 8);
+  db.transaction(() => {
+    db.prepare("UPDATE users SET username=?, phone=?, password='*', avatar='', bio='', wechat_id='', banned=1 WHERE id=?")
+      .run(`已注销${rand}`, `deleted_${rand}@x`, userId);
+    db.prepare('DELETE FROM contacts WHERE user_id=? OR contact_id=?').run(userId, userId);
+    db.prepare('DELETE FROM blocked_users WHERE user_id=? OR blocked_id=?').run(userId, userId);
+    db.prepare('DELETE FROM friend_requests WHERE from_id=? OR to_id=?').run(userId, userId);
+    db.prepare('DELETE FROM conversation_members WHERE user_id=?').run(userId);
+    db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(userId);
+    db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
+  })();
+}
+
 async function changePassword(userId, { oldPassword, newPassword, currentToken }) {
   if (!oldPassword || !newPassword) throw badRequest('请填写完整');
   if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword)) throw badRequest('新密码至少8位且需包含字母和数字');
@@ -181,6 +202,7 @@ async function resetPassword({ phone, inviteCode, newPassword }) {
 
 module.exports = {
   register, login, getMe, refreshToken, upsertSession,
-  listSessions, deleteSession, changePassword, resetPassword,
+  listSessions, deleteSession, deleteAllOtherSessions, deleteAccount, changePassword, resetPassword,
   recordDeviceAccount, removeDeviceAccount, switchAccount,
+  detectDevice,
 };

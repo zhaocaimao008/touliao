@@ -412,6 +412,27 @@ function applySchema(db) {
       cleared_at      INTEGER NOT NULL,
       PRIMARY KEY (user_id, conversation_id)
     )`,
+    // ── 标记未读：用户手动将某会话标为未读 ──
+    "ALTER TABLE conversation_settings ADD COLUMN manually_unread INTEGER DEFAULT 0",
+    // ── 阅后即焚：每个用户对某会话独立设置的销毁秒数（0=关闭）──
+    "ALTER TABLE conversation_settings ADD COLUMN burn_after INTEGER DEFAULT 0",
+    // ── 好友标签/分组 ──
+    `CREATE TABLE IF NOT EXISTS friend_labels (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      name       TEXT NOT NULL,
+      color      TEXT DEFAULT '#07C160',
+      created_at INTEGER DEFAULT (strftime('%s','now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS friend_label_members (
+      label_id   TEXT NOT NULL,
+      friend_id  TEXT NOT NULL,
+      created_at INTEGER DEFAULT (strftime('%s','now')),
+      PRIMARY KEY (label_id, friend_id),
+      FOREIGN KEY (label_id) REFERENCES friend_labels(id) ON DELETE CASCADE
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_friend_labels_user ON friend_labels(user_id)",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

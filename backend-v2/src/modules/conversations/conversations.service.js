@@ -113,6 +113,8 @@ async function listConversations(uid) {
       COALESCE(cs.background, '')           AS background,
       COALESCE(cs.last_read_at, 0)          AS last_read_at,
       COALESCE(cs.last_read_message_id, '') AS last_read_message_id,
+      COALESCE(cs.manually_unread, 0)       AS manually_unread,
+      COALESCE(cs.burn_after, 0)            AS burn_after,
       (SELECT COUNT(*) FROM (
         SELECT 1 FROM messages mu
         WHERE  mu.conversation_id = c.id
@@ -273,10 +275,12 @@ async function markRead(io, userId, convId, messageId) {
   // #4 尾延迟：markRead 是最热接口。已读状态为最终一致即可，
   // 改 fire-and-forget 写 + 后台缓存失效，立即返回，不等 worker commit。
   write(`
-    INSERT INTO conversation_settings (user_id, conversation_id, last_read_at, last_read_message_id)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO conversation_settings (user_id, conversation_id, last_read_at, last_read_message_id, manually_unread)
+    VALUES (?, ?, ?, ?, 0)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET
-      last_read_at = excluded.last_read_at, last_read_message_id = excluded.last_read_message_id
+      last_read_at = excluded.last_read_at,
+      last_read_message_id = excluded.last_read_message_id,
+      manually_unread = 0
   `, [userId, convId, readAt, readMsgId]);
   convCache.delete(userId);
   cache.del(cache.keys.conversations(userId)).catch(() => {});
@@ -286,6 +290,30 @@ async function markRead(io, userId, convId, messageId) {
     io.to(`user_${userId}`).emit('sync:unread_cleared', { conversationId: convId, lastReadMessageId: readMsgId });
   }
   return { readAt, lastReadMessageId: readMsgId };
+}
+
+// ── 手动标记未读 ────────────────────────────────────────────────
+async function markUnread(userId, convId) {
+  if (!isMember(convId, userId)) throw badRequest('无权操作');
+  await writeAsync(`
+    INSERT INTO conversation_settings (user_id, conversation_id, manually_unread) VALUES (?, ?, 1)
+    ON CONFLICT(user_id, conversation_id) DO UPDATE SET manually_unread=1
+  `, [userId, convId]);
+  convCache.delete(userId);
+  cache.del(cache.keys.conversations(userId)).catch(() => {});
+}
+
+// ── 阅后即焚：每个用户对某会话的独立销毁时间（秒）──────────────
+async function setBurnAfter(userId, convId, seconds) {
+  requireMember(convId, userId, '无权操作');
+  const s = Math.max(0, parseInt(seconds) || 0);
+  await writeAsync(`
+    INSERT INTO conversation_settings (user_id, conversation_id, burn_after) VALUES (?, ?, ?)
+    ON CONFLICT(user_id, conversation_id) DO UPDATE SET burn_after=excluded.burn_after
+  `, [userId, convId, s]);
+  convCache.delete(userId);
+  cache.del(cache.keys.conversations(userId)).catch(() => {});
+  return { burn_after: s };
 }
 
 // ── 按用户清空会话（H-2）：仅对操作者隐藏，对方消息不受影响 ──────
@@ -337,6 +365,6 @@ function media(userId, { type = 'image', limit, before }) {
 
 module.exports = {
   getOrCreatePrivate, getOrCreateFileHelper, createGroup, listConversations, listMembers,
-  unreadCounts, myGroups, setPinned, setMuted, setBackground, markRead,
+  unreadCounts, myGroups, setPinned, setMuted, setBackground, markRead, markUnread, setBurnAfter,
   clearConversation, clearAllConversations, media,
 };
