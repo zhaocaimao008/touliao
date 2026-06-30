@@ -441,6 +441,8 @@ function applySchema(db) {
     "CREATE INDEX IF NOT EXISTS idx_reactions_msg ON message_reactions(message_id)",
     // conversation_members 按 conversation_id 加载成员列表（PRIMARY KEY 前缀已覆盖，显式标注）
     "CREATE INDEX IF NOT EXISTS idx_conv_members_conv ON conversation_members(conversation_id)",
+    // friend_requests: 防止应用层 SELECT+INSERT 竞态产生重复 pending 行（DB 级兜底）
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_friend_req_unique_pending ON friend_requests(from_id, to_id) WHERE status='pending'",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

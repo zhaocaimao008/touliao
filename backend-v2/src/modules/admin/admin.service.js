@@ -96,10 +96,11 @@ function grantCoins(id, amount, memo) {
 }
 
 // ── 封禁 / 解封 ─────────────────────────────────────────────────
-function setBanned(id, banned) {
+function setBanned(io, id, banned) {
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
   if (!user) throw notFound('用户不存在');
   db.prepare('UPDATE users SET banned=? WHERE id=?').run(banned ? 1 : 0, id);
+  if (banned && io) io.to(`user_${id}`).disconnectSockets(true);
   return { id, banned: banned ? 1 : 0 };
 }
 

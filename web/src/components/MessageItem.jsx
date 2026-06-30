@@ -132,7 +132,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
               }}>
                 <div className="wc-msg-reply-name">{msg.replyTo.senderName}</div>
                 <div className="wc-msg-reply-text">
-                  {msg.replyTo.type === 'image' ? '[图片]' : msg.replyTo.type === 'voice' ? '[语音]' : msg.replyTo.type === 'video' ? '[视频]' : msg.replyTo.type === 'red_packet' ? '[红包]' : msg.replyTo.type === 'file' ? '[文件]' : msg.replyTo.content}
+                  {msg.replyTo.deleted ? '消息已撤回' : msg.replyTo.type === 'image' ? '[图片]' : msg.replyTo.type === 'voice' ? '[语音]' : msg.replyTo.type === 'video' ? '[视频]' : msg.replyTo.type === 'red_packet' ? '[红包]' : msg.replyTo.type === 'file' ? '[文件]' : msg.replyTo.content}
                 </div>
               </div>
             )}

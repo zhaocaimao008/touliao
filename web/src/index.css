@@ -3631,6 +3631,18 @@ body.dark-mode .wc-multiselect-bar { background: var(--bg-panel); }
 
 /* Edit bar dark mode */
 body.dark-mode .wc-edit-bar { background: rgba(255,224,130,.1); }
+body.dark-mode .wc-edit-bar-label { color: #FFA040; }
+
+/* Upload bar dark mode */
+body.dark-mode .wc-upload-bar-error { background: rgba(255,80,80,.12); border-top-color: rgba(255,80,80,.25); }
+body.dark-mode .wc-upload-bar-progress { background: rgba(7,193,96,.1); border-top-color: rgba(7,193,96,.2); }
+body.dark-mode .wc-upload-track { background: rgba(7,193,96,.2); }
+
+/* Unpin btn dark mode */
+body.dark-mode .wc-unpin-btn { border-color: rgba(255,80,80,.4); }
+
+/* Sent tick dark mode */
+body.dark-mode .wc-msg-status-sent { color: rgba(255,255,255,.3); }
 
 /* Online dot dark mode */
 body.dark-mode .wc-online-dot { border-color: var(--bg-search, rgba(44,44,46,.8)); }

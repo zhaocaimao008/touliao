@@ -66,7 +66,7 @@ function history(convId, userId, { before, after, limit }) {
   if (replyIds.length > 0) {
     const ph = replyIds.map(() => '?').join(',');
     db.prepare(`
-      SELECT m.id, m.type, m.content, m.file_url, u.username AS senderName
+      SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
       FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id IN (${ph})
     `).all(...replyIds).forEach(r => replyMap.set(r.id, r));
   }
@@ -119,7 +119,7 @@ function missed(io, userId, after) {
   if (replyIds.length > 0) {
     const rph = replyIds.map(() => '?').join(',');
     db.prepare(`
-      SELECT m.id, m.type, m.content, m.file_url, u.username AS senderName
+      SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
       FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id IN (${rph})
     `).all(...replyIds).forEach(r => replyMap.set(r.id, r));
   }
