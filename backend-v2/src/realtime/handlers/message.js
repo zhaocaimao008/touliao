@@ -150,19 +150,22 @@ module.exports = function registerMessageHandler(io, socket) {
     broadcaster.broadcastMessage(conversationId, msg); // 批量合并派发（客户端按 id 去重，发送者收到自身消息会被忽略）
     ack?.({ success: true, message: msg });
 
-    if (type === 'text') handleMentions(io, userId, conversationId, content, id);
-
     setImmediate(() => {
-      const members = readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(conversationId);
-      const onlineRecipients = members.map(m => m.user_id).filter(uid => uid !== userId && presence.isOnline(uid));
-      if (onlineRecipients.length > 0) {
-        presence.recordDeliveries(id, onlineRecipients);
-        io.to(`user_${userId}`).emit('message_delivered', { messageId: id, conversationId, deliveredCount: onlineRecipients.length });
+      try {
+        if (type === 'text') handleMentions(io, userId, conversationId, content, id);
+        const members = readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(conversationId);
+        const onlineRecipients = members.map(m => m.user_id).filter(uid => uid !== userId && presence.isOnline(uid));
+        if (onlineRecipients.length > 0) {
+          presence.recordDeliveries(id, onlineRecipients);
+          io.to(`user_${userId}`).emit('message_delivered', { messageId: id, conversationId, deliveredCount: onlineRecipients.length });
+        }
+        pushNewMessage({
+          conversationId, senderId: userId, senderName: msg.senderName, content, type,
+          timestamp: created_at, onlineUserIds: presence.onlineUserIdSet(), members,
+        }).catch(() => {});
+      } catch (err) {
+        console.error('[message] delivery setImmediate error:', err);
       }
-      pushNewMessage({
-        conversationId, senderId: userId, senderName: msg.senderName, content, type,
-        timestamp: created_at, onlineUserIds: presence.onlineUserIdSet(), members,
-      }).catch(() => {});
     });
     } catch (err) {
       ack?.({ success: false, error: '服务器内部错误，请重试' });

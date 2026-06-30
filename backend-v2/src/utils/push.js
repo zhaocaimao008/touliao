@@ -102,34 +102,37 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
 
   const body = buildBody(type, content);
 
+  const settingsStmt = db.prepare(
+    `SELECT cs.last_read_at,
+            COALESCE(us.message_notify, 1) AS message_notify,
+            COALESCE(us.detail_preview, 1) AS detail_preview,
+            COALESCE(us.sound, 1) AS sound,
+            COALESCE(us.vibrate, 0) AS vibrate
+     FROM user_settings us
+     LEFT JOIN conversation_settings cs
+       ON cs.user_id = us.user_id AND cs.conversation_id = ?
+     WHERE us.user_id = ?
+     UNION ALL
+     SELECT cs.last_read_at, 1, 1, 1, 0
+     FROM conversation_settings cs
+     WHERE cs.user_id = ? AND cs.conversation_id = ?
+       AND NOT EXISTS (SELECT 1 FROM user_settings WHERE user_id = ?)
+     LIMIT 1`
+  );
+  const unreadStmt = db.prepare(
+    'SELECT COUNT(*) as cnt FROM (SELECT 1 FROM messages WHERE conversation_id=? AND sender_id!=? AND deleted=0 AND created_at>? LIMIT 99)'
+  );
+
   const pushPromises = members
     .map(m => m.user_id)
     .filter(uid => uid !== senderId && !onlineUserIds.has(uid))
     .map(uid => {
-      const settings = db.prepare(
-        `SELECT cs.last_read_at,
-                COALESCE(us.message_notify, 1) AS message_notify,
-                COALESCE(us.detail_preview, 1) AS detail_preview,
-                COALESCE(us.sound, 1) AS sound,
-                COALESCE(us.vibrate, 0) AS vibrate
-         FROM user_settings us
-         LEFT JOIN conversation_settings cs
-           ON cs.user_id = us.user_id AND cs.conversation_id = ?
-         WHERE us.user_id = ?
-         UNION ALL
-         SELECT cs.last_read_at, 1, 1, 1, 0
-         FROM conversation_settings cs
-         WHERE cs.user_id = ? AND cs.conversation_id = ?
-           AND NOT EXISTS (SELECT 1 FROM user_settings WHERE user_id = ?)
-         LIMIT 1`
-      ).get(conversationId, uid, uid, conversationId, uid) ||
+      const settings = settingsStmt.get(conversationId, uid, uid, conversationId, uid) ||
         { last_read_at: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0 };
 
       if (!Number(settings.message_notify)) return null;
 
-      const unread = db.prepare(
-        'SELECT COUNT(*) as cnt FROM (SELECT 1 FROM messages WHERE conversation_id=? AND sender_id!=? AND deleted=0 AND created_at>? LIMIT 99)'
-      ).get(conversationId, uid, settings?.last_read_at || 0)?.cnt || 1;
+      const unread = unreadStmt.get(conversationId, uid, settings?.last_read_at || 0)?.cnt || 1;
 
       return pushToUser(uid, {
         title:   senderName,

@@ -40,17 +40,26 @@ function getOrCreatePrivate(myId, otherId) {
 }
 
 // ── 文件传输助手：每个用户唯一的自聊会话（type=filehelper，仅自己一名成员）──
-function getOrCreateFileHelper(myId) {
-  const existing = db.prepare(`
-    SELECT c.id FROM conversations c
-    JOIN conversation_members cm ON cm.conversation_id=c.id AND cm.user_id=?
-    WHERE c.type='filehelper'
-  `).get(myId);
-  if (existing) return { conversationId: existing.id };
-
-  const id = uuidv4();
+const _findFileHelper = db.prepare(`
+  SELECT c.id FROM conversations c
+  JOIN conversation_members cm ON cm.conversation_id=c.id AND cm.user_id=?
+  WHERE c.type='filehelper'
+`);
+const _createFileHelper = db.transaction((myId, id) => {
   db.prepare("INSERT INTO conversations (id,type,name) VALUES (?,?,?)").run(id, 'filehelper', '文件传输助手');
   db.prepare('INSERT INTO conversation_members (conversation_id,user_id) VALUES (?,?)').run(id, myId);
+});
+function getOrCreateFileHelper(myId) {
+  const existing = _findFileHelper.get(myId);
+  if (existing) return { conversationId: existing.id };
+  const id = uuidv4();
+  try {
+    _createFileHelper(myId, id);
+  } catch {
+    const won = _findFileHelper.get(myId);
+    if (won) return { conversationId: won.id };
+    throw new Error('无法创建文件传输助手会话');
+  }
   return { conversationId: id, created: true };
 }
 
@@ -80,12 +89,14 @@ function createGroup(io, ownerId, { name, memberIds }) {
 //   使用内存缓存 + 2s TTL 减少重复查询
 const convCache = new Map();
 const CONV_CACHE_TTL = 2000;
+const CONV_CACHE_MAX = 1000;
 // 每分钟清理过期缓存条目，防止长期不活跃用户累积内存
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of convCache) {
     if (now - val.ts >= CONV_CACHE_TTL) convCache.delete(key);
   }
+  if (convCache.size > CONV_CACHE_MAX) convCache.clear();
 }, 60_000).unref();
 
 async function listConversations(uid) {
@@ -179,8 +190,10 @@ async function listConversations(uid) {
     return { ...conv, members: memberMap.get(conv.id) || [] };
   });
 
-  // 写回内存缓存
-  convCache.set(uid, { data: conversations, ts: Date.now() });
+  // 写回内存缓存（超出上限时跳过写入，等下次清理后恢复）
+  if (convCache.size < CONV_CACHE_MAX) {
+    convCache.set(uid, { data: conversations, ts: Date.now() });
+  }
   return conversations;
 }
 

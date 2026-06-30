@@ -114,17 +114,21 @@ module.exports = function registerFileHandler(io, socket) {
     ack?.({ success: true, message: msg });
 
     setImmediate(() => {
-      const members = readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(conversationId);
-      const onlineRecipients = members.map(m => m.user_id).filter(uid => uid !== userId && presence.isOnline(uid));
-      if (onlineRecipients.length > 0) {
-        presence.recordDeliveries(id, onlineRecipients);
-        io.to(`user_${userId}`).emit('message_delivered', { messageId: id, conversationId, deliveredCount: onlineRecipients.length });
+      try {
+        const members = readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(conversationId);
+        const onlineRecipients = members.map(m => m.user_id).filter(uid => uid !== userId && presence.isOnline(uid));
+        if (onlineRecipients.length > 0) {
+          presence.recordDeliveries(id, onlineRecipients);
+          io.to(`user_${userId}`).emit('message_delivered', { messageId: id, conversationId, deliveredCount: onlineRecipients.length });
+        }
+        pushNewMessage({
+          conversationId, senderId: userId, senderName: msg.senderName,
+          content: safeContent || TYPE_FALLBACK[type] || '[文件]', type,
+          timestamp: created_at, onlineUserIds: presence.onlineUserIdSet(), members,
+        }).catch(() => {});
+      } catch (err) {
+        console.error('[file] delivery setImmediate error:', err);
       }
-      pushNewMessage({
-        conversationId, senderId: userId, senderName: msg.senderName,
-        content: safeContent || TYPE_FALLBACK[type] || '[文件]', type,
-        timestamp: created_at, onlineUserIds: presence.onlineUserIdSet(), members,
-      }).catch(() => {});
     });
     } catch (err) {
       ack?.({ success: false, error: '服务器内部错误，请重试' });

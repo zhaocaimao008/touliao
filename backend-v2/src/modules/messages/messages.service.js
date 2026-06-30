@@ -217,6 +217,8 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
     'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id) VALUES (?,?,?,?,?,?,?)',
     [id, convId, userId, type, content, fileUrl, reply_to_id || null]
   );
+  cache.delPattern(`search:*${userId}*`).catch(() => {});
+  cache.del(cache.keys.conversations(userId)).catch(() => {});
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
   return msg;
@@ -247,6 +249,10 @@ async function forward(io, userId, { msgId, conversationIds }) {
 
   // P0-1：原子批次走 worker（保持"多条转发要么全成功要么全失败"语义），await 落库后再读回广播
   if (ops.length) await writeBatch(ops);
+  if (ops.length) {
+    cache.delPattern(`search:*${userId}*`).catch(() => {});
+    cache.del(cache.keys.conversations(userId)).catch(() => {});
+  }
 
   const selectStmt = db.prepare('SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?');
   targets.forEach(({ convId, id }) => {
@@ -281,6 +287,10 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
   });
   // P0-1：原子批次走 worker，落库后再广播
   if (ops.length) await writeBatch(ops);
+  if (ops.length) {
+    cache.delPattern(`search:*${userId}*`).catch(() => {});
+    cache.del(cache.keys.conversations(userId)).catch(() => {});
+  }
   // 批量 emit（单次事件，减少前端重渲染次数）
   if (io && deleted.length > 0) io.to(conversationId).emit('messages_batch_deleted', { msgIds: deleted, conversationId });
   return deleted.length;
@@ -297,6 +307,8 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (msg.sender_id !== userId && !isAdmin) throw forbidden('无权删除该消息');
     await writeAsync("UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", [msgId]);
+    cache.delPattern(`search:*${userId}*`).catch(() => {});
+    cache.del(cache.keys.conversations(userId)).catch(() => {});
     if (io) io.to(msg.conversation_id).emit('message_vanished', { msgId, conversationId: msg.conversation_id });
     return;
   }
@@ -307,6 +319,8 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
     await writeAsync('UPDATE messages SET deleted=1 WHERE id=?', [msgId]);
+    cache.delPattern(`search:*${userId}*`).catch(() => {});
+    cache.del(cache.keys.conversations(userId)).catch(() => {});
     if (io) io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });
   }
   // 仅自己隐藏：前端处理，不改库
@@ -351,6 +365,8 @@ async function edit(io, userId, msgId, content) {
   const trimmed = content.trim();
   // P0-1：worker 异步写，await 落库后再广播
   await writeAsync('UPDATE messages SET content=?, edited=1 WHERE id=?', [trimmed, msgId]);
+  cache.delPattern(`search:*${userId}*`).catch(() => {});
+  cache.del(cache.keys.conversations(userId)).catch(() => {});
   if (io) io.to(msg.conversation_id).emit('message_edited', { msgId, content: trimmed, conversationId: msg.conversation_id });
   return trimmed;
 }

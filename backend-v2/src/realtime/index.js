@@ -54,9 +54,13 @@ module.exports = function setupRealtime(io, app) {
     // 立即入 user 房间，会话房间延迟到下一 tick
     socket.join(`user_${userId}`);
     setImmediate(() => {
-      const convIds = readDb.prepare('SELECT conversation_id FROM conversation_members WHERE user_id=?')
-        .all(userId).map(c => c.conversation_id);
-      if (convIds.length) socket.join(convIds);
+      try {
+        const convIds = readDb.prepare('SELECT conversation_id FROM conversation_members WHERE user_id=?')
+          .all(userId).map(c => c.conversation_id);
+        if (convIds.length) socket.join(convIds);
+      } catch (err) {
+        console.error('[realtime] join rooms error:', err);
+      }
     });
 
     presence.cacheProfile(userId);

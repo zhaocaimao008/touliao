@@ -28,6 +28,8 @@ function displayName(conversationId, userId) {
 module.exports = function registerNudgeHandler(io, socket) {
   const userId = socket.user.id;
 
+  socket.on('disconnect', () => lastNudgeAt.delete(userId));
+
   socket.on('nudge', async ({ conversationId, targetId } = {}, ack) => {
     try {
       if (!conversationId) { ack?.({ success: false, error: '参数缺失' }); return; }
