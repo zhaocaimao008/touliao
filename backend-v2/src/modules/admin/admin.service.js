@@ -145,6 +145,11 @@ function deleteUser(id) {
     db.prepare('DELETE FROM device_tokens WHERE user_id=?').run(id);
     db.prepare('DELETE FROM collections WHERE user_id=?').run(id);
     db.prepare('DELETE FROM red_packet_claims WHERE user_id=?').run(id);
+    // 先清该用户对他人动态的互动记录（自身动态的互动由 ON DELETE CASCADE 随 moments 删除）
+    db.prepare('DELETE FROM moment_likes WHERE user_id=?').run(id);
+    db.prepare('DELETE FROM moment_comments WHERE user_id=?').run(id);
+    db.prepare("DELETE FROM moment_notifications WHERE user_id=? OR actor_id=?").run(id, id);
+    db.prepare('DELETE FROM moment_reports WHERE reporter_id=?').run(id);
     db.prepare('DELETE FROM moments WHERE user_id=?').run(id);
     // 清理只剩 0 个成员的私聊会话
     db.prepare(`

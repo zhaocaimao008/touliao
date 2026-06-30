@@ -63,13 +63,13 @@ async function addToBlacklist(token, expiresAt) {
   try {
     if (useRedis && redisClient) {
       await redisClient.setEx(key, ttl, '1');
-      return;
+      // 不 return：继续双写 SQLite 作为持久备份，防 Redis 抖动时注销 token 被复活
     }
   } catch (err) {
     console.error('[TokenBlacklist] Redis add error:', err.message);
   }
 
-  // SQLite 持久化降级（重启安全）
+  // SQLite 持久化（主路径 + Redis 双写备份）
   try {
     getDb().prepare('INSERT OR REPLACE INTO token_blacklist (token, expires_at) VALUES (?, ?)').run(token, expiresAt);
   } catch (err) {

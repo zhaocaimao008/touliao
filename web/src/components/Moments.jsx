@@ -155,6 +155,7 @@ export default function Moments() {
   const [showSettings, setShowSettings] = useState(false);
   const [visibleDays, setVisibleDays] = useState(0); // 最近 N 天可见：0=全部
   const imgInputRef = useRef(null);
+  const likingRef = useRef({});
   const imagesRef = useRef(images);
   useEffect(() => { imagesRef.current = images; }, [images]);
   useEffect(() => () => { imagesRef.current.forEach(img => URL.revokeObjectURL(img.previewUrl)); }, []);
@@ -279,6 +280,8 @@ export default function Moments() {
   };
 
   const onLike = async (m) => {
+    if (likingRef.current[m.id]) return;
+    likingRef.current[m.id] = true;
     try {
       const { data } = await axios.post(`/api/moments/${m.id}/like`);
       setList(p => p.map(x => {
@@ -289,6 +292,7 @@ export default function Moments() {
         return { ...x, liked: data.liked, likeCount: data.likeCount, likes };
       }));
     } catch {}
+    finally { likingRef.current[m.id] = false; }
   };
 
   const onComment = async (m, content, clear) => {

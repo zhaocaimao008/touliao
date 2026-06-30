@@ -40,7 +40,7 @@ function signToken(user) {
   return jwt.sign(
     { id: user.id, username: user.username, csrf: uuidv4() },
     config.jwtSecret,
-    { expiresIn: `${config.tokenMaxAge}s` }
+    { algorithm: 'HS256', expiresIn: `${config.tokenMaxAge}s` }
   );
 }
 

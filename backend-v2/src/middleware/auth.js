@@ -25,7 +25,7 @@ module.exports = function auth(req, res, next) {
     }
 
     try {
-      const payload = jwt.verify(token, config.jwtSecret);
+      const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
       // 检查 token 签发时间是否早于密码修改时间（resetPassword / changePassword 均会更新）
       if (payload.iat && payload.id) {
         const row = readDb.prepare('SELECT password_changed_at FROM users WHERE id=?').get(payload.id);
