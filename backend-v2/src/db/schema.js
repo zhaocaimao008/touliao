@@ -434,6 +434,13 @@ function applySchema(db) {
     )`,
     "CREATE INDEX IF NOT EXISTS idx_friend_labels_user ON friend_labels(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_conv_settings_conv ON conversation_settings(conversation_id)",
+    // 主消息列表查询 WHERE conversation_id=? AND deleted=0 ORDER BY created_at
+    // 比 idx_messages_conv_time 更精确，跳过已删除消息
+    "CREATE INDEX IF NOT EXISTS idx_messages_conv_del_time ON messages(conversation_id, deleted, created_at)",
+    // message_reactions 按 message_id 查所有表情（PRIMARY KEY 前缀已覆盖，此为显式优化）
+    "CREATE INDEX IF NOT EXISTS idx_reactions_msg ON message_reactions(message_id)",
+    // conversation_members 按 conversation_id 加载成员列表（PRIMARY KEY 前缀已覆盖，显式标注）
+    "CREATE INDEX IF NOT EXISTS idx_conv_members_conv ON conversation_members(conversation_id)",
   ];
   migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
 }

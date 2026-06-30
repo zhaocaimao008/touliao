@@ -549,7 +549,7 @@ export default function Home() {
   }, [fetchUnreadCounts]);
 
   useEffect(() => {
-    registerUnreadCleared(({ conversationId }) => {
+    return registerUnreadCleared(({ conversationId }) => {
       setUnread(prev => {
         if (!prev[conversationId]) return prev;
         const next = { ...prev }; delete next[conversationId]; return next;
@@ -604,7 +604,35 @@ export default function Home() {
       // 刷新会话列表（新好友会话自动置顶）
       setConvRefreshKey(k => k + 1);
     };
-    const onMsgBatch = (arr) => { if (Array.isArray(arr)) for (const m of arr) onMsg(m); };
+    // 批量消息：一次 setState，不是 N 次（防止 N 帧连续渲染）
+    const onMsgBatch = (arr) => {
+      if (!Array.isArray(arr) || !arr.length) return;
+      setUnread(prev => {
+        const next = { ...prev };
+        let changed = false;
+        for (const msg of arr) {
+          if (msg.conversation_id !== activeConvIdRef.current) {
+            next[msg.conversation_id] = (next[msg.conversation_id] || 0) + 1;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      // 通知：每个会话只取最新一条，避免批量弹多条通知
+      const latestByConv = new Map();
+      for (const msg of arr) latestByConv.set(msg.conversation_id, msg);
+      for (const msg of latestByConv.values()) {
+        if (msg.conversation_id !== activeConvIdRef.current || document.hidden) {
+          const bodyText =
+            msg.type === 'image' ? '[图片]' :
+            msg.type === 'voice' ? '[语音消息]' :
+            msg.type === 'file'  ? '[文件]' :
+            msg.type === 'video' ? '[视频]' :
+            (msg.content || '').slice(0, 80) || '发来了一条消息';
+          showNotification(msg.senderName || '新消息', bodyText, msg.senderAvatar);
+        }
+      }
+    };
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
     socket.on('new_friend_request', onFriendReq);

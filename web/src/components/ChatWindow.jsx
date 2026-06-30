@@ -724,8 +724,8 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       }
     };
 
-    // 注册送达回调到 SocketContext（供全局监听）
-    registerDelivered(onDelivered);
+    // 注册送达回调到 SocketContext，保存取消订阅函数
+    const unsubDelivered = registerDelivered(onDelivered);
 
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
@@ -753,7 +753,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     socket.on('message_pinned', onPinned);
     socket.on('message_unpinned', onUnpinned);
     return () => {
-      registerDelivered(null); // 清除 stale closure，防止已卸载的组件收到送达回执
+      unsubDelivered?.(); // 取消订阅，防止已卸载的组件收到送达回执
       socket.off('mentioned', onAtMention);
       socket.off('new_message', onMsg);
       socket.off('new_message_batch', onMsgBatch);

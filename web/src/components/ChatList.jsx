@@ -147,7 +147,32 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     const onGroupDismissed = ({ conversationId }) =>
       setConversations(prev => prev.filter(c => c.id !== conversationId));
 
-    const onMsgBatch = (arr) => { if (Array.isArray(arr)) for (const m of arr) onMsg(m); };
+    // 批量消息：合并成单次 setState，并且每个未知会话只触发一次 fetchConvs
+    const onMsgBatch = (arr) => {
+      if (!Array.isArray(arr) || !arr.length) return;
+      // 每个会话只保留最新一条消息
+      const msgMap = {};
+      for (const msg of arr) {
+        const cur = msgMap[msg.conversation_id];
+        if (!cur || msg.created_at > cur.created_at) msgMap[msg.conversation_id] = msg;
+      }
+      setConversations(prev => {
+        let fetched = false;
+        let changed = false;
+        const knownIds = new Set(prev.map(c => c.id));
+        const next = prev.map(c => {
+          const msg = msgMap[c.id];
+          if (!msg) return c;
+          changed = true;
+          return { ...c, lastMessage: msg.content, lastMessageType: msg.type, lastTime: msg.created_at, lastSenderName: msg.senderName };
+        });
+        for (const id of Object.keys(msgMap)) {
+          if (!knownIds.has(id) && !fetched) { fetchConvs(); fetched = true; }
+        }
+        if (!changed) return prev;
+        return next.sort((a, b) => (b.pinned - a.pinned) || ((b.lastTime || 0) - (a.lastTime || 0)));
+      });
+    };
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
     socket.on('new_conversation', onNewConv);

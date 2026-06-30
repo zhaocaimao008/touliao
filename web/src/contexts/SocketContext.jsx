@@ -14,12 +14,20 @@ export const SocketProvider = ({ children }) => {
   const everConnectedRef  = useRef(false);
 
   // 多端同步：其他设备读了某会话 → 本设备清零该会话未读
-  const onUnreadClearedRef = useRef(null);
-  // 送达回执回调
-  const onDeliveredRef = useRef(null);
+  // 使用 Set 支持多个订阅者（单 ref 后注册会覆盖前者）
+  const unreadClearedListeners = useRef(new Set());
+  const deliveredListeners     = useRef(new Set());
 
-  const registerUnreadCleared = useCallback((fn) => { onUnreadClearedRef.current = fn; }, []);
-  const registerDelivered      = useCallback((fn) => { onDeliveredRef.current = fn; }, []);
+  const registerUnreadCleared = useCallback((fn) => {
+    if (!fn) return;
+    unreadClearedListeners.current.add(fn);
+    return () => unreadClearedListeners.current.delete(fn);
+  }, []);
+  const registerDelivered = useCallback((fn) => {
+    if (!fn) return;
+    deliveredListeners.current.add(fn);
+    return () => deliveredListeners.current.delete(fn);
+  }, []);
 
   useEffect(() => {
     if (!user) { setSocket(null); setConnected(false); return; }
@@ -63,14 +71,14 @@ export const SocketProvider = ({ children }) => {
       disconnectAtRef.current = Math.floor(Date.now() / 1000);
     });
 
-    // 多端同步：另一台设备标记已读 → 通知本设备
+    // 多端同步：另一台设备标记已读 → 通知所有订阅者
     s.on('sync:unread_cleared', (payload) => {
-      onUnreadClearedRef.current?.(payload);
+      unreadClearedListeners.current.forEach(fn => fn(payload));
     });
 
     // 送达回执：消息到达接收方某端
     s.on('message_delivered', (payload) => {
-      onDeliveredRef.current?.(payload);
+      deliveredListeners.current.forEach(fn => fn(payload));
     });
 
     // 实时朋友圈（对齐安卓/iOS）：好友发新动态 / 赞了我 / 评论了我
