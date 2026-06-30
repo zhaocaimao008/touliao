@@ -117,7 +117,12 @@ function deleteSession(userId, sessionId) {
 }
 
 function deleteAllOtherSessions(userId, device, platform) {
-  db.prepare('DELETE FROM user_sessions WHERE user_id=? AND NOT (device=? AND platform=?)').run(userId, device, platform);
+  const now = Math.floor(Date.now() / 1000);
+  db.transaction(() => {
+    db.prepare('DELETE FROM user_sessions WHERE user_id=? AND NOT (device=? AND platform=?)').run(userId, device, platform);
+    // 推进 password_changed_at，令所有被踢设备的 JWT（iat < 该时间戳）立即失效
+    db.prepare('UPDATE users SET password_changed_at=? WHERE id=?').run(now, userId);
+  })();
 }
 
 async function deleteAccount(userId, password) {

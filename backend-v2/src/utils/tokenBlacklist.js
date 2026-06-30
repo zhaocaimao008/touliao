@@ -99,7 +99,7 @@ async function isBlacklisted(token) {
     return !!row;
   } catch (err) {
     console.error('[TokenBlacklist] SQLite check error:', err.message);
-    return false;
+    throw err; // 双重降级失败：让 auth.js 返回 503，不 fail open
   }
 }
 

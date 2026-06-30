@@ -291,18 +291,16 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         // 使用完整 URL（Electron file:// 下相对路径会解析到 file:/// 导致失败）
         const base = (axios.defaults.baseURL || '').replace(/\/+$/, '');
         const fullUrl = base ? `${base}${path}` : path;
-        // 只在 HTTP(S) 协议下使用 sendBeacon
-        if (location.protocol === 'http:' || location.protocol === 'https:') {
-          try {
-            const sent = navigator.sendBeacon?.(
-              fullUrl,
-              new Blob([body], { type: 'application/json' })
-            );
-            if (sent) return;
-          } catch { /* sendBeacon 不支持当前协议，降级 */ }
-        }
-        // 降级：fetch keepalive（兼容 file://，且能在页面关闭时投递）
-        fetch(fullUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
+        // sendBeacon 无法携带自定义 header（CSRF token），统一改用 fetch keepalive
+        // keepalive=true 与 sendBeacon 同样可在页面卸载时可靠投递
+        const csrfToken = document.cookie.split(';').map(c => c.trim())
+          .find(c => c.startsWith('csrf_token='))?.slice('csrf_token='.length);
+        fetch(fullUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}) },
+          body,
+          keepalive: true,
+        }).catch(() => {});
       } catch { /* 清理函数中的异常静默忽略，不影响 React 卸载流程 */ }
     };
     window.addEventListener('beforeunload', sendRead);

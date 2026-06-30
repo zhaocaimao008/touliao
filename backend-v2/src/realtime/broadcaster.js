@@ -95,4 +95,13 @@ function emit(room, event, payload) {
   if (_io) { _io.to(room).emit(event, payload); stats.totalEmits++; }
 }
 
-module.exports = { setIo, broadcastMessage, emit, stats };
+// 进程退出时同步清空 pending，防止 SIGTERM 时积压消息丢失
+function flushAllSync() {
+  if (timer) { clearTimeout(timer); timer = null; }
+  for (const [room, slot] of pending) flushRoom(room, slot);
+  pending.clear();
+}
+process.on('SIGTERM', flushAllSync);
+process.on('SIGINT',  flushAllSync);
+
+module.exports = { setIo, broadcastMessage, emit, flushAllSync, stats };

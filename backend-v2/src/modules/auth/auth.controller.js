@@ -70,7 +70,15 @@ exports.me = asyncHandler(async (req, res) => {
 });
 
 exports.refresh = asyncHandler(async (req, res) => {
-  setAuthCookie(req, res, svc.refreshToken(req.user));
+  const newToken = svc.refreshToken(req.user);
+  // 黑名单化旧 token，防止被盗 JWT 在 refresh 后仍可访问（与 changePassword 保持一致）
+  if (req.token) {
+    const { addToBlacklist } = require('../../utils/tokenBlacklist');
+    const jwt = require('jsonwebtoken');
+    const payload = jwt.decode(req.token);
+    if (payload?.exp) await addToBlacklist(req.token, payload.exp).catch(() => {});
+  }
+  setAuthCookie(req, res, newToken);
   res.json({ success: true });
 });
 
