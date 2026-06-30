@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useI18n, SUPPORTED_LANGS } from '../contexts/I18nContext';
 import { goLogin } from '../utils/url';
-import { showConfirm } from '../utils/toast';
+import { showConfirm, showToast } from '../utils/toast';
 
 /* ─── 小工具 ─── */
 const ChevronRight = () => (
@@ -769,6 +769,17 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const ALLOWED = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!ALLOWED.includes(file.type)) {
+      showToast('仅支持 JPG、PNG、GIF、WebP 格式', 'error');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('图片大小不能超过 5MB', 'error');
+      e.target.value = '';
+      return;
+    }
     setUploading(true);
     try {
       const fd = new FormData();

@@ -34,8 +34,12 @@ function stats() {
 // ── 资料缓存（send_message 免 SELECT）──────────────────────────
 function cacheProfile(userId) {
   if (userProfiles.has(userId)) return;
-  const p = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
-  if (p) userProfiles.set(userId, { username: p.username, avatar: p.avatar || '' });
+  try {
+    const p = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
+    if (p) userProfiles.set(userId, { username: p.username, avatar: p.avatar || '' });
+  } catch (err) {
+    console.error('[presence] cacheProfile error:', err);
+  }
 }
 function getProfile(userId) { return userProfiles.get(userId) || {}; }
 // 最后一台设备断开时清理：资料缓存 + 限流计数（防 Map 随历史用户无限增长）

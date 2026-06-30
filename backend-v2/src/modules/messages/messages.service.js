@@ -476,7 +476,65 @@ async function searchInConversation(convId, userId, q) {
   return result;
 }
 
+// ── 跳转到指定消息的上下文（引用消息不在当前加载窗口时使用）──────
+function aroundMessage(convId, msgId, userId) {
+  requireMember(convId, userId);
+
+  const target = db.prepare('SELECT created_at FROM messages WHERE id=? AND conversation_id=? AND deleted=0').get(msgId, convId);
+  if (!target) return null;
+
+  const HALF = 25;
+  const before = db.prepare(`
+    SELECT m.*, u.username as senderName, u.avatar as senderAvatar
+    FROM messages m JOIN users u ON u.id=m.sender_id
+    WHERE m.conversation_id=? AND m.created_at<=? AND m.deleted=0
+    ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?
+  `).all(convId, target.created_at, HALF + 1);
+
+  const after = db.prepare(`
+    SELECT m.*, u.username as senderName, u.avatar as senderAvatar
+    FROM messages m JOIN users u ON u.id=m.sender_id
+    WHERE m.conversation_id=? AND m.created_at>? AND m.deleted=0
+    ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?
+  `).all(convId, target.created_at, HALF);
+
+  const hasMore = before.length > HALF;
+  const messages = [...before.slice(0, HALF).reverse(), ...after];
+
+  const replyIds = [...new Set(messages.filter(m => m.reply_to_id).map(m => m.reply_to_id))];
+  const replyMap = new Map();
+  if (replyIds.length > 0) {
+    const ph = replyIds.map(() => '?').join(',');
+    db.prepare(`
+      SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
+      FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id IN (${ph})
+    `).all(...replyIds).forEach(r => replyMap.set(r.id, r));
+  }
+
+  const msgIds = messages.map(m => m.id);
+  const reactionsMap = new Map();
+  if (msgIds.length > 0) {
+    const ph = msgIds.map(() => '?').join(',');
+    db.prepare(`
+      SELECT message_id, emoji, GROUP_CONCAT(user_id) AS userIds, COUNT(*) AS count
+      FROM message_reactions WHERE message_id IN (${ph}) GROUP BY message_id, emoji
+    `).all(...msgIds).forEach(r => {
+      if (!reactionsMap.has(r.message_id)) reactionsMap.set(r.message_id, []);
+      reactionsMap.get(r.message_id).push({ emoji: r.emoji, count: r.count, userIds: r.userIds.split(',') });
+    });
+  }
+
+  return {
+    messages: messages.map(msg => {
+      msg.replyTo   = msg.reply_to_id ? (replyMap.get(msg.reply_to_id) || null) : null;
+      msg.reactions = reactionsMap.get(msg.id) || [];
+      return msg;
+    }),
+    hasMore,
+  };
+}
+
 module.exports = {
   history, missed, send, saveUploadedFile, forward, batchDelete,
-  remove, react, edit, collect, searchGlobal, searchInConversation,
+  remove, react, edit, collect, searchGlobal, searchInConversation, aroundMessage,
 };

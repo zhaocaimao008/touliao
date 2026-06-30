@@ -836,6 +836,7 @@ router.get('/media', auth, conv.media);
  *         description: Message deleted
  */
 router.get('/:conversationId', auth, msg.history);
+router.get('/:convId/around/:msgId', auth, msg.aroundMessage);
 
 // ── 转发 / 批量撤回（POST 单段字面量，必须早于 POST /:conversationId）──
 

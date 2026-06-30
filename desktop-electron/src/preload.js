@@ -57,6 +57,9 @@ ipcRenderer.on('update:progress', (_, pct) => {
 ipcRenderer.on('update:downloaded', (_, info) => {
   window.dispatchEvent(new CustomEvent('electron:update-downloaded', { detail: info }));
 });
+ipcRenderer.on('update:error', (_, err) => {
+  window.dispatchEvent(new CustomEvent('electron:update-error', { detail: err }));
+});
 
 // 窗口最大化状态
 ipcRenderer.on('window:maximized-change', (_, isMaximized) => {

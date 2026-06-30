@@ -73,22 +73,28 @@ function buildConfig() {
   };
 }
 
+let _cfg = null;
+function getConfig() {
+  if (!_cfg) _cfg = buildConfig();
+  return _cfg;
+}
+
 async function getPresignedPutUrl(key, contentType) {
-  const { client, bucket, publicBase } = buildConfig();
+  const { client, bucket, publicBase } = getConfig();
   const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
   const uploadUrl = await getSignedUrl(client, cmd, { expiresIn: 600 });
   return { uploadUrl, publicUrl: `${publicBase}/${key}` };
 }
 
 async function uploadFile(key, buffer, contentType) {
-  const { client, bucket, publicBase } = buildConfig();
+  const { client, bucket, publicBase } = getConfig();
   await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: contentType }));
   return `${publicBase}/${key}`;
 }
 
 function getPublicBase() {
   if (!isConfigured()) return null;
-  return buildConfig().publicBase;
+  return getConfig().publicBase;
 }
 
 module.exports = { isConfigured, getPresignedPutUrl, uploadFile, getPublicBase };

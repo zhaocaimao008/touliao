@@ -13,6 +13,12 @@ const chatUploader = makeChatUploader(path.join(config.uploadsRoot, 'files'));
 exports.history = asyncHandler(async (req, res) =>
   res.json(svc.history(req.params.conversationId, req.user.id, req.query)));
 
+exports.aroundMessage = asyncHandler(async (req, res) => {
+  const result = svc.aroundMessage(req.params.convId, req.params.msgId, req.user.id);
+  if (!result) return res.status(404).json({ error: '消息不存在' });
+  res.json(result);
+});
+
 exports.missed = asyncHandler(async (req, res) =>
   res.json(svc.missed(io(req), req.user.id, parseInt(req.query.after) || 0)));
 

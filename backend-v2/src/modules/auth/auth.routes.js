@@ -182,6 +182,6 @@ router.post  ('/delete-account',auth,            c.deleteAccount);
  *       200:
  *         description: Password changed
  */
-router.put ('/change-password', auth,            c.changePassword);
+router.put ('/change-password', auth, resetPasswordLimiter, c.changePassword);
 
 module.exports = router;

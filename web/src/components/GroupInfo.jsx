@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { FixedSizeList } from 'react-window';
 import Avatar, { getColor } from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
@@ -522,7 +523,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               </div>
             )}
 
-            {/* 成员列表（支持搜索过滤） */}
+            {/* 成员列表（支持搜索过滤；>50 人时虚拟化渲染） */}
             {(() => {
               const q = kickSearch.toLowerCase();
               const filtered = kickSearch
@@ -531,53 +532,65 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               if (kickSearch && filtered.length === 0) {
                 return <div className="gi-no-match">未找到匹配成员</div>;
               }
-              return filtered.map(m => (
-                <div key={m.id} className="gi-mi">
-                  <Avatar src={m.avatar} name={m.username} size={38} />
-                  <div className="gi-f1">
-                    <div className="gi-mn">
-                      {/* 搜索时高亮匹配字符 */}
-                      {kickSearch && m.username.toLowerCase().includes(kickSearch.toLowerCase())
-                        ? (() => {
-                            const idx = m.username.toLowerCase().indexOf(kickSearch.toLowerCase());
-                            return (
-                              <>
-                                {m.username.slice(0, idx)}
-                                <span className="gi-search-hl">{m.username.slice(idx, idx + kickSearch.length)}</span>
-                                {m.username.slice(idx + kickSearch.length)}
-                              </>
-                            );
-                          })()
-                        : m.username
-                      }
-                      <RoleBadge role={m.role} />
+              const MemberRow = ({ index, style }) => {
+                const m = filtered[index];
+                return (
+                  <div key={m.id} className="gi-mi" style={style}>
+                    <Avatar src={m.avatar} name={m.username} size={38} />
+                    <div className="gi-f1">
+                      <div className="gi-mn">
+                        {kickSearch && m.username.toLowerCase().includes(kickSearch.toLowerCase())
+                          ? (() => {
+                              const idx = m.username.toLowerCase().indexOf(kickSearch.toLowerCase());
+                              return (
+                                <>
+                                  {m.username.slice(0, idx)}
+                                  <span className="gi-search-hl">{m.username.slice(idx, idx + kickSearch.length)}</span>
+                                  {m.username.slice(idx + kickSearch.length)}
+                                </>
+                              );
+                            })()
+                          : m.username
+                        }
+                        <RoleBadge role={m.role} />
+                      </div>
                     </div>
+                    {isOwner && m.role !== 'owner' && (
+                      <button
+                        className="gi-btn-admin"
+                        style={{ color: m.role === 'admin' ? 'var(--text-tertiary)' : 'var(--green)', border: `1px solid ${m.role === 'admin' ? 'var(--border-default)' : 'var(--green)'}` }}
+                        onClick={() => toggleAdmin(m.id, m.role)}
+                      >{m.role === 'admin' ? '撤销管理员' : '设为管理员'}</button>
+                    )}
+                    {isOwner && m.role !== 'owner' && (
+                      <button
+                        className="gi-btn-admin"
+                        style={{ color: 'var(--green)', border: '1px solid var(--green)' }}
+                        onClick={() => transferOwner(m.id)}
+                      >转让群主</button>
+                    )}
+                    {isAdmin && m.id !== currentUserId && m.role === 'member' && (
+                      <button
+                        className="gi-btn-kick"
+                        onClick={() => kickMember(m.id)}
+                      >移出</button>
+                    )}
                   </div>
-                  {/* 群主可以设置管理员 */}
-                  {isOwner && m.role !== 'owner' && (
-                    <button
-                      className="gi-btn-admin"
-                      style={{ color: m.role === 'admin' ? 'var(--text-tertiary)' : 'var(--green)', border: `1px solid ${m.role === 'admin' ? 'var(--border-default)' : 'var(--green)'}` }}
-                      onClick={() => toggleAdmin(m.id, m.role)}
-                    >{m.role === 'admin' ? '撤销管理员' : '设为管理员'}</button>
-                  )}
-                  {/* 群主可以转让群主 */}
-                  {isOwner && m.role !== 'owner' && (
-                    <button
-                      className="gi-btn-admin"
-                      style={{ color: 'var(--green)', border: '1px solid var(--green)' }}
-                      onClick={() => transferOwner(m.id)}
-                    >转让群主</button>
-                  )}
-                  {/* 群主和管理员可以踢普通成员（管理员不能踢管理员） */}
-                  {isAdmin && m.id !== currentUserId && m.role === 'member' && (
-                    <button
-                      className="gi-btn-kick"
-                      onClick={() => kickMember(m.id)}
-                    >移出</button>
-                  )}
-                </div>
-              ));
+                );
+              };
+              if (filtered.length > 50) {
+                return (
+                  <FixedSizeList
+                    height={Math.min(filtered.length * 52, 400)}
+                    itemCount={filtered.length}
+                    itemSize={52}
+                    width="100%"
+                  >
+                    {MemberRow}
+                  </FixedSizeList>
+                );
+              }
+              return filtered.map((_, index) => <MemberRow key={filtered[index].id} index={index} style={{}} />);
             })()}
           </div>
         </div>

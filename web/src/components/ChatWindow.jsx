@@ -127,6 +127,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   const [showMsgSearch, setShowMsgSearch] = useState(false);
   const [msgSearchQ, setMsgSearchQ] = useState('');
   const [highlightedMsgId, setHighlightedMsgId] = useState(null);
+  const [pendingScrollId, setPendingScrollId] = useState(null);
   const [msgSearchResults, setMsgSearchResults] = useState([]);
   const [msgSearching, setMsgSearching] = useState(false);
   // 红包：详情弹窗 { packet, claims, myClaim, justClaimed } | null
@@ -1597,6 +1598,20 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       conversation.type, pinnedMessages, myGroupRole, members, groupSettings,
       user.id, claiming, lastMineId, recalledMessages]);
 
+  // 当 pendingScrollId 所指消息随 messages 更新进入 flatItems 后，执行实际滚动
+  useEffect(() => {
+    if (!pendingScrollId) return;
+    const idx = flatItems.findIndex(it => it.type === 'message' && it.msg?.id === pendingScrollId);
+    if (idx >= 0) {
+      requestAnimationFrame(() => {
+        virtListRef.current?.scrollToItem(idx, 'center');
+        setHighlightedMsgId(String(pendingScrollId));
+        setTimeout(() => setHighlightedMsgId(null), 2000);
+      });
+      setPendingScrollId(null);
+    }
+  }, [pendingScrollId, flatItems]);
+
   // Stable callbacks ref - MessageItem reads from this ref when rendering
   const callbacksRef = useRef(null);
   if (!callbacksRef.current) callbacksRef.current = {};
@@ -1630,15 +1645,25 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     if (outer && outer.scrollHeight - outer.scrollTop - outer.clientHeight < 200)
       outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
   };
-  callbacksRef.current.scrollToMsg = (msgId) => {
+  callbacksRef.current.scrollToMsg = async (msgId) => {
     const idx = flatItems.findIndex(it => it.type === 'message' && it.msg?.id === msgId);
     if (idx >= 0) {
       virtListRef.current?.scrollToItem(idx, 'center');
       setHighlightedMsgId(String(msgId));
       setTimeout(() => setHighlightedMsgId(null), 2000);
-    } else {
-      const el = document.getElementById(`msg-${msgId}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    const el = document.getElementById(`msg-${msgId}`);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    // 消息不在当前窗口，从服务端加载上下文
+    try {
+      const { data } = await axios.get(`/api/messages/${conversation.id}/around/${msgId}`);
+      if (!data?.messages?.length) { showToast('无法定位该消息', 'info'); return; }
+      setMessages(data.messages);
+      setHasMore(data.hasMore);
+      setPendingScrollId(msgId);
+    } catch {
+      showToast('无法定位该消息', 'info');
     }
   };
 
