@@ -225,12 +225,17 @@ export default function CallModal({ socket, call, onClose }) {
   const processOffer = useCallback(async (offer) => {
     const pc = pcRef.current;
     if (!pc) return;
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    socket?.emit('call:answer', { to: remoteId, answer });
-    setStatus('connecting');
-  }, [socket, remoteId]);
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket?.emit('call:answer', { to: remoteId, answer });
+      setStatus('connecting');
+    } catch (err) {
+      console.error('[call] processOffer 失败:', err);
+      endCall(false, 'error');
+    }
+  }, [socket, remoteId, endCall]);
 
   const accept = useCallback(async () => {
     setStatus('connecting');
@@ -249,7 +254,8 @@ export default function CallModal({ socket, call, onClose }) {
 
   useEffect(() => {
     if (!socket) return;
-    const onResponse = async ({ accepted, reason, busy }) => {
+    const onResponse = async ({ from, accepted, reason, busy }) => {
+      if (from !== remoteId) return; // 防伪造拒接信号
       clearTimeout(timeoutRef.current);
       if (!accepted) {
         setEndReason(busy ? 'busy' : (reason || 'rejected'));
@@ -284,7 +290,8 @@ export default function CallModal({ socket, call, onClose }) {
           await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
       } catch {}
     };
-    const onEnd = ({ reason } = {}) => {
+    const onEnd = ({ from, reason } = {}) => {
+      if (from !== remoteId) return; // 防任意用户强制关闭通话界面
       if (reason) setEndReason(reason);
       setStatus('ended');
       cleanup();

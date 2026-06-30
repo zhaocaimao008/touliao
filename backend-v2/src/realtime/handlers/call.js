@@ -82,7 +82,8 @@ module.exports = function registerCallHandler(io, socket) {
     const id = uuidv4();
     const t = type === 'video' ? 'video' : 'audio';
     const key = `${userId}>${to}`;
-    // 创建定时器：如果 120s 未被应答，自动清理
+    // 重复拨号时清除旧 timer，防止旧 timer 到期时污染新通话记录
+    clearTimeout(activeCalls.get(key)?.timer);
     const timer = scheduleCallTimeout(key);
     activeCalls.set(key, { id, answeredAt: null, timer });
     try {
@@ -108,12 +109,17 @@ module.exports = function registerCallHandler(io, socket) {
         }
       } catch (e) { console.warn('[call] response 落库失败:', e.message); }
     }
-    io.to(`user_${to}`).emit('call:response', { from: userId, accepted, busy, reason });
+    // 只有活跃通话存在时才转发：防止任意用户伪造拒接信号
+    if (c) io.to(`user_${to}`).emit('call:response', { from: userId, accepted, busy, reason });
   });
 
-  socket.on('call:offer',  ({ to, offer })     => { if (!to) return; io.to(`user_${to}`).emit('call:offer',  { from: userId, offer }); });
-  socket.on('call:answer', ({ to, answer })    => { if (!to) return; io.to(`user_${to}`).emit('call:answer', { from: userId, answer }); });
-  socket.on('call:ice',    ({ to, candidate }) => { if (!to) return; io.to(`user_${to}`).emit('call:ice',    { from: userId, candidate }); });
+  // call:offer/answer/ice：校验双方确实存在活跃通话，防止信令注入攻击
+  function inActiveCall(toId) {
+    return activeCalls.has(`${userId}>${toId}`) || activeCalls.has(`${toId}>${userId}`);
+  }
+  socket.on('call:offer',  ({ to, offer })     => { if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:offer',  { from: userId, offer }); });
+  socket.on('call:answer', ({ to, answer })    => { if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:answer', { from: userId, answer }); });
+  socket.on('call:ice',    ({ to, candidate }) => { if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:ice',    { from: userId, candidate }); });
 
   socket.on('call:end', ({ to, reason }) => {
     // 挂断可能来自任一方，两个方向都查
@@ -133,8 +139,9 @@ module.exports = function registerCallHandler(io, socket) {
       } catch (e) { console.warn('[call] end 落库失败:', e.message); }
       activeCalls.delete(k1);
       activeCalls.delete(k2);
+      // 只有活跃通话存在时才转发：防止任意用户强制关闭他人通话界面
+      io.to(`user_${to}`).emit('call:end', { from: userId, reason });
     }
-    io.to(`user_${to}`).emit('call:end', { from: userId, reason });
   });
 
   // ── 断线清理（fix: 网络闪断时不走 call:end，需主动释放所有资源）──

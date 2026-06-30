@@ -104,7 +104,12 @@ async function updateProfile(userId, { username, bio }) {
       throw badRequest('用户名长度为 1-30 字符');
     if (db.prepare('SELECT id FROM users WHERE username=? AND id!=?').get(username.trim(), userId))
       throw badRequest('用户名已被占用');
-    db.prepare('UPDATE users SET username=? WHERE id=?').run(username.trim(), userId);
+    try {
+      db.prepare('UPDATE users SET username=? WHERE id=?').run(username.trim(), userId);
+    } catch (e) {
+      if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') throw badRequest('用户名已被占用');
+      throw e;
+    }
   }
   if (bio !== undefined) {
     const safeBio = typeof bio === 'string' ? bio.slice(0, 500) : '';
@@ -186,8 +191,9 @@ function addCollection(userId, { type, content, extra }) {
   if (existing) throw conflict('已收藏', 'COLLECTION_DUPLICATE');
 
   const id = uuidv4();
-  db.prepare('INSERT INTO collections (id,user_id,type,content,extra,dedup_key) VALUES (?,?,?,?,?,?)')
+  const res = db.prepare('INSERT OR IGNORE INTO collections (id,user_id,type,content,extra,dedup_key) VALUES (?,?,?,?,?,?)')
     .run(id, userId, safeType, safeContent, JSON.stringify(safeExtra), dedupKey);
+  if (res.changes === 0) throw conflict('已收藏', 'COLLECTION_DUPLICATE');
   const row = db.prepare('SELECT * FROM collections WHERE id=?').get(id);
   return { success: true, ...row, extra: JSON.parse(row.extra || '{}') };
 }

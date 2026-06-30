@@ -193,11 +193,16 @@ function createMoment(io, userId, { content, images, visibility, visibleTo }) {
   db.prepare('INSERT INTO moments (id,user_id,content,images,visibility,visible_to) VALUES (?,?,?,?,?,?)')
     .run(id, userId, text, JSON.stringify(imgs), vis, visList);
 
-  // 新动态推送：按可见性收敛推送名单
+  // 新动态推送：按可见性收敛推送名单，排除双向拉黑用户
   if (io && vis !== 'private') {
     let targets = db.prepare('SELECT contact_id FROM contacts WHERE user_id=?').all(userId).map(f => f.contact_id);
     if (vis === 'include') { const set = new Set(JSON.parse(visList)); targets = targets.filter(t => set.has(t)); }
     else if (vis === 'exclude') { const set = new Set(JSON.parse(visList)); targets = targets.filter(t => !set.has(t)); }
+    const blocked = new Set(
+      db.prepare('SELECT blocked_id u FROM blocked_users WHERE user_id=? UNION SELECT user_id u FROM blocked_users WHERE blocked_id=?')
+        .all(userId, userId).map(r => r.u)
+    );
+    targets = targets.filter(t => !blocked.has(t));
     if (targets.length) io.to(targets.map(t => `user_${t}`)).emit('new_moment', { momentId: id, userId });
   }
   return enrich(userId, db.prepare('SELECT * FROM moments WHERE id=?').get(id));
@@ -326,7 +331,14 @@ function toggleLike(io, userId, momentId) {
       db.prepare("DELETE FROM moment_notifications WHERE moment_id=? AND actor_id=? AND type='like'").run(momentId, userId);
     }
   } else {
-    db.prepare('INSERT INTO moment_likes (moment_id,user_id) VALUES (?,?)').run(momentId, userId);
+    try {
+      db.prepare('INSERT INTO moment_likes (moment_id,user_id) VALUES (?,?)').run(momentId, userId);
+    } catch (e) {
+      if (e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') { liked = false; }
+      else throw e;
+      const likeCount = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(momentId).n;
+      return { liked, likeCount };
+    }
     liked = true;
     if (io && m.user_id !== userId) io.to(`user_${m.user_id}`).emit('moment_liked', { momentId, userId });
     addInteractNotification({ recipientId: m.user_id, actorId: userId, momentId, type: 'like' });
