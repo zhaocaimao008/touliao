@@ -978,7 +978,7 @@ export default function Profile({ isMobile = false }) {
           <div className="wc-modal home-qr-modal" onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">我的二维码</span>
-              <button className="wc-modal-close" onClick={() => setShowQR(false)}>✕</button>
+              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label="关闭">✕</button>
             </div>
             <div className="wc-modal-body home-qr-body">
               <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="home-qr-img" />

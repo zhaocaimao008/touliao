@@ -119,7 +119,7 @@ export default function ForwardModal({ message, onClose }) {
         {/* 标题栏 */}
         <div className="fwd-header">
           <span className="wc-modal-title">转发消息</span>
-          <button className="wc-modal-close" onClick={onClose}>✕</button>
+          <button className="wc-modal-close" onClick={onClose} aria-label="关闭">✕</button>
         </div>
 
         {done ? (
