@@ -381,7 +381,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     <div className="gi-panel gi-fcd gi-ccc">
       <div className="gi-fcd gi-fca gi-gap8">
         <div className="gi-spinner gi-spinner-green" />
-        <span className="gi-loading-txt">加载中…</span>
+        <span role="status" className="gi-loading-txt">加载中…</span>
       </div>
     </div>
   );

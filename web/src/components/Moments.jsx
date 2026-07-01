@@ -393,7 +393,7 @@ export default function Moments() {
             </div>
             <div className="wc-moment-notif-list" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
               {friends.length === 0 ? (
-                <div className="wc-moment-state" style={{ padding: 40 }}>暂无好友</div>
+                <div role="status" className="wc-moment-state" style={{ padding: 40 }}>暂无好友</div>
               ) : friends.map(f => {
                 const checked = visibleTo.includes(f.id);
                 return (
@@ -429,7 +429,7 @@ export default function Moments() {
             </div>
             <div className="wc-moment-notif-list">
               {notifList.length === 0 ? (
-                <div className="wc-moment-state" style={{ padding: 40 }}>暂无互动消息</div>
+                <div role="status" className="wc-moment-state" style={{ padding: 40 }}>暂无互动消息</div>
               ) : notifList.map(n => (
                 <div key={n.id} className="wc-moment-notif-item">
                   <Avatar src={n.actor?.avatar} name={n.actor?.username} size={36} />
@@ -508,9 +508,9 @@ export default function Moments() {
       {/* 时间线 */}
       <div className="wc-moment-scroll">
         {loading ? (
-          <div className="wc-moment-state">加载中…</div>
+          <div role="status" className="wc-moment-state">加载中…</div>
         ) : list.length === 0 ? (
-          <div className="wc-moment-state" style={{ padding: 60 }}>还没有动态，发布第一条吧</div>
+          <div role="status" className="wc-moment-state" style={{ padding: 60 }}>还没有动态，发布第一条吧</div>
         ) : (
           list.map(m => (
             <MomentCard key={m.id} m={m} meId={meId}

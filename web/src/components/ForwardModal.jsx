@@ -195,7 +195,7 @@ export default function ForwardModal({ message, onClose }) {
                 </div>
               ))}
               {tab === 'friends' && filteredFriends.length === 0 && (
-                <div className="fwd-empty">暂无好友</div>
+                <div role="status" className="fwd-empty">暂无好友</div>
               )}
 
               {/* 群聊列表 */}
@@ -210,7 +210,7 @@ export default function ForwardModal({ message, onClose }) {
                 </div>
               ))}
               {tab === 'groups' && filteredGroups.length === 0 && (
-                <div className="fwd-empty">暂无群聊</div>
+                <div role="status" className="fwd-empty">暂无群聊</div>
               )}
             </div>
 

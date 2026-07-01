@@ -380,11 +380,11 @@ function DeviceList({ onBack }) {
       <PageHeader title="设备管理" onBack={onBack} />
       <div className="wc-device-pad">
         {loading ? (
-          <div className="wc-loading">加载中…</div>
+          <div role="status" className="wc-loading">加载中…</div>
         ) : (
           <Card>
             {sessions.length === 0
-              ? <div className="wc-empty">暂无设备记录</div>
+              ? <div role="status" className="wc-empty">暂无设备记录</div>
               : sessions.map((s, i) => (
                 <div key={s.id} className="wc-device-item">
                   <span className="wc-device-icon">{icon(s.platform)}</span>
