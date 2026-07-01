@@ -697,7 +697,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
   return (
     <Card>
       {otherAccounts.map((a) => (
-          <div key={a.id} onClick={() => doSwitch(a.id)} className="wc-add-row">
+          <div key={a.id} onClick={() => doSwitch(a.id)} className="wc-add-row" role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && doSwitch(a.id)}>
             <div className="wc-add-avatar-wrap">
               <Avatar src={a.user?.avatar} name={a.user?.username} size={40} />
             </div>
@@ -709,7 +709,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
           </div>
       ))}
 
-      <div onClick={toggleForm} className="wc-add-row">
+      <div onClick={toggleForm} className="wc-add-row" role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && toggleForm()}>
         <div className="wc-add-icon-wrap" style={{ borderColor: showForm ? 'var(--green)' : undefined }}>
           <svg className="wc-add-icon-svg" style={{ fill: showForm ? 'var(--green)' : undefined }} viewBox="0 0 24 24">
             <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
@@ -955,7 +955,7 @@ export default function Profile({ isMobile = false }) {
   return (
     <PageBg>
       {/* ── 个人信息头部 ── */}
-      <div className="wc-me-header" onClick={() => setSubPage('profile-detail')}>
+      <div className="wc-me-header" role="button" tabIndex={0} onClick={() => setSubPage('profile-detail')} onKeyDown={e => e.key === 'Enter' && setSubPage('profile-detail')}>
         <div className="wc-me-avatar-wrap">
           <Avatar src={user?.avatar} name={user?.username} size={64} />
         </div>
