@@ -9,14 +9,18 @@ const CATEGORIES = [
   { label: '🌟', name: '自然', emojis: ['🌟','⭐','🌙','☀️','🌈','⛅','🌤️','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌊','🌀','🌪️','🌫️','🌬️','🌸','🌺','🌻','🌼','💐','🌷','🍀','🍁','🍂','🍃','🌿','☘️','🌱','🌲','🌳','🌴','🌵','🎋','🎍','🌾','🍄','🌰','🦔','🦦','🐾','🦁','🐯','🐻','🐼','🐨','🐸','🐧','🐦','🦅','🦆','🦉','🦚','🦜','🐝','🦋','🐛','🐌','🐞','🐜'] },
 ];
 
+let lastCat = 0;
+
 export default function EmojiPicker({ onSelect }) {
-  const [cat, setCat] = useState(0);
+  const [cat, setCat] = useState(lastCat);
+
+  const handleCatChange = (i) => { lastCat = i; setCat(i); };
 
   return (
     <div className="wc-emoji-picker">
       <div className="wc-emoji-cats">
         {CATEGORIES.map((c, i) => (
-          <button key={i} className={`wc-emoji-cat${cat === i ? ' active' : ''}`} onClick={() => setCat(i)} title={c.name}>
+          <button key={i} className={`wc-emoji-cat${cat === i ? ' active' : ''}`} onClick={() => handleCatChange(i)} title={c.name}>
             {c.label}
           </button>
         ))}
