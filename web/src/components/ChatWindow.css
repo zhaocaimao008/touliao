@@ -606,6 +606,9 @@
 .wc-msg-file-link {
   text-decoration: none;
   color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 /* ── 文件上传进度条 ── */

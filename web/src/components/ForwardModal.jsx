@@ -106,7 +106,7 @@ export default function ForwardModal({ message, onClose }) {
     if (message.type === 'voice') return '[语音]';
     if (message.type === 'video') return '[视频]';
     if (message.type === 'red_packet') return '[红包]';
-    return message.content?.slice(0, 50) + (message.content?.length > 50 ? '...' : '');
+    return message.content?.slice(0, 50) + (message.content?.length > 50 ? '…' : '');
   };
 
   const allFriendsSelected = filteredFriends.length > 0 && filteredFriends.every(f => isFriendSelected(f));
