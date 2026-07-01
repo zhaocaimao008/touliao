@@ -181,6 +181,7 @@ async function listConversations(uid) {
     LEFT JOIN users ou ON ou.id = cm_o.user_id
     LEFT JOIN contacts ct ON ct.user_id = ? AND ct.contact_id = ou.id
     ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC
+    LIMIT 500
   `).all(uid, uid, uid, uid, uid);
 
   const memberMap = new Map();

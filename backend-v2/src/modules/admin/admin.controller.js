@@ -120,7 +120,7 @@ exports.userDetail = asyncHandler(async (req, res) => res.json(svc.userDetail(re
 exports.ban        = asyncHandler(async (req, res) => res.json(svc.setBanned(req.app.get('io'), req.params.id, true)));
 exports.unban      = asyncHandler(async (req, res) => res.json(svc.setBanned(req.app.get('io'), req.params.id, false)));
 exports.resetPassword = asyncHandler(async (req, res) => {
-  await svc.resetPassword(req.params.id, req.body.newPassword);
+  await svc.resetPassword(req.app.get('io'), req.params.id, req.body.newPassword);
   res.json({ success: true });
 });
 exports.grantCoins = asyncHandler(async (req, res) => res.json(svc.grantCoins(req.params.id, req.body.amount, req.body.memo)));

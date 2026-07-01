@@ -107,14 +107,15 @@ function setBanned(io, id, banned) {
 }
 
 // ── 重置密码 ────────────────────────────────────────────────────
-async function resetPassword(id, newPassword) {
-  if (!newPassword || newPassword.length < 6) throw badRequest('新密码至少6位');
+async function resetPassword(io, id, newPassword) {
+  if (typeof newPassword !== 'string' || newPassword.length < 6) throw badRequest('新密码至少6位');
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
   if (!user) throw notFound('用户不存在');
   const hash = await bcrypt.hash(newPassword, 12);
   db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, Math.floor(Date.now() / 1000), id);
   // 踢掉该用户所有会话并强制断开 socket，使旧 JWT 立即失效
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(id);
+  if (io) io.to(`user_${id}`).disconnectSockets(true);
 }
 
 // ── 彻底删除用户（级联清理，含其消息）──────────────────────────

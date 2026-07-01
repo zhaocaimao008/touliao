@@ -63,6 +63,10 @@ function joinByToken(io, userId, token) {
     if (isMember(invite.conversation_id, userId)) { alreadyMember = true; return; }
     const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(invite.conversation_id).n;
     if (curCount >= config.limits.maxGroupMembers) throw badRequest(`群成员已达上限 ${config.limits.maxGroupMembers} 人`);
+    const userGroupCount = db.prepare(
+      "SELECT COUNT(*) AS n FROM conversation_members cm JOIN conversations c ON c.id=cm.conversation_id AND c.type='group' WHERE cm.user_id=?"
+    ).get(userId).n;
+    if (userGroupCount >= 1000) throw badRequest('已达最大群数量上限 1000 个');
     db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)')
       .run(invite.conversation_id, userId, 'member');
   })();
@@ -198,6 +202,7 @@ function info(convId, userId) {
     FROM users u JOIN conversation_members cm ON cm.user_id=u.id
     WHERE cm.conversation_id=?
     ORDER BY CASE cm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, u.username
+    LIMIT 500
   `).all(convId);
   return { ...conv, members, myRole };
 }

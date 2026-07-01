@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../../config');
 const { authCookieOptions, walletCookieOptions, csrfCookieOptions } = require('../../utils/cookies');
 const { asyncHandler, badRequest } = require('../../utils/http');
+const { db } = require('../../db/connection');
 const svc = require('./auth.service');
 
 function setAuthCookie(req, res, token) {
@@ -135,5 +136,12 @@ exports.changePassword = asyncHandler(async (req, res) => {
 
 exports.resetPassword = asyncHandler(async (req, res) => {
   await svc.resetPassword(req.body);
+  // 重置成功后强制断开目标用户现有 socket（best-effort，防账号盗用场景旧 socket 留存）
+  const { phone } = req.body || {};
+  if (phone) {
+    const user = db.prepare('SELECT id FROM users WHERE phone=?').get(phone);
+    const io = req.app.get('io');
+    if (user && io) io.to(`user_${user.id}`).disconnectSockets(true);
+  }
   res.json({ success: true });
 });
