@@ -73,7 +73,7 @@ export default function VoicePlayer({ url }) {
         <div className="wc-voice-progress-fill" style={{ width: `${progress}%` }} />
       </div>
       <span className="wc-voice-duration">
-        {loaded ? `${fmt(currentTime)} / ${fmt(duration)}` : fmt(0)}
+        {loaded ? `${fmt(currentTime)} / ${fmt(duration)}` : '--:--'}
       </span>
     </div>
   );

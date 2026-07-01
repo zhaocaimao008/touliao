@@ -156,7 +156,11 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       {/* 会话(群聊、文件传输助手等) */}
       {matchedConversations.length > 0 && (
         <>
-          <div className="gs-cat">{matchedConversations.some(c => c.type === 'filehelper') ? '特殊会话' : '群聊'}</div>
+          <div className="gs-cat">
+            {matchedConversations.every(c => c.type === 'filehelper') ? '文件传输助手'
+              : matchedConversations.every(c => c.type === 'group') ? '群聊'
+              : '会话'}
+          </div>
           {matchedConversations.map(g => (
             <div key={g.id} className="gs-row" onClick={() => openConversation(g)}
               role="button" tabIndex={0}
