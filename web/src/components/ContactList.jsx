@@ -433,6 +433,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
             onChange={e => setNameInput(e.target.value)}
             placeholder="标签名称"
             maxLength={20}
+            aria-label="标签名称"
             style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1px solid var(--divider)', borderRadius: 8, background: 'var(--bg-card)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
           />
           <div style={{ marginTop: 12, marginBottom: 6, fontSize: 13, color: 'var(--text-secondary)' }}>颜色</div>

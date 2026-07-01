@@ -416,7 +416,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               <div className="gi-fca gi-gap6">
                 <input value={nameVal} onChange={e => setNameVal(e.target.value)}
                   className="gi-name-edit" data-testid="group-rename-input"
-                  autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
+                  aria-label="群名称" autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
                 <button className="gi-btn-edit" data-testid="group-rename-save" onClick={saveName}>保存</button>
                 <button className="gi-btn-xl" onClick={() => setEditName(false)}>取消</button>
               </div>
@@ -450,7 +450,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             <>
               <textarea value={annVal} onChange={e => setAnnVal(e.target.value)}
                 className="gi-ann-textarea"
-                autoFocus placeholder="填写群公告…" />
+                autoFocus placeholder="填写群公告…" aria-label="群公告" />
               <div className="gi-ann-bar">
                 <button className="gi-btn-cancel" onClick={() => setEditAnn(false)}>取消</button>
                 <button className="gi-btn-save" onClick={saveAnn}>保存</button>
@@ -573,6 +573,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   value={kickSearch}
                   onChange={e => setKickSearch(e.target.value)}
                   placeholder="搜索成员…"
+                  aria-label="搜索成员"
                   className="gi-ml-si"
                 />
                 {kickSearch && (
@@ -678,6 +679,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   onChange={e => setNicknameVal(e.target.value)}
                   placeholder="设置群昵称（最多30字）"
                   maxLength={30}
+                  aria-label="群昵称"
                   className="gi-nick-input"
                   onKeyDown={e => { if (e.key === 'Enter') saveNickname(); if (e.key === 'Escape') setEditNickname(false); }}
                 />
