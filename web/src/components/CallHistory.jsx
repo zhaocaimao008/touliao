@@ -37,9 +37,9 @@ export default function CallHistory() {
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 13 }}>加载中…</div>
+        <div role="status" style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 13 }}>加载中…</div>
       ) : list.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>暂无通话记录</div>
+        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>暂无通话记录</div>
       ) : (
         list.map(c => {
           const st = STATUS[c.status] || STATUS.completed;
@@ -50,8 +50,7 @@ export default function CallHistory() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || '用户'}</div>
                 <div style={{ fontSize: 12, color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {/* 方向箭头 */}
-                  <span style={{ transform: c.direction === 'out' ? 'none' : 'scaleX(-1)' }}>{c.direction === 'out' ? '↗' : '↙'}</span>
+                  <span aria-label={c.direction === 'out' ? '拨出' : '来电'} style={{ transform: c.direction === 'out' ? 'none' : 'scaleX(-1)' }} aria-hidden="false">{c.direction === 'out' ? '↗' : '↙'}</span>
                   {c.type === 'video' ? '视频通话' : '语音通话'} · {st.label}
                   {c.duration > 0 && ` · ${fmtDuration(c.duration)}`}
                 </div>

@@ -18,16 +18,18 @@ export default function EmojiPicker({ onSelect }) {
 
   return (
     <div className="wc-emoji-picker">
-      <div className="wc-emoji-cats">
+      <div className="wc-emoji-cats" role="tablist" aria-label="表情分类">
         {CATEGORIES.map((c, i) => (
-          <button key={i} className={`wc-emoji-cat${cat === i ? ' active' : ''}`} onClick={() => handleCatChange(i)} title={c.name}>
+          <button key={i} className={`wc-emoji-cat${cat === i ? ' active' : ''}`}
+            role="tab" aria-selected={cat === i} aria-label={c.name}
+            onClick={() => handleCatChange(i)} title={c.name}>
             {c.label}
           </button>
         ))}
       </div>
-      <div className="wc-emoji-grid">
+      <div className="wc-emoji-grid" role="tabpanel" aria-label={CATEGORIES[cat].name}>
         {CATEGORIES[cat].emojis.map(e => (
-          <button key={e} className="wc-emoji-btn" onClick={() => onSelect(e)}>{e}</button>
+          <button key={e} className="wc-emoji-btn" aria-label={e} onClick={() => onSelect(e)}>{e}</button>
         ))}
       </div>
     </div>
