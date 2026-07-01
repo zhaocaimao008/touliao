@@ -27,10 +27,12 @@ exports.list = asyncHandler(async (req, res) => {
 exports.uploadMiddlewares = stickerUploader;
 exports.uploadHandle = asyncHandler(async (req, res) => {
   if (!req.file) throw badRequest('请选择图片');
-  if (countOf(req.user.id) >= MAX_STICKERS) throw badRequest(`表情已达上限 ${MAX_STICKERS} 个`);
   const url = `/uploads/stickers/${req.file.filename}`;
   const id = uuidv4();
-  db.prepare('INSERT INTO user_stickers (id,user_id,url) VALUES (?,?,?)').run(id, req.user.id, url);
+  db.transaction(() => {
+    if (countOf(req.user.id) >= MAX_STICKERS) throw badRequest(`表情已达上限 ${MAX_STICKERS} 个`);
+    db.prepare('INSERT INTO user_stickers (id,user_id,url) VALUES (?,?,?)').run(id, req.user.id, url);
+  })();
   res.json({ id, url });
 });
 
@@ -41,18 +43,21 @@ exports.collect = asyncHandler(async (req, res) => {
   const pub = getPublicBase();
   const ok = url.startsWith('/uploads/') || (pub && url.startsWith(pub + '/'));
   if (!ok) throw badRequest('图片来源不合法');
-  if (countOf(req.user.id) >= MAX_STICKERS) throw badRequest(`表情已达上限 ${MAX_STICKERS} 个`);
   if (db.prepare('SELECT 1 FROM user_stickers WHERE user_id=? AND url=?').get(req.user.id, url)) {
     return res.json({ success: true, already: true });
   }
   const id = uuidv4();
-  db.prepare('INSERT INTO user_stickers (id,user_id,url) VALUES (?,?,?)').run(id, req.user.id, url);
+  db.transaction(() => {
+    if (countOf(req.user.id) >= MAX_STICKERS) throw badRequest(`表情已达上限 ${MAX_STICKERS} 个`);
+    db.prepare('INSERT INTO user_stickers (id,user_id,url) VALUES (?,?,?)').run(id, req.user.id, url);
+  })();
   res.json({ id, url });
 });
 
 // 删除表情
 exports.remove = asyncHandler(async (req, res) => {
-  db.prepare('DELETE FROM user_stickers WHERE id=? AND user_id=?').run(req.params.id, req.user.id);
+  const r = db.prepare('DELETE FROM user_stickers WHERE id=? AND user_id=?').run(req.params.id, req.user.id);
+  if (r.changes === 0) throw notFound('表情不存在');
   res.json({ success: true });
 });
 

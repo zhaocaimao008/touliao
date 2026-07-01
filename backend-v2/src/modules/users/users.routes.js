@@ -9,6 +9,7 @@ const router = require('express').Router();
 const auth = require('../../middleware/auth');
 const config = require('../../config');
 const { makeImageUploader } = require('../../utils/upload');
+const { searchLimiter, profileUpdateLimiter } = require('../../middleware/rateLimiters');
 const u = require('./users.controller');
 const c = require('../contacts/contacts.controller');
 
@@ -83,7 +84,7 @@ router.put ('/me/settings', auth, u.updateSettings);
  *       200:
  *         description: Search results
  */
-router.get ('/search',      auth, u.search);
+router.get ('/search',      auth, searchLimiter, u.search);
 
 // ── 联系人 / 好友请求 ───────────────────────────────────────────
 
@@ -260,7 +261,7 @@ router.put ('/contacts/:contactId/remark',auth, c.setRemark);
  *       200:
  *         description: Avatar uploaded
  */
-router.post('/avatar', auth, ...uploadAvatar, u.uploadAvatar);
+router.post('/avatar', auth, profileUpdateLimiter, ...uploadAvatar, u.uploadAvatar);
 
 /**
  * @swagger
@@ -285,7 +286,7 @@ router.post('/avatar', auth, ...uploadAvatar, u.uploadAvatar);
  *       200:
  *         description: Cover uploaded
  */
-router.post('/cover',  auth, ...uploadCover,  u.uploadCover);
+router.post('/cover',  auth, profileUpdateLimiter, ...uploadCover,  u.uploadCover);
 
 /**
  * @swagger
@@ -313,7 +314,7 @@ router.post('/cover',  auth, ...uploadCover,  u.uploadCover);
  *       200:
  *         description: Profile updated
  */
-router.put ('/profile', auth, u.updateProfile);
+router.put ('/profile', auth, profileUpdateLimiter, u.updateProfile);
 
 // ── 单段通配（必须在此之后不再有单段 GET 具体路由）──────────────
 

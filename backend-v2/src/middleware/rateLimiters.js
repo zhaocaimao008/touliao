@@ -100,9 +100,49 @@ const rechargeLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
+// 用户搜索：单用户每分钟 30 次（含手机号精确查找，防穷举）
+const searchLimiter = rateLimit({
+  ...base, windowMs: 60 * 1000, max: 30,
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  message: json('搜索过于频繁，请稍后再试'),
+  validate: { xForwardedForHeader: false },
+});
+
+// 发布动态：单用户每分钟 10 次
+const createMomentLimiter = rateLimit({
+  ...base, windowMs: 60 * 1000, max: 10,
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  message: json('发动态过于频繁，请稍后再试'),
+  validate: { xForwardedForHeader: false },
+});
+
+// 朋友圈点赞/评论：单用户每分钟 20 次
+const commentLimiter = rateLimit({
+  ...base, windowMs: 60 * 1000, max: 20,
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  message: json('操作过于频繁，请稍后再试'),
+  validate: { xForwardedForHeader: false },
+});
+
+// 资料/头像/封面更新：单用户每小时 10 次
+const profileUpdateLimiter = rateLimit({
+  ...base, windowMs: 60 * 60 * 1000, max: 10,
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  message: json('资料修改过于频繁，请1小时后再试'),
+  validate: { xForwardedForHeader: false },
+});
+
+// 贴纸上传/收藏：单用户每分钟 20 次
+const stickerLimiter = rateLimit({
+  ...base, windowMs: 60 * 1000, max: 20,
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  message: json('表情操作过于频繁，请稍后再试'),
+  validate: { xForwardedForHeader: false },
+});
+
 // 测试模式:DISABLE_RATE_LIMIT=1 时所有限流变 no-op,供 e2e 自动化批量造号/发消息。
 // 生产默认不设此变量,限流照常生效。
-const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter };
+const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter };
 if (process.env.DISABLE_RATE_LIMIT === '1') {
   const noop = (req, res, next) => next();
   for (const k of Object.keys(limiters)) limiters[k] = noop;

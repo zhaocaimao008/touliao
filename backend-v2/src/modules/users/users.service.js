@@ -117,7 +117,7 @@ async function updateProfile(userId, { username, bio }) {
   }
   await cache.del(cache.keys.user(userId));
   presence.dropProfile(userId); // 刷新在线状态中的昵称缓存，避免发消息时仍用旧名字
-  return db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo FROM users WHERE id=?').get(userId);
+  return db.prepare('SELECT id,username,avatar,bio,wechat_id,cover_photo FROM users WHERE id=?').get(userId);
 }
 
 async function setAvatar(userId, url) {
@@ -169,19 +169,18 @@ function getCollections(userId, { type, limit, offset } = {}) {
   const conds = ['user_id=?'];
   const params = [userId];
   if (type && ['text', 'image', 'file', 'video'].includes(type)) { conds.push('type=?'); params.push(type); }
-  let sql = `SELECT * FROM collections WHERE ${conds.join(' AND ')} ORDER BY created_at DESC`;
-  if (limit !== undefined) {
-    const lim = Math.min(Math.max(parseInt(limit) || 0, 1), 100);
-    const off = Math.max(parseInt(offset) || 0, 0);
-    sql += ' LIMIT ? OFFSET ?';
-    params.push(lim, off);
-  }
+  const lim = Math.min(Math.max(parseInt(limit) || 100, 1), 100);
+  const off = Math.max(parseInt(offset) || 0, 0);
+  let sql = `SELECT * FROM collections WHERE ${conds.join(' AND ')} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+  params.push(lim, off);
   return db.prepare(sql).all(...params).map(i => ({ ...i, extra: JSON.parse(i.extra || '{}') }));
 }
 
 // 添加收藏（去重：同一 user + 类型 + 内容标识 不重复收藏，重复返回 409）
 // CO3：返回新建的收藏对象（保留 success 向后兼容）
 function addCollection(userId, { type, content, extra }) {
+  const userCount = db.prepare('SELECT COUNT(*) n FROM collections WHERE user_id=?').get(userId).n;
+  if (userCount >= 1000) throw badRequest('收藏已达上限 1000 条');
   const safeType    = ['text', 'image', 'file', 'video'].includes(type) ? type : 'text';
   const safeContent = (typeof content === 'string' ? content : JSON.stringify(content)).slice(0, 2000);
   const safeExtra   = extra && typeof extra === 'object' ? extra : {};

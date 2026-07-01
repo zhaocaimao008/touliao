@@ -75,8 +75,9 @@ function enrich(viewerId, m, { likeLimit = 0, commentLimit = 0 } = {}) {
   const likeCount = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(m.id).n;
   const commentCount = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(m.id).n;
   const liked = !!db.prepare('SELECT 1 FROM moment_likes WHERE moment_id=? AND user_id=?').get(m.id, viewerId);
-  const likeCap = likeLimit > 0 ? ` LIMIT ${parseInt(likeLimit, 10)}` : '';
-  const commentCap = commentLimit > 0 ? ` LIMIT ${parseInt(commentLimit, 10)}` : '';
+  const MAX_CAP = 500;
+  const likeCap = ` LIMIT ${Math.min(likeLimit > 0 ? parseInt(likeLimit, 10) : MAX_CAP, MAX_CAP)}`;
+  const commentCap = ` LIMIT ${Math.min(commentLimit > 0 ? parseInt(commentLimit, 10) : MAX_CAP, MAX_CAP)}`;
   const likes = db.prepare(
     `SELECT ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id=? ORDER BY ml.created_at${likeCap}`
   ).all(m.id);

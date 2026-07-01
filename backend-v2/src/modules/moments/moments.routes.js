@@ -5,7 +5,7 @@ const auth   = require('../../middleware/auth');
 const m      = require('./moments.controller');
 const { makeImageUploader } = require('../../utils/upload');
 const config = require('../../config');
-const { momentImageLimiter } = require('../../middleware/rateLimiters');
+const { momentImageLimiter, createMomentLimiter, commentLimiter, reactLimiter } = require('../../middleware/rateLimiters');
 const uploadMomentImages = makeImageUploader(path.join(config.uploadsRoot, 'moments'), 'images', 9, 5 * 1024 * 1024);
 
 /**
@@ -54,7 +54,7 @@ const uploadMomentImages = makeImageUploader(path.join(config.uploadsRoot, 'mome
  *         description: Moment created
  */
 router.get   ('/',                auth, m.timeline);
-router.post  ('/',                auth, m.create);
+router.post  ('/',                auth, createMomentLimiter, m.create);
 router.post  ('/images',          auth, momentImageLimiter, ...uploadMomentImages, m.uploadImages);
 
 /**
@@ -206,7 +206,7 @@ router.delete('/:id',             auth, m.remove);
  *       200:
  *         description: Like toggled
  */
-router.post  ('/:id/like',        auth, m.like);
+router.post  ('/:id/like',        auth, reactLimiter, m.like);
 
 /**
  * @swagger
@@ -236,7 +236,7 @@ router.post  ('/:id/like',        auth, m.like);
  *       200:
  *         description: Comment created
  */
-router.post  ('/:id/comment',     auth, m.comment);
+router.post  ('/:id/comment',     auth, commentLimiter, m.comment);
 
 /**
  * @swagger
