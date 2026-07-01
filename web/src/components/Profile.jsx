@@ -972,7 +972,7 @@ export default function Profile({ isMobile = false }) {
           {user?.bio && <div className="wc-me-bio">{user.bio}</div>}
         </div>
         <div className="wc-me-actions">
-          <button className="wc-me-qr-btn" onClick={e => { e.stopPropagation(); setShowQR(true); }} title="我的二维码">
+          <button className="wc-me-qr-btn" onClick={e => { e.stopPropagation(); setShowQR(true); }} title="我的二维码" aria-label="我的二维码">
             <IcoQR />
           </button>
           <ChevronRight />
