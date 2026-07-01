@@ -88,7 +88,7 @@ function buildBody(type, content) {
   switch (type) {
     case 'image':        return '[图片]';
     case 'voice':        return '[语音]';
-    case 'file':         return `[文件] ${content}`;
+    case 'file':         return `[文件] ${(content || '').slice(0, 50)}`;
     case 'location':     return '[位置]';
     case 'red_packet':   return '[红包] 恭喜发财';
     case 'contact_card': return '[名片]';

@@ -88,10 +88,13 @@ class Metrics {
   recordQueryError() {
     this.database.errors++;
     if (this.database.errors % 10 === 0) {
+      const errorRate = this.database.queries > 0
+        ? `${((this.database.errors / this.database.queries) * 100).toFixed(2)}%`
+        : 'N/A';
       logger.warn('Database Error Rate High', {
         errors: this.database.errors,
         queries: this.database.queries,
-        errorRate: `${((this.database.errors / this.database.queries) * 100).toFixed(2)}%`,
+        errorRate,
       });
     }
   }

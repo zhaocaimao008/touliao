@@ -30,6 +30,8 @@ function init() {
 
   // 吞掉错误事件，避免未捕获异常 & 日志刷屏
   client.on('error', () => { disabled = true; });
+  // 自动重连成功后恢复缓存（reconnectStrategy 重试路径不经过 connect().then）
+  client.on('ready', () => { if (disabled) { disabled = false; console.log('[Redis Cache] Reconnected, cache re-enabled'); } });
 
   initPromise = client.connect()
     .then(() => { disabled = false; console.log('[Redis Cache] Connected'); })

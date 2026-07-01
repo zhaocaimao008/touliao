@@ -1,12 +1,21 @@
 'use strict';
 /**
- * Sentry 错误追踪集成
+ * Sentry 错误追踪集成（@sentry/node v10 API）
  * 自动捕获未处理异常、性能问题、以及自定义错误事件
  */
 
 const Sentry = require('@sentry/node');
-const Tracing = require('@sentry/tracing');
 const config = require('../config');
+
+const SENSITIVE_BODY_KEYS = new Set(['password', 'oldpassword', 'newpassword', 'token', 'secret', 'code', 'totp']);
+function redactBody(body) {
+  if (!body || typeof body !== 'object') return undefined;
+  const out = {};
+  for (const [k, v] of Object.entries(body)) {
+    out[k] = SENSITIVE_BODY_KEYS.has(k.toLowerCase()) ? '***' : v;
+  }
+  return out;
+}
 
 /**
  * 初始化 Sentry
@@ -17,33 +26,18 @@ function initSentry() {
     return null;
   }
 
+  // v10 自动内置 HTTP/Express 追踪，无需手动传 integrations
   Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.nodeEnv || 'development',
     tracesSampleRate: config.sentry.tracesSampleRate || 0.1,
-    integrations: [
-      new Sentry.Integrations.Http({ tracing: true }),
-      new Tracing.Integrations.Express({
-        app: true,
-        request: true,
-        transaction: 'path', // 用路由路径作为事务名
-      }),
-    ],
     beforeSend: (event, hint) => {
-      // 过滤敏感信息
-      if (event.request && event.request.cookies) {
-        delete event.request.cookies;
-      }
-
-      // 过滤特定的错误类型
-      if (hint.originalException) {
+      if (event.request?.cookies) delete event.request.cookies;
+      if (event.request?.headers?.authorization) delete event.request.headers.authorization;
+      if (hint?.originalException) {
         const message = hint.originalException.message || '';
-        // 不发送 404 错误
-        if (message.includes('404') || message.includes('Not Found')) {
-          return null;
-        }
+        if (message.includes('404') || message.includes('Not Found')) return null;
       }
-
       return event;
     },
   });
@@ -57,13 +51,8 @@ function initSentry() {
  * @param {Express.Application} app
  */
 function attachSentryMiddleware(app) {
-  if (!config.sentry || !config.sentry.dsn) {
-    return;
-  }
-
-  // 在路由之前添加请求追踪
-  app.use(Sentry.Handlers.requestHandler());
-  app.use(Sentry.Handlers.tracingHandler());
+  // v10: 请求追踪由 Sentry.init 自动配置，无需手动挂载 Handlers.requestHandler
+  void app;
 }
 
 /**
@@ -71,12 +60,11 @@ function attachSentryMiddleware(app) {
  * @param {Express.Application} app
  */
 function attachSentryErrorHandler(app) {
-  if (!config.sentry || !config.sentry.dsn) {
-    return;
+  if (!config.sentry || !config.sentry.dsn) return;
+  // v10 API：setupExpressErrorHandler 替代 Sentry.Handlers.errorHandler()
+  if (typeof Sentry.setupExpressErrorHandler === 'function') {
+    Sentry.setupExpressErrorHandler(app);
   }
-
-  // 在路由之后添加错误处理
-  app.use(Sentry.Handlers.errorHandler());
 }
 
 /**
@@ -192,11 +180,10 @@ function capturePerformance(name, duration, metadata = {}) {
   }
 
   if (duration > 2000) {
-    // 响应时间超过 2 秒，记录为性能问题
-    Sentry.captureMessage(`Slow operation: ${name} took ${duration}ms`, 'warning', {
-      operation: name,
-      duration: duration,
-      ...metadata,
+    // v10: captureMessage 只接受 2 个参数，extra 通过 captureContext 传入
+    Sentry.captureMessage(`Slow operation: ${name} took ${duration}ms`, {
+      level: 'warning',
+      extra: { operation: name, duration, ...metadata },
     });
   }
 
@@ -226,7 +213,7 @@ function createErrorCatcherMiddleware() {
       },
       extra: {
         query: req.query,
-        body: req.body,
+        body: redactBody(req.body),
         ip: req.ip,
       },
     });

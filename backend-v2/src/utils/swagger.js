@@ -24,8 +24,8 @@ const options = {
         description: '开发环境',
       },
       {
-        url: 'https://localhost/api',
-        description: '生产环境（HTTPS）',
+        url: '/api',
+        description: '当前域（Nginx 反代）',
       },
     ],
     components: {
