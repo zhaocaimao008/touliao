@@ -67,7 +67,8 @@ function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onL
           <div className="wc-moment-images" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
             {m.images.map((src, i) => (
               <img loading="lazy" key={i} src={src} alt="" style={{ cursor: 'zoom-in' }}
-                onError={e => { e.currentTarget.style.display = 'none'; }}
+                onLoad={e => e.currentTarget.classList.add('loaded')}
+                onError={e => { e.currentTarget.classList.add('loaded'); e.currentTarget.style.display = 'none'; }}
                 onClick={() => setLightbox({ urls: m.images, idx: i })} />
             ))}
           </div>

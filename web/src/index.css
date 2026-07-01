@@ -1289,7 +1289,9 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 }
 .wc-moment-images img {
   width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-avatar);
+  opacity: 0; transition: opacity .2s ease;
 }
+.wc-moment-images img.loaded { opacity: 1; }
 .wc-moment-actions {
   display: flex; align-items: center; gap: 18px; margin-top: 4px;
 }
