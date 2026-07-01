@@ -940,6 +940,13 @@ export default function Profile({ isMobile = false }) {
   const [subPage, setSubPage] = useState(null);
   const [showQR, setShowQR] = useState(false);
 
+  useEffect(() => {
+    if (!showQR) return;
+    const handler = e => { if (e.key === 'Escape') setShowQR(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showQR]);
+
   /* ── 子页 ── */
   if (subPage === 'profile-detail') return <ProfileDetail user={user} updateUser={updateUser} onBack={() => setSubPage(null)} navigateTo={setSubPage} />;
   if (subPage === 'edit-name')     return <EditName user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;

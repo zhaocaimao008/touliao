@@ -202,6 +202,17 @@ export default function Moments() {
     return () => window.removeEventListener('vxin:moment', onMoment);
   }, [load, loadNotifCount]);
 
+  useEffect(() => {
+    const handler = e => {
+      if (e.key !== 'Escape') return;
+      if (notifList) { setNotifList(null); return; }
+      if (showFriendPicker) { setShowFriendPicker(false); return; }
+      if (showSettings) { setShowSettings(false); return; }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [notifList, showFriendPicker, showSettings]);
+
   const openNotif = async () => {
     try {
       const { data } = await axios.get('/api/moments/notifications', { params: { limit: 30 } });
@@ -354,14 +365,18 @@ export default function Moments() {
             </div>
             <div style={{ padding: '8px 0' }}>
               <div style={{ padding: '10px 18px', fontSize: 13, color: 'var(--text-secondary)' }}>允许朋友查看朋友圈的范围</div>
-              {[{ d: 0, label: '全部' }, { d: 1, label: '最近一天' }, { d: 3, label: '最近三天' }, { d: 30, label: '最近一个月' }].map(o => (
-                <div key={o.d} className="wc-moment-vis-opt"
-                  onClick={() => saveVisibleDays(o.d)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', borderTop: '1px solid var(--border-color,#eee)' }}>
-                  <span>{o.label}</span>
-                  {visibleDays === o.d && <span style={{ color: 'var(--green,#07c160)' }}>✓</span>}
-                </div>
-              ))}
+              <div role="radiogroup" aria-label="可见范围">
+                {[{ d: 0, label: '全部' }, { d: 1, label: '最近一天' }, { d: 3, label: '最近三天' }, { d: 30, label: '最近一个月' }].map(o => (
+                  <div key={o.d} className="wc-moment-vis-opt"
+                    role="radio" aria-checked={visibleDays === o.d} tabIndex={0}
+                    onClick={() => saveVisibleDays(o.d)}
+                    onKeyDown={e => e.key === 'Enter' && saveVisibleDays(o.d)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', borderTop: '1px solid var(--border-color,#eee)' }}>
+                    <span>{o.label}</span>
+                    {visibleDays === o.d && <span style={{ color: 'var(--green,#07c160)' }}>✓</span>}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -382,7 +397,9 @@ export default function Moments() {
                 const checked = visibleTo.includes(f.id);
                 return (
                   <div key={f.id} className="wc-moment-notif-item" style={{ cursor: 'pointer' }}
-                    onClick={() => toggleVisibleFriend(f.id)}>
+                    role="checkbox" tabIndex={0} aria-checked={checked}
+                    onClick={() => toggleVisibleFriend(f.id)}
+                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && toggleVisibleFriend(f.id)}>
                     <Avatar src={f.avatar} name={f.remark || f.username} size={36} />
                     <div className="wc-moment-notif-body">
                       <div className="wc-moment-notif-text">{f.remark || f.username}</div>

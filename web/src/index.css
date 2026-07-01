@@ -441,11 +441,19 @@ img { display: block; }
   flex-shrink: 0;
   box-shadow: 0 1px 0 rgba(0,0,0,.04);
 }
+.wc-header-name-container {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
 .wc-chat-header-name {
   font-size: 15px;
   font-weight: 500;
   color: var(--text-primary);
   line-height: var(--lh-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .wc-chat-header-sub {
   font-size: 11px;

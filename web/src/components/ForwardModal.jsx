@@ -21,6 +21,12 @@ export default function ForwardModal({ message, onClose }) {
     axios.get('/api/messages/my-groups').then(r => setGroups(r.data));
   }, []);
 
+  useEffect(() => {
+    const handler = e => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   const filteredFriends = useMemo(() =>
     friends.filter(f => (f.remark || f.username).toLowerCase().includes(search.toLowerCase())),
     [friends, search]

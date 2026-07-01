@@ -193,6 +193,16 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   useEffect(() => { load(); }, [conversation.id]);
 
+  useEffect(() => {
+    const handler = e => {
+      if (e.key !== 'Escape') return;
+      if (showInvite) { setShowInvite(false); return; }
+      if (showQR) { setShowQR(false); return; }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showInvite, showQR]);
+
   const myRole = info?.myRole || 'member';
   const isOwner = myRole === 'owner';
   const isAdmin = myRole === 'admin' || isOwner;

@@ -1745,16 +1745,18 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         <div className="wc-chat-header-right">
           {/* 顶栏对齐微信：去搜索/查看资料(资料点名字即可看)，仅保留通话与更多 */}
           {conversation.type === 'private' && <>
-            <button className="wc-chat-header-btn" data-testid="chat-call-audio-btn" title="语音通话" onClick={() => startCall('audio')}><IcoVoiceCall /></button>
-            <button className="wc-chat-header-btn" data-testid="chat-call-video-btn" title="视频通话" onClick={() => startCall('video')}><IcoVideoCall /></button>
+            <button className="wc-chat-header-btn" data-testid="chat-call-audio-btn" title="语音通话" aria-label="语音通话" onClick={() => startCall('audio')}><IcoVoiceCall /></button>
+            <button className="wc-chat-header-btn" data-testid="chat-call-video-btn" title="视频通话" aria-label="视频通话" onClick={() => startCall('video')}><IcoVideoCall /></button>
           </>}
           {conversation.type === 'group' && <>
-            <button className="wc-chat-header-btn" title="群语音通话" onClick={() => startGroupCall('audio')}><IcoVoiceCall /></button>
-            <button className="wc-chat-header-btn" title="群视频通话" onClick={() => startGroupCall('video')}><IcoVideoCall /></button>
+            <button className="wc-chat-header-btn" title="群语音通话" aria-label="群语音通话" onClick={() => startGroupCall('audio')}><IcoVoiceCall /></button>
+            <button className="wc-chat-header-btn" title="群视频通话" aria-label="群视频通话" onClick={() => startGroupCall('video')}><IcoVideoCall /></button>
           </>}
           <button
             className={`wc-chat-header-btn${showGroupInfo ? ' active' : ''}`}
             title={conversation.type === 'group' ? '群聊信息' : '更多'}
+            aria-label={conversation.type === 'group' ? '群聊信息' : '更多'}
+            aria-expanded={showGroupInfo}
             data-testid="chat-group-info-btn"
             onClick={() => setShowGroupInfo(v => !v)}
           ><IcoMore /></button>
@@ -2073,28 +2075,29 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         <div className="wc-input-toolbar">
           <button
             className={`wc-tool-btn${showEmoji ? ' active' : ''}`}
-            title="表情"
+            title="表情" aria-label="表情" aria-expanded={showEmoji}
             onClick={() => { setShowEmoji(v => !v); setShowMore(false); setShowStickers(false); }}
           ><IcoEmoji /></button>
 
           <button
             className={`wc-tool-btn${showStickers ? ' active' : ''}`}
-            title="表情包"
+            title="表情包" aria-label="表情包" aria-expanded={showStickers}
             onClick={() => { setShowStickers(v => !v); setShowEmoji(false); setShowMore(false); }}
           ><svg viewBox="0 0 24 24" className="wc-tool-svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h10l6-6V5c0-1.1-.9-2-2-2zM9 11c-.83 0-1.5-.67-1.5-1.5S8.17 8 9 8s1.5.67 1.5 1.5S9.83 11 9 11zm3.5 5c-2.33 0-4.31-1.46-5.11-3.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5zM15 11c-.83 0-1.5-.67-1.5-1.5S14.17 8 15 8s1.5.67 1.5 1.5S15.83 11 15 11zm-1 9.5V15h5.5L14 20.5z"/></svg></button>
 
           <button
             className={`wc-tool-btn${voiceMode ? ' active' : ''}`}
             title={voiceMode ? '切换文字' : '语音输入'}
+            aria-label={voiceMode ? '切换文字输入' : '语音输入'}
             onClick={() => setVoiceMode(v => !v)}
           ><IcoMic /></button>
 
-          <label className="wc-tool-btn wc-tool-label" title="图片">
+          <label className="wc-tool-btn wc-tool-label" title="图片" aria-label="发送图片">
             <IcoImage />
             <input type="file" data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
           </label>
 
-          <label className="wc-tool-btn wc-tool-label" title="文件">
+          <label className="wc-tool-btn wc-tool-label" title="文件" aria-label="发送文件">
             <IcoFile />
             <input
               type="file"
@@ -2111,6 +2114,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             <button
               className="wc-tool-btn"
               title="截图 (Ctrl+Alt+A)"
+              aria-label="截图"
               onClick={async () => {
                 const base64 = await import('../utils/electron').then(m => m.triggerScreenshot());
                 if (!base64) return;
@@ -2131,12 +2135,13 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
           <button
             className="wc-tool-btn"
             title="发红包"
+            aria-label="发红包"
             onClick={() => { setShowRedPacket(true); setShowMore(false); setShowEmoji(false); }}
           ><svg viewBox="0 0 24 24" style={{ width: 22, height: 22, fill: 'currentColor' }}><path d="M19 6h-2V4c0-.9-.7-1.7-1.6-1.9.4-1.2 1.5-2 2.9-2 1.7 0 3 1.3 3 3 0 .5-.1 1-.3 1.4h.9c.6 0 1.2.4 1.2 1v2c0 .6-.5 1-1.2 1zm-2 4h4v8.5c0 1-.8 1.9-1.8 1.9H2.8C1.8 20.4 1 19.5 1 18.5V6c0-.5.3-1 .8-1.4L17 4v6zM4 14c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm10 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2z"/></svg></button>
 
           <button
             className={`wc-tool-btn${showMore ? ' active' : ''}`}
-            title="更多"
+            title="更多" aria-label="更多" aria-expanded={showMore}
             onClick={() => { setShowMore(v => !v); setShowEmoji(false); }}
           ><IcoMore /></button>
         </div>
@@ -2198,11 +2203,12 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             ) : (
               <div className="wc-input-box wc-input-box-relative">
                 {atList && (
-                  <div className="wc-at-list">
+                  <div className="wc-at-list" role="listbox" aria-label="@提及成员">
                     {atList.filter(m => m.id !== user.id).map((m, i) => (
                       <div
                         key={m.id}
                         className={`wc-at-list-item${i === atIndex ? ' active' : ''}`}
+                        role="option" aria-selected={i === atIndex}
                         onClick={() => insertAtMention(m)}>
                         <Avatar src={m.avatar} name={m.username} size={22} />
                         <span>{m.username}</span>
