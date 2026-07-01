@@ -161,9 +161,9 @@ export default function ForwardModal({ message, onClose }) {
 
             {/* Tab 切换 */}
             <div className="fwd-tabs-wrap">
-              <div className="fwd-tabs">
+              <div className="fwd-tabs" role="tablist">
                 {[['friends','好友'], ['groups','群聊']].map(([key, label]) => (
-                  <button key={key} className={`fwd-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
+                  <button key={key} role="tab" aria-selected={tab === key} className={`fwd-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
                     {label} ({key === 'friends' ? filteredFriends.length : filteredGroups.length})
                   </button>
                 ))}
@@ -171,7 +171,7 @@ export default function ForwardModal({ message, onClose }) {
             </div>
 
             {/* 列表 */}
-            <div className="fwd-list">
+            <div className="fwd-list" role="tabpanel">
               {/* 全选行 */}
               {tab === 'friends' && filteredFriends.length > 0 && (
                 <div className="fwd-select-all" role="button" tabIndex={0} onClick={selectAllFriends} onKeyDown={e => e.key === 'Enter' && selectAllFriends()}>

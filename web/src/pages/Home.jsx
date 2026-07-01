@@ -859,11 +859,12 @@ export default function Home() {
               </div>
             </div>
 
-            <nav className="m-tabbar">
+            <nav className="m-tabbar" aria-label="主导航">
               {mobileTabs.map(({ key, Icon, label }) => {
                 const count = badges[key] || 0;
                 return (
                   <button key={key} data-testid={`nav-tab-${key}`} className={`m-tab${tab === key ? ' active' : ''}`}
+                    role="tab" aria-selected={tab === key} aria-label={label}
                     onClick={() => handleTabChange(key)}>
                     <span className="m-tab-ico"><Icon /></span>
                     <span className="m-tab-label">{label}</span>
@@ -886,7 +887,7 @@ export default function Home() {
       <div className="wc-sidebar">
         <AccountSwitcher />
         {/* Tab 按钮紧跟头像，不用 spacer 下推，防止小屏被裁切 */}
-        <div className="wc-sidebar-btns">
+        <div className="wc-sidebar-btns" role="tablist" aria-label="主导航">
           {visibleTabs(features).map(({ key, Icon, label }) => {
             const count = badges[key] || 0;
             return (
@@ -894,7 +895,7 @@ export default function Home() {
                 data-testid={`nav-tab-${key}`}
                 className={`wc-sidebar-btn${tab === key ? ' active' : ''}`}
                 onClick={() => handleTabChange(key)} title={label}
-                role="tab" tabIndex={0}
+                role="tab" tabIndex={0} aria-selected={tab === key} aria-label={label}
                 onKeyDown={e => e.key === 'Enter' && handleTabChange(key)}>
                 <div className="icon"><Icon /></div>
                 <span className="wc-sidebar-label">{label}</span>
