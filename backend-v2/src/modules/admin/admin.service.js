@@ -108,7 +108,8 @@ function setBanned(io, id, banned) {
 
 // ── 重置密码 ────────────────────────────────────────────────────
 async function resetPassword(io, id, newPassword) {
-  if (typeof newPassword !== 'string' || newPassword.length < 6) throw badRequest('新密码至少6位');
+  if (typeof newPassword !== 'string' || !/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword))
+    throw badRequest('新密码至少8位，且须包含字母和数字');
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
   if (!user) throw notFound('用户不存在');
   const hash = await bcrypt.hash(newPassword, 12);

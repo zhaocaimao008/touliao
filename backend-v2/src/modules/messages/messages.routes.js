@@ -13,7 +13,7 @@
  */
 const router = require('express').Router();
 const auth = require('../../middleware/auth');
-const { sendMsgLimiter, reactLimiter, chunkInitLimiter, chunkUploadLimiter } = require('../../middleware/rateLimiters');
+const { sendMsgLimiter, reactLimiter, chunkInitLimiter, chunkUploadLimiter, joinGroupLimiter } = require('../../middleware/rateLimiters');
 
 const conv = require('../conversations/conversations.controller');
 const msg  = require('./messages.controller');
@@ -228,7 +228,7 @@ router.put ('/conversation/:convId/nickname',    auth, grp.setNickname);
  *       200:
  *         description: Invite link created
  */
-router.post('/conversation/:convId/invite-link', auth, grp.createInviteLink);
+router.post('/conversation/:convId/invite-link', auth, reactLimiter, grp.createInviteLink);
 
 /**
  * @swagger
@@ -270,7 +270,7 @@ router.get ('/conversation/:convId/qr-code',     auth, grp.qrCode);
  *       200:
  *         description: Joined group successfully
  */
-router.post('/join/:token',                      auth, grp.join);
+router.post('/join/:token',                      auth, joinGroupLimiter, grp.join);
 
 // ── 断线补拉 ────────────────────────────────────────────────────
 
