@@ -24,8 +24,10 @@ function deleteContact(userId, contactId) {
 }
 
 function setRemark(userId, contactId, remark) {
-  if (remark && remark.length > 20) throw badRequest('备注最长 20 个字符');
-  db.prepare('UPDATE contacts SET remark=? WHERE user_id=? AND contact_id=?').run(remark || '', userId, contactId);
+  const safeRemark = typeof remark === 'string' ? remark.trim() : '';
+  if (safeRemark.length > 20) throw badRequest('备注最长 20 个字符');
+  const r = db.prepare('UPDATE contacts SET remark=? WHERE user_id=? AND contact_id=?').run(safeRemark, userId, contactId);
+  if (r.changes === 0) throw notFound('联系人不存在');
 }
 
 // ── 好友请求 ────────────────────────────────────────────────────

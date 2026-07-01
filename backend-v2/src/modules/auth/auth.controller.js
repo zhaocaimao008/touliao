@@ -123,6 +123,12 @@ exports.deleteAccount = asyncHandler(async (req, res) => {
   const { password } = req.body || {};
   if (!password) throw badRequest('请输入密码确认注销');
   await svc.deleteAccount(req.user.id, password);
+  // 黑名单化当前 token，防止注销后 Bearer token 仍可调用 API
+  if (req.token) {
+    const { addToBlacklist } = require('../../utils/tokenBlacklist');
+    const payload = jwt.decode(req.token);
+    if (payload?.exp) await addToBlacklist(req.token, payload.exp).catch(() => {});
+  }
   res.clearCookie(config.cookieName, { path: '/' });
   res.clearCookie(config.csrfCookie, { path: '/' });
   res.json({ success: true });
