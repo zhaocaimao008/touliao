@@ -80,6 +80,7 @@ function getConfig() {
 }
 
 async function getPresignedPutUrl(key, contentType) {
+  if (!isConfigured()) throw new Error('云存储未配置，请先设置 CLOUD_PROVIDER 及对应环境变量');
   const { client, bucket, publicBase } = getConfig();
   const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
   const uploadUrl = await getSignedUrl(client, cmd, { expiresIn: 600 });
@@ -87,6 +88,7 @@ async function getPresignedPutUrl(key, contentType) {
 }
 
 async function uploadFile(key, buffer, contentType) {
+  if (!isConfigured()) throw new Error('云存储未配置，请先设置 CLOUD_PROVIDER 及对应环境变量');
   const { client, bucket, publicBase } = getConfig();
   await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: contentType }));
   return `${publicBase}/${key}`;

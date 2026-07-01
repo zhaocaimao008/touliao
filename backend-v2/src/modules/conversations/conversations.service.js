@@ -88,15 +88,27 @@ function createGroup(io, ownerId, { name, memberIds }) {
   );
   const validMemberIds = memberIds.filter(id => validSet.has(id));
 
+  // BUG-2: 限制每人最多创建 1000 个群
+  const userGroupCount = db.prepare(
+    "SELECT COUNT(*) AS n FROM conversation_members cm JOIN conversations c ON c.id=cm.conversation_id AND c.type='group' WHERE cm.user_id=?"
+  ).get(ownerId).n;
+  if (userGroupCount >= 1000) throw badRequest('已达最大群数量上限 1000 个');
+
   const id = uuidv4();
   const groupNumber = generateGroupNumber();
   const addMember = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)');
-  db.transaction(() => {
-    db.prepare('INSERT INTO conversations (id,type,name,owner_id,group_number) VALUES (?,?,?,?,?)')
-      .run(id, 'group', name, ownerId, groupNumber);
-    db.prepare('INSERT INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)').run(id, ownerId, 'owner');
-    validMemberIds.forEach(uid => addMember.run(id, uid, 'member'));
-  })();
+  // BUG-4: 捕获 group_number 唯一约束冲突（并发创建竞争）
+  try {
+    db.transaction(() => {
+      db.prepare('INSERT INTO conversations (id,type,name,owner_id,group_number) VALUES (?,?,?,?,?)')
+        .run(id, 'group', name, ownerId, groupNumber);
+      db.prepare('INSERT INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)').run(id, ownerId, 'owner');
+      validMemberIds.forEach(uid => addMember.run(id, uid, 'member'));
+    })();
+  } catch (e) {
+    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') throw badRequest('群号生成冲突，请重试');
+    throw e;
+  }
 
   if (io) {
     const conv = { id, type: 'group', name, avatar: '', pinned: 0, muted: 0, group_number: groupNumber };
@@ -259,7 +271,7 @@ function myGroups(userId) {
       (SELECT COUNT(*) FROM conversation_members WHERE conversation_id=c.id) as memberCount
     FROM conversations c
     JOIN conversation_members cm ON cm.conversation_id=c.id AND cm.user_id=?
-    WHERE c.type='group' ORDER BY c.created_at DESC
+    WHERE c.type='group' ORDER BY c.created_at DESC LIMIT 1000
   `).all(userId);
 }
 

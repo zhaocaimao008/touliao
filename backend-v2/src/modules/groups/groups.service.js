@@ -277,10 +277,12 @@ function pinMessage(io, convId, userId, msgId) {
   if (role === 'member') throw forbidden('仅群主和管理员可置顶消息');
   const msg = db.prepare('SELECT id,type,content,sender_id FROM messages WHERE id=? AND conversation_id=?').get(msgId, convId);
   if (!msg) throw notFound('消息不存在');
-  const pinCount = db.prepare('SELECT COUNT(*) AS n FROM pinned_messages WHERE conversation_id=?').get(convId).n;
-  if (pinCount >= 20) throw badRequest('置顶消息已达上限 20 条，请先取消置顶');
-  db.prepare('INSERT OR REPLACE INTO pinned_messages (id,conversation_id,message_id,pinned_by) VALUES (?,?,?,?)')
-    .run(uuidv4(), convId, msgId, userId);
+  db.transaction(() => {
+    const pinCount = db.prepare('SELECT COUNT(*) AS n FROM pinned_messages WHERE conversation_id=?').get(convId).n;
+    if (pinCount >= 20) throw badRequest('置顶消息已达上限 20 条，请先取消置顶');
+    db.prepare('INSERT OR REPLACE INTO pinned_messages (id,conversation_id,message_id,pinned_by) VALUES (?,?,?,?)')
+      .run(uuidv4(), convId, msgId, userId);
+  })();
   const pinner = db.prepare('SELECT username FROM users WHERE id=?').get(userId);
   if (io) io.to(convId).emit('message_pinned', { msgId, convId, pinnedBy: pinner?.username, content: msg.content, type: msg.type });
 }
