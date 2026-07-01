@@ -85,8 +85,8 @@ function joinByToken(io, userId, token) {
 function updateInfo(io, convId, userId, { name, announcement }) {
   if (name !== undefined && (typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 50))
     throw badRequest('群名称长度为 1-50 字符');
-  if (announcement !== undefined && typeof announcement === 'string' && announcement.length > 1000)
-    throw badRequest('群公告最多 1000 字');
+  if (announcement !== undefined && (typeof announcement !== 'string' || announcement.length > 1000))
+    throw badRequest('群公告须为字符串且最多 1000 字');
 
   const conv = db.prepare('SELECT * FROM conversations WHERE id=? AND type=?').get(convId, 'group');
   if (!conv) throw notFound('群不存在');
@@ -171,7 +171,8 @@ function leave(io, convId, userId) {
   const conv = db.prepare('SELECT owner_id FROM conversations WHERE id=?').get(convId);
   if (!conv) throw notFound('群不存在');
   if (conv.owner_id === userId) throw badRequest('群主不能直接退出群聊，请先转让群主后再退出，或解散群聊');
-  db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, userId);
+  const result = db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, userId);
+  if (result.changes === 0) throw forbidden('您不在此群中');
   if (io) {
     io.in(`user_${userId}`).socketsLeave(convId);
     io.to(convId).emit('group_updated', { id: convId });
@@ -186,8 +187,9 @@ function dissolve(io, convId, userId) {
   if (conv.owner_id !== userId) throw forbidden('仅群主可解散群聊');
   purgeConversation(convId);
   if (io) {
-    io.in(convId).socketsLeave(convId);
+    // 先广播再离开：emit 之后才 socketsLeave，否则房间已空事件送达 0 人
     io.to(convId).emit('group_dismissed', { conversationId: convId });
+    io.in(convId).socketsLeave(convId);
   }
 }
 
@@ -288,10 +290,12 @@ function pinMessage(io, convId, userId, msgId) {
 }
 
 function unpinMessage(io, convId, userId, msgId) {
+  if (!msgId) throw badRequest('参数缺失');
   requireMember(convId, userId, '不在会话中');
   const role = memberRole(convId, userId);
   if (role === 'member') throw forbidden('仅群主和管理员可取消置顶');
-  db.prepare('DELETE FROM pinned_messages WHERE conversation_id=? AND message_id=?').run(convId, msgId);
+  const r = db.prepare('DELETE FROM pinned_messages WHERE conversation_id=? AND message_id=?').run(convId, msgId);
+  if (r.changes === 0) throw notFound('该消息未被置顶');
   if (io) io.to(convId).emit('message_unpinned', { msgId, convId });
 }
 
