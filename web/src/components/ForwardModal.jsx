@@ -219,7 +219,7 @@ export default function ForwardModal({ message, onClose }) {
                   onClick={forward}
                   disabled={selected.size === 0 || sending}
                 >
-                  {sending ? '发送中...' : `发送${selected.size > 0 ? `（${selected.size}）` : ''}`}
+                  {sending ? '发送中…' : `发送${selected.size > 0 ? `（${selected.size}）` : ''}`}
                 </button>
               </div>
             </div>

@@ -1888,7 +1888,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
           } : undefined}
         >
           {loadingMore && (
-            <div className="wc-search-status" role="status" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, background: 'rgba(245,245,245,.92)', textAlign: 'center', padding: '6px 0', fontSize: 12 }}>加载中...</div>
+            <div className="wc-search-status" role="status" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, background: 'rgba(245,245,245,.92)', textAlign: 'center', padding: '6px 0', fontSize: 12 }}>加载中…</div>
           )}
           <VirtualMessageList
             ref={virtListRef}

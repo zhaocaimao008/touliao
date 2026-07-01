@@ -446,7 +446,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
           </div>
           <button onClick={saveLabel} disabled={saving || !nameInput.trim()}
             style={{ marginTop: 16, width: '100%', padding: '12px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, cursor: 'pointer' }}>
-            {saving ? '保存中...' : '保存'}
+            {saving ? '保存中…' : '保存'}
           </button>
         </div>
       </>

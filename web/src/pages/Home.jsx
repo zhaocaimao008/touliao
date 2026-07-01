@@ -275,7 +275,7 @@ function AccountSwitcher() {
                 {err && <div className="wc-add-form-error" role="alert">{err}</div>}
                 <button type="submit" disabled={submitting}
                   className="wc-add-form-submit" data-testid="account-add-submit">
-                  {submitting ? '登录中...' : (switchTarget ? '登录并切换' : '登录并添加')}
+                  {submitting ? '登录中…' : (switchTarget ? '登录并切换' : '登录并添加')}
                 </button>
               </form>
             </div>

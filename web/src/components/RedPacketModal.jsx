@@ -70,7 +70,7 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
           <button onClick={onClose} className="rpm-btn-cancel">取消</button>
           <button onClick={send} disabled={!canSend || sending} className="rpm-btn-send"
             style={{ background: canSend && !sending ? 'var(--green)' : 'rgba(7,193,96,.4)', cursor: canSend && !sending ? 'pointer' : 'not-allowed' }}>
-            {sending ? '发送中...' : '确认发送'}
+            {sending ? '发送中…' : '确认发送'}
           </button>
         </div>
       </div>

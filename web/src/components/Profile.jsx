@@ -380,7 +380,7 @@ function DeviceList({ onBack }) {
       <PageHeader title="设备管理" onBack={onBack} />
       <div className="wc-device-pad">
         {loading ? (
-          <div className="wc-loading">加载中...</div>
+          <div className="wc-loading">加载中…</div>
         ) : (
           <Card>
             {sessions.length === 0
@@ -650,7 +650,7 @@ function DeleteAccount({ onBack, logout }) {
           style={{ background: 'var(--color-badge)', width: '100%' }}
           onClick={handleDelete}
           disabled={loading}>
-          {loading ? '注销中...' : '确认注销账号'}
+          {loading ? '注销中…' : '确认注销账号'}
         </button>
       </div>
     </PageBg>
@@ -735,7 +735,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
               className="wc-add-form-input" />
             {error && <div className="wc-add-form-error">{error}</div>}
             <button type="submit" disabled={loading} className="wc-add-form-submit">
-              {loading ? '登录中...' : '登录并切换'}
+              {loading ? '登录中…' : '登录并切换'}
             </button>
           </form>
         </div>
@@ -873,10 +873,10 @@ function ServerSettings({ onBack }) {
       </div>
       <div className="wc-server-btn-row">
         <button onClick={testConn} disabled={testing} className="wc-btn-test">
-          {testing ? '检测中...' : '测试连接'}
+          {testing ? '检测中…' : '测试连接'}
         </button>
         <button onClick={handleSave} disabled={saving || !input.trim().startsWith('http')} className="wc-btn-save">
-          {saving ? '切换中...' : '保存并切换'}
+          {saving ? '切换中…' : '保存并切换'}
         </button>
       </div>
       <div className="wc-server-hint">
