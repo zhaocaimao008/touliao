@@ -99,6 +99,8 @@ process.on('uncaughtException', e => {
   console.error('[dbWorker] uncaughtException:', e.message, e.stack);
   if (_terminating) return;
   _terminating = true;
-  try { if (queue.length > 0) flush(); } catch {}
+  // 用 while 循环直接 flushBatch，而非 flush()（flush 通过 setImmediate 递归，
+  // 在 process.exit 之前不会再执行事件循环）
+  try { while (queue.length > 0) flushBatch(queue.splice(0, MAX_BATCH)); } catch {}
   process.exit(1);
 });

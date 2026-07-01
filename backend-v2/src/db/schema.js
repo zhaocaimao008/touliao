@@ -444,7 +444,15 @@ function applySchema(db) {
     // friend_requests: 防止应用层 SELECT+INSERT 竞态产生重复 pending 行（DB 级兜底）
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_friend_req_unique_pending ON friend_requests(from_id, to_id) WHERE status='pending'",
   ];
-  migrations.forEach(sql => { try { db.prepare(sql).run(); } catch {} });
+  migrations.forEach(sql => {
+    try { db.prepare(sql).run(); }
+    catch (e) {
+      // 幂等：仅忽略"列/表/索引已存在"错误，其余错误记录日志
+      if (!e.message.includes('already exists') && !e.message.includes('duplicate column name')) {
+        console.error('[db] Migration failed:', sql.slice(0, 120), '|', e.message);
+      }
+    }
+  });
 }
 
 // ── FTS5 trigram 全文索引 + 同步触发器 ───────────────────────────

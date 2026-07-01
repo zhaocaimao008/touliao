@@ -49,6 +49,10 @@ function createWorker() {
         const handler = _pending.get(id);
         if (handler) { _pending.delete(id); handler(err); }
       }
+    } else if (msg.type === 'overload') {
+      // Worker 端队列已饱和，标记过载状态以触发主线程背压
+      if (!_overloaded) { _overloaded = true; backpressure.overloadedEnters++; }
+      console.warn('[dbWriter] Worker queue overloaded, depth=%d', msg.depth);
     }
   });
 
@@ -67,7 +71,11 @@ function createWorker() {
       worker = createWorker();
       isRestarting = false;
       const backlog = retryQueue.splice(0);
-      for (const msg of backlog) { try { worker.postMessage(msg); } catch {} }
+      for (const msg of backlog) {
+        // 重新注册到 _pendingOps，防止二次崩溃时 Promise 永久悬挂
+        if (msg.reqId != null) _pendingOps.set(msg.reqId, msg);
+        try { worker.postMessage(msg); } catch {}
+      }
       console.info('[dbWriter] Worker restarted, flushed %d buffered ops', backlog.length);
     }, RESTART_DELAY);
   });

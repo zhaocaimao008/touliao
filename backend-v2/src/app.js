@@ -82,7 +82,10 @@ app.use('/uploads', (req, res, next) => {
   isBlacklisted(token).then(blacklisted => {
     if (blacklisted) return res.status(401).json({ error: '登录已失效，请重新登录' });
     next();
-  }).catch(() => next());
+  }).catch(err => {
+    console.error('[uploads] blacklist check error:', err.message);
+    res.status(503).json({ error: '认证服务暂时不可用' });
+  });
 }, express.static(config.uploadsRoot));
 app.use('/downloads', express.static(path.join(__dirname, '../../downloads'), {
   setHeaders: (res, filePath) => {
