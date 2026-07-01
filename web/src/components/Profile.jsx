@@ -436,6 +436,7 @@ function AppearanceSettings({ onBack }) {
           ].map(({ label, dark, emoji, bg, border, textColor }) => (
             <button key={label} type="button"
               className="wc-appearance-btn"
+              aria-pressed={darkMode === dark}
               style={{
                 background: bg,
                 border: `2.5px solid ${darkMode === dark ? 'var(--green)' : border}`,
@@ -455,6 +456,7 @@ function AppearanceSettings({ onBack }) {
             {FONT_OPTIONS.map(({ key, label, size }) => (
               <button key={key} type="button"
                 className={`wc-font-btn${fontSize === key ? ' active' : ''}`}
+                aria-pressed={fontSize === key}
                 onClick={() => setFontSize(key)}>
                 <span className="wc-font-preview" style={{ fontSize: size }}>A</span>
                 <span className="wc-font-label">{label}</span>
