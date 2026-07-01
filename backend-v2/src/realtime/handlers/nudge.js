@@ -34,12 +34,14 @@ module.exports = function registerNudgeHandler(io, socket) {
       if (!conversationId) { ack?.({ success: false, error: '参数缺失' }); return; }
 
       // 冷却（cache 跨进程共享，防 PM2 cluster 模式绕过）
+      // 先抢占写入冷却 key，消除 get→validate→set 的 TOCTOU 竞态
       const cdKey = `nudge:cd:${userId}`;
-      const lastTs = await cache.get(cdKey);
       const now = Date.now();
+      const lastTs = await cache.get(cdKey);
       if (lastTs && now - parseInt(lastTs) < COOLDOWN_MS) {
         ack?.({ success: false, error: '操作过于频繁' }); return;
       }
+      await cache.set(cdKey, String(now), COOLDOWN_S);
 
       // 发起者必须是会话成员
       const me = readDb.prepare('SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?')
@@ -62,8 +64,6 @@ module.exports = function registerNudgeHandler(io, socket) {
       const targetIsMember = readDb.prepare('SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?')
         .get(conversationId, target);
       if (!targetIsMember) { ack?.({ success: false, error: '对象不在会话内' }); return; }
-
-      await cache.set(cdKey, String(now), COOLDOWN_S);
 
       const id = uuidv4();
       const created_at = Math.floor(now / 1000);

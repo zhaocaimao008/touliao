@@ -48,11 +48,12 @@ function scheduleCallTimeout(key) {
 /**
  * 清理指定用户涉及的全部通话记录（disconnect / 异常时调用）
  */
-function cleanupUserCalls(userId) {
+function cleanupUserCalls(io, userId) {
   for (const [k, c] of activeCalls) {
     const [a, b] = k.split('>');
     if (a === userId || b === userId) {
       if (c.timer) clearTimeout(c.timer);
+      const otherId = a === userId ? b : a;
       try {
         const end = nowSec();
         if (c.answeredAt) {
@@ -64,6 +65,8 @@ function cleanupUserCalls(userId) {
           db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(end, c.id);
         }
         // 被叫断线且未接通 → 保留 missed 状态
+        // 通知对方通话已因断线结束，避免对方 UI 永久卡住
+        io.to(`user_${otherId}`).emit('call:end', { from: userId, reason: 'disconnected' });
       } catch (e) { console.warn('[call] disconnect 落库失败:', e.message); }
       activeCalls.delete(k);
     }
@@ -98,9 +101,17 @@ module.exports = function registerCallHandler(io, socket) {
     const old = activeCalls.get(key);
     if (old) {
       if (old.timer) clearTimeout(old.timer);
-      if (!old.answeredAt) {
-        try { db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(nowSec(), old.id); } catch {}
-      }
+      try {
+        const endNow = nowSec();
+        if (old.answeredAt) {
+          // 已接通的通话被新呼叫覆盖 → 标记 completed 并通知被叫结束
+          db.prepare("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?")
+            .run(endNow, Math.max(0, endNow - old.answeredAt), old.id);
+          io.to(`user_${to}`).emit('call:end', { from: userId, reason: 'replaced' });
+        } else {
+          db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(endNow, old.id);
+        }
+      } catch {}
     }
     const timer = scheduleCallTimeout(key);
     activeCalls.set(key, { id, answeredAt: null, timer });
@@ -166,6 +177,6 @@ module.exports = function registerCallHandler(io, socket) {
 
   // ── 断线清理（fix: 网络闪断时不走 call:end，需主动释放所有资源）──
   socket.on('disconnect', () => {
-    cleanupUserCalls(userId);
+    cleanupUserCalls(io, userId);
   });
 };

@@ -20,15 +20,13 @@ function handleMentions(io, userId, conversationId, content, msgId) {
   if (mentioned.length === 0) return;
 
   const uniqueNames = [...new Set(mentioned)];
-  const memberIds = readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?')
-    .all(conversationId).map(m => m.user_id);
-  if (memberIds.length === 0) return;
 
+  // 用 JOIN 替代 IN(memberIds)，避免超大群触发 SQLite SQLITE_MAX_VARIABLE_NUMBER 限制
   const matched = readDb.prepare(
-    `SELECT id, username FROM users
-     WHERE username IN (${uniqueNames.map(() => '?').join(',')})
-       AND id IN (${memberIds.map(() => '?').join(',')})`
-  ).all(...uniqueNames, ...memberIds);
+    `SELECT u.id, u.username FROM users u
+     JOIN conversation_members cm ON cm.user_id=u.id AND cm.conversation_id=?
+     WHERE u.username IN (${uniqueNames.map(() => '?').join(',')})`
+  ).all(conversationId, ...uniqueNames);
 
   const groupName = readDb.prepare('SELECT name FROM conversations WHERE id=?').get(conversationId)?.name || '群聊';
   const preview = content.length > 50 ? content.slice(0, 50) + '…' : content;
