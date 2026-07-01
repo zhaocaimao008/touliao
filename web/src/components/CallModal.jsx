@@ -585,7 +585,7 @@ export default function CallModal({ socket, call, onClose }) {
           </div>
 
           <div style={{ fontSize: 14, marginTop: 10, color: 'rgba(255,255,255,.7)', minHeight: 20 }}>
-            {status === 'connected' ? <span style={{ color: '#07C160' }}>{timer}</span> :
+            {status === 'connected' ? <span style={{ color: 'var(--green)' }}>{timer}</span> :
              status === 'incoming'  ? '语音通话' :
              status === 'calling'   ? '等待对方接听…' :
              status === 'ended'     ? (END_TEXT[endReason] || '通话已结束') :
