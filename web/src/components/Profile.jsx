@@ -310,6 +310,7 @@ function Wallet({ onBack }) {
             <input
               type="number" min="1" max="100000"
               placeholder="充值金币数量（1-100000）"
+              aria-label="充值金币数量"
               value={rechargeInput}
               onChange={e => { setRechargeInput(e.target.value); setError(''); }}
               className="wc-server-input"
