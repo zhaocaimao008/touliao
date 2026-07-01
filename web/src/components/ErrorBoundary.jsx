@@ -96,19 +96,19 @@ export default class ErrorBoundary extends React.Component {
 const styles = {
   page: {
     minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: '#f5f5f5', padding: 24, boxSizing: 'border-box',
+    background: 'var(--bg-secondary, #f5f5f5)', padding: 24, boxSizing: 'border-box',
     fontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif",
   },
   card: {
-    width: 420, maxWidth: '100%', background: '#fff', borderRadius: 16, padding: '40px 32px',
+    width: 420, maxWidth: '100%', background: 'var(--bg-panel, #fff)', borderRadius: 16, padding: '40px 32px',
     textAlign: 'center', boxShadow: '0 8px 40px rgba(0,0,0,.08)',
   },
   icon: { fontSize: 56, lineHeight: 1, marginBottom: 16 },
-  title: { fontSize: 20, fontWeight: 600, color: '#1a1a1a', margin: '0 0 10px' },
-  desc: { fontSize: 14, color: '#666', lineHeight: 1.6, margin: '0 0 18px' },
+  title: { fontSize: 20, fontWeight: 600, color: 'var(--text-primary, #1a1a1a)', margin: '0 0 10px' },
+  desc: { fontSize: 14, color: 'var(--text-secondary, #666)', lineHeight: 1.6, margin: '0 0 18px' },
   errBox: {
-    textAlign: 'left', fontSize: 12, color: '#c0392b', background: '#fdf0ef',
-    border: '1px solid #f5d5d2', borderRadius: 8, padding: '10px 12px', margin: '0 0 20px',
+    textAlign: 'left', fontSize: 12, color: 'var(--color-badge, #FA5151)', background: 'var(--bg-secondary, #fdf0ef)',
+    border: '1px solid var(--border-color, #f5d5d2)', borderRadius: 8, padding: '10px 12px', margin: '0 0 20px',
     whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 120, overflow: 'auto',
   },
   btnRow: { display: 'flex', gap: 12, justifyContent: 'center' },
@@ -116,7 +116,7 @@ const styles = {
     padding: '10px 22px', borderRadius: 10, fontSize: 14, fontWeight: 500,
     cursor: 'pointer', border: 'none', transition: 'opacity .15s',
   },
-  btnPrimary: { background: 'var(--green)', color: '#fff' },
-  btnGhost: { background: '#f0f0f0', color: '#333' },
-  hint: { fontSize: 12, color: '#aaa', margin: '18px 0 0' },
+  btnPrimary: { background: 'var(--green)', color: 'var(--text-inverse, #fff)' },
+  btnGhost: { background: 'var(--bg-hover, #f0f0f0)', color: 'var(--text-primary, #333)' },
+  hint: { fontSize: 12, color: 'var(--text-tertiary, #aaa)', margin: '18px 0 0' },
 };
