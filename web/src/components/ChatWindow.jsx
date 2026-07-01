@@ -2277,7 +2277,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             }}>
             <div className="wc-ctx-emoji-row">
               {REACTIONS.map(e => (
-                <span key={e} className="wc-ctx-emoji" onClick={() => ctxAction(`react:${e}`)}>{e}</span>
+                <span key={e} className="wc-ctx-emoji" role="button" tabIndex={0} aria-label={`回应 ${e}`} onClick={() => ctxAction(`react:${e}`)} onKeyDown={ev => ev.key === 'Enter' && ctxAction(`react:${e}`)}>{e}</span>
               ))}
             </div>
             <div className="wc-ctx-divider" />
