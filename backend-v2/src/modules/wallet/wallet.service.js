@@ -27,10 +27,12 @@ function getBalance(userId) {
  */
 function applyDeltaTx(userId, delta, type, refId = null, memo = '') {
   db.prepare('INSERT OR IGNORE INTO wallets (user_id, balance) VALUES (?, 0)').run(userId);
-  const { balance } = db.prepare('SELECT balance FROM wallets WHERE user_id=?').get(userId);
-  const after = balance + delta;
-  if (after < 0) throw badRequest('余额不足，请先充值', 'WALLET_INSUFFICIENT');
-  db.prepare('UPDATE wallets SET balance=?, updated_at=? WHERE user_id=?').run(after, nowSec(), userId);
+  // 原子 CAS UPDATE：balance+delta>=0 才执行，避免读-判-写 TOCTOU（多进程 WAL 下并发双扣）
+  const res = db.prepare(
+    'UPDATE wallets SET balance=balance+?, updated_at=? WHERE user_id=? AND balance+?>=0'
+  ).run(delta, nowSec(), userId, delta);
+  if (res.changes === 0) throw badRequest('余额不足，请先充值', 'WALLET_INSUFFICIENT');
+  const { balance: after } = db.prepare('SELECT balance FROM wallets WHERE user_id=?').get(userId);
   db.prepare(
     'INSERT INTO wallet_transactions (id,user_id,amount,balance_after,type,ref_id,memo) VALUES (?,?,?,?,?,?,?)'
   ).run(uuidv4(), userId, delta, after, type, refId, memo);

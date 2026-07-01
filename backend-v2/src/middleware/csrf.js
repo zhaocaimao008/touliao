@@ -24,10 +24,10 @@ module.exports = function csrfProtection(req, res, next) {
   if (req.headers['authorization']?.startsWith('Bearer ')) return next();
 
   const cookieToken = req.cookies?.[config.csrfCookie];
-  if (!cookieToken) return next();
-
   const headerToken = req.headers['x-csrf-token'];
-  if (!headerToken || headerToken !== cookieToken) {
+  // 两者皆无 = 尚未鉴权，放行交给 auth 处理 401
+  if (!cookieToken && !headerToken) return next();
+  if (!cookieToken || !headerToken || headerToken !== cookieToken) {
     return res.status(403).json({ error: 'CSRF token 无效或缺失' });
   }
   next();

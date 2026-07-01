@@ -40,6 +40,8 @@ const BLOCKED_EXTENSIONS = new Set([
   '.htaccess', '.htpasswd', '.jar', '.war', '.ear',
   '.msi', '.apk', '.ipa', '.deb', '.rpm',
   '.py', '.rb', '.pl', '.lua', '.cgi',
+  // 可被浏览器渲染/执行的标记语言
+  '.html', '.htm', '.xhtml', '.svg', '.svgz', '.xml',
 ]);
 
 const MIME_TO_EXT = {
@@ -74,13 +76,15 @@ async function verifyMagicBytes(filePath, allowedMimes, claimedMime = '') {
 
     const detected = await fileType.fromBuffer(buf.slice(0, bytesRead));
     if (!detected) {
-      // 声明为二进制媒体类型(图片/音视频)却无法识别真实魔数 → 内容与声明不符，拒绝
-      // （防止文本/脚本伪装成 image/png 等绕过校验被存为媒体消息）
+      // 无法识别魔数：声明为媒体类型则拒绝
       if (/^(image|video|audio)\//.test(claimedMime)) {
         return { ok: false, reason: `声明为 ${claimedMime} 但文件内容非该类型` };
       }
-      if (allowedMimes.has('text/plain')) return { ok: true, mime: 'text/plain' };
-      return { ok: false, reason: '无法识别文件类型（可能为可执行文件或未知格式）' };
+      // 只有显式声明为 text/plain 且白名单包含 text/plain 时才允许（HTML/SVG/XML 均无魔数，防止绕过）
+      if (allowedMimes.has('text/plain') && claimedMime === 'text/plain') {
+        return { ok: true, mime: 'text/plain' };
+      }
+      return { ok: false, reason: '无法识别文件类型（可能为可执行文件或脚本）' };
     }
     if (!allowedMimes.has(detected.mime)) {
       return { ok: false, reason: `文件真实类型为 ${detected.mime}，不在允许范围内` };

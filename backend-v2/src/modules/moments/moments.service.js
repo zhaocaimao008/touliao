@@ -123,14 +123,16 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
     .forEach(r => likedSet.add(r.moment_id));
 
   const likesMap = new Map(ids.map(id => [id, []]));
-  db.prepare(`SELECT ml.moment_id, ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id IN (${ph}) ORDER BY ml.moment_id, ml.created_at`).all(...ids)
+  const maxLikes = (likeLimit || 10) * ids.length;
+  db.prepare(`SELECT ml.moment_id, ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id IN (${ph}) ORDER BY ml.moment_id, ml.created_at LIMIT ?`).all(...ids, maxLikes)
     .forEach(r => {
       const arr = likesMap.get(r.moment_id);
       if (!likeLimit || arr.length < likeLimit) arr.push({ user_id: r.user_id, username: r.username });
     });
 
   const commentsMap = new Map(ids.map(id => [id, []]));
-  db.prepare(`SELECT mc.moment_id, mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id IN (${ph}) ORDER BY mc.moment_id, mc.created_at`).all(...ids)
+  const maxComments = (commentLimit || 10) * ids.length;
+  db.prepare(`SELECT mc.moment_id, mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id IN (${ph}) ORDER BY mc.moment_id, mc.created_at LIMIT ?`).all(...ids, maxComments)
     .forEach(({ moment_id, ...rest }) => {
       const arr = commentsMap.get(moment_id);
       if (!commentLimit || arr.length < commentLimit) arr.push(rest);
@@ -357,12 +359,13 @@ function addComment(io, userId, momentId, { content, replyToUser }) {
   if (!text) throw badRequest('评论不能为空');
   if (text.length > 500) throw badRequest('评论过长');
 
-  // MO4：reply_to_user 必须是真实存在的 userId（此前存任意字符串、无校验）
+  // MO4：reply_to_user 必须是真实存在且参与过该动态（作者或评论者）的用户
   let replyTo = '';
   if (replyToUser) {
-    if (typeof replyToUser !== 'string' || !db.prepare('SELECT 1 FROM users WHERE id=?').get(replyToUser)) {
-      throw badRequest('回复对象不存在');
-    }
+    if (typeof replyToUser !== 'string') throw badRequest('回复对象不存在');
+    const isAuthor = replyToUser === m.user_id;
+    const isCommenter = !!db.prepare('SELECT 1 FROM moment_comments WHERE moment_id=? AND user_id=?').get(momentId, replyToUser);
+    if (!isAuthor && !isCommenter) throw badRequest('回复对象不存在');
     replyTo = replyToUser;
   }
 

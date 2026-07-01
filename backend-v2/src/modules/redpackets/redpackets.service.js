@@ -91,6 +91,7 @@ function claim(io, userId, packetId) {
       return { amount };
     }).exclusive();   // ← 单次调用执行 EXCLUSIVE 事务（原版误写 .exclusive()() 双重调用，生产环境领红包恒报 500）
   } catch (e) {
+    if (e.status) throw e;
     console.error('[redpacket] claim 失败:', e.code, e.message);
     throw new Error('领取失败，请重试');
   }

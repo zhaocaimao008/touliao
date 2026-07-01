@@ -92,12 +92,14 @@ module.exports = function registerFileHandler(io, socket) {
     };
 
     if (reply_to_id) {
+      const parent = readDb.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, conversationId);
+      if (!parent) { ack?.({ success: false, error: '被回复消息不存在' }); return; }
       await writeAsync(
         'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
         [id, conversationId, userId, type, safeContent, file_url, duration, reply_to_id, created_at, clientMsgId || null]
       );
       msg.replyTo = readDb.prepare(`
-        SELECT m.id, m.type, m.content, m.file_url, u.username AS senderName
+        SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
         FROM messages m JOIN users u ON u.id = m.sender_id
         WHERE m.id = ? AND m.conversation_id = ?
       `).get(reply_to_id, conversationId) || null;
