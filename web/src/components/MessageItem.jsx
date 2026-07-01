@@ -239,6 +239,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                 className={`wc-reaction-pill${r.userIds.map(String).includes(String(userId)) ? ' mine' : ''}`}
                 onClick={() => axios.post(`/api/messages/${msg.id}/react`, { emoji: r.emoji })}
                 role="button" tabIndex={0}
+                aria-label={`${r.emoji} ${r.count > 1 ? r.count + '人' : ''}${r.userIds.map(String).includes(String(userId)) ? '，已回应' : '，点击回应'}`}
+                aria-pressed={r.userIds.map(String).includes(String(userId))}
                 onKeyDown={e => e.key === 'Enter' && axios.post(`/api/messages/${msg.id}/react`, { emoji: r.emoji })}
               >
                 <span>{r.emoji}</span>

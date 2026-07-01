@@ -90,6 +90,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   return (
     <div
       data-testid="lightbox"
+      role="dialog" aria-modal="true" aria-label="图片预览"
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'rgba(0,0,0,.92)',
@@ -111,7 +112,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         data-testid="lightbox-image"
         key={currentUrl}
         src={currentUrl}
-        alt=""
+        alt={gallery ? `图片 ${idx + 1} / ${urls.length}` : '图片预览'}
         loading="lazy"
         draggable={false}
         onError={e => { e.currentTarget.style.opacity = '.25'; e.currentTarget.alt = '图片加载失败'; }}
