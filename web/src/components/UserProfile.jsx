@@ -111,7 +111,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
 
   if (loading) return (
     <div className="up-overlay" onClick={onClose}>
-      <div className="up-card" onClick={e => e.stopPropagation()} style={{ alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+      <div className="up-card" role="dialog" aria-modal="true" aria-label="联系人资料" onClick={e => e.stopPropagation()} style={{ alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
         <div className="up-loading-dot" />
       </div>
     </div>
@@ -122,7 +122,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
 
   return (
     <div className="up-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="up-card" onClick={e => e.stopPropagation()}>
+      <div className="up-card" role="dialog" aria-modal="true" aria-label="联系人资料" onClick={e => e.stopPropagation()}>
 
         {/* 顶部封面区 */}
         <div className="up-header">

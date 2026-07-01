@@ -982,7 +982,7 @@ export default function Profile({ isMobile = false }) {
       {/* ── 二维码弹窗 ── */}
       {showQR && (
         <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
-          <div className="wc-modal home-qr-modal" onClick={e => e.stopPropagation()}>
+          <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label="我的二维码" onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">我的二维码</span>
               <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label="关闭">✕</button>

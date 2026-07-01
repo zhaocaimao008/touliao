@@ -78,7 +78,7 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
     <>
       {!viewId && (
       <div className="afm-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-        <div className="afm-card" onClick={e => e.stopPropagation()}>
+        <div className="afm-card" role="dialog" aria-modal="true" aria-label="添加好友" onClick={e => e.stopPropagation()}>
 
           {/* 标题栏 */}
           <div className="afm-header">

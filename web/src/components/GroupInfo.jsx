@@ -738,7 +738,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       {/* 群二维码弹窗 */}
       {showQR && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowQR(false)}>
-          <div className="wc-modal gi-qr-panel">
+          <div className="wc-modal gi-qr-panel" role="dialog" aria-modal="true" aria-label="群二维码">
             <div className="wc-modal-header">
               <span className="wc-modal-title">群二维码</span>
               <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label="关闭二维码">✕</button>
@@ -770,7 +770,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       {/* 邀请成员弹窗 */}
       {showInvite && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowInvite(false)}>
-          <div className="wc-modal wide">
+          <div className="wc-modal wide" role="dialog" aria-modal="true" aria-label="邀请成员">
             <div className="wc-modal-header">
               <span className="wc-modal-title">邀请成员</span>
               <button className="wc-modal-close" onClick={() => setShowInvite(false)} aria-label="关闭邀请">✕</button>

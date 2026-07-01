@@ -129,7 +129,7 @@ function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onL
             <input className="wc-moment-comment-field" autoFocus value={text}
               onChange={e => setText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') setCommenting(false); }}
-              placeholder="评论…" maxLength={500} />
+              placeholder="评论…" maxLength={500} aria-label="输入评论" />
             <button className="wc-moment-comment-submit" onClick={submit}>发送</button>
           </div>
         )}
@@ -358,7 +358,7 @@ export default function Moments() {
       {/* 朋友圈设置：最近 N 天可见 */}
       {showSettings && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowSettings(false)}>
-          <div className="wc-modal" style={{ maxWidth: 360, width: '90%' }}>
+          <div className="wc-modal" role="dialog" aria-modal="true" aria-label="朋友圈设置" style={{ maxWidth: 360, width: '90%' }}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">朋友圈设置</span>
               <button className="wc-modal-close" onClick={() => setShowSettings(false)} aria-label="关闭">✕</button>
@@ -385,7 +385,7 @@ export default function Moments() {
       {/* 分组可见：选择好友 */}
       {showFriendPicker && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowFriendPicker(false)}>
-          <div className="wc-modal" style={{ maxWidth: 420, width: '90%' }}>
+          <div className="wc-modal" role="dialog" aria-modal="true" aria-label="选择好友" style={{ maxWidth: 420, width: '90%' }}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{visibility === 'include' ? '选择可见的好友' : '选择不给谁看'}</span>
               <button className="wc-modal-close" onClick={() => setShowFriendPicker(false)} aria-label="关闭">✕</button>
@@ -421,7 +421,7 @@ export default function Moments() {
       {/* 互动通知面板 */}
       {notifList !== null && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setNotifList(null)}>
-          <div className="wc-modal" style={{ maxWidth: 420, width: '90%' }}>
+          <div className="wc-modal" role="dialog" aria-modal="true" aria-label="互动消息" style={{ maxWidth: 420, width: '90%' }}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">互动消息</span>
               <button className="wc-modal-close" onClick={() => setNotifList(null)} aria-label="关闭">✕</button>
@@ -458,7 +458,7 @@ export default function Moments() {
         ) : (
           <div className="wc-moment-editor">
             <textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={3}
-              placeholder="这一刻的想法…" maxLength={5000} />
+              placeholder="这一刻的想法…" maxLength={5000} aria-label="发布动态" />
             {/* 图片预览区 */}
             {images.length > 0 && (
               <div className="wc-moment-img-preview">

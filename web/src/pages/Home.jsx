@@ -772,7 +772,7 @@ export default function Home() {
       )}
       {showQR && (
         <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
-          <div className="wc-modal home-qr-modal" onClick={e => e.stopPropagation()}>
+          <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label="我的二维码" onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">我的二维码</span>
               <button className="wc-modal-close" aria-label="关闭二维码" onClick={() => setShowQR(false)}>✕</button>

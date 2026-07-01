@@ -120,7 +120,7 @@ export default function ForwardModal({ message, onClose }) {
 
   return (
     <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="wc-modal fwd-modal">
+      <div className="wc-modal fwd-modal" role="dialog" aria-modal="true" aria-label="转发消息">
 
         {/* 标题栏 */}
         <div className="fwd-header">
