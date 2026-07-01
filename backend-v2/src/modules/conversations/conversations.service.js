@@ -25,6 +25,7 @@ const _createPrivate = db.transaction((myId, otherId, id) => {
 });
 function getOrCreatePrivate(myId, otherId, { internal = false } = {}) {
   if (!otherId) throw badRequest('参数缺失');
+  if (otherId === myId) throw badRequest('不能与自己创建私聊');
   if (!internal) {
     if (!db.prepare('SELECT 1 FROM users WHERE id=?').get(otherId)) throw notFound('用户不存在');
     const blocked = db.prepare(
@@ -75,6 +76,8 @@ function getOrCreateFileHelper(myId) {
 // ── 群聊：创建（io 由 controller 传入用于广播）──────────────────
 function createGroup(io, ownerId, { name, memberIds }) {
   if (!name || !memberIds?.length) throw badRequest('参数缺失');
+  if (typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 50)
+    throw badRequest('群名称 1-50 字符');
   if (memberIds.length > config.limits.maxGroupMembers)
     throw badRequest(`单次邀请成员数不能超过 ${config.limits.maxGroupMembers}`);
   // 过滤：只允许添加确实存在的联系人（防止注入不存在的 userId 产生幽灵成员）
@@ -345,7 +348,8 @@ async function markUnread(userId, convId) {
 // ── 阅后即焚：每个用户对某会话的独立销毁时间（秒）──────────────
 async function setBurnAfter(userId, convId, seconds) {
   requireMember(convId, userId, '无权操作');
-  const s = Math.max(0, parseInt(seconds) || 0);
+  const MAX_BURN = 7 * 24 * 3600;
+  const s = (!seconds || seconds === '0' || seconds === 0) ? 0 : Math.min(Math.max(60, parseInt(seconds) || 60), MAX_BURN);
   await writeAsync(`
     INSERT INTO conversation_settings (user_id, conversation_id, burn_after) VALUES (?, ?, ?)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET burn_after=excluded.burn_after

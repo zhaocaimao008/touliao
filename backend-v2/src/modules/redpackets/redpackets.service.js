@@ -112,7 +112,7 @@ function claim(io, userId, packetId) {
 function reclaimExpired() {
   const cutoff = Math.floor(Date.now() / 1000) - 24 * 3600;
   const expired = db.prepare(
-    "SELECT id, sender_id, total_amount FROM red_packets WHERE status='active' AND created_at < ?"
+    "SELECT id, sender_id, total_amount FROM red_packets WHERE status='active' AND created_at < ? LIMIT 500"
   ).all(cutoff);
   let refunded = 0;
   for (const p of expired) {

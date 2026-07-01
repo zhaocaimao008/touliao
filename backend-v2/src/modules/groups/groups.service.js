@@ -8,7 +8,8 @@ const { isMember, requireMember, memberRole, purgeConversation } = require('../m
 
 // ── 群昵称 ──────────────────────────────────────────────────────
 function setNickname(io, convId, userId, nickname) {
-  if (nickname && nickname.length > 30) throw badRequest('群昵称最长30字');
+  if (nickname !== undefined && (typeof nickname !== 'string' || nickname.length > 30))
+    throw badRequest('群昵称最长30字');
   requireMember(convId, userId, '不在群内');
   db.prepare('UPDATE conversation_members SET nickname=? WHERE conversation_id=? AND user_id=?')
     .run(nickname || null, convId, userId);
@@ -18,11 +19,16 @@ function setNickname(io, convId, userId, nickname) {
 
 // ── 邀请链接 / 二维码 / 扫码进群 ────────────────────────────────
 function createInviteLink(convId, userId) {
-  requireMember(convId, userId, '不在群内');
+  const role = memberRole(convId, userId);
+  if (!role) throw forbidden('不在群内');
+  if (role === 'member') throw forbidden('仅群主和管理员可生成邀请链接');
   const token = uuidv4().replace(/-/g, '').slice(0, 16).toUpperCase();
   const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
-  db.prepare('INSERT OR REPLACE INTO group_invite_tokens (token, conversation_id, created_by, expires_at) VALUES (?, ?, ?, ?)')
-    .run(token, convId, userId, expiresAt);
+  db.transaction(() => {
+    db.prepare('DELETE FROM group_invite_tokens WHERE conversation_id=?').run(convId);
+    db.prepare('INSERT INTO group_invite_tokens (token, conversation_id, created_by, expires_at) VALUES (?, ?, ?, ?)')
+      .run(token, convId, userId, expiresAt);
+  })();
   return { token, url: `${config.appUrl}/join/${token}`, expiresAt };
 }
 
@@ -98,14 +104,19 @@ function setAvatar(io, convId, userId, url) {
 // ── 邀请成员 ────────────────────────────────────────────────────
 function invite(io, convId, userId, userIds) {
   if (!userIds?.length) throw badRequest('参数缺失');
+  if (!Array.isArray(userIds) || userIds.length > 100) throw badRequest('单次最多邀请 100 人');
   requireMember(convId, userId, '不在群内');
   const ph = userIds.map(() => '?').join(',');
-  const validSet = new Set(db.prepare(`SELECT id FROM users WHERE id IN (${ph})`).all(userIds).map(r => r.id));
+  const validSet = new Set(db.prepare(`SELECT id FROM users WHERE id IN (${ph})`).all(...userIds).map(r => r.id));
   const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id) VALUES (?,?)');
   const added = [];
   db.transaction(() => {
     const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(convId).n;
-    const newCount = userIds.filter(uid => validSet.has(uid) && !isMember(convId, uid)).length;
+    const existingSet = new Set(
+      db.prepare(`SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id IN (${ph})`)
+        .all(convId, ...userIds).map(r => r.user_id)
+    );
+    const newCount = userIds.filter(uid => validSet.has(uid) && !existingSet.has(uid)).length;
     if (curCount + newCount > config.limits.maxGroupMembers) throw badRequest(`群成员将超过上限 ${config.limits.maxGroupMembers} 人`);
     userIds.forEach(uid => {
       if (!validSet.has(uid)) return;
@@ -253,6 +264,8 @@ function pinMessage(io, convId, userId, msgId) {
   if (role === 'member') throw forbidden('仅群主和管理员可置顶消息');
   const msg = db.prepare('SELECT id,type,content,sender_id FROM messages WHERE id=? AND conversation_id=?').get(msgId, convId);
   if (!msg) throw notFound('消息不存在');
+  const pinCount = db.prepare('SELECT COUNT(*) AS n FROM pinned_messages WHERE conversation_id=?').get(convId).n;
+  if (pinCount >= 20) throw badRequest('置顶消息已达上限 20 条，请先取消置顶');
   db.prepare('INSERT OR REPLACE INTO pinned_messages (id,conversation_id,message_id,pinned_by) VALUES (?,?,?,?)')
     .run(uuidv4(), convId, msgId, userId);
   const pinner = db.prepare('SELECT username FROM users WHERE id=?').get(userId);

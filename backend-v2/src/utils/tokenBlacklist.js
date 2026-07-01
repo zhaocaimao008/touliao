@@ -35,6 +35,10 @@ async function initRedis() {
       console.warn('[TokenBlacklist] Redis error, falling back to SQLite:', err.message);
       useRedis = false;
     });
+    redisClient.on('ready', () => {
+      useRedis = true;
+      console.log('[TokenBlacklist] Redis reconnected, resuming Redis storage');
+    });
 
     await redisClient.connect();
     useRedis = true;
@@ -86,7 +90,8 @@ async function isBlacklisted(token) {
   try {
     if (useRedis && redisClient) {
       const exists = await redisClient.exists(`blacklist:${token}`);
-      return exists === 1;
+      if (exists === 1) return true;
+      // Redis 未命中仍继续查 SQLite，防双写不一致时漏放
     }
   } catch (err) {
     console.error('[TokenBlacklist] Redis check error:', err.message);
