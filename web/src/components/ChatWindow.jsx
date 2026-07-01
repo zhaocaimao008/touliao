@@ -1773,7 +1773,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                 autoFocus
                 value={msgSearchQ}
                 onChange={e => { setMsgSearchQ(e.target.value); searchMessages(e.target.value); }}
-                placeholder="搜索聊天记录..."
+                placeholder="搜索聊天记录…"
                 aria-label="搜索聊天记录"
                 className="wc-search-input"
                 onKeyDown={e => e.key === 'Escape' && setShowMsgSearch(false)}
@@ -1987,7 +1987,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
 
       {/* ── 文件上传进度条 ── */}
       {uploadState && (
-        <div className={`wc-upload-bar ${uploadState.status === 'error' ? 'wc-upload-bar-error' : 'wc-upload-bar-progress'}`}>
+        <div role={uploadState.status === 'error' ? 'alert' : 'status'} aria-live={uploadState.status === 'error' ? 'assertive' : 'polite'} className={`wc-upload-bar ${uploadState.status === 'error' ? 'wc-upload-bar-error' : 'wc-upload-bar-progress'}`}>
           {uploadState.status === 'uploading' ? (
             <>
               <span className="wc-upload-icon wc-upload-icon-ok">📤</span>

@@ -693,8 +693,8 @@ img { display: block; }
 }
 .wc-reaction-pill:hover { background: rgba(0,0,0,.13); }
 .wc-reaction-pill.mine {
-  background: #DFF0D2;
-  border-color: #A8D882;
+  background: rgba(var(--green-rgb), .12);
+  border-color: rgba(var(--green-rgb), .4);
 }
 
 /* ============================================================
@@ -829,7 +829,7 @@ img { display: block; }
 .wc-more-icon {
   width: 52px;
   height: 52px;
-  background: #FFFFFF;
+  background: var(--bg-panel, #FFFFFF);
   border-radius: var(--radius-card);
   display: flex;
   align-items: center;
@@ -838,7 +838,7 @@ img { display: block; }
   box-shadow: 0 1px 3px rgba(0,0,0,.08);
   transition: background var(--dur-fast);
 }
-.wc-more-item:hover .wc-more-icon { background: #f0f0f0; }
+.wc-more-item:hover .wc-more-icon { background: var(--bg-hover, #f0f0f0); }
 .wc-more-label { font-size: 11px; color: var(--text-secondary); text-align: center; }
 
 /* ============================================================
@@ -1485,6 +1485,8 @@ body.dark-mode .up-remark-input { background: var(--bg-input-search) !important;
 body.dark-mode .up-remark-box { background: var(--bg-input) !important; }
 body.dark-mode .wc-panel { background: var(--glass-panel-bg-strong) !important; border-right-color: var(--border-subtle) !important; }
 body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
+body.dark-mode .wc-moment-comment-user,
+body.dark-mode .wc-moment-comment-submit { color: #7DAADD; }
 
 /* 气泡 — 暗色模式下绿气泡保留 #1A6E3C（微信经典深绿）*/
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }

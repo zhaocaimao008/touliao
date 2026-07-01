@@ -37,7 +37,7 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
       <div className="rpm-card" onClick={e => e.stopPropagation()}>
         <div className="rpm-title">发红包</div>
 
-        {error && <div className="rpm-error">{error}</div>}
+        {error && <div className="rpm-error" role="alert">{error}</div>}
 
         <div className="rpm-field">
           <label className="rpm-label" htmlFor="rpm-amount">红包金币总额 (1-20000)</label>

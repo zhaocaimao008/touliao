@@ -640,7 +640,7 @@ function DeleteAccount({ onBack, logout }) {
               className="wc-server-input"
               style={{ marginTop: 0 }}
             />
-            {error && <div style={{ color: 'var(--color-badge)', fontSize: 13, marginTop: 6 }}>{error}</div>}
+            {error && <div role="alert" style={{ color: 'var(--color-badge)', fontSize: 13, marginTop: 6 }}>{error}</div>}
           </div>
         </Card>
       </div>
@@ -733,7 +733,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
             <input type="password" placeholder="密码" value={form.password}
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
               className="wc-add-form-input" />
-            {error && <div className="wc-add-form-error">{error}</div>}
+            {error && <div className="wc-add-form-error" role="alert">{error}</div>}
             <button type="submit" disabled={loading} className="wc-add-form-submit">
               {loading ? '登录中…' : '登录并切换'}
             </button>
