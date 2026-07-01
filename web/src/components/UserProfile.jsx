@@ -19,6 +19,12 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
   const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
+    const handler = e => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  useEffect(() => {
     setLoading(true);
     setAddStep('idle');
     setErrMsg('');
@@ -146,7 +152,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {/* 好友信息行 */}
         {user.isFriend && (
           <div className="up-rows">
-            <div className="up-row" onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }}>
+            <div className="up-row" role="button" tabIndex={0} onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }} onKeyDown={e => e.key === 'Enter' && (setRemark(user.remark || ''), setShowRemarkEdit(true))}>
               <span className="up-row-label">备注名</span>
               <span className="up-row-value">{user.remark || <span style={{ color: 'var(--text-tertiary)' }}>未设置</span>}</span>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
