@@ -124,7 +124,7 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 exports.grantCoins = asyncHandler(async (req, res) => res.json(svc.grantCoins(req.params.id, req.body.amount, req.body.memo)));
-exports.deleteUser = asyncHandler(async (req, res) => { svc.deleteUser(req.params.id); res.json({ success: true }); });
+exports.deleteUser = asyncHandler(async (req, res) => { svc.deleteUser(req.app.get('io'), req.params.id); res.json({ success: true }); });
 
 exports.listMessages = asyncHandler(async (req, res) => res.json(svc.listMessages(req.query)));
 

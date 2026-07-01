@@ -119,7 +119,7 @@ async function resetPassword(io, id, newPassword) {
 }
 
 // ── 彻底删除用户（级联清理，含其消息）──────────────────────────
-function deleteUser(id) {
+function deleteUser(io, id) {
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
   if (!user) throw notFound('用户不存在');
 
@@ -163,6 +163,7 @@ function deleteUser(id) {
     `).run();
     db.prepare('DELETE FROM users WHERE id=?').run(id);
   })();
+  if (io) io.to(`user_${id}`).disconnectSockets(true);
 }
 
 // ── 消息监控（今日 / 搜索）──────────────────────────────────────
@@ -293,16 +294,18 @@ function listReports({ status = 'pending', limit = 30, offset = 0 } = {}) {
   };
 }
 
-// 处理举报：dismiss=忽略(仅标记)；delete=删被举报动态(连带评论/点赞/通知/举报)
+// 处理举报：delete=删被举报动态；reviewed=标记已看；dismissed=忽略
 function resolveReport(reportId, action) {
+  if (!['delete', 'reviewed', 'dismissed'].includes(action))
+    throw badRequest('action 必须为 delete / reviewed / dismissed');
   const r = db.prepare('SELECT * FROM moment_reports WHERE id=?').get(reportId);
   if (!r) throw notFound('举报不存在');
   if (action === 'delete') {
     moments.purgeMoment(r.moment_id);   // 复用 moments.service 的级联删除
     return { success: true, action: 'deleted' };
   }
-  db.prepare("UPDATE moment_reports SET status='dismissed' WHERE id=?").run(reportId);
-  return { success: true, action: 'dismissed' };
+  db.prepare('UPDATE moment_reports SET status=? WHERE id=?').run(action, reportId);
+  return { success: true, action };
 }
 
 module.exports = {

@@ -19,7 +19,9 @@ function delSetting(key) { db.prepare('DELETE FROM admin_settings WHERE key=?').
 
 // ── 客户端信息 ──
 function clientIp(req) {
-  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '0.0.0.0';
+  // 使用 Express 已按 trust proxy 解析的 req.ip，与路由层 IP 白名单来源一致，防 XFF 伪造
+  const ip = req.ip || req.socket?.remoteAddress || '0.0.0.0';
+  return ip.replace(/^::ffff:/, '');
 }
 function deviceLabel(ua = '') {
   if (/Windows/i.test(ua)) return 'Windows';
@@ -35,7 +37,11 @@ function totpEnabled() { return getSetting('totp_enabled') === '1'; }
 function totpSecret()  { return getSetting('totp_secret'); }
 function verifyCode(code) {
   const secret = totpSecret();
-  return !!secret && totp.verify(secret, code);
+  if (!secret) return false;
+  const lastCounter = parseInt(getSetting('totp_last_counter') || '0');
+  const result = totp.verifyWithCounter(secret, code, 1, lastCounter);
+  if (result.valid) setSetting('totp_last_counter', String(result.counter));
+  return result.valid;
 }
 
 function beginSetup() {

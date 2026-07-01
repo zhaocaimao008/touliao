@@ -53,16 +53,22 @@ function hotp(secretBuf, counter) {
 
 // 校验码：允许 ±1 个时间步（容忍时钟漂移）
 function verify(secret, token, window = 1) {
-  if (!secret || !/^\d{6}$/.test(String(token || '').trim())) return false;
+  return verifyWithCounter(secret, token, window, 0).valid;
+}
+
+// 校验并返回匹配的时间步计数器（用于防重放攻击）
+function verifyWithCounter(secret, token, window = 1, minCounter = 0) {
+  if (!secret || !/^\d{6}$/.test(String(token || '').trim())) return { valid: false, counter: null };
   const secretBuf = base32Decode(secret);
   const counter = Math.floor(Date.now() / 1000 / 30);
   const t = String(token).trim();
   for (let i = -window; i <= window; i++) {
-    // 恒定时间比较，防时序侧信道
-    const expected = hotp(secretBuf, counter + i);
-    if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(t))) return true;
+    const c = counter + i;
+    if (c <= minCounter) continue; // 拒绝已消耗的时间步
+    const expected = hotp(secretBuf, c);
+    if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(t))) return { valid: true, counter: c };
   }
-  return false;
+  return { valid: false, counter: null };
 }
 
-module.exports = { generateSecret, otpauthURL, verify };
+module.exports = { generateSecret, otpauthURL, verify, verifyWithCounter };
