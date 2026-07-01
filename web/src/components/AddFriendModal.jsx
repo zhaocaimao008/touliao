@@ -147,8 +147,6 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
               <div
                 onClick={() => doSearch(query)}
                 className="afm-search-row"
-                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-input-search)'; }}
               >
                 <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke={GREEN} strokeWidth="2" strokeLinecap="round" className="afm-search-icon">
                   <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />

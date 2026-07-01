@@ -57,7 +57,7 @@ export default function VoicePlayer({ url }) {
 
   return (
     <div className="wc-msg-voice-player wc-voice-player" onClick={e => e.stopPropagation()}>
-      <button onClick={togglePlay} className="wc-voice-play-btn">
+      <button onClick={togglePlay} className="wc-voice-play-btn" aria-label={playing ? '暂停' : '播放'}>
         {playing ? (
           <svg viewBox="0 0 24 24" className="wc-voice-play-icon">
             <rect x="6" y="4" width="4" height="16" rx="1"/>

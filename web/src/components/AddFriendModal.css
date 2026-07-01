@@ -192,6 +192,7 @@
   background: var(--bg-input-search);
   transition: background var(--dur-fast);
 }
+.afm-search-row:hover { background: var(--bg-hover); }
 .afm-search-text {
   flex: 1;
   font-size: var(--text-sm);
