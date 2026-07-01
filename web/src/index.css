@@ -3650,8 +3650,8 @@ body.dark-mode .wc-edit-bar-label { color: #FFA040; }
 
 /* Upload bar dark mode */
 body.dark-mode .wc-upload-bar-error { background: rgba(255,80,80,.12); border-top-color: rgba(255,80,80,.25); }
-body.dark-mode .wc-upload-bar-progress { background: rgba(7,193,96,.1); border-top-color: rgba(7,193,96,.2); }
-body.dark-mode .wc-upload-track { background: rgba(7,193,96,.2); }
+body.dark-mode .wc-upload-bar-progress { background: rgba(var(--green-rgb),.1); border-top-color: rgba(var(--green-rgb),.2); }
+body.dark-mode .wc-upload-track { background: rgba(var(--green-rgb),.2); }
 
 /* Unpin btn dark mode */
 body.dark-mode .wc-unpin-btn { border-color: rgba(255,80,80,.4); }

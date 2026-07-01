@@ -339,7 +339,7 @@
 }
 .wc-upload-track {
   height: 4px;
-  background: #D9F7E2;
+  background: rgba(var(--green-rgb), .15);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -557,7 +557,7 @@
   color: var(--text-tertiary);
 }
 .wc-msg-status-sent {
-  color: #C8C8C8;
+  color: var(--text-tertiary, #C8C8C8);
 }
 .wc-msg-status-error {
   color: var(--color-badge);
@@ -780,14 +780,14 @@
 .wc-rp-claims-list {
   max-height: 200px;
   overflow-y: auto;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-color, #eee);
 }
 .wc-rp-claim-item {
   display: flex;
   justify-content: space-between;
   padding: 10px 2px;
   font-size: 14px;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--border-color, #f5f5f5);
 }
 .wc-rp-claim-name {
   color: var(--text-primary);
@@ -892,7 +892,7 @@
 .wc-back-btn-svg svg {
   width: 22px;
   height: 22px;
-  fill: #191919;
+  fill: var(--text-primary, #191919);
 }
 
 /* ── 聊天设置面板 ── */
@@ -968,7 +968,7 @@
   background: var(--green);
 }
 .wc-settings-toggle.off {
-  background: #D8D8D8;
+  background: var(--border-color, #D8D8D8);
 }
 .wc-settings-toggle.saving {
   opacity: 0.5;
