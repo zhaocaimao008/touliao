@@ -338,7 +338,7 @@ function toggleLike(io, userId, momentId) {
     try {
       db.prepare('INSERT INTO moment_likes (moment_id,user_id) VALUES (?,?)').run(momentId, userId);
     } catch (e) {
-      if (e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') { liked = false; }
+      if (e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') { liked = true; } // 并发插入已成功，like 实际存在
       else throw e;
       const likeCount = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(momentId).n;
       return { liked, likeCount };
@@ -370,14 +370,15 @@ function addComment(io, userId, momentId, { content, replyToUser }) {
     replyTo = replyToUser;
   }
 
-  const totalComments = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(momentId).n;
-  if (totalComments >= 500) throw badRequest('该动态评论已达上限');
-  const myComments = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=? AND user_id=?').get(momentId, userId).n;
-  if (myComments >= 20) throw badRequest('你对该动态的评论已达上限');
-
   const id = uuidv4();
-  db.prepare('INSERT INTO moment_comments (id,moment_id,user_id,content,reply_to_user) VALUES (?,?,?,?,?)')
-    .run(id, momentId, userId, text, replyTo);
+  db.transaction(() => {
+    const totalComments = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(momentId).n;
+    if (totalComments >= 500) throw badRequest('该动态评论已达上限');
+    const myComments = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=? AND user_id=?').get(momentId, userId).n;
+    if (myComments >= 20) throw badRequest('你对该动态的评论已达上限');
+    db.prepare('INSERT INTO moment_comments (id,moment_id,user_id,content,reply_to_user) VALUES (?,?,?,?,?)')
+      .run(id, momentId, userId, text, replyTo);
+  })();
   if (io && m.user_id !== userId) io.to(`user_${m.user_id}`).emit('moment_commented', { momentId, userId });
   addInteractNotification({ recipientId: m.user_id, actorId: userId, momentId, type: 'comment', commentId: id });
   // 被回复人≠动态作者 且 被回复人≠评论者 时，另行通知
@@ -443,9 +444,12 @@ function reportMoment(userId, momentId, { reason } = {}) {
   try {
     db.prepare('INSERT INTO moment_reports (id,moment_id,reporter_id,reason) VALUES (?,?,?,?)')
       .run(uuidv4(), momentId, userId, text);
-  } catch {
+  } catch (e) {
     // UNIQUE(moment_id, reporter_id)：同一人重复举报同一条
-    throw conflict('已举报该动态', 'MOMENT_ALREADY_REPORTED');
+    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE' || e.code === 'SQLITE_CONSTRAINT') {
+      throw conflict('已举报该动态', 'MOMENT_ALREADY_REPORTED');
+    }
+    throw e;
   }
   return { success: true };
 }
@@ -471,7 +475,16 @@ function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
     ORDER BY mn.created_at DESC, mn.rowid DESC
     LIMIT ? OFFSET ?
   `).all(userId, userId, userId, n, off);
-  return rows.map(r => {
+  const total = db.prepare(`
+    SELECT COUNT(*) AS c FROM moment_notifications mn
+    JOIN users u ON u.id = mn.actor_id
+    WHERE mn.user_id = ?
+      AND mn.actor_id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE user_id=?
+        UNION SELECT user_id FROM blocked_users WHERE blocked_id=?
+      )
+  `).get(userId, userId, userId).c;
+  const items = rows.map(r => {
     const images = JSON.parse(r.moment_images || '[]');
     return {
       id: r.id,
@@ -485,6 +498,7 @@ function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
       commentContent: r.comment_content || '',
     };
   });
+  return paginated(items, { total, limit: n, offset: off });
 }
 
 function unreadNotificationCount(userId) {

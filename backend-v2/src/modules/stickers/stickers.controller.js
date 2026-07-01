@@ -43,14 +43,15 @@ exports.collect = asyncHandler(async (req, res) => {
   const pub = getPublicBase();
   const ok = url.startsWith('/uploads/') || (pub && url.startsWith(pub + '/'));
   if (!ok) throw badRequest('图片来源不合法');
-  if (db.prepare('SELECT 1 FROM user_stickers WHERE user_id=? AND url=?').get(req.user.id, url)) {
-    return res.json({ success: true, already: true });
-  }
   const id = uuidv4();
+  let inserted = false;
   db.transaction(() => {
+    if (db.prepare('SELECT 1 FROM user_stickers WHERE user_id=? AND url=?').get(req.user.id, url)) return;
     if (countOf(req.user.id) >= MAX_STICKERS) throw badRequest(`表情已达上限 ${MAX_STICKERS} 个`);
-    db.prepare('INSERT INTO user_stickers (id,user_id,url) VALUES (?,?,?)').run(id, req.user.id, url);
+    db.prepare('INSERT OR IGNORE INTO user_stickers (id,user_id,url) VALUES (?,?,?)').run(id, req.user.id, url);
+    inserted = true;
   })();
+  if (!inserted) return res.json({ success: true, already: true });
   res.json({ id, url });
 });
 
