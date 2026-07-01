@@ -369,6 +369,11 @@ function addComment(io, userId, momentId, { content, replyToUser }) {
     replyTo = replyToUser;
   }
 
+  const totalComments = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(momentId).n;
+  if (totalComments >= 500) throw badRequest('该动态评论已达上限');
+  const myComments = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=? AND user_id=?').get(momentId, userId).n;
+  if (myComments >= 20) throw badRequest('你对该动态的评论已达上限');
+
   const id = uuidv4();
   db.prepare('INSERT INTO moment_comments (id,moment_id,user_id,content,reply_to_user) VALUES (?,?,?,?,?)')
     .run(id, momentId, userId, text, replyTo);
@@ -458,9 +463,13 @@ function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
     LEFT JOIN moments m ON m.id = mn.moment_id
     LEFT JOIN moment_comments mc ON mc.id = mn.comment_id
     WHERE mn.user_id = ?
+      AND mn.actor_id NOT IN (
+        SELECT blocked_id FROM blocked_users WHERE user_id=?
+        UNION SELECT user_id FROM blocked_users WHERE blocked_id=?
+      )
     ORDER BY mn.created_at DESC, mn.rowid DESC
     LIMIT ? OFFSET ?
-  `).all(userId, n, off);
+  `).all(userId, userId, userId, n, off);
   return rows.map(r => {
     const images = JSON.parse(r.moment_images || '[]');
     return {

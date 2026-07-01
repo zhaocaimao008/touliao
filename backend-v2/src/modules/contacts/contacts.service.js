@@ -112,7 +112,7 @@ function handleRequest(io, userId, requestId, action) {
   if (action === 'accept') action = 'accepted';
   else if (action === 'reject') action = 'rejected';
   if (!['accepted', 'rejected'].includes(action)) throw badRequest('无效操作');
-  const request = db.prepare('SELECT * FROM friend_requests WHERE id=? AND to_id=?').get(requestId, userId);
+  const request = db.prepare("SELECT * FROM friend_requests WHERE id=? AND to_id=? AND status='pending'").get(requestId, userId);
   if (!request) throw notFound('请求不存在');
   db.transaction(() => {
     db.prepare('UPDATE friend_requests SET status=? WHERE id=?').run(action, requestId);

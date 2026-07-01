@@ -80,8 +80,13 @@ async function register({ username, phone, password, inviteCode }) {
   const hash = await bcrypt.hash(password, 12);
   const id = uuidv4();
   const wechatId = generateVxinId();
-  db.prepare('INSERT INTO users (id,username,phone,password,wechat_id) VALUES (?,?,?,?,?)')
-    .run(id, username, phone, hash, wechatId);
+  try {
+    db.prepare('INSERT INTO users (id,username,phone,password,wechat_id) VALUES (?,?,?,?,?)')
+      .run(id, username, phone, hash, wechatId);
+  } catch (e) {
+    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') throw badRequest('用户名或手机号已存在');
+    throw e;
+  }
 
   const user = { id, username, phone, avatar: '', bio: '', wechat_id: wechatId, cover_photo: '' };
   return { token: signToken({ id, username }), user };
@@ -197,7 +202,7 @@ async function resetPassword({ phone, inviteCode, newPassword }) {
   if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword))
     throw badRequest('密码必须至少8位，且至少包含1个字母和1个数字');
   const user = db.prepare('SELECT id FROM users WHERE phone=?').get(phone);
-  if (!user) throw badRequest('该手机号未注册');
+  if (!user) return { success: true }; // 不暴露手机号是否已注册，防枚举
   const hash = await bcrypt.hash(newPassword, 12);
   const resetAt = Math.floor(Date.now() / 1000);
   db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, resetAt, user.id);
