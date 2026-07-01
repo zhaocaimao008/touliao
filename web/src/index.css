@@ -47,6 +47,7 @@ body.dark-mode {
   --bg-search:        var(--bg-input-search);
   --bg-msg-other:     var(--bg-input-search);
   --text-placeholder: var(--text-muted);
+  --bg-msg-mine:      #3a7a2e;
 }
 
 /* ── prefers-reduced-motion: 尊重用户无障碍设置 ── */
