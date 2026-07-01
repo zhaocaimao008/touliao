@@ -16,7 +16,7 @@ const Router = window.__ELECTRON_CONFIG__ ? HashRouter : BrowserRouter;
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh' }}>加载中...</div>;
+  if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh' }}>加载中…</div>;
   return user ? children : <Navigate to="/login" />;
 };
 
