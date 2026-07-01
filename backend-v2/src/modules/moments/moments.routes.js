@@ -311,6 +311,6 @@ router.get   ('/:id/comments',    auth, m.comments);
  *       409:
  *         description: 已举报过该动态
  */
-router.post  ('/:id/report',      auth, m.report);
+router.post  ('/:id/report',      auth, reactLimiter, m.report);
 
 module.exports = router;

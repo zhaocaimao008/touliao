@@ -188,7 +188,7 @@ router.get ('/friend-requests/sent',      auth, c.listSent);
  *       200:
  *         description: Request handled
  */
-router.post('/friend-request/:id/handle', auth, c.handleRequest);
+router.post('/friend-request/:id/handle', auth, reactLimiter, c.handleRequest);
 
 /**
  * @swagger
