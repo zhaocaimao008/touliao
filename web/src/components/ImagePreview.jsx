@@ -176,7 +176,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           border: 'none', cursor: 'pointer', zIndex: 10,
           backdropFilter: 'blur(10px)',
         }}
-        aria-label="Close"
+        aria-label="关闭"
       >
         ✕
       </button>

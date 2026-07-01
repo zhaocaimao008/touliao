@@ -4,6 +4,7 @@ import { mediaUrl } from '../utils/url';
 import { formatFull } from '../utils/time';
 import axios from 'axios';
 import VoicePlayer from './VoicePlayer';
+import { showToast } from '../utils/toast';
 
 // Time divider rendered as a list item
 export const TimeDivider = memo(function TimeDivider({ time }) {
@@ -63,11 +64,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
 
   const handleAvatarClick = () => {
     if (!canClickAvatar) {
-      const tip = document.createElement('div');
-      tip.textContent = '群主已开启禁止私聊';
-      Object.assign(tip.style, { position:'fixed', bottom:'80px', left:'50%', transform:'translateX(-50%)', background:'rgba(0,0,0,.6)', color:'var(--text-inverse)', padding:'7px 16px', borderRadius:'4px', fontSize:'13px', zIndex:'9999', pointerEvents:'none' });
-      document.body.appendChild(tip);
-      setTimeout(() => document.body.removeChild(tip), 2000);
+      showToast('群主已开启禁止私聊');
       return;
     }
     if (!isMine) cbs.setShowUserProfile(msg.sender_id);
