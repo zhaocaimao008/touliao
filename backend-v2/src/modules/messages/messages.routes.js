@@ -1128,7 +1128,7 @@ router.get   ('/conversation/:convId/pinned-messages',     auth, grp.listPinned)
  *       200:
  *         description: Message collected
  */
-router.post('/:msgId/collect', auth, msg.collect);
+router.post('/:msgId/collect', auth, reactLimiter, msg.collect);
 
 // ── 红包 ────────────────────────────────────────────────────────
 

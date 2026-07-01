@@ -387,6 +387,7 @@ async function edit(io, userId, msgId, content) {
   const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
   if (!msg) throw notFound('消息不存在');
   if (msg.sender_id !== userId) throw forbidden('只能编辑自己的消息');
+  requireMember(msg.conversation_id, userId, '您已不在该会话中，无法编辑消息');
   if (msg.type !== 'text') throw badRequest('只能编辑文字消息');
   if (msg.deleted) throw badRequest('已撤回的消息无法编辑');
   if (Math.floor(Date.now() / 1000) - msg.created_at > RECALL) throw badRequest('超过2分钟无法编辑');

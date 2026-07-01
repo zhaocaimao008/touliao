@@ -19,9 +19,9 @@ function handleMentions(io, userId, conversationId, content, msgId) {
   while ((m = mentionRe.exec(content)) !== null) mentioned.push(m[1]);
   if (mentioned.length === 0) return;
 
-  const uniqueNames = [...new Set(mentioned)];
+  // 最多处理 50 个唯一提及，超出截断，防止 SQLite 变量数越界
+  const uniqueNames = [...new Set(mentioned)].slice(0, 50);
 
-  // 用 JOIN 替代 IN(memberIds)，避免超大群触发 SQLite SQLITE_MAX_VARIABLE_NUMBER 限制
   const matched = readDb.prepare(
     `SELECT u.id, u.username FROM users u
      JOIN conversation_members cm ON cm.user_id=u.id AND cm.conversation_id=?
