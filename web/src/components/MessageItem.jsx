@@ -31,7 +31,9 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
         {recalledContent && (
           <span
             className="wc-reedit-link"
+            role="button" tabIndex={0}
             onClick={() => cbs.onReedit(msg.id, recalledContent)}
+            onKeyDown={e => e.key === 'Enter' && cbs.onReedit(msg.id, recalledContent)}
           >重新编辑</span>
         )}
       </div>
@@ -76,6 +78,10 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
       data-msg-id={msg.id}
       className={`wc-msg-row${isMine ? ' mine' : ''}${consecutive ? ' consecutive' : ''}${multiSelect ? ' multiselect-row' : ''}${isHighlighted ? ' wc-msg-hl' : ''}`}
       onClick={multiSelect ? () => cbs.toggleMsgSelect(msg.id) : undefined}
+      onKeyDown={multiSelect ? e => e.key === 'Enter' && cbs.toggleMsgSelect(msg.id) : undefined}
+      role={multiSelect ? 'checkbox' : undefined}
+      aria-checked={multiSelect ? isSelected : undefined}
+      tabIndex={multiSelect ? 0 : undefined}
       style={multiSelect ? { cursor: 'pointer' } : {}}
     >
       {multiSelect && (
@@ -107,7 +113,9 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                 className="wc-msg-read wc-msg-status-error-icon"
                 data-testid="msg-send-failed"
                 title="发送失败，点击重发"
+                role="button" tabIndex={0} aria-label="发送失败，点击重发"
                 onClick={() => cbs.retryMessage(msg)}
+                onKeyDown={e => e.key === 'Enter' && cbs.retryMessage(msg)}
               >❗</div>
             ) : isLastMine && convType === 'private' ? (
               showRead
@@ -142,9 +150,11 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
               <img loading="lazy"
                 data-testid="msg-image"
                 src={mediaUrl(msg.file_url)}
-                alt=""
+                alt="消息图片"
                 className="wc-msg-img"
+                tabIndex={0} aria-label="查看大图"
                 onClick={() => cbs.setLightboxUrl(mediaUrl(msg.file_url))}
+                onKeyDown={e => e.key === 'Enter' && cbs.setLightboxUrl(mediaUrl(msg.file_url))}
                 onLoad={e => { e.currentTarget.classList.add('loaded'); cbs.onImageLoad?.(); }}
                 onError={e => { e.currentTarget.onerror = null; e.currentTarget.style.cssText = 'width:80px;height:80px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center'; e.currentTarget.alt = '图片加载失败'; }}
               />

@@ -436,9 +436,11 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
             style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1px solid var(--divider)', borderRadius: 8, background: 'var(--bg-card)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
           />
           <div style={{ marginTop: 12, marginBottom: 6, fontSize: 13, color: 'var(--text-secondary)' }}>颜色</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div role="radiogroup" aria-label="标签颜色" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {COLORS.map(c => (
-              <div key={c} onClick={() => setColorInput(c)}
+              <div key={c} role="radio" tabIndex={0} aria-checked={colorInput === c} aria-label={`颜色 ${c}`}
+                onClick={() => setColorInput(c)}
+                onKeyDown={e => e.key === 'Enter' && setColorInput(c)}
                 style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer',
                   border: colorInput === c ? '2.5px solid var(--text-primary)' : '2px solid transparent',
                   boxShadow: colorInput === c ? '0 0 0 2px rgba(0,0,0,.1)' : 'none' }} />
@@ -464,7 +466,9 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
           {contacts.map(c => {
             const inLabel = memberIds.has(c.id);
             return (
-              <div key={c.id} className="wc-contact-item" onClick={() => { toggleMember(label.id, c.id, inLabel); memberIds[inLabel ? 'delete' : 'add'](c.id); }}>
+              <div key={c.id} className="wc-contact-item" role="checkbox" tabIndex={0} aria-checked={inLabel}
+                onClick={() => { toggleMember(label.id, c.id, inLabel); memberIds[inLabel ? 'delete' : 'add'](c.id); }}
+                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (toggleMember(label.id, c.id, inLabel), memberIds[inLabel ? 'delete' : 'add'](c.id))}>
                 <Avatar src={c.avatar} name={c.remark || c.username} size={40} style={{ borderRadius: 6 }} />
                 <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{c.remark || c.username}</div>

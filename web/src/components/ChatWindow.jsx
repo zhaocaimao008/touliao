@@ -1850,7 +1850,9 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       {/* ── 置顶消息 Banner ── */}
       {pinnedMessages.length > 0 && (
         <div className="wc-pinned-banner"
-          onClick={() => setShowPinnedDetail(v => !v)}>
+          role="button" tabIndex={0} aria-expanded={showPinnedDetail} aria-label="置顶消息"
+          onClick={() => setShowPinnedDetail(v => !v)}
+          onKeyDown={e => e.key === 'Enter' && setShowPinnedDetail(v => !v)}>
           <span className="wc-pinned-badge">📌 置顶</span>
           <span className="wc-pinned-text">
             {pinnedMessages[0]?.type === 'image' ? '[图片]' : pinnedMessages[0]?.content}
