@@ -800,7 +800,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
       <div className="wc-section-pad">
         <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px', gap: 8 }}>
-          <div onClick={handleAvatarClick} style={{ cursor: 'pointer', position: 'relative' }}>
+          <div role="button" tabIndex={0} onClick={handleAvatarClick} onKeyDown={e => e.key === 'Enter' && handleAvatarClick()} style={{ cursor: 'pointer', position: 'relative' }}>
             <Avatar src={user?.avatar} name={user?.username} size={80} />
             {uploading && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', borderRadius: 14, color: 'var(--text-inverse)', fontSize: 12 }}>上传中</div>}
           </div>

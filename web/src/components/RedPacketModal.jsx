@@ -40,14 +40,14 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
         {error && <div className="rpm-error">{error}</div>}
 
         <div className="rpm-field">
-          <label className="rpm-label">红包金币总额 (1-20000)</label>
-          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} min="1" max="20000"
+          <label className="rpm-label" htmlFor="rpm-amount">红包金币总额 (1-20000)</label>
+          <input id="rpm-amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} min="1" max="20000"
             placeholder="输入金币数" className="rpm-input" />
         </div>
 
         <div className="rpm-field">
-          <label className="rpm-label">红包个数 (1-100)</label>
-          <input type="number" value={count} onChange={e => setCount(e.target.value)} min="1" max="100"
+          <label className="rpm-label" htmlFor="rpm-count">红包个数 (1-100)</label>
+          <input id="rpm-count" type="number" value={count} onChange={e => setCount(e.target.value)} min="1" max="100"
             placeholder="输入红包个数" className="rpm-input" />
         </div>
 

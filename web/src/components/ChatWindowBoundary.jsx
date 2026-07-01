@@ -111,7 +111,7 @@ const styles = {
     fontWeight: 500,
     cursor: 'pointer',
     border: 'none',
-    background: '#07C160',
-    color: '#fff',
+    background: 'var(--green)',
+    color: 'var(--text-inverse)',
   },
 };

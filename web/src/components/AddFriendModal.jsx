@@ -9,7 +9,7 @@ const GREEN = 'var(--green)';
 
 function AfResultItem({ user: u, onClick }) {
   return (
-    <div className="afm-result-item" onClick={onClick}>
+    <div className="afm-result-item" role="button" tabIndex={0} onClick={onClick} onKeyDown={e => e.key === 'Enter' && onClick()}>
       <Avatar src={u.avatar} name={u.username} size={46}
         style={{ borderRadius: 'var(--radius-avatar-lg)', flexShrink: 0 }} />
       <div className="afm-result-info">

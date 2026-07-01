@@ -22,11 +22,16 @@ function ToastRoot() {
   return (
     <>
       {toast && (
-        <div className={`wc-toast${toast.type === 'error' ? ' error' : toast.type === 'success' ? ' success' : ''}`}>{toast.msg}</div>
+        <div
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+          className={`wc-toast${toast.type === 'error' ? ' error' : toast.type === 'success' ? ' success' : ''}`}
+        >{toast.msg}</div>
       )}
       {confirmState && (
         <div className="wc-confirm-overlay" onClick={e => { if (e.target === e.currentTarget) { confirmState.resolve(false); setConfirm(null); } }}>
-          <div className="wc-confirm-box">
+          <div className="wc-confirm-box" role="dialog" aria-modal="true" aria-label="确认">
             <div className="wc-confirm-msg">{confirmState.msg}</div>
             <div className="wc-confirm-btns">
               <button className="wc-confirm-cancel" data-testid="confirm-cancel" onClick={() => { confirmState.resolve(false); setConfirm(null); }}>取消</button>

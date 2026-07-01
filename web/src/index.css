@@ -3850,3 +3850,13 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   background: var(--color-badge, #fa5151);
   border: 1.5px solid var(--bg-panel);
 }
+
+/* ── 键盘焦点可见性：所有 div 角色按钮统一样式 ── */
+[role="button"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="checkbox"]:focus-visible,
+[role="switch"]:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

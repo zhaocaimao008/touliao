@@ -8,6 +8,7 @@ function WinBtn({ onClick, isClose, children, title }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       title={title}
+      aria-label={title}
       style={{
         width: 46, height: 30, border: 'none', outline: 'none',
         background: hov ? (isClose ? '#E53E3E' : 'rgba(255,255,255,.15)') : 'transparent',

@@ -123,10 +123,9 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
             onContextMenu={e => cbs.handleContextMenu(e, msg)}
           >
             {msg.replyTo && (
-              <div className="wc-msg-reply gi-cp" data-testid="msg-reply-preview" onClick={(e) => {
-                e.stopPropagation();
-                cbs.scrollToMsg(msg.replyTo.id);
-              }}>
+              <div className="wc-msg-reply gi-cp" role="button" tabIndex={0} data-testid="msg-reply-preview"
+                onClick={e => { e.stopPropagation(); cbs.scrollToMsg(msg.replyTo.id); }}
+                onKeyDown={e => e.key === 'Enter' && cbs.scrollToMsg(msg.replyTo.id)}>
                 <div className="wc-msg-reply-name">{msg.replyTo.senderName}</div>
                 <div className="wc-msg-reply-text">
                   {msg.replyTo.deleted ? '消息已撤回' : msg.replyTo.type === 'image' ? '[图片]' : msg.replyTo.type === 'voice' ? '[语音]' : msg.replyTo.type === 'video' ? '[视频]' : msg.replyTo.type === 'red_packet' ? '[红包]' : msg.replyTo.type === 'file' ? '[文件]' : msg.replyTo.content}

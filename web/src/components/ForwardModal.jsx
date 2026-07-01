@@ -168,13 +168,13 @@ export default function ForwardModal({ message, onClose }) {
             <div className="fwd-list">
               {/* 全选行 */}
               {tab === 'friends' && filteredFriends.length > 0 && (
-                <div className="fwd-select-all" onClick={selectAllFriends}>
+                <div className="fwd-select-all" role="button" tabIndex={0} onClick={selectAllFriends} onKeyDown={e => e.key === 'Enter' && selectAllFriends()}>
                   <div className={`wc-group-check${allFriendsSelected ? ' checked' : ''}`}>{allFriendsSelected ? '✓' : ''}</div>
                   <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>全选好友（{filteredFriends.length}人）</span>
                 </div>
               )}
               {tab === 'groups' && filteredGroups.length > 0 && (
-                <div className="fwd-select-all" onClick={selectAllGroups}>
+                <div className="fwd-select-all" role="button" tabIndex={0} onClick={selectAllGroups} onKeyDown={e => e.key === 'Enter' && selectAllGroups()}>
                   <div className={`wc-group-check${allGroupsSelected ? ' checked' : ''}`}>{allGroupsSelected ? '✓' : ''}</div>
                   <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>全选群聊（{filteredGroups.length}个）</span>
                 </div>
@@ -182,7 +182,7 @@ export default function ForwardModal({ message, onClose }) {
 
               {/* 好友列表 */}
               {tab === 'friends' && filteredFriends.map(f => (
-                <div key={f.id} className="fwd-item" onClick={() => toggleFriend(f)}>
+                <div key={f.id} className="fwd-item" role="button" tabIndex={0} onClick={() => toggleFriend(f)} onKeyDown={e => e.key === 'Enter' && toggleFriend(f)}>
                   <div className={`wc-group-check${isFriendSelected(f) ? ' checked' : ''}`}>{isFriendSelected(f) ? '✓' : ''}</div>
                   <Avatar src={f.avatar} name={f.remark || f.username} size={36} />
                   <span className="fwd-item-name">{f.remark || f.username}</span>
@@ -194,7 +194,7 @@ export default function ForwardModal({ message, onClose }) {
 
               {/* 群聊列表 */}
               {tab === 'groups' && filteredGroups.map(g => (
-                <div key={g.id} className="fwd-item" onClick={() => toggleGroup(g)}>
+                <div key={g.id} className="fwd-item" role="button" tabIndex={0} onClick={() => toggleGroup(g)} onKeyDown={e => e.key === 'Enter' && toggleGroup(g)}>
                   <div className={`wc-group-check${selected.has(g.id) ? ' checked' : ''}`}>{selected.has(g.id) ? '✓' : ''}</div>
                   <GroupAvatar members={g.members || []} avatar={g.avatar || g.groupAvatar} size={36} />
                   <div style={{ flex: 1, minWidth: 0 }}>

@@ -54,7 +54,7 @@ export default function StickerPanel({ onSend }) {
           </div>
         )}
         {stickers.map(s => (
-          <div key={s.id} onClick={() => onSend(s.id)}
+          <div key={s.id} role="button" tabIndex={0} onClick={() => onSend(s.id)} onKeyDown={e => e.key === 'Enter' && onSend(s.id)}
             style={{ position: 'relative', cursor: 'pointer', aspectRatio: '1 / 1', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-search)', border: '1px solid var(--border-color)' }}>
             <img loading="lazy" src={mediaUrl(s.url)} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             <button onClick={(e) => del(e, s.id)} title="删除"

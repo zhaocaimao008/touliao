@@ -181,7 +181,7 @@ function AccountSwitcher() {
   return (
     <div ref={containerRef} className="as-container">
       {/* 头像按钮 */}
-      <div className="as-avatar-btn" data-testid="account-switcher" onClick={() => setOpen(v => !v)} title="账号切换">
+      <div className="as-avatar-btn" data-testid="account-switcher" role="button" tabIndex={0} aria-label="账号切换" aria-expanded={open} onClick={() => setOpen(v => !v)} onKeyDown={e => e.key === 'Enter' && setOpen(v => !v)}>
         <div className="as-avatar-inner"
           style={{ outlineColor: open ? 'rgba(255,255,255,.9)' : 'transparent' }}>
           {user?.avatar && !avatarErr
@@ -334,7 +334,9 @@ function CgMemberRow({ contact: c, checked, onToggle }) {
   return (
     <div onClick={onToggle}
       data-testid={`group-member-row-${c.id}`}
-      className="cg-row">
+      className="cg-row"
+      role="checkbox" tabIndex={0} aria-checked={checked}
+      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onToggle()}>
       <div className={`cg-checkbox${checked ? ' checked' : ''}`}>
         {checked && <svg className="cg-check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
       </div>
@@ -424,7 +426,7 @@ function CreateGroupModal({ onClose, onCreated }) {
         {selectedContacts.length > 0 && (
           <div className="cgm-chips">
             {selectedContacts.map(c => (
-              <div key={c.id} onClick={() => toggle(c.id)}
+              <div key={c.id} role="button" tabIndex={0} aria-label={`移除 ${c.remark || c.username}`} onClick={() => toggle(c.id)} onKeyDown={e => e.key === 'Enter' && toggle(c.id)}
                 className="cgm-chip">
                 <Avatar src={c.avatar} name={c.remark || c.username} size={20} className="as-avatar-img" />
                 <span className="cgm-chip-text">{c.remark || c.username}</span>
@@ -970,7 +972,7 @@ export default function Home() {
 function AddDropItem({ icon, label, onClick, testid }) {
   return (
     <div onClick={onClick} data-testid={testid}
-      className="adi-row">
+      className="adi-row" role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && onClick()}>
       <span className="adi-icon">{icon}</span>
       <span className="adi-label">{label}</span>
     </div>

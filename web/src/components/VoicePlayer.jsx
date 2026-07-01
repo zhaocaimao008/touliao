@@ -69,7 +69,23 @@ export default function VoicePlayer({ url }) {
           </svg>
         )}
       </button>
-      <div onClick={handleSeek} className="wc-voice-progress-track">
+      <div
+        onClick={handleSeek}
+        className="wc-voice-progress-track"
+        role="slider"
+        tabIndex={0}
+        aria-label="播放进度"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress)}
+        aria-valuetext={loaded ? `${fmt(currentTime)} / ${fmt(duration)}` : '未加载'}
+        onKeyDown={e => {
+          if (!audioRef.current || !duration) return;
+          const step = duration * 0.05;
+          if (e.key === 'ArrowRight') { audioRef.current.currentTime = Math.min(duration, currentTime + step); e.preventDefault(); }
+          if (e.key === 'ArrowLeft')  { audioRef.current.currentTime = Math.max(0, currentTime - step); e.preventDefault(); }
+        }}
+      >
         <div className="wc-voice-progress-fill" style={{ width: `${progress}%` }} />
       </div>
       <span className="wc-voice-duration">

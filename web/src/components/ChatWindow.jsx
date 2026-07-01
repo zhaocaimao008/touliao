@@ -1727,7 +1727,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       )}
       {/* ── Header ── */}
       <div className="wc-chat-header">
-        <button className="wc-chat-header-back wc-back-btn" onClick={onClose} title="返回">
+        <button className="wc-chat-header-back wc-back-btn" onClick={onClose} title="返回" aria-label="返回">
           <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
         </button>
         <div className="wc-header-name-container">
@@ -2167,7 +2167,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
               { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:'语音通话', testid:'chat-call-audio-btn', action:()=>{ setShowMore(false); startCall('audio'); } },
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:'名片', action: openCardPicker },
             ].map(item => (
-              <div key={item.label} data-testid={item.testid} className="wc-more-item" onClick={item.action}>
+              <div key={item.label} data-testid={item.testid} className="wc-more-item" role="button" tabIndex={0} onClick={item.action} onKeyDown={e => e.key === 'Enter' && item.action()}>
                 <div className="wc-more-icon" style={{ background: item.bg }}>{item.svg}</div>
                 <span className="wc-more-label">{item.label}</span>
               </div>
@@ -2262,6 +2262,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
           />
           <div
             className="wc-ctx-menu wc-ctx-menu-fixed"
+            role="menu"
             style={{
               left: ctxMenu.x + 'px',
               top: ctxMenu.y + 'px',
@@ -2272,35 +2273,35 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
               ))}
             </div>
             <div className="wc-ctx-divider" />
-            <div className="wc-ctx-item" data-testid="ctx-reply" onClick={() => ctxAction('reply')}>回复</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => e.key === 'Enter' && ctxAction('reply')}>回复</div>
             {/* 编辑：仅限自己的文字消息，2分钟内 */}
             {ctxMenu.msg.sender_id === user.id &&
              ctxMenu.msg.type === 'text' &&
              !ctxMenu.msg.deleted &&
              (Math.floor(Date.now()/1000) - ctxMenu.msg.created_at) <= 120 && (
-              <div className="wc-ctx-item" data-testid="ctx-edit" onClick={() => ctxAction('edit')}>编辑</div>
+              <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => e.key === 'Enter' && ctxAction('edit')}>编辑</div>
             )}
             {ctxMenu.msg.type === 'text' && (
-              <div className="wc-ctx-item" onClick={() => ctxAction('copy')}>复制</div>
+              <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('copy')} onKeyDown={e => e.key === 'Enter' && ctxAction('copy')}>复制</div>
             )}
             {/* 转发：所有类型消息都可转发 */}
-            <div className="wc-ctx-item" data-testid="ctx-forward" onClick={() => ctxAction('forward')}>转发</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => e.key === 'Enter' && ctxAction('forward')}>转发</div>
             {/* 收藏功能暂在前端隐藏（逻辑保留，改为 true 即可恢复入口） */}
             {false && (
               <div className="wc-ctx-item" onClick={() => ctxAction('collect')}>收藏</div>
             )}
-            <div className="wc-ctx-item" onClick={() => ctxAction('pin')}>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => e.key === 'Enter' && ctxAction('pin')}>
               {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}
             </div>
             {ctxMenu.msg.type === 'image' && (
-              <div className="wc-ctx-item" onClick={() => ctxAction('addSticker')}>添加到表情</div>
+              <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => e.key === 'Enter' && ctxAction('addSticker')}>添加到表情</div>
             )}
             <div className="wc-ctx-divider" />
             {/* 撤回：自己的消息不限时间，或群主/管理员删除任意消息 */}
             {(ctxMenu.msg.sender_id === user.id ||
               ((myGroupRole === 'owner' || myGroupRole === 'admin') && conversation.type === 'group')
             ) && (
-              <div className="wc-ctx-item danger" data-testid="ctx-recall" onClick={() => ctxAction('delete')}>
+              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('delete')} onKeyDown={e => e.key === 'Enter' && ctxAction('delete')}>
                 {ctxMenu.msg.sender_id === user.id ? '撤回' : '删除'}
               </div>
             )}
@@ -2308,7 +2309,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             {(ctxMenu.msg.sender_id === user.id ||
               ((myGroupRole === 'owner' || myGroupRole === 'admin') && conversation.type === 'group')
             ) && (
-              <div className="wc-ctx-item danger" data-testid="ctx-vanish" onClick={() => ctxAction('vanish')}>
+              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-vanish" onClick={() => ctxAction('vanish')} onKeyDown={e => e.key === 'Enter' && ctxAction('vanish')}>
                 删除不留痕迹
               </div>
             )}
@@ -2454,24 +2455,28 @@ function PrivateChatSettings({ conversation, onClose, onConvUpdate, onPickBackgr
         <div className="wc-settings-section-mt">
           <div className="wc-settings-row">
             <span className="wc-settings-row-label">消息免打扰</span>
-            <div onClick={() => !saving && toggleMute(!muted)}
+            <div role="switch" aria-checked={muted} tabIndex={0}
+              onClick={() => !saving && toggleMute(!muted)}
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && !saving && toggleMute(!muted)}
               className={`wc-settings-toggle${muted ? ' on' : ' off'}${saving ? ' saving' : ''}`}>
               <div className={`wc-settings-toggle-thumb${muted ? ' on' : ' off'}`} />
             </div>
           </div>
           <div className="wc-settings-row">
             <span className="wc-settings-row-label">置顶聊天</span>
-            <div onClick={() => !saving && togglePin(!pinned)}
+            <div role="switch" aria-checked={pinned} tabIndex={0}
+              onClick={() => !saving && togglePin(!pinned)}
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && !saving && togglePin(!pinned)}
               className={`wc-settings-toggle${pinned ? ' on' : ' off'}${saving ? ' saving' : ''}`}>
               <div className={`wc-settings-toggle-thumb${pinned ? ' on' : ' off'}`} />
             </div>
           </div>
-          <div className="wc-settings-row wc-settings-row-clickable" onClick={() => onPickBackground?.()}>
+          <div className="wc-settings-row wc-settings-row-clickable" role="button" tabIndex={0} onClick={() => onPickBackground?.()} onKeyDown={e => e.key === 'Enter' && onPickBackground?.()}>
             <span className="wc-settings-row-label">设置聊天背景</span>
             <span className="wc-settings-row-action">{conversation.background ? '更换 ›' : '选择图片 ›'}</span>
           </div>
           {conversation.background && (
-            <div className="wc-settings-row wc-settings-row-clickable" onClick={() => onClearBackground?.()}>
+            <div className="wc-settings-row wc-settings-row-clickable" role="button" tabIndex={0} onClick={() => onClearBackground?.()} onKeyDown={e => e.key === 'Enter' && onClearBackground?.()}>
               <span className="wc-settings-row-label" style={{ color: 'var(--color-badge)' }}>清除聊天背景</span>
             </div>
           )}
