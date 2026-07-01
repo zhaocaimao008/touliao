@@ -35,7 +35,7 @@ export default function App() {
         fontSize: 14, textDecoration: 'none', borderRadius: '0 0 4px 0',
       }}>跳过导航，直达内容</a>
       {isElectron && <ElectronTitlebar />}
-      <div id="main-content" style={isElectron ? { paddingTop: 30, height: '100vh', boxSizing: 'border-box', overflow: 'hidden' } : {}}>
+      <div id="main-content" role="main" style={isElectron ? { paddingTop: 30, height: '100vh', boxSizing: 'border-box', overflow: 'hidden' } : {}}>
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />

@@ -25,6 +25,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         onKeyDown={e => e.key === 'Enter' && onSelectConv(conv)}
         role="button"
         tabIndex={0}
+        aria-current={conv.id === activeConvId ? 'true' : undefined}
         onContextMenu={e => { e.preventDefault(); onCtxMenu({ x: e.clientX, y: e.clientY, conv }); }}
         style={{ background: conv.pinned && conv.id !== activeConvId ? 'var(--bg-pinned)' : undefined }}
       >

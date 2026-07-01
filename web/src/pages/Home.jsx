@@ -933,7 +933,7 @@ export default function Home() {
               </div>
 
               {/* 添加按钮 */}
-              <button ref={addBtnRef} className="wc-icon-btn" data-testid="add-menu-btn" title="发起" onClick={toggleAddMenu}>
+              <button ref={addBtnRef} className="wc-icon-btn" data-testid="add-menu-btn" title="发起" aria-label="发起" aria-expanded={showAddMenu} onClick={toggleAddMenu}>
                 <IcoAdd />
               </button>
             </div>

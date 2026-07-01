@@ -3148,7 +3148,8 @@ body {
 
 /* ── WcEmpty ── */
 .we-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; }
-.we-empty-svg { width:72px; height:72px; margin-bottom:0; opacity:.9; }
+.we-empty-svg { width:72px; height:72px; margin-bottom:0; opacity:.9; transition: opacity .2s; }
+body.dark-mode .we-empty-svg { opacity: .25; }
 .we-empty-title { font-size:14px; font-weight:500; color:var(--text-primary); margin-bottom:6px; }
 .we-empty-desc { font-size:12px; color:var(--text-secondary); }
 
