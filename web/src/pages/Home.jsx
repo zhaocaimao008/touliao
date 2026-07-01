@@ -689,6 +689,10 @@ export default function Home() {
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
   const badges = { chats: totalUnread, contacts: friendReqCount };
 
+  useEffect(() => {
+    document.title = totalUnread > 0 ? `(${totalUnread}) v信` : 'v信';
+  }, [totalUnread]);
+
   const [activeCall, setActiveCall] = useState(null);
 
   const handleStartCall = useCallback((callData) => {

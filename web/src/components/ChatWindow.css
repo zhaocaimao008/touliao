@@ -588,7 +588,10 @@
   object-fit: cover;
   /* 占位尺寸：图片未加载时保留空间，避免布局跳跃 */
   background: rgba(0,0,0,.06);
+  opacity: 0;
+  transition: opacity .25s ease;
 }
+.wc-msg-img.loaded { opacity: 1; }
 
 /* ── 视频消息样式 ── */
 .wc-msg-video {

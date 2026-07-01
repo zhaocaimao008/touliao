@@ -2225,7 +2225,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                   }}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder=""
+                  placeholder="发消息…"
                   rows={3}
                 />
               </div>

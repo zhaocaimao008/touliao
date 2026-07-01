@@ -149,7 +149,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                 alt=""
                 className="wc-msg-img"
                 onClick={() => cbs.setLightboxUrl(mediaUrl(msg.file_url))}
-                onLoad={cbs.onImageLoad}
+                onLoad={e => { e.currentTarget.classList.add('loaded'); cbs.onImageLoad?.(); }}
                 onError={e => { e.currentTarget.onerror = null; e.currentTarget.style.cssText = 'width:80px;height:80px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center'; e.currentTarget.alt = '图片加载失败'; }}
               />
             )}

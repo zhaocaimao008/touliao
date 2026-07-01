@@ -3532,8 +3532,8 @@ body {
 @keyframes cwDotAnim { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 /* 滚动到底部按钮 */
 .cw-scroll-bottom {
-  position: fixed;
-  bottom: 80px;
+  position: absolute;
+  bottom: 16px;
   right: 20px;
   width: 40px;
   height: 40px;
