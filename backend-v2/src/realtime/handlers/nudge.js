@@ -11,10 +11,11 @@ const { readDb } = require('../../db/connection');
 const { writeAsync } = require('../../db/writer');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
+const cache = require('../../utils/cache');
 
-// 防刷：同一发起者最短 3s 一次（够做交互、挡住连点刷屏）
+// 防刷：同一发起者最短 3s 一次（使用 cache 层跨进程共享，防 PM2 cluster 绕过）
 const COOLDOWN_MS = 3000;
-const lastNudgeAt = new Map();
+const COOLDOWN_S = Math.ceil(COOLDOWN_MS / 1000);
 
 // 群里优先用群昵称，否则用户名
 function displayName(conversationId, userId) {
@@ -28,18 +29,15 @@ function displayName(conversationId, userId) {
 module.exports = function registerNudgeHandler(io, socket) {
   const userId = socket.user.id;
 
-  socket.on('disconnect', () => {
-    const remaining = (presence.onlineUsers.get(userId)?.size || 0) - 1;
-    if (remaining <= 0) lastNudgeAt.delete(userId);
-  });
-
   socket.on('nudge', async ({ conversationId, targetId } = {}, ack) => {
     try {
       if (!conversationId) { ack?.({ success: false, error: '参数缺失' }); return; }
 
-      // 冷却
+      // 冷却（cache 跨进程共享，防 PM2 cluster 模式绕过）
+      const cdKey = `nudge:cd:${userId}`;
+      const lastTs = await cache.get(cdKey);
       const now = Date.now();
-      if (now - (lastNudgeAt.get(userId) || 0) < COOLDOWN_MS) {
+      if (lastTs && now - parseInt(lastTs) < COOLDOWN_MS) {
         ack?.({ success: false, error: '操作过于频繁' }); return;
       }
 
@@ -65,7 +63,7 @@ module.exports = function registerNudgeHandler(io, socket) {
         .get(conversationId, target);
       if (!targetIsMember) { ack?.({ success: false, error: '对象不在会话内' }); return; }
 
-      lastNudgeAt.set(userId, now);
+      await cache.set(cdKey, String(now), COOLDOWN_S);
 
       const id = uuidv4();
       const created_at = Math.floor(now / 1000);

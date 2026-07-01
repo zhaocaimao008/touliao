@@ -37,10 +37,15 @@ async function getQrCode(convId, userId) {
   let invite = db.prepare('SELECT token FROM group_invite_tokens WHERE conversation_id=? AND expires_at>? ORDER BY created_at DESC LIMIT 1')
     .get(convId, Math.floor(Date.now() / 1000));
   if (!invite) {
+    const role = memberRole(convId, userId);
+    if (role === 'member') throw forbidden('仅群主和管理员可生成邀请链接');
     const token = uuidv4().replace(/-/g, '').slice(0, 16).toUpperCase();
     const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
-    db.prepare('INSERT INTO group_invite_tokens (token,conversation_id,created_by,expires_at) VALUES (?,?,?,?)')
-      .run(token, convId, userId, expiresAt);
+    db.transaction(() => {
+      db.prepare('DELETE FROM group_invite_tokens WHERE conversation_id=?').run(convId);
+      db.prepare('INSERT INTO group_invite_tokens (token,conversation_id,created_by,expires_at) VALUES (?,?,?,?)')
+        .run(token, convId, userId, expiresAt);
+    })();
     invite = { token };
   }
   const url = `${config.appUrl}/join/${invite.token}`;
@@ -107,7 +112,10 @@ function invite(io, convId, userId, userIds) {
   if (!Array.isArray(userIds) || userIds.length > 100) throw badRequest('单次最多邀请 100 人');
   requireMember(convId, userId, '不在群内');
   const ph = userIds.map(() => '?').join(',');
-  const validSet = new Set(db.prepare(`SELECT id FROM users WHERE id IN (${ph})`).all(...userIds).map(r => r.id));
+  // 只允许邀请自己的联系人（与 createGroup 对齐，防止强拉陌生人）
+  const validSet = new Set(
+    db.prepare(`SELECT contact_id FROM contacts WHERE user_id=? AND contact_id IN (${ph})`).all(userId, ...userIds).map(r => r.contact_id)
+  );
   const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id) VALUES (?,?)');
   const added = [];
   db.transaction(() => {

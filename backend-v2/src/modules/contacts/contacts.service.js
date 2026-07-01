@@ -13,6 +13,7 @@ function listContacts(userId) {
     FROM contacts c JOIN users u ON u.id = c.contact_id
     WHERE c.user_id = ?
     ORDER BY COALESCE(c.remark, u.username) COLLATE NOCASE
+    LIMIT 1000
   `).all(userId);
 }
 
@@ -37,10 +38,7 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   if (db.prepare('SELECT id FROM contacts WHERE user_id=? AND contact_id=?').get(fromId, toId)) throw badRequest('已是好友');
   if (db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(toId, fromId)) throw forbidden('对方已将你加入黑名单');
   if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) throw badRequest('请求已发送');
-  // 对方已有 pending 请求 → 直接互接，避免双向 pending 共存
-  const reverseReq = db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(toId, fromId, 'pending');
-  if (reverseReq) return handleRequest(io, fromId, reverseReq.id, 'accepted');
-
+  // no_add_friend 检查必须在反向请求处理之前，防止绕过群限制
   const restricted = db.prepare(`
     SELECT c.name FROM conversation_members cm1
     JOIN conversation_members cm2 ON cm1.conversation_id = cm2.conversation_id
@@ -49,6 +47,10 @@ function sendFriendRequest(io, fromId, { toId, message }) {
     LIMIT 1
   `).get(fromId, toId);
   if (restricted) throw forbidden(`「${restricted.name}」已开启"禁止群成员互相添加好友"`);
+
+  // 对方已有 pending 请求 → 直接互接，避免双向 pending 共存
+  const reverseReq = db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(toId, fromId, 'pending');
+  if (reverseReq) return handleRequest(io, fromId, reverseReq.id, 'accepted');
 
   const targetSettings = usersSvc.serializeSettings(usersSvc.ensureSettings(toId));
 
@@ -92,7 +94,7 @@ function listReceivedRequests(userId) {
            u.username, u.avatar, u.wechat_id
     FROM friend_requests fr JOIN users u ON u.id = fr.from_id
     WHERE fr.to_id=? AND fr.status='pending'
-    ORDER BY fr.created_at DESC
+    ORDER BY fr.created_at DESC LIMIT 200
   `).all(userId);
 }
 
@@ -139,6 +141,7 @@ function handleRequest(io, userId, requestId, action) {
       io.to(`user_${request.from_id}`).emit('new_conversation', convForRequester);
     }
   }
+  return { success: true };
 }
 
 // ── 黑名单 ──────────────────────────────────────────────────────
@@ -159,7 +162,7 @@ function unblock(userId, targetId) {
 function listBlocked(userId) {
   return db.prepare(`
     SELECT u.id, u.username, u.avatar FROM blocked_users b
-    JOIN users u ON u.id=b.blocked_id WHERE b.user_id=?
+    JOIN users u ON u.id=b.blocked_id WHERE b.user_id=? LIMIT 500
   `).all(userId);
 }
 
