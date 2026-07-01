@@ -50,7 +50,7 @@ const config = {
     // 自动放行 APP_URL 域名：新服务器只设 APP_URL 即可，CORS 无需另配（去掉结尾斜杠）
     const appOrigin = process.env.APP_URL ? [process.env.APP_URL.trim().replace(/\/+$/, '')] : [];
     if (process.env.CORS_ORIGINS_ONLY === 'true') {
-      return [...new Set([...appOrigin, ...extra, 'http://localhost:3000', 'http://localhost:5173'])];
+      return [...new Set([...appOrigin, ...extra])];
     }
     // 默认白名单只保留当前生产域名 + 本地开发；换服务器靠 APP_URL 自动放行(见上)，
     // 不再硬编码任何客户旧域名。需额外放行用 CORS_ORIGINS 环境变量追加。
@@ -123,9 +123,19 @@ const config = {
   },
 };
 
-if (!config.jwtSecret) {
-  console.error('[config] 致命错误：未设置 JWT_SECRET');
+if (!config.jwtSecret || config.jwtSecret.length < 32) {
+  console.error('[config] 致命错误：JWT_SECRET 未设置或长度不足32字符（安全要求）');
   process.exit(1);
+}
+if (config.adminJwtSecret.length < 32) {
+  console.error('[config] 致命错误：ADMIN_JWT_SECRET 长度不足32字符（安全要求）');
+  process.exit(1);
+}
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD) {
+    console.error('[config] 致命错误：生产环境 ADMIN_USERNAME / ADMIN_PASSWORD 必须配置，启动中止');
+    process.exit(1);
+  }
 }
 
 module.exports = config;

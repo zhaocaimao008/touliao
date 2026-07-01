@@ -14,6 +14,7 @@
 const router = require('express').Router();
 const crypto = require('crypto');
 const auth = require('../../middleware/auth');
+const { turnCredentialLimiter } = require('../../middleware/rateLimiters');
 const config = require('../../config');
 const { asyncHandler } = require('../../utils/http');
 
@@ -31,7 +32,7 @@ function buildIceServers(userId) {
   return iceServers;
 }
 
-router.get('/credentials', auth, asyncHandler(async (req, res) => {
+router.get('/credentials', auth, turnCredentialLimiter, asyncHandler(async (req, res) => {
   res.json({ iceServers: buildIceServers(req.user.id), ttl: config.turn.ttl });
 }));
 

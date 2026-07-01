@@ -24,6 +24,7 @@ const { isMember } = require('../../modules/messages/shared');
 const presence = require('../presence');
 
 const MAX_PARTICIPANTS = 9;
+const MAX_CALL_DURATION_MS = 4 * 60 * 60 * 1000; // 4小时强制结束，防单用户永久独占
 const nowSec = () => Math.floor(Date.now() / 1000);
 
 // 模块级共享（单进程 fork）：callId -> { conversationId, type, startedBy, members:Set, peak, startedAt }
@@ -34,6 +35,7 @@ const userCall = new Map();
 function endCall(io, callId) {
   const call = groupCalls.get(callId);
   if (!call) return;
+  if (call.timer) clearTimeout(call.timer);
   for (const uid of call.members) if (userCall.get(uid) === callId) userCall.delete(uid);
   groupCalls.delete(callId);
   try {
@@ -65,7 +67,14 @@ module.exports = function registerGroupCallHandler(io, socket) {
 
     const callId = uuidv4();
     const t = type === 'video' ? 'video' : 'audio';
-    const call = { conversationId, type: t, startedBy: userId, members: new Set([userId]), peak: 1, startedAt: nowSec() };
+    const call = { conversationId, type: t, startedBy: userId, members: new Set([userId]), peak: 1, startedAt: nowSec(), timer: null };
+    call.timer = setTimeout(() => {
+      const c = groupCalls.get(callId);
+      if (!c) return;
+      console.warn(`[groupCall] 通话 ${callId} 超过4小时，强制结束`);
+      for (const uid of [...c.members]) io.to(`user_${uid}`).emit('group_call:ended', { callId, reason: 'timeout' });
+      endCall(io, callId);
+    }, MAX_CALL_DURATION_MS);
     groupCalls.set(callId, call);
     userCall.set(userId, callId);
     try {
