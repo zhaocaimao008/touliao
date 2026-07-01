@@ -9,7 +9,7 @@ const router = require('express').Router();
 const auth = require('../../middleware/auth');
 const config = require('../../config');
 const { makeImageUploader } = require('../../utils/upload');
-const { searchLimiter, profileUpdateLimiter } = require('../../middleware/rateLimiters');
+const { searchLimiter, profileUpdateLimiter, reactLimiter } = require('../../middleware/rateLimiters');
 const u = require('./users.controller');
 const c = require('../contacts/contacts.controller');
 
@@ -127,7 +127,7 @@ router.get ('/contacts',                  auth, c.listContacts);
  *       200:
  *         description: Request sent
  */
-router.post('/friend-request',            auth, c.sendFriendRequest);
+router.post('/friend-request',            auth, reactLimiter, c.sendFriendRequest);
 
 /**
  * @swagger

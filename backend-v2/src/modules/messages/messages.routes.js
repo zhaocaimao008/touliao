@@ -72,7 +72,7 @@ router.post('/conversation/private', auth, conv.createPrivate);
  *       200:
  *         description: Group created
  */
-router.post('/conversation/group',   auth, conv.createGroup);
+router.post('/conversation/group',   auth, joinGroupLimiter, conv.createGroup);
 
 /**
  * @swagger
@@ -390,7 +390,7 @@ router.put   ('/conversation/:convId/avatar',         auth, ...grp.avatarMiddlew
  *       200:
  *         description: Users invited
  */
-router.post  ('/conversation/:convId/invite',         auth, grp.invite);
+router.post  ('/conversation/:convId/invite',         auth, joinGroupLimiter, grp.invite);
 
 /**
  * @swagger

@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../../middleware/auth');
+const { rechargeLimiter, reactLimiter } = require('../../middleware/rateLimiters');
 const ctrl = require('./redpackets.controller');
 
 /**
@@ -33,7 +34,7 @@ const ctrl = require('./redpackets.controller');
  *                 packetId: { type: string }
  *                 message: { type: object }
  */
-router.post('/send', auth, ctrl.send);
+router.post('/send', auth, rechargeLimiter, ctrl.send);
 
 /**
  * @swagger
@@ -90,6 +91,6 @@ router.get('/:packetId', auth, ctrl.detail);
  *       400:
  *         description: 红包已领完/已过期/已领取过等
  */
-router.post('/:packetId/claim', auth, ctrl.claim);
+router.post('/:packetId/claim', auth, reactLimiter, ctrl.claim);
 
 module.exports = router;
