@@ -33,7 +33,7 @@ function detectDevice(ua = '') {
 }
 
 function getClientIp(req) {
-  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || '';
+  return req.ip || req.socket?.remoteAddress || '';
 }
 
 function signToken(user) {

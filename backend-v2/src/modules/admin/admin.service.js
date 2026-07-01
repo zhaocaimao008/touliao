@@ -123,16 +123,12 @@ function deleteUser(id) {
   if (!user) throw notFound('用户不存在');
 
   db.transaction(() => {
-    // 该用户发的消息及其衍生数据
-    const msgIds = db.prepare('SELECT id FROM messages WHERE sender_id=?').all(id).map(r => r.id);
-    if (msgIds.length) {
-      const ph = msgIds.map(() => '?').join(',');
-      db.prepare(`DELETE FROM message_reactions WHERE message_id IN (${ph})`).run(...msgIds);
-      db.prepare(`DELETE FROM message_deliveries WHERE message_id IN (${ph})`).run(...msgIds);
-      db.prepare(`DELETE FROM messages_fts WHERE message_id IN (${ph})`).run(...msgIds);
-      db.prepare(`DELETE FROM pinned_messages WHERE message_id IN (${ph})`).run(...msgIds);
-      db.prepare(`DELETE FROM messages WHERE id IN (${ph})`).run(...msgIds);
-    }
+    // 该用户发的消息及其衍生数据（用子查询避免 IN(?) 参数爆炸）
+    db.prepare('DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE sender_id=?)').run(id);
+    db.prepare('DELETE FROM message_deliveries WHERE message_id IN (SELECT id FROM messages WHERE sender_id=?)').run(id);
+    db.prepare('DELETE FROM messages_fts WHERE message_id IN (SELECT id FROM messages WHERE sender_id=?)').run(id);
+    db.prepare('DELETE FROM pinned_messages WHERE message_id IN (SELECT id FROM messages WHERE sender_id=?)').run(id);
+    db.prepare('DELETE FROM messages WHERE sender_id=?').run(id);
     // 该用户参与/产生的关系数据
     db.prepare('DELETE FROM message_reactions WHERE user_id=?').run(id);
     db.prepare('DELETE FROM message_deliveries WHERE user_id=?').run(id);
@@ -221,6 +217,7 @@ function groupDetail(id) {
     FROM conversation_members cm JOIN users u ON u.id=cm.user_id
     WHERE cm.conversation_id=?
     ORDER BY CASE cm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, cm.joined_at
+    LIMIT 500
   `).all(id);
   return conv;
 }

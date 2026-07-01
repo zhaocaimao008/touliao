@@ -216,6 +216,10 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 
 // ── 文件消息（本地上传后入库 + 广播）───────────────────────────
 async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, reply_to_id }) {
+  if (reply_to_id) {
+    const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
+    if (!ref) throw badRequest('被回复消息不存在');
+  }
   const id = uuidv4();
   // P0-1：worker 异步写，await 落库后再读回构建消息
   await writeAsync(
@@ -246,8 +250,16 @@ async function forward(io, userId, { msgId, conversationIds }) {
     db.prepare(`SELECT conversation_id FROM conversation_members WHERE user_id=? AND conversation_id IN (${placeholders})`)
       .all(userId, ...conversationIds).map(r => r.conversation_id)
   );
+  // 批量查询目标会话 mute_all + 成员 role，防止普通成员绕过全员禁言
+  const muteMap = new Map(
+    db.prepare(`SELECT id, mute_all FROM conversations WHERE id IN (${placeholders})`).all(...conversationIds).map(r => [r.id, r.mute_all])
+  );
+  const roleMap = new Map(
+    db.prepare(`SELECT conversation_id, role FROM conversation_members WHERE user_id=? AND conversation_id IN (${placeholders})`).all(userId, ...conversationIds).map(r => [r.conversation_id, r.role])
+  );
   conversationIds.forEach(convId => {
     if (!memberConvIds.has(convId)) return;
+    if (muteMap.get(convId) && roleMap.get(convId) === 'member') return;
     const id = uuidv4();
     ops.push({ sql: insertSql, params: [id, convId, userId, msg.type, msg.content, msg.file_url || '', msg.duration || 0] });
     targets.push({ convId, id });

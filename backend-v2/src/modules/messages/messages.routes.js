@@ -864,7 +864,7 @@ router.get('/:convId/around/:msgId', auth, msg.aroundMessage);
  *       200:
  *         description: Messages forwarded
  */
-router.post('/forward',      auth, msg.forward);
+router.post('/forward',      auth, sendMsgLimiter, msg.forward);
 
 /**
  * @swagger
@@ -888,7 +888,7 @@ router.post('/forward',      auth, msg.forward);
  *       200:
  *         description: Messages deleted
  */
-router.post('/batch-delete', auth, msg.batchDelete);
+router.post('/batch-delete', auth, sendMsgLimiter, msg.batchDelete);
 
 // ── 单段 POST 通配：HTTP 发消息 ─────────────────────────────────
 router.post('/:conversationId', auth, sendMsgLimiter, msg.send);
@@ -964,7 +964,7 @@ router.post('/:conversationId/upload-finish/:uploadId', auth, chunkUp.finish);
  *       200:
  *         description: Message recalled
  */
-router.delete('/:msgId', auth, msg.remove);
+router.delete('/:msgId', auth, reactLimiter, msg.remove);
 
 // ── 消息操作 ────────────────────────────────────────────────────
 
@@ -1026,7 +1026,7 @@ router.post('/:msgId/react', auth, reactLimiter, msg.react);
  *       200:
  *         description: Message edited
  */
-router.put ('/:msgId/edit',  auth, msg.edit);
+router.put ('/:msgId/edit',  auth, reactLimiter, msg.edit);
 
 // ── 置顶消息 ────────────────────────────────────────────────────
 
