@@ -61,6 +61,7 @@ function claim(io, userId, packetId) {
   const packet = db.prepare('SELECT * FROM red_packets WHERE id=?').get(packetId);
   if (!packet) throw notFound('红包不存在');
   requireMember(packet.conversation_id, userId, '无权领取');
+  if (userId === packet.sender_id) throw forbidden('发红包者不能领取自己的红包');
 
   let claimResult;
   try {

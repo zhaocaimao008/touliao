@@ -140,9 +140,17 @@ const stickerLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
+// 推送订阅注册：单用户每分钟 10 次（防刷库存储 DoS）
+const pushSubscribeLimiter = rateLimit({
+  ...base, windowMs: 60 * 1000, max: 10,
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  message: json('推送订阅操作过于频繁，请稍后再试'),
+  validate: { xForwardedForHeader: false },
+});
+
 // 测试模式:DISABLE_RATE_LIMIT=1 时所有限流变 no-op,供 e2e 自动化批量造号/发消息。
 // 生产默认不设此变量,限流照常生效。
-const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter };
+const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter, pushSubscribeLimiter };
 if (process.env.DISABLE_RATE_LIMIT === '1') {
   const noop = (req, res, next) => next();
   for (const k of Object.keys(limiters)) limiters[k] = noop;

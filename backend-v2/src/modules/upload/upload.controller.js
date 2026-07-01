@@ -13,9 +13,13 @@ exports.credential = asyncHandler(async (req, res) => {
   if (!isConfigured()) {
     return res.status(503).json({ error: '云存储未配置，请在服务器 .env 中设置 CLOUD_PROVIDER 及对应密钥' });
   }
-  const { filename, contentType, conversationId } = req.body;
+  const { filename, contentType, conversationId, fileSize } = req.body;
   if (!filename || !contentType || !conversationId) {
     throw badRequest('参数缺失: filename, contentType, conversationId');
+  }
+  const size = Number(fileSize);
+  if (!Number.isInteger(size) || size < 1 || size > 50 * 1024 * 1024) {
+    throw badRequest('fileSize 无效（1 字节 ~ 50 MB）');
   }
   if (!isMember(conversationId, req.user.id)) throw forbidden('无权上传至该会话');
   if (!ALLOWED_CHAT_MIMES.has(contentType)) throw badRequest(`不支持的文件类型: ${contentType}`);

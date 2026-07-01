@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const router = express.Router();
+const config = require('../../config');
 
 const VERSION = '2.0.0';
 
@@ -39,7 +40,7 @@ const DOWNLOADS = [
 ];
 
 router.get('/', (req, res) => {
-  const base = `${req.protocol}://${req.get('host')}`;
+  const base = (config.appUrl || '').replace(/\/+$/, '');
   const cards = DOWNLOADS.map((d, i) => {
     const url = d.file ? `${base}/downloads/${d.file}` : null;
     return `

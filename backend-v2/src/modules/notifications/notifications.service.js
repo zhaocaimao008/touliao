@@ -10,7 +10,8 @@ function vapidPublicKey() {
 }
 
 function webSubscribe(userId, subscription) {
-  if (!subscription?.endpoint) throw badRequest('订阅信息无效');
+  if (!subscription?.endpoint || typeof subscription.endpoint !== 'string' || subscription.endpoint.length > 2048)
+    throw badRequest('订阅信息无效');
   db.prepare(`
     INSERT INTO push_subscriptions (id, user_id, endpoint, subscription)
     VALUES (?, ?, ?, ?)
@@ -24,7 +25,9 @@ function webUnsubscribe(userId, endpoint) {
 }
 
 function saveDeviceToken(userId, token, platform) {
-  if (!token || !['android', 'ios'].includes(platform)) throw badRequest('参数无效，platform 必须为 android 或 ios');
+  if (!token || typeof token !== 'string' || token.length > 512)
+    throw badRequest('token 无效，长度不得超过 512 字符');
+  if (!['android', 'ios'].includes(platform)) throw badRequest('参数无效，platform 必须为 android 或 ios');
   db.prepare(`
     INSERT INTO device_tokens (id, user_id, token, platform)
     VALUES (?, ?, ?, ?)

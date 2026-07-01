@@ -1,6 +1,7 @@
 'use strict';
 const router = require('express').Router();
 const auth = require('../../middleware/auth');
+const { pushSubscribeLimiter } = require('../../middleware/rateLimiters');
 const c = require('./notifications.controller');
 
 /**
@@ -44,7 +45,7 @@ router.get   ('/vapid-public-key',       c.vapidPublicKey);  // 公钥无需鉴�
  *       200:
  *         description: Unsubscription successful
  */
-router.post  ('/web-subscribe',    auth,  c.webSubscribe);
+router.post  ('/web-subscribe',    auth,  pushSubscribeLimiter, c.webSubscribe);
 router.delete('/web-subscribe',    auth,  c.webUnsubscribe);
 
 /**
@@ -78,7 +79,7 @@ router.delete('/web-subscribe',    auth,  c.webUnsubscribe);
  *       200:
  *         description: Token deleted
  */
-router.post  ('/device-token',     auth,  c.saveDeviceToken);
+router.post  ('/device-token',     auth,  pushSubscribeLimiter, c.saveDeviceToken);
 router.delete('/device-token',     auth,  c.deleteDeviceToken);
 
 /**
