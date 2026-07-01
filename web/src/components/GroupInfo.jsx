@@ -705,32 +705,15 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
         {/* 操作按钮区 */}
         <div className="gi-actions">
-          <button
-            onClick={clearMessages}
-            className="gi-btn-danger"
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-msg-other)'}
-          >
+          <button onClick={clearMessages} className="gi-btn-danger">
             双向删除聊天记录
           </button>
           {isOwner ? (
-            <button
-              onClick={dissolveGroup}
-              data-testid="group-dissolve-btn"
-              className="gi-btn-danger"
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-msg-other)'}
-            >
+            <button onClick={dissolveGroup} data-testid="group-dissolve-btn" className="gi-btn-danger">
               解散群聊
             </button>
           ) : (
-            <button
-              onClick={leaveGroup}
-              data-testid="group-leave-btn"
-              className="gi-btn-danger"
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-msg-other)'}
-            >
+            <button onClick={leaveGroup} data-testid="group-leave-btn" className="gi-btn-danger">
               退出群聊
             </button>
           )}
