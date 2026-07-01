@@ -171,8 +171,8 @@ function missed(io, userId, after) {
 async function send(io, convId, userId, { content, type, reply_to_id }) {
   const ALLOWED_HTTP_TYPES = new Set(['text', 'contact_card']);
   const safeType = ALLOWED_HTTP_TYPES.has(type) ? type : 'text';
-  if (!content) throw badRequest('消息不能为空');
-  if (typeof content === 'string' && content.length > MAX) throw badRequest(`消息内容不能超过 ${MAX} 个字符`);
+  if (!content || typeof content !== 'string') throw badRequest('消息内容格式错误');
+  if (content.length > MAX) throw badRequest(`消息内容不能超过 ${MAX} 个字符`);
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
@@ -216,6 +216,10 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 
 // ── 文件消息（本地上传后入库 + 广播）───────────────────────────
 async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, reply_to_id }) {
+  const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
+  if (!member) throw forbidden('无权发送');
+  const conv = db.prepare('SELECT mute_all FROM conversations WHERE id=?').get(convId);
+  if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
   if (reply_to_id) {
     const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
     if (!ref) throw badRequest('被回复消息不存在');
@@ -237,8 +241,10 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
 async function forward(io, userId, { msgId, conversationIds }) {
   if (!msgId || !conversationIds?.length) throw badRequest('参数缺失');
   if (conversationIds.length > 20) throw badRequest('单次转发最多20个会话');
+  const FORWARDABLE_TYPES = new Set(['text', 'image', 'voice', 'video', 'file', 'contact_card']);
   const msg = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(msgId);
   if (!msg) throw notFound('消息不存在');
+  if (!FORWARDABLE_TYPES.has(msg.type)) throw badRequest('该类型消息不支持转发');
   requireMember(msg.conversation_id, userId, '无权转发该消息');
 
   const insertSql = 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration) VALUES (?,?,?,?,?,?,?)';
@@ -338,6 +344,9 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
     if (!callerRole) throw forbidden('您已不在该会话中');
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
+    if (msg.deleted === 2) throw badRequest('消息已彻底删除，无法再次操作');
+    if (isOwn && !isAdmin && Math.floor(Date.now() / 1000) - msg.created_at > RECALL)
+      throw badRequest('超过2分钟无法撤回');
     await writeAsync('UPDATE messages SET deleted=1 WHERE id=?', [msgId]);
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     cache.del(cache.keys.conversations(userId)).catch(() => {});
@@ -393,8 +402,8 @@ async function edit(io, userId, msgId, content) {
 
 // ── 收藏 ────────────────────────────────────────────────────────
 async function collect(userId, msgId) {
-  const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
-  if (!msg) throw notFound('消息不存在');
+  const msg = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(msgId);
+  if (!msg) throw notFound('消息不存在或已删除');
   requireMember(msg.conversation_id, userId, '无权操作');
   const extra = { file_url: msg.file_url, source_msg_id: msg.id };
   const dedupKey = collectionDedupKey(msg.type, msg.content, extra);
@@ -537,8 +546,8 @@ function aroundMessage(convId, msgId, userId) {
     const ph = replyIds.map(() => '?').join(',');
     db.prepare(`
       SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
-      FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id IN (${ph})
-    `).all(...replyIds).forEach(r => replyMap.set(r.id, r));
+      FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id IN (${ph}) AND m.conversation_id=?
+    `).all(...replyIds, convId).forEach(r => replyMap.set(r.id, r));
   }
 
   const msgIds = messages.map(m => m.id);
