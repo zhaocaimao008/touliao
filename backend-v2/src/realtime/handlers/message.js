@@ -48,13 +48,13 @@ function handleMentions(io, userId, conversationId, content, msgId) {
  * 幂等性检测：如果该消息已有 client_msg_id 且 database 中已存在相同(sender_id, client_msg_id)，
  * 则直接返回已落库的消息，不重复写入。（fix: 防止弱网 ack 超时重发导致消息重复）
  */
-function checkDedup(userId, clientMsgId) {
+function checkDedup(userId, clientMsgId, conversationId) {
   if (!clientMsgId) return null;
   return readDb.prepare(`
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id=m.sender_id
-    WHERE m.sender_id=? AND m.client_msg_id=? LIMIT 1
-  `).get(userId, clientMsgId);
+    WHERE m.sender_id=? AND m.client_msg_id=? AND m.conversation_id=? LIMIT 1
+  `).get(userId, clientMsgId, conversationId);
 }
 
 module.exports = function registerMessageHandler(io, socket) {
@@ -78,7 +78,7 @@ module.exports = function registerMessageHandler(io, socket) {
 
     // ── 幂等性去重（fix: 防止弱网 ack 超时重发导致消息重复）──
     if (clientMsgId) {
-      const existing = checkDedup(userId, clientMsgId);
+      const existing = checkDedup(userId, clientMsgId, conversationId);
       if (existing) {
         // 已处理过：直接返回已存在的消息，不重复写入
         const msg = {

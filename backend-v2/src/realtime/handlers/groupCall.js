@@ -58,6 +58,8 @@ module.exports = function registerGroupCallHandler(io, socket) {
   socket.on('group_call:start', ({ conversationId, type }) => {
     if (!conversationId || !isMember(conversationId, userId)) return;
     if (userCall.has(userId)) { socket.emit('group_call:error', { reason: 'busy' }); return; }
+    const activeInConv = [...groupCalls.values()].find(c => c.conversationId === conversationId);
+    if (activeInConv) { socket.emit('group_call:error', { reason: 'active_call' }); return; }
     const conv = db.prepare("SELECT type FROM conversations WHERE id=?").get(conversationId);
     if (!conv || conv.type !== 'group') { socket.emit('group_call:error', { reason: 'not_group' }); return; }
 

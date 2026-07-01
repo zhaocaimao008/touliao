@@ -29,8 +29,8 @@ function buildMessage(id) {
   if (msg.reply_to_id) {
     msg.replyTo = db.prepare(`
       SELECT m.id, m.type, m.content, m.file_url, u.username as senderName
-      FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?
-    `).get(msg.reply_to_id) || null;
+      FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=? AND m.conversation_id=?
+    `).get(msg.reply_to_id, msg.conversation_id) || null;
   }
   const reactions = db.prepare(`
     SELECT emoji, GROUP_CONCAT(user_id) as userIds, COUNT(*) as count

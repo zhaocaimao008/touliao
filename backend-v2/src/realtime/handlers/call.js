@@ -79,6 +79,7 @@ module.exports = function registerCallHandler(io, socket) {
     const now = Date.now();
     if (now - (callRateMap.get(userId) || 0) < CALL_COOLDOWN_MS) return;
     callRateMap.set(userId, now);
+    setTimeout(() => callRateMap.delete(userId), CALL_COOLDOWN_MS);
     // 防骚扰 / 防绕过拉黑：被叫已拉黑主叫，或双方无私聊会话(非任意ID都能拨)，则拒接。
     const blocked = db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(to, userId);
     const shareConv = db.prepare(`

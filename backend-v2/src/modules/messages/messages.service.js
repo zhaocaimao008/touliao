@@ -194,6 +194,10 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
     }
   }
   if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
+  if (reply_to_id) {
+    const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
+    if (!ref) throw badRequest('被回复消息不存在');
+  }
   const id = uuidv4();
   // P0-1：改走 worker 异步写，主线程不再同步抢 WAL 写锁；await 保证落库后再 buildMessage 读回
   await writeAsync(
@@ -306,6 +310,7 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
   if (vanish) {
     // 彻底删除不留痕迹：内容清空，deleted=2，对方也不见任何提示
     const callerRole = memberRole(msg.conversation_id, userId);
+    if (!callerRole) throw forbidden('您已不在该会话中');
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (msg.sender_id !== userId && !isAdmin) throw forbidden('无权删除该消息');
     await writeAsync("UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", [msgId]);
@@ -318,6 +323,7 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
   if (forEveryone) {
     const isOwn = msg.sender_id === userId;
     const callerRole = memberRole(msg.conversation_id, userId);
+    if (!callerRole) throw forbidden('您已不在该会话中');
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
     await writeAsync('UPDATE messages SET deleted=1 WHERE id=?', [msgId]);

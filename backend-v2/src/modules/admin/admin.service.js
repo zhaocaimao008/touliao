@@ -112,8 +112,8 @@ async function resetPassword(id, newPassword) {
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
   if (!user) throw notFound('用户不存在');
   const hash = await bcrypt.hash(newPassword, 12);
-  db.prepare('UPDATE users SET password=? WHERE id=?').run(hash, id);
-  // 踢掉该用户所有会话
+  db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, Math.floor(Date.now() / 1000), id);
+  // 踢掉该用户所有会话并强制断开 socket，使旧 JWT 立即失效
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(id);
 }
 
@@ -194,8 +194,8 @@ function listMessages({ q, period, limit = 30, offset = 0 }) {
 function listGroups({ q, limit = 30, offset = 0 }) {
   const lim = Math.min(parseInt(limit) || 30, 100);
   const off = Math.max(parseInt(offset) || 0, 0);
-  const like = q ? `%${q}%` : null;
-  const where = q ? "AND (c.name LIKE ? OR c.group_number LIKE ?)" : '';
+  const like = q ? `%${escapeLike(q)}%` : null;
+  const where = q ? "AND (c.name LIKE ? ESCAPE '\\' OR c.group_number LIKE ? ESCAPE '\\')" : '';
   const args = q ? [like, like] : [];
 
   const total = db.prepare(`SELECT COUNT(*) n FROM conversations c WHERE c.type='group' ${where}`).get(...args).n;

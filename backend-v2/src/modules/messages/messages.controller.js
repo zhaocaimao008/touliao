@@ -53,7 +53,13 @@ exports.searchInConv = asyncHandler(async (req, res) =>
 
 // ── 文件上传：权限门控 → multer+魔数 → 入库广播+推送 ─────────────
 exports.uploadGuard = (req, res, next) => {
-  if (!isMember(req.params.conversationId, req.user.id)) return res.status(403).json({ error: '无权发送' });
+  const convId = req.params.conversationId;
+  const uid = req.user.id;
+  if (!isMember(convId, uid)) return res.status(403).json({ error: '无权发送' });
+  const { db } = require('../../db/connection');
+  const conv = db.prepare('SELECT mute_all FROM conversations WHERE id=?').get(convId);
+  const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, uid);
+  if (conv?.mute_all && member?.role === 'member') return res.status(403).json({ error: '全员禁言中，您没有发言权限' });
   next();
 };
 exports.uploadMiddlewares = chatUploader;

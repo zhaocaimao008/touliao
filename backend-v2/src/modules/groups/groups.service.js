@@ -105,7 +105,8 @@ function invite(io, convId, userId, userIds) {
   const added = [];
   db.transaction(() => {
     const curCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(convId).n;
-    if (curCount + userIds.length > config.limits.maxGroupMembers) throw badRequest(`群成员将超过上限 ${config.limits.maxGroupMembers} 人`);
+    const newCount = userIds.filter(uid => validSet.has(uid) && !isMember(convId, uid)).length;
+    if (curCount + newCount > config.limits.maxGroupMembers) throw badRequest(`群成员将超过上限 ${config.limits.maxGroupMembers} 人`);
     userIds.forEach(uid => {
       if (!validSet.has(uid)) return;
       if (add.run(convId, uid).changes > 0) added.push(uid);
@@ -148,7 +149,11 @@ function leave(io, convId, userId) {
   if (!conv) throw notFound('群不存在');
   if (conv.owner_id === userId) throw badRequest('群主不能直接退出群聊，请先转让群主后再退出，或解散群聊');
   db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, userId);
-  if (io) io.to(convId).emit('group_updated', { id: convId });
+  if (io) {
+    io.in(`user_${userId}`).socketsLeave(convId);
+    io.to(convId).emit('group_updated', { id: convId });
+    io.to(`user_${userId}`).emit('group_left', { conversationId: convId });
+  }
 }
 
 // ── 解散群聊（仅群主）────────────────────────────────────────────
