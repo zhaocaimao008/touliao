@@ -614,7 +614,7 @@
 /* ── 文件上传进度条 ── */
 .wc-upload-progress-track {
   height: 4px;
-  background: #D9F7E2;
+  background: rgba(var(--green-rgb), .15);
   border-radius: 2px;
   overflow: hidden;
 }
