@@ -25,7 +25,9 @@ enum MediaUrlResolver {
     static func kfSource(resolved s: String?) -> Source? {
         guard let s, !s.isEmpty, let u = URL(string: s) else { return nil }
         let cacheKey = s.components(separatedBy: "?").first ?? s
-        return .network(ImageResource(downloadURL: u, cacheKey: cacheKey))
+        // 必须全限定 Kingfisher.ImageResource：iOS17 SDK 也有个 ImageResource(name:bundle:)
+        // (资产目录符号)，裸写会命中 SDK 那个导致类型不符。
+        return .network(Kingfisher.ImageResource(downloadURL: u, cacheKey: cacheKey))
     }
 
     /// 便捷：接收【原始】路径，先 resolve 再包成带稳定 cacheKey 的 Source。
