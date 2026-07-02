@@ -86,7 +86,14 @@ app.use('/uploads', (req, res, next) => {
     console.error('[uploads] blacklist check error:', err.message);
     res.status(503).json({ error: '认证服务暂时不可用' });
   });
-}, express.static(config.uploadsRoot));
+}, express.static(config.uploadsRoot, {
+  // uploads 均为 uuid 命名、内容永不变更 → 强缓存，消除每次加载的 304 回源往返，
+  // 头像/图片打开会话即从本地缓存秒出。private：内容经鉴权，禁止共享缓存(CDN/代理)存储，
+  // 只允许当前用户浏览器缓存（与该用户已被授权取得这些字节一致，无安全回归）。
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+  },
+}));
 app.use('/downloads', express.static(path.join(__dirname, '../../downloads'), {
   setHeaders: (res, filePath) => {
     res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
