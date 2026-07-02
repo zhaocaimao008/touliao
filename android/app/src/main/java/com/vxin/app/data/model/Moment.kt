@@ -1,5 +1,6 @@
 package com.vxin.app.data.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -19,7 +20,12 @@ data class MomentComment(
     val avatar: String = "",
 )
 
-/** 朋友圈动态（GET /api/moments，enrich 后结构） */
+/**
+ * 朋友圈动态（GET /api/moments，enrich 后结构）。
+ * @Immutable：含 3 个 List 字段会令 Compose 判定整类 unstable，动态卡片永不跳过重组。
+ * 纯 DTO、全 val、更新只经 .copy()，标注属实且安全。
+ */
+@Immutable
 @Serializable
 data class Moment(
     val id: String,

@@ -273,7 +273,7 @@ fun ChatScreen(
                             }
                         }
                     }
-                    items(state.messages, key = { it.id }) { msg ->
+                    items(state.messages, key = { it.id }, contentType = { it.type }) { msg ->
                         if (msg.type == "nudge") {
                             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
                                 Text(viewModel.nudgeText(msg), color = VxinTextSecondary, fontSize = 12.sp)

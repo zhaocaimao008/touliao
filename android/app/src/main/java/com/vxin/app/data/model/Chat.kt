@@ -1,5 +1,6 @@
 package com.vxin.app.data.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 /** 会话列表项 —— 对齐后端 listConversations 返回 */
@@ -32,7 +33,13 @@ data class MuteConversationBody(val muted: Int)
 @Serializable
 data class BackgroundBody(val background: String)
 
-/** 消息 —— REST history 与 Socket new_message 共用同一结构 */
+/**
+ * 消息 —— REST history 与 Socket new_message 共用同一结构。
+ * @Immutable：含 List<MessageReaction> 会令 Compose 推断整个类为 unstable，
+ * 导致 MessageBubble 永不跳过重组（聊天时任何状态变化都会重绘全部可见气泡→掉帧）。
+ * 本类为纯 DTO，全 val、更新只经 .copy() 从不原地改，标注 @Immutable 属实且安全。
+ */
+@Immutable
 @Serializable
 data class Message(
     val id: String,
