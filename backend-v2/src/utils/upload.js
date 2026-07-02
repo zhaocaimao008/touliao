@@ -12,6 +12,10 @@ const fs       = require('fs');
 const fileType = require('file-type');
 const { v4: uuidv4 } = require('uuid');
 
+// 单文件上限：默认不限制（Infinity）；如需设安全上限可配环境变量 MAX_UPLOAD_BYTES。
+// diskStorage 边收边落盘、不整体入内存，故不限制不会撑爆内存（磁盘占用请自行留意）。
+const MAX_UPLOAD_BYTES = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || Infinity;
+
 const ALLOWED_CHAT_MIMES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav',
@@ -120,7 +124,7 @@ function makeMagicBytesMiddleware(allowedMimes) {
 
 function handleMulterError(err, req, res, next) {
   if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: '文件超过大小限制（最大 500MB）' });
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: '文件超过服务器配置的大小上限' });
     return res.status(400).json({ error: `上传错误: ${err.message}` });
   }
   if (err?.message) return res.status(400).json({ error: err.message });
@@ -144,7 +148,7 @@ function makeChatUploader(dest) {
   });
   const multerMw = wrapUpload(multer({
     storage,
-    limits: { fileSize: 500 * 1024 * 1024 },
+    limits: { fileSize: MAX_UPLOAD_BYTES },
     fileFilter: (req, file, cb) => {
       if (!ALLOWED_CHAT_MIMES.has(file.mimetype)) {
         return cb(new Error(`400 Invalid File Type: 不支持的 Content-Type (${file.mimetype})`));

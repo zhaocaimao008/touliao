@@ -1181,11 +1181,8 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       showErr(`禁止上传可执行文件（${ext}）`);
       return;
     }
-    // 单文件硬上限 500 MB（超大文件在此被拦截，杜绝浏览器 OOM）
-    if (file.size > 500 * 1024 * 1024) {
-      showErr(`文件超过 500MB 限制（当前 ${(file.size / 1024 / 1024).toFixed(1)} MB）`);
-      return;
-    }
+    // 不限制文件/图片大小：大文件(>8MB)走分片流式上传(每片 4MB，边读边传，不整体入内存)，
+    // hash 仅对 ≤50MB 计算(见 uploadChunked)，故超大文件也不会撑爆浏览器内存。
 
     const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
     const doUpload = async () => {
@@ -1245,21 +1242,24 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     if (file) handleFileSelect(file);
   };
 
-  // 粘贴图片直接发送（截图 / 输入法表情包等剪贴板里的图片）
+  // 粘贴直接发送：图片（截图/表情包）+ 文档/文件（从文件管理器复制的 PDF/Word/压缩包等）。
+  // 剪贴板里的文件项 kind==='file'；纯文本(kind==='string')不拦截，正常粘贴进输入框。
   const handlePaste = useCallback((e) => {
     const items = e.clipboardData?.items;
     if (!items) return;
     for (const it of items) {
-      if (it.type && it.type.startsWith('image/')) {
-        const blob = it.getAsFile();
-        if (!blob) continue;
-        e.preventDefault();  // 阻止把图片当文本/文件名塞进输入框
+      if (it.kind !== 'file') continue;         // 只处理文件项；文本走默认粘贴
+      const blob = it.getAsFile();
+      if (!blob) continue;
+      e.preventDefault();                         // 阻止把文件名当文本塞进输入框
+      let file = blob;
+      // 截图/剪贴板图片常是无名 blob，补个文件名；文档一般自带真实文件名，原样用
+      if (it.type && it.type.startsWith('image/') && (!blob.name || blob.name === 'image.png')) {
         const ext = (it.type.split('/')[1] || 'png').split('+')[0];
-        const named = new File([blob], blob.name && blob.name !== 'image.png'
-          ? blob.name : `paste-${Date.now()}.${ext}`, { type: it.type });
-        handleFileSelect(named);
-        return;
+        file = new File([blob], `paste-${Date.now()}.${ext}`, { type: it.type });
       }
+      handleFileSelect(file);
+      return;                                     // 一次只发一个（handleFileSelect 也会挡并发）
     }
   }, [handleFileSelect]);
 

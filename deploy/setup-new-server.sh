@@ -140,7 +140,7 @@ server {
     server_name $HOST;
     root $WEBROOT;
     index index.html;
-    client_max_body_size 520m;  # 后端单文件上限 500MB，留 20m 余量
+    client_max_body_size 0;    # 0 = 不限制上传大小
     gzip on;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 

@@ -14,7 +14,7 @@ const config = require('../../config');
 const { isMember } = require('../messages/shared');
 const { verifyMagicBytes, ALLOWED_CHAT_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS, sanitizeFilename } = require('../../utils/upload');
 
-const MAX_FILE = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || 500 * 1024 * 1024; // 默认上限 500MB
+const MAX_FILE = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || Infinity; // 默认不限制；可配 MAX_UPLOAD_BYTES 设安全上限
 const MAX_CHUNK = 8 * 1024 * 1024; // 单片上限 8MB
 const CHUNK_DIR = path.join(config.uploadsRoot, 'chunks');
 const FILES_DIR = path.join(config.uploadsRoot, 'files');
@@ -49,7 +49,10 @@ function init(req, res) {
   if (!isMember(conversationId, req.user.id)) return res.status(403).json({ error: '无权上传至该会话' });
   if (!filename || !size || !hash) return res.status(400).json({ error: '参数缺失: filename,size,hash' });
   const total = parseInt(size, 10);
-  if (!(total > 0) || total > MAX_FILE) return res.status(400).json({ error: `文件大小需为 1 ~ ${Math.floor(MAX_FILE/1024/1024)}MB` });
+  if (!(total > 0) || total > MAX_FILE) {
+    const cap = Number.isFinite(MAX_FILE) ? `1 ~ ${Math.floor(MAX_FILE / 1024 / 1024)}MB` : '正整数字节';
+    return res.status(400).json({ error: `文件大小需为 ${cap}` });
+  }
   const ext = path.extname(filename).toLowerCase();
   if (BLOCKED_EXTENSIONS.has(ext)) return res.status(400).json({ error: `禁止上传 ${ext} 类型文件` });
   const id = makeId(req.user.id, conversationId, hash);
