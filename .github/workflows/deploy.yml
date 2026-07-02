@@ -45,7 +45,9 @@ jobs:
         run: node -e "require('./src/app'); console.log('✅ app 加载成功'); process.exit(0)"
         env:
           NODE_ENV: test
-          JWT_SECRET: ci-smoke-secret
+          # 必须 ≥32 字符，否则 config/index.js 的安全校验会 process.exit(1)，
+          # 令冒烟检查失败、部署闸门永远关闭（此前每次 push 部署都被此卡死）。
+          JWT_SECRET: ci-smoke-jwt-secret-0123456789abcdef
           DB_PATH: /tmp/vxin-ci-smoke.db
 
   deploy:
