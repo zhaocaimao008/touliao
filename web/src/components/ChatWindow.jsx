@@ -1181,11 +1181,11 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       showErr(`禁止上传可执行文件（${ext}）`);
       return;
     }
-    // 安全兜底上限 2GB：足够传大视频/文档，又防止超大文件占爆服务器磁盘。
+    // 安全兜底上限 1GB：足够传大视频/文档，又防止超大文件占爆服务器磁盘。
     // 大文件(>8MB)走分片流式上传(每片 4MB 边读边传，hash 仅 ≤50MB 计算)，不撑爆浏览器内存。
-    const MAX_UPLOAD = 2 * 1024 * 1024 * 1024; // 2GB，与后端 MAX_UPLOAD_BYTES / nginx 保持一致
+    const MAX_UPLOAD = 1 * 1024 * 1024 * 1024; // 1GB，与后端 MAX_UPLOAD_BYTES / nginx 保持一致
     if (file.size > MAX_UPLOAD) {
-      showErr(`文件超过 2GB 上限（当前 ${(file.size / 1024 / 1024 / 1024).toFixed(2)} GB）`);
+      showErr(`文件超过 1GB 上限（当前 ${(file.size / 1024 / 1024 / 1024).toFixed(2)} GB）`);
       return;
     }
 

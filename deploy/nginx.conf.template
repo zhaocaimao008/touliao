@@ -4,7 +4,7 @@ server {
     listen 80;
     server_name __DOMAIN__;
 
-    client_max_body_size 2148m;  # 安全兜底 ~2GB（后端 MAX_UPLOAD_BYTES 精确卡 2GB）
+    client_max_body_size 1124m;  # 安全兜底 ~1GB（后端 MAX_UPLOAD_BYTES 精确卡 1GB）
     root __WEBROOT__;
     index index.html;
 
