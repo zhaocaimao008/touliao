@@ -344,13 +344,26 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         if (!data.length) return;
         setMessages(prev => {
           const existingIds = new Set(prev.map(m => m.id));
-          const newMsgs = data.filter(m => !existingIds.has(m.id));
-          if (!newMsgs.length) return prev;
+          // ⚠ 补拉回来的真实消息带 client_msg_id；若它对应本地某条乐观消息(其 id/_tempId
+          // 仍是发送时的 tempId)，必须按 client_msg_id 认领并「替换」该乐观消息——只按
+          // 服务器 id 去重会漏掉(tempId≠新id)，导致乐观消息与真实消息并存＝重复气泡。
+          // (与 onMsg/onMsgBatch 的重连去重逻辑保持一致；修复弱网重连偶发消息重复。)
+          let next = prev.slice();
+          let changed = false;
+          for (const m of data) {
+            if (existingIds.has(m.id)) continue;
+            if (m.client_msg_id) {
+              const idx = next.findIndex(x => x._tempId === m.client_msg_id || x.id === m.client_msg_id);
+              if (idx >= 0) { next[idx] = m; changed = true; continue; }
+            }
+            next.push(m); changed = true;
+          }
+          if (!changed) return prev;
           setTimeout(() => {
             const outer = listOuterRef.current;
             if (outer) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
           }, 50);
-          return [...prev, ...newMsgs];
+          return next;
         });
       })
       .catch(() => {});

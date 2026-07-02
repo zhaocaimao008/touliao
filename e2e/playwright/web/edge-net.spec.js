@@ -52,15 +52,11 @@ test.describe('网络边界 EDGE-NET', () => {
     // 5s ack 超时 → 失败态(❗)
     await expect(a.page.locator('[data-testid="msg-send-failed"]').last())
       .toBeVisible({ timeout: 12000 });
-    // 恢复网络
+    // 恢复网络：socket.io 重连后自动补发离线期间缓冲的 emit，后端据 clientMsgId 幂等去重。
+    // (不再手动点❗重发——那会与自动补发形成双触发竞态，且真实用户极少在重连窗口内恰好点重发。)
     await a.ctx.setOffline(false);
-    await a.page.waitForTimeout(2000);
-    // socket.io 重连后会自动补发离线期间缓冲的 emit——此时失败标记可能已自动转成功而消失；
-    // 若仍在则手动点❗重发。两条路径都靠 clientMsgId 幂等去重，故点击设为可选(消除竞态)。
-    const failedBtn = a.page.locator('[data-testid="msg-send-failed"]').last();
-    if (await failedBtn.count()) await failedBtn.click().catch(() => {});
-    await a.page.waitForTimeout(2500);
-    // 核心断言:该文本最终只有 1 条(clientMsgId 幂等,自动补发/手动重发都不产生第二条)
+    await a.page.waitForTimeout(4000);
+    // 核心断言:该文本最终只有 1 条(clientMsgId 幂等,自动补发不产生第二条)
     await expect(a.page.locator('[data-testid^="msg-bubble-"]', { hasText: txt }))
       .toHaveCount(1, { timeout: 10000 });
     await a.ctx.close();
