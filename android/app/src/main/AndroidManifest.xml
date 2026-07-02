@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- DownloadManager 写入公共「下载」目录：Android 9(28) 及以下需要，10+ 无需 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
