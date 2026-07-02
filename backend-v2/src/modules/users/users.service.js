@@ -78,13 +78,15 @@ function qrPayload(userId) {
 }
 
 // ── 搜索 ────────────────────────────────────────────────────────
-// 隐私：不返回 phone 字段（本 session S3 修复保留）
+// 隐私：不返回 phone 字段（本 session S3 修复保留）；
+// 也不返回 bio——getUserDetail 对「非好友且 profile_visible=0」会隐藏 bio，
+// 搜索若照返 bio 就等于绕过资料可见性泄露签名。前端搜索结果只用 username/avatar/wechat_id。
 function search(userId, q) {
   if (!q) return [];
   if (q.length > 50) throw badRequest('搜索内容过长');
   const like = '%' + q.replace(/[\\%_]/g, c => '\\' + c) + '%';
   return db.prepare(`
-    SELECT u.id, u.username, u.avatar, u.bio, u.wechat_id
+    SELECT u.id, u.username, u.avatar, u.wechat_id
     FROM users u
     LEFT JOIN user_settings s ON s.user_id = u.id
     WHERE u.id != ?
