@@ -7,7 +7,7 @@ const { getPublicBase } = require('../../utils/cloudStorage');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
-const { privateSendBlockReason } = require('../../modules/messages/shared');
+const { privateSendBlockReason, strangerBlockReason } = require('../../modules/messages/shared');
 
 const TYPE_FALLBACK = { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]' };
 
@@ -82,6 +82,9 @@ module.exports = function registerFileHandler(io, socket) {
     // 黑名单：任一方拉黑对方即拒绝私聊发文件（与文本发送一致）
     const blockReason = privateSendBlockReason(conversationId, userId);
     if (blockReason) { ack?.({ success: false, error: blockReason }); return; }
+    // 屏蔽陌生人消息：与文本/HTTP 文件路径一致，防止陌生人用云存储文件绕过该设置骚扰
+    const strangerReason = strangerBlockReason(conversationId, userId);
+    if (strangerReason) { ack?.({ success: false, error: strangerReason }); return; }
 
     const id = uuidv4();
     const created_at = Math.floor(Date.now() / 1000);

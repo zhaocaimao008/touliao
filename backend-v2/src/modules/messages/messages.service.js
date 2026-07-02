@@ -269,6 +269,8 @@ async function forward(io, userId, { msgId, conversationIds }) {
     if (muteMap.get(convId) && roleMap.get(convId) === 'member') return;
     // 黑名单私聊：静默跳过被拉黑/已拉黑的目标（不计入成功转发数）
     if (privateSendBlockReason(convId, userId)) return;
+    // 屏蔽陌生人：静默跳过"对方开启屏蔽陌生人且我非其好友"的私聊目标，防止用转发绕过
+    if (strangerBlockReason(convId, userId)) return;
     const id = uuidv4();
     ops.push({ sql: insertSql, params: [id, convId, userId, msg.type, msg.content, msg.file_url || '', msg.duration || 0] });
     targets.push({ convId, id });
