@@ -2,7 +2,8 @@
 const { v4: uuidv4 } = require('uuid');
 const { asyncHandler, badRequest, forbidden } = require('../../utils/http');
 const { isConfigured, getPresignedPutUrl } = require('../../utils/cloudStorage');
-const { ALLOWED_CHAT_MIMES, MIME_TO_EXT } = require('../../utils/upload');
+const path = require('path');
+const { safeExt, ALLOWED_CHAT_EXTS } = require('../../utils/upload');
 const { isMember } = require('../messages/shared');
 
 /**
@@ -29,9 +30,13 @@ exports.credential = asyncHandler(async (req, res) => {
     }
   }
   if (!isMember(conversationId, req.user.id)) throw forbidden('无权上传至该会话');
-  if (!ALLOWED_CHAT_MIMES.has(contentType)) throw badRequest(`不支持的文件类型: ${contentType}`);
+  // 仅放行常见格式（云直传不经本服务器、无法做魔数校验，故按扩展名把关）。
+  const rawExt = path.extname(filename || '').toLowerCase().replace(/^\./, '');
+  if (!ALLOWED_CHAT_EXTS.has(rawExt)) {
+    throw badRequest(`不支持的文件格式（${rawExt ? '.' + rawExt : '无扩展名'}）；仅支持常见图片/音视频/文档/压缩包`);
+  }
 
-  const ext = MIME_TO_EXT[contentType] || '.bin';
+  const ext = safeExt(filename, contentType);
   const key = `chat/${conversationId}/${uuidv4()}${ext}`;
   try {
     const { uploadUrl, publicUrl } = await getPresignedPutUrl(key, contentType);

@@ -12,7 +12,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const config = require('../../config');
 const { isMember } = require('../messages/shared');
-const { verifyMagicBytes, ALLOWED_CHAT_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS, sanitizeFilename } = require('../../utils/upload');
+const { verifyChatFile, ALLOWED_CHAT_EXTS, sanitizeFilename } = require('../../utils/upload');
 
 const MAX_FILE = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || Infinity; // 默认不限制；可配 MAX_UPLOAD_BYTES 设安全上限
 const MAX_CHUNK = 8 * 1024 * 1024; // 单片上限 8MB
@@ -53,8 +53,11 @@ function init(req, res) {
     const cap = Number.isFinite(MAX_FILE) ? `1 ~ ${Math.floor(MAX_FILE / 1024 / 1024)}MB` : '正整数字节';
     return res.status(400).json({ error: `文件大小需为 ${cap}` });
   }
-  const ext = path.extname(filename).toLowerCase();
-  if (BLOCKED_EXTENSIONS.has(ext)) return res.status(400).json({ error: `禁止上传 ${ext} 类型文件` });
+  // 仅放行常见格式（按扩展名快速拒绝冷门/危险格式；finish 时再做魔数反伪装校验）。
+  const ext = path.extname(filename).toLowerCase().replace(/^\./, '');
+  if (!ALLOWED_CHAT_EXTS.has(ext)) {
+    return res.status(400).json({ error: `不支持的文件格式（${ext ? '.' + ext : '无扩展名'}）；仅支持常见图片/音视频/文档/压缩包` });
+  }
   const id = makeId(req.user.id, conversationId, hash);
   const m = { userId: req.user.id, convId: conversationId, filename, size: total, mime: mime || '', hash, createdAt: Date.now() };
   meta.set(id, m);
@@ -94,8 +97,8 @@ async function finish(req, res) {
   const got = received(uploadId);
   if (got !== m.size) return res.status(400).json({ error: `文件不完整 (${got}/${m.size})，请续传`, received: got });
 
-  // 魔数校验（与单次上传一致的安全策略）
-  const check = await verifyMagicBytes(part, ALLOWED_CHAT_MIMES, m.mime);
+  // 常见格式校验（扩展名白名单 + 魔数反可执行伪装）
+  const check = await verifyChatFile(part, m.filename, m.mime);
   if (!check.ok) { fs.unlink(part, () => {}); meta.delete(uploadId); return res.status(400).json({ error: `400 Invalid File Type: ${check.reason}` }); }
 
   // hash 完整性校验（流式读取，避免大文件全量载入内存）
@@ -108,7 +111,7 @@ async function finish(req, res) {
     return res.status(400).json({ error: '文件校验失败(hash 不一致)' });
   }
 
-  const finalName = require('uuid').v4() + (MIME_TO_EXT[check.mime] || path.extname(m.filename) || '.bin');
+  const finalName = require('uuid').v4() + check.ext; // check.ext = 已校验的常见扩展名（保留 docx/mkv 等原格式）
   const finalPath = path.join(FILES_DIR, finalName);
   fs.renameSync(part, finalPath);
   meta.delete(uploadId);

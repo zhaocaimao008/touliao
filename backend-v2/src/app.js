@@ -64,6 +64,12 @@ app.use(express.urlencoded({ extended: true }));
 // H9: /uploads 静态文件鉴权 — 用户JWT或Admin JWT均可访问，同时校验黑名单
 const jwt = require('jsonwebtoken');
 const { isBlacklisted } = require('./utils/tokenBlacklist');
+// 仅这些扩展名允许在本站内联预览（<img>/<audio>/<video>）；其余全部以附件下发（防 HTML/SVG XSS）。
+const INLINE_PREVIEW_EXTS = new Set([
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp',
+  '.mp3', '.m4a', '.ogg', '.wav', '.aac', '.flac',
+  '.mp4', '.mov', '.webm', '.m4v',
+]);
 app.use('/uploads', (req, res, next) => {
   // Cookie 优先；Electron/移动端用 Bearer 鉴权、<img> 无法带 header，故同时支持 ?token= 查询参数与 Bearer 兜底
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
@@ -90,8 +96,16 @@ app.use('/uploads', (req, res, next) => {
   // uploads 均为 uuid 命名、内容永不变更 → 强缓存，消除每次加载的 304 回源往返，
   // 头像/图片打开会话即从本地缓存秒出。private：内容经鉴权，禁止共享缓存(CDN/代理)存储，
   // 只允许当前用户浏览器缓存（与该用户已被授权取得这些字节一致，无安全回归）。
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
     res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    // 上传已放行所有格式 → 安全兜底改在下发层：一律 nosniff（禁止浏览器 MIME 嗅探），
+    // 且仅图片/音频/视频允许内联预览，其余（HTML/SVG/脚本/文档/压缩包…）一律以附件下发，
+    // 使 HTML/SVG 只会被下载、绝不在本站源被当页面执行 → 消除存储型 XSS。
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    const ext = path.extname(filePath).toLowerCase();
+    if (!INLINE_PREVIEW_EXTS.has(ext)) {
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
+    }
   },
 }));
 app.use('/downloads', express.static(path.join(__dirname, '../../downloads'), {

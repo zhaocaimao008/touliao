@@ -7,25 +7,20 @@ import ImagePreview from './ImagePreview';
 import VirtualMessageList from './VirtualMessageList';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
-const ALLOWED_MIME_SET = new Set([
-  'image/jpeg','image/png','image/gif','image/webp',
-  'audio/webm','audio/ogg','audio/mp4','audio/mpeg','audio/wav',
-  'video/mp4','video/quicktime','video/webm',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/zip','application/x-zip-compressed',
-  'application/x-rar-compressed','application/x-7z-compressed',
-  'text/plain',
+// 聊天允许的「常见」文件扩展名（与后端 ALLOWED_CHAT_EXTS 保持一致）；冷门/危险格式不允许上传。
+const CHAT_ALLOWED_EXTS = new Set([
+  // 图片
+  'jpg','jpeg','jpe','png','gif','webp','bmp','heic','heif','avif','tif','tiff',
+  // 视频
+  'mp4','m4v','mov','webm','mkv','avi','wmv','flv','mpg','mpeg','3gp','3g2','ogv',
+  // 音频
+  'mp3','m4a','m4b','aac','flac','wav','ogg','oga','opus','wma','amr','mid','midi','aif','aiff',
+  // 文档
+  'pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv','tsv','md','markdown','rtf','srt','vtt','epub',
+  // 压缩包
+  'zip','rar','7z','gz','tar','bz2','xz','tgz',
 ]);
-const BLOCKED_EXTENSIONS = new Set([
-  '.exe','.bat','.cmd','.sh','.ps1','.vbs','.js','.jar',
-  '.msi','.dll','.com','.scr','.pif','.hta','.cpl',
-]);
+const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
 import EmojiPicker from './EmojiPicker';
 import StickerPanel from './StickerPanel';
 import GroupInfo, { GroupAvatar } from './GroupInfo';
@@ -1173,13 +1168,10 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     const showErr = (msg) =>
       setUploadState({ name: file.name, progress: 0, status: 'error', errorMsg: msg });
 
-    if (!ALLOWED_MIME_SET.has(file.type)) {
-      showErr(`不支持的文件类型：${file.type || '未知'}，请上传图片/文档/音视频/压缩包`);
-      return;
-    }
-    const ext = file.name.includes('.') ? ('.' + file.name.split('.').pop()).toLowerCase() : '';
-    if (BLOCKED_EXTENSIONS.has(ext)) {
-      showErr(`禁止上传可执行文件（${ext}）`);
+    // 仅放行常见格式（主流图片/音视频/文档/压缩包）；冷门/危险格式前端即拦，服务端再兜底。
+    const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+    if (!CHAT_ALLOWED_EXTS.has(ext)) {
+      showErr(`不支持的文件格式（${ext ? '.' + ext : '无扩展名'}），仅支持常见图片/音视频/文档/压缩包`);
       return;
     }
     // 安全兜底上限 1GB：足够传大视频/文档，又防止超大文件占爆服务器磁盘。
@@ -2125,7 +2117,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
               data-testid="chat-attach-file"
               ref={fileInputRef}
               className="wc-hidden-input"
-              accept="image/*,audio/*,video/mp4,video/quicktime,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip,application/x-rar-compressed,text/plain"
+              accept={CHAT_ACCEPT_ATTR}
               onChange={handleFileUpload}
             />
           </label>
