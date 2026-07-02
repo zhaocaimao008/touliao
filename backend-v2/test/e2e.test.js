@@ -69,6 +69,14 @@ describe('v信 后端 E2E 集成测试', () => {
       expect(res.body.some(m => m.content.includes('测试消息'))).toBe(true);
     });
 
+    test('非法游标 before 回退到最近消息（不返回空）', async () => {
+      const res = await request(app).get(`/api/messages/${conversationId}?before=notanumber`)
+        .set('Authorization', `Bearer ${u1.token}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.length).toBeGreaterThan(0); // 非法游标不应把历史吞空
+    });
+
     test('用户2可见该会话消息', async () => {
       const res = await request(app).get(`/api/messages/${conversationId}?limit=20`)
         .set('Authorization', `Bearer ${u2.token}`);

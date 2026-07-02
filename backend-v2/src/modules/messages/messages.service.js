@@ -32,13 +32,19 @@ function history(convId, userId, { before, after, limit }) {
       )
   `;
   const params = [convId, userId];
-  if (before) { query += ' AND m.created_at < ?'; params.push(Number(before)); }
-  if (after)  { query += ' AND m.created_at > ?'; params.push(Number(after)); }
-  query += after ? ' ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?' : ' ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?';
+  // 游标须为有限数值才生效；非法值（NaN/空串）忽略，回退为「最近 N 条」，
+  // 否则 created_at < NaN 恒假会把历史吞空。排序方向也依据校验后的 after。
+  const beforeTs = Number(before);
+  const afterTs = Number(after);
+  const hasBefore = before != null && before !== '' && Number.isFinite(beforeTs);
+  const hasAfter  = after  != null && after  !== '' && Number.isFinite(afterTs);
+  if (hasBefore) { query += ' AND m.created_at < ?'; params.push(beforeTs); }
+  if (hasAfter)  { query += ' AND m.created_at > ?'; params.push(afterTs); }
+  query += hasAfter ? ' ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?' : ' ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?';
   params.push(lim);
 
   const raw = db.prepare(query).all(...params);
-  const messages = after ? raw : raw.reverse();
+  const messages = hasAfter ? raw : raw.reverse();
 
   const conv = db.prepare('SELECT type FROM conversations WHERE id=?').get(convId);
 
