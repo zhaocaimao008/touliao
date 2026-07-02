@@ -2,11 +2,19 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 真实应用版本由主进程经 additionalArguments 下发（app.getVersion()，取自打包 package.json）。
+// 不再 require('../../package.json')：沙箱化 preload 不能可靠读本地文件，且旧路径读到的是
+// 仓库根 package.json(2.0.0) 而非桌面端版本。process.argv 在沙箱 preload 中可用。
+const APP_VERSION = (() => {
+  const a = process.argv.find(x => x.startsWith('--vxin-app-version='));
+  return a ? a.slice('--vxin-app-version='.length) : '';
+})();
+
 // 渲染进程通过 window.__ELECTRON_CONFIG__ 判断 Electron 环境
 contextBridge.exposeInMainWorld('__ELECTRON_CONFIG__', {
   isElectron: true,
   serverUrl: 'https://dipsin.com',
-  appVersion: require('../../package.json').version,
+  appVersion: APP_VERSION,
 });
 
 // ── 白名单 IPC API（最小暴露原则）──────────────────────────

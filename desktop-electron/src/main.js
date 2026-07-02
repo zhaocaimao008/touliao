@@ -48,6 +48,15 @@ log.info('v信 Desktop v2 启动');
 // 截图读取上限，防止超大 temp 文件导致 OOM
 const MAX_READ_BYTES = 20 * 1024 * 1024; // 20 MB
 
+// 下载完成后「自动打开」的黑名单：可执行 / 脚本 / 安装包类不自动运行，
+// 仅在文件管理器中定位，交用户自行决定，避免下载即执行（drive-by）。
+const NO_AUTO_OPEN_EXTS = new Set([
+  '.exe', '.msi', '.msix', '.bat', '.cmd', '.com', '.scr', '.ps1', '.psm1',
+  '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh', '.hta', '.jar', '.reg', '.lnk',
+  '.dll', '.sys', '.sh', '.bash', '.zsh', '.command', '.app', '.dmg', '.pkg',
+  '.deb', '.rpm', '.apk', '.appimage', '.run', '.bin',
+]);
+
 let mainWindow = null;
 let tray = null;
 // 下一个下载项的文件名（渲染进程经 file:download 传入，will-download 消费一次）
@@ -237,7 +246,15 @@ function setupSecurity() {
     const savePath = path.join(app.getPath('downloads'), safe);
     item.setSavePath(savePath);
     item.once('done', (_ev, state) => {
-      if (state === 'completed') shell.openPath(savePath).catch(() => {});
+      if (state !== 'completed') return;
+      // 可执行/脚本/安装包：不自动运行，仅在文件管理器中定位，交用户决定
+      const ext = path.extname(savePath).toLowerCase();
+      if (NO_AUTO_OPEN_EXTS.has(ext)) {
+        log.info('下载完成（可执行类，不自动打开，仅定位）:', savePath);
+        shell.showItemInFolder(savePath);
+      } else {
+        shell.openPath(savePath).catch(() => {});
+      }
     });
   });
 
@@ -282,6 +299,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,                // 安全：启用沙箱，隔离渲染进程
+      // 沙箱化 preload 无法可靠 require 本地文件；用 app.getVersion()(取自打包 package.json)
+      // 经启动参数同步下发真实版本，替代 preload 里读错文件(读到仓库根 2.0.0)的旧写法。
+      additionalArguments: [`--vxin-app-version=${app.getVersion()}`],
       webSecurity: true,
       allowRunningInsecureContent: false,
       devTools: !app.isPackaged,    // 安全：生产构建禁用 DevTools
@@ -510,6 +530,16 @@ function setupIPC() {
   ipcMain.handle('file:download', (_e, payload) => {
     const url = payload?.url;
     if (typeof url !== 'string' || !url || !mainWindow) return;
+    // 安全：仅允许从当前后端 / 已配置 CDN 下载。否则被注入的渲染进程可让主进程
+    // 从任意域拉文件并自动打开（drive-by 下载）。API_ORIGIN/CDN_ORIGIN 为 let，
+    // 随 switchServer 动态更新，故在调用时求值（与 CSP connect-src 白名单同源）。
+    let origin;
+    try { origin = new URL(url).origin; } catch { log.warn('file:download 非法 URL:', url); return; }
+    const allowed = [API_ORIGIN, CDN_ORIGIN].filter(Boolean);
+    if (!allowed.includes(origin)) {
+      log.warn('file:download 拒绝非白名单来源:', origin);
+      return;
+    }
     g_pendingDownloadName = (typeof payload?.filename === 'string' && payload.filename.trim())
       ? payload.filename.trim() : null;
     mainWindow.webContents.downloadURL(url);
