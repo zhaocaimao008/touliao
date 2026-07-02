@@ -7,7 +7,7 @@ const { pushNewMessage } = require('../../utils/push');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
-const { privateSendBlockReason } = require('../../modules/messages/shared');
+const { privateSendBlockReason, strangerBlockReason } = require('../../modules/messages/shared');
 
 const MAX = config.limits.maxMsgLength;
 
@@ -108,17 +108,9 @@ module.exports = function registerMessageHandler(io, socket) {
     const blockReason = privateSendBlockReason(conversationId, userId);
     if (blockReason) { ack?.({ success: false, error: blockReason }); return; }
 
-    // 屏蔽陌生人消息（私聊）
-    if (conv?.type === 'private') {
-      const recipient = readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?').get(conversationId, userId);
-      if (recipient) {
-        const setting = readDb.prepare('SELECT block_unknown_messages FROM user_settings WHERE user_id=?').get(recipient.user_id);
-        if (setting?.block_unknown_messages) {
-          const isFriend = readDb.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(recipient.user_id, userId);
-          if (!isFriend) { ack?.({ success: false, error: '对方已开启屏蔽陌生人消息' }); return; }
-        }
-      }
-    }
+    // 屏蔽陌生人消息（私聊）——与 HTTP/文件发送路径共用同一校验
+    const strangerReason = strangerBlockReason(conversationId, userId);
+    if (strangerReason) { ack?.({ success: false, error: strangerReason }); return; }
 
     const id = uuidv4();
     const created_at = Math.floor(Date.now() / 1000);

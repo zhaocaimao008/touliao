@@ -9,7 +9,7 @@ const { writeAsync, writeBatch } = require('../../db/writer');
 const config = require('../../config');
 const { badRequest, forbidden, notFound, conflict } = require('../../utils/http');
 const { collectionDedupKey } = require('../../utils/collections');
-const { isMember, requireMember, memberRole, buildMessage, privateSendBlockReason } = require('./shared');
+const { isMember, requireMember, memberRole, buildMessage, privateSendBlockReason, strangerBlockReason } = require('./shared');
 const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
 
@@ -185,23 +185,9 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   // 黑名单：任一方拉黑对方即拒绝私聊发消息（防止拉黑后经既有会话继续骚扰）
   const blockReason = privateSendBlockReason(convId, userId);
   if (blockReason) throw forbidden(blockReason);
-  // 屏蔽陌生人消息：私聊会话中，若对方开启了该设置且双方互不是联系人，则拒绝发送
-  if (conv?.type === 'private') {
-    const recipient = db.prepare(
-      'SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?'
-    ).get(convId, userId);
-    if (recipient) {
-      const setting = db.prepare(
-        "SELECT block_unknown_messages FROM user_settings WHERE user_id=?"
-      ).get(recipient.user_id);
-      if (setting?.block_unknown_messages) {
-        const isFriend = db.prepare(
-          'SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?'
-        ).get(recipient.user_id, userId);
-        if (!isFriend) throw forbidden('对方已开启屏蔽陌生人消息');
-      }
-    }
-  }
+  // 屏蔽陌生人消息：私聊会话中，若对方开启该设置且发送者不在其联系人中，则拒绝发送
+  const strangerReason = strangerBlockReason(convId, userId);
+  if (strangerReason) throw forbidden(strangerReason);
   if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
   if (reply_to_id) {
     const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
@@ -232,6 +218,9 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   // 黑名单：任一方拉黑对方即拒绝私聊发文件（与文本发送一致）
   const blockReason = privateSendBlockReason(convId, userId);
   if (blockReason) throw forbidden(blockReason);
+  // 屏蔽陌生人消息：与文本发送一致，防止陌生人用文件/图片/表情绕过该设置骚扰
+  const strangerReason = strangerBlockReason(convId, userId);
+  if (strangerReason) throw forbidden(strangerReason);
   if (reply_to_id) {
     const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
     if (!ref) throw badRequest('被回复消息不存在');

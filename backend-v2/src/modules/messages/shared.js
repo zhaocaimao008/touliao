@@ -29,6 +29,24 @@ function privateSendBlockReason(convId, senderId) {
     : '消息已发出，但被对方拒收';
 }
 
+// 屏蔽陌生人消息：私聊会话中，若接收方开启了该设置且发送者不在其联系人中，则拒收。
+// 与 privateSendBlockReason(拉黑) 并列，须覆盖全部发送路径——文本(HTTP/socket)与
+// 文件/图片/语音/视频/表情(saveUploadedFile)。返回拒绝原因；允许时返回 null。
+// 场景：双方曾是好友(私聊会话已建)，接收方删除好友后开启屏蔽陌生人——旧会话仍在，
+// 若只拦文本不拦文件，陌生人仍可经既有会话用图片/文件骚扰。
+function strangerBlockReason(convId, senderId) {
+  const conv = readDb.prepare('SELECT type FROM conversations WHERE id=?').get(convId);
+  if (conv?.type !== 'private') return null;
+  const other = readDb.prepare(
+    'SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?'
+  ).get(convId, senderId);
+  if (!other) return null;
+  const setting = readDb.prepare('SELECT block_unknown_messages FROM user_settings WHERE user_id=?').get(other.user_id);
+  if (!setting?.block_unknown_messages) return null;
+  const isFriend = readDb.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(other.user_id, senderId);
+  return isFriend ? null : '对方已开启屏蔽陌生人消息';
+}
+
 function requireMember(convId, userId, msg = '无权访问') {
   if (!isMember(convId, userId)) throw forbidden(msg);
 }
@@ -81,4 +99,4 @@ function purgeConversation(id) {
   })();
 }
 
-module.exports = { isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendBlockReason };
+module.exports = { isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendBlockReason, strangerBlockReason };
