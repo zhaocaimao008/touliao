@@ -75,6 +75,10 @@ jobs:
             "mkdir -p /var/www/downloads/updates"
           scp -i ~/.ssh/deploy_key "$EXE" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/vxin-windows-latest-setup.exe"
+          # 关键：把带版本名的 exe 也放进 updates/，electron-updater 读 latest.yml 后按原名去 updates/ 取，
+          # 否则自动更新会 404（此前 updates/ 只有旧版 exe）。
+          scp -i ~/.ssh/deploy_key "$EXE" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/$(basename "$EXE")"
           # latest.yml/*.blockmap 可能在 artifacts/dist 或 artifacts/release 子目录 → 用 find 定位，
           # 否则自动更新源不会更新（旧脚本只找顶层，导致 latest.yml 停在旧版）。
           for f in $(find artifacts -name latest.yml -o -name '*.blockmap'); do
