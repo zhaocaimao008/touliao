@@ -2,7 +2,7 @@
 const path = require('path');
 const config = require('../../config');
 const { asyncHandler, badRequest } = require('../../utils/http');
-const { makeChatUploader, sanitizeFilename } = require('../../utils/upload');
+const { makeChatUploader, sanitizeFilename, decodeMultipartName } = require('../../utils/upload');
 const { isMember } = require('./shared');
 const { pushNewMessage } = require('../../utils/push');
 const svc = require('./messages.service');
@@ -70,7 +70,7 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
   const type = mime.startsWith('image/') ? 'image'
              : mime.startsWith('audio/') ? 'voice'
              : mime.startsWith('video/') ? 'video' : 'file';
-  const safeOriginalName = sanitizeFilename(req.file.originalname);
+  const safeOriginalName = sanitizeFilename(decodeMultipartName(req.file.originalname));
   const url = `/uploads/files/${req.file.filename}`;
 
   const msg = await svc.saveUploadedFile(io(req), conversationId, req.user.id, {

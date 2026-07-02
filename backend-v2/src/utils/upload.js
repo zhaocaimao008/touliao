@@ -87,6 +87,18 @@ function sanitizeFilename(name) {
     .trim().slice(0, 200) || 'file';
 }
 
+// multer(busboy) 默认按 latin1 解码 multipart 文件名，浏览器 FormData 发的 UTF-8 中文名会变乱码。
+// 还原：把每字符当作原始字节按 latin1 取回，再按 utf8 解码。纯 ASCII 为无损恒等；含中文则修复乱码。
+// 仅用于 multipart 单次上传路径（云直传/分片的文件名走 JSON，本就是正确 utf8，无需处理）。
+function decodeMultipartName(name) {
+  if (!name || typeof name !== 'string') return name;
+  try {
+    const fixed = Buffer.from(name, 'latin1').toString('utf8');
+    // utf8 解码若产生替换符（�）说明原本就不是被误解码的 utf8，保持原样更安全
+    return fixed.includes('�') ? name : fixed;
+  } catch { return name; }
+}
+
 // 从原始文件名安全派生存储扩展名（仅 .字母数字，最长 12，防路径穿越/多重扩展）；MIME 已知则优先用映射。
 function safeExt(originalname, mimetype) {
   if (MIME_TO_EXT[mimetype]) return MIME_TO_EXT[mimetype];
@@ -239,6 +251,6 @@ function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 
 
 module.exports = {
   ALLOWED_CHAT_EXTS, ALLOWED_IMAGE_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS,
-  sanitizeFilename, safeExt, makeChatUploader, makeImageUploader,
+  sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader,
   verifyMagicBytes, verifyChatFile,
 };
