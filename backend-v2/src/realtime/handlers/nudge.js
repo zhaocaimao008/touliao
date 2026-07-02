@@ -12,6 +12,7 @@ const { writeAsync } = require('../../db/writer');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const cache = require('../../utils/cache');
+const { privateSendBlockReason, strangerBlockReason } = require('../../modules/messages/shared');
 
 // 防刷：同一发起者最短 3s 一次（使用 cache 层跨进程共享，防 PM2 cluster 绕过）
 const COOLDOWN_MS = 3000;
@@ -44,14 +45,25 @@ module.exports = function registerNudgeHandler(io, socket) {
       await cache.set(cdKey, String(now), COOLDOWN_S);
 
       // 发起者必须是会话成员
-      const me = readDb.prepare('SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?')
+      const me = readDb.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?')
         .get(conversationId, userId);
       if (!me) { ack?.({ success: false, error: '非会话成员' }); return; }
 
-      // 私聊：target 默认是对方；群聊：必须显式指定且为群成员
-      const conv = readDb.prepare('SELECT type FROM conversations WHERE id=?').get(conversationId);
+      const conv = readDb.prepare('SELECT type, mute_all FROM conversations WHERE id=?').get(conversationId);
       if (!conv) { ack?.({ success: false, error: '会话不存在' }); return; }
 
+      // 拍一拍同样是一条落库+广播的消息推送：与发消息路径一致做门控，防止绕过骚扰/禁言
+      // 私聊：拉黑 / 屏蔽陌生人任一命中即拒绝（否则拉黑后仍可靠拍一拍骚扰对方）
+      const blockReason = privateSendBlockReason(conversationId, userId);
+      if (blockReason) { ack?.({ success: false, error: blockReason }); return; }
+      const strangerReason = strangerBlockReason(conversationId, userId);
+      if (strangerReason) { ack?.({ success: false, error: strangerReason }); return; }
+      // 群聊全员禁言：普通成员不能借拍一拍在禁言期间刷屏
+      if (conv.type !== 'private' && conv.mute_all && me.role === 'member') {
+        ack?.({ success: false, error: '全员禁言中，您没有发言权限' }); return;
+      }
+
+      // 私聊：target 默认是对方；群聊：必须显式指定且为群成员
       let target = targetId;
       if (conv.type === 'private') {
         if (!target) {

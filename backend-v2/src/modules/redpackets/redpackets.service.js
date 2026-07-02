@@ -2,7 +2,7 @@
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
-const { isMember, requireMember } = require('../messages/shared');
+const { isMember, requireMember, privateSendBlockReason, strangerBlockReason } = require('../messages/shared');
 const wallet = require('../wallet/wallet.service');
 const broadcaster = require('../../realtime/broadcaster');
 
@@ -18,6 +18,16 @@ async function send(io, userId, { conversationId, totalAmount, totalCount, greet
   if (greeting && (typeof greeting !== 'string' || greeting.length > 100))
     throw badRequest('祝福语最多 100 字');
   requireMember(conversationId, userId, '无权操作');
+  // 红包会落一条 red_packet 消息并广播(含用户祝福语)，与发消息一致做门控，防绕过骚扰/禁言
+  const blockReason = privateSendBlockReason(conversationId, userId);
+  if (blockReason) throw forbidden(blockReason);
+  const strangerReason = strangerBlockReason(conversationId, userId);
+  if (strangerReason) throw forbidden(strangerReason);
+  const conv = db.prepare('SELECT type, mute_all FROM conversations WHERE id=?').get(conversationId);
+  if (conv && conv.type !== 'private' && conv.mute_all) {
+    const role = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(conversationId, userId)?.role;
+    if (role === 'member') throw forbidden('全员禁言中，您没有发言权限');
+  }
 
   const packetId = uuidv4();
   const greet = (typeof greeting === 'string' && greeting.trim()) ? greeting.trim() : '恭喜发财，大吉大利';
