@@ -132,10 +132,14 @@ class ChatPage {
     await this.tid(A.groupInfoBtn).click();
   }
 
-  /** 退群(群信息面板 → 退群 → 确认) */
+  /** 退出/解散群(群信息面板 → 退群或解散 → 确认)。
+   * 群主看到的是"解散群聊"、普通成员看到的是"退出群聊"——两者都会把该会话移出列表，
+   * 故按当前身份点存在的那个按钮（GRP-05 里 A 是建群者=群主，只有解散按钮）。 */
   async leaveGroup() {
-    await this.tid(A.groupLeaveBtn).scrollIntoViewIfNeeded().catch(() => {});
-    await this.tid(A.groupLeaveBtn).click();
+    const leave = this.tid(A.groupLeaveBtn);
+    const btn = (await leave.count()) ? leave : this.tid(A.groupDissolveBtn);
+    await btn.scrollIntoViewIfNeeded().catch(() => {});
+    await btn.click();
     await this.tid(A.confirmOk).click().catch(() => {});
   }
 

@@ -81,7 +81,8 @@ const A = {
   groupRenameInput:  'group-rename-input', // 群信息:改名输入
   groupRenameSave:   'group-rename-save',  // 群信息:保存群名
   groupMemberRemove: (userId) => `group-member-remove-${userId}`,
-  groupLeaveBtn:     'group-leave-btn',    // 群信息:退群
+  groupLeaveBtn:     'group-leave-btn',    // 群信息:退群(成员)
+  groupDissolveBtn:  'group-dissolve-btn', // 群信息:解散(群主)——群主无退群按钮
 
   // ── 通话 ──
   callModal:         'call-modal',
