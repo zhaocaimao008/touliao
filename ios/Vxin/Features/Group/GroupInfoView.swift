@@ -226,8 +226,8 @@ struct GroupInfoView: View {
     }
 
     @ViewBuilder private func groupAvatar(_ info: GroupInfo) -> some View {
-        if !info.avatar.isEmpty, let url = MediaUrlResolver.resolve(info.avatar) {
-            KFImage(URL(string: url))
+        if !info.avatar.isEmpty, let src = MediaUrlResolver.kfSource(raw: info.avatar) {
+            KFImage(source: src)
                 .resizable().scaledToFill()
                 .frame(width: 40, height: 40).clipShape(Circle())
         } else {

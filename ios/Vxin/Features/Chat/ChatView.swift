@@ -37,8 +37,8 @@ struct ChatView: View {
             if !vm.pinnedMessages.isEmpty { pinnedBanner }
             messageList
                 .background(alignment: .center) {
-                    if !vm.background.isEmpty, let url = URL(string: vm.resolveMediaUrl(vm.background) ?? "") {
-                        KFImage(url).resizable().scaledToFill().clipped().ignoresSafeArea()
+                    if !vm.background.isEmpty, let src = MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(vm.background)) {
+                        KFImage(source: src).resizable().scaledToFill().clipped().ignoresSafeArea()
                     }
                 }
             inputBar
@@ -308,7 +308,7 @@ struct ChatView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(vm.stickers) { s in
-                            KFImage(URL(string: vm.resolveMediaUrl(s.url) ?? ""))
+                            KFImage(source: MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(s.url)))
                                 .resizable().scaledToFit().frame(width: 60, height: 60)
                                 .onTapGesture { vm.sendSticker(s); showStickerPanel = false }
                         }
@@ -456,7 +456,7 @@ private struct MessageBubble: View {
     @ViewBuilder private var content: some View {
         switch msg.type {
         case "image":
-            KFImage(URL(string: vm.resolveMediaUrl(msg.fileUrl) ?? ""))
+            KFImage(source: MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(msg.fileUrl)))
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: 220, maxHeight: 280)
@@ -631,7 +631,7 @@ private struct ChatImageGalleryView: View {
             Color.black.ignoresSafeArea()
             TabView(selection: $page) {
                 ForEach(Array(images.enumerated()), id: \.offset) { idx, url in
-                    KFImage(URL(string: url))
+                    KFImage(source: MediaUrlResolver.kfSource(resolved: url))
                         .resizable().scaledToFit()
                         .scaleEffect(idx == page ? scale : 1)
                         .gesture(MagnificationGesture().onChanged { scale = max(1, min($0, 4)) }.onEnded { _ in if scale < 1 { scale = 1 } })

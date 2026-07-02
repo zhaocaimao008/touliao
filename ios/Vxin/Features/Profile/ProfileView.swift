@@ -100,8 +100,8 @@ struct ProfileView: View {
     @ViewBuilder private var avatarView: some View {
         let user = session.currentUser
         PhotosPicker(selection: $photoItem, matching: .images) {
-            if let avatar = user?.avatar, !avatar.isEmpty, let url = MediaUrlResolver.resolve(avatar) {
-                KFImage(URL(string: url))
+            if let avatar = user?.avatar, !avatar.isEmpty, let src = MediaUrlResolver.kfSource(raw: avatar) {
+                KFImage(source: src)
                     .resizable().scaledToFill()
                     .frame(width: 80, height: 80).clipShape(Circle())
             } else {

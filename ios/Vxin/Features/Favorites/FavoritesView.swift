@@ -53,8 +53,8 @@ struct FavoritesView: View {
     @ViewBuilder private func row(_ item: Collection) -> some View {
         switch item.type {
         case "image":
-            if let url = MediaUrlResolver.resolve(item.extra.fileUrl) {
-                KFImage(URL(string: url)).resizable().scaledToFit().frame(maxHeight: 200)
+            if let src = MediaUrlResolver.kfSource(raw: item.extra.fileUrl) {
+                KFImage(source: src).resizable().scaledToFit().frame(maxHeight: 200)
             } else { Text("[图片]") }
         case "file":
             Text("📄 \(item.content.isEmpty ? "文件" : item.content)")

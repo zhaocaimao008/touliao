@@ -258,7 +258,7 @@ private struct MomentCard: View {
                 let end = min(rowStart + cols, moment.images.count)
                 HStack(spacing: 4) {
                     ForEach(rowStart..<end, id: \.self) { i in
-                        KFImage(URL(string: MediaUrlResolver.resolve(moment.images[i]) ?? ""))
+                        KFImage(source: MediaUrlResolver.kfSource(raw: moment.images[i]))
                             .resizable().scaledToFill()
                             .frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit)
                             .clipped().clipShape(RoundedRectangle(cornerRadius: 6))
@@ -290,7 +290,7 @@ private struct MomentGalleryView: View {
             Color.black.ignoresSafeArea()
             TabView(selection: $page) {
                 ForEach(Array(images.enumerated()), id: \.offset) { idx, url in
-                    KFImage(URL(string: url))
+                    KFImage(source: MediaUrlResolver.kfSource(resolved: url))
                         .resizable().scaledToFit()
                         .scaleEffect(idx == page ? scale : 1)
                         .gesture(MagnificationGesture().onChanged { scale = max(1, min($0, 4)) }.onEnded { _ in if scale < 1 { scale = 1 } })
