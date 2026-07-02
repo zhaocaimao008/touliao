@@ -91,7 +91,7 @@ exports.logout = asyncHandler(async (req, res) => {
     const tok = req.cookies?.[config.cookieName];
     const walletId = req.cookies?.[config.walletCookie];
     if (tok) {
-      const payload = jwt.verify(tok, config.jwtSecret);
+      const payload = jwt.verify(tok, config.jwtSecret, { algorithms: ['HS256'] });
       const { addToBlacklist } = require('../../utils/tokenBlacklist');
       await addToBlacklist(tok, payload.exp);
       if (walletId) {

@@ -71,10 +71,10 @@ app.use('/uploads', (req, res, next) => {
     || req.query?.token || bearer;
   if (!token) return res.status(401).json({ error: '未授权' });
   try {
-    jwt.verify(token, config.jwtSecret);
+    jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
   } catch {
     try {
-      jwt.verify(token, config.adminJwtSecret);
+      jwt.verify(token, config.adminJwtSecret, { algorithms: ['HS256'] });
     } catch {
       return res.status(401).json({ error: '未授权' });
     }

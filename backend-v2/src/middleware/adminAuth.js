@@ -20,7 +20,7 @@ module.exports = function adminAuth(req, res, next) {
       return res.status(401).json({ error: '后台登录已过期' });
     }
     try {
-      const payload = jwt.verify(token, config.adminJwtSecret);
+      const payload = jwt.verify(token, config.adminJwtSecret, { algorithms: ['HS256'] });
       if (!payload.admin) return res.status(403).json({ error: '无后台权限' });
       req.admin = payload;
       req.adminToken = token;

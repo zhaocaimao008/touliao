@@ -33,7 +33,7 @@ module.exports = function setupRealtime(io, app) {
     const token = cookieToken || bearerToken;
     if (!token) { prodMetrics.recordConnResult(false); return next(new Error('未授权')); }
     try {
-      socket.user = jwt.verify(token, config.jwtSecret);
+      socket.user = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
       // 黑名单（logout / 强制下线的 token 不得接入）
       if (await isBlacklisted(token)) {
         prodMetrics.recordConnResult(false);
