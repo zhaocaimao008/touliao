@@ -75,11 +75,16 @@ const MIME_TO_EXT = {
   'text/plain': '.txt',
 };
 
+// 仅用于「消息显示内容/下载文件名」（物理文件一律 uuid 命名，非路径安全边界）。
+// 故只去除真正危险的字符（路径分隔符、null、控制字符）并收敛多重点号；
+// 保留中文标点、括号【】（）、空格及其它语言文字，避免把正常文件名打成一串下划线。
 function sanitizeFilename(name) {
   if (!name || typeof name !== 'string') return 'file';
   return name
-    .replace(/[/\\]/g, '').replace(/\0/g, '').replace(/\.{2,}/g, '.')
-    .replace(/[^\w.\-一-龥\s]/g, '_').trim().slice(0, 200) || 'file';
+    .replace(/[/\\]/g, '')            // 路径分隔符
+    .replace(/[\x00-\x1f\x7f]/g, '')  // null 与控制字符
+    .replace(/\.{2,}/g, '.')          // 收敛 .. 多重点号
+    .trim().slice(0, 200) || 'file';
 }
 
 // 从原始文件名安全派生存储扩展名（仅 .字母数字，最长 12，防路径穿越/多重扩展）；MIME 已知则优先用映射。

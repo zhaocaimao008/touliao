@@ -64,16 +64,6 @@ app.use(express.urlencoded({ extended: true }));
 // H9: /uploads 静态文件鉴权 — 用户JWT或Admin JWT均可访问，同时校验黑名单
 const jwt = require('jsonwebtoken');
 const { isBlacklisted } = require('./utils/tokenBlacklist');
-// 仅图片/音频/视频允许内联（<img>/<audio>/<video> 预览与播放）；文档/压缩包/文本一律以附件下发，
-// 使 HTML/SVG 等只会被下载、绝不在本站源被当页面执行 → 消除存储型 XSS。（须与 upload.js 的常见格式白名单同步）
-const INLINE_PREVIEW_EXTS = new Set([
-  // 图片
-  '.jpg', '.jpeg', '.jpe', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif', '.avif', '.tif', '.tiff',
-  // 视频
-  '.mp4', '.m4v', '.mov', '.webm', '.mkv', '.avi', '.wmv', '.flv', '.mpg', '.mpeg', '.3gp', '.3g2', '.ogv',
-  // 音频
-  '.mp3', '.m4a', '.m4b', '.aac', '.flac', '.wav', '.ogg', '.oga', '.opus', '.wma', '.amr', '.mid', '.midi', '.aif', '.aiff',
-]);
 app.use('/uploads', (req, res, next) => {
   // Cookie 优先；Electron/移动端用 Bearer 鉴权、<img> 无法带 header，故同时支持 ?token= 查询参数与 Bearer 兜底
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
@@ -100,18 +90,12 @@ app.use('/uploads', (req, res, next) => {
   // uploads 均为 uuid 命名、内容永不变更 → 强缓存，消除每次加载的 304 回源往返，
   // 头像/图片打开会话即从本地缓存秒出。private：内容经鉴权，禁止共享缓存(CDN/代理)存储，
   // 只允许当前用户浏览器缓存（与该用户已被授权取得这些字节一致，无安全回归）。
-  setHeaders: (res, filePath) => {
+  setHeaders: (res) => {
     res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
-    // 上传已放行所有格式 → 安全兜底改在下发层：一律 nosniff（禁止浏览器 MIME 嗅探），
-    // 且仅图片/音频/视频允许内联预览，其余（HTML/SVG/脚本/文档/压缩包…）一律以附件下发，
-    // 使 HTML/SVG 只会被下载、绝不在本站源被当页面执行 → 消除存储型 XSS。
+    // nosniff：禁止 MIME 嗅探（正确 Content-Type 由扩展名派生，不影响 PDF/图片等内联打开）。
+    // 不再强制 attachment：能上传的都是常见安全格式（HTML/SVG/XML 等已被扩展名白名单挡在门外），
+    // 故无需以附件下发，保留浏览器「直接打开」PDF 等的原有体验。
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    const ext = path.extname(filePath).toLowerCase();
-    if (!INLINE_PREVIEW_EXTS.has(ext)) {
-      // 不带 filename：强制下载防 XSS，同时让前端 <a download="原名"> 决定保存文件名
-      // （Content-Disposition 若带 filename 会按规范覆盖 download 属性，导致存成 uuid 名）。
-      res.setHeader('Content-Disposition', 'attachment');
-    }
   },
 }));
 app.use('/downloads', express.static(path.join(__dirname, '../../downloads'), {
