@@ -5,6 +5,7 @@ import { formatFull } from '../utils/time';
 import axios from 'axios';
 import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
+import { downloadFile } from '../utils/download';
 
 // Time divider rendered as a list item
 export const TimeDivider = memo(function TimeDivider({ time }) {
@@ -171,7 +172,9 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
               />
             )}
             {msg.type === 'file' && (
-              <a href={mediaUrl(msg.file_url)} download={msg.content} className="wc-msg-file-link" data-testid="msg-file">
+              <a href={mediaUrl(msg.file_url)}
+                 onClick={(e) => { e.preventDefault(); downloadFile(msg.file_url, msg.content); }}
+                 className="wc-msg-file-link" data-testid="msg-file">
                 <div className="wc-msg-file-icon">📄</div>
                 <div>
                   <div className="wc-msg-file-name">{msg.content}</div>
