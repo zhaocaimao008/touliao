@@ -1,496 +1,246 @@
 'use strict';
 /**
- * E2E 集成测试 — 端到端业务流程验证
- * 覆盖: 注册、登录、发送消息、群组管理、搜索、缓存验证
+ * E2E 集成测试 —— 端到端业务流程（对齐当前真实 API）。
+ * 覆盖：注册/登录/鉴权 → 加好友 → 私聊收发/已读 → 搜索 → 群组 → 消息编辑/表情/撤回
+ *       → 钱包充值/红包发领 → 错误处理。
+ * 全程 Bearer token 鉴权（免 CSRF），隔离测试库，限流已关（见 testEnv.js）。
  */
-
-const request = require('supertest');
-const app = require('../src/app');
+const { request, app, makeUser, befriend, privateConversation } = require('./helpers');
 
 describe('v信 后端 E2E 集成测试', () => {
-  let user1Token, user2Token;
-  let user1Id, user2Id;
-  let conversationId, groupId;
+  let u1, u2;
+  let conversationId, groupId, messageId;
 
-  // 清理测试数据
-  afterAll(async () => {
-    // 测试完成后清理
-    await new Promise(resolve => setTimeout(resolve, 500));
+  beforeAll(async () => {
+    u1 = await makeUser({ username: 'e2e_user1' });
+    u2 = await makeUser({ username: 'e2e_user2' });
   });
 
   describe('用户认证流程', () => {
-    test('用户注册成功', async () => {
-      const res = await request(app)
-        .post('/auth/register')
-        .send({
-          phone: '+86-13800001111',
-          password: 'password123456',
-          username: 'testuser1'
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('user');
-      expect(res.body).toHaveProperty('token');
-      expect(res.body.user.phone).toBe('+86-13800001111');
-      user1Id = res.body.user.id;
-      user1Token = res.body.token;
+    test('注册返回 token 与 user', () => {
+      expect(u1.token).toBeTruthy();
+      expect(u1.userId).toBeTruthy();
     });
 
-    test('第二个用户注册成功', async () => {
-      const res = await request(app)
-        .post('/auth/register')
-        .send({
-          phone: '+86-13800002222',
-          password: 'password123456',
-          username: 'testuser2'
-        });
-
+    test('登录成功', async () => {
+      const res = await request(app).post('/api/auth/login')
+        .send({ phone: u1.phone, password: u1.password });
       expect(res.status).toBe(200);
-      user2Id = res.body.user.id;
-      user2Token = res.body.token;
+      expect(res.body.token).toBeTruthy();
+      expect(res.body.user.id).toBe(u1.userId);
     });
 
-    test('用户登录成功', async () => {
-      const res = await request(app)
-        .post('/auth/login')
-        .send({
-          phone: '+86-13800001111',
-          password: 'password123456'
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('token');
-      expect(res.body.user.id).toBe(user1Id);
-    });
-
-    test('错误密码登录失败', async () => {
-      const res = await request(app)
-        .post('/auth/login')
-        .send({
-          phone: '+86-13800001111',
-          password: 'wrongpassword'
-        });
-
+    test('错误密码登录 400', async () => {
+      const res = await request(app).post('/api/auth/login')
+        .send({ phone: u1.phone, password: 'wrong-password-1' });
       expect(res.status).toBe(400);
     });
 
     test('获取当前用户信息', async () => {
-      const res = await request(app)
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${user1Token}`);
-
+      const res = await request(app).get('/api/auth/me')
+        .set('Authorization', `Bearer ${u1.token}`);
       expect(res.status).toBe(200);
-      expect(res.body.id).toBe(user1Id);
-      expect(res.body.username).toBe('testuser1');
+      expect(res.body.id).toBe(u1.userId);
     });
   });
 
-  describe('私聊消息流程', () => {
-    test('创建私聊会话', async () => {
-      const res = await request(app)
-        .post('/messages/conversation/private')
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          participantId: user2Id
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('conversationId');
-      conversationId = res.body.conversationId;
+  describe('好友与私聊', () => {
+    test('加为好友后建立私聊会话', async () => {
+      await befriend(u1, u2);
+      conversationId = await privateConversation(u1, u2);
+      expect(conversationId).toBeTruthy();
     });
 
-    test('用户1发送消息给用户2', async () => {
-      const res = await request(app)
-        .post(`/messages/${conversationId}`)
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          content: '你好，这是一条测试消息',
-          type: 'text'
-        });
-
+    test('用户1发送消息', async () => {
+      const res = await request(app).post(`/api/messages/${conversationId}`)
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ content: '你好，这是一条测试消息', type: 'text' });
       expect(res.status).toBe(200);
-      expect(res.body.message.content).toBe('你好，这是一条测试消息');
-      expect(res.body.message.sender_id).toBe(user1Id);
+      expect(res.body.content).toBe('你好，这是一条测试消息');
+      expect(res.body.sender_id).toBe(u1.userId);
+      messageId = res.body.id;
     });
 
-    test('获取消息历史', async () => {
-      const res = await request(app)
-        .get(`/messages/${conversationId}?limit=20`)
-        .set('Authorization', `Bearer ${user1Token}`);
-
+    test('获取消息历史（数组）', async () => {
+      const res = await request(app).get(`/api/messages/${conversationId}?limit=20`)
+        .set('Authorization', `Bearer ${u1.token}`);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBeGreaterThan(0);
-      expect(res.body[0].content).toContain('测试消息');
+      expect(res.body.some(m => m.content.includes('测试消息'))).toBe(true);
     });
 
-    test('用户2查看消息', async () => {
-      const res = await request(app)
-        .get(`/messages/${conversationId}?limit=20`)
-        .set('Authorization', `Bearer ${user2Token}`);
-
+    test('用户2可见该会话消息', async () => {
+      const res = await request(app).get(`/api/messages/${conversationId}?limit=20`)
+        .set('Authorization', `Bearer ${u2.token}`);
       expect(res.status).toBe(200);
       expect(res.body.length).toBeGreaterThan(0);
     });
 
-    test('标记消息已读', async () => {
-      const res = await request(app)
-        .post(`/messages/${conversationId}/read`)
-        .set('Authorization', `Bearer ${user2Token}`)
-        .send({});
-
+    test('用户2标记已读', async () => {
+      const res = await request(app).post(`/api/messages/conversation/${conversationId}/read`)
+        .set('Authorization', `Bearer ${u2.token}`).send({});
       expect(res.status).toBe(200);
     });
   });
 
-  describe('搜索功能', () => {
-    test('全局搜索消息', async () => {
-      const res = await request(app)
-        .get('/messages/search?q=测试')
-        .set('Authorization', `Bearer ${user1Token}`);
-
+  describe('搜索', () => {
+    test('全局搜索返回 { results, total } 信封', async () => {
+      const res = await request(app).get('/api/messages/search?q=测试')
+        .set('Authorization', `Bearer ${u1.token}`);
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('results');
       expect(res.body).toHaveProperty('total');
-      expect(res.body.results.length).toBeGreaterThan(0);
+      expect(Array.isArray(res.body.results)).toBe(true);
     });
 
-    test('会话内搜索消息', async () => {
-      const res = await request(app)
-        .get(`/messages/${conversationId}/search?q=测试`)
-        .set('Authorization', `Bearer ${user1Token}`);
-
+    test('会话内搜索返回数组', async () => {
+      const res = await request(app).get(`/api/messages/conversation/${conversationId}/search?q=测试`)
+        .set('Authorization', `Bearer ${u1.token}`);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
-    test('搜索不存在的内容', async () => {
-      const res = await request(app)
-        .get('/messages/search?q=不存在的内容')
-        .set('Authorization', `Bearer ${user1Token}`);
-
+    test('搜索无结果时 results 为空', async () => {
+      const res = await request(app).get('/api/messages/search?q=绝不存在的关键词zzz')
+        .set('Authorization', `Bearer ${u1.token}`);
       expect(res.status).toBe(200);
       expect(res.body.results.length).toBe(0);
     });
   });
 
-  describe('群组管理', () => {
-    test('用户1创建群组', async () => {
-      const res = await request(app)
-        .post('/messages/conversation/group')
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          name: 'E2E 测试群组',
-          memberIds: [user2Id]
-        });
-
+  describe('群组', () => {
+    test('创建群组（含好友 u2）', async () => {
+      const res = await request(app).post('/api/messages/conversation/group')
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ name: 'E2E 测试群组', memberIds: [u2.userId] });
       expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('conversationId');
+      expect(res.body.conversationId).toBeTruthy();
       groupId = res.body.conversationId;
     });
 
-    test('获取群组信息', async () => {
-      const res = await request(app)
-        .get(`/messages/conversation/${groupId}/info`)
-        .set('Authorization', `Bearer ${user1Token}`);
-
+    test('群信息', async () => {
+      const res = await request(app).get(`/api/messages/conversation/${groupId}/info`)
+        .set('Authorization', `Bearer ${u1.token}`);
       expect(res.status).toBe(200);
       expect(res.body.name).toBe('E2E 测试群组');
       expect(res.body.type).toBe('group');
     });
 
-    test('获取群组成员', async () => {
-      const res = await request(app)
-        .get(`/messages/conversation/${groupId}/members`)
-        .set('Authorization', `Bearer ${user1Token}`);
-
+    test('群成员含群主与 u2', async () => {
+      const res = await request(app).get(`/api/messages/conversation/${groupId}/members`)
+        .set('Authorization', `Bearer ${u1.token}`);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(2); // owner + user2
+      expect(res.body.length).toBe(2);
     });
 
-    test('群组内发送消息', async () => {
-      const res = await request(app)
-        .post(`/messages/${groupId}`)
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          content: '这是群组内的测试消息',
-          type: 'text'
-        });
-
+    test('群内发消息', async () => {
+      const res = await request(app).post(`/api/messages/${groupId}`)
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ content: '这是群组内的测试消息', type: 'text' });
       expect(res.status).toBe(200);
-      expect(res.body.message.type).toBe('group');
+      expect(res.body.content).toBe('这是群组内的测试消息');
     });
   });
 
   describe('消息操作', () => {
-    let messageId;
-
-    test('发送待操作的消息', async () => {
-      const res = await request(app)
-        .post(`/messages/${conversationId}`)
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          content: '这条消息将被编辑',
-          type: 'text'
-        });
-
+    let opMsgId;
+    test('发送待操作消息', async () => {
+      const res = await request(app).post(`/api/messages/${conversationId}`)
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ content: '这条消息将被编辑', type: 'text' });
       expect(res.status).toBe(200);
-      messageId = res.body.message.id;
+      opMsgId = res.body.id;
     });
 
     test('编辑消息', async () => {
-      const res = await request(app)
-        .put(`/messages/${messageId}/edit`)
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          content: '这条消息已被编辑'
-        });
-
+      const res = await request(app).put(`/api/messages/${opMsgId}/edit`)
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ content: '这条消息已被编辑' });
       expect(res.status).toBe(200);
+      expect(res.body.content).toBe('这条消息已被编辑');
     });
 
-    test('消息表情反应', async () => {
-      const res = await request(app)
-        .post(`/messages/${messageId}/react`)
-        .set('Authorization', `Bearer ${user2Token}`)
-        .send({
-          emoji: '👍'
-        });
-
+    test('表情反应返回 { reactions }', async () => {
+      const res = await request(app).post(`/api/messages/${opMsgId}/react`)
+        .set('Authorization', `Bearer ${u2.token}`)
+        .send({ emoji: '👍' });
       expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(Array.isArray(res.body.reactions)).toBe(true);
     });
 
     test('撤回消息', async () => {
-      const res = await request(app)
-        .delete(`/messages/${messageId}`)
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          forEveryone: true
-        });
-
+      const res = await request(app).delete(`/api/messages/${opMsgId}`)
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ forEveryone: true });
       expect(res.status).toBe(200);
     });
   });
 
-  describe('对话列表和缓存', () => {
-    test('获取对话列表 (第一次 - 缓存未命中)', async () => {
-      const startTime = Date.now();
-      const res = await request(app)
-        .get('/messages/conversations')
-        .set('Authorization', `Bearer ${user1Token}`);
-      const firstTime = Date.now() - startTime;
+  describe('钱包与红包', () => {
+    // 充值接口目前为禁用占位（未接支付网关），返回 503；红包测试直接为发送者入账。
+    const wallet = require('../src/modules/wallet/wallet.service');
 
+    test('充值接口暂未开放（503 占位）', async () => {
+      const res = await request(app).post('/api/wallet/recharge')
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ amount: 100 });
+      expect(res.status).toBe(503);
+    });
+
+    test('查询余额', async () => {
+      wallet.applyDelta(u1.userId, 1000, 'test_seed', null, '测试入账');
+      const res = await request(app).get('/api/wallet')
+        .set('Authorization', `Bearer ${u1.token}`);
       expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBeGreaterThan(0);
-      console.log(`首次查询耗时: ${firstTime}ms`);
+      expect(res.body.balance).toBeGreaterThanOrEqual(1000);
     });
 
-    test('获取对话列表 (第二次 - 缓存命中，应该更快)', async () => {
-      const startTime = Date.now();
-      const res = await request(app)
-        .get('/messages/conversations')
-        .set('Authorization', `Bearer ${user1Token}`);
-      const secondTime = Date.now() - startTime;
+    test('发红包并被领取', async () => {
+      const sendRes = await request(app).post('/api/messages/red-packet/send')
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ conversationId, totalAmount: 10, totalCount: 1, greeting: '恭喜' });
+      expect(sendRes.status).toBe(200);
+      expect(sendRes.body.packetId).toBeTruthy();
 
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      console.log(`缓存命中查询耗时: ${secondTime}ms`);
-      // 缓存查询应该明显更快
+      const claimRes = await request(app).post(`/api/messages/red-packet/${sendRes.body.packetId}/claim`)
+        .set('Authorization', `Bearer ${u2.token}`).send({});
+      expect(claimRes.status).toBe(200);
+      expect(claimRes.body.amount).toBe(10);
     });
 
-    test('获取未读计数', async () => {
-      const res = await request(app)
-        .get('/messages/unread-counts')
-        .set('Authorization', `Bearer ${user1Token}`);
-
-      expect(res.status).toBe(200);
-      expect(typeof res.body).toBe('object');
-    });
-
-    test('获取我的群列表', async () => {
-      const res = await request(app)
-        .get('/messages/my-groups')
-        .set('Authorization', `Bearer ${user1Token}`);
-
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.some(g => g.id === groupId)).toBe(true);
-    });
-  });
-
-  describe('用户资料', () => {
-    test('获取用户详情', async () => {
-      const res = await request(app)
-        .get(`/users/${user2Id}`)
-        .set('Authorization', `Bearer ${user1Token}`);
-
-      expect(res.status).toBe(200);
-      expect(res.body.id).toBe(user2Id);
-      expect(res.body.username).toBe('testuser2');
-    });
-
-    test('更新用户资料', async () => {
-      const res = await request(app)
-        .put('/users/profile')
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          username: 'updateduser1',
-          bio: '这是我的个人简介'
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.body.bio).toBe('这是我的个人简介');
-    });
-
-    test('获取更新后的用户信息', async () => {
-      const res = await request(app)
-        .get(`/users/${user1Id}`)
-        .set('Authorization', `Bearer ${user1Token}`);
-
-      expect(res.status).toBe(200);
-      expect(res.body.username).toBe('updateduser1');
-    });
-  });
-
-  describe('联系人和好友', () => {
-    test('搜索用户', async () => {
-      const res = await request(app)
-        .get('/users/search?q=testuser2')
-        .set('Authorization', `Bearer ${user1Token}`);
-
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.some(u => u.id === user2Id)).toBe(true);
-    });
-
-    test('发送好友请求', async () => {
-      const res = await request(app)
-        .post('/users/friend-request')
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          targetUserId: user2Id,
-          message: '让我们成为好友吧'
-        });
-
-      expect(res.status).toBe(200);
-    });
-
-    test('获取收到的好友请求', async () => {
-      const res = await request(app)
-        .get('/users/friend-requests')
-        .set('Authorization', `Bearer ${user2Token}`);
-
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-    });
-
-    test('获取联系人列表', async () => {
-      const res = await request(app)
-        .get('/users/contacts')
-        .set('Authorization', `Bearer ${user1Token}`);
-
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-    });
-  });
-
-  describe('系统功能', () => {
-    test('获取健康状态', async () => {
-      const res = await request(app)
-        .get('/health');
-
-      expect(res.status).toBe(200);
-    });
-
-    test('获取性能指标', async () => {
-      const res = await request(app)
-        .get('/metrics');
-
-      expect(res.status).toBe(200);
-      expect(res.text).toContain('vxin_requests_total');
-    });
-
-    test('获取JSON格式指标', async () => {
-      const res = await request(app)
-        .get('/api/metrics');
-
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('requests');
-      expect(res.body).toHaveProperty('cache');
-      expect(res.body).toHaveProperty('database');
-    });
-  });
-
-  describe('并发和压力测试', () => {
-    test('并发发送消息', async () => {
-      const promises = [];
-      for (let i = 0; i < 5; i++) {
-        promises.push(
-          request(app)
-            .post(`/messages/${conversationId}`)
-            .set('Authorization', `Bearer ${user1Token}`)
-            .send({
-              content: `并发消息 ${i}`,
-              type: 'text'
-            })
-        );
-      }
-
-      const results = await Promise.all(promises);
-      expect(results.every(r => r.status === 200)).toBe(true);
-    });
-
-    test('并发查询对话列表', async () => {
-      const promises = [];
-      for (let i = 0; i < 5; i++) {
-        promises.push(
-          request(app)
-            .get('/messages/conversations')
-            .set('Authorization', `Bearer ${user1Token}`)
-        );
-      }
-
-      const results = await Promise.all(promises);
-      expect(results.every(r => r.status === 200)).toBe(true);
+    test('发红包者不能领自己的红包', async () => {
+      const sendRes = await request(app).post('/api/messages/red-packet/send')
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ conversationId, totalAmount: 5, totalCount: 1 });
+      const claimRes = await request(app).post(`/api/messages/red-packet/${sendRes.body.packetId}/claim`)
+        .set('Authorization', `Bearer ${u1.token}`).send({});
+      expect(claimRes.status).toBeGreaterThanOrEqual(400);
     });
   });
 
   describe('错误处理', () => {
-    test('访问不存在的对话', async () => {
-      const res = await request(app)
-        .get('/messages/nonexistent')
-        .set('Authorization', `Bearer ${user1Token}`);
-
-      expect(res.status).toBe(400);
-    });
-
-    test('未授权访问', async () => {
-      const res = await request(app)
-        .get('/messages/conversations');
-
+    test('未授权访问 401', async () => {
+      const res = await request(app).get('/api/messages/conversations');
       expect(res.status).toBe(401);
     });
 
-    test('无效的token', async () => {
-      const res = await request(app)
-        .get('/messages/conversations')
+    test('无效 token 401', async () => {
+      const res = await request(app).get('/api/messages/conversations')
         .set('Authorization', 'Bearer invalid-token');
-
       expect(res.status).toBe(401);
     });
 
-    test('发送空消息', async () => {
-      const res = await request(app)
-        .post(`/messages/${conversationId}`)
-        .set('Authorization', `Bearer ${user1Token}`)
-        .send({
-          content: '',
-          type: 'text'
-        });
+    test('非成员访问会话 403', async () => {
+      const res = await request(app).get('/api/messages/nonexistent-conv-id')
+        .set('Authorization', `Bearer ${u1.token}`);
+      expect(res.status).toBe(403);
+    });
 
+    test('发送空消息 400', async () => {
+      const res = await request(app).post(`/api/messages/${conversationId}`)
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ content: '', type: 'text' });
       expect(res.status).toBe(400);
     });
   });

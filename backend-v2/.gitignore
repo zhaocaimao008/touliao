@@ -9,3 +9,6 @@ wechat.db
 *.db
 *.db-shm
 *.db-wal
+
+# 测试隔离临时库（globalTeardown 会删，这里兜底防崩溃残留）
+test/.tmp-test-db.sqlite*
