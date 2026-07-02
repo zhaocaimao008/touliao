@@ -18,8 +18,8 @@ exports.credential = asyncHandler(async (req, res) => {
     throw badRequest('参数缺失: filename, contentType, conversationId');
   }
   const size = Number(fileSize);
-  if (!Number.isInteger(size) || size < 1 || size > 50 * 1024 * 1024) {
-    throw badRequest('fileSize 无效（1 字节 ~ 50 MB）');
+  if (!Number.isInteger(size) || size < 1 || size > 500 * 1024 * 1024) {
+    throw badRequest('fileSize 无效（1 字节 ~ 500 MB）');
   }
   if (!isMember(conversationId, req.user.id)) throw forbidden('无权上传至该会话');
   if (!ALLOWED_CHAT_MIMES.has(contentType)) throw badRequest(`不支持的文件类型: ${contentType}`);

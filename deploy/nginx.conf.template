@@ -4,7 +4,7 @@ server {
     listen 80;
     server_name __DOMAIN__;
 
-    client_max_body_size 210m;  # 后端单文件上限 200MB，留 10m 余量
+    client_max_body_size 520m;  # 后端单文件上限 500MB，留 20m 余量
     root __WEBROOT__;
     index index.html;
 

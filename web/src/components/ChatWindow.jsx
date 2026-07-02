@@ -1181,9 +1181,9 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       showErr(`禁止上传可执行文件（${ext}）`);
       return;
     }
-    // 单文件硬上限 100 MB（2GB 视频在此被拦截，杜绝浏览器 OOM）
-    if (file.size > 100 * 1024 * 1024) {
-      showErr(`文件超过 100MB 限制（当前 ${(file.size / 1024 / 1024).toFixed(1)} MB）`);
+    // 单文件硬上限 500 MB（超大文件在此被拦截，杜绝浏览器 OOM）
+    if (file.size > 500 * 1024 * 1024) {
+      showErr(`文件超过 500MB 限制（当前 ${(file.size / 1024 / 1024).toFixed(1)} MB）`);
       return;
     }
 

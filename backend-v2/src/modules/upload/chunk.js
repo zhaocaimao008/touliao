@@ -14,7 +14,7 @@ const config = require('../../config');
 const { isMember } = require('../messages/shared');
 const { verifyMagicBytes, ALLOWED_CHAT_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS, sanitizeFilename } = require('../../utils/upload');
 
-const MAX_FILE = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || 200 * 1024 * 1024; // 默认上限 200MB
+const MAX_FILE = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || 500 * 1024 * 1024; // 默认上限 500MB
 const MAX_CHUNK = 8 * 1024 * 1024; // 单片上限 8MB
 const CHUNK_DIR = path.join(config.uploadsRoot, 'chunks');
 const FILES_DIR = path.join(config.uploadsRoot, 'files');
