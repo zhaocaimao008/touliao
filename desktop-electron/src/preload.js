@@ -42,6 +42,9 @@ const electronAPI = {
 
   // 更新：用户确认后调用
   installUpdate:    ()    => ipcRenderer.invoke('update:install'),
+
+  // 文件下载：主进程 downloadURL 落盘到「下载」并自动打开（绕过渲染进程 CORS/download 限制）
+  downloadFile:     (url, filename) => ipcRenderer.invoke('file:download', { url, filename }),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

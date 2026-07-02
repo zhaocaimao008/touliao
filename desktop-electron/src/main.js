@@ -50,6 +50,8 @@ const MAX_READ_BYTES = 20 * 1024 * 1024; // 20 MB
 
 let mainWindow = null;
 let tray = null;
+// 下一个下载项的文件名（渲染进程经 file:download 传入，will-download 消费一次）
+let g_pendingDownloadName = null;
 let isQuitting = false;
 
 // 引导配置地址（与 web/src/utils/config.js、Android/iOS RemoteConfig 一致）：
@@ -225,6 +227,19 @@ function setupSecurity() {
   ses.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
   // 禁止任何设备访问（HID / 串口 / USB / 蓝牙 / 屏幕共享选源）
   ses.setDevicePermissionHandler(() => false);
+
+  // 文件下载：主进程接管（渲染进程跑 file://，fetch 跨域取 /uploads 会被 CORS 拦、<a download> 跨域也失效）。
+  // 流式落盘到「下载」目录、不弹保存框，完成后用系统默认应用打开 → 满足「不跳网页、下完直接点开」。
+  ses.on('will-download', (_e, item) => {
+    const raw = g_pendingDownloadName || item.getFilename() || `file_${Date.now()}`;
+    g_pendingDownloadName = null;
+    const safe = String(raw).replace(/[/\\:*?"<>|\x00-\x1f]/g, '_').slice(0, 120) || `file_${Date.now()}`;
+    const savePath = path.join(app.getPath('downloads'), safe);
+    item.setSavePath(savePath);
+    item.once('done', (_ev, state) => {
+      if (state === 'completed') shell.openPath(savePath).catch(() => {});
+    });
+  });
 
   // 所有 webContents 统一加固：禁止外部导航、弹窗、附加 webview
   app.on('web-contents-created', (_e, contents) => {
@@ -490,6 +505,15 @@ function setupIPC() {
   });
   ipcMain.handle('window:close',       () => mainWindow?.close());
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
+
+  // 文件下载：渲染进程请求 → 主进程 downloadURL（配合 setupSecurity 的 will-download 落盘+打开）
+  ipcMain.handle('file:download', (_e, payload) => {
+    const url = payload?.url;
+    if (typeof url !== 'string' || !url || !mainWindow) return;
+    g_pendingDownloadName = (typeof payload?.filename === 'string' && payload.filename.trim())
+      ? payload.filename.trim() : null;
+    mainWindow.webContents.downloadURL(url);
+  });
 
   // 原生通知
   ipcMain.handle('notification:show', (_, payload) => {
