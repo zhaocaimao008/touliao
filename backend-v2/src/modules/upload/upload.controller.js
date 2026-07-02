@@ -17,10 +17,16 @@ exports.credential = asyncHandler(async (req, res) => {
   if (!filename || !contentType || !conversationId) {
     throw badRequest('参数缺失: filename, contentType, conversationId');
   }
-  const size = Number(fileSize);
-  // 不限制大小（云存储预签名 PUT，超大由云端自身上限约束）；仅要求为正整数字节。
-  if (!Number.isInteger(size) || size < 1) {
-    throw badRequest('fileSize 无效（需为正整数字节）');
+  // fileSize 可选（部分客户端不传）；传了才校验：须为正整数字节，且不超过配置上限(与直传/分片一致)。
+  if (fileSize !== undefined && fileSize !== null && fileSize !== '') {
+    const size = Number(fileSize);
+    if (!Number.isInteger(size) || size < 1) {
+      throw badRequest('fileSize 无效（需为正整数字节）');
+    }
+    const MAX = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || Infinity;
+    if (size > MAX) {
+      throw badRequest(`文件超过上限 ${Math.floor(MAX / 1024 / 1024)}MB`);
+    }
   }
   if (!isMember(conversationId, req.user.id)) throw forbidden('无权上传至该会话');
   if (!ALLOWED_CHAT_MIMES.has(contentType)) throw badRequest(`不支持的文件类型: ${contentType}`);

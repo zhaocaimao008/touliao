@@ -1047,6 +1047,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   const uploadToCloud = useCallback(async (fileOrBlob, contentType, filename, onProgress) => {
     const { data } = await axios.post('/api/upload/credential', {
       filename, contentType, conversationId: conversation.id,
+      fileSize: fileOrBlob?.size,   // 后端据此校验上限（1GB）；不传则不校验
     });
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
