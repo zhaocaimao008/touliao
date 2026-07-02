@@ -1,8 +1,9 @@
-// 统一「下载并可打开文件」逻辑，四端一致，避免点文件时跳出浏览器网页：
-//   Web / Windows 桌面(Electron)：取回 blob 后用 blob: URL 触发下载（同源，download 属性必生效，
-//     绝不导航到网页），文件名正确，下载完成后可在系统下载夹直接打开。
-//   安卓 / iPhone App(Capacitor)：用内置 @capacitor/filesystem 把文件写入「文档(Documents)」目录，
-//     不弹网页；保存后可在系统「文件」App 中打开。（真正一键唤起系统应用需 FileOpener 原生插件，后续可加）
+// 统一「下载并可打开文件」逻辑，避免点文件跳出浏览器网页：
+//   纯网页(同源)：<a download> 流式下载——边下边落盘、不占内存、支持大文件(1GB)，同源 download 必生效。
+//   Windows 桌面(Electron)：交主进程 downloadURL（渲染进程跨域 fetch 会被 CORS 拦、<a download> 跨域失效），
+//     由 will-download 落盘到「下载」目录、下完自动用系统应用打开。
+//   原生 App(Capacitor，当前未随出货客户端启用)：@capacitor/filesystem 存到「文档」目录后可在系统「文件」打开。
+// 注：出货安卓是原生 Kotlin App，其文件下载在 Kotlin 侧用 DownloadManager 实现，不走本文件。
 import { mediaUrl } from './url';
 import { showToast } from './toast';
 import { Filesystem, Directory } from '@capacitor/filesystem';
