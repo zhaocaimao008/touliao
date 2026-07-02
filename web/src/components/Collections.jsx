@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { mediaUrl } from '../utils/url';
 import { showConfirm } from '../utils/toast';
+import { downloadFile } from '../utils/download';
 
 function ago(sec) {
   const dt = new Date(sec * 1000);
@@ -26,8 +27,17 @@ export default function Collections() {
       const url = c.extra?.file_url || c.content;
       return <img loading="lazy" src={mediaUrl(url)} alt="收藏图片" onError={e => { e.currentTarget.style.display = 'none'; }} style={{ maxWidth: 180, maxHeight: 180, borderRadius: 8, objectFit: 'cover' }} />;
     }
-    if (c.type === 'file') {
-      return <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>📎 {c.content || '文件'}</span>;
+    if (c.type === 'file' || c.type === 'video') {
+      const fileUrl = c.extra?.file_url;
+      const label = `${c.type === 'video' ? '🎬' : '📎'} ${c.content || (c.type === 'video' ? '视频' : '文件')}`;
+      // 有 file_url 才可下载；老数据无 url 则只显示（与聊天窗口一致：点击=下载，不跳网页）
+      if (!fileUrl) return <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{label}</span>;
+      return (
+        <button onClick={() => downloadFile(fileUrl, c.content)}
+          style={{ fontSize: 14, color: 'var(--text-primary)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+          {label}
+        </button>
+      );
     }
     return <span style={{ fontSize: 14, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{c.content}</span>;
   };

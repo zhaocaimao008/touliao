@@ -72,6 +72,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.vxin.app.core.util.downloadFile
 import com.vxin.app.data.model.Message
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
@@ -831,47 +832,6 @@ private fun MessageInputBar(
             }
         }
     }
-}
-
-/**
- * 文件/视频消息：用系统 DownloadManager 后台下载到「下载」目录，完成后通知栏可直接点开对应应用。
- * 不再用 ACTION_VIEW 打开 http 链接（那会跳浏览器/弹网页下载）。URL 已带 ?token= 鉴权。
- */
-private fun downloadFile(context: android.content.Context, url: String?, filename: String?) {
-    if (url.isNullOrBlank()) return
-    runCatching {
-        val uri = android.net.Uri.parse(url)
-        val name = downloadName(filename, uri)
-        val ext = name.substringAfterLast('.', "").lowercase()
-        val mime = if (ext.isNotBlank())
-            android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) else null
-        val req = android.app.DownloadManager.Request(uri)
-            .setTitle(name)
-            .setDescription("下载中…")
-            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, name)
-            .setAllowedOverMetered(true)
-            .setAllowedOverRoaming(true)
-        if (mime != null) req.setMimeType(mime)
-        val dm = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-        dm.enqueue(req)
-        android.widget.Toast.makeText(context, "开始下载：$name（完成后可在通知栏点开）", android.widget.Toast.LENGTH_SHORT).show()
-    }.onFailure {
-        android.widget.Toast.makeText(context, "下载失败：${it.message ?: "未知错误"}", android.widget.Toast.LENGTH_SHORT).show()
-    }
-}
-
-/** 选定下载文件名：优先用消息里的原始文件名；无名/无扩展名则用 URL 末段(uuid.ext)补全；并清洗非法字符。 */
-private fun downloadName(filename: String?, url: android.net.Uri): String {
-    val urlName = url.lastPathSegment.orEmpty()
-    val base = filename?.trim().orEmpty()
-    val chosen = when {
-        base.isNotBlank() && base.contains('.') -> base
-        base.isNotBlank() && urlName.contains('.') -> base + "." + urlName.substringAfterLast('.')
-        urlName.isNotBlank() -> urlName
-        else -> "file_" + System.currentTimeMillis()
-    }
-    return chosen.replace(Regex("[/\\\\:*?\"<>|\\x00-\\x1f]"), "_").take(120)
 }
 
 private val EMOJIS = listOf(

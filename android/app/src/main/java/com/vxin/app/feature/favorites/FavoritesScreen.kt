@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import androidx.compose.ui.platform.LocalContext
+import com.vxin.app.core.util.downloadFile
 import com.vxin.app.data.model.Collection
 import com.vxin.app.ui.theme.VxinTextSecondary
 
@@ -89,9 +91,15 @@ fun FavoritesScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FavoriteRow(item: Collection, resolveUrl: (String?) -> String?, onLongPress: () -> Unit) {
+    val context = LocalContext.current
+    // 文件/视频且有 url → 点击下载（与聊天窗口一致：DownloadManager 落盘、通知栏点开，不跳浏览器）
+    val canDownload = (item.type == "file" || item.type == "video") && item.extra.file_url.isNotBlank()
     Column(
         Modifier.fillMaxWidth()
-            .combinedClickable(onClick = {}, onLongClick = onLongPress)
+            .combinedClickable(
+                onClick = { if (canDownload) downloadFile(context, resolveUrl(item.extra.file_url), item.content) },
+                onLongClick = onLongPress,
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         when (item.type) {
@@ -102,9 +110,10 @@ private fun FavoriteRow(item: Collection, resolveUrl: (String?) -> String?, onLo
                 modifier = Modifier.heightIn(max = 200.dp),
             )
             "file" -> Text("📄 ${item.content.ifBlank { "文件" }}", style = MaterialTheme.typography.bodyLarge)
-            "video" -> Text("🎬 视频", style = MaterialTheme.typography.bodyLarge)
+            "video" -> Text("🎬 ${item.content.ifBlank { "视频" }}", style = MaterialTheme.typography.bodyLarge)
             else -> Text(item.content, style = MaterialTheme.typography.bodyLarge)
         }
-        Text("长按可取消收藏", color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
+        Text(if (canDownload) "点击下载 · 长按取消收藏" else "长按可取消收藏",
+            color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 4.dp))
     }
 }
