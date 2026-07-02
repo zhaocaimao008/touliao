@@ -75,8 +75,10 @@ jobs:
             "mkdir -p /var/www/downloads/updates"
           scp -i ~/.ssh/deploy_key "$EXE" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/vxin-windows-latest-setup.exe"
-          for f in artifacts/latest.yml artifacts/*.blockmap; do
-            [ -f "$f" ] && scp -i ~/.ssh/deploy_key "$f" \
+          # latest.yml/*.blockmap 可能在 artifacts/dist 或 artifacts/release 子目录 → 用 find 定位，
+          # 否则自动更新源不会更新（旧脚本只找顶层，导致 latest.yml 停在旧版）。
+          for f in $(find artifacts -name latest.yml -o -name '*.blockmap'); do
+            scp -i ~/.ssh/deploy_key "$f" \
               "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/" || true
           done
           echo "✅ 已发布到 https://dipsin.com/downloads/vxin-windows-latest-setup.exe"
