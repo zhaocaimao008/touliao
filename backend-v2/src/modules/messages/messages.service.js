@@ -9,7 +9,7 @@ const { writeAsync, writeBatch } = require('../../db/writer');
 const config = require('../../config');
 const { badRequest, forbidden, notFound, conflict } = require('../../utils/http');
 const { collectionDedupKey } = require('../../utils/collections');
-const { isMember, requireMember, memberRole, buildMessage } = require('./shared');
+const { isMember, requireMember, memberRole, buildMessage, privateSendBlockReason } = require('./shared');
 const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
 
@@ -176,6 +176,9 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
+  // 黑名单：任一方拉黑对方即拒绝私聊发消息（防止拉黑后经既有会话继续骚扰）
+  const blockReason = privateSendBlockReason(convId, userId);
+  if (blockReason) throw forbidden(blockReason);
   // 屏蔽陌生人消息：私聊会话中，若对方开启了该设置且双方互不是联系人，则拒绝发送
   if (conv?.type === 'private') {
     const recipient = db.prepare(
@@ -220,6 +223,9 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   if (!member) throw forbidden('无权发送');
   const conv = db.prepare('SELECT mute_all FROM conversations WHERE id=?').get(convId);
   if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
+  // 黑名单：任一方拉黑对方即拒绝私聊发文件（与文本发送一致）
+  const blockReason = privateSendBlockReason(convId, userId);
+  if (blockReason) throw forbidden(blockReason);
   if (reply_to_id) {
     const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
     if (!ref) throw badRequest('被回复消息不存在');
@@ -266,6 +272,8 @@ async function forward(io, userId, { msgId, conversationIds }) {
   conversationIds.forEach(convId => {
     if (!memberConvIds.has(convId)) return;
     if (muteMap.get(convId) && roleMap.get(convId) === 'member') return;
+    // 黑名单私聊：静默跳过被拉黑/已拉黑的目标（不计入成功转发数）
+    if (privateSendBlockReason(convId, userId)) return;
     const id = uuidv4();
     ops.push({ sql: insertSql, params: [id, convId, userId, msg.type, msg.content, msg.file_url || '', msg.duration || 0] });
     targets.push({ convId, id });

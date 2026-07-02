@@ -7,6 +7,7 @@ const { pushNewMessage } = require('../../utils/push');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
+const { privateSendBlockReason } = require('../../modules/messages/shared');
 
 const MAX = config.limits.maxMsgLength;
 
@@ -102,6 +103,10 @@ module.exports = function registerMessageHandler(io, socket) {
     if (conv?.mute_all && member.role === 'member') {
       ack?.({ success: false, error: '全员禁言中，您没有发言权限' }); return;
     }
+
+    // 黑名单：任一方拉黑对方即拒绝私聊发消息（防止拉黑后经既有会话继续骚扰）
+    const blockReason = privateSendBlockReason(conversationId, userId);
+    if (blockReason) { ack?.({ success: false, error: blockReason }); return; }
 
     // 屏蔽陌生人消息（私聊）
     if (conv?.type === 'private') {

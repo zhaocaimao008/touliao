@@ -3,11 +3,30 @@
  * 消息域共享：成员校验、单条消息装配。
  * io 永远从 controller 经参数传入，service 层不直接引用 app。
  */
-const { db } = require('../../db/connection');
+const { db, readDb } = require('../../db/connection');
 const { forbidden } = require('../../utils/http');
 
 function isMember(convId, userId) {
   return !!db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
+}
+
+// 私聊黑名单校验：任一方已拉黑对方，则拒绝在既有会话内发消息（防止拉黑后仍被骚扰）。
+// 与 getOrCreatePrivate / 通话 / 朋友圈的黑名单拦截保持一致；群聊(type!=private)不受影响。
+// 返回拒绝原因字符串；允许发送时返回 null。读走 readDb（block() 经 db 同步提交，此处立即可见）。
+function privateSendBlockReason(convId, senderId) {
+  const conv = readDb.prepare('SELECT type FROM conversations WHERE id=?').get(convId);
+  if (conv?.type !== 'private') return null;
+  const other = readDb.prepare(
+    'SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?'
+  ).get(convId, senderId);
+  if (!other) return null;
+  const bl = readDb.prepare(
+    'SELECT user_id FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?)'
+  ).all(senderId, other.user_id, other.user_id, senderId);
+  if (!bl.length) return null;
+  return bl.some(r => r.user_id === senderId)
+    ? '你已将对方加入黑名单，移出后才能发送'
+    : '消息已发出，但被对方拒收';
 }
 
 function requireMember(convId, userId, msg = '无权访问') {
@@ -62,4 +81,4 @@ function purgeConversation(id) {
   })();
 }
 
-module.exports = { isMember, requireMember, memberRole, buildMessage, purgeConversation };
+module.exports = { isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendBlockReason };
