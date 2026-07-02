@@ -27,9 +27,15 @@ module.exports = function auth(req, res, next) {
     try {
       const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
       // 检查 token 签发时间是否早于密码修改时间（resetPassword / changePassword 均会更新）
-      if (payload.iat && payload.id) {
-        const row = readDb.prepare('SELECT password_changed_at FROM users WHERE id=?').get(payload.id);
-        if (row?.password_changed_at && payload.iat < row.password_changed_at) {
+      // 校验账号状态：封禁即拒（与 socket 握手一致，否则被封用户凭既有 token 仍可
+      // 调用全部 HTTP 接口、甚至 /refresh 无限续签），及 token 是否早于密码修改时间。
+      if (payload.id) {
+        const row = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(payload.id);
+        if (row?.banned) {
+          res.clearCookie(config.cookieName, { path: '/' });
+          return res.status(403).json({ error: '账号已被封禁' });
+        }
+        if (payload.iat && row?.password_changed_at && payload.iat < row.password_changed_at) {
           res.clearCookie(config.cookieName, { path: '/' });
           return res.status(401).json({ error: '密码已修改，请重新登录' });
         }
