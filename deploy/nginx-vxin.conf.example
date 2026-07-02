@@ -13,7 +13,7 @@ server {
     root /var/www/vxin;            # 把 web 构建的 dist/ 放这里
     index index.html;
 
-    client_max_body_size 0;    # 0 = 不限制上传大小
+    client_max_body_size 2148m;  # 安全兜底 ~2GB（后端 MAX_UPLOAD_BYTES 精确卡 2GB）
 
     # 后端 API + WebSocket → Node(127.0.0.1:3002)
     location /api/      { proxy_pass http://127.0.0.1:3002; include /etc/nginx/proxy_params; }

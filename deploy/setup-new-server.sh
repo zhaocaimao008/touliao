@@ -93,6 +93,9 @@ VAPID_PUBLIC_KEY=$VPUB
 VAPID_PRIVATE_KEY=$VPRIV
 VAPID_EMAIL=mailto:admin@$HOST
 
+# 单文件上传上限（字节）。安全兜底 2GB，防超大文件占爆磁盘。留空=不限制。
+MAX_UPLOAD_BYTES=2147483648
+
 # 管理后台 IP 白名单（逗号分隔，留空=不限制）
 ADMIN_IP_WHITELIST=${ADMIN_WL}
 
@@ -140,7 +143,7 @@ server {
     server_name $HOST;
     root $WEBROOT;
     index index.html;
-    client_max_body_size 0;    # 0 = 不限制上传大小
+    client_max_body_size 2148m;  # 安全兜底 ~2GB（后端 MAX_UPLOAD_BYTES 精确卡 2GB）
     gzip on;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 
