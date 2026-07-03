@@ -26,6 +26,14 @@ function addInteractNotification({ recipientId, actorId, momentId, type, comment
   pushToUser(recipientId, { title: '朋友圈', senderName: '朋友圈', body, type: 'moment', momentId }).catch(() => {});
 }
 
+// 安全解析动态图片 JSON：脏数据/历史坏行不应让整条时间线 500。
+function safeImages(raw) {
+  try {
+    const v = JSON.parse(raw || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+}
+
 function isFriend(viewerId, authorId) {
   return !!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, authorId);
 }
@@ -87,7 +95,7 @@ function enrich(viewerId, m, { likeLimit = 0, commentLimit = 0 } = {}) {
   const { visible_to, ...mPub } = m; // 不外泄分组可见名单
   return {
     ...mPub,
-    images: JSON.parse(m.images || '[]'),
+    images: safeImages(m.images),
     author,
     likes,
     likeCount,
@@ -147,7 +155,7 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
     const { visible_to, ...mPub } = m; // 不外泄分组可见名单
     return {
       ...mPub,
-      images: JSON.parse(m.images || '[]'),
+      images: safeImages(m.images),
       author: authorMap.get(m.user_id),
       likes,
       likeCount,
@@ -485,7 +493,7 @@ function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
       )
   `).get(userId, userId, userId).c;
   const items = rows.map(r => {
-    const images = JSON.parse(r.moment_images || '[]');
+    const images = safeImages(r.moment_images);
     return {
       id: r.id,
       type: r.type,

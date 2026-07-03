@@ -18,9 +18,17 @@ function listContacts(userId) {
 }
 
 function deleteContact(userId, contactId) {
-  // 同步删除双向记录：A删除B后，B不再能通过好友关系查看A的私密朋友圈
-  db.prepare('DELETE FROM contacts WHERE (user_id=? AND contact_id=?) OR (user_id=? AND contact_id=?)')
-    .run(userId, contactId, contactId, userId);
+  // 同步删除双向记录：A删除B后，B不再能通过好友关系查看A的私密朋友圈。
+  // 一并清理双方好友标签成员关系，避免删除后再加回时残留旧标签分组（脏数据 + 越权可见风险）。
+  db.transaction(() => {
+    db.prepare('DELETE FROM contacts WHERE (user_id=? AND contact_id=?) OR (user_id=? AND contact_id=?)')
+      .run(userId, contactId, contactId, userId);
+    db.prepare(`
+      DELETE FROM friend_label_members
+      WHERE (friend_id=? AND label_id IN (SELECT id FROM friend_labels WHERE user_id=?))
+         OR (friend_id=? AND label_id IN (SELECT id FROM friend_labels WHERE user_id=?))
+    `).run(contactId, userId, userId, contactId);
+  })();
 }
 
 function setRemark(userId, contactId, remark) {

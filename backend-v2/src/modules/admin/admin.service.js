@@ -138,6 +138,7 @@ function deleteUser(io, id) {
     db.prepare('DELETE FROM friend_requests WHERE from_id=? OR to_id=?').run(id, id);
     db.prepare('DELETE FROM blocked_users WHERE user_id=? OR blocked_id=?').run(id, id);
     db.prepare('DELETE FROM conversation_settings WHERE user_id=?').run(id);
+    db.prepare('DELETE FROM conversation_clears WHERE user_id=?').run(id);
     db.prepare('DELETE FROM conversation_members WHERE user_id=?').run(id);
     db.prepare('DELETE FROM user_settings WHERE user_id=?').run(id);
     db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(id);
@@ -145,7 +146,9 @@ function deleteUser(io, id) {
     db.prepare('DELETE FROM device_tokens WHERE user_id=?').run(id);
     db.prepare('DELETE FROM collections WHERE user_id=?').run(id);
     db.prepare('DELETE FROM red_packet_claims WHERE user_id=?').run(id);
-    db.prepare('DELETE FROM red_packet_claims WHERE red_packet_id IN (SELECT id FROM red_packets WHERE sender_id=?)').run(id);
+    // 列名为 packet_id（非 red_packet_id）——原写法引用不存在的列会抛错并回滚整个删除事务，
+    // 导致后台删除用户恒定 500。修正列名以清理该用户所发红包的领取记录。
+    db.prepare('DELETE FROM red_packet_claims WHERE packet_id IN (SELECT id FROM red_packets WHERE sender_id=?)').run(id);
     db.prepare('DELETE FROM red_packets WHERE sender_id=?').run(id);
     db.prepare('DELETE FROM wallet_transactions WHERE user_id=?').run(id);
     db.prepare('DELETE FROM wallets WHERE user_id=?').run(id);

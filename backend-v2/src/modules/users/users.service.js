@@ -6,6 +6,12 @@ const { v4: uuidv4 } = require('uuid');
 const { collectionDedupKey } = require('../../utils/collections');
 const presence = require('../../realtime/presence');
 
+// 安全解析收藏 extra JSON：单条脏数据不应让整个收藏列表 500。
+function parseExtra(raw) {
+  try { const v = JSON.parse(raw || '{}'); return v && typeof v === 'object' ? v : {}; }
+  catch { return {}; }
+}
+
 // ── 设置序列化 ──────────────────────────────────────────────────
 const settingDefaults = {
   add_by_vxin_id: 1, add_by_phone: 1, require_verify: 1, profile_visible: 1,
@@ -175,7 +181,7 @@ function getCollections(userId, { type, limit, offset } = {}) {
   const off = Math.max(parseInt(offset) || 0, 0);
   let sql = `SELECT * FROM collections WHERE ${conds.join(' AND ')} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
   params.push(lim, off);
-  return db.prepare(sql).all(...params).map(i => ({ ...i, extra: JSON.parse(i.extra || '{}') }));
+  return db.prepare(sql).all(...params).map(i => ({ ...i, extra: parseExtra(i.extra) }));
 }
 
 // 添加收藏（去重：同一 user + 类型 + 内容标识 不重复收藏，重复返回 409）
@@ -196,7 +202,7 @@ function addCollection(userId, { type, content, extra }) {
     .run(id, userId, safeType, safeContent, JSON.stringify(safeExtra), dedupKey);
   if (res.changes === 0) throw conflict('已收藏', 'COLLECTION_DUPLICATE');
   const row = db.prepare('SELECT * FROM collections WHERE id=?').get(id);
-  return { success: true, ...row, extra: JSON.parse(row.extra || '{}') };
+  return { success: true, ...row, extra: parseExtra(row.extra) };
 }
 
 // CO6：收藏搜索（按 content 模糊匹配，可选 type 过滤），返回 { items, total, hasMore }
@@ -216,7 +222,7 @@ function searchCollections(userId, { q, type, limit = 20, offset = 0 } = {}) {
   const total = db.prepare(`SELECT COUNT(*) AS n FROM collections WHERE ${where}`).get(...params).n;
   const rows = db.prepare(`SELECT * FROM collections WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
     .all(...params, lim, off)
-    .map(i => ({ ...i, extra: JSON.parse(i.extra || '{}') }));
+    .map(i => ({ ...i, extra: parseExtra(i.extra) }));
   return paginated(rows, { total, limit: lim, offset: off });
 }
 
@@ -224,7 +230,7 @@ function searchCollections(userId, { q, type, limit = 20, offset = 0 } = {}) {
 function getCollection(userId, collectionId) {
   const row = db.prepare('SELECT * FROM collections WHERE id=? AND user_id=?').get(collectionId, userId);
   if (!row) throw notFound('收藏不存在');
-  return { ...row, extra: JSON.parse(row.extra || '{}') };
+  return { ...row, extra: parseExtra(row.extra) };
 }
 
 // 取消收藏（仅能删自己的，幂等：不存在则报 404）

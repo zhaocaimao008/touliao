@@ -423,7 +423,9 @@ async function collect(userId, msgId) {
   );
   // CO3：回传新建的收藏对象
   const row = db.prepare('SELECT * FROM collections WHERE id=?').get(id);
-  return row ? { ...row, extra: JSON.parse(row.extra || '{}') } : { id };
+  let parsedExtra = {};
+  try { parsedExtra = JSON.parse(row?.extra || '{}') || {}; } catch { parsedExtra = {}; }
+  return row ? { ...row, extra: parsedExtra } : { id };
 }
 
 // ── 全局搜索（FTS5 trigram 全文索引 + 成员范围限定）──────────────

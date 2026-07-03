@@ -126,6 +126,10 @@ module.exports = function registerMessageHandler(io, socket) {
 
     // 一律等 worker commit 后再广播/回执，确保消息已落库（消除丢失与读后不一致）
     if (reply_to_id) {
+      // 与 HTTP send / 文件发送路径一致：被回复消息必须存在且属于同一会话，
+      // 否则拒绝，避免写入指向他会话或已不存在消息的悬空 reply_to_id。
+      const parent = readDb.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, conversationId);
+      if (!parent) { ack?.({ success: false, error: '被回复消息不存在' }); return; }
       await writeAsync(
         'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?)',
         [id, conversationId, userId, type, content, reply_to_id, created_at, clientMsgId || null]
