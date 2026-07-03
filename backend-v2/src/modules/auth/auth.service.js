@@ -135,7 +135,32 @@ async function deleteAccount(userId, password) {
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(password, user.password)) throw badRequest('密码错误，注销失败');
   const rand = Math.random().toString(36).slice(2, 8);
+  const redpackets = require('../redpackets/redpackets.service');
+
+  // 产品语义与顺序：
+  //   ① 先结清该用户「发出且在途」的红包 —— 剩余未领金额按原路退回其本人钱包（复用过期回收口径）。
+  //   ② 再校验钱包余额，若仍 > 0 则拒绝注销、要求先提现/清零（绝不吞钱/转走）。
+  //   理由：在途红包本质是"预扣未真正花出去"的自有资金，注销前应先回到余额，再以"余额必须为 0"
+  //   这一条统一口径拦截；否则用户会因在途红包被误判有余额而永远无法注销。
+  //
+  // ⚠ 事务边界（关键）：结算(退款) 与 拦截/软删「不能」放同一事务——否则拦截时的 throw 会连带
+  //   回滚已完成的退款，导致钱既没退回、注销也没成，用户资金被卡死。故拆成两段：
+  //   结算独立事务先提交（退款落袋），再在第二段事务里做余额拦截与软删。
+  //   幂等：settle 用 status 'active'→'expired' 的 CAS 抢占，二次注销时已无 active 红包 → 不会重复退。
+
+  // 第一段：结算在途红包（独立事务，退款一旦发生即持久化，与后续拦截无关）
   db.transaction(() => {
+    redpackets.settleUserActivePacketsTx(userId);
+  })();
+
+  // 第二段：余额拦截 + 软删 + 脏数据清理（独立事务；拦截 throw 只回滚本段，不影响上面已提交的退款）
+  db.transaction(() => {
+    const walletRow = db.prepare('SELECT balance FROM wallets WHERE user_id=?').get(userId);
+    const balance = walletRow ? walletRow.balance : 0;
+    if (balance > 0) {
+      throw badRequest(`钱包仍有余额 ${balance} 金币，请先提现或清零后再注销`, 'WALLET_NOT_EMPTY');
+    }
+
     db.prepare("UPDATE users SET username=?, phone=?, password='*', avatar='', bio='', wechat_id='', banned=1 WHERE id=?")
       .run(`已注销${rand}`, `deleted_${rand}@x`, userId);
     db.prepare('DELETE FROM contacts WHERE user_id=? OR contact_id=?').run(userId, userId);
@@ -144,6 +169,9 @@ async function deleteAccount(userId, password) {
     db.prepare('DELETE FROM conversation_members WHERE user_id=?').run(userId);
     db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(userId);
     db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
+    // 补清此前遗漏的用户脏数据（参照 admin.deleteUser 的清理口径；自助注销仅软删用户本体，不删他人可见的会话/消息）
+    db.prepare('DELETE FROM conversation_settings WHERE user_id=?').run(userId);
+    db.prepare('DELETE FROM conversation_clears WHERE user_id=?').run(userId);
   })();
 }
 

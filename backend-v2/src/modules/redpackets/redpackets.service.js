@@ -146,6 +146,32 @@ function reclaimExpired() {
   return { scanned: expired.length, refunded };
 }
 
+// ── 注销结算：把某用户「发出且仍在途」的红包剩余金额退回其本人钱包 ──
+//   复用 reclaimExpired 的口径（status 'active'→'expired' 抢占 + 剩余原路退回 sender）。
+//   与过期回收/并发领取靠同一把 status CAS 互斥，保证同一红包只退一次、不会与领取双花。
+//   不限 24h：注销即立刻结清该用户所有在途红包。返回退回总额（金币，整数分）。
+//   ⚠ 供 deleteAccount 在其外层事务内内联调用（同事务原子）；不自开事务。
+function settleUserActivePacketsTx(userId) {
+  const active = db.prepare(
+    "SELECT id, sender_id, total_amount FROM red_packets WHERE sender_id=? AND status='active'"
+  ).all(userId);
+  let refundedTotal = 0;
+  let refundedCount = 0;
+  for (const p of active) {
+    // 抢占 status，避免与并发 claim / 定时回收竞争重复退款
+    const upd = db.prepare("UPDATE red_packets SET status='expired' WHERE id=? AND status='active'").run(p.id);
+    if (upd.changes === 0) continue;            // 已被其他过程回收
+    const { s } = db.prepare('SELECT COALESCE(SUM(amount),0) AS s FROM red_packet_claims WHERE packet_id=?').get(p.id);
+    const remaining = p.total_amount - s;
+    if (remaining > 0) {
+      wallet.applyDeltaTx(p.sender_id, remaining, 'red_packet_refund', p.id, '注销结算·红包退款');
+      refundedTotal += remaining;
+      refundedCount += 1;
+    }
+  }
+  return { scanned: active.length, refundedCount, refundedTotal };
+}
+
 // 启动时回收一次，之后每 10 分钟扫描一次
 function startExpiryReclaim() {
   try { reclaimExpired(); } catch (e) { console.error('[redpacket] 启动回收失败:', e.message); }
@@ -156,4 +182,4 @@ function startExpiryReclaim() {
   return timer;
 }
 
-module.exports = { send, detail, claim, reclaimExpired, startExpiryReclaim };
+module.exports = { send, detail, claim, reclaimExpired, settleUserActivePacketsTx, startExpiryReclaim };
