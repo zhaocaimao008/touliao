@@ -126,6 +126,28 @@ function handleRequest(io, userId, requestId, action) {
   if (!['accepted', 'rejected'].includes(action)) throw badRequest('无效操作');
   const request = db.prepare("SELECT * FROM friend_requests WHERE id=? AND to_id=? AND status='pending'").get(requestId, userId);
   if (!request) throw notFound('请求不存在');
+  // 接受侧门控复查（与 sendFriendRequest 判定口径对齐）：请求从发出到被接受之间存在时间窗，
+  // 期间任一方可能拉黑对方、或来源群开启"禁止群成员互加"。此时不应再建立好友关系。
+  // 仅在 action='accepted' 时复查（拒绝请求无需门控）。
+  if (action === 'accepted') {
+    // 已是好友：幂等，直接放行（沿用 sendFriendRequest 里 INSERT OR IGNORE 的宽松处理，不视为错误）
+    // 黑名单：双向复查——任一方拉黑对方都拒绝建立好友（比 send 侧更严，覆盖接受方在期间拉黑请求方的场景）
+    const blocked = db.prepare('SELECT user_id FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?)')
+      .get(request.to_id, request.from_id, request.from_id, request.to_id);
+    if (blocked) {
+      // 接受方(userId=request.to_id)拉黑了请求方 → 提示自己先移出黑名单；否则请求方拉黑了你 → 沿用 send 侧文案
+      throw forbidden(blocked.user_id === request.to_id ? '你已将对方加入黑名单，移出后才能添加' : '对方已将你加入黑名单');
+    }
+    // 来源群"禁止群成员互加"：与 send 侧同一判定（双方共处某群且该群 no_add_friend=1）
+    const restricted = db.prepare(`
+      SELECT c.name FROM conversation_members cm1
+      JOIN conversation_members cm2 ON cm1.conversation_id = cm2.conversation_id
+      JOIN conversations c ON c.id = cm1.conversation_id
+      WHERE cm1.user_id = ? AND cm2.user_id = ? AND c.no_add_friend = 1
+      LIMIT 1
+    `).get(request.from_id, request.to_id);
+    if (restricted) throw forbidden(`「${restricted.name}」已开启"禁止群成员互相添加好友"`);
+  }
   db.transaction(() => {
     db.prepare('UPDATE friend_requests SET status=? WHERE id=?').run(action, requestId);
     if (action === 'accepted') {

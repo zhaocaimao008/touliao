@@ -139,6 +139,41 @@ function deleteUser(io, id) {
     db.prepare('DELETE FROM blocked_users WHERE user_id=? OR blocked_id=?').run(id, id);
     db.prepare('DELETE FROM conversation_settings WHERE user_id=?').run(id);
     db.prepare('DELETE FROM conversation_clears WHERE user_id=?').run(id);
+    // 该用户作为群主(owner)的群：删除其成员身份会使 owner_id 悬空。
+    // 先处理——优先转让给群内"最早加入的其他成员"，无其他成员则整群解散。
+    // 必须在下面删 conversation_members 之前做，否则查不到其他成员。
+    const ownedGroups = db.prepare("SELECT id FROM conversations WHERE type='group' AND owner_id=?").all(id);
+    for (const g of ownedGroups) {
+      const heir = db.prepare(
+        'SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=? ORDER BY joined_at ASC, user_id ASC LIMIT 1'
+      ).get(g.id, id);
+      if (heir) {
+        // 转让：新群主 owner_id + role=owner；被删用户的成员行由后续 DELETE ... WHERE user_id=? 清理
+        db.prepare('UPDATE conversations SET owner_id=? WHERE id=?').run(heir.user_id, g.id);
+        db.prepare("UPDATE conversation_members SET role='owner' WHERE conversation_id=? AND user_id=?").run(g.id, heir.user_id);
+      } else {
+        // 无其他成员 → 解散整群（按外键依赖顺序级联，与 purgeConversation 一致；
+        // 此处内联以复用当前事务，避免 better-sqlite3 嵌套事务报错）。
+        const msgIds = db.prepare('SELECT id FROM messages WHERE conversation_id=?').all(g.id).map(r => r.id);
+        for (let i = 0; i < msgIds.length; i += 500) {
+          const chunk = msgIds.slice(i, i + 500);
+          const ph = chunk.map(() => '?').join(',');
+          db.prepare(`DELETE FROM message_reactions WHERE message_id IN (${ph})`).run(...chunk);
+          db.prepare(`DELETE FROM message_deliveries WHERE message_id IN (${ph})`).run(...chunk);
+          db.prepare(`DELETE FROM messages_fts WHERE message_id IN (${ph})`).run(...chunk);
+          db.prepare(`DELETE FROM pinned_messages WHERE message_id IN (${ph})`).run(...chunk);
+        }
+        db.prepare('DELETE FROM pinned_messages WHERE conversation_id=?').run(g.id);
+        db.prepare('DELETE FROM red_packet_claims WHERE packet_id IN (SELECT id FROM red_packets WHERE conversation_id=?)').run(g.id);
+        db.prepare('DELETE FROM red_packets WHERE conversation_id=?').run(g.id);
+        db.prepare('DELETE FROM messages WHERE conversation_id=?').run(g.id);
+        db.prepare('DELETE FROM conversation_settings WHERE conversation_id=?').run(g.id);
+        db.prepare('DELETE FROM conversation_clears WHERE conversation_id=?').run(g.id);
+        db.prepare('DELETE FROM group_invite_tokens WHERE conversation_id=?').run(g.id);
+        db.prepare('DELETE FROM conversation_members WHERE conversation_id=?').run(g.id);
+        db.prepare('DELETE FROM conversations WHERE id=?').run(g.id);
+      }
+    }
     db.prepare('DELETE FROM conversation_members WHERE user_id=?').run(id);
     db.prepare('DELETE FROM user_settings WHERE user_id=?').run(id);
     db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(id);
