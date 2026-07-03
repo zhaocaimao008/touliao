@@ -134,5 +134,3 @@ jobs:
           name: vxin-ios-ipa
           path: /tmp/vxin-ipa/*.ipa
           if-no-files-found: ignore
-</content>
-</invoke>
