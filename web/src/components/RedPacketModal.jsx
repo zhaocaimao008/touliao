@@ -33,7 +33,7 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
   };
 
   return (
-    <div className="rpm-overlay" onClick={onClose}>
+    <div className="rpm-overlay" onClick={() => { if (!sending) onClose(); }}>
       <div className="rpm-card" role="dialog" aria-modal="true" aria-label="发红包" onClick={e => e.stopPropagation()}>
         <div className="rpm-title">发红包</div>
 
@@ -67,7 +67,7 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
         </div>
 
         <div className="rpm-actions">
-          <button onClick={onClose} className="rpm-btn-cancel">取消</button>
+          <button onClick={onClose} className="rpm-btn-cancel" disabled={sending}>取消</button>
           <button onClick={send} disabled={!canSend || sending} className="rpm-btn-send"
             style={{ background: canSend && !sending ? 'var(--green)' : 'rgba(7,193,96,.4)', cursor: canSend && !sending ? 'pointer' : 'not-allowed' }}>
             {sending ? '发送中…' : '确认发送'}

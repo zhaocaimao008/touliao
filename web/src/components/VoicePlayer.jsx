@@ -82,8 +82,8 @@ export default function VoicePlayer({ url }) {
         onKeyDown={e => {
           if (!audioRef.current || !duration) return;
           const step = duration * 0.05;
-          if (e.key === 'ArrowRight') { audioRef.current.currentTime = Math.min(duration, currentTime + step); e.preventDefault(); }
-          if (e.key === 'ArrowLeft')  { audioRef.current.currentTime = Math.max(0, currentTime - step); e.preventDefault(); }
+          if (e.key === 'ArrowRight') { const t = Math.min(duration, currentTime + step); audioRef.current.currentTime = t; setCurrentTime(t); e.preventDefault(); }
+          if (e.key === 'ArrowLeft')  { const t = Math.max(0, currentTime - step); audioRef.current.currentTime = t; setCurrentTime(t); e.preventDefault(); }
         }}
       >
         <div className="wc-voice-progress-fill" style={{ width: `${progress}%` }} />

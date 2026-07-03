@@ -26,7 +26,14 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         role="button"
         tabIndex={0}
         aria-current={conv.id === activeConvId ? 'true' : undefined}
-        onContextMenu={e => { e.preventDefault(); onCtxMenu({ x: e.clientX, y: e.clientY, conv }); }}
+        onContextMenu={e => {
+          e.preventDefault();
+          // 视口内收敛坐标，避免菜单在靠近右/下边缘时溢出屏幕外
+          const MENU_W = 160, MENU_H = 200;
+          const x = Math.min(e.clientX, window.innerWidth - MENU_W);
+          const y = Math.min(e.clientY, window.innerHeight - MENU_H);
+          onCtxMenu({ x: Math.max(8, x), y: Math.max(8, y), conv });
+        }}
         style={{ background: conv.pinned && conv.id !== activeConvId ? 'var(--bg-pinned)' : undefined }}
       >
         <div className="wc-chat-item-avatar">
@@ -120,7 +127,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         if (idx === -1) { fetchConvs(); return prev; }
         const updated = [...prev];
         updated[idx] = { ...updated[idx], lastMessage: msg.content, lastMessageType: msg.type, lastTime: msg.created_at, lastSenderName: msg.senderName };
-        return [...updated].sort((a, b) => (b.pinned - a.pinned) || ((b.lastTime || 0) - (a.lastTime || 0)));
+        return [...updated].sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.lastTime || 0) - (a.lastTime || 0)));
       });
     };
     const onNewConv = (conv) => {
@@ -171,7 +178,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           if (!knownIds.has(id) && !fetched) { fetchConvs(); fetched = true; }
         }
         if (!changed) return prev;
-        return next.sort((a, b) => (b.pinned - a.pinned) || ((b.lastTime || 0) - (a.lastTime || 0)));
+        return next.sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.lastTime || 0) - (a.lastTime || 0)));
       });
     };
     socket.on('new_message', onMsg);
@@ -202,7 +209,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   const pin = async (conv, pinned) => {
     await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned });
     setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, pinned: pinned ? 1 : 0 } : c)
-      .sort((a, b) => (b.pinned - a.pinned) || ((b.lastTime || 0) - (a.lastTime || 0))));
+      .sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.lastTime || 0) - (a.lastTime || 0))));
     setCtxMenu(null);
   };
 

@@ -85,9 +85,11 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   // 搜历史消息(防抖 300ms，减少请求次数)
   useEffect(() => {
     if (!q || q.length < 1) { setMessages([]); return; }
+    // AbortController：快速输入时取消上一次未完成请求，防止慢响应覆盖新结果（旧数据竞态）
+    const ac = new AbortController();
     const timer = setTimeout(() => {
       setSearchingMsg(true);
-      axios.get(`/api/messages/search?q=${encodeURIComponent(q)}&limit=20`)
+      axios.get(`/api/messages/search?q=${encodeURIComponent(q)}&limit=20`, { signal: ac.signal })
         .then(r => {
           const msgs = (r.data.results || []).map(m => ({
             ...m,
@@ -96,10 +98,10 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
           }));
           setMessages(msgs);
         })
-        .catch(() => setMessages([]))
-        .finally(() => setSearchingMsg(false));
+        .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setMessages([]); })
+        .finally(() => { if (!ac.signal.aborted) setSearchingMsg(false); });
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); ac.abort(); };
   }, [q]);
 
   const openContact = async (c) => {
@@ -130,6 +132,12 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
 
   return (
     <div className="gs-scroll">
+      {/* 会话加载失败提示（此前静默吞掉，导致会话搜索结果为空却无任何反馈） */}
+      {convError && (
+        <div role="alert" className="gs-searching" style={{ color: 'var(--color-badge)' }}>
+          {convError}
+        </div>
+      )}
       {/* 联系人 */}
       {matchedContacts.length > 0 && (
         <>

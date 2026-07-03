@@ -14,6 +14,8 @@ export default function AuthImage({ src, alt = '', style, className }) {
     let objUrl = null;
     setFailed(false);
     setBlobUrl(null);
+    // src 为空时不发请求（axios.get(undefined) 会误请求当前页面）
+    if (!src) { setFailed(true); return; }
     axios.get(src, { responseType: 'blob' })
       .then(res => {
         if (revoked) return;

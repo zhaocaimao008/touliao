@@ -17,8 +17,13 @@ export default function ForwardModal({ message, onClose }) {
   const [sentCount, setSentCount] = useState(0);
 
   useEffect(() => {
-    axios.get('/api/users/contacts').then(r => setFriends(r.data));
-    axios.get('/api/messages/my-groups').then(r => setGroups(r.data));
+    // 兜底成数组：接口异常/返回非数组时避免 filteredFriends/.filter 抛错导致弹窗白屏
+    axios.get('/api/users/contacts')
+      .then(r => setFriends(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setFriends([]));
+    axios.get('/api/messages/my-groups')
+      .then(r => setGroups(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setGroups([]));
   }, []);
 
   useEffect(() => {
@@ -47,10 +52,14 @@ export default function ForwardModal({ message, onClose }) {
       setSelected(prev => { const s = new Set(prev); s.has(convId) ? s.delete(convId) : s.add(convId); return s; });
       return;
     }
-    const { data } = await axios.post('/api/messages/conversation/private', { userId: friend.id });
-    const convId = data.conversationId;
-    setFriendConvMap(prev => ({ ...prev, [friend.id]: convId }));
-    setSelected(prev => { const s = new Set(prev); s.add(convId); return s; });
+    try {
+      const { data } = await axios.post('/api/messages/conversation/private', { userId: friend.id });
+      const convId = data.conversationId;
+      setFriendConvMap(prev => ({ ...prev, [friend.id]: convId }));
+      setSelected(prev => { const s = new Set(prev); s.add(convId); return s; });
+    } catch (e) {
+      showToast(e.response?.data?.error || '无法选择该好友，请重试', 'error');
+    }
   };
 
   const selectAllFriends = async () => {
@@ -60,9 +69,11 @@ export default function ForwardModal({ message, onClose }) {
       setSelected(prev => { const s = new Set(prev); toRemove.forEach(id => s.delete(id)); return s; });
     } else {
       const promises = filteredFriends.filter(f => !friendConvMap[f.id]).map(f =>
-        axios.post('/api/messages/conversation/private', { userId: f.id }).then(r => ({ uid: f.id, convId: r.data.conversationId }))
+        axios.post('/api/messages/conversation/private', { userId: f.id })
+          .then(r => ({ uid: f.id, convId: r.data.conversationId }))
+          .catch(() => null) // 单个失败不影响其余好友被选中
       );
-      const results = await Promise.all(promises);
+      const results = (await Promise.all(promises)).filter(Boolean);
       const newMap = { ...friendConvMap };
       results.forEach(({ uid, convId }) => { newMap[uid] = convId; });
       setFriendConvMap(newMap);

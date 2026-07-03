@@ -17,7 +17,7 @@ export default function SearchResults({ results, query, searching, onSelect, onC
       overflowY: 'auto',
     }}>
       {searching && (
-        <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 13, color: 'var(--text-tertiary)' }}>
+        <div role="status" style={{ textAlign: 'center', padding: '16px 0', fontSize: 13, color: 'var(--text-tertiary)' }}>
           搜索中…
         </div>
       )}
