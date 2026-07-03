@@ -281,9 +281,22 @@ function setupSecurity() {
   });
 }
 
+// 校验/收敛持久化的窗口尺寸：防止磁盘配置被改成非法值（NaN/负数/过大）导致
+// BrowserWindow 构造异常或创建不可见窗口。宽高钳制到合理区间，缺省回退默认。
+function sanitizeBounds(raw) {
+  const def = { width: 1200, height: 800 };
+  const b = (raw && typeof raw === 'object') ? raw : def;
+  const clamp = (v, min, max, fallback) =>
+    (Number.isFinite(v) && v >= min ? Math.min(v, max) : fallback);
+  return {
+    width:  clamp(b.width, 900, 10000, def.width),
+    height: clamp(b.height, 600, 10000, def.height),
+  };
+}
+
 // ── 主窗口 ─────────────────────────────────────────────────
 function createWindow() {
-  const bounds = store.get('windowBounds');
+  const bounds = sanitizeBounds(store.get('windowBounds'));
 
   mainWindow = new BrowserWindow({
     width: bounds.width,
@@ -301,7 +314,11 @@ function createWindow() {
       sandbox: true,                // 安全：启用沙箱，隔离渲染进程
       // 沙箱化 preload 无法可靠 require 本地文件；用 app.getVersion()(取自打包 package.json)
       // 经启动参数同步下发真实版本，替代 preload 里读错文件(读到仓库根 2.0.0)的旧写法。
-      additionalArguments: [`--vxin-app-version=${app.getVersion()}`],
+      // 一并下发运行时解析出的真实后端地址，避免 preload 里硬编码 dipsin.com 误导渲染层。
+      additionalArguments: [
+        `--vxin-app-version=${app.getVersion()}`,
+        `--vxin-server-url=${SERVER_URL}`,
+      ],
       webSecurity: true,
       allowRunningInsecureContent: false,
       devTools: !app.isPackaged,    // 安全：生产构建禁用 DevTools
@@ -318,13 +335,21 @@ function createWindow() {
     setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
   });
 
+  // 记住窗口尺寸：仅在非最大化/非最小化时记录正常尺寸，否则下次会以 0/怪异尺寸启动。
+  const saveBounds = () => {
+    if (mainWindow && !mainWindow.isMaximized() && !mainWindow.isMinimized()) {
+      store.set('windowBounds', mainWindow.getBounds());
+    }
+  };
+
   mainWindow.on('close', (e) => {
-    if (!isQuitting && store.get('minimizeToTray')) {
+    // 无论走托盘还是真正退出，都先保存当前尺寸，避免「缩放后关到托盘 → 尺寸丢失」。
+    saveBounds();
+    // 仅在托盘存在时才「关到托盘」：否则窗口隐藏后无入口可恢复，等于失联。
+    if (!isQuitting && store.get('minimizeToTray') && tray) {
       e.preventDefault();
       mainWindow.hide();
-      return;
     }
-    store.set('windowBounds', mainWindow.getBounds());
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
@@ -485,8 +510,21 @@ function setupAutoUpdater() {
 // ── 系统托盘 ───────────────────────────────────────────────
 function createTray() {
   const iconPath = path.join(__dirname, '../assets/icon.png');
-  const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
-  tray = new Tray(trayIcon);
+  let trayIcon = nativeImage.createFromPath(iconPath);
+  // 图标缺失/损坏时 createFromPath 返回空图，new Tray(空图) 在部分平台会抛异常导致
+  // 启动崩溃。空图则退回一个 1x1 占位图，保证托盘可创建、应用能正常起。
+  if (trayIcon.isEmpty()) {
+    log.warn('托盘图标缺失或无法读取:', iconPath);
+    trayIcon = nativeImage.createEmpty();
+  } else {
+    trayIcon = trayIcon.resize({ width: 16, height: 16 });
+  }
+  try {
+    tray = new Tray(trayIcon);
+  } catch (e) {
+    log.error('创建系统托盘失败，跳过托盘（应用仍可用）:', e.message);
+    return;
+  }
   tray.setToolTip('v信');
 
   const contextMenu = Menu.buildFromTemplate([
@@ -515,6 +553,12 @@ function createTray() {
   tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
 }
 
+// 安全：IPC 来源校验。仅接受来自本应用主窗口 webContents 的调用，拒绝任何其它
+// webContents（如将来意外附加的 webview / 子窗口，或被劫持的帧）触发敏感 IPC。
+function isTrustedSender(event) {
+  return !!mainWindow && event?.sender === mainWindow.webContents;
+}
+
 // ── IPC 处理器（白名单模式）───────────────────────────────
 function setupIPC() {
   // 窗口操作
@@ -528,6 +572,7 @@ function setupIPC() {
 
   // 文件下载：渲染进程请求 → 主进程 downloadURL（配合 setupSecurity 的 will-download 落盘+打开）
   ipcMain.handle('file:download', (_e, payload) => {
+    if (!isTrustedSender(_e)) return;
     const url = payload?.url;
     if (typeof url !== 'string' || !url || !mainWindow) return;
     // 安全：仅允许从当前后端 / 已配置 CDN 下载。否则被注入的渲染进程可让主进程
@@ -546,7 +591,8 @@ function setupIPC() {
   });
 
   // 原生通知
-  ipcMain.handle('notification:show', (_, payload) => {
+  ipcMain.handle('notification:show', (_e, payload) => {
+    if (!isTrustedSender(_e)) return;
     if (!store.get('notifications')) return;
     // 输入校验
     const title = String(payload?.title || '').slice(0, 100);
@@ -575,28 +621,34 @@ function setupIPC() {
   });
 
   // 截图：主进程截取 → 写入 temp → 返回路径
-  ipcMain.handle('screenshot:capture', async () => {
-    return new Promise((resolve) => {
-      mainWindow?.once('minimize', async () => {
-        try {
-          const { createCapturer } = require('./screenshot');
-          const imgPath = await createCapturer();
-          resolve(imgPath);
-        } catch (e) {
-          log.error('截图失败:', e);
-          resolve(null);
-        } finally {
-          mainWindow?.show();
-          mainWindow?.focus();
-        }
-      });
-      mainWindow?.minimize();
-    });
+  // 先隐藏窗口再截屏，避免把 v信 自身拍进去。用短延时代替监听 'minimize' 事件：
+  // 旧写法若窗口已最小化则该事件永不触发，Promise 泄漏且窗口卡在最小化。
+  ipcMain.handle('screenshot:capture', async (_e) => {
+    if (!isTrustedSender(_e)) return null;
+    if (!mainWindow) return null;
+    const wasVisible = mainWindow.isVisible() && !mainWindow.isMinimized();
+    if (wasVisible) mainWindow.hide();
+    // 给合成器一帧时间让窗口真正从屏幕移除
+    await new Promise((r) => setTimeout(r, 250));
+    let imgPath = null;
+    try {
+      const { createCapturer } = require('./screenshot');
+      imgPath = await createCapturer();
+    } catch (e) {
+      log.error('截图失败:', e);
+    } finally {
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    }
+    return imgPath;
   });
 
   // 安全读文件：仅允许读取本应用在 temp 下生成的截图文件
   // 收窄到 vxin-screenshot-*.png（而非整个 temp 目录），并设大小上限
-  ipcMain.handle('file:readAsBase64', async (_, filePath) => {
+  ipcMain.handle('file:readAsBase64', async (_e, filePath) => {
+    if (!isTrustedSender(_e)) return null;
     if (typeof filePath !== 'string') return null;
     const resolved = path.resolve(filePath);
     if (!isSafeReadPath(resolved)) {
@@ -623,7 +675,8 @@ function setupIPC() {
 
   // 服务器配置（仅 https；并需用户在主进程侧确认，防止渲染进程被注入后
   // 静默把后端重定向到恶意服务器。为支持私有化部署，不限制具体域名）
-  ipcMain.handle('config:setServerUrl', async (_, url) => {
+  ipcMain.handle('config:setServerUrl', async (_e, url) => {
+    if (!isTrustedSender(_e)) return false;
     if (typeof url !== 'string' || !isValidServerUrl(url)) {
       log.warn('config:setServerUrl 非法 URL:', url);
       return false;
@@ -657,7 +710,8 @@ function setupIPC() {
   ipcMain.handle('system:getPlatform', () => process.platform);
 
   // 更新：用户在 UI 确认后主动触发安装
-  ipcMain.handle('update:install', () => {
+  ipcMain.handle('update:install', (_e) => {
+    if (!isTrustedSender(_e)) return;
     isQuitting = true;
     autoUpdater.quitAndInstall();
   });

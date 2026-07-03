@@ -5,15 +5,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 // 真实应用版本由主进程经 additionalArguments 下发（app.getVersion()，取自打包 package.json）。
 // 不再 require('../../package.json')：沙箱化 preload 不能可靠读本地文件，且旧路径读到的是
 // 仓库根 package.json(2.0.0) 而非桌面端版本。process.argv 在沙箱 preload 中可用。
-const APP_VERSION = (() => {
-  const a = process.argv.find(x => x.startsWith('--vxin-app-version='));
-  return a ? a.slice('--vxin-app-version='.length) : '';
-})();
+const argValue = (prefix) => {
+  const a = process.argv.find(x => x.startsWith(prefix));
+  return a ? a.slice(prefix.length) : '';
+};
+const APP_VERSION = argValue('--vxin-app-version=');
+// 真实后端地址由主进程据远程 config.json 解析后经启动参数下发；缺省回退默认域名。
+// 不再硬编码，避免换服务器后此字段与实际连接的后端不一致。
+const SERVER_URL = argValue('--vxin-server-url=') || 'https://dipsin.com';
 
 // 渲染进程通过 window.__ELECTRON_CONFIG__ 判断 Electron 环境
 contextBridge.exposeInMainWorld('__ELECTRON_CONFIG__', {
   isElectron: true,
-  serverUrl: 'https://dipsin.com',
+  serverUrl: SERVER_URL,
   appVersion: APP_VERSION,
 });
 
