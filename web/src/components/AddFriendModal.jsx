@@ -39,6 +39,9 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 80); }, []);
 
+  // 卸载时清理防抖定时器，避免关闭后仍触发一次搜索（对已卸载组件 setState）
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
   const doSearch = useCallback((q) => {
     if (!q.trim()) { setResults([]); setSearched(false); return; }
     setSearching(true);
