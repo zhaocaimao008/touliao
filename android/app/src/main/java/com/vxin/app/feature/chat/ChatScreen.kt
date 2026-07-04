@@ -73,8 +73,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.vxin.app.core.util.downloadFile
+import com.vxin.app.data.model.ContactCardContent
 import com.vxin.app.data.model.Message
 import com.vxin.app.ui.components.InitialAvatar
+import kotlinx.serialization.json.Json
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinGreenDark
 import com.vxin.app.ui.theme.VxinTextSecondary
@@ -478,6 +480,7 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
 
 private fun pinnedPreview(p: com.vxin.app.data.model.PinnedMessage): String = when (p.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"; "red_packet" -> "[红包]"
+    "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> p.content
 }
 
@@ -635,13 +638,19 @@ private fun MessageBubble(
 
 private fun replyPreviewText(rt: com.vxin.app.data.model.ReplyPreview): String = when (rt.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
+    "red_packet" -> "[红包]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> rt.content
 }
 
 private fun replyPreviewOf(msg: Message): String = when (msg.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
+    "red_packet" -> "[红包]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> msg.content
 }
+
+private val contactCardJson = Json { ignoreUnknownKeys = true }
+private fun parseContactCard(content: String): ContactCardContent =
+    runCatching { contactCardJson.decodeFromString<ContactCardContent>(content) }.getOrNull() ?: ContactCardContent()
 
 @Composable
 private fun MessageContent(
@@ -669,6 +678,19 @@ private fun MessageContent(
                     Text("📄 ${msg.content.ifBlank { "文件" }}", color = bubbleTextColor(isMine), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 "video" -> MediaCard(isMine, onClick = onOpenFile) { Text("🎬 视频", color = bubbleTextColor(isMine)) }
+                "contact_card", "contact" -> {
+                    val card = parseContactCard(msg.content)
+                    MediaCard(isMine, onClick = {}) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            InitialAvatar(card.username.ifBlank { "?" }, size = 40.dp)
+                            Spacer(Modifier.size(10.dp))
+                            Column {
+                                Text(card.username.ifBlank { "用户" }, color = bubbleTextColor(isMine))
+                                Text("个人名片", color = bubbleTextColor(isMine).copy(alpha = 0.6f), fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
                 else -> TextBubble(msg.content, isMine)
             }
     }

@@ -226,6 +226,7 @@ private fun previewText(conv: Conversation): String = when (conv.lastMessageType
     "red_packet" -> "[红包]"
     "sticker" -> "[表情]"
     "nudge" -> "[拍一拍]"
+    "contact_card", "contact" -> "[名片]"
     else -> conv.lastMessage ?: ""
 }
 
