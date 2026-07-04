@@ -310,9 +310,11 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     };
   }, [conversation.id]);
 
-  const fetchMessages = useCallback(async (before = null, signal = null) => {
+  const fetchMessages = useCallback(async (before = null, signal = null, beforeId = null) => {
     const params = { limit: 40 };
     if (before) params.before = before;
+    // 复合游标：附带边界消息 id，避免同一秒消息数 > limit 时漏掉同秒消息（后端据此走 (created_at,rowid) 比较）
+    if (beforeId) params.beforeId = beforeId;
     const { data } = await axios.get(`/api/messages/${conversation.id}`, { params, signal });
     return data;
   }, [conversation.id]);
@@ -509,9 +511,10 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       if (container.scrollTop < 60 && messages.length > 0) {
         setLoadingMore(true);
         const oldest     = messages[0]?.created_at;
+        const oldestId   = messages[0]?.id;
         const snapConvId = convIdRef.current;
         try {
-          const data = await fetchMessages(oldest);
+          const data = await fetchMessages(oldest, null, oldestId);
           if (convIdRef.current !== snapConvId) return;
           if (!data || data.length === 0) {
             setHasMore(false);

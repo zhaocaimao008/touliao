@@ -17,7 +17,7 @@ const MAX = config.limits.maxMsgLength;
 const RECALL = config.limits.recallWindow;
 
 // ── 历史消息（批量 replyTo + reactions，群已读数 / 私聊送达）──────
-function history(convId, userId, { before, after, limit }) {
+function history(convId, userId, { before, after, limit, beforeId }) {
   requireMember(convId, userId);
 
   const rawLimit = parseInt(limit);
@@ -38,7 +38,22 @@ function history(convId, userId, { before, after, limit }) {
   const afterTs = Number(after);
   const hasBefore = before != null && before !== '' && Number.isFinite(beforeTs);
   const hasAfter  = after  != null && after  !== '' && Number.isFinite(afterTs);
-  if (hasBefore) { query += ' AND m.created_at < ?'; params.push(beforeTs); }
+  if (hasBefore) {
+    // created_at 为秒级：同一秒内消息数 > limit 时，仅用 created_at<before 会漏掉与游标同秒、
+    // 超出上一页的消息。若客户端回传边界消息 id，则以 (created_at, rowid) 复合游标兜底，不丢不重。
+    let beforeRowid = null;
+    if (beforeId) {
+      const r = db.prepare('SELECT rowid AS rid FROM messages WHERE id=? AND conversation_id=?').get(beforeId, convId);
+      if (r) beforeRowid = r.rid;
+    }
+    if (beforeRowid != null) {
+      query += ' AND (m.created_at < ? OR (m.created_at = ? AND m.rowid < ?))';
+      params.push(beforeTs, beforeTs, beforeRowid);
+    } else {
+      query += ' AND m.created_at < ?';
+      params.push(beforeTs);
+    }
+  }
   if (hasAfter)  { query += ' AND m.created_at > ?'; params.push(afterTs); }
   query += hasAfter ? ' ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?' : ' ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?';
   params.push(lim);
