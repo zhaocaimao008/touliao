@@ -5,7 +5,7 @@ const svc = require('./conversations.service');
 
 const io = req => req.app.get('io');
 
-exports.createPrivate = asyncHandler(async (req, res) => res.json(svc.getOrCreatePrivate(req.user.id, req.body.userId)));
+exports.createPrivate = asyncHandler(async (req, res) => res.json(svc.getOrCreatePrivate(req.user.id, req.body.userId, { io: io(req) })));
 exports.fileHelper    = asyncHandler(async (req, res) => res.json(svc.getOrCreateFileHelper(req.user.id)));
 exports.createGroup   = asyncHandler(async (req, res) => res.json(svc.createGroup(io(req), req.user.id, req.body)));
 exports.list          = asyncHandler(async (req, res) => res.json(await svc.listConversations(req.user.id)));

@@ -75,6 +75,8 @@ function joinByToken(io, userId, token) {
   }
   const conv = db.prepare('SELECT id,type,name,avatar FROM conversations WHERE id=?').get(invite.conversation_id);
   if (io) {
+    // 全端即时入群房间，否则扫码入群后首条消息要等重连才收到。
+    io.in(`user_${userId}`).socketsJoin(invite.conversation_id);
     io.to(`user_${userId}`).emit('new_conversation', conv);
     io.to(invite.conversation_id).emit('group_updated', { id: invite.conversation_id });
   }
@@ -138,6 +140,8 @@ function invite(io, convId, userId, userIds) {
   if (io && added.length > 0) {
     const conv = db.prepare('SELECT id,type,name,avatar FROM conversations WHERE id=?').get(convId);
     added.forEach(uid => {
+      // 对称于 kick 的 socketsLeave：被邀成员全端即时入群房间，否则入群后首条消息要等重连才收到。
+      io.in(`user_${uid}`).socketsJoin(convId);
       io.to(`user_${uid}`).emit('new_conversation', conv);
       io.to(`user_${uid}`).emit('group_member_added', { conversationId: convId, userId: uid });
     });

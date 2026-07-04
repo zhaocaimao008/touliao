@@ -76,6 +76,9 @@ function sendFriendRequest(io, fromId, { toId, message }) {
     const { conversationId } = getOrCreatePrivate(fromId, toId, { internal: true });
     if (io) io.to(`user_${toId}`).emit('friend_request_accepted', { accepter: sender, autoAccepted: true });
     if (io) {
+      // 在线双方全端即时入新私聊房间，否则首条消息只广播到房间、要等重连才能实时收到。
+      io.in(`user_${fromId}`).socketsJoin(conversationId);
+      io.in(`user_${toId}`).socketsJoin(conversationId);
       const convForSender = { id: conversationId, type: 'private', name: target?.username || '', avatar: target?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
       const convForTarget = { id: conversationId, type: 'private', name: sender?.username || '', avatar: sender?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
       io.to(`user_${fromId}`).emit('new_conversation', convForSender);
@@ -167,6 +170,9 @@ function handleRequest(io, userId, requestId, action) {
     if (io) io.to(`user_${userId}`).emit('friend_request_accepted', { newFriend: requester });
     // 双方都收到 new_conversation 事件（自动置顶到会话列表）
     if (io) {
+      // 在线双方全端即时入新私聊房间，否则首条消息只广播到房间、要等重连才能实时收到。
+      io.in(`user_${userId}`).socketsJoin(conversationId);
+      io.in(`user_${request.from_id}`).socketsJoin(conversationId);
       const convForAccepter = { id: conversationId, type: 'private', name: requester?.username || '', avatar: requester?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
       const convForRequester = { id: conversationId, type: 'private', name: accepter?.username || '', avatar: accepter?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
       io.to(`user_${userId}`).emit('new_conversation', convForAccepter);

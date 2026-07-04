@@ -23,7 +23,7 @@ const _createPrivate = db.transaction((myId, otherId, id) => {
   db.prepare('INSERT INTO conversation_members (conversation_id,user_id) VALUES (?,?)').run(id, myId);
   db.prepare('INSERT INTO conversation_members (conversation_id,user_id) VALUES (?,?)').run(id, otherId);
 });
-function getOrCreatePrivate(myId, otherId, { internal = false } = {}) {
+function getOrCreatePrivate(myId, otherId, { internal = false, io = null } = {}) {
   if (!otherId) throw badRequest('参数缺失');
   if (otherId === myId) throw badRequest('不能与自己创建私聊');
   if (!internal) {
@@ -46,6 +46,8 @@ function getOrCreatePrivate(myId, otherId, { internal = false } = {}) {
     if (won) return { conversationId: won.id };
     throw new Error('无法创建私聊会话');
   }
+  // 主动建私聊(controller 传 io)时让双方在线端即时入房间；internal 调用方(contacts)自行在 emit 处 join。
+  if (io) { io.in(`user_${myId}`).socketsJoin(id); io.in(`user_${otherId}`).socketsJoin(id); }
   return { conversationId: id };
 }
 
@@ -112,7 +114,12 @@ function createGroup(io, ownerId, { name, memberIds }) {
 
   if (io) {
     const conv = { id, type: 'group', name, avatar: '', pinned: 0, muted: 0, group_number: groupNumber };
-    [ownerId, ...validMemberIds].forEach(uid => io.to(`user_${uid}`).emit('new_conversation', conv));
+    [ownerId, ...validMemberIds].forEach(uid => {
+      // 对称于 kick/leave 的 socketsLeave：在线成员全端即时入群会话房间，
+      // 否则新群首条消息只广播到房间、要等成员重连(connection 时才 join)才能实时收到。
+      io.in(`user_${uid}`).socketsJoin(id);
+      io.to(`user_${uid}`).emit('new_conversation', conv);
+    });
   }
   return { conversationId: id, groupNumber };
 }
