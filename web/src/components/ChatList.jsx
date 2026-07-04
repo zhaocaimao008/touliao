@@ -13,9 +13,10 @@ const ITEM_HEIGHT = 64;
 
 // Stable module-level row component so react-window doesn't unmount on re-render
 const ConvRow = memo(function ConvRow({ index, style, data }) {
-  const { items, activeConvId, onSelectConv, onCtxMenu, previewMsg, user } = data;
+  const { items, activeConvId, onSelectConv, onCtxMenu, previewMsg, user, drafts } = data;
   const conv = items[index];
   const count = conv._unread || 0;
+  const draft = (drafts && drafts[conv.id]) || '';
   return (
     <div style={style}>
       <div
@@ -55,7 +56,11 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
                 <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
               </svg>
             )}
-            <span className="wc-chat-item-preview">{previewMsg(conv, user)}</span>
+            <span className="wc-chat-item-preview">
+              {draft
+                ? <><span className="wc-chat-item-draft">[草稿]</span>{draft}</>
+                : previewMsg(conv, user)}
+            </span>
           </div>
         </div>
       </div>
@@ -64,7 +69,8 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
 }, (prev, next) => {
   const pi = prev.data.items[prev.index];
   const ni = next.data.items[next.index];
-  return pi === ni && prev.data.activeConvId === next.data.activeConvId && prev.style.top === next.style.top && pi?.manually_unread === ni?.manually_unread;
+  return pi === ni && prev.data.activeConvId === next.data.activeConvId && prev.style.top === next.style.top && pi?.manually_unread === ni?.manually_unread
+    && (prev.data.drafts?.[pi?.id] || '') === (next.data.drafts?.[ni?.id] || '');
 });
 
 function previewMsg(conv, user) {
@@ -90,11 +96,43 @@ function previewMsg(conv, user) {
   return conv.lastMessage;
 }
 
+// 扫描 localStorage 里的所有草稿（键形如 draft_<convId>），供会话列表显示「[草稿]」标记
+function readAllDrafts() {
+  const out = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('draft_')) {
+        const v = localStorage.getItem(k);
+        if (v) out[k.slice(6)] = v;
+      }
+    }
+  } catch { /* localStorage 不可用时忽略 */ }
+  return out;
+}
+
 export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0 }) {
   const [conversations, setConversations] = useState([]);
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [drafts, setDrafts] = useState(readAllDrafts);
   const { socket, reconnectCount } = useSocket();
   const { user } = useAuth();
+
+  // 监听 ChatWindow 派发的草稿变更事件，实时刷新列表里的「[草稿]」标记
+  useEffect(() => {
+    const onDraftChanged = (e) => {
+      const { convId, text } = e.detail || {};
+      if (convId == null) return;
+      setDrafts(prev => {
+        const has = !!prev[convId];
+        if (text) { if (prev[convId] === text) return prev; return { ...prev, [convId]: text }; }
+        if (!has) return prev;
+        const next = { ...prev }; delete next[convId]; return next;
+      });
+    };
+    window.addEventListener('draft-changed', onDraftChanged);
+    return () => window.removeEventListener('draft-changed', onDraftChanged);
+  }, []);
 
   const fetchConvs = useCallback(async () => {
     const { data } = await axios.get('/api/messages/conversations');
@@ -262,7 +300,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     onCtxMenu: setCtxMenu,
     previewMsg,
     user,
-  }), [filtered, activeConvId, handleSelectConv, user]);
+    drafts,
+  }), [filtered, activeConvId, handleSelectConv, user, drafts]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)' }}>

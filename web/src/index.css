@@ -417,6 +417,11 @@ img { display: block; }
   white-space: nowrap;
   line-height: var(--lh-base);
 }
+/* 会话列表里的「[草稿]」标记：微信式红色前缀 */
+.wc-chat-item-draft {
+  color: #e05a4f;
+  margin-right: 3px;
+}
 
 /* ============================================================
    Chat Window
@@ -3575,10 +3580,65 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   border-width: 0 2px 2px 0;
   transform: rotate(-135deg);
   margin-top: 4px;
+  flex-shrink: 0;
+}
+/* 带「N 条新消息」时展开成胶囊 */
+.cw-scroll-bottom.has-new {
+  width: auto;
+  height: 32px;
+  border-radius: 16px;
+  padding: 0 12px 0 14px;
+  gap: 7px;
+}
+.cw-scroll-bottom.has-new:hover { transform: scale(1.04); }
+.cw-scroll-bottom.has-new::after { margin-top: 0; }
+.cw-scroll-bottom-badge {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
 }
 @keyframes cwFabIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* === 断线重连提示条 === */
+.wc-net-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 12px;
+  padding-top: calc(7px + env(safe-area-inset-top)); /* 移动端避开刘海 */
+  font-size: 13px;
+  color: #fff;
+  background: #e6a23c;
+  box-shadow: 0 1px 6px rgba(0,0,0,.2);
+  animation: wcNetIn .25s ease both;
+}
+/* Electron 顶部有 30px 自定义标题栏，下移避免被遮住 */
+.wc-net-banner.electron { top: 30px; }
+.wc-net-banner-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  animation: wcNetBlink 1s ease-in-out infinite;
+}
+@keyframes wcNetIn {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes wcNetBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .3; }
 }
 
 /* === GlobalSearch component classes === */

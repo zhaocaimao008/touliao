@@ -35,7 +35,9 @@ function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onL
     onComment(m, text.trim(), () => { setText(''); setCommenting(false); });
   };
 
-  const gridCols = m.images?.length ? Math.min(m.images.length, 3) : 1;
+  // 微信九宫格规则：恰好 4 张时排成 2×2，其余按 1/2/3 列
+  const imgCount = m.images?.length || 0;
+  const gridCols = imgCount === 4 ? 2 : (imgCount ? Math.min(imgCount, 3) : 1);
 
   return (
     <div className="wc-moment-card">

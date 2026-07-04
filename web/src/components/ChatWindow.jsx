@@ -111,6 +111,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   const [atList, setAtList] = useState(null); // members for @ mention
   const [atIndex, setAtIndex] = useState(0); // selected index in atList
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [newMsgCount, setNewMsgCount] = useState(0); // 滚动上翻时到达的新消息数，显示在回到底部按钮上
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   // 通话状态
@@ -148,6 +149,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   const fileInputRef = useRef(null);
   const audioRef = useRef(null); // 当前播放中的语音，防止并发播放
   const typingTimer = useRef(null);
+  const typingClearTimer = useRef(null); // 接收侧兜底：stop_typing 丢包时自动收起"正在输入"
   const recorderRef = useRef(null);
   const streamRef = useRef(null);
   const textareaRef = useRef(null);
@@ -500,6 +502,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       if (!container) return;
       const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
       setShowScrollBtn(distFromBottom > 300);
+      if (distFromBottom <= 300) setNewMsgCount(c => (c ? 0 : c));
       if (loadingMore || !hasMore) return;
       if (container.scrollTop < 60 && messages.length > 0) {
         setLoadingMore(true);
@@ -550,6 +553,13 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       window.__vxinPerf?.recv(msg, user.id, 'socket');
       // 自己发的消息(如文件/图片经后端广播回来)：无条件贴底，与文本发送一致
       if (msg.sender_id === user.id) forceScrollRef.current = true;
+      else {
+        // 别人发来的消息：若当前不在底部，累加"新消息"计数（渲染前 scrollHeight 即翻阅前状态）
+        const outer = listOuterRef.current;
+        if (outer && outer.scrollHeight - outer.scrollTop - outer.clientHeight >= 400) {
+          setNewMsgCount(c => c + 1);
+        }
+      }
       setMessages(prev => {
         if (prev.find(m => m.id === msg.id)) return prev;
         // 用 client_msg_id 匹配并替换本地乐观消息(tempId),否则 socket 重连自动重发后
@@ -601,7 +611,11 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       else {
         const outer = listOuterRef.current;
         const isAtBottom = outer && (outer.scrollHeight - outer.scrollTop - outer.clientHeight < 400);
-        if (!isAtBottom) return;
+        if (!isAtBottom) {
+          const others = incoming.filter(m => m.sender_id !== user.id).length;
+          if (others) setNewMsgCount(c => c + others);
+          return;
+        }
       }
       setTimeout(() => {
         const outer = listOuterRef.current;
@@ -614,9 +628,15 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         || messagesRef.current.find(m => m.sender_id === userId)?.senderName
         || '对方';
       setTypingName(name);
+      // 兜底：对方停顿后若 stop_typing 丢包，最迟 6s 自动收起（发送侧每 2s 会续发 typing）
+      clearTimeout(typingClearTimer.current);
+      typingClearTimer.current = setTimeout(() => setTypingName(''), 6000);
     };
     const onStopTyping = ({ conversationId }) => {
-      if (conversationId === convIdRef.current) setTypingName('');
+      if (conversationId === convIdRef.current) {
+        clearTimeout(typingClearTimer.current);
+        setTypingName('');
+      }
     };
     const onDeleted = ({ msgId }) => {
       setMessages(prev => {
@@ -767,6 +787,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       socket.off('new_message_batch', onMsgBatch);
       socket.off('typing', onTyping);
       socket.off('stop_typing', onStopTyping);
+      clearTimeout(typingClearTimer.current);
       socket.off('message_deleted', onDeleted);
       socket.off('message_vanished', onVanished);
       socket.off('messages_batch_deleted', onBatchDeleted);
@@ -893,6 +914,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     setMessages(prev => [...prev, optimistic]);
     setInput('');
     localStorage.removeItem(`draft_${conversation.id}`);
+    window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: '' } }));
     setReplyTo(null);
     setShowEmoji(false);
     socket.emit('stop_typing', { conversationId: conversation.id });
@@ -1918,10 +1940,14 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
           )}
           {showScrollBtn && (
             <button
-              className="cw-scroll-bottom"
-              onClick={() => virtListRef.current?.scrollToBottom('smooth')}
-              aria-label="滚动到底部"
-            ></button>
+              className={`cw-scroll-bottom${newMsgCount > 0 ? ' has-new' : ''}`}
+              onClick={() => { virtListRef.current?.scrollToBottom('smooth'); setNewMsgCount(0); }}
+              aria-label={newMsgCount > 0 ? `${newMsgCount} 条新消息，回到底部` : '滚动到底部'}
+            >
+              {newMsgCount > 0 && (
+                <span className="cw-scroll-bottom-badge">{newMsgCount > 99 ? '99+' : newMsgCount} 条新消息</span>
+              )}
+            </button>
           )}
         </div>
 
@@ -2239,7 +2265,9 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                     const val = e.target.value;
                     setInput(val);
                     if (conversation.id) {
-                      localStorage.setItem(`draft_${conversation.id}`, val);
+                      if (val) localStorage.setItem(`draft_${conversation.id}`, val);
+                      else localStorage.removeItem(`draft_${conversation.id}`);
+                      window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: val } }));
                     }
                   }}
                   onKeyDown={handleKeyDown}

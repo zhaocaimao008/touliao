@@ -15,6 +15,7 @@ import GlobalSearch from '../components/GlobalSearch';
 import AddFriendModal from '../components/AddFriendModal';
 import Avatar from '../components/Avatar';
 import AuthImage from '../components/AuthImage';
+import ReconnectingBanner from '../components/ReconnectingBanner';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePushNotification } from '../hooks/usePushNotification';
@@ -762,6 +763,7 @@ export default function Home() {
   // 各端共用的浮层（二维码 / 添加菜单 / 建群 / 网络搜索 / 通话）
   const overlays = (
     <>
+      <ReconnectingBanner />
       {activeCall && (
         <CallModal
           socket={socket}

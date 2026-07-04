@@ -6,6 +6,7 @@ import { GroupAvatar } from './GroupInfo';
 import { useSocket } from '../contexts/SocketContext';
 import AddFriendModal from './AddFriendModal';
 import { showToast, showConfirm } from '../utils/toast';
+import { firstLetter, comparePinyin } from '../utils/pinyin';
 
 /* ── 主组件 ── */
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0 }) {
@@ -111,11 +112,13 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   });
   filtered.forEach(c => {
     const name = c.remark || c.username || '';
-    const first = name[0]?.toUpperCase() || '#';
-    const letter = /[A-Z]/.test(first) ? first : '#';
+    const letter = firstLetter(name); // 汉字按拼音首字母归组（张→Z），而非全部落入 #
     if (!grouped[letter]) grouped[letter] = [];
     grouped[letter].push(c);
   });
+  // 组内按拼音升序，让同字母下的中文名有稳定可预期的顺序
+  Object.values(grouped).forEach(arr =>
+    arr.sort((a, b) => comparePinyin(a.remark || a.username || '', b.remark || b.username || '')));
   const letters = Object.keys(grouped).sort((a, b) => a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b));
 
   const scrollToLetter = (l) => {
