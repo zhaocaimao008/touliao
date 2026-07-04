@@ -77,9 +77,11 @@ parentPort.on('message', msg => {
     case 'write':
     case 'writeBatch':
       if (queue.length >= MAX_QUEUE) {
-        // 队列积压保护：丢弃非关键写入
-        if (msg.type === 'write' && msg.fireAndForget) return;
-        // 关键写入（writeAsync/writeBatch）仍然入队，但通知主线程过载
+        // 队列积压保护：丢弃非关键写入（fire-and-forget 的 write 无 reqId，如送达记录）。
+        // 注意：判据是 reqId==null 而非 msg.fireAndForget——writer.js 从不发送该字段，
+        // 旧判断恒 false 使此保护形同虚设、极端过载时非关键写仍全部入队。
+        if (msg.type === 'write' && msg.reqId == null) return;
+        // 关键写入（writeAsync/writeBatch，带 reqId）仍然入队，但通知主线程过载
         parentPort.postMessage({ type: 'overload', depth: queue.length });
       }
       queue.push(msg);
