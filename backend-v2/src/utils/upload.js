@@ -47,6 +47,14 @@ const ALLOWED_IMAGE_MIMES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
 ]);
 
+// 浏览器会内联渲染/执行的危险 MIME（结构化 +xml 类型另在 isBrowserRenderableType 里判定）。
+const DANGEROUS_RENDER_MIMES = new Set([
+  'text/html', 'application/xhtml+xml',
+  'application/xml', 'text/xml', 'image/svg+xml',
+  'application/javascript', 'text/javascript', 'application/x-javascript',
+  'application/ecmascript', 'text/ecmascript',
+]);
+
 const BLOCKED_EXTENSIONS = new Set([
   '.exe', '.dll', '.bat', '.cmd', '.com', '.scr',
   '.ps1', '.ps2', '.vbs', '.vbe', '.js', '.jse',
@@ -249,8 +257,21 @@ function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 
   return [wrapUpload(middleware), makeMagicBytesMiddleware(ALLOWED_IMAGE_MIMES)];
 }
 
+// 浏览器会内联渲染/执行的危险 MIME（html/xml/svg/js）。云直传对象的 Content-Type 由客户端
+// 指定且不经服务器魔数校验，若带此类类型会在 CDN 域形成存储型 XSS——受害者「查看原图/下载」经
+// <a href>/window.open 导航到该对象 URL 即触发。本地 /uploads 由 app.js nosniff+非图音视频附件
+// 下发兜底，云存储 CDN 不经该中间件，故预签名前须在此把关拒绝。
+function isBrowserRenderableType(contentType) {
+  if (typeof contentType !== 'string') return false;
+  const ct = contentType.toLowerCase().split(';')[0].trim(); // 去掉 charset 等参数
+  // 结构化 XML 类型(svg+xml/xhtml+xml 等)可内联渲染并执行脚本/外部实体。
+  // 注意：不能用 /xml/ 宽匹配——docx/xlsx/pptx 的 application/vnd.openxmlformats-... 含 "xml" 子串却安全。
+  if (ct.endsWith('+xml')) return true;
+  return DANGEROUS_RENDER_MIMES.has(ct);
+}
+
 module.exports = {
   ALLOWED_CHAT_EXTS, ALLOWED_IMAGE_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS,
   sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader,
-  verifyMagicBytes, verifyChatFile,
+  verifyMagicBytes, verifyChatFile, isBrowserRenderableType,
 };

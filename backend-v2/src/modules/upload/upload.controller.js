@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const { asyncHandler, badRequest, forbidden } = require('../../utils/http');
 const { isConfigured, getPresignedPutUrl } = require('../../utils/cloudStorage');
 const path = require('path');
-const { safeExt, ALLOWED_CHAT_EXTS } = require('../../utils/upload');
+const { safeExt, ALLOWED_CHAT_EXTS, isBrowserRenderableType } = require('../../utils/upload');
 const { isMember } = require('../messages/shared');
 
 /**
@@ -34,6 +34,12 @@ exports.credential = asyncHandler(async (req, res) => {
   const rawExt = path.extname(filename || '').toLowerCase().replace(/^\./, '');
   if (!ALLOWED_CHAT_EXTS.has(rawExt)) {
     throw badRequest(`不支持的文件格式（${rawExt ? '.' + rawExt : '无扩展名'}）；仅支持常见图片/音视频/文档/压缩包`);
+  }
+  // 云直传对象的 Content-Type 由客户端指定、写入预签名后即固定为该对象响应头；扩展名过白名单
+  // (.png 等)但 contentType 可伪成 text/html、image/svg+xml，对象在 CDN 域被浏览器当 HTML/JS 渲染
+  // → 存储型 XSS。正常客户端发的 image/*、video/*、application/pdf 等不受影响，仅拒渲染型。
+  if (isBrowserRenderableType(contentType)) {
+    throw badRequest('不支持的内容类型');
   }
 
   const ext = safeExt(filename, contentType);
