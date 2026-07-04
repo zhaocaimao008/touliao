@@ -4,19 +4,40 @@ const SettingsContext = createContext({});
 
 const FONT_SIZES = { small: 12, normal: 14, large: 16, xlarge: 18 };
 
+const getSystemDark = () =>
+  typeof window !== 'undefined' && window.matchMedia
+    ? window.matchMedia('(prefers-color-scheme: dark)').matches
+    : false;
+
 export function SettingsProvider({ children }) {
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('wc_dark') === '1');
+  // 主题三态：'light' | 'dark' | 'auto'（跟随系统）。迁移旧版布尔存储 wc_dark。
+  const [themeMode, setThemeMode] = useState(() => {
+    const t = localStorage.getItem('wc_theme');
+    if (t === 'light' || t === 'dark' || t === 'auto') return t;
+    return localStorage.getItem('wc_dark') === '1' ? 'dark' : 'light';
+  });
+  const [systemDark, setSystemDark] = useState(getSystemDark);
   const [fontSize, setFontSize] = useState(() => localStorage.getItem('wc_font') || 'normal');
   const [notifySound, setNotifySound] = useState(() => localStorage.getItem('wc_notify') !== '0');
 
+  // 跟踪系统主题变化，切到「跟随系统」时立即生效
   useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-    localStorage.setItem('wc_dark', darkMode ? '1' : '0');
-  }, [darkMode]);
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
+    if (!mq) return;
+    const onChange = e => setSystemDark(e.matches);
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, []);
+
+  const darkMode = themeMode === 'auto' ? systemDark : themeMode === 'dark';
+  // 向后兼容：仍暴露 setDarkMode(bool)，映射到 themeMode
+  const setDarkMode = v => setThemeMode(v ? 'dark' : 'light');
+
+  useEffect(() => {
+    document.body.classList.toggle('dark-mode', darkMode);
+    localStorage.setItem('wc_theme', themeMode);
+    localStorage.setItem('wc_dark', darkMode ? '1' : '0'); // 兼容旧版读取
+  }, [darkMode, themeMode]);
 
   useEffect(() => {
     const size = FONT_SIZES[fontSize] || 14;
@@ -31,7 +52,7 @@ export function SettingsProvider({ children }) {
   }, [notifySound]);
 
   return (
-    <SettingsContext.Provider value={{ darkMode, setDarkMode, fontSize, setFontSize, notifySound, setNotifySound }}>
+    <SettingsContext.Provider value={{ darkMode, setDarkMode, themeMode, setThemeMode, fontSize, setFontSize, notifySound, setNotifySound }}>
       {children}
     </SettingsContext.Provider>
   );

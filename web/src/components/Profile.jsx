@@ -418,7 +418,7 @@ function DeviceList({ onBack }) {
 
 /* ── 外观 ── */
 function AppearanceSettings({ onBack }) {
-  const { darkMode, setDarkMode, fontSize, setFontSize } = useSettings();
+  const { themeMode, setThemeMode, fontSize, setFontSize } = useSettings();
   const { lang, setLang } = useI18n();
   const FONT_OPTIONS = [
     { key: 'small',  label: '小',   size: 12 },
@@ -432,20 +432,21 @@ function AppearanceSettings({ onBack }) {
       <div className="wc-appearance-pad">
         <div className="wc-appearance-row">
           {[
-            { label: '日间模式', dark: false, emoji: '☀️', bg: '#FFFFFF', border: '#E5E5EA', textColor: '#333' },
-            { label: '夜间模式', dark: true,  emoji: '🌙', bg: '#1C1C1E', border: '#48484A', textColor: '#EBEBF5' },
-          ].map(({ label, dark, emoji, bg, border, textColor }) => (
-            <button key={label} type="button"
+            { label: '日间模式', mode: 'light', emoji: '☀️', bg: '#FFFFFF', border: '#E5E5EA', textColor: '#333' },
+            { label: '夜间模式', mode: 'dark',  emoji: '🌙', bg: '#1C1C1E', border: '#48484A', textColor: '#EBEBF5' },
+            { label: '跟随系统', mode: 'auto',  emoji: '🌗', bg: 'linear-gradient(105deg,#FFFFFF 50%,#1C1C1E 50%)', border: '#B0B4BC', textColor: '#888' },
+          ].map(({ label, mode, emoji, bg, border, textColor }) => (
+            <button key={mode} type="button"
               className="wc-appearance-btn"
-              aria-pressed={darkMode === dark}
+              aria-pressed={themeMode === mode}
               style={{
                 background: bg,
-                border: `2.5px solid ${darkMode === dark ? 'var(--green)' : border}`,
-                boxShadow: darkMode === dark ? '0 0 0 4px rgba(7,193,96,.15)' : '0 2px 8px rgba(0,0,0,.08)',
+                border: `2.5px solid ${themeMode === mode ? 'var(--green)' : border}`,
+                boxShadow: themeMode === mode ? '0 0 0 4px rgba(7,193,96,.15)' : '0 2px 8px rgba(0,0,0,.08)',
               }}
-              onClick={() => setDarkMode(dark)}>
+              onClick={() => setThemeMode(mode)}>
               <span className="wc-appearance-emoji">{emoji}</span>
-              <span style={{ fontSize: 13.5, color: textColor, fontWeight: darkMode === dark ? 600 : 400 }}>{label}</span>
+              <span style={{ fontSize: 13.5, color: textColor, fontWeight: themeMode === mode ? 600 : 400 }}>{label}</span>
             </button>
           ))}
         </div>

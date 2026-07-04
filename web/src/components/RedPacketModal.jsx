@@ -8,10 +8,13 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
+  // 私聊红包固定 1 个（对齐微信：私聊只填金额，无「个数」）；群聊才有个数
+  const isGroup = conversation.type === 'group';
   const amountNum = Math.floor(parseFloat(amount) || 0);
-  const countNum = parseInt(count) || 0;
+  const countNum = isGroup ? (parseInt(count) || 0) : 1;
   const perPerson = countNum > 0 ? Math.floor(amountNum / countNum) : 0;
-  const canSend = amountNum >= countNum && amountNum > 0 && countNum > 0 && amountNum <= 20000 && countNum <= 100;
+  const canSend = amountNum > 0 && amountNum <= 20000
+    && (isGroup ? (countNum > 0 && countNum <= 100 && amountNum >= countNum) : true);
 
   const send = async () => {
     if (!canSend) return;
@@ -45,13 +48,15 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
             placeholder="输入金币数" className="rpm-input" />
         </div>
 
-        <div className="rpm-field">
-          <label className="rpm-label" htmlFor="rpm-count">红包个数 (1-100)</label>
-          <input id="rpm-count" type="number" value={count} onChange={e => setCount(e.target.value)} min="1" max="100"
-            placeholder="输入红包个数" className="rpm-input" />
-        </div>
+        {isGroup && (
+          <div className="rpm-field">
+            <label className="rpm-label" htmlFor="rpm-count">红包个数 (1-100)</label>
+            <input id="rpm-count" type="number" value={count} onChange={e => setCount(e.target.value)} min="1" max="100"
+              placeholder="输入红包个数" className="rpm-input" />
+          </div>
+        )}
 
-        {countNum > 0 && amountNum > 0 && (
+        {isGroup && countNum > 0 && amountNum > 0 && (
           <div className="rpm-preview">
             <div className="rpm-preview-label">平均每个</div>
             <div className="rpm-preview-amount">{perPerson} 金币</div>
