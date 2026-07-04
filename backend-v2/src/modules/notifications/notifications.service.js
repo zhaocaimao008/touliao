@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const config = require('../../config');
 const { badRequest } = require('../../utils/http');
+const { isAllowedPushEndpoint } = require('../../utils/push');
 
 function vapidPublicKey() {
   if (!config.vapid.publicKey) return null;
@@ -12,6 +13,9 @@ function vapidPublicKey() {
 function webSubscribe(userId, subscription) {
   if (!subscription?.endpoint || typeof subscription.endpoint !== 'string' || subscription.endpoint.length > 2048)
     throw badRequest('订阅信息无效');
+  // endpoint 必须来自已知浏览器推送服务域名，防 SSRF（endpoint 指向内网/元数据地址）
+  if (!isAllowedPushEndpoint(subscription.endpoint))
+    throw badRequest('订阅端点不受支持');
   db.prepare(`
     INSERT INTO push_subscriptions (id, user_id, endpoint, subscription)
     VALUES (?, ?, ?, ?)

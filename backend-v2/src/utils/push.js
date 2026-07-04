@@ -8,6 +8,25 @@ const webpush = require('web-push');
 const config = require('../config');
 const { db } = require('../db/connection');
 
+// Web Push endpoint 只可能来自浏览器推送服务(FCM/Mozilla/Apple/WNS)。限制到已知服务域名，
+// 防 SSRF——攻击者若把订阅 endpoint 指向内网/云元数据地址(如 http://169.254.169.254、
+// http://localhost:port)，服务器发推送时会代其向该地址发请求。可用逗号分隔的
+// PUSH_ENDPOINT_EXTRA_HOSTS 追加后缀，以防未来新服务或自建推送网关被误拦。
+const PUSH_HOST_SUFFIXES = [
+  'googleapis.com', 'push.services.mozilla.com',
+  'notify.windows.com', 'wns.windows.com', 'push.apple.com',
+  ...String(process.env.PUSH_ENDPOINT_EXTRA_HOSTS || '')
+    .split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+];
+function isAllowedPushEndpoint(endpoint) {
+  let u;
+  try { u = new URL(String(endpoint)); } catch { return false; }
+  if (u.protocol !== 'https:') return false; // 必须 https，挡 http/file/gopher 等
+  const host = u.hostname.toLowerCase();
+  // host===后缀 或 .后缀 结尾；前导点防 evilgoogleapis.com 这类绕过
+  return PUSH_HOST_SUFFIXES.some(s => host === s || host.endsWith('.' + s));
+}
+
 if (config.vapid.publicKey && config.vapid.privateKey) {
   webpush.setVapidDetails(config.vapid.email, config.vapid.publicKey, config.vapid.privateKey);
 }
@@ -42,6 +61,8 @@ async function pushToUser(userId, payload) {
   for (const row of webSubs) {
     try {
       const sub = JSON.parse(row.subscription);
+      // 纵深防御：跳过非法/内网 endpoint（挡入口校验前遗留的存量恶意订阅），防 SSRF
+      if (!isAllowedPushEndpoint(sub?.endpoint)) continue;
       promises.push(
         webpush.sendNotification(sub, JSON.stringify(payload)).catch(err => {
           if (err.statusCode === 410 || err.statusCode === 404) {
@@ -144,4 +165,4 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   await Promise.allSettled(pushPromises);
 }
 
-module.exports = { pushToUser, pushNewMessage };
+module.exports = { pushToUser, pushNewMessage, isAllowedPushEndpoint };
