@@ -80,6 +80,10 @@ function claim(io, userId, packetId) {
       if (existing) return { error: '已领取过', amount: existing.amount };
 
       const fresh = db.prepare('SELECT * FROM red_packets WHERE id=?').get(packetId);
+      // status 是权威可领门槛：过期回收 / 注销结算都会把 status 置 'expired' 并把剩余退回发送者。
+      // 若此处只靠 24h 时间戳判断，注销结算（不满 24h 即退款）会留下窗口：包已 expired、剩余已退给
+      // 发送者，但因创建不足 24h 仍被放行 → 群里其他成员照领 → 同一笔钱双花。故必须校验 status。
+      if (fresh.status && fresh.status !== 'active') return { error: '红包已过期' };
       if (fresh.claimed_count >= fresh.total_count) return { error: '红包已被领完' };
       // 24h 过期不可领（即便定时任务尚未标记）
       if (Math.floor(Date.now() / 1000) - fresh.created_at > 24 * 3600) return { error: '红包已过期' };
