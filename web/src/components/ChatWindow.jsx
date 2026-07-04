@@ -151,6 +151,8 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   const typingTimer = useRef(null);
   const typingClearTimer = useRef(null); // 接收侧兜底：stop_typing 丢包时自动收起"正在输入"
   const recorderRef = useRef(null);
+  const recordingLockRef = useRef(false); // 同步锁：防触摸设备补发合成鼠标事件导致重复开麦（麦克风流泄漏）
+  const lastTouchRef = useRef(0);         // 最近触摸时间：据此让鼠标事件忽略触摸设备补发的合成鼠标事件
   const streamRef = useRef(null);
   const textareaRef = useRef(null);
   const inputAreaRef = useRef(null);
@@ -1313,6 +1315,8 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
 
   // Voice recording
   const startRecording = async () => {
+    if (recordingLockRef.current) return; // 已在录音/正在开麦，忽略重复触发
+    recordingLockRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -1362,13 +1366,14 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       }
       recorderRef.current = recorder;
       setRecording(true);
-    } catch { showToast('无法访问麦克风', 'error'); }
+    } catch { showToast('无法访问麦克风', 'error'); recordingLockRef.current = false; }
   };
 
   const stopRecording = () => {
     recorderRef.current?.stop();
     recorderRef.current = null;
     setRecording(false);
+    recordingLockRef.current = false;
   };
 
   const fallbackCopy = (text) => {
@@ -2231,10 +2236,10 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                 <button
                   data-testid="chat-voice-btn"
                   className={`wc-voice-btn${recording ? ' recording' : ''}`}
-                  onMouseDown={startRecording}
-                  onMouseUp={stopRecording}
-                  onTouchStart={startRecording}
-                  onTouchEnd={stopRecording}
+                  onMouseDown={() => { if (Date.now() - lastTouchRef.current < 700) return; startRecording(); }}
+                  onMouseUp={() => { if (Date.now() - lastTouchRef.current < 700) return; stopRecording(); }}
+                  onTouchStart={() => { lastTouchRef.current = Date.now(); startRecording(); }}
+                  onTouchEnd={() => { lastTouchRef.current = Date.now(); stopRecording(); }}
                 >
                   {recording ? '● 松开发送' : '按住说话'}
                 </button>
