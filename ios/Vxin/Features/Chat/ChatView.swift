@@ -188,6 +188,7 @@ struct ChatView: View {
         switch p.type {
         case "image": return "[图片]"; case "voice": return "[语音]"; case "video": return "[视频]"
         case "file": return "[文件]"; case "red_packet": return "[红包]"
+        case "sticker": return "[表情]"; case "contact_card", "contact": return "[名片]"
         default: return p.content
         }
     }
@@ -328,6 +329,8 @@ struct ChatView: View {
         switch msg.type {
         case "image": return "[图片]"; case "voice": return "[语音]"
         case "video": return "[视频]"; case "file": return "[文件]"
+        case "red_packet": return "[红包]"; case "sticker": return "[表情]"
+        case "contact_card", "contact": return "[名片]"
         default: return msg.content
         }
     }
@@ -471,9 +474,17 @@ private struct MessageBubble: View {
             card { Text("🎬 视频") }.onTapGesture { openFile() }
         case "red_packet":
             redPacketCard.onTapGesture { vm.openRedPacket(msg) }
+        case "contact_card", "contact":
+            card { Text("👤 \(contactCardTitle)") }
         default:
             card { Text(mentionHighlighted(msg.content, mine: isMine)) }
         }
+    }
+
+    /// 名片消息标题：昵称 · 个人名片（解析失败时仅显示"个人名片"），避免显示原始 JSON
+    private var contactCardTitle: String {
+        let name = vm.parseContactCard(msg)?.username ?? ""
+        return name.isEmpty ? "个人名片" : "\(name) · 个人名片"
     }
 
     /// 高亮 @用户名
@@ -518,6 +529,8 @@ private struct MessageBubble: View {
         switch rt.type {
         case "image": return "[图片]"; case "voice": return "[语音]"
         case "video": return "[视频]"; case "file": return "[文件]"
+        case "red_packet": return "[红包]"; case "sticker": return "[表情]"
+        case "contact_card", "contact": return "[名片]"
         default: return rt.content
         }
     }

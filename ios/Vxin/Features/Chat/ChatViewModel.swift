@@ -343,6 +343,12 @@ final class ChatViewModel: ObservableObject {
         return try? JSONDecoder().decode(RedPacketContent.self, from: data)
     }
 
+    func parseContactCard(_ msg: Message) -> ContactCardContent? {
+        guard msg.type == "contact_card" || msg.type == "contact",
+              let data = msg.content.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(ContactCardContent.self, from: data)
+    }
+
     func sendRedPacket(totalAmount: Int, totalCount: Int, greeting: String) {
         Task {
             do {

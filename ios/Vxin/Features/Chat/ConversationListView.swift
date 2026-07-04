@@ -135,6 +135,7 @@ private struct ConversationRow: View {
         case "red_packet": return "[红包]"
         case "sticker": return "[表情]"
         case "nudge": return "[拍一拍]"
+        case "contact_card", "contact": return "[名片]"
         default: return conversation.lastMessage ?? ""
         }
     }
