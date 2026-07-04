@@ -153,7 +153,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
                   <div className="gs-sub">昵称：{highlight(c.username, q)}</div>
                 )}
                 {c.wechat_id && c.wechat_id.toLowerCase().includes(q) && (
-                  <div className="gs-sub">微信号：{highlight(c.wechat_id, q)}</div>
+                  <div className="gs-sub">v信号：{highlight(c.wechat_id, q)}</div>
                 )}
               </div>
             </div>
