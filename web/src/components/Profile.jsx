@@ -7,6 +7,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useI18n, SUPPORTED_LANGS } from '../contexts/I18nContext';
 import { goLogin } from '../utils/url';
 import { showConfirm, showToast } from '../utils/toast';
+import { copyToClipboard } from '../utils/clipboard';
 
 /* ─── 小工具 ─── */
 const ChevronRight = () => (
@@ -366,11 +367,12 @@ function InviteFriends({ onBack }) {
 
   const copyText = async (text, which) => {
     if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyToClipboard(text)) {
       setCopied(which);
       setTimeout(() => setCopied(''), 1500);
-    } catch { /* 剪贴板不可用（非 HTTPS 等）时静默 */ }
+    } else {
+      showToast('复制失败，请长按手动复制', 'error');
+    }
   };
 
   const fmtTime = (s) => { try { return new Date(s * 1000).toLocaleDateString(); } catch { return ''; } };
@@ -381,7 +383,7 @@ function InviteFriends({ onBack }) {
       <div className="wc-section-pad">
         <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 10 }}>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>我的专属邀请码</div>
-          <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: 6, color: 'var(--green)' }}>
+          <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: 6, color: 'var(--green)', userSelect: 'text' }}>
             {loading ? '……' : (data?.code || '—')}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>

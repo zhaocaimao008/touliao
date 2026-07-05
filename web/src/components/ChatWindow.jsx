@@ -32,6 +32,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { format, formatFull } from '../utils/time';
 import { mediaUrl } from '../utils/url';
+import { copyToClipboard } from '../utils/clipboard';
 import './ChatWindow.css';
 
 const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
@@ -1379,16 +1380,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     recordingLockRef.current = false;
   };
 
-  const fallbackCopy = (text) => {
-    const el = document.createElement('textarea');
-    el.value = text;
-    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
-    document.body.appendChild(el);
-    el.select();
-    try { document.execCommand('copy'); } catch {}
-    document.body.removeChild(el);
-  };
-
   const handleContextMenu = (e, msg) => {
     if (msg.deleted) return;
     e.preventDefault();
@@ -1455,11 +1446,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
 
       case 'copy':
         if (msg.type === 'text') {
-          if (navigator.clipboard?.writeText) {
-            navigator.clipboard.writeText(msg.content).catch(() => fallbackCopy(msg.content));
-          } else {
-            fallbackCopy(msg.content);
-          }
+          copyToClipboard(msg.content);
         } else {
           showToast('只有文字消息可以复制');
         }
