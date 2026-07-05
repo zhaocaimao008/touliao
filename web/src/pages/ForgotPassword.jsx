@@ -14,6 +14,11 @@ export default function ForgotPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    // 手机号格式校验（与后端 resetPassword 规则一致，后端为权威）
+    if (!/^\+?[\d\s\-]{5,20}$/.test(form.phone.trim())) {
+      setError('手机号格式不正确');
+      return;
+    }
     if (!/^\d{6}$/.test(form.inviteCode)) {
       setError('邀请码必须是6位数字');
       return;
