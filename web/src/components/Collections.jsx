@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { mediaUrl } from '../utils/url';
-import { showConfirm } from '../utils/toast';
+import { showConfirm, showToast } from '../utils/toast';
 import { downloadFile } from '../utils/download';
 import ImagePreview from './ImagePreview';
 
@@ -13,11 +13,17 @@ function ago(sec) {
 export default function Collections() {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [lightbox, setLightbox] = useState(null); // { urls, idx } | null
 
-  useEffect(() => {
-    axios.get('/api/users/me/collections').then(r => setList(r.data)).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  const load = () => {
+    setLoading(true);
+    axios.get('/api/users/me/collections')
+      .then(r => { setList(r.data); setLoadError(false); })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, []);
 
   // 所有图片收藏的完整 URL，供灯箱左右切换
   const imageUrls = list
@@ -26,7 +32,8 @@ export default function Collections() {
 
   const remove = async (id) => {
     if (!(await showConfirm('取消收藏这条内容？'))) return;
-    try { await axios.delete(`/api/users/me/collections/${id}`); setList(p => p.filter(c => c.id !== id)); } catch {}
+    try { await axios.delete(`/api/users/me/collections/${id}`); setList(p => p.filter(c => c.id !== id)); }
+    catch (e) { showToast(e.response?.data?.error || '取消收藏失败', 'error'); }
   };
 
   const renderContent = (c) => {
@@ -57,6 +64,10 @@ export default function Collections() {
     <div style={{ height: '100%', overflowY: 'auto' }}>
       {loading ? (
         <div role="status" style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 13 }}>加载中…</div>
+      ) : loadError && list.length === 0 ? (
+        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>
+          加载失败，<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>点击重试</button>
+        </div>
       ) : list.length === 0 ? (
         <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>暂无收藏</div>
       ) : (
