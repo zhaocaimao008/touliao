@@ -440,14 +440,23 @@ function DeviceList({ onBack }) {
   }, []);
 
   const removeSession = async (id) => {
-    await axios.delete(`/api/auth/sessions/${id}`).catch(() => {});
-    setSessions(s => s.filter(x => x.id !== id));
+    // 安全动作：仅在后端确实删除成功后才从 UI 移除，避免"已下线"的虚假安全感
+    try {
+      await axios.delete(`/api/auth/sessions/${id}`);
+      setSessions(s => s.filter(x => x.id !== id));
+    } catch (e) {
+      showToast(e.response?.data?.error || '退出该设备失败，请重试', 'error');
+    }
   };
 
   const removeAllSessions = async () => {
     if (!(await showConfirm('确定将此账号从其他所有设备退出？'))) return;
-    await axios.delete('/api/auth/sessions').catch(() => {});
-    setSessions(s => s.filter(x => x.current));
+    try {
+      await axios.delete('/api/auth/sessions');
+      setSessions(s => s.filter(x => x.current));
+    } catch (e) {
+      showToast(e.response?.data?.error || '操作失败，请重试', 'error');
+    }
   };
 
   const icon = (p = '') => {
