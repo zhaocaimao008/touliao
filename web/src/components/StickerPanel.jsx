@@ -29,10 +29,13 @@ export default function StickerPanel({ onSend }) {
     }
   };
 
-  const del = (e, id) => {
+  const del = async (e, id) => {
     e.stopPropagation();
-    setStickers(s => s.filter(x => x.id !== id));
-    axios.delete(`/api/stickers/${id}`).catch(() => {});
+    // 仅在服务器确实删除后才从 UI 移除，避免失败时表情"删了又回来"
+    try {
+      await axios.delete(`/api/stickers/${id}`);
+      setStickers(s => s.filter(x => x.id !== id));
+    } catch { showToast('删除表情失败，请重试', 'error'); }
   };
 
   return (

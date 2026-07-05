@@ -1525,7 +1525,8 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         const isAdmin = myGroupRole === 'owner' || myGroupRole === 'admin';
         const prompt = isOwn ? '确认撤回这条消息？' : '删除该消息（对全员生效）？';
         if ((isOwn || (isAdmin && conversation.type === 'group')) && await showConfirm(prompt)) {
-          await axios.delete(`/api/messages/${msg.id}`, { data: { forEveryone: true } }).catch(() => {});
+          await axios.delete(`/api/messages/${msg.id}`, { data: { forEveryone: true } })
+            .catch(e => showToast(e.response?.data?.error || (isOwn ? '撤回失败' : '删除失败'), 'error'));
         }
         break;
       }
@@ -1535,11 +1536,14 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         const isAdmin = myGroupRole === 'owner' || myGroupRole === 'admin';
         if (!isOwn && !isAdmin) break;
         if (!(await showConfirm('彻底删除这条消息？对方也不会看到任何提示，且无法恢复。'))) break;
-        // 乐观：先播动画，再发请求（由 socket 广播 message_vanished 驱动最终状态）
-        playShredAnimation(msg.id, () => {
-          setMessages(prev => prev.filter(m => m.id !== msg.id));
-        });
-        await axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } }).catch(() => {});
+        // 先确认服务器删除成功，再播碎裂动画+移除；失败则保留消息并提示，
+        // 避免"发送方本地没了、对方还在、刷新又冒出来"的假删除
+        try {
+          await axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } });
+          playShredAnimation(msg.id, () => {
+            setMessages(prev => prev.filter(m => m.id !== msg.id));
+          });
+        } catch (e) { showToast(e.response?.data?.error || '删除失败', 'error'); }
         break;
       }
 
