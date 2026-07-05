@@ -153,4 +153,7 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
   );
 });
 
-export default VirtualMessageList;
+// memo 包裹：ChatWindow 因输入框打字/正在输入/上传进度等状态频繁重渲染，
+// 但传入本组件的 props（items 已 useMemo、cbRef/outerRef/ref 均为稳定 ref）在这些
+// 场景下引用不变。memo 后这类无关重渲染会被跳过，避免 AutoSizer/列表 wrapper 重跑。
+export default memo(VirtualMessageList);
