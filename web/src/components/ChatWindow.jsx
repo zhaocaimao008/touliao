@@ -1053,6 +1053,18 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       if (replyTo) { setReplyTo(null); return; }
     }
 
+    // ↑（空输入框、非编辑态）：快速编辑自己最近一条文字消息
+    if (e.key === 'ArrowUp' && !input && !editingMsg) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        if (m.sender_id === user.id && m.type === 'text' && !m.deleted) {
+          e.preventDefault();
+          startEdit(m);
+          return;
+        }
+      }
+    }
+
     if (e.key === '@' && conversation.type === 'group') {
       setAtList(members);
       setAtIndex(0);
