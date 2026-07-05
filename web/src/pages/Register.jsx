@@ -20,6 +20,12 @@ export default function Register() {
       .catch(() => {}); // 拉取失败保持默认（需要邀请码），后端仍会最终裁决
   }, []);
 
+  // 从邀请链接 /register?invite=123456 预填邀请码（好友分享链接一点即注册）
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('invite');
+    if (code && /^\d{6}$/.test(code)) setForm(f => ({ ...f, inviteCode: code }));
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(''); setLoading(true);

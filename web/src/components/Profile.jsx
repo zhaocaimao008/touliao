@@ -349,7 +349,7 @@ function Wallet({ onBack }) {
 function InviteFriends({ onBack }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState('');   // '' | 'code' | 'link'
 
   useEffect(() => {
     let alive = true;
@@ -360,12 +360,16 @@ function InviteFriends({ onBack }) {
     return () => { alive = false; };
   }, []);
 
-  const copy = async () => {
-    if (!data?.code) return;
+  // 浏览器端才有可分享的公网链接；桌面端 file:// 无意义，只给复制邀请码。
+  const origin = window.location.origin;
+  const inviteLink = /^https?:/.test(origin) && data?.code ? `${origin}/register?invite=${data.code}` : '';
+
+  const copyText = async (text, which) => {
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(data.code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await navigator.clipboard.writeText(text);
+      setCopied(which);
+      setTimeout(() => setCopied(''), 1500);
     } catch { /* 剪贴板不可用（非 HTTPS 等）时静默 */ }
   };
 
@@ -380,11 +384,18 @@ function InviteFriends({ onBack }) {
           <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: 6, color: 'var(--green)' }}>
             {loading ? '……' : (data?.code || '—')}
           </div>
-          <button className="wc-save-btn" onClick={copy} disabled={!data?.code}>
-            {copied ? '已复制' : '复制邀请码'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button className="wc-save-btn" onClick={() => copyText(data?.code, 'code')} disabled={!data?.code}>
+              {copied === 'code' ? '已复制' : '复制邀请码'}
+            </button>
+            {inviteLink && (
+              <button className="wc-save-btn" onClick={() => copyText(inviteLink, 'link')}>
+                {copied === 'link' ? '已复制' : '复制邀请链接'}
+              </button>
+            )}
+          </div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', marginTop: 4 }}>
-            把邀请码告诉好友，Ta 注册时填写即可成为你邀请的用户
+            把邀请码或链接发给好友，Ta 注册后即成为你邀请的用户
           </div>
         </Card>
       </div>
