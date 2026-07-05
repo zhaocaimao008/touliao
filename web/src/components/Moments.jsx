@@ -145,6 +145,7 @@ export default function Moments() {
   const meId = user?.id;
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [text, setText] = useState('');
   const [images, setImages] = useState([]); // [{previewUrl, file}]
   const [posting, setPosting] = useState(false);
@@ -165,7 +166,10 @@ export default function Moments() {
 
   const load = useCallback(() => {
     setLoading(true);
-    axios.get('/api/moments').then(r => setList(r.data)).catch(() => {}).finally(() => setLoading(false));
+    axios.get('/api/moments')
+      .then(r => { setList(r.data); setLoadError(false); })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -512,6 +516,10 @@ export default function Moments() {
       <div className="wc-moment-scroll">
         {loading ? (
           <div role="status" className="wc-moment-state">加载中…</div>
+        ) : loadError && list.length === 0 ? (
+          <div role="status" className="wc-moment-state" style={{ padding: 60 }}>
+            加载失败，<button className="wc-moment-expand-btn" onClick={load}>点击重试</button>
+          </div>
         ) : list.length === 0 ? (
           <div role="status" className="wc-moment-state" style={{ padding: 60 }}>还没有动态，发布第一条吧</div>
         ) : (
