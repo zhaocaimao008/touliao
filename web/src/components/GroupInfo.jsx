@@ -230,17 +230,21 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   /* 修改群名 */
   const saveName = async () => {
     if (!nameVal.trim()) return;
-    await axios.put(`/api/messages/conversation/${conversation.id}`, { name: nameVal.trim() });
-    setInfo(i => ({ ...i, name: nameVal.trim() }));
-    setEditName(false);
-    onConvUpdate?.({ name: nameVal.trim() });
+    try {
+      await axios.put(`/api/messages/conversation/${conversation.id}`, { name: nameVal.trim() });
+      setInfo(i => ({ ...i, name: nameVal.trim() }));
+      setEditName(false);
+      onConvUpdate?.({ name: nameVal.trim() });
+    } catch (e) { showToast(e.response?.data?.error || '修改群名失败', 'error'); }
   };
 
   /* 修改群公告 */
   const saveAnn = async () => {
-    await axios.put(`/api/messages/conversation/${conversation.id}`, { announcement: annVal });
-    setInfo(i => ({ ...i, announcement: annVal }));
-    setEditAnn(false);
+    try {
+      await axios.put(`/api/messages/conversation/${conversation.id}`, { announcement: annVal });
+      setInfo(i => ({ ...i, announcement: annVal }));
+      setEditAnn(false);
+    } catch (e) { showToast(e.response?.data?.error || '修改公告失败', 'error'); }
   };
 
   /* 切换全群禁言 */
@@ -282,31 +286,37 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     const name = info.members.find(m => m.id === uid)?.username || '未知用户';
     const action = newRole === 'admin' ? `设置「${name}」为管理员` : `撤销「${name}」的管理员`;
     if (!(await showConfirm(action + '？'))) return;
-    await axios.put(`/api/messages/conversation/${conversation.id}/members/${uid}/role`, { role: newRole });
-    setInfo(i => ({ ...i, members: i.members.map(m => m.id === uid ? { ...m, role: newRole } : m) }));
+    try {
+      await axios.put(`/api/messages/conversation/${conversation.id}/members/${uid}/role`, { role: newRole });
+      setInfo(i => ({ ...i, members: i.members.map(m => m.id === uid ? { ...m, role: newRole } : m) }));
+    } catch (e) { showToast(e.response?.data?.error || '操作失败', 'error'); }
   };
 
   /* 转让群主（仅群主） */
   const transferOwner = async (uid) => {
     const name = info.members.find(m => m.id === uid)?.username || '未知用户';
     if (!(await showConfirm(`确认将群主转让给「${name}」？转让后你将成为普通成员。`))) return;
-    await axios.post(`/api/messages/conversation/${conversation.id}/transfer-owner`, { userId: uid });
-    setInfo(i => ({
-      ...i,
-      owner_id: uid,
-      myRole: 'member',
-      members: i.members.map(m =>
-        m.id === uid ? { ...m, role: 'owner' } : (m.role === 'owner' ? { ...m, role: 'member' } : m)
-      ),
-    }));
+    try {
+      await axios.post(`/api/messages/conversation/${conversation.id}/transfer-owner`, { userId: uid });
+      setInfo(i => ({
+        ...i,
+        owner_id: uid,
+        myRole: 'member',
+        members: i.members.map(m =>
+          m.id === uid ? { ...m, role: 'owner' } : (m.role === 'owner' ? { ...m, role: 'member' } : m)
+        ),
+      }));
+    } catch (e) { showToast(e.response?.data?.error || '转让群主失败', 'error'); }
   };
 
   /* 移出成员 */
   const kickMember = async (uid) => {
     const name = info.members.find(m => m.id === uid)?.username || '未知用户';
     if (!(await showConfirm(`确认移出成员「${name}」？`))) return;
-    await axios.delete(`/api/messages/conversation/${conversation.id}/members/${uid}`);
-    setInfo(i => ({ ...i, members: i.members.filter(m => m.id !== uid) }));
+    try {
+      await axios.delete(`/api/messages/conversation/${conversation.id}/members/${uid}`);
+      setInfo(i => ({ ...i, members: i.members.filter(m => m.id !== uid) }));
+    } catch (e) { showToast(e.response?.data?.error || '移出成员失败', 'error'); }
   };
 
   /* 邀请成员 */
@@ -319,29 +329,37 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   };
   const doInvite = async () => {
     if (selectedInvite.size === 0) return;
-    await axios.post(`/api/messages/conversation/${conversation.id}/invite`, { userIds: [...selectedInvite] });
-    setShowInvite(false);
-    load();
+    try {
+      await axios.post(`/api/messages/conversation/${conversation.id}/invite`, { userIds: [...selectedInvite] });
+      setShowInvite(false);
+      load();
+    } catch (e) { showToast(e.response?.data?.error || '邀请失败', 'error'); }
   };
 
   /* 退出群聊（非群主）*/
   const leaveGroup = async () => {
     if (!(await showConfirm('确认退出群聊？'))) return;
-    await axios.post(`/api/messages/conversation/${conversation.id}/leave`);
-    onLeave?.();
+    try {
+      await axios.post(`/api/messages/conversation/${conversation.id}/leave`);
+      onLeave?.();
+    } catch (e) { showToast(e.response?.data?.error || '退出群聊失败', 'error'); }
   };
 
   /* 解散群聊（仅群主）*/
   const dissolveGroup = async () => {
     if (!(await showConfirm('解散群聊后所有成员将无法继续聊天，确认解散？'))) return;
-    await axios.post(`/api/messages/conversation/${conversation.id}/dissolve`);
-    onLeave?.();
+    try {
+      await axios.post(`/api/messages/conversation/${conversation.id}/dissolve`);
+      onLeave?.();
+    } catch (e) { showToast(e.response?.data?.error || '解散群聊失败', 'error'); }
   };
 
   const clearMessages = async () => {
     if (!(await showConfirm(`确认双向删除「${info?.name || conversation.name || '该群聊'}」的全部聊天记录？所有群成员都将看不到这些记录。`))) return;
-    await axios.delete(`/api/messages/conversation/${conversation.id}/messages`);
-    onCleared?.();
+    try {
+      await axios.delete(`/api/messages/conversation/${conversation.id}/messages`);
+      onCleared?.();
+    } catch (e) { showToast(e.response?.data?.error || '清空聊天记录失败', 'error'); }
   };
 
   /* 修改群头像 */

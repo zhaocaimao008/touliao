@@ -93,8 +93,12 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   };
 
   const unblock = async (userId) => {
-    await axios.delete(`/api/users/block/${userId}`);
-    setBlockedUsers(prev => prev.filter(u => u.id !== userId));
+    try {
+      await axios.delete(`/api/users/block/${userId}`);
+      setBlockedUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (e) {
+      showToast(e.response?.data?.error || '解除拉黑失败，请重试', 'error');
+    }
   };
 
   const startChat = (contact) => {
