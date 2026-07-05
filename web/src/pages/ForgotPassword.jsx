@@ -42,24 +42,24 @@ export default function ForgotPassword() {
   };
 
   const fields = [
-    { key: 'phone', label: '手机号', type: 'tel', placeholder: '请输入注册时的手机号', icon: (
+    { key: 'phone', label: '手机号', type: 'tel', inputMode: 'tel', autocomplete: 'username', placeholder: '请输入注册时的手机号', icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <rect x="3" y="1" width="14" height="18" rx="3"/>
         <line x1="8" y1="15" x2="12" y2="15"/>
       </svg>
     )},
-    { key: 'inviteCode', label: '邀请码', type: 'text', placeholder: '请输入6位邀请码', maxLength: 6, icon: (
+    { key: 'inviteCode', label: '邀请码', type: 'text', inputMode: 'numeric', autocomplete: 'off', placeholder: '请输入6位邀请码', maxLength: 6, icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M10 2l2.4 4.8 5.3.8-3.85 3.75.9 5.3L10 14.1l-4.75 2.55.9-5.3L2.3 7.6l5.3-.8z"/>
       </svg>
     )},
-    { key: 'newPassword', label: '新密码', type: 'password', placeholder: '至少8位，含字母和数字', icon: (
+    { key: 'newPassword', label: '新密码', type: 'password', autocomplete: 'new-password', placeholder: '至少8位，含字母和数字', icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <rect x="3" y="9" width="14" height="10" rx="2"/>
         <path d="M6 9V6a4 4 0 018 0v3"/>
       </svg>
     )},
-    { key: 'confirmPassword', label: '确认新密码', type: 'password', placeholder: '再次输入新密码', icon: (
+    { key: 'confirmPassword', label: '确认新密码', type: 'password', autocomplete: 'new-password', placeholder: '再次输入新密码', icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <rect x="3" y="9" width="14" height="10" rx="2"/>
         <path d="M6 9V6a4 4 0 018 0v3"/>
@@ -118,6 +118,8 @@ export default function ForgotPassword() {
                   id={`fp-${f.key}`}
                   className="auth-field-input"
                   type={(f.key === 'newPassword' || f.key === 'confirmPassword') ? (showPwd ? 'text' : 'password') : f.type}
+                  inputMode={f.inputMode}
+                  autoComplete={f.autocomplete}
                   placeholder={f.placeholder}
                   value={form[f.key]}
                   maxLength={f.maxLength}

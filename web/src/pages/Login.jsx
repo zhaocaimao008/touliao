@@ -124,6 +124,8 @@ export default function Login() {
                 data-testid="login-phone-input"
                 className="auth-field-input"
                 type="tel"
+                inputMode="tel"
+                autoComplete="username"
                 placeholder="请输入手机号"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
@@ -146,6 +148,7 @@ export default function Login() {
                 data-testid="login-password-input"
                 className="auth-field-input"
                 type={showPwd ? 'text' : 'password'}
+                autoComplete="current-password"
                 placeholder="请输入密码"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
