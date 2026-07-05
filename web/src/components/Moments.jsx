@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
@@ -16,8 +16,8 @@ function ago(sec) {
 
 const CONTENT_LIMIT = 120;
 
-/* 单条动态 */
-function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments }) {
+/* 单条动态（memo：仅当本卡片数据 m 变化时才重渲染，点赞/评论不再重刷整个 feed）*/
+const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments }) {
   const [commenting, setCommenting] = useState(false);
   const [text, setText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
@@ -138,7 +138,7 @@ function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onL
       </div>
     </div>
   );
-}
+});
 
 export default function Moments() {
   const { user } = useAuth();
@@ -293,7 +293,7 @@ export default function Moments() {
     setPosting(false);
   };
 
-  const onLike = async (m) => {
+  const onLike = useCallback(async (m) => {
     if (likingRef.current[m.id]) return;
     likingRef.current[m.id] = true;
     try {
@@ -307,18 +307,18 @@ export default function Moments() {
       }));
     } catch {}
     finally { likingRef.current[m.id] = false; }
-  };
+  }, [meId, user?.username]);
 
-  const onComment = async (m, content, clear) => {
+  const onComment = useCallback(async (m, content, clear) => {
     try {
       const { data } = await axios.post(`/api/moments/${m.id}/comment`, { content });
       setList(p => p.map(x => x.id === m.id ? { ...x, comments: [...(x.comments || []), data], commentCount: (x.commentCount || 0) + 1 } : x));
       clear();
     } catch (e) { showToast(e.response?.data?.error || '评论失败', 'error'); }
-  };
+  }, []);
 
   // 热门动态：timeline 只返回前 N 条评论，点「查看全部」时分页拉全量替换
-  const onLoadComments = async (m) => {
+  const onLoadComments = useCallback(async (m) => {
     let all = [], offset = 0;
     for (;;) {
       const { data } = await axios.get(`/api/moments/${m.id}/comments`, { params: { limit: 50, offset } });
@@ -327,19 +327,20 @@ export default function Moments() {
       offset += 50;
     }
     setList(p => p.map(x => x.id === m.id ? { ...x, comments: all, commentCount: all.length } : x));
-  };
+  }, []);
 
-  const onDelete = async (m) => {
+  const onDelete = useCallback(async (m) => {
     if (!(await showConfirm('删除这条动态？'))) return;
-    try { await axios.delete(`/api/moments/${m.id}`); setList(p => p.filter(x => x.id !== m.id)); } catch {}
-  };
+    try { await axios.delete(`/api/moments/${m.id}`); setList(p => p.filter(x => x.id !== m.id)); }
+    catch (e) { showToast(e.response?.data?.error || '删除失败', 'error'); }
+  }, []);
 
-  const onDeleteComment = async (m, c) => {
+  const onDeleteComment = useCallback(async (m, c) => {
     try {
       await axios.delete(`/api/moments/comments/${c.id}`);
       setList(p => p.map(x => x.id === m.id ? { ...x, comments: x.comments.filter(cc => cc.id !== c.id), commentCount: x.commentCount - 1 } : x));
-    } catch {}
-  };
+    } catch (e) { showToast(e.response?.data?.error || '删除失败', 'error'); }
+  }, []);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
