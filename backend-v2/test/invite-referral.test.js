@@ -51,6 +51,24 @@ describe('专属邀请码与邀请关系', () => {
     expect(me.invitedCount).toBe(0);
   });
 
+  test('后台邀请排行榜按拉新数聚合', async () => {
+    const { topInviters } = require('../src/modules/admin/admin.service');
+    const inviter = await makeUser({ username: 'ranker_' + uniq() });
+    const { code } = (await authGet('/api/users/me/invite', inviter.token)).body;
+    for (let i = 0; i < 2; i += 1) {
+      const u = uniq();
+      await request(app).post('/api/auth/register').send({
+        username: `ranked_${u}`, phone: `+86-17${u}`.slice(0, 18),
+        password: 'passw0rd123456', inviteCode: code,
+      });
+    }
+    const top = topInviters({ limit: 100 });
+    const row = top.inviters.find(x => x.id === inviter.userId);
+    expect(row).toBeTruthy();
+    expect(row.invitedCount).toBe(2);
+    expect(top.totalInvited).toBeGreaterThanOrEqual(2);
+  });
+
   test('无效邀请码仍被拒', async () => {
     const u = uniq();
     const reg = await request(app).post('/api/auth/register').send({

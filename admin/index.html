@@ -200,6 +200,12 @@
         </label>
         <div style="margin-top:14px"><button class="btn" id="ftsave">保存功能开关</button></div>
       </div>
+      <div class="panel">
+        <h3>邀请排行榜</h3>
+        <p>按拉新人数排序的邀请裂变榜。<b id="inv-total">—</b></p>
+        <div id="inv-rank">加载中…</div>
+        <div style="margin-top:12px"><button class="mini" id="invrank-refresh" style="padding:9px 14px">刷新</button></div>
+      </div>
     </div>
   </main>
 </div>
@@ -295,7 +301,7 @@ function switchTab(name){
   if(name==='groups')loadGroups();
   if(name==='reports')loadReports();
   if(name==='security')loadSecurity();
-  if(name==='settings'){loadInvite();loadFeatures();}
+  if(name==='settings'){loadInvite();loadFeatures();loadTopInviters();}
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
 
@@ -452,6 +458,8 @@ async function loadInvite(){try{const r=await api('/invite-code');$('invcode').v
 $('invsave').onclick=async()=>{const code=$('invcode').value.trim();try{await api('/invite-code',{method:'PUT',body:{inviteCode:code}});toast('邀请码已更新');}catch(e){toast(e.message,1);}};
 $('invgen').onclick=async()=>{try{const r=await api('/invite-code/generate',{method:'POST'});$('invcode').value=r.inviteCode;toast('已生成并保存：'+r.inviteCode);}catch(e){toast(e.message,1);}};
 async function loadFeatures(){try{const r=await api('/features');$('ft-moments').checked=!!r.moments;$('ft-collect').checked=!!r.collect;$('ft-invite').checked=r.inviteRequired!==false;}catch(e){toast(e.message,1);}}
+async function loadTopInviters(){try{const r=await api('/top-inviters?limit=20');$('inv-total').textContent='累计被邀请 '+r.totalInvited+' 人';$('inv-rank').innerHTML=r.inviters.length?('<table class="tbl"><thead><tr><th>#</th><th>用户</th><th>v信号</th><th>拉新</th></tr></thead><tbody>'+r.inviters.map((u,i)=>`<tr><td>${i+1}</td><td>${esc(u.username)}${u.banned?' <span style="color:#FA5151">(封禁)</span>':''}</td><td>${esc(u.wechat_id)}</td><td><b>${u.invitedCount}</b></td></tr>`).join('')+'</tbody></table>'):'<div style="color:#888">暂无邀请记录</div>';}catch(e){$('inv-rank').textContent='加载失败：'+e.message;}}
+$('invrank-refresh').onclick=loadTopInviters;
 $('ftsave').onclick=async()=>{try{await api('/features',{method:'PUT',body:{moments:$('ft-moments').checked,collect:$('ft-collect').checked,inviteRequired:$('ft-invite').checked}});toast('功能开关已保存');}catch(e){toast(e.message,1);}};
 
 // ── 分页 / 弹窗 ──

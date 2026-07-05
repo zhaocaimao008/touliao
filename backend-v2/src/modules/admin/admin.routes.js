@@ -432,6 +432,9 @@ router.post('/invite-code/generate', adminAuth, c.generateInviteCode);
 router.get('/features', adminAuth, c.getFeatures);
 router.put('/features', adminAuth, c.setFeatures);
 
+// ── 邀请裂变排行榜（谁拉新最多）──────────────────────────────────
+router.get('/top-inviters', adminAuth, c.topInviters);
+
 // ── 朋友圈举报队列（MO6）──────────────────────────────────────────
 router.get ('/reports',             adminAuth, c.listReports);
 router.post('/reports/:id/resolve', adminAuth, c.resolveReport);

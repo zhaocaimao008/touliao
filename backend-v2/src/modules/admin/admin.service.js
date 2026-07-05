@@ -316,6 +316,23 @@ function setFeatures({ moments, collect, inviteRequired }) {
   return getFeatures();
 }
 
+// ── 邀请裂变排行榜（后台）：谁拉新最多 ─────────────────────────
+function topInviters({ limit = 20 } = {}) {
+  const lim = Math.min(parseInt(limit) || 20, 100);
+  // 只统计真实存在的邀请人（invited_by 指向的用户），按被邀人数降序
+  const rows = db.prepare(`
+    SELECT u.id, u.username, u.wechat_id, u.avatar, u.banned,
+           COUNT(inv.id) AS invitedCount
+    FROM users u
+    JOIN users inv ON inv.invited_by = u.id
+    GROUP BY u.id
+    ORDER BY invitedCount DESC, u.created_at ASC
+    LIMIT ?
+  `).all(lim);
+  const totalInvited = db.prepare('SELECT COUNT(*) n FROM users WHERE invited_by IS NOT NULL').get().n;
+  return { totalInvited, limit: lim, inviters: rows };
+}
+
 // ── 朋友圈举报队列（MO6 后台）──────────────────────────────────
 function listReports({ status = 'pending', limit = 30, offset = 0 } = {}) {
   const lim = Math.min(parseInt(limit) || 30, 100);
@@ -361,5 +378,6 @@ module.exports = {
   grantCoins, deleteUser, listMessages, listGroups, groupDetail, dismissGroup,
   getInviteCode, setInviteCode, generateInviteCode,
   getFeatures, setFeatures,
+  topInviters,
   listReports, resolveReport,
 };

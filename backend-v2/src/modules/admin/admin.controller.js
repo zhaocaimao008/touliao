@@ -135,6 +135,8 @@ exports.dismissGroup = asyncHandler(async (req, res) => { svc.dismissGroup(io(re
 exports.getFeatures = asyncHandler(async (req, res) => res.json(svc.getFeatures()));
 exports.setFeatures = asyncHandler(async (req, res) => res.json(svc.setFeatures(req.body)));
 
+exports.topInviters = asyncHandler(async (req, res) => res.json(svc.topInviters(req.query)));
+
 exports.listReports   = asyncHandler(async (req, res) => res.json(svc.listReports(req.query)));
 exports.resolveReport = asyncHandler(async (req, res) => res.json(svc.resolveReport(req.params.id, req.body?.action)));
 
