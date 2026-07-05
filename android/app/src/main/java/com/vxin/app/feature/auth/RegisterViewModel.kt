@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vxin.app.core.auth.SessionManager
 import com.vxin.app.core.network.toUserMessage
+import com.vxin.app.data.api.ConfigApi
 import com.vxin.app.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,13 +19,14 @@ data class RegisterUiState(
     val phone: String = "",
     val password: String = "",
     val inviteCode: String = "",
+    val inviteRequired: Boolean = true, // 由 /api/config 决定；拉取前保守视为需要
     val loading: Boolean = false,
     val error: String? = null,
 ) {
     val canSubmit: Boolean
         get() = username.isNotBlank() &&
             phone.isNotBlank() &&
-            inviteCode.length == 6 &&
+            (!inviteRequired || inviteCode.length == 6) &&
             password.length >= 8 &&
             password.any(Char::isLetter) &&
             password.any(Char::isDigit) &&
@@ -35,10 +37,19 @@ data class RegisterUiState(
 class RegisterViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val sessionManager: SessionManager,
+    private val configApi: ConfigApi,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RegisterUiState())
     val uiState: StateFlow<RegisterUiState> = _uiState.asStateFlow()
+
+    init {
+        // 拉取后台开关；失败则保持默认（需要邀请码），后端仍会最终裁决。
+        viewModelScope.launch {
+            runCatching { configApi.getConfig() }
+                .onSuccess { cfg -> _uiState.update { it.copy(inviteRequired = cfg.features.inviteRequired) } }
+        }
+    }
 
     fun onUsernameChange(v: String) = _uiState.update { it.copy(username = v, error = null) }
     fun onPhoneChange(v: String) = _uiState.update { it.copy(phone = v, error = null) }

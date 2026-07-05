@@ -8,6 +8,7 @@ data class AppConfig(val features: Features = Features())
 
 @Serializable
 data class Features(
-    val moments: Boolean = true,   // 朋友圈
-    val collect: Boolean = true,   // 收藏
+    val moments: Boolean = true,        // 朋友圈
+    val collect: Boolean = true,        // 收藏
+    val inviteRequired: Boolean = true, // 注册是否需要邀请码
 )

@@ -50,7 +50,7 @@ fun RegisterScreen(
         Text("注册账号", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = VxinGreen)
         Spacer(Modifier.height(8.dp))
         Text(
-            "需要6位邀请码，可向已有用户或管理员获取",
+            if (state.inviteRequired) "需要6位邀请码，可向已有用户或管理员获取" else "填写信息即可注册",
             fontSize = 13.sp,
             color = VxinTextSecondary,
         )
@@ -72,15 +72,17 @@ fun RegisterScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             modifier = Modifier.fillMaxWidth().testTag("register-phone-input"),
         )
-        Spacer(Modifier.height(16.dp))
-        OutlinedTextField(
-            value = state.inviteCode,
-            onValueChange = viewModel::onInviteCodeChange,
-            label = { Text("邀请码（6位数字）") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth().testTag("register-invite-input"),
-        )
+        if (state.inviteRequired) {
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = state.inviteCode,
+                onValueChange = viewModel::onInviteCodeChange,
+                label = { Text("邀请码（6位数字）") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth().testTag("register-invite-input"),
+            )
+        }
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = state.password,
