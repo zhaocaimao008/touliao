@@ -29,15 +29,25 @@ const STATUS = {
 export default function CallHistory() {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
-    axios.get('/api/users/me/call-logs').then(r => setList(r.data)).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  const load = () => {
+    setLoading(true);
+    axios.get('/api/users/me/call-logs')
+      .then(r => { setList(r.data); setLoadError(false); })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, []);
 
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
       {loading ? (
         <div role="status" style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 13 }}>加载中…</div>
+      ) : loadError && list.length === 0 ? (
+        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>
+          加载失败，<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>点击重试</button>
+        </div>
       ) : list.length === 0 ? (
         <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>暂无通话记录</div>
       ) : (
