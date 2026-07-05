@@ -1047,6 +1047,12 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       }
     }
 
+    // Esc：退出编辑态，或清除引用（@ 提及列表已在上方优先处理）
+    if (e.key === 'Escape') {
+      if (editingMsg) { cancelEdit(); return; }
+      if (replyTo) { setReplyTo(null); return; }
+    }
+
     if (e.key === '@' && conversation.type === 'group') {
       setAtList(members);
       setAtIndex(0);
