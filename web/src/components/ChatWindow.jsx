@@ -92,6 +92,21 @@ function playShredAnimation(msgId, onDone) {
   setTimeout(() => { wrap.remove(); onDone?.(); }, totalMs);
 }
 
+// 从输入内容 + 光标位置解析当前正在输入的 @提及 token。
+// 规则：光标前最近的 '@' 必须位于开头或紧跟空白，且 '@' 与光标间不含空白。
+// 返回 { start, query }（start 为 '@' 的下标，query 为其后到光标的文字）；无则 null。
+function detectMention(val, caret) {
+  for (let i = caret - 1; i >= 0; i--) {
+    const ch = val[i];
+    if (ch === '@') {
+      if (i === 0 || /\s/.test(val[i - 1])) return { start: i, query: val.slice(i + 1, caret) };
+      return null;
+    }
+    if (/\s/.test(ch)) return null;
+  }
+  return null;
+}
+
 export default function ChatWindow({ conversation: initialConv, onClose, onStartCall }) {
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
@@ -121,8 +136,9 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   // 置顶消息
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [showPinnedDetail, setShowPinnedDetail] = useState(false);
-  const [atList, setAtList] = useState(null); // members for @ mention
-  const [atIndex, setAtIndex] = useState(0); // selected index in atList
+  const [atList, setAtList] = useState(null); // @ 提及下拉是否打开（开关）
+  const [atIndex, setAtIndex] = useState(0); // 候选中高亮项下标
+  const [atQuery, setAtQuery] = useState(''); // @ 后已输入的过滤词
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [newMsgCount, setNewMsgCount] = useState(0); // 滚动上翻时到达的新消息数，显示在回到底部按钮上
   const [loadingMore, setLoadingMore] = useState(false);
@@ -1017,13 +1033,19 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     textareaRef.current?.focus();
   };
 
+  // 当前 @ 候选：按已输入的 atQuery 过滤成员（大小写不敏感），排除自己
+  const atCandidates = useMemo(() => {
+    if (!atList) return [];
+    const q = atQuery.trim().toLowerCase();
+    return members.filter(m => m.id !== user.id && (!q || m.username.toLowerCase().includes(q)));
+  }, [atList, atQuery, members, user.id]);
+
   const handleKeyDown = (e) => {
-    // @ mention
-    if (atList) {
-      const filtered = atList.filter(m => m.id !== user.id);
+    // @ mention：仅当有候选时拦截导航/选择键；无候选则放行(按正常输入/发送处理)
+    if (atList && atCandidates.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setAtIndex(prev => Math.min(prev + 1, filtered.length - 1));
+        setAtIndex(prev => Math.min(prev + 1, atCandidates.length - 1));
         return;
       }
       if (e.key === 'ArrowUp') {
@@ -1031,19 +1053,14 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         setAtIndex(prev => Math.max(prev - 1, 0));
         return;
       }
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
         e.preventDefault();
-        if (filtered[atIndex]) {
-          insertAtMention(filtered[atIndex]);
-        }
+        insertAtMention(atCandidates[Math.min(atIndex, atCandidates.length - 1)]);
         return;
       }
       if (e.key === 'Escape') {
         setAtList(null);
         return;
-      }
-      if (e.key !== '@') {
-        setAtList(null);
       }
     }
 
@@ -1065,12 +1082,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       }
     }
 
-    if (e.key === '@' && conversation.type === 'group') {
-      setAtList(members);
-      setAtIndex(0);
-      return;
-    }
-
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -1082,10 +1093,19 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   };
 
   const insertAtMention = (member) => {
-    // prev 末尾是用户按 @ 键写入的 '@'，替换掉它再拼上完整提及
-    setInput(prev => prev.endsWith('@') ? prev.slice(0, -1) + `@${member.username} ` : prev + `@${member.username} `);
+    const el = textareaRef.current;
+    const caret = el?.selectionStart ?? input.length;
+    const mention = detectMention(input, caret);
+    // 用完整提及替换 @token（从 '@' 到光标处），光标不在 token 上时兜底追加
+    const start = mention ? mention.start : input.length;
+    const end = mention ? caret : input.length;
+    const inserted = `@${member.username} `;
+    const next = input.slice(0, start) + inserted + input.slice(end);
+    const pos = start + inserted.length;
+    setInput(next);
     setAtList(null);
-    textareaRef.current?.focus();
+    setAtQuery('');
+    setTimeout(() => { el?.focus(); el?.setSelectionRange(pos, pos); }, 0);
   };
 
   // ── 云存储直传（XHR 支持进度回调）─────────────────────────────
@@ -2238,14 +2258,14 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
               </div>
             ) : (
               <div className="wc-input-box wc-input-box-relative">
-                {atList && (
+                {atList && atCandidates.length > 0 && (
                   <div className="wc-at-list" role="listbox" aria-label="@提及成员">
-                    {atList.filter(m => m.id !== user.id).map((m, i) => (
+                    {atCandidates.map((m, i) => (
                       <div
                         key={m.id}
                         className={`wc-at-list-item${i === atIndex ? ' active' : ''}`}
                         role="option" aria-selected={i === atIndex}
-                        onClick={() => insertAtMention(m)}>
+                        onMouseDown={e => { e.preventDefault(); insertAtMention(m); }}>
                         <Avatar src={m.avatar} name={m.username} size={22} />
                         <span>{m.username}</span>
                       </div>
@@ -2261,6 +2281,18 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                   onChange={e => {
                     const val = e.target.value;
                     setInput(val);
+                    // @提及：群聊内解析光标处 @token，驱动候选列表开关与过滤
+                    const mention = conversation.type === 'group'
+                      ? detectMention(val, e.target.selectionStart ?? val.length)
+                      : null;
+                    if (mention) {
+                      setAtList(true);
+                      setAtQuery(mention.query);
+                      setAtIndex(0);
+                    } else if (atList) {
+                      setAtList(null);
+                      setAtQuery('');
+                    }
                     if (conversation.id) {
                       if (val) localStorage.setItem(`draft_${conversation.id}`, val);
                       else localStorage.removeItem(`draft_${conversation.id}`);
