@@ -26,6 +26,9 @@ class ProfileRepository @Inject constructor(
     /** 我的二维码 PNG 字节（需 Bearer） */
     suspend fun qrcodeBytes(): ByteArray = userApi.qrcode().bytes()
 
+    /** 我的专属邀请码 + 邀请战绩 */
+    suspend fun myInvite(): com.vxin.app.data.model.InviteInfo = userApi.myInvite()
+
     // ── 个人设置 ──
     suspend fun settings() = userApi.settings()
 

@@ -1,6 +1,7 @@
 package com.vxin.app.data.api
 
 import com.vxin.app.data.model.AvatarResponse
+import com.vxin.app.data.model.InviteInfo
 import com.vxin.app.data.model.UpdateProfileRequest
 import com.vxin.app.data.model.UpdateSettingsBody
 import com.vxin.app.data.model.User
@@ -38,4 +39,8 @@ interface UserApi {
     @Streaming
     @GET("api/users/me/qrcode")
     suspend fun qrcode(): ResponseBody
+
+    /** 我的专属邀请码 + 邀请战绩 */
+    @GET("api/users/me/invite")
+    suspend fun myInvite(): InviteInfo
 }

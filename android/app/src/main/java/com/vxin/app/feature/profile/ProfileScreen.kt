@@ -3,6 +3,8 @@ package com.vxin.app.feature.profile
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -59,6 +63,8 @@ fun ProfileScreen(
     var username by remember(user?.id) { mutableStateOf(user?.username ?: "") }
     var bio by remember(user?.id) { mutableStateOf(user?.bio ?: "") }
     var showPwdDialog by remember { mutableStateOf(false) }
+    var inviteCopied by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
 
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.uploadAvatar(it) }
@@ -66,7 +72,7 @@ fun ProfileScreen(
 
     Scaffold(topBar = { TopAppBar(title = { Text("我") }) }) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // 头像
@@ -116,6 +122,24 @@ fun ProfileScreen(
             state.message?.let {
                 Spacer(Modifier.size(8.dp))
                 Text(it, color = VxinGreen, style = MaterialTheme.typography.bodySmall)
+            }
+
+            // ── 邀请好友（专属邀请码 + 裂变战绩）──
+            state.invite?.let { inv ->
+                Spacer(Modifier.size(24.dp))
+                HorizontalDivider()
+                Text("邀请好友", Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("我的邀请码：${inv.code.ifBlank { "—" }}", color = VxinGreen, style = MaterialTheme.typography.bodyLarge)
+                        Text("已成功邀请 ${inv.invitedCount} 人", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                    }
+                    TextButton(
+                        onClick = {
+                            if (inv.code.isNotBlank()) { clipboard.setText(AnnotatedString(inv.code)); inviteCopied = true }
+                        },
+                    ) { Text(if (inviteCopied) "已复制" else "复制", color = VxinGreen) }
+                }
             }
 
             Spacer(Modifier.size(24.dp))

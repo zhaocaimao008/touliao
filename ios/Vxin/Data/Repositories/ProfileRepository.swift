@@ -17,6 +17,33 @@ struct UserSettings: Decodable {
 }
 private struct UpdateSettingsBody: Encodable { let momentsVisibleDays: Int? }
 
+/// 我的专属邀请码 + 邀请战绩（GET /api/users/me/invite）。容错解码，字段缺省不致失败。
+struct InviteInfo: Decodable {
+    var code: String = ""
+    var invitedCount: Int = 0
+    var invitees: [Invitee] = []
+    enum CodingKeys: String, CodingKey { case code, invitedCount, invitees }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = (try? c.decode(String.self, forKey: .code)) ?? ""
+        invitedCount = (try? c.decode(Int.self, forKey: .invitedCount)) ?? 0
+        invitees = (try? c.decode([Invitee].self, forKey: .invitees)) ?? []
+    }
+
+    struct Invitee: Decodable, Identifiable {
+        var id: String = ""
+        var username: String = ""
+        var avatar: String = ""
+        enum CodingKeys: String, CodingKey { case id, username, avatar }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = (try? c.decode(String.self, forKey: .id)) ?? ""
+            username = (try? c.decode(String.self, forKey: .username)) ?? ""
+            avatar = (try? c.decode(String.self, forKey: .avatar)) ?? ""
+        }
+    }
+}
+
 /// 个人资料：更新昵称/签名、改密码、上传头像。与 Android ProfileRepository 等价。
 final class ProfileRepository {
     static let shared = ProfileRepository()
@@ -45,6 +72,11 @@ final class ProfileRepository {
     /// 我的二维码 PNG 字节（需 Bearer）
     func qrcodeData() async throws -> Data {
         try await api.fetchData("api/users/me/qrcode")
+    }
+
+    /// 我的专属邀请码 + 邀请战绩
+    func myInvite() async throws -> InviteInfo {
+        try await api.send("api/users/me/invite")
     }
 
     // ── 个人设置 ──

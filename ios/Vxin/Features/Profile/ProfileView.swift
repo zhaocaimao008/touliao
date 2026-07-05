@@ -14,6 +14,8 @@ struct ProfileView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var showPasswordSheet = false
     @State private var showAddAccount = false
+    @State private var invite: InviteInfo?
+    @State private var inviteCopied = false
 
     private let repo = ProfileRepository.shared
 
@@ -47,6 +49,33 @@ struct ProfileView: View {
             }
 
             // 朋友圈 / 收藏 已是底部 Tab，移除「我」页内重复入口（四端一致）
+
+            if let inv = invite {
+                Section("邀请好友") {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("我的邀请码：\(inv.code.isEmpty ? "—" : inv.code)")
+                                .foregroundColor(.vxinGreen)
+                            Text("已成功邀请 \(inv.invitedCount) 人")
+                                .font(.footnote).foregroundColor(.vxinTextSecondary)
+                        }
+                        Spacer()
+                        Button(inviteCopied ? "已复制" : "复制") {
+                            guard !inv.code.isEmpty else { return }
+                            UIPasteboard.general.string = inv.code
+                            inviteCopied = true
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundColor(.vxinGreen)
+                    }
+                    ForEach(inv.invitees.prefix(20)) { u in
+                        HStack {
+                            InitialAvatar(name: u.username.isEmpty ? "?" : u.username, size: 28)
+                            Text(u.username.isEmpty ? "未命名" : u.username)
+                        }
+                    }
+                }
+            }
 
             Section("设置") {
                 NavigationLink("设备管理") { Text("设备管理").navigationTitle("设备管理") }
@@ -88,6 +117,7 @@ struct ProfileView: View {
         .onAppear {
             if username.isEmpty { username = session.currentUser?.username ?? "" }
             if bio.isEmpty { bio = session.currentUser?.bio ?? "" }
+            if invite == nil { Task { invite = try? await repo.myInvite() } }
         }
         .onChange(of: photoItem) { item in handlePhoto(item) }
         .sheet(isPresented: $showPasswordSheet) {

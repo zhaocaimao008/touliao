@@ -25,6 +25,7 @@ data class ProfileUiState(
     val uploadingAvatar: Boolean = false,
     val changingPassword: Boolean = false,
     val message: String? = null,     // 提示（成功/失败）
+    val invite: com.vxin.app.data.model.InviteInfo? = null, // 我的专属邀请码+战绩
 )
 
 @HiltViewModel
@@ -37,6 +38,16 @@ class ProfileViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(ProfileUiState(user = sessionManager.currentUser))
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
+
+    init { loadInvite() }
+
+    /** 拉取我的专属邀请码与邀请战绩；失败静默（不打扰主资料流程）。 */
+    fun loadInvite() {
+        viewModelScope.launch {
+            runCatching { profileRepository.myInvite() }
+                .onSuccess { info -> _uiState.update { it.copy(invite = info) } }
+        }
+    }
 
     // ── 多账号 ──────────────────────────────────────────
     private val _accounts = MutableStateFlow(sessionManager.accounts())
