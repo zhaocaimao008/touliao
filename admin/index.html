@@ -13,6 +13,9 @@
   button{font-family:inherit;cursor:pointer}
   input{font-family:inherit}
   .hidden{display:none!important}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  :focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .stat.click:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-color:rgba(7,193,96,.45)}
   #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
   .card{background:var(--bg2);border:1px solid var(--bd);border-radius:16px;padding:40px;width:100%;max-width:400px}
   .logo{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:8px}
@@ -43,7 +46,7 @@
   .stat.click:hover{border-color:rgba(7,193,96,.45)}
   .stat.click:active{transform:scale(.98)}
   .chip{display:inline-flex;align-items:center;gap:6px;background:rgba(7,193,96,.12);border:1px solid rgba(7,193,96,.3);color:var(--green);border-radius:8px;padding:5px 10px;font-size:12px}
-  .chip b{background:none;border:none;color:var(--green);cursor:pointer;font-size:14px;line-height:1}
+  .chip b,.chip button{background:none;border:none;color:var(--green);cursor:pointer;font-size:14px;line-height:1;padding:0;font-family:inherit}
   .tabs{display:flex;gap:6px;margin:24px 0 16px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
   .tab{background:none;border:none;color:var(--tx2);padding:10px 16px;font-size:14px;border-bottom:2px solid transparent;margin-bottom:-1px}
   .tab.on{color:var(--tx);border-bottom-color:var(--green);font-weight:600}
@@ -89,15 +92,15 @@
   <div class="card">
     <div class="logo"><i>V</i><b>v信 后台</b></div>
     <div class="sub">管理员登录</div>
-    <label>账号</label><input id="lu" class="inp" autocomplete="username" placeholder="管理员账号" />
-    <label>密码</label><input id="lp" class="inp" type="password" autocomplete="current-password" placeholder="密码" />
+    <label for="lu">账号</label><input id="lu" class="inp" autocomplete="username" placeholder="管理员账号" />
+    <label for="lp">密码</label><input id="lp" class="inp" type="password" autocomplete="current-password" placeholder="密码" />
     <div id="codewrap" class="hidden">
-      <label>谷歌验证码</label>
+      <label for="lcode">谷歌验证码</label>
       <input id="lcode" class="inp" inputmode="numeric" maxlength="6" placeholder="6位动态验证码" />
     </div>
     <button id="lbtn" class="btn btn-block">登 录</button>
-    <div id="lerr" class="err"></div>
-    <div id="lnote" class="note hidden"></div>
+    <div id="lerr" class="err" role="alert" aria-live="assertive"></div>
+    <div id="lnote" class="note hidden" role="status" aria-live="polite"></div>
   </div>
 </div>
 
@@ -109,78 +112,78 @@
   </nav>
   <main>
     <div class="stats" id="stats"></div>
-    <div class="tabs">
-      <button class="tab on" data-tab="users">用户管理</button>
-      <button class="tab" data-tab="messages">消息监控</button>
-      <button class="tab" data-tab="metrics">实时监控</button>
-      <button class="tab" data-tab="groups">群组管理</button>
-      <button class="tab" data-tab="reports">举报</button>
-      <button class="tab" data-tab="security">安全</button>
-      <button class="tab" data-tab="settings">设置</button>
+    <div class="tabs" role="tablist" aria-label="后台管理分区">
+      <button class="tab on" data-tab="users" role="tab" aria-selected="true" aria-controls="tab-users">用户管理</button>
+      <button class="tab" data-tab="messages" role="tab" aria-selected="false" aria-controls="tab-messages">消息监控</button>
+      <button class="tab" data-tab="metrics" role="tab" aria-selected="false" aria-controls="tab-metrics">实时监控</button>
+      <button class="tab" data-tab="groups" role="tab" aria-selected="false" aria-controls="tab-groups">群组管理</button>
+      <button class="tab" data-tab="reports" role="tab" aria-selected="false" aria-controls="tab-reports">举报</button>
+      <button class="tab" data-tab="security" role="tab" aria-selected="false" aria-controls="tab-security">安全</button>
+      <button class="tab" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings">设置</button>
     </div>
 
     <!-- 用户 -->
-    <div id="tab-users">
-      <div class="bar"><input class="search" id="uq" placeholder="搜索 用户名 / 手机号 / v信号" /><span id="ufilter"></span><span class="muted" id="ucount"></span></div>
-      <table class="tbl"><thead><tr><th>用户</th><th>手机号</th><th>v信号</th><th>好友</th><th>消息</th><th>状态</th><th>注册</th><th>操作</th></tr></thead><tbody id="ubody"></tbody></table>
+    <div id="tab-users" role="tabpanel" aria-label="用户管理">
+      <div class="bar"><input class="search" id="uq" aria-label="搜索用户（用户名 / 手机号 / v信号）" placeholder="搜索 用户名 / 手机号 / v信号" /><span id="ufilter"></span><span class="muted" id="ucount" role="status" aria-live="polite"></span></div>
+      <table class="tbl"><caption class="sr-only">用户列表</caption><thead><tr><th scope="col">用户</th><th scope="col">手机号</th><th scope="col">v信号</th><th scope="col">好友</th><th scope="col">消息</th><th scope="col">状态</th><th scope="col">注册</th><th scope="col">操作</th></tr></thead><tbody id="ubody"></tbody></table>
       <div class="page" id="upage"></div>
     </div>
 
     <!-- 消息 -->
-    <div id="tab-messages" class="hidden">
-      <div class="bar"><input class="search" id="mq" placeholder="搜索消息内容" /><span id="mfilter"></span><span class="muted" id="mcount"></span></div>
-      <table class="tbl"><thead><tr><th>发送者</th><th>内容</th><th>类型</th><th>会话</th><th>时间</th></tr></thead><tbody id="mbody"></tbody></table>
+    <div id="tab-messages" class="hidden" role="tabpanel" aria-label="消息监控">
+      <div class="bar"><input class="search" id="mq" aria-label="搜索消息内容" placeholder="搜索消息内容" /><span id="mfilter"></span><span class="muted" id="mcount" role="status" aria-live="polite"></span></div>
+      <table class="tbl"><caption class="sr-only">消息列表</caption><thead><tr><th scope="col">发送者</th><th scope="col">内容</th><th scope="col">类型</th><th scope="col">会话</th><th scope="col">时间</th></tr></thead><tbody id="mbody"></tbody></table>
       <div class="page" id="mpage"></div>
     </div>
 
     <!-- 实时监控 -->
-    <div id="tab-metrics" class="hidden">
+    <div id="tab-metrics" class="hidden" role="tabpanel" aria-label="实时监控">
       <div class="bar">
-        <span class="muted" id="mxupdated">加载中…</span>
+        <span class="muted" id="mxupdated" role="status" aria-live="polite">加载中…</span>
         <label style="margin-left:auto;font-size:13px"><input type="checkbox" id="mxauto" checked> 自动刷新(5s)</label>
         <button class="mini" id="mxrefresh" style="padding:9px 14px;margin-left:10px">刷新</button>
       </div>
-      <div id="mxalert"></div>
+      <div id="mxalert" role="status" aria-live="polite"></div>
       <div id="mxgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
     </div>
 
     <!-- 群组 -->
-    <div id="tab-groups" class="hidden">
-      <div class="bar"><input class="search" id="gq" placeholder="搜索 群名 / 群号" /><span class="muted" id="gcount"></span></div>
-      <table class="tbl"><thead><tr><th>群名</th><th>群号</th><th>群主</th><th>成员</th><th>消息</th><th>创建</th><th>操作</th></tr></thead><tbody id="gbody"></tbody></table>
+    <div id="tab-groups" class="hidden" role="tabpanel" aria-label="群组管理">
+      <div class="bar"><input class="search" id="gq" aria-label="搜索群组（群名 / 群号）" placeholder="搜索 群名 / 群号" /><span class="muted" id="gcount" role="status" aria-live="polite"></span></div>
+      <table class="tbl"><caption class="sr-only">群组列表</caption><thead><tr><th scope="col">群名</th><th scope="col">群号</th><th scope="col">群主</th><th scope="col">成员</th><th scope="col">消息</th><th scope="col">创建</th><th scope="col">操作</th></tr></thead><tbody id="gbody"></tbody></table>
       <div class="page" id="gpage"></div>
     </div>
 
     <!-- 举报 -->
-    <div id="tab-reports" class="hidden">
+    <div id="tab-reports" class="hidden" role="tabpanel" aria-label="举报">
       <div class="bar">
-        <select class="search" id="rstatus" style="max-width:160px">
+        <select class="search" id="rstatus" aria-label="按处理状态筛选举报" style="max-width:160px">
           <option value="pending">待处理</option>
           <option value="dismissed">已忽略</option>
           <option value="reviewed">已处理</option>
         </select>
-        <span class="muted" id="rcount"></span>
+        <span class="muted" id="rcount" role="status" aria-live="polite"></span>
       </div>
-      <table class="tbl"><thead><tr><th>动态内容</th><th>作者</th><th>举报人</th><th>理由</th><th>举报数</th><th>时间</th><th>操作</th></tr></thead><tbody id="rbody"></tbody></table>
+      <table class="tbl"><caption class="sr-only">举报列表</caption><thead><tr><th scope="col">动态内容</th><th scope="col">作者</th><th scope="col">举报人</th><th scope="col">理由</th><th scope="col">举报数</th><th scope="col">时间</th><th scope="col">操作</th></tr></thead><tbody id="rbody"></tbody></table>
       <div class="page" id="rpage"></div>
     </div>
 
     <!-- 安全 -->
-    <div id="tab-security" class="hidden">
+    <div id="tab-security" class="hidden" role="tabpanel" aria-label="安全">
       <div class="panel" id="totpPanel"></div>
       <div class="panel">
         <h3>可信设备 / IP</h3>
         <p>只有列表中的「设备 + IP」组合可免验证码登录；陌生组合登录需谷歌验证码。移除后该设备下次登录需重新验证。</p>
-        <table class="tbl"><thead><tr><th>设备</th><th>IP</th><th>最近登录</th><th>操作</th></tr></thead><tbody id="trbody"></tbody></table>
+        <table class="tbl"><caption class="sr-only">可信设备与 IP 列表</caption><thead><tr><th scope="col">设备</th><th scope="col">IP</th><th scope="col">最近登录</th><th scope="col">操作</th></tr></thead><tbody id="trbody"></tbody></table>
       </div>
     </div>
 
     <!-- 设置 -->
-    <div id="tab-settings" class="hidden">
+    <div id="tab-settings" class="hidden" role="tabpanel" aria-label="设置">
       <div class="panel">
         <h3>注册邀请码</h3>
         <p>新用户注册必须填写的 6 位数字邀请码。可手动设置或随机生成，改后即时生效。</p>
-        <label>当前邀请码</label><input id="invcode" class="inp" maxlength="6" inputmode="numeric" placeholder="6位数字" />
+        <label for="invcode">当前邀请码</label><input id="invcode" class="inp" maxlength="6" inputmode="numeric" placeholder="6位数字" />
         <div style="display:flex;gap:10px;margin-top:18px"><button class="btn" id="invsave">保存</button><button class="mini" id="invgen" style="padding:11px 16px">随机生成6位</button></div>
       </div>
       <div class="panel">
@@ -203,7 +206,7 @@
       <div class="panel">
         <h3>邀请排行榜</h3>
         <p>按拉新人数排序的邀请裂变榜。<b id="inv-total">—</b></p>
-        <div id="inv-rank">加载中…</div>
+        <div id="inv-rank" aria-live="polite">加载中…</div>
         <div style="margin-top:12px"><button class="mini" id="invrank-refresh" style="padding:9px 14px">刷新</button></div>
       </div>
     </div>
@@ -211,7 +214,7 @@
 </div>
 
 <div id="modal-root"></div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 const API='/api/admin';
@@ -270,8 +273,8 @@ async function loadStats(){
       ['消息总数',s.messages,'allMsg'],['今日消息',s.messagesToday,'todayMsg'],['群组',s.groups,'groups'],
       ['已封禁',s.usersBanned,'banned'],['红包',s.redPackets,null],
     ];
-    $('stats').innerHTML=cards.map(([k,v,act,hl])=>`<div class="stat ${hl?'hl':''} ${act?'click':''}" ${act?`data-act="${act}"`:''}><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
-    $('stats').querySelectorAll('.stat.click').forEach(c=>c.onclick=()=>statClick(c.dataset.act));
+    $('stats').innerHTML=cards.map(([k,v,act,hl])=>`<div class="stat ${hl?'hl':''} ${act?'click':''}" ${act?`data-act="${act}" role="button" tabindex="0" aria-label="${esc(k+' '+v)}，点击查看详情"`:''}><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
+    $('stats').querySelectorAll('.stat.click').forEach(c=>{c.onclick=()=>statClick(c.dataset.act);c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();statClick(c.dataset.act);}};});
   }catch(e){if(/未登录|过期/.test(e.message))location.reload();}
 }
 function statClick(act){
@@ -285,15 +288,15 @@ function statClick(act){
 function updateUserChip(){
   let label='';
   if(uState.banned)label='仅看已封禁'; else if(uState.online)label='仅看在线'; else if(uState.period==='today')label='今日新增';
-  $('ufilter').innerHTML=label?`<span class="chip">${label} <b onclick="clearUserFilter()">✕</b></span>`:'';
+  $('ufilter').innerHTML=label?`<span class="chip">${label} <button type="button" aria-label="清除筛选：${esc(label)}" onclick="clearUserFilter()">✕</button></span>`:'';
 }
 function clearUserFilter(){uState.banned=0;uState.online=0;uState.period='';uState.offset=0;updateUserChip();loadUsers();}
-function updateMsgChip(){$('mfilter').innerHTML=mState.period==='today'?`<span class="chip">今日消息 <b onclick="clearMsgFilter()">✕</b></span>`:'';}
+function updateMsgChip(){$('mfilter').innerHTML=mState.period==='today'?`<span class="chip">今日消息 <button type="button" aria-label="清除筛选：今日消息" onclick="clearMsgFilter()">✕</button></span>`:'';}
 function clearMsgFilter(){mState.period='';mState.offset=0;updateMsgChip();loadMessages();}
 
 // ── tabs ──
 function switchTab(name){
-  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===name));
+  document.querySelectorAll('.tab').forEach(x=>{const sel=x.dataset.tab===name;x.classList.toggle('on',sel);x.setAttribute('aria-selected',sel?'true':'false');});
   ['users','messages','metrics','groups','reports','security','settings'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));
   if(name==='users')loadUsers();
   if(name==='messages')loadMessages();
@@ -400,7 +403,7 @@ async function loadGroups(){
     renderPage('gpage',gState,r.total,loadGroups);
   }catch(e){if(/未登录|过期/.test(e.message))location.reload();else toast(e.message,1);}
 }
-async function viewGroup(id){try{const g=await api('/groups/'+id);const rows=g.members.map(m=>`<tr><td>${avatar(m)}${esc(m.username)}</td><td>${m.role==='owner'?'群主':m.role==='admin'?'管理员':'成员'}</td><td class="muted">${fmtDate(m.joined_at)}</td></tr>`).join('');showModal(`<h3>${esc(g.name||'(未命名)')} · ${g.members.length}人</h3><div class="muted" style="margin-bottom:14px">群号 ${esc(g.group_number)} · 公告：${esc(g.announcement||'无')}</div><table class="tbl"><thead><tr><th>成员</th><th>角色</th><th>加入</th></tr></thead><tbody>${rows}</tbody></table>`);}catch(e){toast(e.message,1);}}
+async function viewGroup(id){try{const g=await api('/groups/'+id);const rows=g.members.map(m=>`<tr><td>${avatar(m)}${esc(m.username)}</td><td>${m.role==='owner'?'群主':m.role==='admin'?'管理员':'成员'}</td><td class="muted">${fmtDate(m.joined_at)}</td></tr>`).join('');showModal(`<h3>${esc(g.name||'(未命名)')} · ${g.members.length}人</h3><div class="muted" style="margin-bottom:14px">群号 ${esc(g.group_number)} · 公告：${esc(g.announcement||'无')}</div><table class="tbl"><caption class="sr-only">群成员列表</caption><thead><tr><th scope="col">成员</th><th scope="col">角色</th><th scope="col">加入</th></tr></thead><tbody>${rows}</tbody></table>`);}catch(e){toast(e.message,1);}}
 async function dismiss(id,name){if(!confirm(`⚠ 解散群「${name}」？\n将移除所有成员并删除该群，不可恢复！`))return;try{await api('/groups/'+id,{method:'DELETE'});toast('已解散');loadGroups();loadStats();}catch(e){toast(e.message,1);}}
 
 // ── 举报 ──
@@ -430,7 +433,7 @@ async function loadSecurity(){
     const s=await api('/security');
     $('totpPanel').innerHTML = s.totpEnabled
       ? `<h3>谷歌验证器 <span class="tag ok">已开启</span></h3><p>登录陌生设备/IP 时需要输入验证器中的 6 位动态码。</p>
-         <input id="distotp" class="inp" inputmode="numeric" maxlength="6" placeholder="输入验证码以关闭" style="max-width:220px">
+         <input id="distotp" class="inp" inputmode="numeric" maxlength="6" aria-label="输入谷歌验证码以关闭" placeholder="输入验证码以关闭" style="max-width:220px">
          <div style="margin-top:14px"><button class="mini danger" id="disbtn" style="padding:10px 16px">关闭谷歌验证</button></div>`
       : `<h3>谷歌验证器 <span class="tag gray">未开启</span></h3><p>开启后，从陌生设备或 IP 登录后台需输入谷歌验证器动态码，大幅提升安全性。</p>
          <button class="btn" id="setupbtn">开启谷歌验证</button>`;
@@ -444,7 +447,7 @@ async function setupTotp(){
     showModal(`<h3>绑定谷歌验证器</h3>
       <p class="muted" style="margin-bottom:12px">用 Google Authenticator / 微软 Authenticator 扫描二维码，或手动输入密钥，然后填入当前 6 位验证码确认。</p>
       <div class="qrbox"><img src="${r.qr}"><div><div class="muted" style="margin-bottom:6px">手动密钥：</div><div class="seccode">${r.secret}</div></div></div>
-      <input id="encode" class="inp" inputmode="numeric" maxlength="6" placeholder="验证器中的6位码" style="max-width:240px">
+      <input id="encode" class="inp" inputmode="numeric" maxlength="6" aria-label="验证器中的6位码" placeholder="验证器中的6位码" style="max-width:240px">
       <div style="margin-top:16px"><button class="btn" id="enbtn">确认开启</button></div>`);
     $('enbtn').onclick=async()=>{const code=$('encode').value.trim();try{await api('/security/totp/enable',{method:'POST',body:{code}});toast('谷歌验证已开启');closeModal();loadSecurity();}catch(e){toast(e.message,1);}};
     $('encode').focus();
@@ -458,14 +461,16 @@ async function loadInvite(){try{const r=await api('/invite-code');$('invcode').v
 $('invsave').onclick=async()=>{const code=$('invcode').value.trim();try{await api('/invite-code',{method:'PUT',body:{inviteCode:code}});toast('邀请码已更新');}catch(e){toast(e.message,1);}};
 $('invgen').onclick=async()=>{try{const r=await api('/invite-code/generate',{method:'POST'});$('invcode').value=r.inviteCode;toast('已生成并保存：'+r.inviteCode);}catch(e){toast(e.message,1);}};
 async function loadFeatures(){try{const r=await api('/features');$('ft-moments').checked=!!r.moments;$('ft-collect').checked=!!r.collect;$('ft-invite').checked=r.inviteRequired!==false;}catch(e){toast(e.message,1);}}
-async function loadTopInviters(){try{const r=await api('/top-inviters?limit=20');$('inv-total').textContent='累计被邀请 '+r.totalInvited+' 人';$('inv-rank').innerHTML=r.inviters.length?('<table class="tbl"><thead><tr><th>#</th><th>用户</th><th>v信号</th><th>拉新</th></tr></thead><tbody>'+r.inviters.map((u,i)=>`<tr><td>${i+1}</td><td>${esc(u.username)}${u.banned?' <span style="color:#FA5151">(封禁)</span>':''}</td><td>${esc(u.wechat_id)}</td><td><b>${u.invitedCount}</b></td></tr>`).join('')+'</tbody></table>'):'<div style="color:#888">暂无邀请记录</div>';}catch(e){$('inv-rank').textContent='加载失败：'+e.message;}}
+async function loadTopInviters(){try{const r=await api('/top-inviters?limit=20');$('inv-total').textContent='累计被邀请 '+r.totalInvited+' 人';$('inv-rank').innerHTML=r.inviters.length?('<table class="tbl"><caption class="sr-only">邀请排行榜</caption><thead><tr><th scope="col">#</th><th scope="col">用户</th><th scope="col">v信号</th><th scope="col">拉新</th></tr></thead><tbody>'+r.inviters.map((u,i)=>`<tr><td>${i+1}</td><td>${esc(u.username)}${u.banned?' <span style="color:#FA5151">(封禁)</span>':''}</td><td>${esc(u.wechat_id)}</td><td><b>${u.invitedCount}</b></td></tr>`).join('')+'</tbody></table>'):'<div style="color:#888">暂无邀请记录</div>';}catch(e){$('inv-rank').textContent='加载失败：'+e.message;}}
 $('invrank-refresh').onclick=loadTopInviters;
 $('ftsave').onclick=async()=>{try{await api('/features',{method:'PUT',body:{moments:$('ft-moments').checked,collect:$('ft-collect').checked,inviteRequired:$('ft-invite').checked}});toast('功能开关已保存');}catch(e){toast(e.message,1);}};
 
 // ── 分页 / 弹窗 ──
 function renderPage(elId,state,total,reload){const el=$(elId);const pages=Math.ceil(total/state.limit)||1;const cur=Math.floor(state.offset/state.limit)+1;if(pages<=1){el.innerHTML='';return;}el.innerHTML=`<button class="mini" ${cur<=1?'disabled':''} id="${elId}-p">上一页</button><span class="muted">${cur} / ${pages}</span><button class="mini" ${cur>=pages?'disabled':''} id="${elId}-n">下一页</button>`;const p=$(elId+'-p'),n=$(elId+'-n');if(p)p.onclick=()=>{state.offset=Math.max(0,state.offset-state.limit);reload();};if(n)n.onclick=()=>{state.offset+=state.limit;reload();};}
-function showModal(html){$('modal-root').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="card">${html}<button class="btn btn-block" onclick="closeModal()">关闭</button></div></div>`;}
-function closeModal(){$('modal-root').innerHTML='';}
+let modalPrevFocus=null;
+function showModal(html){modalPrevFocus=document.activeElement;$('modal-root').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="card" role="dialog" aria-modal="true" tabindex="-1">${html}<button class="btn btn-block" onclick="closeModal()">关闭</button></div></div>`;const card=$('modal-root').querySelector('.card');if(card){const focusable=card.querySelector('input,button,select,textarea,a[href]');(focusable||card).focus();}}
+function closeModal(){$('modal-root').innerHTML='';if(modalPrevFocus&&typeof modalPrevFocus.focus==='function'){modalPrevFocus.focus();}modalPrevFocus=null;}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('modal-root').firstChild)closeModal();});
 
 // 启动：检查登录态
 (async()=>{try{const r=await api('/me');enterApp(r.username);}catch{}})();
