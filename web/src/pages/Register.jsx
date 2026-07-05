@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,8 +9,16 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [showPwd, setShowPwd] = useState(false);
+  // 是否需要邀请码由后台开关决定（GET /api/config）。默认 true，避免加载前误放行 UI。
+  const [inviteRequired, setInviteRequired] = useState(true);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    axios.get('/api/config')
+      .then(r => setInviteRequired(r.data?.features?.inviteRequired !== false))
+      .catch(() => {}); // 拉取失败保持默认（需要邀请码），后端仍会最终裁决
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,7 +34,7 @@ export default function Register() {
     if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(form.password)) {
       setError('密码至少8位且需包含字母和数字'); setLoading(false); return;
     }
-    if (!form.inviteCode || !/^\d{6}$/.test(form.inviteCode)) {
+    if (inviteRequired && (!form.inviteCode || !/^\d{6}$/.test(form.inviteCode))) {
       setError('邀请码必须是6位数字'); setLoading(false); return;
     }
 
@@ -57,11 +65,11 @@ export default function Register() {
         <path d="M6 9V6a4 4 0 018 0v3"/>
       </svg>
     )},
-    { key: 'inviteCode', label: '邀请码', type: 'text', placeholder: '请输入6位邀请码', maxLength: 6, icon: (
+    ...(inviteRequired ? [{ key: 'inviteCode', label: '邀请码', type: 'text', placeholder: '请输入6位邀请码', maxLength: 6, icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M10 2l2.4 4.8 5.3.8-3.85 3.75.9 5.3L10 14.1l-4.75 2.55.9-5.3L2.3 7.6l5.3-.8z"/>
       </svg>
-    )},
+    )}] : []),
   ];
 
   return (
@@ -83,9 +91,11 @@ export default function Register() {
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '16px', padding: '9px 14px', background: 'rgba(7,193,96,.1)', border: '1px solid rgba(7,193,96,.2)', borderRadius: '8px', fontSize: '13px', color: 'rgba(255,255,255,.65)' }}>
-            💡 需要邀请码？请向已有账号的用户询问，或联系管理员获取
-          </div>
+          {inviteRequired && (
+            <div style={{ marginBottom: '16px', padding: '9px 14px', background: 'rgba(7,193,96,.1)', border: '1px solid rgba(7,193,96,.2)', borderRadius: '8px', fontSize: '13px', color: 'rgba(255,255,255,.65)' }}>
+              💡 需要邀请码？请向已有账号的用户询问，或联系管理员获取
+            </div>
+          )}
 
           {fields.map(f => (
             <div key={f.key} className={`auth-field ${focusedField === f.key ? 'focused' : ''} ${form[f.key] ? 'has-value' : ''}`}>
@@ -134,7 +144,7 @@ export default function Register() {
             </div>
           )}
 
-          <button type="submit" data-testid="register-submit-btn" className="auth-submit" disabled={loading || !form.username || !form.phone || !form.password || !form.inviteCode}>
+          <button type="submit" data-testid="register-submit-btn" className="auth-submit" disabled={loading || !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
             {loading ? <span className="auth-spinner" /> : '注册'}
           </button>
         </form>

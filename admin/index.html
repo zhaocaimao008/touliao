@@ -194,6 +194,10 @@
           <input type="checkbox" id="ft-collect" style="width:18px;height:18px;cursor:pointer">
           <span><b>收藏</b> — 收藏消息 / 取消收藏</span>
         </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer">
+          <input type="checkbox" id="ft-invite" style="width:18px;height:18px;cursor:pointer">
+          <span><b>注册需邀请码</b> — 关闭后新用户无需邀请码即可注册（忘记密码仍需邀请码）</span>
+        </label>
         <div style="margin-top:14px"><button class="btn" id="ftsave">保存功能开关</button></div>
       </div>
     </div>
@@ -447,8 +451,8 @@ async function revoke(id){if(!confirm('移除该可信设备？下次从它登�
 async function loadInvite(){try{const r=await api('/invite-code');$('invcode').value=r.inviteCode;}catch(e){toast(e.message,1);}}
 $('invsave').onclick=async()=>{const code=$('invcode').value.trim();try{await api('/invite-code',{method:'PUT',body:{inviteCode:code}});toast('邀请码已更新');}catch(e){toast(e.message,1);}};
 $('invgen').onclick=async()=>{try{const r=await api('/invite-code/generate',{method:'POST'});$('invcode').value=r.inviteCode;toast('已生成并保存：'+r.inviteCode);}catch(e){toast(e.message,1);}};
-async function loadFeatures(){try{const r=await api('/features');$('ft-moments').checked=!!r.moments;$('ft-collect').checked=!!r.collect;}catch(e){toast(e.message,1);}}
-$('ftsave').onclick=async()=>{try{await api('/features',{method:'PUT',body:{moments:$('ft-moments').checked,collect:$('ft-collect').checked}});toast('功能开关已保存');}catch(e){toast(e.message,1);}};
+async function loadFeatures(){try{const r=await api('/features');$('ft-moments').checked=!!r.moments;$('ft-collect').checked=!!r.collect;$('ft-invite').checked=r.inviteRequired!==false;}catch(e){toast(e.message,1);}}
+$('ftsave').onclick=async()=>{try{await api('/features',{method:'PUT',body:{moments:$('ft-moments').checked,collect:$('ft-collect').checked,inviteRequired:$('ft-invite').checked}});toast('功能开关已保存');}catch(e){toast(e.message,1);}};
 
 // ── 分页 / 弹窗 ──
 function renderPage(elId,state,total,reload){const el=$(elId);const pages=Math.ceil(total/state.limit)||1;const cur=Math.floor(state.offset/state.limit)+1;if(pages<=1){el.innerHTML='';return;}el.innerHTML=`<button class="mini" ${cur<=1?'disabled':''} id="${elId}-p">上一页</button><span class="muted">${cur} / ${pages}</span><button class="mini" ${cur>=pages?'disabled':''} id="${elId}-n">下一页</button>`;const p=$(elId+'-p'),n=$(elId+'-n');if(p)p.onclick=()=>{state.offset=Math.max(0,state.offset-state.limit);reload();};if(n)n.onclick=()=>{state.offset+=state.limit;reload();};}

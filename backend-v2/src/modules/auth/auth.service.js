@@ -21,6 +21,12 @@ function isValidInviteCode(code) {
   return raw.split(',').map(s => s.trim()).includes(code);
 }
 
+// 注册是否需要邀请码（后台总开关，存 admin_settings.invite_required）。默认需要。
+function isInviteRequired() {
+  const row = db.prepare("SELECT value FROM admin_settings WHERE key='invite_required'").get();
+  return row?.value !== 'off';
+}
+
 // ── 工具 ────────────────────────────────────────────────────────
 function detectDevice(ua = '') {
   if (/Windows/i.test(ua))        return { device: 'Windows PC', platform: 'Windows' };
@@ -69,8 +75,11 @@ async function register({ username, phone, password, inviteCode }) {
     throw badRequest('用户名长度为 1-30 字符');
   if (typeof phone !== 'string' || phone.length < 5 || phone.length > 20 || !/^\+?[\d\s\-]{5,20}$/.test(phone))
     throw badRequest('手机号格式不正确');
-  if (!inviteCode || !/^\d{6}$/.test(inviteCode)) throw badRequest('邀请码必须是6位数字');
-  if (!isValidInviteCode(inviteCode)) throw badRequest('邀请码不正确');
+  // 邀请码校验受后台总开关控制：关闭时任何人都可注册（忽略 inviteCode）；开启时按原规则强制校验。
+  if (isInviteRequired()) {
+    if (!inviteCode || !/^\d{6}$/.test(inviteCode)) throw badRequest('邀请码必须是6位数字');
+    if (!isValidInviteCode(inviteCode)) throw badRequest('邀请码不正确');
+  }
   if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(password))
     throw badRequest('密码必须至少8位，且至少包含1个字母和1个数字');
 
