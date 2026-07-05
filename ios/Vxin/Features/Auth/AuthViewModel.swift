@@ -8,7 +8,9 @@ final class AuthViewModel: ObservableObject {
     @Published var serverURL = ServerConfig.shared.baseURL
     // 注册额外字段
     @Published var username = ""
-    @Published var inviteCode = ""   // 后端必填:6位数字邀请码
+    @Published var inviteCode = ""   // 6位数字邀请码；是否必填由 inviteRequired 决定
+    /// 注册是否需要邀请码（GET /api/config）；拉取前保守视为需要，后端最终裁决
+    @Published var inviteRequired = true
     // 找回密码
     @Published var resetNewPassword = ""
     @Published var resetDone = false
@@ -26,10 +28,17 @@ final class AuthViewModel: ObservableObject {
     var canLogin: Bool { !phone.isEmpty && !password.isEmpty && !loading }
     var canRegister: Bool {
         !username.isEmpty && !phone.isEmpty && isValidPassword(password)
-            && inviteCode.count == 6 && !loading
+            && (!inviteRequired || inviteCode.count == 6) && !loading
     }
     var canReset: Bool {
         !phone.isEmpty && inviteCode.count == 6 && isValidPassword(resetNewPassword) && !loading
+    }
+
+    /// 拉取后台开关，决定注册是否需要邀请码。失败保持默认（需要）。
+    func loadConfig() async {
+        guard let cfg: RegisterConfig = try? await APIClient.shared.send("api/config", authorized: false)
+        else { return }
+        inviteRequired = cfg.features?.inviteRequired ?? true
     }
 
     /// 切换服务器地址：持久化，后续请求即生效
@@ -83,4 +92,10 @@ final class AuthViewModel: ObservableObject {
             loading = false
         }
     }
+}
+
+/// GET /api/config 响应（仅取注册所需的邀请码开关）。字段缺省时按需要邀请码处理。
+private struct RegisterConfig: Decodable {
+    struct Features: Decodable { let inviteRequired: Bool? }
+    let features: Features?
 }

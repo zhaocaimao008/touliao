@@ -24,10 +24,12 @@ struct RegisterView: View {
             SecureField("密码（≥8位，含字母和数字）", text: $vm.password)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("register-password-input")
-            TextField("邀请码（6位数字）", text: $vm.inviteCode)
-                .keyboardType(.numberPad)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("register-invite-input")
+            if vm.inviteRequired {
+                TextField("邀请码（6位数字）", text: $vm.inviteCode)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("register-invite-input")
+            }
 
             if let error = vm.error {
                 Text(error)
@@ -55,6 +57,7 @@ struct RegisterView: View {
         .padding(.horizontal, 32)
         .navigationTitle("注册")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await vm.loadConfig() }
         .onChange(of: vm.authedUser) { user in
             if let user { session.onAuthenticated(user) }
         }
