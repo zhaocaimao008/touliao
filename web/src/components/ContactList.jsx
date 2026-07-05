@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import UserProfile from './UserProfile';
@@ -103,23 +103,26 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     });
   };
 
-  // 按首字母分组联系人
-  const grouped = {};
-  const filtered = contacts.filter(c => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (c.remark || c.username || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
-  });
-  filtered.forEach(c => {
-    const name = c.remark || c.username || '';
-    const letter = firstLetter(name); // 汉字按拼音首字母归组（张→Z），而非全部落入 #
-    if (!grouped[letter]) grouped[letter] = [];
-    grouped[letter].push(c);
-  });
-  // 组内按拼音升序，让同字母下的中文名有稳定可预期的顺序
-  Object.values(grouped).forEach(arr =>
-    arr.sort((a, b) => comparePinyin(a.remark || a.username || '', b.remark || b.username || '')));
-  const letters = Object.keys(grouped).sort((a, b) => a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b));
+  // 按首字母分组联系人（含拼音排序，较贵；仅 contacts/搜索词变化时重算，避免每次渲染都跑）
+  const { grouped, filtered, letters } = useMemo(() => {
+    const grouped = {};
+    const filtered = contacts.filter(c => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (c.remark || c.username || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
+    });
+    filtered.forEach(c => {
+      const name = c.remark || c.username || '';
+      const letter = firstLetter(name); // 汉字按拼音首字母归组（张→Z），而非全部落入 #
+      if (!grouped[letter]) grouped[letter] = [];
+      grouped[letter].push(c);
+    });
+    // 组内按拼音升序，让同字母下的中文名有稳定可预期的顺序
+    Object.values(grouped).forEach(arr =>
+      arr.sort((a, b) => comparePinyin(a.remark || a.username || '', b.remark || b.username || '')));
+    const letters = Object.keys(grouped).sort((a, b) => a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b));
+    return { grouped, filtered, letters };
+  }, [contacts, searchQuery]);
 
   const scrollToLetter = (l) => {
     const el = listRef.current?.querySelector(`[data-letter="${l}"]`);
