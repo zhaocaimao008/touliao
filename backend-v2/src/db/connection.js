@@ -50,6 +50,29 @@ function generateVxinId() {
   throw new Error('v信号已分配完');
 }
 
+// 生成一个未被占用的 6 位数字专属邀请码（用户级，避免与现有 invite_code 冲突）
+function generateUserInviteCode() {
+  for (let i = 0; i < 2000; i += 1) {
+    const value = String(Math.floor(100000 + Math.random() * 900000));
+    if (!db.prepare('SELECT 1 FROM users WHERE invite_code=?').get(value)) return value;
+  }
+  for (let n = 100000; n <= 999999; n += 1) {
+    const value = String(n);
+    if (!db.prepare('SELECT 1 FROM users WHERE invite_code=?').get(value)) return value;
+  }
+  throw new Error('专属邀请码已分配完');
+}
+
+// 为所有尚无专属邀请码的用户补发（幂等，仅回填缺失者）
+function ensureInviteCodes() {
+  const users = db.prepare("SELECT id FROM users WHERE invite_code IS NULL OR invite_code=''").all();
+  if (!users.length) return;
+  const update = db.prepare('UPDATE users SET invite_code=? WHERE id=?');
+  db.transaction(() => {
+    for (const u of users) update.run(generateUserInviteCode(), u.id);
+  })();
+}
+
 // 确保所有用户都有 6 位纯数字 v信号（幂等：仅修补不合规者）
 function ensureNumericVxinIds() {
   const users = db.prepare(`
@@ -73,6 +96,7 @@ function ensureNumericVxinIds() {
   db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_wechat_id_unique ON users(wechat_id)').run();
 }
 ensureNumericVxinIds();
+ensureInviteCodes();
 
 // 启动时重置在线状态：进程刚起时没有任何活跃 socket，残留的 online 是脏数据。
 // 客户端重连后 socket connection handler 会重新置 online，自愈。
@@ -82,4 +106,4 @@ db.prepare("UPDATE users SET status='offline' WHERE status='online'").run();
 const readDb = new Database(config.dbPath, { readonly: true });
 tunePragmas(readDb, { readonly: true });
 
-module.exports = { db, readDb, generateGroupNumber, generateVxinId };
+module.exports = { db, readDb, generateGroupNumber, generateVxinId, generateUserInviteCode };

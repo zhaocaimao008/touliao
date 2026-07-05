@@ -256,9 +256,23 @@ function getCallLogs(userId, limit = 50) {
   `).all(userId, userId, userId, userId, userId, n);
 }
 
+// ── 我的邀请码 + 邀请战绩（裂变）─────────────────────────────────
+//   code         我的专属邀请码；invitedCount 我邀请到的总人数；invitees 最近被邀者列表
+function getMyInvite(userId) {
+  const me = db.prepare('SELECT invite_code FROM users WHERE id=?').get(userId);
+  if (!me) throw notFound('用户不存在');
+  const invitedCount = db.prepare('SELECT COUNT(*) n FROM users WHERE invited_by=?').get(userId).n;
+  const invitees = db.prepare(`
+    SELECT id, username, avatar, wechat_id, created_at
+    FROM users WHERE invited_by=?
+    ORDER BY created_at DESC LIMIT 200
+  `).all(userId);
+  return { code: me.invite_code || '', invitedCount, invitees };
+}
+
 module.exports = {
   ensureSettings, serializeSettings, getSettings, updateSettings,
   qrPayload, search, updateProfile, setAvatar, setCover,
   getUserDetail, getCollections, addCollection, removeCollection, getCallLogs,
-  searchCollections, getCollection,
+  searchCollections, getCollection, getMyInvite,
 };

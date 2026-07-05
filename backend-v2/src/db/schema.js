@@ -443,6 +443,13 @@ function applySchema(db) {
     "CREATE INDEX IF NOT EXISTS idx_conv_members_conv ON conversation_members(conversation_id)",
     // friend_requests: 防止应用层 SELECT+INSERT 竞态产生重复 pending 行（DB 级兜底）
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_friend_req_unique_pending ON friend_requests(from_id, to_id) WHERE status='pending'",
+    // ── 每用户专属邀请码 + 邀请关系（裂变）──────────────────────────
+    //   invite_code：用户自己的 6 位数字邀请码（唯一，注册后回填，可发给好友拉新）
+    //   invited_by ：注册时填了谁的邀请码，则记其 user_id（NULL=管理员全局码或无邀请人）
+    "ALTER TABLE users ADD COLUMN invite_code TEXT DEFAULT NULL",
+    "ALTER TABLE users ADD COLUMN invited_by TEXT DEFAULT NULL",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_invite_code ON users(invite_code) WHERE invite_code IS NOT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_users_invited_by ON users(invited_by)",
   ];
   migrations.forEach(sql => {
     try { db.prepare(sql).run(); }

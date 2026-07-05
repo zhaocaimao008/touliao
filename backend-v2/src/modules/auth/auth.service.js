@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');
-const { db, generateVxinId } = require('../../db/connection');
+const { db, generateVxinId, generateUserInviteCode } = require('../../db/connection');
 const { badRequest, notFound, forbidden } = require('../../utils/http');
 const { addToBlacklist } = require('../../utils/tokenBlacklist');
 
@@ -25,6 +25,19 @@ function isValidInviteCode(code) {
 function isInviteRequired() {
   const row = db.prepare("SELECT value FROM admin_settings WHERE key='invite_required'").get();
   return row?.value !== 'off';
+}
+
+// 解析注册邀请码：先认管理员全局码（无邀请人），再认某用户的专属码（记其为邀请人）。
+// 返回 { valid, inviterId }。inviterId 仅在用了他人专属码时非空。
+function resolveInvite(code) {
+  if (!/^\d{6}$/.test(code)) return { valid: false, inviterId: null };
+  const raw = currentInviteCode();
+  const globals = raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  if (globals.includes(code)) return { valid: true, inviterId: null };
+  // 专属码：邀请人须存在且未被封禁
+  const inviter = db.prepare('SELECT id FROM users WHERE invite_code=? AND banned=0').get(code);
+  if (inviter) return { valid: true, inviterId: inviter.id };
+  return { valid: false, inviterId: null };
 }
 
 // ── 工具 ────────────────────────────────────────────────────────
@@ -75,10 +88,16 @@ async function register({ username, phone, password, inviteCode }) {
     throw badRequest('用户名长度为 1-30 字符');
   if (typeof phone !== 'string' || phone.length < 5 || phone.length > 20 || !/^\+?[\d\s\-]{5,20}$/.test(phone))
     throw badRequest('手机号格式不正确');
-  // 邀请码校验受后台总开关控制：关闭时任何人都可注册（忽略 inviteCode）；开启时按原规则强制校验。
+  // 邀请码校验受后台总开关控制：关闭时任何人都可注册（但仍解析可选邀请码以记录邀请关系）；开启时强制校验。
+  // resolveInvite 同时兼容「管理员全局码」和「其他用户的专属邀请码」，后者会记录邀请人（裂变）。
+  let inviterId = null;
   if (isInviteRequired()) {
     if (!inviteCode || !/^\d{6}$/.test(inviteCode)) throw badRequest('邀请码必须是6位数字');
-    if (!isValidInviteCode(inviteCode)) throw badRequest('邀请码不正确');
+    const r = resolveInvite(inviteCode);
+    if (!r.valid) throw badRequest('邀请码不正确');
+    inviterId = r.inviterId;
+  } else if (inviteCode && /^\d{6}$/.test(inviteCode)) {
+    inviterId = resolveInvite(inviteCode).inviterId; // 关闭校验时仍尽力记录邀请关系
   }
   if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(password))
     throw badRequest('密码必须至少8位，且至少包含1个字母和1个数字');
@@ -89,9 +108,10 @@ async function register({ username, phone, password, inviteCode }) {
   const hash = await bcrypt.hash(password, 12);
   const id = uuidv4();
   const wechatId = generateVxinId();
+  const myInviteCode = generateUserInviteCode(); // 新用户自己的专属邀请码
   try {
-    db.prepare('INSERT INTO users (id,username,phone,password,wechat_id) VALUES (?,?,?,?,?)')
-      .run(id, username, phone, hash, wechatId);
+    db.prepare('INSERT INTO users (id,username,phone,password,wechat_id,invite_code,invited_by) VALUES (?,?,?,?,?,?,?)')
+      .run(id, username, phone, hash, wechatId, myInviteCode, inviterId);
   } catch (e) {
     if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') throw badRequest('用户名或手机号已存在');
     throw e;

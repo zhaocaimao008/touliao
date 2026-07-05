@@ -12,6 +12,7 @@ exports.qrcode = asyncHandler(async (req, res) => {
   res.send(png);
 });
 
+exports.getMyInvite    = asyncHandler(async (req, res) => res.json(svc.getMyInvite(req.user.id)));
 exports.getSettings    = asyncHandler(async (req, res) => res.json(svc.getSettings(req.user.id)));
 exports.updateSettings = asyncHandler(async (req, res) => res.json(svc.updateSettings(req.user.id, req.body)));
 exports.search         = asyncHandler(async (req, res) => res.json(svc.search(req.user.id, req.query.q)));

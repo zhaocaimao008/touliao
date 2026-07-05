@@ -345,6 +345,75 @@ function Wallet({ onBack }) {
   );
 }
 
+/* ── 邀请好友（专属邀请码 + 裂变战绩）── */
+function InviteFriends({ onBack }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    axios.get('/api/users/me/invite')
+      .then(r => { if (alive) setData(r.data); })
+      .catch(() => { if (alive) setData({ code: '', invitedCount: 0, invitees: [] }); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  const copy = async () => {
+    if (!data?.code) return;
+    try {
+      await navigator.clipboard.writeText(data.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* 剪贴板不可用（非 HTTPS 等）时静默 */ }
+  };
+
+  const fmtTime = (s) => { try { return new Date(s * 1000).toLocaleDateString(); } catch { return ''; } };
+
+  return (
+    <PageBg>
+      <PageHeader title="邀请好友" onBack={onBack} />
+      <div className="wc-section-pad">
+        <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 10 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>我的专属邀请码</div>
+          <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: 6, color: 'var(--green)' }}>
+            {loading ? '……' : (data?.code || '—')}
+          </div>
+          <button className="wc-save-btn" onClick={copy} disabled={!data?.code}>
+            {copied ? '已复制' : '复制邀请码'}
+          </button>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', marginTop: 4 }}>
+            把邀请码告诉好友，Ta 注册时填写即可成为你邀请的用户
+          </div>
+        </Card>
+      </div>
+
+      <div className="wc-section-pad">
+        <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 16px', gap: 4 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>已成功邀请</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>{loading ? '…' : (data?.invitedCount ?? 0)} 人</div>
+        </Card>
+      </div>
+
+      <SLabel>邀请记录</SLabel>
+      <div className="wc-section-pad">
+        <Card>
+          {loading ? (
+            <CRow label="加载中…" />
+          ) : (data?.invitees?.length ? data.invitees.map(u => (
+            <CRow key={u.id}
+              icon={<Avatar src={u.avatar} name={u.username} size={28} />} bg="transparent"
+              label={u.username}
+              desc={u.wechat_id ? `v信号：${u.wechat_id}` : ''}
+              right={<span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{fmtTime(u.created_at)}</span>} />
+          )) : <CRow label="还没有邀请记录，快去分享你的邀请码吧" />)}
+        </Card>
+      </div>
+    </PageBg>
+  );
+}
+
 /* ── 设备列表 ── */
 function DeviceList({ onBack }) {
   const [sessions, setSessions] = useState([]);
@@ -956,6 +1025,7 @@ export default function Profile({ isMobile = false }) {
   if (subPage === 'edit-name')     return <EditName user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
   if (subPage === 'edit-bio')      return <EditBio user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
   if (subPage === 'wallet')        return <Wallet onBack={() => setSubPage(null)} />;
+  if (subPage === 'invite')        return <InviteFriends onBack={() => setSubPage(null)} />;
   if (subPage === 'devices')       return <DeviceList onBack={() => setSubPage(null)} />;
   if (subPage === 'appearance')    return <AppearanceSettings onBack={() => setSubPage(null)} />;
   if (subPage === 'notifications') return <NotificationSettings onBack={() => setSubPage(null)} />;
@@ -1004,6 +1074,8 @@ export default function Profile({ isMobile = false }) {
         <Card>
           <CRow icon={<Ico d="M21 7H3a1 1 0 00-1 1v9a2 2 0 002 2h14a2 2 0 002-2v-2h-7a2 2 0 010-4h7V8a1 1 0 00-1-1zm-4 6h5v2h-5a1 1 0 010-2zM3 5h13a1 1 0 010 2H3a1 1 0 010-2z" />}
             bg="#F0A020" label="钱包" desc="金币余额与交易记录" onClick={() => setSubPage('wallet')} />
+          <CRow icon={<Ico d="M16 11a4 4 0 10-4-4 4 4 0 004 4zm0 2c-3 0-8 1.5-8 4.5V20h12v-1a5.8 5.8 0 00-.3-1.8M6 8V5M4.5 6.5h3" />}
+            bg="#07C160" label="邀请好友" desc="我的专属邀请码与邀请战绩" onClick={() => setSubPage('invite')} />
         </Card>
       </div>
 

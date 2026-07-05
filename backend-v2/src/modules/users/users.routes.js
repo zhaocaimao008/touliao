@@ -34,6 +34,9 @@ const uploadCover  = makeImageUploader(AVATARS_DIR, 'cover',  1, 10 * 1024 * 102
  */
 router.get ('/me/qrcode',   auth, u.qrcode);
 
+// 我的专属邀请码 + 邀请战绩（裂变统计）
+router.get ('/me/invite',   auth, u.getMyInvite);
+
 /**
  * @swagger
  * /users/me/settings:

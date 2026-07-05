@@ -73,10 +73,16 @@ function listUsers({ q, limit = 30, offset = 0, banned, period, online }) {
 
 function userDetail(id) {
   const user = db.prepare(`
-    SELECT id, username, phone, wechat_id, avatar, cover_photo, bio, status, banned, created_at
+    SELECT id, username, phone, wechat_id, avatar, cover_photo, bio, status, banned, created_at,
+           invite_code, invited_by
     FROM users WHERE id=?
   `).get(id);
   if (!user) throw notFound('用户不存在');
+  // 裂变统计：本人邀请到多少人 + 是谁邀请了本人
+  user.invitedCount = db.prepare('SELECT COUNT(*) n FROM users WHERE invited_by=?').get(id).n;
+  user.inviterName = user.invited_by
+    ? (db.prepare('SELECT username FROM users WHERE id=?').get(user.invited_by)?.username || '（已注销）')
+    : null;
   user.contactCount = db.prepare('SELECT COUNT(*) n FROM contacts WHERE user_id=?').get(id).n;
   user.messageCount = db.prepare('SELECT COUNT(*) n FROM messages WHERE sender_id=? AND deleted=0').get(id).n;
   user.groupCount   = db.prepare("SELECT COUNT(*) n FROM conversation_members cm JOIN conversations c ON c.id=cm.conversation_id AND c.type='group' WHERE cm.user_id=?").get(id).n;
