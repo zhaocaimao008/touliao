@@ -657,13 +657,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       }
     };
     const onDeleted = ({ msgId }) => {
-      setMessages(prev => {
-        const target = prev.find(m => m.id === msgId);
-        if (target && target.sender_id === user.id && target.type === 'text' && !target.deleted) {
-          setRecalledMessages(r => ({ ...r, [msgId]: target.content }));
-        }
-        return prev.map(m => m.id === msgId ? { ...m, deleted: 1, content: '消息已撤回' } : m);
-      });
+      setMessages(prev => prev.filter(m => m.id !== msgId));
     };
     const onVanished = ({ msgId }) => {
       playShredAnimation(msgId, () => {
@@ -674,7 +668,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     const onBatchDeleted = ({ msgIds: ids }) => {
       if (!ids?.length) return;
       const idSet = new Set(ids);
-      setMessages(prev => prev.map(m => idSet.has(m.id) ? { ...m, deleted: 1, content: '消息已撤回' } : m));
+      setMessages(prev => prev.filter(m => !idSet.has(m.id)));
     };
     const onCleared = ({ conversationId }) => {
       if (conversationId !== convIdRef.current) return;
@@ -1467,7 +1461,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       case 'edit':
         if (msg.sender_id !== user.id) { showToast('只能编辑自己的消息'); return; }
         if (msg.type !== 'text') { showToast('只能编辑文字消息'); return; }
-        if ((Math.floor(Date.now() / 1000) - msg.created_at) > 120) { showToast('超过2分钟，无法编辑'); return; }
         startEdit(msg);
         break;
 
@@ -2317,11 +2310,10 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             </div>
             <div className="wc-ctx-divider" />
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => e.key === 'Enter' && ctxAction('reply')}>回复</div>
-            {/* 编辑：仅限自己的文字消息，2分钟内 */}
+            {/* 编辑：仅限自己的文字消息，不限时间 */}
             {ctxMenu.msg.sender_id === user.id &&
              ctxMenu.msg.type === 'text' &&
-             !ctxMenu.msg.deleted &&
-             (Math.floor(Date.now()/1000) - ctxMenu.msg.created_at) <= 120 && (
+             !ctxMenu.msg.deleted && (
               <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => e.key === 'Enter' && ctxAction('edit')}>编辑</div>
             )}
             {ctxMenu.msg.type === 'text' && (

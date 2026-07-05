@@ -362,6 +362,11 @@ class ChatViewModel @Inject constructor(
                 _uiState.update { it.copy(messages = it.messages.filterNot { m -> m.id == msgId }) }
             }
         }
+        viewModelScope.launch {
+            chatRepository.batchDeletedEvents.collect { ids ->
+                _uiState.update { it.copy(messages = it.messages.filterNot { m -> ids.contains(m.id) }) }
+            }
+        }
     }
 
     // 多端清空同步（对齐 web）：另一端清空了本会话 → 本端也清空消息列表
@@ -391,10 +396,9 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** 是否可编辑：本人文本消息且 2 分钟内 */
+    /** 是否可编辑：本人文本消息，不限时间 */
     fun canEdit(msg: Message): Boolean =
-        msg.sender_id == myId && msg.type == "text" &&
-            (System.currentTimeMillis() / 1000 - msg.created_at) <= 120
+        msg.sender_id == myId && msg.type == "text"
 
     fun editMessage(msg: Message, newText: String) {
         val text = newText.trim()

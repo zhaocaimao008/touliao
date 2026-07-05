@@ -14,7 +14,6 @@ const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
 
 const MAX = config.limits.maxMsgLength;
-const RECALL = config.limits.recallWindow;
 
 // ── 历史消息（批量 replyTo + reactions，群已读数 / 私聊送达）──────
 function history(convId, userId, { before, after, limit, beforeId }) {
@@ -325,7 +324,7 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
   msgs.forEach(msg => {
     const isOwn = msg.sender_id === userId;
     if (isOwn || isAdmin) {
-      ops.push({ sql: 'UPDATE messages SET deleted=1 WHERE id=?', params: [msg.id] });
+      ops.push({ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msg.id] });
       deleted.push(msg.id);
     }
   });
@@ -365,9 +364,8 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
     if (msg.deleted === 2) throw badRequest('消息已彻底删除，无法再次操作');
-    if (isOwn && !isAdmin && Math.floor(Date.now() / 1000) - msg.created_at > RECALL)
-      throw badRequest('超过2分钟无法撤回');
-    await writeAsync('UPDATE messages SET deleted=1 WHERE id=?', [msgId]);
+    // 撤回不限时间：任意时长的消息本人（或群管理员）均可撤回
+    await writeAsync("UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", [msgId]);
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     cache.del(cache.keys.conversations(userId)).catch(() => {});
     if (io) io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });
@@ -410,7 +408,7 @@ async function edit(io, userId, msgId, content) {
   requireMember(msg.conversation_id, userId, '您已不在该会话中，无法编辑消息');
   if (msg.type !== 'text') throw badRequest('只能编辑文字消息');
   if (msg.deleted) throw badRequest('已撤回的消息无法编辑');
-  if (Math.floor(Date.now() / 1000) - msg.created_at > RECALL) throw badRequest('超过2分钟无法编辑');
+  // 编辑不限时间：本人文字消息任意时长均可编辑
 
   const trimmed = content.trim();
   // P0-1：worker 异步写，await 落库后再广播

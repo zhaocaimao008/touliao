@@ -76,14 +76,7 @@ final class ChatViewModel: ObservableObject {
 
         repo.messageDeletedPublisher
             .sink { [weak self] msgId in Task { @MainActor in
-                guard let self else { return }
-                if let idx = self.messages.firstIndex(where: { $0.id == msgId }) {
-                    var recalled = self.messages[idx]
-                    recalled.deleted = 1
-                    recalled.content = "消息已撤回"
-                    recalled.type = "recalled"
-                    self.messages[idx] = recalled
-                }
+                self?.messages.removeAll { $0.id == msgId }
             }}
             .store(in: &cancellables)
 
@@ -109,14 +102,7 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] msgIds in Task { @MainActor in
                 guard let self else { return }
                 let idSet = Set(msgIds)
-                self.messages = self.messages.map { msg in
-                    guard idSet.contains(msg.id) else { return msg }
-                    var recalled = msg
-                    recalled.deleted = 1
-                    recalled.content = "消息已撤回"
-                    recalled.type = "recalled"
-                    return recalled
-                }
+                self.messages.removeAll { idSet.contains($0.id) }
             }}
             .store(in: &cancellables)
 
@@ -306,9 +292,9 @@ final class ChatViewModel: ObservableObject {
         messages[idx].edited = 1
     }
 
-    /// 本人文本消息且 2 分钟内可编辑
+    /// 本人文本消息，不限时间可编辑
     func canEdit(_ msg: Message) -> Bool {
-        msg.senderId == myId && msg.type == "text" && (Date().timeIntervalSince1970 - msg.createdAt) <= 120
+        msg.senderId == myId && msg.type == "text"
     }
 
     func editMessage(_ msg: Message, newText: String) {

@@ -94,6 +94,10 @@ class SocketManager @Inject constructor(
     private val _messageVanished = MutableSharedFlow<String>(extraBufferCapacity = 64)
     val messageVanishedEvents: SharedFlow<String> = _messageVanished.asSharedFlow()
 
+    /** 批量删除消息（另一端批量删除/对齐 web）→ msgIds */
+    private val _messagesBatchDeleted = MutableSharedFlow<List<String>>(extraBufferCapacity = 64)
+    val messagesBatchDeleted: SharedFlow<List<String>> = _messagesBatchDeleted.asSharedFlow()
+
     /** 多端清空会话消息（另一端清空/对齐 web）→ conversationId */
     private val _conversationCleared = MutableSharedFlow<String>(extraBufferCapacity = 16)
     val conversationClearedEvents: SharedFlow<String> = _conversationCleared.asSharedFlow()
@@ -229,6 +233,12 @@ class SocketManager @Inject constructor(
         }
         s.on("message_vanished") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("msgId")?.takeIf { it.isNotEmpty() }?.let(_messageVanished::tryEmit)
+        }
+        s.on("messages_batch_deleted") { args ->
+            (args.firstOrNull() as? JSONObject)?.optJSONArray("msgIds")?.let { arr ->
+                val ids = (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotEmpty() } }
+                if (ids.isNotEmpty()) _messagesBatchDeleted.tryEmit(ids)
+            }
         }
         s.on("conversation_messages_cleared") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_conversationCleared::tryEmit)
