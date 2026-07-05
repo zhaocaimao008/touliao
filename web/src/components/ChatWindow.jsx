@@ -2293,7 +2293,8 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                       setAtList(null);
                       setAtQuery('');
                     }
-                    if (conversation.id) {
+                    // 编辑态复用同一输入框：此时不写草稿，避免编辑文本污染并覆盖真实草稿
+                    if (conversation.id && !editingMsg) {
                       if (val) localStorage.setItem(`draft_${conversation.id}`, val);
                       else localStorage.removeItem(`draft_${conversation.id}`);
                       window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: val } }));
