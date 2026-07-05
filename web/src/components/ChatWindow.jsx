@@ -401,6 +401,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     setMessages([]);
     setReplyTo(null);
     setEditingMsg(null); // 清编辑态:否则在A会话编辑中切到B会话,发送会PUT改A的消息(跨会话误编辑)
+    setAtList(null); setAtQuery(''); // 清 @ 提及态,避免跨会话残留下拉
     setShowEmoji(false);
     setShowMore(false);
     setVoiceMode(false);
