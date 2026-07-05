@@ -11,6 +11,10 @@ import AutoSizer from 'react-virtualized-auto-sizer';
 
 const ITEM_HEIGHT = 64;
 
+// 会话排序：置顶优先，其次按最新消息时间倒序（多处 setState 复用，避免逻辑漂移）
+const byPinnedThenTime = (a, b) =>
+  ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.lastTime || 0) - (a.lastTime || 0));
+
 // Stable module-level row component so react-window doesn't unmount on re-render
 const ConvRow = memo(function ConvRow({ index, style, data }) {
   const { items, activeConvId, onSelectConv, onCtxMenu, previewMsg, user, drafts } = data;
@@ -165,14 +169,14 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         if (idx === -1) { fetchConvs(); return prev; }
         const updated = [...prev];
         updated[idx] = { ...updated[idx], lastMessage: msg.content, lastMessageType: msg.type, lastTime: msg.created_at, lastSenderName: msg.senderName };
-        return [...updated].sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.lastTime || 0) - (a.lastTime || 0)));
+        return updated.sort(byPinnedThenTime);
       });
     };
     const onNewConv = (conv) => {
       setConversations(prev => {
         if (prev.find(c => c.id === conv.id)) return prev;
         socket.emit('join_conversation', { conversationId: conv.id });
-        return [conv, ...prev];
+        return [conv, ...prev].sort(byPinnedThenTime);
       });
     };
     const onCleared = ({ conversationId }) => {
@@ -216,7 +220,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           if (!knownIds.has(id) && !fetched) { fetchConvs(); fetched = true; }
         }
         if (!changed) return prev;
-        return next.sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.lastTime || 0) - (a.lastTime || 0)));
+        return next.sort(byPinnedThenTime);
       });
     };
     socket.on('new_message', onMsg);
@@ -247,7 +251,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   const pin = async (conv, pinned) => {
     await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned });
     setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, pinned: pinned ? 1 : 0 } : c)
-      .sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.lastTime || 0) - (a.lastTime || 0))));
+      .sort(byPinnedThenTime));
     setCtxMenu(null);
   };
 
