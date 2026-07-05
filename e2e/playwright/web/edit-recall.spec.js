@@ -27,14 +27,15 @@ test.describe('编辑/撤回', () => {
     await expect(webPage.locator('[data-testid="msg-edited-flag"]').last()).toBeVisible();
   });
 
-  test('CHAT-09 撤回消息 → 显示撤回提示', async ({ webPage, seeded, baseURL }) => {
+  test('CHAT-09 撤回消息 → 消息从列表彻底消失', async ({ webPage, seeded, baseURL }) => {
     test.skip(!seeded.convAB, '无会话');
     const chat = await loginOpen(webPage, baseURL, seeded);
     const t = 'recall-' + Date.now();
     await chat.sendText(t);
     await chat.expectMessageVisible(t);
     await chat.recallLast();
-    await expect(webPage.locator('[data-testid="msg-recalled"]').last())
-      .toBeVisible({ timeout: 10000 });
+    // 撤回即彻底删除：该消息气泡应从列表消失，不再保留“撤回提示”占位
+    await expect(webPage.locator('[data-testid^="msg-bubble-"]', { hasText: t }))
+      .toHaveCount(0, { timeout: 10000 });
   });
 });
