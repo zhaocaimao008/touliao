@@ -82,7 +82,6 @@ const config = {
     maxMsgLength:   2000,
     msgRateLimit:   3,      // Socket：每用户每秒最多 3 条
     msgRateWindow:  1000,
-    recallWindow:   120,    // 撤回/编辑时限（秒）
     maxGroupMembers: 500,   // 单群最大成员数
     groupMembersPreview: 9, // 会话列表群头像预览数
     unreadCap:      99,     // 未读早停上限

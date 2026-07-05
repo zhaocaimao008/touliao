@@ -144,8 +144,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   const [claiming, setClaiming] = useState(false);
   const [lightboxState, setLightboxState] = useState(null); // { urls, idx } or null
   const [isDragOver, setIsDragOver] = useState(false);
-  // recalled content tracked in state so flatItems rebuilds when re-edit is clicked
-  const [recalledMessages, setRecalledMessages] = useState({});
   const dragCounterRef = useRef(0);
   const isUploadingRef    = useRef(false); // 防止并发上传
   const lastSendRef       = useRef({ text: '', time: 0 }); // 防止 Enter 连击重复发送
@@ -1572,14 +1570,13 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         dividerInserted = true;
       }
       // 同一发送者、且中间无时间分割线 → 连续消息（隐藏重复头像、收紧间距）
-      const consecutive = !dividerInserted && prevSenderId === msg.sender_id && !msg.deleted;
+      const consecutive = !dividerInserted && prevSenderId === msg.sender_id;
       prevSenderId = msg.sender_id;
 
       const isMine = msg.sender_id === user.id;
       const isLastMine = isMine && msg.id === lastMineId;
       const isSelected = multiSelect && selectedMsgs.has(msg.id);
       const isHighlighted = highlightedMsgId === String(msg.id);
-      const recalledContent = msg.deleted ? (recalledMessages[msg.id] || null) : null;
 
       const cached = cache.get(msg.id);
       let item;
@@ -1595,7 +1592,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         && cached.members === members
         && cached.claiming === claiming
         && cached.pinnedMessages === pinnedMessages
-        && cached.recalledContent === recalledContent
         && cached.consecutive === consecutive
       ) {
         item = cached;
@@ -1618,7 +1614,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
           members,
           claiming,
           pinnedMessages,
-          recalledContent,
         };
       }
 
@@ -1630,7 +1625,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     return items;
   }, [messages, multiSelect, selectedMsgs, highlightedMsgId, conversation.id,
       conversation.type, pinnedMessages, myGroupRole, members, groupSettings,
-      user.id, claiming, lastMineId, recalledMessages]);
+      user.id, claiming, lastMineId]);
 
   // 当 pendingScrollId 所指消息随 messages 更新进入 flatItems 后，执行实际滚动
   useEffect(() => {
@@ -1668,11 +1663,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   // 拍一拍：双击对方头像，服务端落库并广播系统消息
   callbacksRef.current.onNudge = (targetId) => {
     socket?.emit('nudge', { conversationId: conversation.id, targetId });
-  };
-  callbacksRef.current.onReedit = (msgId, content) => {
-    setInput(content);
-    setTimeout(() => textareaRef.current?.focus(), 0);
-    setRecalledMessages(prev => { const n = { ...prev }; delete n[msgId]; return n; });
   };
   callbacksRef.current.onImageLoad = () => {
     const outer = listOuterRef.current;

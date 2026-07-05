@@ -526,23 +526,6 @@
   display: none;
 }
 
-/* ── 已撤回消息 ── */
-.wc-deleted-msg {
-  text-align: center;
-  margin: 4px 0;
-}
-.wc-deleted-msg-text {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-.wc-reedit-link {
-  font-size: 12px;
-  color: var(--green);
-  margin-left: 8px;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
 /* ── 消息气泡：已编辑标记 ── */
 .wc-msg-edited {
   font-size: 10px;

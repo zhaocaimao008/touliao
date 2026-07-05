@@ -19,27 +19,9 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
 const MessageItem = memo(function MessageItem({ item, cbRef }) {
   const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
     convType, userId, groupSettings, myGroupRole, members, claiming,
-    recalledContent, pinnedMessages, consecutive } = item;
+    pinnedMessages, consecutive } = item;
 
   const cbs = cbRef.current;
-
-  if (msg.deleted) {
-    return (
-      <div className="wc-deleted-msg" data-testid="msg-recalled">
-        <span className="wc-deleted-msg-text">
-          {msg.sender_id === userId ? '你撤回了一条消息' : `"${msg.senderName}"撤回了一条消息`}
-        </span>
-        {recalledContent && (
-          <span
-            className="wc-reedit-link"
-            role="button" tabIndex={0}
-            onClick={() => cbs.onReedit(msg.id, recalledContent)}
-            onKeyDown={e => e.key === 'Enter' && cbs.onReedit(msg.id, recalledContent)}
-          >重新编辑</span>
-        )}
-      </div>
-    );
-  }
 
   // 拍一拍：居中系统提示「你 拍了拍 X」/「X 拍了拍 你」/「X 拍了拍 Y」
   if (msg.type === 'nudge') {

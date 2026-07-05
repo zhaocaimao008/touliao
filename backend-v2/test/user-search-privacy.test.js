@@ -11,9 +11,11 @@ describe('用户搜索隐私：不泄露 bio / phone', () => {
   let u1, u2, uniqName;
 
   beforeAll(async () => {
-    uniqName = `srchpriv_${Date.now()}`;
+    // 用户名限 20 字符：Date.now() 取后 8 位保证唯一又不超长
+    const ts = Date.now().toString().slice(-8);
+    uniqName = `srchpriv_${ts}`;
     u1 = await makeUser({ username: uniqName });
-    u2 = await makeUser({ username: `srchpriv_other_${Date.now()}` });
+    u2 = await makeUser({ username: `srchpriv_o_${ts}` });
 
     // u1 设置个性签名 + 关闭资料对非好友可见
     await request(app).put('/api/users/profile')
