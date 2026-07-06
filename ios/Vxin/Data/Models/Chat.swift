@@ -15,6 +15,7 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
     var muted: Int = 0
     var background: String = ""           // 聊天专属背景图（空=无）
     var otherUser: OtherUser?             // 私聊对端信息(后端 listConversations 返回);通话/资料取对端 id 用
+    var hasMention: Bool = false          // 有未读的@我(后端按 last_read_at 派生);读后随刷新消失
 
     /// 私聊对端 id：优先 otherUser.id(可靠);群聊为 nil
     var peerId: String? { otherUser?.id }
@@ -28,7 +29,7 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, type, name, avatar
         case lastMessage, lastMessageType, lastTime, lastSenderName
-        case unreadCount, pinned, muted, background, otherUser
+        case unreadCount, pinned, muted, background, otherUser, hasMention
     }
 
     /// 本地构建（如刚创建的私聊会话），用于导航跳转
@@ -54,6 +55,7 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
         muted = (try? c.decode(Int.self, forKey: .muted)) ?? 0
         background = (try? c.decode(String.self, forKey: .background)) ?? ""
         otherUser = try? c.decode(OtherUser.self, forKey: .otherUser)
+        hasMention = (try? c.decode(Bool.self, forKey: .hasMention)) ?? false
     }
 }
 

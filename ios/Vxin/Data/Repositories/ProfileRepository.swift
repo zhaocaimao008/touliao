@@ -17,6 +17,39 @@ struct UserSettings: Decodable {
 }
 private struct UpdateSettingsBody: Encodable { let momentsVisibleDays: Int? }
 
+/// 通知相关设置（GET/PUT /api/users/me/settings 的布尔子集）
+struct NotificationSettings: Decodable {
+    var messageNotify = true
+    var sound = true
+    var vibrate = false
+    var detailPreview = true
+    enum CodingKeys: String, CodingKey { case messageNotify, sound, vibrate, detailPreview }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        messageNotify = (try? c.decode(Bool.self, forKey: .messageNotify)) ?? true
+        sound = (try? c.decode(Bool.self, forKey: .sound)) ?? true
+        vibrate = (try? c.decode(Bool.self, forKey: .vibrate)) ?? false
+        detailPreview = (try? c.decode(Bool.self, forKey: .detailPreview)) ?? true
+    }
+}
+/// 仅编码非 nil 字段：后端 normalizeSettings 用 `!== undefined` 判定，
+/// 若把 nil 编成 JSON null 会被当作 false 误关其他开关，故这里跳过 nil 键。
+private struct UpdateNotificationBody: Encodable {
+    let messageNotify: Bool?
+    let sound: Bool?
+    let vibrate: Bool?
+    let detailPreview: Bool?
+
+    enum CodingKeys: String, CodingKey { case messageNotify, sound, vibrate, detailPreview }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(messageNotify, forKey: .messageNotify)
+        try c.encodeIfPresent(sound, forKey: .sound)
+        try c.encodeIfPresent(vibrate, forKey: .vibrate)
+        try c.encodeIfPresent(detailPreview, forKey: .detailPreview)
+    }
+}
+
 /// 我的专属邀请码 + 邀请战绩（GET /api/users/me/invite）。容错解码，字段缺省不致失败。
 struct InviteInfo: Decodable {
     var code: String = ""
@@ -88,6 +121,20 @@ final class ProfileRepository {
     func setMomentsVisibleDays(_ days: Int) async throws {
         let _: UserSettings = try await api.send(
             "api/users/me/settings", method: "PUT", body: UpdateSettingsBody(momentsVisibleDays: days)
+        )
+    }
+
+    // ── 通知设置 ──
+    func notificationSettings() async throws -> NotificationSettings {
+        try await api.send("api/users/me/settings")
+    }
+
+    /// 更新通知开关（仅传非 nil 字段）
+    func updateNotificationSettings(messageNotify: Bool? = nil, sound: Bool? = nil,
+                                    vibrate: Bool? = nil, detailPreview: Bool? = nil) async throws {
+        let _: NotificationSettings = try await api.send(
+            "api/users/me/settings", method: "PUT",
+            body: UpdateNotificationBody(messageNotify: messageNotify, sound: sound, vibrate: vibrate, detailPreview: detailPreview)
         )
     }
 }

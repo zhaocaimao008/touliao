@@ -78,10 +78,10 @@ struct ProfileView: View {
             }
 
             Section("设置") {
-                NavigationLink("设备管理") { Text("设备管理").navigationTitle("设备管理") }
-                NavigationLink("隐私与安全") { Text("隐私与安全").navigationTitle("隐私与安全") }
-                NavigationLink("外观") { Text("外观").navigationTitle("外观") }
-                NavigationLink("通知") { Text("通知").navigationTitle("通知") }
+                // 设备管理：后端暂无设备列表/远程登出接口，暂不提供入口
+                NavigationLink("隐私与安全") { PrivacySecurityView() }
+                NavigationLink("外观") { AppearanceSettingsView() }
+                NavigationLink("通知") { NotificationSettingsView() }
             }
 
             Section("账号") {

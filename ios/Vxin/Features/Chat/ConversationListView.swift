@@ -112,10 +112,19 @@ private struct ConversationRow: View {
                     .font(.body)
                     .lineLimit(1)
                     .accessibilityIdentifier("conv-item-name")
-                Text(previewText)
-                    .font(.subheadline)
-                    .foregroundColor(.vxinTextSecondary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    if conversation.hasMention {
+                        // 有未读@我：绿色小标，读后随刷新消失
+                        Text("[@我]")
+                            .font(.caption2).bold()
+                            .foregroundColor(.vxinGreen)
+                            .accessibilityIdentifier("conv-item-mention")
+                    }
+                    Text(previewText)
+                        .font(.subheadline)
+                        .foregroundColor(.vxinTextSecondary)
+                        .lineLimit(1)
+                }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
