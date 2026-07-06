@@ -7,6 +7,13 @@ import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
 import { downloadFile } from '../utils/download';
 
+// 图片加载失败占位图（过期/被删的云文件）：灰底 + 可见文字，保证不显示浏览器裂图
+const IMG_BROKEN = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='90'>" +
+  "<rect width='120' height='90' fill='#f0f0f0'/>" +
+  "<text x='60' y='49' font-size='12' fill='#999' text-anchor='middle'>图片加载失败</text></svg>"
+);
+
 // Time divider rendered as a list item
 export const TimeDivider = memo(function TimeDivider({ time }) {
   return (
@@ -139,7 +146,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                 onClick={() => cbs.setLightboxUrl(mediaUrl(msg.file_url))}
                 onKeyDown={e => e.key === 'Enter' && cbs.setLightboxUrl(mediaUrl(msg.file_url))}
                 onLoad={e => { e.currentTarget.classList.add('loaded'); cbs.onImageLoad?.(); }}
-                onError={e => { e.currentTarget.onerror = null; e.currentTarget.style.cssText = 'width:80px;height:80px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center'; e.currentTarget.alt = '图片加载失败'; }}
+                onError={e => { const el = e.currentTarget; el.onerror = null; el.src = IMG_BROKEN; el.alt = '图片加载失败'; el.style.cursor = 'default'; el.style.pointerEvents = 'none'; el.tabIndex = -1; }}
               />
             )}
             {msg.type === 'voice' && (
