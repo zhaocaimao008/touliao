@@ -1349,6 +1349,10 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 }
 .wc-moment-action-btn.liked { color: var(--green); }
 .wc-moment-action-btn svg { width: 15px; height: 15px; fill: currentColor; }
+/* 点赞心跳：仅在主动点赞时(JS 加 .wc-like-pop)播放一次 */
+.wc-like-pop { animation: likePop .36s ease; transform-origin: center; }
+@keyframes likePop { 0% { transform: scale(1); } 30% { transform: scale(1.4); } 55% { transform: scale(.85); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .wc-like-pop { animation: none; } }
 .wc-moment-likes {
   margin-top: 8px; padding: 6px 10px;
   background: var(--bg-hover); border-radius: var(--radius-md);
