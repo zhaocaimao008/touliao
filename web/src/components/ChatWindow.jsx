@@ -2260,7 +2260,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                   placeholder="发消息…"
-                  maxLength={2000}
                   rows={3}
                 />
               </div>
