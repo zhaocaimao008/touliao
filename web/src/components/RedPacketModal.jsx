@@ -17,7 +17,8 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
     && (isGroup ? (countNum > 0 && countNum <= 100 && amountNum >= countNum) : true);
 
   const send = async () => {
-    if (!canSend) return;
+    // 资金操作，函数入口二次守卫：快速双击时 disabled 尚未重渲染也不会重复发送/扣款
+    if (!canSend || sending) return;
     setSending(true);
     setError('');
     try {

@@ -46,6 +46,7 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return; // 防连点/回车重复提交
     setError(''); setLoading(true);
     try {
       const { data } = await axios.post('/api/auth/login', { phone, password });

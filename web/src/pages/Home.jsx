@@ -158,6 +158,7 @@ function AccountSwitcher() {
 
   const doAdd = async (e) => {
     e.preventDefault();
+    if (submitting) return; // 防连点/回车重复提交
     if (!form.phone || !form.password) { setErr('请填写手机号和密码'); return; }
     setErr(''); setSubmitting(true);
     try {
@@ -372,6 +373,7 @@ function CreateGroupModal({ onClose, onCreated }) {
   });
 
   const create = async () => {
+    if (loading) return; // 防连点重复建群
     if (!name.trim()) { setError('请输入群名称'); return; }
     if (selected.size === 0) { setError('请至少选择一位成员'); return; }
     setLoading(true); setError('');
@@ -528,7 +530,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    axios.get('/api/users/friend-requests').then(r => setFriendReqCount(r.data.length));
+    axios.get('/api/users/friend-requests').then(r => setFriendReqCount(r.data.length)).catch(() => {});
   }, []);
 
   // 功能开关：后台可隐藏朋友圈/收藏。若当前所在 tab 被关闭则退回消息页

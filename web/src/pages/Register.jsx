@@ -28,6 +28,7 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return; // 防连点/回车重复提交（避免重复注册）
     setError(''); setLoading(true);
 
     // 前端基础校验
@@ -54,12 +55,12 @@ export default function Register() {
   };
 
   const fields = [
-    { key: 'username', label: '昵称', type: 'text', autocomplete: 'nickname', placeholder: '请输入昵称', icon: (
+    { key: 'username', label: '昵称', type: 'text', autocomplete: 'nickname', placeholder: '请输入昵称', maxLength: 20, icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M10 11a4 4 0 100-8 4 4 0 000 8zM3 18c0-3.3 3.1-6 7-6s7 2.7 7 6"/>
       </svg>
     )},
-    { key: 'phone', label: '手机号', type: 'tel', inputMode: 'tel', autocomplete: 'username', placeholder: '请输入手机号', icon: (
+    { key: 'phone', label: '手机号', type: 'tel', inputMode: 'tel', autocomplete: 'username', placeholder: '请输入手机号', maxLength: 11, icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <rect x="3" y="1" width="14" height="18" rx="3"/>
         <line x1="8" y1="15" x2="12" y2="15"/>
