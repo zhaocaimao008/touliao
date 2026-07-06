@@ -408,6 +408,11 @@ img { display: block; }
   color: #e05a4f;
   margin-right: 3px;
 }
+/* 「[有人@我]」未读提及标记：绿色前缀，读后随刷新消失 */
+.wc-chat-item-mention {
+  color: var(--green);
+  margin-right: 3px;
+}
 
 /* ============================================================
    Chat Window
