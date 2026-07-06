@@ -20,6 +20,7 @@ const CONTENT_LIMIT = 120;
 const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments }) {
   const [commenting, setCommenting] = useState(false);
   const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [loadingComments, setLoadingComments] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [lightbox, setLightbox] = useState(null); // { urls, idx } | null
@@ -30,9 +31,13 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
   };
   const hasMoreComments = (m.commentCount || 0) > (m.comments?.length || 0);
 
-  const submit = () => {
-    if (!text.trim()) return;
-    onComment(m, text.trim(), () => { setText(''); setCommenting(false); });
+  const submit = async () => {
+    if (submitting) return;              // 防连点/连按回车重复评论
+    const val = text.trim();
+    if (!val) return;
+    setSubmitting(true);
+    try { await onComment(m, val, () => { setText(''); setCommenting(false); }); }
+    finally { setSubmitting(false); }
   };
 
   // 微信九宫格规则：恰好 4 张时排成 2×2，其余按 1/2/3 列
@@ -132,7 +137,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
               onChange={e => setText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') setCommenting(false); }}
               placeholder="评论…" maxLength={500} aria-label="输入评论" />
-            <button className="wc-moment-comment-submit" onClick={submit}>发送</button>
+            <button className="wc-moment-comment-submit" onClick={submit} disabled={submitting || !text.trim()}>发送</button>
           </div>
         )}
       </div>
