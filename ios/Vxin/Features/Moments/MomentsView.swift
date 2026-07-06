@@ -60,6 +60,7 @@ final class MomentsViewModel: ObservableObject {
             if let resp = try? await repo.like(m.id), let idx = moments.firstIndex(where: { $0.id == m.id }) {
                 moments[idx].liked = resp.liked
                 moments[idx].likeCount = resp.likeCount
+                if resp.liked { Haptics.impact(.light) }   // 主动点赞轻震
                 // 维护点赞名单（简化：本地增删自己）
                 if resp.liked {
                     if !moments[idx].likes.contains(where: { $0.userId == myId }) {

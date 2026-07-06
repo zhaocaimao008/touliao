@@ -374,7 +374,11 @@ final class ChatViewModel: ObservableObject {
             do {
                 let resp = try await RedPacketRepository.shared.claim(packetId)
                 claimedAmount = resp.amount
-            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "手慢了，红包没抢到" }
+                Haptics.notify(.success)   // 抢到红包的满足感
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "手慢了，红包没抢到"
+                Haptics.notify(.warning)   // 手慢了，轻提示
+            }
             await refreshRedPacketDetail(packetId)
         }
     }

@@ -39,8 +39,10 @@ final class AddFriendViewModel: ObservableObject {
             do {
                 let resp = try await repo.sendFriendRequest(toId: user.id)
                 sentIds.insert(user.id)
+                if resp.autoAccepted == true { Haptics.notify(.success) } else { Haptics.impact(.light) }
                 message = (resp.autoAccepted == true) ? "已添加为好友" : "好友申请已发送"
             } catch {
+                Haptics.notify(.error)
                 message = (error as? LocalizedError)?.errorDescription ?? "发送失败"
             }
         }
@@ -67,8 +69,10 @@ final class AddFriendViewModel: ObservableObject {
             do {
                 let resp = try await repo.sendFriendRequest(toId: payload.id)
                 sentIds.insert(payload.id)
+                if resp.autoAccepted == true { Haptics.notify(.success) } else { Haptics.impact(.light) }
                 message = (resp.autoAccepted == true) ? "已添加为好友" : "好友申请已发送"
             } catch {
+                Haptics.notify(.error)
                 message = (error as? LocalizedError)?.errorDescription ?? "添加失败"
             }
         }
@@ -78,8 +82,10 @@ final class AddFriendViewModel: ObservableObject {
         Task {
             do {
                 let r = try await GroupRepository.shared.join(token: token)
+                if !r.alreadyMember { Haptics.notify(.success) }   // 成功进群的满足感
                 message = r.alreadyMember ? "你已在该群" : "已加入群聊"
             } catch {
+                Haptics.notify(.error)
                 message = (error as? LocalizedError)?.errorDescription ?? "进群失败"
             }
         }
