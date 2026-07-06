@@ -77,7 +77,7 @@ export default function Collections() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{ago(c.created_at)}</span>
               <button onClick={() => remove(c.id)}
-                style={{ fontSize: 12, color: 'var(--color-badge)', background: 'none', cursor: 'pointer', padding: '2px 6px' }}>取消收藏</button>
+                style={{ fontSize: 12, color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>取消收藏</button>
             </div>
           </div>
         ))
