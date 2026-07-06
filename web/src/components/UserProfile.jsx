@@ -3,7 +3,7 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
-import { showConfirm } from '../utils/toast';
+import { showToast, showConfirm } from '../utils/toast';
 
 export default function UserProfile({ userId, onClose, onStartChat, onFriendAdded, onFriendDeleted }) {
   const { user: currentUser } = useAuth();
@@ -85,8 +85,9 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
       onFriendAdded?.();
       onFriendDeleted?.();
       onClose();
-    } catch {
-      onClose();
+    } catch (e) {
+      // 删除失败时不关闭弹窗，提示用户以免误以为已删除
+      showToast(e.response?.data?.error || '删除失败，请重试', 'error');
     }
   };
 
@@ -100,13 +101,19 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         await axios.post(`/api/users/block/${userId}`);
         setBlocked(true);
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      showToast(e.response?.data?.error || '操作失败，请重试', 'error');
+    }
   };
 
   const startChat = async () => {
-    const { data } = await axios.post('/api/messages/conversation/private', { userId });
-    onStartChat?.({ id: data.conversationId, type: 'private', name: user.remark || user.username, avatar: user.avatar, otherUser: user });
-    onClose();
+    try {
+      const { data } = await axios.post('/api/messages/conversation/private', { userId });
+      onStartChat?.({ id: data.conversationId, type: 'private', name: user.remark || user.username, avatar: user.avatar, otherUser: user });
+      onClose();
+    } catch (e) {
+      showToast(e.response?.data?.error || '打开会话失败，请重试', 'error');
+    }
   };
 
   if (loading) return (

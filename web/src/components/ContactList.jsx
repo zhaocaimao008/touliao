@@ -22,6 +22,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const [activeChar, setActiveChar] = useState(null);
   const [viewProfile, setViewProfile] = useState(null);
   const [showAddFriend, setShowAddFriend] = useState(false);
+  const [handlingReq, setHandlingReq] = useState(null); // 正在处理的申请 id，防连点重复提交
   const listRef = useRef(null);
   const { socket } = useSocket();
 
@@ -83,6 +84,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   }, [addFriendRequest]);
 
   const handleRequest = async (id, action) => {
+    if (handlingReq) return; // 防连点：上一次处理未结束时忽略
+    setHandlingReq(id);
     try {
       await axios.post(`/api/users/friend-request/${id}/handle`, { action });
       setRequests(prev => prev.filter(r => r.id !== id));
@@ -90,6 +93,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     } catch (err) {
       showToast(err.response?.data?.error || '操作失败，请重试', 'error');
     }
+    setHandlingReq(null);
   };
 
   const unblock = async (userId) => {
@@ -256,8 +260,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                       <div className="req-msg">{r.message || '请求添加您为好友'}</div>
                     </div>
                     <div className="req-btns">
-                      <button className="req-accept" onClick={() => handleRequest(r.id, 'accepted')}>接受</button>
-                      <button className="req-reject" onClick={() => handleRequest(r.id, 'rejected')}>拒绝</button>
+                      <button className="req-accept" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'accepted')}>接受</button>
+                      <button className="req-reject" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'rejected')}>拒绝</button>
                     </div>
                   </div>
                 ))}
@@ -412,14 +416,20 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       }
       onUpdate();
       setEditLabel(null);
-    } catch {}
+    } catch (e) {
+      showToast(e.response?.data?.error || '保存失败，请重试', 'error');
+    }
     setSaving(false);
   };
 
   const deleteLabel = async (id) => {
     if (!await showConfirm('确认删除此标签？')) return;
-    await axios.delete(`/api/friend-labels/${id}`).catch(() => {});
-    onUpdate();
+    try {
+      await axios.delete(`/api/friend-labels/${id}`);
+      onUpdate();
+    } catch (e) {
+      showToast(e.response?.data?.error || '删除失败，请重试', 'error');
+    }
   };
 
   const toggleMember = async (labelId, friendId, isMember) => {
@@ -430,7 +440,9 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
         await axios.post(`/api/friend-labels/${labelId}/members`, { friendId });
       }
       onUpdate();
-    } catch {}
+    } catch (e) {
+      showToast(e.response?.data?.error || '操作失败，请重试', 'error');
+    }
   };
 
   if (editLabel) {

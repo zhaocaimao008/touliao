@@ -5,7 +5,7 @@ import { GroupAvatar } from './GroupInfo';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from '../utils/time';
-import { showConfirm } from '../utils/toast';
+import { showConfirm, showToast } from '../utils/toast';
 import { FixedSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 
@@ -249,16 +249,20 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   }, [fetchConvs]);
 
   const pin = async (conv, pinned) => {
-    await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned });
-    setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, pinned: pinned ? 1 : 0 } : c)
-      .sort(byPinnedThenTime));
     setCtxMenu(null);
+    try {
+      await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned });
+      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, pinned: pinned ? 1 : 0 } : c)
+        .sort(byPinnedThenTime));
+    } catch { showToast('操作失败，请重试', 'error'); }
   };
 
   const mute = async (conv, muted) => {
-    await axios.post(`/api/messages/conversation/${conv.id}/mute`, { muted });
-    setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, muted: muted ? 1 : 0 } : c));
     setCtxMenu(null);
+    try {
+      await axios.post(`/api/messages/conversation/${conv.id}/mute`, { muted });
+      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, muted: muted ? 1 : 0 } : c));
+    } catch { showToast('操作失败，请重试', 'error'); }
   };
 
   const deleteConv = async (conv) => {

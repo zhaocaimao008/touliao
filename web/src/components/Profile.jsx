@@ -98,6 +98,7 @@ function EditName({ user, updateUser, onBack }) {
   const MAX = 20;
 
   const save = async () => {
+    if (saving) return; // 防连点：回车提交会绕过 disabled 按钮
     const trimmed = username.trim();
     if (!trimmed) { setError('昵称不能为空'); return; }
     if (trimmed.length > MAX) { setError(`昵称最多 ${MAX} 个字符`); return; }
@@ -154,6 +155,7 @@ function EditBio({ user, updateUser, onBack }) {
   const MAX = 100;
 
   const save = async () => {
+    if (saving) return; // 防连点：回车提交会绕过 disabled 按钮
     const trimmed = bio.trim();
     if (trimmed.length > MAX) { setError(`签名最多 ${MAX} 个字符`); return; }
     setSaving(true);
@@ -213,6 +215,7 @@ function ChangePassword({ onBack }) {
   const [done, setDone] = useState(false);
 
   const save = async () => {
+    if (saving || done) return; // 防连点：避免重复提交改密请求
     if (!oldPassword || !newPassword) { setError('请填写完整'); return; }
     if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword)) { setError('新密码至少8位且需包含字母和数字'); return; }
     if (newPassword !== confirm) { setError('两次输入的新密码不一致'); return; }
@@ -281,6 +284,7 @@ function Wallet({ onBack }) {
   useEffect(() => { load(); }, []);
 
   const recharge = async () => {
+    if (recharging) return; // 防连点：回车提交会绕过 disabled 按钮，避免重复充值
     const amt = parseInt(rechargeInput, 10);
     if (!Number.isInteger(amt) || amt < 1 || amt > 100000) { setError('请输入 1-100000 的整数'); return; }
     setRecharging(true); setError('');
@@ -703,6 +707,7 @@ function DeleteAccount({ onBack, logout }) {
   const [loading, setLoading] = useState(false);
 
   const handleDelete = async () => {
+    if (loading) return; // 防连点：确认弹窗是异步的，避免重复弹出/提交
     if (!password) { setError('请输入密码'); return; }
     if (!(await showConfirm('注销后所有数据将清除，且无法恢复。确认注销？'))) return;
     setLoading(true);
@@ -884,7 +889,9 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
         updateUser({ ...user, avatar: data.avatar });
       }
     } catch (err) {
-      // 头像上传失败 — suppressed
+      showToast(err.response?.data?.error || '头像上传失败，请重试', 'error');
+    } finally {
+      e.target.value = ''; // 允许再次选择同一文件重试
     }
     setUploading(false);
   };
