@@ -77,10 +77,10 @@ final class GroupCallManager: NSObject, ObservableObject {
         session.lockForConfiguration()
         do {
             try session.setCategory(
-                AVAudioSession.Category.playAndRecord.rawValue,
+                AVAudioSession.Category.playAndRecord,
                 with: [.allowBluetooth]
             )
-            try session.setMode(AVAudioSession.Mode.voiceChat.rawValue)
+            try session.setMode(AVAudioSession.Mode.voiceChat)
             try session.setActive(true)
         } catch {
             // 配置失败不阻断通话；WebRTC 兜底默认会话
