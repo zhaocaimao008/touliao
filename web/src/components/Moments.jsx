@@ -145,6 +145,29 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
   );
 });
 
+// 朋友圈首屏骨架：3 张卡片占位（头像 + 昵称/正文行 + 九宫格块），shimmer 微光
+function MomentsSkeleton() {
+  return (
+    <div aria-hidden="true">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="wc-moment-card">
+          <div className="wc-skel wc-skel-avatar" />
+          <div className="wc-moment-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="wc-skel wc-skel-line" style={{ width: '30%' }} />
+            <div className="wc-skel wc-skel-line" style={{ width: '85%' }} />
+            <div className="wc-skel wc-skel-line" style={{ width: '55%' }} />
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              {Array.from({ length: 3 }).map((_, j) => (
+                <div key={j} className="wc-skel" style={{ width: 76, height: 76, borderRadius: 6 }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Moments() {
   const { user } = useAuth();
   const meId = user?.id;
@@ -520,7 +543,7 @@ export default function Moments() {
       {/* 时间线 */}
       <div className="wc-moment-scroll">
         {loading ? (
-          <div role="status" className="wc-moment-state">加载中…</div>
+          <MomentsSkeleton />
         ) : loadError && list.length === 0 ? (
           <div role="status" className="wc-moment-state" style={{ padding: 60 }}>
             加载失败，<button className="wc-moment-expand-btn" onClick={load}>点击重试</button>
