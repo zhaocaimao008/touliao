@@ -143,6 +143,8 @@ class CallManager @Inject constructor(
             if (_state.value.stage == CallStage.ENDED) return@launch  // 期间被取消
             createPeerConnection()
             createLocalTracks(video)
+            // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（此刻 App 在前台、权限已授予，满足 FGS 合规）
+            CallForegroundService.start(context, video)
             val name = sessionManager.currentUser?.username.orEmpty()
             socketManager.emitCallRequest(peerId, if (video) "video" else "audio", name)
         }
@@ -158,6 +160,8 @@ class CallManager @Inject constructor(
             if (_state.value.stage == CallStage.ENDED) return@launch
             createPeerConnection()
             createLocalTracks(s.isVideo)
+            // 本地媒体已开始采集 → 起前台服务保活（接听时 App 在前台、权限已授予）
+            CallForegroundService.start(context, s.isVideo)
             socketManager.emitCallResponse(s.peerId, true)
             // 等待主叫的 call:offer
         }
@@ -376,6 +380,7 @@ class CallManager @Inject constructor(
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage) {
         callTimeoutJob?.cancel(); callTimeoutJob = null   // 接通/挂断/被拒 → 取消呼出超时
+        CallForegroundService.stop(context)               // 停前台服务（未起过则 no-op）
         runCatching { videoCapturer?.stopCapture() }
         runCatching { videoCapturer?.dispose() }
         videoCapturer = null

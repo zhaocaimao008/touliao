@@ -11,6 +11,11 @@
          通话类 App 首次安装默认授予，用户可在「设置>应用>全屏通知」撤销；
          无该权限时 fullScreenIntent 降级为普通高优先级横幅通知（仍响铃，只是不自动全屏）。 -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- 通话保活前台服务。Android 14+(34) 要求声明 FGS 类型对应的权限，且运行时须已持有对应能力
+         （microphone → RECORD_AUDIO 已在通话流程申请；camera → CAMERA 视频通话时申请）。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <!-- 媒体读取：Android 13+ 细分权限，12 及以下用 READ_EXTERNAL_STORAGE -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
@@ -52,5 +57,11 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- 通话保活前台服务（1对1）。type 声明 microphone|camera；实际以运行时传入的 type 起服务。 -->
+        <service
+            android:name=".core.call.CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|camera" />
     </application>
 </manifest>
