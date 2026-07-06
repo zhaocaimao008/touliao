@@ -392,8 +392,12 @@ export default function CallModal({ socket, call, onClose }) {
               </div>
             </div>
             <div
+              role="button"
+              tabIndex={0}
+              aria-label="挂断"
               onPointerDown={e => e.stopPropagation()}
               onClick={e => { e.stopPropagation(); endCall(true); }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); endCall(true); } }}
               style={miniHangupStyle}
               title="挂断"
             >
@@ -417,8 +421,12 @@ export default function CallModal({ socket, call, onClose }) {
                 style={{ borderRadius: '50%', display: 'block' }}
               />
               <div
+                role="button"
+                tabIndex={0}
+                aria-label="挂断"
                 onPointerDown={e => e.stopPropagation()}
                 onClick={e => { e.stopPropagation(); endCall(true); }}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); endCall(true); } }}
                 style={{ ...miniHangupStyle, width: 26, height: 26, bottom: -4, right: -4 }}
                 title="挂断"
               >
@@ -501,7 +509,7 @@ export default function CallModal({ socket, call, onClose }) {
         {/* 顶部：缩小 + 名字/计时 */}
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 6, display: 'flex', alignItems: 'center', padding: '16px 20px 0', gap: 16 }}>
           {canMinimize && (
-            <button onClick={() => setMinimized(true)} style={minimizeBtnStyle} title="缩小">
+            <button onClick={() => setMinimized(true)} style={minimizeBtnStyle} title="缩小" aria-label="缩小">
               <IcoMinimize />
             </button>
           )}
@@ -565,6 +573,7 @@ export default function CallModal({ socket, call, onClose }) {
             onClick={() => setMinimized(true)}
             style={{ ...minimizeBtnStyle, position: 'absolute', top: 20, left: 20, zIndex: 4 }}
             title="缩小"
+            aria-label="缩小"
           >
             <IcoMinimize />
           </button>

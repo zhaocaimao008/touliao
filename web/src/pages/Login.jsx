@@ -105,6 +105,7 @@ export default function Login() {
                   className="auth-account-remove"
                   onClick={() => removeAccount(account.id)}
                   title="移除记录"
+                  aria-label="移除记录"
                 >✕</button>
               </div>
             ))}
