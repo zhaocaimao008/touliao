@@ -2233,6 +2233,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                   data-testid="chat-msg-input"
                   className="wc-textarea"
                   aria-label="输入消息"
+                  maxLength={2000}   /* 与后端 config.limits.maxMsgLength 一致，避免超长发送后才被静默拒绝 */
                   value={input}
                   onChange={e => {
                     const val = e.target.value;
