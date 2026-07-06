@@ -38,6 +38,8 @@ final class ChatViewModel: ObservableObject {
     // ── 红包 ──
     @Published var redPacketDetail: RedPacketDetail?   // 非空 = 显示红包详情弹窗
     @Published var claimedAmount: Int?                 // 刚领取到的金额
+    @Published var sendingRedPacket = false            // 发红包进行中，防连点重复扣币
+    @Published var claimingRedPacket = false           // 抢红包进行中，防连点重复领取
     @Published var error: String?
 
     let conversationId: String
@@ -343,7 +345,10 @@ final class ChatViewModel: ObservableObject {
     }
 
     func sendRedPacket(totalAmount: Int, totalCount: Int, greeting: String) {
+        guard !sendingRedPacket else { return }   // 资金操作：进行中禁止重复触发，防快速双击重复扣币
+        sendingRedPacket = true
         Task {
+            defer { sendingRedPacket = false }
             do {
                 let resp = try await RedPacketRepository.shared.send(
                     conversationId: conversationId, totalAmount: totalAmount, totalCount: totalCount,
@@ -370,7 +375,10 @@ final class ChatViewModel: ObservableObject {
 
     func claimOpenedRedPacket() {
         guard let packetId = redPacketDetail?.id else { return }
+        guard !claimingRedPacket else { return }   // 进行中禁止重复触发，防快速双击重复领取
+        claimingRedPacket = true
         Task {
+            defer { claimingRedPacket = false }
             do {
                 let resp = try await RedPacketRepository.shared.claim(packetId)
                 claimedAmount = resp.amount

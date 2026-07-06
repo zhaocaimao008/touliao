@@ -100,6 +100,7 @@ class MomentsViewModel @Inject constructor(
                     }
                     refreshOne(moment.id)
                 }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("操作失败")) } }
         }
     }
 

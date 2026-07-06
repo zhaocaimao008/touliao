@@ -64,6 +64,8 @@ data class ChatUiState(
     val redPacketDetail: RedPacketDetail? = null,   // 非空 = 显示红包详情弹窗
     val redPacketLoading: Boolean = false,
     val claimedAmount: Int? = null,                 // 刚领取到的金额（一次性提示）
+    val sendingRedPacket: Boolean = false,          // 发红包进行中，防连点重复扣币
+    val claimingRedPacket: Boolean = false,         // 抢红包进行中，防连点重复领取
     val error: String? = null,
 )
 
@@ -177,10 +179,13 @@ class ChatViewModel @Inject constructor(
         if (msg.type == "red_packet") runCatching { json.decodeFromString<RedPacketContent>(msg.content) }.getOrNull() else null
 
     fun sendRedPacket(totalAmount: Int, totalCount: Int, greeting: String) {
+        if (_uiState.value.sendingRedPacket) return   // 资金操作：进行中禁止重复触发，防快速双击重复扣币
+        _uiState.update { it.copy(sendingRedPacket = true) }
         viewModelScope.launch {
             runCatching { redPacketRepository.send(conversationId, totalAmount, totalCount, greeting.trim()) }
                 .onSuccess { resp -> resp.message?.let { appendUnique(it) } } // 通常 socket 也会广播，appendUnique 去重
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("发送红包失败")) } }
+            _uiState.update { it.copy(sendingRedPacket = false) }
         }
     }
 
@@ -197,6 +202,8 @@ class ChatViewModel @Inject constructor(
 
     fun claimOpenedRedPacket() {
         val packetId = _uiState.value.redPacketDetail?.id ?: return
+        if (_uiState.value.claimingRedPacket) return   // 进行中禁止重复触发，防快速双击重复领取
+        _uiState.update { it.copy(claimingRedPacket = true) }
         viewModelScope.launch {
             runCatching { redPacketRepository.claim(packetId) }
                 .onSuccess { resp ->
@@ -204,6 +211,7 @@ class ChatViewModel @Inject constructor(
                     refreshRedPacketDetail(packetId)
                 }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("手慢了，红包没抢到")) }; refreshRedPacketDetail(packetId) }
+            _uiState.update { it.copy(claimingRedPacket = false) }
         }
     }
 
