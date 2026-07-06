@@ -350,7 +350,11 @@ final class ChatViewModel: ObservableObject {
                     greeting: greeting.trimmingCharacters(in: .whitespaces)
                 )
                 if let msg = resp.message { appendUnique(msg) }   // socket 通常也会广播，appendUnique 去重
-            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "发送红包失败" }
+                Haptics.notify(.success)   // 发红包成功的满足感反馈
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "发送红包失败"
+                Haptics.notify(.error)
+            }
         }
     }
 
@@ -483,6 +487,7 @@ final class ChatViewModel: ObservableObject {
     func sendText() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !sending else { return }
+        Haptics.impact(.light)   // 发送轻震，给一点触觉反馈
         let replyId = replyingTo?.id
         input = ""
         replyingTo = nil
