@@ -138,6 +138,7 @@ struct ProfileView: View {
                 InitialAvatar(name: user?.username ?? "?", size: 80)
             }
         }
+        .accessibilityLabel("更换头像")
     }
 
     private func saveProfile() {
