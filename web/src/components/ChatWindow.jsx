@@ -49,49 +49,6 @@ const IcoImage = () => <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2
 const IcoFile = () => <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>;
 const IcoMore = () => <svg viewBox="0 0 24 24"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>;
 
-// ── 粉碎动画（删除不留痕迹）────────────────────────────────────
-// 找到消息气泡，用 N 条色块覆盖后交替旋转下落，结束后调 onDone
-function playShredAnimation(msgId, onDone) {
-  const msgRow = document.getElementById(`msg-${msgId}`);
-  const bubble = msgRow?.querySelector(`[data-testid="msg-bubble-${msgId}"]`);
-  if (!bubble) { onDone?.(); return; }
-
-  const rect = bubble.getBoundingClientRect();
-  const isMine = bubble.classList.contains('mine');
-  const N = 9;
-  const stripW = rect.width / N;
-
-  const wrap = document.createElement('div');
-  Object.assign(wrap.style, {
-    position: 'fixed', top: `${rect.top}px`, left: `${rect.left}px`,
-    width: `${rect.width}px`, height: `${rect.height}px`,
-    zIndex: '9999', pointerEvents: 'none',
-    display: 'flex', overflow: 'visible',
-  });
-
-  for (let i = 0; i < N; i++) {
-    const strip = document.createElement('div');
-    const isOdd = i % 2 === 0;
-    Object.assign(strip.style, {
-      width: `${stripW + 0.5}px`,   // +0.5 防止间隙
-      flexShrink: '0',
-      height: `${rect.height}px`,
-      background: getComputedStyle(bubble).backgroundColor || (isMine ? '#95EC69' : '#ffffff'),
-      borderRadius: i === 0 ? '12px 0 0 12px' : i === N - 1 ? '0 12px 12px 0' : '0',
-      boxShadow: isMine ? 'none' : '0 0 0 0.5px rgba(0,0,0,0.08)',
-      animation: `shred-${isOdd ? 'odd' : 'even'} 0.46s ${i * 28}ms ease-in both`,
-    });
-    wrap.appendChild(strip);
-  }
-
-  bubble.style.visibility = 'hidden';
-  document.body.appendChild(wrap);
-
-  // 最后一条 strip: 8*28=224ms + 460ms = ~684ms
-  const totalMs = (N - 1) * 28 + 480;
-  setTimeout(() => { wrap.remove(); onDone?.(); }, totalMs);
-}
-
 // 从输入内容 + 光标位置解析当前正在输入的 @提及 token。
 // 规则：光标前最近的 '@' 必须位于开头或紧跟空白，且 '@' 与光标间不含空白。
 // 返回 { start, query }（start 为 '@' 的下标，query 为其后到光标的文字）；无则 null。
@@ -129,7 +86,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   const [forwardMsg, setForwardMsg] = useState(null);
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
-  const [vanishingMsgs, setVanishingMsgs] = useState(new Set());
   // 多选模式
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedMsgs, setSelectedMsgs] = useState(new Set());
@@ -675,10 +631,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       setMessages(prev => prev.filter(m => m.id !== msgId));
     };
     const onVanished = ({ msgId }) => {
-      playShredAnimation(msgId, () => {
-        setMessages(prev => prev.filter(m => m.id !== msgId));
-        setVanishingMsgs(prev => { const s = new Set(prev); s.delete(msgId); return s; });
-      });
+      setMessages(prev => prev.filter(m => m.id !== msgId));
     };
     const onBatchDeleted = ({ msgIds: ids }) => {
       if (!ids?.length) return;
@@ -1536,13 +1489,11 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         const isAdmin = myGroupRole === 'owner' || myGroupRole === 'admin';
         if (!isOwn && !isAdmin) break;
         if (!(await showConfirm('彻底删除这条消息？对方也不会看到任何提示，且无法恢复。'))) break;
-        // 先确认服务器删除成功，再播碎裂动画+移除；失败则保留消息并提示，
+        // 先确认服务器删除成功再移除；失败则保留消息并提示，
         // 避免"发送方本地没了、对方还在、刷新又冒出来"的假删除
         try {
           await axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } });
-          playShredAnimation(msg.id, () => {
-            setMessages(prev => prev.filter(m => m.id !== msg.id));
-          });
+          setMessages(prev => prev.filter(m => m.id !== msg.id));
         } catch (e) { showToast(e.response?.data?.error || '删除失败', 'error'); }
         break;
       }
