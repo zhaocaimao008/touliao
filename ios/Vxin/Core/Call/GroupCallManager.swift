@@ -64,6 +64,34 @@ final class GroupCallManager: NSObject, ObservableObject {
 
     func activate() {}
 
+    // MARK: - 音频会话（WebRTC）
+    /// 建流前配置 RTCAudioSession 为通话模式(.playAndRecord/.voiceChat)。
+    /// 走 RTCAudioSession 而非裸 AVAudioSession：WebRTC 内部持有会话，只有经其配置才与音频单元协调。
+    /// 通话期间语音消息播放(AudioPlayerService)不应抢占本会话。
+    private func configureAudioSession() {
+        let session = RTCAudioSession.sharedInstance()
+        session.lockForConfiguration()
+        do {
+            try session.setCategory(
+                AVAudioSession.Category.playAndRecord.rawValue,
+                with: [.allowBluetooth]
+            )
+            try session.setMode(AVAudioSession.Mode.voiceChat.rawValue)
+            try session.setActive(true)
+        } catch {
+            // 配置失败不阻断通话；WebRTC 兜底默认会话
+        }
+        session.unlockForConfiguration()
+    }
+
+    /// 通话结束释放音频会话，交还系统。
+    private func deactivateAudioSession() {
+        let session = RTCAudioSession.sharedInstance()
+        session.lockForConfiguration()
+        try? session.setActive(false)
+        session.unlockForConfiguration()
+    }
+
     private func refreshIceServers() async {
         do {
             let creds: TurnCredentials = try await APIClient.shared.send("api/turn/credentials")
@@ -86,6 +114,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         Task { @MainActor in
             await refreshIceServers()
             guard state.stage != .ended else { return }
+            configureAudioSession()             // 建流前配好通话音频会话
             createLocalMedia(video: video)
             socket.emitGroupCallStart(conversationId: conversationId, type: video ? "video" : "audio")
         }
@@ -98,6 +127,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         Task { @MainActor in
             await refreshIceServers()
             guard state.stage != .ended else { return }
+            configureAudioSession()             // 建流前配好通话音频会话
             createLocalMedia(video: video)
             socket.emitGroupCallJoin(callId: callId)
         }
@@ -277,6 +307,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         videoCapturer = nil
         localVideoTrack = nil
         localAudioTrack = nil
+        deactivateAudioSession()            // 释放通话音频会话
         state.stage = .ended
         state.participants = []
     }

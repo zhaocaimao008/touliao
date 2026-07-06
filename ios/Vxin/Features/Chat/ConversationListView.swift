@@ -45,6 +45,14 @@ struct ConversationListView: View {
                         InviteMembersView(conversationId: id, onDone: { if !path.isEmpty { path.removeLast() } })
                     }
                 }
+                // 点推送通知打开会话：优先用已加载会话(含 type/name)，否则用最小 Conversation(id:)，
+                // ChatView 打开后会自行拉历史/资料补全。MainTabView 已负责切回消息 Tab。
+                .onReceive(NotificationCenter.default.publisher(for: .vxinOpenConversation)) { note in
+                    guard let id = note.userInfo?["conversationId"] as? String, !id.isEmpty else { return }
+                    let conv = vm.conversations.first(where: { $0.id == id }) ?? Conversation(id: id)
+                    path = NavigationPath()   // 从根重置，避免叠在已有导航栈上
+                    path.append(conv)
+                }
         }
     }
 

@@ -8,35 +8,46 @@ struct MainTabView: View {
     // 后台开关：默认全开，拉取失败不误伤
     @State private var showMoments = true
     @State private var showFavorites = true
+    // 选中的 Tab（0=消息）；点推送通知需切回消息页再打开会话
+    @State private var selectedTab = 0
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             ConversationListView(myId: myId)
                 .tabItem { Label("消息", systemImage: "message") }
                 .accessibilityIdentifier("nav-tab-chats")
+                .tag(0)
 
             ContactsTab(myId: myId)
                 .tabItem { Label("通讯录", systemImage: "person.2") }
                 .accessibilityIdentifier("nav-tab-contacts")
+                .tag(1)
 
             if showMoments {
                 NavigationStack { MomentsView().navigationTitle("朋友圈") }
                     .tabItem { Label("朋友圈", systemImage: "photo.on.rectangle") }
                     .accessibilityIdentifier("nav-tab-moments")
+                    .tag(2)
             }
 
             if showFavorites {
                 NavigationStack { FavoritesView() }
                     .tabItem { Label("收藏", systemImage: "star") }
                     .accessibilityIdentifier("nav-tab-favorites")
+                    .tag(3)
             }
 
             NavigationStack { ProfileView() }
                 .tabItem { Label("我", systemImage: "person.crop.circle") }
                 .accessibilityIdentifier("nav-tab-me")
+                .tag(4)
         }
         .tint(.vxinGreen)
         .task { await loadFeatures() }
+        // 点推送通知 → 切回消息页（会话打开由 ConversationListView 观察同一通知处理）
+        .onReceive(NotificationCenter.default.publisher(for: .vxinOpenConversation)) { _ in
+            selectedTab = 0
+        }
     }
 
     private func loadFeatures() async {

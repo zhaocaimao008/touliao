@@ -80,6 +80,35 @@ final class CallManager: NSObject, ObservableObject {
     /// 应用启动后调用一次，确保单例创建并开始监听来电
     func activate() {}
 
+    // MARK: - 音频会话（WebRTC）
+    /// 建流前配置 RTCAudioSession 为通话模式(.playAndRecord/.voiceChat)。
+    /// 必须走 RTCAudioSession 而非裸 AVAudioSession：WebRTC 内部持有并会覆盖 AVAudioSession，
+    /// 只有经 RTCAudioSession.lockForConfiguration 修改才与其音频单元协调，否则通话无声/路由错乱。
+    /// 通话期间语音消息播放(AudioPlayerService)不应抢占本会话。
+    private func configureAudioSession() {
+        let session = RTCAudioSession.sharedInstance()
+        session.lockForConfiguration()
+        do {
+            try session.setCategory(
+                AVAudioSession.Category.playAndRecord.rawValue,
+                with: [.allowBluetooth]
+            )
+            try session.setMode(AVAudioSession.Mode.voiceChat.rawValue)
+            try session.setActive(true)
+        } catch {
+            // 配置失败不阻断通话；WebRTC 兜底默认会话
+        }
+        session.unlockForConfiguration()
+    }
+
+    /// 通话结束释放音频会话，交还系统（便于语音消息/系统音恢复常规路由）。
+    private func deactivateAudioSession() {
+        let session = RTCAudioSession.sharedInstance()
+        session.lockForConfiguration()
+        try? session.setActive(false)
+        session.unlockForConfiguration()
+    }
+
     // MARK: - 对外动作
     func startCall(peerId: String, peerName: String, video: Bool, callerName: String) {
         guard state.stage == .idle || state.stage == .ended else { return }
@@ -87,6 +116,7 @@ final class CallManager: NSObject, ObservableObject {
         Task { @MainActor in
             await refreshIceServers()           // 先拿到含 TURN 的 ICE，再建连接
             guard state.stage != .ended else { return }   // 期间被取消
+            configureAudioSession()             // 建流前配好通话音频会话
             createPeerConnection()
             createLocalTracks(video: video)
             socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
@@ -99,6 +129,7 @@ final class CallManager: NSObject, ObservableObject {
         Task { @MainActor in
             await refreshIceServers()
             guard state.stage != .ended else { return }
+            configureAudioSession()             // 建流前配好通话音频会话
             createPeerConnection()
             createLocalTracks(video: state.isVideo)
             socket.emitCallResponse(to: state.peerId, accepted: true)
@@ -276,6 +307,7 @@ final class CallManager: NSObject, ObservableObject {
         pc = nil
         remoteDescSet = false
         pendingIce.removeAll()
+        deactivateAudioSession()            // 释放通话音频会话
         state.stage = finalStage
         state.remoteVideoActive = false
     }
