@@ -97,6 +97,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: scale > 1 ? 'grab' : 'zoom-out',
         userSelect: 'none',
+        animation: 'fadeIn .18s ease-out',   // 遮罩淡入，避免生硬弹出
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       onWheel={handleWheel}
@@ -126,6 +127,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
           transition: dragging ? 'none' : 'transform .15s ease',
           cursor: 'default',
+          animation: 'fadeIn .22s ease-out',   // 图片淡入(仅 opacity,不碰 transform 以免与缩放/平移冲突)；切换图片时随 key 重播
         }}
       />
 

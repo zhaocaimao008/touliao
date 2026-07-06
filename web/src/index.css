@@ -2510,7 +2510,9 @@ body {
   box-shadow: none;
   transform: none;
 }
-.wc-send-btn { transition: background var(--dur), color var(--dur); }
+.wc-send-btn { transition: background var(--dur), color var(--dur), transform var(--dur-fast); }
+/* 可发送时按下轻微回弹，给发送一点触觉般的反馈 */
+.wc-send-btn.active:active { transform: scale(.94); }
 
 /* 输入框聚焦状态 */
 .wc-input-area:focus-within {
