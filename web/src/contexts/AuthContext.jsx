@@ -44,6 +44,14 @@ const ELECTRON_TOKEN_KEY = 'vxin_electron_token';
 // 统一改用 Bearer token；用 localStorage 持久化，App 重启后免重新登录。
 const isBearerClient = () => !!(window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.());
 
+// 清除 CSRF token 缓存（会话结束/切换账号或服务器时调用）：
+// session 与 localStorage 兜底缓存必须一起清，否则旧会话的 token 会残留在
+// localStorage，被下一个会话的首个 POST 取用（请求拦截器会 fallback 到它）导致 403。
+function clearCsrfCache() {
+  sessionStorage.removeItem('csrf_token');
+  localStorage.removeItem('csrf_token_cache');
+}
+
 function setElectronToken(token) {
   if (!isBearerClient()) return;
   if (token) {
@@ -143,7 +151,7 @@ export const AuthProvider = ({ children }) => {
     const next = upsertAccount(data.user);
     setAccounts(next);
     setUser(data.user);
-    sessionStorage.removeItem('csrf_token');
+    clearCsrfCache();
     window.location.reload();
   };
 
@@ -170,7 +178,7 @@ export const AuthProvider = ({ children }) => {
     } catch {}
     await axios.post('/api/auth/logout').catch(() => {});
     if (userRef.current?.id) removeAccount(userRef.current.id);
-    sessionStorage.removeItem('csrf_token');
+    clearCsrfCache();
     setElectronToken(null);
     setUser(null);
   };
@@ -188,7 +196,7 @@ export const AuthProvider = ({ children }) => {
     }
     axios.defaults.baseURL = clean;
     setElectronToken(null);
-    sessionStorage.removeItem('csrf_token');
+    clearCsrfCache();
     setUser(null);
     setAccounts([]);
   };

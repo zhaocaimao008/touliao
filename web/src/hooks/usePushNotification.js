@@ -17,7 +17,10 @@ export function usePushNotification(user) {
 
     // 原生 App（Capacitor / Android·iOS）：走 FCM/APNs 设备令牌，而非 Web Push
     if (window.Capacitor?.isNativePlatform?.()) {
-      let cleanup = () => {};
+      // 用 cancelled 标志 + listeners 数组：注册是异步的，若组件在权限弹窗/注册
+      // 完成前就卸载，同步 cleanup 拿不到 listener 句柄会漏；标志确保 async 恢复后补移除。
+      let cancelled = false;
+      let listeners = [];
       (async () => {
         try {
           const { PushNotifications } = await import('@capacitor/push-notifications');
@@ -25,7 +28,7 @@ export function usePushNotification(user) {
           if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
             perm = await PushNotifications.requestPermissions();
           }
-          if (perm.receive !== 'granted') return;
+          if (perm.receive !== 'granted' || cancelled) return;
           const regL = await PushNotifications.addListener('registration', (token) => {
             const platform = window.Capacitor.getPlatform?.() === 'ios' ? 'ios' : 'android';
             axios.post('/api/notifications/device-token', { token: token.value, platform }).catch(() => {});
@@ -36,11 +39,13 @@ export function usePushNotification(user) {
             const cid = action?.notification?.data?.conversationId;
             if (cid) window.dispatchEvent(new CustomEvent('vxin:open-conversation', { detail: { conversationId: cid } }));
           });
+          listeners = [regL, errL, actL];
+          // await 期间可能已卸载：立即移除已注册的 listener，不再 register
+          if (cancelled) { listeners.forEach(l => l.remove?.()); listeners = []; return; }
           await PushNotifications.register();
-          cleanup = () => { regL.remove?.(); errL.remove?.(); actL.remove?.(); };
         } catch { /* 插件不可用时静默 */ }
       })();
-      return () => cleanup();
+      return () => { cancelled = true; listeners.forEach(l => l.remove?.()); listeners = []; };
     }
 
     // Electron 桌面端用原生通知（window.electron.showNotification），
