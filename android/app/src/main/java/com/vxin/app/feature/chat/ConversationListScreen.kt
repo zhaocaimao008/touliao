@@ -4,6 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
@@ -158,12 +160,13 @@ private fun ConversationRow(
     onClear: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
     Box {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("conv-item-${conv.id}")
-            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
+            .combinedClickable(onClick = onClick, onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true })
             .background(if (conv.pinned == 1) Color(0x11000000) else Color.Transparent)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

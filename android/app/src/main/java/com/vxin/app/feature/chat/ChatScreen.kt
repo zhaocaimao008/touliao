@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -575,8 +577,9 @@ private fun MessageBubble(
                 return@Column
             }
             // 气泡本体(长按弹菜单)
+            val haptic = LocalHapticFeedback.current
             Box {
-                Box(Modifier.combinedClickable(onClick = {}, onLongClick = { menuOpen = true })) {
+                Box(Modifier.combinedClickable(onClick = {}, onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true })) {
                     MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick)
                 }
                 // (highlight via Row background above)
