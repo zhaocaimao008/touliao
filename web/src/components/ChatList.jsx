@@ -27,7 +27,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         data-testid={`conv-item-${conv.id}`}
         className={`wc-chat-item${conv.id === activeConvId ? ' active' : ''}${conv.pinned ? ' pinned' : ''}`}
         onClick={() => onSelectConv(conv)}
-        onKeyDown={e => e.key === 'Enter' && onSelectConv(conv)}
+        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSelectConv(conv))}
         role="button"
         tabIndex={0}
         aria-current={conv.id === activeConvId ? 'true' : undefined}
@@ -366,23 +366,23 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           <div className="wc-ctx-menu" style={{ left: ctxMenu.x, top: ctxMenu.y, zIndex: 9999 }}>
             <div className="wc-ctx-item" onClick={() => toggleMarkUnread(ctxMenu.conv)}
               role="button" tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && toggleMarkUnread(ctxMenu.conv)}>
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleMarkUnread(ctxMenu.conv))}>
               {ctxMenu.conv.manually_unread ? '取消标记' : '标记为未读'}
             </div>
             <div className="wc-ctx-item" onClick={() => pin(ctxMenu.conv, !ctxMenu.conv.pinned)}
               role="button" tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && pin(ctxMenu.conv, !ctxMenu.conv.pinned)}>
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), pin(ctxMenu.conv, !ctxMenu.conv.pinned))}>
               {ctxMenu.conv.pinned ? '取消置顶' : '置顶聊天'}
             </div>
             <div className="wc-ctx-item" onClick={() => mute(ctxMenu.conv, !ctxMenu.conv.muted)}
               role="button" tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && mute(ctxMenu.conv, !ctxMenu.conv.muted)}>
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), mute(ctxMenu.conv, !ctxMenu.conv.muted))}>
               {ctxMenu.conv.muted ? '取消免打扰' : '消息免打扰'}
             </div>
             <div className="wc-ctx-divider" />
             <div className="wc-ctx-item danger" onClick={() => deleteConv(ctxMenu.conv)}
               role="button" tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && deleteConv(ctxMenu.conv)}>
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), deleteConv(ctxMenu.conv))}>
               {ctxMenu.conv.type === 'group' ? '退出群聊' : '删除聊天'}
             </div>
           </div>

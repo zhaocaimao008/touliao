@@ -304,6 +304,7 @@ export default function Moments() {
   };
 
   const publish = async () => {
+    if (posting) return;                 // 防连点：发布中禁止重复提交
     if (!text.trim() && images.length === 0) return;
     if (visibility === 'include' && visibleTo.length === 0) {
       setShowFriendPicker(true); return;
@@ -477,7 +478,7 @@ export default function Moments() {
                     <div className="wc-moment-notif-time">{ago(n.createdAt)}</div>
                   </div>
                   {n.moment?.thumb
-                    ? <img className="wc-moment-notif-thumb" src={n.moment.thumb} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                    ? <img className="wc-moment-notif-thumb" src={n.moment.thumb} alt="动态图片" loading="lazy" onError={e => { e.currentTarget.style.display = 'none'; }} />
                     : <div className="wc-moment-notif-snippet">{(n.moment?.content || '').slice(0, 12)}</div>}
                 </div>
               ))}
@@ -501,8 +502,8 @@ export default function Moments() {
               <div className="wc-moment-img-preview">
                 {images.map((img, i) => (
                   <div key={i} className="wc-moment-img-thumb">
-                    <img src={img.previewUrl} alt="" loading="lazy" />
-                    <button className="wc-moment-img-remove" onClick={() => removeImage(i)}>×</button>
+                    <img src={img.previewUrl} alt={`待发布图片 ${i + 1}`} loading="lazy" />
+                    <button className="wc-moment-img-remove" onClick={() => removeImage(i)} aria-label={`移除图片 ${i + 1}`}>×</button>
                   </div>
                 ))}
               </div>

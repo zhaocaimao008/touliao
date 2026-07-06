@@ -4,6 +4,7 @@ import Avatar from './Avatar';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
+import useFocusTrap from '../hooks/useFocusTrap';
 
 export default function UserProfile({ userId, onClose, onStartChat, onFriendAdded, onFriendDeleted }) {
   const { user: currentUser } = useAuth();
@@ -17,6 +18,8 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
   const [sending, setSending] = useState(false);
   const [errMsg, setErrMsg] = useState('');
   const [blocked, setBlocked] = useState(false);
+  // 弹窗焦点陷阱：把键盘焦点锁在资料卡内，Tab 循环、关闭后还原焦点
+  const trapRef = useFocusTrap(!loading && !!user);
 
   useEffect(() => {
     const handler = e => { if (e.key === 'Escape') onClose(); };
@@ -128,7 +131,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
   const displayName = user.remark || user.username;
 
   return (
-    <div className="up-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="up-overlay" ref={trapRef} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="up-card" role="dialog" aria-modal="true" aria-label="联系人资料" onClick={e => e.stopPropagation()}>
 
         {/* 顶部封面区 */}
@@ -159,7 +162,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {/* 好友信息行 */}
         {user.isFriend && (
           <div className="up-rows">
-            <div className="up-row" role="button" tabIndex={0} onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }} onKeyDown={e => e.key === 'Enter' && (setRemark(user.remark || ''), setShowRemarkEdit(true))}>
+            <div className="up-row" role="button" tabIndex={0} onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setRemark(user.remark || ''), setShowRemarkEdit(true))}>
               <span className="up-row-label">备注名</span>
               <span className="up-row-value">{user.remark || <span style={{ color: 'var(--text-tertiary)' }}>未设置</span>}</span>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>

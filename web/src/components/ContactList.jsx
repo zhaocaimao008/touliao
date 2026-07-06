@@ -192,7 +192,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 {grouped[letter].map(c => (
                   <div key={c.id} className="wc-contact-item" onClick={() => setViewProfile(c.id)}
                     role="button" tabIndex={0}
-                    onKeyDown={e => e.key === 'Enter' && setViewProfile(c.id)}>
+                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setViewProfile(c.id))}>
                     <div className="cl-avatar-wrap">
                       <Avatar src={c.avatar} name={c.remark || c.username} size={40}
                         style={{ borderRadius: 6 }}
@@ -343,7 +343,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               <div key={g.id} className="wc-contact-item"
                 onClick={() => onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] })}
                 role="button" tabIndex={0}
-                onKeyDown={e => e.key === 'Enter' && onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] })}>
+                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] }))}>
                 <GroupAvatar members={g.members || []} avatar={g.avatar} size={40} />
                   <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{g.name}</div>
@@ -367,10 +367,10 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       {tab === 'contacts' && letters.length > 0 && (
         <div className="wc-alpha-index">
           {letters.map(l => (
-            <span key={l} className="wc-alpha-char"
+            <span key={l} className="wc-alpha-char" aria-label={`跳转到 ${l}`}
               onClick={() => { scrollToLetter(l); setActiveChar(l); setTimeout(() => setActiveChar(null), 800); }}
               role="button" tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && (scrollToLetter(l), setActiveChar(l), setTimeout(() => setActiveChar(null), 800))}>
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), scrollToLetter(l), setActiveChar(l), setTimeout(() => setActiveChar(null), 800))}>
               {l}
             </span>
           ))}
@@ -554,7 +554,7 @@ function EntryRow({ icon, color, label, badge, onClick }) {
   return (
     <div className="wc-contact-item gi-cp" onClick={onClick}
       role="button" tabIndex={0}
-      onKeyDown={e => e.key === 'Enter' && onClick?.(e)}>
+      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick?.(e))}>
       <div className="cl-entry-icon-box" style={{ background: color }}>
         {icon}
       </div>

@@ -10,6 +10,11 @@ import { showConfirm, showToast } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
 
 /* ─── 小工具 ─── */
+// role="button" 的 div 应同时支持 Enter 和空格触发（空格默认会滚动页面，需 preventDefault）
+const activateOnKey = (fn) => (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(e); }
+};
+
 const ChevronRight = () => (
   <svg className="wc-chevron" viewBox="0 0 24 24">
     <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
@@ -73,7 +78,7 @@ function CRow({ icon, bg, label, value, desc, onClick, right, danger }) {
     <div className={`wc-crow${onClick ? ' wc-crow-clickable' : ''}`}
       onClick={onClick}
       role="button" tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? e => e.key === 'Enter' && onClick(e) : undefined}>
+      onKeyDown={onClick ? activateOnKey(onClick) : undefined}>
       {icon && (
         <div className="wc-crow-icon" style={{ background: bg }}>
           {icon}
@@ -735,6 +740,7 @@ function DeleteAccount({ onBack, logout }) {
             <input
               type="password"
               placeholder="请输入当前密码确认"
+              aria-label="当前密码"
               value={password}
               onChange={e => { setPassword(e.target.value); setError(''); }}
               className="wc-server-input"
@@ -797,7 +803,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
   return (
     <Card>
       {otherAccounts.map((a) => (
-          <div key={a.id} onClick={() => doSwitch(a.id)} className="wc-add-row" role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && doSwitch(a.id)}>
+          <div key={a.id} onClick={() => doSwitch(a.id)} className="wc-add-row" role="button" tabIndex={0} onKeyDown={activateOnKey(() => doSwitch(a.id))}>
             <div className="wc-add-avatar-wrap">
               <Avatar src={a.user?.avatar} name={a.user?.username} size={40} />
             </div>
@@ -809,7 +815,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
           </div>
       ))}
 
-      <div onClick={toggleForm} className="wc-add-row" role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && toggleForm()}>
+      <div onClick={toggleForm} className="wc-add-row" role="button" tabIndex={0} onKeyDown={activateOnKey(toggleForm)}>
         <div className="wc-add-icon-wrap" style={{ borderColor: showForm ? 'var(--green)' : undefined }}>
           <svg className="wc-add-icon-svg" style={{ fill: showForm ? 'var(--green)' : undefined }} viewBox="0 0 24 24">
             <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
@@ -827,10 +833,10 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
             <span className="wc-add-info-text">添加后旧账号不会退出，可随时切换</span>
           </div>
           <form onSubmit={doAdd} className="wc-add-form-inner">
-            <input ref={phoneRef} type="tel" placeholder="手机号" value={form.phone}
+            <input ref={phoneRef} type="tel" placeholder="手机号" aria-label="手机号" value={form.phone}
               onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
               className="wc-add-form-input" />
-            <input type="password" placeholder="密码" value={form.password}
+            <input type="password" placeholder="密码" aria-label="密码" value={form.password}
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
               className="wc-add-form-input" />
             {error && <div className="wc-add-form-error" role="alert">{error}</div>}
@@ -902,7 +908,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
       <div className="wc-section-pad">
         <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px', gap: 8 }}>
-          <div role="button" tabIndex={0} onClick={handleAvatarClick} onKeyDown={e => e.key === 'Enter' && handleAvatarClick()} style={{ cursor: 'pointer', position: 'relative' }}>
+          <div role="button" tabIndex={0} onClick={handleAvatarClick} onKeyDown={activateOnKey(handleAvatarClick)} style={{ cursor: 'pointer', position: 'relative' }}>
             <Avatar src={user?.avatar} name={user?.username} size={80} />
             {uploading && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', borderRadius: 14, color: 'var(--text-inverse)', fontSize: 12 }}>上传中</div>}
           </div>
@@ -965,10 +971,11 @@ function ServerSettings({ onBack }) {
           value={input}
           onChange={e => { setInput(e.target.value); setTestResult(null); }}
           placeholder="https://example.com"
+          aria-label="服务器地址"
           className="wc-server-input"
         />
         {testResult && (
-          <div style={{ marginTop: 8, fontSize: 13, color: testResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
+          <div role="status" style={{ marginTop: 8, fontSize: 13, color: testResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
             {testResult.msg}
           </div>
         )}
@@ -1065,7 +1072,7 @@ export default function Profile({ isMobile = false }) {
   return (
     <PageBg>
       {/* ── 个人信息头部 ── */}
-      <div className="wc-me-header" role="button" tabIndex={0} onClick={() => setSubPage('profile-detail')} onKeyDown={e => e.key === 'Enter' && setSubPage('profile-detail')}>
+      <div className="wc-me-header" role="button" tabIndex={0} onClick={() => setSubPage('profile-detail')} onKeyDown={activateOnKey(() => setSubPage('profile-detail'))}>
         <div className="wc-me-avatar-wrap">
           <Avatar src={user?.avatar} name={user?.username} size={64} />
         </div>

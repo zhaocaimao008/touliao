@@ -145,7 +145,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
           {matchedContacts.map(c => (
             <div key={c.id} className="gs-row" onClick={() => openContact(c)}
               role="button" tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && openContact(c)}>
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openContact(c))}>
               <Avatar src={c.avatar} name={c.remark || c.username} size={42} />
               <div className="gs-info">
                 <div className="gs-name">{highlight(c.remark || c.username, q)}</div>
@@ -172,7 +172,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
           {matchedConversations.map(g => (
             <div key={g.id} className="gs-row" onClick={() => openConversation(g)}
               role="button" tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && openConversation(g)}>
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openConversation(g))}>
               {g.type === 'filehelper' ? (
                 <div className="gs-filehelper-icon">
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--text-inverse)"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
@@ -196,7 +196,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
           {messages.map(m => (
             <div key={m.id} className="gs-row" onClick={() => openMessageLocation(m)}
               role="button" tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && openMessageLocation(m)}>
+              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openMessageLocation(m))}>
               <Avatar src={m.senderAvatar} name={m.senderName} size={42} />
               <div className="gs-info">
                 <div className="gs-msg-meta">
@@ -221,7 +221,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
           onClick={() => onNetworkSearch(query)}
           className="gs-network-row"
           role="button" tabIndex={0}
-          onKeyDown={e => e.key === 'Enter' && onNetworkSearch(query)}>
+          onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onNetworkSearch(query))}>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--green)" className="gs-network-icon"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
           <span>未找到相关本地结果，去网络搜索添加<span className="gs-highlight">「{query}」</span></span>
         </div>

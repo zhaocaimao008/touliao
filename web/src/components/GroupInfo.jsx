@@ -49,9 +49,13 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
   return (
     <div
       className="gi-av-wrap" style={{ cursor: isAdmin ? 'pointer' : 'default' }}
+      role={isAdmin ? 'button' : undefined}
+      tabIndex={isAdmin ? 0 : undefined}
+      aria-label={isAdmin ? '更换群头像' : undefined}
       onMouseEnter={() => isAdmin && setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onAvatarClick}
+      onKeyDown={isAdmin ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAvatarClick?.(); } }) : undefined}
       title={isAdmin ? '点击更换群头像' : undefined}
     >
       {info.avatar && !avErr
@@ -79,10 +83,16 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
 }
 
 /* ── 微信风格 Toggle 开关 ── */
-function Toggle({ on, onChange, disabled }) {
+function Toggle({ on, onChange, disabled, label }) {
   return (
     <div
+      role="switch"
+      aria-checked={on}
+      aria-disabled={disabled || undefined}
+      aria-label={label}
+      tabIndex={disabled ? -1 : 0}
       onClick={() => !disabled && onChange(!on)}
+      onKeyDown={e => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onChange(!on); } }}
       className="gi-toggle"
       style={{ background: on ? 'var(--green)' : 'var(--border-default)', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }}
     >
@@ -441,7 +451,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             ) : (
               <div className="gi-name-row">
                 <span className="gi-name">{info.name}</span>
-                {isAdmin && <button className="gi-btn-name" onClick={() => setEditName(true)}>✎</button>}
+                {isAdmin && <button className="gi-btn-name" onClick={() => setEditName(true)} aria-label="修改群名称">✎</button>}
               </div>
             )}
             <div className="gi-meta">
@@ -486,7 +496,11 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-section">
             <div
               className="gi-row gi-mg-click"
+              role="button"
+              tabIndex={0}
+              aria-expanded={showManage}
               onClick={() => setShowManage(v => !v)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowManage(v => !v); } }}
             >
               <div className="gi-ic30 gi-ic-mg-header">
                 <svg viewBox="0 0 24 24" className="gi-s16 gi-fill-white">
@@ -517,7 +531,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <div className="gi-mg-label">全员禁言</div>
                     <div className="gi-mg-desc">开启后，只有群主和管理员可以发消息</div>
                   </div>
-                  <Toggle on={!!info.mute_all} onChange={toggleMuteAll} disabled={togglingMute} />
+                  <Toggle on={!!info.mute_all} onChange={toggleMuteAll} disabled={togglingMute} label="全员禁言" />
                 </div>
 
                 {/* 禁止私聊 */}
@@ -529,7 +543,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <div className="gi-mg-label">禁止私聊</div>
                     <div className="gi-mg-desc">开启后，普通成员无法与群成员私信</div>
                   </div>
-                  <Toggle on={!!info.no_private_chat} onChange={toggleNoPrivateChat} disabled={togglingNoPrivate} />
+                  <Toggle on={!!info.no_private_chat} onChange={toggleNoPrivateChat} disabled={togglingNoPrivate} label="禁止私聊" />
                 </div>
 
                 {/* 禁止群成员互相添加好友 */}
@@ -541,7 +555,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <div className="gi-mg-label">禁止群成员互相添加好友</div>
                     <div className="gi-mg-desc">开启后，群成员不可通过本群互加好友</div>
                   </div>
-                  <Toggle on={!!info.no_add_friend} onChange={toggleNoAddFriend} disabled={togglingNoAddFriend} />
+                  <Toggle on={!!info.no_add_friend} onChange={toggleNoAddFriend} disabled={togglingNoAddFriend} label="禁止群成员互相添加好友" />
                 </div>
               </div>
             )}
@@ -645,6 +659,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-row">
             <span className="gi-label">消息免打扰</span>
             <Toggle
+              label="消息免打扰"
               on={myMuted}
               disabled={togglingMyMute}
               onChange={async (val) => {
@@ -661,6 +676,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-row">
             <span className="gi-label">置顶聊天</span>
             <Toggle
+              label="置顶聊天"
               on={myPinned}
               disabled={togglingMyPin}
               onChange={async (val) => {
