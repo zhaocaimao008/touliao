@@ -21,10 +21,37 @@ const MIME = {
   '.ico': 'image/x-icon', '.woff2': 'font/woff2',
 };
 
-function startStaticServer(dir, port) {
+function startStaticServer(dir, port, { backendUrl, uploadsToken } = {}) {
+  const backend = backendUrl ? new URL(backendUrl) : null;
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
-      let p = decodeURIComponent(req.url.split('?')[0]);
+      const rawPath = req.url.split('?')[0];
+      // 生产环境 nginx 与 web 同源、把 /uploads、/downloads 反代到后端；E2E 里 web(静态)
+      // 与后端分处不同端口，纯 web 模式下 mediaUrl 返回相对路径 <img src="/uploads/…">
+      // 会打到本静态服务器、SPA 回退成 index.html(HTML) 导致图片解码失败。这里补上反代，
+      // 复刻生产拓扑。<img> 无法带鉴权头，故注入一个种子用户的 Bearer(后端 /uploads 仅校验
+      // 签名有效+未拉黑、不校验文件归属，任意有效 token 即可取任意 upload)。
+      if (backend && (rawPath.startsWith('/uploads') || rawPath.startsWith('/downloads'))) {
+        const proxyReq = http.request({
+          hostname: backend.hostname,
+          port: backend.port,
+          path: req.url,
+          method: req.method,
+          headers: {
+            ...req.headers,
+            host: backend.host,
+            ...(uploadsToken ? { authorization: `Bearer ${uploadsToken}` } : {}),
+          },
+        }, (proxyRes) => {
+          res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+          proxyRes.pipe(res);
+        });
+        proxyReq.on('error', () => { res.writeHead(502); res.end('proxy error'); });
+        req.pipe(proxyReq);
+        return;
+      }
+
+      let p = decodeURIComponent(rawPath);
       if (p === '/') p = '/index.html';
       let file = path.join(dir, p);
       // SPA 回退:非静态资源(无后缀)走 index.html
@@ -69,7 +96,10 @@ module.exports = async () => {
   // 4. 静态 web(仅 web project 需要;electron 用 dist 直接 loadFile,不依赖此)
   if (fs.existsSync(WEB_DIST)) {
     const webUrl = new URL(env.WEB_URL);
-    global.__E2E_WEB__ = await startStaticServer(WEB_DIST, webUrl.port);
+    global.__E2E_WEB__ = await startStaticServer(WEB_DIST, webUrl.port, {
+      backendUrl: env.BACKEND_URL,
+      uploadsToken: users[0]?.token,   // /uploads 反代注入(见 startStaticServer 注释)
+    });
     console.log(`[e2e] web 静态服务 ${env.WEB_URL}`);
   } else {
     console.warn(`[e2e] 未找到 web/dist,web project 将失败。先运行 npm run build:web`);
