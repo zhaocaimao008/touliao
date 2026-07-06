@@ -146,7 +146,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                 onClick={() => cbs.setLightboxUrl(mediaUrl(msg.file_url))}
                 onKeyDown={e => e.key === 'Enter' && cbs.setLightboxUrl(mediaUrl(msg.file_url))}
                 onLoad={e => { e.currentTarget.classList.add('loaded'); cbs.onImageLoad?.(); }}
-                onError={e => { const el = e.currentTarget; el.onerror = null; el.src = IMG_BROKEN; el.alt = '图片加载失败'; el.style.cursor = 'default'; el.style.pointerEvents = 'none'; el.tabIndex = -1; }}
+                onError={e => { const el = e.currentTarget; el.onerror = null; el.src = IMG_BROKEN; el.alt = '图片加载失败'; el.style.cursor = 'default'; el.style.pointerEvents = 'none'; el.tabIndex = -1; el.classList.add('loaded'); }}
               />
             )}
             {msg.type === 'voice' && (

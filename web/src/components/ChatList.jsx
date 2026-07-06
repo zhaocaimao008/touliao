@@ -115,8 +115,26 @@ function readAllDrafts() {
   return out;
 }
 
+// 首屏骨架：8 行占位（头像 + 两行文本），shimmer 微光，避免加载时闪「暂无聊天」
+function ChatListSkeleton() {
+  return (
+    <div aria-hidden="true" style={{ padding: '4px 0' }}>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="wc-chat-item" style={{ cursor: 'default' }}>
+          <div className="wc-skel wc-skel-avatar" />
+          <div className="wc-chat-item-info" style={{ gap: 8 }}>
+            <div className="wc-skel wc-skel-line" style={{ width: '42%' }} />
+            <div className="wc-skel wc-skel-line" style={{ width: '68%' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0 }) {
   const [conversations, setConversations] = useState([]);
+  const [loaded, setLoaded] = useState(false);   // 首屏是否已拉过一次：未拉完显示骨架，避免闪「暂无聊天」
   const [ctxMenu, setCtxMenu] = useState(null);
   const [drafts, setDrafts] = useState(readAllDrafts);
   const { socket, reconnectCount } = useSocket();
@@ -139,8 +157,12 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   }, []);
 
   const fetchConvs = useCallback(async () => {
-    const { data } = await axios.get('/api/messages/conversations');
-    setConversations(data);
+    try {
+      const { data } = await axios.get('/api/messages/conversations');
+      setConversations(data);
+    } finally {
+      setLoaded(true);   // 无论成功失败都结束骨架态，不卡在加载
+    }
   }, []);
 
   const handleSelectConv = useCallback((conv) => {
@@ -314,7 +336,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)' }}>
       <div className="wc-list" style={{ flex: 1 }}>
-        {filtered.length === 0 ? (
+        {!loaded && conversations.length === 0 ? (
+          <ChatListSkeleton />
+        ) : filtered.length === 0 ? (
           <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 13 }}>暂无聊天</div>
         ) : (
           <AutoSizer>

@@ -414,6 +414,26 @@ img { display: block; }
   margin-right: 3px;
 }
 
+/* ── 骨架屏：会话列表首屏占位，shimmer 微光扫过 ── */
+.wc-skel {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-search);
+  border-radius: 6px;
+}
+.wc-skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(var(--green-rgb), .06), transparent);
+  animation: skelShimmer 1.3s ease-in-out infinite;
+}
+.wc-skel-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+.wc-skel-line   { height: 12px; border-radius: 4px; }
+@keyframes skelShimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .wc-skel::after { animation: none; } }
+
 /* ============================================================
    Chat Window
    ============================================================ */
@@ -613,6 +633,27 @@ img { display: block; }
 .wc-msg-bubble:has(.wc-contact-card)::after {
   display: none;
 }
+
+/* 聊天图片：限定最大尺寸避免大图撑爆气泡；min 占位 + shimmer 减小"0→满"的布局跳动、
+   给"正在加载"的高级感；加载完(.loaded 由 onLoad 添加)停 shimmer。 */
+.wc-msg-img {
+  display: block;
+  max-width: min(240px, 62vw);
+  max-height: 320px;
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 8px;
+  cursor: zoom-in;
+  background: var(--bg-search);
+}
+.wc-msg-img:not(.loaded) {
+  background-image: linear-gradient(100deg, var(--bg-search) 30%, rgba(var(--green-rgb), .06) 50%, var(--bg-search) 70%);
+  background-size: 200% 100%;
+  animation: imgShimmer 1.3s ease-in-out infinite;
+}
+.wc-msg-img.loaded { background-image: none; animation: none; }
+@keyframes imgShimmer { 0% { background-position: 150% 0; } 100% { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) { .wc-msg-img:not(.loaded) { animation: none; } }
 
 /* 连续消息（同一发送者）：隐藏重复头像、收紧间距、去掉尾巴形成"成组"观感 */
 .wc-msg-row.consecutive { padding-top: 3px; }
