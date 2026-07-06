@@ -109,6 +109,7 @@ struct ContactsView: View {
         .overlay {
             if vm.loading && vm.contacts.isEmpty { ProgressView() }
         }
+        .toast($vm.error)
         .task { await vm.refresh() }
     }
 }

@@ -57,7 +57,9 @@ private struct CallView: View {
         .task { await ensurePermissions() }
         .onChange(of: state.stage) { stage in
             if stage == .ended {
-                Task { try? await Task.sleep(nanoseconds: 800_000_000); manager.consumeEnded() }
+                // 未接听多停留一会，便于看清"对方未接听"提示
+                let delay: UInt64 = state.timedOut ? 1_800_000_000 : 800_000_000
+                Task { try? await Task.sleep(nanoseconds: delay); manager.consumeEnded() }
             }
         }
     }
@@ -68,7 +70,7 @@ private struct CallView: View {
         case .incoming: return state.isVideo ? "邀请你视频通话" : "邀请你语音通话"
         case .connecting: return "连接中…"
         case .connected: return "通话中"
-        case .ended: return "通话结束"
+        case .ended: return state.timedOut ? "对方未接听" : "通话结束"
         case .idle: return ""
         }
     }

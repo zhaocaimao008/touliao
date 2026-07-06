@@ -127,6 +127,13 @@ final class ChatViewModel: ObservableObject {
             repo.groupGonePublisher
                 .sink { [weak self] convId in Task { @MainActor in if convId == self?.conversationId { self?.closed = true } } }
                 .store(in: &cancellables)
+            // 被 @ 提及：仅提示当前会话，复用 error 承载的一次性 toast
+            repo.mentionedPublisher
+                .sink { [weak self] (convId, _) in Task { @MainActor in
+                    guard let self, convId == self.conversationId else { return }
+                    self.error = "有人在群里 @ 了你"
+                }}
+                .store(in: &cancellables)
         }
 
         repo.joinConversation(conversationId)

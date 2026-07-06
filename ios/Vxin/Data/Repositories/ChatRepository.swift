@@ -30,6 +30,8 @@ final class ChatRepository {
     var groupGonePublisher: AnyPublisher<String, Never> { socket.groupGone.eraseToAnyPublisher() }
     var groupChangedPublisher: AnyPublisher<String, Never> { socket.groupChanged.eraseToAnyPublisher() }
     var messageEditedPublisher: AnyPublisher<(String, String, String), Never> { socket.messageEdited.eraseToAnyPublisher() }
+    /// 被 @ 提及 → (conversationId, msgId)
+    var mentionedPublisher: AnyPublisher<(convId: String, msgId: String), Never> { socket.mentioned.eraseToAnyPublisher() }
 
     func joinConversation(_ id: String) { socket.joinConversation(id) }
     func emitTyping(_ id: String) { socket.emitTyping(id) }

@@ -21,6 +21,7 @@ struct FriendRequestsView: View {
         }
         .navigationTitle("新的朋友")
         .navigationBarTitleDisplayMode(.inline)
+        .toast($vm.error)
         .task { await vm.refresh() }
     }
 

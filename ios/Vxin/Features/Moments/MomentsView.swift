@@ -189,6 +189,7 @@ struct MomentsView: View {
             MomentGalleryView(images: g.images, start: g.start) { gallery = nil }
         }
         .task { vm.myId = session.currentUser?.id ?? ""; await vm.refresh() }
+        .toast($vm.error)
         .alert("删除动态", isPresented: .constant(deleteTarget != nil)) {
             Button("取消", role: .cancel) { deleteTarget = nil }
             Button("删除", role: .destructive) { if let m = deleteTarget { vm.delete(m) }; deleteTarget = nil }

@@ -34,7 +34,12 @@ struct ConversationListView: View {
                 }
                 .navigationDestination(for: SearchRoute.self) { _ in
                     SearchView(onOpenResult: { r in
-                        path.append(Conversation(id: r.conversationId, type: r.convType, name: r.convName))
+                        var conv = Conversation(id: r.conversationId, type: r.convType, name: r.convName)
+                        // 私聊搜索结果带对端 id → 补进会话，使从搜索进的私聊也能拨号
+                        if let uid = r.otherUserId, !uid.isEmpty {
+                            conv.otherUser = Conversation.OtherUser(id: uid, username: r.convName)
+                        }
+                        path.append(conv)
                     })
                 }
                 .navigationDestination(for: GroupRoute.self) { route in

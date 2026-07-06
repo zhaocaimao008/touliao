@@ -39,6 +39,7 @@ struct SearchView: View {
         }
         .navigationTitle("搜索")
         .navigationBarTitleDisplayMode(.inline)
+        .toast($vm.error)
     }
 
     /// 内容中匹配 query 的片段高亮为绿色加粗；发送者名前缀不高亮。

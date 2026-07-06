@@ -47,6 +47,7 @@ struct FavoritesView: View {
         }
         .navigationTitle("收藏")
         .navigationBarTitleDisplayMode(.inline)
+        .toast($vm.error)
         .task { await vm.refresh() }
     }
 

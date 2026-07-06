@@ -10,13 +10,17 @@ struct SearchResult: Decodable, Identifiable, Hashable {
     var senderName: String = ""
     var convName: String = ""
     var convType: String = "private"
+    /// 私聊搜索结果携带的对端信息(后端 searchGlobal 返回 otherUser)；用于从搜索进私聊时可拨号。
+    var otherUserId: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, content, senderName, convName, convType
+        case id, content, senderName, convName, convType, otherUser
         case conversationId = "conversation_id"
         case senderId = "sender_id"
         case createdAt = "created_at"
     }
+
+    private struct OtherUserDTO: Decodable { let id: String }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -28,6 +32,7 @@ struct SearchResult: Decodable, Identifiable, Hashable {
         senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
         convName = (try? c.decode(String.self, forKey: .convName)) ?? ""
         convType = (try? c.decode(String.self, forKey: .convType)) ?? "private"
+        otherUserId = (try? c.decode(OtherUserDTO.self, forKey: .otherUser))?.id
     }
 }
 

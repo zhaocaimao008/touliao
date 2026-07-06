@@ -45,6 +45,7 @@ struct ChatView: View {
         }
         .navigationTitle(vm.peerTyping ? "对方正在输入…" : (vm.title.isEmpty ? "聊天" : vm.title))
         .navigationBarTitleDisplayMode(.inline)
+        .toast($vm.error)   // 发送/上传/收藏/转发等失败与"已收藏""已转发"等提示统一透出
         .toolbar {
             if isGroup {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {

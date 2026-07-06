@@ -14,6 +14,7 @@ struct CallState {
     var micEnabled: Bool = true
     var cameraEnabled: Bool = true
     var remoteVideoActive: Bool = false
+    var timedOut: Bool = false          // 主叫未接听超时 → 结束页提示"对方未接听"
 }
 
 /// GET /api/turn/credentials 响应。
@@ -44,6 +45,10 @@ final class CallManager: NSObject, ObservableObject {
     private var remoteDescSet = false
     private var cancellables = Set<AnyCancellable>()
     private let socket = SocketService.shared
+
+    /// 主叫呼叫超时任务（未接听自动挂断）；接通/挂断时取消，避免泄漏。
+    private var callTimeoutTask: Task<Void, Never>?
+    private let callTimeoutSeconds: UInt64 = 45
 
     // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表
     private let fallbackIceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
@@ -109,10 +114,32 @@ final class CallManager: NSObject, ObservableObject {
         session.unlockForConfiguration()
     }
 
+    // MARK: - 呼叫超时
+    /// 主叫发起后启动 45s 超时；期间未接通则自动挂断并提示"对方未接听"。
+    private func startCallTimeout() {
+        cancelCallTimeout()
+        callTimeoutTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: self.callTimeoutSeconds * 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            // 仍在呼叫/连接中（未接通、未挂断）才判定为未接听
+            guard self.state.stage == .outgoing || self.state.stage == .connecting else { return }
+            if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId) }
+            self.cleanup(.ended)
+            self.state.timedOut = true
+        }
+    }
+
+    private func cancelCallTimeout() {
+        callTimeoutTask?.cancel()
+        callTimeoutTask = nil
+    }
+
     // MARK: - 对外动作
     func startCall(peerId: String, peerName: String, video: Bool, callerName: String) {
         guard state.stage == .idle || state.stage == .ended else { return }
         state = CallState(stage: .outgoing, peerId: peerId, peerName: peerName, isVideo: video, isCaller: true)
+        startCallTimeout()                      // 未接听 45s 自动挂断
         Task { @MainActor in
             await refreshIceServers()           // 先拿到含 TURN 的 ICE，再建连接
             guard state.stage != .ended else { return }   // 期间被取消
@@ -298,6 +325,7 @@ final class CallManager: NSObject, ObservableObject {
 
     // MARK: - 清理
     private func cleanup(_ finalStage: CallStage) {
+        cancelCallTimeout()                 // 取消未接听超时，避免正常挂断被误判超时
         videoCapturer?.stopCapture()
         videoCapturer = nil
         localVideoTrack = nil
@@ -333,6 +361,7 @@ extension CallManager: RTCPeerConnectionDelegate {
         DispatchQueue.main.async {
             switch newState {
             case .connected, .completed:
+                self.cancelCallTimeout()        // 已接通，撤销未接听超时
                 if self.state.stage != .ended { self.state.stage = .connected }
             default: break
             }

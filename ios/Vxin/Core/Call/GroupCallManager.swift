@@ -52,6 +52,10 @@ final class GroupCallManager: NSObject, ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let socket = SocketService.shared
 
+    /// 建群通话/加入后的连接超时；始终停在 .connecting（服务端未回 started/peers）则自动结束。
+    private var connectTimeoutTask: Task<Void, Never>?
+    private let connectTimeoutSeconds: UInt64 = 45
+
     private override init() {
         RTCInitializeSSL()
         factory = RTCPeerConnectionFactory(
@@ -92,6 +96,23 @@ final class GroupCallManager: NSObject, ObservableObject {
         session.unlockForConfiguration()
     }
 
+    // MARK: - 连接超时
+    /// 发起/加入群通话后启动 45s 超时；始终停在 .connecting 则自动结束（服务端无响应/无人接）。
+    private func startConnectTimeout() {
+        cancelConnectTimeout()
+        connectTimeoutTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: self.connectTimeoutSeconds * 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            if self.state.stage == .connecting { self.hangup() }
+        }
+    }
+
+    private func cancelConnectTimeout() {
+        connectTimeoutTask?.cancel()
+        connectTimeoutTask = nil
+    }
+
     private func refreshIceServers() async {
         do {
             let creds: TurnCredentials = try await APIClient.shared.send("api/turn/credentials")
@@ -111,6 +132,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         guard state.stage == .idle || state.stage == .ended else { return }
         pendingInvite = nil
         state = GroupCallState(stage: .connecting, conversationId: conversationId, isVideo: video)
+        startConnectTimeout()                   // 连接超时自动结束
         Task { @MainActor in
             await refreshIceServers()
             guard state.stage != .ended else { return }
@@ -124,6 +146,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         guard state.stage == .idle || state.stage == .ended else { return }
         pendingInvite = nil
         state = GroupCallState(stage: .connecting, callId: callId, conversationId: conversationId, isVideo: video)
+        startConnectTimeout()                   // 连接超时自动结束
         Task { @MainActor in
             await refreshIceServers()
             guard state.stage != .ended else { return }
@@ -165,12 +188,14 @@ final class GroupCallManager: NSObject, ObservableObject {
 
         socket.gcStarted.receive(on: DispatchQueue.main).sink { [weak self] (callId, _) in
             guard let self, self.state.stage != .ended else { return }
+            self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
             self.state.stage = .connected; self.state.callId = callId
         }.store(in: &cancellables)
 
         socket.gcPeers.receive(on: DispatchQueue.main).sink { [weak self] (callId, _, peers) in
             guard let self else { return }
             if !self.state.callId.isEmpty && callId != self.state.callId { return }
+            self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
             self.state.stage = .connected; self.state.callId = callId
             peers.forEach { _ = self.peerFor($0) }   // answerer：预建 PC 等 offer
             self.state.participants = Array(self.peers.keys)
@@ -300,6 +325,7 @@ final class GroupCallManager: NSObject, ObservableObject {
     }
 
     private func cleanup() {
+        cancelConnectTimeout()              // 取消连接超时，避免泄漏
         peers.values.forEach { $0.pc.close() }
         peers.removeAll()
         remoteTracks.removeAll()
