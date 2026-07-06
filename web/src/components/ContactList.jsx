@@ -23,12 +23,14 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const [viewProfile, setViewProfile] = useState(null);
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [handlingReq, setHandlingReq] = useState(null); // 正在处理的申请 id，防连点重复提交
+  const [contactsLoaded, setContactsLoaded] = useState(false); // 首屏是否已拉过：未拉完显示骨架，避免闪「暂无联系人」
   const listRef = useRef(null);
   const { socket } = useSocket();
 
   // 统一兜底成数组：若接口异常返回非数组，避免下方 .filter/.map 抛错导致整页白屏
   const fetchContacts = useCallback(() =>
-    axios.get('/api/users/contacts').then(r => setContacts(Array.isArray(r.data) ? r.data : [])).catch(() => setContacts([])), []);
+    axios.get('/api/users/contacts').then(r => setContacts(Array.isArray(r.data) ? r.data : [])).catch(() => setContacts([]))
+      .finally(() => setContactsLoaded(true)), []);
   const fetchRequests = useCallback(() =>
     axios.get('/api/users/friend-requests').then(r => setRequests(Array.isArray(r.data) ? r.data : [])).catch(() => setRequests([])), []);
   const fetchSent = useCallback(() =>
@@ -208,7 +210,17 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               </div>
             ))}
 
-            {contacts.length === 0 && !searchQuery && (
+            {!contactsLoaded && contacts.length === 0 && !searchQuery && (
+              <div aria-hidden="true" style={{ padding: '4px 0' }}>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="wc-contact-item" style={{ cursor: 'default' }}>
+                    <div className="wc-skel wc-skel-avatar" style={{ marginRight: 10 }} />
+                    <div className="wc-skel wc-skel-line" style={{ width: '38%' }} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {contactsLoaded && contacts.length === 0 && !searchQuery && (
               <div className="cl-empty" role="status">
                 <svg viewBox="0 0 48 48" width="48" height="48" fill="none" className="cl-empty-icon">
                   <circle cx="24" cy="20" r="10" fill="#E8ECF0"/>
