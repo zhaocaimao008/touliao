@@ -198,7 +198,7 @@ private fun MainFlow(features: Features) {
         ) {
             composable(Routes.CONVERSATIONS) {
                 ConversationListScreen(
-                    onOpenConversation = { conv -> navController.navigate(Routes.chat(conv.id, conv.name, conv.type)) },
+                    onOpenConversation = { conv -> navController.navigate(Routes.chat(conv.id, conv.name, conv.type, conv.otherUser?.id.orEmpty())) },
                     onOpenSearch = { navController.navigate(Routes.SEARCH) },
                 )
             }

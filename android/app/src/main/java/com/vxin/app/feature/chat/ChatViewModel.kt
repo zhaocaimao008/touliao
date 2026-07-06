@@ -215,7 +215,12 @@ class ChatViewModel @Inject constructor(
     /** 发起通话；无法确定对方（如群聊/无消息）返回 false */
     fun startCall(video: Boolean): Boolean {
         if (isGroup) return false
-        val peer = peerId() ?: return false
+        val peer = peerId()
+        if (peer == null) {
+            // 拿不到对方 userId（导航未传 peerUserId 且历史无对方消息）→ 明确提示，避免"点了没反应"
+            _uiState.update { it.copy(error = "无法发起通话，请稍后重试") }
+            return false
+        }
         callManager.startCall(peer, _uiState.value.title, video)
         return true
     }
@@ -415,7 +420,7 @@ class ChatViewModel @Inject constructor(
     fun loadForwardTargets() {
         viewModelScope.launch {
             runCatching { chatRepository.loadConversations() }
-                .onSuccess { list -> _uiState.update { it.copy(forwardTargets = list) } }
+                .onSuccess { list -> _uiState.update { it.copy(forwardTargets = list.filterNot { c -> c.id == conversationId }) } }
         }
     }
 

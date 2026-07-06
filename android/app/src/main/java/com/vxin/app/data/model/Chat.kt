@@ -18,6 +18,15 @@ data class Conversation(
     val pinned: Int = 0,
     val muted: Int = 0,
     val background: String = "",            // 聊天专属背景图（空=无）
+    val otherUser: ConversationOtherUser? = null,  // 私聊对方（后端 listConversations 私聊项返回；群聊为 null）
+)
+
+/** 私聊对方简表（后端 listConversations 私聊项的 otherUser 字段） */
+@Serializable
+data class ConversationOtherUser(
+    val id: String = "",
+    val username: String = "",
+    val avatar: String = "",
 )
 
 @Serializable
