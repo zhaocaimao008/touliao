@@ -111,6 +111,7 @@ export default function CallModal({ socket, call, onClose }) {
   const [cameraOff, setCameraOff] = useState(false);
   const [endReason, setEndReason] = useState('');
   const [minimized, setMinimized] = useState(false);
+  const [mediaError, setMediaError] = useState(false); // 麦克风/摄像头获取失败（权限拒绝/设备占用）
 
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
@@ -189,8 +190,8 @@ export default function CallModal({ socket, call, onClose }) {
   const initPC = useCallback(async () => {
     const constraints = { audio: true, video: isVideo };
     let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
-    catch { stream = new MediaStream(); }
+    try { stream = await navigator.mediaDevices.getUserMedia(constraints); setMediaError(false); }
+    catch { stream = new MediaStream(); setMediaError(true); } // 权限拒绝/设备占用：仍建连但提示用户
     localStreamRef.current = stream;
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
@@ -451,6 +452,18 @@ export default function CallModal({ socket, call, onClose }) {
     >
       {/* 音频（ref callback 重挂恢复） */}
       <audio ref={onRemoteAudioMount} autoPlay style={{ display: 'none' }} />
+
+      {/* 麦克风/摄像头获取失败提示：否则对方收不到音视频而本人不知情 */}
+      {mediaError && (
+        <div role="alert" style={{
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+          background: 'rgba(220,60,60,.92)', color: '#fff',
+          fontSize: 13, textAlign: 'center', padding: '8px 14px',
+          backdropFilter: 'blur(6px)',
+        }}>
+          无法访问{isVideo ? '摄像头/麦克风' : '麦克风'}，对方将听不到你，请检查浏览器权限或设备占用
+        </div>
+      )}
 
       {/* ── 视频通话 ── */}
       {isVideo && <>
