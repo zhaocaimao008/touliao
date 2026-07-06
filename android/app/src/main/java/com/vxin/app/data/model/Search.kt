@@ -13,6 +13,7 @@ data class SearchResult(
     val senderName: String = "",
     val convName: String = "",
     val convType: String = "private",
+    val otherUser: ConversationOtherUser? = null,  // 私聊对方（后端 search 私聊项返回；群聊为 null）
 )
 
 @Serializable

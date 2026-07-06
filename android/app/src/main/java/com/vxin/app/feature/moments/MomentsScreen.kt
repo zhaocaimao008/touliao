@@ -126,6 +126,7 @@ fun MomentsScreen(
                 }
             }
             state.error?.let {
+                LaunchedEffect(it) { kotlinx.coroutines.delay(2500); viewModel.consumeError() }
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
             }
             PullRefreshIndicator(refreshing, pullState, Modifier.align(Alignment.TopCenter))

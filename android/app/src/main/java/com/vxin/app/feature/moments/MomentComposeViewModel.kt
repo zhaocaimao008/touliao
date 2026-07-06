@@ -38,6 +38,9 @@ class MomentComposeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(MomentComposeUiState())
     val uiState: StateFlow<MomentComposeUiState> = _uiState.asStateFlow()
 
+    /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻 */
+    fun consumeError() = _uiState.update { it.copy(error = null) }
+
     fun onContentChange(v: String) = _uiState.update { it.copy(content = v) }
 
     fun setVisibility(v: String) {

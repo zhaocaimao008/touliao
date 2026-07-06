@@ -330,6 +330,7 @@ fun ChatScreen(
           }
           }
             state.error?.let {
+                LaunchedEffect(it) { kotlinx.coroutines.delay(2500); viewModel.consumeError() }
                 Text(
                     it,
                     color = MaterialTheme.colorScheme.error,

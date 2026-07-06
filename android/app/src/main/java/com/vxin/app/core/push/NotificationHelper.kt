@@ -51,15 +51,27 @@ class NotificationHelper @Inject constructor(
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val mgr = context.getSystemService(NotificationManager::class.java) ?: return
+            val messages = NotificationChannel(
                 CHANNEL_ID, "消息通知", NotificationManager.IMPORTANCE_HIGH,
             ).apply { description = "新消息与提及" }
-            context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
+            mgr.createNotificationChannel(messages)
+            // 来电渠道：最高优先级 + 绕过勿扰，为后续 fullScreenIntent 来电通知预留（拉起 CallScreen）。
+            val calls = NotificationChannel(
+                CALL_CHANNEL_ID, "来电", NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "语音/视频通话来电"
+                setBypassDnd(true)
+                enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            mgr.createNotificationChannel(calls)
         }
     }
 
     companion object {
         const val CHANNEL_ID = "vxin_messages"
+        const val CALL_CHANNEL_ID = "vxin_calls"
         const val EXTRA_CONVERSATION_ID = "conversationId"
     }
 }

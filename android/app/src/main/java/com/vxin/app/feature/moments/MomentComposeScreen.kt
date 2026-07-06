@@ -118,6 +118,7 @@ fun MomentComposeScreen(
                 }
             }
             state.error?.let {
+                androidx.compose.runtime.LaunchedEffect(it) { kotlinx.coroutines.delay(2500); viewModel.consumeError() }
                 Spacer(Modifier.size(12.dp))
                 Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error)
             }

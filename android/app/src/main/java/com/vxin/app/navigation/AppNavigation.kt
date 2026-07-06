@@ -205,7 +205,7 @@ private fun MainFlow(features: Features) {
             composable(Routes.SEARCH) {
                 SearchScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenResult = { r -> navController.navigate(Routes.chat(r.conversation_id, r.convName, r.convType)) },
+                    onOpenResult = { r -> navController.navigate(Routes.chat(r.conversation_id, r.convName, r.convType, r.otherUser?.id.orEmpty())) },
                 )
             }
             composable(Routes.CONTACTS) {

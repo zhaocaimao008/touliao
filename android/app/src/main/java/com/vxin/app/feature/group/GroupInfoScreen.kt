@@ -227,6 +227,7 @@ fun GroupInfoScreen(
                 }
             }
             state.error?.let {
+                androidx.compose.runtime.LaunchedEffect(it) { kotlinx.coroutines.delay(2500); viewModel.consumeError() }
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
             }
         }

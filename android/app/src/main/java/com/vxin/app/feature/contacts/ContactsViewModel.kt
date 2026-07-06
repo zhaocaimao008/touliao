@@ -35,6 +35,9 @@ class ContactsViewModel @Inject constructor(
     private val _openChat = MutableStateFlow<ConversationTarget?>(null)
     val openChat: StateFlow<ConversationTarget?> = _openChat.asStateFlow()
 
+    /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻 */
+    fun consumeError() = _uiState.update { it.copy(error = null) }
+
     init {
         refresh()
         viewModelScope.launch { contactRepository.friendEvents.collect { refresh() } }

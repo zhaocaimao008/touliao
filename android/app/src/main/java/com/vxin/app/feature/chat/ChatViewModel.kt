@@ -94,6 +94,9 @@ class ChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ChatUiState(title = title, loading = true))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻（错误与"已收藏/已转发"等成功提示共用 error 字段） */
+    fun consumeError() = _uiState.update { it.copy(error = null) }
+
     private var lastTypingEmit = 0L
     private var typingClearJob: Job? = null
     private val json = Json { ignoreUnknownKeys = true }

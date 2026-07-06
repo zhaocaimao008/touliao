@@ -41,6 +41,9 @@ class MomentsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(MomentsUiState())
     val uiState: StateFlow<MomentsUiState> = _uiState.asStateFlow()
 
+    /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻 */
+    fun consumeError() = _uiState.update { it.copy(error = null) }
+
     fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     init {
