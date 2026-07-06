@@ -160,6 +160,9 @@ async function listConversations(uid) {
     getOrCreateFileHelper(uid);
   }
 
+  // 未读@提及角标用：按用户名在未读群消息 content 里做字面子串匹配（instr 避开 LIKE 的 %/_ 通配问题）
+  const meUsername = db.prepare('SELECT username FROM users WHERE id=?').get(uid)?.username || '';
+
   const rows = db.prepare(`
     SELECT
       c.id, c.type, c.name, c.avatar, c.group_number,
@@ -182,6 +185,17 @@ async function listConversations(uid) {
           AND  mu.created_at      > COALESCE(cs.last_read_at, 0)
         LIMIT 99
       )) AS unreadCount,
+      (SELECT COUNT(*) FROM (
+        SELECT 1 FROM messages mm
+        WHERE  mm.conversation_id = c.id
+          AND  mm.sender_id      != ?
+          AND  mm.deleted         = 0
+          AND  mm.created_at      > COALESCE(cs.last_read_at, 0)
+          AND  c.type             = 'group'
+          AND  ? != ''
+          AND  instr(mm.content, '@' || ?) > 0
+        LIMIT 1
+      )) AS hasMention,
       ou.id       AS ou_id,
       ou.username AS ou_username,
       ou.avatar   AS ou_avatar,
@@ -201,7 +215,7 @@ async function listConversations(uid) {
     LEFT JOIN contacts ct ON ct.user_id = ? AND ct.contact_id = ou.id
     ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC
     LIMIT 500
-  `).all(uid, uid, uid, uid, uid);
+  `).all(uid, uid, meUsername, meUsername, uid, uid, uid, uid);
 
   const memberMap = new Map();
   if (rows.some(r => r.type === 'group')) {
@@ -222,14 +236,16 @@ async function listConversations(uid) {
   }
 
   // 2. 从数据库查询并转换数据
-  const conversations = rows.map(({ ou_id, ou_username, ou_avatar, ou_status, ou_remark, ...conv }) => {
+  const conversations = rows.map(({ ou_id, ou_username, ou_avatar, ou_status, ou_remark, hasMention, ...conv }) => {
+    // 转成真正的 JSON 布尔：iOS Codable 无法把数字 0/1 解成 Bool
+    const hasMentionBool = !!hasMention;
     if (conv.type === 'private') {
       const otherUser = ou_id
         ? { id: ou_id, username: ou_username, avatar: ou_avatar, status: ou_status, remark: ou_remark || '' }
         : null;
-      return { ...conv, name: otherUser?.remark || otherUser?.username || '', avatar: otherUser?.avatar || '', otherUser };
+      return { ...conv, name: otherUser?.remark || otherUser?.username || '', avatar: otherUser?.avatar || '', otherUser, hasMention: hasMentionBool };
     }
-    return { ...conv, members: memberMap.get(conv.id) || [] };
+    return { ...conv, members: memberMap.get(conv.id) || [], hasMention: hasMentionBool };
   });
 
   // 写回内存缓存（超出上限时跳过写入，等下次清理后恢复）

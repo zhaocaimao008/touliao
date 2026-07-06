@@ -16,6 +16,8 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
+const presence = require('../presence');
+const { pushCallInvite } = require('../../utils/push');
 
 // 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）
 const CALL_TIMEOUT_MS = 120_000;
@@ -122,6 +124,11 @@ module.exports = function registerCallHandler(io, socket) {
     // 服务端从 DB 取真实用户信息，不透传客户端 caller 字段（防视觉身份冒充）
     const callerInfo = db.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
     io.to(`user_${to}`).emit('call:incoming', { from: userId, type: t, caller: { id: userId, name: callerInfo?.username, avatar: callerInfo?.avatar } });
+    // 被叫不在线（App 未连 socket，如后台/熄屏）→ 发 data-only FCM 唤起来电界面；在线则 socket 已推 call:incoming
+    if (!presence.isOnline(to)) {
+      pushCallInvite({ toUserId: to, fromUserId: userId, callerName: callerInfo?.username || '', callType: t, callId: id })
+        .catch(e => console.warn('[call] 来电推送失败:', e.message));
+    }
   });
 
   socket.on('call:response', ({ to, accepted, busy, reason }) => {

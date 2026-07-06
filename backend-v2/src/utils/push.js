@@ -165,4 +165,35 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   await Promise.allSettled(pushPromises);
 }
 
-module.exports = { pushToUser, pushNewMessage, isAllowedPushEndpoint };
+// ── 来电推送（data-only）────────────────────────────────────────
+// 被叫离线时用：发 data-only 高优先级 FCM，不带 notification 块，
+// 以保证 Android 端 onMessageReceived 一定被触发（去构建 fullScreenIntent 来电界面）；
+// 带 notification 块的推送在 App 后台会被系统托盘直接消费、拿不到 data。
+// iOS 后台来电需 PushKit/CallKit(VoIP push)，此处不含 apns，避免普通 APNs 静默无效。
+async function pushCallInvite({ toUserId, fromUserId, callerName, callType, callId }) {
+  if (!firebaseAdmin) return;
+  const deviceTokens = db.prepare('SELECT * FROM device_tokens WHERE user_id=?').all(toUserId);
+  if (!deviceTokens.length) return;
+  const promises = deviceTokens.map(row => {
+    const message = {
+      token: row.token,
+      data: {
+        type:       'call',
+        callType:   callType === 'video' ? 'video' : 'audio',
+        from:       String(fromUserId || ''),
+        callerName: String(callerName || ''),
+        callId:     String(callId || ''),
+      },
+      android: { priority: 'high' },
+    };
+    return firebaseAdmin.messaging().send(message).catch(err => {
+      if (err.code === 'messaging/invalid-registration-token' ||
+          err.code === 'messaging/registration-token-not-registered') {
+        db.prepare('DELETE FROM device_tokens WHERE id=?').run(row.id);
+      }
+    });
+  });
+  await Promise.allSettled(promises);
+}
+
+module.exports = { pushToUser, pushNewMessage, pushCallInvite, isAllowedPushEndpoint };
