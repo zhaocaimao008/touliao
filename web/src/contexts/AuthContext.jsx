@@ -192,7 +192,7 @@ export const AuthProvider = ({ children }) => {
     try { await axios.post('/api/auth/logout'); } catch {}
     if (window.__ELECTRON_CONFIG__) {
       localStorage.setItem('vxin_server_url', clean);
-      window.electron?.setServerUrl?.(clean);
+      window.electronAPI?.setServerUrl?.(clean);
     }
     axios.defaults.baseURL = clean;
     setElectronToken(null);
