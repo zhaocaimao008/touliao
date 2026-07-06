@@ -49,6 +49,52 @@ class NotificationHelper @Inject constructor(
         } catch (_: SecurityException) { /* 无权限，忽略 */ }
     }
 
+    /**
+     * 来电通知：全屏意图 + 接听/拒绝。App 在后台/锁屏时由系统直接拉起来电界面。
+     * data 来自后端 data-only FCM（type=call）。点击/接听/拒绝均拉起 MainActivity 并带 extra，
+     * 由 MainActivity 交给 CallManager 进入 INCOMING（accept 时并置接听意图）。
+     */
+    fun showCallNotification(callId: String, from: String, callerName: String, callType: String) {
+        fun callIntent(action: String) = Intent(context, MainActivity::class.java).apply {
+            this.action = action
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_CALL_ID, callId)
+            putExtra(EXTRA_CALL_FROM, from)
+            putExtra(EXTRA_CALL_NAME, callerName)
+            putExtra(EXTRA_CALL_TYPE, callType)
+        }
+        val reqBase = from.hashCode()
+        val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val fullScreen = PendingIntent.getActivity(context, reqBase, callIntent(ACTION_CALL_SHOW), piFlags)
+        val accept = PendingIntent.getActivity(context, reqBase + 1, callIntent(ACTION_CALL_ACCEPT), piFlags)
+        val decline = PendingIntent.getActivity(context, reqBase + 2, callIntent(ACTION_CALL_DECLINE), piFlags)
+
+        val title = callerName.ifBlank { "来电" }
+        val text = if (callType == "video") "邀请你视频通话" else "邀请你语音通话"
+        val notification = NotificationCompat.Builder(context, CALL_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_call)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setContentIntent(fullScreen)
+            .setFullScreenIntent(fullScreen, true)
+            .addAction(android.R.drawable.ic_menu_call, "接听", accept)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "拒绝", decline)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(CALL_NOTIFICATION_ID, notification)
+        } catch (_: SecurityException) { /* 无权限，忽略 */ }
+    }
+
+    /** 接听/拒绝后清除来电通知 */
+    fun cancelCallNotification() {
+        NotificationManagerCompat.from(context).cancel(CALL_NOTIFICATION_ID)
+    }
+
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val mgr = context.getSystemService(NotificationManager::class.java) ?: return
@@ -73,5 +119,15 @@ class NotificationHelper @Inject constructor(
         const val CHANNEL_ID = "vxin_messages"
         const val CALL_CHANNEL_ID = "vxin_calls"
         const val EXTRA_CONVERSATION_ID = "conversationId"
+        const val CALL_NOTIFICATION_ID = 424242
+
+        // 来电通知 Intent action / extra（MainActivity 据此进入 INCOMING）
+        const val ACTION_CALL_SHOW = "com.vxin.app.action.CALL_SHOW"
+        const val ACTION_CALL_ACCEPT = "com.vxin.app.action.CALL_ACCEPT"
+        const val ACTION_CALL_DECLINE = "com.vxin.app.action.CALL_DECLINE"
+        const val EXTRA_CALL_ID = "callId"
+        const val EXTRA_CALL_FROM = "callFrom"
+        const val EXTRA_CALL_NAME = "callerName"
+        const val EXTRA_CALL_TYPE = "callType"
     }
 }

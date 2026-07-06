@@ -22,6 +22,16 @@ class VxinMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
+        // 来电推送（后端 data-only：type=call）→ 走全屏来电通知，不当普通消息处理
+        if (data["type"] == "call") {
+            notificationHelper.showCallNotification(
+                callId = data["callId"].orEmpty(),
+                from = data["from"].orEmpty(),
+                callerName = data["callerName"].orEmpty(),
+                callType = data["callType"] ?: "audio",
+            )
+            return
+        }
         val title = message.notification?.title ?: data["senderName"] ?: "新消息"
         val body = message.notification?.body ?: data["body"] ?: ""
         notificationHelper.showMessageNotification(title, body, data["conversationId"])

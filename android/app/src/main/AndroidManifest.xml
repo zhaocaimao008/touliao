@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 全屏来电通知（后台/锁屏拉起来电界面）。Android 14+(34) 属受限权限：
+         通话类 App 首次安装默认授予，用户可在「设置>应用>全屏通知」撤销；
+         无该权限时 fullScreenIntent 降级为普通高优先级横幅通知（仍响铃，只是不自动全屏）。 -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- 媒体读取：Android 13+ 细分权限，12 及以下用 READ_EXTERNAL_STORAGE -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
@@ -31,6 +35,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Vxin">
             <intent-filter>

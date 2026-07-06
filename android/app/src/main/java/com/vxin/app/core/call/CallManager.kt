@@ -197,10 +197,26 @@ class CallManager @Inject constructor(
         if (_state.value.stage == CallStage.ENDED) _state.value = CallState()
     }
 
+    /**
+     * 由后台 FCM 来电推送触发进入 INCOMING（App 被通知拉起、socket 可能尚未重连时）。
+     * 幂等：若已在展示同一来电或正在通话则不覆盖；socket 后续补发 call:incoming 会因 peer 相同被去重。
+     */
+    fun incomingFromPush(from: String, callType: String, callerName: String) {
+        if (from.isEmpty()) return
+        val st = _state.value
+        // 空闲或结束态才进 incoming；已在处理同一 peer 的来电则忽略（避免覆盖 socket 已建立的状态）
+        if (st.stage != CallStage.IDLE && st.stage != CallStage.ENDED) return
+        _state.value = CallState(
+            CallStage.INCOMING, from, callerName, isVideo = callType == "video", isCaller = false,
+        )
+    }
+
     // ── 信令处理 ───────────────────────────────────────────
     private fun observeSignaling() {
         scope.launch {
             socketManager.callIncomingEvents.collect { e ->
+                // 已在展示同一 peer 的来电（如先由 FCM 推送进入 INCOMING）→ 忽略重复，勿误拒
+                if (_state.value.stage == CallStage.INCOMING && _state.value.peerId == e.from) return@collect
                 if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) {
                     // 忙线：直接拒接
                     socketManager.emitCallResponse(e.from, false)
