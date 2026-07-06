@@ -32,6 +32,7 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState(false); // 网络失败 ≠ 查无此人，分别提示
   const [focused, setFocused] = useState(false);
   const [viewId, setViewId] = useState(null);
   const inputRef = useRef(null);
@@ -46,8 +47,8 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
     if (!q.trim()) { setResults([]); setSearched(false); return; }
     setSearching(true);
     axios.get(`/api/users/search?q=${encodeURIComponent(q.trim())}`)
-      .then(({ data }) => { setResults(data); setSearched(true); })
-      .catch(() => { setResults([]); setSearched(true); })
+      .then(({ data }) => { setResults(data); setSearched(true); setSearchError(false); })
+      .catch(() => { setResults([]); setSearched(true); setSearchError(true); })
       .finally(() => setSearching(false));
   }, []);
 
@@ -62,13 +63,13 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
   const onChange = (e) => {
     const v = e.target.value;
     setQuery(v);
-    if (!v.trim()) { setResults([]); setSearched(false); }
+    if (!v.trim()) { setResults([]); setSearched(false); setSearchError(false); }
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => doSearch(v), 350);
   };
 
   const clearSearch = () => {
-    setQuery(''); setResults([]); setSearched(false);
+    setQuery(''); setResults([]); setSearched(false); setSearchError(false);
     inputRef.current?.focus();
   };
 
@@ -168,8 +169,21 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
               <AfResultItem key={u.id} user={u} onClick={() => setViewId(u.id)} />
             ))}
 
+            {/* 搜索失败（网络等）：与"查无此人"区分，给重试入口 */}
+            {!searching && searchError && query && (
+              <div className="afm-not-found">
+                <div className="afm-not-found-title">搜索失败，请检查网络</div>
+                <div className="afm-not-found-sub">
+                  <button onClick={() => doSearch(query)}
+                    style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 'inherit' }}>
+                    点击重试
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* 未找到 */}
-            {!searching && searched && query && results.length === 0 && (
+            {!searching && searched && !searchError && query && results.length === 0 && (
               <div className="afm-not-found">
                 <div className="afm-not-found-title">未找到「{query}」相关用户</div>
                 <div className="afm-not-found-sub">换个 v信号或手机号试试</div>
