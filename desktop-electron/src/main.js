@@ -330,6 +330,27 @@ function createWindow() {
 
   mainWindow.loadFile(indexHtmlPath());
 
+  // 加载失败/渲染进程崩溃兜底：否则用户只见纯色空窗、无提示无入口。
+  // did-fail-load 的 errorCode -3 是主动中断(如 loadFile 被后续导航取代)，忽略。
+  mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDesc, url, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3 || !mainWindow) return;
+    log.error('页面加载失败:', errorCode, errorDesc, url);
+    dialog.showMessageBox(mainWindow, {
+      type: 'error', title: 'v信',
+      message: '界面加载失败',
+      detail: `错误：${errorDesc || errorCode}`,
+      buttons: ['重试', '退出'], defaultId: 0, cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) mainWindow?.loadFile(indexHtmlPath());
+      else { isQuitting = true; app.quit(); }
+    }).catch(() => {});
+  });
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    log.error('渲染进程退出:', details?.reason);
+    if (details?.reason === 'clean-exit' || !mainWindow) return;
+    mainWindow.loadFile(indexHtmlPath());
+  });
+
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
@@ -485,7 +506,9 @@ function setupAutoUpdater() {
     mainWindow?.webContents.send('update:downloaded', info);
     // 不静默安装：主进程弹原生确认框，用户同意后才重启安装
     // （渲染层尚无安装按钮；此处保证更新可落地且必经用户确认）
-    const { response } = await dialog.showMessageBox(mainWindow, {
+    // 窗口可能已关到托盘/销毁：传 null 作父窗口在部分平台会告警，故判空。
+    const parent = (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : undefined;
+    const { response } = await dialog.showMessageBox(parent, {
       type: 'info',
       buttons: ['稍后', '立即重启安装'],
       defaultId: 1,
@@ -608,7 +631,9 @@ function setupIPC() {
   });
 
   // 选择文件（仅用户操作触发，主进程打开对话框）
-  ipcMain.handle('dialog:selectFile', async (_, options) => {
+  ipcMain.handle('dialog:selectFile', async (_e, options) => {
+    if (!isTrustedSender(_e)) return [];   // 与其它 IPC 一致：拒绝非受信帧，防注入帧反复弹框骚扰
+    if (!mainWindow || mainWindow.isDestroyed()) return [];
     const filters = Array.isArray(options?.filters) ? options.filters : [
       { name: '图片', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] },
       { name: '所有文件', extensions: ['*'] },
@@ -637,7 +662,8 @@ function setupIPC() {
     } catch (e) {
       log.error('截图失败:', e);
     } finally {
-      if (!mainWindow.isDestroyed()) {
+      // 截图期间窗口可能被关闭置为 null：对 null 取 isDestroyed 会抛错，故先判空。
+      if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
         mainWindow.focus();
       }
