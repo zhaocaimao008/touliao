@@ -19,6 +19,7 @@ import ReconnectingBanner from '../components/ReconnectingBanner';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePushNotification } from '../hooks/usePushNotification';
+import useFocusTrap from '../hooks/useFocusTrap';
 import { mediaUrl, goLogin } from '../utils/url';
 
 function WcEmpty() {
@@ -360,6 +361,7 @@ function CreateGroupModal({ onClose, onCreated }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const nameRef = useRef(null);
+  const trapRef = useFocusTrap();
 
   useEffect(() => {
     axios.get('/api/users/contacts').then(r => setContacts(r.data)).catch(() => {});
@@ -402,7 +404,7 @@ function CreateGroupModal({ onClose, onCreated }) {
   const selectedContacts = contacts.filter(c => selected.has(c.id));
 
   return (
-    <div className="cgm-overlay"
+    <div className="cgm-overlay" ref={trapRef}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="cgm-content"
         onClick={e => e.stopPropagation()}>

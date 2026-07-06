@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import useFocusTrap from '../hooks/useFocusTrap';
 
 export default function RedPacketModal({ conversation, onClose, onSent }) {
+  const trapRef = useFocusTrap();
   const [amount, setAmount] = useState('');
   const [count, setCount] = useState('');
   const [greeting, setGreeting] = useState('恭喜发财，大吉大利！');
@@ -44,7 +46,7 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
   };
 
   return (
-    <div className="rpm-overlay" onClick={() => { if (!sending) onClose(); }}>
+    <div className="rpm-overlay" ref={trapRef} onClick={() => { if (!sending) onClose(); }}>
       <div className="rpm-card" role="dialog" aria-modal="true" aria-label="发红包" onClick={e => e.stopPropagation()}>
         <div className="rpm-title">发红包</div>
 

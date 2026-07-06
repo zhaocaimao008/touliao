@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import Avatar from './Avatar';
 import UserProfile from './UserProfile';
+import useFocusTrap from '../hooks/useFocusTrap';
 import './AddFriendModal.css';
 
 const GREEN = 'var(--green)';
@@ -37,6 +38,7 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
   const [viewId, setViewId] = useState(null);
   const inputRef = useRef(null);
   const timerRef = useRef(null);
+  const trapRef = useFocusTrap(!viewId);
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 80); }, []);
 
@@ -81,7 +83,7 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
   return createPortal(
     <>
       {!viewId && (
-      <div className="afm-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="afm-overlay" ref={trapRef} onClick={e => e.target === e.currentTarget && onClose()}>
         <div className="afm-card" role="dialog" aria-modal="true" aria-label="添加好友" onClick={e => e.stopPropagation()}>
 
           {/* 标题栏 */}

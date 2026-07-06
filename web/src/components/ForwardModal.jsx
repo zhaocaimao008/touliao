@@ -3,9 +3,11 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import { GroupAvatar } from './GroupInfo';
 import { showToast } from '../utils/toast';
+import useFocusTrap from '../hooks/useFocusTrap';
 import './ForwardModal.css';
 
 export default function ForwardModal({ message, onClose }) {
+  const trapRef = useFocusTrap();
   const [tab, setTab] = useState('friends');
   const [friends, setFriends] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -130,7 +132,7 @@ export default function ForwardModal({ message, onClose }) {
   const allGroupsSelected = filteredGroups.length > 0 && filteredGroups.every(g => selected.has(g.id));
 
   return (
-    <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="wc-modal-overlay" ref={trapRef} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="wc-modal fwd-modal" role="dialog" aria-modal="true" aria-label="转发消息">
 
         {/* 标题栏 */}
