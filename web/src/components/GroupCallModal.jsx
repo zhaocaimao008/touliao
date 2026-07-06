@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
+import { showToast } from '../utils/toast';
 
 // 仅在拉取 /api/turn/credentials 失败时兜底
 const FALLBACK_ICE = { iceServers: [
@@ -154,7 +155,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
     const onPeerLeft = ({ userId: pid }) => removePeer(pid);
     const onError = ({ reason }) => {
       const msg = { busy: '你正在通话中', not_group: '仅群聊支持多人通话', not_found: '通话已结束', full: '通话人数已满' }[reason] || '通话出错';
-      alert(msg); hangup();
+      showToast(msg, 'error'); hangup();
     };
 
     socket.on('group_call:started', onStarted);
