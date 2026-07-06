@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 export default function RedPacketModal({ conversation, onClose, onSent }) {
@@ -15,6 +15,13 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
   const perPerson = countNum > 0 ? Math.floor(amountNum / countNum) : 0;
   const canSend = amountNum > 0 && amountNum <= 20000
     && (isGroup ? (countNum > 0 && countNum <= 100 && amountNum >= countNum) : true);
+
+  // Esc 关闭（与其它弹窗一致；发送中不关闭，避免资金操作被中途打断）
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape' && !sending) onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sending, onClose]);
 
   const send = async () => {
     // 资金操作，函数入口二次守卫：快速双击时 disabled 尚未重渲染也不会重复发送/扣款

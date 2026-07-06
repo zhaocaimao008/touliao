@@ -366,6 +366,13 @@ function CreateGroupModal({ onClose, onCreated }) {
     setTimeout(() => nameRef.current?.focus(), 80);
   }, []);
 
+  // Esc 关闭（创建中不关闭，避免打断建群请求）
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape' && !loading) onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [loading, onClose]);
+
   const toggle = (id) => setSelected(prev => {
     const s = new Set(prev);
     if (s.has(id)) s.delete(id); else s.add(id);
@@ -750,6 +757,14 @@ export default function Home() {
     }
   };
   const closeAddMenu = () => { setShowAddMenu(false); setAddMenuPos(null); };
+
+  // Esc 关闭二维码弹窗，与其它弹窗键盘行为一致
+  useEffect(() => {
+    if (!showQR) return;
+    const onKey = (e) => { if (e.key === 'Escape') setShowQR(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [showQR]);
 
   const handleCreateGroup = () => {
     closeAddMenu();
