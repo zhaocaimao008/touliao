@@ -161,7 +161,9 @@ struct MomentsView: View {
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                    .accessibilityLabel("朋友圈设置")
                 Button { showCompose = true } label: { Image(systemName: "camera") }
+                    .accessibilityLabel("发朋友圈")
             }
         }
         .sheet(isPresented: $showCompose) {
@@ -304,6 +306,7 @@ private struct MomentGalleryView: View {
             .ignoresSafeArea()
             HStack {
                 Button { onClose() } label: { Image(systemName: "xmark").foregroundColor(.white).padding() }
+                    .accessibilityLabel("关闭")
                 Spacer()
                 Text("\(page + 1)/\(images.count)").foregroundColor(.white).padding()
             }

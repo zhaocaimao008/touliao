@@ -102,7 +102,9 @@ struct ContactsView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack {
                     Button(action: onCreateGroup) { Image(systemName: "person.3") }
+                        .accessibilityLabel("发起群聊")
                     Button(action: onAddFriend) { Image(systemName: "plus") }
+                        .accessibilityLabel("添加好友")
                 }
             }
         }

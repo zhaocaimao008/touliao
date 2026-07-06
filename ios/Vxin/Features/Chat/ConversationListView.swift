@@ -27,6 +27,7 @@ struct ConversationListView: View {
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button { path.append(SearchRoute.search) } label: { Image(systemName: "magnifyingglass") }
+                            .accessibilityLabel("搜索")
                     }
                 }
                 .navigationDestination(for: Conversation.self) { conv in

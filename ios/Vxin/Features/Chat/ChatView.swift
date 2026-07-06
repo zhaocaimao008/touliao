@@ -51,9 +51,12 @@ struct ChatView: View {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button { vm.startGroupCall(video: false) } label: { Image(systemName: "phone.fill") }
                         .accessibilityIdentifier("chat-call-audio-btn")
+                        .accessibilityLabel("语音通话")
                     Button { vm.startGroupCall(video: true) } label: { Image(systemName: "video.fill") }
                         .accessibilityIdentifier("chat-call-video-btn")
+                        .accessibilityLabel("视频通话")
                     Button(action: onOpenGroupInfo) { Image(systemName: "ellipsis") }
+                        .accessibilityLabel("群聊信息")
                 }
             } else {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -61,10 +64,12 @@ struct ChatView: View {
                         Image(systemName: "phone.fill")
                     }
                     .accessibilityIdentifier("chat-call-audio-btn")
+                    .accessibilityLabel("语音通话")
                     Button { _ = vm.startCall(video: true, callerName: session.currentUser?.username ?? "") } label: {
                         Image(systemName: "video.fill")
                     }
                     .accessibilityIdentifier("chat-call-video-btn")
+                    .accessibilityLabel("视频通话")
                 }
             }
             // 聊天背景设置
@@ -77,6 +82,7 @@ struct ChatView: View {
                         Button(role: .destructive) { vm.clearBackground() } label: { Label("清除聊天背景", systemImage: "trash") }
                     }
                 } label: { Image(systemName: "photo.on.rectangle") }
+                .accessibilityLabel("聊天背景设置")
             }
         }
         .onChange(of: bgPhotoItem) { item in handleBgPhoto(item) }
@@ -248,6 +254,7 @@ struct ChatView: View {
                         .font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                     Spacer()
                     Button { vm.cancelReply() } label: { Image(systemName: "xmark.circle.fill").foregroundColor(.vxinTextSecondary) }
+                        .accessibilityLabel("取消引用")
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(Color.gray.opacity(0.12))
@@ -261,17 +268,23 @@ struct ChatView: View {
             }
             HStack(spacing: 6) {
                 Button { showStickerPanel.toggle(); if showStickerPanel { vm.loadStickers() } } label: { Text("😀").font(.title3) }
+                    .accessibilityLabel("表情")
                 if vm.isGroup {
                     Button { showMentionPicker = true } label: { Text("@").font(.title3) }
+                        .accessibilityLabel("提及成员")
                 }
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Text("🖼").font(.title3)
                 }
                 .accessibilityIdentifier("chat-attach-image")
+                .accessibilityLabel("发送图片")
                 Button { showFileImporter = true } label: { Text("📎").font(.title3) }
+                    .accessibilityLabel("发送文件")
                 Button { showRedPacketSend = true } label: { Text("🧧").font(.title3) }
+                    .accessibilityLabel("发红包")
                 Button { onMicTap() } label: { Text(vm.recording ? "⏹" : "🎤").font(.title3) }
                     .accessibilityIdentifier("chat-voice-btn")
+                    .accessibilityLabel(vm.recording ? "停止录音" : "语音输入")
 
                 TextField("输入消息…", text: $vm.input, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
@@ -284,6 +297,7 @@ struct ChatView: View {
                 }
                 .disabled(vm.input.isEmpty || vm.sending)
                 .accessibilityIdentifier("chat-send-btn")
+                .accessibilityLabel("发送")
             }
             .padding(8)
 
@@ -657,6 +671,7 @@ private struct ChatImageGalleryView: View {
             .ignoresSafeArea()
             HStack {
                 Button { onClose() } label: { Image(systemName: "xmark").foregroundColor(.white).padding() }
+                    .accessibilityLabel("关闭")
                 Spacer()
                 if images.count > 1 { Text("\(page + 1)/\(images.count)").foregroundColor(.white).padding() }
             }
