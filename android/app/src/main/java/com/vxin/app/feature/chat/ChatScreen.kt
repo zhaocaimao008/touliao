@@ -453,7 +453,7 @@ fun ChatScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(if (conv.id in selected) "☑" else "☐", Modifier.padding(end = 8.dp))
-                            InitialAvatar(name = conv.name.ifBlank { "?" }, size = 32.dp)
+                            InitialAvatar(name = conv.name.ifBlank { "?" }, size = 32.dp, avatarUrl = viewModel.resolveMediaUrl(conv.avatar))
                             Spacer(Modifier.size(8.dp))
                             Text(conv.name.ifBlank { "未命名会话" }, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
@@ -480,7 +480,7 @@ fun ChatScreen(
                             Modifier.fillMaxWidth().clickable { viewModel.appendMention(m); showMentionPicker = false }.padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            InitialAvatar(name = m.displayName.ifBlank { "?" }, size = 32.dp)
+                            InitialAvatar(name = m.displayName.ifBlank { "?" }, size = 32.dp, avatarUrl = viewModel.resolveMediaUrl(m.avatar))
                             Spacer(Modifier.size(8.dp))
                             Text(m.displayName.ifBlank { "未命名" })
                         }
@@ -584,7 +584,7 @@ private fun MessageBubble(
     ) {
         if (!isMine) {
             Box(Modifier.combinedClickable(onClick = {}, onDoubleClick = onNudge)) {
-                InitialAvatar(name = msg.senderName.ifBlank { "?" }, size = 36.dp)
+                InitialAvatar(name = msg.senderName.ifBlank { "?" }, size = 36.dp, avatarUrl = resolveUrl(msg.senderAvatar))
             }
             Spacer(Modifier.size(6.dp))
         }

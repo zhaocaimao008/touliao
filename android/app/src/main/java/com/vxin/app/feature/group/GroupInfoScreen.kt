@@ -190,6 +190,7 @@ fun GroupInfoScreen(
                     items(info.members, key = { it.id }) { member ->
                         MemberRow(
                             member = member,
+                            avatarUrl = viewModel.resolveUrl(member.avatar),
                             canKick = info.canManage && member.role != "owner",
                             canSetRole = info.isOwner && member.role != "owner",
                             canTransfer = info.isOwner && member.role != "owner",
@@ -299,6 +300,7 @@ fun GroupInfoScreen(
 @Composable
 private fun MemberRow(
     member: GroupMember,
+    avatarUrl: String? = null,
     canKick: Boolean,
     canSetRole: Boolean,
     canTransfer: Boolean,
@@ -310,7 +312,7 @@ private fun MemberRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = member.displayName.ifBlank { "?" }, size = 44.dp)
+        InitialAvatar(name = member.displayName.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(member.displayName.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)

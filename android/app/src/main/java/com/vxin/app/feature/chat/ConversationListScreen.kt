@@ -89,12 +89,22 @@ fun ConversationListScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("消息", fontSize = 18.sp)
-                        Text(
-                            text = socketStatus.label(),
-                            fontSize = 11.sp,
-                            color = if (socketStatus == SocketStatus.CONNECTED) VxinGreen else VxinTextSecondary,
-                        )
+                        // 已连接时标题简洁显示「消息」；异常时才追加状态(对齐微信「收取中…」)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("消息", fontSize = 18.sp)
+                            if (socketStatus != SocketStatus.CONNECTED) {
+                                Spacer(Modifier.width(6.dp))
+                                if (socketStatus == SocketStatus.CONNECTING) {
+                                    CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = VxinTextSecondary)
+                                }
+                                Text(
+                                    text = if (socketStatus == SocketStatus.CONNECTING) "收取中…" else "未连接",
+                                    fontSize = 12.sp,
+                                    color = if (socketStatus == SocketStatus.CONNECTING) VxinTextSecondary else Color(0xFFFA5151),
+                                    modifier = Modifier.padding(start = 4.dp),
+                                )
+                            }
+                        }
                     }
                 },
                 actions = {
@@ -247,8 +257,3 @@ private fun previewText(conv: Conversation): String = when (conv.lastMessageType
     else -> conv.lastMessage ?: ""
 }
 
-private fun SocketStatus.label(): String = when (this) {
-    SocketStatus.CONNECTED -> "已连接"
-    SocketStatus.CONNECTING -> "连接中…"
-    SocketStatus.DISCONNECTED -> "未连接"
-}

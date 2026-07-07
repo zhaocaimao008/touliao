@@ -227,7 +227,7 @@ private fun MomentCard(
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            InitialAvatar(name = moment.author.username.ifBlank { "?" }, size = 40.dp)
+            InitialAvatar(name = moment.author.username.ifBlank { "?" }, size = 40.dp, avatarUrl = resolveUrl(moment.author.avatar))
             Spacer(Modifier.width(10.dp))
             Column {
                 Text(moment.author.username.ifBlank { "未命名" }, color = VxinGreen, style = MaterialTheme.typography.bodyMedium)
