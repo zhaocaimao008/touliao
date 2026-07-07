@@ -25,8 +25,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -49,6 +51,12 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // 进入搜索页自动聚焦并弹出键盘(对齐微信)
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(150)
+        runCatching { focusRequester.requestFocus() }
+    }
 
     Scaffold(
         topBar = {
@@ -57,7 +65,7 @@ fun SearchScreen(
                     OutlinedTextField(
                         value = state.query,
                         onValueChange = viewModel::onQueryChange,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                         placeholder = { Text("搜索聊天记录") },
                         singleLine = true,
                     )

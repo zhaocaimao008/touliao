@@ -131,6 +131,7 @@ fun ConversationListScreen(
                     items(state.conversations, key = { it.id }) { conv ->
                         ConversationRow(
                             conv,
+                            avatarUrl = viewModel.resolveUrl(conv.avatar),
                             onClick = { onOpenConversation(conv) },
                             onTogglePin = { viewModel.togglePin(conv) },
                             onToggleMute = { viewModel.toggleMute(conv) },
@@ -159,6 +160,7 @@ fun ConversationListScreen(
 @Composable
 private fun ConversationRow(
     conv: Conversation,
+    avatarUrl: String? = null,
     onClick: () -> Unit,
     onTogglePin: () -> Unit = {},
     onToggleMute: () -> Unit = {},
@@ -176,7 +178,7 @@ private fun ConversationRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = conv.name.ifBlank { "?" }, size = 48.dp)
+        InitialAvatar(name = conv.name.ifBlank { "?" }, size = 48.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -199,10 +201,17 @@ private fun ConversationRow(
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.Center) {
             Text(formatChatTime(conv.lastTime), color = VxinTextSecondary, fontSize = 11.sp)
             Spacer(Modifier.size(4.dp))
-            if (conv.muted == 1) {
-                Text("🔕", fontSize = 11.sp)
-            } else if (conv.unreadCount > 0) {
-                Box(
+            when {
+                // 免打扰：有未读只显示小红点(不显示数字)，并保留🔕(对齐微信)
+                conv.muted == 1 -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (conv.unreadCount > 0) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFA5151)))
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Text("🔕", fontSize = 11.sp)
+                }
+                // 正常会话：显示未读数字角标
+                conv.unreadCount > 0 -> Box(
                     modifier = Modifier
                         .size(18.dp)
                         .clip(CircleShape)

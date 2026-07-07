@@ -6,6 +6,7 @@ import com.vxin.app.core.auth.AuthState
 import com.vxin.app.core.auth.SessionManager
 import com.vxin.app.core.network.toUserMessage
 import com.vxin.app.core.realtime.SocketStatus
+import com.vxin.app.core.util.MediaUrlResolver
 import com.vxin.app.data.model.Conversation
 import com.vxin.app.data.repository.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,10 +29,13 @@ data class ConversationListUiState(
 class ConversationListViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val sessionManager: SessionManager,
+    private val mediaUrlResolver: MediaUrlResolver,
 ) : ViewModel() {
 
     private val myId: String =
         (sessionManager.state.value as? AuthState.Authenticated)?.user?.id.orEmpty()
+
+    fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     val socketStatus: StateFlow<SocketStatus> =
         chatRepository.socketStatus.stateIn(

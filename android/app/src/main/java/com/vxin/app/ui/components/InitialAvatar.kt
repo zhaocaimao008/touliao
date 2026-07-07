@@ -11,9 +11,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import kotlin.math.abs
 
 private val palette = listOf(
@@ -21,16 +24,35 @@ private val palette = listOf(
     Color(0xFFE67E22), Color(0xFFE74C3C), Color(0xFF07C160),
 )
 
-/** 文字首字母头像（对齐 Web 端无头像时的占位风格），避免引入图片库 */
+/**
+ * 头像组件：
+ * - 传入 avatarUrl(已解析的绝对地址) 且非空时，显示真实头像；
+ * - 加载中 / 加载失败 / 无 url 时，回退到文字首字母占位。
+ */
 @Composable
-fun InitialAvatar(name: String, size: Dp = 48.dp) {
+fun InitialAvatar(name: String, size: Dp = 48.dp, avatarUrl: String? = null) {
+    val shape = RoundedCornerShape(size / 6)
+    if (!avatarUrl.isNullOrBlank()) {
+        SubcomposeAsyncImage(
+            model = avatarUrl,
+            contentDescription = "头像",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(size).clip(shape),
+            loading = { InitialsBox(name, size, shape) },
+            error = { InitialsBox(name, size, shape) },
+            success = { SubcomposeAsyncImageContent() },
+        )
+    } else {
+        InitialsBox(name, size, shape)
+    }
+}
+
+@Composable
+private fun InitialsBox(name: String, size: Dp, shape: androidx.compose.ui.graphics.Shape) {
     val letter = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
     val color = palette[abs(name.hashCode()) % palette.size]
     Box(
-        modifier = Modifier
-            .size(size)
-            .clip(RoundedCornerShape(size / 6))
-            .background(color),
+        modifier = Modifier.size(size).clip(shape).background(color),
         contentAlignment = Alignment.Center,
     ) {
         Text(

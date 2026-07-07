@@ -135,6 +135,7 @@ fun ContactsScreen(
                     else -> ContactsIndexedList(
                         contacts = state.contacts,
                         onlineIds = state.onlineIds,
+                        resolveUrl = { viewModel.resolveUrl(it) },
                         onOpenChat = { viewModel.startPrivateChat(it) },
                         onRemark = { remarkTarget = it },
                         onBlock = { blockTarget = it },
@@ -210,6 +211,7 @@ private fun pinyinFirstLetter(c: Char): Char {
 private fun ContactsIndexedList(
     contacts: List<Contact>,
     onlineIds: Set<String>,
+    resolveUrl: (String?) -> String?,
     onOpenChat: (Contact) -> Unit,
     onRemark: (Contact) -> Unit,
     onBlock: (Contact) -> Unit,
@@ -252,6 +254,7 @@ private fun ContactsIndexedList(
                     ContactRow(
                         contact,
                         online = contact.id in onlineIds,
+                        avatarUrl = resolveUrl(contact.avatar),
                         onClick = { onOpenChat(contact) },
                         onRemark = { onRemark(contact) },
                         onBlock = { onBlock(contact) },
@@ -289,6 +292,7 @@ private fun ContactsIndexedList(
 private fun ContactRow(
     contact: Contact,
     online: Boolean = false,
+    avatarUrl: String? = null,
     onClick: () -> Unit,
     onRemark: () -> Unit = {},
     onBlock: () -> Unit = {},
@@ -303,7 +307,7 @@ private fun ContactRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
-            InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 48.dp)
+            InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 48.dp, avatarUrl = avatarUrl)
             if (online) {
                 Box(
                     Modifier.align(Alignment.BottomEnd).size(12.dp)

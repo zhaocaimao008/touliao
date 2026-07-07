@@ -3,6 +3,7 @@ package com.vxin.app.feature.contacts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vxin.app.core.network.toUserMessage
+import com.vxin.app.core.util.MediaUrlResolver
 import com.vxin.app.data.model.Contact
 import com.vxin.app.data.repository.ContactRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,10 +28,13 @@ data class ContactsUiState(
 @HiltViewModel
 class ContactsViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
+    private val mediaUrlResolver: MediaUrlResolver,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ContactsUiState(loading = true))
     val uiState: StateFlow<ContactsUiState> = _uiState.asStateFlow()
+
+    fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     private val _openChat = MutableStateFlow<ConversationTarget?>(null)
     val openChat: StateFlow<ConversationTarget?> = _openChat.asStateFlow()
