@@ -72,7 +72,7 @@ fun FriendRequestsScreen(
                 if (tab == 0) {
                     when {
                         state.loading && state.requests.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                        state.requests.isEmpty() -> Text("没有新的好友申请", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                        state.requests.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "👋", title = "没有新的好友申请", modifier = Modifier.align(Alignment.Center))
                         else -> LazyColumn(Modifier.fillMaxSize()) {
                             items(state.requests, key = { it.id }) { req ->
                                 RequestRow(

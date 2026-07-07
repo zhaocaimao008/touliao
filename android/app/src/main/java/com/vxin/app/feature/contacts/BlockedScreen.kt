@@ -54,7 +54,7 @@ fun BlockedScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.loading && state.users.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.users.isEmpty() -> Text("黑名单为空", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                state.users.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "🚫", title = "黑名单为空", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.users, key = { it.id }) { user ->
                         Row(

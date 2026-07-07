@@ -120,7 +120,12 @@ fun ConversationListScreen(
                     )
 
                 state.conversations.isEmpty() ->
-                    Text("暂无会话", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                    com.vxin.app.ui.components.EmptyState(
+                        icon = "💬",
+                        title = "暂无会话",
+                        subtitle = "去「通讯录」找好友开始聊天吧",
+                        modifier = Modifier.align(Alignment.Center),
+                    )
 
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.conversations, key = { it.id }) { conv ->

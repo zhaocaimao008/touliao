@@ -101,7 +101,7 @@ fun MomentsScreen(
         Box(Modifier.fillMaxSize().padding(padding).pullRefresh(pullState)) {
             when {
                 state.loading && state.moments.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.moments.isEmpty() -> Text("还没有朋友圈动态", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                state.moments.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "📷", title = "还没有朋友圈动态", subtitle = "分享生活，记录点滴", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                     items(state.moments, key = { it.id }) { m ->
                         MomentCard(

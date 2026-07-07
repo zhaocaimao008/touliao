@@ -82,7 +82,7 @@ fun CreateGroupScreen(
             Box(Modifier.fillMaxSize()) {
                 when {
                     state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                    state.contacts.isEmpty() -> Text("还没有联系人", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                    state.contacts.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "👥", title = "还没有联系人", modifier = Modifier.align(Alignment.Center))
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(state.contacts, key = { it.id }) { contact ->
                             SelectableContactRow(

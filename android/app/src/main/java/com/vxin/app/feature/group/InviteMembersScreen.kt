@@ -66,7 +66,7 @@ fun InviteMembersScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.candidates.isEmpty() -> Text("没有可邀请的联系人", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                state.candidates.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "👥", title = "没有可邀请的联系人", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.candidates, key = { it.id }) { contact ->
                         CandidateRow(contact, checked = contact.id in state.selected) { viewModel.toggle(contact.id) }

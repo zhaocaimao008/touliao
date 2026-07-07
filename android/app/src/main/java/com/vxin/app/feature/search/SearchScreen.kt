@@ -72,7 +72,7 @@ fun SearchScreen(
             when {
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.query.isBlank() -> Text("输入关键词搜索聊天记录", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
-                state.searched && state.results.isEmpty() -> Text("没有找到相关消息", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                state.searched && state.results.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "🔍", title = "没有找到相关消息", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.results, key = { it.id }) { r ->
                         ResultRow(r, query = state.query) { onOpenResult(r) }

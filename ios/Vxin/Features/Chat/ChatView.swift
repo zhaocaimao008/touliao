@@ -12,6 +12,7 @@ struct ChatView: View {
     @State private var bgPhotoItem: PhotosPickerItem?
     @State private var showFileImporter = false
     @State private var showStickerPanel = false
+    @State private var showFuncPanel = false
     @State private var showRedPacketSend = false
     @State private var showPinnedList = false
     @State private var editText = ""
@@ -266,44 +267,87 @@ struct ChatView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16).padding(.vertical, 4)
             }
+            // 微信风格输入栏：[🎤][@?][输入框][😀][ + / 发送 ]
             HStack(spacing: 6) {
-                Button { showStickerPanel.toggle(); if showStickerPanel { vm.loadStickers() } } label: { Text("😀").font(.title3) }
-                    .accessibilityLabel("表情")
+                Button { onMicTap() } label: { Text(vm.recording ? "⏹" : "🎤").font(.title3) }
+                    .accessibilityIdentifier("chat-voice-btn")
+                    .accessibilityLabel(vm.recording ? "停止录音" : "语音输入")
                 if vm.isGroup {
                     Button { showMentionPicker = true } label: { Text("@").font(.title3) }
                         .accessibilityLabel("提及成员")
                 }
-                PhotosPicker(selection: $photoItem, matching: .images) {
-                    Text("🖼").font(.title3)
-                }
-                .accessibilityIdentifier("chat-attach-image")
-                .accessibilityLabel("发送图片")
-                Button { showFileImporter = true } label: { Text("📎").font(.title3) }
-                    .accessibilityLabel("发送文件")
-                Button { showRedPacketSend = true } label: { Text("🧧").font(.title3) }
-                    .accessibilityLabel("发红包")
-                Button { onMicTap() } label: { Text(vm.recording ? "⏹" : "🎤").font(.title3) }
-                    .accessibilityIdentifier("chat-voice-btn")
-                    .accessibilityLabel(vm.recording ? "停止录音" : "语音输入")
-
                 TextField("输入消息…", text: $vm.input, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...4)
                     .accessibilityIdentifier("chat-msg-input")
 
-                Button { vm.sendText() } label: {
-                    if vm.sending { ProgressView() }
-                    else { Image(systemName: "paperplane.fill").foregroundColor(vm.input.isEmpty ? .vxinTextSecondary : .vxinGreen) }
+                Button {
+                    showStickerPanel.toggle()
+                    if showStickerPanel { showFuncPanel = false; vm.loadStickers() }
+                } label: { Text(showStickerPanel ? "⌨️" : "😀").font(.title3) }
+                    .accessibilityIdentifier("chat-emoji-btn")
+                    .accessibilityLabel("表情")
+
+                // 有文字 → 发送键；无文字 → +(功能面板)
+                if !vm.input.isEmpty || vm.sending {
+                    Button { vm.sendText() } label: {
+                        if vm.sending { ProgressView() }
+                        else { Image(systemName: "paperplane.fill").foregroundColor(.vxinGreen) }
+                    }
+                    .disabled(vm.input.isEmpty || vm.sending)
+                    .accessibilityIdentifier("chat-send-btn")
+                    .accessibilityLabel("发送")
+                } else {
+                    Button {
+                        showFuncPanel.toggle()
+                        if showFuncPanel { showStickerPanel = false }
+                    } label: {
+                        Image(systemName: showFuncPanel ? "xmark.circle" : "plus.circle")
+                            .font(.title2).foregroundColor(.vxinTextSecondary)
+                    }
+                    .accessibilityIdentifier("chat-more-btn")
+                    .accessibilityLabel("更多功能")
                 }
-                .disabled(vm.input.isEmpty || vm.sending)
-                .accessibilityIdentifier("chat-send-btn")
-                .accessibilityLabel("发送")
             }
             .padding(8)
 
             if showStickerPanel {
                 stickerEmojiPanel
             }
+            if showFuncPanel {
+                functionPanel
+            }
+        }
+    }
+
+    /// +面板：图片 / 文件 / 红包（对齐微信「更多功能」面板）
+    private var functionPanel: some View {
+        HStack(spacing: 24) {
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                funcItem(emoji: "🖼", label: "图片")
+            }
+            .accessibilityIdentifier("chat-attach-image")
+            .accessibilityLabel("发送图片")
+            Button { showFuncPanel = false; showFileImporter = true } label: { funcItem(emoji: "📎", label: "文件") }
+                .accessibilityIdentifier("chat-attach-file")
+                .accessibilityLabel("发送文件")
+            Button { showFuncPanel = false; showRedPacketSend = true } label: { funcItem(emoji: "🧧", label: "红包") }
+                .accessibilityIdentifier("chat-attach-redpacket")
+                .accessibilityLabel("发红包")
+            Spacer()
+        }
+        .padding(.horizontal, 24).padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
+        .background(Color.gray.opacity(0.08))
+    }
+
+    private func funcItem(emoji: String, label: String) -> some View {
+        VStack(spacing: 6) {
+            Text(emoji).font(.system(size: 26))
+                .frame(width: 56, height: 56)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            Text(label).font(.caption).foregroundColor(.vxinTextSecondary)
         }
     }
 

@@ -63,7 +63,7 @@ fun FavoritesScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.loading && state.items.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.items.isEmpty() -> Text("暂无收藏", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                state.items.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "⭐", title = "暂无收藏", subtitle = "长按消息可收藏到这里", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.items, key = { it.id }) { item ->
                         FavoriteRow(item, resolveUrl = viewModel::resolveUrl, onLongPress = { removeTarget = item })
