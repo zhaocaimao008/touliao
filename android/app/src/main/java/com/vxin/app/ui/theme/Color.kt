@@ -15,3 +15,9 @@ val VxinBubbleMine = Color(0xFF95EC69)
 val VxinBubbleText = Color(0xFF1A1A1A)
 val VxinBubbleOtherDark = Color(0xFF2C2C2E)   // 暗色下对方气泡
 val VxinBubbleTextDark = Color(0xFFE5E5E5)    // 暗色下对方气泡文字
+
+// 深色模式壳层（对齐微信深色：近黑背景 + 深灰卡面）
+val VxinBgDark = Color(0xFF111111)            // 深色背景
+val VxinSurfaceDark = Color(0xFF1E1E1E)       // 深色卡面/顶栏
+val VxinTextPrimaryDark = Color(0xFFE5E5E5)   // 深色正文
+val VxinTextSecondaryDark = Color(0xFF9A9A9A) // 深色辅助文字

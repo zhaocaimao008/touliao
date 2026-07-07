@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -78,6 +79,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.vxin.app.core.util.downloadFile
+import com.vxin.app.core.util.formatChatTime
 import com.vxin.app.data.model.ContactCardContent
 import com.vxin.app.data.model.Message
 import com.vxin.app.ui.components.InitialAvatar
@@ -297,12 +299,27 @@ fun ChatScreen(
                             }
                         }
                     }
-                    items(state.messages, key = { it.id }, contentType = { it.type }) { msg ->
+                    itemsIndexed(state.messages, key = { _, m -> m.id }, contentType = { _, m -> m.type }) { idx, msg ->
+                        // 时间分隔：与上一条间隔超 5 分钟则显示居中时间（对齐微信）
+                        val prev = state.messages.getOrNull(idx - 1)
+                        if (shouldShowTime(prev?.created_at, msg.created_at)) {
+                            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    formatChatTime(msg.created_at),
+                                    color = VxinTextSecondary,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0x11000000))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
                         if (msg.type == "nudge") {
                             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
                                 Text(viewModel.nudgeText(msg), color = VxinTextSecondary, fontSize = 12.sp)
                             }
-                            return@items
+                            return@itemsIndexed
                         }
                         val isMine = msg.sender_id == viewModel.myId
                         MessageBubble(
@@ -822,6 +839,13 @@ private fun placeholderLabel(p: PendingUpload): String = when (p.type) {
     "voice" -> "语音上传中…"
     "video" -> "视频上传中…"
     else -> "${p.name} 上传中…"
+}
+
+/** 是否需要显示时间分隔：首条 或 与上一条间隔超 5 分钟 */
+private fun shouldShowTime(prevSec: Long?, curSec: Long): Boolean {
+    if (curSec <= 0) return false
+    if (prevSec == null || prevSec <= 0) return true
+    return curSec - prevSec >= 5 * 60
 }
 
 @Composable

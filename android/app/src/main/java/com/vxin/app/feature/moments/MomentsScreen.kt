@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -276,7 +278,22 @@ private fun MomentCard(
 
 @Composable
 private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?, onImageClick: (Int) -> Unit) {
-    val cols = if (images.size == 1) 1 else 3
+    // 单图：限制最大尺寸不铺满（对齐微信），保留原图比例
+    if (images.size == 1) {
+        AsyncImage(
+            model = resolveUrl(images[0]),
+            contentDescription = "图片",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .widthIn(max = 220.dp)
+                .heightIn(max = 280.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { onImageClick(0) },
+        )
+        return
+    }
+    // 多图：3 列九宫格
+    val cols = 3
     images.chunked(cols).forEachIndexed { rowIdx, rowImgs ->
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             rowImgs.forEachIndexed { i, img ->

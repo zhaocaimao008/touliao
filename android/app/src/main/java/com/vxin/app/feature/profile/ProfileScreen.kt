@@ -2,8 +2,10 @@ package com.vxin.app.feature.profile
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,29 +77,45 @@ fun ProfileScreen(
             Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // 头像
-            Box(contentAlignment = Alignment.Center) {
-                val avatarUrl = viewModel.resolveAvatarUrl(user?.avatar)
-                if (!user?.avatar.isNullOrBlank()) {
-                    AsyncImage(
-                        model = avatarUrl,
-                        contentDescription = "头像",
-                        modifier = Modifier.size(80.dp).clip(CircleShape).clickable { avatarPicker.launch("image/*") },
+            // 个人信息卡片（微信风格：头像左 + 昵称/v信号右）
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    val avatarUrl = viewModel.resolveAvatarUrl(user?.avatar)
+                    if (!user?.avatar.isNullOrBlank()) {
+                        AsyncImage(
+                            model = avatarUrl,
+                            contentDescription = "头像",
+                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).clickable { avatarPicker.launch("image/*") },
+                        )
+                    } else {
+                        Box(Modifier.clickable { avatarPicker.launch("image/*") }) {
+                            InitialAvatar(name = user?.username ?: "?", size = 64.dp)
+                        }
+                    }
+                    if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp))
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        user?.username?.ifBlank { "未设置昵称" } ?: "未登录",
+                        style = MaterialTheme.typography.titleMedium,
                     )
-                } else {
-                    Box(Modifier.clickable { avatarPicker.launch("image/*") }) {
-                        InitialAvatar(name = user?.username ?: "?", size = 80.dp)
+                    Spacer(Modifier.size(4.dp))
+                    user?.wechat_id?.takeIf { it.isNotBlank() }?.let {
+                        Text("v信号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                    }
+                    user?.phone?.takeIf { it.isNotBlank() }?.let {
+                        Text("手机号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(28.dp))
-            }
-            TextButton(onClick = { avatarPicker.launch("image/*") }) { Text("更换头像", color = VxinGreen) }
-
-            user?.wechat_id?.takeIf { it.isNotBlank() }?.let {
-                Text("v信号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
-            }
-            user?.phone?.takeIf { it.isNotBlank() }?.let {
-                Text("手机号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = { avatarPicker.launch("image/*") }) { Text("换头像", color = VxinGreen) }
             }
 
             Spacer(Modifier.size(24.dp))

@@ -14,8 +14,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
@@ -127,19 +132,14 @@ fun ContactsScreen(
                                 TextButton(onClick = onAddFriend) { Text("去添加好友") }
                             }
                         }
-                    else -> LazyColumn(Modifier.fillMaxSize()) {
-                        items(state.contacts, key = { it.id }) { contact ->
-                            ContactRow(
-                                contact,
-                                online = contact.id in state.onlineIds,
-                                onClick = { viewModel.startPrivateChat(contact) },
-                                onRemark = { remarkTarget = contact },
-                                onBlock = { blockTarget = contact },
-                                onDelete = { deleteTarget = contact },
-                            )
-                            HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
-                        }
-                    }
+                    else -> ContactsIndexedList(
+                        contacts = state.contacts,
+                        onlineIds = state.onlineIds,
+                        onOpenChat = { viewModel.startPrivateChat(it) },
+                        onRemark = { remarkTarget = it },
+                        onBlock = { blockTarget = it },
+                        onDelete = { deleteTarget = it },
+                    )
                 }
             }
             state.error?.let {
@@ -173,6 +173,114 @@ fun ContactsScreen(
             confirmButton = { TextButton(onClick = { viewModel.block(target); blockTarget = null }) { Text("加入", color = Color(0xFFFA5151)) } },
             dismissButton = { TextButton(onClick = { blockTarget = null }) { Text("取消") } },
         )
+    }
+}
+
+/** 取分组字母：中文按拼音首字母近似，英文取大写首字母，其余归 # */
+private fun sectionLetterOf(name: String): Char {
+    val c = name.trim().firstOrNull() ?: return '#'
+    return when {
+        c in 'A'..'Z' -> c
+        c in 'a'..'z' -> c.uppercaseChar()
+        else -> pinyinFirstLetter(c)
+    }
+}
+
+/** 中文首字符 → 拼音首字母（基于 GB2312 区间近似，覆盖常用汉字） */
+private fun pinyinFirstLetter(c: Char): Char {
+    if (c.code < 0x4E00 || c.code > 0x9FFF) return '#'
+    // 各字母拼音区间的起始汉字（Unicode 码点，按拼音排序的边界）
+    val boundaries = listOf(
+        0x4E00 to 'A', 0x516B to 'B', 0x5693 to 'C', 0x5491 to 'D',
+        0x59B1 to 'E', 0x53D1 to 'F', 0x7324 to 'G', 0x54C8 to 'H',
+        0x51E0 to 'J', 0x5580 to 'K', 0x62C9 to 'L', 0x5988 to 'M',
+        0x5B01 to 'N', 0x54E6 to 'O', 0x5991 to 'P', 0x671F to 'Q',
+        0x7136 to 'R', 0x6492 to 'S', 0x584C to 'T', 0x7A75 to 'W',
+        0x5915 to 'X', 0x4E2B to 'Y', 0x5E00 to 'Z',
+    )
+    var result = '#'
+    for ((code, letter) in boundaries) {
+        if (c.code >= code) result = letter
+    }
+    return result
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ContactsIndexedList(
+    contacts: List<Contact>,
+    onlineIds: Set<String>,
+    onOpenChat: (Contact) -> Unit,
+    onRemark: (Contact) -> Unit,
+    onBlock: (Contact) -> Unit,
+    onDelete: (Contact) -> Unit,
+) {
+    // 分组并排序：按字母分组，字母表顺序，# 归最后
+    val grouped = remember(contacts) {
+        contacts.groupBy { sectionLetterOf(it.displayName.ifBlank { it.username }) }
+            .toSortedMap(compareBy { if (it == '#') Char.MAX_VALUE else it })
+    }
+    val letters = remember(grouped) { grouped.keys.toList() }
+    // 每个字母首行在 LazyColumn 中的 item 索引（含 header 自身）
+    val letterToIndex = remember(grouped) {
+        val map = HashMap<Char, Int>()
+        var idx = 0
+        grouped.forEach { (letter, list) ->
+            map[letter] = idx
+            idx += 1 + list.size // header + rows
+        }
+        map
+    }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            grouped.forEach { (letter, list) ->
+                stickyHeader(key = "header-$letter") {
+                    Text(
+                        letter.toString(),
+                        color = VxinTextSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+                items(list, key = { it.id }) { contact ->
+                    ContactRow(
+                        contact,
+                        online = contact.id in onlineIds,
+                        onClick = { onOpenChat(contact) },
+                        onRemark = { onRemark(contact) },
+                        onBlock = { onBlock(contact) },
+                        onDelete = { onDelete(contact) },
+                    )
+                    HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
+                }
+            }
+        }
+        // 右侧字母索引条
+        if (letters.size > 3) {
+            Column(
+                Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 2.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                letters.forEach { letter ->
+                    Text(
+                        letter.toString(),
+                        color = VxinGreen,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                            .clickable {
+                                letterToIndex[letter]?.let { i -> scope.launch { listState.scrollToItem(i) } }
+                            },
+                    )
+                }
+            }
+        }
     }
 }
 

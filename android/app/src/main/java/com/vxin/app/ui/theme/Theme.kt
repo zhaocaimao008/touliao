@@ -12,12 +12,22 @@ private val LightColors = lightColorScheme(
     onPrimary = androidx.compose.ui.graphics.Color.White,
     secondary = VxinGreenDark,
     background = VxinBg,
+    onBackground = VxinTextPrimary,
+    surface = androidx.compose.ui.graphics.Color.White,
+    onSurface = VxinTextPrimary,
+    surfaceVariant = VxinBg,
     error = VxinError,
 )
 
 private val DarkColors = darkColorScheme(
     primary = VxinGreen,
+    onPrimary = androidx.compose.ui.graphics.Color.White,
     secondary = VxinGreenDark,
+    background = VxinBgDark,
+    onBackground = VxinTextPrimaryDark,
+    surface = VxinSurfaceDark,
+    onSurface = VxinTextPrimaryDark,
+    surfaceVariant = VxinSurfaceDark,
     error = VxinError,
 )
 
