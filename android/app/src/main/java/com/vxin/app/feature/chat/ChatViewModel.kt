@@ -39,6 +39,7 @@ data class PendingUpload(
     val name: String,
     val localUri: String? = null, // 图片本地预览
     val failed: Boolean = false,
+    val retry: (suspend () -> Message)? = null, // 失败后重试用的上传动作
 )
 
 data class ChatUiState(
@@ -614,12 +615,29 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun runUpload(pending: PendingUpload, block: suspend () -> Message) {
-        addPending(pending)
+        // 记住重试动作，失败后可一键重传
+        addPending(pending.copy(retry = block))
         viewModelScope.launch {
             runCatching { block() }
                 .onSuccess { msg -> removePending(pending.tempId); appendUnique(msg) }
                 .onFailure { e ->
                     markPendingFailed(pending.tempId)
+                    _uiState.update { it.copy(error = e.toUserMessage("上传失败")) }
+                }
+        }
+    }
+
+    /** 重试失败的上传项 */
+    fun retryPending(tempId: String) {
+        val p = _uiState.value.pending.firstOrNull { it.tempId == tempId } ?: return
+        val block = p.retry ?: return
+        // 重置为进行中
+        _uiState.update { s -> s.copy(pending = s.pending.map { if (it.tempId == tempId) it.copy(failed = false) else it }, error = null) }
+        viewModelScope.launch {
+            runCatching { block() }
+                .onSuccess { msg -> removePending(tempId); appendUnique(msg) }
+                .onFailure { e ->
+                    markPendingFailed(tempId)
                     _uiState.update { it.copy(error = e.toUserMessage("上传失败")) }
                 }
         }

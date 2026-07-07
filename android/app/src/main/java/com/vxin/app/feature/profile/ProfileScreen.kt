@@ -24,6 +24,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -55,6 +57,7 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 @Composable
 fun ProfileScreen(
     onAddAccount: () -> Unit = {},
+    onOpenMyQr: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -115,7 +118,11 @@ fun ProfileScreen(
                         Text("手机号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                TextButton(onClick = { avatarPicker.launch("image/*") }) { Text("换头像", color = VxinGreen) }
+                // 我的二维码入口（对齐微信：个人卡片右侧二维码图标）
+                IconButton(onClick = onOpenMyQr, modifier = Modifier.testTag("profile-my-qr")) {
+                    Text("▦", style = MaterialTheme.typography.titleLarge, color = VxinTextSecondary)
+                }
+                Text("›", color = VxinTextSecondary)
             }
 
             Spacer(Modifier.size(24.dp))

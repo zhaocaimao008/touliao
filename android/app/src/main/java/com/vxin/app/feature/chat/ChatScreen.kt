@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
 import kotlinx.coroutines.launch
@@ -44,6 +45,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -362,7 +364,11 @@ fun ChatScreen(
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
-                        PendingBubble(p, onDismiss = { viewModel.dismissFailedPending(p.tempId) })
+                        PendingBubble(
+                            p,
+                            onRetry = { viewModel.retryPending(p.tempId) },
+                            onDismiss = { viewModel.dismissFailedPending(p.tempId) },
+                        )
                     }
                 }
             }
@@ -615,8 +621,14 @@ private fun MessageBubble(
             }
             // 气泡本体(长按弹菜单)
             val haptic = LocalHapticFeedback.current
+            // 长按缩放反馈：菜单打开时气泡轻微缩小(对齐微信长按手感)
+            val bubbleScale by animateFloatAsState(if (menuOpen) 0.96f else 1f, label = "bubbleScale")
             Box {
-                Box(Modifier.combinedClickable(onClick = {}, onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true })) {
+                Box(
+                    Modifier
+                        .graphicsLayer { scaleX = bubbleScale; scaleY = bubbleScale }
+                        .combinedClickable(onClick = {}, onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true }),
+                ) {
                     MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick)
                 }
                 // (highlight via Row background above)
@@ -737,16 +749,29 @@ private fun MessageContent(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun PendingBubble(p: PendingUpload, onDismiss: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        // 失败时：气泡左侧显示红色感叹号，点击重试（对齐微信）
+        if (p.failed) {
+            Box(
+                Modifier.size(20.dp).clip(CircleShape).background(Color(0xFFFA5151))
+                    .clickable { onRetry() },
+                contentAlignment = Alignment.Center,
+            ) { Text("!", color = Color.White, fontSize = 13.sp) }
+            Spacer(Modifier.size(6.dp))
+        }
         Column(horizontalAlignment = Alignment.End) {
             Box(
                 modifier = Modifier
                     .widthIn(max = 220.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(if (p.failed) Color(0x33FA5151) else VxinGreen.copy(alpha = 0.6f))
-                    .clickable(enabled = p.failed) { onDismiss() }
+                    .combinedClickable(
+                        onClick = { if (p.failed) onRetry() },
+                        onLongClick = { if (p.failed) onDismiss() },
+                    )
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 if (p.type == "image" && p.localUri != null && !p.failed) {
@@ -766,7 +791,7 @@ private fun PendingBubble(p: PendingUpload, onDismiss: () -> Unit) {
                             Spacer(Modifier.size(8.dp))
                         }
                         Text(
-                            if (p.failed) "上传失败（点击移除）" else placeholderLabel(p),
+                            if (p.failed) "发送失败（点击重试，长按移除）" else placeholderLabel(p),
                             color = Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

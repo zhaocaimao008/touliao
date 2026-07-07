@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -55,6 +57,7 @@ import com.vxin.app.feature.profile.MyQrCodeScreen
 import com.vxin.app.feature.profile.ProfileScreen
 import com.vxin.app.feature.search.SearchScreen
 import com.vxin.app.data.api.ConfigApi
+import com.vxin.app.data.repository.ChatRepository
 import com.vxin.app.data.model.Features
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
@@ -68,6 +71,7 @@ import javax.inject.Inject
 class AppViewModel @Inject constructor(
     sessionManager: SessionManager,
     private val configApi: ConfigApi,
+    private val chatRepository: ChatRepository,
 ) : ViewModel() {
     val authState: StateFlow<AuthState> = sessionManager.state
 
@@ -75,9 +79,25 @@ class AppViewModel @Inject constructor(
     private val _features = MutableStateFlow(Features())
     val features: StateFlow<Features> = _features.asStateFlow()
 
+    // 底部「消息」tab 未读总数（用于红点角标）
+    private val _unreadTotal = MutableStateFlow(0)
+    val unreadTotal: StateFlow<Int> = _unreadTotal.asStateFlow()
+
     init {
         viewModelScope.launch {
             runCatching { configApi.getConfig() }.onSuccess { _features.value = it.features }
+        }
+        // 首次加载 + 实时事件驱动刷新未读总数
+        refreshUnread()
+        viewModelScope.launch { chatRepository.incomingMessages.collect { refreshUnread() } }
+        viewModelScope.launch { chatRepository.unreadClearedEvents.collect { refreshUnread() } }
+        viewModelScope.launch { chatRepository.newConversationEvents.collect { refreshUnread() } }
+    }
+
+    fun refreshUnread() {
+        viewModelScope.launch {
+            runCatching { chatRepository.loadConversations() }
+                .onSuccess { list -> _unreadTotal.value = list.sumOf { it.unreadCount } }
         }
     }
 }
@@ -114,10 +134,11 @@ private object Routes {
 fun AppNavigation(appViewModel: AppViewModel = hiltViewModel()) {
     val authState by appViewModel.authState.collectAsStateWithLifecycle()
     val features by appViewModel.features.collectAsStateWithLifecycle()
+    val unreadTotal by appViewModel.unreadTotal.collectAsStateWithLifecycle()
 
     when (authState) {
         is AuthState.Loading -> SplashScreen()
-        is AuthState.Authenticated -> MainFlow(features)
+        is AuthState.Authenticated -> MainFlow(features, unreadTotal)
         is AuthState.Unauthenticated -> AuthFlow()
     }
 }
@@ -153,7 +174,7 @@ private val TAB_ITEMS = listOf(
 private val TAB_ROUTES = TAB_ITEMS.map { it.route }.toSet()
 
 @Composable
-private fun MainFlow(features: Features) {
+private fun MainFlow(features: Features, unreadTotal: Int = 0) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -183,7 +204,16 @@ private fun MainFlow(features: Features) {
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            icon = {
+                                // 「消息」tab 显示未读总数红点角标
+                                if (tab.route == Routes.CONVERSATIONS && unreadTotal > 0) {
+                                    BadgedBox(badge = { Badge { Text(if (unreadTotal > 99) "99+" else unreadTotal.toString()) } }) {
+                                        Icon(tab.icon, contentDescription = tab.label)
+                                    }
+                                } else {
+                                    Icon(tab.icon, contentDescription = tab.label)
+                                }
+                            },
                             label = { Text(tab.label) },
                         )
                     }
@@ -220,6 +250,7 @@ private fun MainFlow(features: Features) {
             composable(Routes.PROFILE) {
                 ProfileScreen(
                     onAddAccount = { navController.navigate(Routes.ADD_ACCOUNT) },
+                    onOpenMyQr = { navController.navigate(Routes.MY_QRCODE) },
                 )
             }
             composable(Routes.FAVORITES) {
