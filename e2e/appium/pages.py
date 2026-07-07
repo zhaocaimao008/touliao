@@ -161,6 +161,13 @@ class App:
         self.el(A.CHAT_MSG_INPUT).send_keys(reply_text)
         self.el(A.CHAT_SEND_BTN).click()
 
+    # ── 附件面板(＋)：图片/文件/红包已收进功能面板，需先展开 ──
+    def open_func_panel(self):
+        """点击输入栏 ＋ 展开功能面板（图片/文件/红包）。若已展开则忽略。"""
+        if not self.exists(A.CHAT_ATTACH_IMAGE):
+            self.el(A.CHAT_MORE_BTN).click()
+            self.wait(A.CHAT_ATTACH_IMAGE)
+
     # ── 图片/文件发送(push_file 注入沙盒) ──
     def push_and_send_image(self, local_path):
         """
@@ -185,6 +192,7 @@ class App:
                          "-d", f"file://{remote}"]
             })
             _time.sleep(1)
+            self.open_func_panel()
             self.el(A.CHAT_ATTACH_IMAGE).click()
             # AOSP DocumentsUI: 左抽屉 → Downloads → 选文件
             _time.sleep(1.5)
@@ -207,6 +215,7 @@ class App:
             bundle = self.d.capabilities.get("bundleId", "com.vxin.app")
             remote = f"@{bundle}/Documents/{filename}"
             self.d.push_file(remote, b64)
+            self.open_func_panel()
             self.el(A.CHAT_ATTACH_IMAGE).click()
             _time.sleep(1)
             # PHPickerViewController / UIImagePickerController 按文件名选取

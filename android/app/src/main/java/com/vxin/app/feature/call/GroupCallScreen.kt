@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -70,7 +71,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
             Text(
                 "群${if (state.isVideo) "视频" else "语音"}通话 · ${state.participants.size + 1} 人",
                 color = Color.White, fontSize = 15.sp,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp),
+                modifier = Modifier.align(Alignment.TopCenter).systemBarsPadding().padding(top = 16.dp),
             )
 
             val cols = if (state.participants.size + 1 <= 1) 1 else if (state.participants.size + 1 <= 4) 2 else 3
@@ -95,7 +96,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
             }
 
             Row(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 40.dp),
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().systemBarsPadding().padding(bottom = 40.dp),
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -113,7 +114,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
 
     // 收到邀请（且未在通话中）：顶部横幅
     invite?.let { inv ->
-        Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.TopCenter) {
+        Box(Modifier.fillMaxWidth().systemBarsPadding().padding(top = 60.dp), contentAlignment = Alignment.TopCenter) {
             Row(
                 Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xFF2C2C2E)).padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,

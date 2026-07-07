@@ -28,7 +28,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -88,7 +91,7 @@ import com.vxin.app.ui.theme.VxinBubbleOtherDark
 import com.vxin.app.ui.theme.VxinBubbleTextDark
 import androidx.compose.foundation.isSystemInDarkTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen(
     onBack: () -> Unit,
@@ -146,6 +149,12 @@ fun ChatScreen(
         if (totalCount > 0) listState.animateScrollToItem(totalCount - 1)
     }
 
+    // 键盘弹出时把最新消息顶到键盘上方（对齐微信：点输入框后最后一条仍可见）
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) {
+        if (imeVisible && totalCount > 0) listState.animateScrollToItem(totalCount - 1)
+    }
+
     // 退出聊天：发送已读 + stop_typing
     DisposableEffect(Unit) {
         onDispose { viewModel.onLeave() }
@@ -195,9 +204,13 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            var showPanel by remember { mutableStateOf(false) }
-            LaunchedEffect(showPanel) { if (showPanel) viewModel.loadStickers() }
-            Column {
+            // 两个面板互斥：表情面板 / 功能(+)面板
+            var showEmojiPanel by remember { mutableStateOf(false) }
+            var showFuncPanel by remember { mutableStateOf(false) }
+            LaunchedEffect(showEmojiPanel) { if (showEmojiPanel) viewModel.loadStickers() }
+            // imePadding 提到整个底栏：键盘弹出时回复条/输入框/面板一起上移；
+            // navigationBarsPadding 保证 edge-to-edge 下输入框不被手势条遮挡。
+            Column(Modifier.imePadding().navigationBarsPadding()) {
                 state.replyingTo?.let { r ->
                     Row(
                         Modifier.fillMaxWidth().background(Color(0x11000000)).padding(horizontal = 12.dp, vertical = 6.dp),
@@ -217,10 +230,10 @@ fun ChatScreen(
                     recording = state.recording,
                     onValueChange = viewModel::onInputChange,
                     onSend = viewModel::send,
-                    onPickImage = { imagePicker.launch("image/*") },
-                    onPickFile = { filePicker.launch("*/*") },
-                    onTogglePanel = { showPanel = !showPanel },
-                    onRedPacket = { showRedPacketSend = true },
+                    onToggleEmoji = { showEmojiPanel = !showEmojiPanel; if (showEmojiPanel) showFuncPanel = false },
+                    onToggleFunc = { showFuncPanel = !showFuncPanel; if (showFuncPanel) showEmojiPanel = false },
+                    funcPanelOpen = showFuncPanel,
+                    emojiPanelOpen = showEmojiPanel,
                     showMention = viewModel.isGroup,
                     onMention = { showMentionPicker = true },
                     onMicClick = {
@@ -233,12 +246,19 @@ fun ChatScreen(
                         }
                     },
                 )
-                if (showPanel) {
+                if (showEmojiPanel) {
                     StickerEmojiPanel(
                         stickers = state.stickers,
                         resolveUrl = viewModel::resolveMediaUrl,
                         onEmoji = viewModel::appendEmoji,
-                        onSticker = { viewModel.sendSticker(it); showPanel = false },
+                        onSticker = { viewModel.sendSticker(it); showEmojiPanel = false },
+                    )
+                }
+                if (showFuncPanel) {
+                    FunctionPanel(
+                        onPickImage = { imagePicker.launch("image/*"); showFuncPanel = false },
+                        onPickFile = { filePicker.launch("*/*"); showFuncPanel = false },
+                        onRedPacket = { showRedPacketSend = true; showFuncPanel = false },
                     )
                 }
             }
@@ -811,15 +831,19 @@ private fun MessageInputBar(
     recording: Boolean,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
-    onPickImage: () -> Unit,
-    onPickFile: () -> Unit,
+    onToggleEmoji: () -> Unit,
+    onToggleFunc: () -> Unit,
+    funcPanelOpen: Boolean,
+    emojiPanelOpen: Boolean,
     onMicClick: () -> Unit,
-    onTogglePanel: () -> Unit,
-    onRedPacket: () -> Unit,
     showMention: Boolean = false,
     onMention: () -> Unit = {},
 ) {
-    Column(Modifier.fillMaxWidth().imePadding()) {
+    val hasText = value.isNotBlank()
+    // 注意：imePadding / navigationBarsPadding 已在 ChatScreen 的 bottomBar 顶层统一处理，此处不再重复。
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+        // 输入区顶部细分隔线：视觉上区分对话区与输入区（对齐微信）
+        HorizontalDivider(thickness = 0.5.dp, color = VxinTextSecondary.copy(alpha = 0.2f))
         if (recording) {
             Text(
                 "● 录音中…点击麦克风停止并发送",
@@ -828,15 +852,16 @@ private fun MessageInputBar(
             )
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.Bottom,
         ) {
-            IconButton(onClick = onTogglePanel) { Text("😀", style = MaterialTheme.typography.titleMedium) }
-            if (showMention) IconButton(onClick = onMention) { Text("@", style = MaterialTheme.typography.titleMedium) }
-            IconButton(onClick = onPickImage, modifier = Modifier.testTag("chat-attach-image")) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
-            IconButton(onClick = onPickFile) { Text("📎", style = MaterialTheme.typography.titleMedium) }
-            IconButton(onClick = onRedPacket) { Text("🧧", style = MaterialTheme.typography.titleMedium) }
-            IconButton(onClick = onMicClick, modifier = Modifier.testTag("chat-voice-btn")) { Text(if (recording) "⏹" else "🎤", style = MaterialTheme.typography.titleMedium) }
+            // 语音输入切换（对齐微信左侧麦克风）
+            IconButton(onClick = onMicClick, modifier = Modifier.testTag("chat-voice-btn")) {
+                Text(if (recording) "⏹" else "🎤", style = MaterialTheme.typography.titleMedium)
+            }
+            if (showMention) {
+                IconButton(onClick = onMention) { Text("@", style = MaterialTheme.typography.titleMedium) }
+            }
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -844,17 +869,69 @@ private fun MessageInputBar(
                 placeholder = { Text("输入消息…") },
                 maxLines = 4,
             )
-            Spacer(Modifier.size(4.dp))
-            IconButton(onClick = onSend, enabled = value.isNotBlank() && !sending, modifier = Modifier.testTag("chat-send-btn")) {
-                if (sending) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "发送",
-                        tint = if (value.isNotBlank()) VxinGreen else VxinTextSecondary,
+            Spacer(Modifier.size(2.dp))
+            // 表情面板切换
+            IconButton(onClick = onToggleEmoji, modifier = Modifier.testTag("chat-emoji-btn")) {
+                Text(if (emojiPanelOpen) "⌨" else "😀", style = MaterialTheme.typography.titleMedium)
+            }
+            // 有文字 → 发送键；无文字 → +(功能面板)。对齐微信输入栏交互。
+            if (hasText || sending) {
+                IconButton(onClick = onSend, enabled = hasText && !sending, modifier = Modifier.testTag("chat-send-btn")) {
+                    if (sending) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "发送",
+                            tint = VxinGreen,
+                        )
+                    }
+                }
+            } else {
+                IconButton(onClick = onToggleFunc, modifier = Modifier.testTag("chat-more-btn")) {
+                    Text(
+                        if (funcPanelOpen) "✕" else "＋",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = VxinTextSecondary,
                     )
                 }
+            }
+        }
+    }
+}
+
+/** +面板：图片 / 文件 / 红包（对齐微信「更多功能」面板） */
+@Composable
+private fun FunctionPanel(
+    onPickImage: () -> Unit,
+    onPickFile: () -> Unit,
+    onRedPacket: () -> Unit,
+) {
+    val items = listOf(
+        Triple("🖼", "图片", onPickImage),
+        Triple("📎", "文件", onPickFile),
+        Triple("🧧", "红包", onRedPacket),
+    )
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(4),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 220.dp)
+            .background(Color(0xFFF2F2F2))
+            .padding(vertical = 12.dp),
+    ) {
+        gridItems(items) { (emoji, label, onClick) ->
+            val tag = when (label) { "图片" -> "chat-attach-image"; "文件" -> "chat-attach-file"; else -> "chat-attach-redpacket" }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(vertical = 8.dp).testTag(tag).clickable(onClick = onClick),
+            ) {
+                Box(
+                    Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) { Text(emoji, fontSize = 26.sp) }
+                Spacer(Modifier.size(6.dp))
+                Text(label, fontSize = 12.sp, color = VxinTextSecondary)
             }
         }
     }

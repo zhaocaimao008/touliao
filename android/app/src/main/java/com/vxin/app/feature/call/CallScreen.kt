@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -85,15 +86,16 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
                     mirror = true,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
+                        .systemBarsPadding()
                         .padding(16.dp)
                         .size(110.dp, 160.dp)
                         .clip(RoundedCornerShape(8.dp)),
                 )
             }
         } else {
-            // 音频 / 未接通：头像 + 状态
+            // 音频 / 未接通：头像 + 状态（systemBarsPadding 避免文字被状态栏遮挡）
             Column(
-                Modifier.fillMaxSize().padding(top = 96.dp),
+                Modifier.fillMaxSize().systemBarsPadding().padding(top = 96.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 InitialAvatar(name = state.peerName.ifBlank { "?" }, size = 96.dp)
@@ -104,9 +106,9 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
             }
         }
 
-        // 控制按钮
+        // 控制按钮（systemBarsPadding 避免按钮被底部手势条遮挡）
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 48.dp),
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().systemBarsPadding().padding(bottom = 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (state.stage == CallStage.INCOMING) {
