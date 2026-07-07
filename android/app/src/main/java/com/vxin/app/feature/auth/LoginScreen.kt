@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -68,13 +69,19 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth().testTag("login-phone-input"),
         )
         Spacer(Modifier.height(16.dp))
+        var passwordVisible by remember { mutableStateOf(false) }
         OutlinedTextField(
             value = state.password,
             onValueChange = viewModel::onPasswordChange,
             label = { Text("密码") },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                TextButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Text(if (passwordVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = 12.sp)
+                }
+            },
             modifier = Modifier.fillMaxWidth().testTag("login-password-input"),
         )
 

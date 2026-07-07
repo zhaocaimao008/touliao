@@ -299,10 +299,13 @@ private fun ContactRow(
     onDelete: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Box {
     Row(
         modifier = Modifier.fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
+            .combinedClickable(onClick = onClick, onLongClick = {
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); menuOpen = true
+            })
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
