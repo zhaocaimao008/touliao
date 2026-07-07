@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -102,7 +103,10 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
                 Spacer(Modifier.height(16.dp))
                 Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = 22.sp)
                 Spacer(Modifier.height(8.dp))
-                Text(statusText(state.stage, state.isVideo), color = Color(0xFFBBBBBB), fontSize = 14.sp)
+                Text(
+                    callStatusOrDuration(state.stage, state.isVideo, state.connectedAt),
+                    color = Color(0xFFBBBBBB), fontSize = 14.sp,
+                )
             }
         }
 
@@ -137,6 +141,18 @@ private fun statusText(stage: CallStage, video: Boolean): String = when (stage) 
     CallStage.CONNECTED -> "通话中"
     CallStage.ENDED -> "通话结束"
     CallStage.IDLE -> ""
+}
+
+/** 已接通显示每秒递增的通话时长(mm:ss)，否则显示状态文案 */
+@Composable
+private fun callStatusOrDuration(stage: CallStage, video: Boolean, connectedAt: Long): String {
+    if (stage != CallStage.CONNECTED || connectedAt <= 0L) return statusText(stage, video)
+    var now by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(android.os.SystemClock.elapsedRealtime()) }
+    androidx.compose.runtime.LaunchedEffect(connectedAt) {
+        while (true) { now = android.os.SystemClock.elapsedRealtime(); kotlinx.coroutines.delay(1000) }
+    }
+    val secs = ((now - connectedAt) / 1000L).coerceAtLeast(0)
+    return "%02d:%02d".format(secs / 60, secs % 60)
 }
 
 @Composable

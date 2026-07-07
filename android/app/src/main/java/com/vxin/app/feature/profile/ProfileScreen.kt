@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -222,12 +223,19 @@ private fun ChangePasswordDialog(changing: Boolean, onConfirm: (String, String) 
         onDismissRequest = onDismiss,
         title = { Text("修改密码") },
         text = {
+            var visible by remember { mutableStateOf(false) }
+            val transform = if (visible) VisualTransformation.None else PasswordVisualTransformation()
+            val eye: @Composable () -> Unit = {
+                TextButton(onClick = { visible = !visible }) {
+                    Text(if (visible) "隐藏" else "显示", color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall)
+                }
+            }
             Column {
-                OutlinedTextField(old, { old = it }, label = { Text("当前密码") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                OutlinedTextField(old, { old = it }, label = { Text("当前密码") }, singleLine = true, visualTransformation = transform, trailingIcon = eye)
                 Spacer(Modifier.size(8.dp))
-                OutlinedTextField(new1, { new1 = it }, label = { Text("新密码（≥6位）") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                OutlinedTextField(new1, { new1 = it }, label = { Text("新密码（≥6位）") }, singleLine = true, visualTransformation = transform, trailingIcon = eye)
                 Spacer(Modifier.size(8.dp))
-                OutlinedTextField(new2, { new2 = it }, label = { Text("确认新密码") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                OutlinedTextField(new2, { new2 = it }, label = { Text("确认新密码") }, singleLine = true, visualTransformation = transform, trailingIcon = eye)
                 localErr?.let { Text(it, color = androidx.compose.ui.graphics.Color(0xFFFA5151), style = MaterialTheme.typography.bodySmall) }
             }
         },

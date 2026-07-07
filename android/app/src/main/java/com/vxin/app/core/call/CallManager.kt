@@ -46,6 +46,7 @@ data class CallState(
     val micEnabled: Boolean = true,
     val cameraEnabled: Boolean = true,
     val remoteVideoActive: Boolean = false,
+    val connectedAt: Long = 0,        // 接通时刻(elapsedRealtime ms)，用于通话计时
 )
 
 /**
@@ -331,7 +332,11 @@ class CallManager @Inject constructor(
                 when (state) {
                     PeerConnection.IceConnectionState.CONNECTED,
                     PeerConnection.IceConnectionState.COMPLETED ->
-                        _state.update { if (it.stage != CallStage.ENDED) it.copy(stage = CallStage.CONNECTED) else it }
+                        _state.update {
+                            if (it.stage != CallStage.ENDED)
+                                it.copy(stage = CallStage.CONNECTED, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt)
+                            else it
+                        }
                     PeerConnection.IceConnectionState.DISCONNECTED,
                     PeerConnection.IceConnectionState.FAILED,
                     PeerConnection.IceConnectionState.CLOSED -> { /* 由 call:end 或用户挂断收尾 */ }
