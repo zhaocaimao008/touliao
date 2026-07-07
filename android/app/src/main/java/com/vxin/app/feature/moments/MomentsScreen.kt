@@ -7,6 +7,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
@@ -245,8 +246,16 @@ private fun MomentCard(
         Spacer(Modifier.size(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(formatChatTime(moment.created_at), color = VxinTextSecondary, fontSize = 11.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = onLike) { Text(if (moment.liked) "已赞" else "赞", color = VxinGreen) }
-            TextButton(onClick = onComment) { Text("评论", color = VxinGreen) }
+            TextButton(onClick = onLike) {
+                Text(if (moment.liked) "❤️" else "🤍", fontSize = 14.sp)
+                Spacer(Modifier.size(4.dp))
+                Text(if (moment.liked) "已赞" else "赞", color = VxinGreen)
+            }
+            TextButton(onClick = onComment) {
+                Text("💬", fontSize = 14.sp)
+                Spacer(Modifier.size(4.dp))
+                Text("评论", color = VxinGreen)
+            }
         }
         // 点赞名单
         if (moment.likes.isNotEmpty()) {
@@ -269,8 +278,15 @@ private fun MomentCard(
         }
         if (commenting) {
             Spacer(Modifier.size(6.dp))
+            // 展开评论框时自动聚焦并弹出键盘
+            val commentFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+            LaunchedEffect(Unit) { kotlinx.coroutines.delay(100); runCatching { commentFocus.requestFocus() } }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(commentText, onCommentTextChange, Modifier.weight(1f), placeholder = { Text("评论…") }, singleLine = true)
+                OutlinedTextField(
+                    commentText, onCommentTextChange,
+                    Modifier.weight(1f).focusRequester(commentFocus),
+                    placeholder = { Text("评论…") }, singleLine = true,
+                )
                 TextButton(onClick = onSubmitComment, enabled = commentText.isNotBlank()) { Text("发送", color = VxinGreen) }
             }
         }

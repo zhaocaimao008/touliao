@@ -68,8 +68,10 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
         LaunchedEffect(Unit) { permLauncher.launch(perms) }
 
         Box(Modifier.fillMaxSize().background(Color(0xFF121212))) {
+            val durationText = groupCallDuration(state.connectedAt)
             Text(
-                "群${if (state.isVideo) "视频" else "语音"}通话 · ${state.participants.size + 1} 人",
+                "群${if (state.isVideo) "视频" else "语音"}通话 · ${state.participants.size + 1} 人" +
+                    if (durationText.isNotEmpty()) "  $durationText" else "",
                 color = Color.White, fontSize = 15.sp,
                 modifier = Modifier.align(Alignment.TopCenter).systemBarsPadding().padding(top = 16.dp),
             )
@@ -188,4 +190,16 @@ private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
         Spacer(Modifier.height(4.dp))
         Text(label, color = Color(0xFFCCCCCC), fontSize = 11.sp)
     }
+}
+
+/** 群通话接通后每秒递增的时长(mm:ss)，未接通返回空串 */
+@androidx.compose.runtime.Composable
+private fun groupCallDuration(connectedAt: Long): String {
+    if (connectedAt <= 0L) return ""
+    var now by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(android.os.SystemClock.elapsedRealtime()) }
+    androidx.compose.runtime.LaunchedEffect(connectedAt) {
+        while (true) { now = android.os.SystemClock.elapsedRealtime(); kotlinx.coroutines.delay(1000) }
+    }
+    val secs = ((now - connectedAt) / 1000L).coerceAtLeast(0)
+    return "%02d:%02d".format(secs / 60, secs % 60)
 }

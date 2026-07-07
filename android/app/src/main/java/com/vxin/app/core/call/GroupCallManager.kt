@@ -43,6 +43,7 @@ data class GroupCallState(
     val participants: List<String> = emptyList(), // 远端成员 id（不含自己）
     val micEnabled: Boolean = true,
     val cameraEnabled: Boolean = true,
+    val connectedAt: Long = 0,        // 接通时刻(elapsedRealtime ms)，用于通话计时
 )
 
 /**
@@ -175,13 +176,13 @@ class GroupCallManager @Inject constructor(
         scope.launch {
             socketManager.groupCallStartedEvents.collect { e ->
                 if (_state.value.stage == GroupCallStage.ENDED) return@collect
-                _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId) }
+                _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
             }
         }
         scope.launch {
             socketManager.groupCallPeersEvents.collect { e ->
                 if (_state.value.callId.isNotEmpty() && e.callId != _state.value.callId) return@collect
-                _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId) }
+                _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
                 // 作为 answerer：为既有成员预建 PC，等其 offer
                 e.peers.forEach { pid -> peerFor(pid) }
                 _state.update { it.copy(participants = peers.keys.toList()) }
