@@ -37,6 +37,16 @@ struct ProfileView: View {
                     if !user.wechatId.isEmpty { LabeledRow("v信号", user.wechatId) }
                     if !user.phone.isEmpty { LabeledRow("手机号", user.phone) }
                 }
+                // 我的二维码入口（对齐微信 + 安卓）
+                NavigationLink {
+                    MyQRCodeView()
+                } label: {
+                    HStack {
+                        Image(systemName: "qrcode")
+                        Text("我的二维码")
+                    }
+                }
+                .accessibilityIdentifier("profile-my-qr")
             }
 
             Section("资料") {

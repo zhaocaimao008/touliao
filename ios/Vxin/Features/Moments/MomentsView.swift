@@ -255,20 +255,29 @@ private struct MomentCard: View {
     }
 
     @ViewBuilder private var imageGrid: some View {
-        let cols = moment.images.count == 1 ? 1 : 3
-        let rowStarts = Array(stride(from: 0, to: moment.images.count, by: cols))
-        VStack(spacing: 4) {
-            ForEach(rowStarts, id: \.self) { rowStart in
-                let end = min(rowStart + cols, moment.images.count)
-                HStack(spacing: 4) {
-                    ForEach(rowStart..<end, id: \.self) { i in
-                        KFImage(source: MediaUrlResolver.kfSource(raw: moment.images[i]))
-                            .resizable().scaledToFill()
-                            .frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit)
-                            .clipped().clipShape(RoundedRectangle(cornerRadius: 6))
-                            .onTapGesture { onImageTap(i) }
+        // 单图：限制最大尺寸不铺满(对齐微信 + 安卓)，保留原图比例
+        if moment.images.count == 1 {
+            KFImage(source: MediaUrlResolver.kfSource(raw: moment.images[0]))
+                .resizable().scaledToFit()
+                .frame(maxWidth: 220, maxHeight: 280, alignment: .leading)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .onTapGesture { onImageTap(0) }
+        } else {
+            let cols = 3
+            let rowStarts = Array(stride(from: 0, to: moment.images.count, by: cols))
+            VStack(spacing: 4) {
+                ForEach(rowStarts, id: \.self) { rowStart in
+                    let end = min(rowStart + cols, moment.images.count)
+                    HStack(spacing: 4) {
+                        ForEach(rowStart..<end, id: \.self) { i in
+                            KFImage(source: MediaUrlResolver.kfSource(raw: moment.images[i]))
+                                .resizable().scaledToFill()
+                                .frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit)
+                                .clipped().clipShape(RoundedRectangle(cornerRadius: 6))
+                                .onTapGesture { onImageTap(i) }
+                        }
+                        ForEach(0..<(cols - (end - rowStart)), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit) }
                     }
-                    ForEach(0..<(cols - (end - rowStart)), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit) }
                 }
             }
         }

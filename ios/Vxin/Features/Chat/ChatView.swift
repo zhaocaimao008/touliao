@@ -213,7 +213,18 @@ struct ChatView: View {
                         }
                         .padding(.vertical, 8)
                     }
-                    ForEach(vm.messages) { msg in
+                    ForEach(Array(vm.messages.enumerated()), id: \.element.id) { idx, msg in
+                        // 时间分隔：与上一条间隔超 5 分钟显示居中时间(对齐微信 + 安卓)
+                        let prev = idx > 0 ? vm.messages[idx - 1].createdAt : nil
+                        if shouldShowMessageTime(prev: prev, cur: msg.createdAt) {
+                            Text(formatChatTime(msg.createdAt))
+                                .font(.caption2).foregroundColor(.vxinTextSecondary)
+                                .padding(.horizontal, 8).padding(.vertical, 2)
+                                .background(Color.gray.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 4)
+                        }
                         if msg.type == "nudge" {
                             Text(vm.nudgeText(msg))
                                 .font(.caption).foregroundColor(.vxinTextSecondary)
@@ -227,7 +238,7 @@ struct ChatView: View {
                         }
                     }
                     ForEach(vm.pending) { p in
-                        PendingBubbleView(pending: p) { vm.dismissFailed(p.id) }
+                        PendingBubbleView(pending: p, onRetry: { vm.retryPending(p.id) }) { vm.dismissFailed(p.id) }
                             .id(p.id)
                     }
                     Color.clear.frame(height: 1).id(bottomAnchor)
@@ -612,11 +623,20 @@ private struct MessageBubble: View {
 
 private struct PendingBubbleView: View {
     let pending: PendingUpload
+    var onRetry: () -> Void = {}
     let onDismiss: () -> Void
 
     var body: some View {
         HStack {
             Spacer(minLength: 40)
+            // 失败时：气泡左侧红色感叹号，点击重试(对齐微信 + 安卓)
+            if pending.failed {
+                Button(action: onRetry) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(.vxinError).font(.title3)
+                }
+                .buttonStyle(.plain)
+            }
             Group {
                 if let image = pending.previewImage, !pending.failed {
                     ZStack {
@@ -628,13 +648,14 @@ private struct PendingBubbleView: View {
                 } else {
                     HStack(spacing: 8) {
                         if !pending.failed { ProgressView().tint(.white) }
-                        Text(pending.failed ? "上传失败（点击移除）" : label)
+                        Text(pending.failed ? "发送失败（点击重试，长按移除）" : label)
                             .foregroundColor(.white)
                     }
                     .padding(.horizontal, 12).padding(.vertical, 8)
                     .background(pending.failed ? Color.vxinError.opacity(0.7) : Color.vxinGreen.opacity(0.6))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .onTapGesture { if pending.failed { onDismiss() } }
+                    .onTapGesture { if pending.failed { onRetry() } }
+                    .onLongPressGesture { if pending.failed { onDismiss() } }
                 }
             }
         }

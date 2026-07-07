@@ -9,6 +9,9 @@ struct PendingUpload: Identifiable {
     let name: String
     let previewImage: UIImage?       // 图片本地预览
     var failed: Bool = false
+    // 失败重试所需的原始数据
+    var data: Data? = nil
+    var mimeType: String = ""
 }
 
 @MainActor
@@ -521,12 +524,19 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - 媒体上传
     func upload(data: Data, fileName: String, mimeType: String, localType: String, preview: UIImage?) {
-        let item = PendingUpload(type: localType, name: fileName, previewImage: preview)
+        // 保存原始数据，失败后可一键重传
+        let item = PendingUpload(type: localType, name: fileName, previewImage: preview, data: data, mimeType: mimeType)
         pending.append(item)
+        runUpload(item)
+    }
+
+    /// 执行/重试上传（失败后可重复调用）
+    private func runUpload(_ item: PendingUpload) {
         Task { [weak self] in
             guard let self else { return }
+            guard let data = item.data else { return }
             do {
-                let msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: fileName, mimeType: mimeType)
+                let msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: item.name, mimeType: item.mimeType)
                 removePending(item.id)
                 appendUnique(msg)
             } catch {
@@ -534,6 +544,14 @@ final class ChatViewModel: ObservableObject {
                 self.error = (error as? LocalizedError)?.errorDescription ?? "上传失败"
             }
         }
+    }
+
+    /// 重试失败的上传项
+    func retryPending(_ id: String) {
+        guard let idx = pending.firstIndex(where: { $0.id == id }) else { return }
+        pending[idx].failed = false
+        error = nil
+        runUpload(pending[idx])
     }
 
     // MARK: - 录音
