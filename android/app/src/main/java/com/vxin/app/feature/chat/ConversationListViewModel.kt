@@ -88,6 +88,13 @@ class ConversationListViewModel @Inject constructor(
         }
     }
 
+    /** 标为已读：清零未读并通知服务端 */
+    fun markConversationRead(conv: Conversation) {
+        if (conv.unreadCount == 0) return
+        _uiState.update { s -> s.copy(conversations = s.conversations.map { if (it.id == conv.id) it.copy(unreadCount = 0) else it }) }
+        viewModelScope.launch { runCatching { chatRepository.markRead(conv.id, null) } }
+    }
+
     // ── 会话操作：置顶/免打扰/清空 ──
     fun togglePin(conv: Conversation) {
         val pinned = conv.pinned != 1

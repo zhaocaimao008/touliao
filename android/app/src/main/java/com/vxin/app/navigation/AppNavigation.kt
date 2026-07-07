@@ -97,7 +97,8 @@ class AppViewModel @Inject constructor(
     fun refreshUnread() {
         viewModelScope.launch {
             runCatching { chatRepository.loadConversations() }
-                .onSuccess { list -> _unreadTotal.value = list.sumOf { it.unreadCount } }
+                // 免打扰会话不计入数字角标(对齐微信,免打扰只在会话内显示小红点)
+                .onSuccess { list -> _unreadTotal.value = list.filter { it.muted != 1 }.sumOf { it.unreadCount } }
         }
     }
 }

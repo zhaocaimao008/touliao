@@ -146,6 +146,7 @@ fun ConversationListScreen(
                             onTogglePin = { viewModel.togglePin(conv) },
                             onToggleMute = { viewModel.toggleMute(conv) },
                             onClear = { clearTarget = conv },
+                            onMarkRead = { viewModel.markConversationRead(conv) },
                         )
                         HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
                     }
@@ -175,6 +176,7 @@ private fun ConversationRow(
     onTogglePin: () -> Unit = {},
     onToggleMute: () -> Unit = {},
     onClear: () -> Unit = {},
+    onMarkRead: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -237,6 +239,9 @@ private fun ConversationRow(
         }
     }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            if (conv.unreadCount > 0) {
+                DropdownMenuItem(text = { Text("标为已读") }, onClick = { onMarkRead(); menuOpen = false })
+            }
             DropdownMenuItem(text = { Text(if (conv.pinned == 1) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
             DropdownMenuItem(text = { Text(if (conv.muted == 1) "取消免打扰" else "消息免打扰") }, onClick = { onToggleMute(); menuOpen = false })
             DropdownMenuItem(text = { Text("清空聊天记录", color = Color(0xFFFA5151)) }, onClick = { onClear(); menuOpen = false })
@@ -244,16 +249,23 @@ private fun ConversationRow(
     }
 }
 
-private fun previewText(conv: Conversation): String = when (conv.lastMessageType) {
-    null, "text" -> conv.lastMessage ?: ""
-    "image" -> "[图片]"
-    "voice" -> "[语音]"
-    "video" -> "[视频]"
-    "file" -> "[文件]"
-    "red_packet" -> "[红包]"
-    "sticker" -> "[表情]"
-    "nudge" -> "[拍一拍]"
-    "contact_card", "contact" -> "[名片]"
-    else -> conv.lastMessage ?: ""
+private fun previewText(conv: Conversation): String {
+    val body = when (conv.lastMessageType) {
+        null, "text" -> conv.lastMessage ?: ""
+        "image" -> "[图片]"
+        "voice" -> "[语音]"
+        "video" -> "[视频]"
+        "file" -> "[文件]"
+        "red_packet" -> "[红包]"
+        "sticker" -> "[表情]"
+        "nudge" -> "[拍一拍]"
+        "contact_card", "contact" -> "[名片]"
+        else -> conv.lastMessage ?: ""
+    }
+    // 群聊预览加发送者名前缀(对齐微信「张三: 内容」)
+    val sender = conv.lastSenderName
+    return if (conv.type == "group" && !sender.isNullOrBlank() && body.isNotEmpty()) {
+        "$sender: $body"
+    } else body
 }
 
