@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.vxin.app.core.util.formatChatTime
 import com.vxin.app.data.model.Moment
 import com.vxin.app.ui.components.InitialAvatar
@@ -298,7 +299,7 @@ private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?, on
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             rowImgs.forEachIndexed { i, img ->
                 val index = rowIdx * cols + i
-                AsyncImage(
+                SubcomposeAsyncImage(
                     model = resolveUrl(img),
                     contentDescription = "图片",
                     contentScale = ContentScale.Crop,
@@ -307,6 +308,9 @@ private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?, on
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { onImageClick(index) },
+                    // 加载中/失败灰底占位，避免九宫格空白闪烁
+                    loading = { Box(Modifier.fillMaxSize().background(Color(0x11000000))) },
+                    error = { Box(Modifier.fillMaxSize().background(Color(0x11000000))) },
                 )
             }
             repeat(cols - rowImgs.size) { Spacer(Modifier.weight(1f)) }

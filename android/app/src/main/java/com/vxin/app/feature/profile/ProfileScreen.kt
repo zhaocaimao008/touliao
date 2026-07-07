@@ -178,7 +178,7 @@ fun ProfileScreen(
                     Modifier.fillMaxWidth().clickable(enabled = !isActive) { viewModel.switchAccount(acc.id) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    InitialAvatar(name = acc.username.ifBlank { "?" }, size = 36.dp)
+                    InitialAvatar(name = acc.username.ifBlank { "?" }, size = 36.dp, avatarUrl = viewModel.resolveAvatarUrl(acc.avatar))
                     Spacer(Modifier.size(10.dp))
                     Text(acc.username.ifBlank { "未命名" }, Modifier.weight(1f))
                     if (isActive) Text("当前", color = VxinGreen, style = MaterialTheme.typography.bodySmall)

@@ -80,6 +80,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.vxin.app.core.util.downloadFile
 import com.vxin.app.core.util.formatChatTime
 import com.vxin.app.data.model.ContactCardContent
@@ -716,7 +717,7 @@ private fun MessageContent(
 ) {
     Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             when (msg.type) {
-                "image" -> AsyncImage(
+                "image" -> SubcomposeAsyncImage(
                     model = resolveUrl(msg.file_url),
                     contentDescription = "图片",
                     contentScale = ContentScale.Fit,
@@ -725,6 +726,17 @@ private fun MessageContent(
                         .heightIn(max = 280.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { onImageClick() },
+                    loading = {
+                        // 加载中灰底占位 + 转圈(对齐微信,避免空白闪烁)
+                        Box(Modifier.size(140.dp).background(Color(0x11000000)), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                        }
+                    },
+                    error = {
+                        Box(Modifier.size(140.dp).background(Color(0x11000000)), contentAlignment = Alignment.Center) {
+                            Text("图片加载失败", color = VxinTextSecondary, fontSize = 12.sp)
+                        }
+                    },
                 )
                 "voice" -> MediaCard(isMine, onClick = onPlayVoice) { Text(if (isMine) "🎙 语音  ▶" else "▶  🎙 语音", color = bubbleTextColor(isMine)) }
                 "file" -> MediaCard(isMine, onClick = onOpenFile) {
