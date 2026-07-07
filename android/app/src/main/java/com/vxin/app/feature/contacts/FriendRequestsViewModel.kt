@@ -3,6 +3,7 @@ package com.vxin.app.feature.contacts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vxin.app.core.network.toUserMessage
+import com.vxin.app.core.util.MediaUrlResolver
 import com.vxin.app.data.model.FriendRequest
 import com.vxin.app.data.model.SentRequest
 import com.vxin.app.data.repository.ContactRepository
@@ -25,7 +26,10 @@ data class FriendRequestsUiState(
 @HiltViewModel
 class FriendRequestsViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
+    private val mediaUrlResolver: MediaUrlResolver,
 ) : ViewModel() {
+
+    fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     private val _uiState = MutableStateFlow(FriendRequestsUiState(loading = true))
     val uiState: StateFlow<FriendRequestsUiState> = _uiState.asStateFlow()

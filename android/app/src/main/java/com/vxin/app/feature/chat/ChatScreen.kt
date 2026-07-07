@@ -285,7 +285,17 @@ fun ChatScreen(
           Box(Modifier.weight(1f).fillMaxWidth()) {
             if (state.loading && state.messages.isEmpty()) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
+            } else if (!state.loading && state.messages.isEmpty() && state.pending.isEmpty()) {
+                // 空会话友好提示(对齐微信「打个招呼吧」)
+                com.vxin.app.ui.components.EmptyState(
+                    icon = "👋",
+                    title = "还没有消息",
+                    subtitle = "发条消息，打个招呼吧",
+                    modifier = Modifier.align(Alignment.Center),
+                )
             } else {
+                // 最后一条自己发的消息 id：仅在其上显示已读状态
+                val lastOwnMsgId = state.messages.lastOrNull { it.sender_id == viewModel.myId }?.id
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -325,9 +335,12 @@ fun ChatScreen(
                             return@itemsIndexed
                         }
                         val isMine = msg.sender_id == viewModel.myId
+                        // 只在「最后一条自己发的消息」上显示已读状态(对齐微信,减少噪音)
+                        val showReadStatus = isMine && msg.id == lastOwnMsgId
                         MessageBubble(
                             msg = msg,
                             isMine = isMine,
+                            showReadStatus = showReadStatus,
                             onNudge = { viewModel.nudge(msg.sender_id) },
                             isRead = isMine && viewModel.isReadByPeer(msg),
                             resolveUrl = viewModel::resolveMediaUrl,
@@ -553,6 +566,7 @@ private fun MessageBubble(
     msg: Message,
     isMine: Boolean,
     isRead: Boolean,
+    showReadStatus: Boolean = false,
     resolveUrl: (String?) -> String?,
     onPlayVoice: () -> Unit,
     onOpenFile: () -> Unit,
@@ -593,7 +607,7 @@ private fun MessageBubble(
             if (!isMine && msg.senderName.isNotBlank()) {
                 Text(msg.senderName, color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall)
             }
-            if (isMine) {
+            if (isMine && showReadStatus) {
                 Text(
                     text = if (isRead) "✓✓ 已读" else "✓",
                     fontSize = 10.sp,

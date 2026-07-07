@@ -87,6 +87,7 @@ fun CreateGroupScreen(
                         items(state.contacts, key = { it.id }) { contact ->
                             SelectableContactRow(
                                 contact = contact,
+                                avatarUrl = viewModel.resolveUrl(contact.avatar),
                                 checked = contact.id in state.selected,
                                 onToggle = { viewModel.toggle(contact.id) },
                             )
@@ -106,7 +107,7 @@ fun CreateGroupScreen(
 }
 
 @Composable
-private fun SelectableContactRow(contact: Contact, checked: Boolean, onToggle: () -> Unit) {
+private fun SelectableContactRow(contact: Contact, avatarUrl: String? = null, checked: Boolean, onToggle: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -117,7 +118,7 @@ private fun SelectableContactRow(contact: Contact, checked: Boolean, onToggle: (
             RadioButton(selected = false, onClick = onToggle)
         }
         Spacer(Modifier.width(8.dp))
-        InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 40.dp)
+        InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 40.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Text(contact.displayName.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)
     }

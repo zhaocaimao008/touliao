@@ -77,6 +77,7 @@ fun FriendRequestsScreen(
                             items(state.requests, key = { it.id }) { req ->
                                 RequestRow(
                                     req = req,
+                                    avatarUrl = viewModel.resolveUrl(req.avatar),
                                     busy = req.id in state.handling,
                                     onAccept = { viewModel.handle(req, accept = true) },
                                     onReject = { viewModel.handle(req, accept = false) },
@@ -89,7 +90,7 @@ fun FriendRequestsScreen(
                         Text("没有已发送的申请", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
                     } else {
                         LazyColumn(Modifier.fillMaxSize()) {
-                            items(state.sent, key = { it.id }) { req -> SentRow(req) }
+                            items(state.sent, key = { it.id }) { req -> SentRow(req, avatarUrl = viewModel.resolveUrl(req.avatar)) }
                         }
                     }
                 }
@@ -103,12 +104,12 @@ fun FriendRequestsScreen(
 }
 
 @Composable
-private fun SentRow(req: SentRequest) {
+private fun SentRow(req: SentRequest, avatarUrl: String? = null) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = req.username.ifBlank { "?" }, size = 44.dp)
+        InitialAvatar(name = req.username.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(req.username.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)
@@ -123,12 +124,12 @@ private fun SentRow(req: SentRequest) {
 }
 
 @Composable
-private fun RequestRow(req: FriendRequest, busy: Boolean, onAccept: () -> Unit, onReject: () -> Unit) {
+private fun RequestRow(req: FriendRequest, avatarUrl: String? = null, busy: Boolean, onAccept: () -> Unit, onReject: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = req.username.ifBlank { "?" }, size = 44.dp)
+        InitialAvatar(name = req.username.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(req.username.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)

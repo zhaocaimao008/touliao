@@ -3,6 +3,7 @@ package com.vxin.app.feature.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vxin.app.core.network.toUserMessage
+import com.vxin.app.core.util.MediaUrlResolver
 import com.vxin.app.data.model.SearchResult
 import com.vxin.app.data.repository.SearchRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,7 +27,10 @@ data class SearchUiState(
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
+    private val mediaUrlResolver: MediaUrlResolver,
 ) : ViewModel() {
+
+    fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()

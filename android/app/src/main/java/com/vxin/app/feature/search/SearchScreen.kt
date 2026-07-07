@@ -83,7 +83,7 @@ fun SearchScreen(
                 state.searched && state.results.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "🔍", title = "没有找到相关消息", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.results, key = { it.id }) { r ->
-                        ResultRow(r, query = state.query) { onOpenResult(r) }
+                        ResultRow(r, avatarUrl = viewModel.resolveUrl(r.otherUser?.avatar), query = state.query) { onOpenResult(r) }
                         HorizontalDivider(Modifier.padding(start = 72.dp), thickness = 0.5.dp)
                     }
                 }
@@ -97,12 +97,12 @@ fun SearchScreen(
 }
 
 @Composable
-private fun ResultRow(r: SearchResult, query: String, onClick: () -> Unit) {
+private fun ResultRow(r: SearchResult, avatarUrl: String? = null, query: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = r.convName.ifBlank { "?" }, size = 44.dp)
+        InitialAvatar(name = r.convName.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(r.convName.ifBlank { "会话" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
