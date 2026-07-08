@@ -25,6 +25,10 @@ test.describe('单聊 CHAT', () => {
     const text = 'e2e-hello-' + Date.now();
     await chat.sendText(text);
     await chat.expectMessageVisible(text);
+    // 气泡悬停有完整时间 tooltip(title 属性非空)
+    const bubble = webPage.locator('[data-testid^="msg-bubble-"]', { hasText: text }).last();
+    const title = await bubble.getAttribute('title');
+    expect(title && title.length > 0).toBeTruthy();
   });
 
   test('CHAT-05 发送图片 → 图片气泡出现', async ({ webPage, seeded, baseURL }) => {

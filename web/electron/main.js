@@ -75,6 +75,8 @@ function createWindow() {
 
   win.on('maximize',   () => win.webContents.send('maximize'));
   win.on('unmaximize', () => win.webContents.send('unmaximize'));
+  // 窗口重新聚焦 → 停止任务栏闪烁(用户已注意到)
+  win.on('focus', () => { try { win.flashFrame(false); } catch {} });
   if (IS_LINUX) {
     win.on('enter-full-screen', () => win.webContents.send('maximize'));
     win.on('leave-full-screen', () => win.webContents.send('unmaximize'));
@@ -165,6 +167,18 @@ ipcMain.on('badge:set', (_e, rawCount) => {
       }
     } catch { /* overlay 不支持则忽略 */ }
   }
+});
+
+// ── 窗口闪烁提醒 ───────────────────────────────────────────────
+// 窗口失焦时收到新消息 → 任务栏/Dock 图标闪烁引起注意(对齐一线 IM 桌面端)。
+// 仅在窗口当前未聚焦时闪；聚焦态或渲染进程也可主动 stop。
+ipcMain.on('window:flash', (_e, on) => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win || win.isDestroyed()) return;
+  try {
+    if (on && !win.isFocused()) win.flashFrame(true);
+    else win.flashFrame(false);
+  } catch { /* 平台不支持则忽略 */ }
 });
 
 /** 生成一个小红圆底白字的任务栏 overlay 图标（Windows）。用 nativeImage 从 SVG 渲染。 */

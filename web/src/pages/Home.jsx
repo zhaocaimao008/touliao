@@ -604,6 +604,10 @@ export default function Home() {
           (msg.content || '').slice(0, 80) || '发来了一条消息';
         showNotification(msg.senderName || '新消息', bodyText, msg.senderAvatar);
       }
+      // 桌面端：他人来消息且窗口失焦 → 任务栏/Dock 闪烁引起注意(main 侧再判 isFocused 兜底)
+      if (msg.sender_id !== user?.id && (document.hidden || !document.hasFocus())) {
+        try { window.electronAPI?.flashFrame?.(true); } catch { /* 非桌面端忽略 */ }
+      }
     };
     const onFriendReq = (data) => {
       setFriendReqCount(prev => prev + 1);

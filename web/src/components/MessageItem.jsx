@@ -119,6 +119,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
           <div
             data-testid={`msg-bubble-${msg.id}`}
             className={`wc-msg-bubble ${isMine ? 'mine' : 'other'}`}
+            title={msg.created_at ? formatFull(msg.created_at * 1000) : undefined}
             onContextMenu={e => cbs.handleContextMenu(e, msg)}
           >
             {msg.replyTo && (

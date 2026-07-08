@@ -44,6 +44,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showNotification: (opts) => ipcRenderer.invoke('notify:show', opts),
   // 未读角标：把未读总数反映到 Dock(mac)/任务栏(win/linux)
   setBadge:         (count) => ipcRenderer.send('badge:set', count),
+  // 窗口闪烁提醒：失焦时收到新消息引起注意
+  flashFrame:       (on) => ipcRenderer.send('window:flash', on),
   // 截图
   screenshot:       () => ipcRenderer.invoke('screenshot:capture'),
   readFileAsBase64: (p) => ipcRenderer.invoke('file:readAsBase64', p),
