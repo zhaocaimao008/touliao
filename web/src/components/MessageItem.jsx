@@ -7,6 +7,7 @@ import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
 import { downloadFile } from '../utils/download';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
+import { linkify } from '../utils/linkify';
 
 // 图片加载失败占位图（过期/被删的云文件）：灰底 + 可见文字，保证不显示浏览器裂图
 const IMG_BROKEN = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
@@ -134,7 +135,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
             )}
             {msg.type === 'text' && (
               <span>
-                {msg.content}
+                {linkify(msg.content)}
                 {msg.edited ? <span className="wc-msg-edited" data-testid="msg-edited-flag" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>已编辑</span> : null}
               </span>
             )}

@@ -532,6 +532,16 @@
   margin-left: 5px;
 }
 
+/* 消息文本内的可点击链接：下划线 + 继承色，破坏气泡对比度最小 */
+.wc-msg-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;      /* 长链接不撑破气泡 */
+}
+.wc-msg-bubble.other .wc-msg-link { color: var(--link, #576b95); }  /* 白底气泡用微信蓝 */
+.wc-msg-link:hover { opacity: .85; }
+
 /* ── 消息状态指示（已读/已送达/已发送） ── */
 .wc-msg-status-read {
   color: var(--green);
