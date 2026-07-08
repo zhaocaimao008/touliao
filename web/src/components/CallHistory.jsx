@@ -3,7 +3,8 @@ import axios from 'axios';
 import Avatar from './Avatar';
 
 function ago(sec) {
-  const d = Date.now() / 1000 - sec;
+  // 钳到 0：时钟偏差/服务器时间超前时避免出现「-3分钟前」
+  const d = Math.max(0, Date.now() / 1000 - sec);
   if (d < 60) return '刚刚';
   if (d < 3600) return Math.floor(d / 60) + '分钟前';
   if (d < 86400) return Math.floor(d / 3600) + '小时前';
@@ -66,14 +67,14 @@ export default function CallHistory({ onOpenChat }) {
           return (
             <div key={c.id} data-testid="call-log-item" onClick={() => openPeer(c)}
               role={onOpenChat ? 'button' : undefined} tabIndex={onOpenChat ? 0 : undefined}
-              onKeyDown={e => { if (onOpenChat && e.key === 'Enter') openPeer(c); }}
+              onKeyDown={e => { if (onOpenChat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPeer(c); } }}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: onOpenChat ? 'pointer' : 'default' }}>
               <Avatar src={c.peer_avatar} name={c.peer_name} size={42} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || '用户'}</div>
                 <div style={{ fontSize: 12, color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span aria-label={c.direction === 'out' ? '拨出' : '来电'} style={{ transform: c.direction === 'out' ? 'none' : 'scaleX(-1)' }} aria-hidden="false">{c.direction === 'out' ? '↗' : '↙'}</span>
-                  {c.type === 'video' ? '视频通话' : '语音通话'} · {st.label}
+                  <span aria-hidden="true" style={{ transform: c.direction === 'out' ? 'none' : 'scaleX(-1)' }}>{c.direction === 'out' ? '↗' : '↙'}</span>
+                  {c.direction === 'out' ? '去电' : '来电'} · {c.type === 'video' ? '视频通话' : '语音通话'} · {st.label}
                   {c.duration > 0 && ` · ${fmtDuration(c.duration)}`}
                 </div>
               </div>
