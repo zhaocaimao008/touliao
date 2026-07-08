@@ -278,7 +278,7 @@ struct ChatView: View {
                     }
                     .font(.caption).foregroundColor(.vxinGreen)
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(Capsule().fill(Color.white).shadow(color: .black.opacity(0.12), radius: 4, y: 2))
+                    .background(Capsule().fill(Color.vxinCard).shadow(color: .black.opacity(0.12), radius: 4, y: 2))
                 }
                 .padding(.trailing, 12).padding(.bottom, 8)
                 .transition(.move(edge: .trailing).combined(with: .opacity))

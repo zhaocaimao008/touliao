@@ -22,6 +22,7 @@ import javax.inject.Inject
 data class ConversationListUiState(
     val loading: Boolean = false,
     val conversations: List<Conversation> = emptyList(),
+    val drafts: Map<String, String> = emptyMap(),   // convId → 未发送草稿(用于「[草稿]」前缀)
     val error: String? = null,
 )
 
@@ -30,6 +31,7 @@ class ConversationListViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val sessionManager: SessionManager,
     private val mediaUrlResolver: MediaUrlResolver,
+    private val draftStore: com.vxin.app.core.storage.DraftStore,
 ) : ViewModel() {
 
     private val myId: String =
@@ -130,9 +132,17 @@ class ConversationListViewModel @Inject constructor(
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             runCatching { chatRepository.loadConversations() }
-                .onSuccess { list -> _uiState.update { it.copy(loading = false, conversations = list) } }
+                .onSuccess { list -> _uiState.update { it.copy(loading = false, conversations = list) }; refreshDrafts() }
                 .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载会话失败")) } }
         }
+    }
+
+    /** 从聊天页返回时刷新草稿映射(草稿在聊天页写入 SharedPreferences，列表页读取) */
+    fun refreshDrafts() {
+        val drafts = _uiState.value.conversations
+            .associate { it.id to draftStore.get(it.id) }
+            .filterValues { it.isNotBlank() }
+        _uiState.update { it.copy(drafts = drafts) }
     }
 
     /** 新消息到达：就地更新对应会话的最后消息/时间/未读，并置顶 */

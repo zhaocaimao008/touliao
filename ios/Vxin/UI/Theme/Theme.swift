@@ -9,4 +9,6 @@ extension Color {
     static let vxinBubbleText = Color(red: 0x1A / 255, green: 0x1A / 255, blue: 0x1A / 255)
     static let vxinTextSecondary = Color(red: 0x88 / 255, green: 0x88 / 255, blue: 0x88 / 255)
     static let vxinError = Color(red: 0xFA / 255, green: 0x51 / 255, blue: 0x51 / 255)
+    /// 卡面/悬浮层底色：跟随系统浅/深色（浅=白，深=近黑）
+    static let vxinCard = Color(.secondarySystemBackground)
 }

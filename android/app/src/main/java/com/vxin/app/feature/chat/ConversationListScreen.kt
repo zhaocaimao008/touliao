@@ -49,9 +49,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.vxin.app.core.realtime.SocketStatus
 import com.vxin.app.core.util.formatChatTime
 import com.vxin.app.data.model.Conversation
@@ -69,6 +71,12 @@ fun ConversationListScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val socketStatus by viewModel.socketStatus.collectAsStateWithLifecycle()
     var clearTarget by remember { mutableStateOf<Conversation?>(null) }
+
+    // 从聊天页返回时刷新草稿(显示/清除「[草稿]」前缀)
+    LifecycleResumeEffect(Unit) {
+        viewModel.refreshDrafts()
+        onPauseOrDispose { }
+    }
 
     // Android 13+ 请求通知权限（用于 FCM 推送展示）
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -142,6 +150,7 @@ fun ConversationListScreen(
                         ConversationRow(
                             conv,
                             avatarUrl = viewModel.resolveUrl(conv.avatar),
+                            draft = state.drafts[conv.id].orEmpty(),
                             onClick = { onOpenConversation(conv) },
                             onTogglePin = { viewModel.togglePin(conv) },
                             onToggleMute = { viewModel.toggleMute(conv) },
@@ -172,6 +181,7 @@ fun ConversationListScreen(
 private fun ConversationRow(
     conv: Conversation,
     avatarUrl: String? = null,
+    draft: String = "",
     onClick: () -> Unit,
     onTogglePin: () -> Unit = {},
     onToggleMute: () -> Unit = {},
@@ -201,13 +211,27 @@ private fun ConversationRow(
                 modifier = Modifier.testTag("conv-item-name"),
             )
             Spacer(Modifier.size(2.dp))
-            Text(
-                text = previewText(conv),
-                color = VxinTextSecondary,
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (draft.isNotBlank()) {
+                // 有未发送草稿：红色「[草稿]」前缀(对齐微信/Web)
+                Text(
+                    text = androidx.compose.ui.text.buildAnnotatedString {
+                        withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFFFA5151))) { append("[草稿] ") }
+                        append(draft)
+                    },
+                    color = VxinTextSecondary,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else {
+                Text(
+                    text = previewText(conv),
+                    color = VxinTextSecondary,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         Spacer(Modifier.width(8.dp))
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.Center) {

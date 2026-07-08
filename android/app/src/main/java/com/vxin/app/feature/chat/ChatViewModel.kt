@@ -83,6 +83,7 @@ class ChatViewModel @Inject constructor(
     private val audioRecorder: AudioRecorder,
     private val audioPlayer: AudioPlayer,
     private val mediaUrlResolver: MediaUrlResolver,
+    private val draftStore: com.vxin.app.core.storage.DraftStore,
     sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -94,7 +95,8 @@ class ChatViewModel @Inject constructor(
 
     val myId: String = (sessionManager.state.value as? AuthState.Authenticated)?.user?.id.orEmpty()
 
-    private val _uiState = MutableStateFlow(ChatUiState(title = title, loading = true))
+    // 进入会话即恢复上次未发送的草稿(对齐微信/Web)
+    private val _uiState = MutableStateFlow(ChatUiState(title = title, loading = true, input = draftStore.get(conversationId)))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻（错误与"已收藏/已转发"等成功提示共用 error 字段） */
@@ -543,6 +545,7 @@ class ChatViewModel @Inject constructor(
     // ── 文本 ──────────────────────────────────────────────
     fun onInputChange(v: String) {
         _uiState.update { it.copy(input = v) }
+        draftStore.set(conversationId, v)   // 持久化草稿(切走再回来仍在)
         // 节流：非空且距上次 emit > 2s 才发 typing，避免刷屏
         val now = System.currentTimeMillis()
         if (v.isNotBlank() && now - lastTypingEmit > 2000) {
@@ -556,11 +559,15 @@ class ChatViewModel @Inject constructor(
         if (text.isEmpty() || _uiState.value.sending) return
         val replyId = _uiState.value.replyingTo?.id
         _uiState.update { it.copy(input = "", sending = true, error = null, replyingTo = null) }
+        draftStore.clear(conversationId)    // 已发送则清草稿
         chatRepository.emitStopTyping(conversationId)
         viewModelScope.launch {
             chatRepository.sendText(conversationId, text, replyId)
                 .onSuccess { msg -> appendUnique(msg); _uiState.update { it.copy(sending = false) } }
-                .onFailure { e -> _uiState.update { it.copy(sending = false, input = text, error = e.toUserMessage("发送失败")) } }
+                .onFailure { e ->
+                    _uiState.update { it.copy(sending = false, input = text, error = e.toUserMessage("发送失败")) }
+                    draftStore.set(conversationId, text)   // 发送失败：文字回填并存回草稿
+                }
         }
     }
 

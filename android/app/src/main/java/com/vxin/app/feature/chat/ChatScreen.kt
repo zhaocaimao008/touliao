@@ -97,6 +97,7 @@ import com.vxin.app.ui.theme.VxinBubbleMine
 import com.vxin.app.ui.theme.VxinBubbleText
 import com.vxin.app.ui.theme.VxinBubbleOtherDark
 import com.vxin.app.ui.theme.VxinBubbleTextDark
+import com.vxin.app.ui.theme.VxinSurfaceDark
 import androidx.compose.foundation.isSystemInDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -418,7 +419,7 @@ fun ChatScreen(
             ) {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = Color.White,
+                    color = if (isSystemInDarkTheme()) VxinSurfaceDark else Color.White,
                     shadowElevation = 4.dp,
                     modifier = Modifier.clickable {
                         scope.launch { if (totalCount > 0) listState.animateScrollToItem(totalCount - 1) }
