@@ -169,14 +169,24 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
             {msg.type === 'voice' && (
               <VoicePlayer url={mediaUrl(msg.file_url)} />
             )}
-            {msg.type === 'video' && (
-              <video
-                src={mediaUrl(msg.file_url)}
-                controls
-                preload="metadata"
-                className="wc-msg-video"
-              />
-            )}
+            {msg.type === 'video' && (() => {
+              const vidSrc = mediaUrl(msg.file_url);
+              // 复用图片的宽高比缓存，视频加载 metadata 前也能预留正确高度,消除布局抖动
+              const vAspect = getAspect(vidSrc);
+              return (
+                <video
+                  src={vidSrc}
+                  controls
+                  preload="metadata"
+                  className="wc-msg-video"
+                  style={vAspect ? { aspectRatio: String(vAspect), width: 'min(240px, 62vw)' } : undefined}
+                  onLoadedMetadata={e => {
+                    const v = e.currentTarget;
+                    rememberAspect(vidSrc, v.videoWidth, v.videoHeight);
+                  }}
+                />
+              );
+            })()}
             {msg.type === 'file' && (
               <a href={mediaUrl(msg.file_url)}
                  onClick={(e) => { e.preventDefault(); downloadFile(msg.file_url, msg.content); }}
