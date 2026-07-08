@@ -18,6 +18,8 @@ struct ChatView: View {
     @State private var editText = ""
     @State private var forwardSelected = Set<String>()
     @State private var showMentionPicker = false
+    @State private var atBottom = true          // 用户是否在底部附近(决定新消息是否自动滚底)
+    @State private var newMsgCount = 0          // 看历史期间累计的新消息数(悬浮提示)
     private let isGroup: Bool
     private let onOpenGroupInfo: () -> Void
 
@@ -204,6 +206,7 @@ struct ChatView: View {
     // MARK: - 消息列表
     private var messageList: some View {
         ScrollViewReader { proxy in
+            ZStack(alignment: .bottomTrailing) {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     if !vm.reachedStart && !vm.messages.isEmpty {
@@ -241,16 +244,45 @@ struct ChatView: View {
                         PendingBubbleView(pending: p, onRetry: { vm.retryPending(p.id) }) { vm.dismissFailed(p.id) }
                             .id(p.id)
                     }
+                    // 底部锚点：出现/消失用于判断用户是否在底部附近(对齐微信新消息提示)
                     Color.clear.frame(height: 1).id(bottomAnchor)
+                        .onAppear { atBottom = true; withAnimation { newMsgCount = 0 } }
+                        .onDisappear { atBottom = false }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
-            // 仅最新一条变化时滚到底，避免加载更早(前插)跳动
-            .onChange(of: vm.messages.last?.id) { _ in withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) } }
+            // 最新一条变化：在底部则跟随滚底；在上方看历史则累计"N 条新消息"不打断
+            .onChange(of: vm.messages.last?.id) { _ in
+                guard let last = vm.messages.last else { return }
+                if atBottom || last.senderId == vm.myId {
+                    withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) }
+                } else {
+                    withAnimation { newMsgCount += 1 }
+                }
+            }
             .onChange(of: vm.pending.count) { _ in withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) } }
             .onChange(of: vm.scrollTarget) { target in
                 if let target { withAnimation { proxy.scrollTo(target, anchor: .center) }; vm.scrollTarget = nil }
+            }
+
+            // 「↓ N 条新消息」悬浮按钮：看历史时来了新消息才显示，点按滚到底
+            if newMsgCount > 0 {
+                Button {
+                    withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) }
+                    newMsgCount = 0
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.down")
+                        Text("\(newMsgCount) 条新消息")
+                    }
+                    .font(.caption).foregroundColor(.vxinGreen)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Capsule().fill(Color.white).shadow(color: .black.opacity(0.12), radius: 4, y: 2))
+                }
+                .padding(.trailing, 12).padding(.bottom, 8)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
             }
         }
     }

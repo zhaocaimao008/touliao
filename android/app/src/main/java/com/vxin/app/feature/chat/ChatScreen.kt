@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,6 +36,7 @@ import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -63,6 +65,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -150,9 +153,29 @@ fun ChatScreen(
     // 仅在「最新一条变化」或上传项变化时滚到底，避免加载更早(前插)时跳动
     val lastMsgId = state.messages.lastOrNull()?.id
     val totalCount = state.messages.size + state.pending.size
-    LaunchedEffect(lastMsgId, state.pending.size) {
+
+    // 是否在底部附近：末项可见即视为在底(对齐微信新消息提示逻辑)
+    val atBottom by remember {
+        derivedStateOf {
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()
+            last == null || last.index >= listState.layoutInfo.totalItemsCount - 2
+        }
+    }
+    // 看历史期间累计的新消息数(悬浮提示)
+    var newMsgCount by remember { mutableStateOf(0) }
+    // 我方发的消息(pending)始终跟随滚底
+    LaunchedEffect(state.pending.size) {
         if (totalCount > 0) listState.animateScrollToItem(totalCount - 1)
     }
+    // 收到新消息：在底部则跟随，看历史则累计计数不打断
+    LaunchedEffect(lastMsgId) {
+        if (totalCount == 0) return@LaunchedEffect
+        val mine = state.messages.lastOrNull()?.sender_id == viewModel.myId
+        if (atBottom || mine) listState.animateScrollToItem(totalCount - 1)
+        else newMsgCount++
+    }
+    // 滚回底部后清零计数
+    LaunchedEffect(atBottom) { if (atBottom) newMsgCount = 0 }
 
     // 键盘弹出时把最新消息顶到键盘上方（对齐微信：点输入框后最后一条仍可见）
     val imeVisible = WindowInsets.isImeVisible
@@ -383,6 +406,32 @@ fun ChatScreen(
                             onRetry = { viewModel.retryPending(p.tempId) },
                             onDismiss = { viewModel.dismissFailedPending(p.tempId) },
                         )
+                    }
+                }
+            }
+            // 「↓ N 条新消息」悬浮按钮：看历史时来了新消息才显示，点按滚到底(对齐微信)
+            androidx.compose.animation.AnimatedVisibility(
+                visible = newMsgCount > 0,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInHorizontally { it },
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutHorizontally { it },
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color.White,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.clickable {
+                        scope.launch { if (totalCount > 0) listState.animateScrollToItem(totalCount - 1) }
+                        newMsgCount = 0
+                    },
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("↓", color = VxinGreen, fontSize = 13.sp)
+                        Spacer(Modifier.width(4.dp))
+                        Text("$newMsgCount 条新消息", color = VxinGreen, fontSize = 13.sp)
                     }
                 }
             }
