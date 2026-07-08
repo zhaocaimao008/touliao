@@ -12,6 +12,9 @@ final class ChatRepository {
     /// 实时连接状态（供 UI 显示连接中/已连接）
     var statusPublisher: AnyPublisher<SocketStatus, Never> { socket.status.eraseToAnyPublisher() }
 
+    /// 当前 socket 是否已连接（供失败消息自愈判断）
+    var isSocketConnected: Bool { socket.status.value == .connected }
+
     /// 全局新消息流（各会话共用，UI 自行按 conversationId 过滤）
     var incomingPublisher: AnyPublisher<Message, Never> { socket.incoming.eraseToAnyPublisher() }
 

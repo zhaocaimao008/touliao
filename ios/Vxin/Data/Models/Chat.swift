@@ -76,6 +76,12 @@ struct Message: Decodable, Identifiable, Equatable {
     var reactions: [MessageReaction] = []
     var replyTo: ReplyPreview?
 
+    // ── 客户端本地态（不来自服务端；对齐 Web/Android 乐观消息）──
+    // localStatus: nil=已送达 | "sending"=乐观发送中 | "failed"=发送失败
+    var localStatus: String? = nil
+    // 幂等键：乐观消息发送时生成、失败重发复用，后端据此去重；广播回声按此认领乐观气泡
+    var clientMsgId: String? = nil
+
     enum CodingKeys: String, CodingKey {
         case id, type, content, reactions, replyTo, edited, deleted
         case conversationId = "conversation_id"
@@ -83,6 +89,7 @@ struct Message: Decodable, Identifiable, Equatable {
         case fileUrl = "file_url"
         case replyToId = "reply_to_id"
         case createdAt = "created_at"
+        case clientMsgId = "client_msg_id"
         case senderName, senderAvatar
     }
 
@@ -102,7 +109,29 @@ struct Message: Decodable, Identifiable, Equatable {
         deleted = (try? c.decode(Int.self, forKey: .deleted)) ?? 0
         reactions = (try? c.decode([MessageReaction].self, forKey: .reactions)) ?? []
         replyTo = try? c.decode(ReplyPreview.self, forKey: .replyTo)
+        clientMsgId = try? c.decode(String.self, forKey: .clientMsgId)
     }
+
+    /// 便捷构造：本地乐观消息（发送中气泡）
+    init(optimisticText id: String, conversationId: String, senderId: String,
+         content: String, replyToId: String?, replyTo: ReplyPreview?, clientMsgId: String) {
+        self.id = id
+        self.conversationId = conversationId
+        self.senderId = senderId
+        self.type = "text"
+        self.content = content
+        self.replyToId = replyToId
+        self.createdAt = Date().timeIntervalSince1970
+        self.replyTo = replyTo
+        self.localStatus = LocalMsgStatus.sending
+        self.clientMsgId = clientMsgId
+    }
+}
+
+/// 消息本地发送态常量（对齐 Android LocalMsgStatus）
+enum LocalMsgStatus {
+    static let sending = "sending"
+    static let failed = "failed"
 }
 
 struct MessageReaction: Decodable, Equatable {

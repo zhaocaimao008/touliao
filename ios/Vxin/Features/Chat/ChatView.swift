@@ -584,10 +584,21 @@ private struct MessageBubble: View {
                     Text("已编辑").font(.caption2).foregroundColor(.vxinTextSecondary)
                 }
                 if isMine {
-                    let read = vm.isReadByPeer(msg)
-                    Text(read ? "✓✓ 已读" : "✓")
-                        .font(.caption2)
-                        .foregroundColor(read ? .vxinGreen : .vxinTextSecondary)
+                    if msg.localStatus == LocalMsgStatus.sending {
+                        // 发送中：转圈（对齐 Web/Android）
+                        ProgressView().scaleEffect(0.6).frame(height: 12)
+                    } else if msg.localStatus == LocalMsgStatus.failed {
+                        // 失败：红色感叹号，点击重发
+                        Text("❗发送失败，点击重发")
+                            .font(.caption2)
+                            .foregroundColor(Color(red: 0.9, green: 0.27, blue: 0.27))
+                            .onTapGesture { vm.retryMessage(msg.id) }
+                    } else {
+                        let read = vm.isReadByPeer(msg)
+                        Text(read ? "✓✓ 已读" : "✓")
+                            .font(.caption2)
+                            .foregroundColor(read ? .vxinGreen : .vxinTextSecondary)
+                    }
                 }
             }
             if !isMine { Spacer(minLength: 40) } else {

@@ -496,9 +496,19 @@ final class ChatViewModel: ObservableObject {
     // MARK: - 历史 / 实时
     func loadHistory() async {
         do {
-            messages = try await repo.loadHistory(conversationId)
-            reachedStart = messages.count < 50
+            let list = try await repo.loadHistory(conversationId)
+            // 合并本地待发件箱：上次发送失败且未成功的文本消息，切走/重启/重连后仍在。
+            // 服务端可能已幂等落库(id==outbox 的 clientMsgId) → 已成功,剔除并清理。
+            let serverIds = Set(list.map { $0.id })
+            let pending = OutboxStore.shared.load(conversationId)
+            let stillPending = pending.filter { !serverIds.contains($0.id) }
+            for done in pending where !stillPending.contains(where: { $0.id == done.id }) {
+                OutboxStore.shared.remove(conversationId, done.id)
+            }
+            messages = (list + stillPending).sorted { $0.createdAt < $1.createdAt }
+            reachedStart = list.count < 50
             markReadLatest()   // 打开会话即标记已读
+            healFailedMessages()   // 连线且有失败气泡 → 进会话/重连自动重发一次
         } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载消息失败" }
     }
 
@@ -528,9 +538,24 @@ final class ChatViewModel: ObservableObject {
 
     private func onIncoming(_ msg: Message) {
         guard msg.conversationId == conversationId else { return }
-        appendUnique(msg)
+        claimOrAppend(msg)
         // 仅在底部附近才即时标已读；看历史时留给「N 条新消息」提示，滚回底再标
         if msg.senderId != myId && atBottom { markReadLatest() }
+    }
+
+    /// 广播消息落地：若它是本端某条乐观气泡的回声（按 client_msg_id 认领），就替换那条
+    /// 乐观气泡（并清出待发件箱），避免「乐观 + 广播」双显；否则按 id 去重后追加。
+    /// 关键：即便发送时 ack 丢失(乐观转 failed)，只要广播带回同一 client_msg_id 也能自愈为成功。
+    private func claimOrAppend(_ msg: Message) {
+        if let cid = msg.clientMsgId,
+           let idx = messages.firstIndex(where: { $0.clientMsgId == cid || $0.id == cid }) {
+            OutboxStore.shared.remove(conversationId, messages[idx].id)
+            // 若真实消息已因其它路径存在，先去重再替换
+            messages.removeAll { $0.id == msg.id && $0.clientMsgId != cid }
+            if let i = messages.firstIndex(where: { $0.clientMsgId == cid || $0.id == cid }) { messages[i] = msg }
+            return
+        }
+        appendUnique(msg)
     }
 
     private func onTyping(_ e: TypingEvent) {
@@ -578,27 +603,76 @@ final class ChatViewModel: ObservableObject {
     // MARK: - 文本
     func sendText() {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !sending else { return }
+        guard !text.isEmpty else { return }
         Haptics.impact(.light)   // 发送轻震，给一点触觉反馈
         let replyId = replyingTo?.id
-        // 幂等键：本次发送尝试固定一个 clientMsgId。ack 丢失(弱网/超时)后 socket 重连缓冲
-        // 自动补发同一 emit，后端据 (sender_id, client_msg_id) 去重，不产生重复气泡。
+        // 幂等键：本次发送固定一个 clientMsgId；失败重发复用它，后端据 (sender_id, client_msg_id)
+        // 去重，弱网重发/socket 重连补发都不产生重复气泡。同时作乐观消息的临时 id。
         let clientMsgId = UUID().uuidString
+        let replySnap: ReplyPreview? = replyingTo.map {
+            ReplyPreview(id: $0.id, type: $0.type, content: $0.content, senderName: $0.senderName)
+        }
+        // 立刻渲染「发送中」乐观气泡（对齐 Web/Android），输入框即时清空，不再回填打断输入
+        let optimistic = Message(optimisticText: clientMsgId, conversationId: conversationId,
+                                 senderId: myId, content: text, replyToId: replyId,
+                                 replyTo: replySnap, clientMsgId: clientMsgId)
         input = ""
-        DraftStore.shared.clear(conversationId)   // 已发送即清草稿(立即，不等去抖)
+        DraftStore.shared.clear(conversationId)
         replyingTo = nil
-        sending = true
         error = nil
+        messages.append(optimistic)
         repo.emitStopTyping(conversationId)
+        dispatchSend(optimistic)
+    }
+
+    /// 发送一条乐观消息并处理成功/失败落地；失败入待发件箱，可自动/手动重发。
+    private func dispatchSend(_ optimistic: Message) {
+        let cid = optimistic.clientMsgId ?? optimistic.id
+        // 标记发送中（重发场景从 failed 回到 sending）
+        setLocalStatus(optimistic.id, LocalMsgStatus.sending)
         Task { [weak self] in
             guard let self else { return }
-            let result = await repo.sendText(conversationId: conversationId, content: text, replyToId: replyId, clientMsgId: clientMsgId)
-            sending = false
+            let result = await repo.sendText(conversationId: optimistic.conversationId,
+                                             content: optimistic.content,
+                                             replyToId: optimistic.replyToId, clientMsgId: cid)
             switch result {
-            case .success(let msg): appendUnique(msg)
-            case .failure(let err):
-                input = text
-                error = (err as? LocalizedError)?.errorDescription ?? "发送失败"
+            case .success(let real):
+                OutboxStore.shared.remove(conversationId, optimistic.id)
+                // 用真实消息替换乐观气泡（保留位置）；若广播已先到则去重
+                messages.removeAll { $0.id == real.id }
+                if let idx = messages.firstIndex(where: { $0.id == optimistic.id }) { messages[idx] = real }
+                else { appendUnique(real) }
+            case .failure:
+                setLocalStatus(optimistic.id, LocalMsgStatus.failed)
+                var failed = optimistic
+                failed.localStatus = LocalMsgStatus.failed
+                OutboxStore.shared.upsert(conversationId, failed)
+            }
+        }
+    }
+
+    /// 手动/自动重发一条失败的文本气泡
+    func retryMessage(_ id: String) {
+        guard let msg = messages.first(where: { $0.id == id }), msg.localStatus == LocalMsgStatus.failed else { return }
+        dispatchSend(msg)
+    }
+
+    private func setLocalStatus(_ id: String, _ status: String?) {
+        if let idx = messages.firstIndex(where: { $0.id == id }) { messages[idx].localStatus = status }
+    }
+
+    /// 自动自愈：把当前所有 failed 文本气泡错峰重发（连线时调用，对齐 Web/Android）
+    func healFailedMessages() {
+        guard repo.isSocketConnected else { return }
+        let failed = messages.filter { $0.localStatus == LocalMsgStatus.failed }
+        guard !failed.isEmpty else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            for (i, m) in failed.enumerated() {
+                try? await Task.sleep(nanoseconds: UInt64(i) * 120_000_000)   // 错峰 120ms
+                if let cur = messages.first(where: { $0.id == m.id }), cur.localStatus == LocalMsgStatus.failed {
+                    dispatchSend(cur)
+                }
             }
         }
     }
