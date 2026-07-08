@@ -7,7 +7,8 @@ import { showToast, showConfirm } from '../utils/toast';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
 
 function ago(sec) {
-  const d = Date.now() / 1000 - sec;
+  // 钳到 0：时钟偏差/服务器时间超前时避免出现「-3分钟前」
+  const d = Math.max(0, Date.now() / 1000 - sec);
   if (d < 60) return '刚刚';
   if (d < 3600) return Math.floor(d / 60) + '分钟前';
   if (d < 86400) return Math.floor(d / 3600) + '小时前';

@@ -38,20 +38,28 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
   const [viewId, setViewId] = useState(null);
   const inputRef = useRef(null);
   const timerRef = useRef(null);
+  const searchAcRef = useRef(null);
   const trapRef = useFocusTrap(!viewId);
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 80); }, []);
 
-  // 卸载时清理防抖定时器，避免关闭后仍触发一次搜索（对已卸载组件 setState）
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  // 卸载时清理防抖定时器与进行中的搜索请求，避免关闭后仍触发（对已卸载组件 setState）
+  useEffect(() => () => { clearTimeout(timerRef.current); searchAcRef.current?.abort(); }, []);
 
   const doSearch = useCallback((q) => {
     if (!q.trim()) { setResults([]); setSearched(false); return; }
+    // 取消上一次未完成的搜索,防止慢响应覆盖新结果(旧数据竞态)
+    searchAcRef.current?.abort();
+    const ac = new AbortController();
+    searchAcRef.current = ac;
     setSearching(true);
-    axios.get(`/api/users/search?q=${encodeURIComponent(q.trim())}`)
+    axios.get(`/api/users/search?q=${encodeURIComponent(q.trim())}`, { signal: ac.signal })
       .then(({ data }) => { setResults(data); setSearched(true); setSearchError(false); })
-      .catch(() => { setResults([]); setSearched(true); setSearchError(true); })
-      .finally(() => setSearching(false));
+      .catch(err => {
+        if (axios.isCancel?.(err) || err.code === 'ERR_CANCELED') return;
+        setResults([]); setSearched(true); setSearchError(true);
+      })
+      .finally(() => { if (!ac.signal.aborted) setSearching(false); });
   }, []);
 
   useEffect(() => { if (initialQuery.trim()) doSearch(initialQuery); }, [initialQuery, doSearch]);
