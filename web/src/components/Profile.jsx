@@ -213,6 +213,7 @@ function ChangePassword({ onBack }) {
   const [oldPassword, setOld] = useState('');
   const [newPassword, setNew] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [showPw, setShowPw] = useState(false);   // 显示/隐藏密码,便于核对输入
   const backTimerRef = useRef(null);
   useEffect(() => () => clearTimeout(backTimerRef.current), []);
   const [saving, setSaving] = useState(false);
@@ -223,6 +224,7 @@ function ChangePassword({ onBack }) {
     if (saving || done) return; // 防连点：避免重复提交改密请求
     if (!oldPassword || !newPassword) { setError('请填写完整'); return; }
     if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword)) { setError('新密码至少8位且需包含字母和数字'); return; }
+    if (newPassword === oldPassword) { setError('新密码不能与当前密码相同'); return; }
     if (newPassword !== confirm) { setError('两次输入的新密码不一致'); return; }
     setSaving(true); setError('');
     try {
@@ -242,20 +244,27 @@ function ChangePassword({ onBack }) {
       <div className="wc-edit-pad">
         <Card>
           <div className="wc-edit-wrap">
-            <input type="password" value={oldPassword} onChange={e => { setOld(e.target.value); setError(''); }}
+            <input type={showPw ? 'text' : 'password'} value={oldPassword} onChange={e => { setOld(e.target.value); setError(''); }}
               autoFocus placeholder="当前密码" aria-label="当前密码" className="wc-edit-input" />
           </div>
         </Card>
         <Card>
           <div className="wc-edit-wrap">
-            <input type="password" value={newPassword} onChange={e => { setNew(e.target.value); setError(''); }}
+            <input type={showPw ? 'text' : 'password'} value={newPassword} onChange={e => { setNew(e.target.value); setError(''); }}
               placeholder="新密码（≥8位，含字母和数字）" aria-label="新密码" className="wc-edit-input" />
           </div>
           <div className="wc-edit-wrap">
-            <input type="password" value={confirm} onChange={e => { setConfirm(e.target.value); setError(''); }}
+            <input type={showPw ? 'text' : 'password'} value={confirm} onChange={e => { setConfirm(e.target.value); setError(''); }}
+              onKeyDown={e => { if (e.key === 'Enter') save(); }}
               placeholder="确认新密码" aria-label="确认新密码" className="wc-edit-input" />
           </div>
         </Card>
+        <div style={{ padding: '8px 4px 0' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showPw} onChange={e => setShowPw(e.target.checked)} />
+            显示密码
+          </label>
+        </div>
         {error && <div className="wc-edit-error" role="alert">{error}</div>}
         {done && <div className="wc-edit-hint">✓ 密码已修改</div>}
         <div className="wc-edit-hint">修改后其它设备需重新登录</div>
