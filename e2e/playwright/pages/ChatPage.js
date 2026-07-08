@@ -32,6 +32,23 @@ class ChatPage {
     await this.tid(A.chatSendBtn).click();
   }
 
+  /** 只在输入框里打字、不发送(用于验证草稿保留) */
+  async typeText(text) {
+    await this.tid(A.chatMsgInput).fill(text);
+  }
+
+  /** 当前输入框内容 */
+  async inputValue() {
+    return this.tid(A.chatMsgInput).inputValue();
+  }
+
+  /** 某会话列表项上的「[草稿]」标记是否可见(testid 优先，回退到样式类) */
+  async draftMarkVisible(convId) {
+    return this.tid(A.convItem(convId))
+      .locator(`[data-testid="${A.convItemDraft}"], .wc-chat-item-draft`)
+      .first().isVisible().catch(() => false);
+  }
+
   /** 最新一条消息气泡 locator */
   lastBubble() {
     return this.page.locator('[data-testid^="msg-bubble-"]').last();

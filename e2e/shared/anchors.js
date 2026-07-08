@@ -33,6 +33,7 @@ const A = {
   convList:          'conv-list',
   convItem:          (convId) => `conv-item-${convId}`,
   convItemName:      'conv-item-name',
+  convItemDraft:     'conv-item-draft',
   convUnreadBadge:   'conv-unread-badge',
 
   // ── 聊天页 ──

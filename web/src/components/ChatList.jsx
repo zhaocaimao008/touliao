@@ -62,7 +62,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
             )}
             <span className="wc-chat-item-preview">
               {draft
-                ? <><span className="wc-chat-item-draft">[草稿]</span>{draft}</>
+                ? <><span className="wc-chat-item-draft" data-testid="conv-item-draft">[草稿]</span>{draft}</>
                 : <>{conv.hasMention && <span className="wc-chat-item-mention">[有人@我]</span>}{previewMsg(conv, user)}</>}
             </span>
           </div>
