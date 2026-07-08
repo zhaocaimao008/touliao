@@ -4,6 +4,7 @@ import Combine
 @MainActor
 final class ConversationListViewModel: ObservableObject {
     @Published var conversations: [Conversation] = []
+    @Published var drafts: [String: String] = [:]   // convId → 未发送草稿(用于「[草稿]」前缀)
     @Published var loading = false
     @Published var error: String?
     @Published var socketStatus: SocketStatus = .disconnected
@@ -106,10 +107,21 @@ final class ConversationListViewModel: ObservableObject {
         error = nil
         do {
             conversations = try await repo.loadConversations()
+            refreshDrafts()
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? "加载会话失败"
         }
         loading = false
+    }
+
+    /// 从聊天页返回时刷新草稿映射(草稿在聊天页写入 UserDefaults，列表页读取)
+    func refreshDrafts() {
+        var map: [String: String] = [:]
+        for conv in conversations {
+            let d = DraftStore.shared.get(conv.id)
+            if !d.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { map[conv.id] = d }
+        }
+        drafts = map
     }
 
     /// 新消息到达：就地更新对应会话的最后消息/时间/未读，并置顶

@@ -72,7 +72,7 @@ struct ConversationListView: View {
         } else {
             List(vm.conversations) { conv in
                 NavigationLink(value: conv) {
-                    ConversationRow(conversation: conv)
+                    ConversationRow(conversation: conv, draft: vm.drafts[conv.id] ?? "")
                 }
                 .accessibilityIdentifier("conv-item-\(conv.id)")
                 .listRowBackground(conv.pinned == 1 ? Color.gray.opacity(0.08) : Color.clear)
@@ -86,6 +86,7 @@ struct ConversationListView: View {
                 }
             }
             .listStyle(.plain)
+            .onAppear { vm.refreshDrafts() }   // 从聊天页返回时刷新「[草稿]」前缀
             .refreshable { await vm.refresh() }
             .alert("清空聊天记录", isPresented: .constant(clearTarget != nil)) {
                 Button("取消", role: .cancel) { clearTarget = nil }
@@ -107,6 +108,7 @@ struct ConversationListView: View {
 
 private struct ConversationRow: View {
     let conversation: Conversation
+    var draft: String = ""
 
     var body: some View {
         HStack(spacing: 12) {
@@ -124,10 +126,22 @@ private struct ConversationRow: View {
                             .foregroundColor(.vxinGreen)
                             .accessibilityIdentifier("conv-item-mention")
                     }
-                    Text(previewText)
-                        .font(.subheadline)
-                        .foregroundColor(.vxinTextSecondary)
-                        .lineLimit(1)
+                    if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // 有未发送草稿：红色「[草稿]」前缀(对齐微信/Web/安卓)
+                        Text("[草稿]")
+                            .font(.subheadline)
+                            .foregroundColor(.vxinError)
+                            .accessibilityIdentifier("conv-item-draft")
+                        Text(draft)
+                            .font(.subheadline)
+                            .foregroundColor(.vxinTextSecondary)
+                            .lineLimit(1)
+                    } else {
+                        Text(previewText)
+                            .font(.subheadline)
+                            .foregroundColor(.vxinTextSecondary)
+                            .lineLimit(1)
+                    }
                 }
             }
             Spacer()

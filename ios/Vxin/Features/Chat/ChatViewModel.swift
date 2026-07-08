@@ -66,6 +66,17 @@ final class ChatViewModel: ObservableObject {
         self.myId = myId
         self.isGroup = isGroup
         self.peerUserId = peerUserId
+        self.input = DraftStore.shared.get(conversationId)   // 恢复未发送草稿(对齐微信/Web/Android)
+
+        // 输入变化即持久化草稿(去抖，避免每字符都写盘)
+        $input
+            .dropFirst()
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .sink { [weak self] text in
+                guard let self else { return }
+                DraftStore.shared.set(self.conversationId, text)
+            }
+            .store(in: &cancellables)
 
         repo.incomingPublisher
             .sink { [weak self] msg in Task { @MainActor in self?.onIncoming(msg) } }
@@ -505,6 +516,7 @@ final class ChatViewModel: ObservableObject {
         Haptics.impact(.light)   // 发送轻震，给一点触觉反馈
         let replyId = replyingTo?.id
         input = ""
+        DraftStore.shared.clear(conversationId)   // 已发送即清草稿(立即，不等去抖)
         replyingTo = nil
         sending = true
         error = nil
