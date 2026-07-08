@@ -269,6 +269,7 @@ struct ChatView: View {
             // 「↓ N 条新消息」悬浮按钮：看历史时来了新消息才显示，点按滚到底
             if newMsgCount > 0 {
                 Button {
+                    Haptics.impact(.light)   // 点按回底轻震反馈(对齐发送/长按)
                     withAnimation { proxy.scrollTo(bottomAnchor, anchor: .bottom) }
                     newMsgCount = 0
                 } label: {
@@ -331,13 +332,14 @@ struct ChatView: View {
                     .accessibilityIdentifier("chat-emoji-btn")
                     .accessibilityLabel("表情")
 
-                // 有文字 → 发送键；无文字 → +(功能面板)
-                if !vm.input.isEmpty || vm.sending {
+                // 有文字 → 发送键；无文字(含纯空白) → +(功能面板)。对齐 Android/微信。
+                let hasText = !vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                if hasText || vm.sending {
                     Button { vm.sendText() } label: {
                         if vm.sending { ProgressView() }
                         else { Image(systemName: "paperplane.fill").foregroundColor(.vxinGreen) }
                     }
-                    .disabled(vm.input.isEmpty || vm.sending)
+                    .disabled(!hasText || vm.sending)
                     .accessibilityIdentifier("chat-send-btn")
                     .accessibilityLabel("发送")
                 } else {

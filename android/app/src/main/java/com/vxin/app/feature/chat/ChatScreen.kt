@@ -119,6 +119,7 @@ fun ChatScreen(
     var highlightedMsgId by remember { mutableStateOf<String?>(null) }
     var showMentionPicker by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val listHaptic = LocalHapticFeedback.current   // 悬浮「新消息」按钮点按触觉
 
     // 通话发起：先申请权限再拨打
     var pendingCallVideo by remember { mutableStateOf<Boolean?>(null) }
@@ -422,6 +423,7 @@ fun ChatScreen(
                     color = if (isSystemInDarkTheme()) VxinSurfaceDark else Color.White,
                     shadowElevation = 4.dp,
                     modifier = Modifier.clickable {
+                        listHaptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)  // 点按回底轻震
                         scope.launch { if (totalCount > 0) listState.animateScrollToItem(totalCount - 1) }
                         newMsgCount = 0
                     },

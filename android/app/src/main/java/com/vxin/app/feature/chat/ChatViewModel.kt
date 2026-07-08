@@ -136,6 +136,7 @@ class ChatViewModel @Inject constructor(
 
     fun appendMention(member: com.vxin.app.data.model.GroupMember) {
         _uiState.update { it.copy(input = it.input + "@${member.username} ") }
+        draftStore.set(conversationId, _uiState.value.input)   // @追加也存草稿
     }
 
     private fun observeGroupGone() {
@@ -314,7 +315,10 @@ class ChatViewModel @Inject constructor(
     }
 
     // ── 表情/贴纸 ──────────────────────────────────────
-    fun appendEmoji(emoji: String) = _uiState.update { it.copy(input = it.input + emoji) }
+    fun appendEmoji(emoji: String) {
+        _uiState.update { it.copy(input = it.input + emoji) }
+        draftStore.set(conversationId, _uiState.value.input)   // 表情追加也存草稿
+    }
 
     fun loadStickers() {
         viewModelScope.launch {
