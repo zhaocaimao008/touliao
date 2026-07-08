@@ -66,6 +66,9 @@ data class ChatUiState(
     val searchQuery: String = "",
     val searching: Boolean = false,
     val searchResults: List<Message> = emptyList(),
+    // ── 多选（批量撤回/删除）──
+    val multiSelect: Boolean = false,
+    val selectedIds: Set<String> = emptySet(),
     // ── 红包 ──
     val redPacketDetail: RedPacketDetail? = null,   // 非空 = 显示红包详情弹窗
     val redPacketLoading: Boolean = false,
@@ -470,6 +473,31 @@ class ChatViewModel @Inject constructor(
             runCatching { chatRepository.searchInConversation(conversationId, kw) }
                 .onSuccess { list -> _uiState.update { it.copy(searching = false, searchResults = list) } }
                 .onFailure { e -> _uiState.update { it.copy(searching = false, searchResults = emptyList(), error = e.toUserMessage("搜索失败")) } }
+        }
+    }
+
+    // ── 多选（批量撤回/删除）──
+    fun enterMultiSelect(first: Message) =
+        _uiState.update { it.copy(multiSelect = true, selectedIds = setOf(first.id)) }
+
+    fun exitMultiSelect() =
+        _uiState.update { it.copy(multiSelect = false, selectedIds = emptySet()) }
+
+    fun toggleSelect(msg: Message) = _uiState.update { s ->
+        val next = if (msg.id in s.selectedIds) s.selectedIds - msg.id else s.selectedIds + msg.id
+        s.copy(selectedIds = next)
+    }
+
+    fun batchDeleteSelected() {
+        val ids = _uiState.value.selectedIds.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { chatRepository.batchDelete(conversationId, ids) }
+                .onSuccess {
+                    // 本端乐观移除(广播 messages_batch_deleted 亦会移除，幂等)
+                    _uiState.update { s -> s.copy(messages = s.messages.filterNot { it.id in ids }, multiSelect = false, selectedIds = emptySet()) }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("批量删除失败")) } }
         }
     }
 

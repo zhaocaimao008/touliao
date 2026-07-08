@@ -39,6 +39,9 @@ final class ChatViewModel: ObservableObject {
     @Published var searchQuery = ""
     @Published var searching = false
     @Published var searchResults: [Message] = []
+    // ── 多选（批量撤回/删除）──
+    @Published var multiSelect = false
+    @Published var selectedIds: Set<String> = []
     @Published var editTarget: Message?
     @Published var forwardTarget: Message?
     @Published var closed = false   // 被踢/群解散 → 关闭聊天页
@@ -296,6 +299,26 @@ final class ChatViewModel: ObservableObject {
                 if !Task.isCancelled { self.searchResults = list; self.searching = false }
             } catch {
                 if !Task.isCancelled { self.searchResults = []; self.searching = false }
+            }
+        }
+    }
+
+    // ── 多选（批量撤回/删除）──
+    func enterMultiSelect(_ first: Message) { multiSelect = true; selectedIds = [first.id] }
+    func exitMultiSelect() { multiSelect = false; selectedIds = [] }
+    func toggleSelect(_ msg: Message) {
+        if selectedIds.contains(msg.id) { selectedIds.remove(msg.id) } else { selectedIds.insert(msg.id) }
+    }
+    func batchDeleteSelected() {
+        let ids = Array(selectedIds)
+        guard !ids.isEmpty else { return }
+        Task {
+            do {
+                try await repo.batchDelete(conversationId: conversationId, msgIds: ids)
+                messages.removeAll { ids.contains($0.id) }   // 乐观移除(广播亦会移除，幂等)
+                multiSelect = false; selectedIds = []
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "批量删除失败"
             }
         }
     }

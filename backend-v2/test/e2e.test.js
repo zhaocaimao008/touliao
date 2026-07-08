@@ -132,6 +132,34 @@ describe('v信 后端 E2E 集成测试', () => {
       expect(res.status).toBe(200);
       expect(res.body.results.length).toBe(0);
     });
+
+    test('批量删除：撤回自己发的多条消息', async () => {
+      // 先发两条专供删除的消息
+      const ids = [];
+      for (let i = 0; i < 2; i++) {
+        const r = await request(app).post(`/api/messages/${conversationId}`)
+          .set('Authorization', `Bearer ${u1.token}`)
+          .send({ content: `批量删除样本${i}-${Date.now()}`, type: 'text' });
+        ids.push(r.body.id);
+      }
+      const del = await request(app).post('/api/messages/batch-delete')
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ msgIds: ids, conversationId });
+      expect(del.status).toBe(200);
+      expect(del.body.deleted).toBe(2);
+      // 删除后历史里不再出现这两条(deleted=2 内容清空)
+      const hist = await request(app).get(`/api/messages/${conversationId}?limit=50`)
+        .set('Authorization', `Bearer ${u1.token}`);
+      expect(hist.body.some(m => ids.includes(m.id) && m.content)).toBe(false);
+    });
+
+    test('批量删除：超 20 条 → 400', async () => {
+      const many = Array.from({ length: 21 }, (_, i) => `x${i}`);
+      const res = await request(app).post('/api/messages/batch-delete')
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ msgIds: many, conversationId });
+      expect(res.status).toBe(400);
+    });
   });
 
   describe('群组', () => {

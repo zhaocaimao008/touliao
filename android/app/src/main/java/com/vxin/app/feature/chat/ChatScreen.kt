@@ -194,6 +194,9 @@ fun ChatScreen(
         onDispose { viewModel.onLeave() }
     }
 
+    // 多选态：系统返回键先退出多选(而非离开会话)
+    androidx.activity.compose.BackHandler(enabled = state.multiSelect) { viewModel.exitMultiSelect() }
+
     // 跳到指定消息并高亮(供「回复引用」「搜索结果」共用)。仅在已加载消息里查找。
     val jumpToMessage: (String) -> Unit = jump@{ targetId ->
         val headerOffset = if (!state.reachedStart && state.messages.isNotEmpty()) 1 else 0
@@ -253,6 +256,24 @@ fun ChatScreen(
             var showEmojiPanel by remember { mutableStateOf(false) }
             var showFuncPanel by remember { mutableStateOf(false) }
             LaunchedEffect(showEmojiPanel) { if (showEmojiPanel) viewModel.loadStickers() }
+            if (state.multiSelect) {
+                // 多选底栏：删除选中 / 取消（对齐 web）
+                Row(
+                    Modifier.fillMaxWidth().navigationBarsPadding()
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("已选 ${state.selectedIds.size} 条", color = VxinTextSecondary, fontSize = 14.sp)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { viewModel.exitMultiSelect() }) { Text("取消") }
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(
+                        onClick = { viewModel.batchDeleteSelected() },
+                        enabled = state.selectedIds.isNotEmpty(),
+                    ) { Text("删除", color = Color(0xFFFA5151)) }
+                }
+            } else {
             // imePadding 提到整个底栏：键盘弹出时回复条/输入框/面板一起上移；
             // navigationBarsPadding 保证 edge-to-edge 下输入框不被手势条遮挡。
             Column(Modifier.imePadding().navigationBarsPadding()) {
@@ -306,6 +327,7 @@ fun ChatScreen(
                         onRedPacket = { showRedPacketSend = true; showFuncPanel = false },
                     )
                 }
+            }
             }
         },
     ) { padding ->
@@ -377,6 +399,39 @@ fun ChatScreen(
                         val isMine = msg.sender_id == viewModel.myId
                         // 只在「最后一条自己发的消息」上显示已读状态(对齐微信,减少噪音)
                         val showReadStatus = isMine && msg.id == lastOwnMsgId
+                        if (state.multiSelect) {
+                            // 多选模式：整行可点勾选，左侧圆形选择指示器
+                            val checked = msg.id in state.selectedIds
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clickable { viewModel.toggleSelect(msg) }
+                                    .padding(start = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    Modifier.size(22.dp).clip(CircleShape)
+                                        .background(if (checked) VxinGreen else Color(0x22000000)),
+                                    contentAlignment = Alignment.Center,
+                                ) { if (checked) Text("✓", color = Color.White, fontSize = 13.sp) }
+                                Box(Modifier.weight(1f)) {
+                                    MessageBubble(
+                                        msg = msg,
+                                        isMine = isMine,
+                                        showReadStatus = false,
+                                        onNudge = {}, isRead = false,
+                                        resolveUrl = viewModel::resolveMediaUrl,
+                                        onPlayVoice = {}, onOpenFile = {}, onReply = {}, onRecall = {}, onVanish = {},
+                                        onReact = {}, onCollectSticker = {},
+                                        redPacket = viewModel.parseRedPacket(msg),
+                                        onOpenRedPacket = {}, canPin = false, isPinned = false, onTogglePin = {},
+                                        canEdit = false, onEdit = {}, onForward = {}, onCollect = {},
+                                        highlighted = false, onImageClick = {}, onReplyClick = {},
+                                        selectionMode = true,
+                                    )
+                                }
+                            }
+                            return@itemsIndexed
+                        }
                         MessageBubble(
                             msg = msg,
                             isMine = isMine,
@@ -407,6 +462,7 @@ fun ChatScreen(
                                 galleryStart = imgs.indexOfFirst { it.id == msg.id }.coerceAtLeast(0)
                             },
                             onReplyClick = { targetId -> jumpToMessage(targetId) },
+                            onMultiSelect = { viewModel.enterMultiSelect(msg) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -661,6 +717,8 @@ private fun MessageBubble(
     highlighted: Boolean = false,
     onReplyClick: (String) -> Unit = {},
     onVanish: () -> Unit = {},
+    onMultiSelect: () -> Unit = {},
+    selectionMode: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -715,7 +773,7 @@ private fun MessageBubble(
                 Box(
                     Modifier
                         .graphicsLayer { scaleX = bubbleScale; scaleY = bubbleScale }
-                        .combinedClickable(onClick = {}, onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true }),
+                        .combinedClickable(onClick = {}, onLongClick = { if (!selectionMode) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true } }),
                 ) {
                     MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick)
                 }
@@ -755,6 +813,8 @@ private fun MessageBubble(
                         DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { onRecall(); menuOpen = false })
                         DropdownMenuItem(text = { Text("删除不留痕迹", color = Color(0xFFFA5151)) }, onClick = { onVanish(); menuOpen = false })
                     }
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text("多选") }, onClick = { onMultiSelect(); menuOpen = false })
                 }
             }
             if (msg.edited == 1) {

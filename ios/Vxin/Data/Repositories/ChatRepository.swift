@@ -153,6 +153,14 @@ final class ChatRepository {
         )
     }
 
+    /// 批量撤回/删除（多选，单次≤20 条）
+    func batchDelete(conversationId: String, msgIds: [String]) async throws {
+        let _: BatchDeleteResponse = try await api.send(
+            "api/messages/batch-delete", method: "POST",
+            body: BatchDeleteBody(msgIds: msgIds, conversationId: conversationId)
+        )
+    }
+
     func collectMessage(_ msgId: String) async throws {
         let _: EmptyResponse = try await api.send("api/messages/\(msgId)/collect", method: "POST")
     }
@@ -166,5 +174,7 @@ private struct MuteConvBody: Encodable { let muted: Int }
 private struct EditBody: Encodable { let content: String }
 private struct ForwardBody: Encodable { let msgId: String; let conversationIds: [String] }
 private struct DeleteMessageBody: Encodable { let forEveryone: Bool; let vanish: Bool? }
+private struct BatchDeleteBody: Encodable { let msgIds: [String]; let conversationId: String }
+private struct BatchDeleteResponse: Decodable { let success: Bool?; let deleted: Int? }
 private struct ReactBody: Encodable { let emoji: String }
 private struct ReactResponse: Decodable { let reactions: [MessageReaction] }

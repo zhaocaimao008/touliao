@@ -44,7 +44,11 @@ struct ChatView: View {
                         KFImage(source: src).resizable().scaledToFill().clipped().ignoresSafeArea()
                     }
                 }
-            inputBar
+            if vm.multiSelect {
+                multiSelectBar
+            } else {
+                inputBar
+            }
         }
         .navigationTitle(vm.peerTyping ? "对方正在输入…" : (vm.title.isEmpty ? "聊天" : vm.title))
         .navigationBarTitleDisplayMode(.inline)
@@ -243,6 +247,17 @@ struct ChatView: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 4)
                                 .id(msg.id)
+                        } else if vm.multiSelect {
+                            // 多选模式：整行可点勾选，左侧圆形指示器
+                            HStack(spacing: 8) {
+                                Image(systemName: vm.selectedIds.contains(msg.id) ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(vm.selectedIds.contains(msg.id) ? .vxinGreen : .secondary)
+                                MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm)
+                                    .allowsHitTesting(false)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture { vm.toggleSelect(msg) }
+                            .id(msg.id)
                         } else {
                             MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm)
                                 .id(msg.id)
@@ -298,6 +313,19 @@ struct ChatView: View {
     }
 
     private let bottomAnchor = "BOTTOM_ANCHOR"
+
+    // MARK: - 多选底栏（批量撤回/删除，对齐 web）
+    private var multiSelectBar: some View {
+        HStack {
+            Text("已选 \(vm.selectedIds.count) 条").font(.subheadline).foregroundColor(.vxinTextSecondary)
+            Spacer()
+            Button("取消") { vm.exitMultiSelect() }
+            Button(role: .destructive) { vm.batchDeleteSelected() } label: { Text("删除") }
+                .disabled(vm.selectedIds.isEmpty)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .background(.bar)
+    }
 
     // MARK: - 输入栏
     private var inputBar: some View {
@@ -539,6 +567,8 @@ private struct MessageBubble: View {
                             Button("撤回", role: .destructive) { vm.recall(msg) }
                             Button("删除不留痕迹", role: .destructive) { vm.vanish(msg) }
                         }
+                        Divider()
+                        Button("多选") { vm.enterMultiSelect(msg) }
                     }
                 if !msg.reactions.isEmpty {
                     HStack(spacing: 4) {

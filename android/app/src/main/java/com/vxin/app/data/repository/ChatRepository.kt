@@ -108,6 +108,10 @@ class ChatRepository @Inject constructor(
     suspend fun deleteMessage(msgId: String, forEveryone: Boolean = true) =
         runCatching { api.deleteMessage(msgId, DeleteMessageBody(forEveryone)) }
 
+    /** 批量撤回/删除（多选） */
+    suspend fun batchDelete(conversationId: String, msgIds: List<String>) =
+        api.batchDelete(com.vxin.app.data.model.BatchDeleteBody(msgIds, conversationId))
+
     suspend fun vanishMessage(msgId: String) =
         runCatching { api.deleteMessage(msgId, DeleteMessageBody(vanish = true)) }
 

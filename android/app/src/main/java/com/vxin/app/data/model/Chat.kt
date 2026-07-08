@@ -95,6 +95,9 @@ data class EditMessageBody(val content: String)
 data class ForwardBody(val msgId: String, val conversationIds: List<String>)
 
 @Serializable
+data class BatchDeleteBody(val msgIds: List<String>, val conversationId: String)
+
+@Serializable
 data class PinMessageBody(val msgId: String)
 
 /** 群置顶消息（GET .../pinned-messages） */

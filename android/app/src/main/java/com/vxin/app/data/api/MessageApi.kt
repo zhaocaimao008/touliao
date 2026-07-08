@@ -100,6 +100,10 @@ interface MessageApi {
     @HTTP(method = "DELETE", path = "api/messages/{msgId}", hasBody = true)
     suspend fun deleteMessage(@Path("msgId") msgId: String, @Body body: DeleteMessageBody)
 
+    /** 批量撤回/删除消息（多选，单次≤20 条） */
+    @POST("api/messages/batch-delete")
+    suspend fun batchDelete(@Body body: com.vxin.app.data.model.BatchDeleteBody)
+
     /** 表情回应(切换) */
     @POST("api/messages/{msgId}/react")
     suspend fun react(@Path("msgId") msgId: String, @Body body: ReactBody): ReactResponse
