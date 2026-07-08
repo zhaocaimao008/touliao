@@ -461,10 +461,21 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    // 用户是否在消息列表底部附近(由 View 更新)。看历史时收到新消息不立即标已读，
+    // 避免对方过早看到「已读」；滚回底部后再补标(对齐微信/web/安卓)。
+    private var atBottom = true
+
+    func setAtBottom(_ value: Bool) {
+        let was = atBottom
+        atBottom = value
+        if value && !was { markReadLatest() }   // 刚滚回底部：补标在底看到的最新消息
+    }
+
     private func onIncoming(_ msg: Message) {
         guard msg.conversationId == conversationId else { return }
         appendUnique(msg)
-        if msg.senderId != myId { markReadLatest() }   // 在会话内收到对方消息即已读
+        // 仅在底部附近才即时标已读；看历史时留给「N 条新消息」提示，滚回底再标
+        if msg.senderId != myId && atBottom { markReadLatest() }
     }
 
     private func onTyping(_ e: TypingEvent) {

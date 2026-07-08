@@ -427,11 +427,13 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   }, [conversation.id, fetchMessages, socket, conversation.type]);
 
   // 新消息到达且当前在底部时，自动标记已读（带最新消息 ID）
+  // 阈值与自动滚底(<400)一致：处于 120~400px 区间时新消息会被自动拉到底，
+  // 此前 markRead 用 <120 会漏报已读，留下「明明已看到却仍未读」的残留。
   const markReadRef = useRef(null);
   useEffect(() => {
     if (!messages.length) return;
     const outer = listOuterRef.current;
-    const isAtBottom = !outer || (outer.scrollHeight - outer.scrollTop - outer.clientHeight < 120);
+    const isAtBottom = !outer || (outer.scrollHeight - outer.scrollTop - outer.clientHeight < 400);
     if (!isAtBottom) return;
     const lastMsg = messages[messages.length - 1];
     if (markReadRef.current === lastMsg.id) return;

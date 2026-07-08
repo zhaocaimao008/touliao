@@ -176,8 +176,11 @@ fun ChatScreen(
         if (atBottom || mine) listState.animateScrollToItem(totalCount - 1)
         else newMsgCount++
     }
-    // 滚回底部后清零计数
-    LaunchedEffect(atBottom) { if (atBottom) newMsgCount = 0 }
+    // 滚回底部后清零计数，并同步「在底」状态给 VM(用于已读判定：看历史时不即时标已读)
+    LaunchedEffect(atBottom) {
+        viewModel.setAtBottom(atBottom)
+        if (atBottom) newMsgCount = 0
+    }
 
     // 键盘弹出时把最新消息顶到键盘上方（对齐微信：点输入框后最后一条仍可见）
     val imeVisible = WindowInsets.isImeVisible

@@ -246,8 +246,8 @@ struct ChatView: View {
                     }
                     // 底部锚点：出现/消失用于判断用户是否在底部附近(对齐微信新消息提示)
                     Color.clear.frame(height: 1).id(bottomAnchor)
-                        .onAppear { atBottom = true; withAnimation { newMsgCount = 0 } }
-                        .onDisappear { atBottom = false }
+                        .onAppear { atBottom = true; vm.setAtBottom(true); withAnimation { newMsgCount = 0 } }
+                        .onDisappear { atBottom = false; vm.setAtBottom(false) }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)

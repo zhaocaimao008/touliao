@@ -495,12 +495,23 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    // 用户是否在消息列表底部附近(由 UI 更新)。看历史时收到新消息不立即标已读，
+    // 避免对方过早看到「已读」；滚回底部后再补标(对齐微信/web)。
+    @Volatile private var atBottom: Boolean = true
+
+    fun setAtBottom(value: Boolean) {
+        val was = atBottom
+        atBottom = value
+        if (value && !was) markReadLatest()   // 刚滚回底部：把在底看到的最新消息补标已读
+    }
+
     private fun observeIncoming() {
         viewModelScope.launch {
             chatRepository.incomingMessages.collect { msg ->
                 if (msg.conversation_id != conversationId) return@collect
                 appendUnique(msg)
-                if (msg.sender_id != myId) markReadLatest()   // 在会话内收到对方消息即已读
+                // 仅在底部附近才即时标已读；看历史时留给「N 条新消息」提示，滚回底再标
+                if (msg.sender_id != myId && atBottom) markReadLatest()
             }
         }
     }
