@@ -59,6 +59,12 @@ final class ChatRepository {
         return try await api.send(path)
     }
 
+    /// 会话内消息搜索（FTS5，倒序命中）
+    func searchInConversation(_ conversationId: String, q: String) async throws -> [Message] {
+        let enc = q.addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? q
+        return try await api.send("api/messages/conversation/\(conversationId)/search?q=\(enc)")
+    }
+
     func sendText(conversationId: String, content: String, replyToId: String? = nil) async -> Result<Message, Error> {
         await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId)
     }

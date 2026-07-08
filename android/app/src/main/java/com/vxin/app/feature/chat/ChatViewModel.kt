@@ -61,6 +61,11 @@ data class ChatUiState(
     val groupMembers: List<com.vxin.app.data.model.GroupMember> = emptyList(),
     val pinnedMessages: List<com.vxin.app.data.model.PinnedMessage> = emptyList(),
     val forwardTargets: List<com.vxin.app.data.model.Conversation> = emptyList(),  // 转发可选会话
+    // ── 会话内消息搜索 ──
+    val searchActive: Boolean = false,
+    val searchQuery: String = "",
+    val searching: Boolean = false,
+    val searchResults: List<Message> = emptyList(),
     // ── 红包 ──
     val redPacketDetail: RedPacketDetail? = null,   // 非空 = 显示红包详情弹窗
     val redPacketLoading: Boolean = false,
@@ -439,6 +444,32 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { chatRepository.loadConversations() }
                 .onSuccess { list -> _uiState.update { it.copy(forwardTargets = list.filterNot { c -> c.id == conversationId }) } }
+        }
+    }
+
+    // ── 会话内消息搜索 ──
+    private var searchJob: Job? = null
+
+    fun openSearch() = _uiState.update { it.copy(searchActive = true) }
+    fun closeSearch() {
+        searchJob?.cancel()
+        _uiState.update { it.copy(searchActive = false, searchQuery = "", searchResults = emptyList(), searching = false) }
+    }
+
+    fun onSearchQueryChange(q: String) {
+        _uiState.update { it.copy(searchQuery = q) }
+        searchJob?.cancel()
+        val kw = q.trim()
+        if (kw.isEmpty()) {
+            _uiState.update { it.copy(searchResults = emptyList(), searching = false) }
+            return
+        }
+        _uiState.update { it.copy(searching = true) }
+        searchJob = viewModelScope.launch {
+            delay(300)   // 去抖
+            runCatching { chatRepository.searchInConversation(conversationId, kw) }
+                .onSuccess { list -> _uiState.update { it.copy(searching = false, searchResults = list) } }
+                .onFailure { e -> _uiState.update { it.copy(searching = false, searchResults = emptyList(), error = e.toUserMessage("搜索失败")) } }
         }
     }
 

@@ -75,6 +75,12 @@ struct ChatView: View {
                     .accessibilityLabel("视频通话")
                 }
             }
+            // 会话内消息搜索
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { vm.openSearch() } label: { Image(systemName: "magnifyingglass") }
+                    .accessibilityIdentifier("chat-search-btn")
+                    .accessibilityLabel("搜索聊天记录")
+            }
             // 聊天背景设置
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
@@ -128,6 +134,9 @@ struct ChatView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { showPinnedList = false } } }
             }
+        }
+        .sheet(isPresented: $vm.searchActive, onDismiss: { vm.closeSearch() }) {
+            MessageSearchSheet(vm: vm)
         }
         .alert("编辑消息", isPresented: Binding(get: { vm.editTarget != nil }, set: { if !$0 { vm.editTarget = nil } })) {
             TextField("内容", text: $editText)
@@ -832,6 +841,63 @@ private struct RedPacketDetailSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("关闭") { onClose() } }
             }
+        }
+    }
+}
+
+/// 会话内消息搜索面板：输入关键词 → 命中列表，点结果关闭并跳转高亮(对齐 web/微信)
+private struct MessageSearchSheet: View {
+    @ObservedObject var vm: ChatViewModel
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if vm.searching {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if vm.searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Text("输入关键词搜索本会话消息").foregroundColor(.vxinTextSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if vm.searchResults.isEmpty {
+                    Text("没有找到相关消息").foregroundColor(.vxinTextSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(vm.searchResults) { msg in
+                        Button {
+                            let id = msg.id
+                            vm.searchActive = false
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { vm.jumpTo(id) }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack {
+                                    Text(msg.senderName.isEmpty ? "用户" : msg.senderName)
+                                        .font(.caption).fontWeight(.medium).foregroundColor(.vxinGreen)
+                                    Spacer()
+                                    Text(formatChatTime(msg.createdAt)).font(.caption2).foregroundColor(.vxinTextSecondary)
+                                }
+                                Text(preview(msg)).font(.subheadline).lineLimit(2).foregroundColor(.primary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .searchable(text: Binding(get: { vm.searchQuery }, set: { vm.onSearchQueryChange($0) }), prompt: "搜索聊天记录")
+            .navigationTitle("搜索聊天记录").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("取消") { vm.searchActive = false } } }
+        }
+    }
+
+    private func preview(_ m: Message) -> String {
+        switch m.type {
+        case "text": return m.content
+        case "image": return "[图片]"
+        case "voice": return "[语音]"
+        case "video": return "[视频]"
+        case "file": return "[文件] \(m.content)"
+        case "red_packet": return "[红包]"
+        case "sticker": return "[表情]"
+        default: return m.content.isEmpty ? "[消息]" : m.content
         }
     }
 }

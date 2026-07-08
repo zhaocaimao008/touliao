@@ -86,6 +86,7 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.vxin.app.core.util.downloadFile
 import com.vxin.app.core.util.formatChatTime
+import androidx.compose.ui.focus.focusRequester
 import com.vxin.app.data.model.ContactCardContent
 import com.vxin.app.data.model.Message
 import com.vxin.app.ui.components.InitialAvatar
@@ -192,6 +193,16 @@ fun ChatScreen(
     DisposableEffect(Unit) {
         onDispose { viewModel.onLeave() }
     }
+
+    // 跳到指定消息并高亮(供「回复引用」「搜索结果」共用)。仅在已加载消息里查找。
+    val jumpToMessage: (String) -> Unit = jump@{ targetId ->
+        val headerOffset = if (!state.reachedStart && state.messages.isNotEmpty()) 1 else 0
+        val idx = state.messages.indexOfFirst { it.id == targetId }
+        if (idx < 0) return@jump
+        scope.launch { listState.animateScrollToItem(idx + headerOffset) }
+        highlightedMsgId = targetId
+        scope.launch { kotlinx.coroutines.delay(1500); if (highlightedMsgId == targetId) highlightedMsgId = null }
+    }
     // 被踢/群解散 → 自动返回
     LaunchedEffect(state.closed) { if (state.closed) onBack() }
 
@@ -212,6 +223,7 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.openSearch() }, modifier = Modifier.testTag("chat-search-btn")) { Text("🔍", style = MaterialTheme.typography.titleMedium) }
                     IconButton(onClick = { launchCall(false) }, modifier = Modifier.testTag("chat-call-audio-btn")) { Text("📞", style = MaterialTheme.typography.titleMedium) }
                     IconButton(onClick = { launchCall(true) }, modifier = Modifier.testTag("chat-call-video-btn")) { Text("📹", style = MaterialTheme.typography.titleMedium) }
                     if (viewModel.isGroup) {
@@ -394,15 +406,7 @@ fun ChatScreen(
                                 galleryImages = imgs.mapNotNull { viewModel.resolveMediaUrl(it.file_url) }
                                 galleryStart = imgs.indexOfFirst { it.id == msg.id }.coerceAtLeast(0)
                             },
-                            onReplyClick = { targetId ->
-                                val headerOffset = if (!state.reachedStart && state.messages.isNotEmpty()) 1 else 0
-                                val idx = state.messages.indexOfFirst { it.id == targetId }
-                                if (idx >= 0) {
-                                    scope.launch { listState.animateScrollToItem(idx + headerOffset) }
-                                    highlightedMsgId = targetId
-                                    scope.launch { kotlinx.coroutines.delay(1500); if (highlightedMsgId == targetId) highlightedMsgId = null }
-                                }
-                            },
+                            onReplyClick = { targetId -> jumpToMessage(targetId) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -471,6 +475,20 @@ fun ChatScreen(
             claimedAmount = state.claimedAmount,
             onClaim = viewModel::claimOpenedRedPacket,
             onDismiss = viewModel::closeRedPacket,
+        )
+    }
+
+    if (state.searchActive) {
+        MessageSearchOverlay(
+            query = state.searchQuery,
+            searching = state.searching,
+            results = state.searchResults,
+            onQueryChange = viewModel::onSearchQueryChange,
+            onClose = viewModel::closeSearch,
+            onResultClick = { msg ->
+                viewModel.closeSearch()
+                jumpToMessage(msg.id)
+            },
         )
     }
 
@@ -1244,4 +1262,75 @@ private fun RedPacketDetailDialog(
             if (canClaim) TextButton(onClick = onDismiss) { Text("关闭") }
         },
     )
+}
+
+/** 会话内消息搜索浮层：顶部输入框 + 命中结果列表，点结果跳转并高亮(对齐 web/微信) */
+@Composable
+private fun MessageSearchOverlay(
+    query: String,
+    searching: Boolean,
+    results: List<Message>,
+    onQueryChange: (String) -> Unit,
+    onClose: () -> Unit,
+    onResultClick: (Message) -> Unit,
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().navigationBarsPadding()) {
+                // 顶部：返回 + 搜索输入
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "关闭搜索") }
+                    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+                    LaunchedEffect(Unit) { kotlinx.coroutines.delay(100); runCatching { focus.requestFocus() } }
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = onQueryChange,
+                        modifier = Modifier.weight(1f).focusRequester(focus).testTag("chat-search-input"),
+                        placeholder = { Text("搜索聊天记录") },
+                        singleLine = true,
+                    )
+                }
+                HorizontalDivider(thickness = 0.5.dp)
+                when {
+                    searching -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(Modifier.size(28.dp)) }
+                    query.isBlank() -> Box(Modifier.fillMaxSize(), Alignment.Center) { Text("输入关键词搜索本会话消息", color = VxinTextSecondary) }
+                    results.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) { Text("没有找到相关消息", color = VxinTextSecondary) }
+                    else -> LazyColumn(Modifier.fillMaxSize()) {
+                        items(results, key = { it.id }) { msg ->
+                            Column(
+                                Modifier.fillMaxWidth().clickable { onResultClick(msg) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                            ) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(msg.senderName.ifBlank { "用户" }, color = VxinGreen, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                                    Spacer(Modifier.weight(1f))
+                                    Text(formatChatTime(msg.created_at), color = VxinTextSecondary, fontSize = 11.sp)
+                                }
+                                Spacer(Modifier.size(3.dp))
+                                Text(searchPreview(msg), fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                            HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 搜索结果预览：文本直显，其它类型给占位标签 */
+private fun searchPreview(msg: Message): String = when (msg.type) {
+    "text" -> msg.content
+    "image" -> "[图片]"
+    "voice" -> "[语音]"
+    "video" -> "[视频]"
+    "file" -> "[文件] ${msg.content}"
+    "red_packet" -> "[红包]"
+    "sticker" -> "[表情]"
+    else -> msg.content.ifBlank { "[消息]" }
 }

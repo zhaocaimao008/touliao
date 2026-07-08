@@ -510,15 +510,32 @@ async function searchInConversation(convId, userId, q) {
   // 使用 FTS5 全文索引，避免 LIKE '%kw%' 全表扫描
   const tokens = q.split(/\s+/).filter(Boolean);
   if (!tokens.length) return [];
-  const ftsQuery = tokens.map(t => `"${t.replace(/"/g, '""')}"`).join(' OR ');
-  const result = db.prepare(`
-    SELECT m.*, u.username AS senderName, u.avatar AS senderAvatar
-    FROM messages_fts
-    JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
-    JOIN users u ON u.id = m.sender_id
-    WHERE messages_fts MATCH ? AND messages_fts.conversation_id = ?
-    ORDER BY m.created_at DESC LIMIT 30
-  `).all(ftsQuery, convId);
+
+  // trigram 分词器要求 token ≥ 3 字符；1~2 字（中文极常见）FTS 无法命中，
+  // 退化为 LIKE 精确子串匹配，避免短词搜索恒空。
+  const maxTokenLen = Math.max(...tokens.map(t => t.length));
+  let result;
+  if (maxTokenLen < 3) {
+    const like = `%${q.trim().replace(/[\\%_]/g, c => '\\' + c)}%`;
+    result = db.prepare(`
+      SELECT m.*, u.username AS senderName, u.avatar AS senderAvatar
+      FROM messages m
+      JOIN users u ON u.id = m.sender_id
+      WHERE m.conversation_id = ? AND m.deleted = 0
+        AND m.content LIKE ? ESCAPE '\\'
+      ORDER BY m.created_at DESC LIMIT 30
+    `).all(convId, like);
+  } else {
+    const ftsQuery = tokens.map(t => `"${t.replace(/"/g, '""')}"`).join(' OR ');
+    result = db.prepare(`
+      SELECT m.*, u.username AS senderName, u.avatar AS senderAvatar
+      FROM messages_fts
+      JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
+      JOIN users u ON u.id = m.sender_id
+      WHERE messages_fts MATCH ? AND messages_fts.conversation_id = ?
+      ORDER BY m.created_at DESC LIMIT 30
+    `).all(ftsQuery, convId);
+  }
 
   // 写入缓存（TTL: 10 分钟）
   await cache.set(cacheKey, result, 600);

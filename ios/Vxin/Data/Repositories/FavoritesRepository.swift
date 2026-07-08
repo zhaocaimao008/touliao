@@ -23,12 +23,3 @@ final class FavoritesRepository {
         let _: EmptyResponse = try await api.send("api/users/me/collections/\(id)", method: "DELETE")
     }
 }
-
-private extension CharacterSet {
-    /// 仅用于 query value 的安全字符集（排除 & = ? # 等）
-    static let urlQueryValueAllowed: CharacterSet = {
-        var cs = CharacterSet.urlQueryAllowed
-        cs.remove(charactersIn: "&=?#+")
-        return cs
-    }()
-}

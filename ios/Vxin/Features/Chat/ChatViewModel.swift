@@ -34,6 +34,11 @@ final class ChatViewModel: ObservableObject {
     @Published var scrollTarget: String?
     @Published var highlightedId: String?
     @Published var forwardTargets: [Conversation] = []
+    // ── 会话内消息搜索 ──
+    @Published var searchActive = false
+    @Published var searchQuery = ""
+    @Published var searching = false
+    @Published var searchResults: [Message] = []
     @Published var editTarget: Message?
     @Published var forwardTarget: Message?
     @Published var closed = false   // 被踢/群解散 → 关闭聊天页
@@ -266,6 +271,33 @@ final class ChatViewModel: ObservableObject {
         scrollTarget = msgId
         highlightedId = msgId
         Task { try? await Task.sleep(nanoseconds: 1_500_000_000); if highlightedId == msgId { highlightedId = nil } }
+    }
+
+    // ── 会话内消息搜索 ──
+    private var searchTask: Task<Void, Never>?
+
+    func openSearch() { searchActive = true }
+    func closeSearch() {
+        searchTask?.cancel()
+        searchActive = false; searchQuery = ""; searchResults = []; searching = false
+    }
+
+    func onSearchQueryChange(_ q: String) {
+        searchQuery = q
+        searchTask?.cancel()
+        let kw = q.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !kw.isEmpty else { searchResults = []; searching = false; return }
+        searching = true
+        searchTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)   // 去抖
+            guard let self, !Task.isCancelled else { return }
+            do {
+                let list = try await self.repo.searchInConversation(self.conversationId, q: kw)
+                if !Task.isCancelled { self.searchResults = list; self.searching = false }
+            } catch {
+                if !Task.isCancelled { self.searchResults = []; self.searching = false }
+            }
+        }
     }
 
     func collectMessage(_ msg: Message) {

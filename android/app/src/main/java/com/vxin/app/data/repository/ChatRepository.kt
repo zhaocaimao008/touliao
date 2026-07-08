@@ -70,6 +70,10 @@ class ChatRepository @Inject constructor(
     suspend fun loadHistory(conversationId: String, before: Long? = null): List<Message> =
         api.history(conversationId, before = before)
 
+    /** 会话内消息搜索（FTS5，倒序命中） */
+    suspend fun searchInConversation(conversationId: String, q: String): List<Message> =
+        api.searchInConversation(conversationId, q)
+
     suspend fun sendText(conversationId: String, content: String, replyToId: String? = null): Result<Message> =
         socketManager.sendMessage(conversationId, content, replyToId)
 

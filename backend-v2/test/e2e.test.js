@@ -108,6 +108,24 @@ describe('v信 后端 E2E 集成测试', () => {
       expect(Array.isArray(res.body)).toBe(true);
     });
 
+    test('会话内搜索命中关键词消息，返回 senderName', async () => {
+      // 上面已发「你好，这是一条测试消息」→ 搜「测试」应命中且带发送者昵称(移动端渲染依赖)
+      const res = await request(app).get(`/api/messages/conversation/${conversationId}/search?q=测试`)
+        .set('Authorization', `Bearer ${u1.token}`);
+      expect(res.status).toBe(200);
+      const hit = res.body.find(m => m.content && m.content.includes('测试消息'));
+      expect(hit).toBeTruthy();
+      expect(hit).toHaveProperty('senderName');
+      expect(hit).toHaveProperty('created_at');
+    });
+
+    test('会话内搜索无匹配 → 空数组', async () => {
+      const res = await request(app).get(`/api/messages/conversation/${conversationId}/search?q=绝不存在zzz${Date.now()}`)
+        .set('Authorization', `Bearer ${u1.token}`);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
     test('搜索无结果时 results 为空', async () => {
       const res = await request(app).get('/api/messages/search?q=绝不存在的关键词zzz')
         .set('Authorization', `Bearer ${u1.token}`);

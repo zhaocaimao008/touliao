@@ -42,6 +42,13 @@ interface MessageApi {
         @Query("before") before: Long? = null,
     ): List<Message>
 
+    /** 会话内消息全文搜索（FTS5），按时间倒序返回命中消息 */
+    @GET("api/messages/conversation/{convId}/search")
+    suspend fun searchInConversation(
+        @Path("convId") convId: String,
+        @Query("q") q: String,
+    ): List<Message>
+
     /** 上传媒体（图片/语音/文件）。字段名固定为 file；服务端按 MIME 判定 type，返回创建的消息 */
     @Multipart
     @POST("api/messages/{conversationId}/upload")
