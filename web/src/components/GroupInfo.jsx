@@ -244,17 +244,20 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   /* 修改群名 */
   const saveName = async () => {
-    if (!nameVal.trim()) return;
+    const name = nameVal.trim();
+    if (!name) { showToast('群名称不能为空', 'error'); return; }   // 此前静默返回,用户不知为何没保存
+    if (name === (info?.name || '')) { setEditName(false); return; }  // 未改动:直接收起,不发无谓请求
     try {
-      await axios.put(`/api/messages/conversation/${conversation.id}`, { name: nameVal.trim() });
-      setInfo(i => ({ ...i, name: nameVal.trim() }));
+      await axios.put(`/api/messages/conversation/${conversation.id}`, { name });
+      setInfo(i => ({ ...i, name }));
       setEditName(false);
-      onConvUpdate?.({ name: nameVal.trim() });
+      onConvUpdate?.({ name });
     } catch (e) { showToast(e.response?.data?.error || '修改群名失败', 'error'); }
   };
 
   /* 修改群公告 */
   const saveAnn = async () => {
+    if (annVal === (info?.announcement || '')) { setEditAnn(false); return; }  // 未改动:不发无谓请求
     try {
       await axios.put(`/api/messages/conversation/${conversation.id}`, { announcement: annVal });
       setInfo(i => ({ ...i, announcement: annVal }));
@@ -448,8 +451,9 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             {editName ? (
               <div className="gi-fca gi-gap6">
                 <input value={nameVal} onChange={e => setNameVal(e.target.value)}
-                  className="gi-name-edit" data-testid="group-rename-input"
-                  aria-label="群名称" autoFocus onKeyDown={e => e.key === 'Enter' && saveName()} />
+                  className="gi-name-edit" data-testid="group-rename-input" maxLength={30}
+                  aria-label="群名称" autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditName(false); }} />
                 <button className="gi-btn-edit" data-testid="group-rename-save" onClick={saveName}>保存</button>
                 <button className="gi-btn-xl" onClick={() => setEditName(false)}>取消</button>
               </div>
@@ -482,8 +486,9 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           {editAnn ? (
             <>
               <textarea value={annVal} onChange={e => setAnnVal(e.target.value)}
-                className="gi-ann-textarea"
-                autoFocus placeholder="填写群公告…" aria-label="群公告" />
+                className="gi-ann-textarea" maxLength={500}
+                autoFocus placeholder="填写群公告…" aria-label="群公告"
+                onKeyDown={e => { if (e.key === 'Escape') setEditAnn(false); }} />
               <div className="gi-ann-bar">
                 <button className="gi-btn-cancel" onClick={() => setEditAnn(false)}>取消</button>
                 <button className="gi-btn-save" onClick={saveAnn}>保存</button>
