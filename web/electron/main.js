@@ -146,6 +146,39 @@ ipcMain.handle('notify:show', (_e, { title, body } = {}) => {
   try { new Notification({ title: String(title || '').slice(0,100), body: String(body || '').slice(0,300) }).show(); } catch {}
 });
 
+// ── 未读角标 ──────────────────────────────────────────────────
+// 渲染进程把「未读总数」推给主进程 → 反映到 Dock(mac)/任务栏(win/linux) 角标。
+// macOS/Linux(部分 DE): app.setBadgeCount(n) 直接显示数字。
+// Windows: 无原生数字角标，用任务栏 overlayIcon 画一个红底数字提示有未读。
+ipcMain.on('badge:set', (_e, rawCount) => {
+  const count = Math.max(0, Math.min(9999, parseInt(rawCount, 10) || 0));
+  try { app.setBadgeCount(count); } catch { /* 平台不支持则忽略 */ }
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win || win.isDestroyed()) return;
+  if (process.platform === 'win32') {
+    try {
+      if (count > 0) {
+        const label = count > 99 ? '99+' : String(count);
+        win.setOverlayIcon(makeBadgeOverlay(label), `${count} 条未读`);
+      } else {
+        win.setOverlayIcon(null, '');
+      }
+    } catch { /* overlay 不支持则忽略 */ }
+  }
+});
+
+/** 生成一个小红圆底白字的任务栏 overlay 图标（Windows）。用 nativeImage 从 SVG 渲染。 */
+function makeBadgeOverlay(label) {
+  const { nativeImage } = require('electron');
+  const fontSize = label.length >= 3 ? 9 : 11;
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'>` +
+    `<circle cx='16' cy='16' r='15' fill='#FA5151'/>` +
+    `<text x='16' y='16' font-size='${fontSize}' fill='#fff' font-family='sans-serif' font-weight='700' ` +
+    `text-anchor='middle' dominant-baseline='central'>${label}</text></svg>`;
+  return nativeImage.createFromDataURL('data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64'));
+}
+
 // 截图：最小化窗口 → desktopCapturer 抓屏 → 写 temp → 返回路径
 ipcMain.handle('screenshot:capture', async () => {
   const win = BrowserWindow.getFocusedWindow();

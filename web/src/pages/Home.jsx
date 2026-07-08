@@ -705,10 +705,15 @@ export default function Home() {
 
   // 浏览器标签页标题显示未读总数「(N) v信」——切到别的 tab 也能一眼看到有新消息(对齐一线 IM)。
   // N>99 记作 99+；为 0 时恢复纯「v信」；组件卸载时复位，避免残留角标。
+  // 桌面端(Electron)同步把未读总数反映到 Dock/任务栏角标。
   useEffect(() => {
     const base = 'v信';
     document.title = totalUnread > 0 ? `(${totalUnread > 99 ? '99+' : totalUnread}) ${base}` : base;
-    return () => { document.title = base; };
+    try { window.electronAPI?.setBadge?.(totalUnread); } catch { /* 非桌面端忽略 */ }
+    return () => {
+      document.title = base;
+      try { window.electronAPI?.setBadge?.(0); } catch { /* noop */ }
+    };
   }, [totalUnread]);
 
   const [activeCall, setActiveCall] = useState(null);

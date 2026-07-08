@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isMaximized:      () => ipcRenderer.invoke('window:isMaximized'),
   // 通知
   showNotification: (opts) => ipcRenderer.invoke('notify:show', opts),
+  // 未读角标：把未读总数反映到 Dock(mac)/任务栏(win/linux)
+  setBadge:         (count) => ipcRenderer.send('badge:set', count),
   // 截图
   screenshot:       () => ipcRenderer.invoke('screenshot:capture'),
   readFileAsBase64: (p) => ipcRenderer.invoke('file:readAsBase64', p),
