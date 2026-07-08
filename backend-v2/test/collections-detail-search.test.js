@@ -64,6 +64,24 @@ describe('收藏详情 + 搜索 (CO5/CO6)', () => {
     expect(res.body.items.some(i => i.id === collectionId)).toBe(true);
   });
 
+  test('search q + type=text 命中；type=image 过滤掉文字收藏', async () => {
+    if (!collectionId) return console.warn('无种子用户/收藏，跳过');
+    // 该收藏是 text 类型 → type=text 应命中
+    const hit = await request(app)
+      .get('/api/users/me/collections/search')
+      .query({ q: KW, type: 'text' })
+      .set('Cookie', cookies);
+    expect(hit.status).toBe(200);
+    expect(hit.body.items.some(i => i.id === collectionId)).toBe(true);
+    // type=image 应把这条文字收藏过滤掉
+    const miss = await request(app)
+      .get('/api/users/me/collections/search')
+      .query({ q: KW, type: 'image' })
+      .set('Cookie', cookies);
+    expect(miss.status).toBe(200);
+    expect(miss.body.items.some(i => i.id === collectionId)).toBe(false);
+  });
+
   test('search 空 q → 空信封', async () => {
     if (!cookies) return console.warn('无种子用户，跳过');
     const res = await request(app)

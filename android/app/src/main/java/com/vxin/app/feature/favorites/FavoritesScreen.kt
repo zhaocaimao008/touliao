@@ -2,13 +2,16 @@ package com.vxin.app.feature.favorites
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -16,10 +19,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,20 +65,48 @@ fun FavoritesScreen(
             )
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            when {
-                state.loading && state.items.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.items.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "⭐", title = "暂无收藏", subtitle = "长按消息可收藏到这里", modifier = Modifier.align(Alignment.Center))
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(state.items, key = { it.id }) { item ->
-                        FavoriteRow(item, resolveUrl = viewModel::resolveUrl, onLongPress = { removeTarget = item })
-                        HorizontalDivider(thickness = 0.5.dp)
-                    }
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            // 搜索栏 + 类型过滤（对齐 web/后端 q + type）
+            OutlinedTextField(
+                value = state.query,
+                onValueChange = viewModel::setQuery,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                placeholder = { Text("搜索收藏…") },
+                singleLine = true,
+            )
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+            ) {
+                listOf("" to "全部", "text" to "文字", "image" to "图片", "file" to "文件", "video" to "视频").forEach { (value, label) ->
+                    FilterChip(
+                        selected = state.typeFilter == value,
+                        onClick = { viewModel.setTypeFilter(value) },
+                        label = { Text(label) },
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
                 }
             }
-            state.error?.let {
-                androidx.compose.runtime.LaunchedEffect(it) { kotlinx.coroutines.delay(2500); viewModel.consumeError() }
-                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
+            Box(Modifier.fillMaxSize()) {
+                val shown = state.shown
+                when {
+                    state.loading && state.items.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    state.searching -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    shown.isEmpty() -> {
+                        val isFiltering = state.query.isNotBlank() || state.typeFilter.isNotBlank()
+                        if (isFiltering) com.vxin.app.ui.components.EmptyState(icon = "🔍", title = "没有匹配的收藏", subtitle = "换个关键词或类型试试", modifier = Modifier.align(Alignment.Center))
+                        else com.vxin.app.ui.components.EmptyState(icon = "⭐", title = "暂无收藏", subtitle = "长按消息可收藏到这里", modifier = Modifier.align(Alignment.Center))
+                    }
+                    else -> LazyColumn(Modifier.fillMaxSize()) {
+                        items(shown, key = { it.id }) { item ->
+                            FavoriteRow(item, resolveUrl = viewModel::resolveUrl, onLongPress = { removeTarget = item })
+                            HorizontalDivider(thickness = 0.5.dp)
+                        }
+                    }
+                }
+                state.error?.let {
+                    androidx.compose.runtime.LaunchedEffect(it) { kotlinx.coroutines.delay(2500); viewModel.consumeError() }
+                    Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
+                }
             }
         }
     }

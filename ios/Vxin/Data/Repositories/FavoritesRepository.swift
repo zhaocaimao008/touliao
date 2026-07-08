@@ -10,7 +10,25 @@ final class FavoritesRepository {
         try await api.send("api/users/me/collections")
     }
 
+    /// 搜索收藏（关键词 + 可选类型过滤）
+    func search(q: String, type: String? = nil, limit: Int = 50) async throws -> [Collection] {
+        let enc = q.addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? q
+        var path = "api/users/me/collections/search?q=\(enc)&limit=\(limit)"
+        if let t = type, !t.isEmpty { path += "&type=\(t)" }
+        let page: CollectionPage = try await api.send(path)
+        return page.items
+    }
+
     func remove(_ id: String) async throws {
         let _: EmptyResponse = try await api.send("api/users/me/collections/\(id)", method: "DELETE")
     }
+}
+
+private extension CharacterSet {
+    /// 仅用于 query value 的安全字符集（排除 & = ? # 等）
+    static let urlQueryValueAllowed: CharacterSet = {
+        var cs = CharacterSet.urlQueryAllowed
+        cs.remove(charactersIn: "&=?#+")
+        return cs
+    }()
 }

@@ -16,9 +16,18 @@ import javax.inject.Inject
 
 data class FavoritesUiState(
     val loading: Boolean = true,
-    val items: List<Collection> = emptyList(),
+    val items: List<Collection> = emptyList(),     // 全量收藏
     val error: String? = null,
-)
+    // 搜索
+    val query: String = "",
+    val typeFilter: String = "",                   // ""=全部 | text|image|file|video
+    val searching: Boolean = false,
+    val results: List<Collection>? = null,         // null=未搜索(显示全量) | 列表=搜索结果
+) {
+    /** 当前应展示的列表：搜索态用结果，否则全量(全量也支持类型过滤) */
+    val shown: List<Collection>
+        get() = results ?: if (typeFilter.isBlank()) items else items.filter { it.type == typeFilter }
+}
 
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
@@ -48,8 +57,46 @@ class FavoritesViewModel @Inject constructor(
     fun remove(item: Collection) {
         viewModelScope.launch {
             runCatching { favoritesRepository.remove(item.id) }
-                .onSuccess { _uiState.update { s -> s.copy(items = s.items.filterNot { it.id == item.id }) } }
+                .onSuccess {
+                    _uiState.update { s ->
+                        s.copy(
+                            items = s.items.filterNot { it.id == item.id },
+                            results = s.results?.filterNot { it.id == item.id },
+                        )
+                    }
+                }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("取消收藏失败")) } }
+        }
+    }
+
+    // ── 搜索（关键词去抖 + 类型过滤，对齐 web/后端）──
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    fun setQuery(q: String) {
+        _uiState.update { it.copy(query = q) }
+        runSearch()
+    }
+
+    fun setTypeFilter(type: String) {
+        _uiState.update { it.copy(typeFilter = type) }
+        runSearch()
+    }
+
+    private fun runSearch() {
+        val kw = _uiState.value.query.trim()
+        searchJob?.cancel()
+        if (kw.isEmpty()) {
+            // 关键词空 → 回到全量(类型过滤由 shown 本地完成)，清搜索态
+            _uiState.update { it.copy(results = null, searching = false) }
+            return
+        }
+        _uiState.update { it.copy(searching = true) }
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(300)   // 去抖
+            val type = _uiState.value.typeFilter
+            runCatching { favoritesRepository.search(kw, type) }
+                .onSuccess { list -> _uiState.update { it.copy(searching = false, results = list) } }
+                .onFailure { e -> _uiState.update { it.copy(searching = false, results = emptyList(), error = e.toUserMessage("搜索失败")) } }
         }
     }
 }

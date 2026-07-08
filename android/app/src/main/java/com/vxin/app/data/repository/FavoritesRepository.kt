@@ -11,5 +11,8 @@ class FavoritesRepository @Inject constructor(
 ) {
     suspend fun list(): List<Collection> = favoritesApi.list()
 
+    suspend fun search(q: String, type: String? = null): List<Collection> =
+        favoritesApi.search(q, type?.ifBlank { null }).items
+
     suspend fun remove(id: String) = favoritesApi.remove(id)
 }

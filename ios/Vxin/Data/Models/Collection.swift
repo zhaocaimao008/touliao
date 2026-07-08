@@ -33,3 +33,10 @@ struct Collection: Decodable, Identifiable {
         createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
     }
 }
+
+/// 收藏搜索分页响应（GET /api/users/me/collections/search）
+struct CollectionPage: Decodable {
+    var items: [Collection] = []
+    var total: Int = 0
+    var hasMore: Bool = false
+}
