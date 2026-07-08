@@ -4,6 +4,7 @@ import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast, showConfirm } from '../utils/toast';
+import { getAspect, rememberAspect } from '../utils/imgDimCache';
 
 function ago(sec) {
   const d = Date.now() / 1000 - sec;
@@ -80,14 +81,36 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
 
         {/* 图片九宫格 */}
         {m.images?.length > 0 && (
-          <div className="wc-moment-images" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
-            {m.images.map((src, i) => (
-              <img loading="lazy" key={i} src={src} alt={`图片 ${i + 1}`} style={{ cursor: 'zoom-in' }}
-                onLoad={e => e.currentTarget.classList.add('loaded')}
-                onError={e => { e.currentTarget.classList.add('loaded'); e.currentTarget.style.display = 'none'; }}
-                onClick={() => setLightbox({ urls: m.images, idx: i })} />
-            ))}
-          </div>
+          imgCount === 1 ? (
+            // 单图：不强制正方形裁剪，按原图宽高比展示(封顶)，更接近微信；用缓存宽高比预留高度防抖动
+            (() => {
+              const single = m.images[0];
+              const aspect = getAspect(single);
+              return (
+                <div className="wc-moment-images single">
+                  <img loading="lazy" src={single} alt="图片"
+                    className="wc-moment-single-img"
+                    style={aspect ? { aspectRatio: String(aspect) } : undefined}
+                    role="button" tabIndex={0} aria-label="查看大图"
+                    onLoad={e => { rememberAspect(single, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight); e.currentTarget.classList.add('loaded'); }}
+                    onError={e => { e.currentTarget.classList.add('loaded'); e.currentTarget.style.display = 'none'; }}
+                    onClick={() => setLightbox({ urls: m.images, idx: 0 })}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLightbox({ urls: m.images, idx: 0 }); } }} />
+                </div>
+              );
+            })()
+          ) : (
+            <div className="wc-moment-images" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
+              {m.images.map((src, i) => (
+                <img loading="lazy" key={i} src={src} alt={`图片 ${i + 1}`} style={{ cursor: 'zoom-in' }}
+                  role="button" tabIndex={0} aria-label={`查看第 ${i + 1} 张大图`}
+                  onLoad={e => e.currentTarget.classList.add('loaded')}
+                  onError={e => { e.currentTarget.classList.add('loaded'); e.currentTarget.style.display = 'none'; }}
+                  onClick={() => setLightbox({ urls: m.images, idx: i })}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLightbox({ urls: m.images, idx: i }); } }} />
+              ))}
+            </div>
+          )
         )}
         {lightbox && (
           <ImagePreview urls={lightbox.urls} initialIdx={lightbox.idx}

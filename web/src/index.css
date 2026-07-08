@@ -1338,6 +1338,17 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
   opacity: 0; transition: opacity .2s ease;
 }
 .wc-moment-images img.loaded { opacity: 1; }
+/* 单图：按原图宽高比展示，不裁成正方形；封顶宽/高避免过大，未知宽高比时给个稳妥占位 */
+.wc-moment-images.single { display: block; }
+.wc-moment-images.single img.wc-moment-single-img {
+  max-width: min(220px, 70%); max-height: 280px;
+  width: auto; height: auto; aspect-ratio: auto;
+  object-fit: cover; border-radius: var(--radius-avatar);
+  cursor: zoom-in; opacity: 0; transition: opacity .2s ease;
+  background: var(--bg-search);
+}
+.wc-moment-images.single img.wc-moment-single-img.loaded { opacity: 1; }
+.wc-moment-images.single img.wc-moment-single-img:not(.loaded) { min-width: 120px; min-height: 120px; }
 .wc-moment-actions {
   display: flex; align-items: center; gap: 18px; margin-top: 4px;
 }
