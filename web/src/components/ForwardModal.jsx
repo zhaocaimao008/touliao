@@ -34,13 +34,15 @@ export default function ForwardModal({ message, onClose }) {
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
+  // 搜索词只归一化一次;名称兜底空串,避免 remark/username/name 为空时 toLowerCase 抛错致白屏
+  const q = search.trim().toLowerCase();
   const filteredFriends = useMemo(() =>
-    friends.filter(f => (f.remark || f.username).toLowerCase().includes(search.toLowerCase())),
-    [friends, search]
+    friends.filter(f => String(f.remark || f.username || '').toLowerCase().includes(q)),
+    [friends, q]
   );
   const filteredGroups = useMemo(() =>
-    groups.filter(g => g.name.toLowerCase().includes(search.toLowerCase())),
-    [groups, search]
+    groups.filter(g => String(g.name || '').toLowerCase().includes(q)),
+    [groups, q]
   );
 
   const isFriendSelected = (friend) => {
@@ -168,7 +170,12 @@ export default function ForwardModal({ message, onClose }) {
                     <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
                   </svg>
                 </span>
-                <input placeholder="搜索" value={search} autoFocus onChange={e => setSearch(e.target.value)} style={{ fontSize: 13 }} aria-label="搜索联系人" />
+                <input placeholder="搜索" value={search} autoFocus onChange={e => setSearch(e.target.value)}
+                  style={{ fontSize: 13 }} aria-label="搜索联系人" />
+                {search && (
+                  <button type="button" className="wc-search-clear" aria-label="清除搜索" title="清除"
+                    onClick={() => setSearch('')}>✕</button>
+                )}
               </div>
             </div>
 

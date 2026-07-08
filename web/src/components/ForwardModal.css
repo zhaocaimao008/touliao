@@ -417,3 +417,20 @@
   background: var(--color-primary-hover);
   box-shadow: var(--shadow-btn-primary-hover);
 }
+
+/* 转发弹窗搜索框内的「清除」按钮（复用 wc-search 容器时的样式） */
+.wc-search .wc-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color var(--dur-fast, .15s);
+}
+.wc-search .wc-search-clear:hover { color: var(--text-secondary); }
