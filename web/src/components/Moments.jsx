@@ -5,6 +5,7 @@ import ImagePreview from './ImagePreview';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast, showConfirm } from '../utils/toast';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
+import { linkify } from '../utils/linkify';
 
 function ago(sec) {
   // 钳到 0：时钟偏差/服务器时间超前时避免出现「-3分钟前」
@@ -70,7 +71,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
           const display = needsTruncate && !expanded ? m.content.slice(0, CONTENT_LIMIT) + '…' : m.content;
           return (
             <div className="wc-moment-text">
-              {display}
+              {linkify(display)}
               {needsTruncate && (
                 <button className="wc-moment-expand-btn" onClick={() => setExpanded(v => !v)}>
                   {expanded ? '收起' : '查看全文'}

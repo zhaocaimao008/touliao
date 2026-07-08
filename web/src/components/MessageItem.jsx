@@ -125,8 +125,9 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
           >
             {msg.replyTo && (
               <div className="wc-msg-reply gi-cp" role="button" tabIndex={0} data-testid="msg-reply-preview"
+                aria-label="跳转到被引用的消息"
                 onClick={e => { e.stopPropagation(); cbs.scrollToMsg(msg.replyTo.id); }}
-                onKeyDown={e => e.key === 'Enter' && cbs.scrollToMsg(msg.replyTo.id)}>
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); cbs.scrollToMsg(msg.replyTo.id); } }}>
                 <div className="wc-msg-reply-name">{msg.replyTo.senderName}</div>
                 <div className="wc-msg-reply-text">
                   {msg.replyTo.deleted ? '消息已撤回' : msg.replyTo.type === 'image' ? '[图片]' : msg.replyTo.type === 'voice' ? '[语音]' : msg.replyTo.type === 'video' ? '[视频]' : msg.replyTo.type === 'red_packet' ? '[红包]' : msg.replyTo.type === 'file' ? '[文件]' : msg.replyTo.type === 'sticker' ? '[表情]' : (msg.replyTo.type === 'contact_card' || msg.replyTo.type === 'contact') ? '[名片]' : msg.replyTo.content}
@@ -155,9 +156,9 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                   alt="消息图片"
                   className="wc-msg-img"
                   style={aspectStyle}
-                  tabIndex={0} aria-label="查看大图"
+                  role="button" tabIndex={0} aria-label="查看大图"
                   onClick={() => cbs.setLightboxUrl(imgSrc)}
-                  onKeyDown={e => e.key === 'Enter' && cbs.setLightboxUrl(imgSrc)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.setLightboxUrl(imgSrc); } }}
                   onLoad={e => {
                     const el = e.currentTarget;
                     rememberAspect(imgSrc, el.naturalWidth, el.naturalHeight);

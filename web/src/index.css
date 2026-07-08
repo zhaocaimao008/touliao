@@ -1330,6 +1330,8 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
   margin: 4px 0 8px; white-space: pre-wrap;
   word-break: break-word; line-height: 1.55;
 }
+.wc-moment-text .wc-msg-link { color: var(--link, #576b95); text-decoration: none; }
+.wc-moment-text .wc-msg-link:hover { text-decoration: underline; }
 .wc-moment-images {
   display: grid; gap: 4px; margin: 6px 0 8px; max-width: 300px;
 }
