@@ -8,6 +8,7 @@ import axios from 'axios';
 export default function AuthImage({ src, alt = '', style, className }) {
   const [blobUrl, setBlobUrl] = useState(null);
   const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);   // 点击「加载失败」重试计数,变化即重新拉取
 
   useEffect(() => {
     let revoked = false;
@@ -24,9 +25,19 @@ export default function AuthImage({ src, alt = '', style, className }) {
       })
       .catch(() => { if (!revoked) setFailed(true); });
     return () => { revoked = true; if (objUrl) URL.revokeObjectURL(objUrl); };
-  }, [src]);
+  }, [src, retry]);
 
-  if (failed) return <div style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }} className={className}>加载失败</div>;
-  if (!blobUrl) return <div style={{ ...style, background: 'var(--bg-search)' }} className={className} />;
-  return <img src={blobUrl} alt={alt} loading="lazy" style={style} className={className} onError={() => setFailed(true)} />;
+  if (failed) return (
+    <div
+      style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}
+      className={className}
+      role="button" tabIndex={0}
+      title="点击重试"
+      aria-label="图片加载失败，点击重试"
+      onClick={() => setRetry(n => n + 1)}
+      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setRetry(n => n + 1))}
+    >加载失败，点击重试</div>
+  );
+  if (!blobUrl) return <div style={{ ...style, background: 'var(--bg-search)' }} className={className} aria-busy="true" />;
+  return <img src={blobUrl} alt={alt} loading="lazy" style={style} className={className} onError={() => { setBlobUrl(null); setFailed(true); }} />;
 }

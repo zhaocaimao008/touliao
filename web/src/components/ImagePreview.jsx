@@ -133,6 +133,12 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         onLoad={() => setLoaded(true)}
         onError={e => { setLoaded(true); e.currentTarget.style.opacity = '.25'; e.currentTarget.alt = '图片加载失败'; }}
         onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          // 双击缩放切换：已放大→复位;原始大小→放大到 2x(对齐图片查看器通用手势)
+          e.stopPropagation();
+          if (scale > 1) resetTransform();
+          else setScale(2);
+        }}
         style={{
           maxWidth: '90vw',
           maxHeight: '90vh',
@@ -141,7 +147,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           boxShadow: '0 8px 40px rgba(0,0,0,.5)',
           transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
           transition: dragging ? 'none' : 'transform .15s ease',
-          cursor: 'default',
+          cursor: scale > 1 ? (dragging ? 'grabbing' : 'grab') : 'zoom-in',
           animation: 'fadeIn .22s ease-out',   // 图片淡入(仅 opacity,不碰 transform 以免与缩放/平移冲突)；切换图片时随 key 重播
         }}
       />

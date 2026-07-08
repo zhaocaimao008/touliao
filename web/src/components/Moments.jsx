@@ -155,7 +155,9 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
                 <span>：{c.content}</span>
                 {(c.user_id === meId || m.user_id === meId) && (
                   <button className="wc-moment-comment-del"
-                    onClick={e => { e.stopPropagation(); onDeleteComment(m, c); }}>删</button>
+                    aria-label="删除评论" title="删除评论"
+                    onClick={e => { e.stopPropagation(); onDeleteComment(m, c); }}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); } }}>删</button>
                 )}
               </div>
             ))}
