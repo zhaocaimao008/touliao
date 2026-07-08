@@ -69,5 +69,11 @@ export function rememberAspect(url, naturalWidth, naturalHeight) {
   if (prev && Math.abs(prev - ratio) < 0.001) return;
   m.delete(url); // 重新插入到末尾，维持"最近使用"顺序，配合淘汰
   m.set(url, ratio);
+  // 内存也按 MAX 上界裁剪（超长会话可能积累大量不同图片），淘汰最旧
+  while (m.size > MAX) {
+    const oldest = m.keys().next().value;
+    if (oldest === undefined) break;
+    m.delete(oldest);
+  }
   scheduleFlush();
 }
