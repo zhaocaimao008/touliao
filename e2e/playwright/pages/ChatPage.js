@@ -49,6 +49,47 @@ class ChatPage {
       .first().isVisible().catch(() => false);
   }
 
+  /** 把消息列表往上滚(离开底部)，触发「回到底部」按钮/新消息计数。默认滚到顶。
+   * 用真实滚轮事件 + 直接置 scrollTop 双保险，并反复施加以对抗 react-window 的重排。 */
+  async scrollMessagesUp(delta = null) {
+    const outer = this.page.locator('.cw-msg-scroll').first();
+    await outer.waitFor({ state: 'visible', timeout: 5000 });
+    await outer.hover().catch(() => {});
+    for (let i = 0; i < 3; i++) {
+      await this.page.mouse.wheel(0, delta == null ? -4000 : delta).catch(() => {});
+      await outer.evaluate((el, d) => {
+        el.scrollTop = (d == null) ? 0 : Math.max(0, el.scrollTop + d);
+        el.dispatchEvent(new Event('scroll', { bubbles: true }));
+      }, delta);
+      await this.page.waitForTimeout(120);
+    }
+  }
+
+  /** 读取消息滚动容器的度量(调试/断言可滚动性) */
+  async scrollMetrics() {
+    const outer = this.page.locator('.cw-msg-scroll').first();
+    return outer.evaluate((el) => ({
+      scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight,
+      distFromBottom: el.scrollHeight - el.scrollTop - el.clientHeight,
+    }));
+  }
+
+  /** 「回到底部」按钮是否可见 */
+  async scrollBottomBtnVisible() {
+    return this.tid(A.chatScrollBottom).isVisible().catch(() => false);
+  }
+
+  /** 「N 条新消息」角标文本(无则空串) */
+  async newMsgBadgeText() {
+    const b = this.tid(A.chatNewMsgBadge);
+    return (await b.count()) ? (await b.first().innerText()).trim() : '';
+  }
+
+  /** 点「回到底部」按钮 */
+  async clickScrollBottom() {
+    await this.tid(A.chatScrollBottom).click();
+  }
+
   /** 最新一条消息气泡 locator */
   lastBubble() {
     return this.page.locator('[data-testid^="msg-bubble-"]').last();

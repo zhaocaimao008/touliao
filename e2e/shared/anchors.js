@@ -46,6 +46,8 @@ const A = {
   chatMoreBtn:       'chat-more-btn',
   chatCallAudioBtn:  'chat-call-audio-btn',
   chatCallVideoBtn:  'chat-call-video-btn',
+  chatScrollBottom:  'chat-scroll-bottom',
+  chatNewMsgBadge:   'chat-new-msg-badge',
   msgBubble:         (msgId) => `msg-bubble-${msgId}`,
   msgBubbleText:     'msg-bubble-text',
   msgEditedFlag:     'msg-edited-flag',

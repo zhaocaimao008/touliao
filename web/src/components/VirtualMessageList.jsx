@@ -136,6 +136,7 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
           <VariableSizeList
             ref={listRef}
             outerRef={outerRef}
+            className="cw-msg-scroll"
             height={height}
             width={width}
             itemCount={items.length}

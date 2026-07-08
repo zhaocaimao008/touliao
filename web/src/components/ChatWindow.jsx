@@ -521,13 +521,28 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   }, [loadingMore, hasMore, messages, fetchMessages]);
   handleScrollRef.current = handleScroll;
 
-  // Attach scroll listener to react-window outer div once after mount
+  // Attach scroll listener to react-window outer div.
+  // 注意：AutoSizer 会在测量完尺寸后才异步挂载滚动容器，挂载当帧 listOuterRef 可能仍为 null，
+  // 若只在 useEffect([]) 里读一次就会漏挂监听 → 「回到底部/新消息」按钮不出现。
+  // 故用 rAF 轮询等容器就绪再挂，容器变化时重挂。
   useEffect(() => {
-    const outer = listOuterRef.current;
-    if (!outer) return;
     const stableHandler = () => handleScrollRef.current?.();
-    outer.addEventListener('scroll', stableHandler, { passive: true });
-    return () => outer.removeEventListener('scroll', stableHandler);
+    let attached = null;   // 已挂监听的元素
+    let raf = 0;
+    const tryAttach = () => {
+      const outer = listOuterRef.current;
+      if (outer && outer !== attached) {
+        if (attached) attached.removeEventListener('scroll', stableHandler);
+        outer.addEventListener('scroll', stableHandler, { passive: true });
+        attached = outer;
+      }
+      if (!attached) raf = requestAnimationFrame(tryAttach);   // 尚未就绪，下一帧再试
+    };
+    tryAttach();
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      if (attached) attached.removeEventListener('scroll', stableHandler);
+    };
   }, []);
 
   useEffect(() => {
@@ -1913,12 +1928,13 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
           )}
           {showScrollBtn && (
             <button
+              data-testid="chat-scroll-bottom"
               className={`cw-scroll-bottom${newMsgCount > 0 ? ' has-new' : ''}`}
               onClick={() => { virtListRef.current?.scrollToBottom('smooth'); setNewMsgCount(0); }}
               aria-label={newMsgCount > 0 ? `${newMsgCount} 条新消息，回到底部` : '滚动到底部'}
             >
               {newMsgCount > 0 && (
-                <span className="cw-scroll-bottom-badge">{newMsgCount > 99 ? '99+' : newMsgCount} 条新消息</span>
+                <span className="cw-scroll-bottom-badge" data-testid="chat-new-msg-badge">{newMsgCount > 99 ? '99+' : newMsgCount} 条新消息</span>
               )}
             </button>
           )}
