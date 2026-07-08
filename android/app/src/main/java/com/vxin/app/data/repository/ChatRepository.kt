@@ -74,8 +74,13 @@ class ChatRepository @Inject constructor(
     suspend fun searchInConversation(conversationId: String, q: String): List<Message> =
         api.searchInConversation(conversationId, q)
 
-    suspend fun sendText(conversationId: String, content: String, replyToId: String? = null): Result<Message> =
-        socketManager.sendMessage(conversationId, content, replyToId)
+    suspend fun sendText(
+        conversationId: String,
+        content: String,
+        replyToId: String? = null,
+        clientMsgId: String? = null,
+    ): Result<Message> =
+        socketManager.sendMessage(conversationId, content, replyToId, clientMsgId)
 
     /** 上传媒体并返回服务端创建的消息（同时会经 Socket 广播给其他端） */
     suspend fun uploadMedia(conversationId: String, part: MultipartBody.Part): Message =

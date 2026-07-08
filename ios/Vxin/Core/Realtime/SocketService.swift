@@ -309,12 +309,19 @@ final class SocketService {
         sock.connect(withPayload: ["token": token])
     }
 
-    /// 通过 socket 发送文本消息；ack 返回服务端落库后的 Message（消息收发阶段调用）
-    func sendMessage(conversationId: String, content: String, replyToId: String? = nil) async -> Result<Message, Error> {
+    /// 通过 socket 发送文本消息；ack 返回服务端落库后的 Message（消息收发阶段调用）。
+    /// clientMsgId：幂等键。后端据 (sender_id, client_msg_id) 去重——ack 丢失后若上层复用
+    /// 同一 clientMsgId 重发（或 socket 重连缓冲自动补发），服务端只落库一次、不产生重复气泡
+    /// （对齐 Web / Android）。为兼容旧调用点，默认随机生成一次。
+    func sendMessage(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil) async -> Result<Message, Error> {
         guard let sock = socket, sock.status == .connected else {
             return .failure(SocketError.notConnected)
         }
-        var payload: [String: Any] = ["conversationId": conversationId, "content": content]
+        var payload: [String: Any] = [
+            "conversationId": conversationId,
+            "content": content,
+            "clientMsgId": clientMsgId ?? UUID().uuidString,
+        ]
         if let replyToId { payload["reply_to_id"] = replyToId }
         return await withCheckedContinuation { continuation in
             sock.emitWithAck("send_message", payload)

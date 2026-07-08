@@ -581,6 +581,9 @@ final class ChatViewModel: ObservableObject {
         guard !text.isEmpty, !sending else { return }
         Haptics.impact(.light)   // 发送轻震，给一点触觉反馈
         let replyId = replyingTo?.id
+        // 幂等键：本次发送尝试固定一个 clientMsgId。ack 丢失(弱网/超时)后 socket 重连缓冲
+        // 自动补发同一 emit，后端据 (sender_id, client_msg_id) 去重，不产生重复气泡。
+        let clientMsgId = UUID().uuidString
         input = ""
         DraftStore.shared.clear(conversationId)   // 已发送即清草稿(立即，不等去抖)
         replyingTo = nil
@@ -589,7 +592,7 @@ final class ChatViewModel: ObservableObject {
         repo.emitStopTyping(conversationId)
         Task { [weak self] in
             guard let self else { return }
-            let result = await repo.sendText(conversationId: conversationId, content: text, replyToId: replyId)
+            let result = await repo.sendText(conversationId: conversationId, content: text, replyToId: replyId, clientMsgId: clientMsgId)
             sending = false
             switch result {
             case .success(let msg): appendUnique(msg)

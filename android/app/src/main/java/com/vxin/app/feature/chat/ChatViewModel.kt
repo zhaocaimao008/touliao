@@ -632,11 +632,14 @@ class ChatViewModel @Inject constructor(
         val text = _uiState.value.input.trim()
         if (text.isEmpty() || _uiState.value.sending) return
         val replyId = _uiState.value.replyingTo?.id
+        // 幂等键：本次发送尝试固定一个 clientMsgId。若 ack 丢失(弱网/超时)后 socket.io
+        // 重连缓冲自动补发同一 emit，后端据 (sender_id, client_msg_id) 去重，不产生重复气泡。
+        val clientMsgId = java.util.UUID.randomUUID().toString()
         _uiState.update { it.copy(input = "", sending = true, error = null, replyingTo = null) }
         draftStore.clear(conversationId)    // 已发送则清草稿
         chatRepository.emitStopTyping(conversationId)
         viewModelScope.launch {
-            chatRepository.sendText(conversationId, text, replyId)
+            chatRepository.sendText(conversationId, text, replyId, clientMsgId)
                 .onSuccess { msg -> appendUnique(msg); _uiState.update { it.copy(sending = false) } }
                 .onFailure { e ->
                     _uiState.update { it.copy(sending = false, input = text, error = e.toUserMessage("发送失败")) }

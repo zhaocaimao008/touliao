@@ -5,7 +5,6 @@ import com.vxin.app.core.storage.ServerConfig
 import com.vxin.app.core.storage.TokenStore
 import com.vxin.app.data.model.Message
 import com.vxin.app.data.model.MessageReaction
-import io.socket.client.Ack
 import io.socket.client.IO
 import io.socket.client.Socket
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -420,8 +419,22 @@ class SocketManager @Inject constructor(
         s.connect()
     }
 
-    /** 通过 socket 发送文本消息；ack 返回服务端落库后的完整 Message */
-    suspend fun sendMessage(conversationId: String, content: String, replyToId: String? = null): Result<Message> =
+    /**
+     * 通过 socket 发送文本消息；ack 返回服务端落库后的完整 Message。
+     *
+     * clientMsgId：幂等键。后端据 (sender_id, client_msg_id) 去重——ack 丢失后
+     * 若上层复用同一 clientMsgId 重发，服务端只落库一次、不产生重复气泡（对齐 Web）。
+     * 由上层生成并在重发时复用；为兼容旧调用点，默认随机生成一次。
+     *
+     * 用 AckWithTimeout(10s) 取代裸 Ack：弱网下若服务端一直不回 ack，避免协程永久挂起，
+     * 而是干净地失败，让上层进入「发送失败」态、可自动/手动重发。
+     */
+    suspend fun sendMessage(
+        conversationId: String,
+        content: String,
+        replyToId: String? = null,
+        clientMsgId: String? = null,
+    ): Result<Message> =
         suspendCancellableCoroutine { cont ->
             val s = socket
             if (s == null || !s.connected()) {
@@ -431,19 +444,27 @@ class SocketManager @Inject constructor(
             val payload = JSONObject()
                 .put("conversationId", conversationId)
                 .put("content", content)
+                .put("clientMsgId", clientMsgId ?: java.util.UUID.randomUUID().toString())
             if (replyToId != null) payload.put("reply_to_id", replyToId)
 
-            s.emit("send_message", payload, Ack { ackArgs ->
-                if (!cont.isActive) return@Ack
-                val resp = ackArgs.firstOrNull() as? JSONObject
-                when {
-                    resp == null -> cont.resume(Result.failure(IllegalStateException("无响应")))
-                    resp.optBoolean("success", false) -> {
-                        val msg = parseMessage(resp.optJSONObject("message"))
-                        if (msg != null) cont.resume(Result.success(msg))
-                        else cont.resume(Result.failure(IllegalStateException("响应解析失败")))
+            s.emit("send_message", payload, object : io.socket.client.AckWithTimeout(10_000) {
+                override fun onSuccess(vararg ackArgs: Any?) {
+                    if (!cont.isActive) return
+                    val resp = ackArgs.firstOrNull() as? JSONObject
+                    when {
+                        resp == null -> cont.resume(Result.failure(IllegalStateException("无响应")))
+                        resp.optBoolean("success", false) -> {
+                            val msg = parseMessage(resp.optJSONObject("message"))
+                            if (msg != null) cont.resume(Result.success(msg))
+                            else cont.resume(Result.failure(IllegalStateException("响应解析失败")))
+                        }
+                        else -> cont.resume(Result.failure(RuntimeException(resp.optString("error", "发送失败"))))
                     }
-                    else -> cont.resume(Result.failure(RuntimeException(resp.optString("error", "发送失败"))))
+                }
+
+                override fun onTimeout() {
+                    if (!cont.isActive) return
+                    cont.resume(Result.failure(IllegalStateException("发送超时，请重试")))
                 }
             })
         }

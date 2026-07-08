@@ -65,8 +65,8 @@ final class ChatRepository {
         return try await api.send("api/messages/conversation/\(conversationId)/search?q=\(enc)")
     }
 
-    func sendText(conversationId: String, content: String, replyToId: String? = nil) async -> Result<Message, Error> {
-        await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId)
+    func sendText(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil) async -> Result<Message, Error> {
+        await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId, clientMsgId: clientMsgId)
     }
 
     /// 撤回/删除消息
