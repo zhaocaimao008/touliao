@@ -34,15 +34,17 @@ export default function Collections() {
     const kw = query.trim();
     if (!kw) { setResults(null); setSearching(false); return; }
     setSearching(true);
+    // AbortController：快速输入时取消上一次未完成请求,防止慢响应覆盖新结果(旧数据竞态)
+    const ac = new AbortController();
     const t = setTimeout(() => {
       const params = { q: kw, limit: 50 };
       if (typeFilter) params.type = typeFilter;
-      axios.get('/api/users/me/collections/search', { params })
+      axios.get('/api/users/me/collections/search', { params, signal: ac.signal })
         .then(r => setResults(r.data.items || []))
-        .catch(() => setResults([]))
-        .finally(() => setSearching(false));
+        .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setResults([]); })
+        .finally(() => { if (!ac.signal.aborted) setSearching(false); });
     }, 300);
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); ac.abort(); };
   }, [query, typeFilter]);
 
   // 当前展示的列表：搜索态用结果，否则用全量（全量也支持类型过滤）
@@ -69,9 +71,12 @@ export default function Collections() {
     if (c.type === 'image') {
       const url = mediaUrl(c.extra?.file_url || c.content);
       const idx = imageUrls.indexOf(url);
+      const open = () => setLightbox({ urls: imageUrls, idx: idx < 0 ? 0 : idx });
       return <img loading="lazy" src={url} alt="收藏图片"
+        role="button" tabIndex={0} aria-label="查看大图"
         onError={e => { e.currentTarget.style.display = 'none'; }}
-        onClick={() => setLightbox({ urls: imageUrls, idx: idx < 0 ? 0 : idx })}
+        onClick={open}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
         style={{ maxWidth: 180, maxHeight: 180, borderRadius: 8, objectFit: 'cover', cursor: 'zoom-in' }} />;
     }
     if (c.type === 'file' || c.type === 'video') {
@@ -95,9 +100,15 @@ export default function Collections() {
     <div style={{ height: '100%', overflowY: 'auto' }}>
       {/* 搜索栏 + 类型过滤（对齐后端 /collections/search 的 q + type） */}
       <div style={{ padding: '10px 14px', position: 'sticky', top: 0, background: 'var(--bg-primary, #fff)', zIndex: 1, borderBottom: '1px solid var(--border-color)' }}>
-        <input data-testid="collection-search-input" value={query} onChange={e => setQuery(e.target.value)}
-          placeholder="搜索收藏…" aria-label="搜索收藏"
-          style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border-color)', fontSize: 14, boxSizing: 'border-box' }} />
+        <div style={{ position: 'relative' }}>
+          <input data-testid="collection-search-input" value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="搜索收藏…" aria-label="搜索收藏"
+            style={{ width: '100%', padding: '7px 28px 7px 10px', borderRadius: 8, border: '1px solid var(--border-color)', fontSize: 14, boxSizing: 'border-box' }} />
+          {query && (
+            <button type="button" aria-label="清除搜索" title="清除" onClick={() => setQuery('')}
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, border: 'none', borderRadius: 9, background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {TYPES.map(([val, label]) => (
             <button key={val || 'all'} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
