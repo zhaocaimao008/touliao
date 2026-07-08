@@ -3,6 +3,7 @@
 const {
   app, BrowserWindow, ipcMain, Notification,
   shell, nativeTheme, session, desktopCapturer,
+  Tray, Menu, nativeImage,
 } = require('electron');
 const path = require('path');
 const fs   = require('fs');
@@ -19,6 +20,11 @@ const IS_LINUX    = process.platform === 'linux';
 const IS_MAC      = process.platform === 'darwin';
 
 nativeTheme.themeSource = 'system';
+
+let g_win = null;      // 主窗口引用（供托盘/角标/闪烁复用）
+let g_tray = null;     // 系统托盘
+let g_quitting = false; // true=真正退出；否则关闭窗口=隐藏到托盘
+let g_unread = 0;      // 记住未读数，用于托盘 tooltip
 
 let g_config = {
   api:    'https://dipsin.com',
@@ -77,6 +83,15 @@ function createWindow() {
   win.on('unmaximize', () => win.webContents.send('unmaximize'));
   // 窗口重新聚焦 → 停止任务栏闪烁(用户已注意到)
   win.on('focus', () => { try { win.flashFrame(false); } catch {} });
+  // 关闭窗口 = 隐藏到托盘(后台常驻收消息)，而非退出；仅托盘「退出」或 app.quit 才真退。
+  win.on('close', (e) => {
+    if (!g_quitting) {
+      e.preventDefault();
+      win.hide();
+      if (IS_MAC) app.dock?.hide?.();   // mac 隐藏 Dock 图标，靠菜单栏托盘常驻
+    }
+  });
+  g_win = win;
   if (IS_LINUX) {
     win.on('enter-full-screen', () => win.webContents.send('maximize'));
     win.on('leave-full-screen', () => win.webContents.send('unmaximize'));
@@ -116,15 +131,59 @@ app.whenReady().then(async () => {
   });
 
   createWindow();
+  createTray();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    else showMainWindow();
   });
 });
 
+// 隐藏到托盘后窗口全关不退出(靠托盘常驻)；真正退出走托盘「退出」→ g_quitting。
 app.on('window-all-closed', () => {
-  if (!IS_MAC) app.quit();
+  // 有托盘时不自动退出(mac 惯例本就不退；win/linux 也保持后台收消息)
+  if (!g_tray && !IS_MAC) app.quit();
 });
+
+app.on('before-quit', () => { g_quitting = true; });
+
+/** 显示并聚焦主窗口(从托盘/Dock 唤起) */
+function showMainWindow() {
+  const win = g_win || BrowserWindow.getAllWindows()[0];
+  if (!win || win.isDestroyed()) { createWindow(); return; }
+  if (IS_MAC) app.dock?.show?.();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+/** 创建系统托盘：左键唤起窗口，右键菜单(显示/退出)，tooltip 反映未读。 */
+function createTray() {
+  if (g_tray) return;
+  try {
+    const iconPath = path.join(__dirname, '../dist/icon.png');
+    let img = nativeImage.createFromPath(iconPath);
+    if (img.isEmpty()) img = nativeImage.createEmpty();
+    // mac 托盘图标需 template + 小尺寸
+    const trayImg = IS_MAC ? img.resize({ width: 18, height: 18 }) : img;
+    g_tray = new Tray(trayImg);
+    g_tray.setToolTip('v信');
+    g_tray.setContextMenu(buildTrayMenu());
+    // 左键点击：切换显示/隐藏(win/linux)；mac 左键默认弹菜单，这里也显示窗口
+    g_tray.on('click', () => showMainWindow());
+    g_tray.on('double-click', () => showMainWindow());
+  } catch (e) {
+    console.warn('[tray] 创建失败:', e.message);
+  }
+}
+
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
+    { label: '打开 v信', click: () => showMainWindow() },
+    { type: 'separator' },
+    { label: '退出', click: () => { g_quitting = true; app.quit(); } },
+  ]);
+}
 
 // ── IPC ──────────────────────────────────────────────────────
 
@@ -154,7 +213,10 @@ ipcMain.handle('notify:show', (_e, { title, body } = {}) => {
 // Windows: 无原生数字角标，用任务栏 overlayIcon 画一个红底数字提示有未读。
 ipcMain.on('badge:set', (_e, rawCount) => {
   const count = Math.max(0, Math.min(9999, parseInt(rawCount, 10) || 0));
+  g_unread = count;
   try { app.setBadgeCount(count); } catch { /* 平台不支持则忽略 */ }
+  // 托盘 tooltip 反映未读
+  try { g_tray?.setToolTip(count > 0 ? `v信 · ${count > 99 ? '99+' : count} 条未读` : 'v信'); } catch {}
   const win = BrowserWindow.getAllWindows()[0];
   if (!win || win.isDestroyed()) return;
   if (process.platform === 'win32') {
