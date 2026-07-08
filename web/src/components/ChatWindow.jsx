@@ -1099,6 +1099,11 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   }, [atList, atQuery, members, user.id]);
 
   const handleKeyDown = (e) => {
+    // ⚠ 中文/日文等 IME 组词中按 Enter 是「选定候选词」，绝不能当成发送/换行/选提及。
+    // 否则拼音打一半按回车会误发半截消息(CJK 用户高频痛点)。isComposing 覆盖组字态,
+    // keyCode===229 兜底老浏览器(组字时 key 事件 keyCode 恒为 229)。
+    if (e.nativeEvent?.isComposing || e.isComposing || e.keyCode === 229) return;
+
     // @ mention：仅当有候选时拦截导航/选择键；无候选则放行(按正常输入/发送处理)
     if (atList && atCandidates.length > 0) {
       if (e.key === 'ArrowDown') {

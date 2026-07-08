@@ -173,7 +173,12 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
           <div className="wc-moment-comment-input">
             <input className="wc-moment-comment-field" autoFocus value={text}
               onChange={e => setText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') { setCommenting(false); setReplyTo(null); } }}
+              onKeyDown={e => {
+                // IME 组词中按 Enter 是选词，不提交(CJK 用户高频痛点)
+                if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
+                if (e.key === 'Enter') submit();
+                if (e.key === 'Escape') { setCommenting(false); setReplyTo(null); }
+              }}
               placeholder={replyTo ? `回复 ${replyTo.username}…` : '评论…'} maxLength={500} aria-label="输入评论" />
             <button className="wc-moment-comment-submit" onClick={submit} disabled={submitting || !text.trim()}>发送</button>
           </div>

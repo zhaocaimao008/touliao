@@ -114,7 +114,7 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
                 onChange={onChange}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
-                onKeyDown={e => e.key === 'Enter' && doSearch(query)}
+                onKeyDown={e => { if (e.nativeEvent?.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') doSearch(query); }}
                 className="afm-search-input"
               />
               {query && (
