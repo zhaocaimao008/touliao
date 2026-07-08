@@ -9,8 +9,12 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
+  const [loaded, setLoaded] = useState(false);   // 当前大图是否已加载(未加载时显示转圈)
   const dragStart = useRef({ x: 0, y: 0 });
   const posStart = useRef({ x: 0, y: 0 });
+
+  // 切换到新图 → 复位加载态，重新显示转圈直到 onLoad
+  useEffect(() => { setLoaded(false); }, [currentUrl]);
 
   const resetTransform = () => { setScale(1); setPosition({ x: 0, y: 0 }); };
 
@@ -109,6 +113,16 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
+      {!loaded && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute', width: 40, height: 40, borderRadius: '50%',
+            border: '3px solid rgba(255,255,255,.25)', borderTopColor: '#fff',
+            animation: 'wc-spin .8s linear infinite', pointerEvents: 'none',
+          }}
+        />
+      )}
       <img
         data-testid="lightbox-image"
         key={currentUrl}
@@ -116,7 +130,8 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         alt={gallery ? `图片 ${idx + 1} / ${urls.length}` : '图片预览'}
         loading="lazy"
         draggable={false}
-        onError={e => { e.currentTarget.style.opacity = '.25'; e.currentTarget.alt = '图片加载失败'; }}
+        onLoad={() => setLoaded(true)}
+        onError={e => { setLoaded(true); e.currentTarget.style.opacity = '.25'; e.currentTarget.alt = '图片加载失败'; }}
         onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: '90vw',
