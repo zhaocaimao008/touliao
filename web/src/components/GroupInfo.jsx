@@ -225,9 +225,11 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   /* 保存群昵称 */
   const saveNickname = async () => {
+    const nick = nicknameVal.trim() || null;
+    if (nick === (myNickname || null)) { setEditNickname(false); return; }  // 未改动:不发无谓请求
     try {
-      await axios.put(`/api/messages/conversation/${conversation.id}/nickname`, { nickname: nicknameVal.trim() || null });
-      setMyNickname(nicknameVal.trim() || null);
+      await axios.put(`/api/messages/conversation/${conversation.id}/nickname`, { nickname: nick });
+      setMyNickname(nick);
       setEditNickname(false);
     } catch (e) { showToast(e.response?.data?.error || '修改失败', 'error'); }
   };

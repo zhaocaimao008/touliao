@@ -2381,6 +2381,13 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             )}
             {!voiceMode && (
               <div className="wc-input-footer">
+                {/* 接近 2000 字上限时才提示,避免超长被静默截断而用户不知 */}
+                {input.length >= 1800 && (
+                  <span className="wc-input-counter" aria-live="polite"
+                    style={{ marginRight: 'auto', fontSize: 12, color: input.length >= 2000 ? 'var(--color-badge)' : 'var(--text-tertiary)' }}>
+                    {input.length}/2000
+                  </span>
+                )}
                 <button
                   data-testid="chat-send-btn"
                   className={`wc-send-btn${input.trim() ? ' active' : ''}`}
