@@ -20,8 +20,8 @@ struct ForgotPasswordView: View {
             TextField("邀请码（6位数字）", text: $vm.inviteCode)
                 .keyboardType(.numberPad)
                 .textFieldStyle(.roundedBorder)
-            SecureField("新密码（≥8位，含字母和数字）", text: $vm.resetNewPassword)
-                .textFieldStyle(.roundedBorder)
+            PasswordField(placeholder: "新密码（≥8位，含字母和数字）", text: $vm.resetNewPassword,
+                          textContentType: .newPassword)
 
             if let error = vm.error {
                 Text(error)

@@ -77,6 +77,9 @@ struct ConversationListView: View {
                 .accessibilityIdentifier("conv-item-\(conv.id)")
                 .listRowBackground(conv.pinned == 1 ? Color.gray.opacity(0.08) : Color.clear)
                 .contextMenu {
+                    if conv.unreadCount > 0 {
+                        Button("标为已读") { vm.markRead(conv) }
+                    }
                     Button(conv.pinned == 1 ? "取消置顶" : "置顶") { vm.togglePin(conv) }
                     Button(conv.muted == 1 ? "取消免打扰" : "消息免打扰") { vm.toggleMute(conv) }
                     Button("清空聊天记录", role: .destructive) { clearTarget = conv }
@@ -133,7 +136,13 @@ private struct ConversationRow: View {
                     .font(.caption2)
                     .foregroundColor(.vxinTextSecondary)
                 if conversation.muted == 1 {
-                    Image(systemName: "bell.slash.fill").font(.caption2).foregroundColor(.vxinTextSecondary)
+                    // 免打扰：有未读只显示小红点(不显示数字)，并保留🔕(对齐微信/安卓)
+                    HStack(spacing: 4) {
+                        if conversation.unreadCount > 0 {
+                            Circle().fill(Color.vxinError).frame(width: 8, height: 8)
+                        }
+                        Image(systemName: "bell.slash.fill").font(.caption2).foregroundColor(.vxinTextSecondary)
+                    }
                 } else if conversation.unreadCount > 0 {
                     Text(conversation.unreadCount > 99 ? "99+" : "\(conversation.unreadCount)")
                         .font(.caption2)
@@ -149,17 +158,24 @@ private struct ConversationRow: View {
     }
 
     private var previewText: String {
+        let body: String
         switch conversation.lastMessageType {
-        case nil, "text": return conversation.lastMessage ?? ""
-        case "image": return "[图片]"
-        case "voice": return "[语音]"
-        case "video": return "[视频]"
-        case "file": return "[文件]"
-        case "red_packet": return "[红包]"
-        case "sticker": return "[表情]"
-        case "nudge": return "[拍一拍]"
-        case "contact_card", "contact": return "[名片]"
-        default: return conversation.lastMessage ?? ""
+        case nil, "text": body = conversation.lastMessage ?? ""
+        case "image": body = "[图片]"
+        case "voice": body = "[语音]"
+        case "video": body = "[视频]"
+        case "file": body = "[文件]"
+        case "red_packet": body = "[红包]"
+        case "sticker": body = "[表情]"
+        case "nudge": body = "[拍一拍]"
+        case "contact_card", "contact": body = "[名片]"
+        default: body = conversation.lastMessage ?? ""
         }
+        // 群聊预览加发送者名前缀(对齐微信/安卓「张三: 内容」)
+        if conversation.type == "group",
+           let sender = conversation.lastSenderName, !sender.isEmpty, !body.isEmpty {
+            return "\(sender): \(body)"
+        }
+        return body
     }
 }

@@ -50,8 +50,17 @@ private struct GroupCallView: View {
             Color(white: 0.07).ignoresSafeArea()
 
             VStack {
-                Text("群\(state.isVideo ? "视频" : "语音")通话 · \(state.participants.count + 1) 人")
-                    .font(.subheadline).foregroundColor(.white).padding(.top, 12)
+                VStack(spacing: 2) {
+                    Text("群\(state.isVideo ? "视频" : "语音")通话 · \(state.participants.count + 1) 人")
+                        .font(.subheadline).foregroundColor(.white)
+                    // 接通后每秒递增的通话时长(mm:ss)，对齐微信/安卓
+                    if state.stage == .connected, let start = state.connectedAt {
+                        TimelineView(.periodic(from: start, by: 1)) { context in
+                            Text(formatCallDuration(from: start, now: context.date))
+                                .font(.caption2).foregroundColor(Color(white: 0.7)).monospacedDigit()
+                        }
+                    }
+                }.padding(.top, 12)
 
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 6) {

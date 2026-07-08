@@ -205,6 +205,7 @@ private struct MomentCard: View {
     let isMine: Bool
     let commenting: Bool
     @Binding var commentText: String
+    @FocusState private var commentFocused: Bool
     var onLike: () -> Void
     var onComment: () -> Void
     var onSubmitComment: () -> Void
@@ -225,8 +226,14 @@ private struct MomentCard: View {
             HStack {
                 Text(formatChatTime(moment.createdAt)).font(.caption2).foregroundColor(.vxinTextSecondary)
                 Spacer()
-                Button(moment.liked ? "已赞" : "赞") { onLike() }.buttonStyle(.borderless).foregroundColor(.vxinGreen)
-                Button("评论") { onComment() }.buttonStyle(.borderless).foregroundColor(.vxinGreen)
+                Button { onLike() } label: {
+                    // 心形图标 + 文案(对齐微信/安卓 ❤️/🤍)
+                    Label(moment.liked ? "已赞" : "赞", systemImage: moment.liked ? "heart.fill" : "heart")
+                        .foregroundColor(moment.liked ? .vxinError : .vxinGreen)
+                }.buttonStyle(.borderless)
+                Button { onComment() } label: {
+                    Label("评论", systemImage: "bubble.right")
+                }.buttonStyle(.borderless).foregroundColor(.vxinGreen)
                 if isMine { Button("删除", role: .destructive) { onDelete() }.buttonStyle(.borderless) }
             }
             if !moment.likes.isEmpty {
@@ -246,9 +253,15 @@ private struct MomentCard: View {
             }
             if commenting {
                 HStack {
-                    TextField("评论…", text: $commentText).textFieldStyle(.roundedBorder)
+                    TextField("评论…", text: $commentText)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($commentFocused)
+                        .submitLabel(.send)
+                        .onSubmit { if !commentText.isEmpty { onSubmitComment() } }
                     Button("发送") { onSubmitComment() }.disabled(commentText.isEmpty).foregroundColor(.vxinGreen)
                 }
+                // 展开评论框时自动聚焦并弹出键盘(对齐微信/安卓)
+                .onAppear { commentFocused = true }
             }
         }
         .padding(.vertical, 6)

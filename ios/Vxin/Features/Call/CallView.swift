@@ -43,8 +43,7 @@ private struct CallView: View {
                     InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: 96)
                     Text(state.peerName.isEmpty ? "通话" : state.peerName)
                         .font(.title2).foregroundColor(.white)
-                    Text(statusText)
-                        .font(.subheadline).foregroundColor(Color(white: 0.7))
+                    statusOrDuration
                     Spacer()
                 }
             }
@@ -61,6 +60,20 @@ private struct CallView: View {
                 let delay: UInt64 = state.timedOut ? 1_800_000_000 : 800_000_000
                 Task { try? await Task.sleep(nanoseconds: delay); manager.consumeEnded() }
             }
+        }
+    }
+
+    /// 已接通显示每秒递增的通话时长(mm:ss)，否则显示状态文案(对齐微信/安卓)
+    @ViewBuilder private var statusOrDuration: some View {
+        if state.stage == .connected, let start = state.connectedAt {
+            TimelineView(.periodic(from: start, by: 1)) { context in
+                Text(formatCallDuration(from: start, now: context.date))
+                    .font(.subheadline).foregroundColor(Color(white: 0.7))
+                    .monospacedDigit()
+            }
+        } else {
+            Text(statusText)
+                .font(.subheadline).foregroundColor(Color(white: 0.7))
         }
     }
 

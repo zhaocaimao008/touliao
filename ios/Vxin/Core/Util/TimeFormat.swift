@@ -33,6 +33,14 @@ func formatChatTime(_ epochSeconds: Double?) -> String {
     return "\(comps.year ?? 0)年\(comps.month ?? 0)月\(comps.day ?? 0)日 \(hmStr)"
 }
 
+/// 通话时长格式化(mm:ss，超 1 小时则 H:mm:ss)，对齐微信/安卓
+func formatCallDuration(from start: Date, now: Date = Date()) -> String {
+    let secs = max(0, Int(now.timeIntervalSince(start)))
+    let h = secs / 3600, m = (secs % 3600) / 60, s = secs % 60
+    return h > 0 ? String(format: "%d:%02d:%02d", h, m, s)
+                 : String(format: "%02d:%02d", m, s)
+}
+
 /// 是否需要显示时间分隔：首条 或 与上一条间隔超 5 分钟
 func shouldShowMessageTime(prev: Double?, cur: Double) -> Bool {
     if cur <= 0 { return false }

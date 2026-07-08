@@ -23,10 +23,8 @@ struct LoginView: View {
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("login-phone-input")
 
-            SecureField("密码", text: $vm.password)
-                .textContentType(.password)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("login-password-input")
+            PasswordField(placeholder: "密码", text: $vm.password,
+                          accessibilityId: "login-password-input")
 
             if let error = vm.error {
                 Text(error)

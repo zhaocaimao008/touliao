@@ -88,6 +88,13 @@ final class ConversationListViewModel: ObservableObject {
         }
     }
 
+    /// 标为已读：先就地清零未读，再通知服务端（多端同步）
+    func markRead(_ conv: Conversation) {
+        guard conv.unreadCount > 0 else { return }
+        clearUnread(conv.id)
+        Task { await repo.markRead(conversationId: conv.id, messageId: nil) }
+    }
+
     private func clearUnread(_ conversationId: String) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }),
               conversations[idx].unreadCount != 0 else { return }

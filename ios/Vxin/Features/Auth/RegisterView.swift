@@ -21,9 +21,9 @@ struct RegisterView: View {
                 .keyboardType(.phonePad)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("register-phone-input")
-            SecureField("密码（≥8位，含字母和数字）", text: $vm.password)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("register-password-input")
+            PasswordField(placeholder: "密码（≥8位，含字母和数字）", text: $vm.password,
+                          textContentType: .newPassword,
+                          accessibilityId: "register-password-input")
             if vm.inviteRequired {
                 TextField("邀请码（6位数字）", text: $vm.inviteCode)
                     .keyboardType(.numberPad)

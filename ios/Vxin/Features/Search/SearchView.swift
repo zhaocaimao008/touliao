@@ -7,12 +7,17 @@ struct SearchView: View {
     var onOpenResult: (SearchResult) -> Void
 
     @StateObject private var vm = SearchViewModel()
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             TextField("搜索聊天记录", text: $vm.query)
                 .textFieldStyle(.roundedBorder)
+                .focused($searchFocused)
+                .submitLabel(.search)
                 .padding(12)
+                // 进入搜索页自动聚焦并弹出键盘(对齐微信/安卓)
+                .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { searchFocused = true } }
 
             if vm.loading {
                 Spacer(); ProgressView(); Spacer()

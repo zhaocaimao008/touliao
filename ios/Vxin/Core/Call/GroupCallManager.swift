@@ -22,6 +22,7 @@ struct GroupCallState {
     var participants: [String] = []   // 远端成员 id（不含自己）
     var micEnabled: Bool = true
     var cameraEnabled: Bool = true
+    var connectedAt: Date?            // 接通时刻，用于计算群通话时长(mm:ss)
 }
 
 /// 群音视频通话（mesh）。信令协议见 backend-v2/docs/GROUP_CALL.md。
@@ -189,6 +190,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         socket.gcStarted.receive(on: DispatchQueue.main).sink { [weak self] (callId, _) in
             guard let self, self.state.stage != .ended else { return }
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
+            if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
         }.store(in: &cancellables)
 
@@ -196,6 +198,7 @@ final class GroupCallManager: NSObject, ObservableObject {
             guard let self else { return }
             if !self.state.callId.isEmpty && callId != self.state.callId { return }
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
+            if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
             peers.forEach { _ = self.peerFor($0) }   // answerer：预建 PC 等 offer
             self.state.participants = Array(self.peers.keys)

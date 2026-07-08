@@ -15,6 +15,7 @@ struct CallState {
     var cameraEnabled: Bool = true
     var remoteVideoActive: Bool = false
     var timedOut: Bool = false          // 主叫未接听超时 → 结束页提示"对方未接听"
+    var connectedAt: Date?              // 接通时刻，用于计算通话时长(mm:ss)
 }
 
 /// GET /api/turn/credentials 响应。
@@ -362,7 +363,10 @@ extension CallManager: RTCPeerConnectionDelegate {
             switch newState {
             case .connected, .completed:
                 self.cancelCallTimeout()        // 已接通，撤销未接听超时
-                if self.state.stage != .ended { self.state.stage = .connected }
+                if self.state.stage != .ended {
+                    if self.state.connectedAt == nil { self.state.connectedAt = Date() }
+                    self.state.stage = .connected
+                }
             default: break
             }
         }
