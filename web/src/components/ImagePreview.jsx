@@ -40,7 +40,12 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   const handleWheel = useCallback((e) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setScale(s => Math.max(0.5, Math.min(5, s + delta)));
+    setScale(s => {
+      const ns = Math.max(0.5, Math.min(5, s + delta));
+      // 缩回到 1 倍及以下时复位平移,避免图片停留在偏移位置(缩小后"跑偏")
+      if (ns <= 1) setPosition({ x: 0, y: 0 });
+      return ns;
+    });
   }, []);
 
   // Pinch zoom (touch)
@@ -61,7 +66,11 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const delta = (dist - lastPinchDist.current) / 100;
-      setScale(s => Math.max(0.5, Math.min(5, s + delta)));
+      setScale(s => {
+        const ns = Math.max(0.5, Math.min(5, s + delta));
+        if (ns <= 1) setPosition({ x: 0, y: 0 });   // 捏合缩回 1 倍复位平移,与滚轮一致
+        return ns;
+      });
       lastPinchDist.current = dist;
     }
   };
@@ -82,11 +91,17 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
       posStart.current = { ...position };
     }
   };
+  // 平移边界：放大后可移动范围约为 (scale-1) × 半个视口,超出即钳住,防止把图拖出屏幕丢失
+  const clampPan = (x, y) => {
+    const maxX = Math.max(0, (scale - 1) * window.innerWidth * 0.5);
+    const maxY = Math.max(0, (scale - 1) * window.innerHeight * 0.5);
+    return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+  };
   const handleMouseMove = (e) => {
     if (dragging && scale > 1) {
       const dx = e.clientX - dragStart.current.x;
       const dy = e.clientY - dragStart.current.y;
-      setPosition({ x: posStart.current.x + dx, y: posStart.current.y + dy });
+      setPosition(clampPan(posStart.current.x + dx, posStart.current.y + dy));
     }
   };
   const handleMouseUp = () => setDragging(false);
