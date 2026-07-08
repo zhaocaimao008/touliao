@@ -118,16 +118,21 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
       <Avatar src={m.avatar} name={m.username} size={38} />
       <div className="gi-f1">
         <div className="gi-mn">
-          {kickSearch && m.username.toLowerCase().includes(q)
+          {q && m.username.toLowerCase().includes(q)
             ? (() => {
-                const idx = m.username.toLowerCase().indexOf(q);
-                return (
-                  <>
-                    {m.username.slice(0, idx)}
-                    <span className="gi-search-hl">{m.username.slice(idx, idx + kickSearch.length)}</span>
-                    {m.username.slice(idx + kickSearch.length)}
-                  </>
-                );
+                // 高亮全部命中(此前只高亮首个);用 q.length 切片,大小写混排也对齐
+                const name = m.username;
+                const lower = name.toLowerCase();
+                const parts = [];
+                let from = 0, i = lower.indexOf(q, from);
+                while (i >= 0) {
+                  if (i > from) parts.push(name.slice(from, i));
+                  parts.push(<span key={i} className="gi-search-hl">{name.slice(i, i + q.length)}</span>);
+                  from = i + q.length;
+                  i = lower.indexOf(q, from);
+                }
+                if (from < name.length) parts.push(name.slice(from));
+                return <>{parts}</>;
               })()
             : m.username
           }

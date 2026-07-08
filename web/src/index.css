@@ -2718,6 +2718,8 @@ body {
 }
 .up-name { font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 5px; }
 .up-sub { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+.up-copyable { cursor: pointer; display: inline-block; border-radius: 4px; padding: 0 4px; margin: 0 -4px; transition: color .12s, background .12s; }
+.up-copyable:hover { color: var(--text-primary); background: var(--bg-search, rgba(0,0,0,.04)); }
 .up-bio {
   margin-top: 8px; font-size: 13px; color: var(--text-secondary);
   padding: 8px 10px; background: var(--bg-panel); border-radius: var(--radius-md);

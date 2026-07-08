@@ -4,6 +4,7 @@ import Avatar from './Avatar';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
+import { copyToClipboard } from '../utils/clipboard';
 import useFocusTrap from '../hooks/useFocusTrap';
 
 export default function UserProfile({ userId, onClose, onStartChat, onFriendAdded, onFriendDeleted }) {
@@ -155,7 +156,16 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         <div className="up-identity">
           <div className="up-name">{displayName}</div>
           {user.remark && <div className="up-sub">昵称：{user.username}</div>}
-          {user.wechat_id && <div className="up-sub">v信号：{user.wechat_id}</div>}
+          {user.wechat_id && (
+            <div
+              className="up-sub up-copyable"
+              role="button" tabIndex={0}
+              title="点击复制 v信号"
+              aria-label={`v信号 ${user.wechat_id}，点击复制`}
+              onClick={async () => { const ok = await copyToClipboard(user.wechat_id); showToast(ok ? '已复制 v信号' : '复制失败，请长按手动复制', ok ? 'success' : 'error'); }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+            >v信号：{user.wechat_id}</div>
+          )}
           {user.bio && <div className="up-bio">{user.bio}</div>}
         </div>
 
