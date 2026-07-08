@@ -92,6 +92,32 @@ describe('朋友圈分页 + 回复校验 (MO3/MO4)', () => {
     expect(replied.reply_to_username).toBe(authorName);
   });
 
+  test('互动通知：unread-count / list / read 返回正确契约', async () => {
+    if (!cookies) return console.warn('无种子用户，跳过');
+    // 未读数：{ count: number }
+    const cnt = await request(app).get('/api/moments/notifications/unread-count').set('Cookie', cookies);
+    expect(cnt.status).toBe(200);
+    expect(typeof cnt.body.count).toBe('number');
+
+    // 列表：{ items, total, hasMore }，item 结构含 actor/moment/type
+    const list = await request(app).get('/api/moments/notifications').set('Cookie', cookies).query({ limit: 30 });
+    expect(list.status).toBe(200);
+    expect(Array.isArray(list.body.items)).toBe(true);
+    expect(list.body).toHaveProperty('total');
+    expect(list.body).toHaveProperty('hasMore');
+    for (const it of list.body.items) {
+      expect(it).toHaveProperty('type');
+      expect(it).toHaveProperty('actor');
+      expect(it).toHaveProperty('moment');
+    }
+
+    // 标记已读：{ success:true }，之后未读数应为 0
+    const read = await request(app).post('/api/moments/notifications/read').set('Cookie', cookies);
+    expect(read.status).toBe(200);
+    const cnt2 = await request(app).get('/api/moments/notifications/unread-count').set('Cookie', cookies);
+    expect(cnt2.body.count).toBe(0);
+  });
+
   test('合法评论后 comments 分页 total 增加', async () => {
     if (!momentId) return console.warn('无种子用户/动态，跳过');
     const add = await request(app)

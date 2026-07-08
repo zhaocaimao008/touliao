@@ -41,4 +41,9 @@ class MomentRepository @Inject constructor(
 
     suspend fun comments(id: String, limit: Int = 50, offset: Int = 0) =
         momentApi.comments(id, limit, offset)
+
+    // ── 互动通知 ──
+    suspend fun notifications(limit: Int = 30, offset: Int = 0) = momentApi.notifications(limit, offset)
+    suspend fun notifUnreadCount(): Int = momentApi.notifUnreadCount().count
+    suspend fun markNotificationsRead() = momentApi.notifMarkRead()
 }

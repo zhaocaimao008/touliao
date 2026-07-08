@@ -7,6 +7,7 @@ import com.vxin.app.core.network.toUserMessage
 import com.vxin.app.core.util.MediaUrlResolver
 import com.vxin.app.data.model.Moment
 import com.vxin.app.data.model.MomentComment
+import com.vxin.app.data.model.MomentNotification
 import com.vxin.app.data.repository.MomentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,11 @@ data class MomentsUiState(
     val visibleDays: Int = 0,          // 朋友圈"最近 N 天可见"：0=全部
     val showSettings: Boolean = false,
     val error: String? = null,
+    // 互动通知（谁赞了/评论了我的动态）
+    val notifUnread: Int = 0,
+    val showNotif: Boolean = false,
+    val notifLoading: Boolean = false,
+    val notifications: List<MomentNotification> = emptyList(),
 )
 
 private const val PAGE = 20
@@ -49,8 +55,36 @@ class MomentsViewModel @Inject constructor(
     init {
         refresh()
         loadSettings()
-        viewModelScope.launch { momentRepository.momentEvents.collect { refresh() } }
+        loadNotifUnread()
+        // 有人赞/评我的动态 → 刷新时间线 + 未读数
+        viewModelScope.launch { momentRepository.momentEvents.collect { refresh(); loadNotifUnread() } }
     }
+
+    // ── 互动通知（谁赞了/评论了我的动态）──
+    private fun loadNotifUnread() {
+        viewModelScope.launch {
+            runCatching { momentRepository.notifUnreadCount() }
+                .onSuccess { n -> _uiState.update { it.copy(notifUnread = n) } }
+        }
+    }
+
+    fun openNotif() {
+        _uiState.update { it.copy(showNotif = true, notifLoading = true) }
+        viewModelScope.launch {
+            runCatching { momentRepository.notifications(limit = 30) }
+                .onSuccess { page ->
+                    _uiState.update { it.copy(notifLoading = false, notifications = page.items) }
+                    // 打开即标记已读，清零角标
+                    if (_uiState.value.notifUnread > 0) {
+                        runCatching { momentRepository.markNotificationsRead() }
+                        _uiState.update { it.copy(notifUnread = 0) }
+                    }
+                }
+                .onFailure { e -> _uiState.update { it.copy(notifLoading = false, error = e.toUserMessage("加载失败")) } }
+        }
+    }
+
+    fun dismissNotif() = _uiState.update { it.copy(showNotif = false) }
 
     // ── 朋友圈"最近 N 天可见" ──
     private fun loadSettings() {

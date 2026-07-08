@@ -67,3 +67,33 @@ data class CommentPage(
     val total: Int = 0,
     val hasMore: Boolean = false,
 )
+
+// ── 朋友圈互动通知（谁赞了/评论了我的动态）──────────────────────
+@Serializable
+data class MomentNotifActor(val id: String = "", val username: String = "", val avatar: String = "")
+
+@Serializable
+data class MomentNotifMoment(val content: String = "", val thumb: String = "")
+
+@Serializable
+data class MomentNotification(
+    val id: String = "",
+    val type: String = "",                 // like | comment
+    val momentId: String = "",
+    val commentId: String? = null,
+    val read: Boolean = false,
+    val createdAt: Long = 0,
+    val actor: MomentNotifActor = MomentNotifActor(),
+    val moment: MomentNotifMoment = MomentNotifMoment(),
+    val commentContent: String = "",
+)
+
+@Serializable
+data class MomentNotifPage(
+    val items: List<MomentNotification> = emptyList(),
+    val total: Int = 0,
+    val hasMore: Boolean = false,
+)
+
+@Serializable
+data class UnreadCountResponse(val count: Int = 0)

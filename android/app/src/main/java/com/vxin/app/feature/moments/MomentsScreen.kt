@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
@@ -33,9 +34,12 @@ import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -65,6 +69,7 @@ import coil.compose.SubcomposeAsyncImage
 import com.vxin.app.core.util.formatChatTime
 import com.vxin.app.data.model.Moment
 import com.vxin.app.data.model.MomentComment
+import com.vxin.app.data.model.MomentNotification
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
@@ -97,6 +102,12 @@ fun MomentsScreen(
                 title = { Text("朋友圈") },
                 navigationIcon = { onBack?.let { cb -> IconButton(onClick = cb) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } } },
                 actions = {
+                    // 互动通知入口：右上角铃铛 + 未读角标
+                    IconButton(onClick = { viewModel.openNotif() }) {
+                        BadgedBox(badge = {
+                            if (state.notifUnread > 0) Badge { Text(if (state.notifUnread > 99) "99+" else state.notifUnread.toString()) }
+                        }) { Text("🔔", fontSize = 16.sp) }
+                    }
                     IconButton(onClick = { viewModel.openSettings() }) { Text("⚙️", fontSize = 16.sp) }
                     IconButton(onClick = onCompose) { Text("📷", fontSize = 18.sp) }
                 },
@@ -171,6 +182,15 @@ fun MomentsScreen(
 
     gallery?.let { (imgs, start) ->
         ImageGallery(images = imgs.map { viewModel.resolveUrl(it) ?: it }, startIndex = start, onDismiss = { gallery = null })
+    }
+
+    if (state.showNotif) {
+        MomentNotifSheet(
+            loading = state.notifLoading,
+            items = state.notifications,
+            resolveUrl = viewModel::resolveUrl,
+            onDismiss = { viewModel.dismissNotif() },
+        )
     }
 
     if (state.showSettings) {
@@ -385,4 +405,60 @@ private fun ReachedEndEffect(listState: androidx.compose.foundation.lazy.LazyLis
         }
     }
     LaunchedEffect(reached) { if (reached) onEnd() }
+}
+
+/** 互动通知列表面板（谁赞了/评论了我的动态）—— 底部弹出，对齐 web「互动消息」 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MomentNotifSheet(
+    loading: Boolean,
+    items: List<MomentNotification>,
+    resolveUrl: (String?) -> String?,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(
+            "互动消息",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp),
+        )
+        when {
+            loading -> Box(Modifier.fillMaxWidth().padding(40.dp), Alignment.Center) { CircularProgressIndicator(Modifier.size(28.dp)) }
+            items.isEmpty() -> Box(Modifier.fillMaxWidth().padding(40.dp), Alignment.Center) { Text("暂无互动消息", color = VxinTextSecondary) }
+            else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
+                items(items, key = { it.id }) { n ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        InitialAvatar(name = n.actor.username.ifBlank { "?" }, size = 40.dp, avatarUrl = resolveUrl(n.actor.avatar))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Row {
+                                Text(n.actor.username.ifBlank { "用户" }, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = 14.sp)
+                                Text(
+                                    if (n.type == "like") " 赞了你的动态" else " 评论：${n.commentContent}",
+                                    fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Text(formatChatTime(n.createdAt), color = VxinTextSecondary, fontSize = 12.sp)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        if (n.moment.thumb.isNotBlank()) {
+                            AsyncImage(
+                                model = resolveUrl(n.moment.thumb),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)),
+                            )
+                        } else if (n.moment.content.isNotBlank()) {
+                            Text(n.moment.content.take(12), color = VxinTextSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 80.dp))
+                        }
+                    }
+                    HorizontalDivider(Modifier.padding(start = 68.dp), thickness = 0.5.dp)
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+    }
 }

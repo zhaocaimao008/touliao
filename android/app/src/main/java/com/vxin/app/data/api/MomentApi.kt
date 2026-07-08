@@ -7,6 +7,8 @@ import com.vxin.app.data.model.MomentComment
 import com.vxin.app.data.model.MomentCommentBody
 import com.vxin.app.data.model.MomentImagesResponse
 import com.vxin.app.data.model.MomentLikeResponse
+import com.vxin.app.data.model.MomentNotifPage
+import com.vxin.app.data.model.UnreadCountResponse
 import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -43,4 +45,14 @@ interface MomentApi {
 
     @DELETE("api/moments/comments/{commentId}")
     suspend fun deleteComment(@Path("commentId") commentId: String)
+
+    // ── 互动通知 ──
+    @GET("api/moments/notifications")
+    suspend fun notifications(@Query("limit") limit: Int = 30, @Query("offset") offset: Int = 0): MomentNotifPage
+
+    @GET("api/moments/notifications/unread-count")
+    suspend fun notifUnreadCount(): UnreadCountResponse
+
+    @POST("api/moments/notifications/read")
+    suspend fun notifMarkRead()
 }

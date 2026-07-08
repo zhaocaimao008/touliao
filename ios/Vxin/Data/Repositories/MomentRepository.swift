@@ -53,4 +53,16 @@ final class MomentRepository {
     func comments(_ id: String, limit: Int = 50, offset: Int = 0) async throws -> CommentPage {
         try await api.send("api/moments/\(id)/comments?limit=\(limit)&offset=\(offset)")
     }
+
+    // ── 互动通知 ──
+    func notifications(limit: Int = 30, offset: Int = 0) async throws -> MomentNotifPage {
+        try await api.send("api/moments/notifications?limit=\(limit)&offset=\(offset)")
+    }
+    func notifUnreadCount() async throws -> Int {
+        let r: UnreadCountResponse = try await api.send("api/moments/notifications/unread-count")
+        return r.count
+    }
+    func markNotificationsRead() async throws {
+        let _: EmptyResponse = try await api.send("api/moments/notifications/read", method: "POST")
+    }
 }

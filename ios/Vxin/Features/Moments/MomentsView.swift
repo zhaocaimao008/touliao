@@ -9,6 +9,10 @@ final class MomentsViewModel: ObservableObject {
     @Published var reachedEnd = false
     @Published var visibleDays = 0           // 朋友圈"最近 N 天可见"：0=全部
     @Published var error: String?
+    // 互动通知（谁赞了/评论了我的动态）
+    @Published var notifUnread = 0
+    @Published var notifications: [MomentNotification] = []
+    @Published var notifLoading = false
 
     private let repo = MomentRepository.shared
     private let page = 20
@@ -18,9 +22,26 @@ final class MomentsViewModel: ObservableObject {
     init(myId: String) {
         self.myId = myId
         repo.eventsPublisher
-            .sink { [weak self] in Task { @MainActor in await self?.refresh() } }
+            .sink { [weak self] in Task { @MainActor in await self?.refresh(); await self?.loadNotifUnread() } }
             .store(in: &cancellables)
-        Task { await loadSettings() }
+        Task { await loadSettings(); await loadNotifUnread() }
+    }
+
+    // ── 互动通知（谁赞了/评论了我的动态）──
+    func loadNotifUnread() async {
+        if let n = try? await repo.notifUnreadCount() { notifUnread = n }
+    }
+
+    func openNotif() {
+        notifLoading = true
+        Task {
+            do {
+                notifications = try await repo.notifications(limit: 30).items
+                // 打开即标记已读，清零角标
+                if notifUnread > 0 { try? await repo.markNotificationsRead(); notifUnread = 0 }
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载失败" }
+            notifLoading = false
+        }
     }
 
     // ── 朋友圈"最近 N 天可见" ──
@@ -136,6 +157,7 @@ struct MomentsView: View {
     @State private var deleteCommentTarget: (moment: Moment, comment: MomentComment)?
     @State private var showCompose = false
     @State private var showSettings = false
+    @State private var showNotif = false
     @State private var gallery: GalleryData?
 
     init() {
@@ -184,11 +206,28 @@ struct MomentsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
+                // 互动通知入口：铃铛 + 未读角标
+                Button { vm.openNotif(); showNotif = true } label: {
+                    Image(systemName: "bell")
+                        .overlay(alignment: .topTrailing) {
+                            if vm.notifUnread > 0 {
+                                Text(vm.notifUnread > 99 ? "99+" : "\(vm.notifUnread)")
+                                    .font(.system(size: 9)).foregroundColor(.white)
+                                    .padding(.horizontal, 4).padding(.vertical, 1)
+                                    .background(Color.vxinError).clipShape(Capsule())
+                                    .offset(x: 8, y: -6)
+                            }
+                        }
+                }
+                .accessibilityLabel("互动消息")
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }
                     .accessibilityLabel("朋友圈设置")
                 Button { showCompose = true } label: { Image(systemName: "camera") }
                     .accessibilityLabel("发朋友圈")
             }
+        }
+        .sheet(isPresented: $showNotif) {
+            MomentNotifSheet(loading: vm.notifLoading, items: vm.notifications)
         }
         .sheet(isPresented: $showCompose) {
             MomentComposeView(onPublished: { showCompose = false; Task { await vm.refresh() } })
@@ -391,5 +430,51 @@ private struct MomentGalleryView: View {
             }
         }
         .onAppear { page = min(max(start, 0), max(images.count - 1, 0)) }
+    }
+}
+
+/// 互动通知列表面板（谁赞了/评论了我的动态）—— 对齐 web「互动消息」
+private struct MomentNotifSheet: View {
+    let loading: Bool
+    let items: [MomentNotification]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if loading {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if items.isEmpty {
+                    Text("暂无互动消息").foregroundColor(.vxinTextSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(items) { n in
+                        HStack(spacing: 12) {
+                            InitialAvatar(name: n.actor.username.isEmpty ? "?" : n.actor.username, size: 40)
+                            VStack(alignment: .leading, spacing: 3) {
+                                (Text(n.actor.username.isEmpty ? "用户" : n.actor.username).fontWeight(.medium)
+                                    + Text(n.type == "like" ? " 赞了你的动态" : " 评论：\(n.commentContent)"))
+                                    .font(.footnote).lineLimit(2)
+                                Text(formatChatTime(n.createdAt)).font(.caption2).foregroundColor(.vxinTextSecondary)
+                            }
+                            Spacer()
+                            if !n.moment.thumb.isEmpty {
+                                KFImage(source: MediaUrlResolver.kfSource(raw: n.moment.thumb))
+                                    .resizable().scaledToFill()
+                                    .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 4))
+                            } else if !n.moment.content.isEmpty {
+                                Text(String(n.moment.content.prefix(12)))
+                                    .font(.caption2).foregroundColor(.vxinTextSecondary)
+                                    .frame(maxWidth: 80, alignment: .trailing).lineLimit(2)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle("互动消息").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+        }
     }
 }

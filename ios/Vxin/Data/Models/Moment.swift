@@ -80,3 +80,37 @@ struct MomentImagesResponse: Decodable { var urls: [String] = [] }
 
 // GET /moments/:id/comments 分页响应（查看全部评论用）
 struct CommentPage: Decodable { var items: [MomentComment] = []; var total: Int = 0; var hasMore: Bool = false }
+
+// ── 朋友圈互动通知（谁赞了/评论了我的动态）──────────────────────
+struct MomentNotifActor: Decodable, Hashable { var id = ""; var username = ""; var avatar = "" }
+struct MomentNotifMoment: Decodable, Hashable { var content = ""; var thumb = "" }
+
+struct MomentNotification: Decodable, Identifiable, Hashable {
+    var id = ""
+    var type = ""              // like | comment
+    var momentId = ""
+    var commentId: String? = nil
+    var read = false
+    var createdAt: Double = 0
+    var actor = MomentNotifActor()
+    var moment = MomentNotifMoment()
+    var commentContent = ""
+    enum CodingKeys: String, CodingKey {
+        case id, type, momentId, commentId, read, createdAt, actor, moment, commentContent
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(String.self, forKey: .id)) ?? ""
+        type = (try? c.decode(String.self, forKey: .type)) ?? ""
+        momentId = (try? c.decode(String.self, forKey: .momentId)) ?? ""
+        commentId = try? c.decode(String.self, forKey: .commentId)
+        read = (try? c.decode(Bool.self, forKey: .read)) ?? false
+        createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
+        actor = (try? c.decode(MomentNotifActor.self, forKey: .actor)) ?? MomentNotifActor()
+        moment = (try? c.decode(MomentNotifMoment.self, forKey: .moment)) ?? MomentNotifMoment()
+        commentContent = (try? c.decode(String.self, forKey: .commentContent)) ?? ""
+    }
+}
+
+struct MomentNotifPage: Decodable { var items: [MomentNotification] = []; var total: Int = 0; var hasMore: Bool = false }
+struct UnreadCountResponse: Decodable { var count: Int = 0 }
