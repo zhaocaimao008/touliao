@@ -111,6 +111,19 @@ final class MomentsViewModel: ObservableObject {
             catch { self.error = (error as? LocalizedError)?.errorDescription ?? "删除失败" }
         }
     }
+
+    /// 删除自己的评论(对齐 web/安卓：长按自己评论 → 删除)
+    func deleteComment(_ m: Moment, _ c: MomentComment) {
+        Task {
+            do {
+                try await repo.deleteComment(c.id)
+                if let idx = moments.firstIndex(where: { $0.id == m.id }) {
+                    moments[idx].comments.removeAll { $0.id == c.id }
+                    moments[idx].commentCount = max(0, moments[idx].commentCount - 1)
+                }
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "删除失败" }
+        }
+    }
 }
 
 struct MomentsView: View {
@@ -119,6 +132,7 @@ struct MomentsView: View {
     @State private var commentingId: String?
     @State private var commentText = ""
     @State private var deleteTarget: Moment?
+    @State private var deleteCommentTarget: (moment: Moment, comment: MomentComment)?
     @State private var showCompose = false
     @State private var showSettings = false
     @State private var gallery: GalleryData?
@@ -147,7 +161,9 @@ struct MomentsView: View {
                             onSubmitComment: { vm.comment(m, text: commentText); commentingId = nil; commentText = "" },
                             onDelete: { deleteTarget = m },
                             onViewAllComments: { vm.loadAllComments(m) },
-                            onImageTap: { idx in gallery = GalleryData(images: m.images.map { MediaUrlResolver.resolve($0) ?? "" }, start: idx) }
+                            onImageTap: { idx in gallery = GalleryData(images: m.images.map { MediaUrlResolver.resolve($0) ?? "" }, start: idx) },
+                            myId: vm.myId,
+                            onDeleteComment: { c in deleteCommentTarget = (m, c) }
                         )
                         .onAppear { if m.id == vm.moments.last?.id { vm.loadMore() } }
                     }
@@ -197,6 +213,13 @@ struct MomentsView: View {
             Button("取消", role: .cancel) { deleteTarget = nil }
             Button("删除", role: .destructive) { if let m = deleteTarget { vm.delete(m) }; deleteTarget = nil }
         } message: { Text("确认删除这条朋友圈？") }
+        .alert("删除评论", isPresented: .constant(deleteCommentTarget != nil)) {
+            Button("取消", role: .cancel) { deleteCommentTarget = nil }
+            Button("删除", role: .destructive) {
+                if let t = deleteCommentTarget { vm.deleteComment(t.moment, t.comment) }
+                deleteCommentTarget = nil
+            }
+        } message: { Text("确认删除这条评论？") }
     }
 }
 
@@ -212,6 +235,8 @@ private struct MomentCard: View {
     var onDelete: () -> Void
     var onViewAllComments: () -> Void = {}
     var onImageTap: (Int) -> Void = { _ in }
+    var myId: String = ""
+    var onDeleteComment: (MomentComment) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -245,6 +270,14 @@ private struct MomentCard: View {
             ForEach(moment.comments) { c in
                 (Text("\(c.username.isEmpty ? "用户" : c.username)：").foregroundColor(.vxinGreen) + Text(c.content))
                     .font(.footnote)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .contextMenu {
+                        // 长按自己的评论 → 删除(对齐 web/安卓)
+                        if !myId.isEmpty && c.userId == myId {
+                            Button(role: .destructive) { onDeleteComment(c) } label: { Label("删除", systemImage: "trash") }
+                        }
+                    }
             }
             // 热门动态：timeline 只返回前 N 条，按需加载全部
             if moment.commentCount > moment.comments.count {

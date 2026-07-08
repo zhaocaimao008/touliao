@@ -370,6 +370,8 @@ export default function Moments() {
   }, []);
 
   const onDeleteComment = useCallback(async (m, c) => {
+    // 删评论前确认，与「删除动态」及移动端一致，避免误删
+    if (!(await showConfirm('删除这条评论？'))) return;
     try {
       await axios.delete(`/api/moments/comments/${c.id}`);
       setList(p => p.map(x => x.id === m.id ? { ...x, comments: x.comments.filter(cc => cc.id !== c.id), commentCount: x.commentCount - 1 } : x));

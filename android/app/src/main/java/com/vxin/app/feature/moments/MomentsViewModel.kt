@@ -143,6 +143,24 @@ class MomentsViewModel @Inject constructor(
         }
     }
 
+    /** 删除自己的评论(对齐 web：长按自己评论 → 删除) */
+    fun deleteComment(moment: Moment, comment: MomentComment) {
+        viewModelScope.launch {
+            runCatching { momentRepository.deleteComment(comment.id) }
+                .onSuccess {
+                    _uiState.update { s ->
+                        s.copy(moments = s.moments.map { m ->
+                            if (m.id == moment.id)
+                                m.copy(comments = m.comments.filterNot { it.id == comment.id },
+                                       commentCount = (m.commentCount - 1).coerceAtLeast(0))
+                            else m
+                        })
+                    }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("删除失败")) } }
+        }
+    }
+
     /** 点赞后拉取该条最新（含点赞人列表），保持点赞名单一致 */
     private fun refreshOne(id: String) {
         // 简化：依赖本地乐观更新，这里不再请求详情（timeline 无单条接口）

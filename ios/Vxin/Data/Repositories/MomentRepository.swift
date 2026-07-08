@@ -42,6 +42,10 @@ final class MomentRepository {
         let _: EmptyResponse = try await api.send("api/moments/\(id)", method: "DELETE")
     }
 
+    func deleteComment(_ commentId: String) async throws {
+        let _: EmptyResponse = try await api.send("api/moments/comments/\(commentId)", method: "DELETE")
+    }
+
     func comments(_ id: String, limit: Int = 50, offset: Int = 0) async throws -> CommentPage {
         try await api.send("api/moments/\(id)/comments?limit=\(limit)&offset=\(offset)")
     }

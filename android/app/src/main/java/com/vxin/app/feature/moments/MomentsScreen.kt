@@ -64,6 +64,7 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.vxin.app.core.util.formatChatTime
 import com.vxin.app.data.model.Moment
+import com.vxin.app.data.model.MomentComment
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
@@ -80,6 +81,7 @@ fun MomentsScreen(
     var commentingId by remember { mutableStateOf<String?>(null) }
     var commentText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<Moment?>(null) }
+    var deleteCommentTarget by remember { mutableStateOf<Pair<Moment, MomentComment>?>(null) }
     var gallery by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
 
     // 回到该页刷新（发布后）
@@ -121,6 +123,8 @@ fun MomentsScreen(
                             onSubmitComment = { viewModel.comment(m, commentText); commentingId = null; commentText = "" },
                             onViewAllComments = { viewModel.loadAllComments(m) },
                             onImageClick = { idx -> gallery = m.images to idx },
+                            myId = viewModel.myId,
+                            onLongPressComment = { c -> if (c.user_id == viewModel.myId) deleteCommentTarget = m to c },
                         )
                         HorizontalDivider(thickness = 6.dp, color = Color(0x11000000))
                     }
@@ -144,6 +148,16 @@ fun MomentsScreen(
             text = { Text("确认删除这条朋友圈？") },
             confirmButton = { TextButton(onClick = { viewModel.delete(target); deleteTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } },
+        )
+    }
+
+    deleteCommentTarget?.let { (m, c) ->
+        AlertDialog(
+            onDismissRequest = { deleteCommentTarget = null },
+            title = { Text("删除评论") },
+            text = { Text("确认删除这条评论？") },
+            confirmButton = { TextButton(onClick = { viewModel.deleteComment(m, c); deleteCommentTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
+            dismissButton = { TextButton(onClick = { deleteCommentTarget = null }) { Text("取消") } },
         )
     }
 
@@ -222,6 +236,8 @@ private fun MomentCard(
     onSubmitComment: () -> Unit,
     onViewAllComments: () -> Unit = {},
     onImageClick: (Int) -> Unit = {},
+    myId: String = "",
+    onLongPressComment: (MomentComment) -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxWidth()
@@ -263,9 +279,13 @@ private fun MomentCard(
                 Text("❤ " + moment.likes.joinToString("，") { it.username.ifBlank { "用户" } }, color = VxinGreen, fontSize = 13.sp)
             }
         }
-        // 评论列表
+        // 评论列表（长按自己的评论可删除，对齐 web）
         moment.comments.forEach { c ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+            val mine = c.user_id == myId && myId.isNotEmpty()
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                    .combinedClickable(onClick = {}, onLongClick = { if (mine) onLongPressComment(c) }),
+            ) {
                 Text("${c.username.ifBlank { "用户" }}：", color = VxinGreen, fontSize = 13.sp)
                 Text(c.content, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
