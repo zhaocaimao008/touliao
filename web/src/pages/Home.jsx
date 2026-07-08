@@ -737,7 +737,7 @@ export default function Home() {
       case 'moments':
         return <Moments />;
       case 'calls':
-        return <CallHistory />;
+        return <CallHistory onOpenChat={isMobile ? handleMobileSelectConv : handleSelectConv} />;
       case 'favorites':
         return <Collections />;
       case 'profile':

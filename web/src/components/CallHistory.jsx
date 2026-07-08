@@ -26,7 +26,7 @@ const STATUS = {
   ongoing:   { label: '通话中', color: 'var(--green)' },
 };
 
-export default function CallHistory() {
+export default function CallHistory({ onOpenChat }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -39,6 +39,15 @@ export default function CallHistory() {
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
+
+  // 点击通话记录 → 打开对方会话（回拨/继续聊天），对齐移动端
+  const openPeer = async (c) => {
+    if (!c.peer_id || !onOpenChat) return;
+    try {
+      const { data } = await axios.post('/api/messages/conversation/private', { userId: c.peer_id });
+      onOpenChat({ id: data.conversationId, type: 'private', name: c.peer_name, avatar: c.peer_avatar, otherUser: { id: c.peer_id, username: c.peer_name, avatar: c.peer_avatar } });
+    } catch { /* 静默失败，用户可重试 */ }
+  };
 
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
@@ -55,7 +64,10 @@ export default function CallHistory() {
           const st = STATUS[c.status] || STATUS.completed;
           const isMissed = c.direction === 'in' && (c.status === 'missed' || c.status === 'canceled');
           return (
-            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)' }}>
+            <div key={c.id} data-testid="call-log-item" onClick={() => openPeer(c)}
+              role={onOpenChat ? 'button' : undefined} tabIndex={onOpenChat ? 0 : undefined}
+              onKeyDown={e => { if (onOpenChat && e.key === 'Enter') openPeer(c); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: onOpenChat ? 'pointer' : 'default' }}>
               <Avatar src={c.peer_avatar} name={c.peer_name} size={42} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14.5, fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || '用户'}</div>

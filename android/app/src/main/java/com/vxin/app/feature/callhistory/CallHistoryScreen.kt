@@ -1,5 +1,6 @@
 package com.vxin.app.feature.callhistory
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,9 +59,14 @@ private fun fmtDuration(s: Int): String {
 @Composable
 fun CallHistoryScreen(
     onBack: () -> Unit,
+    onOpenChat: (com.vxin.app.feature.contacts.ConversationTarget) -> Unit = {},
     viewModel: CallHistoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val openChat by viewModel.openChat.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(openChat) {
+        openChat?.let { onOpenChat(it); viewModel.consumeOpenChat() }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -75,7 +81,7 @@ fun CallHistoryScreen(
                 state.items.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "📞", title = "暂无通话记录", subtitle = "拨打或接听后会出现在这里", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.items, key = { it.id }) { c ->
-                        CallLogRow(c, resolveUrl = viewModel::resolveUrl)
+                        CallLogRow(c, resolveUrl = viewModel::resolveUrl, onClick = { viewModel.openPeerChat(c) })
                         HorizontalDivider(Modifier.padding(start = 70.dp), thickness = 0.5.dp)
                     }
                 }
@@ -89,10 +95,12 @@ fun CallHistoryScreen(
 }
 
 @Composable
-private fun CallLogRow(c: CallLog, resolveUrl: (String?) -> String?) {
+private fun CallLogRow(c: CallLog, resolveUrl: (String?) -> String?, onClick: () -> Unit = {}) {
     val missed = c.direction == "in" && (c.status == "missed" || c.status == "canceled")
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         InitialAvatar(name = c.peer_name.ifBlank { "?" }, size = 42.dp, avatarUrl = resolveUrl(c.peer_avatar))

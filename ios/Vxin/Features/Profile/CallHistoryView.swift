@@ -7,6 +7,7 @@ final class CallHistoryViewModel: ObservableObject {
     @Published var error: String?
 
     private let repo = ProfileRepository.shared
+    private let contactRepo = ContactRepository.shared
 
     func refresh() async {
         loading = true; error = nil
@@ -14,10 +15,26 @@ final class CallHistoryViewModel: ObservableObject {
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载通话记录失败" }
         loading = false
     }
+
+    /// 点击通话记录 → 打开对方会话(回拨/继续聊天)
+    func openPeerChat(_ c: CallLog) async -> Conversation? {
+        guard !c.peerId.isEmpty else { return nil }
+        do {
+            let id = try await contactRepo.createPrivate(userId: c.peerId)
+            var conv = Conversation(id: id, type: "private", name: c.peerName.isEmpty ? "聊天" : c.peerName)
+            conv.otherUser = Conversation.OtherUser(id: c.peerId, username: c.peerName)
+            return conv
+        } catch {
+            self.error = (error as? LocalizedError)?.errorDescription ?? "打开聊天失败"
+            return nil
+        }
+    }
 }
 
 struct CallHistoryView: View {
+    @EnvironmentObject private var session: SessionStore
     @StateObject private var vm = CallHistoryViewModel()
+    @State private var navTarget: Conversation?
 
     var body: some View {
         Group {
@@ -27,12 +44,20 @@ struct CallHistoryView: View {
                 Text("暂无通话记录").foregroundColor(.vxinTextSecondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(vm.items) { row($0) }
-                    .listStyle(.plain)
+                List(vm.items) { c in
+                    Button { Task { navTarget = await vm.openPeerChat(c) } } label: { row(c) }
+                        .buttonStyle(.plain)
+                }
+                .listStyle(.plain)
             }
         }
         .navigationTitle("通话记录")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: Binding(get: { navTarget != nil }, set: { if !$0 { navTarget = nil } })) {
+            if let conv = navTarget {
+                ChatView(conversation: conv, myId: session.currentUser?.id ?? "", onOpenGroupInfo: {})
+            }
+        }
         .toast($vm.error)
         .task { await vm.refresh() }
     }

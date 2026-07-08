@@ -257,7 +257,10 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                 )
             }
             composable(Routes.CALL_HISTORY) {
-                com.vxin.app.feature.callhistory.CallHistoryScreen(onBack = { navController.popBackStack() })
+                com.vxin.app.feature.callhistory.CallHistoryScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenChat = { target -> navController.navigate(Routes.chat(target.conversationId, target.title, "private", target.peerUserId)) },
+                )
             }
             composable(Routes.FAVORITES) {
                 // 作为底部 Tab：不传 onBack（无返回箭头）
