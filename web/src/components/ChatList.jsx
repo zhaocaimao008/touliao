@@ -140,6 +140,21 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   const { socket, reconnectCount } = useSocket();
   const { user } = useAuth();
 
+  // 右键菜单打开时：Esc 关闭 + 滚动/窗口失焦自动收起(避免菜单悬浮在错位处)
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('blur', close);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('blur', close);
+      window.removeEventListener('resize', close);
+    };
+  }, [ctxMenu]);
+
   // 监听 ChatWindow 派发的草稿变更事件，实时刷新列表里的「[草稿]」标记
   useEffect(() => {
     const onDraftChanged = (e) => {
@@ -362,8 +377,17 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
       {ctxMenu && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setCtxMenu(null)} />
-          <div className="wc-ctx-menu" style={{ left: ctxMenu.x, top: ctxMenu.y, zIndex: 9999 }}>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            onClick={() => setCtxMenu(null)}
+            onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }}
+          />
+          <div
+            className="wc-ctx-menu"
+            style={{ left: ctxMenu.x, top: ctxMenu.y, zIndex: 9999 }}
+            role="menu"
+            onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setCtxMenu(null); } }}
+          >
             <div className="wc-ctx-item" onClick={() => toggleMarkUnread(ctxMenu.conv)}
               role="button" tabIndex={0}
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleMarkUnread(ctxMenu.conv))}>

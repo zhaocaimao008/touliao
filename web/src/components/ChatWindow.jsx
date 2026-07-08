@@ -146,15 +146,20 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   // ── 点击输入区外部关闭 emoji / more / 表情包 面板 ────────────────────
   useEffect(() => {
     if (!showEmoji && !showMore && !showStickers) return;
+    const closeAll = () => { setShowEmoji(false); setShowMore(false); setShowStickers(false); };
     const handler = (e) => {
-      if (inputAreaRef.current && !inputAreaRef.current.contains(e.target)) {
-        setShowEmoji(false);
-        setShowMore(false);
-        setShowStickers(false);
-      }
+      if (inputAreaRef.current && !inputAreaRef.current.contains(e.target)) closeAll();
+    };
+    // Esc 关闭已展开的表情/更多/表情包面板(键盘用户可达),并把焦点交回输入框
+    const onKey = (e) => {
+      if (e.key === 'Escape') { closeAll(); textareaRef.current?.focus(); }
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [showEmoji, showMore, showStickers]);
 
   // ── 手机软键盘弹起：viewport 缩小时滚动置底 ─────────────────

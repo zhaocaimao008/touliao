@@ -41,10 +41,20 @@ export default function EmojiPicker({ onSelect }) {
 
   return (
     <div className="wc-emoji-picker">
-      <div className="wc-emoji-cats" role="tablist" aria-label="表情分类">
+      <div className="wc-emoji-cats" role="tablist" aria-label="表情分类"
+        onKeyDown={e => {
+          // ←/→ 在分类间移动(标准 tablist 键盘模式),循环切换
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+          e.preventDefault();
+          const i = cats.findIndex(c => c.name === activeCat.name);
+          const n = cats.length;
+          const next = e.key === 'ArrowRight' ? (i + 1) % n : (i - 1 + n) % n;
+          handleCatChange(cats[next].name);
+        }}>
         {cats.map((c) => (
           <button key={c.name} className={`wc-emoji-cat${activeCat.name === c.name ? ' active' : ''}`}
             role="tab" aria-selected={activeCat.name === c.name} aria-label={c.name}
+            tabIndex={activeCat.name === c.name ? 0 : -1}
             onClick={() => handleCatChange(c.name)} title={c.name}>
             {c.label}
           </button>
