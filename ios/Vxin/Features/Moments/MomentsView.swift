@@ -73,12 +73,12 @@ final class MomentsViewModel: ObservableObject {
         }
     }
 
-    func comment(_ m: Moment, text: String) {
+    func comment(_ m: Moment, text: String, replyToUser: String = "") {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
         Task {
             do {
-                let c = try await repo.comment(m.id, content: t)
+                let c = try await repo.comment(m.id, content: t, replyToUser: replyToUser)
                 if let idx = moments.firstIndex(where: { $0.id == m.id }) {
                     moments[idx].comments.append(c)
                     moments[idx].commentCount += 1
@@ -131,6 +131,7 @@ struct MomentsView: View {
     @StateObject private var vm: MomentsViewModel
     @State private var commentingId: String?
     @State private var commentText = ""
+    @State private var replyTarget: MomentComment?   // 回复某条评论(nil=普通评论)
     @State private var deleteTarget: Moment?
     @State private var deleteCommentTarget: (moment: Moment, comment: MomentComment)?
     @State private var showCompose = false
@@ -157,13 +158,20 @@ struct MomentsView: View {
                             commenting: commentingId == m.id,
                             commentText: $commentText,
                             onLike: { vm.toggleLike(m) },
-                            onComment: { commentingId = (commentingId == m.id ? nil : m.id); commentText = "" },
-                            onSubmitComment: { vm.comment(m, text: commentText); commentingId = nil; commentText = "" },
+                            onComment: { commentingId = (commentingId == m.id ? nil : m.id); commentText = ""; replyTarget = nil },
+                            onSubmitComment: {
+                                vm.comment(m, text: commentText, replyToUser: replyTarget?.userId ?? "")
+                                commentingId = nil; commentText = ""; replyTarget = nil
+                            },
                             onDelete: { deleteTarget = m },
                             onViewAllComments: { vm.loadAllComments(m) },
                             onImageTap: { idx in gallery = GalleryData(images: m.images.map { MediaUrlResolver.resolve($0) ?? "" }, start: idx) },
                             myId: vm.myId,
-                            onDeleteComment: { c in deleteCommentTarget = (m, c) }
+                            onDeleteComment: { c in deleteCommentTarget = (m, c) },
+                            replyTargetName: commentingId == m.id ? (replyTarget?.username ?? "") : "",
+                            onReplyComment: { c in
+                                if c.userId != vm.myId { replyTarget = c; commentingId = m.id }
+                            }
                         )
                         .onAppear { if m.id == vm.moments.last?.id { vm.loadMore() } }
                     }
@@ -237,6 +245,8 @@ private struct MomentCard: View {
     var onImageTap: (Int) -> Void = { _ in }
     var myId: String = ""
     var onDeleteComment: (MomentComment) -> Void = { _ in }
+    var replyTargetName: String = ""
+    var onReplyComment: (MomentComment) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -268,10 +278,12 @@ private struct MomentCard: View {
                     .background(Color.gray.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 6))
             }
             ForEach(moment.comments) { c in
-                (Text("\(c.username.isEmpty ? "用户" : c.username)：").foregroundColor(.vxinGreen) + Text(c.content))
+                commentText(c)
                     .font(.footnote)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
+                    // 点非自己的评论 → 回复该人(对齐 web/安卓)
+                    .onTapGesture { if c.userId != myId { onReplyComment(c) } }
                     .contextMenu {
                         // 长按自己的评论 → 删除(对齐 web/安卓)
                         if !myId.isEmpty && c.userId == myId {
@@ -286,7 +298,7 @@ private struct MomentCard: View {
             }
             if commenting {
                 HStack {
-                    TextField("评论…", text: $commentText)
+                    TextField(replyTargetName.isEmpty ? "评论…" : "回复 \(replyTargetName)…", text: $commentText)
                         .textFieldStyle(.roundedBorder)
                         .focused($commentFocused)
                         .submitLabel(.send)
@@ -298,6 +310,18 @@ private struct MomentCard: View {
             }
         }
         .padding(.vertical, 6)
+    }
+
+    /// 一条评论文本：「昵称 回复 X：内容」，回复段仅在有被回复人时出现
+    private func commentText(_ c: MomentComment) -> Text {
+        let name = Text("\(c.username.isEmpty ? "用户" : c.username)").foregroundColor(.vxinGreen)
+        if !c.replyToUsername.isEmpty {
+            return name
+                + Text(" 回复 ").foregroundColor(.secondary)
+                + Text(c.replyToUsername).foregroundColor(.vxinGreen)
+                + Text("：\(c.content)")
+        }
+        return name + Text("：\(c.content)")
     }
 
     @ViewBuilder private var imageGrid: some View {

@@ -63,6 +63,35 @@ describe('朋友圈分页 + 回复校验 (MO3/MO4)', () => {
     expect(res.status).toBe(400);
   });
 
+  test('回复评论 → comments 返回 reply_to_username 昵称(而非 id)', async () => {
+    if (!momentId) return console.warn('无种子用户/动态，跳过');
+    // 先拿到作者 id 与昵称（自建动态里作者即当前用户，可作为合法被回复对象）
+    const meMoment = await request(app).get('/api/moments').set('Cookie', cookies);
+    const mine = (meMoment.body || []).find(x => x.id === momentId) || meMoment.body?.[0];
+    const authorId = mine?.user_id;
+    const authorName = mine?.author?.username;
+    if (!authorId || !authorName) return console.warn('拿不到作者信息，跳过');
+
+    // 需要一条作者的评论使其成为「参与者」，作者回复作者本人(isAuthor 成立)
+    const reply = await request(app)
+      .post(`/api/moments/${momentId}/comment`)
+      .set('Cookie', cookies)
+      .send({ content: '回复内容', replyToUser: authorId });
+    expect(reply.status).toBeLessThan(400);
+    // 创建接口直接回显被回复昵称
+    expect(reply.body.reply_to_username).toBe(authorName);
+
+    // 列表接口也应 enrich 出昵称
+    const res = await request(app)
+      .get(`/api/moments/${momentId}/comments`)
+      .set('Cookie', cookies)
+      .query({ limit: 50, offset: 0 });
+    expect(res.status).toBe(200);
+    const replied = res.body.items.find(c => c.reply_to_user === authorId);
+    expect(replied).toBeTruthy();
+    expect(replied.reply_to_username).toBe(authorName);
+  });
+
   test('合法评论后 comments 分页 total 增加', async () => {
     if (!momentId) return console.warn('无种子用户/动态，跳过');
     const add = await request(app)

@@ -104,11 +104,11 @@ class MomentsViewModel @Inject constructor(
         }
     }
 
-    fun comment(moment: Moment, text: String) {
+    fun comment(moment: Moment, text: String, replyToUser: String = "") {
         val t = text.trim()
         if (t.isEmpty()) return
         viewModelScope.launch {
-            runCatching { momentRepository.comment(moment.id, t) }
+            runCatching { momentRepository.comment(moment.id, t, replyToUser) }
                 .onSuccess { c ->
                     _uiState.update { s ->
                         s.copy(moments = s.moments.map { m -> if (m.id == moment.id) m.copy(comments = m.comments + c, commentCount = m.commentCount + 1) else m })

@@ -2,7 +2,10 @@ import Foundation
 import Combine
 
 private struct CreateMomentBody: Encodable { let content: String; let images: [String]; let visibility: String; let visibleTo: [String] }
-private struct CommentBody: Encodable { let content: String }
+private struct CommentBody: Encodable {
+    let content: String
+    let replyToUser: String?   // 回复某条评论时带上被回复人 id；nil 则不回复(编码时省略)
+}
 
 final class MomentRepository {
     static let shared = MomentRepository()
@@ -34,8 +37,9 @@ final class MomentRepository {
         try await api.send("api/moments/\(id)/like", method: "POST")
     }
 
-    func comment(_ id: String, content: String) async throws -> MomentComment {
-        try await api.send("api/moments/\(id)/comment", method: "POST", body: CommentBody(content: content))
+    func comment(_ id: String, content: String, replyToUser: String? = nil) async throws -> MomentComment {
+        let reply = (replyToUser?.isEmpty == false) ? replyToUser : nil
+        return try await api.send("api/moments/\(id)/comment", method: "POST", body: CommentBody(content: content, replyToUser: reply))
     }
 
     func delete(_ id: String) async throws {

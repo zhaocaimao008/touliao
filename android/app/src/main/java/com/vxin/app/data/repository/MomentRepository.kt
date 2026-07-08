@@ -32,8 +32,8 @@ class MomentRepository @Inject constructor(
 
     suspend fun like(id: String) = momentApi.like(id)
 
-    suspend fun comment(id: String, content: String): MomentComment =
-        momentApi.comment(id, MomentCommentBody(content))
+    suspend fun comment(id: String, content: String, replyToUser: String = ""): MomentComment =
+        momentApi.comment(id, MomentCommentBody(content, replyToUser))
 
     suspend fun delete(id: String) = momentApi.delete(id)
 

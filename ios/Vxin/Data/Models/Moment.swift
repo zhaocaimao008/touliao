@@ -23,13 +23,19 @@ struct MomentComment: Decodable, Identifiable, Hashable {
     var userId: String = ""
     var content: String = ""
     var username: String = ""
-    enum CodingKeys: String, CodingKey { case id, content, username; case userId = "user_id" }
+    var replyToUsername: String = ""   // 被回复人昵称(后端 enrich，用于显示「回复 X」)
+    enum CodingKeys: String, CodingKey {
+        case id, content, username
+        case userId = "user_id"
+        case replyToUsername = "reply_to_username"
+    }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? c.decode(String.self, forKey: .id)) ?? ""
         userId = (try? c.decode(String.self, forKey: .userId)) ?? ""
         content = (try? c.decode(String.self, forKey: .content)) ?? ""
         username = (try? c.decode(String.self, forKey: .username)) ?? ""
+        replyToUsername = (try? c.decode(String.self, forKey: .replyToUsername)) ?? ""
     }
 }
 

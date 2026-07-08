@@ -14,7 +14,8 @@ data class MomentComment(
     val id: String = "",
     val user_id: String = "",
     val content: String = "",
-    val reply_to_user: String = "",
+    val reply_to_user: String = "",       // 被回复人 id
+    val reply_to_username: String = "",   // 被回复人昵称(后端 enrich，用于显示「回复 X」)
     val created_at: Long = 0,
     val username: String = "",
     val avatar: String = "",

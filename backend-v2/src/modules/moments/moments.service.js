@@ -90,7 +90,7 @@ function enrich(viewerId, m, { likeLimit = 0, commentLimit = 0 } = {}) {
     `SELECT ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id=? ORDER BY ml.created_at${likeCap}`
   ).all(m.id);
   const comments = db.prepare(
-    `SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id=? ORDER BY mc.created_at${commentCap}`
+    `SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id=? ORDER BY mc.created_at${commentCap}`
   ).all(m.id);
   const { visible_to, ...mPub } = m; // 不外泄分组可见名单
   return {
@@ -141,7 +141,7 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
 
   const commentsMap = new Map(ids.map(id => [id, []]));
   const maxComments = (commentLimit || 10) * ids.length;
-  db.prepare(`SELECT mc.moment_id, mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id IN (${ph}) ORDER BY mc.moment_id, mc.created_at LIMIT ?`).all(...ids, maxComments)
+  db.prepare(`SELECT mc.moment_id, mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id IN (${ph}) ORDER BY mc.moment_id, mc.created_at LIMIT ?`).all(...ids, maxComments)
     .forEach(({ moment_id, ...rest }) => {
       const arr = commentsMap.get(moment_id);
       if (!commentLimit || arr.length < commentLimit) arr.push(rest);
@@ -395,7 +395,7 @@ function addComment(io, userId, momentId, { content, replyToUser }) {
     addInteractNotification({ recipientId: replyTo, actorId: userId, momentId, type: 'comment', commentId: id });
   }
   return db.prepare(
-    'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.id=?'
+    'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.id=?'
   ).get(id);
 }
 
@@ -423,7 +423,7 @@ function listComments(viewerId, momentId, { limit = 20, offset = 0 } = {}) {
   const off = Math.max(Number(offset) || 0, 0);
   const total = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(momentId).n;
   const rows = db.prepare(
-    'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id WHERE mc.moment_id=? ORDER BY mc.created_at LIMIT ? OFFSET ?'
+    'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id=? ORDER BY mc.created_at LIMIT ? OFFSET ?'
   ).all(momentId, n, off);
   return paginated(rows, { total, limit: n, offset: off });
 }

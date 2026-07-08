@@ -80,6 +80,7 @@ fun MomentsScreen(
     val listState = rememberLazyListState()
     var commentingId by remember { mutableStateOf<String?>(null) }
     var commentText by remember { mutableStateOf("") }
+    var replyTarget by remember { mutableStateOf<MomentComment?>(null) }  // 回复某条评论(null=普通评论)
     var deleteTarget by remember { mutableStateOf<Moment?>(null) }
     var deleteCommentTarget by remember { mutableStateOf<Pair<Moment, MomentComment>?>(null) }
     var gallery by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
@@ -115,16 +116,23 @@ fun MomentsScreen(
                             isMine = m.user_id == viewModel.myId,
                             resolveUrl = viewModel::resolveUrl,
                             onLike = { viewModel.toggleLike(m) },
-                            onComment = { commentingId = if (commentingId == m.id) null else m.id; commentText = "" },
+                            onComment = { commentingId = if (commentingId == m.id) null else m.id; commentText = ""; replyTarget = null },
                             onLongPress = { if (m.user_id == viewModel.myId) deleteTarget = m },
                             commenting = commentingId == m.id,
                             commentText = commentText,
                             onCommentTextChange = { commentText = it },
-                            onSubmitComment = { viewModel.comment(m, commentText); commentingId = null; commentText = "" },
+                            onSubmitComment = {
+                                viewModel.comment(m, commentText, replyTarget?.user_id.orEmpty())
+                                commentingId = null; commentText = ""; replyTarget = null
+                            },
                             onViewAllComments = { viewModel.loadAllComments(m) },
                             onImageClick = { idx -> gallery = m.images to idx },
                             myId = viewModel.myId,
                             onLongPressComment = { c -> if (c.user_id == viewModel.myId) deleteCommentTarget = m to c },
+                            replyTargetName = if (commentingId == m.id) replyTarget?.username.orEmpty() else "",
+                            onReplyComment = { c ->
+                                if (c.user_id != viewModel.myId) { replyTarget = c; commentingId = m.id }
+                            },
                         )
                         HorizontalDivider(thickness = 6.dp, color = Color(0x11000000))
                     }
@@ -238,6 +246,8 @@ private fun MomentCard(
     onImageClick: (Int) -> Unit = {},
     myId: String = "",
     onLongPressComment: (MomentComment) -> Unit = {},
+    replyTargetName: String = "",
+    onReplyComment: (MomentComment) -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxWidth()
@@ -279,14 +289,22 @@ private fun MomentCard(
                 Text("❤ " + moment.likes.joinToString("，") { it.username.ifBlank { "用户" } }, color = VxinGreen, fontSize = 13.sp)
             }
         }
-        // 评论列表（长按自己的评论可删除，对齐 web）
+        // 评论列表：点非自己的评论→回复该人；长按自己的评论→删除(对齐 web)
         moment.comments.forEach { c ->
             val mine = c.user_id == myId && myId.isNotEmpty()
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                    .combinedClickable(onClick = {}, onLongClick = { if (mine) onLongPressComment(c) }),
+                    .combinedClickable(
+                        onClick = { if (!mine) onReplyComment(c) },
+                        onLongClick = { if (mine) onLongPressComment(c) },
+                    ),
             ) {
-                Text("${c.username.ifBlank { "用户" }}：", color = VxinGreen, fontSize = 13.sp)
+                Text("${c.username.ifBlank { "用户" }}", color = VxinGreen, fontSize = 13.sp)
+                if (c.reply_to_username.isNotBlank()) {
+                    Text(" 回复 ", fontSize = 13.sp, color = VxinTextSecondary)
+                    Text(c.reply_to_username, color = VxinGreen, fontSize = 13.sp)
+                }
+                Text("：", color = VxinGreen, fontSize = 13.sp)
                 Text(c.content, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -305,7 +323,8 @@ private fun MomentCard(
                 OutlinedTextField(
                     commentText, onCommentTextChange,
                     Modifier.weight(1f).focusRequester(commentFocus),
-                    placeholder = { Text("评论…") }, singleLine = true,
+                    placeholder = { Text(if (replyTargetName.isNotBlank()) "回复 $replyTargetName…" else "评论…") },
+                    singleLine = true,
                 )
                 TextButton(onClick = onSubmitComment, enabled = commentText.isNotBlank()) { Text("发送", color = VxinGreen) }
             }

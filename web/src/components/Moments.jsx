@@ -20,6 +20,7 @@ const CONTENT_LIMIT = 120;
 const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments }) {
   const [commenting, setCommenting] = useState(false);
   const [text, setText] = useState('');
+  const [replyTo, setReplyTo] = useState(null); // { userId, username } | null：回复某条评论
   const [submitting, setSubmitting] = useState(false);
   const [loadingComments, setLoadingComments] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -37,8 +38,15 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
     const val = text.trim();
     if (!val) return;
     setSubmitting(true);
-    try { await onComment(m, val, () => { setText(''); setCommenting(false); }); }
+    try { await onComment(m, val, () => { setText(''); setCommenting(false); setReplyTo(null); }, replyTo?.userId); }
     finally { setSubmitting(false); }
+  };
+
+  // 点评论 → 回复该人（不能回复自己）
+  const startReply = (c) => {
+    if (c.user_id === meId) return;
+    setReplyTo({ userId: c.user_id, username: c.username });
+    setCommenting(true);
   };
 
   // 微信九宫格规则：恰好 4 张时排成 2×2，其余按 1/2/3 列
@@ -113,12 +121,18 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
         {m.comments?.length > 0 && (
           <div className="wc-moment-comments">
             {m.comments.map(c => (
-              <div key={c.id} className="wc-moment-comment">
+              <div key={c.id} className="wc-moment-comment"
+                onClick={() => startReply(c)}
+                role={c.user_id === meId ? undefined : 'button'}
+                tabIndex={c.user_id === meId ? undefined : 0}
+                onKeyDown={e => { if (e.key === 'Enter') startReply(c); }}
+                style={{ cursor: c.user_id === meId ? 'default' : 'pointer' }}>
                 <span className="wc-moment-comment-user">{c.username}</span>
-                {c.reply_to_user ? <span className="wc-moment-comment-reply"> 回复 {c.reply_to_user}</span> : null}
+                {c.reply_to_username ? <span className="wc-moment-comment-reply"> 回复 {c.reply_to_username}</span> : null}
                 <span>：{c.content}</span>
                 {(c.user_id === meId || m.user_id === meId) && (
-                  <button className="wc-moment-comment-del" onClick={() => onDeleteComment(m, c)}>删</button>
+                  <button className="wc-moment-comment-del"
+                    onClick={e => { e.stopPropagation(); onDeleteComment(m, c); }}>删</button>
                 )}
               </div>
             ))}
@@ -136,8 +150,8 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
           <div className="wc-moment-comment-input">
             <input className="wc-moment-comment-field" autoFocus value={text}
               onChange={e => setText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') setCommenting(false); }}
-              placeholder="评论…" maxLength={500} aria-label="输入评论" />
+              onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') { setCommenting(false); setReplyTo(null); } }}
+              placeholder={replyTo ? `回复 ${replyTo.username}…` : '评论…'} maxLength={500} aria-label="输入评论" />
             <button className="wc-moment-comment-submit" onClick={submit} disabled={submitting || !text.trim()}>发送</button>
           </div>
         )}
@@ -343,9 +357,10 @@ export default function Moments() {
     finally { likingRef.current[m.id] = false; }
   }, [meId, user?.username]);
 
-  const onComment = useCallback(async (m, content, clear) => {
+  const onComment = useCallback(async (m, content, clear, replyToUser) => {
     try {
-      const { data } = await axios.post(`/api/moments/${m.id}/comment`, { content });
+      const body = replyToUser ? { content, replyToUser } : { content };
+      const { data } = await axios.post(`/api/moments/${m.id}/comment`, body);
       setList(p => p.map(x => x.id === m.id ? { ...x, comments: [...(x.comments || []), data], commentCount: (x.commentCount || 0) + 1 } : x));
       clear();
     } catch (e) { showToast(e.response?.data?.error || '评论失败', 'error'); }
