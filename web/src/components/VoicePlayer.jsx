@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { isVoicePlayed, markVoicePlayed } from '../utils/playedVoice';
 
-export default function VoicePlayer({ url }) {
+export default function VoicePlayer({ url, msgId = null, isMine = false }) {
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  // 「未播放」红点：仅收到的语音(非自己发)且从未播放过才显示(对齐微信)
+  const [unplayed, setUnplayed] = useState(() => !isMine && !!msgId && !isVoicePlayed(msgId));
   const audioRef = useRef(null);
 
   const fmt = (s) => {
@@ -34,7 +37,11 @@ export default function VoicePlayer({ url }) {
     const onMeta  = () => { setDuration(audio.duration || 0); setLoaded(true); };
     const onTime  = () => setCurrentTime(audio.currentTime);
     const onEnded = () => { setPlaying(false); setCurrentTime(0); };
-    const onPlay  = () => setPlaying(true);
+    const onPlay  = () => {
+      setPlaying(true);
+      // 首次播放 → 标记已播放、消除红点
+      if (!isMine && msgId) { markVoicePlayed(msgId); setUnplayed(false); }
+    };
     const onPause = () => setPlaying(false);
     audio.addEventListener('loadedmetadata', onMeta);
     audio.addEventListener('timeupdate', onTime);
@@ -91,6 +98,7 @@ export default function VoicePlayer({ url }) {
       <span className="wc-voice-duration">
         {loaded ? `${fmt(currentTime)} / ${fmt(duration)}` : '--:--'}
       </span>
+      {unplayed && <span className="wc-voice-unplayed-dot" aria-label="未播放" title="未播放" />}
     </div>
   );
 }
