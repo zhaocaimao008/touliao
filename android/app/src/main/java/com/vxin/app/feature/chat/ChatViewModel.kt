@@ -11,7 +11,9 @@ import com.vxin.app.core.media.AudioRecorder
 import com.vxin.app.core.media.MediaUploader
 import com.vxin.app.core.network.toUserMessage
 import com.vxin.app.core.util.MediaUrlResolver
+import com.vxin.app.data.model.LocalMsgStatus
 import com.vxin.app.data.model.Message
+import com.vxin.app.data.model.ReplyPreview
 import com.vxin.app.data.model.RedPacketContent
 import com.vxin.app.data.model.RedPacketDetail
 import com.vxin.app.data.repository.ChatRepository
@@ -92,6 +94,7 @@ class ChatViewModel @Inject constructor(
     private val audioPlayer: AudioPlayer,
     private val mediaUrlResolver: MediaUrlResolver,
     private val draftStore: com.vxin.app.core.storage.DraftStore,
+    private val outboxStore: com.vxin.app.core.storage.OutboxStore,
     sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -126,6 +129,7 @@ class ChatViewModel @Inject constructor(
         observeReaction()
         observeEdited()
         observeRedPacketClaimed()
+        observeConnection()
         if (isGroup) {
             loadPinned()
             observePinChanged()
@@ -528,8 +532,16 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { chatRepository.loadHistory(conversationId) }
                 .onSuccess { list ->
-                    _uiState.update { it.copy(loading = false, messages = list, reachedStart = list.size < HISTORY_PAGE) }
+                    // 合并本地待发件箱：上次发送失败且未成功的文本消息，切走/重启后仍在。
+                    // 服务端可能已幂等落库(id==outbox 的 clientMsgId) → 已成功,剔除并清理。
+                    val serverIds = list.mapTo(HashSet()) { it.id }
+                    val pending = outboxStore.load(conversationId)
+                    val stillPending = pending.filter { it.id !in serverIds }
+                    pending.filterNot { it in stillPending }.forEach { outboxStore.remove(conversationId, it.id) }
+                    val merged = (list + stillPending).sortedBy { it.created_at }
+                    _uiState.update { it.copy(loading = false, messages = merged, reachedStart = list.size < HISTORY_PAGE) }
                     markReadLatest()   // 打开会话即标记已读
+                    healFailedMessages()   // 连线且有失败气泡 → 进会话自动重发一次
                 }
                 .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载消息失败")) } }
         }
@@ -568,9 +580,43 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             chatRepository.incomingMessages.collect { msg ->
                 if (msg.conversation_id != conversationId) return@collect
-                appendUnique(msg)
+                claimOrAppend(msg)
                 // 仅在底部附近才即时标已读；看历史时留给「N 条新消息」提示，滚回底再标
                 if (msg.sender_id != myId && atBottom) markReadLatest()
+            }
+        }
+    }
+
+    /**
+     * 广播消息落地：若它是本端某条乐观气泡的回声（按 client_msg_id 认领），就替换那条
+     * 乐观气泡（并清出待发件箱），避免「乐观 + 广播」双显；否则按 id 去重后追加。
+     * 关键：即便发送时 ack 丢失(乐观转 failed)，只要广播带回同一 client_msg_id，也能自愈为成功。
+     */
+    private fun claimOrAppend(msg: Message) {
+        val cid = msg.clientMsgId
+        _uiState.update { state ->
+            if (cid != null) {
+                val idx = state.messages.indexOfFirst { it.clientMsgId == cid || it.id == cid }
+                if (idx >= 0) {
+                    outboxStore.remove(conversationId, state.messages[idx].id)
+                    // 若真实消息已因其它路径存在，避免重复
+                    val deduped = state.messages.filterIndexed { i, m -> i == idx || m.id != msg.id }
+                    return@update state.copy(messages = deduped.map { if (it.clientMsgId == cid || it.id == cid) msg else it })
+                }
+            }
+            if (state.messages.any { it.id == msg.id }) state
+            else state.copy(messages = state.messages + msg)
+        }
+    }
+
+    /** 断线重连后：自动自愈发送失败的文本气泡（弱网/电梯/地铁场景，对齐 Web） */
+    private fun observeConnection() {
+        viewModelScope.launch {
+            var wasConnected = chatRepository.socketStatus.value == com.vxin.app.core.realtime.SocketStatus.CONNECTED
+            chatRepository.socketStatus.collect { status ->
+                val nowConnected = status == com.vxin.app.core.realtime.SocketStatus.CONNECTED
+                if (nowConnected && !wasConnected) healFailedMessages()   // 从断开→连上
+                wasConnected = nowConnected
             }
         }
     }
@@ -630,21 +676,80 @@ class ChatViewModel @Inject constructor(
 
     fun send() {
         val text = _uiState.value.input.trim()
-        if (text.isEmpty() || _uiState.value.sending) return
+        if (text.isEmpty()) return
         val replyId = _uiState.value.replyingTo?.id
-        // 幂等键：本次发送尝试固定一个 clientMsgId。若 ack 丢失(弱网/超时)后 socket.io
-        // 重连缓冲自动补发同一 emit，后端据 (sender_id, client_msg_id) 去重，不产生重复气泡。
+        // 幂等键：本次发送固定一个 clientMsgId；失败重发复用它，后端据 (sender_id, client_msg_id)
+        // 去重，弱网重发/socket 重连补发都不产生重复气泡。同时作乐观消息的临时 id。
         val clientMsgId = java.util.UUID.randomUUID().toString()
-        _uiState.update { it.copy(input = "", sending = true, error = null, replyingTo = null) }
-        draftStore.clear(conversationId)    // 已发送则清草稿
+        val replySnap = _uiState.value.replyingTo?.let {
+            ReplyPreview(id = it.id, type = it.type, content = it.content, senderName = it.senderName)
+        }
+        // 立刻渲染「发送中」乐观气泡（对齐 Web），输入框即时清空，不再回填打断连续输入
+        val optimistic = Message(
+            id = clientMsgId,
+            conversation_id = conversationId,
+            sender_id = myId,
+            type = "text",
+            content = text,
+            reply_to_id = replyId,
+            created_at = System.currentTimeMillis() / 1000,
+            replyTo = replySnap,
+            localStatus = LocalMsgStatus.SENDING,
+            clientMsgId = clientMsgId,
+        )
+        _uiState.update { it.copy(input = "", error = null, replyingTo = null, messages = it.messages + optimistic) }
+        draftStore.clear(conversationId)
         chatRepository.emitStopTyping(conversationId)
+        dispatchSend(optimistic)
+    }
+
+    /** 发送一条乐观消息并处理成功/失败落地；失败入待发件箱，可自动/手动重发。 */
+    private fun dispatchSend(optimistic: Message) {
+        val cid = optimistic.clientMsgId ?: optimistic.id
+        // 标记为发送中（重发场景从 failed 回到 sending）
+        replaceMessage(optimistic.id) { it.copy(localStatus = LocalMsgStatus.SENDING) }
         viewModelScope.launch {
-            chatRepository.sendText(conversationId, text, replyId, clientMsgId)
-                .onSuccess { msg -> appendUnique(msg); _uiState.update { it.copy(sending = false) } }
-                .onFailure { e ->
-                    _uiState.update { it.copy(sending = false, input = text, error = e.toUserMessage("发送失败")) }
-                    draftStore.set(conversationId, text)   // 发送失败：文字回填并存回草稿
+            chatRepository.sendText(optimistic.conversation_id, optimistic.content, optimistic.reply_to_id, cid)
+                .onSuccess { real ->
+                    outboxStore.remove(conversationId, optimistic.id)
+                    // 用真实消息替换乐观气泡（保留位置）；若真实消息已由广播先到，去重
+                    _uiState.update { state ->
+                        val withoutDup = state.messages.filterNot { it.id == real.id }
+                        state.copy(messages = withoutDup.map { if (it.id == optimistic.id) real else it })
+                    }
                 }
+                .onFailure {
+                    replaceMessage(optimistic.id) { it.copy(localStatus = LocalMsgStatus.FAILED) }
+                    outboxStore.upsert(conversationId, optimistic.copy(localStatus = LocalMsgStatus.FAILED))
+                }
+        }
+    }
+
+    /** 手动/自动重发一条失败的文本气泡 */
+    fun retryMessage(msgId: String) {
+        val msg = _uiState.value.messages.firstOrNull { it.id == msgId } ?: return
+        if (msg.localStatus != LocalMsgStatus.FAILED) return
+        dispatchSend(msg)
+    }
+
+    /** 就地替换某条消息（按 id） */
+    private fun replaceMessage(id: String, transform: (Message) -> Message) {
+        _uiState.update { state ->
+            state.copy(messages = state.messages.map { if (it.id == id) transform(it) else it })
+        }
+    }
+
+    /** 自动自愈：把当前所有 failed 文本气泡错峰重发（连线时调用） */
+    private fun healFailedMessages() {
+        if (chatRepository.socketStatus.value != com.vxin.app.core.realtime.SocketStatus.CONNECTED) return
+        val failed = _uiState.value.messages.filter { it.localStatus == LocalMsgStatus.FAILED }
+        if (failed.isEmpty()) return
+        viewModelScope.launch {
+            failed.forEachIndexed { i, m ->
+                delay(i * 120L)   // 错峰，避免瞬时突发
+                val cur = _uiState.value.messages.firstOrNull { it.id == m.id }
+                if (cur?.localStatus == LocalMsgStatus.FAILED) dispatchSend(cur)
+            }
         }
     }
 

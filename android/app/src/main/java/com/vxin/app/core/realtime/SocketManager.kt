@@ -574,6 +574,12 @@ class SocketManager @Inject constructor(
         return runCatching { json.decodeFromString<Message>(obj.toString()) }
             .onFailure { Log.w(TAG, "parse message failed: ${it.message}") }
             .getOrNull()
+            // clientMsgId 是 @Transient(不参与反序列化)：从原始 JSON 的 client_msg_id 手动带入，
+            // 供上层按幂等键认领并替换本地乐观气泡（防「乐观+广播」双显，对齐 Web）。
+            ?.let { m ->
+                val cid = obj.optString("client_msg_id", "").takeIf { it.isNotBlank() }
+                if (cid != null) m.copy(clientMsgId = cid) else m
+            }
     }
 
     private companion object {

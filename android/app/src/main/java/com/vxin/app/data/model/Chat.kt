@@ -2,6 +2,7 @@ package com.vxin.app.data.model
 
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /** 会话列表项 —— 对齐后端 listConversations 返回 */
 @Serializable
@@ -65,7 +66,18 @@ data class Message(
     val deleted: Int = 0,                   // 1 = 已撤回/删除（后端 schema 字段，避免反序列化丢字段）
     val reactions: List<MessageReaction> = emptyList(),
     val replyTo: ReplyPreview? = null,
+    // ── 客户端本地态（不参与序列化；对齐 Web 乐观消息）──
+    // localStatus: null=已送达的服务端消息 | "sending"=乐观发送中 | "failed"=发送失败
+    @Transient val localStatus: String? = null,
+    // 幂等键：乐观消息发送时生成，失败重发复用，后端据此去重（防重复气泡）
+    @Transient val clientMsgId: String? = null,
 )
+
+/** 消息本地发送态常量 */
+object LocalMsgStatus {
+    const val SENDING = "sending"
+    const val FAILED = "failed"
+}
 
 @Serializable
 data class MessageReaction(val emoji: String = "", val count: Int = 0)

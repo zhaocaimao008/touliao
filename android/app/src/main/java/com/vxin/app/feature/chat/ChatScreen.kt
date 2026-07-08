@@ -88,6 +88,7 @@ import com.vxin.app.core.util.downloadFile
 import com.vxin.app.core.util.formatChatTime
 import androidx.compose.ui.focus.focusRequester
 import com.vxin.app.data.model.ContactCardContent
+import com.vxin.app.data.model.LocalMsgStatus
 import com.vxin.app.data.model.Message
 import com.vxin.app.ui.components.InitialAvatar
 import kotlinx.serialization.json.Json
@@ -463,6 +464,7 @@ fun ChatScreen(
                             },
                             onReplyClick = { targetId -> jumpToMessage(targetId) },
                             onMultiSelect = { viewModel.enterMultiSelect(msg) },
+                            onRetry = { viewModel.retryMessage(msg.id) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -719,6 +721,7 @@ private fun MessageBubble(
     onVanish: () -> Unit = {},
     onMultiSelect: () -> Unit = {},
     selectionMode: Boolean = false,
+    onRetry: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -738,12 +741,30 @@ private fun MessageBubble(
             if (!isMine && msg.senderName.isNotBlank()) {
                 Text(msg.senderName, color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall)
             }
-            if (isMine && showReadStatus) {
-                Text(
-                    text = if (isRead) "✓✓ 已读" else "✓",
-                    fontSize = 10.sp,
-                    color = if (isRead) VxinGreen else VxinTextSecondary,
-                )
+            when {
+                // 发送中：转圈；失败：红色感叹号，点击重发（对齐 Web）
+                isMine && msg.localStatus == LocalMsgStatus.SENDING -> {
+                    CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = VxinTextSecondary)
+                }
+                isMine && msg.localStatus == LocalMsgStatus.FAILED -> {
+                    Text(
+                        text = "❗发送失败，点击重发",
+                        fontSize = 10.sp,
+                        color = Color(0xFFE64545),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable(onClick = onRetry)
+                            .testTag("msg-send-failed-${msg.id}")
+                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                    )
+                }
+                isMine && showReadStatus -> {
+                    Text(
+                        text = if (isRead) "✓✓ 已读" else "✓",
+                        fontSize = 10.sp,
+                        color = if (isRead) VxinGreen else VxinTextSecondary,
+                    )
+                }
             }
             // 被回复消息引用条
             msg.replyTo?.let { rt ->
