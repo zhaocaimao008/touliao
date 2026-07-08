@@ -13,10 +13,15 @@ function ToastRoot() {
     _setToast = (t) => {
       setToast(t);
       clearTimeout(timerRef.current);
-      if (t) timerRef.current = setTimeout(() => setToast(null), 3000);
+      if (t) {
+        // 错误停留更久(4.5s),便于阅读;普通/成功 3s;长文案再按字数适当延长
+        const base = t.type === 'error' ? 4500 : 3000;
+        const extra = Math.min(2000, Math.max(0, (String(t.msg).length - 20) * 60));
+        timerRef.current = setTimeout(() => setToast(null), base + extra);
+      }
     };
     _setConfirm = setConfirm;
-    return () => { _setToast = null; _setConfirm = null; };
+    return () => { _setToast = null; _setConfirm = null; clearTimeout(timerRef.current); };
   }, []);
 
   return (
@@ -27,6 +32,8 @@ function ToastRoot() {
           aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
           aria-atomic="true"
           className={`wc-toast${toast.type === 'error' ? ' error' : toast.type === 'success' ? ' success' : ''}`}
+          onClick={() => { clearTimeout(timerRef.current); setToast(null); }}
+          title="点击关闭"
         >{toast.msg}</div>
       )}
       {confirmState && (

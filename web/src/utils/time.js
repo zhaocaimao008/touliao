@@ -1,7 +1,8 @@
 export function format(ts) {
   const now = Date.now();
   const d = new Date(ts);
-  const diff = now - ts;
+  // 时钟偏差/服务器时间超前时 diff 可能为负,钳到 0 避免出现「-3分钟前」
+  const diff = Math.max(0, now - ts);
   if (diff < 60000) return '刚刚';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
   const today = new Date(); today.setHours(0,0,0,0);

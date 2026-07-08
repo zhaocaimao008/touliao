@@ -7,15 +7,21 @@ const gsHlCls = 'gs-highlight';
 
 function highlight(text, q) {
   const s = String(text || '');
-  const i = s.toLowerCase().indexOf(q);
-  if (i < 0 || !q) return s;
-  return (
-    <>
-      {s.slice(0, i)}
-      <span className={gsHlCls}>{s.slice(i, i + q.length)}</span>
-      {s.slice(i + q.length)}
-    </>
-  );
+  if (!q) return s;
+  const lower = s.toLowerCase();
+  const parts = [];
+  let from = 0;
+  let i = lower.indexOf(q, from);
+  // 高亮全部命中(此前只高亮首个,后续同名片段被漏标)
+  while (i >= 0) {
+    if (i > from) parts.push(s.slice(from, i));
+    parts.push(<span key={i} className={gsHlCls}>{s.slice(i, i + q.length)}</span>);
+    from = i + q.length;
+    i = lower.indexOf(q, from);
+  }
+  if (parts.length === 0) return s;
+  if (from < s.length) parts.push(s.slice(from));
+  return <>{parts}</>;
 }
 
 export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
