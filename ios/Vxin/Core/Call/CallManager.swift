@@ -16,6 +16,7 @@ struct CallState {
     var remoteVideoActive: Bool = false
     var timedOut: Bool = false          // 主叫未接听超时 → 结束页提示"对方未接听"
     var connectedAt: Date?              // 接通时刻，用于计算通话时长(mm:ss)
+    var endedAt: Date?                  // 结束时刻，用于在结束页定格总时长
 }
 
 /// GET /api/turn/credentials 响应。
@@ -337,6 +338,7 @@ final class CallManager: NSObject, ObservableObject {
         remoteDescSet = false
         pendingIce.removeAll()
         deactivateAudioSession()            // 释放通话音频会话
+        if state.connectedAt != nil && state.endedAt == nil { state.endedAt = Date() }
         state.stage = finalStage
         state.remoteVideoActive = false
     }

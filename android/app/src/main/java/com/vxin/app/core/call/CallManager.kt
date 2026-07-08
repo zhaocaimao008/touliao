@@ -47,6 +47,7 @@ data class CallState(
     val cameraEnabled: Boolean = true,
     val remoteVideoActive: Boolean = false,
     val connectedAt: Long = 0,        // 接通时刻(elapsedRealtime ms)，用于通话计时
+    val endedAt: Long = 0,            // 结束时刻(elapsedRealtime ms)，用于结束页定格总时长
 )
 
 /**
@@ -400,7 +401,9 @@ class CallManager @Inject constructor(
         peerConnection = null
         remoteDescSet = false
         pendingIce.clear()
-        _state.value = _state.value.copy(stage = finalStage)
+        val cur = _state.value
+        val ended = if (cur.connectedAt > 0L && cur.endedAt == 0L) android.os.SystemClock.elapsedRealtime() else cur.endedAt
+        _state.value = cur.copy(stage = finalStage, endedAt = ended)
     }
 
     private companion object {

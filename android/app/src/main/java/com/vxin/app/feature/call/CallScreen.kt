@@ -104,7 +104,7 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
                 Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = 22.sp)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    callStatusOrDuration(state.stage, state.isVideo, state.connectedAt),
+                    callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),
                     color = Color(0xFFBBBBBB), fontSize = 14.sp,
                 )
             }
@@ -143,9 +143,15 @@ private fun statusText(stage: CallStage, video: Boolean): String = when (stage) 
     CallStage.IDLE -> ""
 }
 
-/** 已接通显示每秒递增的通话时长(mm:ss)，否则显示状态文案 */
+/** 已接通显示每秒递增的通话时长(mm:ss)；结束态定格总时长；否则显示状态文案 */
 @Composable
-private fun callStatusOrDuration(stage: CallStage, video: Boolean, connectedAt: Long): String {
+private fun callStatusOrDuration(stage: CallStage, video: Boolean, connectedAt: Long, endedAt: Long): String {
+    // 接通过再结束：定格显示「通话时长 mm:ss」
+    if (stage == CallStage.ENDED && connectedAt > 0L) {
+        val end = if (endedAt > 0L) endedAt else android.os.SystemClock.elapsedRealtime()
+        val secs = ((end - connectedAt) / 1000L).coerceAtLeast(0)
+        return "通话时长 %02d:%02d".format(secs / 60, secs % 60)
+    }
     if (stage != CallStage.CONNECTED || connectedAt <= 0L) return statusText(stage, video)
     var now by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(android.os.SystemClock.elapsedRealtime()) }
     androidx.compose.runtime.LaunchedEffect(connectedAt) {

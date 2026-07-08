@@ -63,7 +63,7 @@ private struct CallView: View {
         }
     }
 
-    /// 已接通显示每秒递增的通话时长(mm:ss)，否则显示状态文案(对齐微信/安卓)
+    /// 已接通显示每秒递增的通话时长(mm:ss)；结束态定格总时长；否则状态文案(对齐微信/安卓)
     @ViewBuilder private var statusOrDuration: some View {
         if state.stage == .connected, let start = state.connectedAt {
             TimelineView(.periodic(from: start, by: 1)) { context in
@@ -71,6 +71,10 @@ private struct CallView: View {
                     .font(.subheadline).foregroundColor(Color(white: 0.7))
                     .monospacedDigit()
             }
+        } else if state.stage == .ended, let start = state.connectedAt {
+            // 接通过再结束：定格显示「通话时长 mm:ss」
+            Text("通话时长 " + formatCallDuration(from: start, now: state.endedAt ?? Date()))
+                .font(.subheadline).foregroundColor(Color(white: 0.7)).monospacedDigit()
         } else {
             Text(statusText)
                 .font(.subheadline).foregroundColor(Color(white: 0.7))
