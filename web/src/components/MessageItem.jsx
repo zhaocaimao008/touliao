@@ -6,6 +6,7 @@ import axios from 'axios';
 import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
 import { downloadFile } from '../utils/download';
+import { getAspect, rememberAspect } from '../utils/imgDimCache';
 
 // 图片加载失败占位图（过期/被删的云文件）：灰底 + 可见文字，保证不显示浏览器裂图
 const IMG_BROKEN = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
@@ -136,19 +137,35 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                 {msg.edited ? <span className="wc-msg-edited" data-testid="msg-edited-flag" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>已编辑</span> : null}
               </span>
             )}
-            {msg.type === 'image' && (
-              <img loading="lazy"
-                data-testid="msg-image"
-                src={mediaUrl(msg.file_url)}
-                alt="消息图片"
-                className="wc-msg-img"
-                tabIndex={0} aria-label="查看大图"
-                onClick={() => cbs.setLightboxUrl(mediaUrl(msg.file_url))}
-                onKeyDown={e => e.key === 'Enter' && cbs.setLightboxUrl(mediaUrl(msg.file_url))}
-                onLoad={e => { e.currentTarget.classList.add('loaded'); cbs.onImageLoad?.(); }}
-                onError={e => { const el = e.currentTarget; el.onerror = null; el.src = IMG_BROKEN; el.alt = '图片加载失败'; el.style.cursor = 'default'; el.style.pointerEvents = 'none'; el.tabIndex = -1; el.classList.add('loaded'); }}
-              />
-            )}
+            {msg.type === 'image' && (() => {
+              const imgSrc = mediaUrl(msg.file_url);
+              // 已知宽高比 → 预留正确高度，消除加载时的布局抖动(滚回历史不再跳)
+              const aspect = getAspect(imgSrc);
+              // aspect-ratio 需配合一个确定的宽度才能预留高度：竖图按 max-height 反推宽度，
+              // 横图/方图取 max-width(240)，避免占位框比真实图片更宽。
+              const aspectStyle = aspect
+                ? { aspectRatio: String(aspect), width: aspect < 0.75 ? `${Math.round(320 * aspect)}px` : 'min(240px, 62vw)' }
+                : undefined;
+              return (
+                <img loading="lazy"
+                  data-testid="msg-image"
+                  src={imgSrc}
+                  alt="消息图片"
+                  className="wc-msg-img"
+                  style={aspectStyle}
+                  tabIndex={0} aria-label="查看大图"
+                  onClick={() => cbs.setLightboxUrl(imgSrc)}
+                  onKeyDown={e => e.key === 'Enter' && cbs.setLightboxUrl(imgSrc)}
+                  onLoad={e => {
+                    const el = e.currentTarget;
+                    rememberAspect(imgSrc, el.naturalWidth, el.naturalHeight);
+                    el.classList.add('loaded');
+                    cbs.onImageLoad?.();
+                  }}
+                  onError={e => { const el = e.currentTarget; el.onerror = null; el.src = IMG_BROKEN; el.alt = '图片加载失败'; el.style.cursor = 'default'; el.style.pointerEvents = 'none'; el.tabIndex = -1; el.classList.add('loaded'); }}
+                />
+              );
+            })()}
             {msg.type === 'voice' && (
               <VoicePlayer url={mediaUrl(msg.file_url)} />
             )}
