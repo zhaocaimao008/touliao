@@ -571,15 +571,6 @@ export default function Home() {
     });
   }, [registerUnreadCleared]);
 
-  // 浏览器标签页标题显示未读总数「(N) v信」——切到别的 tab 也能一眼看到有新消息(对齐一线 IM)。
-  // N>99 记作 99+；为 0 时恢复纯「v信」。组件卸载时复位，避免残留角标。
-  useEffect(() => {
-    const total = Object.values(unread).reduce((s, n) => s + (n || 0), 0);
-    const base = 'v信';
-    document.title = total > 0 ? `(${total > 99 ? '99+' : total}) ${base}` : base;
-    return () => { document.title = base; };
-  }, [unread]);
-
   // 通知权限由 usePushNotification 统一申请，此处无需重复请求
 
   const showNotification = useCallback((title, body, icon) => {
@@ -712,8 +703,12 @@ export default function Home() {
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
   const badges = { chats: totalUnread, contacts: friendReqCount };
 
+  // 浏览器标签页标题显示未读总数「(N) v信」——切到别的 tab 也能一眼看到有新消息(对齐一线 IM)。
+  // N>99 记作 99+；为 0 时恢复纯「v信」；组件卸载时复位，避免残留角标。
   useEffect(() => {
-    document.title = totalUnread > 0 ? `(${totalUnread}) v信` : 'v信';
+    const base = 'v信';
+    document.title = totalUnread > 0 ? `(${totalUnread > 99 ? '99+' : totalUnread}) ${base}` : base;
+    return () => { document.title = base; };
   }, [totalUnread]);
 
   const [activeCall, setActiveCall] = useState(null);
