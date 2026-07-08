@@ -5,6 +5,7 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import VirtualMessageList from './VirtualMessageList';
+import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
 // 聊天允许的「常见」文件扩展名（与后端 ALLOWED_CHAT_EXTS 保持一致）；冷门/危险格式不允许上传。
@@ -254,6 +255,28 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   useEffect(() => { convTypeRef.current = conversation.type; }, [conversation.type]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { membersRef.current  = members;  }, [members]);
+
+  // ── 待发件箱同步：以本地 messages 为准，实时反写 localStorage ────────
+  // 任何走到 _status:'error' 的「文本」乐观消息 → 写入 outbox（切会话/刷新不丢）；
+  // 一旦被真实消息替换（成功/被认领）→ 从 outbox 移除。集中在此一处，覆盖所有
+  // 发送/重发/上传路径，避免在十几个 setMessages 站点各自埋点导致遗漏。
+  const outboxKeysRef = useRef(new Set());
+  useEffect(() => {
+    const convId = conversation.id;
+    if (!convId) return;
+    const nowFailedKeys = new Set();
+    for (const m of messages) {
+      if (m._status === 'error' && m.type === 'text' && m._tempId) {
+        upsertOutbox(convId, m);
+        nowFailedKeys.add(m._tempId);
+      }
+    }
+    // 上一轮在 outbox、这轮已不再失败（成功送达或被删）→ 清出 outbox
+    for (const key of outboxKeysRef.current) {
+      if (!nowFailedKeys.has(key)) removeFromOutbox(convId, key);
+    }
+    outboxKeysRef.current = nowFailedKeys;
+  }, [messages, conversation.id]);
   useEffect(() => {
     return () => {
       if (recorderRef.current) stopRecording();
@@ -381,7 +404,27 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     fetchMessages(null, ac.signal)
       .then(data => {
         if (ac.signal.aborted) return; // 会话已切走，丢弃结果
-        setMessages(data);
+        // 合并本地待发件箱：上次「发送失败」且未成功的文本消息，切回本会话仍在
+        const pending = loadOutbox(conversation.id);
+        let merged = data;
+        if (pending.length) {
+          const serverIds = new Set(data.map(m => m.id));
+          // 服务端可能已幂等落库(client_msg_id===outbox 的 _tempId) → 该条已成功，剔除
+          const serverClientIds = new Set(data.map(m => m.client_msg_id).filter(Boolean));
+          const stillPending = pending.filter(
+            p => !serverIds.has(p.id) && !serverClientIds.has(p._tempId || p.id)
+          );
+          // 把「其实已成功」的从 outbox 清掉
+          for (const p of pending) {
+            if (!stillPending.includes(p)) removeFromOutbox(conversation.id, p._tempId || p.id);
+          }
+          if (stillPending.length) {
+            merged = [...data, ...stillPending].sort(
+              (a, b) => (a.created_at || 0) - (b.created_at || 0)
+            );
+          }
+        }
+        setMessages(merged);
         scheduleBurn(data);
         setHasMore(data.length === 40);
         // 搜索结果跳转：如果有 scrollToId，则滚到该消息；否则滚到底部
@@ -834,6 +877,50 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       }
     });
   }, [socket]);
+
+  // ── 断线重连后：自动自愈「发送失败」的消息（弱网/电梯/地铁场景）─────────
+  // 重连时补拉服务端消息(上面的 effect)可认领「已落库但 ack 丢失」的乐观消息；
+  // 但「压根没到服务端」的失败消息只会停在 _status:'error'，需用户逐条手点重发。
+  // 这里在重连后自动对它们重发一次——clientMsgId 复用原 tempId，后端幂等去重，
+  // 即使个别消息其实已落库也不会产生重复。小间隔错峰，避免瞬时突发。
+  const healedOnReconnectRef = useRef(0);
+  useEffect(() => {
+    if (reconnectCount === 0 || reconnectCount === healedOnReconnectRef.current) return;
+    if (!socket?.connected) return;
+    healedOnReconnectRef.current = reconnectCount;
+    const failed = messagesRef.current.filter(m => m._status === 'error' && m._tempId);
+    if (!failed.length) return;
+    // 轻量安抚：告知用户失败消息正在自动重发（不打扰，仅一次）
+    showToast(`网络已恢复，正在重发 ${failed.length} 条消息`);
+    failed.forEach((m, i) => {
+      // 错峰重发：每条间隔 120ms，避免重连瞬间 N 条消息同时打满连接
+      setTimeout(() => {
+        // 二次确认仍处于失败态（用户可能已手动重发或它已被认领）
+        const cur = messagesRef.current.find(x => x._tempId === m._tempId);
+        if (cur && cur._status === 'error') retryMessage(cur);
+      }, i * 120);
+    });
+  }, [reconnectCount, socket, retryMessage]);
+
+  // ── 进入会话时：若连接正常且存在从 outbox 恢复的失败消息，静默自动重发一次 ──
+  // 场景：上次在此会话发失败 → 切走 → 网络已恢复 → 再切回来，无需等下一次断连事件。
+  const healedOnMountRef = useRef(false);
+  useEffect(() => {
+    healedOnMountRef.current = false; // 换会话重置
+  }, [conversation.id]);
+  useEffect(() => {
+    if (healedOnMountRef.current) return;
+    if (!socket?.connected) return;
+    const failed = messagesRef.current.filter(m => m._status === 'error' && m._tempId);
+    if (!failed.length) return;
+    healedOnMountRef.current = true;
+    failed.forEach((m, i) => {
+      setTimeout(() => {
+        const cur = messagesRef.current.find(x => x._tempId === m._tempId);
+        if (cur && cur._status === 'error') retryMessage(cur);
+      }, i * 120);
+    });
+  }, [messages, socket, retryMessage]);
 
   claimingRef.current = claiming;
 
