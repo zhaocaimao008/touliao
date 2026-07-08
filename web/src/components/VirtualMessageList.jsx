@@ -76,7 +76,14 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
   if (prevItemsRef.current !== items) {
     const prevLen = prevItemsRef.current.length;
     const curLen = items.length;
-    if (curLen !== prevLen) {
+    // 整批替换(如切换会话):首尾 item 都对不上 → 旧高度缓存全失效,清空避免错位行高
+    const sameEnds = curLen > 0 && prevLen > 0
+      && items[0] === prevItemsRef.current[0]
+      && items[curLen - 1] === prevItemsRef.current[prevLen - 1];
+    if (curLen === prevLen && !sameEnds) {
+      sizeMapRef.current = {};
+      listRef.current?.resetAfterIndex(0, false);
+    } else if (curLen !== prevLen) {
       // On prepend: all indices shifted; clear cache to avoid wrong heights
       if (curLen > prevLen && items[curLen - 1] === prevItemsRef.current[prevLen - 1]) {
         // Last item is same → items were prepended
@@ -87,9 +94,12 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
         });
         sizeMapRef.current = newMap;
         listRef.current?.resetAfterIndex(0, false);
+      } else if (items[0] !== prevItemsRef.current[0]) {
+        // 首个 item 变了但非「前插」→ 整批替换(切到消息数不同的会话),清空旧缓存
+        sizeMapRef.current = {};
+        listRef.current?.resetAfterIndex(0, false);
       } else {
-        // Append or full reset: only new items added at end, existing cache valid
-        // Don't reset existing indices
+        // 纯追加(尾部新增),首个 item 不变,已有缓存仍有效,不动
       }
     }
     prevItemsRef.current = items;
@@ -109,13 +119,22 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
 
   // Expose imperative API to parent (ChatWindow)
   useImperativeHandle(ref, () => ({
-    scrollToBottom() {
-      // 多帧 sticky 贴底，兼容行高异步测量（react-window + ResizeObserver）
+    scrollToBottom(behavior) {
+      const o = outerRef?.current;
+      if (!o) return;
+      // 平滑滚动：点「回到底部」按钮时给出顺滑动效(此前忽略 behavior 参数,总是硬跳)
+      if (behavior === 'smooth') {
+        o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' });
+        // 平滑动画期间行高可能仍在异步测量,末尾补一帧硬贴底,确保真正到底
+        setTimeout(() => { const e = outerRef?.current; if (e) e.scrollTop = e.scrollHeight; }, 320);
+        return;
+      }
+      // 默认：多帧 sticky 贴底，兼容行高异步测量（react-window + ResizeObserver）
       let n = 0;
       const step = () => {
-        const o = outerRef?.current;
-        if (!o) return;
-        o.scrollTop = o.scrollHeight;
+        const e = outerRef?.current;
+        if (!e) return;
+        e.scrollTop = e.scrollHeight;
         if (++n < 10) requestAnimationFrame(step);
       };
       step();
