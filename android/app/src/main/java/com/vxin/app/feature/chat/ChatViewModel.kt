@@ -615,7 +615,7 @@ class ChatViewModel @Inject constructor(
             var wasConnected = chatRepository.socketStatus.value == com.vxin.app.core.realtime.SocketStatus.CONNECTED
             chatRepository.socketStatus.collect { status ->
                 val nowConnected = status == com.vxin.app.core.realtime.SocketStatus.CONNECTED
-                if (nowConnected && !wasConnected) healFailedMessages()   // 从断开→连上
+                if (nowConnected && !wasConnected) healFailedMessages(announce = true)   // 从断开→连上：安抚一次
                 wasConnected = nowConnected
             }
         }
@@ -739,11 +739,15 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** 自动自愈：把当前所有 failed 文本气泡错峰重发（连线时调用） */
-    private fun healFailedMessages() {
+    /**
+     * 自动自愈：把当前所有 failed 文本气泡错峰重发（连线时调用）。
+     * @param announce 为 true 时轻量安抚一次（网络恢复场景），进会话静默不打扰（对齐 Web）。
+     */
+    private fun healFailedMessages(announce: Boolean = false) {
         if (chatRepository.socketStatus.value != com.vxin.app.core.realtime.SocketStatus.CONNECTED) return
         val failed = _uiState.value.messages.filter { it.localStatus == LocalMsgStatus.FAILED }
         if (failed.isEmpty()) return
+        if (announce) _uiState.update { it.copy(error = "网络已恢复，正在重发 ${failed.size} 条消息") }
         viewModelScope.launch {
             failed.forEachIndexed { i, m ->
                 delay(i * 120L)   // 错峰，避免瞬时突发

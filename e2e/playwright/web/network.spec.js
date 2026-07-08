@@ -27,4 +27,26 @@ test.describe('网络异常 NET', () => {
     // 重连后会话列表/状态恢复:输入框仍可用(界面没卡死)
     await expect(webPage.locator('[data-testid="chat-msg-input"]')).toBeVisible();
   });
+
+  test('NET-03 断开>2s→显示重连条;恢复后闪现「网络已恢复」', async ({ webPage, seeded, baseURL }) => {
+    test.skip(!seeded.convAB, '无会话');
+    const login = new LoginPage(webPage);
+    const chat = new ChatPage(webPage);
+    await login.gotoLogin(baseURL);
+    await login.login(seeded.users[0].phone, seeded.users[0].password);
+    await chat.waitReady();
+    await chat.openConv(seeded.convAB);
+
+    // 断开 > 2s → 顶部出现「正在重连」黄条
+    await webPage.context().setOffline(true);
+    const banner = webPage.locator('[data-testid="net-banner"]');
+    await expect(banner).toHaveAttribute('data-state', 'reconnecting', { timeout: 6000 });
+
+    // 恢复 → 闪现绿色「网络已恢复」，随后自动收起
+    await webPage.context().setOffline(false);
+    await expect(banner).toHaveAttribute('data-state', 'restored', { timeout: 10000 });
+    await expect(banner).toContainText('网络已恢复');
+    // ~2s 后自动消失
+    await expect(banner).toHaveCount(0, { timeout: 6000 });
+  });
 });

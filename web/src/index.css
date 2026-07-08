@@ -3663,12 +3663,19 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 }
 /* Electron 顶部有 30px 自定义标题栏，下移避免被遮住 */
 .wc-net-banner.electron { top: 30px; }
+/* 恢复态：绿色确认色，圆点停止闪烁（表示已稳定连接） */
+.wc-net-banner.restored { background: var(--color-success, #00B42A); }
+.wc-net-banner.restored .wc-net-banner-dot { animation: none; }
 .wc-net-banner-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #fff;
   animation: wcNetBlink 1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wc-net-banner { animation: none; }
+  .wc-net-banner-dot { animation: none; }
 }
 @keyframes wcNetIn {
   from { transform: translateY(-100%); }

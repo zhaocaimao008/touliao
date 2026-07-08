@@ -140,7 +140,7 @@ final class ChatViewModel: ObservableObject {
         repo.reconnectedPublisher
             .sink { [weak self] in Task { @MainActor in
                 guard let self else { return }
-                await self.loadHistory()
+                await self.loadHistory(announceHeal: true)   // 重连补拉 + 失败气泡自愈并安抚一次
             }}
             .store(in: &cancellables)
 
@@ -494,7 +494,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     // MARK: - 历史 / 实时
-    func loadHistory() async {
+    func loadHistory(announceHeal: Bool = false) async {
         do {
             let list = try await repo.loadHistory(conversationId)
             // 合并本地待发件箱：上次发送失败且未成功的文本消息，切走/重启/重连后仍在。
@@ -508,7 +508,7 @@ final class ChatViewModel: ObservableObject {
             messages = (list + stillPending).sorted { $0.createdAt < $1.createdAt }
             reachedStart = list.count < 50
             markReadLatest()   // 打开会话即标记已读
-            healFailedMessages()   // 连线且有失败气泡 → 进会话/重连自动重发一次
+            healFailedMessages(announce: announceHeal)   // 连线且有失败气泡 → 进会话/重连自动重发
         } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载消息失败" }
     }
 
@@ -661,11 +661,13 @@ final class ChatViewModel: ObservableObject {
         if let idx = messages.firstIndex(where: { $0.id == id }) { messages[idx].localStatus = status }
     }
 
-    /// 自动自愈：把当前所有 failed 文本气泡错峰重发（连线时调用，对齐 Web/Android）
-    func healFailedMessages() {
+    /// 自动自愈：把当前所有 failed 文本气泡错峰重发（连线时调用，对齐 Web/Android）。
+    /// - Parameter announce: true 时轻量安抚一次（网络恢复场景），进会话静默不打扰。
+    func healFailedMessages(announce: Bool = false) {
         guard repo.isSocketConnected else { return }
         let failed = messages.filter { $0.localStatus == LocalMsgStatus.failed }
         guard !failed.isEmpty else { return }
+        if announce { error = "网络已恢复，正在重发 \(failed.count) 条消息" }
         Task { [weak self] in
             guard let self else { return }
             for (i, m) in failed.enumerated() {
