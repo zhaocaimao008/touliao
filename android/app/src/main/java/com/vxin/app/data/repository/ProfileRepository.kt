@@ -29,6 +29,9 @@ class ProfileRepository @Inject constructor(
     /** 我的专属邀请码 + 邀请战绩 */
     suspend fun myInvite(): com.vxin.app.data.model.InviteInfo = userApi.myInvite()
 
+    /** 通话记录 */
+    suspend fun callLogs(limit: Int = 50): List<com.vxin.app.data.model.CallLog> = userApi.callLogs(limit)
+
     // ── 个人设置 ──
     suspend fun settings() = userApi.settings()
 

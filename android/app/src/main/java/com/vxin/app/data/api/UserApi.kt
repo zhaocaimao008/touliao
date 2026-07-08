@@ -1,6 +1,7 @@
 package com.vxin.app.data.api
 
 import com.vxin.app.data.model.AvatarResponse
+import com.vxin.app.data.model.CallLog
 import com.vxin.app.data.model.InviteInfo
 import com.vxin.app.data.model.UpdateProfileRequest
 import com.vxin.app.data.model.UpdateSettingsBody
@@ -43,4 +44,8 @@ interface UserApi {
     /** 我的专属邀请码 + 邀请战绩 */
     @GET("api/users/me/invite")
     suspend fun myInvite(): InviteInfo
+
+    /** 通话记录（自己作为主叫/被叫，含对方资料 + 方向） */
+    @GET("api/users/me/call-logs")
+    suspend fun callLogs(@retrofit2.http.Query("limit") limit: Int = 50): List<CallLog>
 }

@@ -59,6 +59,7 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 fun ProfileScreen(
     onAddAccount: () -> Unit = {},
     onOpenMyQr: () -> Unit = {},
+    onOpenCallHistory: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -193,6 +194,8 @@ fun ProfileScreen(
             Spacer(Modifier.size(12.dp))
 
             // 朋友圈 / 收藏 已是底部 Tab，移除「我」页内重复入口（四端一致）
+            OutlinedButton(onClick = onOpenCallHistory, modifier = Modifier.fillMaxWidth().testTag("profile-call-history")) { Text("通话记录") }
+            Spacer(Modifier.size(12.dp))
             OutlinedButton(onClick = { showPwdDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("修改密码") }
             Spacer(Modifier.size(12.dp))
             Button(

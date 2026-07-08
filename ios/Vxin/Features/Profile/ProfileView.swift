@@ -87,6 +87,12 @@ struct ProfileView: View {
                 }
             }
 
+            Section {
+                NavigationLink { CallHistoryView() } label: {
+                    Label("通话记录", systemImage: "phone")
+                }
+            }
+
             Section("设置") {
                 // 设备管理：后端暂无设备列表/远程登出接口，暂不提供入口
                 NavigationLink("隐私与安全") { PrivacySecurityView() }

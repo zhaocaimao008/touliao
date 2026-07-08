@@ -112,6 +112,11 @@ final class ProfileRepository {
         try await api.send("api/users/me/invite")
     }
 
+    /// 通话记录（自己作为主叫/被叫，含对方资料 + 方向）
+    func callLogs(limit: Int = 50) async throws -> [CallLog] {
+        try await api.send("api/users/me/call-logs?limit=\(limit)")
+    }
+
     // ── 个人设置 ──
     func settings() async throws -> UserSettings {
         try await api.send("api/users/me/settings")

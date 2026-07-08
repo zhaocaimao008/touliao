@@ -114,6 +114,7 @@ private object Routes {
     const val MY_QRCODE = "myQrCode"
     const val BLOCKED = "blocked"
     const val FAVORITES = "favorites"
+    const val CALL_HISTORY = "callHistory"
     const val MOMENTS = "moments"
     const val MOMENT_COMPOSE = "momentCompose"
     const val REQUESTS = "requests"
@@ -252,7 +253,11 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                 ProfileScreen(
                     onAddAccount = { navController.navigate(Routes.ADD_ACCOUNT) },
                     onOpenMyQr = { navController.navigate(Routes.MY_QRCODE) },
+                    onOpenCallHistory = { navController.navigate(Routes.CALL_HISTORY) },
                 )
+            }
+            composable(Routes.CALL_HISTORY) {
+                com.vxin.app.feature.callhistory.CallHistoryScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.FAVORITES) {
                 // 作为底部 Tab：不传 onBack（无返回箭头）
