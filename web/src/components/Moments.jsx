@@ -220,6 +220,7 @@ export default function Moments() {
   const [text, setText] = useState('');
   const [images, setImages] = useState([]); // [{previewUrl, file}]
   const [posting, setPosting] = useState(false);
+  const [uploadPct, setUploadPct] = useState(null);   // null=非上传中；0-100=图片上传进度
   const [composing, setComposing] = useState(false);
   const [visibility, setVisibility] = useState('all'); // all | friends | private | include | exclude
   const [visibleTo, setVisibleTo] = useState([]); // 分组可见的好友 id 列表
@@ -355,9 +356,16 @@ export default function Moments() {
     try {
       let imageUrls = [];
       if (images.length > 0) {
+        setUploadPct(0);
         const fd = new FormData();
         images.forEach(img => fd.append('images', img.file));
-        const { data } = await axios.post('/api/moments/images', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        const { data } = await axios.post('/api/moments/images', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (e) => {
+            if (e.total) setUploadPct(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+          },
+        });
+        setUploadPct(100);
         imageUrls = data.urls || [];
       }
       const payload = { content: text.trim(), images: imageUrls, visibility };
@@ -366,6 +374,7 @@ export default function Moments() {
       setList(p => [data, ...p]);
       resetCompose();
     } catch (e) { showToast(e.response?.data?.error || '发布失败', 'error'); }
+    setUploadPct(null);
     setPosting(false);
   };
 
@@ -580,7 +589,9 @@ export default function Moments() {
                 onClick={resetCompose}>取消</button>
               <button className="wc-moment-editor-publish"
                 disabled={posting || (!text.trim() && images.length === 0)} onClick={publish}>
-                {posting ? '发布中…' : '发布'}
+                {posting
+                  ? (uploadPct !== null && uploadPct < 100 ? `上传中 ${uploadPct}%` : '发布中…')
+                  : '发布'}
               </button>
             </div>
           </div>
