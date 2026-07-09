@@ -79,11 +79,13 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     return () => window.removeEventListener('vxin:remark-changed', handler);
   }, [fetchContacts]);
 
-  // 从顶栏"添加朋友"入口触发
-  useEffect(() => {
-    if (!addFriendRequest) return;
-    setShowAddFriend(true);
-  }, [addFriendRequest]);
+  // 从顶栏"添加朋友"入口触发（addFriendRequest 为递增触发信号）——
+  // 用 render 期上一次值比较替代 effect，避免 effect 内同步 setState
+  const [seenAddReq, setSeenAddReq] = useState(addFriendRequest);
+  if (addFriendRequest !== seenAddReq) {
+    setSeenAddReq(addFriendRequest);
+    if (addFriendRequest) setShowAddFriend(true);
+  }
 
   const handleRequest = async (id, action) => {
     if (handlingReq) return; // 防连点：上一次处理未结束时忽略

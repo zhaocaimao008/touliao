@@ -62,7 +62,11 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
       .finally(() => { if (!ac.signal.aborted) setSearching(false); });
   }, []);
 
-  useEffect(() => { if (initialQuery.trim()) doSearch(initialQuery); }, [initialQuery, doSearch]);
+  // initialQuery 变化即发起搜索——这是正当的「随 prop 同步到外部系统（网络请求）」副作用，
+  // doSearch 内部的 setSearching 属于异步取数流程的一部分，非可派生的同步状态，故此处保留 effect。
+  useEffect(() => {
+    if (initialQuery.trim()) doSearch(initialQuery);
+  }, [initialQuery, doSearch]); // eslint-disable-line react-hooks/set-state-in-effect -- 见上：正当的取数副作用
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };

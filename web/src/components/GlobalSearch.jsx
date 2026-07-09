@@ -90,7 +90,9 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
 
   // 搜历史消息(防抖 300ms，减少请求次数)
   useEffect(() => {
-    if (!q || q.length < 1) { setMessages([]); return; }
+    // 空关键词时直接返回（残留结果由 render 期 msgResults/actualSearching 派生忽略），
+    // 避免 effect 内同步 setState 触发级联渲染
+    if (!q || q.length < 1) return;
     // AbortController：快速输入时取消上一次未完成请求，防止慢响应覆盖新结果（旧数据竞态）
     const ac = new AbortController();
     const timer = setTimeout(() => {
@@ -134,7 +136,11 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     onSelectConv(convObj);
   };
 
-  const empty = matchedContacts.length === 0 && matchedConversations.length === 0 && messages.length === 0;
+  // 空关键词时忽略上一次搜索的残留（不在 effect 内清空，改由此处派生）
+  const hasQuery = !!q && q.length >= 1;
+  const msgResults = hasQuery ? messages : [];
+  const actualSearching = hasQuery && searchingMsg;
+  const empty = matchedContacts.length === 0 && matchedConversations.length === 0 && msgResults.length === 0;
 
   return (
     <div className="gs-scroll">
@@ -196,10 +202,10 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       )}
 
       {/* 历史消息 */}
-      {messages.length > 0 && (
+      {msgResults.length > 0 && (
         <>
-          <div className="gs-cat">聊天记录 ({messages.length})</div>
-          {messages.map(m => (
+          <div className="gs-cat">聊天记录 ({msgResults.length})</div>
+          {msgResults.map(m => (
             <div key={m.id} className="gs-row" onClick={() => openMessageLocation(m)}
               role="button" tabIndex={0}
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openMessageLocation(m))}>
@@ -217,12 +223,12 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
         </>
       )}
 
-      {searchingMsg && (
+      {actualSearching && (
         <div role="status" className="gs-searching">搜索中…</div>
       )}
 
       {/* 降级兜底：仅在有实际查询词时展示,避免清空输入时闪出「去网络搜索『』」空串 */}
-      {empty && !searchingMsg && q && (
+      {empty && !actualSearching && q && (
         <div
           onClick={() => onNetworkSearch(query)}
           className="gs-network-row"

@@ -28,17 +28,26 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  useEffect(() => {
+  // userId 变化时复位加载态：render 期派生（存上一次 userId），避免 effect 内同步 setState
+  const [loadedId, setLoadedId] = useState(userId);
+  if (userId !== loadedId) {
+    setLoadedId(userId);
     setLoading(true);
     setAddStep('idle');
     setErrMsg('');
+  }
+
+  useEffect(() => {
+    let alive = true;
     axios.get(`/api/users/${userId}`).then(r => {
+      if (!alive) return;
       setUser(r.data);
       setBlocked(!!r.data.isBlocked);
       if (r.data.isFriend) setAddStep('idle');
       else if (r.data.hasPendingRequest) setAddStep('sent');
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, [userId]);
 
   const sendRequest = async () => {

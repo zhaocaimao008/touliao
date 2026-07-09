@@ -10,13 +10,22 @@ export default function AuthImage({ src, alt = '', style, className }) {
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);   // 点击「加载失败」重试计数,变化即重新拉取
 
+  // src/retry 变化时同步重置加载态：render 期派生（存上一次的 src+retry 组合），
+  // 避免 effect 内 setState 造成的额外渲染帧与残图闪烁。
+  const [loadKey, setLoadKey] = useState(`${src}#${retry}`);
+  const nextKey = `${src}#${retry}`;
+  if (nextKey !== loadKey) {
+    setLoadKey(nextKey);
+    setFailed(false);
+    setBlobUrl(null);
+  }
+
   useEffect(() => {
     let revoked = false;
     let objUrl = null;
-    setFailed(false);
-    setBlobUrl(null);
-    // src 为空时不发请求（axios.get(undefined) 会误请求当前页面）
-    if (!src) { setFailed(true); return; }
+    // src 为空时不发请求（axios.get(undefined) 会误请求当前页面）；
+    // 空 src 的失败态由下方 render 派生（emptySrc）处理，无需在此 setState。
+    if (!src) return;
     axios.get(src, { responseType: 'blob' })
       .then(res => {
         if (revoked) return;
@@ -27,7 +36,7 @@ export default function AuthImage({ src, alt = '', style, className }) {
     return () => { revoked = true; if (objUrl) URL.revokeObjectURL(objUrl); };
   }, [src, retry]);
 
-  if (failed) return (
+  if (failed || !src) return (
     <div
       style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}
       className={className}

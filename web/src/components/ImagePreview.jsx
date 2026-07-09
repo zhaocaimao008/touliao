@@ -23,8 +23,13 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   const dragStart = useRef({ x: 0, y: 0 });
   const posStart = useRef({ x: 0, y: 0 });
 
-  // 切换到新图 → 复位加载态，重新显示转圈直到 onLoad
-  useEffect(() => { setLoaded(false); }, [currentUrl]);
+  // 切换到新图 → 复位加载态，重新显示转圈直到 onLoad。
+  // render 期派生（存上一次 currentUrl）替代 effect，避免多一帧旧图残留。
+  const [loadedUrl, setLoadedUrl] = useState(currentUrl);
+  if (currentUrl !== loadedUrl) {
+    setLoadedUrl(currentUrl);
+    setLoaded(false);
+  }
 
   const resetTransform = () => { setScale(1); setPosition({ x: 0, y: 0 }); };
 

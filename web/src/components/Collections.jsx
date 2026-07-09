@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { mediaUrl } from '../utils/url';
 import { showConfirm, showToast } from '../utils/toast';
@@ -20,19 +20,22 @@ export default function Collections() {
   const [results, setResults] = useState(null);    // null=未搜索(显示全量) | 数组=搜索结果
   const [searching, setSearching] = useState(false);
 
-  const load = () => {
-    setLoading(true);
+  const load = useCallback(({ showSpinner = true } = {}) => {
+    if (showSpinner) setLoading(true);
     axios.get('/api/users/me/collections')
       .then(r => { setList(r.data); setLoadError(false); })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  };
-  useEffect(() => { load(); }, []);
+  }, []);
+  // 初次挂载：loading 初值已为 true，无需 effect 内同步 setState
+  useEffect(() => { load({ showSpinner: false }); }, [load]);
 
   // 搜索：关键词为空且无类型过滤 → 回到全量列表；否则调 /collections/search（去抖）
+  // 空关键词的复位（results=null）交由 render 期派生，避免 effect 同步 setState。
+  const kwTrimmed = query.trim();
   useEffect(() => {
-    const kw = query.trim();
-    if (!kw) { setResults(null); setSearching(false); return; }
+    const kw = kwTrimmed;
+    if (!kw) return;
     setSearching(true);
     // AbortController：快速输入时取消上一次未完成请求,防止慢响应覆盖新结果(旧数据竞态)
     const ac = new AbortController();
@@ -44,11 +47,14 @@ export default function Collections() {
         .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setResults([]); })
         .finally(() => { if (!ac.signal.aborted) setSearching(false); });
     }, 300);
-    return () => { clearTimeout(t); ac.abort(); };
-  }, [query, typeFilter]);
+    return () => { clearTimeout(t); ac.abort(); setSearching(false); };
+  }, [kwTrimmed, typeFilter]);
+
+  // 是否处于「搜索模式」（有关键词）——空关键词时忽略残留的 results/searching，回退全量列表
+  const inSearch = kwTrimmed.length > 0;
 
   // 当前展示的列表：搜索态用结果，否则用全量（全量也支持类型过滤）
-  const shown = results != null
+  const shown = (inSearch && results != null)
     ? results
     : (typeFilter ? list.filter(c => c.type === typeFilter) : list);
 
@@ -125,7 +131,7 @@ export default function Collections() {
         <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>
           加载失败，<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>点击重试</button>
         </div>
-      ) : searching ? (
+      ) : (inSearch && searching) ? (
         <div role="status" style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 13 }}>搜索中…</div>
       ) : shown.length === 0 ? (
         <div role="status" data-testid="collection-empty" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>

@@ -16,7 +16,9 @@ function loadRecent() {
   catch { return []; }
 }
 
-let lastCat = null; // 记住上次选的分类名（跨开合），null=未显式选择
+// 记住上次选的分类名（跨开合）——用外部 store 对象（属性可变）而非可重赋值的模块级 let，
+// 满足 react-hooks/globals 对纯度的约束，同时保持跨挂载持久化。
+const catStore = { last: null }; // last=null 表示未显式选择
 
 export default function EmojiPicker({ onSelect }) {
   const [recent, setRecent] = useState(loadRecent);
@@ -25,10 +27,10 @@ export default function EmojiPicker({ onSelect }) {
     ? [{ label: '🕐', name: '最近', emojis: recent }, ...CATEGORIES]
     : CATEGORIES;
   // 按分类名选中（而非索引）：新增「最近」置顶时不会错位当前分类
-  const [catName, setCatName] = useState(() => lastCat || (recent.length ? '最近' : '常用'));
+  const [catName, setCatName] = useState(() => catStore.last || (recent.length ? '最近' : '常用'));
   const activeCat = cats.find(c => c.name === catName) || cats[0];
 
-  const handleCatChange = (name) => { lastCat = name; setCatName(name); };
+  const handleCatChange = (name) => { catStore.last = name; setCatName(name); };
 
   const pick = (e) => {
     setRecent(prev => {

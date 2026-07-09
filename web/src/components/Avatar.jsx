@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { mediaUrl } from '../utils/url';
 
 // 无头像时的字母头像配色：明快多彩(含微信绿)，按名字 hash 稳定取色，去掉"整页灰"
@@ -26,9 +26,14 @@ export default function Avatar({ src, name = '', size = 40, style = {}, online =
   const baseStyle = { width: size, height: size, borderRadius: radius, overflow: 'hidden', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', ...style };
   const letter = (name || '?')[0].toUpperCase();
 
-  // 图片加载失败（如服务器上文件不存在）时回退到字母头像，避免显示浏览器碎图图标
+  // 图片加载失败（如服务器上文件不存在）时回退到字母头像，避免显示浏览器碎图图标。
+  // src 变化即重置错误态：用 render 期派生（存上一次 src）替代 effect，避免多余一帧闪烁。
   const [errored, setErrored] = useState(false);
-  useEffect(() => { setErrored(false); }, [src]);
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (src !== prevSrc) {
+    setPrevSrc(src);
+    setErrored(false);
+  }
   const showImg = src && !errored;
 
   return (

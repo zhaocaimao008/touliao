@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 
@@ -32,14 +32,24 @@ export default function CallHistory({ onOpenChat }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  const load = () => {
+  // 重试用：显示转圈后重新拉取
+  const load = useCallback(() => {
     setLoading(true);
     axios.get('/api/users/me/call-logs')
       .then(r => { setList(r.data); setLoadError(false); })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  };
-  useEffect(() => { load(); }, []);
+  }, []);
+
+  // 初次挂载拉取：loading 初值已为 true，effect 内不做同步 setState（避免级联渲染）
+  useEffect(() => {
+    let alive = true;
+    axios.get('/api/users/me/call-logs')
+      .then(r => { if (alive) { setList(r.data); setLoadError(false); } })
+      .catch(() => { if (alive) setLoadError(true); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
 
   // 点击通话记录 → 打开对方会话（回拨/继续聊天），对齐移动端
   const openPeer = async (c) => {
