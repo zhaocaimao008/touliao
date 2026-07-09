@@ -31,6 +31,17 @@ const CONFIG_URLS = [
 const CACHE_KEY   = 'vxin_remote_config';
 const CACHE_TS    = 'vxin_remote_config_ts';
 
+// AbortSignal.timeout 在旧 WKWebView(旧版 iOS Capacitor)上可能缺失,直接用会抛 TypeError
+// 让所有引导地址「假失败」→ 无谓退化到缓存/兜底。用手写定时器兜底,保证超时控制普遍可用。
+export function timeoutSignal(ms) {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  const ac = new AbortController();
+  setTimeout(() => ac.abort(), ms);
+  return ac.signal;
+}
+
 const DEFAULTS = {
   api:    '',    // Web 同域时为空（使用相对路径）
   socket: '',    // Web 同域时为空（使用相对路径）
@@ -57,7 +68,7 @@ export function loadRemoteConfig() {
     // 1. 依次尝试每个引导地址，任意一个成功即用
     for (const url of CONFIG_URLS) {
       try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(url, { signal: timeoutSignal(5000) });
         if (!res.ok) continue;
         const data = await res.json();
         _config = { ...DEFAULTS, ...data };
@@ -118,7 +129,7 @@ export function isConfigLoaded() {
 export async function testServerConnection(url) {
   if (!url || !url.startsWith('http')) return { ok: false, msg: '格式错误' };
   try {
-    const res = await fetch(`${url.replace(/\/$/, '')}/health`, { signal: AbortSignal.timeout(6000) });
+    const res = await fetch(`${url.replace(/\/$/, '')}/health`, { signal: timeoutSignal(6000) });
     if (res.ok || res.status < 500) return { ok: true, msg: '连接成功 ✓' };
     return { ok: false, msg: `服务器返回 ${res.status}` };
   } catch {

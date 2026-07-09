@@ -113,9 +113,14 @@ const translations = {
 const I18nContext = createContext({ t: k => k, lang: 'zh-CN', setLang: () => {} });
 
 export function I18nProvider({ children }) {
-  const [lang, setLangState] = useState(() => localStorage.getItem('wc_lang') || 'zh-CN');
+  const [lang, setLangState] = useState(() => {
+    // 校验存储值:旧版本/被篡改可能残留不支持的语言码(如 'ja'),会让 <html lang> 与词典错位
+    const saved = localStorage.getItem('wc_lang');
+    return translations[saved] ? saved : 'zh-CN';
+  });
 
   const setLang = (l) => {
+    if (!translations[l]) return;   // 只接受受支持的语言,避免切到空词典
     setLangState(l);
     localStorage.setItem('wc_lang', l);
   };

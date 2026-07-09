@@ -8,6 +8,7 @@ import { useI18n, SUPPORTED_LANGS } from '../contexts/I18nContext';
 import { goLogin } from '../utils/url';
 import { showConfirm, showToast } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
+import { timeoutSignal } from '../utils/config';
 
 /* ─── 小工具 ─── */
 // role="button" 的 div 应同时支持 Enter 和空格触发（空格默认会滚动页面，需 preventDefault）
@@ -956,7 +957,7 @@ function ServerSettings({ onBack }) {
     if (!url.startsWith('http')) { setTestResult({ ok: false, msg: '格式错误，请以 http:// 或 https:// 开头' }); return; }
     setTesting(true); setTestResult(null);
     try {
-      await fetch(`${url}/health`, { signal: AbortSignal.timeout(6000) });
+      await fetch(`${url}/health`, { signal: timeoutSignal(6000) });
       setTestResult({ ok: true, msg: '连接成功 ✓' });
     } catch {
       setTestResult({ ok: false, msg: '无法连接到该服务器，请检查地址' });

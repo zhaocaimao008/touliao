@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { timeoutSignal } from '../utils/config';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
@@ -29,7 +30,7 @@ export default function Login() {
     if (!url.startsWith('http')) { setServerTest({ ok: false, msg: '请以 http:// 或 https:// 开头' }); return; }
     setServerBusy(true); setServerTest(null);
     try {
-      await fetch(`${url}/health`, { signal: AbortSignal.timeout(6000) });
+      await fetch(`${url}/health`, { signal: timeoutSignal(6000) });
       setServerTest({ ok: true, msg: '连接成功 ✓' });
     } catch {
       setServerTest({ ok: false, msg: '无法连接到该服务器，请检查地址' });
