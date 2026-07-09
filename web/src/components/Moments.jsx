@@ -310,6 +310,15 @@ export default function Moments() {
   const handleImagePick = (e) => {
     const files = Array.from(e.target.files || []);
     const remaining = 9 - images.length;
+    if (remaining <= 0) {
+      showToast('最多只能添加 9 张图片', 'error');
+      e.target.value = '';
+      return;
+    }
+    // 选择数量超过剩余名额时,截断并明确告知被丢弃了几张,而非静默忽略
+    if (files.length > remaining) {
+      showToast(`最多 9 张，已忽略后 ${files.length - remaining} 张`, 'info');
+    }
     files.slice(0, remaining).forEach(file => {
       if (!ALLOWED_IMG_TYPES.includes(file.type)) {
         showToast(`${file.name} 格式不支持，仅限 JPG/PNG/GIF/WebP`, 'error');
