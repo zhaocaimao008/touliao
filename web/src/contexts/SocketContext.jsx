@@ -29,8 +29,11 @@ export const SocketProvider = ({ children }) => {
     return () => deliveredListeners.current.delete(fn);
   }, []);
 
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) { setSocket(null); setConnected(false); return; }
+    // 登出（userId→null）时清空 socket 连接态：这是与外部系统（socket.io）同步的正当副作用
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：外部连接生命周期同步
+    if (!userId) { setSocket(null); setConnected(false); return; }
 
     // ── 服务器地址优先级 ────────────────────────────
     // 1. 运行时手动切换（localStorage，由 Login 页面的"切换服务器"功能设置）
@@ -111,7 +114,7 @@ export const SocketProvider = ({ children }) => {
       setSocket(null);
       setConnected(false);
     };
-  }, [user?.id]);
+  }, [userId]);
 
   return (
     <SocketContext.Provider value={{

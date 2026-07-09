@@ -103,7 +103,8 @@ export function usePushNotification(user) {
       cancelled = true;
       navigator.serviceWorker.removeEventListener('message', handleSWMessage);
     };
-  }, [user?.id]);
+    // 仅用 user 做登录态判空：user 变化（登录/登出/切换账号）时重新建立推送订阅
+  }, [user]);
 
   // 登出时取消订阅
   async function unsubscribe() {

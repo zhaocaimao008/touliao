@@ -23,8 +23,14 @@ const CALL_TIMEOUT_MS = 30000;
 
 function useCallTimer(running) {
   const [sec, setSec] = useState(0);
+  // running 由 true→false 时归零：render 期派生（存上一次 running），避免 effect 内同步 setState
+  const [prevRunning, setPrevRunning] = useState(running);
+  if (running !== prevRunning) {
+    setPrevRunning(running);
+    if (!running) setSec(0);
+  }
   useEffect(() => {
-    if (!running) { setSec(0); return; }
+    if (!running) return;
     const t = setInterval(() => setSec(s => s + 1), 1000);
     return () => clearInterval(t);
   }, [running]);
@@ -310,10 +316,13 @@ export default function CallModal({ socket, call, onClose }) {
       socket.off('call:ice',      onIce);
       socket.off('call:end',      onEnd);
     };
-  }, [socket, remoteId, cleanup, onClose, processOffer]);
+  }, [socket, remoteId, cleanup, onClose, processOffer, endCall]);
 
+  // 挂载即发起/准备通话：initPC 建立 RTCPeerConnection、getUserMedia 等外部系统副作用，
+  // 其内部 setState 属正当的取媒体流程，非可派生同步状态。
   useEffect(() => {
     if (direction === 'outgoing') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：WebRTC 初始化副作用
       initPC().then(() => {
         timeoutRef.current = setTimeout(() => {
           if (statusRef.current === 'calling') endCall(true, 'timeout');

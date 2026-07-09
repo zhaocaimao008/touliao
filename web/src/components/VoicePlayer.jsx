@@ -61,7 +61,8 @@ export default function VoicePlayer({ url, msgId = null, isMine = false }) {
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
     };
-  }, [url]);
+    // isMine/msgId 对同一条语音消息恒定（组件按 msgId 挂载），纳入依赖以消除陈旧闭包
+  }, [url, isMine, msgId]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
