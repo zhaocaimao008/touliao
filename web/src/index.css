@@ -425,7 +425,7 @@ img { display: block; }
 }
 /* 会话列表里的「[草稿]」标记：微信式红色前缀 */
 .wc-chat-item-draft {
-  color: #e05a4f;
+  color: var(--color-badge);
   margin-right: 3px;
 }
 /* 「[有人@我]」未读提及标记：绿色前缀，读后随刷新消失 */
@@ -945,7 +945,7 @@ img { display: block; }
   line-height: 1;
 }
 .wc-ctx-item:hover { background: rgba(255,255,255,.09); }
-.wc-ctx-item.danger { color: #FF453A; }
+.wc-ctx-item.danger { color: var(--color-danger); }
 .wc-ctx-divider { height: .5px; background: rgba(255,255,255,.1); }
 
 /* ============================================================
@@ -1204,7 +1204,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-account-name { display: block; font-size: var(--text-base); color: var(--gray-0); font-weight: var(--font-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auth-account-id { display: block; font-size: var(--text-xs); color: rgba(255,255,255,.35); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auth-account-remove { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.2); font-size: var(--text-sm2); cursor: pointer; transition: color var(--dur-fast); flex-shrink: 0; }
-.auth-account-remove:hover { color: #FF6B6B; }
+.auth-account-remove:hover { color: var(--color-danger); }
 .auth-form {
   background: rgba(255,255,255,.07);
 
@@ -1231,7 +1231,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-pwd-toggle:hover { color: rgba(255,255,255,.75); }
 .auth-footer { text-align: center; margin-top: 18px; font-size: var(--text-sm2); color: rgba(255,255,255,.38); }
 .auth-link { color: var(--green); font-weight: var(--font-medium); text-decoration: none; }
-.auth-link:hover { color: #09D96C; text-decoration: underline; }
+.auth-link:hover { color: var(--green); text-decoration: underline; }
 
 /* 桌面端登录页服务器切换 */
 .auth-server { margin-top: var(--sp-4); text-align: center; }
@@ -2105,7 +2105,7 @@ body {
   top: 4px; right: 4px;
   min-width: 15px; height: 15px;
   border-radius: var(--radius-md);
-  background: #E84040;
+  background: var(--color-badge);
   color: var(--gray-0);
   font-size: 9px; font-weight: var(--font-bold);
   display: flex; align-items: center; justify-content: center;
@@ -2492,7 +2492,7 @@ body {
   font-weight: var(--font-medium);
 }
 .wc-user-profile-primary { background: var(--green); color: var(--gray-0); }
-.wc-user-profile-primary:hover { background: #06AE56; }
+.wc-user-profile-primary:hover { background: var(--green-hover); }
 .wc-user-profile-secondary { background: var(--bg-card); color: var(--text-title); }
 .wc-user-profile-danger { background: var(--bg-card); color: var(--color-badge); }
 .wc-user-profile-remark {
@@ -2823,7 +2823,7 @@ body {
 .up-action-btn:active { transform: scale(.96); }
 .up-action-chat { background: var(--green); color: var(--gray-0); }
 .up-action-grey { background: var(--bg-panel); color: var(--text-secondary); border: 1px solid var(--border-color); }
-.up-action-warn { background: rgba(250,140,0,.08); color: #FA8C00; border: 1px solid rgba(250,140,0,.2); }
+.up-action-warn { background: rgba(250,140,0,.08); color: var(--color-warning); border: 1px solid rgba(250,140,0,.2); }
 .up-action-danger { background: rgba(250,81,81,.08); color: var(--color-badge); border: 1px solid rgba(250,81,81,.18); }
 
 /* 通用按钮 */
@@ -3107,7 +3107,7 @@ body {
 .gi-clear-search { color:#ADADAD; font-size: var(--text-sm2); line-height:1; }
 
 /* ── Warn bar ── */
-.gi-warn { margin:0 0 8px; background:#FFFBEF; border-top:1px solid #FFE082; border-bottom:1px solid #FFE082; padding:9px 14px; }
+.gi-warn { margin:0 0 8px; background:var(--color-warning-light); border-top:1px solid rgba(var(--color-warning-rgb),.35); border-bottom:1px solid rgba(var(--color-warning-rgb),.35); padding:9px 14px; }
 .gi-warn-row { display:flex; align-items:center; gap:5px; font-size: var(--text-sm); color:#9E6A00; line-height:1.65; }
 
 /* ── Nickname ── */
@@ -3159,7 +3159,7 @@ body {
 
 /* ── RoleBadge ── */
 .gi-badge { font-size: var(--text-2xs); padding:1px 5px; border-radius:var(--radius-bubble-tip); margin-left:5px; font-weight: var(--font-medium); }
-.gi-badge-owner { color:#FF7A00; background:#FFF0E0; }
+.gi-badge-owner { color:var(--color-warning); background:var(--color-warning-light); }
 .gi-badge-admin { color:var(--green); background:#E8F5E9; }
 
 /* ── GroupAvatar internals ── */
@@ -3168,8 +3168,8 @@ body {
 /* ── Icon wraps ── */
 .gi-ic28 { width:26px; height:26px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .gi-ic30 { width:30px; height:30px; border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.gi-ic-mg1 { background:#FFF0E0; }
-.gi-ic-mg2 { background:#E8F5E9; }
+.gi-ic-mg1 { background:var(--color-warning-light); }
+.gi-ic-mg2 { background:var(--color-success-light); }
 .gi-ic-mg3 { background:var(--color-danger-light); }
 .gi-ic-mg-header { background:linear-gradient(135deg,#FF9500,#FF6B00); }
 
@@ -3201,7 +3201,7 @@ body {
 .gi-loading-txt { color:var(--text-tertiary); font-size: var(--text-sm); }
 
 /* ── SVG fill utilities ── */
-.gi-fill-warn { fill:#FA8C16; }
+.gi-fill-warn { fill:var(--color-warning); }
 .gi-fill-green { fill:var(--green); }
 .gi-fill-red { fill:var(--color-badge); }
 .gi-fill-white { fill: var(--gray-0); }
@@ -3543,7 +3543,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 
 /* === GroupInfo component classes === */
 .gi-spinner-green { border-top-color: var(--green); }
-.gi-warn-icon { fill: #FA8C16; }
+.gi-warn-icon { fill: var(--color-warning); }
 .gi-ml-last { margin-bottom: 6px; }
 .gi-search-icon { fill: var(--text-tertiary); }
 .gi-search-hl { color: var(--green); font-weight: var(--font-semibold); }
@@ -3687,7 +3687,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   padding-top: calc(7px + env(safe-area-inset-top)); /* 移动端避开刘海 */
   font-size: var(--text-sm2);
   color: var(--gray-0);
-  background: #e6a23c;
+  background: var(--color-warning);
   box-shadow: 0 1px 6px rgba(0,0,0,.2);
   animation: wcNetIn .25s ease both;
 }
@@ -3782,7 +3782,7 @@ body.dark-mode .wc-multiselect-bar { background: var(--bg-panel); }
 
 /* Edit bar dark mode */
 body.dark-mode .wc-edit-bar { background: rgba(255,224,130,.1); border-top-color: rgba(255,224,130,.25); }
-body.dark-mode .wc-edit-bar-label { color: #FFA040; }
+body.dark-mode .wc-edit-bar-label { color: var(--color-warning); }
 
 /* Upload bar dark mode */
 body.dark-mode .wc-upload-bar-error { background: rgba(255,80,80,.12); border-top-color: rgba(255,80,80,.25); }
