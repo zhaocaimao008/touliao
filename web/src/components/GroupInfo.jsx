@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { FixedSizeList } from 'react-window';
 import Avatar, { getColor } from './Avatar';
@@ -8,7 +8,9 @@ import { showToast, showConfirm } from '../utils/toast';
 /* ── 宫格单元：头像加载失败回退首字母，避免碎图 ── */
 function GroupGridCell({ member = {}, cellSize }) {
   const [err, setErr] = useState(false);
-  useEffect(() => { setErr(false); }, [member.avatar]);
+  // avatar 变化即复位错误态：render 期派生（存上一次 avatar），避免 effect 内同步 setState
+  const [prevAvatar, setPrevAvatar] = useState(member.avatar);
+  if (member.avatar !== prevAvatar) { setPrevAvatar(member.avatar); setErr(false); }
   return (
     <div style={{ width: cellSize, height: cellSize, borderRadius: 2, overflow: 'hidden', background: getColor(member.username || '?'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {member.avatar && !err
@@ -21,7 +23,8 @@ function GroupGridCell({ member = {}, cellSize }) {
 /* ── 群头像拼图（微信风格 N宫格，支持自定义头像） ── */
 export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
   const [avatarErr, setAvatarErr] = useState(false);
-  useEffect(() => { setAvatarErr(false); }, [avatar]);
+  const [prevAvatar, setPrevAvatar] = useState(avatar);
+  if (avatar !== prevAvatar) { setPrevAvatar(avatar); setAvatarErr(false); }
   // 有自定义群头像直接显示；加载失败则回退到下面的宫格拼图
   if (avatar && !avatarErr) {
     return <img src={mediaUrl(avatar)} alt="" loading="lazy" onError={() => setAvatarErr(true)} style={{ width: size, height: size, borderRadius: Math.max(3, Math.round(size * 0.13)), objectFit: 'cover', flexShrink: 0 }} />;
@@ -44,7 +47,8 @@ export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
 function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, onChange }) {
   const [hovered, setHovered] = useState(false);
   const [avErr, setAvErr] = useState(false);
-  useEffect(() => { setAvErr(false); }, [info.avatar]);
+  const [prevAvatar, setPrevAvatar] = useState(info.avatar);
+  if (info.avatar !== prevAvatar) { setPrevAvatar(info.avatar); setAvErr(false); }
   const r = Math.round(50 * 0.22);
   return (
     <div
@@ -193,20 +197,32 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQrData] = useState(null);
 
-  const load = () => {
-    setLoading(true);
-    axios.get(`/api/messages/conversation/${conversation.id}/info`).then(r => {
-      setInfo(r.data);
-      setNameVal(r.data.name || '');
-      setAnnVal(r.data.announcement || '');
-      // 找到自己的群昵称
-      const me = (r.data.members || []).find(m => m.id === currentUserId);
-      if (me?.nickname) { setMyNickname(me.nickname); setNicknameVal(me.nickname); }
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  };
+  const applyInfo = useCallback((data) => {
+    setInfo(data);
+    setNameVal(data.name || '');
+    setAnnVal(data.announcement || '');
+    // 找到自己的群昵称
+    const me = (data.members || []).find(m => m.id === currentUserId);
+    if (me?.nickname) { setMyNickname(me.nickname); setNicknameVal(me.nickname); }
+  }, [currentUserId]);
 
-  useEffect(() => { load(); }, [conversation.id]);
+  // 重新拉取（显示转圈）——供操作后刷新
+  const load = useCallback(() => {
+    setLoading(true);
+    axios.get(`/api/messages/conversation/${conversation.id}/info`)
+      .then(r => applyInfo(r.data))
+      .finally(() => setLoading(false));
+  }, [conversation.id, applyInfo]);
+
+  // 初次挂载 / 切换会话：loading 初值已为 true，effect 内不做同步 setState
+  useEffect(() => {
+    let alive = true;
+    axios.get(`/api/messages/conversation/${conversation.id}/info`)
+      .then(r => { if (alive) applyInfo(r.data); })
+      .catch(() => {})
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [conversation.id, applyInfo]);
 
   useEffect(() => {
     const handler = e => {

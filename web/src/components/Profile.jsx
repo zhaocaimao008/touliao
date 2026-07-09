@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import AuthImage from './AuthImage';
@@ -279,19 +279,26 @@ function Wallet({ onBack }) {
   const [rechargeInput, setRechargeInput] = useState('');
   const [showRecharge, setShowRecharge] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
+  const fetchWallet = useCallback(async (alive = () => true) => {
     try {
       const [b, t] = await Promise.all([
         axios.get('/api/wallet'),
         axios.get('/api/wallet/transactions', { params: { limit: 50 } }),
       ]);
+      if (!alive()) return;
       setBalance(b.data?.balance ?? 0);
       setTxns(Array.isArray(t.data) ? t.data : []);
     } catch { /* 静默：余额显示为 — */ }
-    setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+    if (alive()) setLoading(false);
+  }, []);
+  // 充值后刷新用（显示转圈）
+  const load = useCallback(() => { setLoading(true); fetchWallet(); }, [fetchWallet]);
+  // 初次挂载：loading 初值已为 true，effect 内不做同步 setState
+  useEffect(() => {
+    let alive = true;
+    fetchWallet(() => alive);
+    return () => { alive = false; };
+  }, [fetchWallet]);
 
   const recharge = async () => {
     if (recharging) return; // 防连点：回车提交会绕过 disabled 按钮，避免重复充值
@@ -820,7 +827,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
           </div>
       ))}
 
-      <div onClick={toggleForm} className="wc-add-row" role="button" tabIndex={0} onKeyDown={activateOnKey(toggleForm)}>
+      <div onClick={toggleForm} className="wc-add-row" role="button" tabIndex={0} onKeyDown={e => activateOnKey(toggleForm)(e)}>
         <div className="wc-add-icon-wrap" style={{ borderColor: showForm ? 'var(--green)' : undefined }}>
           <svg className="wc-add-icon-svg" style={{ fill: showForm ? 'var(--green)' : undefined }} viewBox="0 0 24 24">
             <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
@@ -913,7 +920,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
       <div className="wc-section-pad">
         <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px', gap: 8 }}>
-          <div role="button" tabIndex={0} onClick={handleAvatarClick} onKeyDown={activateOnKey(handleAvatarClick)} style={{ cursor: 'pointer', position: 'relative' }}>
+          <div role="button" tabIndex={0} onClick={handleAvatarClick} onKeyDown={e => activateOnKey(handleAvatarClick)(e)} style={{ cursor: 'pointer', position: 'relative' }}>
             <Avatar src={user?.avatar} name={user?.username} size={80} />
             {uploading && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', borderRadius: 14, color: 'var(--text-inverse)', fontSize: 12 }}>上传中</div>}
           </div>

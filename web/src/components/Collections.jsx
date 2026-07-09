@@ -20,15 +20,23 @@ export default function Collections() {
   const [results, setResults] = useState(null);    // null=未搜索(显示全量) | 数组=搜索结果
   const [searching, setSearching] = useState(false);
 
-  const load = useCallback(({ showSpinner = true } = {}) => {
-    if (showSpinner) setLoading(true);
+  // 重试用（显示转圈后重拉）
+  const load = useCallback(() => {
+    setLoading(true);
     axios.get('/api/users/me/collections')
       .then(r => { setList(r.data); setLoadError(false); })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
-  // 初次挂载：loading 初值已为 true，无需 effect 内同步 setState
-  useEffect(() => { load({ showSpinner: false }); }, [load]);
+  // 初次挂载拉取：loading 初值已为 true，effect 内不做同步 setState（避免级联渲染）
+  useEffect(() => {
+    let alive = true;
+    axios.get('/api/users/me/collections')
+      .then(r => { if (alive) { setList(r.data); setLoadError(false); } })
+      .catch(() => { if (alive) setLoadError(true); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
 
   // 搜索：关键词为空且无类型过滤 → 回到全量列表；否则调 /collections/search（去抖）
   // 空关键词的复位（results=null）交由 render 期派生，避免 effect 同步 setState。
@@ -36,10 +44,10 @@ export default function Collections() {
   useEffect(() => {
     const kw = kwTrimmed;
     if (!kw) return;
-    setSearching(true);
     // AbortController：快速输入时取消上一次未完成请求,防止慢响应覆盖新结果(旧数据竞态)
     const ac = new AbortController();
     const t = setTimeout(() => {
+      setSearching(true); // 去抖窗口结束真正发请求时再置 loading（避免 effect 体内同步 setState）
       const params = { q: kw, limit: 50 };
       if (typeFilter) params.type = typeFilter;
       axios.get('/api/users/me/collections/search', { params, signal: ac.signal })

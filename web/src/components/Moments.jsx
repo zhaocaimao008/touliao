@@ -240,15 +240,23 @@ export default function Moments() {
   useEffect(() => { imagesRef.current = images; }, [images]);
   useEffect(() => () => { imagesRef.current.forEach(img => URL.revokeObjectURL(img.previewUrl)); }, []);
 
-  const load = useCallback(({ showSpinner = true } = {}) => {
-    if (showSpinner) setLoading(true);
+  // 重试/刷新用（显示转圈后重拉）
+  const load = useCallback(() => {
+    setLoading(true);
     axios.get('/api/moments')
       .then(r => { setList(r.data); setLoadError(false); })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, []);
-  // 初次挂载：loading 初值已为 true，effect 内不同步 setState
-  useEffect(() => { load({ showSpinner: false }); }, [load]);
+  // 初次挂载拉取：loading 初值已为 true，effect 内不做同步 setState（避免级联渲染）
+  useEffect(() => {
+    let alive = true;
+    axios.get('/api/moments')
+      .then(r => { if (alive) { setList(r.data); setLoadError(false); } })
+      .catch(() => { if (alive) setLoadError(true); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
 
   // 朋友圈"最近 N 天可见"设置初值
   useEffect(() => {
