@@ -1215,19 +1215,18 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-field { margin-bottom: var(--sp-4); }
 .auth-field-label { display: block; font-size: var(--text-sm); font-weight: var(--font-medium); color: rgba(255,255,255,.5); margin-bottom: 6px; letter-spacing: .2px; transition: color var(--dur-fast); }
 .auth-field.focused .auth-field-label { color: var(--green); }
-.auth-field-input-wrap { display: flex; align-items: center; gap: 10px; padding: 11px 14px; background: rgba(255,255,255,.06); border: 1.5px solid rgba(255,255,255,.1); border-radius: var(--radius-input); transition: all var(--dur-fast); }
+.auth-field-input-wrap { display: flex; align-items: center; gap: 10px; padding: 11px 14px; background: rgba(255,255,255,.06); border: 1.5px solid rgba(255,255,255,.1); border-radius: var(--radius-input); transition: border-color var(--dur-fast), background var(--dur-fast); }
 .auth-field.focused .auth-field-input-wrap { border-color: rgba(var(--green-rgb),.5); background: rgba(var(--green-rgb),.08); box-shadow: var(--ring-primary); }
 .auth-field-icon { width: 18px; height: 18px; color: rgba(255,255,255,.3); flex-shrink: 0; transition: color var(--dur-fast); }
 .auth-field.focused .auth-field-icon { color: var(--green); }
 .auth-field-input { flex: 1; font-size: var(--text-base); color: var(--gray-0); background: transparent; border: none; outline: none; min-width: 0; font-family: inherit; }
 .auth-field-input::placeholder { color: rgba(255,255,255,.25); font-weight: var(--font-normal); }
 .auth-error { display: flex; align-items: center; gap: 6px; padding: 9px 14px; background: rgba(255,80,80,.1); border: 1px solid rgba(255,80,80,.22); border-radius: var(--radius-input); color: #FF7575; font-size: var(--text-sm2); margin-bottom: var(--sp-3); animation: scaleIn .2s var(--ease); }
-.auth-submit { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--green), #06AD56); color: var(--gray-0); border-radius: var(--radius-input); font-size: var(--text-md); font-weight: var(--font-semibold); cursor: pointer; transition: all var(--dur-fast); display: flex; align-items: center; justify-content: center; letter-spacing: .5px; box-shadow: 0 4px 20px rgba(var(--green-rgb),.4); border: none; }
+.auth-submit { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--green), #06AD56); color: var(--gray-0); border-radius: var(--radius-input); font-size: var(--text-md); font-weight: var(--font-semibold); cursor: pointer; transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast), color var(--dur-fast); display: flex; align-items: center; justify-content: center; letter-spacing: .5px; box-shadow: 0 4px 20px rgba(var(--green-rgb),.4); border: none; }
 .auth-submit:hover { background: linear-gradient(135deg, #09D96C, var(--green)); box-shadow: 0 6px 24px rgba(var(--green-rgb),.5); transform: translateY(-1px); }
 .auth-submit:active { transform: translateY(0); box-shadow: 0 2px 10px rgba(var(--green-rgb),.3); }
 .auth-submit:disabled { background: rgba(255,255,255,.1); box-shadow: none; transform: none; cursor: not-allowed; color: rgba(255,255,255,.3); }
-@keyframes authSpin { to { transform: rotate(360deg); } }
-.auth-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: var(--radius-full); animation: authSpin .6s linear infinite; }
+.auth-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: var(--radius-full); animation: wc-spin .6s linear infinite; }
 .auth-pwd-toggle { background: none; border: none; cursor: pointer; padding: 0; color: rgba(255,255,255,.35); display: flex; align-items: center; flex-shrink: 0; transition: color var(--dur-fast); }
 .auth-pwd-toggle:hover { color: rgba(255,255,255,.75); }
 .auth-footer { text-align: center; margin-top: 18px; font-size: var(--text-sm2); color: rgba(255,255,255,.38); }
@@ -1294,7 +1293,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .fwd-search-wrap { padding: 8px 12px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
 .fwd-tabs-wrap { padding: 8px 14px 10px; background: var(--bg-panel); border-bottom: 1px solid var(--divider); flex-shrink: 0; }
 .fwd-tabs { display: flex; background: rgba(0,0,0,.07); border-radius: var(--radius-input); padding: 3px; gap: 0; }
-.fwd-tab { flex: 1; padding: 7px 10px; font-size: var(--text-sm2); font-weight: var(--font-medium); cursor: pointer; color: var(--text-secondary); border-radius: var(--radius-button); transition: all var(--dur-fast); background: none; border: none; font-family: inherit; text-align: center; }
+.fwd-tab { flex: 1; padding: 7px 10px; font-size: var(--text-sm2); font-weight: var(--font-medium); cursor: pointer; color: var(--text-secondary); border-radius: var(--radius-button); transition: color var(--dur-fast), background var(--dur-fast), box-shadow var(--dur-fast); background: none; border: none; font-family: inherit; text-align: center; }
 .fwd-tab:hover { color: var(--text-primary); }
 .fwd-tab.active { background: #fff; color: var(--text-primary); font-weight: var(--font-semibold); box-shadow: 0 1px 4px rgba(0,0,0,.20), 0 0 0 .5px rgba(0,0,0,.07); }
 .fwd-list { flex: 1; overflow-y: auto; background: #fff; }
@@ -3353,7 +3352,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   border:2px solid var(--border-color);
   background:transparent;
   display:flex; align-items:center; justify-content:center;
-  flex-shrink:0; transition:all var(--dur-fast);
+  flex-shrink:0; transition:border-color var(--dur-fast), background var(--dur-fast);
 }
 .cg-checkbox.checked { border-color:var(--green); background:var(--green); }
 .cg-check-icon { width:12px; height:12px; fill: var(--gray-0); }
@@ -3641,7 +3640,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   box-shadow: 0 2px 12px rgba(0,0,0,.25);
   transition: opacity var(--dur-base) ease, transform var(--dur-base) ease;
   z-index: 10;
-  animation: cwFabIn .2s ease both;
+  animation: bubbleIn .2s ease both;
 }
 .cw-scroll-bottom:hover { transform: scale(1.08); }
 .cw-scroll-bottom:active { transform: scale(.95); }
@@ -3671,10 +3670,6 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   font-weight: var(--font-medium);
   line-height: 1;
   white-space: nowrap;
-}
-@keyframes cwFabIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* === 断线重连提示条 === */

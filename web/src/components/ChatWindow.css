@@ -1040,7 +1040,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--dur-fast);
+  transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 .wc-multiselect-check.checked {
   background: var(--green);

@@ -138,9 +138,8 @@
   border: 2.5px solid var(--gray-200);
   border-top-color: var(--color-primary);
   border-radius: var(--radius-full);
-  animation: afm-spin .72s linear infinite;
+  animation: wc-spin .72s linear infinite;
 }
-@keyframes afm-spin { to { transform: rotate(360deg); } }
 .afm-loading-txt {
   font-size: var(--text-sm);
   color: var(--text-muted);
