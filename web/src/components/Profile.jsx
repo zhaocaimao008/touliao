@@ -279,23 +279,24 @@ function Wallet({ onBack }) {
   const [rechargeInput, setRechargeInput] = useState('');
   const [showRecharge, setShowRecharge] = useState(false);
 
-  const fetchWallet = useCallback(async (alive = () => true) => {
+  const fetchWallet = useCallback(async (isAlive = () => true) => {
     try {
       const [b, t] = await Promise.all([
         axios.get('/api/wallet'),
         axios.get('/api/wallet/transactions', { params: { limit: 50 } }),
       ]);
-      if (!alive()) return;
+      if (!isAlive()) return;
       setBalance(b.data?.balance ?? 0);
       setTxns(Array.isArray(t.data) ? t.data : []);
     } catch { /* 静默：余额显示为 — */ }
-    if (alive()) setLoading(false);
+    if (isAlive()) setLoading(false);
   }, []);
   // 充值后刷新用（显示转圈）
   const load = useCallback(() => { setLoading(true); fetchWallet(); }, [fetchWallet]);
-  // 初次挂载：loading 初值已为 true，effect 内不做同步 setState
+  // 初次挂载：loading 初值已为 true，effect 内不做同步 setState（fetchWallet 内 setState 均在 await 之后）
   useEffect(() => {
     let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchWallet 为异步取数，setState 发生在 await 之后
     fetchWallet(() => alive);
     return () => { alive = false; };
   }, [fetchWallet]);

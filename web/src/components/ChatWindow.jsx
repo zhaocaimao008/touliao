@@ -281,13 +281,15 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     outboxKeysRef.current = nowFailedKeys;
   }, [messages, conversation.id]);
   useEffect(() => {
+    // 快照 ref 指向的 Map，避免 cleanup 运行时 ref.current 已被后续渲染替换（react-hooks/exhaustive-deps）
+    const burnTimers = burnTimersRef.current;
     return () => {
       if (recorderRef.current) stopRecording();
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       clearTimeout(typingTimer.current);
       // 切换会话时取消所有阅后即焚定时器，防止旧会话定时器影响新会话消息状态
-      burnTimersRef.current.forEach(handle => clearTimeout(handle));
-      burnTimersRef.current.clear();
+      burnTimers.forEach(handle => clearTimeout(handle));
+      burnTimers.clear();
     };
   }, [conversation.id]);
   useEffect(() => {
@@ -328,18 +330,20 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     return data;
   }, [conversation.id]);
 
-  // Sync conversation prop changes
+  // Sync conversation prop changes：
+  // 普通会话直接在 render 期派生（存上一次 initialConv），避免 effect 内同步 setState；
+  // 虚拟 filehelper ID 需异步换取真实会话，保留 effect。
+  const [prevInitialConv, setPrevInitialConv] = useState(initialConv);
+  if (initialConv !== prevInitialConv) {
+    setPrevInitialConv(initialConv);
+    if (initialConv?.id !== '__file-helper__') setConversation(initialConv);
+  }
   useEffect(() => {
+    if (initialConv?.id !== '__file-helper__') return;
     // 处理虚拟 filehelper ID：获取真实会话
-    if (initialConv?.id === '__file-helper__') {
-      axios.get('/api/messages/file-helper').then(({ data }) => {
-        setConversation({ ...initialConv, id: data.conversationId });
-      }).catch(() => {
-        setConversation(initialConv);
-      });
-    } else {
-      setConversation(initialConv);
-    }
+    axios.get('/api/messages/file-helper')
+      .then(({ data }) => setConversation({ ...initialConv, id: data.conversationId }))
+      .catch(() => setConversation(initialConv));
   }, [initialConv]);
 
   // 断线重连后补拉当前会话缺失消息
@@ -377,9 +381,13 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         });
       })
       .catch(() => {});
-  }, [reconnectCount, conversation.id]);
+  }, [reconnectCount, conversation.id, disconnectAtRef]);
 
-  useEffect(() => {
+  // 切换会话时清空所有会话内 UI 状态：render 期派生（存上一次 conversation.id），
+  // 避免在 effect 内同步 setState 触发级联渲染。等价于按会话 id 重挂载。
+  const [prevConvId, setPrevConvId] = useState(conversation.id);
+  if (conversation.id !== prevConvId) {
+    setPrevConvId(conversation.id);
     setMessages([]);
     setReplyTo(null);
     setEditingMsg(null); // 清编辑态:否则在A会话编辑中切到B会话,发送会PUT改A的消息(跨会话误编辑)
@@ -394,9 +402,10 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     setPinnedMessages([]);
     setPendingScrollId(null);
     // 草稿自动加载
-    const savedDraft = localStorage.getItem(`draft_${conversation.id}`);
-    setInput(savedDraft || '');
+    setInput(localStorage.getItem(`draft_${conversation.id}`) || '');
+  }
 
+  useEffect(() => {
     // AbortController：会话切换时取消上一个会话的未完成请求，防止数据串堂
     const ac = new AbortController();
     // 加载置顶消息
@@ -462,15 +471,18 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     // 打开会话时标记已读（不带 messageId，后端自动取最新消息）
     axios.post(`/api/messages/conversation/${conversation.id}/read`, {}, { signal: ac.signal }).catch(() => {});
 
+    // 快照 ref 指向的集合，避免 cleanup 运行时 ref.current 已被后续渲染替换
+    const pendingMsgs = pendingMsgsRef.current;
+    const confirmedIds = confirmedMsgIds.current;
     return () => {
       ac.abort(); // 切换会话时取消未完成拉取
       // 清理所有待确认的发送 timer，避免旧会话 timer 污染新会话 UI
-      pendingMsgsRef.current.forEach(timer => clearTimeout(timer));
-      pendingMsgsRef.current.clear();
-      confirmedMsgIds.current.clear();
+      pendingMsgs.forEach(timer => clearTimeout(timer));
+      pendingMsgs.clear();
+      confirmedIds.clear();
       readerReadAtRef.current = {};
     };
-  }, [conversation.id, fetchMessages, socket, conversation.type]);
+  }, [conversation.id, fetchMessages, socket, conversation.type, conversation.scrollToId, scheduleBurn]);
 
   // 新消息到达且当前在底部时，自动标记已读（带最新消息 ID）
   // 阈值与自动滚底(<400)一致：处于 120~400px 区间时新消息会被自动拉到底，
@@ -846,7 +858,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       socket.off('message_pinned', onPinned);
       socket.off('message_unpinned', onUnpinned);
     };
-  }, [socket, conversation.id, user.id, onClose]);
+  }, [socket, conversation.id, user.id, onClose, registerDelivered, scheduleBurn]);
 
   // ── 重发失败消息（复用 pendingMsgsRef + ack 机制）─────────────
   const retryMessage = useCallback((failedMsg) => {
@@ -953,7 +965,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     } finally {
       setClaiming(false);
     }
-  }, []); // stable - reads claiming via claimingRef
+  }, [user.id]); // claiming 经 claimingRef 读取，仅 user.id 需纳入依赖
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -1365,7 +1377,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       }
     };
     await doUpload();
-  }, [uploadToCloud, uploadLocal, socket, conversation.id, replyTo, listOuterRef]);
+  }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, listOuterRef]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -1737,12 +1749,13 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     if (!pendingScrollId) return;
     const idx = flatItems.findIndex(it => it.type === 'message' && it.msg?.id === pendingScrollId);
     if (idx >= 0) {
+      // 在 rAF 回调中消费一次性触发（清 pendingScrollId），避免 effect 体内同步 setState
       requestAnimationFrame(() => {
         virtListRef.current?.scrollToItem(idx, 'center');
         setHighlightedMsgId(String(pendingScrollId));
+        setPendingScrollId(null);
         setTimeout(() => setHighlightedMsgId(null), 2000);
       });
-      setPendingScrollId(null);
     }
   }, [pendingScrollId, flatItems]);
 

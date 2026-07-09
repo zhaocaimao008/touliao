@@ -677,6 +677,8 @@ export default function Home() {
     return () => socket.off('group_kicked', onGroupKicked);
   }, [socket]);
 
+  const [activeCall, setActiveCall] = useState(null);
+
   // 全局来电监听（不论哪个会话打开，都能收到来电）
   useEffect(() => {
     if (!socket) return;
@@ -716,8 +718,6 @@ export default function Home() {
       try { window.electronAPI?.setBadge?.(0); } catch { /* noop */ }
     };
   }, [totalUnread]);
-
-  const [activeCall, setActiveCall] = useState(null);
 
   const handleStartCall = useCallback((callData) => {
     setActiveCall(callData);
