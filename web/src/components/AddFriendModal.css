@@ -75,7 +75,7 @@
 .afm-search-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   padding: 10px 14px;
   background: var(--bg-input-search);
   border-radius: var(--radius-full);
@@ -130,7 +130,7 @@
   align-items: center;
   justify-content: center;
   padding: 52px 24px;
-  gap: 14px;
+  gap: var(--sp-3h);
 }
 .afm-spinner {
   width: 28px;
@@ -167,7 +167,7 @@
 }
 .afm-idle-tags {
   display: flex;
-  gap: 8px;
+  gap: var(--sp-2);
   flex-wrap: wrap;
   justify-content: center;
 }
@@ -185,7 +185,7 @@
 .afm-search-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--sp-3);
   padding: 12px 22px;
   cursor: pointer;
   background: var(--bg-input-search);
@@ -214,7 +214,7 @@
   align-items: center;
   padding: 44px 24px;
   text-align: center;
-  gap: 6px;
+  gap: var(--sp-1h);
 }
 .afm-not-found-title {
   font-size: var(--text-base);
@@ -230,7 +230,7 @@
 .afm-result-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--sp-3);
   padding: 12px 22px;
   cursor: pointer;
   transition: background var(--dur-fast);
