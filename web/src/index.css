@@ -1399,7 +1399,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
   font-size: var(--text-sm2); color: var(--text-primary);
   padding: 3px 0; line-height: var(--lh-normal);
 }
-.wc-moment-comment-user { color: #576B95; font-weight: var(--font-medium); }
+.wc-moment-comment-user { color: var(--link); font-weight: var(--font-medium); }
 .wc-moment-comment-reply { color: var(--text-tertiary); }
 .wc-moment-comment-del {
   margin-left: 6px; font-size: var(--text-xs); color: var(--text-tertiary);
@@ -1407,7 +1407,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 }
 .wc-moment-comment-viewall {
   display: block; margin-top: var(--sp-1); padding: 2px 0;
-  font-size: var(--text-sm2); color: #576B95; background: none; border: none;
+  font-size: var(--text-sm2); color: var(--link); background: none; border: none;
   cursor: pointer; font-family: inherit;
 }
 .wc-moment-comment-viewall:disabled { color: var(--text-tertiary); cursor: default; }

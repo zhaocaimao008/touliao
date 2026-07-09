@@ -328,6 +328,7 @@
   --green-rgb:        var(--bubble-mine-rgb);
   --green-hover:      #0D9460;
   --link-color:       var(--brand-500);
+  --link:             #576B95;   /* 消息内链接（微信信号蓝，区别于品牌蓝）*/
   --bg-panel:         #F7F7F7;
   --bg-panel-header:  #F7F7F7;
   --bg-chat:          #FFFFFF;
@@ -463,6 +464,7 @@ body.dark-mode {
   --green-rgb:      var(--bubble-mine-rgb);
   --green-hover:    #1F8044;
   --link-color:     var(--color-primary);
+  --link:           #82AFFF;   /* 暗色下提亮，保证深底对比度（WCAG）*/
   --bg-msg-mine:    var(--bubble-mine);
   --bg-msg-other:   var(--bubble-other);
   --bg-active:      var(--bg-panel-item-active);
