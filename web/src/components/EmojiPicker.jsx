@@ -50,6 +50,9 @@ export default function EmojiPicker({ onSelect }) {
           const n = cats.length;
           const next = e.key === 'ArrowRight' ? (i + 1) % n : (i - 1 + n) % n;
           handleCatChange(cats[next].name);
+          // 焦点跟随新激活的分类(roving tabindex):否则读屏不播报、Tab 行为错乱
+          const tabs = e.currentTarget.querySelectorAll('.wc-emoji-cat');
+          tabs[next]?.focus();
         }}>
         {cats.map((c) => (
           <button key={c.name} className={`wc-emoji-cat${activeCat.name === c.name ? ' active' : ''}`}

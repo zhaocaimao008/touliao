@@ -221,8 +221,8 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
         <div role="status" className="gs-searching">搜索中…</div>
       )}
 
-      {/* 降级兜底 */}
-      {empty && !searchingMsg && (
+      {/* 降级兜底：仅在有实际查询词时展示,避免清空输入时闪出「去网络搜索『』」空串 */}
+      {empty && !searchingMsg && q && (
         <div
           onClick={() => onNetworkSearch(query)}
           className="gs-network-row"
