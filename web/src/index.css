@@ -62,6 +62,26 @@ body.dark-mode {
   .lg-card { animation: none !important; }
 }
 
+/* ── forced-colors (Windows 高对比度模式)：系统会覆盖自定义颜色，
+   需确保键盘焦点环与选中态仍可见，避免交互元素在高对比下"消失"。 ── */
+@media (forced-colors: active) {
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  [role="checkbox"]:focus-visible,
+  [role="switch"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="radio"]:focus-visible,
+  [role="option"]:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
 /* ── 毛玻璃面板动画 ── */
 @keyframes bubbleIn {
   from { opacity: 0; transform: translateY(8px); }
