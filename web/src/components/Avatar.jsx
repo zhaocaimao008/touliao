@@ -37,7 +37,7 @@ export default function Avatar({ src, name = '', size = 40, style = {}, online =
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? e => e.key === 'Enter' && onClick(e) : undefined}
+      onKeyDown={onClick ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e); } } : undefined}
     >
       {showImg
         ? <>

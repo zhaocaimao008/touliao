@@ -1,4 +1,14 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { downloadFile } from '../utils/download';
+
+// 从(可能带 ?token= 的)图片地址里抽一个像样的下载文件名
+function filenameFromUrl(u) {
+  try {
+    const path = String(u).split('?')[0].split('#')[0];
+    const base = path.substring(path.lastIndexOf('/') + 1);
+    return decodeURIComponent(base) || `image_${Date.now()}.jpg`;
+  } catch { return `image_${Date.now()}.jpg`; }
+}
 
 export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose }) {
   // Gallery mode: urls array + current index; single mode: just url
@@ -25,6 +35,10 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
     if (e.key === 'Escape') onClose();
     if (gallery && e.key === 'ArrowLeft') prev();
     if (gallery && e.key === 'ArrowRight') next();
+    // 键盘缩放：+/= 放大、-/_ 缩小、0 复位(对齐通用图片查看器)
+    if (e.key === '+' || e.key === '=') { setScale(s => Math.min(5, s + 0.25)); }
+    if (e.key === '-' || e.key === '_') { setScale(s => { const ns = Math.max(0.5, s - 0.25); if (ns <= 1) setPosition({ x: 0, y: 0 }); return ns; }); }
+    if (e.key === '0') { setScale(1); setPosition({ x: 0, y: 0 }); }
   }, [onClose, gallery, prev, next]);
 
   useEffect(() => {
@@ -179,12 +193,12 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         </>
       )}
 
-      {/* Download button */}
-      <a
-        href={currentUrl}
-        download
-        onClick={(e) => e.stopPropagation()}
+      {/* Download button：走统一 downloadFile,桌面/移动端与跨域云图也能可靠落盘(裸 <a download> 跨域失效) */}
+      <button
+        onClick={(e) => { e.stopPropagation(); downloadFile(currentUrl, filenameFromUrl(currentUrl)); }}
+        aria-label="下载图片"
         style={{
+          border: 'none', cursor: 'pointer',
           position: 'absolute', bottom: 30, left: '50%',
           transform: 'translateX(-50%)',
           color: 'var(--text-inverse)', fontSize: 13,
@@ -200,7 +214,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
         </svg>
         下载
-      </a>
+      </button>
 
       {/* Close button */}
       <button
