@@ -175,7 +175,7 @@ export const AuthProvider = ({ children }) => {
           await sub.unsubscribe();
         }
       }
-    } catch {}
+    } catch { /* best-effort push cleanup; ignore */ }
     await axios.post('/api/auth/logout').catch(() => {});
     if (userRef.current?.id) removeAccount(userRef.current.id);
     clearCsrfCache();
@@ -189,7 +189,7 @@ export const AuthProvider = ({ children }) => {
   // 3. 清除当前登录态 → PrivateRoute 自动跳转登录页 → 用户用新服务器账号重新登录
   const changeServer = async (newUrl) => {
     const clean = newUrl.trim().replace(/\/$/, '');
-    try { await axios.post('/api/auth/logout'); } catch {}
+    try { await axios.post('/api/auth/logout'); } catch { /* logout is best-effort on server switch */ }
     if (window.__ELECTRON_CONFIG__) {
       localStorage.setItem('vxin_server_url', clean);
       window.electronAPI?.setServerUrl?.(clean);

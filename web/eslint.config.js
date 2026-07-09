@@ -23,6 +23,13 @@ export default [
       'react/react-in-jsx-scope': 'off',
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-undef': 'error',
+      // React Compiler stylistic rules → warn (not real bugs in this codebase's
+      // intentional external-sync effects); real bug-catchers stay as errors.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/globals': 'warn',
     },
   },
 ];

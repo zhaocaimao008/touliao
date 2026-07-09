@@ -85,7 +85,7 @@ export const SocketProvider = ({ children }) => {
     // 解耦广播 window 事件，朋友圈页挂载时据此刷新 feed / 互动红点。
     ['new_moment', 'moment_liked', 'moment_commented'].forEach((ev) => {
       s.on(ev, (payload) => {
-        try { window.dispatchEvent(new CustomEvent('vxin:moment', { detail: { type: ev, payload } })); } catch {}
+        try { window.dispatchEvent(new CustomEvent('vxin:moment', { detail: { type: ev, payload } })); } catch { /* CustomEvent unsupported; ignore */ }
       });
     });
 
