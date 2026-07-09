@@ -243,7 +243,17 @@ function setupSecurity() {
     const raw = g_pendingDownloadName || item.getFilename() || `file_${Date.now()}`;
     g_pendingDownloadName = null;
     const safe = String(raw).replace(/[/\\:*?"<>|\x00-\x1f]/g, '_').slice(0, 120) || `file_${Date.now()}`;
-    const savePath = path.join(app.getPath('downloads'), safe);
+    // 同名去重：设了显式保存路径就绕过 Electron 的自动改名,这里手动补「file (1).ext」,避免静默覆盖已存在文件
+    const dir = app.getPath('downloads');
+    let savePath = path.join(dir, safe);
+    if (fs.existsSync(savePath)) {
+      const ext = path.extname(safe);
+      const base = safe.slice(0, safe.length - ext.length);
+      for (let i = 1; i < 1000; i++) {
+        const cand = path.join(dir, `${base} (${i})${ext}`);
+        if (!fs.existsSync(cand)) { savePath = cand; break; }
+      }
+    }
     item.setSavePath(savePath);
     item.once('done', (_ev, state) => {
       if (state !== 'completed') return;
@@ -623,7 +633,12 @@ function setupIPC() {
     if (!title) return;
     try {
       const notif = new Notification({ title, body });
-      notif.on('click', () => { mainWindow?.show(); mainWindow?.focus(); });
+      notif.on('click', () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();   // 最小化时 show() 不会还原,需显式 restore
+        mainWindow.show();
+        mainWindow.focus();
+      });
       notif.show();
     } catch (e) {
       log.warn('通知失败:', e.message);
