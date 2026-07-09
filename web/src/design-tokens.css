@@ -216,9 +216,9 @@
    ================================================================ */
   --radius-none:   0px;
   --radius-xs:     2px;    /* 极小：角标、徽标 */
-  --radius-sm:     4px;    /* 小：企业端按钮、输入框(B端) */
-  --radius-md:     8px;    /* 中：输入框、下拉菜单、标准卡片 */
-  --radius-lg:     12px;   /* 大：弹窗、主内容卡片 */
+  --radius-sm:     6px;    /* 小：企业端按钮、输入框(B端) */
+  --radius-md:     10px;   /* 中：输入框、下拉菜单、标准卡片 */
+  --radius-lg:     14px;   /* 大：弹窗、主内容卡片 */
   --radius-xl:     16px;   /* 特大：移动端 Sheet、大卡片 */
   --radius-2xl:    20px;   /* 超大：FAB、大圆角卡片 */
   --radius-full:   9999px; /* 胶囊 / 圆形 */
@@ -226,7 +226,7 @@
   /* ── 组件专属圆角 ── */
   --radius-avatar:     6px;    /* 头像（方形，仿企业微信）*/
   --radius-avatar-lg:  10px;   /* 大头像（个人主页）*/
-  --radius-bubble:     12px;   /* 气泡（主圆角，四角统一）*/
+  --radius-bubble:     5px;    /* 气泡（微信 PC 端小圆角，四角统一）*/
   --radius-bubble-tip: 12px;   /* 气泡尖角一侧 — 与主圆角一致，避免尖角异常 */
   --radius-input:      8px;    /* 输入框 */
   --radius-button:     6px;    /* 常规按钮 */
@@ -489,11 +489,9 @@
   --avatar-session:   var(--size-avatar-session);
   --avatar-msg:       var(--size-avatar-message);
   --radius-avatar:    6px;
-  /* 修复自引用 bug(原为 var(--自身)→无效→直角)。气泡用微信 PC 小圆角；卡片/输入框保持适中。 */
-  --radius-bubble:    5px;
-  --radius-sm:        6px;
-  --radius-md:        10px;
-  --radius-lg:        14px;
+  /* 注：radius-sm/md/lg/bubble 的最终值已上移至 § 8 规范块统一定义
+     (sm=6 md=10 lg=14 bubble=5，微信 PC 小圆角)，此处旧的重复覆盖已删除
+     以消除"文档值≠生效值"的隐患，实现单一数据源。 */
 }
 
 /* ================================================================

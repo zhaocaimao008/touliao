@@ -86,7 +86,7 @@ html.capacitor-app {
 
   /* 更紧凑的布局 */
   .wc-avatar { width: 36px; height: 36px; }
-  .wc-msg-text { font-size: 14px; }
+  .wc-msg-text { font-size: var(--text-base); }
   .wc-tool-btn { width: 32px; height: 32px; }
   .wc-input-toolbar { height: 40px; }
 }

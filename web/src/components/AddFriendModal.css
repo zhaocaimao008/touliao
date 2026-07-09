@@ -120,7 +120,7 @@
 }
 .afm-content::-webkit-scrollbar { width: 4px; }
 .afm-content::-webkit-scrollbar-track { background: transparent; }
-.afm-content::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 2px; }
+.afm-content::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: var(--radius-xs); }
 .afm-content::-webkit-scrollbar-thumb:hover { background: var(--gray-300); }
 
 /* ── Loading ----------------------------------------------- */
