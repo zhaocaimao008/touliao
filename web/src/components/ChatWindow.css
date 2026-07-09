@@ -147,8 +147,8 @@
 
 /* ── 置顶消息 Banner ── */
 .wc-pinned-banner {
-  background: #FFFDE7;
-  border-bottom: 1px solid #FFE082;
+  background: var(--color-warning-light);
+  border-bottom: 1px solid rgba(var(--color-warning-rgb),.35);
   padding: 7px 14px;
   display: flex;
   align-items: center;
@@ -158,13 +158,13 @@
 }
 .wc-pinned-badge {
   font-size: var(--text-xs);
-  color: #FF8F00;
+  color: var(--color-warning);
   font-weight: var(--font-semibold);
   flex-shrink: 0;
 }
 .wc-pinned-text {
   font-size: var(--text-sm2);
-  color: #555;
+  color: var(--text-secondary);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -181,8 +181,8 @@
   flex-shrink: 0;
 }
 .wc-pinned-detail {
-  background: #FFFDE7;
-  border-bottom: 1px solid #FFE082;
+  background: var(--color-warning-light);
+  border-bottom: 1px solid rgba(var(--color-warning-rgb),.35);
   max-height: 180px;
   overflow-y: auto;
   flex-shrink: 0;
@@ -217,7 +217,7 @@
   font-size: var(--text-sm);
   color: var(--color-badge);
   padding: 2px 8px;
-  border: 1px solid #FFCDD2;
+  border: 1px solid rgba(var(--color-danger-rgb),.35);
   border-radius: var(--radius-sm);
   cursor: pointer;
   flex-shrink: 0;
@@ -309,11 +309,11 @@
 }
 .wc-upload-bar-error {
   background: var(--color-danger-light);
-  border-top: 1px solid #FFCDD2;
+  border-top: 1px solid rgba(var(--color-danger-rgb),.35);
 }
 .wc-upload-bar-progress {
-  background: #F0FFF6;
-  border-top: 1px solid #B7EBC7;
+  background: var(--color-success-light);
+  border-top: 1px solid rgba(var(--color-success-rgb),.35);
 }
 .wc-upload-icon {
   font-size: var(--text-sm2);
@@ -378,9 +378,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #FFF8E1;
+  background: var(--color-warning-light);
   padding: 6px 14px;
-  border-top: 1px solid #FFE082;
+  border-top: 1px solid rgba(var(--color-warning-rgb),.35);
   gap: 8px;
 }
 .wc-edit-bar-body {
@@ -389,7 +389,7 @@
 }
 .wc-edit-bar-label {
   font-size: var(--text-xs);
-  color: #E65100;
+  color: var(--color-warning);
   font-weight: var(--font-semibold);
   margin-bottom: 2px;
 }
@@ -663,7 +663,7 @@
   cursor: pointer;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: linear-gradient(135deg,#F9A825,#F4511E);
+  background: linear-gradient(135deg,var(--rp-orange-alt),var(--rp-orange));
   color: var(--bg-msg-other);
   box-shadow: 0 1px 4px rgba(0,0,0,.15);
 }
@@ -712,7 +712,7 @@
 }
 .wc-rp-detail-card {
   width: 320px;
-  background: linear-gradient(180deg,#F4511E 0%,#F4511E 140px,#fff 140px,#fff 100%);
+  background: linear-gradient(180deg,var(--rp-orange) 0%,var(--rp-orange) 140px,var(--bg-card) 140px,var(--bg-card) 100%);
   border-radius: var(--radius-modal);
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0,0,0,.3);
@@ -751,11 +751,11 @@
 .wc-rp-amount {
   font-size: 30px;
   font-weight: var(--font-bold);
-  color: #F4511E;
+  color: var(--rp-orange);
 }
 .wc-rp-unit {
   font-size: var(--text-base);
-  color: #F4511E;
+  color: var(--rp-orange);
   margin-left: 4px;
 }
 .wc-rp-expired {
@@ -786,7 +786,7 @@
   color: var(--text-primary);
 }
 .wc-rp-claim-amount {
-  color: #F4511E;
+  color: var(--rp-orange);
   font-weight: var(--font-semibold);
 }
 .wc-rp-close-btn {
@@ -796,7 +796,7 @@
   color: var(--text-tertiary);
   cursor: pointer;
   background: var(--bg-msg-other);
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-default);
 }
 
 /* ── 上下文菜单 Overlay ── */
@@ -1048,7 +1048,7 @@
 }
 .wc-multiselect-check.unchecked {
   background: var(--bg-msg-other);
-  border: 2px solid #D9D9D9;
+  border: 2px solid var(--border-medium);
 }
 .wc-multiselect-check-mark {
   color: var(--bg-msg-other);
