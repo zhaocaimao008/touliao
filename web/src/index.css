@@ -613,7 +613,7 @@ img { display: block; }
 .wc-msg-bubble.other {
   background: var(--bg-msg-other);
   color: var(--text-primary);
-  border: 1px solid rgba(0,0,0,.04);
+  border: 1px solid var(--border-subtle);
 }
 
 /* 气泡尾巴（微信 PC 风：小三角指向头像侧）*/
@@ -1108,7 +1108,7 @@ img { display: block; }
   align-items: center;
   gap: 13px;
   padding: 13px var(--sp-4);
-  border-bottom: 1px solid rgba(0,0,0,.04);
+  border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
   transition: background var(--dur-fast);
 }
@@ -1493,7 +1493,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .wc-online-dot { position: absolute; bottom: 0; right: 0; width: 9px; height: 9px; background: #44C464; border-radius: var(--radius-full); border: 1.5px solid #fff; }
 .wc-logout-btn { margin: var(--sp-4); padding: var(--sp-3); background: var(--bg-card); color: #E24C4C; border-radius: var(--radius-button-sm); font-size: var(--text-md); font-weight: var(--font-medium); text-align: center; cursor: pointer; border: 1px solid rgba(226,76,76,.3); transition: background var(--dur-fast); }
 .wc-logout-btn:hover { background: rgba(226,76,76,.05); }
-.wc-collection-item { display: flex; align-items: center; gap: 11px; padding: 11px var(--sp-4); background: var(--bg-card); border-bottom: 1px solid rgba(0,0,0,.04); cursor: pointer; transition: background var(--dur-fast); }
+.wc-collection-item { display: flex; align-items: center; gap: 11px; padding: 11px var(--sp-4); background: var(--bg-card); border-bottom: 1px solid var(--border-subtle); cursor: pointer; transition: background var(--dur-fast); }
 .wc-collection-item:hover { background: var(--bg-hover); }
 .wc-collection-icon { width: 42px; height: 42px; border-radius: var(--radius-button); background: #F0F0F0; display: flex; align-items: center; justify-content: center; font-size: var(--text-2xl); flex-shrink: 0; }
 .wc-collection-content { font-size: var(--text-base); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

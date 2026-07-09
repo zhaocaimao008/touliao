@@ -110,7 +110,7 @@
   gap: var(--sp-2);
   padding: 8px 14px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(0,0,0,.04);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .wc-search-result-item:hover {
   background: var(--bg-hover);
@@ -192,7 +192,7 @@
   align-items: center;
   padding: 7px 14px;
   gap: var(--sp-2);
-  border-top: 1px solid rgba(0,0,0,.04);
+  border-top: 1px solid var(--border-subtle);
 }
 .wc-pinned-item-icon {
   font-size: var(--text-2xl);
