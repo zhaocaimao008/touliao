@@ -1285,7 +1285,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 
 /* ── 转发弹窗 ── */
 .fwd-modal { width: 460px; height: 540px; }
-.wc-modal.fwd-modal { background: #fff !important; border: none !important; }
+.wc-modal.fwd-modal { background: var(--bg-modal, #fff) !important; border: none !important; }
 .fwd-header { background: var(--bg-panel); border-bottom: 1px solid var(--divider); padding: 13px 18px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 .fwd-preview { padding: 9px 16px; background: var(--bg-panel); border-bottom: 1px solid var(--divider); display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
 .fwd-preview-label { font-size: var(--text-xs); color: var(--text-tertiary); white-space: nowrap; }
@@ -1728,7 +1728,7 @@ body.dark-mode .wc-settings-entry:hover {
 
   /* 面板头部 — 紧凑毛玻璃 */
   .wc-panel-topbar {
-    background: #fff !important;
+    background: var(--bg-chat-header, #fff) !important;
 
 
     height: 44px; padding: 0 10px;
@@ -1740,7 +1740,7 @@ body.dark-mode .wc-settings-entry:hover {
 
   /* 聊天头部 — 紧凑毛玻璃 */
   .wc-chat-header {
-    background: #fff !important;
+    background: var(--bg-chat-header, #fff) !important;
 
 
     height: 44px; padding: 0 8px 0 12px;
@@ -1752,7 +1752,7 @@ body.dark-mode .wc-settings-entry:hover {
 
   /* 输入区域 — 紧凑毛玻璃 */
   .wc-input-area {
-    background: #fff !important;
+    background: var(--bg-card, #fff) !important;
 
 
   }
@@ -1800,7 +1800,7 @@ body.dark-mode .wc-settings-entry:hover {
   .wc-discover-section { background: #fff; border-radius: var(--radius-modal); margin: 0 12px 10px; border: none; overflow: hidden; }
 
   /* 设置子页面毛玻璃 */
-  .wc-settings .wc-sub-header { background: #fff !important; }
+  .wc-settings .wc-sub-header { background: var(--bg-chat-header, #fff) !important; }
   .wc-settings > div:not(.wc-sub-header) { padding-left: var(--sp-3); padding-right: var(--sp-3); }
   .wc-settings > div > div { border-radius: var(--radius-modal) !important; overflow: hidden; }
 
@@ -2377,7 +2377,7 @@ body {
 .wc-user-profile-modal {
   width: 360px;
   max-height: 88vh;
-  background: #EDEFF2 !important;
+  background: var(--bg-app, #EDEFF2) !important;
   border-radius: var(--radius-md);
   box-shadow: 0 18px 46px rgba(0,0,0,.22);
 }
@@ -2516,7 +2516,7 @@ body {
 .wc-discover-section,
 .wc-moment-card,
 .wc-modal {
-  background: #fff !important;
+  background: var(--bg-modal, #fff) !important;
 }
 
 /* ============================================================
