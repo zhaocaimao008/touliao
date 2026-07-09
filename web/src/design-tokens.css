@@ -66,6 +66,9 @@
   --color-info:          var(--brand-500);
   --color-info-light:    var(--brand-50);
 
+  /* 在线状态圆点(头像右下角,明暗一致的鲜绿) */
+  --status-online:       #44C464;
+
   /* 未读角标、强提示 */
   --color-badge:         #FA5151;
   --rp-orange:           #F4511E;   /* 红包专用橙(喜庆固定品牌色,明暗一致) */
