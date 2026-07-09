@@ -535,7 +535,9 @@ body.dark-mode {
   --bg-card:              #2C2C2E;
   --bg-modal:             #1C1C1E;
   --bg-hover:             rgba(255, 255, 255, .06);
-  --bg-active:            rgba(62, 142, 255, .14);
+  /* 与浅色一致，复用面板选中态（原蓝色调值被 §14 legacy alias 覆盖成中性，
+     此处对齐生效值以消除"文档≠生效"冲突，视觉零变化）*/
+  --bg-active:            var(--bg-panel-item-active);
   --bg-overlay:           rgba(0, 0, 0, .55);
   --bg-pinned:            rgba(255, 255, 255, .03);
   --bg-pinned-hover:      rgba(255, 255, 255, .06);

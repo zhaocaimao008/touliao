@@ -236,7 +236,7 @@
 }
 .fwd-list::-webkit-scrollbar { width: 4px; }
 .fwd-list::-webkit-scrollbar-track { background: transparent; }
-.fwd-list::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 2px; }
+.fwd-list::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: var(--radius-xs); }
 .fwd-list::-webkit-scrollbar-thumb:hover { background: var(--gray-300); }
 
 /* Select-all row */
@@ -428,7 +428,7 @@
   color: var(--gray-400);
   cursor: pointer;
   padding: 2px 4px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1;
   flex-shrink: 0;
   transition: color var(--dur-fast, .15s);
