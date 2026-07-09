@@ -908,7 +908,7 @@ img { display: block; }
 .wc-ctx-menu {
   position: fixed;
   z-index: var(--z-popover, 1100);
-  background: #3A3A3C;
+  background: var(--bg-ctx-menu);
   border-radius: var(--radius-card);
   box-shadow: 0 6px 24px rgba(0,0,0,.28), 0 0 0 .5px rgba(255,255,255,.07);
   overflow: hidden;
@@ -1529,7 +1529,7 @@ body.dark-mode .wc-bottom-bar { background: var(--bg-panel); }
 body.dark-mode .wc-messages[class] { background: var(--bg-messages); }
 body.dark-mode .wc-chat[class] { background: var(--bg-chat); }
 body.dark-mode .wc-msg-bubble.other { box-shadow: none; }
-body.dark-mode .wc-ctx-menu { background: var(--bg-card); }
+/* .wc-ctx-menu 暗色底由 --bg-ctx-menu token 自动适配 */
 body.dark-mode .wc-empty[class] { background: var(--bg-messages); }
 body.dark-mode .wc-empty p { color: var(--text-muted); }
 body.dark-mode .wc-discover,

@@ -117,6 +117,7 @@
   --bg-card-hover:        #F7F8FA;   /* 卡片/次级按钮悬停底色 */
   --bg-modal:             #FFFFFF;
   --bg-success-tint:      #E8F5E9;   /* 成功/绿态浅底(录音中、管理员徽标等) */
+  --bg-ctx-menu:          #3A3A3C;   /* 右键菜单：微信风格深色浮层(浅色下亦深) */
 
   /* 通用交互 */
   --bg-hover:             rgba(0, 0, 0, .04);
@@ -421,6 +422,7 @@ body.dark-mode {
   --bg-card-hover:        #3A3A3C;   /* 暗色卡片/次级按钮悬停 */
   --bg-modal:             #1C1C1E;
   --bg-success-tint:      rgba(7, 193, 96, .16);  /* 暗色下绿态浅底 */
+  --bg-ctx-menu:          #2C2C2E;   /* 暗色右键菜单与卡片同底 */
   --bg-hover:             rgba(255, 255, 255, .06);
   /* 与浅色一致，复用面板选中态（原蓝色调值被 §14 legacy alias 覆盖成中性，
      此处对齐生效值以消除"文档≠生效"冲突，视觉零变化）*/
