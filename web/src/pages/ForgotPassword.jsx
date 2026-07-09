@@ -16,7 +16,7 @@ export default function ForgotPassword() {
     if (loading) return; // 防连点/回车重复提交
     setError('');
     // 手机号格式校验（与后端 resetPassword 规则一致，后端为权威）
-    if (!/^\+?[\d\s\-]{5,20}$/.test(form.phone.trim())) {
+    if (!/^\+?[\d\s-]{5,20}$/.test(form.phone.trim())) {
       setError('手机号格式不正确');
       return;
     }

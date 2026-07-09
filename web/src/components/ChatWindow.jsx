@@ -2460,6 +2460,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             {/* 转发：所有类型消息都可转发 */}
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>转发</div>
             {/* 收藏功能暂在前端隐藏（逻辑保留，改为 true 即可恢复入口） */}
+            {/* eslint-disable-next-line no-constant-binary-expression -- 收藏入口暂隐藏，逻辑保留，改 true 即恢复 */}
             {false && (
               <div className="wc-ctx-item" onClick={() => ctxAction('collect')}>收藏</div>
             )}

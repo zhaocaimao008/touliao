@@ -515,7 +515,7 @@ function DeviceList({ onBack }) {
             }
           </Card>
         )}
-        <div className="wc-device-hint">点击"退出"可远程下线该设备</div>
+        <div className="wc-device-hint">点击&quot;退出&quot;可远程下线该设备</div>
         {sessions.some(s => !s.current) && (
           <div className="wc-section-pad" style={{ marginTop: 8 }}>
             <button className="wc-btn-exit-all" onClick={removeAllSessions}>一键退出其他全部设备</button>
