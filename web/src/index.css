@@ -1258,7 +1258,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
    ============================================================ */
 .wc-modal-overlay { position: fixed; inset: 0; background: var(--scrim-light); display: flex; align-items: center; justify-content: center; z-index: var(--z-modal); animation: fadeIn 180ms ease-out both; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.wc-modal { background: var(--bg-modal); border-radius: var(--radius-lg); overflow: hidden; width: 340px; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.22), 0 0 0 .5px rgba(0,0,0,.06); animation: slideUp 200ms ease-out both; isolation: isolate; }
+.wc-modal { background: var(--bg-modal); border-radius: var(--radius-lg); overflow: hidden; width: 340px; max-height: 82vh; display: flex; flex-direction: column; box-shadow: var(--elev-dialog), 0 0 0 .5px rgba(0,0,0,.06); animation: slideUp 200ms ease-out both; isolation: isolate; }
 @keyframes slideUp { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .wc-modal.wide { width: 440px; }
 .wc-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--divider); }
@@ -2607,7 +2607,7 @@ body {
 /* Modal 弹窗精致化 */
 .wc-modal {
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0,0,0,.22), 0 4px 16px rgba(0,0,0,.1);
+  box-shadow: var(--elev-dialog), 0 4px 16px rgba(0,0,0,.1);
   animation: scaleIn .15s var(--ease);
 }
 
@@ -2645,7 +2645,7 @@ body {
   background: var(--bg-msg-other);
   border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,.22);
+  box-shadow: var(--elev-dialog);
   animation: scaleIn .15s var(--ease);
   display: flex; flex-direction: column;
   max-height: 72vh;
