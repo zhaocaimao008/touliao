@@ -387,7 +387,7 @@ export default function CallModal({ socket, call, onClose }) {
               padding: '18px 8px 8px',
               display: 'flex', flexDirection: 'column', alignItems: 'center',
             }}>
-              <div style={{ color: '#fff', fontSize: 11, fontWeight: 500 }}>
+              <div style={{ color: 'var(--gray-0)', fontSize: 11, fontWeight: 500 }}>
                 {isConnected ? timer : '连接中…'}
               </div>
             </div>
@@ -436,7 +436,7 @@ export default function CallModal({ socket, call, onClose }) {
             <div style={{
               background: 'rgba(0,0,0,.72)', borderRadius: 20,
               padding: '2px 10px',
-              color: '#fff', fontSize: 11,
+              color: 'var(--gray-0)', fontSize: 11,
               backdropFilter: 'blur(6px)',
             }}>
               {isConnected ? timer : (status === 'calling' ? '等待接听…' : '连接中…')}
@@ -456,7 +456,7 @@ export default function CallModal({ socket, call, onClose }) {
   return (
     <div
       data-testid="call-modal"
-      style={{ position: 'fixed', inset: 0, zIndex: 2000, color: '#fff', overflow: 'hidden' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 2000, color: 'var(--gray-0)', overflow: 'hidden' }}
     >
       {/* 音频（ref callback 重挂恢复） */}
       <audio ref={onRemoteAudioMount} autoPlay style={{ display: 'none' }} />
@@ -465,7 +465,7 @@ export default function CallModal({ socket, call, onClose }) {
       {mediaError && (
         <div role="alert" style={{
           position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-          background: 'rgba(220,60,60,.92)', color: '#fff',
+          background: 'rgba(220,60,60,.92)', color: 'var(--gray-0)',
           fontSize: 13, textAlign: 'center', padding: '8px 14px',
           backdropFilter: 'blur(6px)',
         }}>
@@ -640,7 +640,7 @@ export default function CallModal({ socket, call, onClose }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(0,0,0,.55)',
         }}>
-          <div style={{ fontSize: 16, color: '#fff', fontWeight: 500 }}>
+          <div style={{ fontSize: 16, color: 'var(--gray-0)', fontWeight: 500 }}>
             {END_TEXT[endReason] || '通话已结束'}
           </div>
         </div>
@@ -671,7 +671,7 @@ function CircleBtn({ icon, label, color, size = 54, active, onClick, testid }) {
         onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
       >
-        <span style={{ width: size * 0.44, height: size * 0.44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+        <span style={{ width: size * 0.44, height: size * 0.44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-0)' }}>
           {icon}
         </span>
       </div>
@@ -691,7 +691,7 @@ const minimizeBtnStyle = {
   border: 'none', borderRadius: '50%',
   width: 36, height: 36,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  color: '#fff', cursor: 'pointer', flexShrink: 0,
+  color: 'var(--gray-0)', cursor: 'pointer', flexShrink: 0,
 };
 
 const miniHangupStyle = {
@@ -699,7 +699,7 @@ const miniHangupStyle = {
   width: 30, height: 30, borderRadius: '50%',
   background: '#FF3B30',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  cursor: 'pointer', color: '#fff',
+  cursor: 'pointer', color: 'var(--gray-0)',
 };
 
 const incomingCenterStyle = {
