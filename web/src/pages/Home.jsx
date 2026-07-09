@@ -97,7 +97,9 @@ function AccountSwitcher() {
   const passwordRef = useRef(null);
   const containerRef = useRef(null);
   const letter = (user?.username || '?')[0].toUpperCase();
-  useEffect(() => { setAvatarErr(false); }, [user?.avatar]);
+  // 头像地址变化即复位错误态：render 期派生（存上一次 avatar），避免 effect 内同步 setState
+  const [prevAvatar, setPrevAvatar] = useState(user?.avatar);
+  if (user?.avatar !== prevAvatar) { setPrevAvatar(user?.avatar); setAvatarErr(false); }
 
   /* 点外部关闭，不用全屏遮罩（遮罩会挡住头像按钮本身） */
   useEffect(() => {
@@ -109,9 +111,12 @@ function AccountSwitcher() {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  useEffect(() => {
+  // 下拉关闭时复位表单：render 期派生（存上一次 open），避免 effect 内同步 setState
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (!open) { setShowForm(false); setErr(''); setForm({ phone: '', password: '' }); setSwitchTarget(null); }
-  }, [open]);
+  }
 
   // 切换账号：优先丝滑切换（后端凭 wallet cookie 免密重签发）。
   // 仅当本设备没切换凭证（如缓存被清/换了浏览器/旧会话）才回退到密码登录。
@@ -516,6 +521,12 @@ export default function Home() {
   const addBtnRef = useRef(null);
   useEffect(() => { activeConvIdRef.current = activeConv?.id ?? null; }, [activeConv?.id]);
 
+  const handleSelectConv = useCallback((conv) => {
+    setActiveConv(conv);
+    setUnread(prev => ({ ...prev, [conv.id]: 0 }));
+    setTab('chats');
+  }, []);
+
   useEffect(() => {
     const handler = (e) => {
       const { conversationId } = e.detail || {};
@@ -527,7 +538,7 @@ export default function Home() {
     };
     window.addEventListener('vxin:open-conversation', handler);
     return () => window.removeEventListener('vxin:open-conversation', handler);
-  }, []);
+  }, [handleSelectConv]);
 
   useEffect(() => {
     axios.get('/api/users/friend-requests').then(r => setFriendReqCount(r.data.length)).catch(() => {});
@@ -577,6 +588,7 @@ export default function Home() {
     } catch { /* notification display failed; non-critical */ }
   }, []);
 
+  const myId = user?.id;
   useEffect(() => {
     if (!socket) return;
     const onMsg = (msg) => {
@@ -596,7 +608,7 @@ export default function Home() {
         showNotification(msg.senderName || '新消息', bodyText, msg.senderAvatar);
       }
       // 桌面端：他人来消息且窗口失焦 → 任务栏/Dock 闪烁引起注意(main 侧再判 isFocused 兜底)
-      if (msg.sender_id !== user?.id && (document.hidden || !document.hasFocus())) {
+      if (msg.sender_id !== myId && (document.hidden || !document.hasFocus())) {
         try { window.electronAPI?.flashFrame?.(true); } catch { /* 非桌面端忽略 */ }
       }
     };
@@ -652,7 +664,7 @@ export default function Home() {
       socket.off('new_friend_request', onFriendReq);
       socket.off('friend_request_accepted', onFriendAccepted);
     };
-  }, [socket, showNotification]);
+  }, [socket, showNotification, myId]);
 
   // 被踢出群时：清除当前活跃会话 + 清零未读（ChatWindow 可能未挂载，需在此兜底）
   useEffect(() => {
@@ -681,12 +693,6 @@ export default function Home() {
     socket.on('call:incoming', onIncoming);
     return () => socket.off('call:incoming', onIncoming);
   }, [socket]);
-
-  const handleSelectConv = useCallback((conv) => {
-    setActiveConv(conv);
-    setUnread(prev => ({ ...prev, [conv.id]: 0 }));
-    setTab('chats');
-  }, []);
 
   const handleTabChange = (t) => {
     setTab(t);
