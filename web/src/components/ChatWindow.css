@@ -556,7 +556,7 @@
   color: var(--color-badge);
   cursor: pointer;
   font-size: var(--text-xl);
-  line-height: 1;
+  line-height: var(--lh-none);
 }
 
 /* ── 消息状态（群已读数） ── */
@@ -675,7 +675,7 @@
 }
 .wc-redpacket-icon {
   font-size: 30px;
-  line-height: 1;
+  line-height: var(--lh-none);
 }
 .wc-redpacket-info {
   flex: 1;
@@ -927,7 +927,7 @@
   color: var(--text-tertiary);
   font-size: var(--text-lg);
   cursor: pointer;
-  line-height: 1;
+  line-height: var(--lh-none);
   padding: 2px;
 }
 .wc-settings-body {
@@ -1022,7 +1022,7 @@
   color: var(--color-badge);
   cursor: pointer;
   font-size: var(--text-xl);
-  line-height: 1;
+  line-height: var(--lh-none);
 }
 
 /* ── 多选列 ── */
@@ -1054,7 +1054,7 @@
   color: var(--bg-msg-other);
   font-size: var(--text-sm);
   font-weight: var(--font-bold);
-  line-height: 1;
+  line-height: var(--lh-none);
 }
 
 /* ── 更多面板 SVG 图标通用 ── */
