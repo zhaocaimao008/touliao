@@ -2307,7 +2307,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                     const blob = await (await fetch(dataUrl)).blob();
                     const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
                     handleFileUpload({ target: { files: [file] } });
-                  } catch {}
+                  } catch { /* clipboard image read failed; ignore */ }
                 } else {
                   document.querySelector('input[accept*="image"]')?.click();
                 }

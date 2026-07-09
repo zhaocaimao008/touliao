@@ -583,7 +583,7 @@ export default function Home() {
         tag: title,
         renotify: true,
       });
-    } catch {}
+    } catch { /* notification display failed; non-critical */ }
   }, []);
 
   useEffect(() => {

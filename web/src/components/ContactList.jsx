@@ -179,7 +179,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 try {
                   const { data } = await axios.get('/api/messages/file-helper');
                   onStartChat({ id: data.conversationId, type: 'filehelper', name: '文件传输助手', avatar: '' });
-                } catch {}
+                } catch { /* file-helper open failed; ignore */ }
               }}
             />
 

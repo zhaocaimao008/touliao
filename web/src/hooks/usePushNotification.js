@@ -116,7 +116,7 @@ export function usePushNotification(user) {
         await sub.unsubscribe();
         subscriptionRef.current = null;
       }
-    } catch {}
+    } catch { /* unsubscribe failed; ref already cleared */ }
   }
 
   return { unsubscribe };

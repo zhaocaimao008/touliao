@@ -114,7 +114,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     try {
       const { data } = await axios.post('/api/messages/conversation/private', { userId: c.id });
       onSelectConv({ id: data.conversationId, type: 'private', name: c.remark || c.username, avatar: c.avatar, otherUser: c });
-    } catch {}
+    } catch { /* open-conversation failed; ignore */ }
   };
 
   const openConversation = (conv) => {

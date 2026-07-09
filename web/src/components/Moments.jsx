@@ -403,7 +403,7 @@ export default function Moments() {
           : (x.likes || []).filter(l => l.user_id !== meId);
         return { ...x, liked: data.liked, likeCount: data.likeCount, likes };
       }));
-    } catch {}
+    } catch { /* like request failed; state reverts via finally */ }
     finally { likingRef.current[m.id] = false; }
   }, [meId, user?.username]);
 

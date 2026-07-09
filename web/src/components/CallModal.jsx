@@ -15,7 +15,7 @@ async function fetchIceConfig() {
     const { data } = await axios.get('/api/turn/credentials');
     if (data && Array.isArray(data.iceServers) && data.iceServers.length)
       return { iceServers: data.iceServers };
-  } catch {}
+  } catch { /* fall through to default ICE servers */ }
   return FALLBACK_ICE;
 }
 
@@ -289,7 +289,7 @@ export default function CallModal({ socket, call, onClose }) {
       try {
         if (pcRef.current && candidate)
           await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch {}
+      } catch { /* stale/duplicate ICE candidate; safe to ignore */ }
     };
     const onEnd = ({ from, reason } = {}) => {
       if (from !== remoteId) return; // 防任意用户强制关闭通话界面

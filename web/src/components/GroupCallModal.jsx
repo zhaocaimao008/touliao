@@ -52,7 +52,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
     if (closedRef.current) return;
     closedRef.current = true;
     if (callIdRef.current) socket?.emit('group_call:leave', { callId: callIdRef.current });
-    pcsRef.current.forEach(pc => { try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch {} });
+    pcsRef.current.forEach(pc => { try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch { /* peer already closed */ } });
     pcsRef.current.clear();
     localStreamRef.current?.getTracks().forEach(t => t.stop());
   }, [socket]);
@@ -86,7 +86,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
 
   const removePeer = useCallback((peerId) => {
     const pc = pcsRef.current.get(peerId);
-    if (pc) { try { pc.close(); } catch {} pcsRef.current.delete(peerId); }
+    if (pc) { try { pc.close(); } catch { /* already closed */ } pcsRef.current.delete(peerId); }
     remoteSetRef.current.delete(peerId);
     pendingIceRef.current.delete(peerId);
     setRemoteStreams(prev => { if (!(peerId in prev)) return prev; const n = { ...prev }; delete n[peerId]; return n; });

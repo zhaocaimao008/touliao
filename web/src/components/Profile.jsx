@@ -868,7 +868,7 @@ async function doLogout(logout) {
       await axios.delete('/api/notifications/web-subscribe', { data: { endpoint: sub.endpoint } }).catch(() => {});
       await sub.unsubscribe().catch(() => {});
     }
-  } catch {}
+  } catch { /* best-effort unsubscribe before logout */ }
   logout();
   goLogin();
 }
