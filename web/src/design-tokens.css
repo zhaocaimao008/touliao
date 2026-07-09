@@ -280,6 +280,11 @@
   --shadow-nav:
     2px 0 16px rgba(0, 0, 0, .18);
 
+  /* ── 浅色浮层高度档：模态/弹层统一投影意图 ── */
+  --elev-modal:   0 24px 64px rgba(0, 0, 0, .28);  /* 大模态卡片 */
+  --elev-popover: 0 8px 32px rgba(0, 0, 0, .18);   /* 中层弹层/抽屉 */
+  --elev-dropdown: 0 1px 8px rgba(0, 0, 0, .06);   /* 轻量下拉/贴附 */
+
   /* ── 主色按钮 Glow ── */
   --shadow-btn-primary:
     0 2px 8px rgba(var(--color-primary-rgb), .28);

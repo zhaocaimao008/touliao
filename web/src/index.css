@@ -2707,7 +2707,7 @@ body {
   background: var(--bg-msg-other);
   border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: 0 24px 64px rgba(0,0,0,.26);
+  box-shadow: var(--elev-modal);
   animation: scaleIn .15s var(--ease);
   display: flex; flex-direction: column;
 }
@@ -2924,7 +2924,7 @@ body {
 .wc-slabel { padding: 16px 16px 6px; font-size: var(--text-sm); color: var(--text-tertiary); font-weight: var(--font-medium); letter-spacing: .5px; text-transform: uppercase; }
 
 /* ── Card ── */
-.wc-card { background: var(--bg-msg-other, #fff); border-radius: var(--radius-card); border: 1px solid var(--border-color); overflow: hidden; box-shadow: 0 1px 8px rgba(0,0,0,.06); }
+.wc-card { background: var(--bg-msg-other, #fff); border-radius: var(--radius-card); border: 1px solid var(--border-color); overflow: hidden; box-shadow: var(--elev-dropdown); }
 
 /* ── CRow ── */
 .wc-crow { display: flex; align-items: center; gap: var(--sp-3); padding: 13px 14px; border-bottom: 1px solid var(--border-color); cursor: default; transition: background var(--dur-fast); }
@@ -3023,7 +3023,7 @@ body {
 /* ── Section wrappers ── */
 .wc-section-pad { padding: 0 14px; }
 .wc-logout-div { padding: 20px 14px 32px; }
-.wc-logout-btn { width: 100%; padding: 15px 0; border-radius: var(--radius-modal); background: var(--bg-msg-other, #fff); color: var(--color-badge); font-size: var(--text-md); font-weight: var(--font-medium); border: 1px solid rgba(250,81,81,.2); box-shadow: 0 1px 8px rgba(0,0,0,.06); cursor: pointer; transition: opacity var(--dur-fast); }
+.wc-logout-btn { width: 100%; padding: 15px 0; border-radius: var(--radius-modal); background: var(--bg-msg-other, #fff); color: var(--color-badge); font-size: var(--text-md); font-weight: var(--font-medium); border: 1px solid rgba(250,81,81,.2); box-shadow: var(--elev-dropdown); cursor: pointer; transition: opacity var(--dur-fast); }
 .wc-logout-btn:hover { opacity: .7; }
 
 /* ── Loading / Empty ── */
@@ -3372,7 +3372,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .cgm-content {
   width:480px; max-width:94vw; max-height:80vh;
   background:var(--bg-msg-other); border-radius:var(--radius-xl);
-  overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.28);
+  overflow:hidden; box-shadow: var(--elev-modal);
   display:flex; flex-direction:column;
   border:1px solid var(--border-color);
 }
@@ -3517,7 +3517,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   min-width: 240px;
   max-width: 320px;
   text-align: center;
-  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  box-shadow: var(--elev-popover);
 }
 .wc-confirm-msg {
   font-size: var(--text-md);
@@ -3575,7 +3575,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 
 /* === AddFriendModal component classes === */
 .afm-overlay { position: fixed; inset: 0; z-index: var(--z-modal, 1000); display: flex; align-items: center; justify-content: center; padding: var(--sp-4); background: rgba(0, 0, 0, 0.4); }
-.afm-card { width: 400px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column; background: var(--bg-panel, #fff); border-radius: var(--radius-xl); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28); border: 1px solid var(--border-color); overflow: hidden; }
+.afm-card { width: 400px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column; background: var(--bg-panel, #fff); border-radius: var(--radius-xl); box-shadow: var(--elev-modal); border: 1px solid var(--border-color); overflow: hidden; }
 .afm-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
 .afm-header-title { font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); }
 .afm-close-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); color: var(--text-secondary); background: transparent; cursor: pointer; border: none; flex-shrink: 0; }
