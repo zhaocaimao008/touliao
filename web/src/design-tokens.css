@@ -94,11 +94,6 @@
   /* 整体壳层 */
   --bg-app:               #DDE0E8;   /* 面板缝隙色，深于面板背景 */
 
-  /* 侧边导航（深色，企业感强，但不纯黑）*/
-  --bg-nav:               #18222E;
-  --bg-nav-item-hover:    rgba(255, 255, 255, .07);
-  --bg-nav-item-active:   rgba(255, 255, 255, .13);
-
   /* 会话面板 */
   --bg-panel:             #F7F7F7;
   --bg-panel-header:      #F7F7F7;
@@ -118,17 +113,14 @@
   /* 内容卡片 / 弹窗 */
   --bg-card:              #FFFFFF;
   --bg-modal:             #FFFFFF;
-  --bg-popover:           #FFFFFF;
 
   /* 通用交互 */
   --bg-hover:             rgba(0, 0, 0, .04);
   --bg-active:            var(--bg-panel-item-active);
   --bg-overlay:           rgba(15, 22, 32, .40);  /* 弹窗遮罩 */
-  --bg-overlay-blur:      rgba(15, 22, 32, .28);  /* 毛玻璃遮罩 */
 
   /* 置顶会话 */
   --bg-pinned:            rgba(0, 0, 0, .018);
-  --bg-pinned-hover:      rgba(0, 0, 0, .045);
 
 /* ================================================================
    § 5  BORDER — 边框体系
@@ -208,7 +200,6 @@
   --size-session: 64px;   /* 会话列表条目高度 */
   --size-avatar-session: 44px;
   --size-avatar-message: 36px;
-  --size-avatar-nav:     30px;
 
 /* ================================================================
    § 8  BORDER RADIUS — 圆角规范
@@ -323,135 +314,15 @@
   --glass-bg-input:   rgba(255,255,255,.8);
   --glass-panel-bg:   rgba(245,245,247,.7);
   --glass-panel-bg-strong: rgba(28,28,30,.82);
-  --glass-blur:       blur(24px) saturate(1.4);
-  --glass-panel-blur: blur(30px) saturate(1.3);
-  --glass-input-blur: blur(20px) saturate(1.2);
 
 /* ================================================================
-   § 12  COMPONENT TOKENS — 组件专属 Token
-   将设计决策显式命名，组件代码不应出现裸色值
-   ================================================================ */
-
-  /* 会话列表条目 */
-  --conv-item-height:         var(--size-session);
-  --conv-item-bg:             transparent;
-  --conv-item-bg-hover:       var(--bg-panel-item-hover);
-  --conv-item-bg-active:      var(--bg-panel-item-active);
-  --conv-item-bg-pinned:      var(--bg-pinned);
-  --conv-item-name-color:     var(--text-primary);
-  --conv-item-name-weight:    var(--font-medium);
-  --conv-item-preview-color:  var(--text-secondary);
-  --conv-item-time-color:     var(--gray-400);
-
-  /* 未读角标 */
-  --badge-bg:                 var(--color-badge);
-  --badge-muted-bg:           #B0B8C4;
-
-  /* 搜索栏 */
-  --search-bg:                var(--bg-input-search);
-  --search-radius:            5px;
-  --search-height:            28px;
-  --search-icon-color:        var(--gray-400);
-  --search-text-size:         13px;
-
-  /* 输入区 */
-  --input-textarea-min-h:     72px;
-  --input-textarea-max-h:     130px;
-  --send-btn-bg-idle:         #EAECEF;
-  --send-btn-color-idle:      #A8B0BC;
-  --send-btn-bg-active:       var(--color-primary);
-  --send-btn-color-active:    #FFFFFF;
-
-  /* 工具栏按钮 */
-  --toolbar-btn-color:        #606060;
-  --toolbar-btn-hover-bg:     rgba(0, 0, 0, .07);
-
-  /* 气泡 */
-  --bubble-mine-bg:           var(--bubble-mine);
-  --bubble-other-bg:          var(--bubble-other);
-  --bubble-padding:           9px 13px;
-  --bubble-max-width:         62%;
-
-  /* 头像 */
-  --avatar-bg-fallback:       var(--brand-500);
-  --avatar-color-fallback:    #FFFFFF;
-
-  /* Context Menu (右键菜单) */
-  --ctx-menu-bg:              #3A3A3C;
-  --ctx-menu-text:            #FFFFFF;
-  --ctx-menu-radius:          10px;
-  --ctx-menu-item-hover:      rgba(255, 255, 255, .09);
-
-  /* Emoji 选择器 */
-  --emoji-picker-bg:          #FAFAFA;
-  --emoji-picker-cats-bg:     #F2F2F2;
-
-/* ================================================================
-   § 13  B-END ADMIN TOKENS — 企业管理界面专属
-   用于群组高级设置等 DingTalk 风格管理面板
-   ================================================================ */
-  --admin-page-bg:            #F2F4F8;
-  --admin-card-bg:            #FFFFFF;
-  --admin-card-radius:        var(--radius-md);
-  --admin-card-shadow:        var(--shadow-sm);
-  --admin-card-border:        var(--border-default);
-  --admin-header-bg:          #FAFBFD;
-  --admin-header-border:      var(--border-default);
-
-  /* 字段标签（DingTalk：加粗上灰标签）*/
-  --admin-label-color:        var(--gray-600);
-  --admin-label-size:         var(--text-sm);
-  --admin-label-weight:       var(--font-medium);
-  --admin-desc-color:         var(--gray-400);
-  --admin-desc-size:          var(--text-sm);
-
-  /* 区块分隔 */
-  --admin-divider:            #EAECF0;
-  --admin-section-title:      var(--gray-500);
-
-  /* 警告区域（全员禁言、禁止私聊等）*/
-  --admin-warn-bg:            #FFFCF0;
-  --admin-warn-border:        #FDDFA5;
-  --admin-warn-icon:          var(--color-warning);
-  --admin-warn-text:          #7D4500;
-
-  /* 危险操作区（解散群组等）*/
-  --admin-danger-bg:          var(--color-danger-light);
-  --admin-danger-text:        var(--color-danger-hover);
-  --admin-danger-border:      rgba(245, 63, 63, .20);
-
-  /* Toggle 开关 */
-  --toggle-on-bg:             var(--brand-500);
-  --toggle-off-bg:            var(--gray-300);
-  --toggle-thumb:             #FFFFFF;
-  --toggle-shadow:            var(--shadow-xs);
-
-  /* 状态标签 Badge */
-  --badge-neutral-bg:         #F0F2F6;
-  --badge-neutral-text:       var(--gray-600);
-  --badge-blue-bg:            var(--brand-50);
-  --badge-blue-text:          var(--brand-700);
-  --badge-green-bg:           #E6FBF0;
-  --badge-green-text:         #007A40;
-  --badge-orange-bg:          var(--color-warning-light);
-  --badge-orange-text:        #8C4200;
-  --badge-red-bg:             var(--color-danger-light);
-  --badge-red-text:           var(--color-danger-hover);
-
-  /* 成员角色标识 */
-  --role-owner-bg:            #FFF0C2;
-  --role-owner-text:          #7A5500;
-  --role-admin-bg:            var(--brand-50);
-  --role-admin-text:          var(--brand-700);
-  --role-member-bg:           var(--gray-100);
-  --role-member-text:         var(--gray-500);
-
-/* ================================================================
-   § 14  LEGACY ALIASES — 兼容旧代码（逐步迁移后删除）
+   § 12  LEGACY ALIASES — 兼容旧代码（逐步迁移后删除）
+   注：原 § 12 组件专属 Token 与 § 13 企业管理 Token 已于死代码
+   审计中移除（90 个从未被任何 CSS/JSX 引用的令牌），如需重建
+   相关组件请从设计规范重新派生。
    ================================================================ */
   --green:            var(--bubble-mine);
   --green-rgb:        var(--bubble-mine-rgb);
-  --green-bubble:     var(--bubble-mine);
   --green-hover:      #0D9460;
   --link-color:       var(--brand-500);
   --bg-panel:         #F7F7F7;
@@ -486,8 +357,6 @@
   --panel-w:          var(--size-panel);
   --header-h:         var(--size-header);
   --session-h:        var(--size-session);
-  --avatar-session:   var(--size-avatar-session);
-  --avatar-msg:       var(--size-avatar-message);
   --radius-avatar:    6px;
   /* 注：radius-sm/md/lg/bubble 的最终值已上移至 § 8 规范块统一定义
      (sm=6 md=10 lg=14 bubble=5，微信 PC 小圆角)，此处旧的重复覆盖已删除
@@ -495,7 +364,7 @@
 }
 
 /* ================================================================
-   § 15  DARK MODE
+   § 13  DARK MODE
    ================================================================ */
 body.dark-mode {
   /* Brand（深色下主色调稍亮，保持可读性）*/
@@ -519,9 +388,6 @@ body.dark-mode {
 
   /* Backgrounds */
   --bg-app:               #0A0D11;
-  --bg-nav:               #111518;
-  --bg-nav-item-hover:    rgba(255, 255, 255, .06);
-  --bg-nav-item-active:   rgba(255, 255, 255, .11);
   --bg-panel:             #1C1C1E;
   --bg-panel-header:      #1C1C1E;
   --bg-panel-item-hover:  rgba(255, 255, 255, .06);
@@ -540,7 +406,6 @@ body.dark-mode {
   --bg-active:            var(--bg-panel-item-active);
   --bg-overlay:           rgba(0, 0, 0, .55);
   --bg-pinned:            rgba(255, 255, 255, .03);
-  --bg-pinned-hover:      rgba(255, 255, 255, .06);
 
   /* Borders */
   --border-subtle:  rgba(255, 255, 255, .05);
@@ -583,34 +448,16 @@ body.dark-mode {
   --ring-primary: 0 0 0 3px rgba(62, 142, 255, .20);
   --ring-danger:  0 0 0 3px rgba(255, 107, 107, .20);
 
-  /* B-end Admin 深色 */
-  --admin-page-bg:     #111518;
-  --admin-card-bg:     #1C1C1E;
-  --admin-card-border: #3A3A3C;
-  --admin-header-bg:   #18191C;
-  --admin-label-color: #AEAEB2;
-  --admin-desc-color:  #636366;
-  --admin-divider:     #3A3A3C;
-  --admin-warn-bg:     rgba(255, 125, 0, .08);
-  --admin-warn-border: rgba(255, 125, 0, .25);
-  --admin-warn-text:   #FFAA55;
-  --admin-danger-bg:   rgba(255, 107, 107, .08);
-  --admin-danger-text: #FF6B6B;
-  --admin-danger-border: rgba(255, 107, 107, .22);
-  --toggle-off-bg:     #48484A;
-
   /* Glass 毛玻璃（深色模式） */
   --glass-bg:              rgba(44,44,46,.85);
   --glass-bg-strong:       rgba(28,28,30,.75);
   --glass-bg-input:        rgba(44,44,46,.82);
   --glass-panel-bg:        rgba(28,28,30,.82);
   --glass-panel-bg-strong: rgba(28,28,30,.82);
-  --glass-panel-blur:      blur(30px) saturate(1.3);
 
   /* Legacy aliases (dark) */
   --green:          var(--bubble-mine);
   --green-rgb:      var(--bubble-mine-rgb);
-  --green-bubble:   var(--bubble-mine);
   --green-hover:    #1F8044;
   --link-color:     var(--color-primary);
   --bg-msg-mine:    var(--bubble-mine);
