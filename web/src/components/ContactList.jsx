@@ -475,7 +475,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
             {COLORS.map(c => (
               <div key={c} role="radio" tabIndex={0} aria-checked={colorInput === c} aria-label={`颜色 ${c}`}
                 onClick={() => setColorInput(c)}
-                onKeyDown={e => e.key === 'Enter' && setColorInput(c)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setColorInput(c); } }}
                 style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer',
                   border: colorInput === c ? '2.5px solid var(--text-primary)' : '2px solid transparent',
                   boxShadow: colorInput === c ? '0 0 0 2px rgba(0,0,0,.1)' : 'none' }} />

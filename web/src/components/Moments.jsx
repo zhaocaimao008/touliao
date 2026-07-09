@@ -447,7 +447,7 @@ export default function Moments() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* 互动通知入口 */}
       <div className="wc-moment-notif-bar" onClick={openNotif} role="button" tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && openNotif()}>
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNotif(); } }}>
         <span className="wc-moment-notif-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg></span>
         <span className="wc-moment-notif-label">互动消息</span>
         {notifCount > 0 && <span className="wc-moment-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
@@ -475,7 +475,7 @@ export default function Moments() {
                   <div key={o.d} className="wc-moment-vis-opt"
                     role="radio" aria-checked={visibleDays === o.d} tabIndex={0}
                     onClick={() => saveVisibleDays(o.d)}
-                    onKeyDown={e => e.key === 'Enter' && saveVisibleDays(o.d)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); saveVisibleDays(o.d); } }}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', borderTop: '1px solid var(--border-color,#eee)' }}>
                     <span>{o.label}</span>
                     {visibleDays === o.d && <span style={{ color: 'var(--green,#07c160)' }}>✓</span>}

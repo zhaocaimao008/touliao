@@ -630,7 +630,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-ml-body">
             {/* 邀请按钮（搜索时隐藏） */}
             {!kickSearch && (
-              <div className="gi-inv-row" role="button" tabIndex={0} onClick={openInvite} onKeyDown={e => e.key === 'Enter' && openInvite()}>
+              <div className="gi-inv-row" role="button" tabIndex={0} onClick={openInvite} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInvite(); } }}>
                 <div className="gi-inv-box">+</div>
                 <span className="gi-inv-txt">邀请成员</span>
               </div>
@@ -702,12 +702,12 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               }}
             />
           </div>
-          <div className={`gi-row${conversation.background ? '' : ' gi-row-noborder'}`} style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onPickBackground?.()} onKeyDown={e => e.key === 'Enter' && onPickBackground?.()}>
+          <div className={`gi-row${conversation.background ? '' : ' gi-row-noborder'}`} style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onPickBackground?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPickBackground?.(); } }}>
             <span className="gi-label">设置聊天背景</span>
             <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>{conversation.background ? '更换 ›' : '选择图片 ›'}</span>
           </div>
           {conversation.background && (
-            <div className="gi-row gi-row-noborder" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onClearBackground?.()} onKeyDown={e => e.key === 'Enter' && onClearBackground?.()}>
+            <div className="gi-row gi-row-noborder" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onClearBackground?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClearBackground?.(); } }}>
               <span className="gi-label" style={{ color: 'var(--color-badge)' }}>清除聊天背景</span>
             </div>
           )}
@@ -733,7 +733,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 <button className="gi-btn-xl-sm" onClick={() => setEditNickname(false)}>取消</button>
               </>
             ) : (
-              <div className="gi-f1 gi-fcsb gi-nk-cp" role="button" tabIndex={0} onClick={() => { setNicknameVal(myNickname || ''); setEditNickname(true); }} onKeyDown={e => e.key === 'Enter' && (setNicknameVal(myNickname || ''), setEditNickname(true))}>
+              <div className="gi-f1 gi-fcsb gi-nk-cp" role="button" tabIndex={0} onClick={() => { setNicknameVal(myNickname || ''); setEditNickname(true); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNicknameVal(myNickname || ''); setEditNickname(true); } }}>
                 <span style={{ fontSize: 14, color: myNickname ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{myNickname || '未设置'}</span>
                 <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
               </div>
@@ -743,7 +743,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
         {/* 群二维码 */}
         <div className="gi-qr">
-          <div className="gi-qr-row" role="button" tabIndex={0} onClick={loadQR} onKeyDown={e => e.key === 'Enter' && loadQR()}>
+          <div className="gi-qr-row" role="button" tabIndex={0} onClick={loadQR} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadQR(); } }}>
             <span className="gi-text14">群二维码</span>
             <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
           </div>

@@ -655,7 +655,7 @@ function CircleBtn({ icon, label, color, size = 54, active, onClick, testid }) {
   return (
     <div
       role="button" aria-label={label} data-testid={testid}
-      tabIndex={0} onKeyDown={e => e.key === 'Enter' && onClick()}
+      tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
       onClick={onClick}
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 0 }}
     >

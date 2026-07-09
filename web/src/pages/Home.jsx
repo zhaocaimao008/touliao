@@ -184,7 +184,7 @@ function AccountSwitcher() {
   return (
     <div ref={containerRef} className="as-container">
       {/* 头像按钮 */}
-      <div className="as-avatar-btn" data-testid="account-switcher" role="button" tabIndex={0} aria-label="账号切换" aria-expanded={open} onClick={() => setOpen(v => !v)} onKeyDown={e => e.key === 'Enter' && setOpen(v => !v)}>
+      <div className="as-avatar-btn" data-testid="account-switcher" role="button" tabIndex={0} aria-label="账号切换" aria-expanded={open} onClick={() => setOpen(v => !v)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}>
         <div className="as-avatar-inner"
           style={{ outlineColor: open ? 'rgba(255,255,255,.9)' : 'transparent' }}>
           {user?.avatar && !avatarErr
@@ -206,7 +206,7 @@ function AccountSwitcher() {
                 className={`wc-account-row${active ? ' active' : ''}`}
                 data-testid={`account-row-${a.id}`}
                 role="button" tabIndex={0}
-                onKeyDown={e => e.key === 'Enter' && !active && doSwitch(a.id)}>
+                onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !active) { e.preventDefault(); doSwitch(a.id); } }}>
                 <div className="as-avatar-wrap">
                   <Avatar src={a.user?.avatar} name={a.user?.username} size={38} />
                   {active && (
@@ -242,7 +242,7 @@ function AccountSwitcher() {
             className={`wc-add-row${showForm ? ' open' : ''}`}
             data-testid="account-add-row"
             role="button" tabIndex={0}
-            onKeyDown={e => e.key === 'Enter' && toggleForm(e)}>
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleForm(e); } }}>
             <div className={`wc-add-icon-wrap${showForm ? ' open' : ''}`}>
               <svg viewBox="0 0 24 24" className={`wc-add-icon-svg${showForm ? ' open' : ''}`}>
                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
@@ -288,7 +288,7 @@ function AccountSwitcher() {
           <div onClick={() => setShowProfile(v => !v)}
             className="as-profile-row"
             role="button" tabIndex={0}
-            onKeyDown={e => e.key === 'Enter' && setShowProfile(v => !v)}>
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowProfile(v => !v); } }}>
             <svg className="as-profile-icon" viewBox="0 0 24 24">
               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
             </svg>
@@ -438,7 +438,7 @@ function CreateGroupModal({ onClose, onCreated }) {
         {selectedContacts.length > 0 && (
           <div className="cgm-chips">
             {selectedContacts.map(c => (
-              <div key={c.id} role="button" tabIndex={0} aria-label={`移除 ${c.remark || c.username}`} onClick={() => toggle(c.id)} onKeyDown={e => e.key === 'Enter' && toggle(c.id)}
+              <div key={c.id} role="button" tabIndex={0} aria-label={`移除 ${c.remark || c.username}`} onClick={() => toggle(c.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(c.id); } }}
                 className="cgm-chip">
                 <Avatar src={c.avatar} name={c.remark || c.username} size={20} className="as-avatar-img" />
                 <span className="cgm-chip-text">{c.remark || c.username}</span>
@@ -930,7 +930,7 @@ export default function Home() {
                 className={`wc-sidebar-btn${tab === key ? ' active' : ''}`}
                 onClick={() => handleTabChange(key)} title={label}
                 role="tab" tabIndex={0} aria-selected={tab === key} aria-label={label}
-                onKeyDown={e => e.key === 'Enter' && handleTabChange(key)}>
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTabChange(key); } }}>
                 <div className="icon"><Icon /></div>
                 <span className="wc-sidebar-label">{label}</span>
                 {count > 0 && (
@@ -958,7 +958,7 @@ export default function Home() {
                   aria-label="搜索"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && tab === 'contacts' && setAddFriendRequest(n => n + 1)}
+                  onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && tab === 'contacts') { e.preventDefault(); setAddFriendRequest(n => n + 1); } }}
                 />
                 {search && (
                   <button className="home-search-clear" aria-label="清除搜索"
@@ -1007,7 +1007,7 @@ export default function Home() {
 function AddDropItem({ icon, label, onClick, testid }) {
   return (
     <div onClick={onClick} data-testid={testid}
-      className="adi-row" role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && onClick()}>
+      className="adi-row" role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
       <span className="adi-icon">{icon}</span>
       <span className="adi-label">{label}</span>
     </div>

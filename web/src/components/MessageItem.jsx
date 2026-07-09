@@ -81,7 +81,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
       data-msg-id={msg.id}
       className={`wc-msg-row${isMine ? ' mine' : ''}${consecutive ? ' consecutive' : ''}${multiSelect ? ' multiselect-row' : ''}${isHighlighted ? ' wc-msg-hl' : ''}`}
       onClick={multiSelect ? () => cbs.toggleMsgSelect(msg.id) : undefined}
-      onKeyDown={multiSelect ? e => e.key === 'Enter' && cbs.toggleMsgSelect(msg.id) : undefined}
+      onKeyDown={multiSelect ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.toggleMsgSelect(msg.id); } } : undefined}
       role={multiSelect ? 'checkbox' : undefined}
       aria-checked={multiSelect ? isSelected : undefined}
       tabIndex={multiSelect ? 0 : undefined}
@@ -118,7 +118,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                 title="发送失败，点击重发"
                 role="button" tabIndex={0} aria-label="发送失败，点击重发"
                 onClick={() => cbs.retryMessage(msg)}
-                onKeyDown={e => e.key === 'Enter' && cbs.retryMessage(msg)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.retryMessage(msg); } }}
               >❗</div>
             ) : isLastMine && convType === 'private' ? (
               showRead

@@ -237,7 +237,7 @@ function Tile({ stream, streamForRef, muted, isVideo, info, self }) {
 
 function CtrlBtn({ icon, label, bg, size = 52, onClick }) {
   return (
-    <div role="button" aria-label={label} tabIndex={0} onKeyDown={e => e.key === 'Enter' && onClick(e)} onClick={onClick}
+    <div role="button" aria-label={label} tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e); } }} onClick={onClick}
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
       <div style={{ width: size, height: size, borderRadius: size / 2, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.42 }}>{icon}</div>
       <span style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>{label}</span>
