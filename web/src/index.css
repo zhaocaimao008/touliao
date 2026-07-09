@@ -1256,7 +1256,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 /* ============================================================
    Modal / Dialog
    ============================================================ */
-.wc-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.32); display: flex; align-items: center; justify-content: center; z-index: var(--z-modal); animation: fadeIn 180ms ease-out both; }
+.wc-modal-overlay { position: fixed; inset: 0; background: var(--scrim-light); display: flex; align-items: center; justify-content: center; z-index: var(--z-modal); animation: fadeIn 180ms ease-out both; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .wc-modal { background: var(--bg-modal); border-radius: var(--radius-lg); overflow: hidden; width: 340px; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.22), 0 0 0 .5px rgba(0,0,0,.06); animation: slideUp 200ms ease-out both; isolation: isolate; }
 @keyframes slideUp { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -2637,7 +2637,7 @@ body {
    ============================================================ */
 .af-overlay {
   position: fixed; inset: 0; z-index: var(--z-modal);
-  background: rgba(0,0,0,.45);
+  background: var(--scrim);
   display: flex; align-items: center; justify-content: center;
 }
 .af-modal {
@@ -2699,7 +2699,7 @@ body {
    ============================================================ */
 .up-overlay {
   position: fixed; inset: 0; z-index: var(--z-modal);
-  background: rgba(0,0,0,.5);
+  background: var(--scrim);
   display: flex; align-items: center; justify-content: center;
 }
 .up-card {
@@ -3148,7 +3148,7 @@ body {
 /* ── GroupAvatarUpload ── */
 .gi-av-wrap { position:relative; flex-shrink:0; width:50px; height:50px; }
 .gi-av-img { width:50px; height:50px; object-fit:cover; display:block; }
-.gi-av-overlay { position:absolute; inset:0; background:rgba(0,0,0,.42); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; }
+.gi-av-overlay { position:absolute; inset:0; background:var(--scrim); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; }
 .gi-av-uploading { color: var(--gray-0); font-size:9px; line-height: var(--lh-none); }
 .gi-av-icon svg { width:16px; height:16px; fill: var(--gray-0); }
 .gi-av-hint { color: var(--gray-0); font-size:8px; line-height: var(--lh-none); }
@@ -3366,7 +3366,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 /* ── CreateGroupModal ── */
 .cgm-overlay {
   position:fixed; inset:0; z-index:var(--z-modal);
-  background:rgba(0,0,0,.52);
+  background:var(--scrim);
   display:flex; align-items:center; justify-content:center;
 }
 .cgm-content {
@@ -3504,7 +3504,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .wc-confirm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.45);
+  background: var(--scrim);
   z-index: calc(var(--z-toast) + 10);
   display: flex;
   align-items: center;
@@ -3574,7 +3574,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .cl-section-title { font-size: var(--text-base); font-weight: var(--font-medium); color: var(--text-primary); }
 
 /* === AddFriendModal component classes === */
-.afm-overlay { position: fixed; inset: 0; z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; padding: var(--sp-4); background: rgba(0, 0, 0, 0.4); }
+.afm-overlay { position: fixed; inset: 0; z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; padding: var(--sp-4); background: var(--scrim); }
 .afm-card { width: 400px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column; background: var(--bg-panel, #fff); border-radius: var(--radius-xl); box-shadow: var(--elev-modal); border: 1px solid var(--border-color); overflow: hidden; }
 .afm-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
 .afm-header-title { font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); }
@@ -3600,7 +3600,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .afm-not-found-sub { font-size: var(--text-sm); }
 
 /* === RedPacketModal component classes === */
-.rpm-overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: calc(var(--z-modal) + 2); }
+.rpm-overlay { position: fixed; inset: 0; background-color: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: calc(var(--z-modal) + 2); }
 .rpm-card { background-color: var(--bg-card); border-radius: var(--radius-xl); padding: var(--sp-6); width: 90%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,.16); }
 .rpm-title { font-size: var(--text-xl); font-weight: var(--font-bold); color: var(--text-title); margin-bottom: var(--sp-5); }
 .rpm-error { padding: var(--sp-2h); background: rgba(250,81,81,.08); color: var(--color-badge); border-radius: var(--radius-md); margin-bottom: var(--sp-3); font-size: var(--text-sm2); }
