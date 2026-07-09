@@ -1312,6 +1312,11 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
       showErr(`不支持的文件格式（${ext ? '.' + ext : '无扩展名'}），仅支持常见图片/音视频/文档/压缩包`);
       return;
     }
+    // 0 字节文件（拖入文件夹兜底 / 真空文件）：上传无意义，直接拦并提示
+    if (file.size === 0) {
+      showErr('无法发送空文件（0 字节）');
+      return;
+    }
     // 安全兜底上限 1GB：足够传大视频/文档，又防止超大文件占爆服务器磁盘。
     // 大文件(>8MB)走分片流式上传(每片 4MB 边读边传，hash 仅 ≤50MB 计算)，不撑爆浏览器内存。
     const MAX_UPLOAD = 1 * 1024 * 1024 * 1024; // 1GB，与后端 MAX_UPLOAD_BYTES / nginx 保持一致
@@ -1423,8 +1428,21 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     e.preventDefault();
     dragCounterRef.current = 0;
     setIsDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFileSelect(file);
+    // 拖文件夹进来时 files[0] 也是个 File(size 常为 0、type 为空),直接上传会失败或传空文件。
+    // 用 webkitGetAsEntry 提前识别目录,给出明确提示而非静默失败。
+    const items = e.dataTransfer.items;
+    if (items && items[0]?.webkitGetAsEntry) {
+      const entry = items[0].webkitGetAsEntry();
+      if (entry && entry.isDirectory) {
+        showToast('暂不支持发送文件夹，请压缩后再拖入', 'error');
+        return;
+      }
+    }
+    const files = e.dataTransfer.files;
+    const file = files[0];
+    if (!file) return;
+    if (files.length > 1) showToast('一次只能发送一个文件，已选择第一个', 'info');
+    handleFileSelect(file);
   };
 
   // Voice recording
