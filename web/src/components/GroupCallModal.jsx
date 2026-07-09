@@ -32,7 +32,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
   const { mode, conversationId, type } = session;
   const isVideo = type === 'video';
 
-  const [callId, setCallId]   = useState(session.callId || null);
+  const [, setCallId] = useState(session.callId || null);
   const [muted, setMuted]     = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
   const [remoteStreams, setRemoteStreams] = useState({}); // peerId -> MediaStream

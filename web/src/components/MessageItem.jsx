@@ -27,8 +27,8 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
 
 const MessageItem = memo(function MessageItem({ item, cbRef }) {
   const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
-    convType, userId, groupSettings, myGroupRole, members, claiming,
-    pinnedMessages, consecutive } = item;
+    convType, userId, groupSettings, myGroupRole, members,
+    consecutive } = item;
 
   const cbs = cbRef.current;
 

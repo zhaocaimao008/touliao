@@ -84,7 +84,7 @@ export function usePushNotification(user) {
 
         // 6. 监听 Service Worker 消息（通知点击跳转到会话）
         navigator.serviceWorker.addEventListener('message', handleSWMessage);
-      } catch (e) {
+      } catch {
         // 用户拒绝权限或浏览器不支持，静默失败
       }
     }

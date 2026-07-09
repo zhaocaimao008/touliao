@@ -24,14 +24,13 @@ const CHAT_ALLOWED_EXTS = new Set([
 const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
 import EmojiPicker from './EmojiPicker';
 import StickerPanel from './StickerPanel';
-import GroupInfo, { GroupAvatar } from './GroupInfo';
+import GroupInfo from './GroupInfo';
 import UserProfile from './UserProfile';
 import RedPacketModal from './RedPacketModal';
 import ForwardModal from './ForwardModal';
 import GroupCallModal from './GroupCallModal';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
-import { format, formatFull } from '../utils/time';
 import { mediaUrl } from '../utils/url';
 import { copyToClipboard } from '../utils/clipboard';
 import './ChatWindow.css';
@@ -131,7 +130,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   // Item cache for flatItems - preserve object identity for unchanged messages
   const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
-  const audioRef = useRef(null); // 当前播放中的语音，防止并发播放
   const typingTimer = useRef(null);
   const typingClearTimer = useRef(null); // 接收侧兜底：stop_typing 丢包时自动收起"正在输入"
   const recorderRef = useRef(null);
@@ -561,7 +559,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
                 listOuterRef.current.scrollTop += listOuterRef.current.scrollHeight - prevHeight;
             });
           }
-        } catch (err) {
+        } catch {
           // Failed to load more messages — suppressed
         } finally {
           setLoadingMore(false);
@@ -944,7 +942,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
           await axios.post(`/api/redpackets/${packetId}/claim`);
           justClaimed = true;
           ({ data: detail } = await axios.get(`/api/redpackets/${packetId}`));
-        } catch (e) {
+        } catch {
           // 已领完/已过期等：仍展示详情，错误金额由后端透传
           ({ data: detail } = await axios.get(`/api/redpackets/${packetId}`));
         }
@@ -1242,15 +1240,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
 
   // ── 分片 / 断点续传上传（大文件，云存储未配置时的本地大文件通道）──
   const uploadChunked = useCallback(async (file, onProgress) => {
-    // SHA-256 增量计算（避免将整个文件读入内存）
-    const hashBuf = await new Promise((resolve, reject) => {
-      const reader = file.stream().getReader();
-      const subtle = crypto.subtle;
-      // Web Crypto 不支持增量，但用 TransformStream 流式读取后一次 digest 仍比 arrayBuffer 省一半内存
-      // 方案：先 init，服务端可跳过 hash 校验（hash 为空时服务端仍接受）
-      // 这里仍计算 hash 但只对 ≤50MB 的文件做，大文件跳过以节省内存
-      resolve(null);
-    });
+    // SHA-256 只对 ≤50MB 文件计算（大文件跳过以节省内存；hash 为空时服务端仍接受）
     let hash = '';
     if (file.size <= 50 * 1024 * 1024) {
       const buf = await file.arrayBuffer();
@@ -1642,10 +1632,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     }
   };
 
-  // 多选辅助
-  const toggleMsgSelect = (msgId) => {
-    setSelectedMsgs(prev => { const s = new Set(prev); s.has(msgId) ? s.delete(msgId) : s.add(msgId); return s; });
-  };
+  // 多选辅助（toggleMsgSelect 经 callbacksRef 注入，见下方）
   const multiForward = () => {
     const msgs = messages.filter(m => selectedMsgs.has(m.id));
     if (msgs.length === 1) { setForwardMsg(msgs[0]); setMultiSelect(false); setSelectedMsgs(new Set()); }
@@ -1655,14 +1642,6 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     if (!await showConfirm(`确认撤回/删除选中的 ${selectedMsgs.size} 条消息？`)) return;
     await axios.post('/api/messages/batch-delete', { msgIds: [...selectedMsgs], conversationId: conversation.id }).catch(e => showToast(e.response?.data?.error || '操作失败', 'error'));
     setMultiSelect(false); setSelectedMsgs(new Set());
-  };
-
-  const playVoice = (url) => {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-    const a = new Audio(url);
-    audioRef.current = a;
-    a.onended = () => { audioRef.current = null; };
-    a.play().catch(() => { audioRef.current = null; });
   };
 
   // Precompute the last mine message id to avoid O(n) per message in flatItems

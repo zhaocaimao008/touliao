@@ -107,12 +107,6 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     }
   };
 
-  const startChat = (contact) => {
-    axios.post('/api/messages/conversation/private', { userId: contact.id }).then(({ data }) => {
-      onStartChat({ id: data.conversationId, type: 'private', name: contact.remark || contact.username, avatar: contact.avatar, otherUser: contact });
-    });
-  };
-
   // 按首字母分组联系人（含拼音排序，较贵；仅 contacts/搜索词变化时重算，避免每次渲染都跑）
   const { grouped, filtered, letters } = useMemo(() => {
     const grouped = {};

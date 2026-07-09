@@ -1,10 +1,10 @@
 export function format(ts) {
-  const now = Date.now();
   const d = new Date(ts);
   // 无效时间戳(undefined/null/坏字符串)会让 toLocaleTimeString 渲染成「Invalid Date」,直接返回空串
   if (Number.isNaN(d.getTime())) return '';
   // 时钟偏差/服务器时间超前时 diff 可能为负,钳到 0 避免出现「-3分钟前」
-  const diff = Math.max(0, now - ts);
+  const now = Date.now();
+  const diff = Math.max(0, now - d.getTime());
   if (diff < 60000) return '刚刚';
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
   const today = new Date(); today.setHours(0,0,0,0);
@@ -19,7 +19,6 @@ export function format(ts) {
 export function formatFull(ts) {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return '';
-  const now = Date.now();
   const today = new Date(); today.setHours(0,0,0,0);
   const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
   const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });

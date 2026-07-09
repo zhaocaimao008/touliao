@@ -51,7 +51,7 @@
       P.totalLatency.length = 0; // reset accumulator
     },
 
-    ack(clientMsgId, userId) {
+    ack(clientMsgId, _userId) {
       const s = P.sends.get(clientMsgId);
       if (s) {
         P.ackLatency.push(performance.now() - s.t0);

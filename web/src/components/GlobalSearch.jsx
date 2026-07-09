@@ -36,7 +36,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       .then(r => {
         setContacts(r.data || []);
       })
-      .catch(err => {
+      .catch(() => {
         // [GlobalSearch] Failed to load contacts — suppressed
       });
 

@@ -3,7 +3,6 @@ import { showConfirm } from '../utils/toast';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
 import ChatWindow from '../components/ChatWindow';
-import ErrorBoundary from '../components/ErrorBoundary';
 import ChatWindowBoundary from '../components/ChatWindowBoundary';
 import ContactList from '../components/ContactList';
 import Profile from '../components/Profile';
@@ -48,18 +47,10 @@ const IcoSearch = () => (
     <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
   </svg>
 );
-const IcoQR = () => (
-  <svg className="ico-md" viewBox="0 0 24 24">
-    <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2z"/>
-  </svg>
-);
 const IcoAdd = () => (
   <svg className="ico-md" viewBox="0 0 24 24">
     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
   </svg>
-);
-const IcoAddAccount = () => (
-  <svg viewBox="0 0 24 24"><path d="M13 8c0-2.21-1.79-4-4-4S5 5.79 5 8s1.79 4 4 4 4-1.79 4-4zm-2 0c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-4 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zm8 0v3h3v3h2v-3h3v-2h-3v-3h-2v3h-3z"/></svg>
 );
 const IcoMe = () => (
   <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
@@ -132,7 +123,7 @@ function AccountSwitcher() {
     setErr(''); setSwitching(true);
     try {
       await switchAccount(id);   // 成功会 reload
-    } catch (ex) {
+    } catch {
       // 免密切换不可用 → 回退：填入手机号，要求输密码
       setSwitching(false);
       setSwitchTarget(acct.user || null);
@@ -519,7 +510,7 @@ export default function Home() {
   const [addFriendRequest, setAddFriendRequest] = useState(0);
   const [convRefreshKey, setConvRefreshKey] = useState(0);
   const { socket, reconnectCount, registerUnreadCleared } = useSocket();
-  const { user, updateUser } = useAuth();
+  const { user } = useAuth();
   usePushNotification(user);
   const activeConvIdRef = useRef(null);
   const addBtnRef = useRef(null);
@@ -728,8 +719,8 @@ export default function Home() {
 
   const [isMobile, setIsMobile] = useState(() =>
     window.innerWidth < 768 || !!window.Capacitor?.isNativePlatform?.());
-  const [showPanel, setShowPanel] = useState(true);   // 桌面布局保留
-  const [showChat, setShowChat] = useState(false);
+  const [showPanel] = useState(true);   // 桌面布局保留
+  const [showChat] = useState(false);
 
   const handleMobileSelectConv = useCallback((conv) => { handleSelectConv(conv); }, [handleSelectConv]);
   const handleMobileBack = useCallback(() => { setActiveConv(null); }, []);

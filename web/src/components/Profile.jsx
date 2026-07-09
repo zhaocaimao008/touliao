@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import AuthImage from './AuthImage';
@@ -35,16 +35,11 @@ function Toggle({ checked, onChange, disabled }) {
 
 /* ─── SVG icons ─── */
 const Ico = ({ d }) => <svg className="wc-ico" viewBox="0 0 24 24"><path d={d}/></svg>;
-const IcoUser    = () => <Ico d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>;
-const IcoID      = () => <Ico d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h12v2H6zm0-4h6v2H6zm0 8h9v2H6z"/>;
-const IcoPhone   = () => <Ico d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>;
 const IcoDesktop = () => <Ico d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zm-8-1c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm8-3H4V6h16v8z"/>;
 const IcoMoon    = () => <Ico d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>;
 const IcoBell    = () => <Ico d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>;
 const IcoShield  = () => <Ico d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>;
-const IcoGear    = () => <Ico d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>;
 const IcoServer  = () => <Ico d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zM6 4a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>;
-const IcoEdit    = () => <Ico d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>;
 const IcoQR      = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
     <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2z"/>
@@ -496,7 +491,7 @@ function DeviceList({ onBack }) {
           <Card>
             {sessions.length === 0
               ? <div role="status" className="wc-empty">暂无设备记录</div>
-              : sessions.map((s, i) => (
+              : sessions.map((s) => (
                 <div key={s.id} className="wc-device-item">
                   <span className="wc-device-icon">{icon(s.platform)}</span>
                   <div className="wc-crow-body">
@@ -1002,52 +997,6 @@ function ServerSettings({ onBack }) {
         <div className="wc-server-hint-box">
           切换服务器后当前账号会自动退出，用新服务器的账号重新登录即可，无需重装客户端。
         </div>
-      </div>
-    </PageBg>
-  );
-}
-
-function SettingsPage({ user, setSubPage, logout }) {
-  return (
-    <PageBg>
-      <PageHeader title="设置" onBack={() => setSubPage(null)} />
-
-      {/* 设备与安全 */}
-      <SLabel>设备与安全</SLabel>
-      <div className="wc-section-pad">
-        <Card>
-          <CRow icon={<IcoDesktop />} bg="#8A93A6" label="设备管理" desc="查看同时登录的设备" onClick={() => setSubPage('devices')} />
-          <CRow icon={<IcoShield />} bg="#8A93A6" label="隐私与安全" desc="添加方式和好友权限" onClick={() => setSubPage('privacy')} />
-        </Card>
-      </div>
-
-      {/* 偏好设置 */}
-      <SLabel>偏好设置</SLabel>
-      <div className="wc-section-pad">
-        <Card>
-          <CRow icon={<IcoMoon />} bg="#8A93A6" label="外观" desc="主题与字体大小" onClick={() => setSubPage('appearance')} />
-          <CRow icon={<IcoBell />} bg="#8A93A6" label="通知" desc="锁屏通知和声音" onClick={() => setSubPage('notifications')} />
-        </Card>
-      </div>
-
-      {/* 服务器 — 仅桌面端 */}
-      {window.__ELECTRON_CONFIG__ && (
-        <>
-          <SLabel>连接</SLabel>
-          <div className="wc-section-pad">
-            <Card>
-              <CRow icon={<IcoServer />} bg="#8A93A6" label="服务器地址"
-                desc={(localStorage.getItem('vxin_server_url') || '').replace(/^https?:\/\//, '') || '远程配置'}
-                onClick={() => setSubPage('server')} />
-            </Card>
-          </div>
-        </>
-      )}
-
-      {/* 账号操作 */}
-      <div className="wc-logout-div">
-        <button className="wc-logout-btn" onClick={() => doLogout(logout)}>退出登录</button>
-        <button className="wc-delete-account-btn" onClick={() => setSubPage('delete-account')}>注销账号</button>
       </div>
     </PageBg>
   );

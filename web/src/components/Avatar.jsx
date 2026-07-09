@@ -21,7 +21,7 @@ export function getColor(name) {
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
-export default function Avatar({ src, name = '', size = 40, style = {}, online = false, className = '', onClick }) {
+export default function Avatar({ src, name = '', size = 40, style = {}, online = false, className: _className = '', onClick }) {
   const radius = Math.max(3, Math.round(size * 0.13)); // 微信风方圆角(原 0.22 偏圆)
   const baseStyle = { width: size, height: size, borderRadius: radius, overflow: 'hidden', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', ...style };
   const letter = (name || '?')[0].toUpperCase();
