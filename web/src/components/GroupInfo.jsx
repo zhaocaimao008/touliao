@@ -96,7 +96,7 @@ function Toggle({ on, onChange, disabled, label }) {
       className="gi-toggle"
       style={{ background: on ? 'var(--green)' : 'var(--border-default)', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }}
     >
-      <div className="gi-toggle-thumb" style={{ left: on ? 21 : 3 }} />
+      <div className="gi-toggle-thumb" style={{ transform: on ? 'translateX(18px)' : 'translateX(0)' }} />
     </div>
   );
 }
