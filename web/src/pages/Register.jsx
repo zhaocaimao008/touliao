@@ -4,7 +4,16 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Register() {
-  const [form, setForm] = useState({ username: '', phone: '', password: '', inviteCode: '' });
+  // 从邀请链接 /register?invite=123456 预填邀请码（好友分享链接一点即注册）——
+  // 惰性初始化，避免 effect 内 setState 造成的额外渲染
+  const [form, setForm] = useState(() => {
+    let inviteCode = '';
+    try {
+      const code = new URLSearchParams(window.location.search).get('invite');
+      if (code && /^\d{6}$/.test(code)) inviteCode = code;
+    } catch { /* SSR/无 window 时忽略 */ }
+    return { username: '', phone: '', password: '', inviteCode };
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
@@ -18,12 +27,6 @@ export default function Register() {
     axios.get('/api/config')
       .then(r => setInviteRequired(r.data?.features?.inviteRequired !== false))
       .catch(() => {}); // 拉取失败保持默认（需要邀请码），后端仍会最终裁决
-  }, []);
-
-  // 从邀请链接 /register?invite=123456 预填邀请码（好友分享链接一点即注册）
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('invite');
-    if (code && /^\d{6}$/.test(code)) setForm(f => ({ ...f, inviteCode: code }));
   }, []);
 
   const handleSubmit = async (e) => {

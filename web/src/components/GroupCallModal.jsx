@@ -36,6 +36,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
   const [muted, setMuted]     = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
   const [remoteStreams, setRemoteStreams] = useState({}); // peerId -> MediaStream
+  const [localStream, setLocalStream] = useState(null);   // 本地流入 state，render 期读 state 而非 ref.current
   const [status, setStatus]   = useState(mode === 'start' ? 'calling' : 'joining');
 
   const localStreamRef = useRef(null);
@@ -59,7 +60,22 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
 
   const hangup = useCallback(() => { cleanup(); onClose(); }, [cleanup, onClose]);
 
+  const drainIce = useCallback((peerId) => {
+    const pc = pcsRef.current.get(peerId);
+    const pending = pendingIceRef.current.get(peerId);
+    if (pc && pending) { pending.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {})); pendingIceRef.current.delete(peerId); }
+  }, []);
+
+  const removePeer = useCallback((peerId) => {
+    const pc = pcsRef.current.get(peerId);
+    if (pc) { try { pc.close(); } catch { /* already closed */ } pcsRef.current.delete(peerId); }
+    remoteSetRef.current.delete(peerId);
+    pendingIceRef.current.delete(peerId);
+    setRemoteStreams(prev => { if (!(peerId in prev)) return prev; const n = { ...prev }; delete n[peerId]; return n; });
+  }, []);
+
   // ── 建立到某 peer 的连接 ─────────────────────────────────────
+  // removePeer 提前声明（上方），避免 createPC 中引用尚未声明的变量
   const createPC = useCallback((peerId) => {
     if (pcsRef.current.has(peerId)) return pcsRef.current.get(peerId);
     const pc = new RTCPeerConnection(iceCfgRef.current);
@@ -76,21 +92,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
       if (['failed', 'closed'].includes(pc.connectionState)) removePeer(peerId);
     };
     return pc;
-  }, [socket]);
-
-  const drainIce = useCallback((peerId) => {
-    const pc = pcsRef.current.get(peerId);
-    const pending = pendingIceRef.current.get(peerId);
-    if (pc && pending) { pending.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {})); pendingIceRef.current.delete(peerId); }
-  }, []);
-
-  const removePeer = useCallback((peerId) => {
-    const pc = pcsRef.current.get(peerId);
-    if (pc) { try { pc.close(); } catch { /* already closed */ } pcsRef.current.delete(peerId); }
-    remoteSetRef.current.delete(peerId);
-    pendingIceRef.current.delete(peerId);
-    setRemoteStreams(prev => { if (!(peerId in prev)) return prev; const n = { ...prev }; delete n[peerId]; return n; });
-  }, []);
+  }, [socket, removePeer]);
 
   // ── 初始化媒体 + 信令 ────────────────────────────────────────
   useEffect(() => {
@@ -101,6 +103,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
       catch { stream = new MediaStream(); }
       if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
       localStreamRef.current = stream;
+      setLocalStream(stream);
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       iceCfgRef.current = await fetchIceConfig();
       if (cancelled) return;
@@ -204,7 +207,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
 
       {/* 画面宫格 */}
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 6, padding: 10, alignContent: 'center', overflow: 'auto' }}>
-        <Tile stream={localStreamRef.current} muted isVideo={isVideo && !cameraOff} info={{ name: '我', avatar: user?.avatar }} self />
+        <Tile stream={localStream} muted isVideo={isVideo && !cameraOff} info={{ name: '我', avatar: user?.avatar }} self />
         {peerIds.map(pid => (
           <Tile key={pid} streamForRef={remoteStreams[pid]} isVideo={isVideo} info={nameOf?.(pid) || { name: '成员' }} />
         ))}
