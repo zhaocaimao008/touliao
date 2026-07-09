@@ -904,10 +904,10 @@ img { display: block; }
    Context Menu（右键菜单）
    微信风格：深色圆角，白字
    ============================================================ */
-.wc-ctx-overlay { position: fixed; inset: 0; z-index: calc(var(--z-modal, 1000) + 1); }
+.wc-ctx-overlay { position: fixed; inset: 0; z-index: calc(var(--z-modal) + 1); }
 .wc-ctx-menu {
   position: fixed;
-  z-index: var(--z-popover, 1100);
+  z-index: var(--z-popover);
   background: var(--bg-ctx-menu);
   border-radius: var(--radius-card);
   box-shadow: 0 6px 24px rgba(0,0,0,.28), 0 0 0 .5px rgba(255,255,255,.07);
@@ -1032,7 +1032,7 @@ img { display: block; }
   display: flex;
   flex-direction: column;
   justify-content: center;
-  z-index: 10;
+  z-index: var(--z-local);
   pointer-events: none;
 }
 .wc-alpha-char {
@@ -1679,7 +1679,7 @@ body.dark-mode .wc-settings-entry:hover {
     position: absolute;
     inset: 0;
     bottom: 50px;
-    z-index: 10;
+    z-index: var(--z-local);
     background: rgba(245,245,250,.9);
   }
 
@@ -2636,7 +2636,7 @@ body {
    AddFriend Modal — 搜索添加好友弹窗
    ============================================================ */
 .af-overlay {
-  position: fixed; inset: 0; z-index: 400;
+  position: fixed; inset: 0; z-index: var(--z-modal);
   background: rgba(0,0,0,.45);
   display: flex; align-items: center; justify-content: center;
 }
@@ -2698,7 +2698,7 @@ body {
    UserProfile Card — 企业微信风格用户资料卡
    ============================================================ */
 .up-overlay {
-  position: fixed; inset: 0; z-index: 500;
+  position: fixed; inset: 0; z-index: var(--z-modal);
   background: rgba(0,0,0,.5);
   display: flex; align-items: center; justify-content: center;
 }
@@ -3254,7 +3254,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   left:calc(var(--nav-w) + 6px);
   top:8px;
   width:260px;
-  z-index:300;
+  z-index: var(--z-panel);
   border-radius:var(--radius-modal);
   /* 与 app 其它弹窗(.wc-modal 等)统一为实色卡片+主题描边：
      原先半透明毛玻璃+saturate+白色描边，在亮色背景上面板边缘"化"在背景里、显得突兀不协调。
@@ -3365,7 +3365,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 
 /* ── CreateGroupModal ── */
 .cgm-overlay {
-  position:fixed; inset:0; z-index:var(--z-modal, 1000);
+  position:fixed; inset:0; z-index:var(--z-modal);
   background:rgba(0,0,0,.52);
   display:flex; align-items:center; justify-content:center;
 }
@@ -3451,9 +3451,9 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .home-qr-text { margin-top:14px; color:var(--text-tertiary); font-size: var(--text-sm2); }
 
 /* ── + 号下拉菜单 ── */
-.home-add-overlay { position:fixed; inset:0; z-index:var(--z-modal, 1000); }
+.home-add-overlay { position:fixed; inset:0; z-index:var(--z-modal); }
 .home-add-dropdown {
-  position:fixed; z-index:var(--z-popover, 1100);
+  position:fixed; z-index:var(--z-popover);
   background:var(--bg-msg-other); border:1px solid var(--border-color);
   border-radius:var(--radius-lg);
   box-shadow:0 8px 32px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.1);
@@ -3485,7 +3485,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   padding: 8px 20px;
   border-radius: var(--radius-2xl);
   font-size: var(--text-base);
-  z-index: var(--z-toast, 1200);
+  z-index: var(--z-toast);
   pointer-events: none;
   white-space: nowrap;
   max-width: 80vw;
@@ -3505,7 +3505,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.45);
-  z-index: calc(var(--z-toast, 1200) + 10);
+  z-index: calc(var(--z-toast) + 10);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3574,7 +3574,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .cl-section-title { font-size: var(--text-base); font-weight: var(--font-medium); color: var(--text-primary); }
 
 /* === AddFriendModal component classes === */
-.afm-overlay { position: fixed; inset: 0; z-index: var(--z-modal, 1000); display: flex; align-items: center; justify-content: center; padding: var(--sp-4); background: rgba(0, 0, 0, 0.4); }
+.afm-overlay { position: fixed; inset: 0; z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; padding: var(--sp-4); background: rgba(0, 0, 0, 0.4); }
 .afm-card { width: 400px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column; background: var(--bg-panel, #fff); border-radius: var(--radius-xl); box-shadow: var(--elev-modal); border: 1px solid var(--border-color); overflow: hidden; }
 .afm-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
 .afm-header-title { font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); }
@@ -3600,7 +3600,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .afm-not-found-sub { font-size: var(--text-sm); }
 
 /* === RedPacketModal component classes === */
-.rpm-overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: calc(var(--z-modal, 1000) + 2); }
+.rpm-overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: calc(var(--z-modal) + 2); }
 .rpm-card { background-color: var(--bg-card); border-radius: var(--radius-xl); padding: var(--sp-6); width: 90%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,.16); }
 .rpm-title { font-size: var(--text-xl); font-weight: var(--font-bold); color: var(--text-title); margin-bottom: var(--sp-5); }
 .rpm-error { padding: var(--sp-2h); background: rgba(250,81,81,.08); color: var(--color-badge); border-radius: var(--radius-md); margin-bottom: var(--sp-3); font-size: var(--text-sm2); }
@@ -3640,7 +3640,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   justify-content: center;
   box-shadow: 0 2px 12px rgba(0,0,0,.25);
   transition: opacity var(--dur-base) ease, transform var(--dur-base) ease;
-  z-index: 10;
+  z-index: var(--z-local);
   animation: bubbleIn .2s ease both;
 }
 .cw-scroll-bottom:hover { transform: scale(1.08); }
@@ -3846,7 +3846,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   background: var(--color-badge); color: var(--gray-0); font-size: var(--text-2xs); line-height: 16px; border-radius: var(--radius-md); text-align: center;
 }
 /* 全屏聊天页 */
-.m-chat-page { position: fixed; top: 0; left: 0; right: 0; height: 100dvh; z-index: 60; display: flex; flex-direction: column; background: var(--bg-messages); }
+.m-chat-page { position: fixed; top: 0; left: 0; right: 0; height: 100dvh; z-index: var(--z-page); display: flex; flex-direction: column; background: var(--bg-messages); }
 .m-chat-page > .wc-chat { flex: 1; min-height: 0; height: 100%; }
 .m-chat-page .wc-chat-header { padding-top: env(safe-area-inset-top); }
 .m-chat-page .wc-chat-header-back {

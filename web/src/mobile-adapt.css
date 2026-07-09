@@ -127,7 +127,7 @@ html.capacitor-app {
 .wc-input-area {
   position: sticky;
   bottom: 0;
-  z-index: 10;
+  z-index: var(--z-local);
 }
 
 /* 键盘弹出时，确保消息列表不被遮挡 */

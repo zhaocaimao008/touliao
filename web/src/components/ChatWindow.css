@@ -227,7 +227,7 @@
 .wc-card-picker-overlay {
   position: fixed;
   inset: 0;
-  z-index: 650;
+  z-index: var(--z-modal);
   background: rgba(0,0,0,.5);
   display: flex;
   align-items: center;
@@ -708,7 +708,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: calc(var(--z-popover, 1100) + 1);
+  z-index: calc(var(--z-popover) + 1);
 }
 .wc-rp-detail-card {
   width: 320px;
@@ -806,7 +806,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: var(--z-modal, 1000);
+  z-index: var(--z-modal);
 }
 .wc-ctx-menu-fixed {
   position: fixed;
