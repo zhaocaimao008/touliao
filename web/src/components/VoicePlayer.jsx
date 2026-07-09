@@ -11,6 +11,8 @@ export default function VoicePlayer({ url, msgId = null, isMine = false }) {
   const audioRef = useRef(null);
 
   const fmt = (s) => {
+    // 某些服务端流式语音会上报 duration=Infinity/NaN,直接算会渲染成「Infinity:NaN」
+    if (!Number.isFinite(s) || s < 0) return '0:00';
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return `${m}:${sec.toString().padStart(2, '0')}`;
@@ -19,7 +21,8 @@ export default function VoicePlayer({ url, msgId = null, isMine = false }) {
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (playing) audioRef.current.pause();
-    else audioRef.current.play().catch(() => {});
+    // play() 被拒(自动播放策略/解码失败)时 onplay 不会触发,需手动复位 playing 防止图标卡在暂停态
+    else audioRef.current.play().catch(() => setPlaying(false));
   };
 
   const handleSeek = (e) => {
@@ -34,7 +37,7 @@ export default function VoicePlayer({ url, msgId = null, isMine = false }) {
   useEffect(() => {
     const audio = new Audio(url);
     audio.preload = 'metadata';
-    const onMeta  = () => { setDuration(audio.duration || 0); setLoaded(true); };
+    const onMeta  = () => { setDuration(Number.isFinite(audio.duration) ? audio.duration : 0); setLoaded(true); };
     const onTime  = () => setCurrentTime(audio.currentTime);
     const onEnded = () => { setPlaying(false); setCurrentTime(0); };
     const onPlay  = () => {
@@ -91,6 +94,8 @@ export default function VoicePlayer({ url, msgId = null, isMine = false }) {
           const step = duration * 0.05;
           if (e.key === 'ArrowRight') { const t = Math.min(duration, currentTime + step); audioRef.current.currentTime = t; setCurrentTime(t); e.preventDefault(); }
           if (e.key === 'ArrowLeft')  { const t = Math.max(0, currentTime - step); audioRef.current.currentTime = t; setCurrentTime(t); e.preventDefault(); }
+          if (e.key === 'Home')       { audioRef.current.currentTime = 0; setCurrentTime(0); e.preventDefault(); }
+          if (e.key === 'End')        { audioRef.current.currentTime = duration; setCurrentTime(duration); e.preventDefault(); }
         }}
       >
         <div className="wc-voice-progress-fill" style={{ width: `${progress}%` }} />
