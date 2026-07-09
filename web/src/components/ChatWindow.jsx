@@ -1855,7 +1855,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
         />
       )}
       {groupCallInvite && !groupCall && (
-        <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: 2100, background: '#2c2c2e', color: 'var(--text-inverse)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 28px rgba(0,0,0,.4)' }}>
+        <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: "calc(var(--z-call) + 100)", background: '#2c2c2e', color: 'var(--text-inverse)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 28px rgba(0,0,0,.4)' }}>
           <span style={{ fontSize: 14 }}>
             {groupCallInvite.fromName || '群成员'} 发起了群{groupCallInvite.type === 'video' ? '视频' : '语音'}通话
           </span>

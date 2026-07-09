@@ -352,7 +352,7 @@ export default function CallModal({ socket, call, onClose }) {
         style={{
           position: 'fixed',
           left: bubble.pos.x, top: bubble.pos.y,
-          zIndex: 3000,
+          zIndex: "var(--z-call-top)",
           cursor: 'grab',
           userSelect: 'none',
           touchAction: 'none',
@@ -456,7 +456,7 @@ export default function CallModal({ socket, call, onClose }) {
   return (
     <div
       data-testid="call-modal"
-      style={{ position: 'fixed', inset: 0, zIndex: 2000, color: 'var(--gray-0)', overflow: 'hidden' }}
+      style={{ position: 'fixed', inset: 0, zIndex: "var(--z-call)", color: 'var(--gray-0)', overflow: 'hidden' }}
     >
       {/* 音频（ref callback 重挂恢复） */}
       <audio ref={onRemoteAudioMount} autoPlay style={{ display: 'none' }} />

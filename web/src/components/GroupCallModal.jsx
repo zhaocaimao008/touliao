@@ -194,7 +194,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
   const cols = tileCount <= 1 ? 1 : tileCount <= 4 ? 2 : 3;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(18,18,18,0.97)', display: 'flex', flexDirection: 'column', color: 'var(--text-inverse)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: "var(--z-call)", background: 'rgba(18,18,18,0.97)', display: 'flex', flexDirection: 'column', color: 'var(--text-inverse)' }}>
       <div style={{ textAlign: 'center', padding: '14px 0 6px', fontSize: 15, color: 'rgba(255,255,255,.85)' }}>
         群{isVideo ? '视频' : '语音'}通话 · {tileCount} 人
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', marginLeft: 8 }}>

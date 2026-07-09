@@ -125,7 +125,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
       data-testid="lightbox"
       role="dialog" aria-modal="true" aria-label="图片预览"
       style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
+        position: 'fixed', inset: 0, zIndex: "var(--z-top)",
         background: 'rgba(0,0,0,.92)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: scale > 1 ? 'grab' : 'zoom-out',

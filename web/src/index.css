@@ -1175,7 +1175,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
   background: radial-gradient(circle, rgba(var(--green-rgb),.07) 0%, transparent 65%);
   top: 32%; left: 6%;
 }
-.auth-container { position: relative; z-index: 1; width: 400px; animation: scaleIn .3s var(--ease); }
+.auth-container { position: relative; z-index: var(--z-raised); width: 400px; animation: scaleIn .3s var(--ease); }
 .auth-brand { text-align: center; margin-bottom: 28px; }
 .auth-brand-icon {
   display: inline-flex; align-items: center; justify-content: center;

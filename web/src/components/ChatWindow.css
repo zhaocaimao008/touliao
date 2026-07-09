@@ -10,7 +10,7 @@
   background: rgba(var(--green-rgb),.12);
   border: 2px dashed var(--green);
   border-radius: var(--radius-sm);
-  z-index: 200;
+  z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -498,7 +498,7 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   box-shadow: 0 2px 12px rgba(0,0,0,.1);
-  z-index: 100;
+  z-index: var(--z-sticky);
   max-height: 180px;
   overflow-y: auto;
 }
@@ -810,7 +810,7 @@
 }
 .wc-ctx-menu-fixed {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-modal);
 }
 
 /* ── VoicePlayer 组件 ── */

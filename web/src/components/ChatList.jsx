@@ -378,13 +378,13 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       {ctxMenu && (
         <>
           <div
-            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            style={{ position: 'fixed', inset: 0, zIndex: "calc(var(--z-top) - 1)" }}
             onClick={() => setCtxMenu(null)}
             onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }}
           />
           <div
             className="wc-ctx-menu"
-            style={{ left: ctxMenu.x, top: ctxMenu.y, zIndex: 9999 }}
+            style={{ left: ctxMenu.x, top: ctxMenu.y, zIndex: "var(--z-top)" }}
             role="menu"
             onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setCtxMenu(null); } }}
           >

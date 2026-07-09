@@ -16,7 +16,7 @@ function WinBtn({ onClick, isClose, children, title }) {
         cursor: 'pointer', fontSize: 14, transition: 'background .1s, color .1s',
         WebkitAppRegion: 'no-drag',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        position: 'relative', zIndex: 100001,
+        position: 'relative', zIndex: "calc(var(--z-native) + 1)",
       }}
     >{children}</button>
   );
@@ -57,7 +57,7 @@ export default function ElectronTitlebar() {
       id="vxin-titlebar"
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: 30,
-        background: '#1A2033', zIndex: 99999,
+        background: '#1A2033', zIndex: "calc(var(--z-native) - 1)",
         WebkitAppRegion: 'drag',
         display: 'flex', alignItems: 'center',
         userSelect: 'none',
@@ -71,7 +71,7 @@ export default function ElectronTitlebar() {
       <div style={{
         display: 'flex', height: '100%',
         WebkitAppRegion: 'no-drag',
-        position: 'relative', zIndex: 100000,
+        position: 'relative', zIndex: "var(--z-native)",
       }}>
         <WinBtn onClick={handleMin} title="最小化">
           <svg width="12" height="12" viewBox="0 0 12 12">
