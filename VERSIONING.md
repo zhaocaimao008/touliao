@@ -9,11 +9,11 @@
 
 | 端 | 版本真相源文件 | 字段 | 当前版本 |
 |----|--------------|------|---------|
-| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 2.0.5 |
+| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 2.0.6 |
 | 桌面端渲染层内嵌 | `desktop-electron/src/package.json` | `version` | 与上一致 |
 | Web 前端 | `web/package.json` | `version` | 2.0.1 |
 | 后端 | `backend-v2/package.json` | `version` | 2.0.0 |
-| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.2 / code 3 |
+| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.3 / code 4 |
 | iOS | `ios/project.yml` | `MARKETING_VERSION` | 1.0.0 |
 | 后端发现配置 | `vxin-config/config.json` | `version` | 2.0.1 |
 
