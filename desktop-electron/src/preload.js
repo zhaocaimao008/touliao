@@ -29,6 +29,11 @@ const electronAPI = {
   close:            () => ipcRenderer.invoke('window:close'),
   isMaximized:      () => ipcRenderer.invoke('window:isMaximized'),
 
+  // 后台提醒：任务栏闪烁 / 未读角标 / 来电时窗口置顶
+  flashFrame:       (on)    => ipcRenderer.invoke('window:flashFrame', !!on),
+  setBadge:         (count) => ipcRenderer.invoke('window:setBadge', count),
+  focusForCall:     ()      => ipcRenderer.invoke('window:focusForCall'),
+
   // 通知（仅接受 title/body 两个字段，防止注入）
   showNotification: (opts) => {
     const safe = {

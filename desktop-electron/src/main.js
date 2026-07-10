@@ -14,6 +14,24 @@ const Store = require('electron-store');
 // app-update.yml，读取失败才用此常量）。更新源在打包时固化，不随用户切换后端而变。
 const UPDATE_FEED_FALLBACK = 'https://dipsin.com/downloads/updates';
 
+// 任务栏红点角标（16x16 PNG，纯红实心圆）。Windows 无原生数字角标，
+// 用此 overlay 表示"有未读"。内联 base64 避免运行时绘图依赖（canvas 等）。
+const BADGE_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAKtJREFUOI2t' +
+  'k7ENwjAQRZ+jNGnpKZgAiQmYIBUTMAcTMAETMAETMAEbMAETMAETMAETMAETMAEd9lIkIQi8yZad' +
+  '7q7f2ffCWMMImIAFVAqpQxAKaWklFJAKaXfKKUUgDHGGFprBTDGGGOMcc45xxjjnHOOMcY55xhj' +
+  'jHPOMcYY55xjjDHOOccYY5xzjjHGOOccY4xxzjnGGOOcc4wxxjnnGGOMcc45xxhjnHOOMQYA/8w1' +
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
+  'AAAAAAAAAAAAgB8Z2AXYyYqZBQAAAABJRU5ErkJggg==';
+let _badgeOverlayCache = null;
+function buildBadgeOverlay() {
+  if (_badgeOverlayCache) return _badgeOverlayCache;
+  try {
+    _badgeOverlayCache = nativeImage.createFromBuffer(Buffer.from(BADGE_PNG_BASE64, 'base64'));
+  } catch { _badgeOverlayCache = nativeImage.createEmpty(); }
+  return _badgeOverlayCache;
+}
+
 // ── 配置持久化 ─────────────────────────────────────────────
 const store = new Store({
   clearInvalidConfig: true,   // 安全：磁盘上配置被篡改/损坏时回退默认值
@@ -401,6 +419,9 @@ function createWindow() {
 
   mainWindow.on('maximize',   () => mainWindow?.webContents.send('window:maximized-change', true));
   mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window:maximized-change', false));
+
+  // 窗口重新聚焦 → 停止任务栏闪烁（用户已回到窗口，无需继续提醒）
+  mainWindow.on('focus', () => { try { mainWindow?.flashFrame(false); } catch { /* noop */ } });
 }
 
 // ── 更新元数据 Ed25519 二次验签 ─────────────────────────────
@@ -655,6 +676,45 @@ function setupIPC() {
     } catch (e) {
       log.warn('通知失败:', e.message);
     }
+  });
+
+  // 任务栏/Dock 闪烁：他人来消息且窗口失焦时引起注意。
+  // 渲染端已在调用 electronAPI.flashFrame，但此前主进程未实现 → 调用被静默吞掉。
+  ipcMain.handle('window:flashFrame', (_e, on) => {
+    if (!isTrustedSender(_e)) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    // 窗口已聚焦时不闪（用户正在看，避免多余打扰）
+    if (mainWindow.isFocused()) { mainWindow.flashFrame(false); return; }
+    mainWindow.flashFrame(!!on);
+  });
+
+  // 未读角标：Windows 用任务栏 overlay 图标，macOS 用 Dock badge。
+  // count 归一化为非负整数；0 清除角标。
+  ipcMain.handle('window:setBadge', (_e, count) => {
+    if (!isTrustedSender(_e)) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const n = Math.max(0, Math.min(999, parseInt(count, 10) || 0));
+    try {
+      if (process.platform === 'darwin') {
+        app.dock?.setBadge?.(n > 0 ? String(n) : '');
+      } else if (process.platform === 'win32') {
+        // Windows 无原生数字角标，用红点 overlay 表示"有未读"；n=0 清除
+        mainWindow.setOverlayIcon(n > 0 ? buildBadgeOverlay(n) : null,
+          n > 0 ? `${n} 条未读` : '');
+      }
+      // Linux 部分 DE 支持 Unity launcher count
+      app.setBadgeCount?.(n);
+    } catch (e) { log.warn('setBadge 失败:', e.message); }
+  });
+
+  // 来电时把窗口拉到前台并闪烁：后台/最小化时用户能立刻看到来电界面。
+  ipcMain.handle('window:focusForCall', (_e) => {
+    if (!isTrustedSender(_e)) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    if (!mainWindow.isVisible()) mainWindow.show();
+    mainWindow.flashFrame(true);
+    mainWindow.focus();
   });
 
   // 选择文件（仅用户操作触发，主进程打开对话框）

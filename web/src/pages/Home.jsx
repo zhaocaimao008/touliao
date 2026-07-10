@@ -693,12 +693,19 @@ export default function Home() {
           socket.emit('call:response', { to: from, accepted: false, busy: true });
           return prev;
         }
+        // 桌面端：来电时若窗口在后台/最小化，拉到前台并闪烁 + 弹原生通知，
+        // 否则用户看不到来电界面（Electron 端此前完全无后台来电提醒）。
+        if (window.__ELECTRON_CONFIG__ && (document.hidden || !document.hasFocus())) {
+          try { window.electronAPI?.focusForCall?.(); } catch { /* 非桌面端忽略 */ }
+        }
+        const callerName = caller?.name || '好友';
+        showNotification(callerName, type === 'video' ? '邀请你视频通话' : '邀请你语音通话', caller?.avatar);
         return { type, direction: 'incoming', remoteUser: { id: from, name: caller?.name, avatar: caller?.avatar }, remoteId: from };
       });
     };
     socket.on('call:incoming', onIncoming);
     return () => socket.off('call:incoming', onIncoming);
-  }, [socket]);
+  }, [socket, showNotification]);
 
   const handleTabChange = (t) => {
     setTab(t);
