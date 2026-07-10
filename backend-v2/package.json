@@ -10,7 +10,7 @@
     "test": "jest --forceExit --runInBand --testPathIgnorePatterns /node_modules/ performance.test.js",
     "test:perf": "jest --forceExit --runInBand performance.test.js",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage --runInBand --testPathIgnorePatterns /node_modules/ performance.test.js"
+    "test:coverage": "jest --coverage --forceExit --runInBand --testPathIgnorePatterns /node_modules/ performance.test.js"
   },
   "jest": {
     "testEnvironment": "node",

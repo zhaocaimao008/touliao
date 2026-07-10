@@ -50,9 +50,58 @@ jobs:
           JWT_SECRET: ci-smoke-jwt-secret-0123456789abcdef
           DB_PATH: /tmp/vxin-ci-smoke.db
 
+  # ── 部署闸门（除冒烟外，追加真实门禁，任一红则不部署）──
+  backend-jest:
+    name: 后端 Jest + 覆盖率下限
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: backend-v2/package-lock.json
+      - name: 安装依赖
+        working-directory: backend-v2
+        run: npm ci
+      - name: Jest 全套 + 覆盖率门禁（隔离测试库，不碰 wechat.db）
+        working-directory: backend-v2
+        env:
+          REDIS_URL: redis://127.0.0.1:6379
+        run: npm run test:coverage
+
+  web-gate:
+    name: Web Lint + Capacitor 版本守护
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      - name: 安装 web 依赖
+        working-directory: web
+        run: npm ci --legacy-peer-deps
+      - name: Capacitor 版本一致性
+        working-directory: web
+        run: npm run check:capacitor
+      - name: ESLint（0 warning）
+        working-directory: web
+        run: npm run lint -- --max-warnings=0
+
   deploy:
     name: 部署到香港服务器
-    needs: test
+    needs: [test, backend-jest, web-gate]   # 冒烟 + 后端测试/覆盖率 + web门禁 全绿才部署
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
