@@ -589,18 +589,26 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
     const stableHandler = () => handleScrollRef.current?.();
     let attached = null;   // 已挂监听的元素
     let raf = 0;
-    const tryAttach = () => {
+    // 挂到当前 outer；若 outer 已换新节点则先摘旧再挂新。返回是否已挂上。
+    const attach = () => {
       const outer = listOuterRef.current;
       if (outer && outer !== attached) {
         if (attached) attached.removeEventListener('scroll', stableHandler);
         outer.addEventListener('scroll', stableHandler, { passive: true });
         attached = outer;
       }
-      if (!attached) raf = requestAnimationFrame(tryAttach);   // 尚未就绪，下一帧再试
+      return !!attached;
     };
+    // 初始就绪前用 rAF 轮询（AutoSizer 异步挂载容器）；挂上即停轮询。
+    const tryAttach = () => { if (!attach()) raf = requestAnimationFrame(tryAttach); };
     tryAttach();
+    // AutoSizer 在窗口/方向变化时会重建滚动容器（outer 换新节点），
+    // 借 resize 事件重新校验并把监听迁到新节点，避免监听残留在已卸载的旧节点。
+    const onResize = () => { attach(); };
+    window.addEventListener('resize', onResize);
     return () => {
       if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
       if (attached) attached.removeEventListener('scroll', stableHandler);
     };
   }, []);
