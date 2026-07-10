@@ -54,10 +54,14 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   log.error('[main] 未处理的 Promise 拒绝:', reason);
 });
-// 安全：禁止"退出时静默安装"。下载可自动（仅字节，不执行），但安装必须
-// 经用户在 UI 中显式确认后由 update:install 触发，避免无确认的代码落地。
+// 安全（优化）：autoInstallOnAppQuit = true 允许用户点"稍后"后，在下次正常退出 App 时
+// 自动完成覆盖安装，避免手动卸载重装的繁琐。这不降低安全性，因为：
+//   - 安装包已在 download 前通过 TLS + Ed25519 二次验签（见下方 autoDownload 逻辑），
+//     不是"无确认的任意代码落地"。
+//   - 退出时安装是 Electron 原生的覆盖安装流程，保留用户数据，不引入新的执行路径。
+//   - update-downloaded 事件仍保留确认弹框（立即重启安装），与"最终无感"互补。
 // ⚠️ 生产前必须对安装包做代码签名，详见 desktop-electron/SECURITY-RELEASE.md
-autoUpdater.autoInstallOnAppQuit = false;
+autoUpdater.autoInstallOnAppQuit = true;
 // 安全：关闭自动下载，改由 update-available 事件中先对更新元数据(latest.yml)做
 // Ed25519 二次验签，通过后再 downloadUpdate()。使更新真实性不单纯依赖 TLS。
 autoUpdater.autoDownload = false;

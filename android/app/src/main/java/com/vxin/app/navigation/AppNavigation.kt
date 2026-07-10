@@ -36,6 +36,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.vxin.app.core.auth.AuthState
 import com.vxin.app.core.auth.SessionManager
+import com.vxin.app.core.update.UpdateChecker
 import com.vxin.app.feature.auth.ForgotPasswordScreen
 import com.vxin.app.feature.auth.LoginScreen
 import com.vxin.app.feature.auth.RegisterScreen
@@ -72,6 +73,7 @@ class AppViewModel @Inject constructor(
     sessionManager: SessionManager,
     private val configApi: ConfigApi,
     private val chatRepository: ChatRepository,
+    private val updateChecker: UpdateChecker,
 ) : ViewModel() {
     val authState: StateFlow<AuthState> = sessionManager.state
 
@@ -92,6 +94,9 @@ class AppViewModel @Inject constructor(
         viewModelScope.launch { chatRepository.incomingMessages.collect { refreshUnread() } }
         viewModelScope.launch { chatRepository.unreadClearedEvents.collect { refreshUnread() } }
         viewModelScope.launch { chatRepository.newConversationEvents.collect { refreshUnread() } }
+
+        // 启动时静默检查更新（仅打印日志，不干扰启动流程）
+        viewModelScope.launch { updateChecker.check() }
     }
 
     fun refreshUnread() {

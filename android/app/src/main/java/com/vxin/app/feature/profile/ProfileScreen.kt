@@ -53,6 +53,8 @@ import coil.compose.AsyncImage
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
+import com.vxin.app.feature.update.UpdateCheckDialog
+import com.vxin.app.feature.update.UpdateViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +74,22 @@ fun ProfileScreen(
     var showPwdDialog by remember { mutableStateOf(false) }
     var inviteCopied by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
+
+    // 更新相关
+    val updateViewModel: UpdateViewModel = hiltViewModel()
+    val updateState by updateViewModel.uiState.collectAsStateWithLifecycle()
+    val silentResult by updateViewModel.silentResult.collectAsStateWithLifecycle()
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
+    // 启动时静默检查一次
+    LaunchedEffect(Unit) { updateViewModel.silentCheck() }
+
+    // 静默检查到新版后自动弹出对话框（只弹一次）
+    LaunchedEffect(silentResult) {
+        if (silentResult is com.vxin.app.feature.update.SilentCheckResult.HasUpdate) {
+            showUpdateDialog = true
+        }
+    }
 
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.uploadAvatar(it) }
@@ -196,6 +214,17 @@ fun ProfileScreen(
             // 朋友圈 / 收藏 已是底部 Tab，移除「我」页内重复入口（四端一致）
             OutlinedButton(onClick = onOpenCallHistory, modifier = Modifier.fillMaxWidth().testTag("profile-call-history")) { Text("通话记录") }
             Spacer(Modifier.size(12.dp))
+            OutlinedButton(
+                onClick = { showUpdateDialog = true },
+                modifier = Modifier.fillMaxWidth().testTag("profile-check-update"),
+            ) {
+                if (silentResult is com.vxin.app.feature.update.SilentCheckResult.HasUpdate) {
+                    Text("检查更新 ● 新版本可用", color = VxinGreen)
+                } else {
+                    Text("检查更新")
+                }
+            }
+            Spacer(Modifier.size(12.dp))
             OutlinedButton(onClick = { showPwdDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("修改密码") }
             Spacer(Modifier.size(12.dp))
             Button(
@@ -211,6 +240,14 @@ fun ProfileScreen(
             changing = state.changingPassword,
             onConfirm = { old, new -> viewModel.changePassword(old, new) { ok -> if (ok) showPwdDialog = false } },
             onDismiss = { showPwdDialog = false },
+        )
+    }
+
+    // 更新弹窗
+    if (showUpdateDialog) {
+        UpdateCheckDialog(
+            viewModel = updateViewModel,
+            onDismiss = { showUpdateDialog = false },
         )
     }
 }
