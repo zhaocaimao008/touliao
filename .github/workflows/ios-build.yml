@@ -4,6 +4,9 @@ name: iOS Build
 # 用于在没有本地 Mac 的情况下验证 iOS 工程是否可编译。
 on:
   push:
+    # 仅分支 push 时按 paths 触发；不限定 branches 会导致 tag push 也触发本工作流，
+    # 造成一个端前缀 tag 误触发本 iOS 编译校验（详见 VERSIONING.md 的端隔离原则）。
+    branches: [main, master]
     paths:
       - 'ios/**'
       - '.github/workflows/ios-build.yml'

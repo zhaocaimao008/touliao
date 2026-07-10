@@ -5,6 +5,9 @@ name: Android Build
 # 跑完后到本次运行页面底部 "Artifacts" 下载 vxin-debug-apk。
 on:
   push:
+    # 仅分支 push 时按 paths 触发；不限定 branches 会导致 tag push 也触发本工作流，
+    # 造成一个端前缀 tag 误触发本 debug 构建（详见 VERSIONING.md 的端隔离原则）。
+    branches: [main, master]
     paths:
       - 'android/**'
       - '.github/workflows/android-build.yml'
