@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { showConfirm } from '../utils/toast';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
@@ -391,13 +391,17 @@ function CreateGroupModal({ onClose, onCreated }) {
     }
   };
 
-  const filtered = contacts.filter(c => {
-    if (!contactSearch.trim()) return true;
-    const q = contactSearch.toLowerCase();
-    return (c.remark || c.username || '').toLowerCase().includes(q);
-  });
+  // 仅在联系人列表或搜索词变化时重算，避免勾选(selected)切换时无谓地整表过滤
+  const filtered = useMemo(() => {
+    const q = contactSearch.trim().toLowerCase();
+    if (!q) return contacts;
+    return contacts.filter(c => (c.remark || c.username || '').toLowerCase().includes(q));
+  }, [contacts, contactSearch]);
 
-  const selectedContacts = contacts.filter(c => selected.has(c.id));
+  const selectedContacts = useMemo(
+    () => contacts.filter(c => selected.has(c.id)),
+    [contacts, selected],
+  );
 
   return (
     <div className="cgm-overlay" ref={trapRef}
