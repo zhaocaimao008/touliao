@@ -71,6 +71,14 @@ const CONFIG_URLS = [
   'https://dipsin.com/config.json',
 ];
 
+// 渲染进程(src/utils/config.js)也会拉这些 config 源做后端发现；其 origin 必须进 CSP
+// connect-src，否则被自家 CSP 拦（onHeadersReceived 注入的策略同样作用于渲染层 fetch）。
+// 去重后供 buildCSP 使用。缺了它：桌面端拉主 config 源(jsDelivr)必被拦，弱网/换服务器时
+// 后端发现退化，控制台刷 CSP 报错。
+const CONFIG_ORIGINS = [...new Set(
+  CONFIG_URLS.map((u) => { try { return new URL(u).origin; } catch { return ''; } }).filter(Boolean)
+)];
+
 // 安全：校验存储中的 serverUrl，防止被篡改的配置污染 CSP connect-src/origin 推导
 const _storedServerUrl = store.get('serverUrl');
 // SERVER_URL / API_ORIGIN / WS_ORIGIN 为 let：启动时 loadRemoteServerUrl() 可据远程配置更新。
@@ -177,7 +185,11 @@ function buildCSP(scriptSrc) {
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: data: https:",
     "font-src 'self' data:",
-    `connect-src 'self' ${API_ORIGIN} ${WS_ORIGIN}${CDN_ORIGIN && CDN_ORIGIN !== API_ORIGIN ? ' ' + CDN_ORIGIN : ''}`,
+    // connect-src：后端 API/WS + 可选 CDN + config 发现源(jsDelivr 等)。config 源
+    // 若与 API/CDN 重复由后续去重过滤，避免重复 token。
+    `connect-src ${[...new Set(["'self'", API_ORIGIN, WS_ORIGIN,
+      ...(CDN_ORIGIN && CDN_ORIGIN !== API_ORIGIN ? [CDN_ORIGIN] : []),
+      ...CONFIG_ORIGINS].filter(Boolean))].join(' ')}`,
     "worker-src 'self' blob:",
     "child-src 'self' blob:",
     "object-src 'none'",
