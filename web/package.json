@@ -29,7 +29,8 @@
     "android:run": "cd android && ./gradlew assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk",
     "ios:run": "cd ios && xcodebuild -workspace vxin.xcworkspace -scheme vxin",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "check:capacitor": "node scripts/check-capacitor-versions.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^4.0.0",
