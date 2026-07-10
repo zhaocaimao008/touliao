@@ -9,7 +9,8 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      # 仅安卓端专属前缀触发；避免裸 v* 同时误触发桌面端/iOS 发布（详见 VERSIONING.md）。
+      - 'android-v*'
 
 jobs:
   build:
