@@ -14,7 +14,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 通知渠道 + 展示。渠道 id 与后端 FCM android.notification.channelId 一致（vxin_messages）。
+ * 通知渠道 + 展示。渠道 id 与后端 FCM android.notification.channelId 一致（vxin_messages_v2）。
  */
 @Singleton
 class NotificationHelper @Inject constructor(
@@ -37,6 +37,11 @@ class NotificationHelper @Inject constructor(
             .setContentText(body)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            // MESSAGE 类别 + 声音/震动/呼吸灯：Android 7 及以下靠此决定 heads-up 弹出与提醒
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            // 锁屏完整展示标题与内容（PRIVATE 只显示"有新通知"，会导致锁屏看不到提醒内容）
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(pending)
             .build()
 
@@ -79,6 +84,8 @@ class NotificationHelper @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(fullScreen)
             .setFullScreenIntent(fullScreen, true)
             .addAction(android.R.drawable.ic_menu_call, "接听", accept)
@@ -100,7 +107,14 @@ class NotificationHelper @Inject constructor(
             val mgr = context.getSystemService(NotificationManager::class.java) ?: return
             val messages = NotificationChannel(
                 CHANNEL_ID, "消息通知", NotificationManager.IMPORTANCE_HIGH,
-            ).apply { description = "新消息与提及" }
+            ).apply {
+                description = "新消息与提及"
+                // 锁屏可见性：Android 8+ 由渠道决定。PUBLIC = 锁屏完整显示内容，
+                // 否则锁屏收到消息时用户看不到任何提醒（本次问题根因之一）。
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                enableVibration(true)
+                enableLights(true)
+            }
             mgr.createNotificationChannel(messages)
             // 来电渠道：最高优先级 + 绕过勿扰，为后续 fullScreenIntent 来电通知预留（拉起 CallScreen）。
             val calls = NotificationChannel(
@@ -116,7 +130,10 @@ class NotificationHelper @Inject constructor(
     }
 
     companion object {
-        const val CHANNEL_ID = "vxin_messages"
+        // 渠道 id 带版本后缀：已存在渠道无法改锁屏可见性/震动（Android 保护用户既有设置），
+        // 需换新 id 才能让新配置对老用户生效。改动这些渠道属性时同步 bump 版本号。
+        // 注意：后端 FCM android.notification.channelId 也须同步为此值（见 backend push.js）。
+        const val CHANNEL_ID = "vxin_messages_v2"
         const val CALL_CHANNEL_ID = "vxin_calls"
         const val EXTRA_CONVERSATION_ID = "conversationId"
         const val CALL_NOTIFICATION_ID = 424242

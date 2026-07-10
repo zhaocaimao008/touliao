@@ -1,7 +1,11 @@
 package com.vxin.app
 
+import android.app.KeyguardManager
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -32,6 +36,9 @@ class MainActivity : ComponentActivity() {
         // 这样 Scaffold + Modifier.imePadding() 才能正确处理键盘弹出时的输入框位置。
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // 来电通过 fullScreenIntent 拉起本 Activity 时，若设备处于锁屏/熄屏，
+        // 需主动点亮屏幕并越过锁屏展示来电界面，否则用户只看到黑屏/锁屏、看不到弹窗。
+        if (isCallIntent(intent)) enableShowOverLockscreen()
         handleCallIntent(intent)
         setContent {
             VxinTheme {
@@ -48,7 +55,37 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (isCallIntent(intent)) enableShowOverLockscreen()
         handleCallIntent(intent)
+    }
+
+    private fun isCallIntent(intent: Intent?): Boolean = when (intent?.action) {
+        NotificationHelper.ACTION_CALL_SHOW,
+        NotificationHelper.ACTION_CALL_ACCEPT,
+        NotificationHelper.ACTION_CALL_DECLINE -> true
+        else -> false
+    }
+
+    /**
+     * 越过锁屏 + 点亮屏幕展示来电界面。
+     * Android 8.1(27)+ 用 setShowWhenLocked/setTurnScreenOn；旧版用 window flags。
+     * 并请求 KeyguardManager 关闭键盘锁（无密码锁屏可直接进入，有密码锁屏则接听后引导解锁）。
+     */
+    private fun enableShowOverLockscreen() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+            (getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager)
+                ?.requestDismissKeyguard(this, null)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            )
+        }
     }
 
     /**

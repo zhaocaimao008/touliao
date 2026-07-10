@@ -67,7 +67,7 @@ function resolveTokens() {
         token: t,
         notification: { title, body },
         data: { type: 'test', timestamp: String(Date.now()) },
-        android: { priority: 'high', notification: { channelId: 'vxin_messages', sound: 'default' } },
+        android: { priority: 'high', notification: { channelId: 'vxin_messages_v2', sound: 'default' } },
         apns: { payload: { aps: { sound: 'default', badge: 1 } } },
       });
       console.log('  ✅', id);

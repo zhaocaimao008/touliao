@@ -85,7 +85,7 @@ async function pushToUser(userId, payload) {
           timestamp:      String(payload.timestamp || Date.now()),
           type:           payload.type || 'message',
         },
-        android: { priority: 'high', notification: { channelId: 'vxin_messages', sound: 'default' } },
+        android: { priority: 'high', notification: { channelId: 'vxin_messages_v2', sound: 'default' } },
         apns:    { payload: { aps: { sound: 'default', badge: payload.badge || 1 } } },
       };
       promises.push(
