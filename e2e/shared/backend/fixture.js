@@ -21,7 +21,14 @@ function ping(url) {
 
 /** 启动后端,轮询 /health 直到就绪。返回 { proc, stop() }。 */
 async function startBackend({ fresh = true } = {}) {
-  if (fresh) { try { fs.unlinkSync(env.DB_PATH); } catch {} }
+  // fresh：删主库 + WAL/SHM 边车文件。SQLite WAL 模式下已提交但未 checkpoint 的数据
+  // 存活在 -wal 里，只删主库时会被 SQLite 从 -wal 恢复 → 上次残留的账号仍在 →
+  // 造号 register 撞「用户名已存在」→ globalSetup 失败、整套 E2E 挂。
+  if (fresh) {
+    for (const suffix of ['', '-wal', '-shm', '-journal']) {
+      try { fs.unlinkSync(env.DB_PATH + suffix); } catch { /* 不存在即忽略 */ }
+    }
+  }
 
   const proc = spawn('node', ['src/server.js'], {
     cwd: env.BACKEND_DIR,
