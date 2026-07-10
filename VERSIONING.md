@@ -9,7 +9,7 @@
 
 | 端 | 版本真相源文件 | 字段 | 当前版本 |
 |----|--------------|------|---------|
-| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 2.0.6 |
+| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 2.0.7 |
 | 桌面端渲染层内嵌 | `desktop-electron/src/package.json` | `version` | 与上一致 |
 | Web 前端 | `web/package.json` | `version` | 2.0.1 |
 | 后端 | `backend-v2/package.json` | `version` | 2.0.0 |
