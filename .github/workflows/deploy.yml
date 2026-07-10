@@ -103,7 +103,9 @@ jobs:
     name: 部署到香港服务器
     needs: [test, backend-jest, web-gate]   # 冒烟 + 后端测试/覆盖率 + web门禁 全绿才部署
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # main 分支上，push 或手动 workflow_dispatch 均可部署。
+    # （原仅允许 push：手动触发时部署 job 被静默 skipped，workflow_dispatch 形同虚设。）
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
     steps:
       - name: 检出代码
