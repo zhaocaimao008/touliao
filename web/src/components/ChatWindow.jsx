@@ -1639,7 +1639,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             .then(() => showToast('已收藏', 'success'))
             .catch(e => showToast(e.response?.data?.error || '收藏失败', 'error'));
         } else if (action.startsWith('react:')) {
-          await axios.post(`/api/messages/${msg.id}/react`, { emoji: action.replace('react:', '') }).catch(() => {});
+          callbacksRef.current.toggleReaction(msg.id, action.replace('react:', ''));
         }
     }
   };
@@ -1778,6 +1778,17 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
   callbacksRef.current.setHighlightedMsgId = setHighlightedMsgId;
   callbacksRef.current.setShowUserProfile = setShowUserProfile;
   callbacksRef.current.openRedPacket = openRedPacket;
+  // 回应 emoji：统一入口（点击/键盘共用），带错误兜底 + 防连点。
+  // 服务端返回后经 socket 'message_reaction' 广播回来更新 UI，此处仅发请求。
+  callbacksRef.current.toggleReaction = (msgId, emoji) => {
+    const inflight = callbacksRef.current._reactInflight || (callbacksRef.current._reactInflight = new Set());
+    const k = `${msgId}:${emoji}`;
+    if (inflight.has(k)) return; // 防止 click+keydown 双触发或快速连点造成来回抖动
+    inflight.add(k);
+    axios.post(`/api/messages/${msgId}/react`, { emoji })
+      .catch(() => showToast('操作失败，请重试'))
+      .finally(() => inflight.delete(k));
+  };
   // 拍一拍：双击对方头像，服务端落库并广播系统消息
   callbacksRef.current.onNudge = (targetId) => {
     socket?.emit('nudge', { conversationId: conversation.id, targetId });

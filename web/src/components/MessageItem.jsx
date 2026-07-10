@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 import Avatar from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { formatFull } from '../utils/time';
-import axios from 'axios';
 import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
 import { downloadFile } from '../utils/download';
@@ -270,11 +269,11 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
               <div
                 key={r.emoji}
                 className={`wc-reaction-pill${r.userIds.map(String).includes(String(userId)) ? ' mine' : ''}`}
-                onClick={() => axios.post(`/api/messages/${msg.id}/react`, { emoji: r.emoji })}
+                onClick={() => cbs.toggleReaction(msg.id, r.emoji)}
                 role="button" tabIndex={0}
                 aria-label={`${r.emoji} ${r.count > 1 ? r.count + '人' : ''}${r.userIds.map(String).includes(String(userId)) ? '，已回应' : '，点击回应'}`}
                 aria-pressed={r.userIds.map(String).includes(String(userId))}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); axios.post(`/api/messages/${msg.id}/react`, { emoji: r.emoji }); } }}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.toggleReaction(msg.id, r.emoji); } }}
               >
                 <span>{r.emoji}</span>
                 {r.count > 1 && <span>{r.count}</span>}
