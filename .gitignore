@@ -43,6 +43,27 @@ vxin-config/
 # 图标生成临时目录
 .icon-build/
 
+# 任何 node_modules（兜底：防止子目录 node_modules 被误提交撑爆仓库）
+node_modules/
+**/node_modules/
+
+# 🔒 机密：私钥 / 部署密钥 / 密钥库（绝不入库；泄漏需立即轮换）
+.deploy-config/keys/
+.deploy-config/github-secrets.txt
+*keystore*
+*.jks
+*.p12
+*.keystore
+id_rsa
+id_ed25519
+*-deploy
+!*-deploy.sh
+# 环境文件（*.env / .env.local 等），仅保留 .env.example
+.env
+.env.*
+!.env.example
+!*.env.example
+
 # e2e 测试产物
 e2e/node_modules/
 e2e/test-results/
