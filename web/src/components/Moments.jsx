@@ -485,9 +485,9 @@ export default function Moments() {
                     role="radio" aria-checked={visibleDays === o.d} tabIndex={0}
                     onClick={() => saveVisibleDays(o.d)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); saveVisibleDays(o.d); } }}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', borderTop: '1px solid var(--border-color,#eee)' }}>
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', borderTop: '1px solid var(--divider)' }}>
                     <span>{o.label}</span>
-                    {visibleDays === o.d && <span style={{ color: 'var(--green,#07c160)' }}>✓</span>}
+                    {visibleDays === o.d && <span style={{ color: 'var(--green)' }}>✓</span>}
                   </div>
                 ))}
               </div>
@@ -518,12 +518,12 @@ export default function Moments() {
                     <div className="wc-moment-notif-body">
                       <div className="wc-moment-notif-text">{f.remark || f.username}</div>
                     </div>
-                    <span style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${checked ? 'var(--green,#07c160)' : '#ccc'}`, background: checked ? 'var(--green,#07c160)' : 'var(--text-inverse)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{checked ? '✓' : ''}</span>
+                    <span style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${checked ? 'var(--green)' : 'var(--border-medium)'}`, background: checked ? 'var(--green)' : 'var(--bg-card)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{checked ? '✓' : ''}</span>
                   </div>
                 );
               })}
             </div>
-            <div style={{ padding: 12, textAlign: 'right', borderTop: '1px solid var(--border-color,#eee)' }}>
+            <div style={{ padding: 12, textAlign: 'right', borderTop: '1px solid var(--divider)' }}>
               <button className="wc-moment-editor-publish" onClick={() => setShowFriendPicker(false)}>
                 确定 ({visibleTo.length})
               </button>

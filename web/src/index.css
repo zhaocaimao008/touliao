@@ -1583,7 +1583,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .wc-logout-btn:hover { background: rgba(226,76,76,.05); }
 .wc-collection-item { display: flex; align-items: center; gap: 11px; padding: 11px var(--sp-4); background: var(--bg-card); border-bottom: 1px solid var(--border-subtle); cursor: pointer; transition: background var(--dur-fast); }
 .wc-collection-item:hover { background: var(--bg-hover); }
-.wc-collection-icon { width: 42px; height: 42px; border-radius: var(--radius-button); background: #F0F0F0; display: flex; align-items: center; justify-content: center; font-size: var(--text-2xl); flex-shrink: 0; }
+.wc-collection-icon { width: 42px; height: 42px; border-radius: var(--radius-button); background: var(--bg-input-search); display: flex; align-items: center; justify-content: center; font-size: var(--text-2xl); flex-shrink: 0; }
 .wc-collection-content { font-size: var(--text-base); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wc-collection-time { font-size: var(--text-xs); color: var(--text-tertiary); margin-top: 2px; }
 .wc-settings { display: flex; flex-direction: column; height: 100%; background: var(--bg-messages); overflow-y: auto; }
@@ -2596,8 +2596,8 @@ body {
 .wc-user-profile-danger { background: var(--bg-card); color: var(--color-badge); }
 .wc-user-profile-remark {
   padding: 14px 20px 16px;
-  border-top: 1px solid rgba(230,232,236,.9);
-  background: rgba(250,250,250,.96);
+  border-top: 1px solid var(--divider);
+  background: var(--bg-card-hover);   /* 原 rgba(250,250,250,.96) 近白底在暗色资料卡里白闪，改用语义次级底 */
 }
 
 .wc-empty {
@@ -3233,7 +3233,7 @@ body {
 
 /* ── QR modal ── */
 .gi-qr-wrap { padding:24px 20px 20px; }
-.gi-qr-img { width:200px; height:200px; display:block; margin:0 auto 16px; border-radius:var(--radius-md); border:1px solid #E5E5E5; }
+.gi-qr-img { width:200px; height:200px; display:block; margin:0 auto 16px; border-radius:var(--radius-md); border:1px solid var(--border-default); }
 .gi-qr-nm { font-size: var(--text-sm2); color:var(--text-secondary); margin-bottom:6px; }
 .gi-qr-ex { font-size: var(--text-xs); color:var(--text-tertiary); }
 .gi-save-btn { margin-top: var(--sp-4); padding:8px 24px; background:var(--green); color: var(--gray-0); border-radius:var(--radius-button); font-size: var(--text-base); }
@@ -3276,7 +3276,7 @@ body {
 
 /* ── Buttons (member actions) ── */
 .gi-btn-admin { font-size: var(--text-xs); padding:2px 6px; border-radius:var(--radius-button-sm); background:transparent; cursor:pointer; flex-shrink:0; }
-.gi-btn-kick { font-size: var(--text-xs); padding:2px 6px; border-radius:var(--radius-button-sm); color:var(--color-badge); border:1px solid #FFCDD2; background:transparent; cursor:pointer; flex-shrink:0; margin-left:2px; }
+.gi-btn-kick { font-size: var(--text-xs); padding:2px 6px; border-radius:var(--radius-button-sm); color:var(--color-badge); border:1px solid rgba(var(--color-danger-rgb),.4); background:transparent; cursor:pointer; flex-shrink:0; margin-left:2px; }
 
 /* ── Nickname input / buttons ── */
 .gi-nick-input { flex:1; font-size: var(--text-base); padding:6px 10px; border:1px solid var(--border-color); border-radius:var(--radius-sm); background:var(--bg-input); color:var(--text-primary); }

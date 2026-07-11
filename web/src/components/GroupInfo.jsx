@@ -35,7 +35,7 @@ export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
   const grid = n <= 4 ? 2 : 3;
   const cellSize = Math.floor((size - (grid + 1) * 2) / grid);
   return (
-    <div style={{ width: size, height: size, borderRadius: Math.max(3, Math.round(size * 0.13)), background: 'var(--bg-app)', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: Math.max(3, Math.round(size * 0.13)), background: 'var(--bg-input-search)', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
       {members.slice(0, grid * grid).map((m, i) => (
         <GroupGridCell key={i} member={m} cellSize={cellSize} />
       ))}
