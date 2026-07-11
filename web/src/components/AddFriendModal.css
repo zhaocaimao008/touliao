@@ -79,11 +79,21 @@
   padding: 10px 14px;
   background: var(--bg-input-search);
   border-radius: var(--radius-full);
-  border: none;
-  transition: background var(--dur-fast);
+  border: 1.5px solid transparent;   /* 占位，聚焦时变主色，避免布局跳动 */
+  transition: background var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
+/* 聚焦态：把焦点指示放到圆角外壳上（跟随胶囊圆角），
+   而非默认落在内部 input 上形成方形 outline —— 修复"圆角+方框"双框问题 */
 .afm-search-wrap.afm-search-wrap-focused {
   background: var(--bg-chat);
+  border-color: var(--color-primary);
+  box-shadow: var(--ring-primary);
+}
+/* 关键：抑制此搜索输入框自身的全局 :focus-visible 方形 outline，
+   焦点视觉统一由外层圆角胶囊承担（外壳已有主色边框+ring，无障碍可见性不降低） */
+.afm-search-input:focus,
+.afm-search-input:focus-visible {
+  outline: none !important;
 }
 
 .afm-search-icon { color: var(--gray-400); flex-shrink: 0; }

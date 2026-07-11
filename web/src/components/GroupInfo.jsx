@@ -366,9 +366,17 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   const doInvite = async () => {
     if (selectedInvite.size === 0) return;
     try {
-      await axios.post(`/api/messages/conversation/${conversation.id}/invite`, { userIds: [...selectedInvite] });
+      const { data } = await axios.post(`/api/messages/conversation/${conversation.id}/invite`, { userIds: [...selectedInvite] });
       setShowInvite(false);
       load();
+      // 有好友开启了"不允许直接邀请进群"的隐私保护，友好提示未能全部拉入
+      const blocked = Number(data?.blocked) || 0;
+      const added = Number(data?.added) || 0;
+      if (blocked > 0) {
+        showToast(added > 0
+          ? `已邀请 ${added} 人；${blocked} 位好友开启了群邀请保护，未能直接拉入`
+          : `${blocked} 位好友开启了群邀请保护，请分享群二维码邀请其加入`, 'info');
+      }
     } catch (e) { showToast(e.response?.data?.error || '邀请失败', 'error'); }
   };
 

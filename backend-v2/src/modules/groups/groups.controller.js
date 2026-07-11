@@ -30,8 +30,11 @@ exports.setAvatar = asyncHandler(async (req, res) => {
   res.json({ avatar: svc.setAvatar(io(req), req.params.convId, req.user.id, url) });
 });
 
-exports.invite = asyncHandler(async (req, res) =>
-  res.json({ success: true, added: svc.invite(io(req), req.params.convId, req.user.id, req.body.userIds) }));
+exports.invite = asyncHandler(async (req, res) => {
+  const r = svc.invite(io(req), req.params.convId, req.user.id, req.body.userIds);
+  // 兼容旧前端：added 保持数值；同时附带 blocked（因隐私设置未能拉入的人数）
+  res.json({ success: true, added: r.added, blocked: r.blocked });
+});
 
 exports.kick = asyncHandler(async (req, res) => {
   svc.kick(io(req), req.params.convId, req.user.id, req.params.uid);

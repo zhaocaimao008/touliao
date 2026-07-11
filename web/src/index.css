@@ -4248,3 +4248,87 @@ body.dark-mode .home-chat-area { box-shadow: 0 8px 30px rgba(0,0,0,.45); }
 body.dark-mode .wc-chat-item:hover { background: rgba(109,90,230,.16); }
 body.dark-mode .wc-sidebar-btn:hover { background: rgba(109,90,230,.16); }
 /* AURORA 结构级重设计 ▲ END */
+
+/* ══════════════════════════════════════════════════════════════════
+   AURORA · 个人资料详情页 Hero 重设计
+   ══════════════════════════════════════════════════════════════════ */
+.pf-hero {
+  position: relative;
+  margin: 12px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+.pf-hero-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(255,255,255,.22), transparent 55%),
+    var(--grad-brand);
+}
+/* 顶部微光装饰 */
+.pf-hero-bg::after {
+  content: ''; position: absolute; right: -40px; top: -40px;
+  width: 200px; height: 200px; border-radius: var(--radius-full);
+  background: radial-gradient(circle, rgba(255,255,255,.20), transparent 60%);
+  pointer-events: none;
+}
+.pf-hero-qr {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 38px; height: 38px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; background: rgba(255,255,255,.16);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(4px);
+  transition: background var(--dur-fast);
+}
+.pf-hero-qr:hover { background: rgba(255,255,255,.28); }
+.pf-hero-inner {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 30px 20px 24px; gap: 6px;
+}
+.pf-avatar-wrap {
+  position: relative; cursor: pointer;
+  border-radius: var(--radius-avatar-lg);
+  box-shadow: 0 0 0 4px rgba(255,255,255,.35), 0 8px 20px rgba(36,31,56,.28);
+  transition: transform var(--dur-fast);
+}
+.pf-avatar-wrap:hover { transform: translateY(-2px); }
+.pf-avatar-edit {
+  position: absolute; right: -4px; bottom: -4px;
+  width: 26px; height: 26px; border-radius: var(--radius-full);
+  background: #fff; color: var(--color-primary);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(36,31,56,.30);
+}
+.pf-avatar-uploading {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.42); border-radius: var(--radius-avatar-lg);
+  color: #fff; font-size: var(--text-sm);
+}
+.pf-hero-name {
+  margin-top: 12px; font-size: var(--text-2xl); font-weight: var(--font-bold);
+  color: #fff; letter-spacing: -.3px; text-align: center;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pf-hero-bio {
+  font-size: var(--text-sm2); color: rgba(255,255,255,.82);
+  text-align: center; max-width: 90%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pf-vid-chip {
+  margin-top: 10px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border: none; cursor: pointer;
+  background: rgba(255,255,255,.18); color: #fff;
+  border-radius: var(--radius-full); font-size: var(--text-sm);
+  backdrop-filter: blur(4px);
+  transition: background var(--dur-fast);
+}
+.pf-vid-chip:hover { background: rgba(255,255,255,.30); }
+.pf-vid-label { opacity: .82; }
+.pf-vid-value { font-weight: var(--font-semibold); letter-spacing: .2px; }
+.pf-vid-chip svg { opacity: .82; }
+
+/* 暗色模式：Hero 阴影加重，QR 按钮对比保持 */
+body.dark-mode .pf-hero { box-shadow: 0 10px 34px rgba(0,0,0,.5); }
+/* AURORA 个人资料 Hero ▲ END */

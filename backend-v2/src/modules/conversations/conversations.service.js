@@ -88,7 +88,12 @@ function createGroup(io, ownerId, { name, memberIds }) {
     db.prepare(`SELECT contact_id FROM contacts WHERE user_id=? AND contact_id IN (${ph})`)
       .all(ownerId, ...memberIds).map(r => r.contact_id)
   );
-  const validMemberIds = memberIds.filter(id => validSet.has(id));
+  // 隐私保护：开启「好友不能直接邀请我进群」的用户，建群时不会被直接拉入
+  const protectedSet = new Set(
+    db.prepare(`SELECT user_id FROM user_settings WHERE no_direct_group_invite=1 AND user_id IN (${ph})`)
+      .all(...memberIds).map(r => r.user_id)
+  );
+  const validMemberIds = memberIds.filter(id => validSet.has(id) && !protectedSet.has(id));
 
   // BUG-2: 限制每人最多创建 1000 个群
   const userGroupCount = db.prepare(

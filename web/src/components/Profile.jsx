@@ -661,6 +661,7 @@ function PrivacySettings({ user, onBack }) {
   const [page, setPage] = useState('main');
   const [settings, setSettings] = useState({
     addByVxinId: true, addByPhone: true, addByQRCode: true, addByUsername: true, requireVerify: true,
+    noDirectGroupInvite: false,
   });
 
   useEffect(() => {
@@ -709,6 +710,8 @@ function PrivacySettings({ user, onBack }) {
           <CRow label="添加我的方式" desc="ID号、手机号、二维码、用户名" onClick={() => setPage('add-methods')} />
           <CRow label="需要验证才能添加好友" desc="关闭后对方可直接添加你"
             right={<Toggle checked={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
+          <CRow label="不允许好友直接邀请我进群" desc="开启后好友无法把你直接拉进群，需你扫码/点链接自行加入"
+            right={<Toggle checked={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
         </Card>
         <Card className="wc-privacy-card-mt">
           <CRow label="修改密码" desc="定期修改可提升账号安全" onClick={() => setPage('change-password')} />
@@ -876,13 +879,20 @@ async function doLogout(logout) {
   goLogin();
 }
 
-/* ── 个人资料详情页 ── */
+/* ── 个人资料详情页（AURORA 重设计：渐变 Hero + 卡片信息） ── */
 function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   const handleAvatarClick = () => {
     fileRef.current?.click();
+  };
+
+  const copyVid = async () => {
+    if (!user?.wechat_id) return;
+    const ok = await copyToClipboard(user.wechat_id);
+    showToast(ok ? '已复制 v信号' : '复制失败', ok ? 'success' : 'error');
   };
 
   const handleFileChange = async (e) => {
@@ -919,16 +929,36 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
     <PageBg>
       <PageHeader title="个人资料" onBack={onBack} />
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
-      <div className="wc-section-pad">
-        <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 16px', gap: 8 }}>
-          <div role="button" tabIndex={0} onClick={handleAvatarClick} onKeyDown={e => activateOnKey(handleAvatarClick)(e)} style={{ cursor: 'pointer', position: 'relative' }}>
-            <Avatar src={user?.avatar} name={user?.username} size={80} />
-            {uploading && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', borderRadius: 14, color: 'var(--text-inverse)', fontSize: 12 }}>上传中</div>}
+
+      {/* ── 渐变 Hero ── */}
+      <div className="pf-hero">
+        <div className="pf-hero-bg" aria-hidden="true" />
+        <button className="pf-hero-qr" onClick={() => setShowQR(true)} title="我的二维码" aria-label="我的二维码">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm11-2h2v2h-2v-2zm3 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3 0h2v5h-5v-2h3v-3zm-3 3h2v2h-2v-2z"/></svg>
+        </button>
+        <div className="pf-hero-inner">
+          <div className="pf-avatar-wrap" role="button" tabIndex={0}
+            onClick={handleAvatarClick} onKeyDown={e => activateOnKey(handleAvatarClick)(e)}
+            aria-label="更换头像">
+            <Avatar src={user?.avatar} name={user?.username} size={92} />
+            <span className="pf-avatar-edit" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </span>
+            {uploading && <div className="pf-avatar-uploading">上传中…</div>}
           </div>
-          <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>{user?.username || '未设置昵称'}</div>
-          <div style={{ fontSize: 13, color: 'var(--green)' }}>点击更换头像</div>
-        </Card>
+          <div className="pf-hero-name">{user?.username || '未设置昵称'}</div>
+          <div className="pf-hero-bio">{user?.bio || '这个人很酷，还没有签名'}</div>
+          {user?.wechat_id && (
+            <button className="pf-vid-chip" onClick={copyVid} title="点击复制 v信号">
+              <span className="pf-vid-label">v信号</span>
+              <span className="pf-vid-value">{user.wechat_id}</span>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* ── 可编辑资料 ── */}
       <div className="wc-section-pad">
         <Card>
           <CRow label="昵称" value={user?.username || ''} onClick={() => navigateTo?.('edit-name')} />
@@ -938,10 +968,26 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
       <SLabel>账号信息</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow label="v信号" value={user?.wechat_id || ''} />
+          <CRow label="v信号" value={user?.wechat_id || ''} onClick={user?.wechat_id ? copyVid : undefined} />
           <CRow label="手机号" value={user?.phone || ''} />
         </Card>
       </div>
+
+      {/* ── 二维码弹窗 ── */}
+      {showQR && (
+        <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
+          <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label="我的二维码" onClick={e => e.stopPropagation()}>
+            <div className="wc-modal-header">
+              <span className="wc-modal-title">我的二维码</span>
+              <button className="wc-modal-close" aria-label="关闭二维码" onClick={() => setShowQR(false)}>✕</button>
+            </div>
+            <div className="wc-modal-body home-qr-body">
+              <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="home-qr-img" />
+              <p className="home-qr-text">扫描二维码添加我为好友</p>
+            </div>
+          </div>
+        </div>
+      )}
     </PageBg>
   );
 }

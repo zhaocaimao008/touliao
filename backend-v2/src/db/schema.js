@@ -367,6 +367,8 @@ function applySchema(db) {
     "ALTER TABLE user_settings ADD COLUMN chat_background TEXT DEFAULT NULL",
     // ── 朋友圈"最近 N 天可见"（P2）：他人查看本人动态的时间窗，0=全部可见 ──
     "ALTER TABLE user_settings ADD COLUMN moments_visible_days INTEGER DEFAULT 0",
+    // ── 隐私：好友不能直接邀请我进群（1=开启保护，好友需先征得我同意/我扫码才入群）──
+    "ALTER TABLE user_settings ADD COLUMN no_direct_group_invite INTEGER DEFAULT 0",
     // ── 朋友圈分组可见（P2）：visibility=include 时为白名单、exclude 时为黑名单的好友 id JSON 数组 ──
     "ALTER TABLE moments ADD COLUMN visible_to TEXT DEFAULT NULL",
     // ── 钱包账本（红包真实扣款/入账）──────────────────────────────

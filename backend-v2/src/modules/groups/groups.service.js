@@ -122,6 +122,14 @@ function invite(io, convId, userId, userIds) {
   const validSet = new Set(
     db.prepare(`SELECT contact_id FROM contacts WHERE user_id=? AND contact_id IN (${ph})`).all(userId, ...userIds).map(r => r.contact_id)
   );
+  // 隐私保护：过滤掉「已开启"好友不能直接邀请我进群"」的用户，
+  // 这些人无法被直接拉入群（需通过群邀请二维码/链接自行加入）。
+  const protectedSet = new Set(
+    db.prepare(`SELECT user_id FROM user_settings WHERE no_direct_group_invite=1 AND user_id IN (${ph})`)
+      .all(...userIds).map(r => r.user_id)
+  );
+  protectedSet.forEach(uid => validSet.delete(uid));
+  const blocked = userIds.filter(uid => protectedSet.has(uid));
   const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id) VALUES (?,?)');
   const added = [];
   db.transaction(() => {
@@ -147,7 +155,7 @@ function invite(io, convId, userId, userIds) {
     });
     io.to(convId).emit('group_updated', { id: convId });
   }
-  return added.length;
+  return { added: added.length, blocked: blocked.length };
 }
 
 // ── 移除成员（群主可踢任何人，管理员可踢普通成员）── R2 修复：强制被踢者全端离开房间

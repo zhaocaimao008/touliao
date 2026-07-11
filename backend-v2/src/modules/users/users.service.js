@@ -16,7 +16,7 @@ function parseExtra(raw) {
 const settingDefaults = {
   add_by_vxin_id: 1, add_by_phone: 1, require_verify: 1, profile_visible: 1,
   block_unknown_messages: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0,
-  chat_background: null, moments_visible_days: 0,
+  chat_background: null, moments_visible_days: 0, no_direct_group_invite: 0,
 };
 const toBool = v => !!Number(v);
 const toIntBool = v => (v ? 1 : 0);
@@ -36,6 +36,7 @@ function serializeSettings(row) {
     blockUnknownMessages: toBool(s.block_unknown_messages), messageNotify: toBool(s.message_notify),
     detailPreview: toBool(s.detail_preview), sound: toBool(s.sound), vibrate: toBool(s.vibrate),
     chatBackground: s.chat_background || '', momentsVisibleDays: Number(s.moments_visible_days) || 0,
+    noDirectGroupInvite: toBool(s.no_direct_group_invite),
   };
 }
 
@@ -44,6 +45,7 @@ function normalizeSettings(body) {
     addByVxinId: 'add_by_vxin_id', addByPhone: 'add_by_phone', requireVerify: 'require_verify',
     profileVisible: 'profile_visible', blockUnknownMessages: 'block_unknown_messages',
     messageNotify: 'message_notify', detailPreview: 'detail_preview', sound: 'sound', vibrate: 'vibrate',
+    noDirectGroupInvite: 'no_direct_group_invite',
   };
   const patch = {};
   for (const [k, dbKey] of Object.entries(map)) {
