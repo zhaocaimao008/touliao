@@ -1649,7 +1649,7 @@ body.dark-mode .up-remark-box { background: var(--bg-input) !important; }
 body.dark-mode .wc-panel { background: var(--glass-panel-bg-strong) !important; border-right-color: var(--border-subtle) !important; }
 body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
 body.dark-mode .wc-moment-comment-user,
-body.dark-mode .wc-moment-comment-submit { color: #7DAADD; }
+body.dark-mode .wc-moment-comment-submit { color: var(--link); }
 
 /* 气泡 — 暗色模式下我方气泡：AURORA 极光靛渐变，白字 */
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }
