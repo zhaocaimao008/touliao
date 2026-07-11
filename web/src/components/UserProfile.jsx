@@ -7,7 +7,7 @@ import { showToast, showConfirm } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
 import useFocusTrap from '../hooks/useFocusTrap';
 
-export default function UserProfile({ userId, onClose, onStartChat, onFriendAdded, onFriendDeleted }) {
+export default function UserProfile({ userId, onClose, onStartChat, onFriendAdded, onFriendDeleted, onNudge }) {
   const { user: currentUser } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -268,6 +268,14 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
               </svg>
               <span>发消息</span>
             </button>
+            {onNudge && userId !== currentUser?.id && (
+              <button className="up-action-btn up-action-grey" onClick={() => { onNudge(userId); showToast('已发送拍一拍'); onClose?.(); }}>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74c1.21-.81 2-2.18 2-3.74a4 4 0 1 0-8 0c0 1.56.79 2.93 2 3.74zM18.84 15.87l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6a1.5 1.5 0 0 0-3 0v10.74l-3.43-.72a1 1 0 0 0-.99 1.65l3.6 3.44c.28.28.66.44 1.06.44h6.4a2 2 0 0 0 1.98-1.72l.63-4.46c.13-.9-.34-1.79-1.14-2.15z"/>
+                </svg>
+                <span>拍一拍</span>
+              </button>
+            )}
             <button className={`up-action-btn ${blocked ? 'up-action-warn' : 'up-action-grey'}`} onClick={toggleBlock}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 014 12zm8 8c-1.85 0-3.55-.63-4.9-1.69l11.21-11.21C19.37 8.45 20 10.15 20 12c0 4.42-3.58 8-8 8z"/>

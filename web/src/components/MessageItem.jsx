@@ -55,23 +55,24 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
     return senderMember?.role === 'owner' || senderMember?.role === 'admin';
   })();
 
-  // 头像既支持单击看资料、又支持双击拍一拍：双击时浏览器会先派发一次 click,
-  // 若不做消抖,拍一拍的同时会误弹出资料卡。用短延时等一等,双击到来则取消单击。
-  // 计时器句柄挂在事件的 currentTarget(DOM 节点)上,避免在 memo 组件里加 hook 破坏 hook 顺序。
+  // 头像交互：单击与双击都打开好友资料卡（对齐用户直觉，双击必达资料页）。
+  //   拍一拍(nudge) 改由资料卡内的「拍一拍」按钮触发，避免与看资料手势冲突、也更易发现。
+  // 计时器句柄挂在事件的 currentTarget(DOM 节点)上，避免在 memo 组件里加 hook 破坏 hook 顺序。
   const doAvatarProfile = () => {
     if (!canClickAvatar) { showToast('群主已开启禁止私聊'); return; }
     if (!isMine) cbs.setShowUserProfile(msg.sender_id);
   };
   const handleAvatarClick = (e) => {
-    if (isMine || multiSelect) { doAvatarProfile(); return; } // 只有他人头像才有双击拍一拍,无需消抖
+    if (isMine || multiSelect) { doAvatarProfile(); return; }
     const el = e.currentTarget;
-    if (el._nudgeTimer) return;
-    el._nudgeTimer = setTimeout(() => { el._nudgeTimer = null; doAvatarProfile(); }, 250);
+    // 单击消抖：若紧接着来了双击，仍是打开资料卡（同一动作），避免连开两次
+    if (el._openTimer) return;
+    el._openTimer = setTimeout(() => { el._openTimer = null; doAvatarProfile(); }, 220);
   };
   const handleAvatarDblClick = (e) => {
     const el = e.currentTarget;
-    if (el._nudgeTimer) { clearTimeout(el._nudgeTimer); el._nudgeTimer = null; }
-    cbs.onNudge?.(msg.sender_id);
+    if (el._openTimer) { clearTimeout(el._openTimer); el._openTimer = null; }
+    doAvatarProfile(); // 双击 → 直达好友资料卡
   };
 
   return (
@@ -97,7 +98,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
         className="wc-msg-avatar"
         onClick={!multiSelect ? handleAvatarClick : undefined}
         onDoubleClick={!multiSelect && !isMine ? handleAvatarDblClick : undefined}
-        title={!isMine ? '双击拍一拍' : undefined}
+        title={!isMine ? '点击查看资料' : undefined}
         style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}
       >
         <Avatar src={msg.senderAvatar} name={msg.senderName} size={36} />

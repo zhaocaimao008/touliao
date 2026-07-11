@@ -2104,6 +2104,7 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
           onClose={() => setShowUserProfile(null)}
           onStartChat={() => setShowUserProfile(null)}
           onFriendDeleted={() => { setShowUserProfile(null); onClose?.(); }}
+          onNudge={(id) => { callbacksRef.current.onNudge?.(id); }}
         />
       )}
 

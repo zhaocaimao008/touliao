@@ -2802,8 +2802,10 @@ body {
 .up-cover { width: 100%; height: 100%; object-fit: cover; display: block; }
 .up-cover-default {
   width: 100%; height: 100%;
-  /* 对齐微信：默认封面用浅灰，而非突兀深蓝 */
-  background: linear-gradient(135deg, #E9ECF1 0%, #DDE2EA 100%);
+  /* AURORA：默认封面用品牌渐变，与个人资料 Hero 统一 */
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(255,255,255,.20), transparent 55%),
+    var(--grad-brand);
 }
 .up-close-btn {
   position: absolute; top: 10px; right: 10px;
