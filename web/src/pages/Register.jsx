@@ -102,7 +102,7 @@ export default function Register() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {inviteRequired && (
-            <div style={{ marginBottom: '16px', padding: '9px 14px', background: 'rgba(7,193,96,.1)', border: '1px solid rgba(7,193,96,.2)', borderRadius: '8px', fontSize: '13px', color: 'rgba(255,255,255,.65)' }}>
+            <div className="auth-note">
               💡 需要邀请码？请向已有账号的用户询问，或联系管理员获取
             </div>
           )}

@@ -555,7 +555,7 @@ function AppearanceSettings({ onBack }) {
               style={{
                 background: bg,
                 border: `2.5px solid ${themeMode === mode ? 'var(--green)' : border}`,
-                boxShadow: themeMode === mode ? '0 0 0 4px rgba(7,193,96,.15)' : '0 2px 8px rgba(0,0,0,.08)',
+                boxShadow: themeMode === mode ? '0 0 0 4px rgba(var(--color-primary-rgb),.15)' : '0 2px 8px rgba(0,0,0,.08)',
               }}
               onClick={() => setThemeMode(mode)}>
               <span className="wc-appearance-emoji">{emoji}</span>

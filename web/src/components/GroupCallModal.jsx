@@ -229,7 +229,7 @@ function Tile({ stream, streamForRef, muted, isVideo, info, self }) {
   const s = stream || streamForRef;
   useEffect(() => { if (ref.current && s) ref.current.srcObject = s; }, [s]);
   return (
-    <div style={{ position: 'relative', background: '#000', borderRadius: 10, overflow: 'hidden', minHeight: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', border: self ? '2px solid var(--green,#07C160)' : '1px solid rgba(255,255,255,.08)' }}>
+    <div style={{ position: 'relative', background: '#000', borderRadius: 10, overflow: 'hidden', minHeight: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', border: self ? '2px solid var(--color-primary,#1677FF)' : '1px solid rgba(255,255,255,.08)' }}>
       <video ref={ref} autoPlay playsInline muted={muted}
         style={{ width: '100%', height: '100%', objectFit: 'cover', display: isVideo ? 'block' : 'none' }} />
       {!isVideo && <Avatar src={info?.avatar} name={info?.name || '?'} size={72} style={{ borderRadius: 16 }} />}

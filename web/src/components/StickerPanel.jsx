@@ -58,7 +58,7 @@ export default function StickerPanel({ onSend }) {
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          style={{ fontSize: 12, color: 'var(--green)', background: 'rgba(7,193,96,.1)', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}>
+          style={{ fontSize: 12, color: 'var(--color-primary)', background: 'rgba(var(--color-primary-rgb),.1)', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}>
           {uploading ? '上传中…' : '＋ 添加'}
         </button>
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{ display: 'none' }} onChange={onPick} />
