@@ -166,7 +166,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
-              color="#4A8CFF" label="添加好友" badge={0}
+              color="#6D5AE6" label="添加好友" badge={0}
               onClick={() => setShowAddFriend(true)}
             />
             <EntryRow
@@ -181,7 +181,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>}
-              color="#10AEFF" label="文件传输助手" badge={0}
+              color="#5B7BF0" label="文件传输助手" badge={0}
               onClick={async () => {
                 try {
                   const { data } = await axios.get('/api/messages/file-helper');
@@ -410,7 +410,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
   const [showMembers, setShowMembers] = useState(null); // labelId
   const [saving, setSaving] = useState(false);
 
-  const COLORS = ['#6D5AE6', '#FA5151', '#17B8A6', '#FF9A00', '#FF6B35', '#8A93A6', '#10AEFF', '#7D4BF0'];
+  const COLORS = ['#6D5AE6', '#FA5151', '#17B8A6', '#FF9A00', '#FF6B35', '#8A93A6', '#5B7BF0', '#7D4BF0'];
 
   const startCreate = () => {
     setEditLabel('new');

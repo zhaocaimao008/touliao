@@ -1342,7 +1342,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .wc-modal-close:hover { color: var(--text-primary); }
 .wc-modal-body { flex: 1; overflow-y: auto; }
 .wc-modal-footer { padding: 11px 20px; border-top: 1px solid var(--divider); display: flex; gap: var(--sp-2); }
-.wc-modal-btn { flex: 1; padding: 9px; border-radius: var(--radius-button-sm); font-size: var(--text-base); font-weight: var(--font-medium); cursor: pointer; transition: background var(--dur-fast); }
+.wc-modal-btn { flex: 1; padding: 9px; border-radius: var(--radius-button); font-size: var(--text-base); font-weight: var(--font-medium); cursor: pointer; transition: background var(--dur-fast); }
 .wc-modal-btn.primary { background: var(--green); color: var(--gray-0); }
 .wc-modal-btn.primary:hover { background: var(--green-hover); }
 .wc-modal-btn.primary:disabled { background: var(--text-disabled); cursor: not-allowed; }
@@ -3625,7 +3625,8 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .wc-confirm-cancel:hover { opacity: .8; }
 .wc-confirm-ok:hover     { opacity: .88; }
 .wc-confirm-cancel { background: var(--bg-card-hover); color: var(--text-secondary); border: 1px solid var(--border-default); }
-.wc-confirm-ok     { background: var(--color-badge); color: var(--gray-0); }
+/* 确认按钮改用品牌渐变(极光靛)，与 AURORA 一致；红色留给真正的危险操作 */
+.wc-confirm-ok     { background: var(--grad-brand); color: var(--gray-0); box-shadow: 0 3px 10px rgba(var(--green-rgb),.28); }
 
 /* === GroupInfo component classes === */
 .gi-spinner-green { border-top-color: var(--green); }
