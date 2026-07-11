@@ -9,7 +9,7 @@ import { showToast, showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
 
 /* ── 主组件 ── */
-export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0 }) {
+export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed }) {
   const [contacts, setContacts] = useState([]);
   const [requests, setRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
@@ -80,12 +80,23 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   }, [fetchContacts]);
 
   // 从顶栏"添加朋友"入口触发（addFriendRequest 为递增触发信号）——
-  // 用 render 期上一次值比较替代 effect，避免 effect 内同步 setState
-  const [seenAddReq, setSeenAddReq] = useState(addFriendRequest);
+  // 用 render 期上一次值比较替代 effect，避免 effect 内同步 setState。
+  // ⚠ 关键修复：seenAddReq 初值必须为 0（而非 addFriendRequest）。
+  //   顶栏点"添加朋友"若当前不在通讯录页，会「切 tab + bump 信号」同批发生，
+  //   本组件首次挂载时收到的已是自增后的值；若初值取 addFriendRequest，
+  //   则挂载即相等 → 首次不弹窗，须点第二次才生效（历史 bug）。
+  //   初值取 0 后，任何 >0 的信号在挂载/更新时都会被检测到 → 首次即弹窗。
+  const [seenAddReq, setSeenAddReq] = useState(0);
   if (addFriendRequest !== seenAddReq) {
     setSeenAddReq(addFriendRequest);
     if (addFriendRequest) setShowAddFriend(true);
   }
+  // 弹窗被触发（信号 >0 且已 seen）后，用 effect 把 Home 信号复位为 0：
+  // 放到 commit 之后而非 render 期调用父 setState，避免"渲染子组件时更新父组件"警告；
+  // 复位后可防止用户关闭弹窗、再次切回通讯录时被"残留信号"误触发重开。
+  useEffect(() => {
+    if (addFriendRequest && addFriendRequest === seenAddReq) onAddFriendConsumed?.();
+  }, [addFriendRequest, seenAddReq, onAddFriendConsumed]);
 
   const handleRequest = async (id, action) => {
     if (handlingReq) return; // 防连点：上一次处理未结束时忽略

@@ -754,7 +754,7 @@ export default function Home() {
       case 'chats':
         return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} convRefreshKey={convRefreshKey} />;
       case 'contacts':
-        return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} />;
+        return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} onAddFriendConsumed={handleAddFriendConsumed} />;
       case 'moments':
         return <Moments />;
       case 'calls':
@@ -799,6 +799,8 @@ export default function Home() {
     if (tab !== 'contacts') handleTabChange('contacts');
     setAddFriendRequest(n => n + 1);
   };
+  // 稳定引用：ContactList 消费"添加朋友"信号后复位为 0（避免 effect 依赖每帧变化）
+  const handleAddFriendConsumed = useCallback(() => setAddFriendRequest(0), []);
 
   // 各端共用的浮层（二维码 / 添加菜单 / 建群 / 网络搜索 / 通话）
   const overlays = (
