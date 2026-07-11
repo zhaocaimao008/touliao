@@ -4,51 +4,80 @@
 
 :root {
   /* ══════════════════════════════════════════════════════════
-     Theme A · 现代扁平蓝 (Modern Flat Blue)
+     Theme · AURORA  (原创视觉语言 · 2026 重设计)
      ──────────────────────────────────────────────────────────
-     方向：摆脱"微信仿品"廉价感，回归 design-tokens 自带的
-           青岩蓝 #1677FF 主色，更商务、更现代、更有质感。
-     实现：只覆盖 token 取值，不动组件、不碰主体样式。
-     兼容：--green* 系列作为"主色语义别名"保留(历史遗留名)，
-           但取值已全部指向蓝色，散落引用自动跟随变蓝。
+     设计立意
+       · 完全自主设计，不模仿任何聊天软件的配色与骨架。
+       · 主色改用「极光靛」— 紫靛 → 青碧 的渐层，搭配暖白纸感
+         底色（微微偏薰衣草），营造编辑感、克制而有温度的界面。
+       · 更大的圆角、更柔的分层投影、气泡使用渐变，告别扁平廉价感。
+     实现约束
+       · 仅覆盖设计 token 取值，绝不改动任何 JSX / 核心功能。
+       · --green* 系列为历史语义别名（=主色），取值指向靛紫，
+         散落引用自动跟随。
      ══════════════════════════════════════════════════════════ */
 
-  /* ── Brand ── 主色：青岩蓝(--green* 为历史别名，现指向蓝) ── */
-  --green:            #1677FF;   /* 主品牌色(名称沿用旧别名) */
-  --green-bubble:     #1677FF;
-  --green-hover:      #0D64E3;
-  --green-rgb:        22, 119, 255;
+  /* ── Brand ── 主色：极光靛 Aurora Indigo ── */
+  --green:            #6D5AE6;   /* 主品牌色(名称沿用旧别名) */
+  --green-bubble:     #6D5AE6;
+  --green-hover:      #5A47D6;
+  --green-rgb:        109, 90, 230;
 
-  /* ── Surface ── 明快留白 + 极轻蓝调中性灰，更清爽有呼吸感 ── */
-  --bg-app:           #EBEDF0;   /* 面板缝隙：极浅中性灰 */
-  --bg-panel:         #FFFFFF;   /* 会话列表：纯白 */
-  --bg-panel-header:  #FFFFFF;   /* 顶栏纯白 */
-  --bg-messages:      #F4F5F7;   /* 聊天区浅灰(与白气泡形成层次) */
-  --bg-search:        #F0F2F5;   /* 搜索框：柔和浅灰 */
-  --bg-input-search:  #F0F2F5;   /* 收到气泡/输入搜索同上 */
-  --bg-msg-mine:      #1677FF;   /* 我方气泡：品牌蓝 */
+  /* 品牌辅助：青碧强调(用于渐变收尾、链接高亮) */
+  --accent-teal:      #17B8A6;
+  --accent-teal-rgb:  23, 184, 166;
+
+  /* 我方气泡渐变(靛 → 青碧)，取代旧的纯色扁平气泡 */
+  --grad-brand:       linear-gradient(135deg, #6D5AE6 0%, #5B7BF0 55%, #17B8A6 130%);
+  --grad-brand-soft:  linear-gradient(135deg, rgba(109,90,230,.14), rgba(23,184,166,.12));
+
+  /* ── Surface ── 暖白纸感 + 微薰衣草中性，柔和有呼吸 ── */
+  --bg-app:           #E7E4F0;   /* 面板缝隙：带紫调的浅雾 */
+  --bg-panel:         #FBFAFE;   /* 会话列表：近白暖纸 */
+  --bg-panel-header:  #FBFAFE;
+  --bg-messages:      #F3F1FA;   /* 聊天区：极浅薰衣草灰 */
+  --bg-search:        #EEEBF7;   /* 搜索框：柔紫浅灰 */
+  --bg-input-search:  #EEEBF7;
+  --bg-msg-mine:      #6D5AE6;   /* 我方气泡底(渐变由 override 追加) */
   --bg-msg-other:     #FFFFFF;
-  --bg-shell:         #232733;   /* 应用外壳深色框(带极轻蓝调，更精致) */
+  --bg-shell:         #241F38;   /* 应用外壳：深靛夜幕(非纯黑，更有质感) */
 
-  /* ── Text ── 中性近黑/中性灰，克制不刺眼 ── */
-  --text-title:       #171A20;
-  --text-primary:     #1C1F26;   /* 正文近黑 */
-  --text-secondary:   #838B98;   /* 辅助中性灰 */
-  --text-tertiary:    #AEB4BE;
-  --text-placeholder: #AEB4BE;
+  /* ── Text ── 深靛近黑 / 柔灰，克制不刺眼 ── */
+  --text-title:       #1E1A2E;
+  --text-primary:     #26223A;
+  --text-secondary:   #837E96;
+  --text-tertiary:    #ADA8BE;
+  --text-placeholder: #ADA8BE;
 
-  /* ── Border ── */
-  --border-strong:    rgba(0,0,0,.07);
+  /* ── Border ── 更轻，靠投影分层 ── */
+  --border-strong:    rgba(36,31,56,.08);
+
+  /* ── Radius 全局放大 —— 更圆润的现代感 ── */
+  --radius-md:        12px;
+  --radius-lg:        18px;
+  --radius-xl:        22px;
+  --radius-bubble:    16px;      /* 气泡改大圆角，告别小方角 */
+  --radius-input:     12px;
+  --radius-button:    12px;
+  --radius-card:      16px;
+  --radius-avatar:    14px;      /* 头像圆润方形 */
+  --radius-avatar-lg: 20px;
 
   /* ── Typography 微调 ── */
   --font-preview:     12.5px;
-  --lh-msg:           1.55;
-  --lh-base:          1.45;
+  --lh-msg:           1.6;
+  --lh-base:          1.5;
 
-  /* ── Motion ── */
-  --dur:              200ms;
-  --dur-fast:         120ms;
-  --bg-input:         rgba(249,250,251,.9);
+  /* ── Motion ── 稍带弹性 ── */
+  --dur:              220ms;
+  --dur-fast:         130ms;
+  --ease:             cubic-bezier(.22, .61, .36, 1);
+  --bg-input:         rgba(251,250,254,.92);
+
+  /* ── 分层柔投影：AURORA 阴影带极轻紫调，比灰阴影更精致 ── */
+  --shadow-sm:  0 1px 3px rgba(36,31,56,.06), 0 1px 2px rgba(36,31,56,.04);
+  --shadow-md:  0 6px 18px rgba(36,31,56,.10), 0 2px 6px rgba(36,31,56,.06);
+  --shadow-lg:  0 14px 40px rgba(36,31,56,.16), 0 4px 12px rgba(36,31,56,.08);
 }
 
 /* 暗色补齐：上面 :root 把 design-tokens 的别名覆盖成了浅色却漏了暗色覆盖，
@@ -58,7 +87,8 @@ body.dark-mode {
   --bg-search:        var(--bg-input-search);
   --bg-msg-other:     var(--bg-input-search);
   --text-placeholder: var(--text-muted);
-  --bg-msg-mine:      #2B6FD6;   /* 暗色下我方气泡：沉稳蓝 */
+  --bg-msg-mine:      #6D5AE6;   /* 暗色下我方气泡：极光靛 */
+  --bg-shell:         #17132A;   /* 暗色外壳更深的靛夜幕 */
 }
 
 /* ── prefers-reduced-motion: 尊重用户无障碍设置 ── */
@@ -1168,9 +1198,9 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
   min-height: 100vh; display: flex;
   align-items: center; justify-content: center;
   background:
-    radial-gradient(1200px 800px at 78% -10%, rgba(22,119,255,.20) 0%, transparent 55%),
-    radial-gradient(900px 700px at 10% 110%, rgba(13,100,227,.16) 0%, transparent 55%),
-    linear-gradient(160deg, #0A1020 0%, #0E1830 46%, #0A1122 100%);
+    radial-gradient(1200px 800px at 78% -10%, rgba(109,90,230,.30) 0%, transparent 55%),
+    radial-gradient(900px 700px at 10% 110%, rgba(23,184,166,.22) 0%, transparent 55%),
+    linear-gradient(160deg, #17132A 0%, #1E1740 46%, #140F26 100%);
   position: relative; overflow-x: hidden; overflow-y: auto;
   font-family: var(--font);
 }
@@ -1186,13 +1216,13 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 }
 .auth-bg-circle-2 {
   width: 520px; height: 520px;
-  background: radial-gradient(circle, rgba(13,100,227,.14) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(23,184,166,.16) 0%, transparent 65%);
   bottom: -180px; left: -160px;
   filter: blur(6px);
 }
 .auth-bg-circle-3 {
   width: 240px; height: 240px;
-  background: radial-gradient(circle, rgba(130,175,255,.10) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(169,156,240,.12) 0%, transparent 65%);
   top: 30%; left: 5%;
 }
 .auth-container { position: relative; z-index: var(--z-raised); width: 400px; animation: scaleIn .3s var(--ease); }
@@ -1608,12 +1638,12 @@ body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
 body.dark-mode .wc-moment-comment-user,
 body.dark-mode .wc-moment-comment-submit { color: #7DAADD; }
 
-/* 气泡 — 暗色模式下我方气泡：沉稳蓝 #2B6FD6，白字 */
+/* 气泡 — 暗色模式下我方气泡：AURORA 极光靛渐变，白字 */
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }
-body.dark-mode .wc-msg-bubble.mine { background: #2B6FD6; color: var(--gray-0); border-color: rgba(255,255,255,.08); }
+body.dark-mode .wc-msg-bubble.mine { background: var(--grad-brand); color: var(--gray-0); border-color: transparent; box-shadow: 0 4px 14px rgba(var(--green-rgb), .30); }
 body.dark-mode .wc-msg-bubble.other { background: var(--bg-input-search); color: #e6e6e6; border-color: rgba(255,255,255,.06); }
-body.dark-mode .wc-msg-bubble.mine::after { border-color: transparent transparent transparent #2B6FD6; }
-body.dark-mode .wc-msg-bubble.other::after { border-color: transparent var(--bg-input-search) transparent transparent; }
+body.dark-mode .wc-msg-bubble.mine::after,
+body.dark-mode .wc-msg-bubble.other::after { display: none; }
 body.dark-mode .wc-chat-item:hover,
 body.dark-mode .wc-contact-item:hover,
 body.dark-mode .wc-menu-item:hover,
@@ -2063,8 +2093,8 @@ body {
   flex-direction: column;
   align-items: center;
   height: 100%;
-  background: var(--bg-shell);
-  border-right: 1px solid rgba(0,0,0,.18);
+  background: linear-gradient(180deg, #262B38 0%, var(--bg-shell) 55%, #1F2430 100%);
+  border-right: 1px solid rgba(0,0,0,.22);
   box-shadow: 1px 0 0 rgba(255,255,255,.04);
 }
 .wc-sidebar-avatar {
@@ -2141,11 +2171,21 @@ body {
 /* 企业微信激活态：左侧绿色指示线 + 图标高亮 */
 /* 微信 PC：激活态仅图标变绿，无背景框、无指示条 */
 .wc-sidebar-btn.active {
-  background: transparent;
+  background: rgba(var(--color-primary-rgb),.16);
 }
-.wc-sidebar-btn.active .icon svg { fill: var(--green); }
-.wc-sidebar-btn.active .wc-sidebar-label { color: var(--green); }
-.wc-sidebar-btn.active::before { display: none; }
+.wc-sidebar-btn.active:hover { background: rgba(var(--color-primary-rgb),.22); }
+.wc-sidebar-btn.active .icon svg { fill: var(--brand-300); }
+.wc-sidebar-btn.active .wc-sidebar-label { color: var(--brand-300); font-weight: var(--font-medium); }
+/* 左侧品牌色指示条 */
+.wc-sidebar-btn.active::before {
+  content: '';
+  display: block;
+  position: absolute;
+  left: -6px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 22px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand-400);
+}
 .wc-sidebar-badge {
   position: absolute;
   top: 4px; right: 4px;
@@ -4068,3 +4108,143 @@ select:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 2px;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   ▓▓▓  AURORA · 结构级视觉重设计 (Structural Redesign)  ▓▓▓
+   ──────────────────────────────────────────────────────────────────
+   目标：在不改动任何 JSX / 核心功能的前提下，用纯 CSS 把界面骨架
+         从"深色导航条 + 扁平蓝气泡"重塑为原创的"暖白纸感 + 悬浮
+         柔卡 + 渐变气泡"视觉语言。
+   本块置于文件末尾，覆盖前述历史规则（同优先级后者胜出）。
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── 应用外壳：极淡的紫雾渐变底，让面板"浮"起来 ── */
+.wc-app {
+  background:
+    radial-gradient(1200px 600px at 12% -8%, rgba(109,90,230,.10), transparent 60%),
+    radial-gradient(1000px 620px at 110% 115%, rgba(23,184,166,.10), transparent 60%),
+    var(--bg-app);
+  padding: 10px;
+  gap: 10px;
+  box-sizing: border-box;
+}
+.wc-app.wc-mobile { padding: 0; gap: 0; }
+
+/* ── 左侧导航：从深色实心条 → 浅色悬浮"药丸"栏 ── */
+.wc-sidebar {
+  background: var(--bg-panel);
+  border-right: none;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+.wc-app.wc-mobile .wc-sidebar { border-radius: 0; box-shadow: none; }
+
+.wc-sidebar-avatar-img,
+.wc-sidebar-avatar-inner {
+  border-radius: var(--radius-avatar);
+  box-shadow: 0 4px 12px rgba(var(--green-rgb), .30);
+}
+.wc-sidebar-avatar-inner { background: var(--grad-brand); }
+
+/* 导航按钮：中性文字/图标（浅底），激活态用渐变胶囊 + 白图标 */
+.wc-sidebar-btn { border-radius: var(--radius-lg); }
+.wc-sidebar-btn .icon svg { fill: var(--text-tertiary); }
+.wc-sidebar-label { color: var(--text-secondary); }
+.wc-sidebar-btn:hover { background: var(--grad-brand-soft); }
+.wc-sidebar-btn:hover .icon svg { fill: var(--color-primary); }
+.wc-sidebar-btn:hover .wc-sidebar-label { color: var(--color-primary); }
+
+.wc-sidebar-btn.active {
+  background: var(--grad-brand);
+  box-shadow: 0 6px 16px rgba(var(--green-rgb), .34);
+}
+.wc-sidebar-btn.active:hover { background: var(--grad-brand); }
+.wc-sidebar-btn.active .icon svg { fill: #fff; }
+.wc-sidebar-btn.active .wc-sidebar-label { color: #fff; font-weight: var(--font-semibold); }
+/* 去掉旧的左侧指示条（改用整块渐变胶囊表达选中） */
+.wc-sidebar-btn.active::before { display: none; }
+.wc-sidebar-badge { border-color: var(--bg-panel); }
+
+/* ── 会话面板：悬浮圆角卡 ── */
+.wc-panel {
+  background: var(--bg-panel);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  border-right: none !important;
+}
+.wc-app.wc-mobile .wc-panel { border-radius: 0; box-shadow: none; }
+
+/* ── 会话条目：胶囊悬停 / 选中，去掉贴边生硬块 ── */
+.wc-chat-item {
+  margin: 2px 8px;
+  padding: 0 10px;
+  border-radius: var(--radius-lg);
+  width: auto;
+}
+.wc-chat-item:hover { background: var(--grad-brand-soft) !important; }
+.wc-chat-item.active,
+.wc-chat-item.active:hover {
+  /* 用 !important 覆盖历史 §2240 的 --bg-panel-item-active !important */
+  background: var(--grad-brand) !important;
+  box-shadow: 0 6px 16px rgba(var(--green-rgb), .28) !important;
+}
+.wc-chat-item.active .wc-chat-item-name { color: #fff; font-weight: var(--font-semibold); }
+.wc-chat-item.active .wc-chat-item-preview,
+.wc-chat-item.active .wc-chat-item-time,
+.wc-chat-item.active .wc-chat-item-draft { color: rgba(255,255,255,.85); }
+.wc-chat-item.active .wc-chat-item-badge { border-color: transparent; background: #fff; color: var(--color-primary); }
+/* 选中会话头像加白描边，从渐变底上"托"出来 */
+.wc-chat-item.active .wc-chat-item-avatar img,
+.wc-chat-item.active .wc-chat-item-avatar > * { box-shadow: 0 0 0 2px rgba(255,255,255,.55); }
+.wc-chat-item.pinned:not(.active) { background: var(--grad-brand-soft) !important; }
+
+/* ── 聊天区：也做成悬浮卡 ── */
+.home-chat-area {
+  background: var(--bg-chat);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+.wc-app.wc-mobile .home-chat-area { border-radius: 0; box-shadow: none; }
+
+/* ── 我方气泡：靛→青碧渐变，柔投影，去掉小三角尾巴（更现代）── */
+.wc-msg-bubble.mine {
+  background: var(--grad-brand) !important;
+  box-shadow: 0 4px 14px rgba(var(--green-rgb), .26);
+  border: none;
+}
+.wc-msg-bubble.other {
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-subtle);
+}
+/* 去掉气泡尖角，改为纯圆角块（原创、非微信小尖角）*/
+.wc-msg-bubble.mine::after,
+.wc-msg-bubble.other::after { display: none !important; }
+
+/* ── 顶栏搜索框：圆润胶囊 ── */
+.wc-search { border-radius: var(--radius-full); }
+.wc-search input { background: transparent; }
+
+/* ── 主按钮 / 主色元素：链接与强调用青碧点缀感知 ── */
+.wc-msg-bubble.mine a { color: #EAFBF7; }
+
+/* ── 空态插画色跟随品牌 ── */
+.we-empty-svg { opacity: .9; }
+
+/* ══════════════════════════════════════════════════════════════════
+   暗色模式下的 AURORA 补偿（外壳/面板改深靛玻璃感）
+   ══════════════════════════════════════════════════════════════════ */
+body.dark-mode .wc-app {
+  background:
+    radial-gradient(1200px 600px at 12% -8%, rgba(109,90,230,.16), transparent 60%),
+    radial-gradient(1000px 620px at 110% 115%, rgba(23,184,166,.14), transparent 60%),
+    var(--bg-app);
+}
+body.dark-mode .wc-sidebar,
+body.dark-mode .wc-panel,
+body.dark-mode .home-chat-area { box-shadow: 0 8px 30px rgba(0,0,0,.45); }
+body.dark-mode .wc-chat-item:hover { background: rgba(109,90,230,.16); }
+body.dark-mode .wc-sidebar-btn:hover { background: rgba(109,90,230,.16); }
+/* AURORA 结构级重设计 ▲ END */

@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { mediaUrl } from '../utils/url';
 
-// 无头像时的字母头像配色：明快多彩(含微信绿)，按名字 hash 稳定取色，去掉"整页灰"
+// 无头像时的字母头像配色：AURORA 极光系多彩，按名字 hash 稳定取色，去掉"整页灰"
 const COLORS = [
-  '#07C160', // 微信绿
-  '#10AEFF', // 天蓝
-  '#FA9D3B', // 橙
-  '#6A8DFF', // 蓝紫
-  '#FF7A45', // 橙红
+  '#6D5AE6', // 极光靛(主)
+  '#17B8A6', // 青碧(辅)
+  '#5B7BF0', // 靛蓝
+  '#9B7BF5', // 薰衣草紫
+  '#F0A020', // 琥珀
+  '#FF7A93', // 珊瑚粉
   '#13C2C2', // 青
-  '#9B59E8', // 紫
-  '#52C41A', // 草绿
-  '#FF85A2', // 粉
-  '#36C5C0', // 蓝绿
+  '#7C6BF7', // 蓝紫
+  '#E8619D', // 品红
+  '#38C0A8', // 薄荷
 ];
 
 export function getColor(name) {

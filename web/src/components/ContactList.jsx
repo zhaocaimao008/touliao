@@ -150,7 +150,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
-              color="#07C160" label="群聊" badge={0}
+              color="#17B8A6" label="群聊" badge={0}
               onClick={() => setTab('groups')}
             />
             <EntryRow
@@ -395,22 +395,22 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
 function LabelsTab({ labels, contacts, onBack, onUpdate }) {
   const [editLabel, setEditLabel] = useState(null); // null | 'new' | labelObject
   const [nameInput, setNameInput] = useState('');
-  const [colorInput, setColorInput] = useState('#07C160');
+  const [colorInput, setColorInput] = useState('#6D5AE6');
   const [showMembers, setShowMembers] = useState(null); // labelId
   const [saving, setSaving] = useState(false);
 
-  const COLORS = ['#07C160', '#FA5151', '#4A8CFF', '#FF9A00', '#FF6B35', '#8A93A6', '#10AEFF', '#7D4BF0'];
+  const COLORS = ['#6D5AE6', '#FA5151', '#17B8A6', '#FF9A00', '#FF6B35', '#8A93A6', '#10AEFF', '#7D4BF0'];
 
   const startCreate = () => {
     setEditLabel('new');
     setNameInput('');
-    setColorInput('#07C160');
+    setColorInput('#6D5AE6');
   };
 
   const startEdit = (label) => {
     setEditLabel(label);
     setNameInput(label.name);
-    setColorInput(label.color || '#07C160');
+    setColorInput(label.color || '#6D5AE6');
   };
 
   const saveLabel = async () => {
@@ -530,7 +530,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       )}
       {labels.map(label => (
         <div key={label.id} className="wc-contact-item">
-          <div style={{ width: 40, height: 40, borderRadius: 8, background: label.color || '#07C160', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 8, background: label.color || '#6D5AE6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>
           </div>
           <div className="cl-contact-info" style={{ flex: 1 }}>

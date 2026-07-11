@@ -4,8 +4,8 @@
   "description": "安全、高效的企业级通讯",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1A2033",
-  "theme_color": "#1A2033",
+  "background_color": "#241F38",
+  "theme_color": "#6D5AE6",
   "orientation": "portrait-primary",
   "icons": [
     {

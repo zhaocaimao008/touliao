@@ -24,23 +24,24 @@
    比微信绿更专业，比钉钉蓝更有温度。
    ================================================================ */
 :root {
-  --brand-50:    #EEF5FF;
-  --brand-100:   #D8E9FF;
-  --brand-200:   #B4D0FF;
-  --brand-300:   #82AFFF;
-  --brand-400:   #4D88FF;
-  --brand-500:   #1677FF;   /* ← 主品牌色 */
-  --brand-600:   #0D64E3;
-  --brand-700:   #0850C0;
-  --brand-800:   #053D9A;
-  --brand-900:   #032B73;
+  /* AURORA 极光靛主色阶（原 #1677FF 蓝阶已整体替换为靛紫阶）*/
+  --brand-50:    #F1EFFD;
+  --brand-100:   #E2DEFB;
+  --brand-200:   #C7BFF6;
+  --brand-300:   #A99CF0;
+  --brand-400:   #8A78EB;
+  --brand-500:   #6D5AE6;   /* ← 主品牌色 极光靛 */
+  --brand-600:   #5A47D6;
+  --brand-700:   #4938B8;
+  --brand-800:   #382C90;
+  --brand-900:   #281F68;
 
   /* 语义别名 */
   --color-primary:        var(--brand-500);
   --color-primary-hover:  var(--brand-600);
   --color-primary-active: var(--brand-700);
   --color-primary-muted:  var(--brand-50);
-  --color-primary-rgb:    22, 119, 255;       /* 供 rgba() 使用 */
+  --color-primary-rgb:    109, 90, 230;       /* 供 rgba() 使用 */
 
   /* ── 聊天气泡：我的气泡跟随品牌主色，他人气泡用浅灰 ── */
   --bubble-mine:     var(--color-primary);
