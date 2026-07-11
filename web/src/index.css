@@ -533,6 +533,19 @@ img { display: block; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.wc-chat-header-name-clickable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  margin: -2px -6px;
+  padding: 2px 6px;
+  max-width: max-content;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.wc-chat-header-name-clickable:hover { background: var(--bg-hover); }
+.wc-chat-header-name-clickable:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-primary);
+}
 .wc-chat-header-sub {
   font-size: var(--text-xs);
   color: var(--text-secondary);
@@ -585,7 +598,7 @@ img { display: block; }
 .wc-msg-time span {
   display: inline-block;
   background: rgba(0,0,0,.09);
-  color: rgba(0,0,0,.38);
+  color: var(--text-secondary);   /* 用语义色，暗色下自动转浅灰(原 rgba(0,0,0,.38) 在深底不可见) */
   font-size: var(--text-xs);
   line-height: var(--lh-none);
   padding: 3px 9px;
@@ -2316,11 +2329,11 @@ body {
 .wc-settings-entry {
   min-height: 50px;
   padding: 12px 14px !important;
-  border-bottom: 1px solid rgba(230,232,236,.8);
+  border-bottom: 1px solid var(--divider);
   transition: background var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .wc-settings-entry:last-child { border-bottom: none; }
-.wc-settings-entry:hover { background: rgba(255,255,255,.52); }
+.wc-settings-entry:hover { background: var(--bg-hover); }
 .wc-settings-entry:active { transform: scale(.992); }
 
 .wc-switch {
@@ -2384,7 +2397,7 @@ body {
   padding: 10px 14px;
   text-align: left;
 }
-.wc-settings-account-main:hover { background: rgba(255,255,255,.52); }
+.wc-settings-account-main:hover { background: var(--bg-hover); }
 .wc-settings-account-main div {
   flex: 1;
   min-width: 0;

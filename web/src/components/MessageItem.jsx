@@ -105,7 +105,15 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
       </div>
       <div className="wc-msg-body">
         {!isMine && convType === 'group' && !consecutive && (
-          <div className="wc-msg-sender">{msg.senderName}</div>
+          <div
+            className="wc-msg-sender"
+            onClick={!multiSelect ? doAvatarProfile : undefined}
+            role={!multiSelect && canClickAvatar ? 'button' : undefined}
+            tabIndex={!multiSelect && canClickAvatar ? 0 : undefined}
+            onKeyDown={!multiSelect && canClickAvatar ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doAvatarProfile(); } }) : undefined}
+            style={!multiSelect && canClickAvatar ? { cursor: 'pointer' } : undefined}
+            title={canClickAvatar ? '点击查看资料' : undefined}
+          >{msg.senderName}</div>
         )}
         <div className="wc-msg-bubble-wrap">
           {isMine && (

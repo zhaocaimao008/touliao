@@ -360,7 +360,7 @@
    ================================================================ */
   --green:            var(--bubble-mine);
   --green-rgb:        var(--bubble-mine-rgb);
-  --green-hover:      #0D9460;
+  --green-hover:      #5A47D6;   /* AURORA 靛紫 hover(原绿色 #0D9460 遗留值,已被 index.css 覆盖,此处对齐避免误用) */
   --link-color:       var(--brand-500);
   --link:             #4938B8;   /* 消息内链接：AURORA 深靛(比品牌主色稍深，白底可读、和谐不刺眼)*/
   --bg-panel:         #F7F7F7;
@@ -405,11 +405,15 @@
    § 13  DARK MODE
    ================================================================ */
 body.dark-mode {
-  /* Brand（深色下主色调稍亮，保持可读性）*/
-  --color-primary:       #3E8EFF;
-  --color-primary-hover: #5DA0FF;
-  --color-primary-rgb:   62, 142, 255;
-  --color-primary-muted: rgba(62, 142, 255, .12);
+  /* Brand（深色下主色调稍亮，保持可读性）
+     ⚠️ 必须与浅色的 AURORA 极光靛同色系(#6D5AE6)，仅提亮以保证深底对比度。
+     旧值 #3E8EFF 是遗留的蓝色，会让暗色模式主色从「靛紫」跳成「蓝」，
+     与浅色不协调、也与 --green(仍为靛紫) 分裂成两种强调色。*/
+  --color-primary:       #8A78EB;   /* = brand-400 极光靛提亮档 */
+  --color-primary-hover: #A99CF0;   /* = brand-300 */
+  --color-primary-active:#6D5AE6;   /* = brand-500 */
+  --color-primary-rgb:   138, 120, 235;
+  --color-primary-muted: rgba(138, 120, 235, .14);
 
   /* Bubble */
   --bubble-mine:         var(--color-primary);
@@ -461,8 +465,8 @@ body.dark-mode {
   --text-secondary:   #8E8E93;
   --text-muted:       #636366;
   --text-disabled:    #48484A;
-  --text-link:        #3E8EFF;
-  --text-link-hover:  #5DA0FF;
+  --text-link:        #A99CF0;   /* 暗色链接：浅薰衣草靛，与 AURORA 同色系(原 #3E8EFF 蓝已弃用) */
+  --text-link-hover:  #C7BFF6;
 
   /* Grays（深色模式下中性灰镜像）*/
   --gray-50:   #1A1A1C;
@@ -486,7 +490,7 @@ body.dark-mode {
   --shadow-nav: 2px 0 20px rgba(0, 0, 0, .40);
   --shadow-bubble-mine:  none;
   --shadow-bubble-other: none;
-  --ring-primary: 0 0 0 3px rgba(62, 142, 255, .20);
+  --ring-primary: 0 0 0 3px rgba(138, 120, 235, .22);  /* 跟随 AURORA 靛紫主色(原蓝 62,142,255 已弃用) */
   --ring-danger:  0 0 0 3px rgba(255, 107, 107, .20);
 
   /* Glass 毛玻璃（深色模式） */
@@ -499,7 +503,7 @@ body.dark-mode {
   /* Legacy aliases (dark) */
   --green:          var(--bubble-mine);
   --green-rgb:      var(--bubble-mine-rgb);
-  --green-hover:    #1F8044;
+  --green-hover:    var(--color-primary-hover);  /* 原 #1F8044 是遗留绿色，暗色下主色 hover 会误变绿，改为跟随靛紫主色 */
   --link-color:     var(--color-primary);
   --link:           #A99CF0;   /* 暗色下提亮为浅薰衣草靛，保证深底对比度（WCAG）且与 AURORA 和谐 */
   --bg-msg-mine:    var(--bubble-mine);
