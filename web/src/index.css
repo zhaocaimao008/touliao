@@ -3,31 +3,42 @@
    ============================================================ */
 
 :root {
-  /* ── Brand ── 覆盖 design-tokens 蓝→微信绿 ── */
-  --green:            #07C160;
-  --green-bubble:     #07C160;
-  --green-hover:      #06AE56;
+  /* ══════════════════════════════════════════════════════════
+     Theme A · 现代扁平蓝 (Modern Flat Blue)
+     ──────────────────────────────────────────────────────────
+     方向：摆脱"微信仿品"廉价感，回归 design-tokens 自带的
+           青岩蓝 #1677FF 主色，更商务、更现代、更有质感。
+     实现：只覆盖 token 取值，不动组件、不碰主体样式。
+     兼容：--green* 系列作为"主色语义别名"保留(历史遗留名)，
+           但取值已全部指向蓝色，散落引用自动跟随变蓝。
+     ══════════════════════════════════════════════════════════ */
 
-  /* ── Surface ── 微信式：更白的壳层 + 去蓝调中性灰(不再冷灰) ── */
-  --bg-app:           #E2E2E2;   /* 面板缝隙：中性灰，去蓝调 */
-  --bg-panel:         #FFFFFF;   /* 会话列表：纯白(微信 4.0 明快观感) */
-  --bg-panel-header:  #FFFFFF;   /* 顶栏纯白(微信聊天顶栏为白) */
-  --bg-messages:      #F5F5F5;   /* 聊天区微信浅灰(保留，与白气泡形成层次) */
-  --bg-search:        #EDEDED;   /* 搜索框中性灰，去蓝调 */
-  --bg-input-search:  #EDEDED;   /* 收到气泡/输入搜索同上 */
-  --bg-msg-mine:      #95EC69;
+  /* ── Brand ── 主色：青岩蓝(--green* 为历史别名，现指向蓝) ── */
+  --green:            #1677FF;   /* 主品牌色(名称沿用旧别名) */
+  --green-bubble:     #1677FF;
+  --green-hover:      #0D64E3;
+  --green-rgb:        22, 119, 255;
+
+  /* ── Surface ── 明快留白 + 极轻蓝调中性灰，更清爽有呼吸感 ── */
+  --bg-app:           #EBEDF0;   /* 面板缝隙：极浅中性灰 */
+  --bg-panel:         #FFFFFF;   /* 会话列表：纯白 */
+  --bg-panel-header:  #FFFFFF;   /* 顶栏纯白 */
+  --bg-messages:      #F4F5F7;   /* 聊天区浅灰(与白气泡形成层次) */
+  --bg-search:        #F0F2F5;   /* 搜索框：柔和浅灰 */
+  --bg-input-search:  #F0F2F5;   /* 收到气泡/输入搜索同上 */
+  --bg-msg-mine:      #1677FF;   /* 我方气泡：品牌蓝 */
   --bg-msg-other:     #FFFFFF;
-  --bg-shell:         #2E2E2E;   /* 应用外壳深色框(桌面窗口边框/侧栏底色) */
+  --bg-shell:         #232733;   /* 应用外壳深色框(带极轻蓝调，更精致) */
 
-  /* ── Text ── 去蓝调，回归微信中性近黑/中性灰 ── */
-  --text-title:       #191919;
-  --text-primary:     #1A1A1A;   /* 正文近黑(原 #28333F 偏蓝) */
-  --text-secondary:   #888888;   /* 辅助中性灰(原 #7A8694 偏蓝) */
-  --text-tertiary:    #B2B2B2;
-  --text-placeholder: #B2B2B2;
+  /* ── Text ── 中性近黑/中性灰，克制不刺眼 ── */
+  --text-title:       #171A20;
+  --text-primary:     #1C1F26;   /* 正文近黑 */
+  --text-secondary:   #838B98;   /* 辅助中性灰 */
+  --text-tertiary:    #AEB4BE;
+  --text-placeholder: #AEB4BE;
 
   /* ── Border ── */
-  --border-strong:    rgba(0,0,0,.08);
+  --border-strong:    rgba(0,0,0,.07);
 
   /* ── Typography 微调 ── */
   --font-preview:     12.5px;
@@ -38,7 +49,6 @@
   --dur:              200ms;
   --dur-fast:         120ms;
   --bg-input:         rgba(249,250,251,.9);
-  --green-rgb:        7, 193, 96;
 }
 
 /* 暗色补齐：上面 :root 把 design-tokens 的别名覆盖成了浅色却漏了暗色覆盖，
@@ -48,7 +58,7 @@ body.dark-mode {
   --bg-search:        var(--bg-input-search);
   --bg-msg-other:     var(--bg-input-search);
   --text-placeholder: var(--text-muted);
-  --bg-msg-mine:      #3a7a2e;
+  --bg-msg-mine:      #2B6FD6;   /* 暗色下我方气泡：沉稳蓝 */
 }
 
 /* ── prefers-reduced-motion: 尊重用户无障碍设置 ── */
@@ -94,8 +104,8 @@ body.dark-mode {
 }
 
 @keyframes callPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(7, 193, 96, 0.5); }
-  50%       { box-shadow: 0 0 0 8px rgba(7, 193, 96, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--green-rgb), 0.5); }
+  50%       { box-shadow: 0 0 0 8px rgba(var(--green-rgb), 0); }
 }
 
 /* ── Skip-link：键盘聚焦时可见 ── */
@@ -608,8 +618,12 @@ img { display: block; }
 }
 .wc-msg-bubble.mine {
   background: var(--bg-msg-mine);
-  color: var(--text-primary);
+  color: #FFFFFF;   /* 蓝底气泡→白字，保证对比度(WCAG AA) */
 }
+/* 蓝底气泡内的次级元素同步反白，避免深色文字压在蓝底上不可读 */
+.wc-msg-bubble.mine a { color: #EAF2FF; }
+.wc-msg-bubble.mine .wc-msg-time,
+.wc-msg-bubble.mine .wc-msg-meta { color: rgba(255,255,255,.72); }
 .wc-msg-bubble.other {
   background: var(--bg-msg-other);
   color: var(--text-primary);
@@ -1153,7 +1167,10 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-page {
   min-height: 100vh; display: flex;
   align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #0D1117 0%, #1A2033 50%, #0D1117 100%);
+  background:
+    radial-gradient(1200px 800px at 78% -10%, rgba(22,119,255,.20) 0%, transparent 55%),
+    radial-gradient(900px 700px at 10% 110%, rgba(13,100,227,.16) 0%, transparent 55%),
+    linear-gradient(160deg, #0A1020 0%, #0E1830 46%, #0A1122 100%);
   position: relative; overflow-x: hidden; overflow-y: auto;
   font-family: var(--font);
 }
@@ -1162,28 +1179,30 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .electron-app .wc-app { height: 100%; }
 .auth-bg-circle { position: absolute; border-radius: var(--radius-full); pointer-events: none; }
 .auth-bg-circle-1 {
-  width: 600px; height: 600px;
-  background: radial-gradient(circle, rgba(var(--green-rgb),.13) 0%, transparent 65%);
-  top: -220px; right: -160px;
+  width: 620px; height: 620px;
+  background: radial-gradient(circle, rgba(var(--color-primary-rgb),.16) 0%, transparent 65%);
+  top: -240px; right: -180px;
+  filter: blur(6px);
 }
 .auth-bg-circle-2 {
-  width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(30,100,220,.1) 0%, transparent 65%);
-  bottom: -160px; left: -140px;
+  width: 520px; height: 520px;
+  background: radial-gradient(circle, rgba(13,100,227,.14) 0%, transparent 65%);
+  bottom: -180px; left: -160px;
+  filter: blur(6px);
 }
 .auth-bg-circle-3 {
-  width: 220px; height: 220px;
-  background: radial-gradient(circle, rgba(var(--green-rgb),.07) 0%, transparent 65%);
-  top: 32%; left: 6%;
+  width: 240px; height: 240px;
+  background: radial-gradient(circle, rgba(130,175,255,.10) 0%, transparent 65%);
+  top: 30%; left: 5%;
 }
 .auth-container { position: relative; z-index: var(--z-raised); width: 400px; animation: scaleIn .3s var(--ease); }
 .auth-brand { text-align: center; margin-bottom: 28px; }
 .auth-brand-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 68px; height: 68px;
-  background: linear-gradient(135deg, var(--green) 0%, #06AD56 100%);
+  background: linear-gradient(135deg, var(--brand-400) 0%, var(--brand-600) 100%);
   border-radius: var(--radius-2xl); color: var(--gray-0); margin-bottom: 14px;
-  box-shadow: 0 8px 32px rgba(var(--green-rgb),.45), 0 0 0 1px rgba(var(--green-rgb),.25);
+  box-shadow: 0 10px 34px rgba(var(--color-primary-rgb),.48), inset 0 1px 0 rgba(255,255,255,.25), 0 0 0 1px rgba(var(--color-primary-rgb),.25);
 }
 .auth-brand-name { font-size: 26px; font-weight: var(--font-bold); color: var(--gray-0); margin-bottom: 5px; letter-spacing: -.5px; }
 .auth-brand-desc { font-size: var(--text-sm2); color: rgba(255,255,255,.38); letter-spacing: .3px; }
@@ -1200,39 +1219,54 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-account-row:last-child { border-bottom: none; }
 .auth-account-btn { flex: 1; display: flex; align-items: center; gap: var(--sp-3); padding: 11px 16px; text-align: left; cursor: pointer; transition: background var(--dur-fast); min-width: 0; }
 .auth-account-btn:hover { background: rgba(255,255,255,.06); }
-.auth-account-avatar { width: 36px; height: 36px; border-radius: var(--radius-md); background: linear-gradient(135deg, var(--green), #06AD56); color: var(--gray-0); display: flex; align-items: center; justify-content: center; font-size: var(--text-md); font-weight: var(--font-semibold); flex-shrink: 0; }
+.auth-account-avatar { width: 36px; height: 36px; border-radius: var(--radius-md); background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); display: flex; align-items: center; justify-content: center; font-size: var(--text-md); font-weight: var(--font-semibold); flex-shrink: 0; }
 .auth-account-info { min-width: 0; flex: 1; }
 .auth-account-name { display: block; font-size: var(--text-base); color: var(--gray-0); font-weight: var(--font-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auth-account-id { display: block; font-size: var(--text-xs); color: rgba(255,255,255,.35); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auth-account-remove { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.2); font-size: var(--text-sm2); cursor: pointer; transition: color var(--dur-fast); flex-shrink: 0; }
 .auth-account-remove:hover { color: var(--color-danger); }
 .auth-form {
-  background: rgba(255,255,255,.07);
-
+  background: linear-gradient(180deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,.05) 100%);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
   border-radius: var(--radius-xl); padding: 28px 28px 24px;
-  border: 1px solid rgba(255,255,255,.12);
-  box-shadow: 0 24px 64px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 24px 70px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.12);
 }
 .auth-field { margin-bottom: var(--sp-4); }
 .auth-field-label { display: block; font-size: var(--text-sm); font-weight: var(--font-medium); color: rgba(255,255,255,.5); margin-bottom: 6px; letter-spacing: .2px; transition: color var(--dur-fast); }
-.auth-field.focused .auth-field-label { color: var(--green); }
-.auth-field-input-wrap { display: flex; align-items: center; gap: var(--sp-2h); padding: 11px 14px; background: rgba(255,255,255,.06); border: 1.5px solid rgba(255,255,255,.1); border-radius: var(--radius-input); transition: border-color var(--dur-fast), background var(--dur-fast); }
-.auth-field.focused .auth-field-input-wrap { border-color: rgba(var(--green-rgb),.5); background: rgba(var(--green-rgb),.08); box-shadow: var(--ring-primary); }
-.auth-field-icon { width: 18px; height: 18px; color: rgba(255,255,255,.3); flex-shrink: 0; transition: color var(--dur-fast); }
-.auth-field.focused .auth-field-icon { color: var(--green); }
+.auth-field.focused .auth-field-label { color: var(--brand-300); }
+.auth-field-input-wrap { display: flex; align-items: center; gap: var(--sp-2h); padding: 12px 14px; background: rgba(255,255,255,.05); border: 1.5px solid rgba(255,255,255,.1); border-radius: var(--radius-input); transition: border-color var(--dur-fast), background var(--dur-fast), box-shadow var(--dur-fast); }
+.auth-field.focused .auth-field-input-wrap { border-color: rgba(var(--color-primary-rgb),.65); background: rgba(var(--color-primary-rgb),.10); box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb),.16); }
+.auth-field-icon { width: 18px; height: 18px; color: rgba(255,255,255,.32); flex-shrink: 0; transition: color var(--dur-fast); }
+.auth-field.focused .auth-field-icon { color: var(--brand-300); }
 .auth-field-input { flex: 1; font-size: var(--text-base); color: var(--gray-0); background: transparent; border: none; outline: none; min-width: 0; font-family: inherit; }
 .auth-field-input::placeholder { color: rgba(255,255,255,.25); font-weight: var(--font-normal); }
 .auth-error { display: flex; align-items: center; gap: var(--sp-1h); padding: 9px 14px; background: rgba(255,80,80,.1); border: 1px solid rgba(255,80,80,.22); border-radius: var(--radius-input); color: #FF7575; font-size: var(--text-sm2); margin-bottom: var(--sp-3); animation: scaleIn .2s var(--ease); }
-.auth-submit { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--green), #06AD56); color: var(--gray-0); border-radius: var(--radius-input); font-size: var(--text-md); font-weight: var(--font-semibold); cursor: pointer; transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast), color var(--dur-fast); display: flex; align-items: center; justify-content: center; letter-spacing: .5px; box-shadow: 0 4px 20px rgba(var(--green-rgb),.4); border: none; }
-.auth-submit:hover { background: linear-gradient(135deg, #09D96C, var(--green)); box-shadow: 0 6px 24px rgba(var(--green-rgb),.5); transform: translateY(-1px); }
-.auth-submit:active { transform: translateY(0); box-shadow: 0 2px 10px rgba(var(--green-rgb),.3); }
-.auth-submit:disabled { background: rgba(255,255,255,.1); box-shadow: none; transform: none; cursor: not-allowed; color: rgba(255,255,255,.3); }
+.auth-submit { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); border-radius: var(--radius-input); font-size: var(--text-md); font-weight: var(--font-semibold); cursor: pointer; transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast), color var(--dur-fast); display: flex; align-items: center; justify-content: center; letter-spacing: .5px; box-shadow: 0 6px 22px rgba(var(--color-primary-rgb),.42); border: none; }
+.auth-submit:hover { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); box-shadow: 0 8px 28px rgba(var(--color-primary-rgb),.52); transform: translateY(-1px); }
+.auth-submit:active { transform: translateY(0); box-shadow: 0 3px 12px rgba(var(--color-primary-rgb),.34); }
+.auth-submit:disabled { background: rgba(255,255,255,.09); box-shadow: none; transform: none; cursor: not-allowed; color: rgba(255,255,255,.32); }
 .auth-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: var(--gray-0); border-radius: var(--radius-full); animation: wc-spin .6s linear infinite; }
 .auth-pwd-toggle { background: none; border: none; cursor: pointer; padding: 0; color: rgba(255,255,255,.35); display: flex; align-items: center; flex-shrink: 0; transition: color var(--dur-fast); }
 .auth-pwd-toggle:hover { color: rgba(255,255,255,.75); }
 .auth-footer { text-align: center; margin-top: 18px; font-size: var(--text-sm2); color: rgba(255,255,255,.38); }
-.auth-link { color: var(--green); font-weight: var(--font-medium); text-decoration: none; }
-.auth-link:hover { color: var(--green); text-decoration: underline; }
+.auth-link { color: var(--brand-300); font-weight: var(--font-medium); text-decoration: none; }
+.auth-link:hover { color: var(--brand-200); text-decoration: underline; }
+
+/* 下载客户端 */
+.auth-download { margin-top: 22px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.08); text-align: center; }
+.auth-download-label { font-size: var(--text-sm); color: rgba(255,255,255,.4); margin-bottom: 12px; letter-spacing: .3px; }
+.auth-download-row { display: flex; gap: 10px; justify-content: center; }
+.auth-download-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 16px; border-radius: var(--radius-button);
+  background: rgba(255,255,255,.06); color: rgba(255,255,255,.82);
+  font-size: var(--text-sm2); font-weight: var(--font-medium); text-decoration: none;
+  border: 1px solid rgba(255,255,255,.12);
+  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+}
+.auth-download-btn:hover { background: rgba(var(--color-primary-rgb),.16); border-color: rgba(var(--color-primary-rgb),.4); color: #fff; }
 
 /* 桌面端登录页服务器切换 */
 .auth-server { margin-top: var(--sp-4); text-align: center; }
@@ -1563,11 +1597,11 @@ body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
 body.dark-mode .wc-moment-comment-user,
 body.dark-mode .wc-moment-comment-submit { color: #7DAADD; }
 
-/* 气泡 — 暗色模式下绿气泡保留 #1A6E3C（微信经典深绿）*/
+/* 气泡 — 暗色模式下我方气泡：沉稳蓝 #2B6FD6，白字 */
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }
-body.dark-mode .wc-msg-bubble.mine { background: #1A6E3C; color: var(--gray-0); border-color: rgba(255,255,255,.08); }
+body.dark-mode .wc-msg-bubble.mine { background: #2B6FD6; color: var(--gray-0); border-color: rgba(255,255,255,.08); }
 body.dark-mode .wc-msg-bubble.other { background: var(--bg-input-search); color: #e6e6e6; border-color: rgba(255,255,255,.06); }
-body.dark-mode .wc-msg-bubble.mine::after { border-color: transparent transparent transparent #1A6E3C; }
+body.dark-mode .wc-msg-bubble.mine::after { border-color: transparent transparent transparent #2B6FD6; }
 body.dark-mode .wc-msg-bubble.other::after { border-color: transparent var(--bg-input-search) transparent transparent; }
 body.dark-mode .wc-chat-item:hover,
 body.dark-mode .wc-contact-item:hover,
@@ -3945,7 +3979,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   transition: background var(--dur-fast);
 }
 .wc-font-btn:last-child { border-right: none; }
-.wc-font-btn.active { color: var(--green); background: rgba(7,193,96,.06); }
+.wc-font-btn.active { color: var(--green); background: rgba(var(--green-rgb),.06); }
 .wc-font-btn.active .wc-font-preview { color: var(--green); font-weight: var(--font-bold); }
 .wc-font-preview { font-weight: var(--font-semibold); color: var(--text-primary); }
 .wc-font-label { font-size: var(--text-xs); }
