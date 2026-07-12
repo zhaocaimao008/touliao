@@ -31,8 +31,20 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material3.Icon
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vxin.app.ui.VxinIcons
+import com.vxin.app.ui.theme.VxinBrand
+import com.vxin.app.ui.theme.VxinBrandLight
+import com.vxin.app.ui.theme.VxinBrandDark
+import com.vxin.app.ui.theme.VxinTeal
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
@@ -55,9 +67,25 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("v信", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = VxinGreen)
-        Spacer(Modifier.height(8.dp))
-        Text("安全、高效的企业级通讯", fontSize = 14.sp, color = VxinTextSecondary)
+        // 品牌 Logo 徽章：极光靛渐变圆角方 + 对话图标（对齐 Web 登录页）
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                VxinIcons.Chat,
+                contentDescription = null,
+                tint = androidx.compose.ui.graphics.Color.White,
+                modifier = Modifier.size(38.dp),
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("v信", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(6.dp))
+        Text("安全 · 私密 · 畅聊", fontSize = 14.sp, color = VxinTextSecondary)
         Spacer(Modifier.height(40.dp))
 
         OutlinedTextField(
@@ -96,23 +124,41 @@ fun LoginScreen(
         }
 
         Spacer(Modifier.height(28.dp))
+        // 登录按钮：极光靛渐变实心（对齐 Web 主按钮），禁用态降透明
         Button(
             onClick = viewModel::submit,
             enabled = state.canSubmit,
-            colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+            ),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(50.dp)
                 .testTag("login-submit-btn"),
         ) {
-            if (state.loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text("登录")
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .clip(RoundedCornerShape(25.dp))
+                    .background(
+                        if (state.canSubmit)
+                            Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))
+                        else Brush.linearGradient(listOf(VxinTextSecondary, VxinTextSecondary))
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (state.loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = androidx.compose.ui.graphics.Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("登录", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
 

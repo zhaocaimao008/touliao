@@ -51,7 +51,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import com.vxin.app.ui.VxinIcons
+import com.vxin.app.ui.theme.VxinBrand
+import com.vxin.app.ui.theme.VxinBrandLight
+import com.vxin.app.ui.theme.VxinTeal
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
@@ -102,13 +107,13 @@ fun ProfileScreen(
             Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // 个人信息卡片（微信风格：头像左 + 昵称/v信号右）
+            // 个人信息 Hero 卡片：极光靛渐变横幅（对齐 Web pf-hero）
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(16.dp),
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrand, VxinTeal)))
+                    .padding(20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -117,34 +122,34 @@ fun ProfileScreen(
                         AsyncImage(
                             model = avatarUrl,
                             contentDescription = "头像",
-                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).clickable { avatarPicker.launch("image/*") },
+                            modifier = Modifier.size(68.dp).clip(RoundedCornerShape(14.dp)).clickable { avatarPicker.launch("image/*") },
                         )
                     } else {
                         Box(Modifier.clickable { avatarPicker.launch("image/*") }) {
-                            InitialAvatar(name = user?.username ?: "?", size = 64.dp)
+                            InitialAvatar(name = user?.username ?: "?", size = 68.dp)
                         }
                     }
-                    if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp))
+                    if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp), color = Color.White)
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         user?.username?.ifBlank { "未设置昵称" } ?: "未登录",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White,
                     )
-                    Spacer(Modifier.size(4.dp))
+                    Spacer(Modifier.size(6.dp))
                     user?.wechat_id?.takeIf { it.isNotBlank() }?.let {
-                        Text("v信号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Text("v信号: $it", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
                     }
                     user?.phone?.takeIf { it.isNotBlank() }?.let {
-                        Text("手机号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Text("手机号: $it", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                // 我的二维码入口：自绘品牌二维码图标（取代早期 ▦ 文本字符）
+                // 我的二维码入口：自绘品牌二维码图标（白色，浮于渐变上）
                 IconButton(onClick = onOpenMyQr, modifier = Modifier.testTag("profile-my-qr")) {
-                    Icon(VxinIcons.QrCode, contentDescription = "我的二维码", tint = VxinTextSecondary)
+                    Icon(VxinIcons.QrCode, contentDescription = "我的二维码", tint = Color.White)
                 }
-                Text("›", color = VxinTextSecondary)
             }
 
             Spacer(Modifier.size(24.dp))

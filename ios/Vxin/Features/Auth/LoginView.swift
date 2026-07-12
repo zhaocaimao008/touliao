@@ -9,10 +9,21 @@ struct LoginView: View {
         VStack(spacing: 16) {
             Spacer()
 
+            // 品牌 Logo 徽章：极光靛渐变圆角方 + 对话图标（对齐 Web/Android 登录页）
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 72, height: 72)
+                    .shadow(color: .vxinBrand.opacity(0.4), radius: 12, y: 6)
+                Image(systemName: "bubble.left.and.bubble.right.fill")
+                    .font(.system(size: 30))
+                    .foregroundColor(.white)
+            }
             Text("v信")
-                .font(.system(size: 40, weight: .bold))
-                .foregroundColor(.vxinGreen)
-            Text("安全、高效的企业级通讯")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundColor(.primary)
+            Text("安全 · 私密 · 畅聊")
                 .font(.subheadline)
                 .foregroundColor(.vxinTextSecondary)
                 .padding(.bottom, 24)
@@ -39,11 +50,21 @@ struct LoginView: View {
                     if vm.loading { ProgressView().tint(.white) }
                     else { Text("登录").bold() }
                 }
-                .frame(maxWidth: .infinity, minHeight: 48)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(
+                    Group {
+                        if vm.canLogin {
+                            LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
+                                           startPoint: .leading, endPoint: .trailing)
+                        } else {
+                            Color.vxinTextSecondary.opacity(0.4)
+                        }
+                    }
+                )
+                .foregroundColor(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
+                .shadow(color: vm.canLogin ? .vxinBrand.opacity(0.35) : .clear, radius: 8, y: 4)
             }
-            .background(vm.canLogin ? Color.vxinGreen : Color.vxinGreen.opacity(0.4))
-            .foregroundColor(.white)
-            .cornerRadius(8)
             .disabled(!vm.canLogin)
             .padding(.top, 8)
             .accessibilityIdentifier("login-submit-btn")

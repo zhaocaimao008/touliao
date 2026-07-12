@@ -21,28 +21,39 @@ struct ProfileView: View {
 
     var body: some View {
         Form {
+            // Hero 横幅：极光靛渐变（对齐 Web/Android pf-hero），边到边
             Section {
-                HStack {
-                    Spacer()
-                    VStack(spacing: 8) {
-                        avatarView
-                        PhotosPicker(selection: $photoItem, matching: .images) {
-                            Text("更换头像").font(.footnote).foregroundColor(.vxinGreen)
-                        }
-                        if uploadingAvatar { ProgressView() }
+                VStack(spacing: 10) {
+                    avatarView
+                    PhotosPicker(selection: $photoItem, matching: .images) {
+                        Text("更换头像").font(.footnote).foregroundColor(.white.opacity(0.9))
                     }
-                    Spacer()
+                    if uploadingAvatar { ProgressView().tint(.white) }
+                    if let user = session.currentUser {
+                        Text(user.username.isEmpty ? "未设置昵称" : user.username)
+                            .font(.title3.bold()).foregroundColor(.white)
+                        if !user.wechatId.isEmpty {
+                            Text("v信号: \(user.wechatId)")
+                                .font(.footnote).foregroundColor(.white.opacity(0.85))
+                        }
+                    }
                 }
-                if let user = session.currentUser {
-                    if !user.wechatId.isEmpty { LabeledRow("v信号", user.wechatId) }
-                    if !user.phone.isEmpty { LabeledRow("手机号", user.phone) }
-                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .background(
+                    LinearGradient(colors: [.vxinBrandLight, .vxinBrand, .vxinTeal],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .listRowInsets(EdgeInsets())
+            }
+
+            Section {
                 // 我的二维码入口（对齐微信 + 安卓）
                 NavigationLink {
                     MyQRCodeView()
                 } label: {
                     HStack {
-                        Image(systemName: "qrcode")
+                        Image(systemName: "qrcode").foregroundColor(.vxinBrand)
                         Text("我的二维码")
                     }
                 }
