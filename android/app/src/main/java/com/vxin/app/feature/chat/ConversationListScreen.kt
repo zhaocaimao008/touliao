@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -57,6 +55,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.vxin.app.core.realtime.SocketStatus
 import com.vxin.app.core.util.formatChatTime
 import com.vxin.app.data.model.Conversation
+import com.vxin.app.ui.VxinIcons
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
@@ -117,7 +116,7 @@ fun ConversationListScreen(
                 },
                 actions = {
                     IconButton(onClick = onOpenSearch) {
-                        Icon(Icons.Filled.Search, contentDescription = "搜索")
+                        Icon(VxinIcons.Search, contentDescription = "搜索")
                     }
                 },
             )

@@ -68,7 +68,11 @@ struct ConversationListView: View {
         } else if let error = vm.error, vm.conversations.isEmpty {
             Text(error).foregroundColor(.vxinError)
         } else if vm.conversations.isEmpty {
-            Text("暂无会话").foregroundColor(.vxinTextSecondary)
+            VxinEmptyState(
+                systemImage: "bubble.left.and.bubble.right",
+                title: "暂无会话",
+                subtitle: "去「通讯录」找好友开始聊天吧"
+            )
         } else {
             List(vm.conversations) { conv in
                 NavigationLink(value: conv) {

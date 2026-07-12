@@ -21,8 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import com.vxin.app.ui.VxinIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -89,7 +88,7 @@ fun ContactsScreen(
                 actions = {
                     TextButton(onClick = onCreateGroup) { Text("群聊") }
                     IconButton(onClick = onAddFriend) {
-                        Icon(Icons.Filled.Add, contentDescription = "添加好友")
+                        Icon(VxinIcons.Add, contentDescription = "添加好友")
                     }
                 },
             )
