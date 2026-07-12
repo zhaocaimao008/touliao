@@ -13,8 +13,8 @@
 | 桌面端渲染层内嵌 | `desktop-electron/src/package.json` | `version` | 与上一致 |
 | Web 前端 | `web/package.json` | `version` | 2.0.1 |
 | 后端 | `backend-v2/package.json` | `version` | 2.0.0 |
-| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.10 / code 11 |
-| iOS | `ios/project.yml` | `MARKETING_VERSION` | 1.0.6 |
+| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.11 / code 12 |
+| iOS | `ios/project.yml` | `MARKETING_VERSION` | 1.0.7 |
 | 后端发现配置 | `vxin-config/config.json` | `version` | 2.0.1 |
 
 > 桌面端走 electron-updater：`latest.yml` 的 `version` **必须**等于

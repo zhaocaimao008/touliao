@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,14 +41,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.vxin.app.data.model.GroupMember
+import com.vxin.app.ui.VxinIcons
 import com.vxin.app.ui.components.InitialAvatar
+import com.vxin.app.ui.theme.VxinBrand
+import com.vxin.app.ui.theme.VxinBrandLight
+import com.vxin.app.ui.theme.VxinTeal
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
@@ -97,24 +105,28 @@ fun GroupInfoScreen(
                 info == null -> Text(state.error ?: "加载失败", color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     item {
-                        // 群头像
-                        Row(
-                            modifier = Modifier.fillMaxWidth()
+                        // Hero 横幅：极光靛渐变 + 大群头像 + 群名 + 成员数（对齐资料页 Hero）
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrand, VxinTeal)))
                                 .clickable(enabled = info.canManage) { avatarPicker.launch("image/*") }
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                                .padding(vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text("群头像", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             Box(contentAlignment = Alignment.Center) {
                                 val url = viewModel.resolveUrl(info.avatar)
                                 if (info.avatar.isNotBlank()) {
-                                    AsyncImage(model = url, contentDescription = "群头像", modifier = Modifier.size(48.dp).clip(CircleShape))
+                                    AsyncImage(model = url, contentDescription = "群头像", modifier = Modifier.size(72.dp).clip(RoundedCornerShape(16.dp)))
                                 } else {
-                                    InitialAvatar(name = info.name.ifBlank { "群" }, size = 48.dp)
+                                    InitialAvatar(name = info.name.ifBlank { "群" }, size = 72.dp)
                                 }
-                                if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(20.dp))
+                                if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp), color = Color.White)
                             }
-                            if (info.canManage) { Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary) }
+                            Spacer(Modifier.size(12.dp))
+                            Text(info.name.ifBlank { "未命名群聊" }, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.size(4.dp))
+                            Text("${info.members.size} 名成员", color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
                         }
                         HorizontalDivider()
                         // 群名称
@@ -181,9 +193,13 @@ fun GroupInfoScreen(
                             modifier = Modifier.fillMaxWidth().clickable { onInvite(viewModel.conversationId) }.padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, tint = VxinGreen)
+                            Box(
+                                Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                                    .background(VxinBrand.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(VxinIcons.Add, contentDescription = null, tint = VxinBrand, modifier = Modifier.size(22.dp)) }
                             Spacer(Modifier.width(12.dp))
-                            Text("邀请成员", color = VxinGreen)
+                            Text("邀请成员", color = VxinBrand, fontWeight = FontWeight.Medium)
                         }
                         HorizontalDivider(Modifier.padding(start = 56.dp), thickness = 0.5.dp)
                     }
@@ -211,19 +227,16 @@ fun GroupInfoScreen(
                     }
                     item {
                         Spacer(Modifier.size(24.dp))
-                        if (info.isOwner) {
-                            Button(
-                                onClick = { showDissolveConfirm = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFA5151)),
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                            ) { Text("解散群聊") }
-                        } else {
-                            Button(
-                                onClick = { showLeaveConfirm = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFA5151)),
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                            ) { Text("退出群聊") }
-                        }
+                        Button(
+                            onClick = { if (info.isOwner) showDissolveConfirm = true else showLeaveConfirm = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFFECEC),
+                                contentColor = Color(0xFFFA5151),
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        ) { Text(if (info.isOwner) "解散群聊" else "退出群聊", fontWeight = FontWeight.SemiBold) }
+                        Spacer(Modifier.size(24.dp))
                     }
                 }
             }

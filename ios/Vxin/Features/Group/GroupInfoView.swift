@@ -42,21 +42,31 @@ struct GroupInfoView: View {
                 ProgressView()
             } else if let info = vm.info {
                 List {
+                    // Hero 横幅：极光靛渐变 + 大群头像 + 群名 + 成员数（对齐 Android/资料页）
                     Section {
-                        // 群头像
-                        HStack {
-                            Text("群头像").foregroundColor(.primary)
-                            Spacer()
-                            groupAvatar(info)
-                            if vm.uploadingAvatar { ProgressView() }
-                            if info.canManage { Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary) }
+                        VStack(spacing: 10) {
+                            groupHeroAvatar(info)
+                            if vm.uploadingAvatar { ProgressView().tint(.white) }
+                            Text(info.name.isEmpty ? "未命名群聊" : info.name)
+                                .font(.title3.bold()).foregroundColor(.white)
+                            Text("\(info.members.count) 名成员")
+                                .font(.footnote).foregroundColor(.white.opacity(0.85))
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                        .background(
+                            LinearGradient(colors: [.vxinBrandLight, .vxinBrand, .vxinTeal],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                        )
+                        .listRowInsets(EdgeInsets())
                         .overlay {
                             if info.canManage {
                                 PhotosPicker(selection: $photoItem, matching: .images) { Color.clear }
                             }
                         }
+                    }
 
+                    Section {
                         // 群名称
                         Button {
                             renameText = info.name
@@ -232,6 +242,18 @@ struct GroupInfoView: View {
                 .frame(width: 40, height: 40).clipShape(Circle())
         } else {
             InitialAvatar(name: info.name.isEmpty ? "群" : info.name, size: 40)
+        }
+    }
+
+    /// Hero 大群头像：72pt 圆角方，浮于渐变横幅
+    @ViewBuilder private func groupHeroAvatar(_ info: GroupInfo) -> some View {
+        if !info.avatar.isEmpty, let src = MediaUrlResolver.kfSource(raw: info.avatar) {
+            KFImage(source: src)
+                .resizable().scaledToFill()
+                .frame(width: 72, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            InitialAvatar(name: info.name.isEmpty ? "群" : info.name, size: 72)
         }
     }
 }
