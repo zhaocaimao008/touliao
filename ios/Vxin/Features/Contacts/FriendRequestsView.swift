@@ -29,7 +29,7 @@ struct FriendRequestsView: View {
         if vm.loading && vm.requests.isEmpty {
             ProgressView(); Spacer()
         } else if vm.requests.isEmpty {
-            Text("没有新的好友申请").foregroundColor(.vxinTextSecondary); Spacer()
+            VxinEmptyState(systemImage: "person.badge.plus", title: "没有新的好友申请"); Spacer()
         } else {
             List(vm.requests) { req in
                 HStack(spacing: 12) {
@@ -54,7 +54,7 @@ struct FriendRequestsView: View {
 
     @ViewBuilder private var sentList: some View {
         if vm.sent.isEmpty {
-            Text("没有已发送的申请").foregroundColor(.vxinTextSecondary); Spacer()
+            VxinEmptyState(systemImage: "paperplane", title: "没有已发送的申请"); Spacer()
         } else {
             List(vm.sent) { req in
                 HStack(spacing: 12) {

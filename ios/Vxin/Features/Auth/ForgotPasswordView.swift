@@ -9,9 +9,20 @@ struct ForgotPasswordView: View {
         VStack(spacing: 16) {
             Spacer()
 
+            // 品牌 Logo 徽章（与登录/注册页一致）
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 64, height: 64)
+                    .shadow(color: .vxinBrand.opacity(0.4), radius: 10, y: 5)
+                Image(systemName: "lock.rotation")
+                    .font(.system(size: 26)).foregroundColor(.white)
+            }
+            .padding(.bottom, 4)
             Text("找回密码")
                 .font(.title.bold())
-                .foregroundColor(.vxinGreen)
+                .foregroundColor(.primary)
                 .padding(.bottom, 16)
 
             TextField("手机号", text: $vm.phone)
@@ -36,18 +47,9 @@ struct ForgotPasswordView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Button(action: vm.resetPassword) {
-                ZStack {
-                    if vm.loading { ProgressView().tint(.white) }
-                    else { Text("重置密码").bold() }
-                }
-                .frame(maxWidth: .infinity, minHeight: 48)
-            }
-            .background(vm.canReset ? Color.vxinGreen : Color.vxinGreen.opacity(0.4))
-            .foregroundColor(.white)
-            .cornerRadius(8)
-            .disabled(!vm.canReset)
-            .padding(.top, 8)
+            VxinGradientButton(title: "重置密码", loading: vm.loading, enabled: vm.canReset,
+                               action: vm.resetPassword)
+                .padding(.top, 8)
 
             Spacer()
         }

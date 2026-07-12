@@ -42,6 +42,7 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.vxin.app.data.model.SearchUser
 import com.vxin.app.ui.components.InitialAvatar
+import com.vxin.app.ui.VxinGradientButton
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
@@ -98,12 +99,11 @@ fun AddFriendScreen(
                 keyboardActions = KeyboardActions(onSearch = { viewModel.search() }),
             )
             Spacer(Modifier.size(8.dp))
-            Button(
+            VxinGradientButton(
+                text = "搜索",
                 onClick = viewModel::search,
                 enabled = state.query.isNotBlank() && !state.searching,
-                colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("搜索") }
+            )
 
             state.message?.let {
                 Spacer(Modifier.size(8.dp))
@@ -115,7 +115,7 @@ fun AddFriendScreen(
                 when {
                     state.searching -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     state.searched && state.results.isEmpty() ->
-                        Text("未找到用户", color = VxinTextSecondary, modifier = Modifier.align(Alignment.TopCenter))
+                        com.vxin.app.ui.components.EmptyState(icon = "🔍", title = "未找到用户", subtitle = "换个手机号 / v信号试试", modifier = Modifier.align(Alignment.Center))
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(state.results, key = { it.id }) { user ->
                             SearchRow(user, sent = user.id in state.sentIds) { viewModel.sendRequest(user) }

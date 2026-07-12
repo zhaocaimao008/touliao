@@ -30,8 +30,20 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.Icon
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vxin.app.ui.VxinGradientButton
+import com.vxin.app.ui.VxinIcons
+import com.vxin.app.ui.theme.VxinBrand
+import com.vxin.app.ui.theme.VxinBrandLight
+import com.vxin.app.ui.theme.VxinBrandDark
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
@@ -50,8 +62,19 @@ fun ForgotPasswordScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("忘记密码", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = VxinGreen)
-        Spacer(Modifier.height(8.dp))
+        // 品牌 Logo 徽章（与登录/注册页一致）
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(VxinIcons.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+        }
+        Spacer(Modifier.height(14.dp))
+        Text("忘记密码", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(6.dp))
         Text(
             "使用注册时的手机号和邀请码重置密码",
             fontSize = 13.sp,
@@ -60,13 +83,9 @@ fun ForgotPasswordScreen(
         Spacer(Modifier.height(28.dp))
 
         if (state.success) {
-            Text("密码已重置，请返回登录", color = VxinGreen, fontSize = 15.sp)
+            Text("密码已重置，请返回登录", color = VxinBrand, fontSize = 15.sp)
             Spacer(Modifier.height(20.dp))
-            Button(
-                onClick = onBack,
-                colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-            ) { Text("返回登录") }
+            VxinGradientButton(text = "返回登录", onClick = onBack)
             return@Column
         }
 
@@ -120,22 +139,12 @@ fun ForgotPasswordScreen(
         }
 
         Spacer(Modifier.height(24.dp))
-        Button(
+        VxinGradientButton(
+            text = "重置密码",
             onClick = viewModel::submit,
             enabled = state.canSubmit,
-            colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-        ) {
-            if (state.loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text("重置密码")
-            }
-        }
+            loading = state.loading,
+        )
         Spacer(Modifier.height(12.dp))
         TextButton(onClick = onBack) {
             Text("返回登录", color = VxinTextSecondary)

@@ -43,7 +43,7 @@ struct AddFriendView: View {
             if vm.searching {
                 ProgressView().padding()
             } else if vm.searched && vm.results.isEmpty {
-                Text("未找到用户").foregroundColor(.vxinTextSecondary).padding()
+                VxinEmptyState(systemImage: "magnifyingglass", title: "未找到用户", subtitle: "换个手机号 / v信号试试")
             }
 
             List(vm.results) { user in

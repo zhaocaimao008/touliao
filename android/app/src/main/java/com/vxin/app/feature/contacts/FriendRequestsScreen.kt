@@ -87,7 +87,7 @@ fun FriendRequestsScreen(
                     }
                 } else {
                     if (state.sent.isEmpty()) {
-                        Text("没有已发送的申请", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
+                        com.vxin.app.ui.components.EmptyState(icon = "📮", title = "没有已发送的申请", modifier = Modifier.align(Alignment.Center))
                     } else {
                         LazyColumn(Modifier.fillMaxSize()) {
                             items(state.sent, key = { it.id }) { req -> SentRow(req, avatarUrl = viewModel.resolveUrl(req.avatar)) }
