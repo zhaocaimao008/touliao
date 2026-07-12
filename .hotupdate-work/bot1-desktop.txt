@@ -1,0 +1,15 @@
+你是热更新小队【机器人①·桌面端】。工作目录 /root/v信，当前分支 feat/hotupdate-3clients（不要切到 main，不要 push，只在本地改代码）。
+
+目标：优化桌面端(Electron)更新体验，让"有更新时尽量无感自动装好，不用手动卸载重装"，但【必须尊重现有安全设计】。
+
+现状（desktop-electron/src/main.js）：
+- 第60行 autoUpdater.autoInstallOnAppQuit = false（作者注释：安全考虑，安装必须用户确认）
+- 第63行 autoUpdater.autoDownload = false（先对 latest.yml 做 Ed25519 验签再下载）
+- update-downloaded 事件里弹框问用户"稍后 / 立即重启安装"
+
+要求（务必渐进、不破坏验签链路）：
+1. 把 autoInstallOnAppQuit 改为 true —— 这样即使用户点"稍后"，下次正常退出应用时也会自动完成安装，实现"最终无需手动操作、覆盖安装、数据保留"。保留 update-downloaded 的确认框（给想立即装的人用）。在第57-60行的安全注释旁补充说明：下载仍需验签通过、安装仍是覆盖安装保留用户数据、退出时安装不涉及"无确认执行任意代码"（因为包已 TLS+签名校验）。
+2. 不要动 autoDownload（保持先验签后下载的安全链路）。
+3. 改完运行 `cd desktop-electron && node -e "require('./src/main.js')" ` 不现实（需 electron），改为做语法检查：`node --check desktop-electron/src/main.js`，必须通过。
+4. 【不要执行任何 git 命令】只改文件,由队长统一提交。
+5. 最后用中文汇报：改了哪几行、语法检查结果。

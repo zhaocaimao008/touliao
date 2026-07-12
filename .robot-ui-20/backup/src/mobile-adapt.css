@@ -1,0 +1,161 @@
+/*─────────────────────────────────────────────────────────────
+ * v信 移动端适配
+ * ─ 安全区域 (safe area)
+ * ─ 刘海屏 / 挖孔屏
+ * ─ 横竖屏
+ * ─ 小屏设备 (<=375px)
+ * ─ 键盘弹出适配
+ * ─ Capacitor 原生环境
+ *───────────────────────────────────────────────────────────*/
+
+/* ── CSS 变量：所有 Web + Mobile 统一使用 ─────────────────── */
+:root {
+  /* 安全区域：Capacitor 自动注入，Web 默认 0 */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+
+  /* 状态栏高度（移动端） */
+  --status-bar-height: 0px;
+
+  /* 底部导航栏高度 */
+  --tab-bar-height: 56px;
+  --tab-bar-total-height: calc(var(--tab-bar-height) + var(--safe-area-bottom));
+
+  /* 标题栏高度 */
+  --header-height: 48px;
+  --header-total-height: calc(var(--header-height) + var(--safe-area-top));
+}
+
+/* ── Capacitor 原生平台 ──────────────────────────────────── */
+html.capacitor-app {
+  --status-bar-height: 24px;
+}
+
+/* 状态栏区域（Android status bar / iOS notch area） */
+.capacitor-app .status-bar-padding {
+  padding-top: var(--safe-area-top);
+}
+
+.capacitor-app .safe-area-bottom {
+  padding-bottom: var(--safe-area-bottom);
+}
+
+/* ── 移动端通用 (max-width: 768px) ──────────────────────────── */
+@media (max-width: 768px) {
+  /* 全屏布局 */
+  body, #root {
+    overflow: hidden;
+    height: 100vh;
+    height: 100dvh; /* dynamic viewport height — 键盘弹出时不压缩到可见区外 */
+  }
+
+  /* 底部导航栏适配 safe area */
+  .wc-bottom-nav {
+    padding-bottom: var(--safe-area-bottom);
+    height: var(--tab-bar-total-height);
+  }
+
+  /* 顶部标题栏适配安全区域 */
+  .wc-header {
+    padding-top: var(--safe-area-top);
+    height: var(--header-total-height);
+  }
+
+  /* 聊天输入框跟随键盘 */
+  .wc-input-area {
+    padding-bottom: var(--safe-area-bottom);
+  }
+
+  /* iPhone 刘海屏 — 横向时 safe-area 变宽 */
+  @media (orientation: landscape) {
+    .wc-header {
+      padding-left: var(--safe-area-left);
+      padding-right: var(--safe-area-right);
+    }
+  }
+}
+
+/* ── 小屏设备 (<=375px, iPhone SE / 小屏 Android) ──────────── */
+@media (max-width: 375px) {
+  :root {
+    --tab-bar-height: 48px;
+    --header-height: 44px;
+  }
+
+  /* 更紧凑的布局 */
+  .wc-avatar { width: 36px; height: 36px; }
+  .wc-msg-text { font-size: var(--text-base); }
+  .wc-tool-btn { width: 32px; height: 32px; }
+  .wc-input-toolbar { height: 40px; }
+}
+
+/* ── 中等屏 (376px ~ 480px) ───────────────────────────────── */
+@media (min-width: 376px) and (max-width: 480px) {
+  /* 适度缩放 */
+}
+
+/* ── 横屏适配 ───────────────────────────────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  /* 横屏小高度设备 — 隐藏底部导航、缩小标题栏 */
+  .wc-bottom-nav { display: none; }
+
+  /* 聊天窗口全屏 */
+  .wc-chat-container {
+    height: 100vh;
+  }
+
+  /* 更小的输入框 */
+  .wc-textarea {
+    max-height: 60px !important;
+  }
+}
+
+/* ── 深色模式（移动端原生） ────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  /* 如果 CSS 变量已通过 JavaScript 切换，不需要额外处理 */
+  /* 保证输入框在深色模式下可见 */
+  input, textarea {
+    color-scheme: dark;
+  }
+}
+
+/* ── 键盘弹出（移动端） ──────────────────────────────────────── */
+/* Capacitor Keyboard 插件使用 resize: body 模式 */
+/* 输入框固定底部 */
+.wc-input-area {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-local);
+}
+
+/* 键盘弹出时，确保消息列表不被遮挡 */
+.wc-messages {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}
+
+/* ── 点击延迟消除 ──────────────────────────────────────────── */
+* {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ── 禁止选择（IM 类应用） ────────────────────────────────── */
+.wc-messages * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* 允许选择消息文本 */
+.wc-msg-text, .wc-msg-content {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ── Capacitor 启动屏后恢复滚动 ────────────────────────────── */
+html.capacitor-app body {
+  overflow: auto !important;
+}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { showConfirm } from '../utils/toast';
+import './Home.css';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
 import ChatWindow from '../components/ChatWindow';
@@ -181,8 +182,7 @@ function AccountSwitcher() {
     <div ref={containerRef} className="as-container">
       {/* 头像按钮 */}
       <div className="as-avatar-btn" data-testid="account-switcher" role="button" tabIndex={0} aria-label="账号切换" aria-expanded={open} onClick={() => setOpen(v => !v)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}>
-        <div className="as-avatar-inner"
-          style={{ outlineColor: open ? 'rgba(255,255,255,.9)' : 'transparent' }}>
+        <div className={`as-avatar-inner${open ? ' as-avatar-inner-open' : ''}`}>
           {user?.avatar && !avatarErr
             ? <img src={mediaUrl(user.avatar)} alt="" loading="lazy" className="as-avatar-img" onError={() => setAvatarErr(true)} />
             : letter
@@ -266,7 +266,7 @@ function AccountSwitcher() {
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   className="wc-add-form-input"
                   aria-label="手机号" data-testid="account-add-phone"
-                  style={{ background: switchTarget ? 'var(--bg-panel, #f0f0f0)' : 'var(--bg-search)', color: switchTarget ? 'var(--text-secondary)' : 'var(--text-primary)' }} />
+                />
                 <input ref={passwordRef} type="password" placeholder="密码" value={form.password}
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   className="wc-add-form-input"

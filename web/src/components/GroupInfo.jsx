@@ -12,7 +12,7 @@ function GroupGridCell({ member = {}, cellSize }) {
   const [prevAvatar, setPrevAvatar] = useState(member.avatar);
   if (member.avatar !== prevAvatar) { setPrevAvatar(member.avatar); setErr(false); }
   return (
-    <div style={{ width: cellSize, height: cellSize, borderRadius: 2, overflow: 'hidden', background: getColor(member.username || '?'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ width: cellSize, height: cellSize, borderRadius: 'var(--radius-xs)', overflow: 'hidden', background: getColor(member.username || '?'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {member.avatar && !err
         ? <img loading="lazy" src={mediaUrl(member.avatar)} alt="" className="gi-avatar-img" onError={() => setErr(true)} />
         : <span style={{ fontSize: cellSize * 0.45, fontWeight: 600, color: 'var(--text-inverse)' }}>{(member.username || '?')[0]}</span>}
@@ -37,7 +37,7 @@ export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
   return (
     <div style={{ width: size, height: size, borderRadius: Math.max(3, Math.round(size * 0.13)), background: 'var(--bg-input-search)', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
       {members.slice(0, grid * grid).map((m, i) => (
-        <GroupGridCell key={i} member={m} cellSize={cellSize} />
+        <GroupGridCell key={m.id ?? m.username ?? i} member={m} cellSize={cellSize} />
       ))}
     </div>
   );
@@ -806,11 +806,20 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   <div className="gi-qr-ex">7天内有效</div>
                   <button
                     className="gi-save-btn"
-                    onClick={() => {
-                      const a = document.createElement('a');
-                      a.href = qrData.qrCode;
-                      a.download = `${info?.name || '群'}_邀请码.png`;
-                      a.click();
+                    onClick={async () => {
+                      try {
+                        const resp = await fetch(qrData.qrCode);
+                        const blob = await resp.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${info?.name || '群'}_邀请码.png`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch {
+                        // 跨域下载失败时，尝试在新窗口打开
+                        window.open(qrData.qrCode, '_blank');
+                      }
                     }}
                   >保存图片</button>
                 </>

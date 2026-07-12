@@ -93,13 +93,106 @@ html.capacitor-app {
 
 /* ── 中等屏 (376px ~ 480px) ───────────────────────────────── */
 @media (min-width: 376px) and (max-width: 480px) {
-  /* 适度缩放 */
+  /* 适度缩放 — 比 375px 稍宽松 */
+  .wc-msg-body { max-width: 70%; }
+}
+
+/* ── 小屏手机优化 (<=480px, 覆盖所有现代手机) ───────────────── */
+@media (max-width: 480px) {
+  :root {
+    --tab-bar-height: 52px;
+    --header-height: 46px;
+  }
+
+  /* 更紧凑的间距 */
+  .wc-chat-item { height: 56px; padding: 0 10px; }
+  .wc-msg-row { padding-top: 8px; }
+  .wc-messages { padding: 6px 10px; }
+  .wc-msg-body { max-width: 82%; }
+  .wc-msg-img { max-width: min(200px, 55vw); }
+
+  /* 输入区紧凑 */
+  .wc-textarea { min-height: 56px; max-height: 100px; }
+  .wc-input-box { padding: 3px 10px 0; }
+  .wc-input-footer { padding: 0 10px 8px; }
+  .wc-more-panel { padding: 12px 10px; gap: var(--sp-2h); }
+
+  /* 联系人条目紧凑 */
+  .wc-contact-item { padding: 7px 10px; }
+
+  /* 会话列表 avatar 更小 */
+  .wc-chat-item-avatar .wc-avatar { width: 38px; height: 38px; }
+
+  /* 确保底部导航不溢出 */
+  .wc-bottom-bar { height: 48px; padding: 0 10px; }
+  .wc-bottom-tab { width: 40px; height: 32px; }
+
+  /* 弹窗紧凑 */
+  .cgm-content { width: 92vw; max-width: 92vw; }
+}
+
+/* ── 平板竖屏适配 (>=768px) ─────────────────────────────────── */
+@media (min-width: 768px) {
+  /* 平板面板更宽 */
+  :root {
+    --panel-w: 320px;
+  }
+
+  /* 舒适间距 */
+  .wc-messages { padding: 12px 24px; }
+  .wc-chat-item { padding: 0 16px 0 14px; }
+  .wc-msg-body { max-width: 55%; }
+  .wc-msg-img { max-width: min(280px, 45vw); }
+
+  /* 弹窗居中更舒适 */
+  .cgm-content { width: 480px; max-width: 480px; }
+
+  /* 桌面端始终显示完整导航 */
+  .wc-bottom-bar, .wc-bottom-nav { display: flex; }
+
+  /* 调整字号 */
+  .wc-msg-text { font-size: var(--text-base); }
+}
+
+/* ── 桌面端优化 (>=1024px) ──────────────────────────────────── */
+@media (min-width: 1024px) {
+  :root {
+    --panel-w: 340px;
+  }
+
+  /* 更大的消息区域 */
+  .wc-msg-body { max-width: 50%; }
+  .wc-msg-img { max-width: min(320px, 40vw); max-height: 360px; }
+
+  /* 面板更宽 */
+  .wc-chat-item { height: 68px; }
+  .wc-chat-item-avatar .wc-avatar { width: 46px; height: 46px; }
+  .wc-chat-item-info { gap: 2px; }
+
+  /* 输入区域更大 */
+  .wc-textarea { min-height: 80px; max-height: 150px; font-size: 15px; }
+  .wc-input-box { padding: 6px 18px 2px; }
+  .wc-input-footer { padding: 0 18px 12px; }
+
+  /* 弹窗 */
+  .cgm-content { width: 520px; max-width: 520px; }
+
+  /* 桌面端底部导航不显示（使用侧边栏） */
+  .wc-app:not(.wc-mobile) .wc-bottom-bar { display: none; }
+
+  /* 桌面端工具栏更宽松 */
+  .wc-input-toolbar { height: 40px; padding: 8px 14px 4px; }
+  .wc-tool-btn { width: 32px; height: 32px; }
 }
 
 /* ── 横屏适配 ───────────────────────────────────────────────── */
 @media (orientation: landscape) and (max-height: 500px) {
   /* 横屏小高度设备 — 隐藏底部导航、缩小标题栏 */
   .wc-bottom-nav { display: none; }
+  .m-tabbar { height: 42px; }
+  .m-tab-label { display: none; }  /* 横屏只留图标，节省空间 */
+  .m-tab-ico svg { width: 22px; height: 22px; }
+  .m-tab-badge { top: 0; left: 56%; }
 
   /* 聊天窗口全屏 */
   .wc-chat-container {
@@ -110,6 +203,14 @@ html.capacitor-app {
   .wc-textarea {
     max-height: 60px !important;
   }
+}
+
+/* ── 平板横屏适配 (768px~1024px)
+   平板横屏时面板与聊天区并排显示，无需底部导航 ──────────── */
+@media (orientation: landscape) and (min-width: 768px) and (max-width: 1024px) {
+  .m-tabbar { height: 48px; }
+  .m-tab-label { font-size: 9px; }
+  .m-tab-ico svg { width: 22px; height: 22px; }
 }
 
 /* ── 深色模式（移动端原生） ────────────────────────────────── */

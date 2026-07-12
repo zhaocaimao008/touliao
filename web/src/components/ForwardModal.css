@@ -5,7 +5,9 @@
 
 .fwd-panel {
   width: 480px;
+  max-width: 92vw;
   height: 600px;
+  max-height: 90vh;
   background: var(--bg-modal);
   border-radius: var(--radius-modal);
   display: flex;
@@ -345,12 +347,12 @@
   color: var(--text-primary);
 }
 .fwd-btn-send {
-  background: var(--color-primary);
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
   color: var(--text-on-brand);
   box-shadow: var(--shadow-btn-primary);
 }
 .fwd-btn-send:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: linear-gradient(135deg, var(--brand-300), var(--brand-500));
   box-shadow: var(--shadow-btn-primary-hover);
   transform: translateY(-1px);
 }
@@ -418,19 +420,4 @@
   box-shadow: var(--shadow-btn-primary-hover);
 }
 
-/* 转发弹窗搜索框内的「清除」按钮（复用 wc-search 容器时的样式） */
-.wc-search .wc-search-clear {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--gray-400);
-  cursor: pointer;
-  padding: 2px 4px;
-  font-size: var(--text-sm);
-  line-height: var(--lh-none);
-  flex-shrink: 0;
-  transition: color var(--dur-fast, .15s);
-}
-.wc-search .wc-search-clear:hover { color: var(--text-secondary); }
+

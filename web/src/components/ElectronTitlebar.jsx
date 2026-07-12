@@ -11,8 +11,8 @@ function WinBtn({ onClick, isClose, children, title }) {
       aria-label={title}
       style={{
         width: 46, height: 30, border: 'none', outline: 'none',
-        background: hov ? (isClose ? '#E53E3E' : 'rgba(255,255,255,.15)') : 'transparent',
-        color: hov ? '#fff' : 'rgba(255,255,255,.7)',
+        background: hov ? (isClose ? 'var(--titlebar-close-hover)' : 'var(--titlebar-btn-hover-bg)') : 'transparent',
+        color: hov ? 'var(--titlebar-fg-hover)' : 'var(--titlebar-fg)',
         cursor: 'pointer', fontSize: 14, transition: 'background .1s, color .1s',
         WebkitAppRegion: 'no-drag',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -57,7 +57,7 @@ export default function ElectronTitlebar() {
       id="vxin-titlebar"
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: 30,
-        background: '#1A2033', zIndex: "calc(var(--z-native) - 1)",
+        background: 'var(--titlebar-bg)', zIndex: "calc(var(--z-native) - 1)",
         WebkitAppRegion: 'drag',
         display: 'flex', alignItems: 'center',
         userSelect: 'none',
@@ -65,7 +65,7 @@ export default function ElectronTitlebar() {
     >
       <span style={{
         flex: 1, paddingLeft: 56, fontSize: 12,
-        color: 'rgba(255,255,255,.4)', letterSpacing: 1,
+        color: 'var(--titlebar-title)', letterSpacing: 1,
       }}>v信</span>
 
       <div style={{
@@ -83,7 +83,7 @@ export default function ElectronTitlebar() {
           {isMaximized ? (
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">
               <rect x="3" y="1" width="8" height="8" rx="1"/>
-              <rect x="1.5" y="3.5" width="8" height="8" rx="1" fill="#1A2033" stroke="currentColor"/>
+              <rect x="1.5" y="3.5" width="8" height="8" rx="1" fill="var(--titlebar-bg)" stroke="currentColor"/>
             </svg>
           ) : (
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">

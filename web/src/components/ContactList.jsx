@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import axios from 'axios';
 import Avatar from './Avatar';
 import UserProfile from './UserProfile';
+import './ContactList.css';
 import { GroupAvatar } from './GroupInfo';
 import { useSocket } from '../contexts/SocketContext';
 import AddFriendModal from './AddFriendModal';
@@ -202,7 +203,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                     onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setViewProfile(c.id))}>
                     <div className="cl-avatar-wrap">
                       <Avatar src={c.avatar} name={c.remark || c.username} size={40}
-                        style={{ borderRadius: 6 }}
+                        style={{ borderRadius: 'var(--radius-sm)' }}
                         online={onlineIds.has(c.id)} />
                     </div>
                     <div className="cl-contact-info">
@@ -218,10 +219,10 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             ))}
 
             {!contactsLoaded && contacts.length === 0 && !searchQuery && (
-              <div aria-hidden="true" style={{ padding: '4px 0' }}>
+              <div aria-hidden="true" className="cl-skeleton-pad">
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="wc-contact-item" style={{ cursor: 'default' }}>
-                    <div className="wc-skel wc-skel-avatar" style={{ marginRight: 10 }} />
+                  <div key={i} className="wc-contact-item cl-skeleton-item">
+                    <div className="wc-skel wc-skel-avatar cl-skel-avatar-gap" />
                     <div className="wc-skel wc-skel-line" style={{ width: '38%' }} />
                   </div>
                 ))}
@@ -468,28 +469,27 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
     return (
       <>
         <SectionHeader title={editLabel === 'new' ? '新建标签' : '编辑标签'} onBack={() => setEditLabel(null)} />
-        <div style={{ padding: '12px 16px' }}>
+        <div className="lt-edit-pad">
           <input
             value={nameInput}
             onChange={e => setNameInput(e.target.value)}
             placeholder="标签名称"
             maxLength={20}
             aria-label="标签名称"
-            style={{ width: '100%', padding: '10px 12px', fontSize: 15, border: '1px solid var(--divider)', borderRadius: 8, background: 'var(--bg-card)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+            className="lt-edit-input"
           />
-          <div style={{ marginTop: 12, marginBottom: 6, fontSize: 13, color: 'var(--text-secondary)' }}>颜色</div>
-          <div role="radiogroup" aria-label="标签颜色" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="lt-edit-label">颜色</div>
+          <div role="radiogroup" aria-label="标签颜色" className="lt-color-grid">
             {COLORS.map(c => (
               <div key={c} role="radio" tabIndex={0} aria-checked={colorInput === c} aria-label={`颜色 ${c}`}
                 onClick={() => setColorInput(c)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setColorInput(c); } }}
-                style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer',
-                  border: colorInput === c ? '2.5px solid var(--text-primary)' : '2px solid transparent',
-                  boxShadow: colorInput === c ? '0 0 0 2px rgba(0,0,0,.1)' : 'none' }} />
+                className={`lt-color-swatch${colorInput === c ? ' lt-color-selected' : ''}`}
+                style={{ background: c }} />
             ))}
           </div>
           <button onClick={saveLabel} disabled={saving || !nameInput.trim()}
-            style={{ marginTop: 16, width: '100%', padding: '12px', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, cursor: 'pointer' }}>
+            className="lt-save-btn">
             {saving ? '保存中…' : '保存'}
           </button>
         </div>
@@ -504,18 +504,18 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
     return (
       <>
         <SectionHeader title={`${label.name} — 成员管理`} onBack={() => setShowMembers(null)} />
-        <div style={{ padding: '8px 0' }}>
+        <div className="lt-members-pad">
           {contacts.map(c => {
             const inLabel = memberIds.has(c.id);
             return (
               <div key={c.id} className="wc-contact-item" role="checkbox" tabIndex={0} aria-checked={inLabel}
                 onClick={() => { toggleMember(label.id, c.id, inLabel); memberIds[inLabel ? 'delete' : 'add'](c.id); }}
                 onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (toggleMember(label.id, c.id, inLabel), memberIds[inLabel ? 'delete' : 'add'](c.id))}>
-                <Avatar src={c.avatar} name={c.remark || c.username} size={40} style={{ borderRadius: 6 }} />
+                <Avatar src={c.avatar} name={c.remark || c.username} size={40} style={{ borderRadius: 'var(--radius-sm)' }} />
                 <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{c.remark || c.username}</div>
                 </div>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${inLabel ? 'var(--green)' : 'var(--divider)'}`, background: inLabel ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div className="lt-member-checkbox" style={{ border: `2px solid ${inLabel ? 'var(--green)' : 'var(--divider)'}`, background: inLabel ? 'var(--green)' : 'transparent' }}>
                   {inLabel && <svg viewBox="0 0 24 24" width="12" height="12" fill="#fff"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
                 </div>
               </div>
@@ -530,9 +530,9 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
   return (
     <>
       <SectionHeader title="好友标签" onBack={onBack} />
-      <div style={{ padding: '12px 16px 4px', display: 'flex', justifyContent: 'flex-end' }}>
+      <div className="lt-list-header">
         <button onClick={startCreate}
-          style={{ padding: '6px 14px', fontSize: 13, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, cursor: 'pointer' }}>
+          className="lt-create-btn">
           + 新建标签
         </button>
       </div>
@@ -541,16 +541,16 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       )}
       {labels.map(label => (
         <div key={label.id} className="wc-contact-item">
-          <div style={{ width: 40, height: 40, borderRadius: 8, background: label.color || '#6D5AE6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div className="lt-label-icon-box" style={{ background: label.color || '#6D5AE6' }}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>
           </div>
-          <div className="cl-contact-info" style={{ flex: 1 }}>
+          <div className="cl-contact-info">
             <div className="wc-contact-item-name">{label.name}</div>
             <div className="wc-contact-item-sub">{(label.members || []).length} 人</div>
           </div>
-          <button onClick={() => setShowMembers(label.id)} style={{ marginRight: 8, padding: '4px 10px', fontSize: 12, background: 'transparent', border: '1px solid var(--divider)', borderRadius: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>成员</button>
-          <button onClick={() => startEdit(label)} style={{ marginRight: 4, padding: '4px 10px', fontSize: 12, background: 'transparent', border: '1px solid var(--divider)', borderRadius: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>编辑</button>
-          <button onClick={() => deleteLabel(label.id)} style={{ padding: '4px 10px', fontSize: 12, background: 'transparent', border: '1px solid var(--divider)', borderRadius: 12, color: 'var(--color-badge)', cursor: 'pointer' }}>删除</button>
+          <button onClick={() => setShowMembers(label.id)} className="lt-action-btn" style={{ marginRight: 8 }}>成员</button>
+          <button onClick={() => startEdit(label)} className="lt-action-btn" style={{ marginRight: 4 }}>编辑</button>
+          <button onClick={() => deleteLabel(label.id)} className="lt-delete-btn">删除</button>
         </div>
       ))}
     </>

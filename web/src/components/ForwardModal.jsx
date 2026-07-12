@@ -72,18 +72,30 @@ export default function ForwardModal({ message, onClose }) {
       const toRemove = filteredFriends.map(f => friendConvMap[f.id]).filter(Boolean);
       setSelected(prev => { const s = new Set(prev); toRemove.forEach(id => s.delete(id)); return s; });
     } else {
-      const promises = filteredFriends.filter(f => !friendConvMap[f.id]).map(f =>
-        axios.post('/api/messages/conversation/private', { userId: f.id })
-          .then(r => ({ uid: f.id, convId: r.data.conversationId }))
-          .catch(() => null) // 单个失败不影响其余好友被选中
-      );
-      const results = (await Promise.all(promises)).filter(Boolean);
-      const newMap = { ...friendConvMap };
-      results.forEach(({ uid, convId }) => { newMap[uid] = convId; });
+      // 批量创建私聊会话（单次请求），避免 N 个 POST 并发
+      const uncached = filteredFriends.filter(f => !friendConvMap[f.id]);
+      const cached = filteredFriends.filter(f => friendConvMap[f.id]);
+      let newMap = { ...friendConvMap };
+      if (uncached.length > 0) {
+        try {
+          const { data } = await axios.post('/api/messages/conversation/private/batch', {
+            userIds: uncached.map(f => f.id)
+          });
+          if (data.conversations) {
+            data.conversations.forEach(({ userId, conversationId }) => {
+              newMap[userId] = conversationId;
+            });
+          }
+        } catch (e) {
+          showToast(e.response?.data?.error || '批量选择好友失败', 'error');
+          return;
+        }
+      }
       setFriendConvMap(newMap);
       setSelected(prev => {
         const s = new Set(prev);
-        filteredFriends.forEach(f => { const id = newMap[f.id]; if (id) s.add(id); });
+        cached.forEach(f => { const id = newMap[f.id]; if (id) s.add(id); });
+        uncached.forEach(f => { const id = newMap[f.id]; if (id) s.add(id); });
         return s;
       });
     }
@@ -135,83 +147,105 @@ export default function ForwardModal({ message, onClose }) {
 
   return (
     <div className="wc-modal-overlay" ref={trapRef} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="wc-modal fwd-modal" role="dialog" aria-modal="true" aria-label="转发消息">
+      <div className="fwd-panel" role="dialog" aria-modal="true" aria-label="转发消息">
 
         {/* 标题栏 */}
-        <div className="fwd-header">
-          <span className="wc-modal-title">转发消息</span>
-          <button className="wc-modal-close" onClick={onClose} aria-label="关闭">✕</button>
+        <div className="fwd-hd">
+          <span className="fwd-hd-title">转发消息</span>
+          <button className="fwd-hd-close" onClick={onClose} aria-label="关闭">✕</button>
         </div>
 
         {done ? (
-          <div className="fwd-done-wrap">
-            <div className="fwd-done-icon">
+          <div className="fwd-done">
+            <div className="fwd-done-ring">
               <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'none', stroke: 'var(--text-inverse)', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
             <div className="fwd-done-title">转发成功</div>
-            <div className="fwd-done-sub">已发送给 <span>{sentCount}</span> 个会话</div>
-            <button className="wc-modal-btn primary" style={{ width: '100%' }} onClick={onClose}>完成</button>
+            <div className="fwd-done-sub">已发送给 <strong>{sentCount}</strong> 个会话</div>
+            <button className="fwd-done-close" onClick={onClose}>完成</button>
           </div>
         ) : (
           <>
             {/* 消息预览 */}
             <div className="fwd-preview">
-              <span className="fwd-preview-label">转发内容：</span>
-              <span className="fwd-preview-text">{msgPreview()}</span>
+              <div className="fwd-preview-bar" />
+              <div className="fwd-preview-body">
+                <div className="fwd-preview-label">转发内容：</div>
+                <div className="fwd-preview-text">{msgPreview()}</div>
+              </div>
             </div>
 
             {/* 搜索栏 */}
             <div className="fwd-search-wrap">
-              <div className="wc-search" style={{ height: 30 }}>
-                <span className="wc-search-icon">
+              <div className="fwd-search">
+                <span className="fwd-search-ico">
                   <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, fill: 'var(--text-tertiary)' }}>
                     <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
                   </svg>
                 </span>
-                <input placeholder="搜索" value={search} autoFocus onChange={e => setSearch(e.target.value)}
-                  style={{ fontSize: 13 }} aria-label="搜索联系人" />
+                <input className="fwd-search-inp" placeholder="搜索" value={search} autoFocus onChange={e => setSearch(e.target.value)}
+                  aria-label="搜索联系人" />
                 {search && (
-                  <button type="button" className="wc-search-clear" aria-label="清除搜索" title="清除"
+                  <button type="button" className="fwd-search-clr" aria-label="清除搜索" title="清除"
                     onClick={() => setSearch('')}>✕</button>
                 )}
               </div>
             </div>
 
             {/* Tab 切换 */}
-            <div className="fwd-tabs-wrap">
-              <div className="fwd-tabs" role="tablist">
-                {[['friends','好友'], ['groups','群聊']].map(([key, label]) => (
-                  <button key={key} role="tab" aria-selected={tab === key} className={`fwd-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
-                    {label} ({key === 'friends' ? filteredFriends.length : filteredGroups.length})
-                  </button>
-                ))}
-              </div>
+            <div className="fwd-tabs" role="tablist">
+              {[['friends','好友'], ['groups','群聊']].map(([key, label]) => (
+                <button key={key} role="tab" aria-selected={tab === key} className={`fwd-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
+                  {label}
+                  <span className="fwd-tab-cnt">{key === 'friends' ? filteredFriends.length : filteredGroups.length}</span>
+                </button>
+              ))}
             </div>
 
             {/* 列表 */}
             <div className="fwd-list" role="tabpanel">
               {/* 全选行 */}
               {tab === 'friends' && filteredFriends.length > 0 && (
-                <div className="fwd-select-all" role="button" tabIndex={0} onClick={selectAllFriends} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectAllFriends(); } }}>
-                  <div className={`wc-group-check${allFriendsSelected ? ' checked' : ''}`}>{allFriendsSelected ? '✓' : ''}</div>
-                  <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>全选好友（{filteredFriends.length}人）</span>
+                <div className="fwd-sel-all" role="button" tabIndex={0} onClick={selectAllFriends} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectAllFriends(); } }}>
+                  <div className={`fwd-check${allFriendsSelected ? ' checked' : ''}`}>
+                    <span className="fwd-check-icon">
+                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                  </div>
+                  <span className="fwd-sel-all-txt">全选好友（<em>{filteredFriends.length}</em>人）</span>
                 </div>
               )}
               {tab === 'groups' && filteredGroups.length > 0 && (
-                <div className="fwd-select-all" role="button" tabIndex={0} onClick={selectAllGroups} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectAllGroups(); } }}>
-                  <div className={`wc-group-check${allGroupsSelected ? ' checked' : ''}`}>{allGroupsSelected ? '✓' : ''}</div>
-                  <span style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 500 }}>全选群聊（{filteredGroups.length}个）</span>
+                <div className="fwd-sel-all" role="button" tabIndex={0} onClick={selectAllGroups} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectAllGroups(); } }}>
+                  <div className={`fwd-check${allGroupsSelected ? ' checked' : ''}`}>
+                    <span className="fwd-check-icon">
+                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                  </div>
+                  <span className="fwd-sel-all-txt">全选群聊（<em>{filteredGroups.length}</em>个）</span>
                 </div>
               )}
 
               {/* 好友列表 */}
               {tab === 'friends' && filteredFriends.map(f => (
                 <div key={f.id} className="fwd-item" role="button" tabIndex={0} onClick={() => toggleFriend(f)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFriend(f); } }}>
-                  <div className={`wc-group-check${isFriendSelected(f) ? ' checked' : ''}`}>{isFriendSelected(f) ? '✓' : ''}</div>
+                  <div className={`fwd-check${isFriendSelected(f) ? ' checked' : ''}`}>
+                    <span className="fwd-check-icon">
+                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                  </div>
                   <Avatar src={f.avatar} name={f.remark || f.username} size={36} />
-                  <span className="fwd-item-name">{f.remark || f.username}</span>
+                  <div className="fwd-item-info">
+                    <div className="fwd-item-name">{f.remark || f.username}</div>
+                  </div>
                 </div>
               ))}
               {tab === 'friends' && filteredFriends.length === 0 && (
@@ -221,9 +255,15 @@ export default function ForwardModal({ message, onClose }) {
               {/* 群聊列表 */}
               {tab === 'groups' && filteredGroups.map(g => (
                 <div key={g.id} className="fwd-item" role="button" tabIndex={0} onClick={() => toggleGroup(g)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleGroup(g); } }}>
-                  <div className={`wc-group-check${selected.has(g.id) ? ' checked' : ''}`}>{selected.has(g.id) ? '✓' : ''}</div>
+                  <div className={`fwd-check${selected.has(g.id) ? ' checked' : ''}`}>
+                    <span className="fwd-check-icon">
+                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                  </div>
                   <GroupAvatar members={g.members || []} avatar={g.avatar || g.groupAvatar} size={36} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="fwd-item-info">
                     <div className="fwd-item-name">{g.name}</div>
                     <div className="fwd-item-sub">{g.memberCount}人</div>
                   </div>
@@ -236,12 +276,11 @@ export default function ForwardModal({ message, onClose }) {
 
             {/* 底部确认栏 */}
             <div className="fwd-footer">
-              <span className="fwd-footer-count">已选 {selected.size} 个</span>
+              <span className="fwd-footer-count">已选 <strong>{selected.size}</strong> 个</span>
               <div className="fwd-footer-btns">
-                <button className="wc-modal-btn secondary" style={{ padding: '7px 20px', flex: 'none' }} onClick={onClose}>取消</button>
+                <button className="fwd-btn fwd-btn-cancel" onClick={onClose}>取消</button>
                 <button
-                  className="wc-modal-btn primary"
-                  style={{ padding: '7px 24px', flex: 'none', opacity: selected.size === 0 ? 0.5 : 1 }}
+                  className="fwd-btn fwd-btn-send"
                   onClick={forward}
                   disabled={selected.size === 0 || sending}
                 >

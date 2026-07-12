@@ -107,6 +107,37 @@ const IcoMinimize = () => (
   </svg>
 );
 
+/* ── Focus Trap Hook ── */
+function useFocusTrap(open) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const el = ref.current;
+    if (!el) return;
+    const sel = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"]), [role="button"]';
+    const prev = document.activeElement;
+    const focusFirst = () => {
+      const focusable = el.querySelectorAll(sel);
+      if (focusable.length) focusable[0].focus();
+    };
+    focusFirst();
+    const onKey = (e) => {
+      if (e.key !== 'Tab') return;
+      const focusable = el.querySelectorAll(sel);
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    el.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('keydown', onKey);
+      prev?.focus();
+    };
+  }, [open]);
+  return ref;
+}
+
 /* ── 主组件 ── */
 export default function CallModal({ socket, call, onClose }) {
   const { type, direction, remoteUser, remoteId } = call;
@@ -119,6 +150,7 @@ export default function CallModal({ socket, call, onClose }) {
   const [minimized, setMinimized] = useState(false);
   const [mediaError, setMediaError] = useState(false); // 麦克风/摄像头获取失败（权限拒绝/设备占用）
 
+  const focusTrapRef = useFocusTrap(['calling', 'connecting', 'connected'].includes(status) || status === 'incoming');
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
 
@@ -133,6 +165,7 @@ export default function CallModal({ socket, call, onClose }) {
   const timeoutRef      = useRef(null);
   const iceTimeoutRef   = useRef(null);
   const disconnectRef   = useRef(null);
+  const endCallTimeoutRef = useRef(null);
 
   const timer = useCallTimer(status === 'connected');
 
@@ -174,6 +207,7 @@ export default function CallModal({ socket, call, onClose }) {
     clearTimeout(timeoutRef.current);
     clearTimeout(iceTimeoutRef.current);
     clearTimeout(disconnectRef.current);
+    clearTimeout(endCallTimeoutRef.current);
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     if (pcRef.current) {
       pcRef.current.onicecandidate          = null;
@@ -190,7 +224,7 @@ export default function CallModal({ socket, call, onClose }) {
     cleanup();
     if (reason) setEndReason(reason);
     setStatus('ended');
-    setTimeout(onClose, 1800);
+    endCallTimeoutRef.current = setTimeout(onClose, 1800);
   }, [socket, remoteId, cleanup, onClose]);
 
   const initPC = useCallback(async () => {
@@ -379,7 +413,7 @@ export default function CallModal({ socket, call, onClose }) {
         {isVideo ? (
           <div style={{
             width: 100, height: 140,
-            borderRadius: 14,
+            borderRadius: 'var(--radius-lg)',
             overflow: 'hidden',
             boxShadow: '0 6px 24px rgba(0,0,0,.5)',
             background: '#000',
@@ -443,7 +477,7 @@ export default function CallModal({ socket, call, onClose }) {
               </div>
             </div>
             <div style={{
-              background: 'rgba(0,0,0,.72)', borderRadius: 20,
+              background: 'rgba(0,0,0,.72)', borderRadius: 'var(--radius-2xl)',
               padding: '2px 10px',
               color: 'var(--gray-0)', fontSize: 11,
               backdropFilter: 'blur(6px)',
@@ -464,7 +498,11 @@ export default function CallModal({ socket, call, onClose }) {
 
   return (
     <div
+      ref={focusTrapRef}
       data-testid="call-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={isVideo ? '视频通话' : '语音通话'}
       style={{ position: 'fixed', inset: 0, zIndex: "var(--z-call)", color: 'var(--gray-0)', overflow: 'hidden' }}
     >
       {/* 音频（ref callback 重挂恢复） */}
@@ -502,7 +540,7 @@ export default function CallModal({ socket, call, onClose }) {
             style={{
               position: 'absolute', left: pip.pos.x, top: pip.pos.y,
               width: 100, height: 140, zIndex: 5,
-              borderRadius: 14, overflow: 'hidden',
+              borderRadius: 'var(--radius-lg)', overflow: 'hidden',
               boxShadow: '0 4px 20px rgba(0,0,0,.5)',
               cursor: 'grab', touchAction: 'none',
               border: '2px solid rgba(255,255,255,.3)',

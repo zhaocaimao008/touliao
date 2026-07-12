@@ -447,8 +447,62 @@ function media(userId, { type = 'image', limit, before }) {
   `).all(...params);
 }
 
+// ── 批量创建/获取私聊会话 ────────────────────────────────────
+function batchGetOrCreatePrivate(myId, userIds, { io = null } = {}) {
+  if (!Array.isArray(userIds) || userIds.length === 0) throw badRequest('参数缺失');
+  if (userIds.includes(myId)) throw badRequest('不能与自己创建私聊');
+
+  // 批量校验好友关系（一次性 SQL 避免 N+1）
+  const placeholders = userIds.map(() => '?').join(',');
+  const existingUsers = new Set(
+    db.prepare(`SELECT id FROM users WHERE id IN (${placeholders})`)
+      .all(...userIds).map(r => r.id)
+  );
+  const friends = new Set(
+    db.prepare(`SELECT contact_id FROM contacts WHERE user_id=? AND contact_id IN (${placeholders})`)
+      .all(myId, ...userIds).map(r => r.contact_id)
+  );
+  const blocked = new Set(
+    db.prepare(`SELECT user_id, blocked_id FROM blocked_users WHERE (user_id=? AND blocked_id IN (${placeholders})) OR (blocked_id=? AND user_id IN (${placeholders}))`)
+      .all(myId, ...userIds, myId, ...userIds)
+      .flatMap(r => [r.user_id, r.blocked_id])
+  );
+
+  const results = [];
+  const needCreate = [];
+
+  userIds.forEach(uid => {
+    if (!existingUsers.has(uid)) return; // 用户不存在 → 跳过
+    if (blocked.has(uid)) return;        // 被拉黑 → 跳过
+    if (!friends.has(uid)) return;       // 不是好友 → 跳过
+    // 查已有会话
+    const existing = _findPrivate.get(myId, uid);
+    if (existing) {
+      results.push({ userId: uid, conversationId: existing.id });
+    } else {
+      needCreate.push(uid);
+    }
+  });
+
+  // 批量创建缺失会话（逐个事务隔离，避免事务内冲突回滚其他创建）
+  needCreate.forEach(uid => {
+    const id = uuidv4();
+    try {
+      _createPrivate(myId, uid, id);
+      results.push({ userId: uid, conversationId: id });
+      if (io) { io.in(`user_${myId}`).socketsJoin(id); io.in(`user_${uid}`).socketsJoin(id); }
+    } catch {
+      // 并发创建：返回竞争胜出的会话
+      const won = _findPrivate.get(myId, uid);
+      if (won) results.push({ userId: uid, conversationId: won.id });
+    }
+  });
+
+  return results;
+}
+
 module.exports = {
-  getOrCreatePrivate, getOrCreateFileHelper, createGroup, listConversations, listMembers,
+  getOrCreatePrivate, batchGetOrCreatePrivate, getOrCreateFileHelper, createGroup, listConversations, listMembers,
   unreadCounts, myGroups, setPinned, setMuted, setBackground, markRead, markUnread, setBurnAfter,
   clearConversation, clearAllConversations, media,
 };

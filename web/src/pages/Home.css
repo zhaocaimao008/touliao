@@ -1,0 +1,15 @@
+/* ============================
+   Home.jsx — 内联样式提取（补充 index.css 中已有的 as-* / wc-* 类）
+   ============================ */
+
+/* AccountSwitcher — 头像高亮轮廓 (动态切换 open) */
+.as-avatar-inner-open {
+  outline-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* 处理 wc-add-form-input 的 readOnly 态 */
+.wc-add-form-input:read-only {
+  background: var(--bg-panel, #f0f0f0);
+  color: var(--text-secondary);
+  cursor: default;
+}

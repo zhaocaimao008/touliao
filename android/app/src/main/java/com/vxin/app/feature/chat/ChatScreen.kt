@@ -96,9 +96,15 @@ import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinGreenDark
 import com.vxin.app.ui.theme.VxinTextSecondary
 import com.vxin.app.ui.theme.VxinBubbleMine
+import com.vxin.app.ui.theme.VxinBubbleMineText
 import com.vxin.app.ui.theme.VxinBubbleText
 import com.vxin.app.ui.theme.VxinBubbleOtherDark
 import com.vxin.app.ui.theme.VxinBubbleTextDark
+import com.vxin.app.ui.theme.VxinBrandLight
+import com.vxin.app.ui.theme.VxinBrandDark
+import com.vxin.app.ui.theme.VxinTeal
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import com.vxin.app.ui.theme.VxinSurfaceDark
 import androidx.compose.foundation.isSystemInDarkTheme
 
@@ -988,9 +994,9 @@ private fun TextBubble(content: String, isMine: Boolean) {
     Box(
         modifier = Modifier
             .widthIn(max = 280.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(bubbleBg(isMine))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .background(bubbleBrush(isMine))
+            .padding(horizontal = 14.dp, vertical = 9.dp),
     ) {
         Text(highlightMentions(content, isMine), color = bubbleTextColor(isMine))
     }
@@ -1001,7 +1007,8 @@ private val MENTION_RE = Regex("@[^\\s@]+")
 /** 高亮文本中的 @用户名 */
 private fun highlightMentions(content: String, isMine: Boolean): androidx.compose.ui.text.AnnotatedString {
     if (!content.contains('@')) return androidx.compose.ui.text.AnnotatedString(content)
-    val color = VxinGreenDark   // @提及高亮：浅绿/白气泡上都用深绿，保证可读
+    // @提及高亮：我方靛底用浅色、对方白底用品牌深色，均保证可读
+    val color = if (isMine) Color(0xFFEAE6FF) else VxinBrandDark
     return androidx.compose.ui.text.buildAnnotatedString {
         var last = 0
         MENTION_RE.findAll(content).forEach { mr ->
@@ -1020,23 +1027,29 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
     Box(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(bubbleBg(isMine))
+            .clip(RoundedCornerShape(12.dp))
+            .background(bubbleBrush(isMine))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) { content() }
 }
 
-// 气泡背景：对齐 web/微信——我的=浅绿；对方=白(暗色下深灰)
+// 气泡背景：对齐 web AURORA——我的=极光靛渐变；对方=白(暗色下深灰)
 @Composable
 private fun bubbleBg(isMine: Boolean): Color =
     if (isMine) VxinBubbleMine
     else if (isSystemInDarkTheme()) VxinBubbleOtherDark else Color.White
 
-// 气泡文字：浅绿/白底上都用深字(暗色下对方气泡用浅字)
+// 我方气泡渐变笔刷：极光靛 → 青碧（对齐 web --grad-brand），对方气泡回退纯色
+@Composable
+private fun bubbleBrush(isMine: Boolean): Brush =
+    if (isMine) Brush.linearGradient(listOf(VxinBrandLight, VxinBubbleMine, VxinTeal))
+    else SolidColor(bubbleBg(false))
+
+// 气泡文字：我方靛底=白字；对方白/深灰底=深/浅字
 @Composable
 private fun bubbleTextColor(isMine: Boolean): Color =
-    if (isMine) VxinBubbleText
+    if (isMine) VxinBubbleMineText
     else if (isSystemInDarkTheme()) VxinBubbleTextDark else VxinBubbleText
 
 private fun placeholderLabel(p: PendingUpload): String = when (p.type) {

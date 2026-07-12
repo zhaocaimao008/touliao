@@ -1,0 +1,17 @@
+任务：SSH 登录香港生产服务器 dipsin.com，创建并部署安卓应用内更新所需的版本清单文件。谨慎操作，只新增这一个文件，不动其他任何文件、不重启服务。
+
+背景：安卓端新增了"应用内检查更新"，会去拉 https://dipsin.com/downloads/vxin-android-version.json 比对版本。现在服务器上还没有这个文件（客户端会 404 → 检查失败）。需要创建它。
+
+步骤：
+1. 先确认当前对外 APK 的真实版本：/var/www/downloads/vxin-android-latest.apk 存在；用 aapt/aapt2/apkanalyzer 读它的 versionName 和 versionCode（若无工具则 unzip -p 读 AndroidManifest 或退而用已知值 versionName=1.0.3）。把读到的 versionCode 记为 CURRENT_CODE（本地仓库 build.gradle 里是 4，但服务器 APK 实测可能是 14，以实测为准）。
+2. 在 /var/www/downloads/ 下创建 vxin-android-version.json，内容（用实测到的版本号填写；notes 写当前版本说明）：
+   {
+     "versionCode": <实测CURRENT_CODE>,
+     "versionName": "<实测versionName>",
+     "url": "https://dipsin.com/downloads/vxin-android-latest.apk",
+     "notes": "当前最新版本。"
+   }
+   注意：versionCode 要等于当前已发布 APK 的 code —— 这样存量用户装的就是这个版本时不会被误提示"有更新"。将来发新版时，CI 应把这个 json 的 versionCode 一并调高。
+3. 文件权限设为 644，属主与同目录其他文件一致（ls -l 参考 latest.yml 的属主）。
+4. 验证：curl -s https://dipsin.com/downloads/vxin-android-version.json 能返回 200 且 JSON 合法（用 python3 -m json.tool 校验）。
+5. 中文汇报：实测到的 versionName/versionCode、写入的 json 内容、curl 验证结果（HTTP 状态 + JSON 是否合法）。

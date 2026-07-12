@@ -5,13 +5,18 @@ struct InitialAvatar: View {
     let name: String
     var size: CGFloat = 48
 
+    // 字母头像配色：AURORA 极光系多彩（对齐 Web Avatar COLORS）
     private static let palette: [Color] = [
-        Color(red: 0x1A/255, green: 0xBC/255, blue: 0x9C/255),
-        Color(red: 0x34/255, green: 0x98/255, blue: 0xDB/255),
-        Color(red: 0x9B/255, green: 0x59/255, blue: 0xB6/255),
-        Color(red: 0xE6/255, green: 0x7E/255, blue: 0x22/255),
-        Color(red: 0xE7/255, green: 0x4C/255, blue: 0x3C/255),
-        .vxinGreen,
+        Color(red: 0x6D/255, green: 0x5A/255, blue: 0xE6/255), // 极光靛(主)
+        Color(red: 0x17/255, green: 0xB8/255, blue: 0xA6/255), // 青碧(辅)
+        Color(red: 0x5B/255, green: 0x7B/255, blue: 0xF0/255), // 靛蓝
+        Color(red: 0x9B/255, green: 0x7B/255, blue: 0xF5/255), // 薰衣草紫
+        Color(red: 0xF0/255, green: 0xA0/255, blue: 0x20/255), // 琥珀
+        Color(red: 0xFF/255, green: 0x7A/255, blue: 0x93/255), // 珊瑚粉
+        Color(red: 0x13/255, green: 0xC2/255, blue: 0xC2/255), // 青
+        Color(red: 0x7C/255, green: 0x6B/255, blue: 0xF7/255), // 蓝紫
+        Color(red: 0xE8/255, green: 0x61/255, blue: 0x9D/255), // 品红
+        Color(red: 0x38/255, green: 0xC0/255, blue: 0xA8/255), // 薄荷
     ]
 
     private var letter: String {

@@ -43,10 +43,12 @@
   --color-primary-muted:  var(--brand-50);
   --color-primary-rgb:    109, 90, 230;       /* 供 rgba() 使用 */
 
-  /* ── 聊天气泡：我的气泡跟随品牌主色，他人气泡用浅灰 ── */
+  /* ── 聊天气泡：我的气泡跟随品牌主色，他人气泡用纯白 ── */
+  /* 他人气泡改为纯白 + 阴影，在浅灰画布上清晰浮起（原来的灰蓝与画布过近，气泡糊成一片）*/
   --bubble-mine:     var(--color-primary);
   --bubble-mine-rgb: var(--color-primary-rgb);
-  --bubble-other:    var(--bg-input-search);
+  --bubble-other:    #FFFFFF;
+  --shadow-bubble-other-soft: 0 1px 3px rgba(20,24,40,.07), 0 1px 8px rgba(20,24,40,.05);
 
 /* ================================================================
    § 2  SEMANTIC COLORS — 状态语义色
@@ -74,6 +76,11 @@
   --color-badge:         #FA5151;
   --rp-orange:           #F4511E;   /* 红包专用橙(喜庆固定品牌色,明暗一致) */
   --rp-orange-alt:       #F9A825;   /* 红包渐变辅助金橙 */
+
+  /* 我的页 — 功能行图标底色(原散落硬编码，收敛为令牌) */
+  --icon-bg-wallet:      #F0A020;   /* 钱包/金币 */
+  --icon-bg-invite:      #17B8A6;   /* 邀请好友 */
+  --icon-bg-neutral:     #8A93A6;   /* 中性功能项(设置/隐私/通知/设备…) */
 
   /* 模态遮罩层(scrim) — 弹窗背后压暗层, 统一档位, 明暗一致 */
   --scrim:               rgba(0, 0, 0, .45);   /* 标准模态遮罩 */
@@ -115,7 +122,12 @@
   /* 聊天区域 */
   --bg-chat:              #FFFFFF;
   --bg-chat-header:       #FFFFFF;
-  --bg-messages:          #F5F5F5;   /* 微信 PC 中性浅灰 */
+  --bg-messages:          #EEF0F5;   /* 略带冷调的中性浅灰，让白色气泡浮起 */
+  /* 消息画布：极淡的斜向渐变，避免大面积死板纯色 */
+  --bg-messages-canvas:
+    radial-gradient(900px 600px at 88% -8%, rgba(109,90,230,.045) 0%, transparent 60%),
+    radial-gradient(700px 520px at 6% 108%, rgba(23,184,166,.04) 0%, transparent 60%),
+    linear-gradient(180deg, #EEF1F6 0%, #EAECF2 100%);
 
   /* 输入区 */
   --bg-input:             #FFFFFF;
@@ -345,6 +357,14 @@
   --z-top:      9999;    /* 绝对最顶层（右键菜单、图片查看器）*/
   --z-native:   100000;  /* Electron 原生窗口 chrome（标题栏，须盖住所有 Web 内容）*/
 
+/* ── Electron 标题栏（桌面端）── */
+  --titlebar-bg:            #1A2033;             /* 标题栏底色 */
+  --titlebar-fg:            rgba(255,255,255,.7);/* 窗口按钮默认前景 */
+  --titlebar-fg-hover:      #fff;                /* 窗口按钮悬停前景 */
+  --titlebar-title:         rgba(255,255,255,.4);/* 标题文字 */
+  --titlebar-btn-hover-bg:  rgba(255,255,255,.15);/* 普通按钮悬停底色 */
+  --titlebar-close-hover:   #E53E3E;             /* 关闭按钮悬停红 */
+
 /* ── 毛玻璃效果 CSS 变量（无 !important 方案）── */
   --glass-bg:         rgba(255,255,255,.65);
   --glass-bg-strong:  rgba(28,28,30,.75);
@@ -437,7 +457,15 @@ body.dark-mode {
   --bg-panel-item-active-hover: rgba(255,255,255,.10);
   --bg-chat:              #111111;
   --bg-chat-header:       #1C1C1E;
-  --bg-messages:          #111111;
+  --bg-messages:          #0E0E10;
+  /* 暗色画布：极淡靛紫辉光，替代死黑，气泡浮起 */
+  --bg-messages-canvas:
+    radial-gradient(900px 600px at 88% -8%, rgba(109,90,230,.10) 0%, transparent 60%),
+    radial-gradient(700px 520px at 6% 108%, rgba(23,184,166,.06) 0%, transparent 60%),
+    linear-gradient(180deg, #101014 0%, #0C0C0F 100%);
+  /* 暗色下他人气泡：深灰卡片色，而非纯白 */
+  --bubble-other:         #26262A;
+  --shadow-bubble-other-soft: 0 1px 3px rgba(0,0,0,.35), 0 1px 10px rgba(0,0,0,.28);
   --bg-input:             #1C1C1E;
   --bg-input-search:      #2C2C2E;
   --bg-card:              #2C2C2E;

@@ -19,9 +19,18 @@ import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import kotlin.math.abs
 
+// 字母头像配色：AURORA 极光系多彩（对齐 Web Avatar COLORS），按名字 hash 稳定取色
 private val palette = listOf(
-    Color(0xFF1ABC9C), Color(0xFF3498DB), Color(0xFF9B59B6),
-    Color(0xFFE67E22), Color(0xFFE74C3C), Color(0xFF07C160),
+    Color(0xFF6D5AE6), // 极光靛(主)
+    Color(0xFF17B8A6), // 青碧(辅)
+    Color(0xFF5B7BF0), // 靛蓝
+    Color(0xFF9B7BF5), // 薰衣草紫
+    Color(0xFFF0A020), // 琥珀
+    Color(0xFFFF7A93), // 珊瑚粉
+    Color(0xFF13C2C2), // 青
+    Color(0xFF7C6BF7), // 蓝紫
+    Color(0xFFE8619D), // 品红
+    Color(0xFF38C0A8), // 薄荷
 )
 
 /**

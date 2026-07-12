@@ -1,0 +1,124 @@
+/* ============================
+   ContactList.jsx — 内联样式提取
+   ============================ */
+
+/* ── 骨架屏 ── */
+.cl-skeleton-pad {
+  padding: 4px 0;
+}
+.wc-contact-item.cl-skeleton-item {
+  cursor: default;
+}
+.wc-skel-avatar.cl-skel-avatar-gap {
+  margin-right: 10px;
+}
+
+/* ── LabelsTab 编辑表单 ── */
+.lt-edit-pad {
+  padding: 12px 16px;
+}
+.lt-edit-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 15px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-input);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+.lt-edit-label {
+  margin-top: 12px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.lt-color-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lt-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  box-shadow: none;
+}
+.lt-color-swatch.lt-color-selected {
+  border: 2.5px solid var(--text-primary);
+  box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+}
+.lt-save-btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px;
+  background: var(--green);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-input);
+  font-size: 15px;
+  cursor: pointer;
+}
+.lt-save-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── LabelsTab 成员管理 ── */
+.lt-members-pad {
+  padding: 8px 0;
+}
+.lt-member-checkbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── LabelsTab 列表 ── */
+.lt-list-header {
+  padding: 12px 16px 4px;
+  display: flex;
+  justify-content: flex-end;
+}
+.lt-create-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  background: var(--green);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-2xl);
+  cursor: pointer;
+}
+.lt-label-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.lt-action-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-bubble-tip);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.lt-delete-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-bubble-tip);
+  color: var(--color-badge);
+  cursor: pointer;
+}

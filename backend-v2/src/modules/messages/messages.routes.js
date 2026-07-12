@@ -45,6 +45,7 @@ const rp   = require('../redpackets/redpackets.controller');
  *         description: Conversation created
  */
 router.post('/conversation/private', auth, conv.createPrivate);
+router.post('/conversation/private/batch', auth, conv.createPrivateBatch);
 
 /**
  * @swagger

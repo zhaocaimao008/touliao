@@ -4,8 +4,9 @@ import { mediaUrl } from '../utils/url';
 import { showConfirm, showToast } from '../utils/toast';
 import { downloadFile } from '../utils/download';
 import ImagePreview from './ImagePreview';
+import { Skeleton } from './StateViews';
 
-function ago(sec) {
+function formatDate(sec) {
   const dt = new Date(sec * 1000);
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
@@ -91,7 +92,7 @@ export default function Collections() {
         onError={e => { e.currentTarget.style.display = 'none'; }}
         onClick={open}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
-        style={{ maxWidth: 180, maxHeight: 180, borderRadius: 8, objectFit: 'cover', cursor: 'zoom-in' }} />;
+        style={{ maxWidth: 180, maxHeight: 180, borderRadius: 'var(--radius-input)', objectFit: 'cover', cursor: 'zoom-in' }} />;
     }
     if (c.type === 'file' || c.type === 'video') {
       const fileUrl = c.extra?.file_url;
@@ -117,7 +118,7 @@ export default function Collections() {
         <div style={{ position: 'relative' }}>
           <input data-testid="collection-search-input" value={query} onChange={e => setQuery(e.target.value)}
             placeholder="搜索收藏…" aria-label="搜索收藏"
-            style={{ width: '100%', padding: '7px 28px 7px 10px', borderRadius: 8, border: '1px solid var(--border-color)', fontSize: 14, boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: '7px 28px 7px 10px', borderRadius: 'var(--radius-input)', border: '1px solid var(--border-color)', fontSize: 14, boxSizing: 'border-box' }} />
           {query && (
             <button type="button" aria-label="清除搜索" title="清除" onClick={() => setQuery('')}
               style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, border: 'none', borderRadius: 9, background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
@@ -126,7 +127,7 @@ export default function Collections() {
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {TYPES.map(([val, label]) => (
             <button key={val || 'all'} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
-              style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, cursor: 'pointer',
+              style={{ fontSize: 12, padding: '3px 10px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
                 border: '1px solid var(--border-color)',
                 background: typeFilter === val ? 'var(--green)' : 'transparent',
                 color: typeFilter === val ? '#fff' : 'var(--text-secondary)' }}>{label}</button>
@@ -134,7 +135,7 @@ export default function Collections() {
         </div>
       </div>
       {loading ? (
-        <div role="status" style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 13 }}>加载中…</div>
+        <Skeleton rows={6} avatar />
       ) : loadError && list.length === 0 ? (
         <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>
           加载失败，<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>点击重试</button>
@@ -150,7 +151,7 @@ export default function Collections() {
           <div key={c.id} data-testid="collection-item" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)' }}>
             <div style={{ marginBottom: 8 }}>{renderContent(c)}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{ago(c.created_at)}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{formatDate(c.created_at)}</span>
               <button onClick={() => remove(c.id)}
                 style={{ fontSize: 12, color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>取消收藏</button>
             </div>

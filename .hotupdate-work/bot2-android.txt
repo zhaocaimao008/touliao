@@ -1,0 +1,13 @@
+你是热更新小队【机器人②·安卓端】。工作目录 /root/v信，当前分支 feat/hotupdate-3clients（不要切 main，不要 push）。
+
+目标：给 Kotlin/Compose 安卓端加"应用内检查更新 + 下载最新 APK + 覆盖安装"（原生能做到的最强热更；真 JS 热更由机器人③另做）。用户点一下即可覆盖安装，数据保留、无需先卸载。
+
+技术栈：Hilt + Retrofit + OkHttp + Compose Navigation + kotlinx.serialization。包名 com.vxin.app。versionCode 见 android/app/build.gradle.kts。
+更新源：APK 直链 https://dipsin.com/downloads/vxin-android-latest.apk；版本信息可复用桌面端 update feed 或新增。为最省事，请：
+1. 新增一个远程版本清单：读取 https://dipsin.com/downloads/vxin-android-version.json（字段：versionCode:Int, versionName:String, url:String, notes:String）。若你判断更适合复用现有 RemoteConfig（core/config/RemoteConfig.kt）也可以，自行决定并说明。
+2. 新增 core/update/ 下的 UpdateChecker（Retrofit 或 OkHttp 拉清单，比对 BuildConfig.VERSION_CODE < 远程 versionCode → 有更新）、ApkDownloader（下载到 app 专属外部目录 getExternalFilesDir，带进度）、ApkInstaller（用 FileProvider + Intent.ACTION_VIEW/PackageInstaller 触发系统安装器；同签名覆盖安装）。
+3. AndroidManifest.xml 加 REQUEST_INSTALL_PACKAGES 权限 + FileProvider(<provider> com.vxin.app.fileprovider) + res/xml/file_paths.xml。
+4. 在应用启动或"我的/设置"页加一个"检查更新"入口，有新版弹 Compose Dialog 显示 notes + [稍后]/[更新]；点更新→下载→装。启动时也可静默检查一次。
+5. 【不要求真机编译通过】(CI 才有完整 SDK)，但代码要能通过静态自洽：import 正确、Hilt 注入正确、无明显编译错误。若本机有 ./gradlew，可尝试 `cd android && ./gradlew :app:compileDebugKotlin -q` 但超时/缺SDK就跳过并说明。
+6. 【不要执行任何 git 命令】只改文件,由队长统一提交。
+7. 中文汇报：新增/修改了哪些文件、是否编译验证、以及"需要在服务器上放 vxin-android-version.json"这个后续动作。

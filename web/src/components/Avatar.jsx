@@ -48,9 +48,9 @@ export default function Avatar({ src, name = '', size = 40, style = {}, online =
         ? <>
             {/* 字母垫底：图片加载出来前透出彩色字母而非空白，加载完被图覆盖（无 opacity 切换，规避缓存图不触发 onLoad 的失效） */}
             <div aria-hidden="true" style={{ ...baseStyle, position: 'absolute', inset: 0, background: getColor(name), color: 'var(--text-inverse)', fontSize: size * 0.42, fontWeight: 600 }}>{letter}</div>
-            <img src={mediaUrl(src)} alt={name} loading="lazy" onError={() => setErrored(true)} style={{ ...baseStyle, objectFit: 'cover', position: 'relative', zIndex: 1 }} />
+            <img src={mediaUrl(src)} alt={name} loading="lazy" crossOrigin="anonymous" onError={() => setErrored(true)} style={{ ...baseStyle, objectFit: 'cover', position: 'relative', zIndex: 1 }} />
           </>
-        : <div style={{ ...baseStyle, background: getColor(name), color: 'var(--text-inverse)', fontSize: size * 0.42, fontWeight: 600 }}>{letter}</div>
+        : <div style={{ ...baseStyle, background: getColor(name), color: 'var(--text-inverse)', fontSize: size * 0.42, fontWeight: 600, transition: 'opacity .15s' }}>{letter}</div>
       }
       {online && <span className="wc-online-dot" />}
     </div>

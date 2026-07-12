@@ -1,0 +1,16 @@
+你是热更新小队【机器人③·真热更新方案】。工作目录 /root/v信，分支 feat/hotupdate-3clients（不要切 main，不要 push）。只产出文档与骨架，不改动现有 android/ios/desktop 生产代码。
+
+背景：现有资产 = Web 前端 React18+axios+socket.io-client(web/src, 39文件/1.26万行)；桌面 Electron30+electron-updater；安卓 Kotlin/Compose(1.34万行)；iOS Swift(9328行)；后端 Express+socket.io。诉求：三端"真·热更新"(改业务逻辑/UI 不发版, 秒级下发)。
+
+任务：
+1. 写一份《三端真热更新技术方案书》到 docs/HOT_UPDATE_PLAN.md，中文，包含：
+   - 两种热更新的区分（内容/JS 热更 vs 整包静默覆盖更新），三端各自能到什么程度（含 iOS 的 Apple 政策边界：只能更新 JS bundle、不能下发全新功能绕审核）。
+   - 路线对比表：RN+CodePush(可复用现有 React 资产) vs Flutter+Shorebird(零复用) vs 维持原生+静默覆盖。给出推荐=RN+CodePush 并说明理由(已有 1.26万行 React)。
+   - 迁移清单：安卓/iOS 原生需退场的模块、web/src 里可移植到 RN 的逻辑层(网络 axios、socket.io-client、状态)、需要新写的 RN UI。
+   - 分阶段路线图(第0阶段静血止损=机器人①②的成果；第1阶段 RN+CodePush POC；第2阶段逐屏迁移；第3阶段三端统一 JS 热更管线)。
+   - 工时/风险评估、回滚策略(原生老包并行保留)。
+   - 自建热更服务器方案(复用现有香港服务器 /var/www/downloads/ + nginx，替代收费 CodePush)：bundle 版本清单 json、增量下发、回滚。
+2. 在 docs/ 下再产出一个 RN+CodePush 的 POC 目录蓝图文件 docs/HOT_UPDATE_POC_SKELETON.md：列出 `mobile-rn/` 该有的目录结构、package.json 关键依赖(react-native, react-native-code-push 或自建 OTA 库如 react-native-ota-hot-update)、如何把 web/src 的一个页面(聊天列表)移植过去的步骤、如何配置热更 endpoint 指向 https://dipsin.com/downloads/ota/。
+   —— 只写蓝图与命令步骤，不真正 npx 初始化(太重)。
+3. 【不要执行任何 git 命令】只改文件,由队长统一提交。
+4. 中文汇报：两份文档路径、核心结论一句话。

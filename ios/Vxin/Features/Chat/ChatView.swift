@@ -691,11 +691,19 @@ private struct MessageBubble: View {
 
     private func card<V: View>(@ViewBuilder _ inner: () -> V) -> some View {
         inner()
-            // 对齐 web/微信：我的=浅绿#95EC69+深字；对方=系统浅底(暗色自适应)+主色字
+            // 对齐 web AURORA：我的=极光靛渐变+白字；对方=系统浅底(暗色自适应)+主色字
             .foregroundColor(isMine ? Color.vxinBubbleText : .primary)
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(isMine ? Color.vxinBubbleMine : Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 14).padding(.vertical, 9)
+            .background {
+                if isMine {
+                    LinearGradient.vxinBubble
+                } else {
+                    Color(.secondarySystemBackground)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .shadow(color: (isMine ? Color.vxinBrand : .black).opacity(isMine ? 0.28 : 0.06),
+                    radius: isMine ? 5 : 3, y: 1)
     }
 
     private func openFile() {

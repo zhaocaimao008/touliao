@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { isVoicePlayed, markVoicePlayed } from '../utils/playedVoice';
 
-export default function VoicePlayer({ url, msgId = null, isMine = false }) {
+const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = false }) {
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -18,21 +18,21 @@ export default function VoicePlayer({ url, msgId = null, isMine = false }) {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (!audioRef.current) return;
     if (playing) audioRef.current.pause();
     // play() 被拒(自动播放策略/解码失败)时 onplay 不会触发,需手动复位 playing 防止图标卡在暂停态
     else audioRef.current.play().catch(() => setPlaying(false));
-  };
+  }, [playing]);
 
-  const handleSeek = (e) => {
+  const handleSeek = useCallback((e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     if (audioRef.current && duration) {
       audioRef.current.currentTime = pct * duration;
       setCurrentTime(pct * duration);
     }
-  };
+  }, [duration]);
 
   useEffect(() => {
     const audio = new Audio(url);
@@ -65,6 +65,18 @@ export default function VoicePlayer({ url, msgId = null, isMine = false }) {
   }, [url, isMine, msgId]);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const fmtCurrent = fmt(currentTime);
+  const fmtDuration = fmt(duration);
+  const timeLabel = loaded ? `${fmtCurrent} / ${fmtDuration}` : '--:--';
+
+  const handleKeyDown = useCallback((e) => {
+    if (!audioRef.current || !duration) return;
+    const step = duration * 0.05;
+    if (e.key === 'ArrowRight') { const t = Math.min(duration, currentTime + step); audioRef.current.currentTime = t; setCurrentTime(t); e.preventDefault(); }
+    if (e.key === 'ArrowLeft')  { const t = Math.max(0, currentTime - step); audioRef.current.currentTime = t; setCurrentTime(t); e.preventDefault(); }
+    if (e.key === 'Home')       { audioRef.current.currentTime = 0; setCurrentTime(0); e.preventDefault(); }
+    if (e.key === 'End')        { audioRef.current.currentTime = duration; setCurrentTime(duration); e.preventDefault(); }
+  }, [duration, currentTime]);
 
   return (
     <div className="wc-msg-voice-player wc-voice-player" onClick={e => e.stopPropagation()}>
@@ -90,21 +102,16 @@ export default function VoicePlayer({ url, msgId = null, isMine = false }) {
         aria-valuemax={100}
         aria-valuenow={Math.round(progress)}
         aria-valuetext={loaded ? `${fmt(currentTime)} / ${fmt(duration)}` : '未加载'}
-        onKeyDown={e => {
-          if (!audioRef.current || !duration) return;
-          const step = duration * 0.05;
-          if (e.key === 'ArrowRight') { const t = Math.min(duration, currentTime + step); audioRef.current.currentTime = t; setCurrentTime(t); e.preventDefault(); }
-          if (e.key === 'ArrowLeft')  { const t = Math.max(0, currentTime - step); audioRef.current.currentTime = t; setCurrentTime(t); e.preventDefault(); }
-          if (e.key === 'Home')       { audioRef.current.currentTime = 0; setCurrentTime(0); e.preventDefault(); }
-          if (e.key === 'End')        { audioRef.current.currentTime = duration; setCurrentTime(duration); e.preventDefault(); }
-        }}
+        onKeyDown={handleKeyDown}
       >
         <div className="wc-voice-progress-fill" style={{ width: `${progress}%` }} />
       </div>
       <span className="wc-voice-duration">
-        {loaded ? `${fmt(currentTime)} / ${fmt(duration)}` : '--:--'}
+        {timeLabel}
       </span>
       {unplayed && <span className="wc-voice-unplayed-dot" aria-label="未播放" title="未播放" />}
     </div>
   );
-}
+});
+
+export default VoicePlayer;

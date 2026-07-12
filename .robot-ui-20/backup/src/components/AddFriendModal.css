@@ -1,0 +1,264 @@
+/* ================================================================
+   AddFriendModal — 添加好友弹窗   v3
+   类名与 JSX 实际 className 完全匹配
+   ================================================================ */
+
+/* ── Overlay ────────────────────────────────────────────────────── */
+.afm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: var(--bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Card (modal panel) ─────────────────────────────────────────── */
+.afm-card {
+  width: 440px;
+  max-width: 92vw;
+  max-height: 72vh;
+  background: var(--bg-modal);
+  border-radius: var(--radius-modal);
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  animation: afm-panel-in var(--dur-base) var(--ease-enter) both;
+}
+@keyframes afm-panel-in {
+  from { opacity: 0; transform: translateY(12px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);   }
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+.afm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.afm-header-title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-title);
+  letter-spacing: -.1px;
+}
+.afm-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.afm-close-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* ── Search pad (outer padding wrapper) ──────────────────────────── */
+.afm-search-pad {
+  padding: 14px 20px 10px;
+  flex-shrink: 0;
+}
+
+/* ── Search wrap (inner flex bar) ────────────────────────────────── */
+.afm-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px 14px;
+  background: var(--bg-input-search);
+  border-radius: var(--radius-full);
+  border: 1.5px solid transparent;   /* 占位，聚焦时变主色，避免布局跳动 */
+  transition: background var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+/* 聚焦态：把焦点指示放到圆角外壳上（跟随胶囊圆角），
+   而非默认落在内部 input 上形成方形 outline —— 修复"圆角+方框"双框问题 */
+.afm-search-wrap.afm-search-wrap-focused {
+  background: var(--bg-chat);
+  border-color: var(--color-primary);
+  box-shadow: var(--ring-primary);
+}
+/* 关键：抑制此搜索输入框自身的全局 :focus-visible 方形 outline，
+   焦点视觉统一由外层圆角胶囊承担（外壳已有主色边框+ring，无障碍可见性不降低） */
+.afm-search-input:focus,
+.afm-search-input:focus-visible {
+  outline: none !important;
+}
+
+.afm-search-icon { color: var(--gray-400); flex-shrink: 0; }
+
+.afm-search-input {
+  flex: 1;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font-sans);
+}
+.afm-search-input::placeholder { color: var(--gray-400); }
+
+.afm-clear-btn {
+  display: flex;
+  align-items: center;
+  color: var(--gray-400);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  transition: color var(--dur-fast);
+  padding: 2px;
+}
+.afm-clear-btn:hover { color: var(--text-secondary); }
+
+/* ── Content area (scrollable) ───────────────────────────────────── */
+.afm-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: var(--sp-2);
+}
+.afm-content::-webkit-scrollbar { width: 4px; }
+.afm-content::-webkit-scrollbar-track { background: transparent; }
+.afm-content::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: var(--radius-xs); }
+.afm-content::-webkit-scrollbar-thumb:hover { background: var(--gray-300); }
+
+/* ── Loading ----------------------------------------------- */
+.afm-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 52px 24px;
+  gap: var(--sp-3h);
+}
+.afm-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid var(--gray-200);
+  border-top-color: var(--color-primary);
+  border-radius: var(--radius-full);
+  animation: wc-spin .72s linear infinite;
+}
+.afm-loading-txt {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* ── Idle state ─────────────────────────────────────────────────── */
+.afm-idle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 44px 24px 36px;
+  text-align: center;
+}
+.afm-idle-title {
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.afm-idle-desc {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: 18px;
+  line-height: var(--lh-relaxed);
+}
+.afm-idle-tags {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.afm-idle-tag {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  background: var(--bg-input-search);
+  border-radius: var(--radius-full);
+  padding: 4px 12px;
+  line-height: 1.5;
+  font-weight: var(--font-medium);
+}
+
+/* ── Dynamic search row ──────────────────────────────────────────── */
+.afm-search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 12px 22px;
+  cursor: pointer;
+  background: var(--bg-input-search);
+  transition: background var(--dur-fast);
+}
+.afm-search-row:hover { background: var(--bg-hover); }
+.afm-search-text {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.afm-search-hl {
+  color: var(--text-primary);
+  font-weight: var(--font-medium);
+}
+.afm-search-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ── Not found state ────────────────────────────────────────────── */
+.afm-not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 44px 24px;
+  text-align: center;
+  gap: var(--sp-1h);
+}
+.afm-not-found-title {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  font-weight: var(--font-medium);
+}
+.afm-not-found-sub {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* ── Result items (AfResultItem component) ───────────────────────── */
+.afm-result-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 12px 22px;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.afm-result-item:hover { background: var(--bg-hover); }
+.afm-result-info { flex: 1; min-width: 0; }
+.afm-result-name {
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
+  line-height: var(--lh-snug);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.afm-result-sub {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.afm-result-chevron { color: var(--gray-300); flex-shrink: 0; }

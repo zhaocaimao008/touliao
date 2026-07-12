@@ -6,6 +6,15 @@ const svc = require('./conversations.service');
 const io = req => req.app.get('io');
 
 exports.createPrivate = asyncHandler(async (req, res) => res.json(svc.getOrCreatePrivate(req.user.id, req.body.userId, { io: io(req) })));
+exports.createPrivateBatch = asyncHandler(async (req, res) => {
+  const { userIds } = req.body;
+  if (!Array.isArray(userIds) || userIds.length === 0)
+    return res.status(400).json({ error: '参数缺失' });
+  if (userIds.length > 50)
+    return res.status(400).json({ error: '单次最多50个好友' });
+  const conversations = await svc.batchGetOrCreatePrivate(req.user.id, userIds, { io: io(req) });
+  res.json({ conversations });
+});
 exports.fileHelper    = asyncHandler(async (req, res) => res.json(svc.getOrCreateFileHelper(req.user.id)));
 exports.createGroup   = asyncHandler(async (req, res) => res.json(svc.createGroup(io(req), req.user.id, req.body)));
 exports.list          = asyncHandler(async (req, res) => res.json(await svc.listConversations(req.user.id)));
