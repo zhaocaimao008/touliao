@@ -31,8 +31,19 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.Icon
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vxin.app.ui.VxinIcons
+import com.vxin.app.ui.theme.VxinBrand
+import com.vxin.app.ui.theme.VxinBrandLight
+import com.vxin.app.ui.theme.VxinBrandDark
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
 
@@ -51,8 +62,19 @@ fun RegisterScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("注册账号", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = VxinGreen)
-        Spacer(Modifier.height(8.dp))
+        // 品牌 Logo 徽章（与登录页一致）
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(VxinIcons.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+        }
+        Spacer(Modifier.height(14.dp))
+        Text("注册账号", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(6.dp))
         Text(
             if (state.inviteRequired) "需要6位邀请码，可向已有用户或管理员获取" else "填写信息即可注册",
             fontSize = 13.sp,
@@ -110,23 +132,36 @@ fun RegisterScreen(
         }
 
         Spacer(Modifier.height(28.dp))
+        // 注册按钮：极光靛渐变实心药丸（与登录页一致）
         Button(
             onClick = viewModel::submit,
             enabled = state.canSubmit,
-            colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+            ),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(50.dp)
                 .testTag("register-submit-btn"),
         ) {
-            if (state.loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text("注册并登录")
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .clip(RoundedCornerShape(25.dp))
+                    .background(
+                        if (state.canSubmit) Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))
+                        else Brush.linearGradient(listOf(VxinTextSecondary, VxinTextSecondary))
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (state.loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
+                    Text("注册并登录", color = Color.White, fontWeight = FontWeight.SemiBold)
+                }
             }
         }
         Spacer(Modifier.height(12.dp))

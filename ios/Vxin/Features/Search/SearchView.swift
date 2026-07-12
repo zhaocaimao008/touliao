@@ -22,9 +22,13 @@ struct SearchView: View {
             if vm.loading {
                 Spacer(); ProgressView(); Spacer()
             } else if vm.query.trimmingCharacters(in: .whitespaces).isEmpty {
-                Spacer(); Text("输入关键词搜索聊天记录").foregroundColor(.vxinTextSecondary); Spacer()
+                Spacer()
+                VxinEmptyState(systemImage: "magnifyingglass", title: "搜索聊天记录", subtitle: "输入关键词查找消息")
+                Spacer()
             } else if vm.searched && vm.results.isEmpty {
-                Spacer(); Text("没有找到相关消息").foregroundColor(.vxinTextSecondary); Spacer()
+                Spacer()
+                VxinEmptyState(systemImage: "text.magnifyingglass", title: "没有找到相关消息")
+                Spacer()
             } else {
                 List(vm.results) { r in
                     Button { onOpenResult(r) } label: {
