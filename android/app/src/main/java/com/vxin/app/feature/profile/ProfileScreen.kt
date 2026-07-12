@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import androidx.compose.material3.Icon
+import com.vxin.app.ui.VxinIcons
 import com.vxin.app.ui.components.InitialAvatar
 import com.vxin.app.ui.theme.VxinGreen
 import com.vxin.app.ui.theme.VxinTextSecondary
@@ -138,9 +140,9 @@ fun ProfileScreen(
                         Text("手机号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                // 我的二维码入口（对齐微信：个人卡片右侧二维码图标）
+                // 我的二维码入口：自绘品牌二维码图标（取代早期 ▦ 文本字符）
                 IconButton(onClick = onOpenMyQr, modifier = Modifier.testTag("profile-my-qr")) {
-                    Text("▦", style = MaterialTheme.typography.titleLarge, color = VxinTextSecondary)
+                    Icon(VxinIcons.QrCode, contentDescription = "我的二维码", tint = VxinTextSecondary)
                 }
                 Text("›", color = VxinTextSecondary)
             }

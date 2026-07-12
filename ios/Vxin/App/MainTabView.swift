@@ -1,70 +1,35 @@
 import SwiftUI
 
-/// 底部 Tab：消息 / 通讯录 / 朋友圈 / 收藏 / 我（四端一致）
-/// 朋友圈 / 收藏 受后台功能开关控制（GET /api/config），可隐藏。
+/// 底部 Tab：消息 / 通讯录 / 我（已按需移除 朋友圈 与 收藏）
 struct MainTabView: View {
     let myId: String
 
-    // 后台开关：默认全开，拉取失败不误伤
-    @State private var showMoments = true
-    @State private var showFavorites = true
     // 选中的 Tab（0=消息）；点推送通知需切回消息页再打开会话
     @State private var selectedTab = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {
             ConversationListView(myId: myId)
-                .tabItem { Label("消息", systemImage: "message") }
+                .tabItem { Label("消息", systemImage: "bubble.left.and.bubble.right.fill") }
                 .accessibilityIdentifier("nav-tab-chats")
                 .tag(0)
 
             ContactsTab(myId: myId)
-                .tabItem { Label("通讯录", systemImage: "person.2") }
+                .tabItem { Label("通讯录", systemImage: "person.2.fill") }
                 .accessibilityIdentifier("nav-tab-contacts")
                 .tag(1)
 
-            if showMoments {
-                NavigationStack { MomentsView().navigationTitle("朋友圈") }
-                    .tabItem { Label("朋友圈", systemImage: "photo.on.rectangle") }
-                    .accessibilityIdentifier("nav-tab-moments")
-                    .tag(2)
-            }
-
-            if showFavorites {
-                NavigationStack { FavoritesView() }
-                    .tabItem { Label("收藏", systemImage: "star") }
-                    .accessibilityIdentifier("nav-tab-favorites")
-                    .tag(3)
-            }
-
             NavigationStack { ProfileView() }
-                .tabItem { Label("我", systemImage: "person.crop.circle") }
+                .tabItem { Label("我", systemImage: "person.crop.circle.fill") }
                 .accessibilityIdentifier("nav-tab-me")
-                .tag(4)
+                .tag(2)
         }
-        .tint(.vxinGreen)
-        .task { await loadFeatures() }
+        .tint(.vxinBrand)
         // 点推送通知 → 切回消息页（会话打开由 ConversationListView 观察同一通知处理）
         .onReceive(NotificationCenter.default.publisher(for: .vxinOpenConversation)) { _ in
             selectedTab = 0
         }
     }
-
-    private func loadFeatures() async {
-        guard let cfg: AppConfig = try? await APIClient.shared.send("api/config", authorized: false)
-        else { return }   // 拉取失败：维持默认全开
-        showMoments = cfg.features?.moments ?? true
-        showFavorites = cfg.features?.collect ?? true
-    }
-}
-
-/// GET /api/config 响应（后台功能开关）。字段可缺省，缺省按全开处理。
-private struct AppConfig: Decodable {
-    struct Features: Decodable {
-        let moments: Bool?
-        let collect: Bool?
-    }
-    let features: Features?
 }
 
 /// 通讯录 Tab：自带导航栈，处理 添加好友/新的朋友/发起群聊 与 发起聊天

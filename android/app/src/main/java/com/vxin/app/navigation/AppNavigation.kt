@@ -4,12 +4,6 @@ import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -48,15 +42,13 @@ import com.vxin.app.feature.contacts.BlockedScreen
 import com.vxin.app.feature.contacts.ContactsScreen
 import com.vxin.app.feature.contacts.CreateGroupScreen
 import com.vxin.app.feature.contacts.FriendRequestsScreen
-import com.vxin.app.feature.favorites.FavoritesScreen
-import com.vxin.app.feature.moments.MomentComposeScreen
-import com.vxin.app.feature.moments.MomentsScreen
 import com.vxin.app.feature.group.GroupInfoScreen
 import com.vxin.app.feature.group.GroupQrScreen
 import com.vxin.app.feature.group.InviteMembersScreen
 import com.vxin.app.feature.profile.MyQrCodeScreen
 import com.vxin.app.feature.profile.ProfileScreen
 import com.vxin.app.feature.search.SearchScreen
+import com.vxin.app.ui.VxinIcons
 import com.vxin.app.data.api.ConfigApi
 import com.vxin.app.data.repository.ChatRepository
 import com.vxin.app.data.model.Features
@@ -171,12 +163,12 @@ private fun AuthFlow() {
 
 private data class TabItem(val route: String, val label: String, val icon: ImageVector, val testKey: String)
 
+// 底部导航：仅保留 消息 / 通讯录 / 我（已按需移除 朋友圈 与 收藏）
+// 图标改用自绘品牌图标集 VxinIcons（取代 Material 通用图标）
 private val TAB_ITEMS = listOf(
-    TabItem(Routes.CONVERSATIONS, "消息", Icons.Filled.Email, "chats"),
-    TabItem(Routes.CONTACTS, "通讯录", Icons.Filled.Person, "contacts"),
-    TabItem(Routes.MOMENTS, "朋友圈", Icons.Filled.DateRange, "moments"),
-    TabItem(Routes.FAVORITES, "收藏", Icons.Filled.Star, "favorites"),
-    TabItem(Routes.PROFILE, "我", Icons.Filled.AccountCircle, "me"),
+    TabItem(Routes.CONVERSATIONS, "消息", VxinIcons.Chat, "chats"),
+    TabItem(Routes.CONTACTS, "通讯录", VxinIcons.Contacts, "contacts"),
+    TabItem(Routes.PROFILE, "我", VxinIcons.Me, "me"),
 )
 private val TAB_ROUTES = TAB_ITEMS.map { it.route }.toSet()
 
@@ -186,14 +178,8 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    // 后台开关：隐藏朋友圈/收藏 tab（拉取失败时默认全开，见 AppViewModel）
-    val visibleTabs = TAB_ITEMS.filter { tab ->
-        when (tab.route) {
-            Routes.MOMENTS -> features.moments
-            Routes.FAVORITES -> features.collect
-            else -> true
-        }
-    }
+    // 底部 tab 已固定为 消息/通讯录/我，无需再按 features 开关过滤
+    val visibleTabs = TAB_ITEMS
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
@@ -267,22 +253,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                     onOpenChat = { target -> navController.navigate(Routes.chat(target.conversationId, target.title, "private", target.peerUserId)) },
                 )
             }
-            composable(Routes.FAVORITES) {
-                // 作为底部 Tab：不传 onBack（无返回箭头）
-                FavoritesScreen()
-            }
-            composable(Routes.MOMENTS) {
-                // 作为底部 Tab：不传 onBack（无返回箭头）
-                MomentsScreen(
-                    onCompose = { navController.navigate(Routes.MOMENT_COMPOSE) },
-                )
-            }
-            composable(Routes.MOMENT_COMPOSE) {
-                MomentComposeScreen(
-                    onBack = { navController.popBackStack() },
-                    onPublished = { navController.popBackStack() },
-                )
-            }
+            // 朋友圈 / 收藏 已按需移除（不再注册路由与入口）
             composable(Routes.ADD_ACCOUNT) {
                 LoginScreen(
                     onNavigateRegister = { navController.navigate(Routes.REGISTER) },
