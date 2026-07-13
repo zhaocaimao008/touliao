@@ -10,7 +10,6 @@ const translations = {
     'settings.server': '服务器地址',
     'settings.language': '语言',
     'settings.logout': '退出登录',
-    'settings.deleteAccount': '注销账号',
     // 外观
     'appearance.light': '日间模式',
     'appearance.dark': '夜间模式',
@@ -48,7 +47,6 @@ const translations = {
     'settings.server': 'Server',
     'settings.language': 'Language',
     'settings.logout': 'Log Out',
-    'settings.deleteAccount': 'Delete Account',
     'appearance.light': 'Light Mode',
     'appearance.dark': 'Dark Mode',
     'appearance.fontSize': 'Font Size',
@@ -82,7 +80,6 @@ const translations = {
     'settings.server': '伺服器',
     'settings.language': '語言',
     'settings.logout': '登出',
-    'settings.deleteAccount': '登出帳號',
     'appearance.light': '日間模式',
     'appearance.dark': '夜間模式',
     'appearance.fontSize': '字體大小',
