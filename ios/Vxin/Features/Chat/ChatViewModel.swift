@@ -46,6 +46,9 @@ final class ChatViewModel: ObservableObject {
     @Published var forwardTarget: Message?
     @Published var closed = false   // 被踢/群解散 → 关闭聊天页
     @Published var background = ""   // 聊天专属背景图 URL（空=无）
+    // 后台功能开关（群通话按钮显隐）默认开启，拉取失败不误伤
+    @Published var groupVoiceCallEnabled = true
+    @Published var groupVideoCallEnabled = true
     // ── 红包 ──
     @Published var redPacketDetail: RedPacketDetail?   // 非空 = 显示红包详情弹窗
     @Published var claimedAmount: Int?                 // 刚领取到的金额
@@ -158,6 +161,13 @@ final class ChatViewModel: ObservableObject {
                     self.error = "有人在群里 @ 了你"
                 }}
                 .store(in: &cancellables)
+            // 后台开关实时广播 → 即时显隐群通话按钮，无需刷新
+            repo.configUpdatedPublisher
+                .sink { [weak self] (voice, video) in Task { @MainActor in
+                    self?.groupVoiceCallEnabled = voice
+                    self?.groupVideoCallEnabled = video
+                }}
+                .store(in: &cancellables)
         }
 
         repo.joinConversation(conversationId)
@@ -166,6 +176,20 @@ final class ChatViewModel: ObservableObject {
         if isGroup {
             Task { await loadPinned() }
             Task { await loadGroupMembers() }
+            Task { await loadCallFeatures() }   // 拉后台开关，同步群通话按钮显隐
+        }
+    }
+
+    /// 拉取后台功能开关（GET /api/config），同步群语音/群视频按钮显隐。失败保持默认开启，不误伤。
+    func loadCallFeatures() async {
+        struct CallConfig: Decodable {
+            struct Features: Decodable { let groupVoiceCall: Bool?; let groupVideoCall: Bool? }
+            let features: Features?
+        }
+        guard let cfg: CallConfig = try? await APIClient.shared.send("api/config", authorized: false) else { return }
+        await MainActor.run {
+            self.groupVoiceCallEnabled = cfg.features?.groupVoiceCall ?? true
+            self.groupVideoCallEnabled = cfg.features?.groupVideoCall ?? true
         }
     }
 

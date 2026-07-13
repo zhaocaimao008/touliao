@@ -56,12 +56,17 @@ struct ChatView: View {
         .toolbar {
             if isGroup {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button { vm.startGroupCall(video: false) } label: { Image(systemName: "phone.fill") }
-                        .accessibilityIdentifier("chat-call-audio-btn")
-                        .accessibilityLabel("语音通话")
-                    Button { vm.startGroupCall(video: true) } label: { Image(systemName: "video.fill") }
-                        .accessibilityIdentifier("chat-call-video-btn")
-                        .accessibilityLabel("视频通话")
+                    // 群语音/群视频按钮受后台开关控制，关闭即隐藏
+                    if vm.groupVoiceCallEnabled {
+                        Button { vm.startGroupCall(video: false) } label: { Image(systemName: "phone.fill") }
+                            .accessibilityIdentifier("chat-call-audio-btn")
+                            .accessibilityLabel("语音通话")
+                    }
+                    if vm.groupVideoCallEnabled {
+                        Button { vm.startGroupCall(video: true) } label: { Image(systemName: "video.fill") }
+                            .accessibilityIdentifier("chat-call-video-btn")
+                            .accessibilityLabel("视频通话")
+                    }
                     Button(action: onOpenGroupInfo) { Image(systemName: "ellipsis") }
                         .accessibilityLabel("群聊信息")
                 }

@@ -137,6 +137,10 @@ class SocketManager @Inject constructor(
     private val _momentEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
     val momentEvents: SharedFlow<Unit> = _momentEvents.asSharedFlow()
 
+    /** 后台功能开关实时更新（config:updated）→ 最新 Features，UI 据此即时显隐入口/按钮 */
+    private val _configUpdated = MutableSharedFlow<com.vxin.app.data.model.Features>(extraBufferCapacity = 8)
+    val configUpdatedEvents: SharedFlow<com.vxin.app.data.model.Features> = _configUpdated.asSharedFlow()
+
     // ── 通话信令流 ──
     private val _callIncoming = MutableSharedFlow<CallIncomingEvent>(extraBufferCapacity = 16)
     val callIncomingEvents: SharedFlow<CallIncomingEvent> = _callIncoming.asSharedFlow()
@@ -258,6 +262,13 @@ class SocketManager @Inject constructor(
         s.on("new_moment") { _ -> _momentEvents.tryEmit(Unit) }
         s.on("moment_liked") { _ -> _momentEvents.tryEmit(Unit) }
         s.on("moment_commented") { _ -> _momentEvents.tryEmit(Unit) }
+        // 后台改功能开关 → 服务端广播 {features:{...}}，解析出最新 Features 供 UI 实时热更新
+        s.on("config:updated") { args ->
+            (args.firstOrNull() as? JSONObject)?.optJSONObject("features")?.let { f ->
+                runCatching { json.decodeFromString<com.vxin.app.data.model.Features>(f.toString()) }
+                    .getOrNull()?.let(_configUpdated::tryEmit)
+            }
+        }
         s.on("user_online") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("userId")?.takeIf { it.isNotEmpty() }?.let { _presence.tryEmit(PresenceEvent(it, true)) }
         }

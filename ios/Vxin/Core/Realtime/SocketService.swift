@@ -74,6 +74,8 @@ final class SocketService {
     let presence = PassthroughSubject<(String, Bool), Never>()
     /// 朋友圈相关（新动态/点赞/评论）→ 提示刷新
     let moments = PassthroughSubject<Void, Never>()
+    /// 后台功能开关实时更新（config:updated）→ (群语音开, 群视频开)，UI 据此即时显隐按钮
+    let configUpdated = PassthroughSubject<(groupVoiceCall: Bool, groupVideoCall: Bool), Never>()
 
     // ── WebRTC 通话信令 ──
     let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String), Never>()
@@ -186,6 +188,13 @@ final class SocketService {
         sock.on("new_moment") { [weak self] _, _ in self?.moments.send(()) }
         sock.on("moment_liked") { [weak self] _, _ in self?.moments.send(()) }
         sock.on("moment_commented") { [weak self] _, _ in self?.moments.send(()) }
+        // 后台改功能开关 → {features:{...}}，解析群语音/群视频开关供 UI 实时热更新（缺省视为开启）
+        sock.on("config:updated") { [weak self] data, _ in
+            let f = (data.first as? [String: Any])?["features"] as? [String: Any]
+            let voice = (f?["groupVoiceCall"] as? Bool) ?? true
+            let video = (f?["groupVideoCall"] as? Bool) ?? true
+            self?.configUpdated.send((groupVoiceCall: voice, groupVideoCall: video))
+        }
         sock.on("user_online") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["userId"] as? String, !id.isEmpty { self?.presence.send((id, true)) }
         }

@@ -48,6 +48,8 @@ class ChatRepository @Inject constructor(
     val groupGoneEvents: SharedFlow<String> = socketManager.groupGoneEvents
     val groupChangedEvents: SharedFlow<String> = socketManager.groupChangedEvents
     val messageEditedEvents: SharedFlow<com.vxin.app.core.realtime.MessageEditedEvent> = socketManager.messageEditedEvents
+    /** 后台功能开关实时更新 → 最新 Features */
+    val configUpdatedEvents: SharedFlow<com.vxin.app.data.model.Features> = socketManager.configUpdatedEvents
 
     fun joinConversation(conversationId: String) = socketManager.joinConversation(conversationId)
     fun emitTyping(conversationId: String) = socketManager.emitTyping(conversationId)

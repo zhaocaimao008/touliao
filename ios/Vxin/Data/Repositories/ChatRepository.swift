@@ -35,6 +35,8 @@ final class ChatRepository {
     var messageEditedPublisher: AnyPublisher<(String, String, String), Never> { socket.messageEdited.eraseToAnyPublisher() }
     /// 被 @ 提及 → (conversationId, msgId)
     var mentionedPublisher: AnyPublisher<(convId: String, msgId: String), Never> { socket.mentioned.eraseToAnyPublisher() }
+    /// 后台功能开关实时更新 → (群语音开, 群视频开)
+    var configUpdatedPublisher: AnyPublisher<(groupVoiceCall: Bool, groupVideoCall: Bool), Never> { socket.configUpdated.eraseToAnyPublisher() }
 
     func joinConversation(_ id: String) { socket.joinConversation(id) }
     func emitTyping(_ id: String) { socket.emitTyping(id) }

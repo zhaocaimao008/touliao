@@ -234,8 +234,13 @@ fun ChatScreen(
                 },
                 actions = {
                     IconButton(onClick = { viewModel.openSearch() }, modifier = Modifier.testTag("chat-search-btn")) { Text("🔍", style = MaterialTheme.typography.titleMedium) }
-                    IconButton(onClick = { launchCall(false) }, modifier = Modifier.testTag("chat-call-audio-btn")) { Text("📞", style = MaterialTheme.typography.titleMedium) }
-                    IconButton(onClick = { launchCall(true) }, modifier = Modifier.testTag("chat-call-video-btn")) { Text("📹", style = MaterialTheme.typography.titleMedium) }
+                    // 群聊：语音/视频按钮受后台开关控制（关闭即隐藏）；私聊不受影响
+                    if (!viewModel.isGroup || state.groupVoiceCallEnabled) {
+                        IconButton(onClick = { launchCall(false) }, modifier = Modifier.testTag("chat-call-audio-btn")) { Text("📞", style = MaterialTheme.typography.titleMedium) }
+                    }
+                    if (!viewModel.isGroup || state.groupVideoCallEnabled) {
+                        IconButton(onClick = { launchCall(true) }, modifier = Modifier.testTag("chat-call-video-btn")) { Text("📹", style = MaterialTheme.typography.titleMedium) }
+                    }
                     if (viewModel.isGroup) {
                         IconButton(onClick = { onOpenGroupInfo(viewModel.conversationId) }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "群聊信息")

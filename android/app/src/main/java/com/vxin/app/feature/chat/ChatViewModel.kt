@@ -77,6 +77,9 @@ data class ChatUiState(
     val claimedAmount: Int? = null,                 // 刚领取到的金额（一次性提示）
     val sendingRedPacket: Boolean = false,          // 发红包进行中，防连点重复扣币
     val claimingRedPacket: Boolean = false,         // 抢红包进行中，防连点重复领取
+    // ── 后台功能开关（群通话按钮显隐）默认开启，拉取失败不误伤 ──
+    val groupVoiceCallEnabled: Boolean = true,
+    val groupVideoCallEnabled: Boolean = true,
     val error: String? = null,
 )
 
@@ -95,6 +98,7 @@ class ChatViewModel @Inject constructor(
     private val mediaUrlResolver: MediaUrlResolver,
     private val draftStore: com.vxin.app.core.storage.DraftStore,
     private val outboxStore: com.vxin.app.core.storage.OutboxStore,
+    private val configApi: com.vxin.app.data.api.ConfigApi,
     sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -135,6 +139,32 @@ class ChatViewModel @Inject constructor(
             observePinChanged()
             observeGroupGone()
             loadGroupMembers()
+            loadCallFeatures()      // 群通话按钮显隐：拉取后台开关
+            observeConfigUpdated()  // 后台改开关 → 实时热更新按钮显隐
+        }
+    }
+
+    /** 拉取后台功能开关，同步群语音/群视频通话按钮显隐（失败保持默认开启，不误伤）。 */
+    private fun loadCallFeatures() {
+        viewModelScope.launch {
+            runCatching { configApi.getConfig() }.onSuccess { cfg ->
+                _uiState.update { it.copy(
+                    groupVoiceCallEnabled = cfg.features.groupVoiceCall,
+                    groupVideoCallEnabled = cfg.features.groupVideoCall,
+                ) }
+            }
+        }
+    }
+
+    /** 监听后台开关实时广播（config:updated），无需刷新即时显隐群通话按钮。 */
+    private fun observeConfigUpdated() {
+        viewModelScope.launch {
+            chatRepository.configUpdatedEvents.collect { f ->
+                _uiState.update { it.copy(
+                    groupVoiceCallEnabled = f.groupVoiceCall,
+                    groupVideoCallEnabled = f.groupVideoCall,
+                ) }
+            }
         }
     }
 
