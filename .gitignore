@@ -74,3 +74,7 @@ e2e/.e2e-state.json
 e2e/appium/__pycache__/
 e2e/shots/
 e2e/playwright/web/_shots.spec.js
+
+# Hermes 部署日志（临时，归档到 .hermes-logs-archive/，不入库）
+hermes-deploy-*.log
+.hermes-logs-archive/
