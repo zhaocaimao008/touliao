@@ -155,16 +155,79 @@ struct NotificationSettingsView: View {
     }
 }
 
-// MARK: - 隐私与安全（黑名单管理 + 改密码入口）
+// MARK: - 隐私与安全（添加方式/好友权限开关 + 黑名单管理）
+
+@MainActor
+final class PrivacySettingsViewModel: ObservableObject {
+    @Published var addByVxinId = true
+    @Published var addByPhone = true
+    @Published var requireVerify = true
+    @Published var noDirectGroupInvite = false
+    @Published var loading = true
+    @Published var error: String?
+
+    private let repo = ProfileRepository.shared
+
+    func load() async {
+        loading = true; error = nil
+        if let s = try? await repo.privacySettings() {
+            addByVxinId = s.addByVxinId
+            addByPhone = s.addByPhone
+            requireVerify = s.requireVerify
+            noDirectGroupInvite = s.noDirectGroupInvite
+        } else {
+            error = "加载隐私设置失败"
+        }
+        loading = false
+    }
+
+    func update(addByVxinId: Bool? = nil, addByPhone: Bool? = nil,
+                requireVerify: Bool? = nil, noDirectGroupInvite: Bool? = nil) {
+        Task {
+            do {
+                try await repo.updatePrivacySettings(
+                    addByVxinId: addByVxinId, addByPhone: addByPhone,
+                    requireVerify: requireVerify, noDirectGroupInvite: noDirectGroupInvite
+                )
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "保存失败"
+                await load()   // 保存失败回滚到服务端真值
+            }
+        }
+    }
+}
 
 struct PrivacySecurityView: View {
+    @StateObject private var vm = PrivacySettingsViewModel()
+
     var body: some View {
         Form {
+            Section("添加我的方式") {
+                Toggle("通过 v信号添加", isOn: Binding(
+                    get: { vm.addByVxinId }, set: { vm.addByVxinId = $0; vm.update(addByVxinId: $0) }
+                ))
+                Toggle("通过手机号添加", isOn: Binding(
+                    get: { vm.addByPhone }, set: { vm.addByPhone = $0; vm.update(addByPhone: $0) }
+                ))
+            }
+            Section {
+                Toggle("需要验证才能添加好友", isOn: Binding(
+                    get: { vm.requireVerify }, set: { vm.requireVerify = $0; vm.update(requireVerify: $0) }
+                ))
+                Toggle("不允许好友直接邀请我进群", isOn: Binding(
+                    get: { vm.noDirectGroupInvite }, set: { vm.noDirectGroupInvite = $0; vm.update(noDirectGroupInvite: $0) }
+                ))
+            } footer: {
+                Text("开启后好友无法把你直接拉进群，需你扫码/点链接自行加入。")
+            }
             Section("隐私") {
                 NavigationLink("黑名单管理") { BlockedView() }
             }
         }
         .navigationTitle("隐私与安全")
         .navigationBarTitleDisplayMode(.inline)
+        .overlay { if vm.loading { ProgressView() } }
+        .toast($vm.error)
+        .task { await vm.load() }
     }
 }

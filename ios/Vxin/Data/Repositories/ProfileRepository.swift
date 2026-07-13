@@ -53,6 +53,37 @@ private struct UpdateNotificationBody: Encodable {
     }
 }
 
+/// 隐私与安全（GET/PUT /api/users/me/settings 的布尔子集）。仅含后端真正生效的项。
+struct PrivacySettings: Decodable {
+    var addByVxinId = true
+    var addByPhone = true
+    var requireVerify = true
+    var noDirectGroupInvite = false
+    enum CodingKeys: String, CodingKey { case addByVxinId, addByPhone, requireVerify, noDirectGroupInvite }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        addByVxinId = (try? c.decode(Bool.self, forKey: .addByVxinId)) ?? true
+        addByPhone = (try? c.decode(Bool.self, forKey: .addByPhone)) ?? true
+        requireVerify = (try? c.decode(Bool.self, forKey: .requireVerify)) ?? true
+        noDirectGroupInvite = (try? c.decode(Bool.self, forKey: .noDirectGroupInvite)) ?? false
+    }
+}
+/// 仅编码非 nil 字段（同通知：避免 null 误关其他开关）。
+private struct UpdatePrivacyBody: Encodable {
+    let addByVxinId: Bool?
+    let addByPhone: Bool?
+    let requireVerify: Bool?
+    let noDirectGroupInvite: Bool?
+    enum CodingKeys: String, CodingKey { case addByVxinId, addByPhone, requireVerify, noDirectGroupInvite }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(addByVxinId, forKey: .addByVxinId)
+        try c.encodeIfPresent(addByPhone, forKey: .addByPhone)
+        try c.encodeIfPresent(requireVerify, forKey: .requireVerify)
+        try c.encodeIfPresent(noDirectGroupInvite, forKey: .noDirectGroupInvite)
+    }
+}
+
 /// 我的专属邀请码 + 邀请战绩（GET /api/users/me/invite）。容错解码，字段缺省不致失败。
 struct InviteInfo: Decodable {
     var code: String = ""
@@ -164,6 +195,20 @@ final class ProfileRepository {
         let _: NotificationSettings = try await api.send(
             "api/users/me/settings", method: "PUT",
             body: UpdateNotificationBody(messageNotify: messageNotify, sound: sound, vibrate: vibrate, detailPreview: detailPreview)
+        )
+    }
+
+    // ── 隐私与安全设置 ──
+    func privacySettings() async throws -> PrivacySettings {
+        try await api.send("api/users/me/settings")
+    }
+
+    /// 更新隐私开关（仅传非 nil 字段）
+    func updatePrivacySettings(addByVxinId: Bool? = nil, addByPhone: Bool? = nil,
+                               requireVerify: Bool? = nil, noDirectGroupInvite: Bool? = nil) async throws {
+        let _: PrivacySettings = try await api.send(
+            "api/users/me/settings", method: "PUT",
+            body: UpdatePrivacyBody(addByVxinId: addByVxinId, addByPhone: addByPhone, requireVerify: requireVerify, noDirectGroupInvite: noDirectGroupInvite)
         )
     }
 }
