@@ -215,7 +215,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf }) {
     };
     const onPeerLeft = ({ userId: pid }) => removePeer(pid);
     const onError = ({ reason }) => {
-      const msg = { busy: '你正在通话中', not_group: '仅群聊支持多人通话', not_found: '通话已结束', full: '通话人数已满' }[reason] || '通话出错';
+      const msg = { busy: '你正在通话中', not_group: '仅群聊支持多人通话', not_found: '通话已结束', full: '通话人数已满', voice_disabled: '群语音通话已被管理员关闭', video_disabled: '群视频通话已被管理员关闭' }[reason] || '通话出错';
       showToast(msg, 'error');
       hangup();
     };

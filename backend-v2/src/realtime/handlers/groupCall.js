@@ -27,6 +27,14 @@ const MAX_PARTICIPANTS = 9;
 const MAX_CALL_DURATION_MS = 4 * 60 * 60 * 1000; // 4小时强制结束，防单用户永久独占
 const nowSec = () => Math.floor(Date.now() / 1000);
 
+// 后台功能开关：群语音 / 群视频是否允许发起（默认开启，缺省或非 'off' 即开）。
+// 直接读 admin_settings 表，避免引入 admin.service 造成循环依赖；每次发起时读，实时生效。
+function groupCallAllowed(type) {
+  const key = type === 'video' ? 'feature_group_video_call' : 'feature_group_voice_call';
+  const v = db.prepare('SELECT value FROM admin_settings WHERE key=?').get(key)?.value;
+  return v !== 'off';
+}
+
 // 模块级共享（单进程 fork）：callId -> { conversationId, type, startedBy, members:Set, peak, startedAt }
 const groupCalls = new Map();
 // userId -> callId：一个用户同一时刻只在一个群通话内，便于断线清理与忙线判断
@@ -65,8 +73,14 @@ module.exports = function registerGroupCallHandler(io, socket) {
     const conv = db.prepare("SELECT type FROM conversations WHERE id=?").get(conversationId);
     if (!conv || conv.type !== 'group') { socket.emit('group_call:error', { reason: 'not_group' }); return; }
 
-    const callId = uuidv4();
     const t = type === 'video' ? 'video' : 'audio';
+    // 后台开关拦截：被关闭的通话类型直接拒绝发起（实时生效，无需重启/重连）
+    if (!groupCallAllowed(t)) {
+      socket.emit('group_call:error', { reason: t === 'video' ? 'video_disabled' : 'voice_disabled' });
+      return;
+    }
+
+    const callId = uuidv4();
     const call = { conversationId, type: t, startedBy: userId, members: new Set([userId]), peak: 1, startedAt: nowSec(), timer: null };
     call.timer = setTimeout(() => {
       const c = groupCalls.get(callId);

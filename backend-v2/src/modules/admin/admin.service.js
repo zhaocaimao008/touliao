@@ -295,17 +295,20 @@ function generateInviteCode() {
   return setInviteCode(String(Math.floor(100000 + Math.random() * 900000)));
 }
 
-// ── 功能开关（后台可隐藏：朋友圈 / 收藏；注册是否需邀请码）默认开启 ─
+// ── 功能开关（后台可隐藏：朋友圈 / 收藏 / 群语音 / 群视频；注册是否需邀请码）默认开启 ─
 // inviteRequired=true 表示注册需填写邀请码（默认）；false 则关闭邀请码校验，任何人可注册。
+// groupVoiceCall / groupVideoCall=true 表示允许发起群语音 / 群视频通话（默认开启，可随时关闭）。
 function getFeatures() {
   const get = k => db.prepare('SELECT value FROM admin_settings WHERE key=?').get(k)?.value;
   return {
     moments: get('feature_moments') !== 'off',
     collect: get('feature_collect') !== 'off',
     inviteRequired: get('invite_required') !== 'off',
+    groupVoiceCall: get('feature_group_voice_call') !== 'off',
+    groupVideoCall: get('feature_group_video_call') !== 'off',
   };
 }
-function setFeatures({ moments, collect, inviteRequired }) {
+function setFeatures({ moments, collect, inviteRequired, groupVoiceCall, groupVideoCall }) {
   const set = (k, on) => db.prepare(`
     INSERT INTO admin_settings (key, value, updated_at) VALUES (?, ?, strftime('%s','now'))
     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
@@ -313,6 +316,8 @@ function setFeatures({ moments, collect, inviteRequired }) {
   if (moments !== undefined) set('feature_moments', !!moments);
   if (collect !== undefined) set('feature_collect', !!collect);
   if (inviteRequired !== undefined) set('invite_required', !!inviteRequired);
+  if (groupVoiceCall !== undefined) set('feature_group_voice_call', !!groupVoiceCall);
+  if (groupVideoCall !== undefined) set('feature_group_video_call', !!groupVideoCall);
   return getFeatures();
 }
 
