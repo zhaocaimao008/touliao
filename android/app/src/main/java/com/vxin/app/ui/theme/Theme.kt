@@ -42,3 +42,17 @@ fun VxinTheme(
         content = content,
     )
 }
+
+/** 按用户外观偏好（跟随系统 / 日间 / 夜间）解析是否用暗色。 */
+@Composable
+fun VxinTheme(
+    mode: com.vxin.app.core.storage.ThemeMode,
+    content: @Composable () -> Unit,
+) {
+    val dark = when (mode) {
+        com.vxin.app.core.storage.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        com.vxin.app.core.storage.ThemeMode.LIGHT -> false
+        com.vxin.app.core.storage.ThemeMode.DARK -> true
+    }
+    VxinTheme(darkTheme = dark, content = content)
+}

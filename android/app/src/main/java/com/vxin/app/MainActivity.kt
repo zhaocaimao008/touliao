@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
@@ -29,6 +31,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var callManager: CallManager
     @Inject lateinit var socketManager: SocketManager
     @Inject lateinit var notificationHelper: NotificationHelper
+    @Inject lateinit var themeStore: com.vxin.app.core.storage.ThemeStore
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,7 +44,8 @@ class MainActivity : ComponentActivity() {
         if (isCallIntent(intent)) enableShowOverLockscreen()
         handleCallIntent(intent)
         setContent {
-            VxinTheme {
+            val themeMode by themeStore.mode.collectAsStateWithLifecycle()
+            VxinTheme(mode = themeMode) {
                 // 让 Compose testTag 暴露为 UiAutomator 的 resource-id（Appium 定位前提）
                 Surface(modifier = Modifier
                     .fillMaxSize()

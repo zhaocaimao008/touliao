@@ -43,4 +43,8 @@ class ProfileRepository @Inject constructor(
     /** 朋友圈"最近 N 天可见"：0=全部 / 1 / 3 / 30 */
     suspend fun setMomentsVisibleDays(days: Int) =
         userApi.updateSettings(com.vxin.app.data.model.UpdateSettingsBody(momentsVisibleDays = days))
+
+    /** 通用设置更新：仅传需要改的字段，返回更新后的完整设置 */
+    suspend fun updateSettings(body: com.vxin.app.data.model.UpdateSettingsBody) =
+        userApi.updateSettings(body)
 }

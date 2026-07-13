@@ -114,6 +114,9 @@ private object Routes {
     const val WALLET = "wallet"
     const val SESSIONS = "sessions"
     const val FRIEND_LABELS = "friendLabels"
+    const val PRIVACY = "privacySettings"
+    const val NOTIFICATIONS = "notificationSettings"
+    const val APPEARANCE = "appearanceSettings"
     const val CALL_HISTORY = "callHistory"
     const val MOMENTS = "moments"
     const val MOMENT_COMPOSE = "momentCompose"
@@ -254,6 +257,9 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                     onOpenCallHistory = { navController.navigate(Routes.CALL_HISTORY) },
                     onOpenWallet = { navController.navigate(Routes.WALLET) },
                     onOpenSessions = { navController.navigate(Routes.SESSIONS) },
+                    onOpenPrivacy = { navController.navigate(Routes.PRIVACY) },
+                    onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                    onOpenAppearance = { navController.navigate(Routes.APPEARANCE) },
                 )
             }
             composable(Routes.WALLET) {
@@ -261,6 +267,15 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
             }
             composable(Routes.SESSIONS) {
                 com.vxin.app.feature.sessions.SessionsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.PRIVACY) {
+                com.vxin.app.feature.settings.PrivacySettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.NOTIFICATIONS) {
+                com.vxin.app.feature.settings.NotificationSettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.APPEARANCE) {
+                com.vxin.app.feature.settings.AppearanceSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.CALL_HISTORY) {
                 com.vxin.app.feature.callhistory.CallHistoryScreen(

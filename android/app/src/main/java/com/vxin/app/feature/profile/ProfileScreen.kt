@@ -71,6 +71,9 @@ fun ProfileScreen(
     onOpenCallHistory: () -> Unit = {},
     onOpenWallet: () -> Unit = {},
     onOpenSessions: () -> Unit = {},
+    onOpenPrivacy: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
+    onOpenAppearance: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -225,6 +228,12 @@ fun ProfileScreen(
             OutlinedButton(onClick = onOpenCallHistory, modifier = Modifier.fillMaxWidth().testTag("profile-call-history")) { Text("通话记录") }
             Spacer(Modifier.size(12.dp))
             OutlinedButton(onClick = onOpenSessions, modifier = Modifier.fillMaxWidth().testTag("profile-sessions")) { Text("登录设备管理") }
+            Spacer(Modifier.size(12.dp))
+            OutlinedButton(onClick = onOpenPrivacy, modifier = Modifier.fillMaxWidth().testTag("profile-privacy")) { Text("隐私与安全") }
+            Spacer(Modifier.size(12.dp))
+            OutlinedButton(onClick = onOpenNotifications, modifier = Modifier.fillMaxWidth().testTag("profile-notifications")) { Text("通知") }
+            Spacer(Modifier.size(12.dp))
+            OutlinedButton(onClick = onOpenAppearance, modifier = Modifier.fillMaxWidth().testTag("profile-appearance")) { Text("外观") }
             Spacer(Modifier.size(12.dp))
             OutlinedButton(
                 onClick = { showUpdateDialog = true },
