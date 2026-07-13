@@ -548,14 +548,21 @@ export default function Home() {
     axios.get('/api/users/friend-requests').then(r => setFriendReqCount(r.data.length)).catch(() => {});
   }, []);
 
-  // 功能开关：后台可隐藏朋友圈/收藏。若当前所在 tab 被关闭则退回消息页
-  useEffect(() => {
-    axios.get('/api/config').then(r => {
-      const f = r.data?.features || {};
-      setFeatures(f);
-      setTab(prev => ((prev === 'moments' && f.moments === false) || (prev === 'favorites' && f.collect === false)) ? 'chats' : prev);
-    }).catch(() => {});
+  // 功能开关：后台可隐藏朋友圈/收藏/群语音/群视频。若当前所在 tab 被关闭则退回消息页
+  const applyFeatures = useCallback((f) => {
+    setFeatures(f || {});
+    setTab(prev => ((prev === 'moments' && f?.moments === false) || (prev === 'favorites' && f?.collect === false)) ? 'chats' : prev);
   }, []);
+  useEffect(() => {
+    axios.get('/api/config').then(r => applyFeatures(r.data?.features || {})).catch(() => {});
+  }, [applyFeatures]);
+  // 后台改动开关 → 服务端广播 config:updated → 在线端实时热更新，无需刷新
+  useEffect(() => {
+    if (!socket) return;
+    const onConfig = ({ features: f }) => applyFeatures(f || {});
+    socket.on('config:updated', onConfig);
+    return () => socket.off('config:updated', onConfig);
+  }, [socket, applyFeatures]);
 
   const fetchUnreadCounts = useCallback(() => {
     axios.get('/api/messages/unread-counts').then(({ data }) => setUnread(data)).catch(() => {});

@@ -133,7 +133,13 @@ exports.groupDetail = asyncHandler(async (req, res) => res.json(svc.groupDetail(
 exports.dismissGroup = asyncHandler(async (req, res) => { svc.dismissGroup(io(req), req.params.id); res.json({ success: true }); });
 
 exports.getFeatures = asyncHandler(async (req, res) => res.json(svc.getFeatures()));
-exports.setFeatures = asyncHandler(async (req, res) => res.json(svc.setFeatures(req.body)));
+exports.setFeatures = asyncHandler(async (req, res) => {
+  const features = svc.setFeatures(req.body);
+  // 全局广播最新开关：在线客户端无需刷新即可实时显隐入口/按钮（如群语音/视频通话）
+  const socketIo = io(req);
+  if (socketIo) socketIo.emit('config:updated', { features });
+  res.json(features);
+});
 
 exports.topInviters = asyncHandler(async (req, res) => res.json(svc.topInviters(req.query)));
 
