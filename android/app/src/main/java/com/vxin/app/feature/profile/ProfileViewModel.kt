@@ -24,6 +24,7 @@ data class ProfileUiState(
     val saving: Boolean = false,
     val uploadingAvatar: Boolean = false,
     val changingPassword: Boolean = false,
+    val deletingAccount: Boolean = false,
     val message: String? = null,     // 提示（成功/失败）
     val invite: com.vxin.app.data.model.InviteInfo? = null, // 我的专属邀请码+战绩
 )
@@ -99,12 +100,32 @@ class ProfileViewModel @Inject constructor(
         _uiState.update { it.copy(changingPassword = true, message = null) }
         viewModelScope.launch {
             runCatching { profileRepository.changePassword(oldPassword, newPassword) }
-                .onSuccess {
+                .onSuccess { newToken ->
+                    // 关键：旧 Bearer token 已被后端拉黑，立即用新 token 覆盖本地，否则下一请求 401 被登出
+                    if (!newToken.isNullOrBlank()) sessionManager.applyNewToken(newToken)
                     _uiState.update { it.copy(changingPassword = false, message = "密码已修改") }
                     onDone(true)
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(changingPassword = false, message = e.toUserMessage("修改失败")) }
+                    onDone(false)
+                }
+        }
+    }
+
+    /** 注销账户：需当前密码确认。成功后清本地登录态回登录页。onDone(true) 表示已注销。 */
+    fun deleteAccount(password: String, onDone: (Boolean) -> Unit) {
+        if (_uiState.value.deletingAccount) return
+        _uiState.update { it.copy(deletingAccount = true, message = null) }
+        viewModelScope.launch {
+            runCatching { profileRepository.deleteAccount(password) }
+                .onSuccess {
+                    _uiState.update { it.copy(deletingAccount = false) }
+                    sessionManager.deleteAccount()   // 清本地并切到未登录 → 导航自动回登录页
+                    onDone(true)
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(deletingAccount = false, message = e.toUserMessage("注销失败")) }
                     onDone(false)
                 }
         }

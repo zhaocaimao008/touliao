@@ -99,6 +99,22 @@ class SessionManager @Inject constructor(
         }
     }
 
+    /** 改密后应用新签发的 token：覆盖当前 Bearer token 与本账号已存 token，避免旧 token 失效被登出。 */
+    fun applyNewToken(token: String) {
+        if (token.isBlank()) return
+        tokenStore.token = token
+        accountStore.activeId()?.let { accountStore.updateToken(it, token) }
+    }
+
+    /** 注销账户成功后本地收尾：与 logout 一致清理，回到登录页。 */
+    suspend fun deleteAccount() {
+        pushManager.unregisterCurrentToken()   // 须在清 auth token 前
+        socketManager.disconnect()
+        tokenStore.clear()
+        accountStore.activeId()?.let { accountStore.remove(it) }
+        _state.value = AuthState.Unauthenticated
+    }
+
     suspend fun logout() {
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前
         socketManager.disconnect()

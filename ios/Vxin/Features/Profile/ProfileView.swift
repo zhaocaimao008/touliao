@@ -13,6 +13,7 @@ struct ProfileView: View {
     @State private var message: String?
     @State private var photoItem: PhotosPickerItem?
     @State private var showPasswordSheet = false
+    @State private var showDeleteSheet = false
     @State private var showAddAccount = false
     @State private var invite: InviteInfo?
     @State private var inviteCopied = false
@@ -135,6 +136,7 @@ struct ProfileView: View {
             Section {
                 Button("修改密码") { showPasswordSheet = true }
                 Button("退出登录", role: .destructive) { Task { await session.logout() } }
+                Button("注销账号", role: .destructive) { showDeleteSheet = true }
             }
         }
         .navigationTitle("我")
@@ -150,6 +152,11 @@ struct ProfileView: View {
         .sheet(isPresented: $showPasswordSheet) {
             ChangePasswordSheet { old, new in
                 await changePassword(old: old, new: new)
+            }
+        }
+        .sheet(isPresented: $showDeleteSheet) {
+            DeleteAccountSheet { password in
+                await deleteAccount(password: password)
             }
         }
     }
@@ -205,10 +212,21 @@ struct ProfileView: View {
 
     private func changePassword(old: String, new: String) async {
         do {
-            try await repo.changePassword(oldPassword: old, newPassword: new)
+            let token = try await repo.changePassword(oldPassword: old, newPassword: new)
+            // 关键：旧 Bearer token 已被后端拉黑，立即用新 token 覆盖本地，否则下一请求 401 被登出
+            if let token, !token.isEmpty { session.applyNewToken(token) }
             message = "密码已修改"
         } catch {
             message = (error as? LocalizedError)?.errorDescription ?? "修改失败"
+        }
+    }
+
+    private func deleteAccount(password: String) async {
+        do {
+            try await repo.deleteAccount(password: password)
+            await session.deleteAccount()   // 清本地登录态 → 自动回登录页
+        } catch {
+            message = (error as? LocalizedError)?.errorDescription ?? "注销失败"
         }
     }
 }
@@ -236,7 +254,7 @@ private struct ChangePasswordSheet: View {
         NavigationStack {
             Form {
                 SecureField("当前密码", text: $old)
-                SecureField("新密码（≥6位）", text: $new1)
+                SecureField("新密码（≥8位，含字母和数字）", text: $new1)
                 SecureField("确认新密码", text: $new2)
                 if let error { Text(error).foregroundColor(.vxinError).font(.footnote) }
             }
@@ -258,8 +276,43 @@ private struct ChangePasswordSheet: View {
 
     private func validate() -> String? {
         if old.isEmpty || new1.isEmpty { return "请填写完整" }
-        if new1.count < 6 { return "新密码至少6位" }
+        // 与后端一致：≥8 位且同时含字母与数字，避免过前端却被后端 400
+        let strong = new1.range(of: "^(?=.*[a-zA-Z])(?=.*\\d).{8,}$", options: .regularExpression) != nil
+        if !strong { return "新密码至少8位且需包含字母和数字" }
+        if new1 == old { return "新密码不能与当前密码相同" }
         if new1 != new2 { return "两次新密码不一致" }
         return nil
+    }
+}
+
+private struct DeleteAccountSheet: View {
+    var onConfirm: (String) async -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var password = ""
+    @State private var error: String?
+    @State private var submitting = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(footer: Text("注销后账号信息将被清除、无法登录，且此操作不可撤销。")) {
+                    SecureField("请输入当前密码确认", text: $password)
+                }
+                if let error { Text(error).foregroundColor(.vxinError).font(.footnote) }
+            }
+            .navigationTitle("注销账号")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("确认注销", role: .destructive) {
+                        guard !password.isEmpty else { error = "请输入密码"; return }
+                        submitting = true
+                        Task { await onConfirm(password); submitting = false; dismiss() }
+                    }.disabled(submitting)
+                }
+            }
+        }
     }
 }

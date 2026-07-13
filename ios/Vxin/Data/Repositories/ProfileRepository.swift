@@ -2,6 +2,9 @@ import Foundation
 
 struct UpdateProfileBody: Encodable { let username: String?; let bio: String? }
 struct ChangePasswordBody: Encodable { let oldPassword: String; let newPassword: String }
+/// 改密响应：后端下发新 token（旧 token 已失效），须覆盖本地 Bearer。
+struct ChangePasswordResponse: Decodable { let success: Bool?; let token: String? }
+struct DeleteAccountBody: Encodable { let password: String }
 struct AvatarResponse: Decodable { let avatar: String }
 
 /// 用户设置（GET /api/users/me/settings 子集）
@@ -88,10 +91,21 @@ final class ProfileRepository {
         try await api.send("api/users/profile", method: "PUT", body: UpdateProfileBody(username: username, bio: bio))
     }
 
-    func changePassword(oldPassword: String, newPassword: String) async throws {
-        let _: EmptyResponse = try await api.send(
+    /// 改密：返回后端新签发的 token（旧 token 已失效，须覆盖本地）。
+    @discardableResult
+    func changePassword(oldPassword: String, newPassword: String) async throws -> String? {
+        let res: ChangePasswordResponse = try await api.send(
             "api/auth/change-password", method: "PUT",
             body: ChangePasswordBody(oldPassword: oldPassword, newPassword: newPassword)
+        )
+        return res.token
+    }
+
+    /// 注销账户（需当前密码确认）。
+    func deleteAccount(password: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/auth/delete-account", method: "POST",
+            body: DeleteAccountBody(password: password)
         )
     }
 

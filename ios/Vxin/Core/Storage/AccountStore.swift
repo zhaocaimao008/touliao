@@ -33,6 +33,14 @@ final class AccountStore {
 
     func token(for id: String) -> String? { accounts().first { $0.id == id }?.token }
 
+    /// 更新指定账号已存 token（改密后旧 token 失效、拿到新 token 时用）。
+    func updateToken(_ id: String, _ token: String) {
+        let list = accounts().map { acc -> StoredAccount in
+            acc.id == id ? StoredAccount(id: acc.id, username: acc.username, avatar: acc.avatar, token: token) : acc
+        }
+        save(list)
+    }
+
     func setActive(_ id: String) { UserDefaults.standard.set(id, forKey: activeKey) }
 
     func remove(_ id: String) {

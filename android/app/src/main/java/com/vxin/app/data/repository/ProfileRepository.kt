@@ -20,8 +20,13 @@ class ProfileRepository @Inject constructor(
     suspend fun uploadAvatar(part: MultipartBody.Part): String =
         userApi.uploadAvatar(part).avatar
 
-    suspend fun changePassword(oldPassword: String, newPassword: String) =
-        authApi.changePassword(ChangePasswordRequest(oldPassword, newPassword))
+    /** 改密：返回后端新签发的 token（旧 token 已失效，须覆盖本地）。 */
+    suspend fun changePassword(oldPassword: String, newPassword: String): String? =
+        authApi.changePassword(ChangePasswordRequest(oldPassword, newPassword)).token
+
+    /** 注销账户（需当前密码确认）。 */
+    suspend fun deleteAccount(password: String) =
+        authApi.deleteAccount(com.vxin.app.data.model.DeleteAccountRequest(password))
 
     /** 我的二维码 PNG 字节（需 Bearer） */
     suspend fun qrcodeBytes(): ByteArray = userApi.qrcode().bytes()

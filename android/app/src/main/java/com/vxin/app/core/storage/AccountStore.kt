@@ -39,6 +39,12 @@ class AccountStore @Inject constructor(
 
     fun tokenFor(id: String): String? = accounts().firstOrNull { it.id == id }?.token
 
+    /** 更新指定账号已存的 token（如改密后旧 token 失效、拿到新 token）。 */
+    fun updateToken(id: String, token: String) {
+        val next = accounts().map { if (it.id == id) it.copy(token = token) else it }
+        save(next)
+    }
+
     fun setActive(id: String) { prefs.edit().putString(KEY_ACTIVE, id).apply() }
 
     /** 移除账号，返回剩余账号 */

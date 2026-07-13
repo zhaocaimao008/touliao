@@ -84,6 +84,22 @@ final class SessionStore: ObservableObject {
         if id != AccountStore.shared.activeId() { AccountStore.shared.remove(id) }
     }
 
+    /// 改密后应用新签发的 token：覆盖当前 Bearer token 与本账号已存 token，避免旧 token 失效被登出。
+    func applyNewToken(_ token: String) {
+        guard !token.isEmpty else { return }
+        KeychainStore.shared.token = token
+        if let active = AccountStore.shared.activeId() { AccountStore.shared.updateToken(active, token) }
+    }
+
+    /// 注销账户成功后本地收尾：清登录态回登录页（与 logout 一致，但不再调 /logout）。
+    func deleteAccount() async {
+        await PushManager.shared.unregister()
+        SocketService.shared.disconnect()
+        if let active = AccountStore.shared.activeId() { AccountStore.shared.remove(active) }
+        KeychainStore.shared.clear()
+        state = .unauthenticated
+    }
+
     func logout() async {
         await PushManager.shared.unregister()
         SocketService.shared.disconnect()

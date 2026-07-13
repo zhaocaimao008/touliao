@@ -24,8 +24,13 @@ interface AuthApi {
     @POST("api/auth/logout")
     suspend fun logout()
 
+    /** 修改密码；需 Bearer。旧 token 失效，响应带新 token，须覆盖本地。 */
     @PUT("api/auth/change-password")
-    suspend fun changePassword(@Body body: com.vxin.app.data.model.ChangePasswordRequest)
+    suspend fun changePassword(@Body body: com.vxin.app.data.model.ChangePasswordRequest): com.vxin.app.data.model.ChangePasswordResponse
+
+    /** 注销账户（需当前密码确认；需 Bearer）。成功后本地须清登录态。 */
+    @POST("api/auth/delete-account")
+    suspend fun deleteAccount(@Body body: com.vxin.app.data.model.DeleteAccountRequest): com.vxin.app.data.model.SuccessResponse
 
     /** 忘记密码：手机号 + 邀请码验证后重置 */
     @POST("api/auth/reset-password")
