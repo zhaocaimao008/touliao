@@ -206,6 +206,11 @@ async function deleteAccount(userId, password) {
 }
 
 async function changePassword(userId, { oldPassword, newPassword, currentToken }) {
+  // 后台开关拦截：关闭「自助修改密码」后，任何客户端（含绕过 UI 的直连）都被拒绝。
+  // 直接读 admin_settings，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
+  if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_change_password')?.value === 'off') {
+    throw forbidden('管理员已关闭自助修改密码功能');
+  }
   if (!oldPassword || !newPassword) throw badRequest('请填写完整');
   if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword)) throw badRequest('新密码至少8位且需包含字母和数字');
   const user = db.prepare('SELECT id,username,password,banned FROM users WHERE id=?').get(userId);

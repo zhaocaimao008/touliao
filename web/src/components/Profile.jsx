@@ -667,10 +667,15 @@ function PrivacySettings({ user, onBack }) {
     addByVxinId: true, addByPhone: true, addByQRCode: true, addByUsername: true, requireVerify: true,
     noDirectGroupInvite: false,
   });
+  // 后台「自助修改密码」开关：关闭则隐藏「修改密码」入口（后端亦拦截）
+  const [changePwdAllowed, setChangePwdAllowed] = useState(true);
 
   useEffect(() => {
     axios.get('/api/users/me/settings')
       .then(({ data }) => setSettings(s => ({ ...s, ...data })))
+      .catch(() => {});
+    axios.get('/api/config')
+      .then(({ data }) => setChangePwdAllowed(data?.features?.changePassword !== false))
       .catch(() => {});
   }, []);
 
@@ -717,9 +722,11 @@ function PrivacySettings({ user, onBack }) {
           <CRow label="不允许好友直接邀请我进群" desc="开启后好友无法把你直接拉进群，需你扫码/点链接自行加入"
             right={<Toggle checked={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
         </Card>
-        <Card className="wc-privacy-card-mt">
-          <CRow label="修改密码" desc="定期修改可提升账号安全" onClick={() => setPage('change-password')} />
-        </Card>
+        {changePwdAllowed && (
+          <Card className="wc-privacy-card-mt">
+            <CRow label="修改密码" desc="定期修改可提升账号安全" onClick={() => setPage('change-password')} />
+          </Card>
+        )}
       </div>
     </PageBg>
   );
