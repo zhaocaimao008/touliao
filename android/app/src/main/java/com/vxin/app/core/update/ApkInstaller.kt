@@ -36,10 +36,20 @@ class ApkInstaller @Inject constructor(
      * - Android 10+(Q) 需额外处理，但 FileProvider+标准 Intent 就行
      * - 调用前最好检查 [canRequestPackageInstalls]（用户在系统弹窗也能拒绝）
      */
-    fun install(apkFile: File) {
+    /**
+     * 触发系统安装器。返回是否成功启动安装 Intent。
+     * - 若 Android 8+ 未授予「安装未知应用」权限 → 返回 false（调用方应引导去授权）。
+     * - 旧实现直接 startActivity 而不校验权限：未授权时被系统静默拦截，
+     *   表现为「点了更新没反应」——这是本次修复的核心。
+     */
+    fun install(apkFile: File): Boolean {
         if (!apkFile.exists()) {
             Log.e(TAG, "APK 文件不存在: ${apkFile.absolutePath}")
-            return
+            return false
+        }
+        if (!canRequestPackageInstalls()) {
+            Log.w(TAG, "未授予安装未知应用权限，无法启动安装")
+            return false
         }
 
         val apkUri = FileProvider.getUriForFile(
@@ -52,15 +62,38 @@ class ApkInstaller @Inject constructor(
             setDataAndType(apkUri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
-            // Android 14+(34) 要求，但加无害
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
             }
         }
 
-        Log.i(TAG, "启动安装器: $apkUri")
-        context.startActivity(intent)
+        return try {
+            Log.i(TAG, "启动安装器: $apkUri")
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "启动安装器失败: ${e.message}")
+            false
+        }
+    }
+
+    /** 打开系统「安装未知应用」授权页，指向本 App。授权后用户可再次点更新完成安装。 */
+    fun openInstallPermissionSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        runCatching {
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                    .setData(Uri.parse("package:${context.packageName}"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }.onFailure {
+            runCatching {
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+        }
     }
 
     /**

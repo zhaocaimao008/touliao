@@ -40,6 +40,9 @@ sealed class UpdateUiState {
     /** 下载完成，即将安装 */
     data class ReadyToInstall(val file: File) : UpdateUiState()
 
+    /** 已下载但缺少「安装未知应用」权限，需引导用户去系统授权 */
+    data class NeedInstallPermission(val file: File) : UpdateUiState()
+
     /** 错误 */
     data class Error(val message: String) : UpdateUiState()
 }
@@ -67,6 +70,8 @@ class UpdateViewModel @Inject constructor(
 
     // 缓存当前有效的新版信息（下载进度和安装阶段仍需要）
     private var availableVersion: CheckResult.Available? = null
+    // 缓存已下载的 APK，用户去授权返回后可直接安装，无需重新下载
+    private var downloadedFile: File? = null
 
     /** 启动时静默检查（在 AppViewModel 或 Application 中调用） */
     fun silentCheck() {
@@ -130,14 +135,35 @@ class UpdateViewModel @Inject constructor(
                     }
                 }
             }.onSuccess { file ->
-                _uiState.value = UpdateUiState.ReadyToInstall(file)
-                // 立即触发安装
+                downloadedFile = file
+                // 关键修复：先校验「安装未知应用」权限，未授权则引导去开，避免静默失败（点了没反应）
                 withContext(Dispatchers.Main) {
-                    apkInstaller.install(file)
+                    if (apkInstaller.canRequestPackageInstalls()) {
+                        _uiState.value = UpdateUiState.ReadyToInstall(file)
+                        apkInstaller.install(file)
+                    } else {
+                        _uiState.value = UpdateUiState.NeedInstallPermission(file)
+                    }
                 }
             }.onFailure { e ->
                 _uiState.value = UpdateUiState.Error("下载失败：${e.localizedMessage ?: "未知错误"}")
             }
+        }
+    }
+
+    /** 用户点「去授权」：打开系统「安装未知应用」授权页。 */
+    fun openInstallPermissionSettings() {
+        apkInstaller.openInstallPermissionSettings()
+    }
+
+    /** 从系统授权页返回后重试安装：已授权则装已下载的包，仍未授权则维持引导。 */
+    fun retryInstall() {
+        val file = downloadedFile ?: return
+        if (apkInstaller.canRequestPackageInstalls()) {
+            _uiState.value = UpdateUiState.ReadyToInstall(file)
+            apkInstaller.install(file)
+        } else {
+            _uiState.value = UpdateUiState.NeedInstallPermission(file)
         }
     }
 

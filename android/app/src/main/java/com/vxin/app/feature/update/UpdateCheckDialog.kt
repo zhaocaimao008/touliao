@@ -122,6 +122,32 @@ fun UpdateCheckDialog(
             // 空 Compositon：让 dialog 瞬间消失
         }
 
+        is UpdateUiState.NeedInstallPermission -> {
+            // 监听 App 回到前台（从系统授权页返回）→ 自动重试安装
+            val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+            androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+                val obs = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.retryInstall()
+                }
+                lifecycleOwner.lifecycle.addObserver(obs)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+            }
+            AlertDialog(
+                onDismissRequest = { viewModel.dismiss(); onDismiss() },
+                title = { Text("需要安装权限") },
+                text = { Text("为完成更新，请在系统设置中允许 v信 安装未知应用，授权后将自动继续安装。") },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.openInstallPermissionSettings() },
+                        colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+                    ) { Text("去授权") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismiss(); onDismiss() }) { Text("稍后") }
+                },
+            )
+        }
+
         is UpdateUiState.Error -> {
             AlertDialog(
                 onDismissRequest = { viewModel.dismiss(); onDismiss() },
