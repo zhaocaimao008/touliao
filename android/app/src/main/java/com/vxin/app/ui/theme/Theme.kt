@@ -6,7 +6,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 
 private val LightColors = lightColorScheme(
     primary = VxinGreen,
@@ -64,13 +65,8 @@ fun VxinTheme(
  */
 @Composable
 fun VxinThemeWithPref(content: @Composable () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val mode = remember {
-        runCatching {
-            val raw = context.getSharedPreferences("vxin_theme", android.content.Context.MODE_PRIVATE)
-                .getString("theme_mode", "SYSTEM") ?: "SYSTEM"
-            com.vxin.app.core.storage.ThemeMode.valueOf(raw)
-        }.getOrDefault(com.vxin.app.core.storage.ThemeMode.SYSTEM)
-    }
+    // 订阅全局主题流（模块级 StateFlow，无 DI、无 LifecycleOwner 依赖）：
+    // 切换外观即时重组换肤；初值已由 App 启动时从 prefs 同步。
+    val mode by com.vxin.app.core.storage.ThemeStore.live.collectAsState()
     VxinTheme(mode = mode, content = content)
 }

@@ -10,6 +10,12 @@ import dagger.hilt.android.HiltAndroidApp
 @HiltAndroidApp
 class VxinApp : Application(), ImageLoaderFactory {
 
+    override fun onCreate() {
+        super.onCreate()
+        // 启动即把持久化的外观偏好同步进全局主题流，保证首帧就是用户选择的主题（同步、无 DI、异常兜底）。
+        com.vxin.app.core.storage.ThemeStore.syncInitial(this)
+    }
+
     /**
      * 自定义 Coil ImageLoader：
      * 1) 稳定磁盘缓存键——/uploads 受保护资源的地址带 ?token=<JWT>，而 Coil 默认以
