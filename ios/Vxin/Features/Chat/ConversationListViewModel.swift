@@ -96,6 +96,28 @@ final class ConversationListViewModel: ObservableObject {
         Task { await repo.markRead(conversationId: conv.id, messageId: nil) }
     }
 
+    /// 标为未读（对齐 Web：手动置未读，列表出现红点）
+    func markUnread(_ conv: Conversation) {
+        if let idx = conversations.firstIndex(where: { $0.id == conv.id }) {
+            conversations[idx].manuallyUnread = 1
+            if conversations[idx].unreadCount == 0 { conversations[idx].unreadCount = 1 }
+        }
+        Task {
+            do { try await repo.markConversationUnread(conv.id) }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "操作失败" }
+        }
+    }
+
+    /// 打开「文件传输助手」会话：获取或创建后回调其 id 供导航打开。
+    func openFileHelper(_ onReady: @escaping (Conversation) -> Void) {
+        Task {
+            do {
+                let convId = try await repo.fileHelper()
+                onReady(Conversation(id: convId, type: "filehelper", name: "文件传输助手"))
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "打开失败" }
+        }
+    }
+
     private func clearUnread(_ conversationId: String) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }),
               conversations[idx].unreadCount != 0 else { return }

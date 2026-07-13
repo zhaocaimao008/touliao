@@ -46,6 +46,7 @@ final class ChatViewModel: ObservableObject {
     @Published var forwardTarget: Message?
     @Published var closed = false   // 被踢/群解散 → 关闭聊天页
     @Published var background = ""   // 聊天专属背景图 URL（空=无）
+    @Published var burnAfter = 0     // 阅后即焚秒数（0=关闭）
     // 后台功能开关（群通话按钮显隐）默认开启，拉取失败不误伤
     @Published var groupVoiceCallEnabled = true
     @Published var groupVideoCallEnabled = true
@@ -215,7 +216,19 @@ final class ChatViewModel: ObservableObject {
     func loadBackground() async {
         if let conv = try? await repo.loadConversations().first(where: { $0.id == conversationId }) {
             if !conv.background.isEmpty { background = conv.background }
+            burnAfter = conv.burnAfter
             if peerUserId == nil, let pid = conv.peerId { peerUserId = pid }  // 回填对端id,供通话用
+        }
+    }
+
+    /// 设置阅后即焚（seconds=0 关闭）。
+    func setBurnAfter(_ seconds: Int) {
+        Task {
+            do {
+                try await repo.setBurnAfter(conversationId, seconds: seconds)
+                burnAfter = seconds
+                error = seconds > 0 ? "已开启阅后即焚" : "已关闭阅后即焚"
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "设置失败" }
         }
     }
 
@@ -359,6 +372,17 @@ final class ChatViewModel: ObservableObject {
             await StickerRepository.shared.collect(url: url)
             error = "已添加到表情"
             loadStickers()
+        }
+    }
+
+    /// 上传自定义表情（从相册选图）。
+    func uploadSticker(data: Data, fileName: String) {
+        Task {
+            do {
+                _ = try await StickerRepository.shared.upload(data: data, fileName: fileName)
+                error = "表情已添加"
+                loadStickers()
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "上传失败" }
         }
     }
 

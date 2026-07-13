@@ -7,6 +7,15 @@ final class AuthRepository {
 
     private let api = APIClient.shared
 
+    // ── 登录设备/会话管理 ──
+    func sessions() async throws -> [DeviceSession] { try await api.send("api/auth/sessions") }
+    func deleteSession(_ id: String) async throws {
+        let _: EmptyResponse? = try? await api.send("api/auth/sessions/\(id)", method: "DELETE")
+    }
+    func deleteOtherSessions() async throws {
+        let _: EmptyResponse? = try? await api.send("api/auth/sessions", method: "DELETE")
+    }
+
     func login(phone: String, password: String) async throws -> User {
         let res: AuthResponse = try await api.send(
             "api/auth/login", method: "POST",

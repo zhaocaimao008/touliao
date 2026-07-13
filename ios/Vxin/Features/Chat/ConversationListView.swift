@@ -29,6 +29,14 @@ struct ConversationListView: View {
                         Button { path.append(SearchRoute.search) } label: { Image(systemName: "magnifyingglass") }
                             .accessibilityLabel("搜索")
                     }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Menu {
+                            Button { vm.openFileHelper { conv in path.append(conv) } } label: {
+                                Label("文件传输助手", systemImage: "doc.on.doc")
+                            }
+                        } label: { Image(systemName: "plus") }
+                            .accessibilityLabel("更多")
+                    }
                 }
                 .navigationDestination(for: Conversation.self) { conv in
                     ChatView(conversation: conv, myId: myId, onOpenGroupInfo: { path.append(GroupRoute.info(conv.id)) })
@@ -83,6 +91,8 @@ struct ConversationListView: View {
                 .contextMenu {
                     if conv.unreadCount > 0 {
                         Button("标为已读") { vm.markRead(conv) }
+                    } else {
+                        Button("标为未读") { vm.markUnread(conv) }
                     }
                     Button(conv.pinned == 1 ? "取消置顶" : "置顶") { vm.togglePin(conv) }
                     Button(conv.muted == 1 ? "取消免打扰" : "消息免打扰") { vm.toggleMute(conv) }

@@ -100,13 +100,18 @@ struct ProfileView: View {
             }
 
             Section {
+                NavigationLink { WalletView() } label: {
+                    Label("我的钱包", systemImage: "creditcard")
+                }
                 NavigationLink { CallHistoryView() } label: {
                     Label("通话记录", systemImage: "phone")
+                }
+                NavigationLink { SessionsView() } label: {
+                    Label("登录设备管理", systemImage: "desktopcomputer")
                 }
             }
 
             Section("设置") {
-                // 设备管理：后端暂无设备列表/远程登出接口，暂不提供入口
                 NavigationLink("隐私与安全") { PrivacySecurityView() }
                 NavigationLink("外观") { AppearanceSettingsView() }
                 NavigationLink("通知") { NotificationSettingsView() }

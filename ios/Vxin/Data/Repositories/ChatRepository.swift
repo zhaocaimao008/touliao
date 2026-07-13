@@ -146,6 +146,26 @@ final class ChatRepository {
         )
     }
 
+    /// 标为未读（会话列表长按） */
+    func markConversationUnread(_ conversationId: String) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/mark-unread", method: "POST"
+        )
+    }
+
+    /// 阅后即焚（seconds=0 关闭）
+    func setBurnAfter(_ conversationId: String, seconds: Int) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/burn-after", method: "POST", body: BurnAfterBody(seconds: seconds)
+        )
+    }
+
+    /// 文件传输助手会话（获取或创建），返回 conversationId
+    func fileHelper() async throws -> String {
+        let res: FileHelperResponse = try await api.send("api/messages/file-helper")
+        return res.conversationId
+    }
+
     func editMessage(_ msgId: String, content: String) async throws {
         let _: EmptyResponse = try await api.send(
             "api/messages/\(msgId)/edit", method: "PUT", body: EditBody(content: content)
@@ -176,6 +196,8 @@ private struct BackgroundBody: Encodable { let background: String }
 private struct PinMessageBody: Encodable { let msgId: String }
 private struct PinConvBody: Encodable { let pinned: Int }
 private struct MuteConvBody: Encodable { let muted: Int }
+private struct BurnAfterBody: Encodable { let seconds: Int }
+private struct FileHelperResponse: Decodable { let conversationId: String }
 private struct EditBody: Encodable { let content: String }
 private struct ForwardBody: Encodable { let msgId: String; let conversationIds: [String] }
 private struct DeleteMessageBody: Encodable { let forEveryone: Bool; let vanish: Bool? }

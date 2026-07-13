@@ -5,11 +5,19 @@ import UniformTypeIdentifiers
 import Kingfisher
 
 struct ChatView: View {
+    // 阅后即焚选项（对齐 Web BURN_OPTIONS）。
+    static let burnOptions: [(Int, String)] = [
+        (0, "关闭"), (10, "10秒"), (30, "30秒"), (60, "1分钟"),
+        (300, "5分钟"), (3600, "1小时"), (86400, "24小时"), (604800, "7天"),
+    ]
+    static func burnLabel(_ seconds: Int) -> String { burnOptions.first { $0.0 == seconds }?.1 ?? "\(seconds)秒" }
+
     @StateObject private var vm: ChatViewModel
     @EnvironmentObject private var session: SessionStore
     @Environment(\.dismiss) private var dismiss
     @State private var photoItem: PhotosPickerItem?
     @State private var bgPhotoItem: PhotosPickerItem?
+    @State private var stickerPhotoItem: PhotosPickerItem?
     @State private var showFileImporter = false
     @State private var showStickerPanel = false
     @State private var showFuncPanel = false
@@ -99,11 +107,23 @@ struct ChatView: View {
                     if !vm.background.isEmpty {
                         Button(role: .destructive) { vm.clearBackground() } label: { Label("清除聊天背景", systemImage: "trash") }
                     }
+                    Menu {
+                        ForEach(ChatView.burnOptions, id: \.0) { secs, label in
+                            Button {
+                                vm.setBurnAfter(secs)
+                            } label: {
+                                if vm.burnAfter == secs { Label(label, systemImage: "checkmark") } else { Text(label) }
+                            }
+                        }
+                    } label: {
+                        Label("阅后即焚" + (vm.burnAfter > 0 ? "（\(ChatView.burnLabel(vm.burnAfter))）" : ""), systemImage: "flame")
+                    }
                 } label: { Image(systemName: "photo.on.rectangle") }
-                .accessibilityLabel("聊天背景设置")
+                .accessibilityLabel("聊天设置")
             }
         }
         .onChange(of: bgPhotoItem) { item in handleBgPhoto(item) }
+        .onChange(of: stickerPhotoItem) { item in handleStickerPhoto(item) }
         .onChange(of: vm.input) { _ in vm.userIsTyping() }
         .onChange(of: vm.closed) { closed in if closed { dismiss() } }
         .onDisappear { vm.onLeave() }
@@ -450,8 +470,16 @@ struct ChatView: View {
                 }
                 .padding(.horizontal, 8)
             }
+            Divider()
+            HStack {
+                Text("我的表情").font(.caption).foregroundColor(.vxinTextSecondary)
+                Spacer()
+                PhotosPicker(selection: $stickerPhotoItem, matching: .images) {
+                    Label("添加", systemImage: "plus").font(.caption).foregroundColor(.vxinGreen)
+                }
+            }
+            .padding(.horizontal, 8)
             if !vm.stickers.isEmpty {
-                Divider()
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(vm.stickers) { s in
@@ -463,7 +491,7 @@ struct ChatView: View {
                     .padding(.horizontal, 8)
                 }
             } else {
-                Text("还没有表情，长按聊天图片可「收藏表情」").font(.caption2).foregroundColor(.vxinTextSecondary).padding(8)
+                Text("还没有表情，点右上「添加」上传，或长按聊天图片「收藏表情」").font(.caption2).foregroundColor(.vxinTextSecondary).padding(8)
             }
         }
         .frame(height: 150)
@@ -506,6 +534,17 @@ struct ChatView: View {
             let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.85) ?? data
             let name = "bg_\(Int(Date().timeIntervalSince1970)).jpg"
             vm.setBackground(data: jpeg, fileName: name)
+        }
+    }
+
+    private func handleStickerPhoto(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            defer { stickerPhotoItem = nil }
+            guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+            let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.9) ?? data
+            let name = "sticker_\(Int(Date().timeIntervalSince1970)).jpg"
+            vm.uploadSticker(data: jpeg, fileName: name)
         }
     }
 

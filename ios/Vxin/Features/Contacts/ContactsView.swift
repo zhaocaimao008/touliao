@@ -7,6 +7,7 @@ enum ContactRoute: Hashable {
     case requests
     case createGroup
     case blocked
+    case labels
 }
 
 struct ContactsView: View {
@@ -15,6 +16,7 @@ struct ContactsView: View {
     var onRequests: () -> Void
     var onCreateGroup: () -> Void
     var onOpenBlocked: () -> Void = {}
+    var onOpenLabels: () -> Void = {}
 
     @StateObject private var vm = ContactsViewModel()
     @State private var remarkTarget: Contact?
@@ -35,6 +37,13 @@ struct ContactsView: View {
                                 .padding(.horizontal, 6).padding(.vertical, 2)
                                 .background(Color.vxinError).clipShape(Capsule())
                         }
+                        Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                    }
+                }
+                Button(action: onOpenLabels) {
+                    HStack {
+                        Text("好友标签").foregroundColor(.primary)
+                        Spacer()
                         Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
                     }
                 }

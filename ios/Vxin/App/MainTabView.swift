@@ -44,7 +44,8 @@ private struct ContactsTab: View {
                 onAddFriend: { path.append(ContactRoute.addFriend) },
                 onRequests: { path.append(ContactRoute.requests) },
                 onCreateGroup: { path.append(ContactRoute.createGroup) },
-                onOpenBlocked: { path.append(ContactRoute.blocked) }
+                onOpenBlocked: { path.append(ContactRoute.blocked) },
+                onOpenLabels: { path.append(ContactRoute.labels) }
             )
             .navigationDestination(for: Conversation.self) { conv in
                 ChatView(conversation: conv, myId: myId, onOpenGroupInfo: { path.append(GroupRoute.info(conv.id)) })
@@ -65,7 +66,8 @@ private struct ContactsTab: View {
                         onAddFriend: { path.append(ContactRoute.addFriend) },
                         onRequests: { path.append(ContactRoute.requests) },
                         onCreateGroup: { path.append(ContactRoute.createGroup) },
-                        onOpenBlocked: { path.append(ContactRoute.blocked) }
+                        onOpenBlocked: { path.append(ContactRoute.blocked) },
+                        onOpenLabels: { path.append(ContactRoute.labels) }
                     )
                 case .addFriend:
                     AddFriendView()
@@ -78,6 +80,8 @@ private struct ContactsTab: View {
                     })
                 case .blocked:
                     BlockedView()
+                case .labels:
+                    FriendLabelsView()
                 }
             }
         }

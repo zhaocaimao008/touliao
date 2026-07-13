@@ -14,6 +14,8 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
     var pinned: Int = 0
     var muted: Int = 0
     var background: String = ""           // 聊天专属背景图（空=无）
+    var burnAfter: Int = 0                // 阅后即焚秒数（0=关闭）
+    var manuallyUnread: Int = 0           // 手动标为未读（1=是）
     var otherUser: OtherUser?             // 私聊对端信息(后端 listConversations 返回);通话/资料取对端 id 用
     var hasMention: Bool = false          // 有未读的@我(后端按 last_read_at 派生);读后随刷新消失
 
@@ -30,6 +32,8 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
         case id, type, name, avatar
         case lastMessage, lastMessageType, lastTime, lastSenderName
         case unreadCount, pinned, muted, background, otherUser, hasMention
+        case burnAfter = "burn_after"
+        case manuallyUnread = "manually_unread"
     }
 
     /// 本地构建（如刚创建的私聊会话），用于导航跳转
@@ -54,6 +58,8 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
         pinned = (try? c.decode(Int.self, forKey: .pinned)) ?? 0
         muted = (try? c.decode(Int.self, forKey: .muted)) ?? 0
         background = (try? c.decode(String.self, forKey: .background)) ?? ""
+        burnAfter = (try? c.decode(Int.self, forKey: .burnAfter)) ?? 0
+        manuallyUnread = (try? c.decode(Int.self, forKey: .manuallyUnread)) ?? 0
         otherUser = try? c.decode(OtherUser.self, forKey: .otherUser)
         hasMention = (try? c.decode(Bool.self, forKey: .hasMention)) ?? false
     }

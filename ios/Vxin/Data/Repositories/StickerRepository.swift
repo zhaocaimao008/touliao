@@ -22,4 +22,14 @@ final class StickerRepository {
     func collect(url: String) async {
         let _: EmptyResponse? = try? await api.send("api/stickers/collect", method: "POST", body: StickerCollectBody(url: url))
     }
+
+    /// 上传自定义表情图片（字段名 image），返回新表情 URL。
+    func upload(data: Data, fileName: String) async throws -> String {
+        let res: StickerUploadResponse = try await api.upload(
+            "api/stickers/upload", fileData: data, fileName: fileName, mimeType: "image/jpeg", fieldName: "image"
+        )
+        return res.url
+    }
 }
+
+private struct StickerUploadResponse: Decodable { let id: String; let url: String }
