@@ -25,6 +25,7 @@ data class ProfileUiState(
     val uploadingAvatar: Boolean = false,
     val changingPassword: Boolean = false,
     val deletingAccount: Boolean = false,
+    val changePasswordAllowed: Boolean = true, // 后台「自助修改密码」开关，关闭则隐藏入口
     val message: String? = null,     // 提示（成功/失败）
     val invite: com.vxin.app.data.model.InviteInfo? = null, // 我的专属邀请码+战绩
 )
@@ -35,12 +36,22 @@ class ProfileViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val mediaUploader: MediaUploader,
     private val mediaUrlResolver: MediaUrlResolver,
+    private val configApi: com.vxin.app.data.api.ConfigApi,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState(user = sessionManager.currentUser))
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
-    init { loadInvite() }
+    init { loadInvite(); loadFeatures() }
+
+    /** 拉取后台功能开关，同步「修改密码」入口显隐；失败保持默认开启，不误伤。 */
+    private fun loadFeatures() {
+        viewModelScope.launch {
+            runCatching { configApi.getConfig() }.onSuccess { cfg ->
+                _uiState.update { it.copy(changePasswordAllowed = cfg.features.changePassword) }
+            }
+        }
+    }
 
     /** 拉取我的专属邀请码与邀请战绩；失败静默（不打扰主资料流程）。 */
     fun loadInvite() {

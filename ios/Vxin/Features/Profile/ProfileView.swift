@@ -15,6 +15,7 @@ struct ProfileView: View {
     @State private var showPasswordSheet = false
     @State private var showDeleteSheet = false
     @State private var showAddAccount = false
+    @State private var changePwdAllowed = true   // 后台「自助修改密码」开关
     @State private var invite: InviteInfo?
     @State private var inviteCopied = false
 
@@ -139,7 +140,9 @@ struct ProfileView: View {
             if let message { Section { Text(message).foregroundColor(.vxinGreen).font(.footnote) } }
 
             Section {
-                Button("修改密码") { showPasswordSheet = true }
+                if changePwdAllowed {
+                    Button("修改密码") { showPasswordSheet = true }
+                }
                 Button("退出登录", role: .destructive) { Task { await session.logout() } }
                 Button("注销账号", role: .destructive) { showDeleteSheet = true }
             }
@@ -152,6 +155,7 @@ struct ProfileView: View {
             if username.isEmpty { username = session.currentUser?.username ?? "" }
             if bio.isEmpty { bio = session.currentUser?.bio ?? "" }
             if invite == nil { Task { invite = try? await repo.myInvite() } }
+            Task { changePwdAllowed = await ProfileRepository.shared.changePasswordAllowed() }
         }
         .onChange(of: photoItem) { item in handlePhoto(item) }
         .sheet(isPresented: $showPasswordSheet) {

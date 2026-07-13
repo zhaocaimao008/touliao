@@ -109,6 +109,16 @@ final class ProfileRepository {
         )
     }
 
+    /// 后台「自助修改密码」开关（GET /api/config）。失败视为允许，不误伤。
+    func changePasswordAllowed() async -> Bool {
+        struct CfgResp: Decodable {
+            struct Features: Decodable { let changePassword: Bool? }
+            let features: Features?
+        }
+        guard let cfg: CfgResp = try? await api.send("api/config", authorized: false) else { return true }
+        return cfg.features?.changePassword ?? true
+    }
+
     func uploadAvatar(data: Data, fileName: String) async throws -> String {
         let res: AvatarResponse = try await api.upload(
             "api/users/avatar", fileData: data, fileName: fileName, mimeType: "image/jpeg", fieldName: "avatar"

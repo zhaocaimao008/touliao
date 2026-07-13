@@ -238,8 +238,10 @@ fun ProfileScreen(
                     Text("检查更新")
                 }
             }
-            Spacer(Modifier.size(12.dp))
-            OutlinedButton(onClick = { showPwdDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("修改密码") }
+            if (state.changePasswordAllowed) {
+                Spacer(Modifier.size(12.dp))
+                OutlinedButton(onClick = { showPwdDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("修改密码") }
+            }
             Spacer(Modifier.size(12.dp))
             Button(
                 onClick = viewModel::logout,
