@@ -11,8 +11,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
@@ -21,7 +19,7 @@ import com.vxin.app.core.call.CallManager
 import com.vxin.app.core.push.NotificationHelper
 import com.vxin.app.core.realtime.SocketManager
 import com.vxin.app.navigation.AppNavigation
-import com.vxin.app.ui.theme.VxinTheme
+import com.vxin.app.ui.theme.VxinThemeWithPref
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -31,7 +29,6 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var callManager: CallManager
     @Inject lateinit var socketManager: SocketManager
     @Inject lateinit var notificationHelper: NotificationHelper
-    @Inject lateinit var themeStore: com.vxin.app.core.storage.ThemeStore
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,8 +41,9 @@ class MainActivity : ComponentActivity() {
         if (isCallIntent(intent)) enableShowOverLockscreen()
         handleCallIntent(intent)
         setContent {
-            val themeMode by themeStore.mode.collectAsStateWithLifecycle()
-            VxinTheme(mode = themeMode) {
+            // 主题：由 VxinTheme 内部读取本地外观偏好（不在 Activity 根注入/收集 Flow，
+            // 与 1.0.14 的启动路径保持一致，杜绝启动期换肤相关的崩溃风险）。
+            VxinThemeWithPref {
                 // 让 Compose testTag 暴露为 UiAutomator 的 resource-id（Appium 定位前提）
                 Surface(modifier = Modifier
                     .fillMaxSize()

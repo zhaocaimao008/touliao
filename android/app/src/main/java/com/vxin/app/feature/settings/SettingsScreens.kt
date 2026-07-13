@@ -122,6 +122,12 @@ fun AppearanceSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = 
         ThemeRow("日间模式", ThemeMode.LIGHT, mode) { viewModel.setThemeMode(it) }
         HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp)
         ThemeRow("夜间模式", ThemeMode.DARK, mode) { viewModel.setThemeMode(it) }
+        Text(
+            "切换后重新打开 App 生效",
+            Modifier.padding(16.dp, 12.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
