@@ -206,6 +206,7 @@ function EditBio({ user, updateUser, onBack }) {
 
 /* ── 修改密码 ── */
 function ChangePassword({ onBack }) {
+  const { applyToken } = useAuth();
   const [oldPassword, setOld] = useState('');
   const [newPassword, setNew] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -224,7 +225,10 @@ function ChangePassword({ onBack }) {
     if (newPassword !== confirm) { setError('两次输入的新密码不一致'); return; }
     setSaving(true); setError('');
     try {
-      await axios.put('/api/auth/change-password', { oldPassword, newPassword });
+      const { data } = await axios.put('/api/auth/change-password', { oldPassword, newPassword });
+      // 关键：后端改密后旧 token 已失效并下发新 token。Bearer 客户端(桌面/移动)必须立即用新 token
+      // 覆盖本地，否则下一条请求会 401 被强制登出，表现为「改密后功能异常」。浏览器 Cookie 客户端无副作用。
+      if (data?.token) applyToken(data.token);
       setDone(true);
       backTimerRef.current = setTimeout(onBack, 1200);
     } catch (err) {

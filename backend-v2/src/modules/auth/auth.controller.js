@@ -137,7 +137,10 @@ exports.deleteAccount = asyncHandler(async (req, res) => {
 exports.changePassword = asyncHandler(async (req, res) => {
   const token = await svc.changePassword(req.user.id, { ...req.body, currentToken: req.token });
   setAuthCookie(req, res, token);
-  res.json({ success: true });
+  // 关键：改密后旧 token 已加入黑名单+清 session。Cookie 客户端(浏览器)靠上面刷新的 Cookie 续命；
+  // Bearer 客户端(桌面 Electron / 移动 Capacitor / Android / iOS 原生)必须拿到新 token 覆盖本地，
+  // 否则旧 Bearer token 立即失效 → 后续请求 401 被强制登出，表现为「改密后功能不正常」。
+  res.json({ success: true, token });
 });
 
 exports.resetPassword = asyncHandler(async (req, res) => {
