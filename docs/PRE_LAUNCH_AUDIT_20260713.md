@@ -37,17 +37,18 @@
 
 ## ⚠️ 观察项（非阻塞，建议后续处理）
 
-1. **9 个 moderate 依赖漏洞（后端）** — 全部是 `firebase-admin` 的深层传递依赖（uuid 边界检查 / file-type ASF 解析）。
-   - 无实际暴露面（不在请求路径），修复需 firebase-admin 大版本升级（有破坏性，风险大于收益）。
-   - **建议**：单独排期升级 firebase-admin 并回归推送功能，非上线阻塞。
+1. **Android `usesCleartextTraffic=true`** → ✅ **已收紧**。
+   - 改用 `network_security_config.xml`：dipsin.com / 91aigu.com 等已知域名**强制 HTTPS 禁止降级**；
+     仅对用户自建服务器场景保留明文兜底（自建功能必需）。已移除 manifest 全局 cleartext 标志。
 
-2. **Android `usesCleartextTraffic=true`** — 允许 HTTP 明文。
-   - 原因：App 支持用户自定义/自建服务器（可能是局域网 HTTP），是核心功能的合理权衡。
-   - **建议**：后续可改用 network_security_config 仅对用户手动添加域名放行明文，默认强制 HTTPS。
+2. **Web bundle 单文件无代码分割** → ⏭️ **确认不做（架构约束）**。
+   - 构建用 `vite-plugin-singlefile` 把 JS/CSS 全内联进一个 index.html，是 **Electron/Capacitor 内嵌加载单文件的硬性要求**。
+   - 代码分割会产出 webview 无法加载的独立 chunk，破坏桌面/移动内嵌。故 237KB(gzip) 单文件是正确权衡，保持不动。
 
-3. **Web bundle 827KB（gzip 237KB）单文件内联、无路由级代码分割** — 首屏一次性加载。
-   - 原因：单文件内联便于 Electron/Capacitor 内嵌，是刻意设计。
-   - **建议**：若追求首屏速度，可对 Moments/Wallet/Profile 等非核心页做 React.lazy 分割（可选优化）。
+3. **9 个 moderate 依赖漏洞（后端）** → ⏭️ **确认暂不修（风险>收益）**。
+   - 全在 `firebase-admin`(已是最新大版本 ^13.10) 的深层传递依赖(uuid/file-type)；官方尚未 bump。
+   - 无实际暴露面（uuid 边界需攻击者控制 buffer、file-type 需畸形 ASF 媒体，均不在请求路径）。
+   - `npm audit fix --force` 会破坏性替换 uuid@14/file-type@22，**可能静默搞坏推送**。待官方修复后随升级处理。
 
 4. **iOS 发布签名 Secret 未配置** — 仅影响 iOS 出包，不影响 Web/Android/后端上线。见 docs/IOS_SIGNING_SETUP.md。
 

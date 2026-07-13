@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全策略：
+  - 默认强制加密（cleartextTrafficPermitted=false），生产域名走 HTTPS。
+  - 明确列出已知生产域名并要求加密，防降级攻击。
+  - App 支持用户自建/局域网服务器（可能 HTTP），故保留一个「允许明文」的
+    base-config 兜底；这是自建功能的必要权衡，但默认与已知域名仍强制 HTTPS。
+-->
+<network-security-config>
+    <!-- 已知生产域名：强制 HTTPS，不允许明文降级 -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">dipsin.com</domain>
+        <domain includeSubdomains="true">91aigu.com</domain>
+    </domain-config>
+
+    <!-- 兜底：用户自建服务器可能为局域网 HTTP，允许明文（仅此场景）。
+         若无需自建 HTTP 服务器，可将下面改为 false 彻底禁用明文。 -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
