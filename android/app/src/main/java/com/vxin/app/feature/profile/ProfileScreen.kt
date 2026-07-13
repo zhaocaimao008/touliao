@@ -80,8 +80,6 @@ fun ProfileScreen(
 
     var username by remember(user?.id) { mutableStateOf(user?.username ?: "") }
     var bio by remember(user?.id) { mutableStateOf(user?.bio ?: "") }
-    var showPwdDialog by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
     var inviteCopied by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
@@ -238,37 +236,13 @@ fun ProfileScreen(
                     Text("检查更新")
                 }
             }
-            if (state.changePasswordAllowed) {
-                Spacer(Modifier.size(12.dp))
-                OutlinedButton(onClick = { showPwdDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("修改密码") }
-            }
             Spacer(Modifier.size(12.dp))
             Button(
                 onClick = viewModel::logout,
                 colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFA5151)),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("退出登录") }
-            Spacer(Modifier.size(12.dp))
-            TextButton(onClick = { showDeleteDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("注销账号", color = androidx.compose.ui.graphics.Color(0xFFFA5151))
-            }
         }
-    }
-
-    if (showPwdDialog) {
-        ChangePasswordDialog(
-            changing = state.changingPassword,
-            onConfirm = { old, new -> viewModel.changePassword(old, new) { ok -> if (ok) showPwdDialog = false } },
-            onDismiss = { showPwdDialog = false },
-        )
-    }
-
-    if (showDeleteDialog) {
-        DeleteAccountDialog(
-            deleting = state.deletingAccount,
-            onConfirm = { pwd -> viewModel.deleteAccount(pwd) { ok -> if (ok) showDeleteDialog = false } },
-            onDismiss = { showDeleteDialog = false },
-        )
     }
 
     // 更新弹窗
@@ -278,85 +252,4 @@ fun ProfileScreen(
             onDismiss = { showUpdateDialog = false },
         )
     }
-}
-
-@Composable
-private fun ChangePasswordDialog(changing: Boolean, onConfirm: (String, String) -> Unit, onDismiss: () -> Unit) {
-    var old by remember { mutableStateOf("") }
-    var new1 by remember { mutableStateOf("") }
-    var new2 by remember { mutableStateOf("") }
-    var localErr by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("修改密码") },
-        text = {
-            var visible by remember { mutableStateOf(false) }
-            val transform = if (visible) VisualTransformation.None else PasswordVisualTransformation()
-            val eye: @Composable () -> Unit = {
-                TextButton(onClick = { visible = !visible }) {
-                    Text(if (visible) "隐藏" else "显示", color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall)
-                }
-            }
-            Column {
-                OutlinedTextField(old, { old = it }, label = { Text("当前密码") }, singleLine = true, visualTransformation = transform, trailingIcon = eye)
-                Spacer(Modifier.size(8.dp))
-                OutlinedTextField(new1, { new1 = it }, label = { Text("新密码（≥8位，含字母和数字）") }, singleLine = true, visualTransformation = transform, trailingIcon = eye)
-                Spacer(Modifier.size(8.dp))
-                OutlinedTextField(new2, { new2 = it }, label = { Text("确认新密码") }, singleLine = true, visualTransformation = transform, trailingIcon = eye)
-                localErr?.let { Text(it, color = androidx.compose.ui.graphics.Color(0xFFFA5151), style = MaterialTheme.typography.bodySmall) }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    // 与后端一致：≥8 位且同时含字母与数字，避免通过前端校验却被后端 400
-                    val strong = Regex("^(?=.*[a-zA-Z])(?=.*\\d).{8,}$")
-                    localErr = when {
-                        old.isBlank() || new1.isBlank() -> "请填写完整"
-                        !strong.matches(new1) -> "新密码至少8位且需包含字母和数字"
-                        new1 == old -> "新密码不能与当前密码相同"
-                        new1 != new2 -> "两次新密码不一致"
-                        else -> null
-                    }
-                    if (localErr == null) onConfirm(old, new1)
-                },
-                enabled = !changing,
-            ) { Text("确定") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-    )
-}
-
-@Composable
-private fun DeleteAccountDialog(deleting: Boolean, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
-    var pwd by remember { mutableStateOf("") }
-    var localErr by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("注销账号") },
-        text = {
-            var visible by remember { mutableStateOf(false) }
-            val transform = if (visible) VisualTransformation.None else PasswordVisualTransformation()
-            Column {
-                Text("注销后账号信息将被清除、无法登录，且此操作不可撤销。", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.size(8.dp))
-                OutlinedTextField(
-                    pwd, { pwd = it; localErr = null }, label = { Text("请输入当前密码确认") }, singleLine = true,
-                    visualTransformation = transform,
-                    trailingIcon = { TextButton(onClick = { visible = !visible }) {
-                        Text(if (visible) "隐藏" else "显示", color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall)
-                    } },
-                )
-                localErr?.let { Text(it, color = androidx.compose.ui.graphics.Color(0xFFFA5151), style = MaterialTheme.typography.bodySmall) }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (pwd.isBlank()) localErr = "请输入密码" else onConfirm(pwd) },
-                enabled = !deleting,
-            ) { Text("确认注销", color = androidx.compose.ui.graphics.Color(0xFFFA5151)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-    )
 }

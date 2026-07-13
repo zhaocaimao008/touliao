@@ -204,75 +204,6 @@ function EditBio({ user, updateUser, onBack }) {
   );
 }
 
-/* ── 修改密码 ── */
-function ChangePassword({ onBack }) {
-  const { applyToken } = useAuth();
-  const [oldPassword, setOld] = useState('');
-  const [newPassword, setNew] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [showPw, setShowPw] = useState(false);   // 显示/隐藏密码,便于核对输入
-  const backTimerRef = useRef(null);
-  useEffect(() => () => clearTimeout(backTimerRef.current), []);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [done, setDone] = useState(false);
-
-  const save = async () => {
-    if (saving || done) return; // 防连点：避免重复提交改密请求
-    if (!oldPassword || !newPassword) { setError('请填写完整'); return; }
-    if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword)) { setError('新密码至少8位且需包含字母和数字'); return; }
-    if (newPassword === oldPassword) { setError('新密码不能与当前密码相同'); return; }
-    if (newPassword !== confirm) { setError('两次输入的新密码不一致'); return; }
-    setSaving(true); setError('');
-    try {
-      const { data } = await axios.put('/api/auth/change-password', { oldPassword, newPassword });
-      // 关键：后端改密后旧 token 已失效并下发新 token。Bearer 客户端(桌面/移动)必须立即用新 token
-      // 覆盖本地，否则下一条请求会 401 被强制登出，表现为「改密后功能异常」。浏览器 Cookie 客户端无副作用。
-      if (data?.token) applyToken(data.token);
-      setDone(true);
-      backTimerRef.current = setTimeout(onBack, 1200);
-    } catch (err) {
-      setError(err.response?.data?.error || '修改失败，请重试');
-    } finally { setSaving(false); }
-  };
-
-  return (
-    <PageBg>
-      <PageHeader title="修改密码" onBack={onBack}
-        right={<button className="wc-save-btn" onClick={save} disabled={saving || done}>{saving ? '保存中' : '保存'}</button>}
-      />
-      <div className="wc-edit-pad">
-        <Card>
-          <div className="wc-edit-wrap">
-            <input type={showPw ? 'text' : 'password'} value={oldPassword} onChange={e => { setOld(e.target.value); setError(''); }}
-              autoFocus placeholder="当前密码" aria-label="当前密码" className="wc-edit-input" />
-          </div>
-        </Card>
-        <Card>
-          <div className="wc-edit-wrap">
-            <input type={showPw ? 'text' : 'password'} value={newPassword} onChange={e => { setNew(e.target.value); setError(''); }}
-              placeholder="新密码（≥8位，含字母和数字）" aria-label="新密码" className="wc-edit-input" />
-          </div>
-          <div className="wc-edit-wrap">
-            <input type={showPw ? 'text' : 'password'} value={confirm} onChange={e => { setConfirm(e.target.value); setError(''); }}
-              onKeyDown={e => { if (e.key === 'Enter') save(); }}
-              placeholder="确认新密码" aria-label="确认新密码" className="wc-edit-input" />
-          </div>
-        </Card>
-        <div style={{ padding: '8px 4px 0' }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={showPw} onChange={e => setShowPw(e.target.checked)} />
-            显示密码
-          </label>
-        </div>
-        {error && <div className="wc-edit-error" role="alert">{error}</div>}
-        {done && <div className="wc-edit-hint">✓ 密码已修改</div>}
-        <div className="wc-edit-hint">修改后其它设备需重新登录</div>
-      </div>
-    </PageBg>
-  );
-}
-
 /* ── 我的钱包（余额 + 流水 + 充值）── */
 function Wallet({ onBack }) {
   const [balance, setBalance] = useState(null);
@@ -667,15 +598,10 @@ function PrivacySettings({ user, onBack }) {
     addByVxinId: true, addByPhone: true, addByQRCode: true, addByUsername: true, requireVerify: true,
     noDirectGroupInvite: false,
   });
-  // 后台「自助修改密码」开关：关闭则隐藏「修改密码」入口（后端亦拦截）
-  const [changePwdAllowed, setChangePwdAllowed] = useState(true);
 
   useEffect(() => {
     axios.get('/api/users/me/settings')
       .then(({ data }) => setSettings(s => ({ ...s, ...data })))
-      .catch(() => {});
-    axios.get('/api/config')
-      .then(({ data }) => setChangePwdAllowed(data?.features?.changePassword !== false))
       .catch(() => {});
   }, []);
 
@@ -689,8 +615,6 @@ function PrivacySettings({ user, onBack }) {
       setSettings(s => ({ ...s, [key]: prev }));
     }
   };
-
-  if (page === 'change-password') return <ChangePassword onBack={() => setPage('main')} />;
 
   if (page === 'add-methods') return (
     <PageBg>
@@ -722,69 +646,6 @@ function PrivacySettings({ user, onBack }) {
           <CRow label="不允许好友直接邀请我进群" desc="开启后好友无法把你直接拉进群，需你扫码/点链接自行加入"
             right={<Toggle checked={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
         </Card>
-        {changePwdAllowed && (
-          <Card className="wc-privacy-card-mt">
-            <CRow label="修改密码" desc="定期修改可提升账号安全" onClick={() => setPage('change-password')} />
-          </Card>
-        )}
-      </div>
-    </PageBg>
-  );
-}
-
-/* ── 注销账号 ── */
-function DeleteAccount({ onBack, logout }) {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleDelete = async () => {
-    if (loading) return; // 防连点：确认弹窗是异步的，避免重复弹出/提交
-    if (!password) { setError('请输入密码'); return; }
-    if (!(await showConfirm('注销后所有数据将清除，且无法恢复。确认注销？'))) return;
-    setLoading(true);
-    setError('');
-    try {
-      await axios.post('/api/auth/delete-account', { password });
-      doLogout(logout);
-    } catch (err) {
-      setError(err.response?.data?.error || '注销失败，请重试');
-      setLoading(false);
-    }
-  };
-
-  return (
-    <PageBg>
-      <PageHeader title="注销账号" onBack={onBack} />
-      <div className="wc-section-pad">
-        <div style={{ padding: '16px 0 8px', fontSize: 14, color: 'var(--color-badge)', lineHeight: 1.6 }}>
-          注销后您的账号信息将被清除，无法登录，且此操作不可撤销。
-        </div>
-      </div>
-      <div className="wc-section-pad">
-        <Card>
-          <div style={{ padding: '12px 16px' }}>
-            <input
-              type="password"
-              placeholder="请输入当前密码确认"
-              aria-label="当前密码"
-              value={password}
-              onChange={e => { setPassword(e.target.value); setError(''); }}
-              className="wc-server-input"
-              style={{ marginTop: 0 }}
-            />
-            {error && <div role="alert" style={{ color: 'var(--color-badge)', fontSize: 13, marginTop: 6 }}>{error}</div>}
-          </div>
-        </Card>
-      </div>
-      <div className="wc-section-pad">
-        <button
-          className="wc-logout-btn"
-          style={{ background: 'var(--color-badge)', width: '100%' }}
-          onClick={handleDelete}
-          disabled={loading}>
-          {loading ? '注销中…' : '确认注销账号'}
-        </button>
       </div>
     </PageBg>
   );
@@ -1099,7 +960,6 @@ export default function Profile({ isMobile = false }) {
   if (subPage === 'notifications') return <NotificationSettings onBack={() => setSubPage(null)} />;
   if (subPage === 'privacy')       return <PrivacySettings user={user} onBack={() => setSubPage(null)} />;
   if (subPage === 'server')        return <ServerSettings onBack={() => setSubPage(null)} />;
-  if (subPage === 'delete-account') return <DeleteAccount onBack={() => setSubPage(null)} logout={logout} />;
 
   return (
     <PageBg>
@@ -1192,7 +1052,6 @@ export default function Profile({ isMobile = false }) {
       {/* ── 退出 ── */}
       <div className="wc-logout-div">
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>退出登录</button>
-        <button className="wc-delete-account-btn" onClick={() => setSubPage('delete-account')}>注销账号</button>
       </div>
     </PageBg>
   );

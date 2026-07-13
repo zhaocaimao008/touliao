@@ -225,8 +225,6 @@ export const AuthProvider = ({ children }) => {
       switchAccount,
       removeAccount,
       maxAccounts: MAX_ACCOUNTS,
-      // 改密后刷新本地 Bearer token（桌面/移动 Bearer 客户端必需；浏览器 Cookie 客户端为 no-op）
-      applyToken: (token) => { if (token) setElectronToken(token); },
     }}>
       {children}
     </AuthContext.Provider>
