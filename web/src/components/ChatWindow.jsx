@@ -64,7 +64,7 @@ function detectMention(val, caret) {
   return null;
 }
 
-export default function ChatWindow({ conversation: initialConv, onClose, onStartCall }) {
+export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall }) {
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -1912,8 +1912,9 @@ export default function ChatWindow({ conversation: initialConv, onClose, onStart
             <button className="wc-chat-header-btn" data-testid="chat-call-video-btn" title="视频通话" aria-label="视频通话" onClick={() => startCall('video')}><IcoVideoCall /></button>
           </>}
           {conversation.type === 'group' && <>
-            <button className="wc-chat-header-btn" title="群语音通话" aria-label="群语音通话" onClick={() => startGroupCall('audio')}><IcoVoiceCall /></button>
-            <button className="wc-chat-header-btn" title="群视频通话" aria-label="群视频通话" onClick={() => startGroupCall('video')}><IcoVideoCall /></button>
+            {/* 后台开关关闭后（groupVoiceCall/groupVideoCall === false）直接隐藏对应按钮 */}
+            {features.groupVoiceCall !== false && <button className="wc-chat-header-btn" title="群语音通话" aria-label="群语音通话" onClick={() => startGroupCall('audio')}><IcoVoiceCall /></button>}
+            {features.groupVideoCall !== false && <button className="wc-chat-header-btn" title="群视频通话" aria-label="群视频通话" onClick={() => startGroupCall('video')}><IcoVideoCall /></button>}
           </>}
           <button
             className={`wc-chat-header-btn${showGroupInfo ? ' active' : ''}`}

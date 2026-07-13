@@ -862,7 +862,7 @@ export default function Home() {
         {activeConv ? (
           <div className="m-chat-page">
             <ChatWindowBoundary convId={activeConv.id}>
-              <ChatWindow key={activeConv.id} conversation={activeConv} onClose={handleMobileBack} onStartCall={handleStartCall} />
+              <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={handleMobileBack} onStartCall={handleStartCall} />
             </ChatWindowBoundary>
           </div>
         ) : (
@@ -1000,7 +1000,7 @@ export default function Home() {
             {activeConv
               ? (
                 <ChatWindowBoundary convId={activeConv.id}>
-                  <ChatWindow key={activeConv.id} conversation={activeConv} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} />
+                  <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} />
                 </ChatWindowBoundary>
               )
               : <WcEmpty />
