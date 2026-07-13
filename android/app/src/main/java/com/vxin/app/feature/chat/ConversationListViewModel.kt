@@ -118,6 +118,24 @@ class ConversationListViewModel @Inject constructor(
         }
     }
 
+    /** 打开「文件传输助手」会话：获取或创建后回调其 conversationId 供导航打开。 */
+    fun openFileHelper(onReady: (String) -> Unit) {
+        viewModelScope.launch {
+            runCatching { chatRepository.fileHelper() }
+                .onSuccess { onReady(it) }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("打开失败")) } }
+        }
+    }
+
+    /** 标为未读（对齐 Web：手动置未读，列表出现红点） */
+    fun markConversationUnread(conv: Conversation) {
+        _uiState.update { s -> s.copy(conversations = s.conversations.map { if (it.id == conv.id) it.copy(manuallyUnread = 1, unreadCount = if (it.unreadCount == 0) 1 else it.unreadCount) else it }) }
+        viewModelScope.launch {
+            runCatching { chatRepository.markConversationUnread(conv.id) }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("操作失败")) } }
+        }
+    }
+
     fun clearMessages(conv: Conversation) {
         viewModelScope.launch {
             runCatching { chatRepository.clearMessages(conv.id) }

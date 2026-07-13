@@ -118,6 +118,16 @@ fun ConversationListScreen(
                     IconButton(onClick = onOpenSearch) {
                         Icon(VxinIcons.Search, contentDescription = "搜索")
                     }
+                    var addMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { addMenu = true }) { Text("＋", fontSize = 20.sp) }
+                        DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
+                            DropdownMenuItem(text = { Text("文件传输助手") }, onClick = {
+                                addMenu = false
+                                viewModel.openFileHelper { convId -> onOpenConversation(Conversation(id = convId, type = "filehelper", name = "文件传输助手")) }
+                            })
+                        }
+                    }
                 },
             )
         },
@@ -155,6 +165,7 @@ fun ConversationListScreen(
                             onToggleMute = { viewModel.toggleMute(conv) },
                             onClear = { clearTarget = conv },
                             onMarkRead = { viewModel.markConversationRead(conv) },
+                            onMarkUnread = { viewModel.markConversationUnread(conv) },
                         )
                         HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
                     }
@@ -186,6 +197,7 @@ private fun ConversationRow(
     onToggleMute: () -> Unit = {},
     onClear: () -> Unit = {},
     onMarkRead: () -> Unit = {},
+    onMarkUnread: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -264,6 +276,8 @@ private fun ConversationRow(
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             if (conv.unreadCount > 0) {
                 DropdownMenuItem(text = { Text("标为已读") }, onClick = { onMarkRead(); menuOpen = false })
+            } else {
+                DropdownMenuItem(text = { Text("标为未读") }, onClick = { onMarkUnread(); menuOpen = false })
             }
             DropdownMenuItem(text = { Text(if (conv.pinned == 1) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
             DropdownMenuItem(text = { Text(if (conv.muted == 1) "取消免打扰" else "消息免打扰") }, onClick = { onToggleMute(); menuOpen = false })

@@ -19,6 +19,10 @@ data class Conversation(
     val pinned: Int = 0,
     val muted: Int = 0,
     val background: String = "",            // 聊天专属背景图（空=无）
+    @kotlinx.serialization.SerialName("burn_after")
+    val burnAfter: Int = 0,                 // 阅后即焚秒数（0=关闭）
+    @kotlinx.serialization.SerialName("manually_unread")
+    val manuallyUnread: Int = 0,            // 手动标为未读（1=是）
     val otherUser: ConversationOtherUser? = null,  // 私聊对方（后端 listConversations 私聊项返回；群聊为 null）
 )
 
@@ -38,6 +42,14 @@ data class PinConversationBody(val pinned: Int)
 
 @Serializable
 data class MuteConversationBody(val muted: Int)
+
+/** 阅后即焚：seconds=0 关闭 */
+@Serializable
+data class BurnAfterBody(val seconds: Int)
+
+/** 文件传输助手会话 */
+@Serializable
+data class FileHelperResponse(val conversationId: String)
 
 /** 设置聊天背景（空串=清除） */
 @Serializable

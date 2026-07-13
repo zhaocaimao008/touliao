@@ -18,4 +18,7 @@ class StickerRepository @Inject constructor(
         stickerApi.send(StickerSendBody(conversationId, stickerId))
 
     suspend fun collect(url: String) = stickerApi.collect(StickerCollectBody(url))
+
+    /** 上传自定义表情图片，返回新表情 URL。 */
+    suspend fun upload(part: okhttp3.MultipartBody.Part): String = stickerApi.upload(part).url
 }

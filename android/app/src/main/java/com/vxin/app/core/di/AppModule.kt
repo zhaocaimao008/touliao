@@ -123,6 +123,16 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideWalletApi(retrofit: Retrofit): com.vxin.app.data.api.WalletApi =
+        retrofit.create(com.vxin.app.data.api.WalletApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideFriendLabelApi(retrofit: Retrofit): com.vxin.app.data.api.FriendLabelApi =
+        retrofit.create(com.vxin.app.data.api.FriendLabelApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideRedPacketApi(retrofit: Retrofit): com.vxin.app.data.api.RedPacketApi =
         retrofit.create(com.vxin.app.data.api.RedPacketApi::class.java)
 

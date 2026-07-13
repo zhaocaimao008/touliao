@@ -67,6 +67,7 @@ fun ContactsScreen(
     onRequests: () -> Unit,
     onCreateGroup: () -> Unit,
     onOpenBlocked: () -> Unit = {},
+    onOpenLabels: () -> Unit = {},
     viewModel: ContactsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -110,6 +111,15 @@ fun ContactsScreen(
                             Spacer(Modifier.width(8.dp))
                         }
                     }
+                    Text("›", color = VxinTextSecondary)
+                }
+                HorizontalDivider()
+                // 好友标签入口
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenLabels).padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("好友标签", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                     Text("›", color = VxinTextSecondary)
                 }
                 HorizontalDivider()

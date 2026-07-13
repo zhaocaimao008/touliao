@@ -56,6 +56,7 @@ data class ChatUiState(
     val peerReadAt: Long = 0,         // 对方已读时间（秒）；我的消息 createdAt <= 此值即「已读」
     val replyingTo: Message? = null,  // 正在回复的消息
     val background: String = "",      // 聊天专属背景图 URL（空=无）
+    val burnAfter: Int = 0,           // 阅后即焚秒数（0=关闭）
     val closed: Boolean = false,      // 被踢/群解散 → 关闭聊天页
     val loadingEarlier: Boolean = false,
     val reachedStart: Boolean = false,   // 已加载到最早
@@ -310,8 +311,23 @@ class ChatViewModel @Inject constructor(
     // ── 聊天背景 ───────────────────────────────────────────
     private fun loadBackground() {
         viewModelScope.launch {
-            runCatching { chatRepository.loadConversations().firstOrNull { it.id == conversationId }?.background }
-                .onSuccess { bg -> if (!bg.isNullOrEmpty()) _uiState.update { it.copy(background = bg) } }
+            runCatching { chatRepository.loadConversations().firstOrNull { it.id == conversationId } }
+                .onSuccess { conv ->
+                    if (conv == null) return@onSuccess
+                    _uiState.update { it.copy(
+                        background = conv.background.ifEmpty { it.background },
+                        burnAfter = conv.burnAfter,
+                    ) }
+                }
+        }
+    }
+
+    /** 设置阅后即焚（seconds=0 关闭）。 */
+    fun setBurnAfter(seconds: Int) {
+        viewModelScope.launch {
+            runCatching { chatRepository.setBurnAfter(conversationId, seconds) }
+                .onSuccess { _uiState.update { it.copy(burnAfter = seconds, error = if (seconds > 0) "已开启阅后即焚" else "已关闭阅后即焚") } }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("设置失败")) } }
         }
     }
 
@@ -389,6 +405,18 @@ class ChatViewModel @Inject constructor(
             runCatching { stickerRepository.collect(fileUrl) }
                 .onSuccess { _uiState.update { it.copy(error = "已添加到表情") }; loadStickers() }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("收藏失败")) } }
+        }
+    }
+
+    /** 上传自定义表情（从相册选图）。 */
+    fun uploadSticker(uri: Uri) {
+        viewModelScope.launch {
+            val part = withContext(Dispatchers.IO) {
+                runCatching { mediaUploader.prepareFromUri(uri, fieldName = "image")?.part }.getOrNull()
+            } ?: run { _uiState.update { it.copy(error = "无法读取图片") }; return@launch }
+            runCatching { stickerRepository.upload(part) }
+                .onSuccess { _uiState.update { it.copy(error = "表情已添加") }; loadStickers() }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("上传失败")) } }
         }
     }
 

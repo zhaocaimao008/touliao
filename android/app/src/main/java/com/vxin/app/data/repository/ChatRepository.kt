@@ -142,6 +142,16 @@ class ChatRepository @Inject constructor(
     suspend fun setConversationMuted(conversationId: String, muted: Boolean) =
         api.muteConversation(conversationId, com.vxin.app.data.model.MuteConversationBody(if (muted) 1 else 0))
 
+    /** 标为未读 */
+    suspend fun markConversationUnread(conversationId: String) = api.markUnread(conversationId)
+
+    /** 阅后即焚（seconds=0 关闭） */
+    suspend fun setBurnAfter(conversationId: String, seconds: Int) =
+        api.setBurnAfter(conversationId, com.vxin.app.data.model.BurnAfterBody(seconds))
+
+    /** 文件传输助手会话（获取或创建），返回 conversationId */
+    suspend fun fileHelper(): String = api.fileHelper().conversationId
+
     suspend fun clearMessages(conversationId: String) = api.clearMessages(conversationId)
 
     suspend fun editMessage(msgId: String, content: String) =

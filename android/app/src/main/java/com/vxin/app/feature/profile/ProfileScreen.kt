@@ -69,6 +69,8 @@ fun ProfileScreen(
     onAddAccount: () -> Unit = {},
     onOpenMyQr: () -> Unit = {},
     onOpenCallHistory: () -> Unit = {},
+    onOpenWallet: () -> Unit = {},
+    onOpenSessions: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -220,7 +222,11 @@ fun ProfileScreen(
             Spacer(Modifier.size(12.dp))
 
             // 朋友圈 / 收藏 已是底部 Tab，移除「我」页内重复入口（四端一致）
+            OutlinedButton(onClick = onOpenWallet, modifier = Modifier.fillMaxWidth().testTag("profile-wallet")) { Text("我的钱包") }
+            Spacer(Modifier.size(12.dp))
             OutlinedButton(onClick = onOpenCallHistory, modifier = Modifier.fillMaxWidth().testTag("profile-call-history")) { Text("通话记录") }
+            Spacer(Modifier.size(12.dp))
+            OutlinedButton(onClick = onOpenSessions, modifier = Modifier.fillMaxWidth().testTag("profile-sessions")) { Text("登录设备管理") }
             Spacer(Modifier.size(12.dp))
             OutlinedButton(
                 onClick = { showUpdateDialog = true },

@@ -53,3 +53,15 @@ data class SuccessResponse(
 data class ApiErrorBody(
     val error: String? = null,
 )
+
+/** 登录设备/会话（GET /api/auth/sessions），current=当前设备。 */
+@Serializable
+data class DeviceSession(
+    val id: String = "",
+    val device: String = "",
+    val platform: String = "",
+    val ip: String = "",
+    @kotlinx.serialization.SerialName("created_at") val createdAt: Long = 0,
+    @kotlinx.serialization.SerialName("last_seen") val lastSeen: Long = 0,
+    val current: Boolean = false,
+)

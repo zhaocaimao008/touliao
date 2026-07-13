@@ -15,3 +15,7 @@ data class StickerSendBody(val conversationId: String, val stickerId: String)
 
 @Serializable
 data class StickerCollectBody(val url: String)
+
+/** 上传自定义表情响应 */
+@Serializable
+data class StickerUploadResponse(val id: String = "", val url: String = "")

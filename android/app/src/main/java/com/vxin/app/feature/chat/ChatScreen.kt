@@ -158,7 +158,11 @@ fun ChatScreen(
     val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.setBackground(it) }
     }
+    val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.uploadSticker(it) }
+    }
     var showChatMenu by remember { mutableStateOf(false) }
+    var showBurnDialog by remember { mutableStateOf(false) }
 
     // 仅在「最新一条变化」或上传项变化时滚到底，避免加载更早(前插)时跳动
     val lastMsgId = state.messages.lastOrNull()?.id
@@ -258,6 +262,10 @@ fun ChatScreen(
                                     showChatMenu = false; viewModel.clearBackground()
                                 })
                             }
+                            DropdownMenuItem(
+                                text = { Text("阅后即焚" + if (state.burnAfter > 0) "（${burnLabel(state.burnAfter)}）" else "") },
+                                onClick = { showChatMenu = false; showBurnDialog = true },
+                            )
                         }
                     }
                 },
@@ -330,6 +338,7 @@ fun ChatScreen(
                         resolveUrl = viewModel::resolveMediaUrl,
                         onEmoji = viewModel::appendEmoji,
                         onSticker = { viewModel.sendSticker(it); showEmojiPanel = false },
+                        onUploadSticker = { stickerPicker.launch("image/*") },
                     )
                 }
                 if (showFuncPanel) {
@@ -646,7 +655,37 @@ fun ChatScreen(
             confirmButton = { TextButton(onClick = { showMentionPicker = false }) { Text("取消") } },
         )
     }
+
+    if (showBurnDialog) {
+        AlertDialog(
+            onDismissRequest = { showBurnDialog = false },
+            title = { Text("阅后即焚") },
+            text = {
+                Column {
+                    Text("消息被对方阅读后按所选时长自动焚毁。", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.size(8.dp))
+                    BURN_OPTIONS.forEach { (secs, label) ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { viewModel.setBurnAfter(secs); showBurnDialog = false }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(label, Modifier.weight(1f))
+                            if (state.burnAfter == secs) Text("✓", color = androidx.compose.ui.graphics.Color(0xFF07C160))
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showBurnDialog = false }) { Text("取消") } },
+        )
+    }
 }
+
+/** 阅后即焚选项（对齐 Web BURN_OPTIONS）。 */
+private val BURN_OPTIONS: List<Pair<Int, String>> = listOf(
+    0 to "关闭", 10 to "10秒", 30 to "30秒", 60 to "1分钟",
+    300 to "5分钟", 3600 to "1小时", 86400 to "24小时", 604800 to "7天",
+)
+private fun burnLabel(seconds: Int): String = BURN_OPTIONS.firstOrNull { it.first == seconds }?.second ?: "${seconds}秒"
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -1195,12 +1234,15 @@ private fun StickerEmojiPanel(
     resolveUrl: (String?) -> String?,
     onEmoji: (String) -> Unit,
     onSticker: (com.vxin.app.data.model.Sticker) -> Unit,
+    onUploadSticker: () -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(0) }
     Column(Modifier.fillMaxWidth().heightIn(max = 240.dp).background(Color(0xFFF2F2F2))) {
-        Row(Modifier.padding(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { tab = 0 }) { Text("表情", color = if (tab == 0) VxinGreen else VxinTextSecondary) }
             TextButton(onClick = { tab = 1 }) { Text("贴纸", color = if (tab == 1) VxinGreen else VxinTextSecondary) }
+            Spacer(Modifier.weight(1f))
+            if (tab == 1) TextButton(onClick = onUploadSticker) { Text("＋ 添加", color = VxinGreen) }
         }
         if (tab == 0) {
             LazyVerticalGrid(columns = GridCells.Fixed(8), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp)) {
@@ -1211,7 +1253,7 @@ private fun StickerEmojiPanel(
         } else {
             if (stickers.isEmpty()) {
                 Box(Modifier.fillMaxWidth().heightIn(min = 80.dp), Alignment.Center) {
-                    Text("还没有表情，长按聊天图片可「收藏表情」", color = VxinTextSecondary, fontSize = 12.sp)
+                    Text("还没有表情，点右上「＋ 添加」上传，或长按聊天图片「收藏表情」", color = VxinTextSecondary, fontSize = 12.sp)
                 }
             } else {
                 LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp)) {

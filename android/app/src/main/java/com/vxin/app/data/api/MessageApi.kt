@@ -128,6 +128,18 @@ interface MessageApi {
     @POST("api/messages/conversation/{convId}/mute")
     suspend fun muteConversation(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.MuteConversationBody)
 
+    /** 标为未读（会话列表长按） */
+    @POST("api/messages/conversation/{convId}/mark-unread")
+    suspend fun markUnread(@Path("convId") convId: String)
+
+    /** 阅后即焚（seconds=0 关闭） */
+    @POST("api/messages/conversation/{convId}/burn-after")
+    suspend fun setBurnAfter(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.BurnAfterBody)
+
+    /** 文件传输助手会话（获取或创建），返回 { conversationId } */
+    @GET("api/messages/file-helper")
+    suspend fun fileHelper(): com.vxin.app.data.model.FileHelperResponse
+
     /** 聊天专属背景（background 为图片 URL，空串=清除） */
     @PUT("api/messages/conversation/{convId}/background")
     suspend fun setBackground(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.BackgroundBody)

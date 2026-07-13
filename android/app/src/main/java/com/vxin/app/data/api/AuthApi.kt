@@ -5,6 +5,7 @@ import com.vxin.app.data.model.LoginRequest
 import com.vxin.app.data.model.RegisterRequest
 import com.vxin.app.data.model.User
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -35,4 +36,16 @@ interface AuthApi {
     /** 忘记密码：手机号 + 邀请码验证后重置 */
     @POST("api/auth/reset-password")
     suspend fun resetPassword(@Body body: com.vxin.app.data.model.ResetPasswordRequest): com.vxin.app.data.model.SuccessResponse
+
+    /** 登录设备/会话列表（含 current 标记当前设备） */
+    @GET("api/auth/sessions")
+    suspend fun sessions(): List<com.vxin.app.data.model.DeviceSession>
+
+    /** 踢下线：删除指定会话 */
+    @DELETE("api/auth/sessions/{id}")
+    suspend fun deleteSession(@retrofit2.http.Path("id") id: String)
+
+    /** 退出其它所有设备 */
+    @DELETE("api/auth/sessions")
+    suspend fun deleteOtherSessions()
 }
