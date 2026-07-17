@@ -1,18 +1,26 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { I18nProvider } from './contexts/I18nContext';
 import { SocketProvider } from './contexts/SocketContext';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import Home from './pages/Home';
 import ElectronTitlebar from './components/ElectronTitlebar';
 import ErrorBoundary from './components/ErrorBoundary';
 
+// 路由级代码分割：每个页面拆成独立 chunk，减小首屏 bundle。
+// Home 体量最大（聊天主页 + ChatWindow 等），懒加载收益最高。
+const Login          = lazy(() => import('./pages/Login'));
+const Register       = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const Home           = lazy(() => import('./pages/Home'));
+
 // Electron 使用 HashRouter（file:// 不支持 pushState）；Web 用 BrowserRouter
 const Router = window.__ELECTRON_CONFIG__ ? HashRouter : BrowserRouter;
+
+// 懒加载页面切换时的加载态（与 PrivateRoute 的 loading 视觉一致）
+const RouteFallback = () => (
+  <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh' }}>加载中…</div>
+);
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -37,21 +45,24 @@ export default function App() {
       {isElectron && <ElectronTitlebar />}
       <div id="main-content" role="main" style={isElectron ? { paddingTop: 30, height: '100vh', boxSizing: 'border-box', overflow: 'hidden' } : {}}>
         <Router>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/*" element={
-              <PrivateRoute>
-                {/* 内层边界：聊天主页崩溃时不连累已登录外壳，可单独重试 */}
-                <ErrorBoundary>
-                  <SocketProvider>
-                    <Home />
-                  </SocketProvider>
-                </ErrorBoundary>
-              </PrivateRoute>
-            } />
-          </Routes>
+          {/* Suspense 兜底懒加载 chunk 拉取期间的加载态 */}
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/*" element={
+                <PrivateRoute>
+                  {/* 内层边界：聊天主页崩溃时不连累已登录外壳，可单独重试 */}
+                  <ErrorBoundary>
+                    <SocketProvider>
+                      <Home />
+                    </SocketProvider>
+                  </ErrorBoundary>
+                </PrivateRoute>
+              } />
+            </Routes>
+          </Suspense>
         </Router>
       </div>
     </AuthProvider>
