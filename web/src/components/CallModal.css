@@ -1,0 +1,19 @@
+/* CallModal — 从内联 style 抽取的静态样式（渐变遮罩等，消除硬编码 rgba 重复） */
+
+/* 视频通话顶部/底部渐变遮罩：保证白色文字/按钮在任意画面上可读 */
+.cm-scrim-top {
+  position: absolute; top: 0; left: 0; right: 0; height: 100px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, .6), transparent);
+  z-index: 2; pointer-events: none;
+}
+.cm-scrim-bottom {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 160px;
+  background: linear-gradient(to top, rgba(0, 0, 0, .7), transparent);
+  z-index: 2; pointer-events: none;
+}
+/* 语音通话头像上方整幅压暗遮罩 */
+.cm-scrim-full {
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, .2) 0%, rgba(0, 0, 0, .5) 100%);
+  pointer-events: none;
+}

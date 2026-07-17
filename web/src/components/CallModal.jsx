@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { mediaUrl } from '../utils/url';
+import './CallModal.css';
 
 const FALLBACK_ICE = {
   iceServers: [
@@ -531,8 +532,8 @@ export default function CallModal({ socket, call, onClose }) {
             objectFit: 'cover', background: '#000',
           }}
         />
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 100, background: 'linear-gradient(to bottom, rgba(0,0,0,.6), transparent)', zIndex: 2 }} />
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 160, background: 'linear-gradient(to top, rgba(0,0,0,.7), transparent)', zIndex: 2 }} />
+        <div className="cm-scrim-top" />
+        <div className="cm-scrim-bottom" />
 
         {/* 本地视频 PiP（可拖拽） */}
         {(status === 'connected' || status === 'connecting') && (
@@ -613,7 +614,7 @@ export default function CallModal({ socket, call, onClose }) {
             background: 'linear-gradient(160deg, #2c3e50 0%, #1a252f 100%)',
           }),
         }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,.2) 0%, rgba(0,0,0,.5) 100%)' }} />
+        <div className="cm-scrim-full" />
 
         {canMinimize && (
           <button
