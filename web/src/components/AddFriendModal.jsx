@@ -164,7 +164,10 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
             {/* 动态搜索响应条 */}
             {isSearchingState && (
               <div
+                role="button"
+                tabIndex={0}
                 onClick={() => doSearch(query)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doSearch(query); } }}
                 className="afm-search-row"
               >
                 <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke={GREEN} strokeWidth="2" strokeLinecap="round" className="afm-search-icon">

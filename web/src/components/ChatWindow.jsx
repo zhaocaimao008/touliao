@@ -2489,7 +2489,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             {/* 收藏功能暂在前端隐藏（逻辑保留，改为 true 即可恢复入口） */}
             {/* eslint-disable-next-line no-constant-binary-expression -- 收藏入口暂隐藏，逻辑保留，改 true 即恢复 */}
             {false && (
-              <div className="wc-ctx-item" onClick={() => ctxAction('collect')}>收藏</div>
+              <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>收藏</div>
             )}
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('pin'); } }}>
               {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}
@@ -2574,7 +2574,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               </div>
             </div>
             <div
+              role="button"
+              tabIndex={0}
               onClick={() => setRedPacketDetail(null)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRedPacketDetail(null); } }}
               className="wc-rp-close-btn"
             >关闭</div>
           </div>
