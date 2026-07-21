@@ -52,97 +52,21 @@
   margin-left: 5px;
 }
 
-/* ── 搜索消息面板 ── */
-.wc-search-panel {
-  background: var(--bg-chat-header);
-  border-bottom: 1px solid rgba(0,0,0,.09);
-  flex-shrink: 0;
-}
-.wc-search-bar {
-  display: flex;
-  align-items: center;
-  padding: 8px 14px;
-  gap: var(--sp-2);
-}
-.wc-search-input-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1h);
-  background: var(--bg-search);
-  border-radius: var(--radius-sm);
-  padding: 5px 10px;
-  height: 28px;
-}
+/* ── 搜索相关残留类（会话内搜索面板已下线，仅保留他处仍在用的两个）──
+   .wc-search-icon : Home.jsx 搜索框图标复用
+   .wc-search-status: 本组件「加载更多」提示复用（提供 color 兜底）
+   其余 wc-search-*（panel/bar/input/results/result-* 等）随面板删除而清理。 */
 .wc-search-icon {
   width: 13px;
   height: 13px;
   fill: var(--text-tertiary);
   flex-shrink: 0;
 }
-.wc-search-input {
-  flex: 1;
-  font-size: var(--text-sm2);
-  color: var(--text-primary);
-  background: transparent;
-}
-.wc-search-close-btn {
-  color: var(--text-tertiary);
-  font-size: var(--text-base);
-}
-.wc-search-cancel-btn {
-  color: var(--green);
-  font-size: var(--text-sm2);
-}
-.wc-search-results {
-  max-height: 220px;
-  overflow-y: auto;
-  border-top: 1px solid rgba(0,0,0,.05);
-}
 .wc-search-status {
   text-align: center;
   padding: 12px 0;
   font-size: var(--text-sm2);
   color: var(--text-tertiary);
-}
-.wc-search-result-item {
-  display: flex;
-  gap: var(--sp-2);
-  padding: 8px 14px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.wc-search-result-item:hover {
-  background: var(--bg-hover);
-}
-.wc-search-result-body {
-  flex: 1;
-  min-width: 0;
-}
-.wc-search-result-meta {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 2px;
-}
-.wc-search-result-sender {
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  color: var(--link-color);
-}
-.wc-search-result-time {
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
-}
-.wc-search-result-preview {
-  font-size: var(--text-sm2);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.wc-search-result-highlight {
-  color: var(--green);
-  font-weight: var(--font-semibold);
 }
 
 /* ── 置顶消息 Banner ── */

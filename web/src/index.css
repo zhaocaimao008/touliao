@@ -2770,12 +2770,9 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
   opacity: .45;
 }
 
-/* 消息搜索高亮 */
-.wc-search-highlight {
-  background: rgba(255, 213, 0, .45);
-  border-radius: var(--radius-xs);
-  padding: 0 1px;
-}
+/* 消息搜索高亮 .wc-search-highlight 已随会话内搜索面板下线删除；
+   跳转定位高亮由 .wc-msg-hl 承载，二者无关。 */
+
 
 /* ============================================================
    AddFriend Modal — 搜索添加好友弹窗
