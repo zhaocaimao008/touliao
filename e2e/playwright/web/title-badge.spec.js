@@ -8,26 +8,22 @@ const { LoginPage } = require('../pages/LoginPage');
 const { ChatPage } = require('../pages/ChatPage');
 
 test.describe('标签页未读角标 TITLE', () => {
-  test('TB-01 未读→标题显示(N)，进会话读后复位', async ({ browser, seeded, baseURL }) => {
+  test('TB-01 未读→标题显示(N)，进会话读后复位', async ({ makeCtx, seeded, baseURL }) => {
     test.skip(!seeded.convAB, '无会话');
     const A = seeded.users[0], B = seeded.users[1];
-    const inject = (ctx) => ctx.addInitScript((url) => {
-      try { localStorage.setItem('vxin_server_url', url); } catch {}
-    }, seeded.backendUrl);
 
     // A 端：登录后停在会话列表，不打开该会话
-    const ctxA = await browser.newContext();
-    await inject(ctxA);
+    const ctxA = await makeCtx();
     const pageA = await ctxA.newPage();
     const loginA = new LoginPage(pageA), chatA = new ChatPage(pageA);
     await loginA.gotoLogin(baseURL); await loginA.login(A.phone, A.password);
     await chatA.waitReady();
+    await chatA.waitSocketConnected();   // 确保 A 在房间,B 发来的消息才能推到 A 触发未读角标
     // 基线：无未读 → 纯标题
     await expect.poll(() => pageA.title(), { timeout: 5000 }).toBe('v信');
 
     // B 端：登录并打开同一私聊，发一条
-    const ctxB = await browser.newContext();
-    await inject(ctxB);
+    const ctxB = await makeCtx();
     const pageB = await ctxB.newPage();
     const loginB = new LoginPage(pageB), chatB = new ChatPage(pageB);
     await loginB.gotoLogin(baseURL); await loginB.login(B.phone, B.password);
@@ -40,7 +36,5 @@ test.describe('标签页未读角标 TITLE', () => {
     // A 打开该会话读掉 → 标题复位
     await chatA.openConv(seeded.convAB);
     await expect.poll(() => pageA.title(), { timeout: 8000 }).toBe('v信');
-
-    await ctxA.close(); await ctxB.close();
   });
 });

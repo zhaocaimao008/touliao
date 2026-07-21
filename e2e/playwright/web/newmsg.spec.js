@@ -8,15 +8,11 @@ const { ChatPage } = require('../pages/ChatPage');
  * 「N 条新消息」角标；点按滚到底后清零。用两个 browser context 模拟两端。
  */
 test.describe('新消息悬浮提示 NEWMSG', () => {
-  test('NEWMSG-01 上翻看历史 → 出现回到底部按钮', async ({ browser, seeded, baseURL }) => {
+  test('NEWMSG-01 上翻看历史 → 出现回到底部按钮', async ({ makeCtx, seeded, baseURL }) => {
     test.skip(!seeded.convAB, '无会话');
     const A = seeded.users[0];
-    const inject = (ctx) => ctx.addInitScript((url) => {
-      try { localStorage.setItem('vxin_server_url', url); } catch {}
-    }, seeded.backendUrl);
 
-    const ctxA = await browser.newContext();
-    await inject(ctxA);
+    const ctxA = await makeCtx();
     const pageA = await ctxA.newPage();
     const loginA = new LoginPage(pageA), chatA = new ChatPage(pageA);
     await loginA.gotoLogin(baseURL); await loginA.login(A.phone, A.password);
@@ -31,24 +27,19 @@ test.describe('新消息悬浮提示 NEWMSG', () => {
     const m = await chatA.scrollMetrics();
     test.skip(m.scrollHeight <= m.clientHeight + 300, `列表不足以滚动(dist=${m.distFromBottom})`);
     await expect.poll(() => chatA.scrollBottomBtnVisible(), { timeout: 5000 }).toBe(true);
-
-    await ctxA.close();
   });
 
-  test('NEWMSG-02 看历史时对方发来 → 角标计数，点按回底清零', async ({ browser, seeded, baseURL }) => {
+  test('NEWMSG-02 看历史时对方发来 → 角标计数，点按回底清零', async ({ makeCtx, seeded, baseURL }) => {
     test.skip(!seeded.convAB, '无会话');
     const A = seeded.users[0], B = seeded.users[1];
-    const inject = (ctx) => ctx.addInitScript((url) => {
-      try { localStorage.setItem('vxin_server_url', url); } catch {}
-    }, seeded.backendUrl);
 
     // A 端
-    const ctxA = await browser.newContext();
-    await inject(ctxA);
+    const ctxA = await makeCtx();
     const pageA = await ctxA.newPage();
     const loginA = new LoginPage(pageA), chatA = new ChatPage(pageA);
     await loginA.gotoLogin(baseURL); await loginA.login(A.phone, A.password);
     await chatA.waitReady(); await chatA.openConv(seeded.convAB);
+    await chatA.waitSocketConnected();   // 确保 A 在房间,B 发来的 new_message 才收得到
     for (let i = 0; i < 20; i++) await chatA.sendText(`base-${i}-${Date.now()}`);
     await pageA.waitForTimeout(300);
     await chatA.scrollMessagesUp();   // 滚到顶
@@ -57,8 +48,7 @@ test.describe('新消息悬浮提示 NEWMSG', () => {
     await expect.poll(() => chatA.scrollBottomBtnVisible(), { timeout: 5000 }).toBe(true);
 
     // B 端登录并打开同一私聊，发一条 → A 看历史中应累计「新消息」角标
-    const ctxB = await browser.newContext();
-    await inject(ctxB);
+    const ctxB = await makeCtx();
     const pageB = await ctxB.newPage();
     const loginB = new LoginPage(pageB), chatB = new ChatPage(pageB);
     await loginB.gotoLogin(baseURL); await loginB.login(B.phone, B.password);
@@ -75,7 +65,5 @@ test.describe('新消息悬浮提示 NEWMSG', () => {
     // 点回底 → 角标消失
     await chatA.clickScrollBottom();
     await expect.poll(() => chatA.newMsgBadgeText(), { timeout: 5000 }).toBe('');
-
-    await ctxA.close(); await ctxB.close();
   });
 });

@@ -17,13 +17,14 @@ test.describe('待发件箱 OUTBOX', () => {
     await login.login(seeded.users[0].phone, seeded.users[0].password);
     await chat.waitReady();
     await chat.openConv(seeded.convAB);
+    await chat.waitSocketConnected();   // 先确认连上,才是「已连上后断线」被测路径
 
     await webPage.context().setOffline(true);
     const t = 'outbox-persist-' + Date.now();
     await chat.sendText(t);
     // 5s ack 超时 → 失败态
     await expect(webPage.locator('[data-testid="msg-send-failed"]').last())
-      .toBeVisible({ timeout: 12000 });
+      .toBeVisible({ timeout: 20000 });
 
     // 断网态下：失败消息已写入 localStorage 待发件箱（持久化的直接证据）
     const outboxRaw = await webPage.evaluate(
@@ -48,12 +49,13 @@ test.describe('待发件箱 OUTBOX', () => {
     await login.login(seeded.users[0].phone, seeded.users[0].password);
     await chat.waitReady();
     await chat.openConv(seeded.convAB);
+    await chat.waitSocketConnected();   // 先确认连上,才是「已连上后断线」被测路径
 
     await webPage.context().setOffline(true);
     const t = 'outbox-heal-' + Date.now();
     await chat.sendText(t);
     await expect(webPage.locator('[data-testid="msg-send-failed"]').last())
-      .toBeVisible({ timeout: 12000 });
+      .toBeVisible({ timeout: 20000 });
 
     // 恢复网络 → socket 自动重连 → 失败消息自动重发
     await webPage.context().setOffline(false);

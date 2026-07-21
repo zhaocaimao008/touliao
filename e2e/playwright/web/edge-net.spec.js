@@ -9,9 +9,10 @@ test.use({
   launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
 });
 
-async function loginCtx(browser, baseURL, backendUrl, user, convId) {
-  const ctx = await browser.newContext();
-  await ctx.addInitScript((u) => { try { localStorage.setItem('vxin_server_url', u); } catch {} }, backendUrl);
+// context 由 makeCtx 创建并兜底关闭(失败也不泄漏 socket);此处只负责登录+开会话
+async function loginCtx(makeCtx, baseURL, user, convId, grantMedia = false) {
+  const ctx = await makeCtx();
+  if (grantMedia) await ctx.grantPermissions(['microphone', 'camera']).catch(() => {});
   const page = await ctx.newPage();
   const login = new LoginPage(page), chat = new ChatPage(page);
   await login.gotoLogin(baseURL); await login.login(user.phone, user.password);
@@ -21,10 +22,10 @@ async function loginCtx(browser, baseURL, backendUrl, user, convId) {
 }
 
 test.describe('网络边界 EDGE-NET', () => {
-  test('EDGE-05 断网期间对端发消息 → 恢复后补拉收到', async ({ browser, seeded, baseURL }) => {
+  test('EDGE-05 断网期间对端发消息 → 恢复后补拉收到', async ({ makeCtx, seeded, baseURL }) => {
     test.skip(!seeded.convAB, '无会话');
     const A = seeded.users[0], B = seeded.users[1];
-    const a = await loginCtx(browser, baseURL, seeded.backendUrl, A, seeded.convAB);
+    const a = await loginCtx(makeCtx, baseURL, A, seeded.convAB);
 
     // 先确保 socket 已连上再断网——测「已连上后断线补拉」,非冷启动从未连上
     await a.chat.waitSocketConnected();
@@ -40,13 +41,12 @@ test.describe('网络边界 EDGE-NET', () => {
     // 重连后应补拉到断网期间的消息
     await expect(a.page.locator('[data-testid^="msg-bubble-"]', { hasText: missed }))
       .toBeVisible({ timeout: 15000 });
-    await a.ctx.close();
   });
 
-  test('EDGE-06 弱网发失败 → 恢复后重发 → 不产生重复(clientMsgId幂等)', async ({ browser, seeded, baseURL }) => {
+  test('EDGE-06 弱网发失败 → 恢复后重发 → 不产生重复(clientMsgId幂等)', async ({ makeCtx, seeded, baseURL }) => {
     test.skip(!seeded.convAB, '无会话');
     const A = seeded.users[0];
-    const a = await loginCtx(browser, baseURL, seeded.backendUrl, A, seeded.convAB);
+    const a = await loginCtx(makeCtx, baseURL, A, seeded.convAB);
 
     // 先确保 socket 已连上再断网——测「已连上后弱网发」,非冷启动从未连上
     await a.chat.waitSocketConnected();
@@ -57,7 +57,7 @@ test.describe('网络边界 EDGE-NET', () => {
     // socket.io 缓冲重连后自动补发成功;二者都可接受,不做脆弱的「必须进失败态」硬断言,
     // 因为 socket.io 离线缓冲可能在 5s 内经瞬时重连即把消息送达,失败态未必出现)。
     await expect(a.page.locator('[data-testid^="msg-bubble-"]', { hasText: txt }).last())
-      .toBeVisible({ timeout: 12000 });
+      .toBeVisible({ timeout: 20000 });
     // 恢复网络：socket.io 重连后自动补发离线期间缓冲的 emit / outbox 自愈重发，
     // 后端据 clientMsgId 幂等去重。(不手动点❗重发——会与自动补发形成双触发竞态。)
     await a.ctx.setOffline(false);
@@ -67,19 +67,13 @@ test.describe('网络边界 EDGE-NET', () => {
     // 也不因重连补拉误删乐观消息而丢失(≥1)。用 toHaveCount 轮询等待自愈落定。
     await expect(a.page.locator('[data-testid^="msg-bubble-"]', { hasText: txt }))
       .toHaveCount(1, { timeout: 15000 });
-    await a.ctx.close();
   });
 
-  test('EDGE-08 呼出无人接 → 通话窗保持/可挂断(不卡死)', async ({ browser, seeded, baseURL }) => {
+  test('EDGE-08 呼出无人接 → 通话窗保持/可挂断(不卡死)', async ({ makeCtx, seeded, baseURL }) => {
     test.skip(!seeded.convAB, '无会话');
     const A = seeded.users[0];
-    const ctx = await browser.newContext();
-    await ctx.addInitScript((u) => { try { localStorage.setItem('vxin_server_url', u); } catch {} }, seeded.backendUrl);
-    await ctx.grantPermissions(['microphone', 'camera']).catch(() => {});
-    const page = await ctx.newPage();
-    const login = new LoginPage(page), chat = new ChatPage(page);
-    await login.gotoLogin(baseURL); await login.login(A.phone, A.password);
-    await chat.waitReady(); await chat.openConv(seeded.convAB);
+    const a = await loginCtx(makeCtx, baseURL, A, seeded.convAB, /* grantMedia */ true);
+    const { page, chat } = a;
     // 发起通话(对端不在线/不接)
     await chat.tid('chat-call-audio-btn').first().click();
     await expect(page.locator('[data-testid="call-modal"]')).toBeVisible({ timeout: 10000 });
@@ -87,6 +81,5 @@ test.describe('网络边界 EDGE-NET', () => {
     await page.waitForTimeout(3000);
     await chat.tid('call-hangup-btn').click();
     await expect(page.locator('[data-testid="call-modal"]')).toBeHidden({ timeout: 10000 });
-    await ctx.close();
   });
 });

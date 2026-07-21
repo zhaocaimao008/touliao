@@ -28,6 +28,31 @@ const test = base.test.extend({
     }, backendUrl);
     await use(page);
   },
+
+  /**
+   * makeCtx: 创建一个已注入"后端地址=测试后端"的 browser context。
+   * 关键:本 fixture 记录所有创建的 context,并在 teardown 阶段(无论用例 pass/fail)统一关闭。
+   *
+   * 为何需要:多端用例(read/newmsg/title-badge/edge-net)此前手动 browser.newContext()
+   * 且仅在用例末尾 close()——一旦断言在中途失败,close 不执行 → context 及其 socket 泄漏。
+   * 全量套件共享单一后端 + CI retries=2 时,泄漏的活 socket 累积,广播扇出变慢,
+   * 拖慢后续所有 socket 依赖用例 → 级联 flaky。用 fixture 兜底清理根除该放大器。
+   */
+  makeCtx: async ({ browser }, use) => {
+    const { backendUrl } = loadState();
+    const created = [];
+    const make = async () => {
+      const ctx = await browser.newContext();
+      await ctx.addInitScript((url) => {
+        try { localStorage.setItem('vxin_server_url', url); } catch {}
+      }, backendUrl);
+      created.push(ctx);
+      return ctx;
+    };
+    await use(make);
+    // teardown:pass/fail 都执行,防 socket 泄漏累积
+    for (const ctx of created) { await ctx.close().catch(() => {}); }
+  },
 });
 
 const expect = base.expect;
