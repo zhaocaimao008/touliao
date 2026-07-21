@@ -74,9 +74,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [typingName, setTypingName] = useState('');
-  const [showEmoji, setShowEmoji] = useState(false);
-  const [showStickers, setShowStickers] = useState(false);
-  const [showMore, setShowMore] = useState(false);
+  // 三个输入区面板互斥（emoji / stickers / more）——收敛为单一 activePanel，
+  // 消除此前反复出现的「打开一个就手动 set 另两个为 false」三连 setState 模式。
+  // 'emoji' | 'stickers' | 'more' | null
+  const [activePanel, setActivePanel] = useState(null);
+  const showEmoji    = activePanel === 'emoji';
+  const showStickers = activePanel === 'stickers';
+  const showMore     = activePanel === 'more';
+  const closePanels  = useCallback(() => setActivePanel(null), []);
+  const togglePanel  = useCallback((p) => setActivePanel(cur => (cur === p ? null : p)), []);
   const [voiceMode, setVoiceMode] = useState(false);
   const [recording, setRecording] = useState(false);
   const [replyTo, setReplyTo] = useState(null);
@@ -148,8 +154,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   // ── 点击输入区外部关闭 emoji / more / 表情包 面板 ────────────────────
   useEffect(() => {
-    if (!showEmoji && !showMore && !showStickers) return;
-    const closeAll = () => { setShowEmoji(false); setShowMore(false); setShowStickers(false); };
+    if (!activePanel) return;
+    const closeAll = closePanels;
     const handler = (e) => {
       if (inputAreaRef.current && !inputAreaRef.current.contains(e.target)) closeAll();
     };
@@ -163,7 +169,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       document.removeEventListener('mousedown', handler);
       document.removeEventListener('keydown', onKey);
     };
-  }, [showEmoji, showMore, showStickers]);
+  }, [activePanel, closePanels]);
 
   // ── 手机软键盘弹起：viewport 缩小时滚动置底 ─────────────────
   useEffect(() => {
@@ -397,8 +403,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setReplyTo(null);
     setEditingMsg(null); // 清编辑态:否则在A会话编辑中切到B会话,发送会PUT改A的消息(跨会话误编辑)
     setAtList(null); setAtQuery(''); // 清 @ 提及态,避免跨会话残留下拉
-    setShowEmoji(false);
-    setShowMore(false);
+    setActivePanel(null);  // 关闭 emoji/stickers/more 任一展开面板
     setVoiceMode(false);
     setHasMore(true);
     setShowGroupInfo(false);
@@ -1056,7 +1061,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     localStorage.removeItem(`draft_${conversation.id}`);
     window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: '' } }));
     setReplyTo(null);
-    setShowEmoji(false);
+    setActivePanel(null);
     socket?.emit('stop_typing', { conversationId: conversation.id });
 
     // 2. 5s 超时 → 标记失败
@@ -1095,7 +1100,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   // ── 分享名片：发送一条 contact_card 消息（content 为被分享用户的 JSON 快照）──
   const openCardPicker = () => {
-    setShowMore(false);
+    setActivePanel(null);
     axios.get('/api/users/contacts').then(r => setCardContacts(r.data || [])).catch(() => setCardContacts([]));
     setShowCardPicker(true);
   };
@@ -1454,7 +1459,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   // 发送表情包（后端创建 image 消息并广播，发送方经 socket 回显）
   const sendSticker = useCallback((stickerId) => {
-    setShowStickers(false);
+    setActivePanel(null);
     axios.post('/api/stickers/send', { conversationId: conversation.id, stickerId })
       .then(() => setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 80))
       .catch(err => showToast(err.response?.data?.error || '发送失败', 'error'));
@@ -2178,13 +2183,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           <button
             className={`wc-tool-btn${showEmoji ? ' active' : ''}`}
             title="表情" aria-label="表情" aria-expanded={showEmoji}
-            onClick={() => { setShowEmoji(v => !v); setShowMore(false); setShowStickers(false); }}
+            onClick={() => togglePanel('emoji')}
           ><IcoEmoji /></button>
 
           <button
             className={`wc-tool-btn${showStickers ? ' active' : ''}`}
             title="表情包" aria-label="表情包" aria-expanded={showStickers}
-            onClick={() => { setShowStickers(v => !v); setShowEmoji(false); setShowMore(false); }}
+            onClick={() => togglePanel('stickers')}
           ><svg viewBox="0 0 24 24" className="wc-tool-svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h10l6-6V5c0-1.1-.9-2-2-2zM9 11c-.83 0-1.5-.67-1.5-1.5S8.17 8 9 8s1.5.67 1.5 1.5S9.83 11 9 11zm3.5 5c-2.33 0-4.31-1.46-5.11-3.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5zM15 11c-.83 0-1.5-.67-1.5-1.5S14.17 8 15 8s1.5.67 1.5 1.5S15.83 11 15 11zm-1 9.5V15h5.5L14 20.5z"/></svg></button>
 
           <button
@@ -2238,13 +2243,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             className="wc-tool-btn"
             title="发红包"
             aria-label="发红包"
-            onClick={() => { setShowRedPacket(true); setShowMore(false); setShowEmoji(false); }}
+            onClick={() => { setShowRedPacket(true); closePanels(); }}
           ><svg viewBox="0 0 24 24" style={{ width: 22, height: 22, fill: 'currentColor' }}><path d="M19 6h-2V4c0-.9-.7-1.7-1.6-1.9.4-1.2 1.5-2 2.9-2 1.7 0 3 1.3 3 3 0 .5-.1 1-.3 1.4h.9c.6 0 1.2.4 1.2 1v2c0 .6-.5 1-1.2 1zm-2 4h4v8.5c0 1-.8 1.9-1.8 1.9H2.8C1.8 20.4 1 19.5 1 18.5V6c0-.5.3-1 .8-1.4L17 4v6zM4 14c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm10 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2z"/></svg></button>
 
           <button
             className={`wc-tool-btn${showMore ? ' active' : ''}`}
             title="更多" aria-label="更多" aria-expanded={showMore}
-            onClick={() => { setShowMore(v => !v); setShowEmoji(false); }}
+            onClick={() => togglePanel('more')}
           ><IcoMore /></button>
         </div>
 
@@ -2253,7 +2258,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           <div className="wc-more-panel">
             {[
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M12 15.2A3.2 3.2 0 008.8 12 3.2 3.2 0 0012 8.8 3.2 3.2 0 0115.2 12 3.2 3.2 0 0112 15.2M12 7a5 5 0 000 10A5 5 0 0012 7m0-5c0 0-8.02 0-9.5 1.5S1 7 1 12s0 8 1.5 9.5S7 23 12 23s8 0 9.5-1.5S23 17 23 12s0-8-1.5-9.5S17 1 12 1m0 20c-5 0-9-4-9-9s4-9 9-9 9 4 9 9-4 9-9 9z"/></svg>, label:'相机', action: async () => {
-                setShowMore(false);
+                closePanels();
                 // Capacitor 移动端通过 window.__takePhoto__ 调用原生相机
                 // Web 端回退到文件选择
                 const cam = window.__takePhoto__;
@@ -2270,8 +2275,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                 }
               } },
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/></svg>, label:'文件', action:()=>fileInputRef.current?.click() },
-              { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:'视频通话', testid:'chat-call-video-btn', action:()=>{ setShowMore(false); startCall('video'); } },
-              { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:'语音通话', testid:'chat-call-audio-btn', action:()=>{ setShowMore(false); startCall('audio'); } },
+              { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:'视频通话', testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
+              { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:'语音通话', testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:'名片', action: openCardPicker },
             ].map(item => (
               <div key={item.label} data-testid={item.testid} className="wc-more-item" role="button" tabIndex={0} onClick={item.action} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.action(); } }}>
