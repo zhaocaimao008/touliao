@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer } from 'react';
 import { createPortal } from 'react-dom';
+import { composeReducer, initialComposeState } from '../reducers/composeReducer';
 import { showToast, showConfirm } from '../utils/toast';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -72,7 +73,13 @@ function detectMention(val, caret) {
 export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall }) {
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  // 输入区（compose）状态收敛进 useReducer：input / voiceMode / editingMsg /
+  // replyTo 四者有真实协同转换（开始编辑=载入文本+清回复；发送=清文本+清回复；
+  // 切换会话=全清），改为原子 dispatch，杜绝散落 setState 的不一致。见
+  // reducers/composeReducer.js（已 vitest 穷举测试）。recording 由 MediaRecorder
+  // 副作用驱动，仍用独立 useState。
+  const [compose, dispatchCompose] = useReducer(composeReducer, initialComposeState);
+  const { input, voiceMode, editingMsg, replyTo } = compose;
   const [typingName, setTypingName] = useState('');
   // 三个输入区面板互斥（emoji / stickers / more）——收敛为单一 activePanel，
   // 消除此前反复出现的「打开一个就手动 set 另两个为 false」三连 setState 模式。
@@ -83,9 +90,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const showMore     = activePanel === 'more';
   const closePanels  = useCallback(() => setActivePanel(null), []);
   const togglePanel  = useCallback((p) => setActivePanel(cur => (cur === p ? null : p)), []);
-  const [voiceMode, setVoiceMode] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [replyTo, setReplyTo] = useState(null);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [members, setMembers] = useState([]);
   const [myGroupRole, setMyGroupRole] = useState('member'); // 'owner'|'admin'|'member'
@@ -93,7 +98,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [showUserProfile, setShowUserProfile] = useState(null);
   const [showCardPicker, setShowCardPicker] = useState(false);  // 分享名片：联系人选择器
   const [cardContacts, setCardContacts] = useState([]);
-  const [editingMsg, setEditingMsg] = useState(null);
   const [forwardMsg, setForwardMsg] = useState(null);
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -384,19 +388,16 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   if (conversation.id !== prevConvId) {
     setPrevConvId(conversation.id);
     setMessages([]);
-    setReplyTo(null);
-    setEditingMsg(null); // 清编辑态:否则在A会话编辑中切到B会话,发送会PUT改A的消息(跨会话误编辑)
+    // compose 全清 + 载入新会话草稿（replyTo/editingMsg/voiceMode/input 原子重置）
+    dispatchCompose({ type: 'RESET', draft: localStorage.getItem(`draft_${conversation.id}`) || '' });
     setMention(null); // 清 @ 提及态,避免跨会话残留下拉
     setActivePanel(null);  // 关闭 emoji/stickers/more 任一展开面板
-    setVoiceMode(false);
     setHasMore(true);
     setShowGroupInfo(false);
     setMultiSelect(false);
     setSelectedMsgs(new Set());
     setPinnedMessages([]);
     setPendingScrollId(null);
-    // 草稿自动加载
-    setInput(localStorage.getItem(`draft_${conversation.id}`) || '');
   }
 
   useEffect(() => {
@@ -1041,10 +1042,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     };
     forceScrollRef.current = true; // 自己发消息：无条件滚到底(多帧贴底 effect 接管)
     setMessages(prev => [...prev, optimistic]);
-    setInput('');
+    dispatchCompose({ type: 'SENT' });   // 清输入 + 清回复（原子）
     localStorage.removeItem(`draft_${conversation.id}`);
     window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: '' } }));
-    setReplyTo(null);
     setActivePanel(null);
     socket?.emit('stop_typing', { conversationId: conversation.id });
 
@@ -1128,18 +1128,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   };
 
   const startEdit = (msg) => {
-    setEditingMsg({ id: msg.id, content: msg.content });
-    setInput(msg.content);
-    setReplyTo(null);
+    dispatchCompose({ type: 'START_EDIT', msg }); // 载入原文 + 进编辑态 + 清回复（原子）
     setTimeout(() => { textareaRef.current?.focus(); textareaRef.current?.select(); }, 50);
   };
 
   const cancelEdit = useCallback(() => {
-    setEditingMsg(null);
-    setInput('');
+    dispatchCompose({ type: 'CANCEL_EDIT' });     // 退编辑 + 清输入（原子）
     textareaRef.current?.focus();
   }, []);
-  const cancelReply = useCallback(() => setReplyTo(null), []);
+  const cancelReply = useCallback(() => dispatchCompose({ type: 'CLEAR_REPLY' }), []);
 
   // 当前 @ 候选：按已输入的 atQuery 过滤成员（大小写不敏感），排除自己
   const atCandidates = useMemo(() => {
@@ -1180,7 +1177,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // Esc：退出编辑态，或清除引用（@ 提及列表已在上方优先处理）
     if (e.key === 'Escape') {
       if (editingMsg) { cancelEdit(); return; }
-      if (replyTo) { setReplyTo(null); return; }
+      if (replyTo) { dispatchCompose({ type: 'CLEAR_REPLY' }); return; }
     }
 
     // ↑（空输入框、非编辑态）：快速编辑自己最近一条文字消息
@@ -1215,7 +1212,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const inserted = `@${member.username} `;
     const next = input.slice(0, start) + inserted + input.slice(end);
     const pos = start + inserted.length;
-    setInput(next);
+    dispatchCompose({ type: 'REPLACE_INPUT', value: next });
     setMention(null);
     setTimeout(() => { el?.focus(); el?.setSelectionRange(pos, pos); }, 0);
   };
@@ -1386,7 +1383,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             else await uploadLocal(file, onProg);
             isUploadingRef.current = false;
             setUploadState(null);
-            setReplyTo(null);
+            dispatchCompose({ type: 'CLEAR_REPLY' });
             forceScrollRef.current = true;
             setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
             return;
@@ -1402,7 +1399,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           reply_to_id: replyTo?.id || null,
           clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
         }, (res) => { if (!res?.success) showToast(res?.error || '文件消息发送失败', 'error'); });
-        setReplyTo(null);
+        dispatchCompose({ type: 'CLEAR_REPLY' });
         setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
       } catch (err) {
         isUploadingRef.current = false;
@@ -1597,7 +1594,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     switch (action) {
       case 'reply':
-        setReplyTo(msg); setEditingMsg(null);
+        dispatchCompose({ type: 'SET_REPLY', msg });
         textareaRef.current?.focus();
         break;
 
@@ -2099,7 +2096,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             className={`wc-tool-btn${voiceMode ? ' active' : ''}`}
             title={voiceMode ? '切换文字' : '语音输入'}
             aria-label={voiceMode ? '切换文字输入' : '语音输入'}
-            onClick={() => setVoiceMode(v => !v)}
+            onClick={() => dispatchCompose({ type: 'TOGGLE_VOICE' })}
           ><IcoMic /></button>
 
           <label className="wc-tool-btn wc-tool-label" title="图片" aria-label="发送图片">
@@ -2191,7 +2188,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         )}
 
         {/* Emoji panel — 在输入框上方展开，输入框始终可见 */}
-        {showEmoji && <EmojiPicker onSelect={e => { setInput(prev => prev + e); textareaRef.current?.focus(); }} />}
+        {showEmoji && <EmojiPicker onSelect={e => { dispatchCompose({ type: 'APPEND_INPUT', text: e }); textareaRef.current?.focus(); }} />}
         {showStickers && <StickerPanel onSend={sendSticker} />}
 
         {/* Text / Voice input — 始终显示 */}
@@ -2235,7 +2232,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   value={input}
                   onChange={e => {
                     const val = e.target.value;
-                    setInput(val);
+                    dispatchCompose({ type: 'SET_INPUT', value: val });
                     // @提及：群聊内解析光标处 @token，驱动候选列表开关与过滤
                     // （token 为局部解析结果，勿与 mention 状态混淆）
                     const mentionToken = conversation.type === 'group'
@@ -2361,7 +2358,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           onClose={() => setShowRedPacket(false)}
           onSent={() => {
             // 红包消息由 socket 事件自动添加，这里不需要手动处理
-            setInput('');
+            dispatchCompose({ type: 'SET_INPUT', value: '' });
           }}
         />
       )}
