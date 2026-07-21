@@ -12,6 +12,7 @@ import UploadProgressBar from './UploadProgressBar';
 import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
+import { loadCache, saveCache } from '../utils/msgCache';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
 // 聊天允许的「常见」文件扩展名（与后端 ALLOWED_CHAT_EXTS 保持一致）；冷门/危险格式不允许上传。
@@ -279,6 +280,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     }
     outboxKeysRef.current = nowFailedKeys;
   }, [messages, conversation.id]);
+
+  // ── 离线消息缓存同步：以本地 messages 为准，防抖反写 IndexedDB ──────────
+  // 与上方 outbox 同理，集中一处覆盖新消息/批量/撤回/编辑/清空所有路径：messages
+  // 变化即（防抖 500ms）把当前会话最近 50 条已确认历史写入缓存。saveCache 内部
+  // 过滤乐观(_tempId)/阅后即焚(burn_after)消息，不落盘。冷启动/离线时供首屏占位。
+  useEffect(() => {
+    const convId = conversation.id;
+    if (!convId) return;
+    const t = setTimeout(() => { saveCache(convId, messagesRef.current); }, 500);
+    return () => clearTimeout(t);
+  }, [messages, conversation.id]);
   useEffect(() => {
     // 快照 ref 指向的 Map，避免 cleanup 运行时 ref.current 已被后续渲染替换（react-hooks/exhaustive-deps）
     const burnTimers = burnTimersRef.current;
@@ -407,6 +419,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     axios.get(`/api/messages/conversation/${conversation.id}/pinned-messages`, { signal: ac.signal })
       .then(r => { if (!ac.signal.aborted) setPinnedMessages(r.data); })
       .catch(() => {});
+
+    // 离线缓存首屏：先渲染本地缓存历史（若有），服务端到达后合并覆盖。
+    // 只在当前 messages 尚为空时填充，避免覆盖已有乐观消息/已加载内容。
+    const convIdForCache = conversation.id;
+    loadCache(convIdForCache).then(cached => {
+      if (ac.signal.aborted || !cached.length) return;
+      setMessages(prev => (prev.length ? prev : cached));
+    });
 
     fetchMessages(null, ac.signal)
       .then(data => {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { clearCache } from '../utils/msgCache';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
 axios.defaults.withCredentials = true;
@@ -179,6 +180,7 @@ export const AuthProvider = ({ children }) => {
     await axios.post('/api/auth/logout').catch(() => {});
     if (userRef.current?.id) removeAccount(userRef.current.id);
     clearCsrfCache();
+    clearCache();   // 隐私红线：登出清空离线消息缓存
     setElectronToken(null);
     setUser(null);
   };
@@ -197,6 +199,7 @@ export const AuthProvider = ({ children }) => {
     axios.defaults.baseURL = clean;
     setElectronToken(null);
     clearCsrfCache();
+    clearCache();   // 切换服务器=换账号域，清离线消息缓存避免串号
     setUser(null);
     setAccounts([]);
   };
