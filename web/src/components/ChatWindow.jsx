@@ -123,13 +123,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [groupCallInvite, setGroupCallInvite] = useState(null); // 收到的群通话邀请
   // 文件上传进度：null | { name, progress:0-100, status:'uploading'|'error', retryFn? }
   const [uploadState, setUploadState] = useState(null);
-  // 搜索消息
-  const [showMsgSearch, setShowMsgSearch] = useState(false);
-  const [msgSearchQ, setMsgSearchQ] = useState('');
+  // 跳转到指定消息（供撤回定位、引用点击等）——非搜索，保留
   const [highlightedMsgId, setHighlightedMsgId] = useState(null);
   const [pendingScrollId, setPendingScrollId] = useState(null);
-  const [msgSearchResults, setMsgSearchResults] = useState([]);
-  const [msgSearching, setMsgSearching] = useState(false);
   // 红包：详情弹窗 { packet, claims, myClaim, justClaimed } | null
   const [redPacketDetail, setRedPacketDetail] = useState(null);
   const [claiming, setClaiming] = useState(false);
@@ -192,26 +188,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     vv.addEventListener('resize', onResize);
     return () => vv.removeEventListener('resize', onResize);
   }, []);
-
-  // 搜索消息（AbortController 防止快速输入时旧结果覆盖新结果）
-  const searchAbortRef = useRef(null);
-  const searchMessages = useCallback(async (q) => {
-    searchAbortRef.current?.abort();           // 取消上一次未完成的搜索
-    if (!q.trim()) { setMsgSearchResults([]); return; }
-    const ac = new AbortController();
-    searchAbortRef.current = ac;
-    setMsgSearching(true);
-    try {
-      const { data } = await axios.get(
-        `/api/messages/conversation/${conversation.id}/search`,
-        { params: { q }, signal: ac.signal }
-      );
-      if (!ac.signal.aborted) setMsgSearchResults(data);
-    } catch (err) {
-      if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setMsgSearchResults([]);
-    }
-    if (!ac.signal.aborted) setMsgSearching(false);
-  }, [conversation.id]);
 
   // 发起通话（状态提升到 Home，通知父组件）
   const startCall = useCallback((type) => {
@@ -1946,89 +1922,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         onToggleGroupInfo={toggleGroupInfo}
       />
 
-      {/* ── 搜索消息面板 ── */}
-      {showMsgSearch && (
-        <div className="wc-search-panel">
-          <div className="wc-search-bar">
-            <div className="wc-search-input-wrap">
-              <svg viewBox="0 0 24 24" className="wc-search-icon"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-              <input
-                autoFocus
-                value={msgSearchQ}
-                onChange={e => { setMsgSearchQ(e.target.value); searchMessages(e.target.value); }}
-                placeholder="搜索聊天记录…"
-                aria-label="搜索聊天记录"
-                className="wc-search-input"
-                onKeyDown={e => e.key === 'Escape' && setShowMsgSearch(false)}
-              />
-              {msgSearchQ && <button className="wc-search-close-btn" onClick={() => { setMsgSearchQ(''); setMsgSearchResults([]); }} aria-label="清空搜索">✕</button>}
-            </div>
-            <button className="wc-search-cancel-btn" onClick={() => setShowMsgSearch(false)}>关闭</button>
-          </div>
-          {/* 搜索结果 */}
-          {msgSearchQ && (
-            <div className="wc-search-results">
-              {msgSearching && <div className="wc-search-status" role="status">搜索中…</div>}
-              {!msgSearching && msgSearchResults.length === 0 && msgSearchQ && (
-                <div className="wc-search-status" role="status">未找到相关记录</div>
-              )}
-              {msgSearchResults.map(msg => {
-                const q = msgSearchQ.toLowerCase();
-                const idx = msg.content.toLowerCase().indexOf(q);
-                return (
-                  <div
-                    key={msg.id}
-                    className="wc-search-result-item"
-                    onClick={() => {
-                      const exists = messages.find(m => m.id === msg.id);
-                      if (!exists) setMessages(prev => {
-                        const idx = prev.findIndex(m => m.created_at > msg.created_at);
-                        const entry = { ...msg, _highlighted: true };
-                        return idx >= 0 ? [...prev.slice(0, idx), entry, ...prev.slice(idx)] : [...prev, entry];
-                      });
-                      setTimeout(() => callbacksRef.current.scrollToMsg(msg.id), 100);
-                    }}
-                    role="button" tabIndex={0}
-                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (() => {
-                      const exists = messages.find(m => m.id === msg.id);
-                      if (!exists) setMessages(prev => {
-                        const idx = prev.findIndex(m => m.created_at > msg.created_at);
-                        const entry = { ...msg, _highlighted: true };
-                        return idx >= 0 ? [...prev.slice(0, idx), entry, ...prev.slice(idx)] : [...prev, entry];
-                      });
-                      setTimeout(() => callbacksRef.current.scrollToMsg(msg.id), 100);
-                    })()}
-                  >
-                    <div className="wc-search-result-body">
-                      <div className="wc-search-result-meta">
-                        <span className="wc-search-result-sender">{msg.senderName}</span>
-                        <span className="wc-search-result-time">
-                          {(() => {
-                            const d = new Date(msg.created_at * 1000);
-                            const opts = d.getFullYear() !== new Date().getFullYear()
-                              ? { year: 'numeric', month: 'short', day: 'numeric' }
-                              : { month: 'short', day: 'numeric' };
-                            return d.toLocaleDateString('zh-CN', opts);
-                          })()}
-                        </span>
-                      </div>
-                      <div className="wc-search-result-preview">
-                        {idx >= 0 ? (
-                          <>
-                            {msg.content.slice(0, idx)}
-                            <span className="wc-search-result-highlight">{msg.content.slice(idx, idx + msgSearchQ.length)}</span>
-                            {msg.content.slice(idx + msgSearchQ.length)}
-                          </>
-                        ) : msg.content}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+      {/* 会话内搜索面板已随「顶栏对齐微信·去搜索」下线：入口移除后该面板无任何
+         打开途径（git 史中从未存在 setShowMsgSearch(true)），属死代码，此处连同
+         相关 state / searchMessages 一并清理。全局搜索由独立入口承载。 */}
 
       {/* ── 置顶消息 Banner（抽离为 memo 化 PinnedBanner）── */}
       <PinnedBanner
