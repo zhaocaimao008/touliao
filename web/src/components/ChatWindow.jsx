@@ -103,9 +103,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 置顶消息
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [showPinnedDetail, setShowPinnedDetail] = useState(false);
-  const [atList, setAtList] = useState(null); // @ 提及下拉是否打开（开关）
-  const [atIndex, setAtIndex] = useState(0); // 候选中高亮项下标
-  const [atQuery, setAtQuery] = useState(''); // @ 后已输入的过滤词
+  // @ 提及下拉：三个内聚 state 收敛为单一 mention 对象。
+  //   null            → 关闭
+  //   { query, index }→ 打开（query=@后过滤词，index=高亮候选下标）
+  const [mention, setMention] = useState(null);
+  const atList  = mention !== null;       // 兼容旧读点：是否打开
+  const atQuery = mention?.query ?? '';   // 兼容旧读点：过滤词
+  const atIndex = mention?.index ?? 0;    // 兼容旧读点：高亮下标
+  const closeMention = useCallback(() => setMention(null), []);
+  const openMention  = useCallback((query) => setMention({ query, index: 0 }), []);
+  const moveMention  = useCallback((delta, max) =>
+    setMention(m => m && ({ ...m, index: Math.min(Math.max(m.index + delta, 0), max) })), []);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [newMsgCount, setNewMsgCount] = useState(0); // 滚动上翻时到达的新消息数，显示在回到底部按钮上
   const [loadingMore, setLoadingMore] = useState(false);
@@ -402,7 +410,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setMessages([]);
     setReplyTo(null);
     setEditingMsg(null); // 清编辑态:否则在A会话编辑中切到B会话,发送会PUT改A的消息(跨会话误编辑)
-    setAtList(null); setAtQuery(''); // 清 @ 提及态,避免跨会话残留下拉
+    setMention(null); // 清 @ 提及态,避免跨会话残留下拉
     setActivePanel(null);  // 关闭 emoji/stickers/more 任一展开面板
     setVoiceMode(false);
     setHasMore(true);
@@ -1174,12 +1182,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (atList && atCandidates.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setAtIndex(prev => Math.min(prev + 1, atCandidates.length - 1));
+        moveMention(+1, atCandidates.length - 1);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setAtIndex(prev => Math.max(prev - 1, 0));
+        moveMention(-1, atCandidates.length - 1);
         return;
       }
       if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
@@ -1188,7 +1196,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         return;
       }
       if (e.key === 'Escape') {
-        setAtList(null);
+        closeMention();
         return;
       }
     }
@@ -1232,8 +1240,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const next = input.slice(0, start) + inserted + input.slice(end);
     const pos = start + inserted.length;
     setInput(next);
-    setAtList(null);
-    setAtQuery('');
+    setMention(null);
     setTimeout(() => { el?.focus(); el?.setSelectionRange(pos, pos); }, 0);
   };
 
@@ -2334,16 +2341,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                     const val = e.target.value;
                     setInput(val);
                     // @提及：群聊内解析光标处 @token，驱动候选列表开关与过滤
-                    const mention = conversation.type === 'group'
+                    // （token 为局部解析结果，勿与 mention 状态混淆）
+                    const mentionToken = conversation.type === 'group'
                       ? detectMention(val, e.target.selectionStart ?? val.length)
                       : null;
-                    if (mention) {
-                      setAtList(true);
-                      setAtQuery(mention.query);
-                      setAtIndex(0);
+                    if (mentionToken) {
+                      openMention(mentionToken.query);
                     } else if (atList) {
-                      setAtList(null);
-                      setAtQuery('');
+                      closeMention();
                     }
                     // 编辑态复用同一输入框：此时不写草稿，避免编辑文本污染并覆盖真实草稿
                     if (conversation.id && !editingMsg) {
