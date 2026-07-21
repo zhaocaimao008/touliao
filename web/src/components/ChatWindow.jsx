@@ -5,6 +5,11 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import VirtualMessageList from './VirtualMessageList';
+import ChatHeader from './ChatHeader';
+import PinnedBanner from './PinnedBanner';
+import UploadProgressBar from './UploadProgressBar';
+import ComposeContextBar from './ComposeContextBar';
+import MultiSelectBar from './MultiSelectBar';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
@@ -42,8 +47,7 @@ const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
    之前定义在组件体内，每次 ChatWindow 渲染（每次按键、正在输入、来消息）都会
    生成新的函数引用 → React 视为不同组件类型，卸载并重新挂载这些 SVG DOM 节点。
    提到模块级后组件类型稳定，头部/工具栏图标不再随每次渲染重挂载。 */
-const IcoVoiceCall = () => <svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>;
-const IcoVideoCall = () => <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>;
+// IcoVoiceCall / IcoVideoCall 已随顶栏迁入 ChatHeader.jsx（此处不再需要）。
 const IcoEmoji = () => <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>;
 const IcoMic = () => <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1 1.93c-3.94-.49-7-3.85-7-7.93h2c0 3.31 2.69 6 6 6s6-2.69 6-6h2c0 4.08-3.06 7.44-7 7.93V19h3v2H9v-2h3v-3.07z"/></svg>;
 const IcoImage = () => <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>;
@@ -437,7 +441,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             );
           }
         }
-        setMessages(merged);
+        // 保留初次加载在途时用户刚发出的乐观消息(_tempId,尚未落库):
+        // 弱网/刚打开会话即发送时,这个初次 fetch 若晚于乐观 setMessages 完成,
+        // 会用 setMessages(merged) 覆盖掉刚发的消息,导致其静默消失(无失败态、无重发入口)。
+        // 用函数式更新读当前 state,把服务端未包含的在途乐观消息补回队尾。
+        setMessages(prev => {
+          const mergedIds = new Set(merged.map(m => m.id));
+          const mergedClientIds = new Set(merged.map(m => m.client_msg_id).filter(Boolean));
+          const inflight = prev.filter(
+            m => m._tempId && !mergedIds.has(m.id) && !mergedClientIds.has(m._tempId)
+          );
+          return inflight.length ? [...merged, ...inflight] : merged;
+        });
         scheduleBurn(data);
         setHasMore(data.length === 40);
         // 搜索结果跳转：如果有 scrollToId，则滚到该消息；否则滚到底部
@@ -475,9 +490,21 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 快照 ref 指向的集合，避免 cleanup 运行时 ref.current 已被后续渲染替换
     const pendingMsgs = pendingMsgsRef.current;
     const confirmedIds = confirmedMsgIds.current;
+    const convIdAtSetup = conversation.id;
     return () => {
       ac.abort(); // 切换会话时取消未完成拉取
-      // 清理所有待确认的发送 timer，避免旧会话 timer 污染新会话 UI
+      // 清理所有待确认的发送 timer，避免旧会话 timer 污染新会话 UI。
+      // 但被清掉的 timer 对应的乐观消息若仍是 'sending'(emit 丢失、ack 未回),
+      // 直接清 timer 会让它永远停在 sending、既不成功也不失败→无失败态❗、outbox 不收录→
+      // 弱网/重连场景下静默丢失。故清 timer 前把这些未决消息就地标为 'error',
+      // 交给 outbox 同步 effect 持久化 + 重连自愈重发(clientMsgId 幂等,不会重复)。
+      if (pendingMsgs.size) {
+        const stale = new Set(pendingMsgs.keys());
+        setMessages(prev => prev.map(m =>
+          (m._tempId && stale.has(m._tempId) && m._status === 'sending' && m.conversation_id === convIdAtSetup)
+            ? { ...m, _status: 'error' } : m
+        ));
+      }
       pendingMsgs.forEach(timer => clearTimeout(timer));
       pendingMsgs.clear();
       confirmedIds.clear();
@@ -529,12 +556,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     forceScrollRef.current = false;
     const isAtBottom = outer.scrollHeight - outer.scrollTop - outer.clientHeight < 400;
     if (!force && !isAtBottom) return;
+    // 贴底:虚拟列表变高行未测量时,裸 scrollTop=scrollHeight 会因估算高度失准滚不到真底部,
+    // 末条乐观消息被虚拟化掉、DOM 不挂载(自己发消息且无 ack 的离线/弱网场景尤甚,失败态❗看不到)。
+    // 故每帧先 scrollToItem(last,'end') 强制把末项纳入渲染窗口,再 scrollTop 像素级贴底。
     let n = 0, raf = 0;
     const step = () => {
       const o = listOuterRef.current;
       if (!o) return;
+      // 先命令式把末项纳入渲染窗口并对齐底部(变高行估算失准时,裸 scrollTop 到不了真底部),
+      // 再 scrollTop=scrollHeight 做像素级贴底。每帧都做,覆盖末行异步测量导致的高度变化。
+      virtListRef.current?.scrollToLast();
       o.scrollTop = o.scrollHeight;
-      if (++n < 12) raf = requestAnimationFrame(step);
+      if (++n < 14) raf = requestAnimationFrame(step);
     };
     step();
     return () => cancelAnimationFrame(raf);
@@ -994,7 +1027,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       return;
     }
 
-    if (!socket) return;
     const content   = input.trim();
     const tempId    = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const replySnap = replyTo ? { ...replyTo } : null;
@@ -1025,7 +1057,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: '' } }));
     setReplyTo(null);
     setShowEmoji(false);
-    socket.emit('stop_typing', { conversationId: conversation.id });
+    socket?.emit('stop_typing', { conversationId: conversation.id });
 
     // 2. 5s 超时 → 标记失败
     const timer = setTimeout(() => {
@@ -1033,6 +1065,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
     }, 5000);
     pendingMsgsRef.current.set(tempId, timer);
+
+    // 断线/无 socket:不静默丢消息——乐观气泡已渲染,让 5s timer 标记「发送失败」(❗可重发)。
+    // 用户在弱网/重连窗口点发送时能看到消息并得到失败反馈,重连后自动补发或手动重发。
+    if (!socket) return;
 
     // 3. 发送并等待 socket.io ack（后端已在 send_message handler 中调用 ack()）
     const msgClientId = `perf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -1109,11 +1145,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setTimeout(() => { textareaRef.current?.focus(); textareaRef.current?.select(); }, 50);
   };
 
-  const cancelEdit = () => {
+  const cancelEdit = useCallback(() => {
     setEditingMsg(null);
     setInput('');
     textareaRef.current?.focus();
-  };
+  }, []);
+  const cancelReply = useCallback(() => setReplyTo(null), []);
 
   // 当前 @ 候选：按已输入的 atQuery 过滤成员（大小写不敏感），排除自己
   const atCandidates = useMemo(() => {
@@ -1654,16 +1691,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   };
 
   // 多选辅助（toggleMsgSelect 经 callbacksRef 注入，见下方）
-  const multiForward = () => {
+  const exitMultiSelect = useCallback(() => { setMultiSelect(false); setSelectedMsgs(new Set()); }, []);
+  const multiForward = useCallback(() => {
     const msgs = messages.filter(m => selectedMsgs.has(m.id));
-    if (msgs.length === 1) { setForwardMsg(msgs[0]); setMultiSelect(false); setSelectedMsgs(new Set()); }
+    if (msgs.length === 1) { setForwardMsg(msgs[0]); exitMultiSelect(); }
     else showToast('请逐条转发（每次选一条）');
-  };
-  const multiDelete = async () => {
+  }, [messages, selectedMsgs, exitMultiSelect]);
+  const multiDelete = useCallback(async () => {
     if (!await showConfirm(`确认撤回/删除选中的 ${selectedMsgs.size} 条消息？`)) return;
     await axios.post('/api/messages/batch-delete', { msgIds: [...selectedMsgs], conversationId: conversation.id }).catch(e => showToast(e.response?.data?.error || '操作失败', 'error'));
-    setMultiSelect(false); setSelectedMsgs(new Set());
-  };
+    exitMultiSelect();
+  }, [selectedMsgs, conversation.id, exitMultiSelect]);
 
   // Precompute the last mine message id to avoid O(n) per message in flatItems
   const lastMineId = useMemo(() => {
@@ -1833,6 +1871,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
 
   const memberCount = conversation.type === 'group' ? (members.length || '') : null;
+  // 稳定回调：供 memo 化的 ChatHeader 使用，避免顶栏随父级高频重渲染而重渲染。
+  const toggleGroupInfo = useCallback(() => setShowGroupInfo(v => !v), []);
+  const openUserProfile = useCallback((id) => setShowUserProfile(id), []);
+  const togglePinnedDetail = useCallback(() => setShowPinnedDetail(v => !v), []);
+  const cancelUpload = useCallback(() => setUploadState(null), []);
+  const unpinMessage = useCallback((msgId) => {
+    axios.delete(`/api/messages/conversation/${conversation.id}/pin-message/${msgId}`);
+  }, [conversation.id]);
 
   return (
     <div
@@ -1875,58 +1921,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           <button onClick={() => setGroupCallInvite(null)} style={{ background: 'transparent', color: 'rgba(255,255,255,.6)', border: 0, cursor: 'pointer' }}>忽略</button>
         </div>
       )}
-      {/* ── Header ── */}
-      <div className="wc-chat-header">
-        <button className="wc-chat-header-back wc-back-btn" onClick={onClose} title="返回" aria-label="返回">
-          <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
-        </button>
-        <div className="wc-header-name-container">
-          {conversation.type === 'private' && conversation.otherUser?.id ? (
-            <div
-              className="wc-chat-header-name wc-chat-header-name-clickable"
-              data-testid="chat-title"
-              role="button"
-              tabIndex={0}
-              title="点击查看资料"
-              onClick={() => setShowUserProfile(conversation.otherUser.id)}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowUserProfile(conversation.otherUser.id); } }}
-            >
-              {conversation.name || '聊天'}
-            </div>
-          ) : (
-            <div className="wc-chat-header-name" data-testid="chat-title">
-              {conversation.name || '聊天'}
-              {memberCount
-                ? <span className="wc-header-member-count">({memberCount})</span>
-                : null
-              }
-            </div>
-          )}
-          {conversation.type === 'private' && conversation.otherUser?.status === 'online' && (
-            <div className="wc-chat-header-sub">在线</div>
-          )}
-        </div>
-        <div className="wc-chat-header-right">
-          {/* 顶栏对齐微信：去搜索/查看资料(资料点名字即可看)，仅保留通话与更多 */}
-          {conversation.type === 'private' && <>
-            <button className="wc-chat-header-btn" data-testid="chat-call-audio-btn" title="语音通话" aria-label="语音通话" onClick={() => startCall('audio')}><IcoVoiceCall /></button>
-            <button className="wc-chat-header-btn" data-testid="chat-call-video-btn" title="视频通话" aria-label="视频通话" onClick={() => startCall('video')}><IcoVideoCall /></button>
-          </>}
-          {conversation.type === 'group' && <>
-            {/* 后台开关关闭后（groupVoiceCall/groupVideoCall === false）直接隐藏对应按钮 */}
-            {features.groupVoiceCall !== false && <button className="wc-chat-header-btn" title="群语音通话" aria-label="群语音通话" onClick={() => startGroupCall('audio')}><IcoVoiceCall /></button>}
-            {features.groupVideoCall !== false && <button className="wc-chat-header-btn" title="群视频通话" aria-label="群视频通话" onClick={() => startGroupCall('video')}><IcoVideoCall /></button>}
-          </>}
-          <button
-            className={`wc-chat-header-btn${showGroupInfo ? ' active' : ''}`}
-            title={conversation.type === 'group' ? '群聊信息' : '更多'}
-            aria-label={conversation.type === 'group' ? '群聊信息' : '更多'}
-            aria-expanded={showGroupInfo}
-            data-testid="chat-group-info-btn"
-            onClick={() => setShowGroupInfo(v => !v)}
-          ><IcoMore /></button>
-        </div>
-      </div>
+      {/* ── Header（抽离为 memo 化 ChatHeader，避免高频输入时重渲染）── */}
+      <ChatHeader
+        conversation={conversation}
+        memberCount={memberCount}
+        features={features}
+        showGroupInfo={showGroupInfo}
+        onClose={onClose}
+        onOpenUserProfile={openUserProfile}
+        onStartCall={startCall}
+        onStartGroupCall={startGroupCall}
+        onToggleGroupInfo={toggleGroupInfo}
+      />
 
       {/* ── 搜索消息面板 ── */}
       {showMsgSearch && (
@@ -2012,37 +2018,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         </div>
       )}
 
-      {/* ── 置顶消息 Banner ── */}
-      {pinnedMessages.length > 0 && (
-        <div className="wc-pinned-banner"
-          role="button" tabIndex={0} aria-expanded={showPinnedDetail} aria-label="置顶消息"
-          onClick={() => setShowPinnedDetail(v => !v)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowPinnedDetail(v => !v); } }}>
-          <span className="wc-pinned-badge">📌 置顶</span>
-          <span className="wc-pinned-text">
-            {pinnedMessages[0]?.type === 'image' ? '[图片]' : pinnedMessages[0]?.content}
-          </span>
-          {pinnedMessages.length > 1 && <span className="wc-pinned-count">+{pinnedMessages.length - 1}</span>}
-          <span className="wc-pinned-toggle">{showPinnedDetail ? '▲' : '▼'}</span>
-        </div>
-      )}
-      {showPinnedDetail && pinnedMessages.length > 0 && (
-        <div className="wc-pinned-detail">
-          {pinnedMessages.map(p => (
-            <div key={p.msgId} className="wc-pinned-item">
-              <span className="wc-pinned-item-icon">📌</span>
-              <div className="wc-pinned-item-body">
-                <div className="wc-pinned-item-meta">{p.senderName} · 由{p.pinnedByName}置顶</div>
-                <div className="wc-pinned-item-text">{p.type === 'image' ? '[图片]' : p.content}</div>
-              </div>
-              <button className="wc-unpin-btn"
-                onClick={e => { e.stopPropagation(); axios.delete(`/api/messages/conversation/${conversation.id}/pin-message/${p.msgId}`); }}>
-                取消置顶
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* ── 置顶消息 Banner（抽离为 memo 化 PinnedBanner）── */}
+      <PinnedBanner
+        pinnedMessages={pinnedMessages}
+        showPinnedDetail={showPinnedDetail}
+        onToggleDetail={togglePinnedDetail}
+        onUnpin={unpinMessage}
+      />
 
       {/* ── Body ── */}
       <div className="wc-messages-wrap" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -2157,83 +2139,30 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       )}
 
       {/* ── 文件上传进度条 ── */}
-      {uploadState && (
-        <div role={uploadState.status === 'error' ? 'alert' : 'status'} aria-live={uploadState.status === 'error' ? 'assertive' : 'polite'} className={`wc-upload-bar ${uploadState.status === 'error' ? 'wc-upload-bar-error' : 'wc-upload-bar-progress'}`}>
-          {uploadState.status === 'uploading' ? (
-            <>
-              <span className="wc-upload-icon wc-upload-icon-ok">📤</span>
-              <div className="wc-upload-body">
-                <div className="wc-upload-name">
-                  {uploadState.name} · {uploadState.progress}%
-                </div>
-                <div className="wc-upload-track">
-                  <div className="wc-upload-fill" style={{ width: `${uploadState.progress}%` }} />
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="wc-upload-icon wc-upload-icon-fail">❌</span>
-              <div className="wc-upload-error-text">
-                {uploadState.errorMsg || '上传失败'}
-              </div>
-              {uploadState.retryFn && (
-                <button
-                  className="wc-retry-btn"
-                  onClick={uploadState.retryFn}
-                >
-                  重试
-                </button>
-              )}
-              <button
-                className="wc-cancel-upload-btn"
-                onClick={() => setUploadState(null)}
-                aria-label="取消上传"
-              >✕</button>
-            </>
-          )}
-        </div>
-      )}
+      {/* ── 文件上传进度条（抽离为 memo 化 UploadProgressBar）── */}
+      <UploadProgressBar uploadState={uploadState} onCancel={cancelUpload} />
 
-      {/* ── 编辑模式指示条 ── */}
-      {editingMsg && (
-        <div className="wc-edit-bar">
-          <div className="wc-edit-bar-body">
-            <div className="wc-edit-bar-label">编辑消息</div>
-            <div className="wc-edit-bar-text">{editingMsg.content}</div>
-          </div>
-          <button className="wc-edit-cancel-btn" onClick={cancelEdit} aria-label="取消编辑">✕</button>
-        </div>
-      )}
-
-      {/* ── Reply preview bar ── */}
-      {replyTo && !editingMsg && (
-        <div className="wc-reply-bar">
-          <div className="wc-reply-bar-body">
-            <div className="wc-reply-bar-name">回复 {replyTo.senderName}</div>
-            <div className="wc-reply-bar-text">
-              {replyTo.type === 'image' ? '[图片]' : replyTo.type === 'voice' ? '[语音]' : replyTo.type === 'video' ? '[视频]' : replyTo.type === 'red_packet' ? '[红包]' : replyTo.type === 'file' ? '[文件]' : replyTo.content}
-            </div>
-          </div>
-          <button className="wc-reply-bar-close" onClick={() => setReplyTo(null)} aria-label="取消回复">✕</button>
-        </div>
-      )}
+      {/* ── 编辑/回复上下文条（抽离为 memo 化 ComposeContextBar，编辑优先）── */}
+      <ComposeContextBar
+        editingMsg={editingMsg}
+        replyTo={replyTo}
+        onCancelEdit={cancelEdit}
+        onCancelReply={cancelReply}
+      />
 
       {/* ── 转发弹窗 ── */}
       {forwardMsg && (
         <ForwardModal message={forwardMsg} onClose={() => setForwardMsg(null)} />
       )}
 
-      {/* ── 多选模式底部工具栏 ── */}
+      {/* ── 多选模式底部工具栏（抽离为 memo 化 MultiSelectBar）── */}
       {multiSelect && (
-        <div className="wc-multiselect-bar">
-          <button className="wc-ms-cancel-btn" onClick={() => { setMultiSelect(false); setSelectedMsgs(new Set()); }}>取消</button>
-          <span className="wc-ms-count">已选 {selectedMsgs.size} 条</span>
-          <div className="wc-ms-btn-group">
-            <button className="wc-ms-btn-primary wc-ms-btn-forward" onClick={multiForward} disabled={selectedMsgs.size === 0}>转发</button>
-            <button className="wc-ms-btn-primary wc-ms-btn-delete" onClick={multiDelete} disabled={selectedMsgs.size === 0}>撤回</button>
-          </div>
-        </div>
+        <MultiSelectBar
+          selectedCount={selectedMsgs.size}
+          onForward={multiForward}
+          onDelete={multiDelete}
+          onCancel={exitMultiSelect}
+        />
       )}
 
       {/* ── 全群禁言提示（普通成员被禁言时替换输入区） ── */}
