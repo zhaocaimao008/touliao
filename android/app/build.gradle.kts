@@ -15,8 +15,8 @@ android {
         applicationId = "com.vxin.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 19
-        versionName = "1.0.18"
+        versionCode = 20
+        versionName = "1.0.19"
 
         // 默认服务器地址（运行时可在 App 内切换并持久化覆盖）
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://dipsin.com\"")
@@ -116,4 +116,7 @@ dependencies {
     // Push (Firebase Cloud Messaging)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+
+    // Unit tests (pure JVM; offline msgCache 语义基线对齐 Web vitest)
+    testImplementation(libs.junit)
 }

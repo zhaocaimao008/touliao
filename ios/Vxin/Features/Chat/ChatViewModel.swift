@@ -104,13 +104,17 @@ final class ChatViewModel: ObservableObject {
 
         repo.messageDeletedPublisher
             .sink { [weak self] msgId in Task { @MainActor in
-                self?.messages.removeAll { $0.id == msgId }
+                guard let self else { return }
+                self.messages.removeAll { $0.id == msgId }
+                MsgCacheStore.shared.remove(self.conversationId, msgId)   // 撤回/删除 → 缓存同步移除
             }}
             .store(in: &cancellables)
 
         repo.messageVanishedPublisher
             .sink { [weak self] msgId in Task { @MainActor in
-                self?.messages.removeAll { $0.id == msgId }
+                guard let self else { return }
+                self.messages.removeAll { $0.id == msgId }
+                MsgCacheStore.shared.remove(self.conversationId, msgId)
             }}
             .store(in: &cancellables)
 
@@ -119,7 +123,10 @@ final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
 
         repo.messageEditedPublisher
-            .sink { [weak self] (msgId, content, convId) in Task { @MainActor in self?.applyEdit(msgId, content, convId) } }
+            .sink { [weak self] (msgId, content, convId) in Task { @MainActor in
+                self?.applyEdit(msgId, content, convId)
+                if convId == self?.conversationId { self?.persistCache() }   // 编辑 → 按 id 覆写落盘
+            } }
             .store(in: &cancellables)
 
         repo.redPacketClaimedPublisher
@@ -131,6 +138,7 @@ final class ChatViewModel: ObservableObject {
                 guard let self else { return }
                 let idSet = Set(msgIds)
                 self.messages.removeAll { idSet.contains($0.id) }
+                for id in msgIds { MsgCacheStore.shared.remove(self.conversationId, id) }
             }}
             .store(in: &cancellables)
 
@@ -138,6 +146,7 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] convId in Task { @MainActor in
                 guard let self, convId == self.conversationId else { return }
                 self.messages.removeAll()
+                MsgCacheStore.shared.clear(self.conversationId)   // 清空聊天记录 → 缓存整会话清除（隐私红线）
             }}
             .store(in: &cancellables)
 
@@ -172,6 +181,7 @@ final class ChatViewModel: ObservableObject {
         }
 
         repo.joinConversation(conversationId)
+        primeFromCache()                     // 首屏占位：先渲染离线缓存，随后 loadHistory 拉真相源覆盖
         Task { await loadHistory() }
         Task { await loadBackground() }
         if isGroup {
@@ -430,6 +440,7 @@ final class ChatViewModel: ObservableObject {
             do {
                 try await repo.editMessage(msg.id, content: text)
                 if let idx = messages.firstIndex(where: { $0.id == msg.id }) { messages[idx].content = text; messages[idx].edited = 1 }
+                persistCache()   // 本端编辑 → 覆写落盘
             } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "编辑失败" }
         }
     }
@@ -541,6 +552,27 @@ final class ChatViewModel: ObservableObject {
         Task { await refreshRedPacketDetail(packetId) }
     }
 
+    // MARK: - 离线消息历史缓存（首屏占位；非真相源，语义对齐 Web msgCache.js）
+
+    /// 首屏占位：进入会话立即渲染上次落盘的离线历史，避免白屏等 loadHistory。
+    /// 缓存非真相源——loadHistory 成功后以服务端结果 mergeById 覆盖并重新落盘。
+    /// 阅后即焚会话不读缓存（该会话本就不落盘）；已存在 outbox 待发消息也一并合并。
+    private func primeFromCache() {
+        guard !conversationId.isEmpty, burnAfter == 0 else { return }
+        let cached = MsgCacheStore.shared.load(conversationId)
+        guard !cached.isEmpty, messages.isEmpty else { return }   // 已被 loadHistory 抢先则不覆盖
+        let pending = OutboxStore.shared.load(conversationId)
+        messages = (cached + pending).sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// 将当前「已确认历史消息」落盘（内部 normalize：去乐观/待发、去重、截断 50）。
+    /// 阅后即焚会话不落盘（隐私红线）——并顺手清掉可能残留的缓存。
+    private func persistCache() {
+        guard !conversationId.isEmpty else { return }
+        guard burnAfter == 0 else { MsgCacheStore.shared.clear(conversationId); return }
+        MsgCacheStore.shared.save(conversationId, messages)
+    }
+
     // MARK: - 历史 / 实时
     func loadHistory(announceHeal: Bool = false) async {
         do {
@@ -555,6 +587,13 @@ final class ChatViewModel: ObservableObject {
             }
             messages = (list + stillPending).sorted { $0.createdAt < $1.createdAt }
             reachedStart = list.count < 50
+            // 离线缓存：server 覆盖旧缓存（含已编辑/已删同步），落盘最近 50。
+            if burnAfter == 0 {
+                let merged = MsgCacheStore.mergeById(MsgCacheStore.shared.load(conversationId), list)
+                MsgCacheStore.shared.save(conversationId, merged)
+            } else {
+                MsgCacheStore.shared.clear(conversationId)   // 焚毁会话不落盘
+            }
             markReadLatest()   // 打开会话即标记已读
             healFailedMessages(announce: announceHeal)   // 连线且有失败气泡 → 进会话/重连自动重发
         } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载消息失败" }
@@ -587,6 +626,7 @@ final class ChatViewModel: ObservableObject {
     private func onIncoming(_ msg: Message) {
         guard msg.conversationId == conversationId else { return }
         claimOrAppend(msg)
+        persistCache()   // 收到真实 socket 新消息 → 追加后落盘（截断 50）
         // 仅在底部附近才即时标已读；看历史时留给「N 条新消息」提示，滚回底再标
         if msg.senderId != myId && atBottom { markReadLatest() }
     }

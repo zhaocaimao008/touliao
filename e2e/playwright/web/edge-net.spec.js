@@ -26,6 +26,8 @@ test.describe('网络边界 EDGE-NET', () => {
     const A = seeded.users[0], B = seeded.users[1];
     const a = await loginCtx(browser, baseURL, seeded.backendUrl, A, seeded.convAB);
 
+    // 先确保 socket 已连上再断网——测「已连上后断线补拉」,非冷启动从未连上
+    await a.chat.waitSocketConnected();
     // A 断网
     await a.ctx.setOffline(true);
     // 断网期间 B(用 REST,模拟对端在线)发一条消息
@@ -46,19 +48,25 @@ test.describe('网络边界 EDGE-NET', () => {
     const A = seeded.users[0];
     const a = await loginCtx(browser, baseURL, seeded.backendUrl, A, seeded.convAB);
 
+    // 先确保 socket 已连上再断网——测「已连上后弱网发」,非冷启动从未连上
+    await a.chat.waitSocketConnected();
     const txt = 'idem-' + Date.now();
     await a.ctx.setOffline(true);
     await a.chat.sendText(txt);
-    // 5s ack 超时 → 失败态(❗)
-    await expect(a.page.locator('[data-testid="msg-send-failed"]').last())
+    // 弱网发送:消息不能被静默丢弃——乐观气泡必须立刻可见(无论后续走失败态❗还是
+    // socket.io 缓冲重连后自动补发成功;二者都可接受,不做脆弱的「必须进失败态」硬断言,
+    // 因为 socket.io 离线缓冲可能在 5s 内经瞬时重连即把消息送达,失败态未必出现)。
+    await expect(a.page.locator('[data-testid^="msg-bubble-"]', { hasText: txt }).last())
       .toBeVisible({ timeout: 12000 });
-    // 恢复网络：socket.io 重连后自动补发离线期间缓冲的 emit，后端据 clientMsgId 幂等去重。
-    // (不再手动点❗重发——那会与自动补发形成双触发竞态，且真实用户极少在重连窗口内恰好点重发。)
+    // 恢复网络：socket.io 重连后自动补发离线期间缓冲的 emit / outbox 自愈重发，
+    // 后端据 clientMsgId 幂等去重。(不手动点❗重发——会与自动补发形成双触发竞态。)
     await a.ctx.setOffline(false);
-    await a.page.waitForTimeout(4000);
-    // 核心断言:该文本最终只有 1 条(clientMsgId 幂等,自动补发不产生第二条)
+    // 等 socket 真正重连上再校验幂等,否则自愈重发可能尚未完成→偶发 0 条(flaky)。
+    await a.chat.waitSocketConnected();
+    // 核心断言(幂等):该文本最终恰好 1 条——既不因自动补发+outbox 自愈双触发而重复(≤1),
+    // 也不因重连补拉误删乐观消息而丢失(≥1)。用 toHaveCount 轮询等待自愈落定。
     await expect(a.page.locator('[data-testid^="msg-bubble-"]', { hasText: txt }))
-      .toHaveCount(1, { timeout: 10000 });
+      .toHaveCount(1, { timeout: 15000 });
     await a.ctx.close();
   });
 

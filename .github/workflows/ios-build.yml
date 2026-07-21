@@ -50,10 +50,39 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | tee xcodebuild.log
 
-      - name: Upload build log
+      # 选一台可用的 iOS 模拟器作 test 目标（xcodebuild test 不接受 generic 目标）。
+      # 取最后一个可用 iOS 设备（通常为较新系统版本）的 UDID。runner 自带 jq。
+      - name: Pick a simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j \
+            | jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .value[].udid] | last')
+          if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
+            echo "No available iOS simulator found"; exit 1
+          fi
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          echo "Using simulator UDID: $UDID"
+
+      # 单测门禁：含离线消息缓存 MsgCacheStore 语义基线（与 Web vitest / Android JUnit 三端对齐）。
+      - name: Unit tests (VxinTests, iOS Simulator)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Vxin.xcodeproj \
+            -scheme Vxin \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -configuration Debug \
+            -only-testing:VxinTests \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild-test.log
+
+      - name: Upload build & test logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: ios/xcodebuild.log
+          path: |
+            ios/xcodebuild.log
+            ios/xcodebuild-test.log
           if-no-files-found: ignore

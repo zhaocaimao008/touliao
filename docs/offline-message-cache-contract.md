@@ -77,9 +77,29 @@ enterConversation(convId):
 
 ## 9. 落地阶段
 - **P0** 本契约 + 各端 Store 骨架
-- **P1 Web 先行**（IndexedDB + vitest + e2e）← 参考实现/测试基线
-- **P2** Android（Room + instrumented test）
-- **P3** iOS（FileManager + XCTest）
-- **P4** 三端隐私失效对齐 + 回归
+- **P1 Web 先行**（IndexedDB + vitest + e2e）← 参考实现/测试基线 ✅
+- **P2** Android ✅ —— `MsgCacheStore.kt`（SharedPreferences + kotlinx.serialization，
+  沿用已上线 OutboxStore 载体形态；语义 1:1 对齐 msgCache.js 的 normalize/mergeById）。
+  接入 `ChatViewModel`（首屏 primeFromCache / history 落盘 / socket 追加 / 删除·撤回 remove /
+  编辑覆写 / 清空 clear(convId)）与 `SessionManager`（登出·注销·401 → clear() 全清，隐私红线）。
+  单测 `MsgCacheStoreTest`（9 例，纯 JVM）覆盖 Web vitest 基线全部用例。
+  > 载体选型说明：契约初拟 Room，实际落地改用 SharedPreferences+Json——复刻同项目已上线、
+  > 经生产验证的 OutboxStore 形态，零新增依赖、逻辑内核纯函数可 JVM 单测（无需 instrumented），
+  > 与「复用现有 outbox、零新增分歧」一致。阅后即焚在后端为**会话级**设置，故隐私红线在
+  > ChatViewModel 按 burnAfter>0 跳过 save（消息 DTO 无独立 burn 字段）。
+- **P3** iOS ✅ —— `MsgCacheStore.swift`（FileManager JSON，每会话一文件，目录 `vxin_msgcache_v1/`
+  于 Caches；`Message` 仅 Decodable，复刻 OutboxStore 用独立 `Cached: Codable` 快照落盘）。
+  语义 1:1 对齐 msgCache.js 的 `normalize`/`mergeById`。接入 `ChatViewModel`（首屏 primeFromCache /
+  history mergeById 落盘 / socket 追加 / 删除·撤回·批删 remove / 编辑覆写 / 清空 clear(convId)）
+  与 `SessionStore`（登出·注销 → clear() 全清，隐私红线）。单测 `VxinTests/MsgCacheStoreTests`
+  （14 例，XCTest：normalize/mergeById 纯逻辑 + FileManager IO 往返，注入临时目录）覆盖 Web
+  vitest 基线全部用例。测试 target 已加入 `project.yml`（`VxinTests`，bundle.unit-test）。
+  > 阅后即焚同 Android：后端为会话级设置，隐私红线在 ChatViewModel 按 burnAfter>0 跳过 save。
+- **P4** 三端隐私失效对齐 + 回归 —— 三端登出/切账号/清空聊天/阅后即焚均已各自实现并测试，语义一致。
+  **CI 回归门禁已三端接入**：
+  - Web：`ci.yml` 新增 `web-unit` job 跑 `npm test`（vitest，含 `msgCache.test.js` 12 例）。
+  - Android：`android-build.yml` 在打 APK 前跑 `./gradlew testDebugUnitTest`（含 `MsgCacheStoreTest` 9 例），失败即中止。
+  - iOS：`ios-build.yml` 在编译后跑 `xcodebuild test -only-testing:VxinTests`（含 `MsgCacheStoreTests` 14 例，动态挑选可用模拟器）。
+  三端单测报告均作为 CI artifact 上传。
 
 后端**无需改动**（复用 `GET /messages/conversation/:id` 游标 history 与 `/missed`）。

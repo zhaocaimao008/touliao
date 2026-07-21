@@ -142,6 +142,13 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
     scrollToItem(index, align = 'auto') {
       listRef.current?.scrollToItem(index, align);
     },
+    // 把最后一项纳入渲染窗口并对齐到底部。变高行未测量时裸 scrollTop=scrollHeight
+    // 会滚不到真正底部→末条(如刚发的乐观消息)被虚拟化掉、DOM 不挂载。
+    // 由调用方每帧调用配合像素级贴底,覆盖末行异步测量导致的高度变化。
+    scrollToLast() {
+      const last = items.length - 1;
+      if (last >= 0) listRef.current?.scrollToItem(last, 'end');
+    },
     resetAfterIndex(index) {
       delete sizeMapRef.current[index];
       listRef.current?.resetAfterIndex(index, false);

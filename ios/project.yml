@@ -35,8 +35,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vxin.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "1.0.9"
-        CURRENT_PROJECT_VERSION: "10"
+        MARKETING_VERSION: "1.0.10"
+        CURRENT_PROJECT_VERSION: "11"
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "5.9"
     info:
@@ -55,3 +55,29 @@ targets:
         NSCameraUsageDescription: 用于扫码添加好友与视频通话
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
+
+  VxinTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - VxinTests
+    dependencies:
+      - target: Vxin
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vxin.app.tests
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: true
+
+# 显式声明 Vxin scheme 的 test 动作挂上 VxinTests，
+# 保证 CI 里 `xcodebuild test -scheme Vxin -only-testing:VxinTests` 可用。
+schemes:
+  Vxin:
+    build:
+      targets:
+        Vxin: all
+        VxinTests: [test]
+    test:
+      targets:
+        - VxinTests
+      gatherCoverageData: false

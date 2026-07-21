@@ -11,6 +11,15 @@ class ChatPage {
     await this.tid(A.navTab('chats')).first().waitFor({ state: 'visible', timeout: 15000 });
   }
 
+  /**
+   * 等 socket 真正连上(window.__vxinSocket.connected)。
+   * 断网类用例必须先等连上再 setOffline(true),否则是「冷启动从未连上」而非
+   * 「已连上后断线」——后者才是失败态/重连自愈路径的被测对象,前者会造成偶发 flaky。
+   */
+  async waitSocketConnected(timeout = 15000) {
+    await this.page.waitForFunction(() => window.__vxinSocket?.connected === true, null, { timeout });
+  }
+
   /** 按会话 id 打开;虚拟列表中不可见则先滚动 */
   async openConv(convId) {
     const item = this.tid(A.convItem(convId)).first();

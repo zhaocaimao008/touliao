@@ -99,6 +99,7 @@ class ChatViewModel @Inject constructor(
     private val mediaUrlResolver: MediaUrlResolver,
     private val draftStore: com.vxin.app.core.storage.DraftStore,
     private val outboxStore: com.vxin.app.core.storage.OutboxStore,
+    private val msgCacheStore: com.vxin.app.core.storage.MsgCacheStore,
     private val configApi: com.vxin.app.data.api.ConfigApi,
     sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
@@ -124,6 +125,7 @@ class ChatViewModel @Inject constructor(
 
     init {
         chatRepository.joinConversation(conversationId)
+        primeFromCache()    // 首屏占位：先渲染离线缓存历史，随后 loadHistory 拉取真相源覆盖
         loadHistory()
         loadBackground()
         observeIncoming()
@@ -448,16 +450,19 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             chatRepository.messageDeletedEvents.collect { msgId ->
                 _uiState.update { it.copy(messages = it.messages.filterNot { m -> m.id == msgId }) }
+                msgCacheStore.remove(conversationId, msgId)   // 撤回/删除 → 缓存同步移除
             }
         }
         viewModelScope.launch {
             chatRepository.messageVanishedEvents.collect { msgId ->
                 _uiState.update { it.copy(messages = it.messages.filterNot { m -> m.id == msgId }) }
+                msgCacheStore.remove(conversationId, msgId)
             }
         }
         viewModelScope.launch {
             chatRepository.batchDeletedEvents.collect { ids ->
                 _uiState.update { it.copy(messages = it.messages.filterNot { m -> ids.contains(m.id) }) }
+                ids.forEach { msgCacheStore.remove(conversationId, it) }
             }
         }
     }
@@ -466,7 +471,10 @@ class ChatViewModel @Inject constructor(
     private fun observeCleared() {
         viewModelScope.launch {
             chatRepository.conversationClearedEvents.collect { convId ->
-                if (convId == conversationId) _uiState.update { it.copy(messages = emptyList()) }
+                if (convId == conversationId) {
+                    _uiState.update { it.copy(messages = emptyList()) }
+                    msgCacheStore.clear(conversationId)   // 清空聊天记录 → 缓存整会话清除（隐私红线）
+                }
             }
         }
     }
@@ -485,6 +493,7 @@ class ChatViewModel @Inject constructor(
                 _uiState.update { s ->
                     s.copy(messages = s.messages.map { if (it.id == e.msgId) it.copy(content = e.content, edited = 1) else it })
                 }
+                persistCache(_uiState.value.messages)   // 编辑 → 按 id 覆写落盘
             }
         }
     }
@@ -500,6 +509,7 @@ class ChatViewModel @Inject constructor(
             runCatching { chatRepository.editMessage(msg.id, text) }
                 .onSuccess {
                     _uiState.update { s -> s.copy(messages = s.messages.map { if (it.id == msg.id) it.copy(content = text, edited = 1) else it }) }
+                    persistCache(_uiState.value.messages)   // 本端编辑 → 覆写落盘
                 }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("编辑失败")) } }
         }
@@ -586,6 +596,33 @@ class ChatViewModel @Inject constructor(
         resolveMediaUrl(fileUrl)?.let(audioPlayer::play)
     }
 
+    /**
+     * 首屏占位：进入会话立即渲染上次落盘的离线历史，避免白屏等 loadHistory。
+     * 缓存非真相源——loadHistory 成功后会以服务端结果 mergeById 覆盖并重新落盘。
+     * 阅后即焚会话不读缓存（该会话本就不落盘，双保险）；已存在 outbox 待发消息也一并合并。
+     */
+    private fun primeFromCache() {
+        if (conversationId.isBlank() || uiBurnAfterEnabled()) return
+        val cached = msgCacheStore.load(conversationId)
+        if (cached.isEmpty()) return
+        val pending = outboxStore.load(conversationId)
+        val merged = (cached + pending).sortedBy { it.created_at }
+        _uiState.update {
+            // 已被 loadHistory 抢先填充则不覆盖（竞态保护）
+            if (it.messages.isNotEmpty()) it else it.copy(messages = merged)
+        }
+    }
+
+    /** 将当前「已确认历史消息」落盘为离线缓存（内部 normalize：去乐观/待发、去重、截断 50）。 */
+    private fun persistCache(messages: List<Message>) {
+        if (conversationId.isBlank()) return
+        if (uiBurnAfterEnabled()) { msgCacheStore.clear(conversationId); return }  // 焚毁会话不落盘
+        // save 内部 normalize 会剔除 clientMsgId/localStatus 的乐观/待发气泡。
+        msgCacheStore.save(conversationId, messages)
+    }
+
+    private fun uiBurnAfterEnabled(): Boolean = _uiState.value.burnAfter > 0
+
     private fun loadHistory() {
         viewModelScope.launch {
             runCatching { chatRepository.loadHistory(conversationId) }
@@ -598,6 +635,8 @@ class ChatViewModel @Inject constructor(
                     pending.filterNot { it in stillPending }.forEach { outboxStore.remove(conversationId, it.id) }
                     val merged = (list + stillPending).sortedBy { it.created_at }
                     _uiState.update { it.copy(loading = false, messages = merged, reachedStart = list.size < HISTORY_PAGE) }
+                    // 离线缓存：server 覆盖旧缓存（含已编辑/已删同步），再落盘最近 50。
+                    persistCache(com.vxin.app.core.storage.MsgCacheStore.mergeById(msgCacheStore.load(conversationId), list))
                     markReadLatest()   // 打开会话即标记已读
                     healFailedMessages()   // 连线且有失败气泡 → 进会话自动重发一次
                 }
@@ -639,6 +678,7 @@ class ChatViewModel @Inject constructor(
             chatRepository.incomingMessages.collect { msg ->
                 if (msg.conversation_id != conversationId) return@collect
                 claimOrAppend(msg)
+                persistCache(_uiState.value.messages)   // 收到真实 socket 新消息 → 追加后落盘（截断 50）
                 // 仅在底部附近才即时标已读；看历史时留给「N 条新消息」提示，滚回底再标
                 if (msg.sender_id != myId && atBottom) markReadLatest()
             }

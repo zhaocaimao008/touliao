@@ -97,6 +97,7 @@ final class SessionStore: ObservableObject {
         SocketService.shared.disconnect()
         if let active = AccountStore.shared.activeId() { AccountStore.shared.remove(active) }
         KeychainStore.shared.clear()
+        MsgCacheStore.shared.clear()   // 离线消息缓存全清（隐私红线）
         state = .unauthenticated
     }
 
@@ -104,6 +105,7 @@ final class SessionStore: ObservableObject {
         await PushManager.shared.unregister()
         SocketService.shared.disconnect()
         await repo.logout()
+        MsgCacheStore.shared.clear()   // 离线消息缓存全清（隐私红线：登出/切账号）
         state = .unauthenticated
     }
 }

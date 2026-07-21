@@ -22,6 +22,7 @@ codeScanner = "16.1.0"
 webrtc = "125.6422.07"
 googleServices = "4.4.2"
 firebaseBom = "33.5.1"
+junit = "4.13.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -55,6 +56,8 @@ play-services-code-scanner = { group = "com.google.android.gms", name = "play-se
 webrtc = { group = "io.github.webrtc-sdk", name = "android", version.ref = "webrtc" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
+
+junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

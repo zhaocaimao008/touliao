@@ -33,6 +33,7 @@ class SessionManager @Inject constructor(
     private val remoteConfig: com.vxin.app.core.config.RemoteConfig,
     private val tokenStore: com.vxin.app.core.storage.TokenStore,
     private val accountStore: com.vxin.app.core.storage.AccountStore,
+    private val msgCacheStore: com.vxin.app.core.storage.MsgCacheStore,
     authInterceptor: AuthInterceptor,
     @AppScope private val scope: CoroutineScope,
 ) {
@@ -43,6 +44,7 @@ class SessionManager @Inject constructor(
         scope.launch {
             authInterceptor.unauthorizedEvents.collect {
                 socketManager.disconnect()
+                msgCacheStore.clear()   // 401 被动登出也清离线缓存（隐私红线）
                 _state.value = AuthState.Unauthenticated
             }
         }
@@ -111,6 +113,7 @@ class SessionManager @Inject constructor(
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前
         socketManager.disconnect()
         tokenStore.clear()
+        msgCacheStore.clear()                  // 离线消息缓存全清（隐私红线）
         accountStore.activeId()?.let { accountStore.remove(it) }
         _state.value = AuthState.Unauthenticated
     }
@@ -119,6 +122,7 @@ class SessionManager @Inject constructor(
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前
         socketManager.disconnect()
         authRepository.logout()
+        msgCacheStore.clear()                  // 离线消息缓存全清（隐私红线：登出/切账号）
         _state.value = AuthState.Unauthenticated
     }
 }

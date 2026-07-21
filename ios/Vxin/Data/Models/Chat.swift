@@ -118,6 +118,14 @@ struct Message: Decodable, Identifiable, Equatable {
         clientMsgId = try? c.decode(String.self, forKey: .clientMsgId)
     }
 
+    /// 便捷构造：从离线缓存快照还原「已确认历史消息」（localStatus/clientMsgId 均为 nil）。
+    /// 其余字段由调用方（MsgCacheStore）逐一赋值。
+    init(cachedId id: String, conversationId: String, senderId: String) {
+        self.id = id
+        self.conversationId = conversationId
+        self.senderId = senderId
+    }
+
     /// 便捷构造：本地乐观消息（发送中气泡）
     init(optimisticText id: String, conversationId: String, senderId: String,
          content: String, replyToId: String?, replyTo: ReplyPreview?, clientMsgId: String) {

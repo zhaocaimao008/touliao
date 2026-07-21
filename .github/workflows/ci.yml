@@ -3,7 +3,8 @@ name: CI Gate
 # 上线门禁：每次 push/PR 都跑，全绿才允许合并/部署。
 #   1) web ESLint（0 warning 策略）
 #   2) Capacitor 版本一致性守护（防 CLI/平台主版本漂移致 Android 打包崩）
-#   3) backend-v2 Jest 全套 + 覆盖率下限（隔离测试库，不碰生产 wechat.db）
+#   3) web vitest 单测（含离线消息缓存 msgCache 语义基线，与 Android/iOS 三端对齐）
+#   4) backend-v2 Jest 全套 + 覆盖率下限（隔离测试库，不碰生产 wechat.db）
 on:
   push:
     branches: [main, master]
@@ -38,6 +39,24 @@ jobs:
       - name: ESLint
         working-directory: web
         run: npm run lint -- --max-warnings=0
+
+  web-unit:
+    name: Web Vitest 单测（含 msgCache 缓存基线）
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: 安装 web 依赖
+        working-directory: web
+        run: npm ci --legacy-peer-deps
+      - name: Vitest（纯逻辑单测：reducer / msgCache 离线缓存语义基线）
+        working-directory: web
+        run: npm test
 
   backend-test:
     name: Backend Jest + 覆盖率门禁

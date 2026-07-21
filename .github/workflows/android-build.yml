@@ -35,6 +35,20 @@ jobs:
         working-directory: android
         run: chmod +x gradlew
 
+      # 单测门禁：含离线消息缓存 MsgCacheStore 语义基线（与 Web vitest / iOS XCTest 三端对齐）。
+      # 失败即中止，不产出 APK。
+      - name: Unit tests
+        working-directory: android
+        run: ./gradlew testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-report
+          path: android/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
+
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug --stacktrace --no-daemon

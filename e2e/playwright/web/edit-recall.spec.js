@@ -10,6 +10,8 @@ async function loginOpen(webPage, baseURL, seeded) {
   await login.login(seeded.users[0].phone, seeded.users[0].password);
   await chat.waitReady();
   await chat.openConv(seeded.convAB);
+  // 发消息前确保 socket 已连上,避免冷启动竞态导致乐观消息进失败态(flaky)
+  await chat.waitSocketConnected();
   return chat;
 }
 
