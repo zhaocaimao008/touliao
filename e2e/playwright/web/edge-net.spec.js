@@ -53,10 +53,12 @@ test.describe('网络边界 EDGE-NET', () => {
     const txt = 'idem-' + Date.now();
     await a.ctx.setOffline(true);
     await a.chat.sendText(txt);
-    // 弱网发送:消息不能被静默丢弃——乐观气泡必须立刻可见(无论后续走失败态❗还是
-    // socket.io 缓冲重连后自动补发成功;二者都可接受,不做脆弱的「必须进失败态」硬断言,
-    // 因为 socket.io 离线缓冲可能在 5s 内经瞬时重连即把消息送达,失败态未必出现)。
-    await expect(a.page.locator('[data-testid^="msg-bubble-"]', { hasText: txt }).last())
+    // 关键(承重步骤):先等消息进入失败态❗再恢复网络。
+    // 真正 setOffline 的 context 下 socket.io 无法送达,5s ack 超时必然触发失败态,
+    // 而失败态同时意味着该消息已写入 outbox(localStorage)。若不等此步就恢复网络,
+    // 消息可能仍是 sending/未落 outbox,重连补拉历史会替换 messages 把它冲掉 → 丢失(0 条)。
+    // (CI 负载下此竞态稳定复现;隔离跑因够快侥幸不触发。)
+    await expect(a.page.locator('[data-testid="msg-send-failed"]').last())
       .toBeVisible({ timeout: 20000 });
     // 恢复网络：socket.io 重连后自动补发离线期间缓冲的 emit / outbox 自愈重发，
     // 后端据 clientMsgId 幂等去重。(不手动点❗重发——会与自动补发形成双触发竞态。)
