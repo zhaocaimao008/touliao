@@ -1,0 +1,16 @@
+{
+  "mode": "external",
+  "locale": "zh-Hans",
+  "bundle": "com.vxin.app",
+  "feedback_email": "4063461zhaocaimao@gmail.com",
+  "description": "v信 是一款即时通讯应用，支持单聊与群聊、朋友圈、音视频通话、扫码加好友等功能。",
+  "whats_new": "请体验：注册/登录、单聊与群聊、发送图片/语音/文件、朋友圈、音视频通话、扫码加好友。",
+  "demo_account": "13800138006",
+  "demo_password": "Review2026ab",
+  "contact_first": "招财",
+  "contact_last": "猫",
+  "contact_email": "4063461zhaocaimao@gmail.com",
+  "contact_phone": "+85257425881",
+  "review_notes": "已提供测试账号（手机号 13800138006 / 密码 Review2026ab），登录后可体验全部功能。国内即时通讯应用。",
+  "group_name": "公开测试"
+}

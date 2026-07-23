@@ -7,6 +7,11 @@ on:
         description: '版本号 (如 1.0.1)'
         required: false
         default: '1.0.0'
+      submit_review:
+        description: '上传后自动填测试信息并提交外部 Beta 审核'
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   testflight:
@@ -166,3 +171,39 @@ jobs:
           name: vxin-ios-ipa
           path: /tmp/vxin-ipa/*.ipa
           if-no-files-found: ignore
+
+      # ── 自动填测试信息 + 提交外部 Beta 审核 ─────────────────────────────
+      # 上传后构建需几分钟处理成 VALID 才能送审，脚本内含轮询等待。
+      # 非敏感的测试信息/联系人/演示账号集中在 ios/testflight-config.json，
+      # 可随时改；改完下次发版自动带上。
+      - name: 安装 Python 依赖(送审脚本)
+        if: ${{ inputs.submit_review }}
+        run: pip3 install --quiet --break-system-packages pyjwt cryptography requests || pip3 install --quiet pyjwt cryptography requests
+
+      - name: 等待构建处理完成并提交 Beta 审核
+        if: ${{ inputs.submit_review }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+        run: |
+          set -e
+          # 还原 ASC API Key 文件供脚本使用
+          echo "$ASC_API_KEY_BASE64" | base64 --decode > /tmp/asc_key.p8
+          export ASC_P8_PATH=/tmp/asc_key.p8
+          # 从 config 载入测试信息（用 python 读 JSON 并导出为环境变量）
+          eval "$(python3 - <<'PY'
+import json,shlex,os
+cfg=json.load(open('ios/testflight-config.json'))
+m={"feedback_email":"TF_FEEDBACK_EMAIL","description":"TF_DESCRIPTION",
+   "whats_new":"TF_WHATS_NEW","demo_account":"TF_DEMO_ACCOUNT","demo_password":"TF_DEMO_PASSWORD",
+   "contact_first":"TF_CONTACT_FIRST","contact_last":"TF_CONTACT_LAST","contact_email":"TF_CONTACT_EMAIL",
+   "contact_phone":"TF_CONTACT_PHONE","review_notes":"TF_REVIEW_NOTES","group_name":"TF_GROUP_NAME",
+   "mode":"TF_MODE","locale":"TF_LOCALE","bundle":"TF_BUNDLE"}
+for k,v in m.items():
+    if k in cfg and cfg[k] is not None:
+        print(f'export {v}={shlex.quote(str(cfg[k]))}')
+PY
+)"
+          # 轮询等待最新构建变 VALID（最多 ~18 分钟）
+          python3 scripts/ios-testflight-submit.py

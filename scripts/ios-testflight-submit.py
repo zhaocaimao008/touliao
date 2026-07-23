@@ -63,13 +63,27 @@ app=req("GET",f"/apps?filter[bundleId]={BUNDLE}")["data"]
 if not app: die(f"找不到 App {BUNDLE}")
 APPID=app[0]["id"]; ok(f"App: {app[0]['attributes']['name']} ({APPID})")
 
-# 最新 VALID 构建
-step("查找最新可用构建")
-builds=req("GET",f"/builds?filter[app]={APPID}&sort=-uploadedDate&limit=10")["data"]
-build=next((b for b in builds if b["attributes"]["processingState"]=="VALID"), None)
-if not build:
-    die("暂无 VALID 构建（可能还在处理中，稍后再运行）")
+# 最新 VALID 构建（轮询等待处理完成，最多 ~20 分钟）
+step("查找最新可用构建（等待处理为 VALID）")
+WAIT_MAX=int(os.environ.get("TF_WAIT_MAX_SEC","1200")); INTERVAL=30
+build=None; waited=0
+while True:
+    builds=req("GET",f"/builds?filter[app]={APPID}&sort=-uploadedDate&limit=10")["data"]
+    build=next((b for b in builds if b["attributes"]["processingState"]=="VALID"), None)
+    if build: break
+    st=builds[0]["attributes"].get("processingState","(无构建)") if builds else "(无构建)"
+    if waited>=WAIT_MAX:
+        die(f"等待超时({WAIT_MAX}s)：最新构建仍为 {st}，稍后可手动重跑送审脚本")
+    print(f"  最新构建状态={st}，等待处理… ({waited}s)")
+    time.sleep(INTERVAL); waited+=INTERVAL
 BUILDID=build["id"]; ok(f"构建 build {build['attributes']['version']} ({BUILDID})")
+
+# 出口合规：若未回答则设为 false(仅标准 HTTPS 加密,属豁免)，否则无法对外分发
+if build["attributes"].get("usesNonExemptEncryption") is None:
+    req("PATCH",f"/builds/{BUILDID}",
+        json={"data":{"type":"builds","id":BUILDID,
+              "attributes":{"usesNonExemptEncryption":False}}})
+    ok("已自动回答出口合规(非豁免加密=否)")
 
 # 1) Beta App Localization（App 级测试信息：反馈邮箱/描述）
 step("填写 App 级测试信息 (BetaAppLocalization)")
