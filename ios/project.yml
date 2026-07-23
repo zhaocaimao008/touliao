@@ -52,6 +52,9 @@ targets:
       properties:
         CFBundleDisplayName: v信
         UILaunchScreen: {}
+        # 出口合规：仅用标准 HTTPS/系统加密(属豁免)，声明后每次上传免手动回答，
+        # 且构建可直接对外分发（否则 TestFlight 外部测试会卡在“合规未回答”）。
+        ITSAppUsesNonExemptEncryption: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         # 后台收推送（远程通知）
