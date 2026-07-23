@@ -65,6 +65,10 @@ jobs:
           APP_VERSION: ${{ github.event.inputs.version || '1.0.0' }}
         run: |
           set -o pipefail
+          # 手动签名必须显式指定 DEVELOPMENT_TEAM，否则 xcodebuild 立即报
+          # "requires a development team" 而退出。Team ID 取自发布证书。
+          # 不再用 `| xcpretty || true`：那会吞掉归档真实错误，导致后续
+          # 导出因找不到 .xcarchive 而误报。改为直接输出并让失败真实中断。
           xcodebuild archive \
             -project Vxin.xcodeproj \
             -scheme Vxin \
@@ -72,10 +76,10 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath /tmp/Vxin.xcarchive \
             MARKETING_VERSION="$APP_VERSION" \
+            DEVELOPMENT_TEAM="F2J52VX786" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="iPhone Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="vxin_distribution" \
-            | xcpretty || true
+            PROVISIONING_PROFILE_SPECIFIER="vxin_distribution"
 
       - name: 导出 IPA
         run: |
@@ -86,6 +90,8 @@ jobs:
           <dict>
             <key>method</key>
             <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>F2J52VX786</string>
             <key>destination</key>
             <string>export</string>
             <key>signingStyle</key>
