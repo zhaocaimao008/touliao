@@ -69,6 +69,16 @@ jobs:
             -project Vxin.xcodeproj \
             -scheme Vxin
 
+      - name: 计算 build 号（Unix 时间戳，保证唯一且单调递增）
+        id: buildno
+        run: |
+          # 用构建时刻的 Unix 时间戳作为 CFBundleVersion(build 号)：
+          # 天然递增、绝不撞号，无需查 ASC 或依赖 git。远大于历史 build 11。
+          BN=$(date -u +%s)
+          echo "BUILD_NUMBER=$BN" >> "$GITHUB_ENV"
+          echo "build_number=$BN" >> "$GITHUB_OUTPUT"
+          echo "本次 build 号: $BN"
+
       - name: 构建并归档
         working-directory: ios
         env:
@@ -79,13 +89,15 @@ jobs:
           # 命令行不再传 CODE_SIGN_*/PROVISIONING_PROFILE_SPECIFIER，否则会被
           # 全局套用到 SPM 依赖(Firebase/Kingfisher)导致
           # "does not support provisioning profiles" 而归档失败。
+          # CURRENT_PROJECT_VERSION 用上一步的时间戳 build 号，自动递增。
           xcodebuild archive \
             -project Vxin.xcodeproj \
             -scheme Vxin \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath /tmp/Vxin.xcarchive \
-            MARKETING_VERSION="$APP_VERSION"
+            MARKETING_VERSION="$APP_VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
 
       - name: 导出 IPA
         run: |
