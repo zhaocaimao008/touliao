@@ -39,6 +39,14 @@ targets:
         CURRENT_PROJECT_VERSION: "11"
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "5.9"
+        # 发布签名只挂在 App 主 target，避免命令行全局传参把描述文件
+        # 套用到 SPM 依赖(Firebase/Kingfisher 等)而报 "does not support
+        # provisioning profiles"。CI 归档不再传 PROVISIONING_PROFILE_SPECIFIER。
+        # 模拟器构建走 CODE_SIGNING_ALLOWED=NO，不受影响。
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: F2J52VX786
+        CODE_SIGN_IDENTITY: "iPhone Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: vxin_distribution
     info:
       path: Vxin/Info.plist
       properties:
