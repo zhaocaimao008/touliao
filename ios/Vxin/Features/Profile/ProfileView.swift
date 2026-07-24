@@ -134,13 +134,13 @@ struct ProfileView: View {
                 Button("添加账号") { showAddAccount = true }
             }
 
-            if let message { Section { Text(message).foregroundColor(.vxinGreen).font(.footnote) } }
-
             Section {
                 Button("退出登录", role: .destructive) { Task { await session.logout() } }
             }
         }
         .navigationTitle("我")
+        // 屏幕级底部 toast：保存/头像结果一定可见，不受表单滚动位置影响（与其它设置页一致）
+        .toast($message)
         .sheet(isPresented: $showAddAccount) {
             NavigationStack { LoginView() }
         }
@@ -168,9 +168,13 @@ struct ProfileView: View {
 
     private func saveProfile() {
         saving = true; message = nil
+        // 收起键盘，避免首次点击只是关闭键盘而看似「没反应」
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         Task {
             do {
-                let user = try await repo.updateProfile(username: username.trimmingCharacters(in: .whitespaces), bio: bio)
+                var user = try await repo.updateProfile(username: username.trimmingCharacters(in: .whitespaces), bio: bio)
+                // 后端 /users/profile 返回行不含 phone，避免整体替换时清空本地手机号
+                if user.phone.isEmpty, let phone = session.currentUser?.phone { user.phone = phone }
                 session.updateCurrentUser(user)
                 message = "已保存"
             } catch {
