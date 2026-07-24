@@ -21,7 +21,8 @@ export const site = {
     // 安卓/Windows 指向自托管下载（CDN 零依赖，出新版只需替换文件）
     android: `${BASE}/downloads/vxin-android-latest.apk`,
     windows: `${BASE}/downloads/vxin-windows-latest-setup.exe`,
-    ios: '', // 留空 = 即将上线（暂无 TestFlight/App Store 链接）
+    // iOS 走 TestFlight 公开外部测试链接（审核已通过，公开链接已启用）
+    ios: 'https://testflight.apple.com/join/JQw5bjEz',
     email: 'admin@vxin.app',
   },
 } as const;
@@ -170,10 +171,10 @@ export const download = {
       key: 'ios',
       icon: '🍎',
       name: 'iOS',
-      desc: 'App Store 即将上线',
-      cta: '即将上线',
+      desc: '通过 TestFlight 抢先体验',
+      cta: 'TestFlight 下载',
       href: site.links.ios,
-      available: false,
+      available: true,
     },
   ],
 } as const;
