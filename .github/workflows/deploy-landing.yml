@@ -1,0 +1,76 @@
+name: 部署落地页 (landing → dipsin.com/welcome)
+
+# 落地页是 Next.js 静态导出（output: 'export'，basePath /welcome），
+# 产物 landing/out/ 由生产机 Nginx 直接托管（root /root/v信/landing/out）。
+# 主 deploy.yml 只管 backend-v2 + web，不含 landing，故单列此 workflow。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/deploy-landing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-landing
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    name: 构建静态站并同步到生产机
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: landing/package-lock.json
+
+      - name: 安装依赖
+        working-directory: landing
+        run: npm ci
+
+      - name: 构建静态站（→ landing/out）
+        working-directory: landing
+        run: npm run build
+
+      - name: 配置 SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: rsync 同步 out/ 到生产机（Nginx 根目录）
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+          # Nginx root（见 /etc/nginx/sites-enabled/vxin-dipsin.conf）
+          LANDING_PATH: /root/v信/landing/out
+        run: |
+          # --delete 保证生产目录与构建产物一致（清理已删除的旧资源）
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            landing/out/ "${DEPLOY_USER}@${DEPLOY_HOST}:${LANDING_PATH}/"
+
+      - name: 线上验证
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+          LANDING_PATH: /root/v信/landing/out
+        run: |
+          # 在生产机上核对产物已落盘
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "test -f '${LANDING_PATH}/index.html' && echo '✅ 生产机 index.html 已更新' || (echo '❌ 产物缺失'; exit 1)"
+          # 公网侧核对（静态站，index.html 已设 no-store）
+          echo "公网 /welcome/ 抓取："
+          curl -s "https://dipsin.com/welcome/?t=${GITHUB_SHA}" | grep -o 'TestFlight\|即将上线' | sort -u || true
