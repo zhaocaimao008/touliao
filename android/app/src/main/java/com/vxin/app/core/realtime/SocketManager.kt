@@ -252,7 +252,11 @@ class SocketManager @Inject constructor(
                 val arr = o.optJSONArray("reactions")
                 val list = mutableListOf<MessageReaction>()
                 if (arr != null) for (i in 0 until arr.length()) {
-                    arr.optJSONObject(i)?.let { r -> list.add(MessageReaction(r.optString("emoji"), r.optInt("count"))) }
+                    arr.optJSONObject(i)?.let { r ->
+                        val uidArr = r.optJSONArray("userIds")
+                        val uids = if (uidArr != null) (0 until uidArr.length()).map { uidArr.optString(it) } else emptyList()
+                        list.add(MessageReaction(r.optString("emoji"), r.optInt("count"), uids))
+                    }
                 }
                 if (msgId.isNotEmpty()) _reaction.tryEmit(ReactionEvent(msgId, list))
             }

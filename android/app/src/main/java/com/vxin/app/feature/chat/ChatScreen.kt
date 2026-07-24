@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTransformGestures
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.withStyle
@@ -438,6 +439,7 @@ fun ChatScreen(
                                     MessageBubble(
                                         msg = msg,
                                         isMine = isMine,
+                                        myId = viewModel.myId,
                                         showReadStatus = false,
                                         onNudge = {}, isRead = false,
                                         resolveUrl = viewModel::resolveMediaUrl,
@@ -456,6 +458,7 @@ fun ChatScreen(
                         MessageBubble(
                             msg = msg,
                             isMine = isMine,
+                            myId = viewModel.myId,
                             showReadStatus = showReadStatus,
                             onNudge = { viewModel.nudge(msg.sender_id) },
                             isRead = isMine && viewModel.isReadByPeer(msg),
@@ -746,6 +749,7 @@ private val REACTION_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "
 private fun MessageBubble(
     msg: Message,
     isMine: Boolean,
+    myId: String,
     isRead: Boolean,
     showReadStatus: Boolean = false,
     resolveUrl: (String?) -> String?,
@@ -891,15 +895,19 @@ private fun MessageBubble(
             if (msg.edited == 1) {
                 Text("已编辑", color = VxinTextSecondary, fontSize = 10.sp)
             }
-            // 表情回应展示
+            // 表情回应展示（高亮「我」贴过的，点击可切换回应，对齐 Web/iOS）
             if (msg.reactions.isNotEmpty()) {
                 Spacer(Modifier.size(2.dp))
                 Row {
                     msg.reactions.forEach { r ->
+                        val mine = r.mine(myId)
                         Box(
                             Modifier.padding(end = 4.dp).clip(RoundedCornerShape(10.dp))
-                                .background(Color(0x11000000)).padding(horizontal = 6.dp, vertical = 1.dp),
-                        ) { Text("${r.emoji} ${r.count}", fontSize = 11.sp) }
+                                .background(if (mine) VxinGreen.copy(alpha = 0.15f) else Color(0x11000000))
+                                .then(if (mine) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), RoundedCornerShape(10.dp)) else Modifier)
+                                .clickable { onReact(r.emoji) }
+                                .padding(horizontal = 6.dp, vertical = 1.dp),
+                        ) { Text("${r.emoji} ${r.count}", fontSize = 11.sp, color = if (mine) VxinGreen else Color.Unspecified) }
                     }
                 }
             }
@@ -908,7 +916,7 @@ private fun MessageBubble(
     }
 }
 
-private fun replyPreviewText(rt: com.vxin.app.data.model.ReplyPreview): String = when (rt.type) {
+private fun replyPreviewText(rt: com.vxin.app.data.model.ReplyPreview): String = if (rt.deleted == 1) "消息已撤回" else when (rt.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
     "red_packet" -> "[红包]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> rt.content

@@ -174,7 +174,11 @@ final class SocketService {
         sock.on("message_reaction") { [weak self] data, _ in
             guard let dict = data.first as? [String: Any], let msgId = dict["msgId"] as? String else { return }
             let arr = (dict["reactions"] as? [[String: Any]]) ?? []
-            let reactions = arr.map { MessageReaction(emoji: $0["emoji"] as? String ?? "", count: ($0["count"] as? NSNumber)?.intValue ?? 0) }
+            let reactions = arr.map { r in
+                MessageReaction(emoji: r["emoji"] as? String ?? "",
+                                count: (r["count"] as? NSNumber)?.intValue ?? 0,
+                                userIds: (r["userIds"] as? [String]) ?? [])
+            }
             self?.reaction.send((msgId, reactions))
         }
         sock.on("mentioned") { [weak self] data, _ in

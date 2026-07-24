@@ -617,10 +617,16 @@ private struct MessageBubble: View {
                 if !msg.reactions.isEmpty {
                     HStack(spacing: 4) {
                         ForEach(msg.reactions, id: \.emoji) { r in
+                            let mine = r.mine(vm.myId)
                             Text("\(r.emoji) \(r.count)")
                                 .font(.caption2)
+                                .foregroundColor(mine ? .vxinBrand : .primary)
                                 .padding(.horizontal, 6).padding(.vertical, 1)
-                                .background(Color.gray.opacity(0.15)).clipShape(Capsule())
+                                // 高亮「我」贴过的表情（对齐 Web .mine 样式）
+                                .background(mine ? Color.vxinBrand.opacity(0.15) : Color.gray.opacity(0.15))
+                                .overlay(Capsule().stroke(mine ? Color.vxinBrand.opacity(0.6) : .clear, lineWidth: 0.5))
+                                .clipShape(Capsule())
+                                .onTapGesture { vm.react(msg, emoji: r.emoji) }  // 点击切换回应（与 Web 一致）
                         }
                     }
                 }
@@ -724,6 +730,7 @@ private struct MessageBubble: View {
     }
 
     private func replyPreview(_ rt: ReplyPreview) -> String {
+        if rt.deleted == 1 { return "消息已撤回" }   // 对齐 Web：被回复消息已撤回
         switch rt.type {
         case "image": return "[图片]"; case "voice": return "[语音]"
         case "video": return "[视频]"; case "file": return "[文件]"

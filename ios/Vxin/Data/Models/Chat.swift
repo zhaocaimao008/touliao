@@ -151,6 +151,19 @@ enum LocalMsgStatus {
 struct MessageReaction: Decodable, Equatable {
     var emoji: String = ""
     var count: Int = 0
+    var userIds: [String] = []   // 贴此表情的用户 id 列表（用于高亮「我」，对齐 Web）
+    enum CodingKeys: String, CodingKey { case emoji, count, userIds }
+    init(emoji: String = "", count: Int = 0, userIds: [String] = []) {
+        self.emoji = emoji; self.count = count; self.userIds = userIds
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        emoji = (try? c.decode(String.self, forKey: .emoji)) ?? ""
+        count = (try? c.decode(Int.self, forKey: .count)) ?? 0
+        userIds = (try? c.decode([String].self, forKey: .userIds)) ?? []
+    }
+    /// 当前用户是否贴过此表情
+    func mine(_ myId: String) -> Bool { userIds.contains(myId) }
 }
 
 struct ReplyPreview: Decodable, Equatable {
@@ -158,6 +171,19 @@ struct ReplyPreview: Decodable, Equatable {
     var type: String = "text"
     var content: String = ""
     var senderName: String = ""
+    var deleted: Int = 0   // 1 = 被回复的消息已撤回（显示「消息已撤回」，对齐 Web）
+    enum CodingKeys: String, CodingKey { case id, type, content, senderName, deleted }
+    init(id: String = "", type: String = "text", content: String = "", senderName: String = "", deleted: Int = 0) {
+        self.id = id; self.type = type; self.content = content; self.senderName = senderName; self.deleted = deleted
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(String.self, forKey: .id)) ?? ""
+        type = (try? c.decode(String.self, forKey: .type)) ?? "text"
+        content = (try? c.decode(String.self, forKey: .content)) ?? ""
+        senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
+        deleted = (try? c.decode(Int.self, forKey: .deleted)) ?? 0
+    }
 }
 
 /// 群置顶消息（GET .../pinned-messages）

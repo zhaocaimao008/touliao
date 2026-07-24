@@ -92,7 +92,14 @@ object LocalMsgStatus {
 }
 
 @Serializable
-data class MessageReaction(val emoji: String = "", val count: Int = 0)
+data class MessageReaction(
+    val emoji: String = "",
+    val count: Int = 0,
+    val userIds: List<String> = emptyList(),   // 贴此表情的用户 id（用于高亮「我」，对齐 Web）
+) {
+    /** 当前用户是否贴过此表情 */
+    fun mine(myId: String): Boolean = userIds.contains(myId)
+}
 
 /** 被回复消息的摘要(后端 history/new_message 的 replyTo 字段) */
 @Serializable
@@ -101,6 +108,7 @@ data class ReplyPreview(
     val type: String = "text",
     val content: String = "",
     val senderName: String = "",
+    val deleted: Int = 0,   // 1 = 被回复的消息已撤回（显示「消息已撤回」，对齐 Web）
 )
 
 @Serializable
