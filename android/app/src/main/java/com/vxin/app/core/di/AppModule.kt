@@ -47,6 +47,9 @@ object AppModule {
     fun provideJson(): Json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
+        // partial-update 关键：null 字段不编码（省略）。否则后端 normalizeSettings 以
+        // `body[k] !== undefined` 判定，会把 JSON null 当 false，改一个开关就误关其它所有开关。
+        explicitNulls = false
     }
 
     @Provides

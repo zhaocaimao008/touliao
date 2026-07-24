@@ -65,8 +65,10 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { profileRepository.updateProfile(username.trim(), bio) }
                 .onSuccess { user ->
-                    sessionManager.updateCurrentUser(user)
-                    _uiState.update { it.copy(saving = false, user = user, message = "已保存") }
+                    // 后端 /users/profile 返回行不含 phone，整体替换会清空本地手机号，故合并保留
+                    val merged = if (user.phone.isBlank()) user.copy(phone = sessionManager.currentUser?.phone ?: "") else user
+                    sessionManager.updateCurrentUser(merged)
+                    _uiState.update { it.copy(saving = false, user = merged, message = "已保存") }
                 }
                 .onFailure { e -> _uiState.update { it.copy(saving = false, message = e.toUserMessage("保存失败")) } }
         }
