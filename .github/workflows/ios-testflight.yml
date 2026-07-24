@@ -12,6 +12,11 @@ on:
         type: boolean
         required: false
         default: true
+  push:
+    tags:
+      # iOS 端专属前缀触发（见 VERSIONING.md 第 2 节）；避免裸 v*/其他端 tag 误触发。
+      # 版本号取自 tag（去掉 ios-v 前缀），且 tag 发布默认自动送外部 Beta 审核。
+      - 'ios-v*'
 
 jobs:
   testflight:
@@ -23,6 +28,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: 解析版本与发布参数（tag 或手动触发通用）
+        run: |
+          # tag 触发：版本号取自 tag（ios-v1.0.11 → 1.0.11），并默认送外部 Beta 审核；
+          # 手动触发：版本号取 inputs.version（默认 1.0.0），是否送审取 inputs.submit_review。
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#ios-v}"
+            SUBMIT="true"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+            [ -z "$VERSION" ] && VERSION="1.0.0"
+            SUBMIT="${{ github.event.inputs.submit_review }}"
+            [ -z "$SUBMIT" ] && SUBMIT="true"
+          fi
+          echo "VERSION=$VERSION"     >> "$GITHUB_ENV"
+          echo "SUBMIT_REVIEW=$SUBMIT" >> "$GITHUB_ENV"
+          echo "解析结果 → 版本: $VERSION | 送审: $SUBMIT | 触发: ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}"
 
       - name: 选择 Xcode 26（满足 App Store iOS 26 SDK 要求）
         run: |
@@ -87,7 +109,7 @@ jobs:
       - name: 构建并归档
         working-directory: ios
         env:
-          APP_VERSION: ${{ github.event.inputs.version || '1.0.0' }}
+          APP_VERSION: ${{ env.VERSION }}
         run: |
           set -o pipefail
           # 签名配置已内置到 project.yml 的 Vxin target（仅 App 主 target），
@@ -177,11 +199,11 @@ jobs:
       # 非敏感的测试信息/联系人/演示账号集中在 ios/testflight-config.json，
       # 可随时改；改完下次发版自动带上。
       - name: 安装 Python 依赖(送审脚本)
-        if: ${{ inputs.submit_review }}
+        if: ${{ env.SUBMIT_REVIEW == 'true' }}
         run: pip3 install --quiet --break-system-packages pyjwt cryptography requests || pip3 install --quiet pyjwt cryptography requests
 
       - name: 等待构建处理完成并提交 Beta 审核
-        if: ${{ inputs.submit_review }}
+        if: ${{ env.SUBMIT_REVIEW == 'true' }}
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}

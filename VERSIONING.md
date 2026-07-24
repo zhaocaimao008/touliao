@@ -28,7 +28,7 @@
 |---------|------------|------|
 | `desktop-v<版本>`（如 `desktop-v2.0.5`） | `.github/workflows/windows-build.yml` | 桌面端打包 + 部署更新源 |
 | `android-v<版本>`（如 `android-v1.0.2`） | `.github/workflows/android-release.yml` | 安卓签名 APK + 部署 |
-| `ios-v<版本>`（如 `ios-v1.0.0`） | （iOS TestFlight 仅 workflow_dispatch，预留） | iOS 发布锚点 |
+| `ios-v<版本>`（如 `ios-v1.0.10`） | `.github/workflows/ios-testflight.yml` | iOS 构建 + 上传 TestFlight + 自动送外部 Beta 审核 |
 
 版本号部分**与该端 manifest 的版本号一致**（如 `desktop-v2.0.5` ↔ desktop package.json `2.0.5`）。
 
