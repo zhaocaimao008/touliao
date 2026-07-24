@@ -545,12 +545,13 @@ function NotificationSettings({ onBack }) {
   useEffect(() => {
     axios.get('/api/users/me/settings').then(r => {
       const s = r.data || {};
-      setMessageNotify(s.message_notify !== 0);
-      setPreview(s.detail_preview !== 0);
-      setVibrate(s.vibrate === 1);
+      // 后端 serializeSettings 返回 camelCase 布尔值（非 snake_case、非 0/1）
+      setMessageNotify(s.messageNotify !== false);
+      setPreview(s.detailPreview !== false);
+      setVibrate(s.vibrate === true);
       // 同步 localStorage（向后兼容老版本）
-      localStorage.setItem('wc_lock_screen', s.message_notify !== 0 ? '1' : '0');
-      localStorage.setItem('wc_notify_preview', s.detail_preview !== 0 ? '1' : '0');
+      localStorage.setItem('wc_lock_screen', s.messageNotify !== false ? '1' : '0');
+      localStorage.setItem('wc_notify_preview', s.detailPreview !== false ? '1' : '0');
       setLoaded(true);
     }).catch(() => setLoaded(true));
   }, []);
@@ -558,12 +559,14 @@ function NotificationSettings({ onBack }) {
   const saveSettings = async (key, value) => {
     setSaving(true);
     try {
-      await axios.put('/api/users/me/settings', { [key]: value ? 1 : 0 });
-      localStorage.setItem(key === 'message_notify' ? 'wc_lock_screen' : 'wc_notify_preview', value ? '1' : '0');
+      // 键名须与后端 normalizeSettings 的 camelCase 一致，否则被 undefined 忽略、存不进
+      await axios.put('/api/users/me/settings', { [key]: value });
+      if (key === 'messageNotify') localStorage.setItem('wc_lock_screen', value ? '1' : '0');
+      else if (key === 'detailPreview') localStorage.setItem('wc_notify_preview', value ? '1' : '0');
     } catch {
       // 回滚 UI 状态
-      if (key === 'message_notify') setMessageNotify(!value);
-      else if (key === 'detail_preview') setPreview(!value);
+      if (key === 'messageNotify') setMessageNotify(!value);
+      else if (key === 'detailPreview') setPreview(!value);
       else if (key === 'vibrate') setVibrate(!value);
     }
     setSaving(false);
@@ -578,9 +581,9 @@ function NotificationSettings({ onBack }) {
       <div className="wc-notif-pad">
         <Card>
           <CRow label="锁屏通知" desc="关闭后不会收到消息推送"
-            right={<Toggle checked={messageNotify} onChange={v => { setMessageNotify(v); saveSettings('message_notify', v); }} disabled={saving} />} />
+            right={<Toggle checked={messageNotify} onChange={v => { setMessageNotify(v); saveSettings('messageNotify', v); }} disabled={saving} />} />
           <CRow label="消息详情预览" desc={'关闭后通知只显示"收到新消息"'}
-            right={<Toggle checked={preview} onChange={v => { setPreview(v); saveSettings('detail_preview', v); }} disabled={saving} />} />
+            right={<Toggle checked={preview} onChange={v => { setPreview(v); saveSettings('detailPreview', v); }} disabled={saving} />} />
           <CRow label="通知声音"
             right={<Toggle checked={notifySound} onChange={setNotifySound} />} />
           <CRow label="通知震动"
