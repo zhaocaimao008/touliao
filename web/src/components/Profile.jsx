@@ -598,7 +598,8 @@ function NotificationSettings({ onBack }) {
 function PrivacySettings({ user, onBack }) {
   const [page, setPage] = useState('main');
   const [settings, setSettings] = useState({
-    addByVxinId: true, addByPhone: true, addByQRCode: true, addByUsername: true, requireVerify: true,
+    // 仅保留后端 serializeSettings 真实支持的开关（对齐 Android/iOS）
+    addByVxinId: true, addByPhone: true, requireVerify: true,
     noDirectGroupInvite: false,
   });
 
@@ -629,10 +630,6 @@ function PrivacySettings({ user, onBack }) {
             right={<Toggle checked={settings.addByVxinId} onChange={v => setFlag('addByVxinId', v)} />} />
           <CRow label="手机号" desc={user?.phone || ''}
             right={<Toggle checked={settings.addByPhone} onChange={v => setFlag('addByPhone', v)} />} />
-          <CRow label="二维码"
-            right={<Toggle checked={settings.addByQRCode} onChange={v => setFlag('addByQRCode', v)} />} />
-          <CRow label="用户名"
-            right={<Toggle checked={settings.addByUsername} onChange={v => setFlag('addByUsername', v)} />} />
         </Card>
       </div>
     </PageBg>
@@ -643,7 +640,7 @@ function PrivacySettings({ user, onBack }) {
       <PageHeader title="隐私与安全" onBack={onBack} />
       <div className="wc-privacy-outer">
         <Card className="wc-privacy-card-mt">
-          <CRow label="添加我的方式" desc="ID号、手机号、二维码、用户名" onClick={() => setPage('add-methods')} />
+          <CRow label="添加我的方式" desc="ID号、手机号" onClick={() => setPage('add-methods')} />
           <CRow label="需要验证才能添加好友" desc="关闭后对方可直接添加你"
             right={<Toggle checked={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
           <CRow label="不允许好友直接邀请我进群" desc="开启后好友无法把你直接拉进群，需你扫码/点链接自行加入"
