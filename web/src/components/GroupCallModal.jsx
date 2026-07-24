@@ -73,7 +73,7 @@ function useFocusTrap(open) {
 }
 
 // ── Hook: WebRTC 群通话信令与连接管理 ──────────────────────────
-function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf }) {
+function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onClose }) {
   const { mode, conversationId, type } = session;
   const isVideo = type === 'video';
 
@@ -219,6 +219,12 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf }) {
       showToast(msg, 'error');
       hangup();
     };
+    // 服务端强制结束（如超过时长上限）：提示并关闭界面
+    const onEnded = ({ reason }) => {
+      showToast(reason === 'timeout' ? '通话已达时长上限，已结束' : '通话已结束', 'info');
+      hangup();
+      onClose?.();
+    };
     socket.on('group_call:started', onStarted);
     socket.on('group_call:peers', onPeers);
     socket.on('group_call:peer_joined', onPeerJoined);
@@ -227,6 +233,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf }) {
     socket.on('group_call:ice', onIce);
     socket.on('group_call:peer_left', onPeerLeft);
     socket.on('group_call:error', onError);
+    socket.on('group_call:ended', onEnded);
     return () => {
       socket.off('group_call:started', onStarted);
       socket.off('group_call:peers', onPeers);
@@ -236,8 +243,9 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf }) {
       socket.off('group_call:ice', onIce);
       socket.off('group_call:peer_left', onPeerLeft);
       socket.off('group_call:error', onError);
+      socket.off('group_call:ended', onEnded);
     };
-  }, [socket, createPC, drainIce, removePeer, hangup]);
+  }, [socket, createPC, drainIce, removePeer, hangup, onClose]);
 
   return {
     callId, muted, cameraOff, remoteStreams, localStream, status,
@@ -250,7 +258,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf }) {
 //  主组件
 // ════════════════════════════════════════════════════════════════
 export default function GroupCallModal({ socket, user, session, nameOf, onClose }) {
-  const webrtc = useGroupCallWebRTC({ socket, user, session, nameOf });
+  const webrtc = useGroupCallWebRTC({ socket, user, session, nameOf, onClose });
   const cols = useResponsiveGrid(webrtc.tileCount);
   const containerRef = useFocusTrap(true);
 

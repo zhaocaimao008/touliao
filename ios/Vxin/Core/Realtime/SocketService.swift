@@ -95,6 +95,8 @@ final class SocketService {
     let gcAnswer = PassthroughSubject<(callId: String, from: String, sdp: String), Never>()
     let gcIce = PassthroughSubject<(callId: String, from: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32), Never>()
     let gcError = PassthroughSubject<String, Never>()
+    /// 服务端强制结束群通话（如超时长上限）→ (callId, reason)
+    let gcEnded = PassthroughSubject<(callId: String, reason: String), Never>()
 
     private let decoder = JSONDecoder()
 
@@ -314,6 +316,10 @@ final class SocketService {
         sock.on("group_call:error") { [weak self] data, _ in
             guard let d = data.first as? [String: Any] else { return }
             self?.gcError.send(d["reason"] as? String ?? "")
+        }
+        sock.on("group_call:ended") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any] else { return }
+            self?.gcEnded.send((d["callId"] as? String ?? "", d["reason"] as? String ?? ""))
         }
 
         manager = mgr

@@ -244,6 +244,15 @@ class GroupCallManager @Inject constructor(
                 if (_state.value.stage != GroupCallStage.CONNECTED) cleanup()
             }
         }
+        scope.launch {
+            // 服务端强制结束（如超过时长上限）：无条件结束本地通话并回收资源
+            socketManager.groupCallEndedEvents.collect { e ->
+                if (_state.value.stage == GroupCallStage.IDLE) return@collect
+                if (e.callId.isNotEmpty() && e.callId != _state.value.callId) return@collect
+                Log.w(TAG, "group call ended by server: ${e.reason}")
+                cleanup()
+            }
+        }
     }
 
     private fun drainIce(peerId: String) {

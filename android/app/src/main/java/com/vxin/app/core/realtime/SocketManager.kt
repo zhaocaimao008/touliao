@@ -45,6 +45,7 @@ data class GroupCallPeerEvent(val callId: String, val userId: String)           
 data class GroupCallSdpEvent(val callId: String, val from: String, val sdp: String) // offer / answer
 data class GroupCallIceEvent(val callId: String, val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
 data class GroupCallErrorEvent(val reason: String)
+data class GroupCallEndedEvent(val callId: String, val reason: String)  // 服务端强制结束（如超时长上限）
 
 /**
  * Socket.IO 实时通道（官方 io.socket:socket.io-client）。
@@ -174,6 +175,8 @@ class SocketManager @Inject constructor(
     val groupCallIceEvents: SharedFlow<GroupCallIceEvent> = _gcIce.asSharedFlow()
     private val _gcError = MutableSharedFlow<GroupCallErrorEvent>(extraBufferCapacity = 8)
     val groupCallErrorEvents: SharedFlow<GroupCallErrorEvent> = _gcError.asSharedFlow()
+    private val _gcEnded = MutableSharedFlow<GroupCallEndedEvent>(extraBufferCapacity = 8)
+    val groupCallEndedEvents: SharedFlow<GroupCallEndedEvent> = _gcEnded.asSharedFlow()
 
     @Synchronized
     fun connect() {
@@ -428,6 +431,9 @@ class SocketManager @Inject constructor(
         }
         s.on("group_call:error") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o -> _gcError.tryEmit(GroupCallErrorEvent(o.optString("reason"))) }
+        }
+        s.on("group_call:ended") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o -> _gcEnded.tryEmit(GroupCallEndedEvent(o.optString("callId"), o.optString("reason"))) }
         }
 
         _status.value = SocketStatus.CONNECTING

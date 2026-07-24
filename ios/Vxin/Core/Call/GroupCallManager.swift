@@ -250,6 +250,13 @@ final class GroupCallManager: NSObject, ObservableObject {
             guard let self else { return }
             if self.state.stage != .connected { self.cleanup() }
         }.store(in: &cancellables)
+
+        // 服务端强制结束（如超过时长上限）：无条件结束本地通话并回收资源
+        socket.gcEnded.receive(on: DispatchQueue.main).sink { [weak self] (callId, _) in
+            guard let self else { return }
+            guard self.state.stage != .idle, callId.isEmpty || callId == self.state.callId else { return }
+            self.cleanup()
+        }.store(in: &cancellables)
     }
 
     private func drainIce(_ peerId: String) {
