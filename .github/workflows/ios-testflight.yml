@@ -191,19 +191,7 @@ jobs:
           # 还原 ASC API Key 文件供脚本使用
           echo "$ASC_API_KEY_BASE64" | base64 --decode > /tmp/asc_key.p8
           export ASC_P8_PATH=/tmp/asc_key.p8
-          # 从 config 载入测试信息（用 python 读 JSON 并导出为环境变量）
-          eval "$(python3 - <<'PY'
-import json,shlex,os
-cfg=json.load(open('ios/testflight-config.json'))
-m={"feedback_email":"TF_FEEDBACK_EMAIL","description":"TF_DESCRIPTION",
-   "whats_new":"TF_WHATS_NEW","demo_account":"TF_DEMO_ACCOUNT","demo_password":"TF_DEMO_PASSWORD",
-   "contact_first":"TF_CONTACT_FIRST","contact_last":"TF_CONTACT_LAST","contact_email":"TF_CONTACT_EMAIL",
-   "contact_phone":"TF_CONTACT_PHONE","review_notes":"TF_REVIEW_NOTES","group_name":"TF_GROUP_NAME",
-   "mode":"TF_MODE","locale":"TF_LOCALE","bundle":"TF_BUNDLE"}
-for k,v in m.items():
-    if k in cfg and cfg[k] is not None:
-        print(f'export {v}={shlex.quote(str(cfg[k]))}')
-PY
-)"
+          # 从 config 载入测试信息（脚本读 JSON 并输出 export TF_*，供 eval）
+          eval "$(python3 scripts/tf-config-to-env.py)"
           # 轮询等待最新构建变 VALID（最多 ~18 分钟）
           python3 scripts/ios-testflight-submit.py
