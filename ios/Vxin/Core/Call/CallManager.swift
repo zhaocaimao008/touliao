@@ -52,6 +52,9 @@ final class CallManager: NSObject, ObservableObject {
     private var callTimeoutTask: Task<Void, Never>?
     private let callTimeoutSeconds: UInt64 = 45
 
+    /// 通话提示音（回铃/接通），与 Android ToneGenerator 对齐。
+    private let tonePlayer = CallTonePlayer()
+
     // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表
     private let fallbackIceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
     private var iceServers: [RTCIceServer]
@@ -146,6 +149,7 @@ final class CallManager: NSObject, ObservableObject {
             await refreshIceServers()           // 先拿到含 TURN 的 ICE，再建连接
             guard state.stage != .ended else { return }   // 期间被取消
             configureAudioSession()             // 建流前配好通话音频会话
+            tonePlayer.playRingback()           // 会话就绪后→主叫回铃音（接通/挂断时停）
             createPeerConnection()
             createLocalTracks(video: video)
             socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
@@ -327,6 +331,7 @@ final class CallManager: NSObject, ObservableObject {
 
     // MARK: - 清理
     private func cleanup(_ finalStage: CallStage) {
+        tonePlayer.stop()                   // 停回铃/接通音
         cancelCallTimeout()                 // 取消未接听超时，避免正常挂断被误判超时
         videoCapturer?.stopCapture()
         videoCapturer = nil
@@ -366,7 +371,10 @@ extension CallManager: RTCPeerConnectionDelegate {
             case .connected, .completed:
                 self.cancelCallTimeout()        // 已接通，撤销未接听超时
                 if self.state.stage != .ended {
-                    if self.state.connectedAt == nil { self.state.connectedAt = Date() }
+                    if self.state.connectedAt == nil {
+                        self.state.connectedAt = Date()
+                        self.tonePlayer.playConnected()   // 首次接通→停回铃+接通提示音
+                    }
                     self.state.stage = .connected
                 }
             default: break

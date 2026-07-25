@@ -26,6 +26,8 @@ final class ChatViewModel: ObservableObject {
     @Published var replyingTo: Message?        // 正在回复的消息
     @Published var stickers: [Sticker] = []
     @Published var groupMembers: [GroupMember] = []
+    @Published var canManageGroup = false          // 我是群主/管理员（决定能否 @所有人）
+    @Published var groupAnnouncement = ""          // 群公告（非空时聊天页顶部置顶轮播）
     @Published var pinnedMessages: [PinnedMessage] = []
     @Published var loadingEarlier = false
     @Published var reachedStart = false
@@ -266,11 +268,18 @@ final class ChatViewModel: ObservableObject {
     func loadGroupMembers() async {
         if let info = try? await GroupRepository.shared.info(conversationId) {
             groupMembers = info.members.filter { $0.id != myId }
+            canManageGroup = info.canManage
+            groupAnnouncement = info.announcement
         }
     }
 
     func appendMention(_ member: GroupMember) {
         input += "@\(member.username) "
+    }
+
+    /// @所有人（仅群主/管理员可用，UI 已按 canManageGroup 控制入口）。
+    func appendMentionAll() {
+        input += "@所有人 "
     }
 
     // MARK: - 群置顶消息

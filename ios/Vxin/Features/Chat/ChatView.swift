@@ -23,6 +23,7 @@ struct ChatView: View {
     @State private var showFuncPanel = false
     @State private var showRedPacketSend = false
     @State private var showPinnedList = false
+    @State private var showAnnouncement = false
     @State private var editText = ""
     @State private var forwardSelected = Set<String>()
     @State private var showMentionPicker = false
@@ -45,6 +46,7 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if !vm.groupAnnouncement.isEmpty { announcementBanner }
             if !vm.pinnedMessages.isEmpty { pinnedBanner }
             messageList
                 .background(alignment: .center) {
@@ -147,6 +149,18 @@ struct ChatView: View {
                 )
             }
         }
+        .sheet(isPresented: $showAnnouncement) {
+            NavigationStack {
+                ScrollView {
+                    Text(vm.groupAnnouncement)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                }
+                .navigationTitle("群公告")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { showAnnouncement = false } } }
+            }
+        }
         .sheet(isPresented: $showPinnedList) {
             NavigationStack {
                 List(vm.pinnedMessages) { p in
@@ -178,11 +192,22 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showMentionPicker) {
             NavigationStack {
-                List(vm.groupMembers) { m in
-                    Button { vm.appendMention(m); showMentionPicker = false } label: {
-                        HStack(spacing: 12) {
-                            InitialAvatar(name: m.displayName.isEmpty ? "?" : m.displayName, size: 36)
-                            Text(m.displayName.isEmpty ? "未命名" : m.displayName).foregroundColor(.primary)
+                List {
+                    // 群主/管理员专属：@所有人（置顶入口）
+                    if vm.canManageGroup {
+                        Button { vm.appendMentionAll(); showMentionPicker = false } label: {
+                            HStack(spacing: 12) {
+                                InitialAvatar(name: "全", size: 36)
+                                Text("所有人").fontWeight(.semibold).foregroundColor(.primary)
+                            }
+                        }
+                    }
+                    ForEach(vm.groupMembers) { m in
+                        Button { vm.appendMention(m); showMentionPicker = false } label: {
+                            HStack(spacing: 12) {
+                                InitialAvatar(name: m.displayName.isEmpty ? "?" : m.displayName, size: 36)
+                                Text(m.displayName.isEmpty ? "未命名" : m.displayName).foregroundColor(.primary)
+                            }
                         }
                     }
                 }
@@ -215,6 +240,20 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    private var announcementBanner: some View {
+        Button { showAnnouncement = true } label: {
+            HStack(spacing: 8) {
+                Text("📢").font(.caption)
+                Text("群公告").font(.caption).foregroundColor(Color(red: 0.23, green: 0.51, blue: 0.96))
+                MarqueeText(text: vm.groupAnnouncement.replacingOccurrences(of: "\n", with: "   "), font: .footnote)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(red: 0.92, green: 0.96, blue: 1.0))
+        }
+        .buttonStyle(.plain)
     }
 
     private var pinnedBanner: some View {
