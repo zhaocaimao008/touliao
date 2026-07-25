@@ -667,6 +667,11 @@ export default function Home() {
           if (msg.sender_id !== myId) playMessageTone();
         }
       }
+      // 桌面端：批量里有他人消息且窗口失焦 → 任务栏/Dock 闪烁（与单条 onMsg 对齐，此前批量路径漏了）
+      const hasOthers = arr.some(m => m.sender_id !== myId);
+      if (hasOthers && (document.hidden || !document.hasFocus())) {
+        try { window.electronAPI?.flashFrame?.(true); } catch { /* 非桌面端忽略 */ }
+      }
     };
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
