@@ -57,8 +57,9 @@ const electronAPI = {
   // 系统信息
   getPlatform:      ()    => ipcRenderer.invoke('system:getPlatform'),
 
-  // 更新：用户确认后调用
+  // 更新：用户确认后调用安装 / 手动触发检查
   installUpdate:    ()    => ipcRenderer.invoke('update:install'),
+  checkUpdate:      ()    => ipcRenderer.invoke('update:check'),
 
   // 文件下载：主进程 downloadURL 落盘到「下载」并自动打开（绕过渲染进程 CORS/download 限制）
   downloadFile:     (url, filename) => ipcRenderer.invoke('file:download', { url, filename }),

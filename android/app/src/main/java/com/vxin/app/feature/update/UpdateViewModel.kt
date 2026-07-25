@@ -92,6 +92,19 @@ class UpdateViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 打开更新弹窗时调用：若静默检查已发现新版则直接展示（秒开，无需再等网络），
+     * 否则发起检查。修复「弹窗停在 Idle 空白」导致的点了没反应。
+     */
+    fun openDialog() {
+        val cached = availableVersion
+        if (cached != null) {
+            _uiState.value = UpdateUiState.Available(cached.versionName, cached.notes)
+        } else {
+            checkForUpdate()
+        }
+    }
+
     /** 用户主动点击「检查更新」 */
     fun checkForUpdate() {
         if (_uiState.value is UpdateUiState.Checking ||

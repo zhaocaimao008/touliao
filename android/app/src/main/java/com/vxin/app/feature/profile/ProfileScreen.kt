@@ -99,6 +99,7 @@ fun ProfileScreen(
     LaunchedEffect(silentResult) {
         if (silentResult is com.vxin.app.feature.update.SilentCheckResult.HasUpdate) {
             showUpdateDialog = true
+            updateViewModel.openDialog()   // 同步把 uiState 推到 Available，否则弹窗空白
         }
     }
 
@@ -236,7 +237,10 @@ fun ProfileScreen(
             OutlinedButton(onClick = onOpenAppearance, modifier = Modifier.fillMaxWidth().testTag("profile-appearance")) { Text("外观") }
             Spacer(Modifier.size(12.dp))
             OutlinedButton(
-                onClick = { showUpdateDialog = true },
+                onClick = {
+                    showUpdateDialog = true
+                    updateViewModel.openDialog()   // 秒展示已缓存新版 or 发起检查，修复空白弹窗
+                },
                 modifier = Modifier.fillMaxWidth().testTag("profile-check-update"),
             ) {
                 if (silentResult is com.vxin.app.feature.update.SilentCheckResult.HasUpdate) {

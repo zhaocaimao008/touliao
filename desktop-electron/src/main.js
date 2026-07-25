@@ -832,6 +832,14 @@ function setupIPC() {
     isQuitting = true;
     autoUpdater.quitAndInstall();
   });
+
+  // 更新：用户手动点「检查更新」按钮触发
+  ipcMain.handle('update:check', (_e) => {
+    if (!isTrustedSender(_e)) return;
+    autoUpdater.checkForUpdates().catch((e) => {
+      mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
+    });
+  });
 }
 
 // ── 全局快捷键（截图） ─────────────────────────────────────

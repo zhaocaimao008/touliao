@@ -5,6 +5,7 @@ import { SettingsProvider } from './contexts/SettingsContext';
 import { I18nProvider } from './contexts/I18nContext';
 import { SocketProvider } from './contexts/SocketContext';
 import ElectronTitlebar from './components/ElectronTitlebar';
+import UpdateBanner from './components/UpdateBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // 路由级代码分割：每个页面拆成独立 chunk，减小首屏 bundle。
@@ -43,6 +44,7 @@ export default function App() {
         fontSize: 14, textDecoration: 'none', borderRadius: '0 0 4px 0',
       }}>跳过导航，直达内容</a>
       {isElectron && <ElectronTitlebar />}
+      {isElectron && <UpdateBanner />}
       <div id="main-content" role="main" style={isElectron ? { paddingTop: 30, height: '100vh', boxSizing: 'border-box', overflow: 'hidden' } : {}}>
         <Router>
           {/* Suspense 兜底懒加载 chunk 拉取期间的加载态 */}
