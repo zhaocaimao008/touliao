@@ -129,6 +129,7 @@ class CallManager @Inject constructor(
     fun startCall(peerId: String, peerName: String, video: Boolean) {
         if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) return
         _state.value = CallState(CallStage.OUTGOING, peerId, peerName, isVideo = video, isCaller = true)
+        playRingbackTone()                  // 主叫拨出→接通前循环回铃音（接通/挂断时停）
         // 本地呼出超时:60s 内未接通(对方不接/断线,后端 timeout 不向主叫发事件)则自动挂断收尾,
         // 防止界面永远卡在"呼叫中"。接通(CONNECTED)或挂断时取消(见 cleanup / IceConnectionState)。
         callTimeoutJob?.cancel()
@@ -332,12 +333,14 @@ class CallManager @Inject constructor(
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
                 when (state) {
                     PeerConnection.IceConnectionState.CONNECTED,
-                    PeerConnection.IceConnectionState.COMPLETED ->
+                    PeerConnection.IceConnectionState.COMPLETED -> {
+                        if (_state.value.connectedAt == 0L && _state.value.stage != CallStage.ENDED) playConnectedTone() // 首次接通→停回铃+接通音
                         _state.update {
                             if (it.stage != CallStage.ENDED)
                                 it.copy(stage = CallStage.CONNECTED, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt)
                             else it
                         }
+                    }
                     PeerConnection.IceConnectionState.DISCONNECTED,
                     PeerConnection.IceConnectionState.FAILED,
                     PeerConnection.IceConnectionState.CLOSED -> { /* 由 call:end 或用户挂断收尾 */ }
@@ -385,6 +388,7 @@ class CallManager @Inject constructor(
 
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage) {
+        releaseTone()                                     // 停回铃/接通音并释放 ToneGenerator
         callTimeoutJob?.cancel(); callTimeoutJob = null   // 接通/挂断/被拒 → 取消呼出超时
         CallForegroundService.stop(context)               // 停前台服务（未起过则 no-op）
         runCatching { videoCapturer?.stopCapture() }
@@ -404,6 +408,42 @@ class CallManager @Inject constructor(
         val cur = _state.value
         val ended = if (cur.connectedAt > 0L && cur.endedAt == 0L) android.os.SystemClock.elapsedRealtime() else cur.endedAt
         _state.value = cur.copy(stage = finalStage, endedAt = ended)
+    }
+
+    // ── 通话提示音（回铃/接通）─────────────────────────────
+    // 走 STREAM_VOICE_CALL：随听筒/扬声器路由，且不受媒体/通知音量与静音开关影响，与原生通话体验一致。
+    @Volatile
+    private var toneGen: android.media.ToneGenerator? = null
+
+    private fun ensureToneGen(): android.media.ToneGenerator? {
+        if (toneGen == null) {
+            toneGen = runCatching {
+                android.media.ToneGenerator(android.media.AudioManager.STREAM_VOICE_CALL, 70)
+            }.getOrNull()
+        }
+        return toneGen
+    }
+
+    /** 主叫呼出→接通前的循环回铃音（“嘟——嘟——”）。 */
+    @Synchronized
+    private fun playRingbackTone() {
+        runCatching { ensureToneGen()?.startTone(android.media.ToneGenerator.TONE_SUP_RINGTONE) }
+    }
+
+    /** 首次接通：停回铃并播一声短促接通提示音。 */
+    @Synchronized
+    private fun playConnectedTone() {
+        val gen = ensureToneGen() ?: return
+        runCatching { gen.stopTone() }
+        runCatching { gen.startTone(android.media.ToneGenerator.TONE_PROP_ACK, 200) }
+    }
+
+    /** 停止并释放 ToneGenerator（通话结束/清理时调用；幂等）。 */
+    @Synchronized
+    private fun releaseTone() {
+        runCatching { toneGen?.stopTone() }
+        runCatching { toneGen?.release() }
+        toneGen = null
     }
 
     private companion object {
