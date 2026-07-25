@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { showConfirm } from '../utils/toast';
+import { playMessageTone } from '../utils/notifySound';
 import './Home.css';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
@@ -617,6 +618,7 @@ export default function Home() {
           msg.type === 'video' ? '[视频]' :
           (msg.content || '').slice(0, 80) || '发来了一条消息';
         showNotification(msg.senderName || '新消息', bodyText, msg.senderAvatar);
+        if (msg.sender_id !== myId) playMessageTone(); // 提示音，独立于通知权限
       }
       // 桌面端：他人来消息且窗口失焦 → 任务栏/Dock 闪烁引起注意(main 侧再判 isFocused 兜底)
       if (msg.sender_id !== myId && (document.hidden || !document.hasFocus())) {
@@ -662,6 +664,7 @@ export default function Home() {
             msg.type === 'video' ? '[视频]' :
             (msg.content || '').slice(0, 80) || '发来了一条消息';
           showNotification(msg.senderName || '新消息', bodyText, msg.senderAvatar);
+          if (msg.sender_id !== myId) playMessageTone();
         }
       }
     };
