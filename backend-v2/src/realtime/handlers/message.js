@@ -7,11 +7,14 @@ const { pushNewMessage } = require('../../utils/push');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
-const { privateSendBlockReason, strangerBlockReason } = require('../../modules/messages/shared');
+const { privateSendBlockReason, strangerBlockReason, memberRole } = require('../../modules/messages/shared');
+
+// @所有人 的可识别 token（大小写不敏感）——仅群主/管理员使用时生效
+const MENTION_ALL_TOKENS = new Set(['所有人', '全体成员', 'all', 'everyone']);
 
 const MAX = config.limits.maxMsgLength;
 
-// @提及检测：解析 content 中的 @用户名，向群内匹配成员推送
+// @提及检测：解析 content 中的 @用户名（含 @所有人），向群内相关成员推送 mentioned 事件
 function handleMentions(io, userId, conversationId, content, msgId) {
   if (typeof content !== 'string') return;
   const mentionRe = /@([^\s,，。！？]+)/g;
@@ -20,26 +23,37 @@ function handleMentions(io, userId, conversationId, content, msgId) {
   while ((m = mentionRe.exec(content)) !== null) mentioned.push(m[1]);
   if (mentioned.length === 0) return;
 
-  // 最多处理 50 个唯一提及，超出截断，防止 SQLite 变量数越界
-  const uniqueNames = [...new Set(mentioned)].slice(0, 50);
-
-  const matched = readDb.prepare(
-    `SELECT u.id, u.username FROM users u
-     JOIN conversation_members cm ON cm.user_id=u.id AND cm.conversation_id=?
-     WHERE u.username IN (${uniqueNames.map(() => '?').join(',')})`
-  ).all(conversationId, ...uniqueNames);
-
   const groupName = readDb.prepare('SELECT name FROM conversations WHERE id=?').get(conversationId)?.name || '群聊';
   const preview = content.length > 50 ? content.slice(0, 50) + '…' : content;
   const senderName = presence.getProfile(userId).username || '';
 
-  for (const u of matched) {
-    if (u.id !== userId) {
-      io.to(`user_${u.id}`).emit('mentioned', {
-        fromUserId: userId, fromUserName: senderName, groupName,
-        messagePreview: preview, conversationId, msgId: msgId || '',
-      });
-    }
+  const targetIds = new Set();  // 去重后的待通知 userId
+
+  // ── @所有人：仅群主/管理员生效，命中则通知全体成员（普通成员的 @所有人被静默忽略）──
+  const wantAll = mentioned.some(name => MENTION_ALL_TOKENS.has(name.toLowerCase()));
+  if (wantAll && ['owner', 'admin'].includes(memberRole(conversationId, userId))) {
+    const all = readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(conversationId);
+    for (const r of all) if (r.user_id !== userId) targetIds.add(r.user_id);
+  }
+
+  // ── 具名 @用户名：匹配群内成员（最多 50 个唯一名，防 SQLite 变量数越界）──
+  const uniqueNames = [...new Set(mentioned)]
+    .filter(n => !MENTION_ALL_TOKENS.has(n.toLowerCase()))
+    .slice(0, 50);
+  if (uniqueNames.length) {
+    const matched = readDb.prepare(
+      `SELECT u.id FROM users u
+       JOIN conversation_members cm ON cm.user_id=u.id AND cm.conversation_id=?
+       WHERE u.username IN (${uniqueNames.map(() => '?').join(',')})`
+    ).all(conversationId, ...uniqueNames);
+    for (const u of matched) if (u.id !== userId) targetIds.add(u.id);
+  }
+
+  for (const uid of targetIds) {
+    io.to(`user_${uid}`).emit('mentioned', {
+      fromUserId: userId, fromUserName: senderName, groupName,
+      messagePreview: preview, conversationId, msgId: msgId || '',
+    });
   }
 }
 

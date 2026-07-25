@@ -23,6 +23,7 @@ data class Conversation(
     val burnAfter: Int = 0,                 // 阅后即焚秒数（0=关闭）
     @kotlinx.serialization.SerialName("manually_unread")
     val manuallyUnread: Int = 0,            // 手动标为未读（1=是）
+    val hasMention: Boolean = false,        // 群内有人 @我（含 @所有人）且未读 → 列表红色「[有人@我]」提示
     val otherUser: ConversationOtherUser? = null,  // 私聊对方（后端 listConversations 私聊项返回；群聊为 null）
 )
 

@@ -234,6 +234,18 @@ private fun ConversationRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            } else if (conv.hasMention && conv.unreadCount > 0) {
+                // 群内有人 @我（含 @所有人）：红色「[有人@我]」前缀（对齐微信/Web）
+                Text(
+                    text = androidx.compose.ui.text.buildAnnotatedString {
+                        withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFFFA5151))) { append("[有人@我] ") }
+                        append(previewText(conv))
+                    },
+                    color = VxinTextSecondary,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             } else {
                 Text(
                     text = previewText(conv),

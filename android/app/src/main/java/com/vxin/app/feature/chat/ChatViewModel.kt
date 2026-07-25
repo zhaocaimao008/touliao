@@ -62,6 +62,8 @@ data class ChatUiState(
     val reachedStart: Boolean = false,   // 已加载到最早
     val stickers: List<com.vxin.app.data.model.Sticker> = emptyList(),
     val groupMembers: List<com.vxin.app.data.model.GroupMember> = emptyList(),
+    val canManageGroup: Boolean = false,          // 我是群主/管理员（决定能否 @所有人）
+    val groupAnnouncement: String = "",           // 群公告（非空时聊天页顶部置顶展示）
     val pinnedMessages: List<com.vxin.app.data.model.PinnedMessage> = emptyList(),
     val forwardTargets: List<com.vxin.app.data.model.Conversation> = emptyList(),  // 转发可选会话
     // ── 会话内消息搜索 ──
@@ -174,14 +176,28 @@ class ChatViewModel @Inject constructor(
     // ── @提及 ──────────────────────────────────────────────
     private fun loadGroupMembers() {
         viewModelScope.launch {
-            runCatching { groupRepository.info(conversationId).members }
-                .onSuccess { list -> _uiState.update { it.copy(groupMembers = list.filterNot { m -> m.id == myId }) } }
+            runCatching { groupRepository.info(conversationId) }
+                .onSuccess { info ->
+                    _uiState.update {
+                        it.copy(
+                            groupMembers = info.members.filterNot { m -> m.id == myId },
+                            canManageGroup = info.canManage,
+                            groupAnnouncement = info.announcement,
+                        )
+                    }
+                }
         }
     }
 
     fun appendMention(member: com.vxin.app.data.model.GroupMember) {
         _uiState.update { it.copy(input = it.input + "@${member.username} ") }
         draftStore.set(conversationId, _uiState.value.input)   // @追加也存草稿
+    }
+
+    /** @所有人（仅群主/管理员可用，UI 已按 canManageGroup 控制入口）。 */
+    fun appendMentionAll() {
+        _uiState.update { it.copy(input = it.input + "@所有人 ") }
+        draftStore.set(conversationId, _uiState.value.input)
     }
 
     private fun observeGroupGone() {

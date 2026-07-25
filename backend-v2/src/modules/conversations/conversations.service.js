@@ -198,7 +198,12 @@ async function listConversations(uid) {
           AND  mm.created_at      > COALESCE(cs.last_read_at, 0)
           AND  c.type             = 'group'
           AND  ? != ''
-          AND  instr(mm.content, '@' || ?) > 0
+          AND  ( instr(mm.content, '@' || ?) > 0
+                 OR ( instr(mm.content, '@所有人') > 0
+                      AND EXISTS (SELECT 1 FROM conversation_members cmx
+                                  WHERE cmx.conversation_id = c.id
+                                    AND cmx.user_id = mm.sender_id
+                                    AND cmx.role IN ('owner','admin')) ) )
         LIMIT 1
       )) AS hasMention,
       ou.id       AS ou_id,

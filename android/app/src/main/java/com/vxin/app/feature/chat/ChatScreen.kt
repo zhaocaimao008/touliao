@@ -6,7 +6,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.withStyle
@@ -121,6 +124,7 @@ fun ChatScreen(
     val context = LocalContext.current
     var showRedPacketSend by remember { mutableStateOf(false) }
     var showPinnedList by remember { mutableStateOf(false) }
+    var showAnnouncement by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Message?>(null) }
     var forwardTarget by remember { mutableStateOf<Message?>(null) }
     var galleryImages by remember { mutableStateOf<List<String>?>(null) }
@@ -363,6 +367,9 @@ fun ChatScreen(
               )
           }
           Column(Modifier.fillMaxSize()) {
+            if (state.groupAnnouncement.isNotBlank()) {
+                AnnouncementBanner(state.groupAnnouncement) { showAnnouncement = true }
+            }
             if (state.pinnedMessages.isNotEmpty()) {
                 PinnedBanner(state.pinnedMessages) { showPinnedList = true }
             }
@@ -573,6 +580,22 @@ fun ChatScreen(
         )
     }
 
+    if (showAnnouncement) {
+        AlertDialog(
+            onDismissRequest = { showAnnouncement = false },
+            title = { Text("群公告") },
+            text = {
+                androidx.compose.foundation.rememberScrollState().let { sc ->
+                    Text(
+                        state.groupAnnouncement,
+                        modifier = Modifier.heightIn(max = 360.dp).verticalScroll(sc),
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAnnouncement = false }) { Text("关闭") } },
+        )
+    }
+
     if (showPinnedList) {
         AlertDialog(
             onDismissRequest = { showPinnedList = false },
@@ -643,6 +666,20 @@ fun ChatScreen(
             title = { Text("选择要 @ 的成员") },
             text = {
                 androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    // 群主/管理员专属：@所有人（置顶入口）
+                    if (state.canManageGroup) {
+                        item(key = "__all__") {
+                            Row(
+                                Modifier.fillMaxWidth().clickable { viewModel.appendMentionAll(); showMentionPicker = false }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                InitialAvatar(name = "全", size = 32.dp)
+                                Spacer(Modifier.size(8.dp))
+                                Text("所有人", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                            }
+                            HorizontalDivider()
+                        }
+                    }
                     items(state.groupMembers, key = { it.id }) { m ->
                         Row(
                             Modifier.fillMaxWidth().clickable { viewModel.appendMention(m); showMentionPicker = false }.padding(vertical = 8.dp),
@@ -726,6 +763,27 @@ private fun pinnedPreview(p: com.vxin.app.data.model.PinnedMessage): String = wh
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"; "red_packet" -> "[红包]"
     "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> p.content
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun AnnouncementBanner(text: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(Color(0xFFEAF4FF)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("📢", fontSize = 14.sp)
+        Spacer(Modifier.size(8.dp))
+        Text("群公告", color = Color(0xFF3B82F6), fontSize = 12.sp, maxLines = 1)
+        Spacer(Modifier.size(8.dp))
+        // 置顶轮播：单行横向滚动展示（basicMarquee），点按看全文
+        Text(
+            text.replace("\n", "   "),
+            modifier = Modifier.weight(1f).basicMarquee(),
+            maxLines = 1,
+            fontSize = 13.sp,
+        )
+    }
 }
 
 @Composable
