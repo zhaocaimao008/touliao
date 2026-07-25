@@ -5,10 +5,13 @@ import android.app.Application
 import android.os.Bundle
 import com.vxin.app.core.auth.SessionManager
 import com.vxin.app.core.di.AppScope
+import com.vxin.app.data.api.UserApi
 import com.vxin.app.data.model.Message
 import com.vxin.app.data.repository.ChatRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,10 +27,15 @@ import javax.inject.Singleton
  * 且通知 id 以 conversationId 为键，两条路径即便边界重叠也只会互相覆盖、不叠加。
  *
  * 仅后台时触发；前台交给聊天页/会话列表正常刷新，不打扰。
+ *
+ * 免打扰：与服务端 FCM 路径对齐——尊重「全局新消息通知」总开关 + 该会话「消息免打扰」，
+ * 并按「通知详情预览」决定展示正文还是「收到一条新消息」。设置带 TTL 缓存，后台消息
+ * 到达时按需刷新（节流，避免每条消息都打网络）。
  */
 @Singleton
 class MessageNotificationBridge @Inject constructor(
     private val chatRepository: ChatRepository,
+    private val userApi: UserApi,
     private val notificationHelper: NotificationHelper,
     private val sessionManager: SessionManager,
     @AppScope private val scope: CoroutineScope,
@@ -35,6 +43,13 @@ class MessageNotificationBridge @Inject constructor(
 
     private val startedActivities = AtomicInteger(0)
     private val isForeground: Boolean get() = startedActivities.get() > 0
+
+    // ── 免打扰缓存（TTL 60s，后台消息到达时懒刷新）──
+    @Volatile private var messageNotifyEnabled = true       // 全局新消息通知总开关
+    @Volatile private var detailPreviewEnabled = true       // 通知详情预览
+    @Volatile private var mutedConversations: Set<String> = emptySet() // 免打扰会话集合
+    @Volatile private var settingsLoadedAt = 0L
+    private val refreshMutex = Mutex()
 
     /** 由 VxinApp.onCreate 调用一次：注册前后台追踪 + 开始监听 socket 新消息。 */
     fun install(app: Application) {
@@ -44,12 +59,31 @@ class MessageNotificationBridge @Inject constructor(
                 if (isForeground) return@collect                                  // 前台无需通知
                 if (msg.sender_id == sessionManager.currentUser?.id) return@collect // 自己发的不提醒
                 if (msg.deleted == 1) return@collect                              // 已撤回/删除不提醒
+                refreshMuteStateIfStale()
+                if (!messageNotifyEnabled) return@collect                         // 全局关新消息通知
+                if (msg.conversation_id in mutedConversations) return@collect     // 该会话免打扰
                 notificationHelper.showMessageNotification(
                     title = msg.senderName.ifBlank { "新消息" },
-                    body = previewOf(msg),
+                    body = if (detailPreviewEnabled) previewOf(msg) else "收到一条新消息",
                     conversationId = msg.conversation_id,
                 )
             }
+        }
+    }
+
+    /** 刷新全局通知开关与免打扰会话集合（TTL 内跳过；双重检查避免并发重复拉取）。 */
+    private suspend fun refreshMuteStateIfStale() {
+        if (System.currentTimeMillis() - settingsLoadedAt < SETTINGS_TTL_MS) return
+        refreshMutex.withLock {
+            if (System.currentTimeMillis() - settingsLoadedAt < SETTINGS_TTL_MS) return@withLock
+            runCatching { userApi.settings() }.onSuccess {
+                messageNotifyEnabled = it.messageNotify
+                detailPreviewEnabled = it.detailPreview
+            }
+            runCatching { chatRepository.loadConversations() }.onSuccess { list ->
+                mutedConversations = list.filter { it.muted == 1 }.map { it.id }.toSet()
+            }
+            settingsLoadedAt = System.currentTimeMillis()
         }
     }
 
@@ -75,4 +109,8 @@ class MessageNotificationBridge @Inject constructor(
     override fun onActivityPaused(activity: Activity) {}
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
     override fun onActivityDestroyed(activity: Activity) {}
+
+    private companion object {
+        const val SETTINGS_TTL_MS = 60_000L
+    }
 }

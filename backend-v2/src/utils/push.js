@@ -132,6 +132,7 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   const settingsRows = db.prepare(`
     SELECT u.id AS user_id,
       COALESCE(cs.last_read_at, 0) AS last_read_at,
+      COALESCE(cs.muted, 0) AS muted,
       COALESCE(us.message_notify, 1) AS message_notify,
       COALESCE(us.detail_preview, 1) AS detail_preview,
       COALESCE(us.sound, 1) AS sound,
@@ -142,7 +143,7 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
     WHERE u.id IN (${ph})
   `).all(conversationId, ...targetUids);
   const settingsMap = new Map(settingsRows.map(r => [r.user_id, r]));
-  const defaultSettings = { last_read_at: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0 };
+  const defaultSettings = { last_read_at: 0, muted: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0 };
 
   const unreadStmt = db.prepare(
     'SELECT COUNT(*) as cnt FROM (SELECT 1 FROM messages WHERE conversation_id=? AND sender_id!=? AND deleted=0 AND created_at>? LIMIT 99)'
@@ -150,7 +151,8 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
 
   const pushPromises = targetUids.map(uid => {
     const settings = settingsMap.get(uid) || defaultSettings;
-    if (!Number(settings.message_notify)) return null;
+    if (!Number(settings.message_notify)) return null;   // 全局关闭新消息通知
+    if (Number(settings.muted)) return null;             // 该会话已设免打扰 → 不推送
     const unread = unreadStmt.get(conversationId, uid, settings.last_read_at || 0)?.cnt || 1;
     return pushToUser(uid, {
       title:   senderName,
