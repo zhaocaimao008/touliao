@@ -5,15 +5,28 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.intercept.Interceptor
 import coil.request.ImageResult
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
+import dagger.hilt.components.SingletonComponent
 
 @HiltAndroidApp
 class VxinApp : Application(), ImageLoaderFactory {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface BridgeEntryPoint {
+        fun messageNotificationBridge(): com.vxin.app.core.push.MessageNotificationBridge
+    }
 
     override fun onCreate() {
         super.onCreate()
         // 启动即把持久化的外观偏好同步进全局主题流，保证首帧就是用户选择的主题（同步、无 DI、异常兜底）。
         com.vxin.app.core.storage.ThemeStore.syncInitial(this)
+        // 后台/锁屏时 socket 消息补本地通知（服务端判在线不发 FCM 的场景②）。
+        EntryPointAccessors.fromApplication(this, BridgeEntryPoint::class.java)
+            .messageNotificationBridge().install(this)
     }
 
     /**
