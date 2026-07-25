@@ -620,8 +620,10 @@ export default function Home() {
         showNotification(msg.senderName || '新消息', bodyText, msg.senderAvatar);
         if (msg.sender_id !== myId) playMessageTone(); // 提示音，独立于通知权限
       }
-      // 桌面端：他人来消息且窗口失焦 → 任务栏/Dock 闪烁引起注意(main 侧再判 isFocused 兜底)
-      if (msg.sender_id !== myId && (document.hidden || !document.hasFocus())) {
+      // 桌面端：他人来消息 → 请求任务栏闪烁。是否真闪由主进程 isFocused() 最终判定。
+      // ⚠ 不在渲染层用 document.hidden/hasFocus 门控：Electron 里窗口最小化时 document.hidden
+      //   常仍为 false、hasFocus 也不可靠 → 条件永不满足 → 图标从不闪（本次根因）。
+      if (msg.sender_id !== myId) {
         try { window.electronAPI?.flashFrame?.(true); } catch { /* 非桌面端忽略 */ }
       }
     };
@@ -667,9 +669,9 @@ export default function Home() {
           if (msg.sender_id !== myId) playMessageTone();
         }
       }
-      // 桌面端：批量里有他人消息且窗口失焦 → 任务栏/Dock 闪烁（与单条 onMsg 对齐，此前批量路径漏了）
+      // 桌面端：批量里有他人消息 → 请求闪烁（是否真闪由主进程 isFocused 判定，与单条对齐）
       const hasOthers = arr.some(m => m.sender_id !== myId);
-      if (hasOthers && (document.hidden || !document.hasFocus())) {
+      if (hasOthers) {
         try { window.electronAPI?.flashFrame?.(true); } catch { /* 非桌面端忽略 */ }
       }
     };

@@ -2,9 +2,11 @@ package com.vxin.app.core.push
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.os.Bundle
 import com.vxin.app.core.auth.SessionManager
 import com.vxin.app.core.di.AppScope
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.vxin.app.data.api.UserApi
 import com.vxin.app.data.model.Message
 import com.vxin.app.data.repository.ChatRepository
@@ -34,6 +36,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class MessageNotificationBridge @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val chatRepository: ChatRepository,
     private val userApi: UserApi,
     private val notificationHelper: NotificationHelper,
@@ -44,9 +47,11 @@ class MessageNotificationBridge @Inject constructor(
     private val startedActivities = AtomicInteger(0)
     private val isForeground: Boolean get() = startedActivities.get() > 0
 
-    // ── 免打扰缓存（TTL 60s，后台消息到达时懒刷新）──
+    // ── 通知偏好缓存（TTL 60s，消息到达时懒刷新）──
     @Volatile private var messageNotifyEnabled = true       // 全局新消息通知总开关
     @Volatile private var detailPreviewEnabled = true       // 通知详情预览
+    @Volatile private var vibrateEnabled = false            // 震动
+    @Volatile private var soundEnabled = true               // 声音
     @Volatile private var mutedConversations: Set<String> = emptySet() // 免打扰会话集合
     @Volatile private var settingsLoadedAt = 0L
     private val refreshMutex = Mutex()
@@ -56,22 +61,47 @@ class MessageNotificationBridge @Inject constructor(
         app.registerActivityLifecycleCallbacks(this)
         scope.launch {
             chatRepository.incomingMessages.collect { msg ->
-                if (isForeground) return@collect                                  // 前台无需通知
                 if (msg.sender_id == sessionManager.currentUser?.id) return@collect // 自己发的不提醒
                 if (msg.deleted == 1) return@collect                              // 已撤回/删除不提醒
                 refreshMuteStateIfStale()
                 if (!messageNotifyEnabled) return@collect                         // 全局关新消息通知
                 if (msg.conversation_id in mutedConversations) return@collect     // 该会话免打扰
-                notificationHelper.showMessageNotification(
-                    title = msg.senderName.ifBlank { "新消息" },
-                    body = if (detailPreviewEnabled) previewOf(msg) else "收到一条新消息",
-                    conversationId = msg.conversation_id,
-                )
+
+                if (isForeground) {
+                    // 前台：不弹通知（避免打扰正在看的用户），但按设置给震动反馈——
+                    // 这是「开了震动却不震」的根因：前台消息此前完全无任何反馈。
+                    if (vibrateEnabled) vibrateOnce()
+                } else {
+                    // 后台/锁屏：弹本地通知（通知渠道自带声音/震动）
+                    notificationHelper.showMessageNotification(
+                        title = msg.senderName.ifBlank { "新消息" },
+                        body = if (detailPreviewEnabled) previewOf(msg) else "收到一条新消息",
+                        conversationId = msg.conversation_id,
+                    )
+                }
             }
         }
     }
 
-    /** 刷新全局通知开关与免打扰会话集合（TTL 内跳过；双重检查避免并发重复拉取）。 */
+    /** 前台消息震动一次（尊重用户「震动」设置）。 */
+    private fun vibrateOnce() {
+        runCatching {
+            val vib = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                (appContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager)?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                appContext.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            } ?: return
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vib.vibrate(android.os.VibrationEffect.createOneShot(200, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vib.vibrate(200)
+            }
+        }
+    }
+
+    /** 刷新通知偏好与免打扰会话集合（TTL 内跳过；双重检查避免并发重复拉取）。 */
     private suspend fun refreshMuteStateIfStale() {
         if (System.currentTimeMillis() - settingsLoadedAt < SETTINGS_TTL_MS) return
         refreshMutex.withLock {
@@ -79,6 +109,8 @@ class MessageNotificationBridge @Inject constructor(
             runCatching { userApi.settings() }.onSuccess {
                 messageNotifyEnabled = it.messageNotify
                 detailPreviewEnabled = it.detailPreview
+                vibrateEnabled = it.vibrate
+                soundEnabled = it.sound
             }
             runCatching { chatRepository.loadConversations() }.onSuccess { list ->
                 mutedConversations = list.filter { it.muted == 1 }.map { it.id }.toSet()

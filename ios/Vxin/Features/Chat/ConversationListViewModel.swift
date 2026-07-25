@@ -155,7 +155,12 @@ final class ConversationListViewModel: ObservableObject {
         conv.lastMessage = msg.content
         conv.lastMessageType = msg.type
         conv.lastTime = msg.createdAt
-        if msg.senderId != myId { conv.unreadCount += 1 }
+        if msg.senderId != myId {
+            conv.unreadCount += 1
+            // 前台收到他人消息 → 震动反馈（尊重系统静音：UINotificationFeedbackGenerator 不受铃声开关影响）
+            // iOS 后台靠 APNs 震动，前台 App 收到 socket 消息此前完全无反馈，这是「开了震动不震」的根因。
+            Haptics.notify(.success)
+        }
         conversations.insert(conv, at: 0)
     }
 }

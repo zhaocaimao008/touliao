@@ -133,7 +133,7 @@ class NotificationHelper @Inject constructor(
         // 渠道 id 带版本后缀：已存在渠道无法改锁屏可见性/震动（Android 保护用户既有设置），
         // 需换新 id 才能让新配置对老用户生效。改动这些渠道属性时同步 bump 版本号。
         // 注意：后端 FCM android.notification.channelId 也须同步为此值（见 backend push.js）。
-        const val CHANNEL_ID = "vxin_messages_v2"
+        const val CHANNEL_ID = "vxin_messages_v3"
         const val CALL_CHANNEL_ID = "vxin_calls"
         const val EXTRA_CONVERSATION_ID = "conversationId"
         const val CALL_NOTIFICATION_ID = 424242
