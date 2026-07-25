@@ -69,9 +69,13 @@ WAIT_MAX=int(os.environ.get("TF_WAIT_MAX_SEC","1200")); INTERVAL=30
 build=None; waited=0
 while True:
     builds=req("GET",f"/builds?filter[app]={APPID}&sort=-uploadedDate&limit=10")["data"]
-    build=next((b for b in builds if b["attributes"]["processingState"]=="VALID"), None)
-    if build: break
-    st=builds[0]["attributes"].get("processingState","(无构建)") if builds else "(无构建)"
+    # 只认「本次上传的最新构建」= builds[0]，等它自己变 VALID。
+    # 不能用 next(VALID)：新构建仍在 PROCESSING 时会错选上一版已 VALID 的旧构建，
+    # 对旧构建送审(其往往早已 APPROVED→跳过) → 步骤假成功，新版实则从未送审。
+    latest=builds[0] if builds else None
+    if latest and latest["attributes"]["processingState"]=="VALID":
+        build=latest; break
+    st=latest["attributes"].get("processingState","(无构建)") if latest else "(无构建)"
     if waited>=WAIT_MAX:
         die(f"等待超时({WAIT_MAX}s)：最新构建仍为 {st}，稍后可手动重跑送审脚本")
     print(f"  最新构建状态={st}，等待处理… ({waited}s)")
