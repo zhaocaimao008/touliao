@@ -95,6 +95,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [members, setMembers] = useState([]);
   const [myGroupRole, setMyGroupRole] = useState('member'); // 'owner'|'admin'|'member'
+  const [announcement, setAnnouncement] = useState('');     // 群公告（非空时聊天页顶部置顶轮播）
+  const [showAnnounceDetail, setShowAnnounceDetail] = useState(false); // 展开公告全文
   const [groupSettings, setGroupSettings] = useState({ mute_all: 0, no_private_chat: 0, no_add_friend: 0 });
   const [showUserProfile, setShowUserProfile] = useState(null);
   const [showCardPicker, setShowCardPicker] = useState(false);  // 分享名片：联系人选择器
@@ -490,6 +492,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         if (ac.signal.aborted) return;
         setMembers(r.data.members || []);
         setMyGroupRole(r.data.myRole || 'member');
+        setAnnouncement(r.data.announcement || '');
         setGroupSettings({ mute_all: r.data.mute_all || 0, no_private_chat: r.data.no_private_chat || 0, no_add_friend: r.data.no_add_friend || 0 });
       }).catch(() => {});
     }
@@ -808,6 +811,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       axios.get(`/api/messages/conversation/${convIdRef.current}/info`).then(r => {
         setMembers(r.data.members || []);
         setMyGroupRole(r.data.myRole || 'member');
+        setAnnouncement(r.data.announcement || '');
         setGroupSettings({ mute_all: r.data.mute_all || 0, no_private_chat: r.data.no_private_chat || 0, no_add_friend: r.data.no_add_friend || 0 });
       }).catch(() => {});
     };
@@ -1162,8 +1166,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const atCandidates = useMemo(() => {
     if (!atList) return [];
     const q = atQuery.trim().toLowerCase();
-    return members.filter(m => m.id !== user.id && (!q || m.username.toLowerCase().includes(q)));
-  }, [atList, atQuery, members, user.id]);
+    const list = members.filter(m => m.id !== user.id && (!q || m.username.toLowerCase().includes(q)));
+    // 群主/管理员专属：@所有人（置顶，用合成条目，username='所有人'）
+    const canManage = myGroupRole === 'owner' || myGroupRole === 'admin';
+    if (canManage && (!q || '所有人'.includes(q) || 'all'.includes(q))) {
+      return [{ id: '__all__', username: '所有人', avatar: '', isAll: true }, ...list];
+    }
+    return list;
+  }, [atList, atQuery, members, user.id, myGroupRole]);
 
   const handleKeyDown = (e) => {
     // ⚠ 中文/日文等 IME 组词中按 Enter 是「选定候选词」，绝不能当成发送/换行/选提及。
@@ -1226,10 +1236,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const el = textareaRef.current;
     const caret = el?.selectionStart ?? input.length;
     const mention = detectMention(input, caret);
-    // 用完整提及替换 @token（从 '@' 到光标处），光标不在 token 上时兜底追加
     const start = mention ? mention.start : input.length;
     const end = mention ? caret : input.length;
-    const inserted = `@${member.username} `;
+    const inserted = member.isAll ? '@所有人 ' : `@${member.username} `;
     const next = input.slice(0, start) + inserted + input.slice(end);
     const pos = start + inserted.length;
     dispatchCompose({ type: 'REPLACE_INPUT', value: next });
@@ -1942,6 +1951,25 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {/* 会话内搜索面板已随「顶栏对齐微信·去搜索」下线：入口移除后该面板无任何
          打开途径（git 史中从未存在 setShowMsgSearch(true)），属死代码，此处连同
          相关 state / searchMessages 一并清理。全局搜索由独立入口承载。 */}
+
+      {/* ── 群公告置顶轮播条（点击展开全文）── */}
+      {conversation.type === 'group' && announcement && (
+        <>
+          <div className="wc-announce-banner"
+            role="button" tabIndex={0} aria-expanded={showAnnounceDetail} aria-label="群公告"
+            onClick={() => setShowAnnounceDetail(v => !v)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowAnnounceDetail(v => !v); } }}>
+            <span className="wc-announce-badge">📢 群公告</span>
+            <div className="wc-announce-marquee">
+              <span className="wc-announce-text">{announcement.replace(/\n/g, '   ')}</span>
+            </div>
+            <span className="wc-announce-toggle">{showAnnounceDetail ? '▲' : '▼'}</span>
+          </div>
+          {showAnnounceDetail && (
+            <div className="wc-announce-detail">{announcement}</div>
+          )}
+        </>
+      )}
 
       {/* ── 置顶消息 Banner（抽离为 memo 化 PinnedBanner）── */}
       <PinnedBanner

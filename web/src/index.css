@@ -3922,6 +3922,18 @@ body.dark-mode .wc-confirm-msg { color: var(--text-title, #E8E8ED); }
 body.dark-mode .wc-confirm-cancel { background: var(--bg-panel, rgba(44,44,46,.8)); color: var(--text-secondary); border-color: var(--border-default, rgba(255,255,255,.1)); }
 body.dark-mode .wc-confirm-ok { background: var(--color-danger, #FF6B6B); }
 
+/* ── 群公告置顶轮播条 ── */
+.wc-announce-banner { display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: #EAF4FF; cursor: pointer; border-bottom: 1px solid rgba(0,0,0,.04); overflow: hidden; }
+.wc-announce-badge { flex-shrink: 0; color: #3B82F6; font-size: 12px; font-weight: 600; }
+.wc-announce-marquee { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; position: relative; }
+.wc-announce-text { display: inline-block; padding-left: 100%; font-size: 13px; color: var(--text-primary); animation: wcAnnounceScroll 18s linear infinite; }
+.wc-announce-banner:hover .wc-announce-text { animation-play-state: paused; }
+.wc-announce-toggle { flex-shrink: 0; color: var(--text-secondary); font-size: 11px; }
+.wc-announce-detail { padding: 10px 14px; background: #F4F9FF; font-size: 13px; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; border-bottom: 1px solid rgba(0,0,0,.04); }
+@keyframes wcAnnounceScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+body.dark-mode .wc-announce-banner { background: rgba(59,130,246,.12); border-bottom-color: rgba(255,255,255,.06); }
+body.dark-mode .wc-announce-detail { background: rgba(59,130,246,.08); }
+
 /* Pinned banner dark mode */
 body.dark-mode .wc-pinned-banner { background: rgba(255,224,130,.1); }
 body.dark-mode .wc-pinned-detail { background: rgba(255,224,130,.08); }
