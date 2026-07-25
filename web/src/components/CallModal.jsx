@@ -163,10 +163,13 @@ export default function CallModal({ socket, call, onClose }) {
   const miniVideoRef    = useRef(null);
   const remoteAudioRef  = useRef(null);
   const pendingOfferRef = useRef(null);
+  const pendingIceRef   = useRef([]); // 早到的对端 ICE 候选：remoteDescription 未就绪前先入队，设好后再 flush
   const timeoutRef      = useRef(null);
   const iceTimeoutRef   = useRef(null);
   const disconnectRef   = useRef(null);
   const endCallTimeoutRef = useRef(null);
+  const audioCtxRef = useRef(null); // 通话提示音（WebAudio）
+  const ringbackRef = useRef(null); // 回铃音循环句柄 { stop }
 
   const timer = useCallTimer(status === 'connected');
 
@@ -203,6 +206,64 @@ export default function CallModal({ socket, call, onClose }) {
     if (miniVideoRef.current)   miniVideoRef.current.srcObject   = stream;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
   }, []);
+
+  /* ── 通话提示音（WebAudio 生成，零音频文件依赖）────────────────
+     · 回铃音 ringback：主叫拨出等待期循环（中国制式「响1秒·停4秒」450Hz）
+     · 接通提示音 connected：接通瞬间短促上扬「叮」
+  */
+  const getCtx = useCallback(() => {
+    if (!audioCtxRef.current) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtxRef.current = new AC();
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    return ctx;
+  }, []);
+
+  const startRingback = useCallback(() => {
+    const ctx = getCtx();
+    if (!ctx || ringbackRef.current) return;
+    let stopped = false;
+    const beep = () => {
+      if (stopped) return;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 450;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.13, t + 0.05);
+      gain.gain.setValueAtTime(0.13, t + 0.9);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t); osc.stop(t + 1.0);
+    };
+    beep();
+    const iv = setInterval(beep, 5000); // 响1停4 → 周期5s
+    ringbackRef.current = { stop: () => { stopped = true; clearInterval(iv); } };
+  }, [getCtx]);
+
+  const stopRingback = useCallback(() => {
+    ringbackRef.current?.stop();
+    ringbackRef.current = null;
+  }, []);
+
+  const playConnected = useCallback(() => {
+    const ctx = getCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(660, t);
+    osc.frequency.exponentialRampToValueAtTime(880, t + 0.12);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.18, t + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.3);
+  }, [getCtx]);
 
   const cleanup = useCallback(() => {
     clearTimeout(timeoutRef.current);
@@ -269,6 +330,10 @@ export default function CallModal({ socket, call, onClose }) {
     if (!pc) return;
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      // remoteDescription 就绪 → flush 之前早到的 ICE 候选（对齐原生端 pendingIce）
+      for (const c of pendingIceRef.current.splice(0)) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* stale */ }
+      }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       socket?.emit('call:answer', { to: remoteId, answer });
@@ -325,11 +390,22 @@ export default function CallModal({ socket, call, onClose }) {
       const pc = pcRef.current;
       if (!pc) return;
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      // remoteDescription 就绪 → flush 之前早到的 ICE 候选（对齐原生端 pendingIce）
+      for (const c of pendingIceRef.current.splice(0)) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* stale */ }
+      }
     };
     const onIce = async ({ candidate }) => {
+      const pc = pcRef.current;
+      if (!pc || !candidate) return;
+      // 对齐 Android/iOS：remoteDescription 未就绪时，早到的候选必须入队而非丢弃，
+      // 否则对端（尤其原生端 trickle ICE 发得早）的关键候选丢失 → 永久卡"连接中"。
+      if (!pc.remoteDescription || !pc.remoteDescription.type) {
+        pendingIceRef.current.push(candidate);
+        return;
+      }
       try {
-        if (pcRef.current && candidate)
-          await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
       } catch { /* stale/duplicate ICE candidate; safe to ignore */ }
     };
     const onEnd = ({ from, reason } = {}) => {
@@ -371,6 +447,19 @@ export default function CallModal({ socket, call, onClose }) {
     window.addEventListener('beforeunload', onUnload);
     return () => { window.removeEventListener('beforeunload', onUnload); cleanup(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 提示音生命周期：主叫拨出等待→回铃音循环；接通瞬间→提示音一声
+  useEffect(() => {
+    if (status === 'calling') startRingback();
+    else stopRingback();
+    if (status === 'connected') playConnected();
+  }, [status, startRingback, stopRingback, playConnected]);
+
+  // 卸载兜底：停回铃音 + 释放 AudioContext
+  useEffect(() => () => {
+    stopRingback();
+    try { audioCtxRef.current?.close?.(); } catch { /* already closed */ }
+  }, [stopRingback]);
 
   const toggleMute = useCallback(() => {
     const t = localStreamRef.current?.getAudioTracks()[0];
