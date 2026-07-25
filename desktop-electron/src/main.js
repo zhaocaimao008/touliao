@@ -550,25 +550,10 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', async (info) => {
     log.info('更新已下载:', info.version);
+    // 渲染层 UpdateBanner 已有「立即重启安装」按钮，由它统一接管确认逻辑；
+    // 主进程不再弹原生 dialog，避免两套 UI 同时出现打架、且 dialog 阻塞事件循环。
+    // autoInstallOnAppQuit=true 兜底：用户不点 banner 时，退出 App 自动安装。
     mainWindow?.webContents.send('update:downloaded', info);
-    // 不静默安装：主进程弹原生确认框，用户同意后才重启安装
-    // （渲染层尚无安装按钮；此处保证更新可落地且必经用户确认）
-    // 窗口可能已关到托盘/销毁：传 null 作父窗口在部分平台会告警，故判空。
-    const parent = (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : undefined;
-    const { response } = await dialog.showMessageBox(parent, {
-      type: 'info',
-      buttons: ['稍后', '立即重启安装'],
-      defaultId: 1,
-      cancelId: 0,
-      noLink: true,
-      title: '发现新版本',
-      message: `v信 ${info?.version || ''} 已下载完成`,
-      detail: '是否立即重启并安装？你也可以稍后退出应用时再安装。',
-    });
-    if (response === 1) {
-      isQuitting = true;
-      autoUpdater.quitAndInstall();
-    }
   });
 
   autoUpdater.on('error', (err) => {
@@ -601,6 +586,15 @@ function createTray() {
     {
       label: '打开 v信',
       click: () => { mainWindow?.show(); mainWindow?.focus(); },
+    },
+    {
+      label: '检查更新',
+      click: () => {
+        mainWindow?.show(); mainWindow?.focus();
+        autoUpdater.checkForUpdates().catch((e) => {
+          mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
+        });
+      },
     },
     { type: 'separator' },
     {
