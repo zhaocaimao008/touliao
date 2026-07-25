@@ -47,6 +47,15 @@ const store = new Store({
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = app.isPackaged ? 'error' : 'info';
 
+// 彻底禁用 electron-updater 的发布者签名校验（publisherName 验证）。
+// 根因：electron-builder 打包时把 publisherName:"vxin" 嵌入 app-update.yml，
+// updater 下载新 exe 后调用 verifyUpdateCodeSignature 验证 Windows 代码签名发布者，
+// 无签名证书的 exe → Status:2 "not digitally signed" → 报错拒绝安装。
+// 改 package.json 只影响新打的包，已装用户的旧 app-update.yml 不变，仍会触发验签。
+// 覆盖 verifyUpdateCodeSignature 为空实现后，新包里不再做发布者验证，
+// 从此次版本起更新不再报错。安全仍由 HTTPS + 我们的 Ed25519 二次验签保障。
+autoUpdater.verifyUpdateCodeSignature = () => Promise.resolve(null);
+
 // 全局异常兜底：主进程未捕获异常/未处理 Promise 拒绝写入日志，避免静默崩溃且无痕迹。
 process.on('uncaughtException', (err) => {
   log.error('[main] 未捕获异常:', err);
