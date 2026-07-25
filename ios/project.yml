@@ -51,6 +51,11 @@ targets:
       path: Vxin/Info.plist
       properties:
         CFBundleDisplayName: v信
+        # 必须显式引用 build settings，否则 XcodeGen 默认把 CFBundleVersion
+        # 写死为 "1"，命令行传的时间戳 build 号(CURRENT_PROJECT_VERSION)不生效，
+        # 导致 TestFlight 报 "bundle version must be higher than '1'"。
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
         UILaunchScreen: {}
         # 出口合规：仅用标准 HTTPS/系统加密(属豁免)，声明后每次上传免手动回答，
         # 且构建可直接对外分发（否则 TestFlight 外部测试会卡在“合规未回答”）。
