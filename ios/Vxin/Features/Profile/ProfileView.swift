@@ -123,7 +123,7 @@ struct ProfileView: View {
             }
 
             Section("账号") {
-                ForEach(session.accounts()) { acc in
+                ForEach(session.accountList) { acc in
                     HStack {
                         InitialAvatar(name: acc.username.isEmpty ? "?" : acc.username, size: 32)
                         Text(acc.username.isEmpty ? "未命名" : acc.username)

@@ -16,6 +16,10 @@ final class SessionStore: ObservableObject {
     }
 
     @Published private(set) var state: AuthState = .loading
+    /// 已登录账号列表（@Published：移除/添加/切换后 UI 自动刷新）。
+    /// 修复：之前 View 直接调 accounts() 方法读取，移除账号后 SessionStore 不发布变更，
+    /// ForEach 不重渲染 → 被移除的账号仍显示在列表里（iOS 移除账户 UI 不刷新的 bug）。
+    @Published private(set) var accountList: [StoredAccount] = AccountStore.shared.accounts()
 
     private let repo = AuthRepository.shared
     private var observer: NSObjectProtocol?
@@ -53,6 +57,7 @@ final class SessionStore: ObservableObject {
     func onAuthenticated(_ user: User) {
         SocketService.shared.connect()
         PushManager.shared.requestAuthorizationAndRegister()
+        refreshAccounts()   // 登录成功后 AuthRepository 已 upsert 新账号，同步发布列表
         state = .authenticated(user)
     }
 
@@ -67,8 +72,11 @@ final class SessionStore: ObservableObject {
     }
 
     // MARK: - 多账号
-    func accounts() -> [StoredAccount] { AccountStore.shared.accounts() }
+    func accounts() -> [StoredAccount] { accountList }
     var activeAccountId: String? { AccountStore.shared.activeId() }
+
+    /// 从 AccountStore 重新读取并发布（任何账号增删改后调用，驱动 UI 刷新）。
+    func refreshAccounts() { accountList = AccountStore.shared.accounts() }
 
     func switchAccount(_ id: String) {
         guard let token = AccountStore.shared.token(for: id) else { return }
@@ -77,11 +85,15 @@ final class SessionStore: ObservableObject {
         KeychainStore.shared.token = token
         SocketService.shared.connect()
         PushManager.shared.requestAuthorizationAndRegister()
+        refreshAccounts()   // active 变化 → 刷新「当前」标记
         Task { await restoreSession() }
     }
 
     func removeAccount(_ id: String) {
-        if id != AccountStore.shared.activeId() { AccountStore.shared.remove(id) }
+        if id != AccountStore.shared.activeId() {
+            AccountStore.shared.remove(id)
+            refreshAccounts()   // 关键修复：移除后立即发布，列表实时去掉该账号
+        }
     }
 
     /// 改密后应用新签发的 token：覆盖当前 Bearer token 与本账号已存 token，避免旧 token 失效被登出。
@@ -98,6 +110,7 @@ final class SessionStore: ObservableObject {
         if let active = AccountStore.shared.activeId() { AccountStore.shared.remove(active) }
         KeychainStore.shared.clear()
         MsgCacheStore.shared.clear()   // 离线消息缓存全清（隐私红线）
+        refreshAccounts()
         state = .unauthenticated
     }
 
@@ -106,6 +119,7 @@ final class SessionStore: ObservableObject {
         SocketService.shared.disconnect()
         await repo.logout()
         MsgCacheStore.shared.clear()   // 离线消息缓存全清（隐私红线：登出/切账号）
+        refreshAccounts()   // AuthRepository.logout 已移除当前账号，同步发布列表
         state = .unauthenticated
     }
 }
