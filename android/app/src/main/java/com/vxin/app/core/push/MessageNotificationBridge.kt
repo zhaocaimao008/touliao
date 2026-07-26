@@ -63,22 +63,14 @@ class MessageNotificationBridge @Inject constructor(
             chatRepository.incomingMessages.collect { msg ->
                 if (msg.sender_id == sessionManager.currentUser?.id) return@collect // 自己发的不提醒
                 if (msg.deleted == 1) return@collect                              // 已撤回/删除不提醒
+                // 只处理前台：给震动反馈（尊重「震动」设置）。
+                // 后台/锁屏通知统一交给服务端 FCM（服务端已改为总是推送，见 push.js），
+                // 不再由本桥弹本地通知——否则与 FCM 通知重复。
+                if (!isForeground) return@collect
                 refreshMuteStateIfStale()
                 if (!messageNotifyEnabled) return@collect                         // 全局关新消息通知
                 if (msg.conversation_id in mutedConversations) return@collect     // 该会话免打扰
-
-                if (isForeground) {
-                    // 前台：不弹通知（避免打扰正在看的用户），但按设置给震动反馈——
-                    // 这是「开了震动却不震」的根因：前台消息此前完全无任何反馈。
-                    if (vibrateEnabled) vibrateOnce()
-                } else {
-                    // 后台/锁屏：弹本地通知（通知渠道自带声音/震动）
-                    notificationHelper.showMessageNotification(
-                        title = msg.senderName.ifBlank { "新消息" },
-                        body = if (detailPreviewEnabled) previewOf(msg) else "收到一条新消息",
-                        conversationId = msg.conversation_id,
-                    )
-                }
+                if (vibrateEnabled) vibrateOnce()
             }
         }
     }
@@ -131,9 +123,12 @@ class MessageNotificationBridge @Inject constructor(
         else -> msg.content.take(100)
     }
 
-    override fun onActivityStarted(activity: Activity) { startedActivities.incrementAndGet() }
+    override fun onActivityStarted(activity: Activity) {
+        startedActivities.incrementAndGet(); appForeground = true
+    }
     override fun onActivityStopped(activity: Activity) {
         if (startedActivities.get() > 0) startedActivities.decrementAndGet()
+        appForeground = startedActivities.get() > 0
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
@@ -142,7 +137,11 @@ class MessageNotificationBridge @Inject constructor(
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
     override fun onActivityDestroyed(activity: Activity) {}
 
-    private companion object {
+    companion object {
+        // 全局前台标记：供 VxinMessagingService 判断 FCM 到达时 App 是否在前台，
+        // 前台则不弹 FCM 通知（避免与 socket UI 重复），交给应用内 UI/震动处理。
+        @Volatile @JvmStatic var appForeground: Boolean = false
+            private set
         const val SETTINGS_TTL_MS = 60_000L
     }
 }

@@ -44,8 +44,10 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        // 前台也展示横幅 + 声音
-        completionHandler([.banner, .sound, .badge])
+        // 前台收到推送：App 已通过 socket 实时收到消息并更新 UI + 震动（ConversationListViewModel），
+        // 再展示横幅会与应用内 UI 重复打扰。服务端现总是推送（修复锁屏无通知），
+        // 故前台只响声音、不弹横幅；锁屏/后台由系统正常展示完整通知。
+        completionHandler([.sound])
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,

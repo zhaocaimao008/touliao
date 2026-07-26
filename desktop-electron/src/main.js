@@ -95,6 +95,8 @@ const NO_AUTO_OPEN_EXTS = new Set([
 
 let mainWindow = null;
 let tray = null;
+let _trayBaseIcon = null;    // 托盘正常态图标缓存（闪烁时还原用）
+let _trayFlashTimer = null;  // 托盘闪烁定时器句柄
 // 下一个下载项的文件名（渲染进程经 file:download 传入，will-download 消费一次）
 let g_pendingDownloadName = null;
 let isQuitting = false;
@@ -442,7 +444,8 @@ function createWindow() {
   mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window:maximized-change', false));
 
   // 窗口重新聚焦 → 停止任务栏闪烁（用户已回到窗口，无需继续提醒）
-  mainWindow.on('focus', () => { try { mainWindow?.flashFrame(false); } catch { /* noop */ } });
+  mainWindow.on('focus', () => { try { mainWindow?.flashFrame(false); } catch { /* noop */ } stopTrayFlash(); });
+  mainWindow.on('show',  () => { stopTrayFlash(); });
 }
 
 // ── 更新元数据 Ed25519 二次验签 ─────────────────────────────
@@ -591,6 +594,7 @@ function createTray() {
   } else {
     trayIcon = trayIcon.resize({ width: 16, height: 16 });
   }
+  _trayBaseIcon = trayIcon;   // 缓存正常态图标，供闪烁时还原
   try {
     tray = new Tray(trayIcon);
   } catch (e) {
@@ -632,6 +636,29 @@ function createTray() {
 
   tray.setContextMenu(contextMenu);
   tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
+  tray.on('click', () => { mainWindow?.show(); mainWindow?.focus(); });  // 单击也打开（Windows 习惯）
+}
+
+// ── 托盘图标闪烁（关到托盘时提示未读，不弹窗口，符合微信/QQ 习惯）──────
+// 在「正常图标」与「空图标」间切换，形成闪烁；用户打开窗口后停止并还原。
+function startTrayFlash() {
+  if (!tray || _trayFlashTimer) return;
+  let on = true;
+  _trayFlashTimer = setInterval(() => {
+    if (!tray || tray.isDestroyed?.()) { stopTrayFlash(); return; }
+    try {
+      tray.setImage(on ? nativeImage.createEmpty() : (_trayBaseIcon || nativeImage.createEmpty()));
+      tray.setToolTip(on ? 'v信 · 有新消息' : 'v信');
+    } catch { /* noop */ }
+    on = !on;
+  }, 600);
+}
+
+function stopTrayFlash() {
+  if (_trayFlashTimer) { clearInterval(_trayFlashTimer); _trayFlashTimer = null; }
+  if (tray && _trayBaseIcon) {
+    try { tray.setImage(_trayBaseIcon); tray.setToolTip('v信'); } catch { /* noop */ }
+  }
 }
 
 // 安全：IPC 来源校验。仅接受来自本应用主窗口 webContents 的调用，拒绝任何其它
@@ -700,12 +727,12 @@ function setupIPC() {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     // 窗口已聚焦时不闪（用户正在看）
     if (mainWindow.isFocused()) { mainWindow.flashFrame(false); return; }
-    // 关到托盘时窗口是隐藏状态：flashFrame 对不可见窗口无效，
-    // 需先 show() 让任务栏出现，再 flash——这样用户能看到任务栏图标闪烁。
-    if (!mainWindow.isVisible()) {
-      mainWindow.showInactive();  // showInactive：显示但不抢焦点，不打断用户当前操作
-    }
+    // ⚠ 不主动 show 窗口：关到托盘时弹出窗口会打断用户（上一版 showInactive 的错误）。
+    //   窗口可见（最小化/后台）→ flashFrame 让任务栏图标闪烁；
+    //   窗口隐藏到托盘 → flashFrame 无效，改由托盘图标闪烁 + overlay 红点提示（见下）。
     mainWindow.flashFrame(!!on);
+    // 托盘隐藏态：用托盘图标闪烁提示未读（不弹窗口，符合微信/QQ 桌面习惯）
+    if (!mainWindow.isVisible()) startTrayFlash();
   });
 
   // 未读角标：Windows 用任务栏 overlay 图标，macOS 用 Dock badge。

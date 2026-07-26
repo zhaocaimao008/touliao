@@ -34,6 +34,10 @@ class VxinMessagingService : FirebaseMessagingService() {
         }
         val title = message.notification?.title ?: data["senderName"] ?: "新消息"
         val body = message.notification?.body ?: data["body"] ?: ""
+        // App 在前台时不弹 FCM 通知：此刻 socket 已实时收到消息并更新 UI（MessageNotificationBridge
+        // 负责前台震动），再弹通知会重复打扰。后台/锁屏时 onMessageReceived 的 notification 块
+        // 由系统托盘直接展示（不进此回调），故这里只处理前台 data 消息。
+        if (MessageNotificationBridge.appForeground) return
         notificationHelper.showMessageNotification(title, body, data["conversationId"])
     }
 }

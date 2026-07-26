@@ -85,8 +85,30 @@ async function pushToUser(userId, payload) {
           timestamp:      String(payload.timestamp || Date.now()),
           type:           payload.type || 'message',
         },
-        android: { priority: 'high', notification: { channelId: 'vxin_messages_v3', sound: 'default' } },
-        apns:    { payload: { aps: { sound: 'default', badge: payload.badge || 1 } } },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'vxin_messages_v3',
+            sound: 'default',
+            // 锁屏/后台高优先级弹出 + 默认震动（渠道已开震动，这里再兜底）
+            defaultVibrateTimings: true,
+            notificationPriority: 'PRIORITY_HIGH',
+          },
+        },
+        apns: {
+          headers: {
+            // 锁屏/后台送达的关键：alert 类型 + 最高优先级（10=立即送达并唤醒屏幕）
+            'apns-push-type': 'alert',
+            'apns-priority': '10',
+          },
+          payload: {
+            aps: {
+              alert: { title: payload.senderName, body: payload.body },
+              sound: 'default',
+              badge: payload.badge || 1,
+            },
+          },
+        },
       };
       promises.push(
         firebaseAdmin.messaging().send(message).catch(err => {
@@ -123,9 +145,16 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
 
   const body = buildBody(type, content);
 
+  // 「幽灵在线」修复：不再因 socket 在线就跳过推送。
+  // 锁屏/后台但进程存活、socket 仍连着时，服务端会误判用户在线 → 不发 FCM/APNs
+  // → 锁屏无任何通知（微信/WhatsApp 不存在此问题：它们总是推送）。
+  // 现改为：给所有非发送者成员都推送；由客户端决定是否展示——
+  //   · App 在前台且在当前会话 → 客户端静默丢弃（避免打扰）
+  //   · App 在后台/锁屏/被杀 → 系统或客户端本地通知栏展示
+  // onlineUserIds 保留仅用于日志/未来精细化，不再用于过滤。
   const targetUids = members
     .map(m => m.user_id)
-    .filter(uid => uid !== senderId && !onlineUserIds.has(uid));
+    .filter(uid => uid !== senderId);
   if (!targetUids.length) return;
 
   const ph = targetUids.map(() => '?').join(',');
