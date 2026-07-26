@@ -126,7 +126,12 @@ struct ChatView: View {
         }
         .onChange(of: bgPhotoItem) { item in handleBgPhoto(item) }
         .onChange(of: stickerPhotoItem) { item in handleStickerPhoto(item) }
-        .onChange(of: vm.input) { _ in vm.userIsTyping() }
+        .onChange(of: vm.input) { newVal in
+            // 粘贴多行文本时把换行折叠为空格，消息始终保持单行高度
+            let normalized = newVal.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\r", with: " ")
+            if normalized != newVal { vm.input = normalized }
+            vm.userIsTyping()
+        }
         .onChange(of: vm.closed) { closed in if closed { dismiss() } }
         .onDisappear { vm.onLeave() }
         .onChange(of: photoItem) { item in handlePhoto(item) }

@@ -1024,7 +1024,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   }, [user.id]); // claiming 经 claimingRef 读取，仅 user.id 需纳入依赖
 
   const sendMessage = async () => {
-    const text = input.trim();
+    // 复制多行文本粘贴进来时，把换行折叠成空格——消息始终保持单行高度（对齐需求）。
+    const text = input.replace(/[\r\n]+/g, ' ').trim();
     if (!text) return;
     // 防 Enter 连击：500ms 内相同内容只发一次
     const now = Date.now();
@@ -1033,15 +1034,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     // ── 编辑模式 ──
     if (editingMsg) {
-      if (input.trim() === editingMsg.content) { cancelEdit(); return; }
+      if (text === editingMsg.content) { cancelEdit(); return; }
       try {
-        await axios.put(`/api/messages/${editingMsg.id}/edit`, { content: input.trim() });
+        await axios.put(`/api/messages/${editingMsg.id}/edit`, { content: text });
         cancelEdit();
       } catch (e) { showToast(e.response?.data?.error || '编辑失败', 'error'); }
       return;
     }
 
-    const content   = input.trim();
+    const content   = text;
     const tempId    = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const replySnap = replyTo ? { ...replyTo } : null;
 
