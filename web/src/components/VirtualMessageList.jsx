@@ -33,7 +33,11 @@ const Row = memo(function Row({ index, style, data }) {
     const h = el.offsetHeight;
     if (h > 0 && sizeMapRef.current[index] !== h) {
       sizeMapRef.current[index] = h;
-      listRef.current?.resetAfterIndex(index, false);
+      // shouldForceUpdate=true：测到真实行高后强制重渲染，使列表内层容器高度(→scrollHeight)
+      // 立即同步。若传 false 只更新内部缓存不重渲染，scrollHeight 会滞后于真实内容，
+      // 导致贴底循环用陈旧 scrollHeight 误判「高度已稳定」而提前收尾 → 停在中间需手动滚。
+      // 内容高度稳定后 offsetHeight 不变(updateSize 有 !==h 守卫)，不会引发无限重渲染。
+      listRef.current?.resetAfterIndex(index, true);
     }
   }, [index, sizeMapRef, listRef]);
 
