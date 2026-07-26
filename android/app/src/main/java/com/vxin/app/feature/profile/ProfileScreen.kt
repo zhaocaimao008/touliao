@@ -255,6 +255,12 @@ fun ProfileScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFA5151)),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("退出登录") }
+            Spacer(Modifier.size(16.dp))
+            Text(
+                "v信 v${com.vxin.app.BuildConfig.VERSION_NAME} (${com.vxin.app.BuildConfig.VERSION_CODE})",
+                style = MaterialTheme.typography.bodySmall,
+                color = VxinTextSecondary,
+            )
         }
     }
 

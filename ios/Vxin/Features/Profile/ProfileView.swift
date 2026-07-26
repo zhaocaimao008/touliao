@@ -18,6 +18,13 @@ struct ProfileView: View {
 
     private let repo = ProfileRepository.shared
 
+    /// App 版本号 "1.0.16 (16)"，取自 Info.plist（构建时由 project.yml 注入）。
+    static var appVersion: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "\(v) (\(b))"
+    }
+
     var body: some View {
         Form {
             // Hero 横幅：极光靛渐变（对齐 Web/Android pf-hero），边到边
@@ -136,6 +143,17 @@ struct ProfileView: View {
 
             Section {
                 Button("退出登录", role: .destructive) { Task { await session.logout() } }
+            }
+
+            Section {
+                HStack {
+                    Spacer()
+                    Text("v信 v\(Self.appVersion)")
+                        .font(.footnote)
+                        .foregroundColor(.vxinTextSecondary)
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
             }
         }
         .navigationTitle("我")

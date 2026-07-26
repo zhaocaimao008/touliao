@@ -1,12 +1,19 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { viteSingleFile } from 'vite-plugin-singlefile';
+import { readFileSync } from 'fs';
+
+// web 版本号：构建时从 package.json 注入为全局常量 __APP_VERSION__，供「我的」页显示。
+const WEB_VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url))).version;
 
 // desktop 模式：vite build --mode desktop
 // web 模式（默认）：vite build
 const isDesktop = (mode) => mode === 'desktop';
 
 export default defineConfig(({ mode, command }) => ({
+  define: {
+    __APP_VERSION__: JSON.stringify(WEB_VERSION),
+  },
   // 单文件内联仅用于 desktop(Electron file://) 与移动端(Capacitor) 打包；
   // 纯 web 构建走多 chunk + 路由级代码分割，减小首屏体积。
   plugins: [react(), ...(isDesktop(mode) ? [viteSingleFile()] : [])],

@@ -1053,6 +1053,11 @@ export default function Profile({ isMobile = false }) {
       <div className="wc-logout-div">
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>退出登录</button>
       </div>
+
+      {/* ── 版本号：桌面端显示应用版本，网页端显示 web 构建版本 ── */}
+      <div style={{ textAlign: 'center', padding: '16px 0 24px', color: 'var(--text-tertiary)', fontSize: 12 }}>
+        v信 v{window.__ELECTRON_CONFIG__?.appVersion || __APP_VERSION__}
+      </div>
     </PageBg>
   );
 }
