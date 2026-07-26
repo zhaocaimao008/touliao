@@ -67,19 +67,40 @@ APPID=app[0]["id"]; ok(f"App: {app[0]['attributes']['name']} ({APPID})")
 step("查找最新可用构建（等待处理为 VALID）")
 WAIT_MAX=int(os.environ.get("TF_WAIT_MAX_SEC","1200")); INTERVAL=30
 build=None; waited=0
+
+# 优先用 BUILD_NUMBER 精确匹配本次 CI 上传的构建，防止 Apple API 排序不稳定时
+# 误拿到已经 VALID 的旧构建（根因：新构建还在 PROCESSING，builds[0] 返回旧 VALID 包
+# → 脚本对旧包操作假成功，新包实则从未送审 → 永远 NOT_SUBMITTED）。
+TARGET_BUILD_NUM = os.environ.get("BUILD_NUMBER", "").strip()
+
 while True:
     builds=req("GET",f"/builds?filter[app]={APPID}&sort=-uploadedDate&limit=10")["data"]
-    # 只认「本次上传的最新构建」= builds[0]，等它自己变 VALID。
-    # 不能用 next(VALID)：新构建仍在 PROCESSING 时会错选上一版已 VALID 的旧构建，
-    # 对旧构建送审(其往往早已 APPROVED→跳过) → 步骤假成功，新版实则从未送审。
-    latest=builds[0] if builds else None
-    if latest and latest["attributes"]["processingState"]=="VALID":
-        build=latest; break
-    st=latest["attributes"].get("processingState","(无构建)") if latest else "(无构建)"
-    if waited>=WAIT_MAX:
-        die(f"等待超时({WAIT_MAX}s)：最新构建仍为 {st}，稍后可手动重跑送审脚本")
-    print(f"  最新构建状态={st}，等待处理… ({waited}s)")
-    time.sleep(INTERVAL); waited+=INTERVAL
+    # 若有 BUILD_NUMBER，只认版本号完全匹配的那条；否则退回 builds[0]（兜底）
+    if TARGET_BUILD_NUM:
+        candidate = next(
+            (b for b in builds if b["attributes"]["version"] == TARGET_BUILD_NUM),
+            None
+        )
+        if candidate is None:
+            # 构建尚未出现在 API（Apple 仍在接收），继续等
+            print(f"  构建 {TARGET_BUILD_NUM} 尚未出现在 API，等待中… ({waited}s)")
+        elif candidate["attributes"]["processingState"] == "VALID":
+            build = candidate; break
+        else:
+            st = candidate["attributes"]["processingState"]
+            print(f"  构建 {TARGET_BUILD_NUM} 状态={st}，等待处理… ({waited}s)")
+    else:
+        # 无 BUILD_NUMBER 时的兜底：只认 builds[0]，等它变 VALID
+        latest = builds[0] if builds else None
+        if latest and latest["attributes"]["processingState"] == "VALID":
+            build = latest; break
+        st = latest["attributes"].get("processingState","(无构建)") if latest else "(无构建)"
+        print(f"  最新构建状态={st}，等待处理… ({waited}s)")
+
+    if waited >= WAIT_MAX:
+        die(f"等待超时({WAIT_MAX}s)：构建仍未就绪，稍后可手动重跑送审脚本")
+    time.sleep(INTERVAL); waited += INTERVAL
+
 BUILDID=build["id"]; ok(f"构建 build {build['attributes']['version']} ({BUILDID})")
 
 # 出口合规：若未回答则设为 false(仅标准 HTTPS 加密,属豁免)，否则无法对外分发
