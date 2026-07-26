@@ -36,12 +36,16 @@ struct ProfileView: View {
                     }
                     if uploadingAvatar { ProgressView().tint(.white) }
                     if let user = session.currentUser {
-                        Text(user.username.isEmpty ? "未设置昵称" : user.username)
-                            .font(.title3.bold()).foregroundColor(.white)
-                        if !user.wechatId.isEmpty {
-                            Text("v信号: \(user.wechatId)")
-                                .font(.footnote).foregroundColor(.white.opacity(0.85))
+                        VStack(spacing: 6) {
+                            Text(user.username.isEmpty ? "未设置昵称" : user.username)
+                                .font(.title3.bold()).foregroundColor(.white)
+                            if !user.wechatId.isEmpty {
+                                Text("v信号: \(user.wechatId)")
+                                    .font(.footnote).foregroundColor(.white.opacity(0.85))
+                            }
                         }
+                        // 昵称/v信号 区域不参与点击命中，避免触发头像 PhotosPicker（用户反馈：点昵称也弹换头像）
+                        .allowsHitTesting(false)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -51,6 +55,9 @@ struct ProfileView: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
                 .listRowInsets(EdgeInsets())
+                // 关键修复：List/Form 行默认整行可点，会让点昵称/v信号也触发头像 PhotosPicker。
+                // 每个可点元素各自独立处理点击，行本身不再作为一个整体按钮响应。
+                .buttonStyle(.plain)
             }
 
             Section {
@@ -68,7 +75,6 @@ struct ProfileView: View {
 
             Section("资料") {
                 TextField("昵称", text: $username)
-                TextField("个性签名", text: $bio, axis: .vertical).lineLimit(1...3)
                 Button(action: saveProfile) {
                     if saving { ProgressView() } else { Text("保存资料").foregroundColor(.vxinGreen) }
                 }

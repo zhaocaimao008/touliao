@@ -82,7 +82,6 @@ fun ProfileScreen(
     androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.refreshAccounts() }
 
     var username by remember(user?.id) { mutableStateOf(user?.username ?: "") }
-    var bio by remember(user?.id) { mutableStateOf(user?.bio ?: "") }
     var inviteCopied by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
@@ -164,13 +163,8 @@ fun ProfileScreen(
                 label = { Text("昵称") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.size(12.dp))
-            OutlinedTextField(
-                value = bio, onValueChange = { bio = it },
-                label = { Text("个性签名") }, modifier = Modifier.fillMaxWidth(), minLines = 2,
-            )
-            Spacer(Modifier.size(12.dp))
             Button(
-                onClick = { viewModel.saveProfile(username, bio) },
+                onClick = { viewModel.saveProfile(username, user?.bio ?: "") },
                 enabled = !state.saving && username.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
                 modifier = Modifier.fillMaxWidth(),
