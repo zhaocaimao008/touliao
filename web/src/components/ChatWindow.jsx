@@ -591,17 +591,22 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const step = () => {
       const o = listOuterRef.current;
       if (!o) { autoScrollingRef.current = false; return; }
-      // 两步贴底:先 scrollToLast 把末项纳入渲染窗口(变高行未测量时纯 scrollTop 会滚不到真底部→
-      // 末条被虚拟化掉、DOM 不挂载),再 scrollTop=scrollHeight 像素级贴底。
-      // 循环持续到 scrollHeight 连续多帧稳定,期间 ResizeObserver 测出真实行高→resetAfterIndex(true)
-      // 重渲染→scrollHeight 变化→循环继续贴底,直到测量收敛。
+      // 单一真相源贴底:每帧只调 scrollToLast()(=scrollToItem(last,'end'))。
+      // 之前每帧在 scrollToItem 之后又手动 o.scrollTop=o.scrollHeight,两者目标位置在行高
+      // 未测准时不一致 → DOM scrollTop 每帧在两个值间来回跳,连跑 60 帧 ≈ 1s → 可视行反复
+      // 挂载/卸载 = 文字闪烁。改为只信任 react-window:'end' 对齐即末行底贴视口底=像素底部,
+      // 无手动 scrollTop 对打 → 不闪。行高由 ResizeObserver 逐步测准→resetAfterIndex→
+      // 下一帧 scrollToItem 用修正高度重新精确定位,循环收敛。
       virtListRef.current?.scrollToLast();
-      o.scrollTop = o.scrollHeight;
       // 高度连续 6 帧(~100ms)不再变化视为测量稳定,提前收尾;否则跑满上限。
       // resetAfterIndex(true) 保证测到真实行高时会重渲染→scrollHeight 同步变化,稳定判断有效。
       if (o.scrollHeight === prevH) stable++; else { stable = 0; prevH = o.scrollHeight; }
       if (stable < 6 && ++n < 60) raf = requestAnimationFrame(step);
-      else autoScrollingRef.current = false; // 循环收尾:恢复用户手势对贴底意图的控制
+      else {
+        // 收敛:此时行高已测准,scrollToItem 与像素底部一致,补一帧硬贴底兜底不会再对打。
+        o.scrollTop = o.scrollHeight;
+        autoScrollingRef.current = false; // 恢复用户手势对贴底意图的控制
+      }
     };
     step();
     return () => { cancelAnimationFrame(raf); autoScrollingRef.current = false; };

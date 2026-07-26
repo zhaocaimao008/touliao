@@ -3944,7 +3944,9 @@ body.dark-mode .wc-announce-detail { background: rgba(59,130,246,.08); }
 /* ── 桌面端更新条 / 检查更新按钮 ── */
 .wc-update-check-btn { position: fixed; top: 3px; right: 150px; z-index: calc(var(--z-native) + 2); width: 24px; height: 24px; border: none; border-radius: 12px; background: transparent; color: var(--titlebar-fg, #888); font-size: 13px; cursor: pointer; -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center; transition: background .15s; }
 .wc-update-check-btn:hover { background: var(--titlebar-btn-hover-bg, rgba(0,0,0,.08)); color: var(--titlebar-fg-hover, #333); }
-.wc-update-banner { position: fixed; top: 34px; left: 50%; transform: translateX(-50%); z-index: 9998; display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: #EAF4FF; border: 1px solid rgba(59,130,246,.25); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.12); font-size: 13px; color: var(--text-primary); max-width: 90vw; }
+.wc-update-banner { position: fixed; top: 34px; left: 50%; transform: translateX(-50%); z-index: 9998; display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: #EAF4FF; border: 1px solid rgba(59,130,246,.25); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.12); font-size: 13px; color: var(--text-primary); max-width: 90vw; -webkit-app-region: no-drag; }
+/* banner 内所有交互控件强制 no-drag,否则无边框窗口拖拽区会吞掉点击 */
+.wc-update-banner button, .wc-update-check-btn { -webkit-app-region: no-drag; }
 .wc-update-icon { flex-shrink: 0; font-size: 15px; }
 .wc-update-text { white-space: nowrap; }
 .wc-update-progress-wrap { width: 120px; height: 6px; background: rgba(0,0,0,.08); border-radius: 3px; overflow: hidden; flex-shrink: 0; }

@@ -1,6 +1,6 @@
 {
   "name": "vxin-desktop",
-  "version": "2.0.26",
+  "version": "2.0.27",
   "description": "v信 桌面客户端",
   "main": "src/main.js",
   "scripts": {
@@ -26,11 +26,15 @@
       {
         "from": "../web/dist",
         "to": "web/dist",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "assets/icon.ico",
       "artifactName": "vxin-${version}-setup.${ext}"
     },
@@ -46,12 +50,18 @@
       "uninstallerIcon": "assets/icon.ico"
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "assets/icon.png",
       "category": "public.app-category.social-networking"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "assets/icon.png",
       "category": "Network;InstantMessaging"
     },

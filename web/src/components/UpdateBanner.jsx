@@ -83,6 +83,7 @@ export default function UpdateBanner() {
           <div className="wc-update-progress-wrap">
             <div className="wc-update-progress-bar" style={{ width: `${progress}%` }} />
           </div>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label="后台下载">✕</button>
         </>
       )}
       {state === 'ready' && (
