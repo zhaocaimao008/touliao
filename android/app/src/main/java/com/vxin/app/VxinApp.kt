@@ -18,15 +18,19 @@ class VxinApp : Application(), ImageLoaderFactory {
     @InstallIn(SingletonComponent::class)
     interface BridgeEntryPoint {
         fun messageNotificationBridge(): com.vxin.app.core.push.MessageNotificationBridge
+        fun notificationHelper(): com.vxin.app.core.push.NotificationHelper
     }
 
     override fun onCreate() {
         super.onCreate()
         // 启动即把持久化的外观偏好同步进全局主题流，保证首帧就是用户选择的主题（同步、无 DI、异常兜底）。
         com.vxin.app.core.storage.ThemeStore.syncInitial(this)
+        val entry = EntryPointAccessors.fromApplication(this, BridgeEntryPoint::class.java)
+        // 启动即创建通知渠道：确保 App 被杀死后 FCM 到达时渠道已存在，否则 Android 8+
+        // 因找不到 channelId 静默丢弃锁屏通知（安卓锁屏收不到通知的根因之一）。
+        entry.notificationHelper()
         // 后台/锁屏时 socket 消息补本地通知（服务端判在线不发 FCM 的场景②）。
-        EntryPointAccessors.fromApplication(this, BridgeEntryPoint::class.java)
-            .messageNotificationBridge().install(this)
+        entry.messageNotificationBridge().install(this)
     }
 
     /**

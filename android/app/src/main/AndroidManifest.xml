@@ -78,5 +78,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- FCM 默认通知渠道：App 被杀死时 FCM 带 notification 块到达，系统需据此渠道展示。
+             与后端 push.js 的 channelId 一致（vxin_messages_v3），也是渠道未建时的兜底。 -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="vxin_messages_v3" />
     </application>
 </manifest>

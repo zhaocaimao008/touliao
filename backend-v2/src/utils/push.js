@@ -111,12 +111,16 @@ async function pushToUser(userId, payload) {
         },
       };
       promises.push(
-        firebaseAdmin.messaging().send(message).catch(err => {
-          if (err.code === 'messaging/invalid-registration-token' ||
-              err.code === 'messaging/registration-token-not-registered') {
-            db.prepare('DELETE FROM device_tokens WHERE id=?').run(row.id);
-          }
-        })
+        firebaseAdmin.messaging().send(message)
+          .then(id => { console.log(`[push] FCM 发送成功 user=${userId} msgId=${id}`); })
+          .catch(err => {
+            // 打印完整错误码，便于排查锁屏收不到通知（如 project 不匹配/token 失效/凭证错误）
+            console.warn(`[push] FCM 发送失败 user=${userId} code=${err.code || '?'} msg=${err.message}`);
+            if (err.code === 'messaging/invalid-registration-token' ||
+                err.code === 'messaging/registration-token-not-registered') {
+              db.prepare('DELETE FROM device_tokens WHERE id=?').run(row.id);
+            }
+          })
       );
     }
   }
