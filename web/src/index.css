@@ -3409,6 +3409,9 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   box-shadow:0 12px 40px rgba(0,0,0,.18);
   overflow:hidden;
 }
+/* 桌面端(Electron)有 30px 自定义标题栏：下拉面板 top:8px 会被标题栏遮住，
+   整体下移 30px 避开标题栏（web 端无标题栏，保持原 top:8px）。 */
+.electron-app .as-dropdown { top: 38px; }
 
 /* 账号行 — 复用 wc-add-row 但微调 gap/padding 以兼容 Home.jsx 原值 */
 .wc-account-row {
