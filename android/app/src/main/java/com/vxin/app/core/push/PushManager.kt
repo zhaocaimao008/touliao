@@ -27,19 +27,27 @@ class PushManager @Inject constructor(
     /** 登录/恢复会话后调用：取当前 FCM token 并注册 */
     fun registerCurrentToken() {
         scope.launch {
-            val fcm = fetchToken() ?: return@launch
-            Log.i(TAG, "FCM token = $fcm")   // 便于用 Firebase 控制台对单设备发测试推送
+            Log.i(TAG, "开始获取 FCM token")
+            val fcm = fetchToken()
+            if (fcm == null) {
+                Log.e(TAG, "❌ FCM token 为 null——FCM 未初始化或 Google Play 服务不可用，锁屏通知无法工作")
+                return@launch
+            }
+            Log.i(TAG, "✅ FCM token 获取成功 prefix=${fcm.take(12)}")
             runCatching { notificationApi.registerToken(DeviceTokenRequest(fcm)) }
-                .onFailure { Log.w(TAG, "register token failed: ${it.message}") }
+                .onSuccess { Log.i(TAG, "✅ FCM token 已注册到后端") }
+                .onFailure { e -> Log.e(TAG, "❌ token 注册失败 ${e.javaClass.simpleName}: ${e.message}") }
         }
     }
 
     /** FirebaseMessagingService.onNewToken 回调时调用 */
     fun onNewToken(fcm: String) {
-        if (!tokenStore.isLoggedIn) return
+        Log.i(TAG, "onNewToken 收到新 FCM token prefix=${fcm.take(12)}")
+        if (!tokenStore.isLoggedIn) { Log.i(TAG, "onNewToken: 未登录，跳过注册"); return }
         scope.launch {
             runCatching { notificationApi.registerToken(DeviceTokenRequest(fcm)) }
-                .onFailure { Log.w(TAG, "onNewToken register failed: ${it.message}") }
+                .onSuccess { Log.i(TAG, "✅ 新 token 已注册到后端") }
+                .onFailure { e -> Log.e(TAG, "❌ 新 token 注册失败: ${e.message}") }
         }
     }
 
