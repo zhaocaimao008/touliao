@@ -2192,7 +2192,8 @@ body {
   gap: 2px;
   width: 100%;
   padding: 0 6px;
-  margin-top: var(--sp-1);
+  /* 头像按钮下方留出更多间距（+30px），避免功能按钮离头像太近 */
+  margin-top: calc(var(--sp-1) + 30px);
 }
 /* 微信 PC：桌面端把最后一项「我」推到导航栏底部(上下分组)；移动端保持顶部排布不裁切 */
 .wc-app:not(.wc-mobile) .wc-sidebar-btns { flex: 1 1 auto; }

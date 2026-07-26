@@ -234,6 +234,49 @@ function AccountSwitcher() {
             );
           })}
 
+          {/* 个人资料卡片（置于添加账户之上，桌面端优先展示本人资料） */}
+          <div onClick={() => setShowProfile(v => !v)}
+            className="as-profile-row"
+            role="button" tabIndex={0}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowProfile(v => !v); } }}>
+            <svg className="as-profile-icon" viewBox="0 0 24 24">
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+            </svg>
+            <span className="as-profile-label">个人资料</span>
+            <svg viewBox="0 0 24 24" className={`as-profile-arrow${showProfile ? ' open' : ''}`}>
+              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+            </svg>
+          </div>
+
+          {/* 资料详情（展开时显示） */}
+          {showProfile && (
+            <div className="as-profile-detail">
+              {/* v信号 */}
+              {user?.wechat_id && (
+                <div className="as-profile-item">
+                  <span className="as-profile-label-text">v信号</span>
+                  <span className="as-profile-value">{user.wechat_id}</span>
+                </div>
+              )}
+              {/* 手机号 */}
+              {user?.phone && (
+                <div className="as-profile-item">
+                  <span className="as-profile-label-text">手机号</span>
+                  <span className="as-profile-value">{user.phone}</span>
+                </div>
+              )}
+              {/* 二维码 */}
+              {user?.id && (
+                <div className="as-qr-section">
+                  <div className="as-qr-label">二维码</div>
+                  <div className="as-qr-content">
+                    <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="as-qr-img" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 添加账户行 */}
           <div onClick={toggleForm}
             className={`wc-add-row${showForm ? ' open' : ''}`}
@@ -278,49 +321,6 @@ function AccountSwitcher() {
                   {submitting ? '登录中…' : (switchTarget ? '登录并切换' : '登录并添加')}
                 </button>
               </form>
-            </div>
-          )}
-
-          {/* 个人资料卡片 */}
-          <div onClick={() => setShowProfile(v => !v)}
-            className="as-profile-row"
-            role="button" tabIndex={0}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowProfile(v => !v); } }}>
-            <svg className="as-profile-icon" viewBox="0 0 24 24">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-            </svg>
-            <span className="as-profile-label">个人资料</span>
-            <svg viewBox="0 0 24 24" className={`as-profile-arrow${showProfile ? ' open' : ''}`}>
-              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-            </svg>
-          </div>
-
-          {/* 资料详情（展开时显示） */}
-          {showProfile && (
-            <div className="as-profile-detail">
-              {/* v信号 */}
-              {user?.wechat_id && (
-                <div className="as-profile-item">
-                  <span className="as-profile-label-text">v信号</span>
-                  <span className="as-profile-value">{user.wechat_id}</span>
-                </div>
-              )}
-              {/* 手机号 */}
-              {user?.phone && (
-                <div className="as-profile-item">
-                  <span className="as-profile-label-text">手机号</span>
-                  <span className="as-profile-value">{user.phone}</span>
-                </div>
-              )}
-              {/* 二维码 */}
-              {user?.id && (
-                <div className="as-qr-section">
-                  <div className="as-qr-label">二维码</div>
-                  <div className="as-qr-content">
-                    <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="as-qr-img" />
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
