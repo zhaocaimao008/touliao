@@ -16,6 +16,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // 个推 SDK 仓库（国产 ROM 离线推送覆盖）
+        maven { url = uri("https://mvn.getui.com/nexus/content/repositories/releases/") }
     }
 }
 

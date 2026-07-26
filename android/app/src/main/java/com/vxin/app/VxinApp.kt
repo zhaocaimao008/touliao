@@ -31,6 +31,22 @@ class VxinApp : Application(), ImageLoaderFactory {
         entry.notificationHelper()
         // 后台/锁屏时 socket 消息补本地通知（服务端判在线不发 FCM 的场景②）。
         entry.messageNotificationBridge().install(this)
+        // 初始化个推 SDK（国产 ROM 无 GMS 时的推送兜底）。仅当已配置 AppID 时启动，
+        // CID 由 VxinGeTuiService.onReceiveClientId 回调 → 上报后端。
+        initGeTui()
+    }
+
+    /** 初始化个推 SDK（异常不阻断启动；未配置 AppID 时 SDK 自身会 no-op）。 */
+    private fun initGeTui() {
+        runCatching {
+            com.igexin.sdk.PushManager.getInstance().initialize(applicationContext)
+            com.igexin.sdk.PushManager.getInstance().registerPushIntentService(
+                applicationContext,
+                com.vxin.app.core.push.VxinGeTuiService::class.java,
+            )
+        }.onFailure {
+            android.util.Log.w("VxinApp", "个推初始化失败(忽略): ${it.message}")
+        }
     }
 
     /**

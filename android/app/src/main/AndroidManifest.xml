@@ -62,6 +62,13 @@
             </intent-filter>
         </service>
 
+        <!-- ── 个推 GeTui（国产 ROM 推送覆盖）── -->
+        <!-- 密钥经 manifestPlaceholders 注入（GETUI_APPID/APPKEY/APPSECRET），
+             SDK 内置 Manifest 已声明对应 meta-data，此处只注册接收服务。 -->
+        <service
+            android:name=".core.push.VxinGeTuiService"
+            android:exported="false" />
+
         <!-- 通话保活前台服务（1对1）。type 声明 microphone|camera；实际以运行时传入的 type 起服务。 -->
         <service
             android:name=".core.call.CallForegroundService"

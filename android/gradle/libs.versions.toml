@@ -22,6 +22,7 @@ codeScanner = "16.1.0"
 webrtc = "125.6422.07"
 googleServices = "4.4.2"
 firebaseBom = "33.5.1"
+getui = "3.2.15.0"
 junit = "4.13.2"
 
 [libraries]
@@ -56,6 +57,7 @@ play-services-code-scanner = { group = "com.google.android.gms", name = "play-se
 webrtc = { group = "io.github.webrtc-sdk", name = "android", version.ref = "webrtc" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
+getui-sdk = { group = "com.getui", name = "gtsdk", version.ref = "getui" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 

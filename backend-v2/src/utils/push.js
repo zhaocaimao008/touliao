@@ -1,12 +1,14 @@
 'use strict';
 /**
- * 推送服务：Web Push (VAPID) + FCM/APNs (firebase-admin)。
- * pushNewMessage 只向「会话内、非发送者、当前离线」的成员推送，
+ * 推送服务：Web Push (VAPID) + FCM/APNs (firebase-admin) + 个推 GeTui（国产 ROM）。
+ * pushNewMessage 向会话内、非发送者的所有成员推送，
  * 并按各自的免打扰/详情预览/声音/震动设置定制 payload。
+ * 推送优先级：FCM（GMS 设备）+ 个推（国产 ROM）并行，互不干扰。
  */
 const webpush = require('web-push');
 const config = require('../config');
 const { db } = require('../db/connection');
+const getuiPush = require('./getuiPush');
 
 // Web Push endpoint 只可能来自浏览器推送服务(FCM/Mozilla/Apple/WNS)。限制到已知服务域名，
 // 防 SSRF——攻击者若把订阅 endpoint 指向内网/云元数据地址(如 http://169.254.169.254、
@@ -128,6 +130,28 @@ async function pushToUser(userId, payload) {
   const results = await Promise.allSettled(promises);
   for (const r of results) {
     if (r.status === 'rejected') console.warn('[push] 推送失败:', r.reason?.message || r.reason);
+  }
+
+  // ── 个推（国产 ROM 覆盖，与 FCM 并行互不干扰）──────────────
+  if (getuiPush.isEnabled()) {
+    const getuiTokens = db.prepare("SELECT * FROM device_tokens WHERE user_id=? AND platform='getui'").all(userId);
+    for (const row of getuiTokens) {
+      getuiPush.pushToCid(row.token, {
+        title: payload.senderName || '新消息',
+        body: payload.body || '收到一条新消息',
+        payload: { conversationId: payload.conversationId || '', senderId: payload.senderId || '' },
+      }).then(({ json }) => {
+        if (json.code !== 0) {
+          console.warn(`[push] 个推失败 user=${userId} code=${json.code} msg=${json.msg}`);
+          // CID 失效时清除，避免无效推送积累
+          if (json.code === 10001 || json.code === 10002) {
+            db.prepare('DELETE FROM device_tokens WHERE id=?').run(row.id);
+          }
+        } else {
+          console.log(`[push] 个推成功 user=${userId}`);
+        }
+      }).catch(e => console.warn(`[push] 个推异常: ${e.message}`));
+    }
   }
 }
 

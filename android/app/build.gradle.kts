@@ -20,6 +20,13 @@ android {
 
         // 默认服务器地址（运行时可在 App 内切换并持久化覆盖）
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://dipsin.com\"")
+
+        // 个推密钥从环境变量/CI Secrets 注入，不硬编码到代码里。
+        // 占位符名与个推 SDK 内置 Manifest 要求一致（GETUI_APPID/GETUI_APPKEY/GETUI_APPSECRET）。
+        // 拿到 key 后设环境变量：GETUI_APP_ID / GETUI_APP_KEY / GETUI_APP_SECRET
+        manifestPlaceholders["GETUI_APPID"]     = System.getenv("GETUI_APP_ID")     ?: ""
+        manifestPlaceholders["GETUI_APPKEY"]    = System.getenv("GETUI_APP_KEY")    ?: ""
+        manifestPlaceholders["GETUI_APPSECRET"] = System.getenv("GETUI_APP_SECRET") ?: ""
     }
 
     // release 签名：密钥从环境变量读取（CI 用 GitHub Secrets 注入）。
@@ -116,6 +123,10 @@ dependencies {
     // Push (Firebase Cloud Messaging)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+
+    // 个推 SDK（国产 ROM 覆盖，无 GMS 设备锁屏通知兜底）
+    // AppID/AppKey/AppSecret 在 manifestPlaceholders 注入，不硬编码
+    implementation(libs.getui.sdk)
 
     // Unit tests (pure JVM; offline msgCache 语义基线对齐 Web vitest)
     testImplementation(libs.junit)
