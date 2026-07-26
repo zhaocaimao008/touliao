@@ -149,6 +149,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const virtListRef  = useRef(null); // VirtualMessageList imperative handle
   const listOuterRef = useRef(null); // actual scrollable DOM div from react-window
   const forceScrollRef = useRef(false); // 置位→下次 messages 变化无条件贴底(自己发消息时用)
+  // 持久「贴底意图」:true=视口应始终跟随到底部。只由用户主动上滑(距底>300)清除,
+  // 回到底部(距底<300)恢复。关键:不被 messages 变化/ack 二次渲染重置,
+  // 避免 ack 替换乐观消息时 effect 重跑因瞬时 isAtBottom=false 而掐断贴底循环。
+  const stickBottomRef = useRef(true);
+  // 贴底循环运行期间置位:让 handleScroll 忽略「循环自己设 scrollTop 触发的 scroll 事件」,
+  // 否则循环中途(内容临时变高、scrollTop 够不到底)会被误判为用户上滑而清除贴底意图。
+  const autoScrollingRef = useRef(false);
   // Item cache for flatItems - preserve object identity for unchanged messages
   const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
@@ -567,8 +574,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (!outer) return;
     const force = forceScrollRef.current;
     forceScrollRef.current = false;
-    const isAtBottom = outer.scrollHeight - outer.scrollTop - outer.clientHeight < 400;
-    if (!force && !isAtBottom) return;
+    // force(自己发消息)无条件贴底;否则看持久贴底意图。
+    // 不再用「本次渲染的瞬时 isAtBottom」判断——ack 替换乐观消息触发的二次渲染中,
+    // 末行刚测出真实高度会使 scrollTop 瞬时距底>阈值,若据此 return 会掐断贴底循环。
+    if (force) stickBottomRef.current = true;
+    if (!stickBottomRef.current) return;
     // 贴底:虚拟列表变高行未测量时,裸 scrollTop=scrollHeight 会因估算高度失准滚不到真底部,
     // 末条乐观消息被虚拟化掉、DOM 不挂载(自己发消息且无 ack 的离线/弱网场景尤甚,失败态❗看不到)。
     // 故每帧先 scrollToItem(last,'end') 强制把末项纳入渲染窗口,再 scrollTop 像素级贴底。
@@ -577,24 +587,24 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 测量完成前就停,之后上方行 resetAfterIndex 变高→总高度增加,按像素锚定的视口被顶到中间。
     // 改为「持续贴底直到 scrollHeight 连续多帧稳定」,并保留硬上限防止死循环。
     let raf = 0, n = 0, stable = 0, prevH = -1;
+    autoScrollingRef.current = true;
     const step = () => {
       const o = listOuterRef.current;
-      if (!o) return;
-      // 纯像素级贴底:直接设 scrollTop=scrollHeight。react-window 的 onScroll 会跟随此值
-      // 更新内部 scrollOffset 并渲染底部那批行(含末行),末行随即被 ResizeObserver 测量。
-      //
-      // 关键:不要在此调 scrollToItem/scrollToLast。scrollToItem 会用「估算高度」算出的偏移
-      // 去更新 react-window 内部 state,该 state flush 时会覆盖我们刚设的 scrollTop=scrollHeight。
-      // 末行真实高度未测出时估算偏小→算出的偏移把视口拽回中间,导致怎么都贴不到底、需手动拖。
-      // 移除 scrollToItem 后,react-window 跟随我们的 scrollTop,不再反向覆盖。
+      if (!o) { autoScrollingRef.current = false; return; }
+      // 两步贴底:先 scrollToLast 把末项纳入渲染窗口(变高行未测量时纯 scrollTop 会滚不到真底部→
+      // 末条被虚拟化掉、DOM 不挂载),再 scrollTop=scrollHeight 像素级贴底。
+      // 循环持续到 scrollHeight 连续多帧稳定,期间 ResizeObserver 测出真实行高→resetAfterIndex(true)
+      // 重渲染→scrollHeight 变化→循环继续贴底,直到测量收敛。
+      virtListRef.current?.scrollToLast();
       o.scrollTop = o.scrollHeight;
       // 高度连续 6 帧(~100ms)不再变化视为测量稳定,提前收尾;否则跑满上限。
       // resetAfterIndex(true) 保证测到真实行高时会重渲染→scrollHeight 同步变化,稳定判断有效。
       if (o.scrollHeight === prevH) stable++; else { stable = 0; prevH = o.scrollHeight; }
       if (stable < 6 && ++n < 60) raf = requestAnimationFrame(step);
+      else autoScrollingRef.current = false; // 循环收尾:恢复用户手势对贴底意图的控制
     };
     step();
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); autoScrollingRef.current = false; };
   }, [messages]);
 
   // Load more on scroll to top — RAF 节流，避免高频 scroll 事件触发多次 setState
@@ -608,6 +618,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (!container) return;
       const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
       setShowScrollBtn(distFromBottom > 300);
+      // 维护持久贴底意图:用户上滑离底→停止跟随;回到底部→恢复跟随。
+      // 这是唯一清除贴底意图的入口(真实用户手势)。贴底循环自身设 scrollTop 触发的 scroll
+      // 事件被 autoScrollingRef 挡掉,避免循环中途内容变高时被误判为用户上滑。
+      if (!autoScrollingRef.current) stickBottomRef.current = distFromBottom <= 300;
       if (distFromBottom <= 300) setNewMsgCount(c => (c ? 0 : c));
       if (loadingMore || !hasMore) return;
       if (container.scrollTop < 60 && messages.length > 0) {
