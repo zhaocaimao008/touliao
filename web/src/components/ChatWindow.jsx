@@ -572,7 +572,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 贴底:虚拟列表变高行未测量时,裸 scrollTop=scrollHeight 会因估算高度失准滚不到真底部,
     // 末条乐观消息被虚拟化掉、DOM 不挂载(自己发消息且无 ack 的离线/弱网场景尤甚,失败态❗看不到)。
     // 故每帧先 scrollToItem(last,'end') 强制把末项纳入渲染窗口,再 scrollTop 像素级贴底。
-    let n = 0, raf = 0;
+    //
+    // 关键:行高由 ResizeObserver 异步测量(图片/回复缩略图/表情等),固定帧数(旧值14≈230ms)会在
+    // 测量完成前就停,之后上方行 resetAfterIndex 变高→总高度增加,按像素锚定的视口被顶到中间。
+    // 改为「持续贴底直到 scrollHeight 连续多帧稳定」,并保留硬上限防止死循环。
+    let raf = 0, n = 0, stable = 0, prevH = -1;
     const step = () => {
       const o = listOuterRef.current;
       if (!o) return;
@@ -580,7 +584,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       // 再 scrollTop=scrollHeight 做像素级贴底。每帧都做,覆盖末行异步测量导致的高度变化。
       virtListRef.current?.scrollToLast();
       o.scrollTop = o.scrollHeight;
-      if (++n < 14) raf = requestAnimationFrame(step);
+      // 高度连续 6 帧(~100ms)不再变化视为测量稳定,提前收尾;否则跑满上限。
+      if (o.scrollHeight === prevH) stable++; else { stable = 0; prevH = o.scrollHeight; }
+      if (stable < 6 && ++n < 60) raf = requestAnimationFrame(step);
     };
     step();
     return () => cancelAnimationFrame(raf);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { showConfirm } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
 import './Home.css';
@@ -8,12 +8,13 @@ import ChatWindow from '../components/ChatWindow';
 import ChatWindowBoundary from '../components/ChatWindowBoundary';
 import ContactList from '../components/ContactList';
 import Profile from '../components/Profile';
-import Moments from '../components/Moments';
-import CallHistory from '../components/CallHistory';
-import CallModal from '../components/CallModal';
-import Collections from '../components/Collections';
 import GlobalSearch from '../components/GlobalSearch';
-import AddFriendModal from '../components/AddFriendModal';
+// 非常驻的重型面板/模态框懒加载，减小首屏 chunk（各自本地 Suspense 兜底）
+const Moments       = lazy(() => import('../components/Moments'));
+const CallHistory   = lazy(() => import('../components/CallHistory'));
+const CallModal     = lazy(() => import('../components/CallModal'));
+const Collections   = lazy(() => import('../components/Collections'));
+const AddFriendModal = lazy(() => import('../components/AddFriendModal'));
 import Avatar from '../components/Avatar';
 import AuthImage from '../components/AuthImage';
 import ReconnectingBanner from '../components/ReconnectingBanner';
@@ -773,11 +774,11 @@ export default function Home() {
       case 'contacts':
         return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} onAddFriendConsumed={handleAddFriendConsumed} />;
       case 'moments':
-        return <Moments />;
+        return <Suspense fallback={<div className="wc-lazy-pane" />}><Moments /></Suspense>;
       case 'calls':
-        return <CallHistory onOpenChat={isMobile ? handleMobileSelectConv : handleSelectConv} />;
+        return <Suspense fallback={<div className="wc-lazy-pane" />}><CallHistory onOpenChat={isMobile ? handleMobileSelectConv : handleSelectConv} /></Suspense>;
       case 'favorites':
-        return <Collections />;
+        return <Suspense fallback={<div className="wc-lazy-pane" />}><Collections /></Suspense>;
       case 'profile':
       case 'me':
         return <Profile isMobile={isMobile} />;
@@ -824,12 +825,14 @@ export default function Home() {
     <>
       <ReconnectingBanner />
       {activeCall && (
-        <CallModal
-          socket={socket}
-          user={user}
-          call={activeCall}
-          onClose={() => setActiveCall(null)}
-        />
+        <Suspense fallback={null}>
+          <CallModal
+            socket={socket}
+            user={user}
+            call={activeCall}
+            onClose={() => setActiveCall(null)}
+          />
+        </Suspense>
       )}
       {showQR && (
         <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
@@ -862,7 +865,7 @@ export default function Home() {
           onCreated={(conv) => { setShowCreateGroup(false); handleSelectConv(conv); }} />
       )}
       {netSearchQ !== null && (
-        <AddFriendModal initialQuery={netSearchQ} onClose={() => setNetSearchQ(null)} />
+        <Suspense fallback={null}><AddFriendModal initialQuery={netSearchQ} onClose={() => setNetSearchQ(null)} /></Suspense>
       )}
     </>
   );
