@@ -10,6 +10,11 @@ const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const Store = require('electron-store');
 
+// WebAudio 提示音「叮咚」由 AudioContext 合成。Chromium 默认 autoplay 策略要求
+// 用户手势后才允许出声，导致 App 刚启动或后台收消息时 AudioContext 被静默阻止 → 没声音。
+// 关闭 autoplay 手势门槛，让提示音无条件可播（桌面 IM 提醒的刚需，非网页滥用场景）。
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 // 更新源回退地址（须与 package.json build.publish.url 一致；运行时优先读
 // app-update.yml，读取失败才用此常量）。更新源在打包时固化，不随用户切换后端而变。
 const UPDATE_FEED_FALLBACK = 'https://dipsin.com/downloads/updates';
@@ -376,6 +381,9 @@ function createWindow() {
       allowRunningInsecureContent: false,
       devTools: !app.isPackaged,    // 安全：生产构建禁用 DevTools
       spellcheck: false,            // 不向外部拼写服务发送输入内容
+      // 窗口失焦/最小化/后台时不节流：否则 WebAudio 提示音、定时器被暂停 → 后台收消息
+      // 听不到「叮咚」。桌面 IM 需要后台常驻提醒，关闭节流是刚需。
+      backgroundThrottling: false,
     },
     show: false,
     backgroundColor: '#1A2033',
@@ -690,8 +698,13 @@ function setupIPC() {
   ipcMain.handle('window:flashFrame', (_e, on) => {
     if (!isTrustedSender(_e)) return;
     if (!mainWindow || mainWindow.isDestroyed()) return;
-    // 窗口已聚焦时不闪（用户正在看，避免多余打扰）
+    // 窗口已聚焦时不闪（用户正在看）
     if (mainWindow.isFocused()) { mainWindow.flashFrame(false); return; }
+    // 关到托盘时窗口是隐藏状态：flashFrame 对不可见窗口无效，
+    // 需先 show() 让任务栏出现，再 flash——这样用户能看到任务栏图标闪烁。
+    if (!mainWindow.isVisible()) {
+      mainWindow.showInactive();  // showInactive：显示但不抢焦点，不打断用户当前操作
+    }
     mainWindow.flashFrame(!!on);
   });
 
