@@ -580,11 +580,16 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const step = () => {
       const o = listOuterRef.current;
       if (!o) return;
-      // 先命令式把末项纳入渲染窗口并对齐底部(变高行估算失准时,裸 scrollTop 到不了真底部),
-      // 再 scrollTop=scrollHeight 做像素级贴底。每帧都做,覆盖末行异步测量导致的高度变化。
-      virtListRef.current?.scrollToLast();
+      // 纯像素级贴底:直接设 scrollTop=scrollHeight。react-window 的 onScroll 会跟随此值
+      // 更新内部 scrollOffset 并渲染底部那批行(含末行),末行随即被 ResizeObserver 测量。
+      //
+      // 关键:不要在此调 scrollToItem/scrollToLast。scrollToItem 会用「估算高度」算出的偏移
+      // 去更新 react-window 内部 state,该 state flush 时会覆盖我们刚设的 scrollTop=scrollHeight。
+      // 末行真实高度未测出时估算偏小→算出的偏移把视口拽回中间,导致怎么都贴不到底、需手动拖。
+      // 移除 scrollToItem 后,react-window 跟随我们的 scrollTop,不再反向覆盖。
       o.scrollTop = o.scrollHeight;
       // 高度连续 6 帧(~100ms)不再变化视为测量稳定,提前收尾;否则跑满上限。
+      // resetAfterIndex(true) 保证测到真实行高时会重渲染→scrollHeight 同步变化,稳定判断有效。
       if (o.scrollHeight === prevH) stable++; else { stable = 0; prevH = o.scrollHeight; }
       if (stable < 6 && ++n < 60) raf = requestAnimationFrame(step);
     };
