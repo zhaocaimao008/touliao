@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -63,8 +64,13 @@
         </service>
 
         <!-- ── 个推 GeTui（国产 ROM 推送覆盖）── -->
-        <!-- 密钥经 manifestPlaceholders 注入（GETUI_APPID/APPKEY/APPSECRET），
-             SDK 内置 Manifest 已声明对应 meta-data，此处只注册接收服务。 -->
+        <!-- SDK 内置 manifest 只声明了 GETUI_APPID，APPKEY/APPSECRET 必须自己声明，
+             否则 SDK 初始化拿不到完整密钥 → 无法注册 → CID 永远为空（锁屏收不到的根因）。
+             tools:replace 覆盖 SDK 的空占位值，写入 manifestPlaceholders 注入的真实值。 -->
+        <meta-data android:name="GETUI_APPID"     android:value="${GETUI_APPID}"     tools:replace="android:value" />
+        <meta-data android:name="GETUI_APPKEY"    android:value="${GETUI_APPKEY}" />
+        <meta-data android:name="GETUI_APPSECRET" android:value="${GETUI_APPSECRET}" />
+        <!-- 个推消息接收服务：收到 CID → 上报后端；透传 → 弹通知 -->
         <service
             android:name=".core.push.VxinGeTuiService"
             android:exported="false" />

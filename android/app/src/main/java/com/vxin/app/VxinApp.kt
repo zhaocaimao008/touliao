@@ -19,6 +19,7 @@ class VxinApp : Application(), ImageLoaderFactory {
     interface BridgeEntryPoint {
         fun messageNotificationBridge(): com.vxin.app.core.push.MessageNotificationBridge
         fun notificationHelper(): com.vxin.app.core.push.NotificationHelper
+        fun pushManager(): com.vxin.app.core.push.PushManager
     }
 
     override fun onCreate() {
@@ -39,11 +40,23 @@ class VxinApp : Application(), ImageLoaderFactory {
     /** 初始化个推 SDK（异常不阻断启动；未配置 AppID 时 SDK 自身会 no-op）。 */
     private fun initGeTui() {
         runCatching {
-            com.igexin.sdk.PushManager.getInstance().initialize(applicationContext)
-            com.igexin.sdk.PushManager.getInstance().registerPushIntentService(
-                applicationContext,
-                com.vxin.app.core.push.VxinGeTuiService::class.java,
-            )
+            val pm = com.igexin.sdk.PushManager.getInstance()
+            // 用单参 initialize + 单独 registerPushIntentService（3.2.x 推荐顺序）
+            pm.initialize(applicationContext)
+            pm.registerPushIntentService(applicationContext, com.vxin.app.core.push.VxinGeTuiService::class.java)
+            // 兜底：CID 回调偶发不触发时，延迟主动轮询 getClientid 并上报
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                runCatching {
+                    val cid = pm.getClientid(applicationContext)
+                    if (!cid.isNullOrBlank()) {
+                        android.util.Log.i("VxinApp", "个推 CID(主动轮询)=${cid.take(12)}…")
+                        EntryPointAccessors.fromApplication(this, BridgeEntryPoint::class.java)
+                            .pushManager().registerGeTuiCid(cid)
+                    } else {
+                        android.util.Log.w("VxinApp", "个推 CID 仍为空(轮询)，等待回调")
+                    }
+                }
+            }, 8000)
         }.onFailure {
             android.util.Log.w("VxinApp", "个推初始化失败(忽略): ${it.message}")
         }
