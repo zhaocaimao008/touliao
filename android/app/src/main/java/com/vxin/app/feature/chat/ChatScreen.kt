@@ -403,7 +403,10 @@ fun ChatScreen(
                             }
                         }
                     }
-                    itemsIndexed(state.messages, key = { _, m -> m.id }, contentType = { _, m -> m.type }) { idx, msg ->
+                    // key 用稳定的 clientMsgId：乐观气泡(id=clientMsgId)被服务器消息认领替换后，
+                    // id 会从本地 UUID 变成服务端 id，若以 id 作 key 会被 Compose 视为「删除+新增」→
+                    // 最新一条闪烁。clientMsgId 在乐观与认领后保持不变，作 key 可消除闪烁。
+                    itemsIndexed(state.messages, key = { _, m -> m.clientMsgId ?: m.id }, contentType = { _, m -> m.type }) { idx, msg ->
                         // 时间分隔：与上一条间隔超 5 分钟则显示居中时间（对齐微信）
                         val prev = state.messages.getOrNull(idx - 1)
                         if (shouldShowTime(prev?.created_at, msg.created_at)) {
