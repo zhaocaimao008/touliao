@@ -850,7 +850,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
 .wc-msg-reply-name { font-weight: var(--font-medium); color: var(--text-secondary); margin-bottom: 1px; font-size: var(--text-xs); }
 .wc-msg-reply-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wc-lazy-pane { flex: 1; min-height: 0; background: var(--bg-secondary, transparent); }
-.wc-msg-reply-media { margin-top: 2px; }
+.wc-msg-reply-media { margin-top: 2px; margin-bottom: 2px; } /* margin-bottom: 引用图片缩略图与引用块底边保持间距，避免文字看起来贴着图片 */
 .wc-msg-reply-thumb { display: block; width: 34px; height: 34px; object-fit: cover; border-radius: var(--radius-sm); }
 
 .wc-reactions { display: flex; flex-wrap: wrap; gap: 3px; margin-top: var(--sp-1); }

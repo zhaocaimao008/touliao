@@ -313,6 +313,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       // 切换会话时取消所有阅后即焚定时器，防止旧会话定时器影响新会话消息状态
       burnTimers.forEach(handle => clearTimeout(handle));
       burnTimers.clear();
+      // 切换会话时重置瞬态 UI 状态：
+      // newMsgCount 不清零会把旧会话的「N 条新消息」角标带到新会话；
+      // typingName 不清空可能短暂显示上个会话的「XX 正在输入」。
+      setNewMsgCount(0);
+      setTypingName('');
     };
   }, [conversation.id]);
   useEffect(() => {
