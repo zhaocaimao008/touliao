@@ -9,12 +9,15 @@ struct Contact: Decodable, Identifiable, Hashable {
     var status: String = ""
     var wechatId: String = ""
     var remark: String?
+    // 特权账户专属：好友最后在线时间（Unix 秒）。非特权账户后端不返回，保持 nil。
+    var lastOnlineAt: Double?
 
     var displayName: String { (remark?.isEmpty == false ? remark! : username) }
 
     enum CodingKeys: String, CodingKey {
         case id, username, avatar, bio, status, remark
         case wechatId = "wechat_id"
+        case lastOnlineAt = "last_online_at"
     }
 
     init(from decoder: Decoder) throws {
@@ -26,6 +29,7 @@ struct Contact: Decodable, Identifiable, Hashable {
         status = (try? c.decode(String.self, forKey: .status)) ?? ""
         wechatId = (try? c.decode(String.self, forKey: .wechatId)) ?? ""
         remark = try? c.decode(String.self, forKey: .remark)
+        lastOnlineAt = try? c.decode(Double.self, forKey: .lastOnlineAt)
     }
 }
 

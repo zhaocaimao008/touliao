@@ -28,7 +28,24 @@ struct WalletTransaction: Decodable, Identifiable {
     }
 }
 
-/// 钱包（余额 / 流水）。充值端点后端暂关闭（503），不接入。
+/// 充值请求体（amount 单位：金币，1-100000）。
+struct RechargeBody: Encodable { let amount: Int }
+
+/// 充值响应 —— { success, balance, recharged }。
+struct RechargeResponse: Decodable {
+    let success: Bool
+    let balance: Int
+    let recharged: Int
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        success = (try? c.decode(Bool.self, forKey: .success)) ?? false
+        balance = (try? c.decode(Int.self, forKey: .balance)) ?? 0
+        recharged = (try? c.decode(Int.self, forKey: .recharged)) ?? 0
+    }
+    enum CodingKeys: String, CodingKey { case success, balance, recharged }
+}
+
+/// 钱包（余额 / 流水 / 充值）。
 final class WalletRepository {
     static let shared = WalletRepository()
     private init() {}
@@ -41,5 +58,10 @@ final class WalletRepository {
 
     func transactions(limit: Int = 50, offset: Int = 0) async throws -> [WalletTransaction] {
         try await api.send("api/wallet/transactions?limit=\(limit)&offset=\(offset)")
+    }
+
+    /// 充值 amount 金币（1-100000），返回最新余额与入账数。
+    func recharge(amount: Int) async throws -> RechargeResponse {
+        try await api.send("api/wallet/recharge", method: "POST", body: RechargeBody(amount: amount))
     }
 }

@@ -337,6 +337,16 @@ private fun ContactRow(
             if (contact.bio.isNotBlank()) {
                 Text(contact.bio, color = VxinTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
             }
+            // 特权账户：离线时展示精确最后在线时间（后端仅对特权账户返回 lastOnlineAt）
+            if (!online && contact.lastOnlineAt != null && contact.lastOnlineAt > 0) {
+                Text(
+                    formatLastOnline(contact.lastOnlineAt),
+                    color = VxinTextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {

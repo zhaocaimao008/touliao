@@ -13,21 +13,33 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,6 +54,25 @@ import java.util.Locale
 @Composable
 fun WalletScreen(onBack: () -> Unit, viewModel: WalletViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showRechargeDialog by remember { mutableStateOf(false) }
+
+    // 充值结果提示（成功/失败）通过 Snackbar 展示，展示后清除
+    LaunchedEffect(state.rechargeMessage) {
+        state.rechargeMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearRechargeMessage()
+        }
+    }
+
+    if (showRechargeDialog) {
+        RechargeDialog(
+            recharging = state.recharging,
+            onConfirm = { amt -> viewModel.recharge(amt); showRechargeDialog = false },
+            onDismiss = { showRechargeDialog = false },
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -49,6 +80,7 @@ fun WalletScreen(onBack: () -> Unit, viewModel: WalletViewModel = hiltViewModel(
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
@@ -61,8 +93,10 @@ fun WalletScreen(onBack: () -> Unit, viewModel: WalletViewModel = hiltViewModel(
                             Text("当前余额（金币）", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                             Spacer(Modifier.size(8.dp))
                             Text("${state.balance}", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFA9D3B))
-                            Spacer(Modifier.size(6.dp))
-                            Text("充值功能暂未开放，敬请期待", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.size(12.dp))
+                            Button(onClick = { showRechargeDialog = true }, enabled = !state.recharging) {
+                                Text(if (state.recharging) "充值中…" else "充值")
+                            }
                         }
                         HorizontalDivider()
                         Text("账单明细", Modifier.padding(16.dp, 12.dp, 16.dp, 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -81,6 +115,39 @@ fun WalletScreen(onBack: () -> Unit, viewModel: WalletViewModel = hiltViewModel(
             }
         }
     }
+}
+
+@Composable
+private fun RechargeDialog(
+    recharging: Boolean,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var input by remember { mutableStateOf("") }
+    val amount = input.toIntOrNull() ?: 0
+    val valid = amount in 1..100000
+    AlertDialog(
+        onDismissRequest = { if (!recharging) onDismiss() },
+        title = { Text("充值金币") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { v -> input = v.filter { it.isDigit() }.take(6) },
+                    label = { Text("充值数量（1-100000）") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    enabled = !recharging,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(amount) }, enabled = valid && !recharging) {
+                Text(if (recharging) "充值中…" else "确认")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !recharging) { Text("取消") } },
+    )
 }
 
 @Composable

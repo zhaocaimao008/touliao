@@ -12,6 +12,8 @@ data class Contact(
     val status: String = "",
     val wechat_id: String = "",
     val remark: String? = null,
+    // 特权账户专属：好友最后在线时间（Unix 秒）。非特权账户后端不返回，保持 null。
+    @kotlinx.serialization.SerialName("last_online_at") val lastOnlineAt: Long? = null,
 ) {
     val displayName: String get() = remark?.takeIf { it.isNotBlank() } ?: username
 }

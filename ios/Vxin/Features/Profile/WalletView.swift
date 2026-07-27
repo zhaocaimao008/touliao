@@ -6,6 +6,8 @@ final class WalletViewModel: ObservableObject {
     @Published var balance = 0
     @Published var transactions: [WalletTransaction] = []
     @Published var error: String?
+    @Published var recharging = false
+    @Published var rechargeMessage: String?
 
     private let repo = WalletRepository.shared
 
@@ -19,10 +21,29 @@ final class WalletViewModel: ObservableObject {
         }
         loading = false
     }
+
+    /// 充值 amount 金币（1-100000）。成功后刷新余额与流水。
+    func recharge(amount: Int) async {
+        guard amount >= 1 && amount <= 100000 else {
+            rechargeMessage = "充值金额需为 1-100000 金币"; return
+        }
+        recharging = true
+        do {
+            let res = try await repo.recharge(amount: amount)
+            balance = res.balance
+            rechargeMessage = "充值成功，到账 \(res.recharged) 金币"
+            transactions = (try? await repo.transactions()) ?? transactions
+        } catch {
+            rechargeMessage = (error as? LocalizedError)?.errorDescription ?? "充值失败"
+        }
+        recharging = false
+    }
 }
 
 struct WalletView: View {
     @StateObject private var vm = WalletViewModel()
+    @State private var showRecharge = false
+    @State private var rechargeInput = ""
 
     var body: some View {
         List {
@@ -30,7 +51,14 @@ struct WalletView: View {
                 VStack(spacing: 8) {
                     Text("当前余额（金币）").font(.caption).foregroundColor(.vxinTextSecondary)
                     Text("\(vm.balance)").font(.system(size: 40, weight: .bold)).foregroundColor(Color(red: 0.98, green: 0.62, blue: 0.23))
-                    Text("充值功能暂未开放，敬请期待").font(.caption).foregroundColor(.vxinTextSecondary)
+                    Button {
+                        rechargeInput = ""; showRecharge = true
+                    } label: {
+                        Text(vm.recharging ? "充值中…" : "充值").fontWeight(.semibold)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(vm.recharging)
+                    .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
@@ -48,6 +76,25 @@ struct WalletView: View {
         .navigationTitle("我的钱包")
         .navigationBarTitleDisplayMode(.inline)
         .task { await vm.load() }
+        .alert("充值金币", isPresented: $showRecharge) {
+            TextField("充值数量（1-100000）", text: $rechargeInput)
+                .keyboardType(.numberPad)
+            Button("取消", role: .cancel) {}
+            Button("确认") {
+                let amt = Int(rechargeInput) ?? 0
+                Task { await vm.recharge(amount: amt) }
+            }
+        } message: {
+            Text("请输入充值金币数量")
+        }
+        .alert("提示", isPresented: Binding(
+            get: { vm.rechargeMessage != nil },
+            set: { if !$0 { vm.rechargeMessage = nil } }
+        )) {
+            Button("好", role: .cancel) { vm.rechargeMessage = nil }
+        } message: {
+            Text(vm.rechargeMessage ?? "")
+        }
     }
 }
 

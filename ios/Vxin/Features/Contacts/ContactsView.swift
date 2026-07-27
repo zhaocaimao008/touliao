@@ -75,6 +75,11 @@ struct ContactsView: View {
                                 if !contact.bio.isEmpty {
                                     Text(contact.bio).font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                 }
+                                // 特权账户：离线时展示精确最后在线时间（后端仅对特权账户返回 lastOnlineAt）
+                                if !vm.onlineIds.contains(contact.id),
+                                   let ts = contact.lastOnlineAt, ts > 0 {
+                                    Text(formatLastOnline(ts)).font(.caption2).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                }
                             }
                             Spacer()
                         }
@@ -123,4 +128,23 @@ struct ContactsView: View {
         .toast($vm.error)
         .task { await vm.refresh() }
     }
+}
+
+/// 特权账户：格式化好友最后在线时间（Unix 秒），精确到分钟。
+func formatLastOnline(_ ts: Double) -> String {
+    guard ts > 0 else { return "" }
+    let date = Date(timeIntervalSince1970: ts)
+    let now = Date()
+    let diff = max(0, now.timeIntervalSince(date))
+    let f = DateFormatter()
+    f.dateFormat = "HH:mm"
+    let time = f.string(from: date)
+    if diff < 60 { return "刚刚在线" }
+    if diff < 3600 { return "\(Int(diff / 60)) 分钟前在线" }
+    let cal = Calendar.current
+    if cal.isDateInToday(date) { return "今天 \(time)" }
+    if cal.isDateInYesterday(date) { return "昨天 \(time)" }
+    let df = DateFormatter()
+    df.dateFormat = "M月d日 HH:mm"
+    return df.string(from: date)
 }
