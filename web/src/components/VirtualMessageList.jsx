@@ -47,7 +47,7 @@ function estimateHeight(item) {
 
 // Row is module-level so it's stable (not recreated each render)
 const Row = memo(function Row({ index, style, data }) {
-  const { items, cbRef, sizeMapRef, listRef, sizeFlusher } = data;
+  const { items, cbRef, sizeMapRef, sizeFlusher } = data;
   const item = items[index];
   const rowInnerRef = useRef(null);
 
