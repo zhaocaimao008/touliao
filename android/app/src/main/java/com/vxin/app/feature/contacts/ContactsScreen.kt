@@ -368,3 +368,19 @@ private fun RemarkDialog(initial: String, onConfirm: (String) -> Unit, onDismiss
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
 }
+
+/** 特权账户：格式化好友最后在线时间（Unix 秒），精确到分钟。用全限定名避免额外 import。 */
+private fun formatLastOnline(epochSec: Long): String {
+    if (epochSec <= 0) return ""
+    val millis = epochSec * 1000
+    val diff = (System.currentTimeMillis() - millis).coerceAtLeast(0)
+    val locale = java.util.Locale.getDefault()
+    val time = java.text.SimpleDateFormat("HH:mm", locale).format(java.util.Date(millis))
+    return when {
+        diff < 60_000L -> "刚刚在线"
+        diff < 3_600_000L -> "${diff / 60_000L} 分钟前在线"
+        diff < 86_400_000L -> "今天 $time"
+        diff < 172_800_000L -> "昨天 $time"
+        else -> java.text.SimpleDateFormat("M月d日 HH:mm", locale).format(java.util.Date(millis))
+    }
+}
