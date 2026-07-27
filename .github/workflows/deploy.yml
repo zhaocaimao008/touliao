@@ -172,6 +172,9 @@ jobs:
           pm2 restart vxin-server-v2 --update-env || PORT=3002 pm2 start src/server.js --name vxin-server-v2
           pm2 save || true
 
+          echo "🔄 步骤 3b: Reload nginx（使静态文件变更立即生效）"
+          nginx -s reload 2>/dev/null || kill -HUP $(cat /run/nginx.pid 2>/dev/null || cat /var/run/nginx.pid 2>/dev/null) 2>/dev/null || true
+
           echo "✅ 步骤 4: 健康检查"
           sleep 5
           HEALTH_OK=0

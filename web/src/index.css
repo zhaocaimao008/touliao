@@ -3803,13 +3803,13 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .rpm-error { padding: var(--sp-2h); background: rgba(250,81,81,.08); color: var(--color-badge); border-radius: var(--radius-md); margin-bottom: var(--sp-3); font-size: var(--text-sm2); }
 .rpm-field { margin-bottom: var(--sp-4); }
 .rpm-label { display: block; font-size: var(--text-sm2); font-weight: var(--font-semibold); color: var(--text-title); margin-bottom: 6px; }
-.rpm-input { width: 100%; padding: 11px 13px; font-size: var(--text-base); border: 1.5px solid var(--border-default); border-radius: 8px; outline: none; box-sizing: border-box; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.rpm-input { width: 100%; padding: 11px 13px; font-size: var(--text-base); color: var(--text-primary); background: var(--bg-input, #fff); border: 1.5px solid var(--border-default); border-radius: 8px; outline: none; box-sizing: border-box; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
 .rpm-input:focus { border-color: var(--rp-orange, #F4511E); box-shadow: 0 0 0 3px rgba(244,81,30,.14); }
 .rpm-preview { padding: var(--sp-3); background: var(--bg-success-tint); border-radius: var(--radius-md); margin-bottom: var(--sp-4); }
 .rpm-preview-label { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--sp-1); }
 .rpm-preview-amount { font-size: var(--text-lg); font-weight: var(--font-bold); color: var(--green); }
 .rpm-preview-warn { font-size: var(--text-sm); color: var(--color-badge); margin-top: var(--sp-1); }
-.rpm-textarea { width: 100%; padding: 10px 12px; font-size: var(--text-sm2); border: 1px solid var(--border-default); border-radius: var(--radius-input); outline: none; box-sizing: border-box; resize: none; height: 60px; font-family: inherit; }
+.rpm-textarea { width: 100%; padding: 10px 12px; font-size: var(--text-sm2); color: var(--text-primary); background: var(--bg-input, #fff); border: 1px solid var(--border-default); border-radius: var(--radius-input); outline: none; box-sizing: border-box; resize: none; height: 60px; font-family: inherit; }
 .rpm-counter { font-size: var(--text-xs); color: var(--text-tertiary); margin-top: var(--sp-1); }
 .rpm-actions { display: flex; gap: var(--sp-2h); justify-content: flex-end; }
 .rpm-btn-cancel { padding: 10px 20px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--bg-card); color: var(--text-primary); font-size: var(--text-base); font-weight: var(--font-semibold); cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast); }

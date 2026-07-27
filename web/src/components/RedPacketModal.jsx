@@ -67,6 +67,13 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
               placeholder="输入红包个数" className="rpm-input" aria-label="红包个数，1 到 100" />
           </div>
         )}
+        {!isGroup && (
+          <div className="rpm-field">
+            <div className="rpm-label" style={{ fontWeight: 'normal', color: 'var(--text-secondary)' }}>
+              红包个数：私聊固定 1 个
+            </div>
+          </div>
+        )}
 
         {isGroup && countNum > 0 && amountNum > 0 && (
           <div className="rpm-preview">
