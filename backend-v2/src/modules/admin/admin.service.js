@@ -61,7 +61,7 @@ function listUsers({ q, limit = 30, offset = 0, banned, period, online }) {
 
   const total = db.prepare(`SELECT COUNT(*) n FROM users u ${where}`).get(...args).n;
   const rows = db.prepare(`
-    SELECT u.id, u.username, u.phone, u.wechat_id, u.avatar, u.bio, u.status, u.banned, u.created_at,
+    SELECT u.id, u.username, u.phone, u.wechat_id, u.avatar, u.bio, u.status, u.banned, u.is_privileged, u.created_at,
       (SELECT COUNT(*) FROM contacts WHERE user_id=u.id) AS contactCount,
       (SELECT COUNT(*) FROM messages WHERE sender_id=u.id AND deleted=0) AS messageCount
     FROM users u ${where}
