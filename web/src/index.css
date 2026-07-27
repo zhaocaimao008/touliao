@@ -741,6 +741,33 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   display: none;
 }
 
+/* 图片/视频/贴纸等透明气泡(padding:0)若带引用预览：气泡本身无背景无内边距，
+   会让引用块的文字/缩略图裸贴到图片上("字粘到图上")。这里把引用块还原成一个
+   独立小卡片——补回背景、圆角、内边距，并与下方媒体留出间距，避免重叠。 */
+.wc-msg-bubble:has(.wc-msg-img) > .wc-msg-reply,
+.wc-msg-bubble:has(.wc-msg-video) > .wc-msg-reply,
+.wc-msg-bubble:has(.wc-msg-sticker) > .wc-msg-reply {
+  background: rgba(0, 0, 0, .05);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 4px 9px;
+  margin-bottom: 6px;
+  max-width: 100%;
+}
+.wc-msg-bubble.mine:has(.wc-msg-img) > .wc-msg-reply,
+.wc-msg-bubble.mine:has(.wc-msg-video) > .wc-msg-reply,
+.wc-msg-bubble.mine:has(.wc-msg-sticker) > .wc-msg-reply {
+  background: rgba(0, 0, 0, .18);
+  border-left-color: rgba(255, 255, 255, .55);
+}
+.wc-msg-bubble.mine:has(.wc-msg-img) > .wc-msg-reply .wc-msg-reply-name,
+.wc-msg-bubble.mine:has(.wc-msg-video) > .wc-msg-reply .wc-msg-reply-name,
+.wc-msg-bubble.mine:has(.wc-msg-sticker) > .wc-msg-reply .wc-msg-reply-name,
+.wc-msg-bubble.mine:has(.wc-msg-img) > .wc-msg-reply .wc-msg-reply-text,
+.wc-msg-bubble.mine:has(.wc-msg-video) > .wc-msg-reply .wc-msg-reply-text,
+.wc-msg-bubble.mine:has(.wc-msg-sticker) > .wc-msg-reply .wc-msg-reply-text {
+  color: rgba(255, 255, 255, .82);
+}
+
 /* 聊天图片：限定最大尺寸避免大图撑爆气泡；min 占位 + shimmer 减小"0→满"的布局跳动、
    给"正在加载"的高级感；加载完(.loaded 由 onLoad 添加)停 shimmer。 */
 .wc-msg-img {
