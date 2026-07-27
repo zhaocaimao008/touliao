@@ -232,14 +232,24 @@ describe('v信 后端 E2E 集成测试', () => {
   });
 
   describe('钱包与红包', () => {
-    // 充值接口目前为禁用占位（未接支付网关），返回 503；红包测试直接为发送者入账。
+    // 充值接口已启用：金额 1-100000 整数，成功入账返回 200 + 最新余额。
     const wallet = require('../src/modules/wallet/wallet.service');
 
-    test('充值接口暂未开放（503 占位）', async () => {
+    test('充值接口：合法金额成功入账（200）', async () => {
       const res = await request(app).post('/api/wallet/recharge')
         .set('Authorization', `Bearer ${u1.token}`)
         .send({ amount: 100 });
-      expect(res.status).toBe(503);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.recharged).toBe(100);
+      expect(res.body.balance).toBeGreaterThanOrEqual(100);
+    });
+
+    test('充值接口：非法金额被拒（400）', async () => {
+      const res = await request(app).post('/api/wallet/recharge')
+        .set('Authorization', `Bearer ${u1.token}`)
+        .send({ amount: 0 });
+      expect(res.status).toBe(400);
     });
 
     test('查询余额', async () => {
