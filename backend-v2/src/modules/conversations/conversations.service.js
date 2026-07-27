@@ -441,7 +441,7 @@ function media(userId, { type = 'image', limit, before }) {
   const beforeClause = bf ? 'AND m.created_at < ?' : '';
   const params = bf ? [userId, type, bf, lim] : [userId, type, lim];
   return db.prepare(`
-    SELECT m.id, m.type, m.content, m.file_url, m.extra, m.created_at, m.conversation_id,
+    SELECT m.id, m.type, m.content, m.file_url, m.created_at, m.conversation_id,
            u.username as senderName, c.name as convName
     FROM messages m
     JOIN conversation_members cm ON cm.conversation_id=m.conversation_id AND cm.user_id=?

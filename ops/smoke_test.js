@@ -51,8 +51,8 @@ function shape(body) {
     ['/api/users/contacts', 'array'],
     ['/api/users/friend-requests', 'array'],
     ['/api/users/friend-requests/sent', 'array'],
-    ['/api/users/blocked', 'array'],
-    ['/api/users/settings', 'object'],
+    ['/api/users/me/blocked', 'array'],
+    ['/api/users/me/settings', 'object'],
     [`/api/users/${myId}`, 'object'],          // getUserDetail(曾返回{})
     ['/api/messages/conversations', 'array'],   // listConversations(曾返回{})
     ['/api/messages/unread-counts', 'any'],
@@ -60,8 +60,8 @@ function shape(body) {
     ['/api/messages/search?q=test&limit=5', 'object'], // searchGlobal(曾返回{}) → 应有 results
     ['/api/users/friend-requests', 'array'],
     ['/api/notifications/status', 'any'],
-    ['/api/collections', 'any'],
-    ['/api/calls/logs', 'any'],
+    ['/api/users/me/collections', 'array'],
+    ['/api/users/me/call-logs', 'array'],
   ];
 
   let warn = 0, bad = 0;
