@@ -156,6 +156,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 贴底循环运行期间置位:让 handleScroll 忽略「循环自己设 scrollTop 触发的 scroll 事件」,
   // 否则循环中途(内容临时变高、scrollTop 够不到底)会被误判为用户上滑而清除贴底意图。
   const autoScrollingRef = useRef(false);
+  // 贴底挂起态:尾部新增消息后置位,直到行高测量稳定(或兜底超时)才清除。
+  // 期间收到 onHeightSettle 才补贴底,避免每帧盲滚导致最新消息抖动。
+  const stickPendingRef = useRef(false);
   // Item cache for flatItems - preserve object identity for unchanged messages
   const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
@@ -536,6 +539,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 阈值与自动滚底(<400)一致：处于 120~400px 区间时新消息会被自动拉到底，
   // 此前 markRead 用 <120 会漏报已读，留下「明明已看到却仍未读」的残留。
   const markReadRef = useRef(null);
+  // 贴底循环去重：记录上次触发贴底时的「消息数量 + 末条稳定标识」。
+  // 仅当尾部真正新增/替换消息才跑多帧贴底；已读/送达/表情/编辑等元数据回执
+  // (setMessages 改 _read/_delivered/reactions 等，数量与末条 id 不变)不再触发，
+  // 消除活跃会话中回执风暴导致的列表窗口反复重算 → 行挂载/卸载 = 文字闪烁。
+  const lastStickSigRef = useRef('');
   useEffect(() => {
     if (!messages.length) return;
     const outer = listOuterRef.current;
@@ -579,38 +587,46 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 末行刚测出真实高度会使 scrollTop 瞬时距底>阈值,若据此 return 会掐断贴底循环。
     if (force) stickBottomRef.current = true;
     if (!stickBottomRef.current) return;
-    // 贴底:虚拟列表变高行未测量时,裸 scrollTop=scrollHeight 会因估算高度失准滚不到真底部,
-    // 末条乐观消息被虚拟化掉、DOM 不挂载(自己发消息且无 ack 的离线/弱网场景尤甚,失败态❗看不到)。
-    // 故每帧先 scrollToItem(last,'end') 强制把末项纳入渲染窗口,再 scrollTop 像素级贴底。
+    // 尾部签名守卫:仅当消息数量或末条稳定标识变化(=尾部真新增/替换)才跑多帧贴底。
+    // force(自己发消息)始终放行。已读/送达/表情/编辑等回执只改中间行元数据,
+    // 数量与末条 id 不变 → 签名相同 → 直接 return,不再触发 60 帧贴底循环,消除回执风暴闪烁。
+    const last = messages[messages.length - 1];
+    const sig = messages.length + ':' + (last ? (last._tempId || last.client_msg_id || last.id) : '');
+    if (!force && sig === lastStickSigRef.current) return;
+    lastStickSigRef.current = sig;
+    // 事件驱动贴底(取代旧的每帧盲滚 60 帧循环)。
+    // 旧循环的抖动根因:乐观消息以估算高度插入,循环每帧 scrollToItem(last,'end');
+    // ResizeObserver 陆续测出真实高度→resetAfterIndex 改高→下一帧按新高重定位,估算与真实
+    // 差的几十像素在 ~1s 内被反复修正 → 最新那条上下弹 = 抖。
     //
-    // 关键:行高由 ResizeObserver 异步测量(图片/回复缩略图/表情等),固定帧数(旧值14≈230ms)会在
-    // 测量完成前就停,之后上方行 resetAfterIndex 变高→总高度增加,按像素锚定的视口被顶到中间。
-    // 改为「持续贴底直到 scrollHeight 连续多帧稳定」,并保留硬上限防止死循环。
-    let raf = 0, n = 0, stable = 0, prevH = -1;
+    // 新方案:尾部新增/替换时只贴一次底,把「贴底意图」记到 stickPendingRef;之后仅当
+    // ResizeObserver 真正修正了行高(VirtualMessageList 的 onHeightSettle 回调)时,才再补贴
+    // 一次。高度不再变化→不再有回调→不再滚动,从源头消除振荡。
     autoScrollingRef.current = true;
-    const step = () => {
+    stickPendingRef.current = true;
+    const snap = () => {
       const o = listOuterRef.current;
-      if (!o) { autoScrollingRef.current = false; return; }
-      // 单一真相源贴底:每帧只调 scrollToLast()(=scrollToItem(last,'end'))。
-      // 之前每帧在 scrollToItem 之后又手动 o.scrollTop=o.scrollHeight,两者目标位置在行高
-      // 未测准时不一致 → DOM scrollTop 每帧在两个值间来回跳,连跑 60 帧 ≈ 1s → 可视行反复
-      // 挂载/卸载 = 文字闪烁。改为只信任 react-window:'end' 对齐即末行底贴视口底=像素底部,
-      // 无手动 scrollTop 对打 → 不闪。行高由 ResizeObserver 逐步测准→resetAfterIndex→
-      // 下一帧 scrollToItem 用修正高度重新精确定位,循环收敛。
+      if (!o) return;
       virtListRef.current?.scrollToLast();
-      // 高度连续 6 帧(~100ms)不再变化视为测量稳定,提前收尾;否则跑满上限。
-      // resetAfterIndex(true) 保证测到真实行高时会重渲染→scrollHeight 同步变化,稳定判断有效。
-      if (o.scrollHeight === prevH) stable++; else { stable = 0; prevH = o.scrollHeight; }
-      if (stable < 6 && ++n < 60) raf = requestAnimationFrame(step);
-      else {
-        // 收敛:此时行高已测准,scrollToItem 与像素底部一致,补一帧硬贴底兜底不会再对打。
-        o.scrollTop = o.scrollHeight;
-        autoScrollingRef.current = false; // 恢复用户手势对贴底意图的控制
-      }
+      o.scrollTop = o.scrollHeight;
     };
-    step();
-    return () => { cancelAnimationFrame(raf); autoScrollingRef.current = false; };
+    // 首帧贴底(等 react-window 用新 itemCount 完成一次布局)
+    const raf = requestAnimationFrame(snap);
+    // 兜底:即使一直没有高度修正回调,也在 ~500ms 后解除挂起态,避免后续用户上滑看历史时被拽回底
+    const done = setTimeout(() => { stickPendingRef.current = false; autoScrollingRef.current = false; }, 500);
+    return () => { cancelAnimationFrame(raf); clearTimeout(done); autoScrollingRef.current = false; };
   }, [messages]);
+
+  // 行高被 ResizeObserver 修正后的回调:仅在「贴底挂起」时补贴一次底,使刚发的消息即使
+  // 高度从估算值收敛到真实值也稳定停在底部,且不产生每帧盲滚的往复抖动。
+  const handleHeightSettle = useCallback(() => {
+    if (!stickPendingRef.current) return;
+    if (!stickBottomRef.current) return;
+    const o = listOuterRef.current;
+    if (!o) return;
+    virtListRef.current?.scrollToLast();
+    o.scrollTop = o.scrollHeight;
+  }, []);
 
   // Load more on scroll to top — RAF 节流，避免高频 scroll 事件触发多次 setState
   const scrollRafRef = useRef(null);
@@ -626,7 +642,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       // 维护持久贴底意图:用户上滑离底→停止跟随;回到底部→恢复跟随。
       // 这是唯一清除贴底意图的入口(真实用户手势)。贴底循环自身设 scrollTop 触发的 scroll
       // 事件被 autoScrollingRef 挡掉,避免循环中途内容变高时被误判为用户上滑。
-      if (!autoScrollingRef.current) stickBottomRef.current = distFromBottom <= 300;
+      if (!autoScrollingRef.current) {
+        stickBottomRef.current = distFromBottom <= 300;
+        // 用户手动上滑离底 → 结束贴底挂起,后续 onHeightSettle 不再把视口拽回底部
+        if (distFromBottom > 300) stickPendingRef.current = false;
+      }
       if (distFromBottom <= 300) setNewMsgCount(c => (c ? 0 : c));
       if (loadingMore || !hasMore) return;
       if (container.scrollTop < 60 && messages.length > 0) {
@@ -2036,6 +2056,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             outerRef={listOuterRef}
             items={flatItems}
             cbRef={callbacksRef}
+            onHeightSettle={handleHeightSettle}
           />
           {typingName && (
             <div className="cw-typing" style={{ position: 'absolute', bottom: 4, left: 20, right: 20, pointerEvents: 'none', zIndex: 1 }}>

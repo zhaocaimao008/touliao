@@ -3,6 +3,31 @@ import { VariableSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import MessageItem, { TimeDivider } from './MessageItem';
 
+// 批量行高刷新调度器：多行(图片/表情/回复缩略图)异步测量会各自触发 resetAfterIndex，
+// 每次都强制列表从该行起全量重排。多行同帧完成时 = 几十次连锁重排 → 持续抖动(三端共用此列表)。
+// 这里把同一帧内所有行的高度变更合并成一次 resetAfterIndex(取最小受影响 index)，一帧只重排一次。
+function createSizeFlusher(listRef, onSettle) {
+  let raf = 0;
+  let minIndex = Infinity;
+  const flush = () => {
+    raf = 0;
+    const idx = minIndex;
+    minIndex = Infinity;
+    if (idx !== Infinity) {
+      listRef.current?.resetAfterIndex(idx, true);
+      // 行高被修正后通知外层：若处于贴底态，外层据此贴一次底(事件驱动，取代每帧盲滚循环)。
+      onSettle?.current?.();
+    }
+  };
+  return {
+    schedule(index) {
+      if (index < minIndex) minIndex = index;
+      if (!raf) raf = requestAnimationFrame(flush);
+    },
+    cancel() { if (raf) { cancelAnimationFrame(raf); raf = 0; } minIndex = Infinity; },
+  };
+}
+
 // Height estimates per item type
 function estimateHeight(item) {
   if (!item) return 80;
@@ -22,7 +47,7 @@ function estimateHeight(item) {
 
 // Row is module-level so it's stable (not recreated each render)
 const Row = memo(function Row({ index, style, data }) {
-  const { items, cbRef, sizeMapRef, listRef } = data;
+  const { items, cbRef, sizeMapRef, listRef, sizeFlusher } = data;
   const item = items[index];
   const rowInnerRef = useRef(null);
 
@@ -33,13 +58,12 @@ const Row = memo(function Row({ index, style, data }) {
     const h = el.offsetHeight;
     if (h > 0 && sizeMapRef.current[index] !== h) {
       sizeMapRef.current[index] = h;
-      // shouldForceUpdate=true：测到真实行高后强制重渲染，使列表内层容器高度(→scrollHeight)
-      // 立即同步。若传 false 只更新内部缓存不重渲染，scrollHeight 会滞后于真实内容，
-      // 导致贴底循环用陈旧 scrollHeight 误判「高度已稳定」而提前收尾 → 停在中间需手动滚。
-      // 内容高度稳定后 offsetHeight 不变(updateSize 有 !==h 守卫)，不会引发无限重渲染。
-      listRef.current?.resetAfterIndex(index, true);
+      // 经批量调度器合并到下一帧统一 resetAfterIndex(idx,true)——多行同帧异步测量只重排一次，
+      // 而非每行各自强制全量重排(旧行为=连锁重排=持续抖动)。shouldForceUpdate 仍为 true，
+      // 保证 scrollHeight 与真实内容同步，贴底循环的高度稳定判断依然有效。
+      sizeFlusher?.schedule(index);
     }
-  }, [index, sizeMapRef, listRef]);
+  }, [index, sizeMapRef, sizeFlusher]);
 
   // Observe height changes (images loading, content expanding)
   React.useEffect(() => {
@@ -69,15 +93,22 @@ const Row = memo(function Row({ index, style, data }) {
 });
 
 const VirtualMessageList = forwardRef(function VirtualMessageList(
-  { items, cbRef, outerRef },
+  { items, cbRef, outerRef, onHeightSettle },
   ref
 ) {
   const listRef = useRef(null);
   const sizeMapRef = useRef({});
+  // onHeightSettle 用 ref 承接,避免父组件每次传新函数导致 flusher 重建
+  const onSettleRef = useRef(onHeightSettle);
+  onSettleRef.current = onHeightSettle;
+  const sizeFlusherRef = useRef(null);
+  if (!sizeFlusherRef.current) sizeFlusherRef.current = createSizeFlusher(listRef, onSettleRef);
 
   // When items array length changes (prepend/append), reset indices that shifted
   const prevItemsRef = useRef(items);
   if (prevItemsRef.current !== items) {
+    // items 变化会重排索引，取消基于旧索引的挂起行高刷新，避免作用到错位的新列表。
+    sizeFlusherRef.current.cancel();
     const prevLen = prevItemsRef.current.length;
     const curLen = items.length;
     // 整批替换(如切换会话):首尾 item 都对不上 → 旧高度缓存全失效,清空避免错位行高
@@ -113,6 +144,12 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
     return sizeMapRef.current[index] ?? estimateHeight(items[index]);
   }, [items]);
 
+  // 卸载时取消挂起的行高刷新，防止 rAF 在组件销毁后回调到失效的 listRef
+  React.useEffect(() => {
+    const flusher = sizeFlusherRef.current;
+    return () => flusher?.cancel();
+  }, []);
+
   // 稳定行 key：默认 react-window 用 index 作 key，乐观消息被服务端 ack 替换时该行 item
   // 引用变化会触发按 index 复用的行重新挂载 → 最新一条闪烁。改用 item.key（上游 flatItems
   // 已用 _tempId/client_msg_id 作稳定 key），ack 前后同一 key → 复用同一 DOM 行 → 不闪。
@@ -127,6 +164,7 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
     cbRef,
     sizeMapRef,
     listRef,
+    sizeFlusher: sizeFlusherRef.current,
   }), [items, cbRef]);
 
   // Expose imperative API to parent (ChatWindow)
