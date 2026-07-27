@@ -1787,7 +1787,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       const isSelected = multiSelect && selectedMsgs.has(msg.id);
       const isHighlighted = highlightedMsgId === String(msg.id);
 
-      const cached = cache.get(msg.id);
+      // 稳定标识：乐观发送阶段 id=_tempId(UUID)，服务端 ack 后整条替换为服务端消息
+      // (id 变成服务端 id)。若用 msg.id 作缓存键与列表 key，ack 瞬间键突变 → item 被判为
+      // 「删除+新增」→ 重新挂载 + 高度重测 → 最新一条闪烁。改用 _tempId/client_msg_id
+      // (乐观阶段与 ack 后同值)作稳定键，key 恒定 → 复用同一 DOM 节点 → 不闪。
+      const stableKey = msg._tempId || msg.client_msg_id || msg.id;
+
+      const cached = cache.get(stableKey);
       let item;
       if (cached
         && cached.msg === msg
@@ -1807,7 +1813,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       } else {
         item = {
           type: 'message',
-          key: msg.id,
+          key: stableKey,
           msg,
           consecutive,
           isMine,
@@ -1826,7 +1832,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         };
       }
 
-      newCache.set(msg.id, item);
+      newCache.set(stableKey, item);
       items.push(item);
     }
 

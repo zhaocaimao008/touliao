@@ -113,6 +113,14 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
     return sizeMapRef.current[index] ?? estimateHeight(items[index]);
   }, [items]);
 
+  // 稳定行 key：默认 react-window 用 index 作 key，乐观消息被服务端 ack 替换时该行 item
+  // 引用变化会触发按 index 复用的行重新挂载 → 最新一条闪烁。改用 item.key（上游 flatItems
+  // 已用 _tempId/client_msg_id 作稳定 key），ack 前后同一 key → 复用同一 DOM 行 → 不闪。
+  const itemKey = useCallback((index) => {
+    const it = items[index];
+    return it?.key ?? index;
+  }, [items]);
+
   // Stable itemData to minimize Row re-renders
   const itemData = React.useMemo(() => ({
     items,
@@ -173,6 +181,7 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
             itemSize={getItemSize}
             estimatedItemSize={82}
             itemData={itemData}
+            itemKey={itemKey}
             overscanCount={8}
             style={{ overflowX: 'hidden', background: 'var(--bg-messages)' }}
           >
