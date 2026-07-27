@@ -145,25 +145,33 @@ async function setCover(userId, url) {
 
 // ── 用户详情（隐私可见性判定）──────────────────────────────────
 async function getUserDetail(viewerId, targetId) {
-  // P2 优化：尝试从缓存获取用户基本信息（TTL: 30 分钟）
+  // 关系信息每次实时查（不缓存），特权账户需要实时 last_online_at
+  const viewer = db.prepare('SELECT is_privileged FROM users WHERE id=?').get(viewerId);
+  const isPrivileged = viewer && viewer.is_privileged === 1;
+
+  // 缓存用户基本信息（TTL: 30 分钟），特权查询时绕过缓存直取 last_online_at
   const cacheKey = cache.keys.user(targetId);
-  let user = await cache.get(cacheKey);
+  let user = isPrivileged
+    ? db.prepare('SELECT id,username,avatar,bio,status,wechat_id,cover_photo,last_online_at FROM users WHERE id=?').get(targetId)
+    : await cache.get(cacheKey);
 
   if (!user) {
-    // 缓存未命中，从数据库查询
     user = db.prepare('SELECT id,username,avatar,bio,status,wechat_id,cover_photo FROM users WHERE id=?').get(targetId);
     if (!user) throw notFound('用户不存在');
-    // 写入缓存
     await cache.set(cacheKey, user, 1800);
   }
+  if (!user) throw notFound('用户不存在');
 
-  // 关系信息不缓存（每次实时查询）
   const contact   = db.prepare('SELECT remark FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, targetId);
   const isFriend  = !!contact;
   const isBlocked = !!db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(viewerId, targetId);
   const settings  = serializeSettings(ensureSettings(targetId));
   const visible   = isFriend || targetId === viewerId || settings.profileVisible;
   const pendingReq = db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(viewerId, targetId, 'pending');
+
+  // 特权账户对好友（或自己）可见精确最后在线时间（Unix 秒）
+  const showLastOnline = isPrivileged && (isFriend || targetId === viewerId);
+
   return {
     ...user,
     bio: visible ? user.bio : '',
@@ -171,6 +179,7 @@ async function getUserDetail(viewerId, targetId) {
     isFriend, isBlocked,
     remark: contact?.remark || '',
     hasPendingRequest: !!pendingReq,
+    last_online_at: showLastOnline ? (user.last_online_at || 0) : undefined,
   };
 }
 

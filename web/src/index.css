@@ -2922,6 +2922,13 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
   padding: 8px 10px; background: var(--bg-panel); border-radius: var(--radius-md);
   line-height: var(--lh-normal);
 }
+/* 特权账户：精确最后在线时间 */
+.up-last-online {
+  margin-top: var(--sp-1h, 6px);
+  font-size: var(--text-xs, 12px);
+  color: var(--color-green, #07c160);
+  line-height: var(--lh-normal);
+}
 .up-rows {
   border-top: 1px solid var(--border-color);
   margin: 0 0 4px;

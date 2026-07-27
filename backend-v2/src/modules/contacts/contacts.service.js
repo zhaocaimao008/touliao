@@ -7,9 +7,14 @@ const { getOrCreatePrivate } = require('../conversations/conversations.service')
 
 // ── 联系人 ──────────────────────────────────────────────────────
 function listContacts(userId) {
-  // 隐私：不返回 phone（S3 修复保留）
+  // 隐私：不返回 phone。特权账户额外返回 last_online_at（精确到秒，前端格式化到分）
+  const viewer = db.prepare('SELECT is_privileged FROM users WHERE id=?').get(userId);
+  const isPrivileged = viewer && viewer.is_privileged === 1;
+  const cols = isPrivileged
+    ? 'u.id, u.username, u.avatar, u.bio, u.status, u.wechat_id, u.last_online_at, c.remark'
+    : 'u.id, u.username, u.avatar, u.bio, u.status, u.wechat_id, c.remark';
   return db.prepare(`
-    SELECT u.id, u.username, u.avatar, u.bio, u.status, u.wechat_id, c.remark
+    SELECT ${cols}
     FROM contacts c JOIN users u ON u.id = c.contact_id
     WHERE c.user_id = ?
     ORDER BY COALESCE(c.remark, u.username) COLLATE NOCASE

@@ -8,6 +8,7 @@ import { useSocket } from '../contexts/SocketContext';
 import AddFriendModal from './AddFriendModal';
 import { showToast, showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
+import { formatLastOnline } from '../utils/time';
 
 /* ── 主组件 ── */
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed }) {
@@ -209,6 +210,11 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                     <div className="cl-contact-info">
                       <div className="wc-contact-item-name">{c.remark || c.username}</div>
                       {c.remark && <div className="wc-contact-item-sub">{c.username}</div>}
+                      {/* 特权账户：精确最后在线时间，在线时不重复显示 */}
+                      {c.last_online_at !== undefined && !onlineIds.has(c.id) && (() => {
+                        const label = formatLastOnline(c.last_online_at, false);
+                        return label ? <div className="cl-last-online">{label}</div> : null;
+                      })()}
                     </div>
                     {onlineIds.has(c.id) && (
                       <span className="cl-online-tag">在线</span>

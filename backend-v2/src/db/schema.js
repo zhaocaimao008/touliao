@@ -452,6 +452,12 @@ function applySchema(db) {
     "ALTER TABLE users ADD COLUMN invited_by TEXT DEFAULT NULL",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_invite_code ON users(invite_code) WHERE invite_code IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_users_invited_by ON users(invited_by)",
+    // ── 特权账户 + 精确最后在线时间 ─────────────────────────────
+    // is_privileged=1 的账户可查看好友「最后在线精确到分」
+    // last_online_at：Unix 秒，socket 连接时更新；断线时也更新（记录离线时刻）
+    "ALTER TABLE users ADD COLUMN is_privileged INTEGER DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN last_online_at INTEGER DEFAULT 0",
+    "CREATE INDEX IF NOT EXISTS idx_users_privileged ON users(is_privileged) WHERE is_privileged=1",
   ];
   migrations.forEach(sql => {
     try { db.prepare(sql).run(); }

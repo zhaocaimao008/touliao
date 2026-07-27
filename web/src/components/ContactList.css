@@ -122,3 +122,11 @@
   color: var(--color-badge);
   cursor: pointer;
 }
+
+/* 特权账户：最后在线时间 */
+.cl-last-online {
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+  margin-top: 1px;
+  line-height: 1.3;
+}

@@ -6,6 +6,7 @@ import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
 import useFocusTrap from '../hooks/useFocusTrap';
+import { formatLastOnline } from '../utils/time';
 
 export default function UserProfile({ userId, onClose, onStartChat, onFriendAdded, onFriendDeleted, onNudge }) {
   const { user: currentUser } = useAuth();
@@ -176,6 +177,15 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             >v信号：{user.wechat_id}</div>
           )}
           {user.bio && <div className="up-bio">{user.bio}</div>}
+          {/* 特权账户：精确最后在线时间 */}
+          {user.last_online_at !== undefined && (() => {
+            const label = formatLastOnline(user.last_online_at, user.status === 'online');
+            return label ? (
+              <div className="up-last-online" title="最后在线时间（特权可见）">
+                🟢 {label}
+              </div>
+            ) : null;
+          })()}
         </div>
 
         {/* 好友信息行 */}

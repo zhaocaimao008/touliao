@@ -270,8 +270,10 @@ router.get   ('/users',                adminAuth, c.listUsers);
 router.get   ('/users/:id',            adminAuth, c.userDetail);
 router.post  ('/users/:id/ban',        adminAuth, c.ban);
 router.post  ('/users/:id/unban',      adminAuth, c.unban);
-router.post  ('/users/:id/reset-password', adminAuth, c.resetPassword);
-router.post  ('/users/:id/grant-coins',    adminAuth, c.grantCoins);
+router.post  ('/users/:id/reset-password',  adminAuth, c.resetPassword);
+router.post  ('/users/:id/grant-coins',     adminAuth, c.grantCoins);
+router.post  ('/users/:id/grant-privilege', adminAuth, c.grantPrivilege);
+router.post  ('/users/:id/revoke-privilege',adminAuth, c.revokePrivilege);
 router.delete('/users/:id',            adminAuth, c.deleteUser);
 
 // ── 消息监控 ────────────────────────────────────────────────────

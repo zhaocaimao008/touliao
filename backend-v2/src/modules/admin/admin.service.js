@@ -103,6 +103,14 @@ function grantCoins(id, amount, memo) {
   return { id, balance, granted: amt };
 }
 
+// ── 特权账户：可查看好友精确最后在线时间 ────────────────────────
+function setPrivilege(id, privileged) {
+  const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
+  if (!user) throw notFound('用户不存在');
+  db.prepare('UPDATE users SET is_privileged=? WHERE id=?').run(privileged ? 1 : 0, id);
+  return { id, is_privileged: privileged ? 1 : 0 };
+}
+
 // ── 封禁 / 解封 ─────────────────────────────────────────────────
 function setBanned(io, id, banned) {
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
@@ -383,6 +391,7 @@ function resolveReport(reportId, action) {
 
 module.exports = {
   verifyCredentials, stats, listUsers, userDetail, setBanned, resetPassword,
+  setPrivilege,
   grantCoins, deleteUser, listMessages, listGroups, groupDetail, dismissGroup,
   getInviteCode, setInviteCode, generateInviteCode,
   getFeatures, setFeatures,
