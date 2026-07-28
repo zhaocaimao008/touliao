@@ -11,6 +11,12 @@ on:
     paths:
       - 'android/**'
       - '.github/workflows/android-build.yml'
+  # PR 合并前的编译门禁：改动 android/ 的 PR 必须先编过 debug 才能合并，
+  # 挡住「漏函数/语法错直接进主干再打 release tag」这类事故（发 tag 前就变红）。
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-build.yml'
   workflow_dispatch:
 
 jobs:

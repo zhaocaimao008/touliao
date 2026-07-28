@@ -78,3 +78,8 @@ e2e/playwright/web/_shots.spec.js
 # Hermes 部署日志（临时，归档到 .hermes-logs-archive/，不入库）
 hermes-deploy-*.log
 .hermes-logs-archive/
+
+# iOS 生成产物：Vxin.xcodeproj 由 XcodeGen 从 project.yml 每次重新生成，
+# build/ 是 xcodebuild 输出，均不入库（防本地跑 xcodegen 后误提交）。
+ios/build/
+ios/Vxin.xcodeproj/

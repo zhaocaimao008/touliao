@@ -10,6 +10,12 @@ on:
     paths:
       - 'ios/**'
       - '.github/workflows/ios-build.yml'
+  # PR 合并前的编译门禁：改动 ios/ 的 PR 必须先编过（模拟器，无需签名）才能合并，
+  # 挡住「漏函数/语法错直接进主干再打 ios-v tag」这类事故（发 TestFlight 前就变红）。
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-build.yml'
   workflow_dispatch:
 
 jobs:
