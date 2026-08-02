@@ -24,7 +24,7 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
   );
 });
 
-const MessageItem = memo(function MessageItem({ item, cbRef }) {
+const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
     convType, userId, groupSettings, myGroupRole, members,
     consecutive } = item;
@@ -143,7 +143,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
             onContextMenu={e => cbs.handleContextMenu(e, msg)}
           >
             {msg.replyTo && (
-              <div className="wc-msg-reply gi-cp" role="button" tabIndex={0} data-testid="msg-reply-preview"
+              <div className={`wc-msg-reply gi-cp${(msg.type === 'image' || msg.type === 'video' || msg.type === 'sticker') ? ' wc-msg-reply--on-media' : ''}`} role="button" tabIndex={0} data-testid="msg-reply-preview"
                 aria-label="跳转到被引用的消息"
                 onClick={e => { e.stopPropagation(); cbs.scrollToMsg(msg.replyTo.id); }}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); cbs.scrollToMsg(msg.replyTo.id); } }}>
@@ -151,7 +151,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                 {!msg.replyTo.deleted && (msg.replyTo.type === 'image' || msg.replyTo.type === 'sticker') && msg.replyTo.file_url ? (
                   <div className="wc-msg-reply-media">
                     <img loading="lazy" src={mediaUrl(msg.replyTo.file_url)} alt="" className="wc-msg-reply-thumb"
-                      onError={e => { e.currentTarget.style.display = 'none'; }} />
+                      onLoad={() => measure?.()}
+                      onError={e => { e.currentTarget.style.display = 'none'; measure?.(); }} />
                   </div>
                 ) : (
                   <div className="wc-msg-reply-text">
@@ -189,9 +190,13 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                     const el = e.currentTarget;
                     rememberAspect(imgSrc, el.naturalWidth, el.naturalHeight);
                     el.classList.add('loaded');
+                    // 图片解码完成→立即同步重测本行高度，修正 react-window 的预加载高度缓存。
+                    // 仅靠 ResizeObserver(异步)在 Chromium/Electron 上可能晚于下一行按旧高排版，
+                    // 导致下一条(文字)贴到/压到图片上。此处在 onLoad 直接测量，闭合竞态。
+                    measure?.();
                     cbs.onImageLoad?.();
                   }}
-                  onError={e => { const el = e.currentTarget; el.onerror = null; el.src = IMG_BROKEN; el.alt = '图片加载失败'; el.style.cursor = 'default'; el.style.pointerEvents = 'none'; el.tabIndex = -1; el.classList.add('loaded'); }}
+                  onError={e => { const el = e.currentTarget; el.onerror = null; el.src = IMG_BROKEN; el.alt = '图片加载失败'; el.style.cursor = 'default'; el.style.pointerEvents = 'none'; el.tabIndex = -1; el.classList.add('loaded'); measure?.(); }}
                 />
               );
             })()}
@@ -212,6 +217,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
                   onLoadedMetadata={e => {
                     const v = e.currentTarget;
                     rememberAspect(vidSrc, v.videoWidth, v.videoHeight);
+                    measure?.(); // 视频 metadata 到达→按真实宽高比撑开后同步重测本行
                   }}
                 />
               );
@@ -228,7 +234,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
               </a>
             )}
             {msg.type === 'sticker' && (
-              <img loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" onError={e => { e.currentTarget.style.display = 'none'; }} style={{ maxWidth: 120, maxHeight: 120 }} />
+              <img loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" onLoad={() => measure?.()} onError={e => { e.currentTarget.style.display = 'none'; measure?.(); }} style={{ maxWidth: 120, maxHeight: 120 }} />
             )}
             {msg.type === 'contact_card' && (() => {
               let card = {};
@@ -300,6 +306,6 @@ const MessageItem = memo(function MessageItem({ item, cbRef }) {
       </div>
     </div>
   );
-}, (prev, next) => prev.item === next.item && prev.cbRef === next.cbRef);
+}, (prev, next) => prev.item === next.item && prev.cbRef === next.cbRef && prev.measure === next.measure);
 
 export default MessageItem;
