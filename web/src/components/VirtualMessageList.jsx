@@ -80,7 +80,7 @@ const Row = memo(function Row({ index, style, data }) {
       <div ref={rowInnerRef} style={{ paddingLeft: 20, paddingRight: 20 }}>
         {item.type === 'divider'
           ? <TimeDivider time={item.time} />
-          : <MessageItem item={item} cbRef={cbRef} />
+          : <MessageItem item={item} cbRef={cbRef} measure={updateSize} />
         }
       </div>
     </div>
