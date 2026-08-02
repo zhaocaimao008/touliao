@@ -10,6 +10,7 @@ import com.vxin.app.data.model.DeviceTokenRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -78,10 +79,21 @@ class PushManager @Inject constructor(
         runCatching { notificationApi.deleteToken(DeleteTokenRequest(fcm)) }
     }
 
-    private suspend fun fetchToken(): String? = suspendCancellableCoroutine { cont ->
-        FirebaseMessaging.getInstance().token
-            .addOnSuccessListener { cont.resume(it) }
-            .addOnFailureListener { Log.w(TAG, "get FCM token failed: ${it.message}"); cont.resume(null) }
+    /**
+     * 获取 FCM token，最多等待 5 秒。
+     * 国产 ROM 无 GMS 时 FirebaseMessaging.token 的 Task 两个回调都不触发，
+     * 若不设超时会导致 suspend 函数永久挂起 → logout() 协程卡死 → 退出按钮无反应。
+     * 超时返回 null，调用方按 null 处理（unregisterCurrentToken 直接 return，不影响后续流程）。
+     */
+    private suspend fun fetchToken(): String? = withTimeoutOrNull(5_000) {
+        suspendCancellableCoroutine { cont ->
+            FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { cont.resume(it) }
+                .addOnFailureListener { e ->
+                    Log.w(TAG, "get FCM token failed: ${e.message}")
+                    cont.resume(null)
+                }
+        }
     }
 
     private companion object { const val TAG = "PushManager" }

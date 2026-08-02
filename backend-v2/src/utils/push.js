@@ -76,7 +76,12 @@ async function pushToUser(userId, payload) {
   }
 
   if (firebaseAdmin) {
-    const deviceTokens = db.prepare('SELECT * FROM device_tokens WHERE user_id=?').all(userId);
+    // 只取真正的 FCM token（android/ios）。个推 CID（platform='getui'）不是合法 FCM token，
+    // 若混进来会被 FCM 判为无效 → 命中下方失效清理逻辑而被误删，
+    // 国产 ROM 上（FCM token 恒为 null，仅有个推 CID）会因此丢掉唯一的锁屏通路。个推交给下面的个推循环。
+    const deviceTokens = db.prepare(
+      "SELECT * FROM device_tokens WHERE user_id=? AND platform IN ('android','ios')"
+    ).all(userId);
     for (const row of deviceTokens) {
       const message = {
         token: row.token,
@@ -231,7 +236,10 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
 // iOS 后台来电需 PushKit/CallKit(VoIP push)，此处不含 apns，避免普通 APNs 静默无效。
 async function pushCallInvite({ toUserId, fromUserId, callerName, callType, callId }) {
   if (!firebaseAdmin) return;
-  const deviceTokens = db.prepare('SELECT * FROM device_tokens WHERE user_id=?').all(toUserId);
+  // 同 pushToUser：只发真正的 FCM token，避免把个推 CID 丢给 FCM 触发误删。
+  const deviceTokens = db.prepare(
+    "SELECT * FROM device_tokens WHERE user_id=? AND platform IN ('android','ios')"
+  ).all(toUserId);
   if (!deviceTokens.length) return;
   const promises = deviceTokens.map(row => {
     const message = {

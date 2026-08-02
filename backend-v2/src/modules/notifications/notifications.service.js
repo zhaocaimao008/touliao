@@ -31,7 +31,10 @@ function webUnsubscribe(userId, endpoint) {
 function saveDeviceToken(userId, token, platform) {
   if (!token || typeof token !== 'string' || token.length > 512)
     throw badRequest('token 无效，长度不得超过 512 字符');
-  if (!['android', 'ios'].includes(platform)) throw badRequest('参数无效，platform 必须为 android 或 ios');
+  // getui = 国产 ROM 的个推 CID（无 GMS 设备靠它兜底锁屏推送）。此前漏了 getui，
+  // 导致个推 CID 注册被 400 拒绝、永远存不进库 → getuiPush 的 WHERE platform='getui'
+  // 查询恒空 → 国产 ROM 锁屏推送从未生效。
+  if (!['android', 'ios', 'getui'].includes(platform)) throw badRequest('参数无效，platform 必须为 android、ios 或 getui');
   db.prepare(`
     INSERT INTO device_tokens (id, user_id, token, platform)
     VALUES (?, ?, ?, ?)
