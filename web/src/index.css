@@ -836,6 +836,14 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   padding: 0 2px;
 }
 .wc-msg-reply {
+  /* flex 列布局：让引用块严格按内容(名字+缩略图/文字)高度收缩。
+     否则在虚拟列表(react-window 绝对定位固定行高)+ 多层 flex 祖先下，
+     block 布局的引用块会被撑高并把子元素上下拉开(缩略图悬空、正文与其重叠)——
+     即 Windows/Web 端「文字压到引用图上」的真身。flex 列建立独立格式化上下文，
+     彻底消除幽灵间距。用默认 align-items:stretch(不写 flex-start)——让引用文字子元素
+     铺满宽度，保留 white-space:nowrap + text-overflow:ellipsis 的单行截断。 */
+  display: flex;
+  flex-direction: column;
   background: rgba(0,0,0,.05);
   border-left: 2px solid rgba(0,0,0,.2);
   border-radius: 0 var(--radius-bubble-tip) var(--radius-bubble-tip) 0;
