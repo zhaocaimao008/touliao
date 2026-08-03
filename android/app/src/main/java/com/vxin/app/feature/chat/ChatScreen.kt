@@ -172,6 +172,10 @@ fun ChatScreen(
     // 仅在「最新一条变化」或上传项变化时滚到底，避免加载更早(前插)时跳动
     val lastMsgId = state.messages.lastOrNull()?.id
     val totalCount = state.messages.size + state.pending.size
+    // LazyColumn 首项在未到顶时是「查看更早消息」头部(占 index 0)，消息/pending 从 index 1 起。
+    // 贴底须滚到「头部偏移 + 末项」，否则少算 1 → scrollToItem 落在倒数第二项、末条被顶出视口下方。
+    val headerCount = if (!state.reachedStart && state.messages.isNotEmpty()) 1 else 0
+    val lastListIndex = headerCount + totalCount - 1
 
     // 是否在底部附近：末项可见即视为在底(对齐微信新消息提示逻辑)
     val atBottom by remember {
@@ -187,13 +191,13 @@ fun ChatScreen(
     //   服务端 ack 后消息 id 由 clientMsgId 变为服务端 id → lastMsgId 变化 → 再触发一次滚动。
     //   两次平滑动画在 ~1s 内相互打断 = 页面抖动。瞬时贴底幂等、无动画可打断，从源头消除抖动。
     LaunchedEffect(state.pending.size) {
-        if (totalCount > 0) listState.scrollToItem(totalCount - 1)
+        if (totalCount > 0) listState.scrollToItem(lastListIndex)
     }
     // 收到新消息：在底部则跟随，看历史则累计计数不打断
     LaunchedEffect(lastMsgId) {
         if (totalCount == 0) return@LaunchedEffect
         val mine = state.messages.lastOrNull()?.sender_id == viewModel.myId
-        if (atBottom || mine) listState.scrollToItem(totalCount - 1)
+        if (atBottom || mine) listState.scrollToItem(lastListIndex)
         else newMsgCount++
     }
     // 滚回底部后清零计数，并同步「在底」状态给 VM(用于已读判定：看历史时不即时标已读)
@@ -205,7 +209,7 @@ fun ChatScreen(
     // 键盘弹出时把最新消息顶到键盘上方（对齐微信：点输入框后最后一条仍可见）
     val imeVisible = WindowInsets.isImeVisible
     LaunchedEffect(imeVisible) {
-        if (imeVisible && totalCount > 0) listState.scrollToItem(totalCount - 1)
+        if (imeVisible && totalCount > 0) listState.scrollToItem(lastListIndex)
     }
 
     // 退出聊天：发送已读 + stop_typing
@@ -525,7 +529,7 @@ fun ChatScreen(
                     shadowElevation = 4.dp,
                     modifier = Modifier.clickable {
                         listHaptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)  // 点按回底轻震
-                        scope.launch { if (totalCount > 0) listState.animateScrollToItem(totalCount - 1) }
+                        scope.launch { if (totalCount > 0) listState.animateScrollToItem(lastListIndex) }
                         newMsgCount = 0
                     },
                 ) {

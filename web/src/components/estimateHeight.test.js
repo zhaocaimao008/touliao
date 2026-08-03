@@ -67,4 +67,11 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
     expect(estimateHeight(null)).toBe(80);
     expect(estimateHeight(mk({ type: 'text', deleted: 1 }))).toBe(48);
   });
+
+  it('拍一拍(nudge) 按单行小字精确预留，低于默认气泡高度', () => {
+    const h = estimateHeight(mk({ type: 'nudge', content: '{}' }));
+    expect(h).toBe(40);
+    // 不得高于普通文本气泡(82)，否则拍一拍行会留白
+    expect(h).toBeLessThan(estimateHeight(mk({ type: 'text', content: 'hi' })));
+  });
 });

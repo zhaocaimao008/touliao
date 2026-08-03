@@ -21,6 +21,8 @@ export function estimateHeight(item) {
   const { msg } = item;
   if (!msg) return 80;
   if (msg.deleted) return 48;
+  // 拍一拍：仅渲染一行居中小字(无气泡/无引用)，独立返回精确高度，避免落到默认 82 高估留白。
+  if (msg.type === 'nudge') return 40;
 
   let replyAdd = 0;
   if (msg.replyTo) {
