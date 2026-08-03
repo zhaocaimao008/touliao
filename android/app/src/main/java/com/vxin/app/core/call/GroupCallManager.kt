@@ -70,10 +70,14 @@ class GroupCallManager @Inject constructor(
     var localVideoTrack: VideoTrack? = null
         private set
 
+    // iceLock：ICE 事件在协程线程读写 pendingIce/remoteDescSet，而 onSetSuccess/drainIce 在 WebRTC
+    // 自有线程回调。二者不互斥则存在竞态：ICE 读到 remoteDescSet==false，此刻 onSetSuccess 另一线程
+    // 置位并排空空队列，ICE 再把候选压进 pendingIce → 永不排空 → 该 peer 连接卡住。并发迭代还会 CME。
     private data class Peer(
         val pc: PeerConnection,
         var remoteDescSet: Boolean = false,
         val pendingIce: MutableList<IceCandidate> = mutableListOf(),
+        val iceLock: Any = Any(),
     )
     private val peers = LinkedHashMap<String, Peer>()
 
@@ -209,7 +213,7 @@ class GroupCallManager @Inject constructor(
                 _state.update { it.copy(participants = peers.keys.toList()) }
                 peer.pc.setRemoteDescription(object : SimpleSdpObserver() {
                     override fun onSetSuccess() {
-                        peer.remoteDescSet = true; drainIce(e.from)
+                        drainIce(e.from)   // 锁内置位 remoteDescSet 并排空缓存候选
                         peer.pc.createAnswer(object : SimpleSdpObserver() {
                             override fun onCreateSuccess(desc: SessionDescription) {
                                 peer.pc.setLocalDescription(SimpleSdpObserver(), desc)
@@ -224,7 +228,7 @@ class GroupCallManager @Inject constructor(
             socketManager.groupCallAnswerEvents.collect { e ->
                 val peer = peers[e.from] ?: return@collect
                 peer.pc.setRemoteDescription(object : SimpleSdpObserver() {
-                    override fun onSetSuccess() { peer.remoteDescSet = true; drainIce(e.from) }
+                    override fun onSetSuccess() { drainIce(e.from) }   // 锁内置位 remoteDescSet 并排空
                 }, SessionDescription(SessionDescription.Type.ANSWER, e.sdp))
             }
         }
@@ -232,7 +236,10 @@ class GroupCallManager @Inject constructor(
             socketManager.groupCallIceEvents.collect { e ->
                 val peer = peers[e.from] ?: return@collect
                 val cand = IceCandidate(e.sdpMid, e.sdpMLineIndex, e.candidate)
-                if (peer.remoteDescSet) peer.pc.addIceCandidate(cand) else peer.pendingIce.add(cand)
+                // 锁内「判断 + 加入/直排」原子化：与 drainIce 的「置位 + 排空」互斥，杜绝候选丢失竞态。
+                synchronized(peer.iceLock) {
+                    if (peer.remoteDescSet) peer.pc.addIceCandidate(cand) else peer.pendingIce.add(cand)
+                }
             }
         }
         scope.launch {
@@ -255,10 +262,14 @@ class GroupCallManager @Inject constructor(
         }
     }
 
+    // 锁内「置位 remoteDescSet + 排空缓存候选」原子化：与 ICE 收集器的「判断 + 加入」互斥。
     private fun drainIce(peerId: String) {
         val peer = peers[peerId] ?: return
-        peer.pendingIce.forEach { peer.pc.addIceCandidate(it) }
-        peer.pendingIce.clear()
+        synchronized(peer.iceLock) {
+            peer.remoteDescSet = true
+            peer.pendingIce.forEach { peer.pc.addIceCandidate(it) }
+            peer.pendingIce.clear()
+        }
     }
 
     // ── WebRTC ───────────────────────────────────────────

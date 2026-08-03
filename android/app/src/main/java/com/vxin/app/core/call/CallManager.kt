@@ -78,6 +78,11 @@ class CallManager @Inject constructor(
     var remoteVideoTrack: VideoTrack? = null
         private set
 
+    // ICE 候选缓存 + 远端描述就绪标志：ICE 事件在协程线程读写，onSetSuccess/drainIce 在 WebRTC
+    // 自己的信令线程回调 → 跨线程。必须同锁保护「查标志→入队/直加」与「置标志→排空」两段的原子性，
+    // 否则存在竞态：ICE 处理读到 remoteDescSet==false，此刻 onSetSuccess 在另一线程置位并排空空队列，
+    // ICE 再把候选压进 pendingIce → 该候选永不排空 → 连接卡在 CONNECTING。并发迭代还会 CME。
+    private val iceLock = Any()
     private val pendingIce = mutableListOf<IceCandidate>()
     private var remoteDescSet = false
 
@@ -252,8 +257,7 @@ class CallManager @Inject constructor(
                 val pc = peerConnection ?: return@collect
                 pc.setRemoteDescription(object : SimpleSdpObserver() {
                     override fun onSetSuccess() {
-                        remoteDescSet = true
-                        drainIce()
+                        drainIce()   // 锁内置位 remoteDescSet 并排空缓存的候选
                         createAnswerAndSend()
                     }
                 }, SessionDescription(SessionDescription.Type.OFFER, e.sdp))
@@ -264,7 +268,7 @@ class CallManager @Inject constructor(
                 if (e.from != _state.value.peerId) return@collect
                 val pc = peerConnection ?: return@collect
                 pc.setRemoteDescription(object : SimpleSdpObserver() {
-                    override fun onSetSuccess() { remoteDescSet = true; drainIce() }
+                    override fun onSetSuccess() { drainIce() }   // 锁内置位 remoteDescSet 并排空
                 }, SessionDescription(SessionDescription.Type.ANSWER, e.sdp))
             }
         }
@@ -272,7 +276,10 @@ class CallManager @Inject constructor(
             socketManager.callIceEvents.collect { e ->
                 if (e.from != _state.value.peerId) return@collect
                 val cand = IceCandidate(e.sdpMid, e.sdpMLineIndex, e.candidate)
-                if (remoteDescSet) peerConnection?.addIceCandidate(cand) else pendingIce.add(cand)
+                // 锁内「判断 + 加入/直排」原子化：与 drainIce 的「置位 + 排空」互斥，杜绝候选丢失竞态。
+                synchronized(iceLock) {
+                    if (remoteDescSet) peerConnection?.addIceCandidate(cand) else pendingIce.add(cand)
+                }
             }
         }
         scope.launch {
@@ -282,9 +289,15 @@ class CallManager @Inject constructor(
         }
     }
 
+    // 锁内「置位 remoteDescSet + 排空缓存候选」原子化：与 ICE 收集器的「判断 + 加入」互斥。
+    // 置位与排空必须在同一临界区，否则先置位、排空前 ICE 线程读到 true 直排、本方再排空旧队列，
+    // 顺序虽不丢但仍有窗口；一并纳入锁最稳。
     private fun drainIce() {
-        pendingIce.forEach { peerConnection?.addIceCandidate(it) }
-        pendingIce.clear()
+        synchronized(iceLock) {
+            remoteDescSet = true
+            pendingIce.forEach { peerConnection?.addIceCandidate(it) }
+            pendingIce.clear()
+        }
     }
 
     private fun createOfferAndSend() {
@@ -315,8 +328,7 @@ class CallManager @Inject constructor(
     // ── WebRTC 构建 ────────────────────────────────────────
     private fun createPeerConnection() {
         val f = factory ?: return
-        remoteDescSet = false
-        pendingIce.clear()
+        synchronized(iceLock) { remoteDescSet = false; pendingIce.clear() }
         val config = PeerConnection.RTCConfiguration(iceServers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
         }
@@ -403,8 +415,7 @@ class CallManager @Inject constructor(
         runCatching { peerConnection?.close() }
         runCatching { peerConnection?.dispose() }
         peerConnection = null
-        remoteDescSet = false
-        pendingIce.clear()
+        synchronized(iceLock) { remoteDescSet = false; pendingIce.clear() }
         val cur = _state.value
         val ended = if (cur.connectedAt > 0L && cur.endedAt == 0L) android.os.SystemClock.elapsedRealtime() else cur.endedAt
         _state.value = cur.copy(stage = finalStage, endedAt = ended)
