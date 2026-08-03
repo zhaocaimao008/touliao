@@ -182,15 +182,18 @@ fun ChatScreen(
     }
     // 看历史期间累计的新消息数(悬浮提示)
     var newMsgCount by remember { mutableStateOf(0) }
-    // 我方发的消息(pending)始终跟随滚底
+    // 我方发的消息(pending)始终跟随滚底。
+    // ⚠ 用 scrollToItem(瞬时) 而非 animateScrollToItem(平滑)：发消息时乐观气泡插入触发一次滚动，
+    //   服务端 ack 后消息 id 由 clientMsgId 变为服务端 id → lastMsgId 变化 → 再触发一次滚动。
+    //   两次平滑动画在 ~1s 内相互打断 = 页面抖动。瞬时贴底幂等、无动画可打断，从源头消除抖动。
     LaunchedEffect(state.pending.size) {
-        if (totalCount > 0) listState.animateScrollToItem(totalCount - 1)
+        if (totalCount > 0) listState.scrollToItem(totalCount - 1)
     }
     // 收到新消息：在底部则跟随，看历史则累计计数不打断
     LaunchedEffect(lastMsgId) {
         if (totalCount == 0) return@LaunchedEffect
         val mine = state.messages.lastOrNull()?.sender_id == viewModel.myId
-        if (atBottom || mine) listState.animateScrollToItem(totalCount - 1)
+        if (atBottom || mine) listState.scrollToItem(totalCount - 1)
         else newMsgCount++
     }
     // 滚回底部后清零计数，并同步「在底」状态给 VM(用于已读判定：看历史时不即时标已读)
@@ -202,7 +205,7 @@ fun ChatScreen(
     // 键盘弹出时把最新消息顶到键盘上方（对齐微信：点输入框后最后一条仍可见）
     val imeVisible = WindowInsets.isImeVisible
     LaunchedEffect(imeVisible) {
-        if (imeVisible && totalCount > 0) listState.animateScrollToItem(totalCount - 1)
+        if (imeVisible && totalCount > 0) listState.scrollToItem(totalCount - 1)
     }
 
     // 退出聊天：发送已读 + stop_typing

@@ -2,6 +2,7 @@ import React, { useRef, useCallback, forwardRef, useImperativeHandle, memo } fro
 import { VariableSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import MessageItem, { TimeDivider } from './MessageItem';
+import { estimateHeight } from './estimateHeight';
 
 // 批量行高刷新调度器：多行(图片/表情/回复缩略图)异步测量会各自触发 resetAfterIndex，
 // 每次都强制列表从该行起全量重排。多行同帧完成时 = 几十次连锁重排 → 持续抖动(三端共用此列表)。
@@ -28,22 +29,6 @@ function createSizeFlusher(listRef, onSettle) {
   };
 }
 
-// Height estimates per item type
-function estimateHeight(item) {
-  if (!item) return 80;
-  if (item.type === 'divider') return 36;
-  const { msg } = item;
-  if (!msg) return 80;
-  if (msg.deleted) return 48;
-  if (msg.type === 'image') return 260;
-  if (msg.type === 'voice') return 72;
-  if (msg.type === 'file') return 88;
-  if (msg.type === 'video') return 220;
-  if (msg.type === 'red_packet') return 130;
-  if (msg.type === 'contact_card') return 100;
-  if (msg.type === 'sticker') return 140;
-  return 82;
-}
 
 // Row is module-level so it's stable (not recreated each render)
 const Row = memo(function Row({ index, style, data }) {
