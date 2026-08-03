@@ -176,5 +176,7 @@ private fun typeLabel(type: String): String = when (type) {
     else -> type.ifBlank { "交易" }
 }
 
+// module-level 单实例：避免交易流水列表每项重组都 new SimpleDateFormat（GC 抖动）。仅主线程调用，安全。
+private val walletTimeFmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 private fun formatTime(epochSec: Long): String =
-    if (epochSec <= 0) "" else SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(epochSec * 1000))
+    if (epochSec <= 0) "" else walletTimeFmt.format(Date(epochSec * 1000))

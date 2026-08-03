@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import UserProfile from './UserProfile';
@@ -143,6 +143,9 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     return { grouped, filtered, letters };
   }, [contacts, searchQuery]);
 
+  // 固定引用：传给 memo 的 ContactRow，避免每次渲染新建函数击穿 memo。
+  const openProfile = useCallback((id) => setViewProfile(id), []);
+
   const scrollToLetter = (l) => {
     const el = listRef.current?.querySelector(`[data-letter="${l}"]`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -199,27 +202,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               <div key={letter}>
                 <div className="wc-contacts-alpha" data-letter={letter}>{letter}</div>
                 {grouped[letter].map(c => (
-                  <div key={c.id} className="wc-contact-item" onClick={() => setViewProfile(c.id)}
-                    role="button" tabIndex={0}
-                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setViewProfile(c.id))}>
-                    <div className="cl-avatar-wrap">
-                      <Avatar src={c.avatar} name={c.remark || c.username} size={40}
-                        style={{ borderRadius: 'var(--radius-sm)' }}
-                        online={onlineIds.has(c.id)} />
-                    </div>
-                    <div className="cl-contact-info">
-                      <div className="wc-contact-item-name">{c.remark || c.username}</div>
-                      {c.remark && <div className="wc-contact-item-sub">{c.username}</div>}
-                      {/* 特权账户：精确最后在线时间，在线时不重复显示 */}
-                      {c.last_online_at !== undefined && !onlineIds.has(c.id) && (() => {
-                        const label = formatLastOnline(c.last_online_at, false);
-                        return label ? <div className="cl-last-online">{label}</div> : null;
-                      })()}
-                    </div>
-                    {onlineIds.has(c.id) && (
-                      <span className="cl-online-tag">在线</span>
-                    )}
-                  </div>
+                  <ContactRow key={c.id} contact={c} online={onlineIds.has(c.id)} onOpen={openProfile} />
                 ))}
               </div>
             ))}
@@ -562,6 +545,35 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
     </>
   );
 }
+
+// 单条联系人行：memo 隔离在线状态抖动。presence(user_online/offline) 事件会频繁改 onlineIds
+// 触发 ContactList 整体重渲染——若行不 memo，几百个好友的 vnode 每次都全量 reconcile。
+// memo 后仅「在线态真正翻转」或「资料变化」的行会重渲染，其余跳过 DOM diff。
+// onOpen 由父层 useCallback 固定引用（否则每次新函数会击穿 memo）。
+const ContactRow = memo(function ContactRow({ contact: c, online, onOpen }) {
+  const lastOnlineLabel = (c.last_online_at !== undefined && !online)
+    ? formatLastOnline(c.last_online_at, false) : '';
+  return (
+    <div className="wc-contact-item" onClick={() => onOpen(c.id)}
+      role="button" tabIndex={0}
+      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(c.id))}>
+      <div className="cl-avatar-wrap">
+        <Avatar src={c.avatar} name={c.remark || c.username} size={40}
+          style={{ borderRadius: 'var(--radius-sm)' }}
+          online={online} />
+      </div>
+      <div className="cl-contact-info">
+        <div className="wc-contact-item-name">{c.remark || c.username}</div>
+        {c.remark && <div className="wc-contact-item-sub">{c.username}</div>}
+        {/* 特权账户：精确最后在线时间，在线时不重复显示 */}
+        {lastOnlineLabel && <div className="cl-last-online">{lastOnlineLabel}</div>}
+      </div>
+      {online && (
+        <span className="cl-online-tag">在线</span>
+      )}
+    </div>
+  );
+});
 
 function EntryRow({ icon, color, label, badge, onClick }) {
   return (

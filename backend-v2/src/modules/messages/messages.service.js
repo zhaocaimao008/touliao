@@ -453,33 +453,65 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
   const cachedResult = await cache.get(cacheKey);
   if (cachedResult) return cachedResult;
 
-  // FTS5 phrase query: double-quote wrap 防止特殊字符被解析为 FTS5 语法
-  const ftsQuery = '"' + q.trim().replace(/"/g, '""') + '"';
+  // trigram 分词器要求 token ≥ 3 字符；1~2 字（中文名/单字词极常见）FTS 无法命中，
+  // 退化为 LIKE 精确子串匹配，避免短词全局搜索恒空（与 searchInConversation 一致）。
+  const trimmed = q.trim();
+  const useLike = trimmed.length < 3;
 
-  const total = db.prepare(`
-    SELECT COUNT(*) AS cnt
-    FROM messages_fts
-    JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
-    JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
-    WHERE messages_fts MATCH ?
-  `).get(userId, ftsQuery)?.cnt || 0;
+  let total, rows;
+  if (useLike) {
+    const like = '%' + trimmed.replace(/[\\%_]/g, c => '\\' + c) + '%';
+    total = db.prepare(`
+      SELECT COUNT(*) AS cnt
+      FROM messages m
+      JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
+      WHERE m.type = 'text' AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
+    `).get(userId, like)?.cnt || 0;
 
-  const rows = db.prepare(`
-    SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
-           u.username AS senderName, u.avatar AS senderAvatar,
-           c.name AS convName, c.type AS convType,
-           ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
-    FROM messages_fts
-    JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
-    JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
-    JOIN users u ON u.id = m.sender_id
-    JOIN conversations c ON c.id = m.conversation_id
-    LEFT JOIN conversation_members cm_o
-           ON cm_o.conversation_id = m.conversation_id AND cm_o.user_id != ? AND c.type = 'private'
-    LEFT JOIN users ou ON ou.id = cm_o.user_id
-    WHERE messages_fts MATCH ?
-    ORDER BY m.created_at DESC LIMIT ? OFFSET ?
-  `).all(userId, userId, ftsQuery, safeLimit, safeOffset);
+    rows = db.prepare(`
+      SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
+             u.username AS senderName, u.avatar AS senderAvatar,
+             c.name AS convName, c.type AS convType,
+             ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
+      FROM messages m
+      JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
+      JOIN users u ON u.id = m.sender_id
+      JOIN conversations c ON c.id = m.conversation_id
+      LEFT JOIN conversation_members cm_o
+             ON cm_o.conversation_id = m.conversation_id AND cm_o.user_id != ? AND c.type = 'private'
+      LEFT JOIN users ou ON ou.id = cm_o.user_id
+      WHERE m.type = 'text' AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
+      ORDER BY m.created_at DESC LIMIT ? OFFSET ?
+    `).all(userId, userId, like, safeLimit, safeOffset);
+  } else {
+    // FTS5 phrase query: double-quote wrap 防止特殊字符被解析为 FTS5 语法
+    const ftsQuery = '"' + trimmed.replace(/"/g, '""') + '"';
+
+    total = db.prepare(`
+      SELECT COUNT(*) AS cnt
+      FROM messages_fts
+      JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
+      JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
+      WHERE messages_fts MATCH ?
+    `).get(userId, ftsQuery)?.cnt || 0;
+
+    rows = db.prepare(`
+      SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
+             u.username AS senderName, u.avatar AS senderAvatar,
+             c.name AS convName, c.type AS convType,
+             ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
+      FROM messages_fts
+      JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
+      JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
+      JOIN users u ON u.id = m.sender_id
+      JOIN conversations c ON c.id = m.conversation_id
+      LEFT JOIN conversation_members cm_o
+             ON cm_o.conversation_id = m.conversation_id AND cm_o.user_id != ? AND c.type = 'private'
+      LEFT JOIN users ou ON ou.id = cm_o.user_id
+      WHERE messages_fts MATCH ?
+      ORDER BY m.created_at DESC LIMIT ? OFFSET ?
+    `).all(userId, userId, ftsQuery, safeLimit, safeOffset);
+  }
 
   const results = rows.map(({ ou_id, ou_username, ou_avatar, ou_status, ...msg }) => {
     if (msg.convType === 'private') {

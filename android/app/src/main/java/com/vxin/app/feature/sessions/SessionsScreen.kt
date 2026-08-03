@@ -111,5 +111,8 @@ private fun SessionRow(s: DeviceSession, onKick: () -> Unit) {
     }
 }
 
+// module-level 单实例：避免在列表项 Composable 每次重组都 new 一个 SimpleDateFormat（GC 抖动）。
+// 仅在 Compose 主线程调用，无并发，单实例安全。
+private val sessionTimeFmt = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 private fun formatTime(epochSec: Long): String =
-    if (epochSec <= 0) "" else SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(epochSec * 1000))
+    if (epochSec <= 0) "" else sessionTimeFmt.format(Date(epochSec * 1000))

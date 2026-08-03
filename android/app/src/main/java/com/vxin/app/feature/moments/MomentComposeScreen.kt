@@ -82,7 +82,7 @@ fun MomentComposeScreen(
             )
             Spacer(Modifier.size(12.dp))
             LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth()) {
-                items(state.images) { uri ->
+                items(state.images, key = { it }) { uri ->
                     Box(Modifier.padding(2.dp).aspectRatio(1f)) {
                         AsyncImage(uri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)))
                         Text("✕", color = Color.White, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(8.dp)).clickable { viewModel.removeImage(uri) }.padding(horizontal = 6.dp))

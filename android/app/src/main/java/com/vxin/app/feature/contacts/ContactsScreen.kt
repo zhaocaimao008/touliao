@@ -369,18 +369,21 @@ private fun RemarkDialog(initial: String, onConfirm: (String) -> Unit, onDismiss
     )
 }
 
-/** 特权账户：格式化好友最后在线时间（Unix 秒），精确到分钟。用全限定名避免额外 import。 */
+// module-level 单实例：好友列表滚动时每项都会算最后在线，避免每次 new SimpleDateFormat（GC 抖动）。
+// 仅 Compose 主线程调用，无并发，单实例安全。
+private val lastOnlineTimeFmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+private val lastOnlineDateFmt = java.text.SimpleDateFormat("M月d日 HH:mm", java.util.Locale.getDefault())
+
+/** 特权账户：格式化好友最后在线时间（Unix 秒），精确到分钟。 */
 private fun formatLastOnline(epochSec: Long): String {
     if (epochSec <= 0) return ""
     val millis = epochSec * 1000
     val diff = (System.currentTimeMillis() - millis).coerceAtLeast(0)
-    val locale = java.util.Locale.getDefault()
-    val time = java.text.SimpleDateFormat("HH:mm", locale).format(java.util.Date(millis))
     return when {
         diff < 60_000L -> "刚刚在线"
         diff < 3_600_000L -> "${diff / 60_000L} 分钟前在线"
-        diff < 86_400_000L -> "今天 $time"
-        diff < 172_800_000L -> "昨天 $time"
-        else -> java.text.SimpleDateFormat("M月d日 HH:mm", locale).format(java.util.Date(millis))
+        diff < 86_400_000L -> "今天 ${lastOnlineTimeFmt.format(java.util.Date(millis))}"
+        diff < 172_800_000L -> "昨天 ${lastOnlineTimeFmt.format(java.util.Date(millis))}"
+        else -> lastOnlineDateFmt.format(java.util.Date(millis))
     }
 }

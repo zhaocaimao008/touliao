@@ -101,6 +101,16 @@ describe('v信 后端 E2E 集成测试', () => {
       expect(Array.isArray(res.body.results)).toBe(true);
     });
 
+    test('全局搜索短词(2字)走 LIKE 回退，命中已发消息', async () => {
+      // trigram FTS 无法索引 <3 字 token（中文名/单字极常见）→ 服务端退化为 LIKE。
+      // 「测试」为 2 字，此前 FTS-only 恒空；回退后必须命中「…测试消息」。
+      const res = await request(app).get('/api/messages/search?q=测试')
+        .set('Authorization', `Bearer ${u1.token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBeGreaterThan(0);
+      expect(res.body.results.some(m => m.content && m.content.includes('测试消息'))).toBe(true);
+    });
+
     test('会话内搜索返回数组', async () => {
       const res = await request(app).get(`/api/messages/conversation/${conversationId}/search?q=测试`)
         .set('Authorization', `Bearer ${u1.token}`);
