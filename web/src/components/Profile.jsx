@@ -739,15 +739,13 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
 }
 
 async function doLogout(logout) {
-  try {
-    const reg = await navigator.serviceWorker?.ready;
-    const sub = await reg?.pushManager?.getSubscription();
-    if (sub) {
-      await axios.delete('/api/notifications/web-subscribe', { data: { endpoint: sub.endpoint } }).catch(() => {});
-      await sub.unsubscribe().catch(() => {});
-    }
-  } catch { /* best-effort unsubscribe before logout */ }
-  logout();
+  // Service Worker 推送退订已由 AuthContext.logout() 内部用 getRegistration() 安全处理。
+  // ⚠ 此前这里先 `await navigator.serviceWorker?.ready` 再登出：Web 端有 SW 注册能 resolve，
+  //   但 Electron(file://)与移动端(Capacitor 原生 webview)从不注册 SW，navigator.serviceWorker
+  //   虽存在但 .ready 永不 resolve → await 永久挂起 → logout()/goLogin() 永远执行不到，
+  //   表现为「桌面/移动端点退出登录没反应」。改为直接 await logout()(内部用 getRegistration，
+  //   立即 resolve、不挂起) 再跳转登录页。
+  await logout();
   goLogin();
 }
 
