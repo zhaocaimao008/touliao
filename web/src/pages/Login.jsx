@@ -3,18 +3,33 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { timeoutSignal } from '../utils/config';
+import { saveCred, loadCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
 export default function Login() {
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+  // 「记住账户和密码」：登录页首帧即回填上次勾选记住的手机号 + 密码，免手输。
+  // 凭证仅在本地做可逆混淆存储，默认不勾选，详见 utils/rememberedCreds.js 安全边界。
+  const initialPhone = lastRememberedPhone();
+  const initialPwd = initialPhone ? loadCred(initialPhone) : '';
+  const [phone, setPhone] = useState(initialPhone);
+  const [password, setPassword] = useState(initialPwd);
+  const [remember, setRemember] = useState(!!initialPwd);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [showPwd, setShowPwd] = useState(false);
   const { login, accounts, removeAccount, maxAccounts } = useAuth();
   const navigate = useNavigate();
+
+  // 点击「最近登录」某账户：回填手机号，并在存有记住密码时一并回填密码 + 勾选记住。
+  const fillAccount = (acct) => {
+    const p = acct?.user?.phone || '';
+    setPhone(p);
+    const saved = loadCred(p);
+    if (saved) { setPassword(saved); setRemember(true); }
+    else { setPassword(''); setRemember(false); }
+  };
 
   // ── 服务器切换（仅桌面端，登录前即可切换，无需重装） ──
   // 地址来自 localStorage（手动切换）或远程配置（CONFIG_URLS：jsDelivr + dipsin.com）
@@ -51,6 +66,9 @@ export default function Login() {
     setError(''); setLoading(true);
     try {
       const { data } = await axios.post('/api/auth/login', { phone, password });
+      // 登录成功后按勾选保存/清除本地记住的密码（凭证按手机号归档，可逆混淆存储）
+      if (remember) saveCred(phone, password);
+      else removeCred(phone);
       login(data.user, data.token);
       navigate('/');
     } catch (err) {
@@ -78,7 +96,7 @@ export default function Login() {
           <p className="auth-brand-desc">安全 · 私密 · 畅聊</p>
         </div>
 
-        {/* 最近登录：点击填入手机号，仍需手动输入密码 */}
+        {/* 最近登录：点击回填手机号；若曾记住密码则一并回填密码并自动勾选「记住密码」 */}
         {accounts.length > 0 && (
           <div className="auth-accounts">
             <div className="auth-accounts-header">
@@ -90,8 +108,8 @@ export default function Login() {
                 <button
                   type="button"
                   className="auth-account-btn"
-                  onClick={() => setPhone(account.user?.phone || '')}
-                  title="填入手机号"
+                  onClick={() => fillAccount(account)}
+                  title={loadCred(account.user?.phone || '') ? '填入账户与密码' : '填入手机号'}
                 >
                   <div className="auth-account-avatar">
                     {(account.user?.username || '?')[0].toUpperCase()}
@@ -104,7 +122,7 @@ export default function Login() {
                 <button
                   type="button"
                   className="auth-account-remove"
-                  onClick={() => removeAccount(account.id)}
+                  onClick={() => { removeCred(account.user?.phone || ''); removeAccount(account.id); }}
                   title="移除记录"
                   aria-label="移除记录"
                 >✕</button>
@@ -185,7 +203,17 @@ export default function Login() {
             </div>
           )}
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          <div className="auth-remember-row">
+            <label className="auth-remember">
+              <input
+                type="checkbox"
+                className="auth-remember-box"
+                data-testid="login-remember-checkbox"
+                checked={remember}
+                onChange={e => setRemember(e.target.checked)}
+              />
+              记住密码
+            </label>
             <Link to="/forgot-password" className="auth-link" style={{ fontSize: 13 }}>忘记密码？</Link>
           </div>
 

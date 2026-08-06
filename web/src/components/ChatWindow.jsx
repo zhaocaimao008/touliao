@@ -40,10 +40,29 @@ import PrivateChatSettings from './PrivateChatSettings';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
+import { rememberAspect } from '../utils/imgDimCache';
 import { copyToClipboard } from '../utils/clipboard';
 import './ChatWindow.css';
 
 const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
+
+// 发送图片前从本地 File 解码出真实像素宽高（w/h）。用于在拿到最终 url 后预置 aspect
+// 缓存，使图片消息 socket 回显的首帧就按真实比例预留高度，避免图片解码后撑高、
+// 而绝对定位行框高度已固定 → 图片溢出压到下一条消息（表现为"文字进了图片气泡"）。
+// 用 createObjectURL + Image 解码，读到 naturalWidth/Height 即释放，避免内存泄漏。
+function readImageAspect(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      URL.revokeObjectURL(url);
+      if (w > 0 && h > 0) resolve({ w, h }); else reject(new Error('bad image dims'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image decode failed')); };
+    img.src = url;
+  });
+}
 
 /* ── SVG icon helpers（模块级常量：纯静态 SVG，无 props/闭包）──
    之前定义在组件体内，每次 ChatWindow 渲染（每次按键、正在输入、来消息）都会
@@ -1444,6 +1463,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     }
 
     const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
+    // 图片：在上传的同时并行解码本地文件读出真实宽高比。上传完成拿到最终 url 后，
+    // 用 mediaUrl(url) 作 key 预置进 aspect 缓存——这样图片消息 socket 回显、首帧渲染
+    // 时 getAspect 就已命中，气泡盒子按真实比例预留高度。杜绝"先按 min-height 量矮、
+    // 图片解码后撑高、绝对定位行框固定→图片溢出压到下一条(文字)"的重叠。
+    const aspectPromise = file.type.startsWith('image/')
+      ? readImageAspect(file).catch(() => null)
+      : Promise.resolve(null);
     const doUpload = async () => {
       isUploadingRef.current = file.name;
       setUploadState({ name: file.name, progress: 0, status: 'uploading' });
@@ -1464,8 +1490,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           const status = cloudErr.response?.status;
           const isClientAbort = status === 400 || status === 403; // 真正的参数/权限错,不该回退
           if (!isClientAbort) {
-            if (file.size > 8 * 1024 * 1024) await uploadChunked(file, onProg);
-            else await uploadLocal(file, onProg);
+            let localUrl;
+            if (file.size > 8 * 1024 * 1024) localUrl = await uploadChunked(file, onProg);
+            else localUrl = await uploadLocal(file, onProg);
+            // 本地上传兜底路径同样预置宽高比:后端入库+广播的 image 消息回显时，
+            // 首帧即命中 aspect 缓存，气泡按真实比例预留高度，避免图片撑高压到下一条。
+            const aspect = await aspectPromise;
+            if (aspect && localUrl) rememberAspect(mediaUrl(localUrl), aspect.w, aspect.h);
             isUploadingRef.current = false;
             setUploadState(null);
             dispatchCompose({ type: 'CLEAR_REPLY' });
@@ -1477,6 +1508,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         }
         isUploadingRef.current = false;
         setUploadState(null);
+        // 云直传成功:用最终 url 作 key 预置宽高比,图片消息 socket 回显首帧即命中缓存,
+        // 气泡按真实比例预留高度,消除"图片撑高溢出压到下一条文字"的重叠。
+        const aspect = await aspectPromise;
+        if (aspect && publicUrl) rememberAspect(mediaUrl(publicUrl), aspect.w, aspect.h);
         if (!socket) { showToast('连接已断开，请重连后重试', 'error'); return; }
         socket.emit('send_file_message', {
           conversationId: conversation.id, type,

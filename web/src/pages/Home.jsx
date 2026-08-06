@@ -23,6 +23,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePushNotification } from '../hooks/usePushNotification';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { mediaUrl, goLogin } from '../utils/url';
+import { loadCred, saveCred, removeCred } from '../utils/rememberedCreds';
 
 function WcEmpty() {
   // 对齐微信 PC：未选会话时近乎纯净留白，仅一枚极淡的单色图标，无文字、无彩色
@@ -132,11 +133,14 @@ function AccountSwitcher() {
     try {
       await switchAccount(id);   // 成功会 reload
     } catch {
-      // 免密切换不可用 → 回退：填入手机号，要求输密码
+      // 免密切换不可用 → 回退：填入手机号；若本地记住过该账户密码，一并回填免手输
       setSwitching(false);
       setSwitchTarget(acct.user || null);
-      setForm({ phone: acct.user?.phone || '', password: '' });
+      const phone = acct.user?.phone || '';
+      const savedPwd = loadCred(phone);
+      setForm({ phone, password: savedPwd });
       setShowForm(true);
+      // 已回填密码 → 直接聚焦提交更顺手；否则聚焦密码框等待输入
       setTimeout(() => passwordRef.current?.focus(), 80);
     }
   };
@@ -152,6 +156,7 @@ function AccountSwitcher() {
       goLogin();
     } else {
       if (!(await showConfirm(`从本设备删除账号「${name}」？删除后切换需重新输密码。`))) return;
+      removeCred(acct?.user?.phone || ''); // 一并清掉记住的密码，避免删号后仍能被回填
       removeAccount(id);              // 移除最近登录记录 + 钱包凭证
     }
   };
@@ -163,6 +168,8 @@ function AccountSwitcher() {
     setErr(''); setSubmitting(true);
     try {
       const { data } = await axios.post('/api/auth/login', form);
+      // 密码登录成功 → 记住该账户密码，下次免密切换失败可自动回填(与登录页「记住密码」同一存储)
+      saveCred(form.phone, form.password);
       login(data.user, data.token); // 必须传 token:Bearer端(Electron/移动)漏传会清掉鉴权头→reload后被登出
       window.location.reload();
     } catch (ex) {

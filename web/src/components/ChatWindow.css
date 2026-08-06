@@ -492,23 +492,12 @@
   padding-right: 4px;
 }
 
-/* ── 图片消息样式 ── */
-.wc-msg-img {
-  cursor: zoom-in;
-  /* 防止图片加载完成后撑开容器导致滚动抖动 */
-  display: block;
-  max-width: 240px;
-  max-height: 320px;
-  min-width: 60px;
-  min-height: 40px;
-  border-radius: var(--radius-button);
-  object-fit: cover;
-  /* 占位尺寸：图片未加载时保留空间，避免布局跳跃 */
-  background: rgba(0,0,0,.06);
-  opacity: 0;
-  transition: opacity var(--dur-base) ease;
-}
-.wc-msg-img.loaded { opacity: 1; }
+/* ── 图片消息样式 ──
+   ⚠ .wc-msg-img 的唯一定义已统一到 index.css（含 shimmer 占位 + min 尺寸）。
+   此前这里有第二份定义（object-fit:cover + opacity:0 + min-height:40），与
+   index.css（min-height:56、无 object-fit）在相同特异度下按打包顺序相互覆盖，
+   min-height 40↔56 不一致会让首帧预留高度不稳，加剧"图片撑高溢出压到下一条"的
+   竞态。删除此重复块，只保留 index.css 一份，行高预留可预测。 */
 
 /* ── 视频消息样式 ── */
 .wc-msg-video {

@@ -6,9 +6,28 @@ import { estimateHeight, REPLY_MEDIA_HEIGHT, REPLY_TEXT_HEIGHT } from './estimat
 // → 「回复图片后再发文字，文字渲染进回复图片消息里」。
 const mk = (msg) => ({ type: 'message', msg });
 
+// 单行文本首帧高度 = 行 padding(13) + 气泡上下 padding(22) + 1 行文本(22) = 57
+const SINGLE_LINE_TEXT = 57;
+
 describe('estimateHeight — 引用预览必须并入首帧高度', () => {
-  it('纯文本消息 = 82，无引用附加', () => {
-    expect(estimateHeight(mk({ type: 'text', content: 'hi' }))).toBe(82);
+  it('单行纯文本消息 = 57(实测行高)，无引用附加', () => {
+    expect(estimateHeight(mk({ type: 'text', content: 'hi' }))).toBe(SINGLE_LINE_TEXT);
+  });
+
+  it('多行文本按行数递增（每行 +22）', () => {
+    const oneLine = estimateHeight(mk({ type: 'text', content: 'hi' }));
+    const threeLines = estimateHeight(mk({ type: 'text', content: 'a\nb\nc' }));
+    expect(threeLines).toBe(oneLine + 2 * 22);
+    // 长文本(会换行)必须高于单行，杜绝下一行落进本行造成重叠
+    const longText = estimateHeight(mk({ type: 'text', content: 'x'.repeat(80) }));
+    expect(longText).toBeGreaterThan(oneLine);
+  });
+
+  it('连续消息(consecutive) 行 padding 更小，估算更矮', () => {
+    const normal = estimateHeight({ type: 'message', msg: { type: 'text', content: 'hi' } });
+    const consecutive = estimateHeight({ type: 'message', consecutive: true, msg: { type: 'text', content: 'hi' } });
+    expect(consecutive).toBeLessThan(normal);
+    expect(normal - consecutive).toBe(13 - 3); // 仅行 padding 之差
   });
 
   it('回复「图片」的文本消息 = 文本基线 + 图片引用高度', () => {
@@ -16,7 +35,7 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
       type: 'text', content: 'hi',
       replyTo: { type: 'image', file_url: '/x.jpg' },
     }));
-    expect(h).toBe(82 + REPLY_MEDIA_HEIGHT);
+    expect(h).toBe(SINGLE_LINE_TEXT + REPLY_MEDIA_HEIGHT);
     // 关键：必须严格高于无引用的同类消息，否则下一行会压进来
     expect(h).toBeGreaterThan(estimateHeight(mk({ type: 'text', content: 'hi' })));
   });
@@ -26,7 +45,7 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
       type: 'text', content: 'hi',
       replyTo: { type: 'sticker', file_url: '/s.png' },
     }));
-    expect(h).toBe(82 + REPLY_MEDIA_HEIGHT);
+    expect(h).toBe(SINGLE_LINE_TEXT + REPLY_MEDIA_HEIGHT);
   });
 
   it('回复「文本」按单行文本占位预留（比媒体矮）', () => {
@@ -34,7 +53,7 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
       type: 'text', content: 'hi',
       replyTo: { type: 'text', content: '被引用的话' },
     }));
-    expect(h).toBe(82 + REPLY_TEXT_HEIGHT);
+    expect(h).toBe(SINGLE_LINE_TEXT + REPLY_TEXT_HEIGHT);
     expect(REPLY_TEXT_HEIGHT).toBeLessThan(REPLY_MEDIA_HEIGHT);
   });
 
@@ -43,7 +62,7 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
       type: 'text', content: 'hi',
       replyTo: { type: 'image', file_url: '/x.jpg', deleted: 1 },
     }));
-    expect(h).toBe(82 + REPLY_TEXT_HEIGHT);
+    expect(h).toBe(SINGLE_LINE_TEXT + REPLY_TEXT_HEIGHT);
   });
 
   it('被引用图片缺 file_url → 走文本占位', () => {
@@ -51,7 +70,7 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
       type: 'text', content: 'hi',
       replyTo: { type: 'image' },
     }));
-    expect(h).toBe(82 + REPLY_TEXT_HEIGHT);
+    expect(h).toBe(SINGLE_LINE_TEXT + REPLY_TEXT_HEIGHT);
   });
 
   it('图片消息带图片引用 = 图片基线 + 图片引用高度', () => {

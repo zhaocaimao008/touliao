@@ -1367,6 +1367,11 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: var(--gray-0); border-radius: var(--radius-full); animation: wc-spin .6s linear infinite; }
 .auth-pwd-toggle { background: none; border: none; cursor: pointer; padding: 0; color: rgba(255,255,255,.35); display: flex; align-items: center; flex-shrink: 0; transition: color var(--dur-fast); }
 .auth-pwd-toggle:hover { color: rgba(255,255,255,.75); }
+/* 「记住密码」勾选行：与忘记密码链接同处一行(space-between) */
+.auth-remember-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-3); }
+.auth-remember { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm2); color: rgba(255,255,255,.55); cursor: pointer; user-select: none; transition: color var(--dur-fast); }
+.auth-remember:hover { color: rgba(255,255,255,.8); }
+.auth-remember-box { width: 15px; height: 15px; cursor: pointer; accent-color: var(--brand-400); flex-shrink: 0; }
 .auth-footer { text-align: center; margin-top: 18px; font-size: var(--text-sm2); color: rgba(255,255,255,.38); }
 .auth-link { color: var(--brand-300); font-weight: var(--font-medium); text-decoration: none; }
 .auth-link:hover { color: var(--brand-200); text-decoration: underline; }
