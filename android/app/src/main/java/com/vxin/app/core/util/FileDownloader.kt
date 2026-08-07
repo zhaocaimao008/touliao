@@ -131,10 +131,8 @@ suspend fun copyImageToClipboard(context: Context, url: String?) {
                 context, "${context.packageName}.fileprovider", file
             )
             val clip = android.content.ClipData.newUri(context.contentResolver, "图片", uri)
-            // 授权粘贴方读取该 URI（部分 ROM 不读 ClipData 自带 flag，此处显式补授）
-            clip.description.extras = android.os.PersistableBundle().apply {
-                putBoolean("isSensitive", false)
-            }
+            // 注意：ClipData.Description.setExtras() 是 API 33+，低版本勿调用，
+            // 此处省略（不影响主流程：接收方通过 ClipData URI 即可读取）。
             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(clip)
             uri

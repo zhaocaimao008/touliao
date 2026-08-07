@@ -13,7 +13,7 @@
 | 桌面端渲染层内嵌 | `desktop-electron/src/package.json` | `version` | 与上一致（2.0.42） |
 | Web 前端 | `web/package.json` | `version` | 2.0.18 |
 | 后端 | `backend-v2/package.json` | `version` | 2.0.0 |
-| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.42 / code 43 |
+| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.43 / code 44 |
 | iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 1.0.26 / build 26 |
 | 后端发现配置 | `vxin-config/config.json` | `version` | 2.0.1 |
 
