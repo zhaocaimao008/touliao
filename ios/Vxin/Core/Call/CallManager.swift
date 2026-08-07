@@ -15,6 +15,7 @@ struct CallState {
     var cameraEnabled: Bool = true
     var remoteVideoActive: Bool = false
     var timedOut: Bool = false          // 主叫未接听超时 → 结束页提示"对方未接听"
+    var networkEnded: Bool = false      // 网络断开/ICE 失败 → 结束页提示"网络已断开"
     var connectedAt: Date?              // 接通时刻，用于计算通话时长(mm:ss)
     var endedAt: Date?                  // 结束时刻，用于在结束页定格总时长
 }
@@ -50,6 +51,7 @@ final class CallManager: NSObject, ObservableObject {
 
     /// 主叫呼叫超时任务（未接听自动挂断）；接通/挂断时取消，避免泄漏。
     private var callTimeoutTask: Task<Void, Never>?
+    private var disconnectGraceTask: Task<Void, Never>?
     private let callTimeoutSeconds: UInt64 = 45
 
     /// 通话提示音（回铃/接通），与 Android ToneGenerator 对齐。
@@ -370,6 +372,7 @@ extension CallManager: RTCPeerConnectionDelegate {
             switch newState {
             case .connected, .completed:
                 self.cancelCallTimeout()        // 已接通，撤销未接听超时
+                self.cancelDisconnectGrace()    // 恢复连接则撤销断开宽限
                 if self.state.stage != .ended {
                     if self.state.connectedAt == nil {
                         self.state.connectedAt = Date()
@@ -377,9 +380,35 @@ extension CallManager: RTCPeerConnectionDelegate {
                     }
                     self.state.stage = .connected
                 }
+            case .disconnected:
+                // 锁屏/切后台/网络波动时 ICE 短暂 disconnected，数秒内会自动恢复。
+                // 宽限 15s，持续断开才结束通话并通知对方；期间恢复 connected 则撤销。
+                self.cancelDisconnectGrace()
+                self.disconnectGraceTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 15 * 1_000_000_000)
+                    guard let self, !Task.isCancelled else { return }
+                    guard self.state.stage == .connected else { return }
+                    if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId) }
+                    self.state.networkEnded = true
+                    self.cleanup(.ended)
+                }
+            case .failed:
+                // 连接彻底失败：结束通话并通知对方（不能静默挂断）
+                self.cancelDisconnectGrace()
+                if self.state.stage == .connected || self.state.stage == .connecting {
+                    if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId) }
+                    self.state.networkEnded = true
+                    self.cleanup(.ended)
+                }
             default: break
             }
         }
+    }
+
+    /// 撤销 ICE disconnected 宽限任务(恢复连接/正常挂断时调用)
+    private func cancelDisconnectGrace() {
+        disconnectGraceTask?.cancel()
+        disconnectGraceTask = nil
     }
 
     // 必需的其余回调（无操作）
