@@ -649,6 +649,7 @@ private struct MessageBubble: View {
                             }
                         }
                         if msg.type == "image" {
+                            Button("复制图片") { copyImage(msg.fileUrl) }
                             Button("收藏表情") { vm.collectSticker(msg.fileUrl) }
                             Button("保存图片") { saveImage(msg.fileUrl) }
                         }
@@ -712,6 +713,17 @@ private struct MessageBubble: View {
                 vm.error = "已保存到相册"
             } catch {
                 vm.error = (error as? LocalizedError)?.errorDescription ?? "保存失败"
+            }
+        }
+    }
+
+    private func copyImage(_ url: String?) {
+        Task {
+            do {
+                try await ImageSaver.copyToPasteboard(rawUrl: url)
+                vm.error = "图片已复制"
+            } catch {
+                vm.error = (error as? LocalizedError)?.errorDescription ?? "复制失败"
             }
         }
     }

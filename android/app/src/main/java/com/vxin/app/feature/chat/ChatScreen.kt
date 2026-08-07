@@ -492,6 +492,11 @@ fun ChatScreen(
                                     com.vxin.app.core.util.saveImageToGallery(context, viewModel.resolveMediaUrl(msg.file_url), msg.content)
                                 }
                             },
+                            onCopyImage = {
+                                scope.launch {
+                                    com.vxin.app.core.util.copyImageToClipboard(context, viewModel.resolveMediaUrl(msg.file_url))
+                                }
+                            },
                             redPacket = viewModel.parseRedPacket(msg),
                             onOpenRedPacket = { viewModel.openRedPacket(msg) },
                             canPin = viewModel.isGroup,
@@ -850,6 +855,7 @@ private fun MessageBubble(
     onReact: (String) -> Unit,
     onCollectSticker: () -> Unit,
     onSaveImage: () -> Unit = {},
+    onCopyImage: () -> Unit = {},
     redPacket: com.vxin.app.data.model.RedPacketContent? = null,
     onOpenRedPacket: () -> Unit = {},
     canPin: Boolean = false,
@@ -973,6 +979,7 @@ private fun MessageBubble(
                         DropdownMenuItem(text = { Text("收藏") }, onClick = { onCollect(); menuOpen = false })
                     }
                     if (msg.type == "image") {
+                        DropdownMenuItem(text = { Text("复制图片") }, onClick = { onCopyImage(); menuOpen = false })
                         DropdownMenuItem(text = { Text("收藏表情") }, onClick = { onCollectSticker(); menuOpen = false })
                         DropdownMenuItem(text = { Text("保存图片") }, onClick = { onSaveImage(); menuOpen = false })
                     }

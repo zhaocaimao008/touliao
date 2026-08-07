@@ -2466,10 +2466,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
              !ctxMenu.msg.deleted && (
               <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}>编辑</div>
             )}
-            {/* 复制：文字全端可用；图片/表情走系统剪贴板，但移动端 WebView 跨源取图不可靠
-                （另有"保存到相册"更合适），故仅在 Web/桌面显示"复制图片" */}
+            {/* 复制：文字全端可用；图片/表情写系统剪贴板（web 走 Clipboard API，桌面走主进程原生剪贴板）。
+                出货移动端是原生 Kotlin/Swift App，其"复制图片"在原生侧实现，不经本组件。 */}
             {(ctxMenu.msg.type === 'text' ||
-              ((ctxMenu.msg.type === 'image' || ctxMenu.msg.type === 'sticker') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted && !window.Capacitor?.isNativePlatform?.())) && (
+              ((ctxMenu.msg.type === 'image' || ctxMenu.msg.type === 'sticker') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted)) && (
               <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('copy')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('copy'); } }}>
                 {ctxMenu.msg.type === 'text' ? '复制' : '复制图片'}
               </div>

@@ -100,6 +100,66 @@ suspend fun saveImageToGallery(context: Context, url: String?, filename: String?
     }
 }
 
+/**
+ * 复制聊天图片到系统剪贴板，可直接粘贴到微信/QQ/备忘录等应用。
+ * 做法：Coil 取原图(走应用鉴权栈) → PNG 落 cache/clipboard → FileProvider 授出 content:// URI →
+ * ClipData.newUri 写剪贴板，并附 grantUriPermission 让接收方可读。
+ * 直接写 file:// 或 bitmap 是不行的：Android 剪贴板跨应用只认 content:// 且需授权。
+ * url 需已带 ?token= 鉴权（见 MediaUrlResolver）。
+ */
+suspend fun copyImageToClipboard(context: Context, url: String?) {
+    if (url.isNullOrBlank()) return
+    withContext(Dispatchers.IO) {
+        runCatching {
+            val request = ImageRequest.Builder(context)
+                .data(url)
+                .allowHardware(false)   // 需读取像素做 PNG 压缩，硬件位图不可读
+                .build()
+            val result = context.imageLoader.execute(request)
+            if (result !is SuccessResult) throw IllegalStateException("图片加载失败")
+            val bitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                ?: throw IllegalStateException("无法获取图片数据")
+
+            // 落到 cache/clipboard（file_paths.xml 的 cache-path 已覆盖），固定单文件避免堆积
+            val dir = java.io.File(context.cacheDir, "clipboard").apply { mkdirs() }
+            val file = java.io.File(dir, "copy_image.png")
+            java.io.FileOutputStream(file).use { out ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+            }
+
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file
+            )
+            val clip = android.content.ClipData.newUri(context.contentResolver, "图片", uri)
+            // 授权粘贴方读取该 URI（部分 ROM 不读 ClipData 自带 flag，此处显式补授）
+            clip.description.extras = android.os.PersistableBundle().apply {
+                putBoolean("isSensitive", false)
+            }
+            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(clip)
+            uri
+        }.onSuccess { uri ->
+            withContext(Dispatchers.Main) {
+                runCatching {
+                    // 对已知常用接收方补授读权限，提升兼容性（失败不影响主流程）
+                    context.grantUriPermission(
+                        context.packageName, uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
+                // Android 13+ 系统自带复制提示，避免重复 Toast
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                    Toast.makeText(context, "图片已复制", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.onFailure {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "复制失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
+
 /** 选定下载文件名：优先用原始文件名；无名/无扩展名则用 URL 末段(uuid.ext)补全；并清洗非法字符。 */
 private fun downloadName(filename: String?, url: Uri): String {
     val urlName = url.lastPathSegment.orEmpty()

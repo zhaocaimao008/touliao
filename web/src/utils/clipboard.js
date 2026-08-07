@@ -50,7 +50,7 @@ async function toPngBlob(blob) {
 //   - Electron：renderer 跑在 file://，图片是跨域 https(带 ?token=)，fetch/canvas 会撞 CORS/画布污染，
 //     故走主进程原生 clipboard（electronAPI.copyImage），传绝对 URL（mediaUrl 已附 token）。
 //   - Web：图片与页面同源(/uploads，Cookie 鉴权)，fetch 取 blob → 转 PNG → Clipboard API 写入。
-//   - 移动端 WebView 不可靠支持图片剪贴板，返回 false 由上层提示（移动端另有"保存到相册"）。
+//   - 移动端浏览器：同 Web 路径（需 HTTPS）。出货的原生 App(Kotlin/Swift)在原生侧实现，不走此处。
 export async function copyImageToClipboard(absUrl) {
   if (!absUrl) return false;
 
