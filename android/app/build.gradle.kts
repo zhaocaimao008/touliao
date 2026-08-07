@@ -15,8 +15,8 @@ android {
         applicationId = "com.vxin.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 44
-        versionName = "1.0.43"
+        versionCode = 45
+        versionName = "1.0.44"
 
         // 默认服务器地址（运行时可在 App 内切换并持久化覆盖）
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://dipsin.com\"")
@@ -39,6 +39,13 @@ android {
                 storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("ANDROID_KEY_ALIAS")
                 keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                // ⚠ 必须显式开启 v1(JAR)签名：minSdk>=24 时 AGP 默认关闭 v1、只打 v2/v3，
+                //   但个推 libzxprotect.so 启动时校验 v1 签名(META-INF/CERT.*)做防篡改，
+                //   缺 v1 → native 层 SIGABRT(Kotlin runCatching 拦不住) → 所有安卓机启动即闪退。
+                //   同时保留 v2/v3(更快校验、防 v1 剥离攻击)。
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
