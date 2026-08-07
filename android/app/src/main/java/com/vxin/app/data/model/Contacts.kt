@@ -73,6 +73,20 @@ data class HandleRequestBody(val action: String)   // accept | reject
 @Serializable
 data class SendRequestResponse(val success: Boolean = false, val autoAccepted: Boolean = false)
 
+/** 用户详情 —— GET /api/users/:id（含好友关系状态） */
+@Serializable
+data class UserDetail(
+    val id: String,
+    val username: String = "",
+    val avatar: String = "",
+    val bio: String = "",
+    val wechat_id: String = "",
+    val isFriend: Boolean = false,
+    val isBlocked: Boolean = false,
+    val remark: String = "",
+    val hasPendingRequest: Boolean = false,
+)
+
 @Serializable
 data class CreatePrivateBody(val userId: String)
 

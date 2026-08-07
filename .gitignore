@@ -83,3 +83,6 @@ hermes-deploy-*.log
 # build/ 是 xcodebuild 输出，均不入库（防本地跑 xcodegen 后误提交）。
 ios/build/
 ios/Vxin.xcodeproj/
+scripts/__pycache__/
+.ios-review-last
+.ios-review.log

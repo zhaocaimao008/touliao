@@ -16,6 +16,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
+import com.vxin.app.data.model.UserDetail
+
 data class AddFriendUiState(
     val query: String = "",
     val searching: Boolean = false,
@@ -23,6 +25,11 @@ data class AddFriendUiState(
     val sentIds: Set<String> = emptySet(),     // 已发送/已加 的用户 id
     val message: String? = null,               // 提示（成功/失败）
     val searched: Boolean = false,
+    /** 扫码后待展示资料卡的用户 id；非 null 时显示资料卡 Bottom Sheet */
+    val scannedUserId: String? = null,
+    /** 扫码用户的详情（加载中为 null + scannedUserLoading=true） */
+    val scannedUserDetail: UserDetail? = null,
+    val scannedUserLoading: Boolean = false,
 )
 
 @HiltViewModel
@@ -53,12 +60,25 @@ class AddFriendViewModel @Inject constructor(
             _uiState.update { it.copy(message = "这是你自己的二维码") }
             return
         }
+        // 先展示资料卡，由用户决定是否发送好友申请
+        _uiState.update { it.copy(scannedUserId = payload.id, scannedUserDetail = null, scannedUserLoading = true) }
         viewModelScope.launch {
-            runCatching { contactRepository.sendFriendRequest(payload.id, "") }
+            runCatching { contactRepository.getUserDetail(payload.id) }
+                .onSuccess { detail -> _uiState.update { it.copy(scannedUserDetail = detail, scannedUserLoading = false) } }
+                .onFailure { e -> _uiState.update { it.copy(scannedUserLoading = false, message = e.toUserMessage("加载资料失败")) } }
+        }
+    }
+
+    /** 从资料卡发送好友申请 */
+    fun sendRequestFromScanned(userId: String) {
+        viewModelScope.launch {
+            runCatching { contactRepository.sendFriendRequest(userId, "") }
                 .onSuccess { resp ->
                     _uiState.update {
                         it.copy(
-                            sentIds = it.sentIds + payload.id,
+                            sentIds = it.sentIds + userId,
+                            scannedUserId = null,
+                            scannedUserDetail = null,
                             message = if (resp.autoAccepted) "已添加为好友" else "好友申请已发送",
                         )
                     }
@@ -66,6 +86,9 @@ class AddFriendViewModel @Inject constructor(
                 .onFailure { e -> _uiState.update { it.copy(message = e.toUserMessage("添加失败")) } }
         }
     }
+
+    /** 关闭扫码资料卡 */
+    fun dismissScannedUser() = _uiState.update { it.copy(scannedUserId = null, scannedUserDetail = null, scannedUserLoading = false) }
 
     private fun joinGroup(token: String) {
         viewModelScope.launch {

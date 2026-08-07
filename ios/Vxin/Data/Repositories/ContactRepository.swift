@@ -113,4 +113,9 @@ final class ContactRepository {
     func listBlocked() async throws -> [BlockedUser] {
         try await api.send("api/users/me/blocked")
     }
+
+    /// 用户详情（含好友关系状态），用于扫码/搜索后先展示资料卡再决定是否发送申请
+    func getUserDetail(_ id: String) async throws -> UserDetail {
+        try await api.send("api/users/\(id)")
+    }
 }

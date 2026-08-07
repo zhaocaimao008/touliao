@@ -153,6 +153,17 @@ let CDN_ORIGIN = '';
 // 与 createWindow() 之前 await 调用。远程全部不可达则沿用 store/默认（manual override
 // 仍生效，与渲染端 remote→cache→fallback 行为一致）。
 async function loadRemoteServerUrl() {
+  await Promise.race([
+    loadRemoteServerUrlInner(),
+    // 兜底超时：两个 config 源各 15s 超时，国内直连 jsDelivr 常年超时/被墙，
+    // 顺序 await 导致启动最长卡 30s，此间 createWindow() 都还没调用——表现为
+    // 双击图标后长时间无任何窗口（黑屏/无反应）。5s 后不再等待，直接用
+    // store/默认地址建窗，remote 配置若稍后到达仍会在下次冷启动生效。
+    new Promise((resolve) => setTimeout(resolve, 5000)),
+  ]);
+}
+
+async function loadRemoteServerUrlInner() {
   for (const url of CONFIG_URLS) {
     try {
       const buf = await fetchBuffer(url);
@@ -414,10 +425,26 @@ function createWindow() {
     mainWindow.loadFile(indexHtmlPath());
   });
 
-  mainWindow.once('ready-to-show', () => {
+  let hasShownWindow = false;
+  const showWindowOnce = () => {
+    if (hasShownWindow || mainWindow.isDestroyed()) return;
+    hasShownWindow = true;
     mainWindow.show();
     setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
-  });
+  };
+
+  mainWindow.once('ready-to-show', showWindowOnce);
+
+  // 兜底：若渲染进程崩溃/被 CSP 拦截等异常导致 ready-to-show 永不触发，
+  // 窗口会一直停留在 show:false 状态——表现为双击图标后完全无窗口（俗称"黑屏"）。
+  // 10s 后强制显示，即使内容还没渲染完，也比长期无任何窗口要好，
+  // 且此时用户至少能看到窗口/背景色，可判断是白屏/崩溃还是网络问题。
+  setTimeout(() => {
+    if (!hasShownWindow) {
+      log.warn('[Window] ready-to-show 10s 未触发，强制显示窗口兜底');
+      showWindowOnce();
+    }
+  }, 10000);
 
   // 记住窗口尺寸：仅在非最大化/非最小化时记录正常尺寸，否则下次会以 0/怪异尺寸启动。
   const saveBounds = () => {

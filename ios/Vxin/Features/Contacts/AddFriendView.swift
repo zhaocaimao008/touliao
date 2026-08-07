@@ -70,6 +70,15 @@ struct AddFriendView: View {
         .padding(.top, 12)
         .navigationTitle("添加好友")
         .navigationBarTitleDisplayMode(.inline)
+        // 扫码资料卡 Sheet
+        .sheet(isPresented: Binding(
+            get: { vm.scannedUserId != nil },
+            set: { if !$0 { vm.dismissScannedUser() } }
+        )) {
+            ScannedUserProfileSheet(vm: vm)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .fullScreenCover(isPresented: $showScanner) {
             QRScannerView(
                 onResult: { value in
@@ -80,5 +89,81 @@ struct AddFriendView: View {
             )
             .ignoresSafeArea()
         }
+    }
+}
+
+// MARK: - 扫码资料卡
+
+private struct ScannedUserProfileSheet: View {
+    @ObservedObject var vm: AddFriendViewModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if vm.scannedUserLoading {
+                Spacer()
+                ProgressView().tint(.vxinGreen)
+                Spacer()
+            } else if let detail = vm.scannedUserDetail {
+                profileContent(detail)
+            } else {
+                Spacer()
+                Text("加载失败").foregroundColor(.vxinTextSecondary)
+                Spacer()
+                Button("关闭") { vm.dismissScannedUser() }
+                    .buttonStyle(.bordered)
+                    .padding(.bottom, 32)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 24)
+    }
+
+    @ViewBuilder
+    private func profileContent(_ detail: UserDetail) -> some View {
+        let alreadySent = vm.sentIds.contains(detail.id)
+
+        VStack(spacing: 12) {
+            InitialAvatar(name: detail.username.isEmpty ? "?" : detail.username, size: 72)
+
+            Text(detail.username.isEmpty ? "未命名" : detail.username)
+                .font(.title3).fontWeight(.semibold)
+
+            if !detail.wechatId.isEmpty {
+                Text("v信号: \(detail.wechatId)")
+                    .font(.caption).foregroundColor(.vxinTextSecondary)
+            }
+
+            if !detail.bio.isEmpty {
+                Text(detail.bio)
+                    .font(.subheadline).foregroundColor(.vxinTextSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Divider().padding(.vertical, 8)
+
+            if detail.isFriend {
+                Text("你们已经是好友了").foregroundColor(.vxinTextSecondary)
+                Spacer().frame(height: 8)
+                Button("关闭") { vm.dismissScannedUser() }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+            } else if detail.hasPendingRequest || alreadySent {
+                Text("好友申请已发送，等待对方确认")
+                    .font(.subheadline).foregroundColor(.vxinTextSecondary)
+                Spacer().frame(height: 8)
+                Button("关闭") { vm.dismissScannedUser() }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+            } else {
+                Button("申请添加好友") { vm.sendRequestFromScanned() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.vxinGreen)
+                    .frame(maxWidth: .infinity)
+                Button("取消") { vm.dismissScannedUser() }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        Spacer()
     }
 }

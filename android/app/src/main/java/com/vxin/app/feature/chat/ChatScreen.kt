@@ -487,6 +487,11 @@ fun ChatScreen(
                             onVanish = { viewModel.vanish(msg) },
                             onReact = { emoji -> viewModel.react(msg, emoji) },
                             onCollectSticker = { viewModel.collectSticker(msg.file_url) },
+                            onSaveImage = {
+                                scope.launch {
+                                    com.vxin.app.core.util.saveImageToGallery(context, viewModel.resolveMediaUrl(msg.file_url), msg.content)
+                                }
+                            },
                             redPacket = viewModel.parseRedPacket(msg),
                             onOpenRedPacket = { viewModel.openRedPacket(msg) },
                             canPin = viewModel.isGroup,
@@ -740,6 +745,8 @@ private fun burnLabel(seconds: Int): String = BURN_OPTIONS.firstOrNull { it.firs
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
@@ -765,6 +772,21 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
                 Text("${pagerState.currentPage + 1}/${images.size}", color = Color.White, fontSize = 13.sp,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp))
             }
+            Text(
+                "保存图片",
+                color = Color.White,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 40.dp, end = 16.dp)
+                    .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                    .clickable {
+                        scope.launch {
+                            com.vxin.app.core.util.saveImageToGallery(context, images.getOrNull(pagerState.currentPage))
+                        }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
         }
     }
 }
@@ -827,6 +849,7 @@ private fun MessageBubble(
     onRecall: () -> Unit,
     onReact: (String) -> Unit,
     onCollectSticker: () -> Unit,
+    onSaveImage: () -> Unit = {},
     redPacket: com.vxin.app.data.model.RedPacketContent? = null,
     onOpenRedPacket: () -> Unit = {},
     canPin: Boolean = false,
@@ -951,6 +974,7 @@ private fun MessageBubble(
                     }
                     if (msg.type == "image") {
                         DropdownMenuItem(text = { Text("收藏表情") }, onClick = { onCollectSticker(); menuOpen = false })
+                        DropdownMenuItem(text = { Text("保存图片") }, onClick = { onSaveImage(); menuOpen = false })
                     }
                     if (isMine) {
                         DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { onRecall(); menuOpen = false })

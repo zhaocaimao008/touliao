@@ -56,6 +56,37 @@ struct SearchUser: Decodable, Identifiable, Hashable {
     }
 }
 
+/// 用户详情 —— GET /api/users/:id（含好友关系状态）
+struct UserDetail: Decodable, Identifiable {
+    let id: String
+    var username: String = ""
+    var avatar: String = ""
+    var bio: String = ""
+    var wechatId: String = ""
+    var isFriend: Bool = false
+    var isBlocked: Bool = false
+    var remark: String = ""
+    var hasPendingRequest: Bool = false
+
+    enum CodingKeys: String, CodingKey {
+        case id, username, avatar, bio, isFriend, isBlocked, remark, hasPendingRequest
+        case wechatId = "wechat_id"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        username = (try? c.decode(String.self, forKey: .username)) ?? ""
+        avatar = (try? c.decode(String.self, forKey: .avatar)) ?? ""
+        bio = (try? c.decode(String.self, forKey: .bio)) ?? ""
+        wechatId = (try? c.decode(String.self, forKey: .wechatId)) ?? ""
+        isFriend = (try? c.decode(Bool.self, forKey: .isFriend)) ?? false
+        isBlocked = (try? c.decode(Bool.self, forKey: .isBlocked)) ?? false
+        remark = (try? c.decode(String.self, forKey: .remark)) ?? ""
+        hasPendingRequest = (try? c.decode(Bool.self, forKey: .hasPendingRequest)) ?? false
+    }
+}
+
 /// 收到的好友申请 —— GET /api/users/friend-requests
 struct FriendRequest: Decodable, Identifiable, Hashable {
     let id: String

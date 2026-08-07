@@ -650,6 +650,7 @@ private struct MessageBubble: View {
                         }
                         if msg.type == "image" {
                             Button("收藏表情") { vm.collectSticker(msg.fileUrl) }
+                            Button("保存图片") { saveImage(msg.fileUrl) }
                         }
                         if isMine {
                             Button("撤回", role: .destructive) { vm.recall(msg) }
@@ -702,6 +703,17 @@ private struct MessageBubble: View {
         .padding(.vertical, 2)
         .background(vm.highlightedId == msg.id ? Color.vxinGreen.opacity(0.18) : Color.clear)
         .animation(.easeInOut, value: vm.highlightedId)
+    }
+
+    private func saveImage(_ url: String?) {
+        Task {
+            do {
+                try await ImageSaver.saveToPhotos(rawUrl: url)
+                vm.error = "已保存到相册"
+            } catch {
+                vm.error = (error as? LocalizedError)?.errorDescription ?? "保存失败"
+            }
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -905,6 +917,7 @@ private struct ChatImageGalleryView: View {
     var onClose: () -> Void
     @State private var page = 0
     @State private var scale: CGFloat = 1
+    @State private var saveToast: String?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -926,6 +939,31 @@ private struct ChatImageGalleryView: View {
                     .accessibilityLabel("关闭")
                 Spacer()
                 if images.count > 1 { Text("\(page + 1)/\(images.count)").foregroundColor(.white).padding() }
+                Button {
+                    Task {
+                        do {
+                            try await ImageSaver.saveToPhotos(rawUrl: images[page])
+                            saveToast = "已保存到相册"
+                        } catch {
+                            saveToast = (error as? LocalizedError)?.errorDescription ?? "保存失败"
+                        }
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.down")
+                        .foregroundColor(.white).padding()
+                }
+                .accessibilityLabel("保存图片")
+            }
+            if let toast = saveToast {
+                Text(toast)
+                    .font(.footnote).foregroundColor(.white)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Color.black.opacity(0.7))
+                    .clipShape(Capsule())
+                    .padding(.top, 80)
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saveToast = nil }
+                    }
             }
         }
         .onAppear { page = min(max(start, 0), max(images.count - 1, 0)) }

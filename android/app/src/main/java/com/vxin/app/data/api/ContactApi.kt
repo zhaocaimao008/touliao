@@ -8,6 +8,7 @@ import com.vxin.app.data.model.HandleRequestBody
 import com.vxin.app.data.model.RemarkBody
 import com.vxin.app.data.model.SearchUser
 import com.vxin.app.data.model.SendRequestResponse
+import com.vxin.app.data.model.UserDetail
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -57,4 +58,8 @@ interface ContactApi {
     /** 黑名单列表 */
     @GET("api/users/me/blocked")
     suspend fun blocked(): List<BlockedUser>
+
+    /** 用户详情（含与当前用户的好友关系） */
+    @GET("api/users/{id}")
+    suspend fun getUserDetail(@Path("id") id: String): UserDetail
 }

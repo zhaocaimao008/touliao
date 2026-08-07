@@ -1,11 +1,19 @@
 package com.vxin.app.core.util
 
 import android.app.DownloadManager
+import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import android.widget.Toast
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 文件/视频：用系统 DownloadManager 后台下载到「下载」目录，完成后通知栏可直接点开对应应用。
@@ -33,6 +41,62 @@ fun downloadFile(context: Context, url: String?, filename: String?) {
         Toast.makeText(context, "开始下载：$name（完成后可在通知栏点开）", Toast.LENGTH_SHORT).show()
     }.onFailure {
         Toast.makeText(context, "下载失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * 保存聊天图片到系统相册（Pictures/vxin）。
+ * 用 MediaStore Insert API，Android 10+（scoped storage）无需 WRITE_EXTERNAL_STORAGE 权限即可写公共相册；
+ * Android 9 及以下 MediaStore 同样可用（走传统路径由系统处理）。
+ * url 需已带 ?token= 鉴权（见 MediaUrlResolver）。
+ */
+suspend fun saveImageToGallery(context: Context, url: String?, filename: String? = null) {
+    if (url.isNullOrBlank()) return
+    withContext(Dispatchers.IO) {
+        runCatching {
+            // 用 Coil 走应用已有的鉴权/缓存栈拉取原图字节
+            val request = ImageRequest.Builder(context)
+                .data(url)
+                .allowHardware(false)
+                .build()
+            val result = context.imageLoader.execute(request)
+            if (result !is SuccessResult) {
+                throw IllegalStateException("图片加载失败")
+            }
+            val bitmap = (result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                ?: throw IllegalStateException("无法获取图片数据")
+
+            val name = downloadName(filename, Uri.parse(url)).let {
+                if (it.contains('.')) it else "$it.jpg"
+            }
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, name)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/vxin")
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("无法创建相册文件")
+            resolver.openOutputStream(uri)?.use { out ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, out)
+            } ?: throw IllegalStateException("无法写入相册文件")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+            }
+        }.onSuccess {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "图片已保存到相册", Toast.LENGTH_SHORT).show()
+            }
+        }.onFailure {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "保存失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 }
 

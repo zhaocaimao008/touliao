@@ -49,6 +49,9 @@ class ContactRepository @Inject constructor(
 
     suspend fun blocked() = contactApi.blocked()
 
+    /** 用户详情（好友关系状态），用于扫码/搜索后先展示资料卡再决定是否发送申请 */
+    suspend fun getUserDetail(id: String) = contactApi.getUserDetail(id)
+
     /** 创建/获取私聊会话，返回 conversationId */
     suspend fun createPrivate(userId: String): String =
         messageApi.createPrivate(CreatePrivateBody(userId)).conversationId
