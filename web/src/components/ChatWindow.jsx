@@ -41,7 +41,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
 import { rememberAspect } from '../utils/imgDimCache';
-import { copyToClipboard } from '../utils/clipboard';
+import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import './ChatWindow.css';
 
 const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
@@ -1728,8 +1728,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       case 'copy':
         if (msg.type === 'text') {
           copyToClipboard(msg.content);
+        } else if ((msg.type === 'image' || msg.type === 'sticker') && msg.file_url) {
+          // 图片/表情：抓原图 → 写入系统剪贴板（可直接粘贴到微信/文档等）。
+          // Web 同源直接 fetch；Electron 走主进程原生剪贴板（渲染进程 file:// 跨源受限）。
+          showToast('正在复制图片…');
+          const ok = await copyImageToClipboard(mediaUrl(msg.file_url));
+          showToast(ok ? '图片已复制' : '复制失败，可长按图片另存', ok ? 'success' : 'error');
         } else {
-          showToast('只有文字消息可以复制');
+          showToast('该消息类型不支持复制');
         }
         break;
 
@@ -2460,8 +2466,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
              !ctxMenu.msg.deleted && (
               <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}>编辑</div>
             )}
-            {ctxMenu.msg.type === 'text' && (
-              <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('copy')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('copy'); } }}>复制</div>
+            {/* 复制：文字全端可用；图片/表情走系统剪贴板，但移动端 WebView 跨源取图不可靠
+                （另有"保存到相册"更合适），故仅在 Web/桌面显示"复制图片" */}
+            {(ctxMenu.msg.type === 'text' ||
+              ((ctxMenu.msg.type === 'image' || ctxMenu.msg.type === 'sticker') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted && !window.Capacitor?.isNativePlatform?.())) && (
+              <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('copy')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('copy'); } }}>
+                {ctxMenu.msg.type === 'text' ? '复制' : '复制图片'}
+              </div>
             )}
             {/* 转发：所有类型消息都可转发 */}
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>转发</div>

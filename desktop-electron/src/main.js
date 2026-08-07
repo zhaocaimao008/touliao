@@ -1,7 +1,7 @@
 'use strict';
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
-        globalShortcut, screen, Notification, shell, session } = require('electron');
+        globalShortcut, screen, Notification, shell, session, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -723,6 +723,29 @@ function setupIPC() {
     g_pendingDownloadName = (typeof payload?.filename === 'string' && payload.filename.trim())
       ? payload.filename.trim() : null;
     mainWindow.webContents.downloadURL(url);
+  });
+
+  // 复制图片到系统剪贴板：渲染进程跑在 file://，图片是跨源 https(带 ?token=)，
+  // fetch/canvas 会撞 CORS/画布污染，故由主进程拉取后写入原生剪贴板。
+  // 安全：与 file:download 同款白名单，仅允许后端 / 已配置 CDN 来源，防注入的渲染进程拉任意域。
+  ipcMain.handle('clipboard:copyImage', async (_e, url) => {
+    if (!isTrustedSender(_e)) return false;
+    if (typeof url !== 'string' || !url) return false;
+    let origin;
+    try { origin = new URL(url).origin; } catch { return false; }
+    const allowed = [API_ORIGIN, CDN_ORIGIN].filter(Boolean);
+    if (!allowed.includes(origin)) { log.warn('clipboard:copyImage 拒绝非白名单来源:', origin); return false; }
+    try {
+      const buf = await fetchBuffer(url);        // 复用带超时+大小上限的 https 拉取
+      if (!buf) return false;
+      const img = nativeImage.createFromBuffer(buf);
+      if (img.isEmpty()) return false;           // 非图片/解码失败
+      clipboard.writeImage(img);
+      return true;
+    } catch (err) {
+      log.warn('clipboard:copyImage 失败:', err.message);
+      return false;
+    }
   });
 
   // 原生通知
