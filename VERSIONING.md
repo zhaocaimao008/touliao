@@ -14,7 +14,7 @@
 | Web 前端 | `web/package.json` | `version` | 2.0.18 |
 | 后端 | `backend-v2/package.json` | `version` | 2.0.0 |
 | Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.44 / code 45 |
-| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 1.0.26 / build 26 |
+| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 1.0.27 / build 27 |
 | 后端发现配置 | `vxin-config/config.json` | `version` | 2.0.1 |
 
 > 桌面端走 electron-updater：`latest.yml` 的 `version` **必须**等于
