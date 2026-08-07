@@ -93,6 +93,13 @@ const config = {
     email:      process.env.VAPID_EMAIL || 'mailto:admin@vxin.app',
   },
 
+  // ── 钱包 ────────────────────────────────────────────────────
+  // 自助充值（无支付网关，校验通过直接入账）。**默认关闭**：开启后任意登录用户
+  // 可凭限流上限自造余额（10次/h × 100000 = 100万/h）并经红包转移，等同无限印钞。
+  // 仅供开发/联调环境显式置 ENABLE_FAKE_RECHARGE=true 使用；生产接入真实支付
+  // 回调后，充值应由支付网关回调触发，而非本接口。
+  enableFakeRecharge: process.env.ENABLE_FAKE_RECHARGE === 'true',
+
   // ── WebRTC ICE / TURN ───────────────────────────────────────
   // 通话 NAT 穿透。STUN 始终下发；配置 TURN_SECRET + TURN_URLS 后启用
   // coturn 时效凭证（use-auth-secret 模式），三端通过 GET /api/turn/credentials 动态拉取。

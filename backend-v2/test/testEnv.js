@@ -8,6 +8,7 @@
  *   - DISABLE_CSRF=1     → 关双提交校验（supertest 不易回传 csrf cookie/header）
  *   - DISABLE_RATE_LIMIT=1→ 关所有限流（批量造号/发消息不被 429 挡）
  *   - INVITE_CODE        → 固定测试邀请码，使注册可用（fresh 库无 admin_settings）
+ *   - ENABLE_FAKE_RECHARGE→ 开自助充值（生产默认关，防任意用户自造余额）
  *   - JWT_SECRET 等      → 固定测试密钥（≥32 字符，满足生产级校验）
  * dotenv 默认不覆盖已存在的 env，故这些值优先于 .env，隔离得以保证。
  */
@@ -20,6 +21,7 @@ process.env.DB_PATH           = TEST_DB;
 process.env.DISABLE_CSRF      = '1';
 process.env.DISABLE_RATE_LIMIT = '1';
 process.env.INVITE_CODE       = process.env.TEST_INVITE_CODE || '123456';
+process.env.ENABLE_FAKE_RECHARGE = 'true';
 process.env.JWT_SECRET        = process.env.JWT_SECRET || 'test_jwt_secret_at_least_32_chars_long__x';
 process.env.ADMIN_JWT_SECRET  = process.env.ADMIN_JWT_SECRET || 'test_admin_jwt_secret_at_least_32_chars_x';
 
