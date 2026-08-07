@@ -9,12 +9,12 @@
 
 | 端 | 版本真相源文件 | 字段 | 当前版本 |
 |----|--------------|------|---------|
-| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 2.0.40 |
-| 桌面端渲染层内嵌 | `desktop-electron/src/package.json` | `version` | 与上一致（2.0.40） |
+| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 2.0.41 |
+| 桌面端渲染层内嵌 | `desktop-electron/src/package.json` | `version` | 与上一致（2.0.41） |
 | Web 前端 | `web/package.json` | `version` | 2.0.18 |
 | 后端 | `backend-v2/package.json` | `version` | 2.0.0 |
-| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.40 / code 41 |
-| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 1.0.24 / build 24 |
+| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.41 / code 42 |
+| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 1.0.25 / build 25 |
 | 后端发现配置 | `vxin-config/config.json` | `version` | 2.0.1 |
 
 > 桌面端走 electron-updater：`latest.yml` 的 `version` **必须**等于
