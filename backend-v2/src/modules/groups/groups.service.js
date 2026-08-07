@@ -21,7 +21,11 @@ function setNickname(io, convId, userId, nickname) {
 function createInviteLink(convId, userId) {
   const role = memberRole(convId, userId);
   if (!role) throw forbidden('不在群内');
-  if (role === 'member') throw forbidden('仅群主和管理员可生成邀请链接');
+  // 普通成员需群开启了"允许成员邀请"才能生成链接
+  if (role === 'member') {
+    const conv = db.prepare('SELECT member_can_invite FROM conversations WHERE id=?').get(convId);
+    if (!conv?.member_can_invite) throw forbidden('仅群主和管理员可生成邀请链接');
+  }
   const token = uuidv4().replace(/-/g, '').slice(0, 16).toUpperCase();
   const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
   db.transaction(() => {
@@ -38,7 +42,10 @@ async function getQrCode(convId, userId) {
     .get(convId, Math.floor(Date.now() / 1000));
   if (!invite) {
     const role = memberRole(convId, userId);
-    if (role === 'member') throw forbidden('仅群主和管理员可生成邀请链接');
+    if (role === 'member') {
+      const conv = db.prepare('SELECT member_can_invite FROM conversations WHERE id=?').get(convId);
+      if (!conv?.member_can_invite) throw forbidden('仅群主和管理员可生成邀请链接');
+    }
     const token = uuidv4().replace(/-/g, '').slice(0, 16).toUpperCase();
     const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
     db.transaction(() => {
@@ -117,6 +124,12 @@ function invite(io, convId, userId, userIds) {
   if (!userIds?.length) throw badRequest('参数缺失');
   if (!Array.isArray(userIds) || userIds.length > 100) throw badRequest('单次最多邀请 100 人');
   requireMember(convId, userId, '不在群内');
+  // 普通成员需检查 member_can_invite 开关
+  const callerRole = memberRole(convId, userId);
+  if (callerRole === 'member') {
+    const conv = db.prepare('SELECT member_can_invite FROM conversations WHERE id=?').get(convId);
+    if (!conv?.member_can_invite) throw forbidden('群主已关闭普通成员邀请权限');
+  }
   const ph = userIds.map(() => '?').join(',');
   // 只允许邀请自己的联系人（与 createGroup 对齐，防止强拉陌生人）
   const validSet = new Set(
@@ -209,7 +222,7 @@ function dissolve(io, convId, userId) {
 function info(convId, userId) {
   const myRole = memberRole(convId, userId);
   if (!myRole) throw forbidden('不在群内');
-  const conv = db.prepare('SELECT * FROM conversations WHERE id=?').get(convId);
+  const conv = db.prepare('SELECT id, name, avatar, announcement, owner_id, no_private_chat, mute_all, no_add_friend, member_can_invite, group_number FROM conversations WHERE id=?').get(convId);
   if (!conv) throw notFound('群不存在');
   const members = db.prepare(`
     SELECT u.id, u.username, u.avatar, u.bio, cm.role, cm.nickname
@@ -229,15 +242,16 @@ function manage(io, convId, userId, body) {
   if (!role || role === 'member') throw forbidden('无权操作，仅群主或管理员可修改');
 
   const updates = [], params = [];
-  const { no_private_chat, mute_all, no_add_friend } = body;
+  const { no_private_chat, mute_all, no_add_friend, member_can_invite } = body;
   if (no_private_chat !== undefined) { updates.push('no_private_chat=?'); params.push(no_private_chat ? 1 : 0); }
   if (mute_all !== undefined) { updates.push('mute_all=?'); params.push(mute_all ? 1 : 0); }
   if (no_add_friend !== undefined) { updates.push('no_add_friend=?'); params.push(no_add_friend ? 1 : 0); }
+  if (member_can_invite !== undefined) { updates.push('member_can_invite=?'); params.push(member_can_invite ? 1 : 0); }
   if (updates.length === 0) throw badRequest('无有效参数');
 
   params.push(convId);
   db.prepare(`UPDATE conversations SET ${updates.join(',')} WHERE id=?`).run(...params);
-  const updated = db.prepare('SELECT id, no_private_chat, mute_all, no_add_friend FROM conversations WHERE id=?').get(convId);
+  const updated = db.prepare('SELECT id, no_private_chat, mute_all, no_add_friend, member_can_invite FROM conversations WHERE id=?').get(convId);
   if (io) io.to(convId).emit('group_settings_updated', updated);
   return updated;
 }

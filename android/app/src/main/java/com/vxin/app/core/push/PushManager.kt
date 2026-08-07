@@ -84,16 +84,22 @@ class PushManager @Inject constructor(
      * 国产 ROM 无 GMS 时 FirebaseMessaging.token 的 Task 两个回调都不触发，
      * 若不设超时会导致 suspend 函数永久挂起 → logout() 协程卡死 → 退出按钮无反应。
      * 超时返回 null，调用方按 null 处理（unregisterCurrentToken 直接 return，不影响后续流程）。
+     * 华为/无 GMS 机型补充：FirebaseMessaging.getInstance() 本身可能抛 RuntimeException
+     * （Firebase 初始化链失败），runCatching 兜底防止 App 崩溃。
      */
     private suspend fun fetchToken(): String? = withTimeoutOrNull(5_000) {
-        suspendCancellableCoroutine { cont ->
-            FirebaseMessaging.getInstance().token
-                .addOnSuccessListener { cont.resume(it) }
-                .addOnFailureListener { e ->
-                    Log.w(TAG, "get FCM token failed: ${e.message}")
-                    cont.resume(null)
-                }
-        }
+        runCatching {
+            suspendCancellableCoroutine<String?> { cont ->
+                FirebaseMessaging.getInstance().token
+                    .addOnSuccessListener { cont.resume(it) }
+                    .addOnFailureListener { e ->
+                        Log.w(TAG, "get FCM token failed: ${e.message}")
+                        cont.resume(null)
+                    }
+            }
+        }.onFailure { e ->
+            Log.w(TAG, "FirebaseMessaging unavailable (no GMS?): ${e.javaClass.simpleName}: ${e.message}")
+        }.getOrNull()
     }
 
     private companion object { const val TAG = "PushManager" }

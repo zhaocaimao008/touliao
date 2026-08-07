@@ -97,5 +97,28 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="vxin_messages_v3" />
+
+        <!--
+          华为/无GMS 设备崩溃兜底：
+          1. firebase_messaging_auto_init_enabled=false：禁止 FCM 在 App 启动时尝试向
+             Google Play Services 注册（无 GMS 时会抛 ServiceNotFoundException 导致闪退）。
+             有 GMS 时由 VxinApp.initFirebaseIfGmsAvailable() 在 onCreate 中手动触发注册。
+          2. firebase_auto_collection_enabled=false：同理，关闭 Analytics 自动采集，
+             避免其初始化链在无 GMS 下崩溃。
+          3. MlKitInitProvider 移除：play.services.code.scanner 内置的 ContentProvider
+             会在 App 冷启动时（Application.onCreate 之前）连接 Google Play 模块下载服务，
+             无 GMS 华为机上此调用会抛 RuntimeException。AddFriendScreen 已有运行时
+             GMS 检测，扫码功能本身安全；这里只是防 ContentProvider 早于代码运行时崩溃。
+        -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_auto_collection_enabled"
+            android:value="false" />
+        <provider
+            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
+            android:authorities="${applicationId}.mlkitinitprovider"
+            tools:node="remove" />
     </application>
 </manifest>

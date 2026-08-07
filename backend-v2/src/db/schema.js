@@ -268,6 +268,8 @@ function applySchema(db) {
     "CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id)",
     "ALTER TABLE conversations ADD COLUMN group_number TEXT DEFAULT ''",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_group_number ON conversations(group_number) WHERE group_number != ''",
+    // 群邀请权限：0=仅管理员可邀请(默认)，1=普通成员也可邀请
+    "ALTER TABLE conversations ADD COLUMN member_can_invite INTEGER DEFAULT 0",
     // 后台运行时设置（key-value），如可改的邀请码、TOTP 密钥
     `CREATE TABLE IF NOT EXISTS admin_settings (
       key   TEXT PRIMARY KEY,

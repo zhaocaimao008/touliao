@@ -179,6 +179,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   const [togglingMute, setTogglingMute] = useState(false);
   const [togglingNoPrivate, setTogglingNoPrivate] = useState(false);
   const [togglingNoAddFriend, setTogglingNoAddFriend] = useState(false);
+  const [togglingMemberInvite, setTogglingMemberInvite] = useState(false);
   // 个人会话设置
   const [myMuted, setMyMuted] = useState(!!conversation.muted);
   const [myPinned, setMyPinned] = useState(!!conversation.pinned);
@@ -314,6 +315,16 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       onConvUpdate?.({ no_add_friend: data.no_add_friend });
     } catch (e) { showToast(e.response?.data?.error || '操作失败', 'error'); }
     setTogglingNoAddFriend(false);
+  };
+
+  /* 切换普通成员邀请权限 */
+  const toggleMemberInvite = async (val) => {
+    setTogglingMemberInvite(true);
+    try {
+      const { data } = await axios.put(`/api/messages/conversation/${conversation.id}/manage`, { member_can_invite: val });
+      setInfo(i => ({ ...i, member_can_invite: data.member_can_invite }));
+    } catch (e) { showToast(e.response?.data?.error || '操作失败', 'error'); }
+    setTogglingMemberInvite(false);
   };
 
   /* 设置/取消管理员（仅群主） */
@@ -593,6 +604,18 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   </div>
                   <Toggle on={!!info.no_add_friend} onChange={toggleNoAddFriend} disabled={togglingNoAddFriend} label="禁止群成员互相添加好友" />
                 </div>
+
+                {/* 允许普通成员邀请 */}
+                <div className="gi-mg-row-last">
+                  <div className="gi-ic28 gi-ic-mg3">
+                    <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-blue"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                  </div>
+                  <div className="gi-f1">
+                    <div className="gi-mg-label">允许普通成员邀请</div>
+                    <div className="gi-mg-desc">开启后，普通成员可以邀请好友进群</div>
+                  </div>
+                  <Toggle on={!!info.member_can_invite} onChange={toggleMemberInvite} disabled={togglingMemberInvite} label="允许普通成员邀请" />
+                </div>
               </div>
             )}
           </div>
@@ -652,8 +675,8 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           </div>
 
           <div className="gi-ml-body">
-            {/* 邀请按钮（搜索时隐藏） */}
-            {!kickSearch && (
+            {/* 邀请按钮：管理员始终可见；普通成员需群开启了允许成员邀请 */}
+            {!kickSearch && (isAdmin || info.member_can_invite) && (
               <div className="gi-inv-row" role="button" tabIndex={0} onClick={openInvite} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInvite(); } }}>
                 <div className="gi-inv-box">+</div>
                 <span className="gi-inv-txt">邀请成员</span>

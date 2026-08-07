@@ -9,6 +9,8 @@ const svc = require('./messages.service');
 
 const io = req => req.app.get('io');
 const chatUploader = makeChatUploader(path.join(config.uploadsRoot, 'files'));
+// 群/私聊背景图专用上传（仅存文件，不发消息）
+const bgUploader = makeChatUploader(path.join(config.uploadsRoot, 'bg'));
 
 exports.history = asyncHandler(async (req, res) =>
   res.json(svc.history(req.params.conversationId, req.user.id, req.query)));
@@ -84,4 +86,17 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
   }).catch(() => {});
 
   res.json(msg);
+});
+
+// ── 聊天背景图本地上传（不发消息，仅存文件返回 URL）─────────────
+exports.bgUploadMiddleware = bgUploader;
+exports.backgroundUpload = asyncHandler(async (req, res) => {
+  if (!req.file) throw badRequest('请选择图片');
+  if (!isMember(req.params.convId, req.user.id)) return res.status(403).json({ error: '无权操作' });
+  const mime = req.file.mimetype;
+  if (!mime.startsWith('image/')) {
+    require('fs').unlink(req.file.path, () => {});
+    throw badRequest('仅支持图片格式');
+  }
+  res.json({ url: `/uploads/bg/${req.file.filename}` });
 });

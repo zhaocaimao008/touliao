@@ -24,17 +24,35 @@ class VxinApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
-        // 启动即把持久化的外观偏好同步进全局主题流，保证首帧就是用户选择的主题（同步、无 DI、异常兜底）。
         com.vxin.app.core.storage.ThemeStore.syncInitial(this)
         val entry = EntryPointAccessors.fromApplication(this, BridgeEntryPoint::class.java)
-        // 启动即创建通知渠道：确保 App 被杀死后 FCM 到达时渠道已存在，否则 Android 8+
-        // 因找不到 channelId 静默丢弃锁屏通知（安卓锁屏收不到通知的根因之一）。
         entry.notificationHelper()
-        // 后台/锁屏时 socket 消息补本地通知（服务端判在线不发 FCM 的场景②）。
         entry.messageNotificationBridge().install(this)
-        // 初始化个推 SDK（国产 ROM 无 GMS 时的推送兜底）。仅当已配置 AppID 时启动，
-        // CID 由 VxinGeTuiService.onReceiveClientId 回调 → 上报后端。
+        // 有 GMS 时手动启用 FCM 自动注册（Manifest 已关闭自动初始化防华为崩溃）
+        initFirebaseIfGmsAvailable()
         initGeTui()
+    }
+
+    /**
+     * 仅在 Google Play Services 可用时启用 FCM token 注册。
+     * 无 GMS 华为机：跳过，推送由个推 GeTui 兜底。
+     * 禁用 firebase_messaging_auto_init_enabled 后，需手动调用 setAutoInitEnabled(true)
+     * 才会触发 onNewToken 回调并向后端注册 token。
+     */
+    private fun initFirebaseIfGmsAvailable() {
+        runCatching {
+            val result = com.google.android.gms.common.GoogleApiAvailability.getInstance()
+                .isGooglePlayServicesAvailable(this)
+            if (result == com.google.android.gms.common.ConnectionResult.SUCCESS) {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                    .isAutoInitEnabled = true
+                android.util.Log.i("VxinApp", "GMS 可用，FCM 自动注册已启用")
+            } else {
+                android.util.Log.i("VxinApp", "GMS 不可用(result=$result)，跳过 FCM 初始化，推送走个推")
+            }
+        }.onFailure {
+            android.util.Log.w("VxinApp", "Firebase init skipped: ${it.message}")
+        }
     }
 
     /** 初始化个推 SDK（异常不阻断启动；未配置 AppID 时 SDK 自身会 no-op）。 */

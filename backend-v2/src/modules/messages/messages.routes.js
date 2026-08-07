@@ -590,6 +590,8 @@ router.post  ('/conversation/:convId/mute', auth, conv.mute);
 
 // 聊天专属背景：body { background } 传 URL 设置、空串清除
 router.put   ('/conversation/:convId/background', auth, conv.background);
+// 聊天背景图本地上传（不依赖云存储，直接存服务器）
+router.post  ('/conversation/:convId/background-upload', auth, ...msg.bgUploadMiddleware, msg.backgroundUpload);
 
 /**
  * @swagger

@@ -1359,20 +1359,30 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       const file = inp.files?.[0];
       if (!file) return;
       if (!file.type.startsWith('image/')) { showToast('请选择图片', 'error'); return; }
+      if (file.size > 10 * 1024 * 1024) { showToast('图片不能超过 10MB', 'error'); return; }
       try {
-        const url = await uploadToCloud(file, file.type, file.name);
+        // 优先尝试云存储直传；云存储未配置(503)或网络失败时降级到本地上传
+        let url;
+        try {
+          url = await uploadToCloud(file, file.type, file.name);
+        } catch (cloudErr) {
+          // 503 = 云存储未配置；其他（网络错误/CORS等）均降级本地
+          const fd = new FormData();
+          fd.append('file', file);
+          const { data } = await axios.post(
+            `/api/messages/conversation/${conversation.id}/background-upload`,
+            fd, { headers: { 'Content-Type': 'multipart/form-data' } }
+          );
+          url = data.url;
+        }
         await setChatBackground(url);
         showToast('已设置聊天背景');
       } catch (e) {
-        // 聊天背景需公开URL,只能走云存储;未配置(503)/直传失败时给明确提示而非笼统"网络错误"
-        const msg = e.response?.status === 503
-          ? '设置背景需服务器开启云存储'
-          : (e.message || '设置失败');
-        showToast(msg, 'error');
+        showToast(e.response?.data?.error || e.message || '设置失败', 'error');
       }
     };
     inp.click();
-  }, [uploadToCloud, setChatBackground]);
+  }, [uploadToCloud, setChatBackground, conversation.id]);
 
   // ── 本地上传回退：云存储未配置(503)时，直传后端 /upload（入库+广播由后端完成）──
   const uploadLocal = useCallback(async (file, onProgress) => {
