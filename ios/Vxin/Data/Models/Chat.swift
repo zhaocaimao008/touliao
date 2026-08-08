@@ -87,6 +87,8 @@ struct Message: Decodable, Identifiable, Equatable {
     var localStatus: String? = nil
     // 幂等键：乐观消息发送时生成、失败重发复用，后端据此去重；广播回声按此认领乐观气泡
     var clientMsgId: String? = nil
+    /// 由定时任务发送的消息（is_scheduled=1），气泡右下角显示「定时」角标
+    var isScheduled: Int = 0
 
     enum CodingKeys: String, CodingKey {
         case id, type, content, reactions, replyTo, edited, deleted
@@ -97,6 +99,7 @@ struct Message: Decodable, Identifiable, Equatable {
         case createdAt = "created_at"
         case clientMsgId = "client_msg_id"
         case senderName, senderAvatar
+        case isScheduled = "is_scheduled"
     }
 
     init(from decoder: Decoder) throws {
@@ -116,6 +119,7 @@ struct Message: Decodable, Identifiable, Equatable {
         reactions = (try? c.decode([MessageReaction].self, forKey: .reactions)) ?? []
         replyTo = try? c.decode(ReplyPreview.self, forKey: .replyTo)
         clientMsgId = try? c.decode(String.self, forKey: .clientMsgId)
+        isScheduled = (try? c.decode(Int.self, forKey: .isScheduled)) ?? 0
     }
 
     /// 便捷构造：从离线缓存快照还原「已确认历史消息」（localStatus/clientMsgId 均为 nil）。
@@ -183,6 +187,57 @@ struct ReplyPreview: Decodable, Equatable {
         content = (try? c.decode(String.self, forKey: .content)) ?? ""
         senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
         deleted = (try? c.decode(Int.self, forKey: .deleted)) ?? 0
+    }
+}
+
+/// 定时消息（GET /api/messages/schedule 列表项；与 Android ScheduledMessage 对齐）
+struct ScheduledMessage: Decodable, Identifiable {
+    let id: String
+    var conversationId: String = ""
+    var content: String = ""
+    var type: String = "text"
+    var sendAt: Double = 0          // UNIX 秒，后端要求 ≥15分钟后 ≤30天
+    var status: String = "pending"  // pending | sent | cancelled
+
+    enum CodingKeys: String, CodingKey {
+        case id, content, type, status
+        case conversationId = "conversation_id"
+        case sendAt = "send_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(String.self, forKey: .id)) ?? ""
+        conversationId = (try? c.decode(String.self, forKey: .conversationId)) ?? ""
+        content = (try? c.decode(String.self, forKey: .content)) ?? ""
+        type = (try? c.decode(String.self, forKey: .type)) ?? "text"
+        sendAt = (try? c.decode(Double.self, forKey: .sendAt)) ?? 0
+        status = (try? c.decode(String.self, forKey: .status)) ?? "pending"
+    }
+}
+
+/// @我消息聚合（GET /api/messages/mentions/me 列表项；与 Android MentionItem 对齐）
+struct MentionItem: Decodable, Identifiable {
+    var id: String = ""         // msgId
+    var convId: String = ""
+    var convName: String = ""
+    var senderName: String = ""
+    var content: String = ""
+    var createdAt: Double = 0
+
+    enum CodingKeys: String, CodingKey {
+        case id = "msgId"
+        case convId, convName, senderName, content, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(String.self, forKey: .id)) ?? UUID().uuidString
+        convId = (try? c.decode(String.self, forKey: .convId)) ?? ""
+        convName = (try? c.decode(String.self, forKey: .convName)) ?? ""
+        senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
+        content = (try? c.decode(String.self, forKey: .content)) ?? ""
+        createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
     }
 }
 

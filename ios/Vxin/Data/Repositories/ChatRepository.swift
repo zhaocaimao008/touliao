@@ -195,6 +195,33 @@ final class ChatRepository {
         let data = try await api.fetchData("api/messages/conversation/\(conversationId)/export")
         return String(data: data, encoding: .utf8) ?? ""
     }
+
+    // MARK: - 定时消息（对齐 Android ScheduledMessageRepository）
+
+    /// 创建定时消息：send_at 须 ≥15分钟后、≤30天，后端再次校验。
+    func scheduleMessage(conversationId: String, content: String, sendAt: TimeInterval) async throws -> ScheduledMessage {
+        try await api.send(
+            "api/messages/schedule", method: "POST",
+            body: ScheduleMessageBody(conversation_id: conversationId, content: content, type: "text", send_at: Int(sendAt))
+        )
+    }
+
+    /// 我的定时消息列表（含 pending / sent / cancelled）
+    func scheduledMessages() async throws -> [ScheduledMessage] {
+        try await api.send("api/messages/schedule")
+    }
+
+    /// 取消定时消息（仅本人且 pending 状态有效）
+    func cancelScheduledMessage(_ id: String) async throws {
+        let _: EmptyResponse = try await api.send("api/messages/schedule/\(id)", method: "DELETE")
+    }
+
+    // MARK: - @我消息聚合
+
+    /// 拉取@我消息（分页，offset+limit）
+    func mentionsMe(offset: Int = 0, limit: Int = 20) async throws -> [MentionItem] {
+        try await api.send("api/messages/mentions/me?offset=\(offset)&limit=\(limit)")
+    }
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }
@@ -211,3 +238,9 @@ private struct BatchDeleteBody: Encodable { let msgIds: [String]; let conversati
 private struct BatchDeleteResponse: Decodable { let success: Bool?; let deleted: Int? }
 private struct ReactBody: Encodable { let emoji: String }
 private struct ReactResponse: Decodable { let reactions: [MessageReaction] }
+private struct ScheduleMessageBody: Encodable {
+    let conversation_id: String
+    let content: String
+    let type: String
+    let send_at: Int
+}

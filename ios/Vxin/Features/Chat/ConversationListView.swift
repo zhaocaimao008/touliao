@@ -4,6 +4,7 @@ struct ConversationListView: View {
     @StateObject private var vm: ConversationListViewModel
     @State private var path = NavigationPath()
     @State private var clearTarget: Conversation?
+    @State private var showMentions = false          // @我消息聚合全屏弹窗
     private let myId: String
 
     init(myId: String) {
@@ -28,6 +29,14 @@ struct ConversationListView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button { path.append(SearchRoute.search) } label: { Image(systemName: "magnifyingglass") }
                             .accessibilityLabel("搜索")
+                    }
+                    // @我消息聚合入口
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button { showMentions = true } label: {
+                            Image(systemName: "at")
+                        }
+                        .accessibilityLabel("@我的消息")
+                        .accessibilityIdentifier("conv-list-mentions-btn")
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
@@ -66,6 +75,16 @@ struct ConversationListView: View {
                     let conv = vm.conversations.first(where: { $0.id == id }) ?? Conversation(id: id)
                     path = NavigationPath()   // 从根重置，避免叠在已有导航栈上
                     path.append(conv)
+                }
+                // @我消息聚合（全屏）
+                .fullScreenCover(isPresented: $showMentions) {
+                    MentionsView(myId: myId) { conv in
+                        showMentions = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            path = NavigationPath()
+                            path.append(conv)
+                        }
+                    }
                 }
         }
     }

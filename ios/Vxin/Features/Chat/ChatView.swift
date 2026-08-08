@@ -23,6 +23,8 @@ struct ChatView: View {
     @State private var showFuncPanel = false
     @State private var showRedPacketSend = false
     @State private var showTransferSend = false          // 好友转账弹窗
+    @State private var showScheduleSend = false          // 定时发送弹窗
+    @State private var showScheduleList = false          // 定时消息列表弹窗
     @State private var exportShareURL: URL?               // 导出的临时 txt 文件 URL
     @State private var showExportShare = false            // 分享面板开关
     @State private var showPinnedList = false
@@ -162,6 +164,15 @@ struct ChatView: View {
                 vm.sendTransfer(toUserId: peer, amount: amount, note: note)
                 showTransferSend = false
             }
+        }
+        .sheet(isPresented: $showScheduleSend) {
+            SendScheduleSheet(sending: vm.sendingSchedule) { content, sendAt in
+                vm.scheduleMessage(content: content, sendAt: sendAt)
+                showScheduleSend = false
+            }
+        }
+        .sheet(isPresented: $showScheduleList) {
+            ScheduledListSheet(vm: vm)
         }
         // 导出聊天记录：拿到文本后写入临时 txt 文件并调起系统分享
         .onChange(of: vm.exportContent) { content in
@@ -520,6 +531,10 @@ struct ChatView: View {
                     .accessibilityIdentifier("chat-attach-transfer")
                     .accessibilityLabel("转账")
             }
+            // 定时发送：所有会话均可用
+            Button { showFuncPanel = false; showScheduleSend = true } label: { funcItem(emoji: "⏰", label: "定时发送") }
+                .accessibilityIdentifier("chat-attach-schedule")
+                .accessibilityLabel("定时发送")
             Spacer()
         }
         .padding(.horizontal, 24).padding(.vertical, 16)
@@ -738,6 +753,12 @@ private struct MessageBubble: View {
                             .foregroundColor(Color(red: 0.9, green: 0.27, blue: 0.27))
                             .onTapGesture { vm.retryMessage(msg.id) }
                     } else {
+                        // 定时消息角标（is_scheduled=1）显示在已读状态上方
+                        if msg.isScheduled == 1 {
+                            Text("⏰ 定时")
+                                .font(.caption2)
+                                .foregroundColor(.vxinTextSecondary)
+                        }
                         let read = vm.isReadByPeer(msg)
                         Text(read ? "✓✓ 已读" : "✓")
                             .font(.caption2)
@@ -1038,9 +1059,135 @@ private struct SendTransferSheet: View {
     }
 }
 
+// MARK: - 定时发送（输入内容 + DatePicker，校验≥15分钟≤30天）
+private struct SendScheduleSheet: View {
+    let sending: Bool
+    var onSend: (String, Date) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var content = ""
+    // 默认 1 小时后
+    @State private var sendAt = Date().addingTimeInterval(3600)
+    @State private var error: String?
+
+    /// 有效发送时间范围：≥15分钟后，≤30天
+    private var minDate: Date { Date().addingTimeInterval(15 * 60) }
+    private var maxDate: Date { Date().addingTimeInterval(30 * 24 * 3600) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("消息内容") {
+                    TextField("请输入要定时发送的内容…", text: $content, axis: .vertical)
+                        .lineLimit(3...6)
+                        .accessibilityIdentifier("schedule-content-input")
+                }
+                Section("发送时间") {
+                    DatePicker(
+                        "发送时间",
+                        selection: $sendAt,
+                        in: minDate...maxDate,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    .datePickerStyle(.graphical)
+                    .accessibilityIdentifier("schedule-date-picker")
+                }
+                if let error {
+                    Section { Text(error).foregroundColor(.vxinError).font(.footnote) }
+                }
+                Section {
+                    Text("仅抑制发送操作，聊天和已发消息不受影响。到点由服务器自动发出。")
+                        .font(.caption)
+                        .foregroundColor(.vxinTextSecondary)
+                }
+            }
+            .navigationTitle("定时发送")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }.disabled(sending)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("确定") {
+                        let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !text.isEmpty else { error = "内容不能为空"; return }
+                        guard sendAt >= minDate else { error = "发送时间须至少15分钟后"; return }
+                        guard sendAt <= maxDate else { error = "发送时间不能超过30天"; return }
+                        error = nil
+                        onSend(text, sendAt)
+                    }
+                    .disabled(sending)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 定时消息列表（pending 可取消）
+private struct ScheduledListSheet: View {
+    @ObservedObject var vm: ChatViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if vm.loadingScheduledList {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if vm.scheduledList.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "clock").font(.system(size: 40)).foregroundColor(.vxinTextSecondary)
+                        Text("暂无定时消息").foregroundColor(.vxinTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(vm.scheduledList) { item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(scheduledStatusLabel(item.status))
+                                    .font(.caption2)
+                                    .foregroundColor(item.status == "pending" ? .vxinGreen : .vxinTextSecondary)
+                                    .padding(.horizontal, 6).padding(.vertical, 2)
+                                    .background((item.status == "pending" ? Color.vxinGreen : Color.gray).opacity(0.12))
+                                    .clipShape(Capsule())
+                                Spacer()
+                                Text(formatChatTime(item.sendAt))
+                                    .font(.caption2).foregroundColor(.vxinTextSecondary)
+                            }
+                            Text(item.content).lineLimit(2)
+                            if item.status == "pending" {
+                                Button("取消定时") { vm.cancelScheduledMessage(item) }
+                                    .font(.caption)
+                                    .foregroundColor(.vxinError)
+                                    .buttonStyle(.borderless)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle("定时消息")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") { dismiss() }
+                }
+            }
+            .task { vm.loadScheduledMessages() }
+        }
+    }
+
+    private func scheduledStatusLabel(_ status: String) -> String {
+        switch status {
+        case "pending": return "待发送"
+        case "sent": return "已发送"
+        case "cancelled": return "已取消"
+        default: return status
+        }
+    }
+}
+
 // MARK: - 系统分享面板（UIActivityViewController 封装，用于分享导出的 txt 文件）
-private struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
+private struct ShareSheet: UIViewControllerRepresentable {    let items: [Any]
     func makeUIViewController(context: Context) -> UIActivityViewController {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }

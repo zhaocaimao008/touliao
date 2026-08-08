@@ -31,6 +31,39 @@ struct UserSettings: Decodable {
 }
 private struct UpdateSettingsBody: Encodable { let momentsVisibleDays: Int? }
 
+/// 勿扰设置（GET/PUT /api/users/me/settings 子集；仅抑制推送，聊天正常收消息）
+struct QuietSettings: Decodable {
+    var quietEnabled: Int = 0        // 0=关 1=开
+    var quietStart: String = "22:00" // "HH:MM" 格式
+    var quietEnd: String = "08:00"
+    enum CodingKeys: String, CodingKey {
+        case quietEnabled = "quiet_enabled"
+        case quietStart = "quiet_start"
+        case quietEnd = "quiet_end"
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        quietEnabled = (try? c.decode(Int.self, forKey: .quietEnabled)) ?? 0
+        quietStart = (try? c.decode(String.self, forKey: .quietStart)) ?? "22:00"
+        quietEnd = (try? c.decode(String.self, forKey: .quietEnd)) ?? "08:00"
+    }
+}
+/// 勿扰 PUT body：仅编码非 nil 字段，避免 null 误覆盖其他开关
+private struct UpdateQuietBody: Encodable {
+    let quiet_enabled: Int?
+    let quiet_start: String?
+    let quiet_end: String?
+    enum CodingKeys: String, CodingKey {
+        case quiet_enabled, quiet_start, quiet_end
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(quiet_enabled, forKey: .quiet_enabled)
+        try c.encodeIfPresent(quiet_start, forKey: .quiet_start)
+        try c.encodeIfPresent(quiet_end, forKey: .quiet_end)
+    }
+}
+
 /// 通知相关设置（GET/PUT /api/users/me/settings 的布尔子集）
 struct NotificationSettings: Decodable {
     var messageNotify = true
@@ -230,6 +263,21 @@ final class ProfileRepository {
         let _: PrivacySettings = try await api.send(
             "api/users/me/settings", method: "PUT",
             body: UpdatePrivacyBody(addByVxinId: addByVxinId, addByPhone: addByPhone, requireVerify: requireVerify, noDirectGroupInvite: noDirectGroupInvite)
+        )
+    }
+
+    // MARK: - 勿扰设置
+
+    /// 读取勿扰设置
+    func quietSettings() async throws -> QuietSettings {
+        try await api.send("api/users/me/settings")
+    }
+
+    /// 保存勿扰设置（仅传非 nil 字段）
+    func updateQuietSettings(quietEnabled: Int? = nil, quietStart: String? = nil, quietEnd: String? = nil) async throws {
+        let _: QuietSettings = try await api.send(
+            "api/users/me/settings", method: "PUT",
+            body: UpdateQuietBody(quiet_enabled: quietEnabled, quiet_start: quietStart, quiet_end: quietEnd)
         )
     }
 }

@@ -57,6 +57,10 @@ final class ChatViewModel: ObservableObject {
     @Published var claimedAmount: Int?                 // 刚领取到的金额
     @Published var sendingRedPacket = false            // 发红包进行中，防连点重复扣币
     @Published var claimingRedPacket = false           // 抢红包进行中，防连点重复领取
+    // ── 定时消息 ──
+    @Published var sendingSchedule = false             // 定时消息提交中，防连点
+    @Published var scheduledList: [ScheduledMessage] = []   // 定时消息列表（pending+sent+cancelled）
+    @Published var loadingScheduledList = false
     // ── 转账 ──
     @Published var sendingTransfer = false             // 转账进行中，防连点重复扣币
     // ── 聊天记录导出 ──
@@ -560,6 +564,55 @@ final class ChatViewModel: ObservableObject {
             } catch {
                 self.error = (error as? LocalizedError)?.errorDescription ?? "转账失败"
                 Haptics.notify(.error)
+            }
+        }
+    }
+
+    // MARK: - 定时消息
+
+    /// 创建定时消息：content + sendAt（Unix秒，前端已校验≥15分钟≤30天，后端二次校验）
+    func scheduleMessage(content: String, sendAt: Date) {
+        guard !sendingSchedule else { return }
+        sendingSchedule = true
+        Task {
+            defer { sendingSchedule = false }
+            do {
+                _ = try await repo.scheduleMessage(
+                    conversationId: conversationId,
+                    content: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                    sendAt: sendAt.timeIntervalSince1970
+                )
+                error = "定时消息已设置，到点自动发送"
+                Haptics.notify(.success)
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "定时发送失败"
+                Haptics.notify(.error)
+            }
+        }
+    }
+
+    /// 加载本会话定时消息列表
+    func loadScheduledMessages() {
+        guard !loadingScheduledList else { return }
+        loadingScheduledList = true
+        Task {
+            defer { loadingScheduledList = false }
+            // 全量拉取后按本会话过滤
+            if let all = try? await repo.scheduledMessages() {
+                scheduledList = all.filter { $0.conversationId == conversationId }
+            }
+        }
+    }
+
+    /// 取消定时消息
+    func cancelScheduledMessage(_ item: ScheduledMessage) {
+        Task {
+            do {
+                try await repo.cancelScheduledMessage(item.id)
+                scheduledList.removeAll { $0.id == item.id }
+                error = "已取消定时消息"
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "取消失败"
             }
         }
     }
