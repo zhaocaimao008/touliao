@@ -3,6 +3,8 @@ package com.vxin.app.data.api
 import com.vxin.app.data.model.AvatarResponse
 import com.vxin.app.data.model.CallLog
 import com.vxin.app.data.model.InviteInfo
+import com.vxin.app.data.model.UpdatePhoneRequest
+import com.vxin.app.data.model.UpdatePhoneResponse
 import com.vxin.app.data.model.UpdateProfileRequest
 import com.vxin.app.data.model.UpdateSettingsBody
 import com.vxin.app.data.model.User
@@ -48,4 +50,8 @@ interface UserApi {
     /** 通话记录（自己作为主叫/被叫，含对方资料 + 方向） */
     @GET("api/users/me/call-logs")
     suspend fun callLogs(@retrofit2.http.Query("limit") limit: Int = 50): List<CallLog>
+
+    /** 换绑手机号：新手机号 + 当前登录密码验证。 */
+    @PUT("api/users/me/phone")
+    suspend fun updatePhone(@Body body: UpdatePhoneRequest): UpdatePhoneResponse
 }

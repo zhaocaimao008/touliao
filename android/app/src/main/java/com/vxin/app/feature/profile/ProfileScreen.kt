@@ -84,6 +84,7 @@ fun ProfileScreen(
     var username by remember(user?.id) { mutableStateOf(user?.username ?: "") }
     var inviteCopied by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
+    var showChangePhoneDialog by remember { mutableStateOf(false) }  // 换绑手机号弹窗
 
     // 更新相关
     val updateViewModel: UpdateViewModel = hiltViewModel()
@@ -147,7 +148,12 @@ fun ProfileScreen(
                         Text("v信号: $it", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
                     }
                     user?.phone?.takeIf { it.isNotBlank() }?.let {
-                        Text("手机号: $it", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "手机号: $it",
+                            color = Color.White.copy(alpha = 0.85f),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.clickable { showChangePhoneDialog = true },
+                        )
                     }
                 }
                 // 我的二维码入口：自绘品牌二维码图标（白色，浮于渐变上）
@@ -265,4 +271,79 @@ fun ProfileScreen(
             onDismiss = { showUpdateDialog = false },
         )
     }
+
+    // 换绑手机号弹窗
+    if (showChangePhoneDialog) {
+        ChangePhoneDialog(
+            currentPhone = user?.phone.orEmpty(),
+            changing = state.changingPhone,
+            onConfirm = { newPhone, password ->
+                viewModel.changePhone(newPhone, password)
+                showChangePhoneDialog = false
+            },
+            onDismiss = { showChangePhoneDialog = false },
+        )
+    }
+}
+
+/** 换绑手机号弹窗：输入新手机号 + 登录密码验证。 */
+@Composable
+private fun ChangePhoneDialog(
+    currentPhone: String,
+    changing: Boolean,
+    onConfirm: (String, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var newPhone by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+    val valid = newPhone.trim().length >= 6 && password.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = { if (!changing) onDismiss() },
+        title = { Text("换绑手机号") },
+        text = {
+            Column {
+                if (currentPhone.isNotBlank()) {
+                    Text("当前手机号：$currentPhone", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.size(8.dp))
+                }
+                OutlinedTextField(
+                    value = newPhone,
+                    onValueChange = { newPhone = it.filter { c -> c.isDigit() || c == '+' }.take(16) },
+                    label = { Text("新手机号") },
+                    singleLine = true,
+                    enabled = !changing,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.size(8.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("登录密码") },
+                    singleLine = true,
+                    enabled = !changing,
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        TextButton(onClick = { showPassword = !showPassword }) {
+                            Text(if (showPassword) "隐藏" else "显示", style = MaterialTheme.typography.bodySmall)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(newPhone.trim(), password) },
+                enabled = valid && !changing,
+            ) {
+                if (changing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("确认换绑", color = VxinGreen)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !changing) { Text("取消") }
+        },
+    )
 }

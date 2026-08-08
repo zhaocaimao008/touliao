@@ -123,6 +123,7 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val context = LocalContext.current
     var showRedPacketSend by remember { mutableStateOf(false) }
+    var showTransferDialog by remember { mutableStateOf(false) }   // 好友转账弹窗
     var showPinnedList by remember { mutableStateOf(false) }
     var showAnnouncement by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Message?>(null) }
@@ -212,6 +213,26 @@ fun ChatScreen(
         if (imeVisible && totalCount > 0) listState.scrollToItem(lastListIndex)
     }
 
+    // 导出聊天记录：exportContent 非空时保存文件并 toast
+    LaunchedEffect(state.exportContent) {
+        val content = state.exportContent ?: return@LaunchedEffect
+        val filename = "chat-${viewModel.conversationId}.txt"
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                com.vxin.app.core.util.saveTextToDownloads(context, filename, content)
+            }.onSuccess { savedPath ->
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "聊天记录已导出：$savedPath", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }.onFailure { e ->
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "导出保存失败：${e.message ?: "未知错误"}", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        viewModel.clearExportContent()
+    }
+
     // 退出聊天：发送已读 + stop_typing
     DisposableEffect(Unit) {
         onDispose { viewModel.onLeave() }
@@ -277,6 +298,11 @@ fun ChatScreen(
                             DropdownMenuItem(
                                 text = { Text("阅后即焚" + if (state.burnAfter > 0) "（${burnLabel(state.burnAfter)}）" else "") },
                                 onClick = { showChatMenu = false; showBurnDialog = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (state.exportingChat) "导出中…" else "导出聊天记录") },
+                                onClick = { showChatMenu = false; viewModel.exportChat() },
+                                enabled = !state.exportingChat,
                             )
                         }
                     }
@@ -358,6 +384,10 @@ fun ChatScreen(
                         onPickImage = { imagePicker.launch("image/*"); showFuncPanel = false },
                         onPickFile = { filePicker.launch("*/*"); showFuncPanel = false },
                         onRedPacket = { showRedPacketSend = true; showFuncPanel = false },
+                        // 转账仅私聊可用
+                        onTransfer = if (!viewModel.isGroup) {
+                            { showTransferDialog = true; showFuncPanel = false }
+                        } else null,
                     )
                 }
             }
@@ -467,6 +497,7 @@ fun ChatScreen(
                                         canEdit = false, onEdit = {}, onForward = {}, onCollect = {},
                                         highlighted = false, onImageClick = {}, onReplyClick = {},
                                         selectionMode = true,
+                                        transfer = viewModel.parseTransfer(msg),
                                     )
                                 }
                             }
@@ -499,6 +530,7 @@ fun ChatScreen(
                             },
                             redPacket = viewModel.parseRedPacket(msg),
                             onOpenRedPacket = { viewModel.openRedPacket(msg) },
+                            transfer = viewModel.parseTransfer(msg),
                             canPin = viewModel.isGroup,
                             isPinned = viewModel.isPinned(msg.id),
                             onTogglePin = { if (viewModel.isPinned(msg.id)) viewModel.unpinMessage(msg.id) else viewModel.pinMessage(msg) },
@@ -574,6 +606,25 @@ fun ChatScreen(
                 showRedPacketSend = false
             },
         )
+    }
+
+    // 好友转账弹窗（仅私聊）
+    if (showTransferDialog) {
+        val peerId = viewModel.peerUserId()
+        if (peerId != null) {
+            SendTransferDialog(
+                sending = state.sendingTransfer,
+                onDismiss = { showTransferDialog = false },
+                onSend = { amount, note ->
+                    viewModel.sendTransfer(peerId, amount, note)
+                    showTransferDialog = false
+                },
+            )
+        } else {
+            // 拿不到对方 ID（新建会话且无消息）→ 关闭并提示
+            showTransferDialog = false
+            LaunchedEffect(Unit) { viewModel.consumeError() }
+        }
     }
 
     state.redPacketDetail?.let { detail ->
@@ -798,7 +849,7 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
 
 private fun pinnedPreview(p: com.vxin.app.data.model.PinnedMessage): String = when (p.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"; "red_packet" -> "[红包]"
-    "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
+    "transfer" -> "[转账]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> p.content
 }
 
@@ -858,6 +909,7 @@ private fun MessageBubble(
     onCopyImage: () -> Unit = {},
     redPacket: com.vxin.app.data.model.RedPacketContent? = null,
     onOpenRedPacket: () -> Unit = {},
+    transfer: com.vxin.app.data.model.TransferContent? = null,
     canPin: Boolean = false,
     isPinned: Boolean = false,
     onTogglePin: () -> Unit = {},
@@ -935,6 +987,11 @@ private fun MessageBubble(
             // 红包消息：点击打开领取弹窗，无长按菜单
             if (redPacket != null) {
                 RedPacketCard(redPacket, isMine, onClick = onOpenRedPacket)
+                return@Column
+            }
+            // 转账消息：绿色卡片，转账即到账，无需操作，无长按菜单
+            if (transfer != null) {
+                TransferCard(transfer, isMine)
                 return@Column
             }
             // 气泡本体(长按弹菜单)
@@ -1017,13 +1074,13 @@ private fun MessageBubble(
 
 private fun replyPreviewText(rt: com.vxin.app.data.model.ReplyPreview): String = if (rt.deleted == 1) "消息已撤回" else when (rt.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
-    "red_packet" -> "[红包]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
+    "red_packet" -> "[红包]"; "transfer" -> "[转账]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> rt.content
 }
 
 private fun replyPreviewOf(msg: Message): String = when (msg.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
-    "red_packet" -> "[红包]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
+    "red_packet" -> "[红包]"; "transfer" -> "[转账]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> msg.content
 }
 
@@ -1293,18 +1350,20 @@ private fun MessageInputBar(
     }
 }
 
-/** +面板：图片 / 文件 / 红包（对齐微信「更多功能」面板） */
+/** +面板：图片 / 文件 / 红包 / 转账（私聊专属，对齐微信「更多功能」面板） */
 @Composable
 private fun FunctionPanel(
     onPickImage: () -> Unit,
     onPickFile: () -> Unit,
     onRedPacket: () -> Unit,
+    onTransfer: (() -> Unit)? = null,   // null = 群聊不显示转账
 ) {
-    val items = listOf(
-        Triple("🖼", "图片", onPickImage),
-        Triple("📎", "文件", onPickFile),
-        Triple("🧧", "红包", onRedPacket),
-    )
+    val items = buildList {
+        add(Triple("🖼", "图片", onPickImage))
+        add(Triple("📎", "文件", onPickFile))
+        add(Triple("🧧", "红包", onRedPacket))
+        if (onTransfer != null) add(Triple("💸", "转账", onTransfer))
+    }
     LazyVerticalGrid(
         columns = GridCells.Fixed(4),
         modifier = Modifier
@@ -1406,6 +1465,97 @@ private fun RedPacketCard(
             Text("领取红包", color = RedPacketGold, fontSize = 12.sp)
         }
     }
+}
+
+// ── 好友转账卡片（绿色，转账即到账，无需操作）─────────────────────────────────
+private val TransferGreen = Color(0xFF07C160)
+private val TransferGreenDark = Color(0xFF059C4B)
+
+@Composable
+private fun TransferCard(
+    content: com.vxin.app.data.model.TransferContent,
+    isMine: Boolean,
+) {
+    Row(
+        modifier = Modifier
+            .widthIn(max = 240.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(TransferGreen, TransferGreenDark)))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("💸", fontSize = 26.sp)
+        Spacer(Modifier.size(10.dp))
+        Column {
+            Text(
+                if (isMine && content.toUsername.isNotBlank()) "转账给 ${content.toUsername}  ¥${content.amount}"
+                else "转账  ¥${content.amount}",
+                color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (content.note.isNotBlank()) {
+                Text(content.note, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            } else {
+                Text("已到账", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+/** 发起转账弹窗：金额（1-20000 金币整数）+ 备注（≤50 字）+ 确认。 */
+@Composable
+private fun SendTransferDialog(
+    sending: Boolean,
+    onDismiss: () -> Unit,
+    onSend: (Int, String) -> Unit,
+) {
+    var amount by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    var err by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = { if (!sending) onDismiss() },
+        title = { Text("转账") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it.filter { c -> c.isDigit() } },
+                    label = { Text("金额（金币，1-20000）") },
+                    singleLine = true,
+                    enabled = !sending,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.size(8.dp))
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it.take(50) },
+                    label = { Text("备注（可选，≤50字）") },
+                    singleLine = true,
+                    enabled = !sending,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                err?.let { Spacer(Modifier.size(4.dp)); Text(it, color = Color(0xFFFA5151), fontSize = 12.sp) }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val a = amount.toIntOrNull() ?: 0
+                    err = when {
+                        a < 1 || a > 20000 -> "金额范围 1-20000 金币"
+                        else -> null
+                    }
+                    if (err == null) onSend(a, note)
+                },
+                enabled = !sending,
+            ) {
+                if (sending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("确认转账", color = TransferGreen)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !sending) { Text("取消") } },
+    )
 }
 
 @Composable

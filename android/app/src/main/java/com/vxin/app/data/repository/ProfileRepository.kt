@@ -37,6 +37,10 @@ class ProfileRepository @Inject constructor(
     /** 通话记录 */
     suspend fun callLogs(limit: Int = 50): List<com.vxin.app.data.model.CallLog> = userApi.callLogs(limit)
 
+    /** 换绑手机号：new_phone + 当前登录密码验证，成功后 UI 负责更新本地用户信息。 */
+    suspend fun updatePhone(newPhone: String, password: String) =
+        userApi.updatePhone(com.vxin.app.data.model.UpdatePhoneRequest(new_phone = newPhone, password = password))
+
     // ── 个人设置 ──
     suspend fun settings() = userApi.settings()
 

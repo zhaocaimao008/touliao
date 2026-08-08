@@ -17,6 +17,7 @@ import com.vxin.app.data.model.UploadInitBody
 import com.vxin.app.data.model.UploadInitResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -27,6 +28,7 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 interface MessageApi {
 
@@ -143,6 +145,11 @@ interface MessageApi {
     /** 聊天专属背景（background 为图片 URL，空串=清除） */
     @PUT("api/messages/conversation/{convId}/background")
     suspend fun setBackground(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.BackgroundBody)
+
+    /** 导出聊天记录（text/plain），Authorization 由 AuthInterceptor 自动注入。 */
+    @Streaming
+    @GET("api/messages/conversation/{convId}/export")
+    suspend fun exportConversation(@Path("convId") convId: String): ResponseBody
 
     /** 清空聊天记录 */
     @DELETE("api/messages/conversation/{convId}/messages")

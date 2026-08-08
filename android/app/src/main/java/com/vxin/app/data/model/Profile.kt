@@ -18,3 +18,18 @@ data class DeleteAccountRequest(val password: String)
 
 @Serializable
 data class AvatarResponse(val avatar: String)
+
+// ── 换绑手机号 ────────────────────────────────────────────────
+
+/** PUT /api/users/me/phone 请求体：新手机号 + 当前登录密码确认。 */
+@Serializable
+data class UpdatePhoneRequest(
+    val new_phone: String,
+    val password: String,
+)
+
+/** 换绑手机号响应。 */
+@Serializable
+data class UpdatePhoneResponse(
+    val success: Boolean = false,
+)

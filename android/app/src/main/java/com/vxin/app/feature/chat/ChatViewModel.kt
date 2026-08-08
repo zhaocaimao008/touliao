@@ -16,8 +16,10 @@ import com.vxin.app.data.model.Message
 import com.vxin.app.data.model.ReplyPreview
 import com.vxin.app.data.model.RedPacketContent
 import com.vxin.app.data.model.RedPacketDetail
+import com.vxin.app.data.model.TransferContent
 import com.vxin.app.data.repository.ChatRepository
 import com.vxin.app.data.repository.RedPacketRepository
+import com.vxin.app.data.repository.WalletRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +82,11 @@ data class ChatUiState(
     val claimedAmount: Int? = null,                 // 刚领取到的金额（一次性提示）
     val sendingRedPacket: Boolean = false,          // 发红包进行中，防连点重复扣币
     val claimingRedPacket: Boolean = false,         // 抢红包进行中，防连点重复领取
+    // ── 好友转账 ──
+    val sendingTransfer: Boolean = false,           // 转账进行中，防连点重复扣币
+    // ── 聊天记录导出 ──
+    val exportingChat: Boolean = false,             // 导出请求进行中
+    val exportContent: String? = null,             // 非空时 Screen 负责写文件并清除
     // ── 后台功能开关（群通话按钮显隐）默认开启，拉取失败不误伤 ──
     val groupVoiceCallEnabled: Boolean = true,
     val groupVideoCallEnabled: Boolean = true,
@@ -91,6 +98,7 @@ class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val stickerRepository: com.vxin.app.data.repository.StickerRepository,
     private val redPacketRepository: RedPacketRepository,
+    private val walletRepository: WalletRepository,
     private val callManager: com.vxin.app.core.call.CallManager,
     private val groupCallManager: com.vxin.app.core.call.GroupCallManager,
     private val groupRepository: com.vxin.app.data.repository.GroupRepository,
@@ -281,6 +289,44 @@ class ChatViewModel @Inject constructor(
     }
 
     fun closeRedPacket() = _uiState.update { it.copy(redPacketDetail = null, claimedAmount = null) }
+
+    // ── 好友转账 ──────────────────────────────────────────
+    /** 解析 transfer 消息的 content（失败返回 null） */
+    fun parseTransfer(msg: Message): TransferContent? =
+        if (msg.type == "transfer") runCatching { json.decodeFromString<TransferContent>(msg.content) }.getOrNull() else null
+
+    /** 获取当前私聊对方 userId（供转账对话框使用） */
+    fun peerUserId(): String? = peerId()
+
+    /** 向 toUserId 转账 amount 金币，note 为备注（≤50 字）。成功后消息列表追加 transfer 气泡。 */
+    fun sendTransfer(toUserId: String, amount: Int, note: String) {
+        if (_uiState.value.sendingTransfer) return   // 资金操作：进行中禁止重复触发，防快速双击重复扣币
+        _uiState.update { it.copy(sendingTransfer = true) }
+        viewModelScope.launch {
+            runCatching { walletRepository.transfer(toUserId, amount, note.trim()) }
+                .onSuccess { resp ->
+                    // 服务端通常经 socket 广播 transfer 消息；appendUnique 去重
+                    resp.message?.let { appendUnique(it) }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("转账失败")) } }
+            _uiState.update { it.copy(sendingTransfer = false) }
+        }
+    }
+
+    // ── 聊天记录导出 ──────────────────────────────────────
+    /** 拉取当前会话全量聊天记录文本，存入 exportContent；Screen 监听到非空后写文件并调 clearExportContent()。 */
+    fun exportChat() {
+        if (_uiState.value.exportingChat) return
+        _uiState.update { it.copy(exportingChat = true) }
+        viewModelScope.launch {
+            runCatching { chatRepository.exportConversation(conversationId) }
+                .onSuccess { content -> _uiState.update { it.copy(exportingChat = false, exportContent = content) } }
+                .onFailure { e -> _uiState.update { it.copy(exportingChat = false, error = e.toUserMessage("导出失败")) } }
+        }
+    }
+
+    /** Screen 写完文件后调用，清除一次性 exportContent 避免重复触发。 */
+    fun clearExportContent() = _uiState.update { it.copy(exportContent = null) }
 
     // ── 音视频通话 ─────────────────────────────────────────
     /** 私聊对方 userId：优先用导航传入的 peerUserId，其次从消息历史推断（兜底） */

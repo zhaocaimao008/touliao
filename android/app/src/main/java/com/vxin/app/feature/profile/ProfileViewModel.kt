@@ -25,6 +25,7 @@ data class ProfileUiState(
     val uploadingAvatar: Boolean = false,
     val message: String? = null,     // 提示（成功/失败）
     val invite: com.vxin.app.data.model.InviteInfo? = null, // 我的专属邀请码+战绩
+    val changingPhone: Boolean = false,  // 换绑手机号进行中
 )
 
 @HiltViewModel
@@ -100,4 +101,19 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun clearMessage() = _uiState.update { it.copy(message = null) }
+
+    /** 换绑手机号：新手机号 + 当前登录密码。成功后本地更新手机号并 toast。 */
+    fun changePhone(newPhone: String, password: String) {
+        if (_uiState.value.changingPhone) return
+        _uiState.update { it.copy(changingPhone = true, message = null) }
+        viewModelScope.launch {
+            runCatching { profileRepository.updatePhone(newPhone.trim(), password) }
+                .onSuccess {
+                    val updated = _uiState.value.user?.copy(phone = newPhone.trim())
+                    if (updated != null) sessionManager.updateCurrentUser(updated)
+                    _uiState.update { it.copy(changingPhone = false, user = updated, message = "手机号已更新") }
+                }
+                .onFailure { e -> _uiState.update { it.copy(changingPhone = false, message = e.toUserMessage("换绑失败")) } }
+        }
+    }
 }

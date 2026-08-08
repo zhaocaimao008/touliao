@@ -173,6 +173,8 @@ private fun typeLabel(type: String): String = when (type) {
     "red_packet" -> "红包"
     "red_packet_refund" -> "红包退款"
     "recharge" -> "充值"
+    "transfer" -> "转账"
+    "transfer_in" -> "转账收入"
     else -> type.ifBlank { "交易" }
 }
 

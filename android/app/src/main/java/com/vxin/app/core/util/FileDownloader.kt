@@ -170,3 +170,34 @@ private fun downloadName(filename: String?, url: Uri): String {
     }
     return chosen.replace(Regex("[/\\\\:*?\"<>|\\x00-\\x1f]"), "_").take(120)
 }
+
+/**
+ * 将文本内容保存到系统 Downloads 目录（Android Q+ 用 MediaStore；Q 以下写 getExternalFilesDir）。
+ * 无需 WRITE_EXTERNAL_STORAGE 权限。返回保存的文件名或路径（供 Toast 提示用户）。
+ * 供聊天记录导出使用。
+ */
+suspend fun saveTextToDownloads(context: Context, filename: String, content: String): String =
+    withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+：MediaStore.Downloads，scoped storage，无需写权限
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, filename)
+                put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("无法在 Downloads 创建文件")
+            resolver.openOutputStream(uri)?.use { out ->
+                out.write(content.toByteArray(Charsets.UTF_8))
+            } ?: throw IllegalStateException("无法写入文件")
+            filename
+        } else {
+            // Android 9-：写到 app 专属外部文件目录（不需要权限）
+            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
+            dir.mkdirs()
+            val file = java.io.File(dir, filename)
+            file.writeText(content, Charsets.UTF_8)
+            file.absolutePath
+        }
+    }

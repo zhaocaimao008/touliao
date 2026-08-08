@@ -161,4 +161,8 @@ class ChatRepository @Inject constructor(
         api.forward(com.vxin.app.data.model.ForwardBody(msgId, conversationIds))
 
     suspend fun collectMessage(msgId: String) = api.collectMessage(msgId)
+
+    /** 导出指定会话的聊天记录，返回 text/plain 纯文本内容（由 Screen 负责写文件）。 */
+    suspend fun exportConversation(conversationId: String): String =
+        api.exportConversation(conversationId).string()
 }
