@@ -94,6 +94,8 @@ data class ChatUiState(
     // ── 后台功能开关（群通话按钮显隐）默认开启，拉取失败不误伤 ──
     val groupVoiceCallEnabled: Boolean = true,
     val groupVideoCallEnabled: Boolean = true,
+    // ── 功能A3: 语音转文字（正在转写的消息 id 集合，用于显示「转写中…」并防连点）──
+    val transcribingIds: Set<String> = emptySet(),
     val error: String? = null,
 )
 
@@ -694,6 +696,34 @@ class ChatViewModel @Inject constructor(
     /** 播放语音消息 */
     fun playVoice(fileUrl: String) {
         resolveMediaUrl(fileUrl)?.let(audioPlayer::play)
+    }
+
+    /**
+     * 功能A3: 语音消息转文字。
+     * 幂等由后端管理（已转写直接返回缓存）；成功后把 transcript 写回对应消息并落盘。
+     * ASR 不可用后端返回 503 → toUserMessage 归一为「服务器开小差」，此处覆盖为更贴切文案。
+     */
+    fun transcribeVoice(msg: Message) {
+        // 已有转写结果或正在转写 → 不重复请求
+        if (!msg.transcript.isNullOrBlank()) return
+        if (_uiState.value.transcribingIds.contains(msg.id)) return
+        _uiState.update { it.copy(transcribingIds = it.transcribingIds + msg.id) }
+        viewModelScope.launch {
+            runCatching { chatRepository.transcribe(msg.id) }
+                .onSuccess { resp ->
+                    _uiState.update { s ->
+                        s.copy(
+                            transcribingIds = s.transcribingIds - msg.id,
+                            messages = s.messages.map { if (it.id == msg.id) it.copy(transcript = resp.text) else it },
+                        )
+                    }
+                    persistCache(_uiState.value.messages)   // 转写结果随消息落盘，下次进入直接显示
+                }
+                .onFailure { e ->
+                    val tip = if (e is retrofit2.HttpException && e.code() == 503) "转写服务暂不可用" else e.toUserMessage("转文字失败")
+                    _uiState.update { it.copy(transcribingIds = it.transcribingIds - msg.id, error = tip) }
+                }
+        }
     }
 
     /**

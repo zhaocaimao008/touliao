@@ -194,4 +194,21 @@ class ChatRepository @Inject constructor(
     /** 获取 @我 消息分页列表 */
     suspend fun mentionsMe(offset: Int = 0, limit: Int = 20): com.vxin.app.data.model.MentionsResponse =
         api.mentionsMe(offset = offset, limit = limit)
+
+    // ── 功能A3: 聊天文件聚合视图 ─────────────────────────────────────────────
+
+    /** 获取会话文件聚合分页列表（type=all|image|video|file） */
+    suspend fun conversationFiles(
+        conversationId: String,
+        type: String = "all",
+        offset: Int = 0,
+        limit: Int = 30,
+    ): com.vxin.app.data.model.ConversationFilesResponse =
+        api.conversationFiles(conversationId, type = type, offset = offset, limit = limit)
+
+    // ── 功能A3: 语音转文字 ──────────────────────────────────────────────────
+
+    /** 语音转文字（幂等由后端管理；ASR 不可用后端返回 503） */
+    suspend fun transcribe(msgId: String): com.vxin.app.data.model.TranscribeResponse =
+        api.transcribe(msgId)
 }

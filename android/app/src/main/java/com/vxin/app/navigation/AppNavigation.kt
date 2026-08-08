@@ -125,12 +125,14 @@ private object Routes {
     const val SEARCH = "search"
     const val ADD_ACCOUNT = "addAccount"
     const val MENTIONS = "mentions"   // @我消息聚合
+    const val CONVERSATION_FILES = "conversationFiles/{conversationId}"   // 功能A3: 聊天文件聚合
     const val GROUP_INFO = "groupInfo/{conversationId}"
     const val GROUP_QR = "groupQr/{conversationId}"
     const val INVITE_MEMBERS = "inviteMembers/{conversationId}"
     const val CHAT = "chat/{conversationId}?title={title}&type={type}&peerUserId={peerUserId}"
     fun chat(conversationId: String, title: String, type: String, peerUserId: String = "") =
         "chat/$conversationId?title=${Uri.encode(title)}&type=$type&peerUserId=${Uri.encode(peerUserId)}"
+    fun conversationFiles(conversationId: String) = "conversationFiles/$conversationId"
     fun groupInfo(conversationId: String) = "groupInfo/$conversationId"
     fun groupQr(conversationId: String) = "groupQr/$conversationId"
     fun inviteMembers(conversationId: String) = "inviteMembers/$conversationId"
@@ -338,7 +340,14 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
             ChatScreen(
                 onBack = { navController.popBackStack() },
                 onOpenGroupInfo = { convId -> navController.navigate(Routes.groupInfo(convId)) },
+                onOpenFiles = { convId -> navController.navigate(Routes.conversationFiles(convId)) },
             )
+        }
+        composable(
+            route = Routes.CONVERSATION_FILES,
+            arguments = listOf(navArgument("conversationId") { type = NavType.StringType }),
+        ) {
+            com.vxin.app.feature.chat.ConversationFilesScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = Routes.GROUP_INFO,

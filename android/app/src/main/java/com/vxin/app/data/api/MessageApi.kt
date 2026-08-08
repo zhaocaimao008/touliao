@@ -189,4 +189,21 @@ interface MessageApi {
         @Query("offset") offset: Int = 0,
         @Query("limit") limit: Int = 20,
     ): com.vxin.app.data.model.MentionsResponse
+
+    // ── 功能A3: 聊天文件聚合视图 ─────────────────────────────────────────────
+
+    /** 会话文件聚合（type=all|image|video|file，分页 offset/limit） */
+    @GET("api/messages/conversation/{convId}/files")
+    suspend fun conversationFiles(
+        @Path("convId") convId: String,
+        @Query("type") type: String = "all",
+        @Query("offset") offset: Int = 0,
+        @Query("limit") limit: Int = 30,
+    ): com.vxin.app.data.model.ConversationFilesResponse
+
+    // ── 功能A3: 语音转文字 ──────────────────────────────────────────────────
+
+    /** 语音转文字（幂等：已转写直接返回缓存；ASR 不可用返回 503） */
+    @POST("api/messages/{msgId}/transcribe")
+    suspend fun transcribe(@Path("msgId") msgId: String): com.vxin.app.data.model.TranscribeResponse
 }

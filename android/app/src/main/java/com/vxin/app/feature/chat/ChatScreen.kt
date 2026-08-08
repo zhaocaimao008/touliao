@@ -117,6 +117,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 fun ChatScreen(
     onBack: () -> Unit,
     onOpenGroupInfo: (String) -> Unit = {},
+    onOpenFiles: (convId: String) -> Unit = {},   // 功能A3: 打开聊天文件聚合页
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -305,6 +306,11 @@ fun ChatScreen(
                                 text = { Text(if (state.exportingChat) "导出中…" else "导出聊天记录") },
                                 onClick = { showChatMenu = false; viewModel.exportChat() },
                                 enabled = !state.exportingChat,
+                            )
+                            // 功能A3: 聊天文件聚合入口
+                            DropdownMenuItem(
+                                text = { Text("聊天文件") },
+                                onClick = { showChatMenu = false; onOpenFiles(viewModel.conversationId) },
                             )
                         }
                     }
@@ -553,6 +559,8 @@ fun ChatScreen(
                             onReplyClick = { targetId -> jumpToMessage(targetId) },
                             onMultiSelect = { viewModel.enterMultiSelect(msg) },
                             onRetry = { viewModel.retryMessage(msg.id) },
+                            transcribing = state.transcribingIds.contains(msg.id),
+                            onTranscribe = { viewModel.transcribeVoice(msg) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -953,6 +961,8 @@ private fun MessageBubble(
     onMultiSelect: () -> Unit = {},
     selectionMode: Boolean = false,
     onRetry: () -> Unit = {},
+    transcribing: Boolean = false,      // 功能A3: 该语音消息正在转写
+    onTranscribe: () -> Unit = {},      // 功能A3: 点击语音气泡「转文字」
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -1041,7 +1051,7 @@ private fun MessageBubble(
                         .graphicsLayer { scaleX = bubbleScale; scaleY = bubbleScale }
                         .combinedClickable(onClick = {}, onLongClick = { if (!selectionMode) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true } }),
                 ) {
-                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick)
+                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick, transcribing, onTranscribe)
                 }
                 // (highlight via Row background above)
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -1133,6 +1143,8 @@ private fun MessageContent(
     onPlayVoice: () -> Unit,
     onOpenFile: () -> Unit,
     onImageClick: () -> Unit = {},
+    transcribing: Boolean = false,      // 功能A3: 该语音正在转写中
+    onTranscribe: () -> Unit = {},      // 功能A3: 点击「转文字」
 ) {
     Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             when (msg.type) {
@@ -1157,7 +1169,41 @@ private fun MessageContent(
                         }
                     },
                 )
-                "voice" -> MediaCard(isMine, onClick = onPlayVoice) { Text(if (isMine) "🎙 语音  ▶" else "▶  🎙 语音", color = bubbleTextColor(isMine)) }
+                "voice" -> Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
+                    MediaCard(isMine, onClick = onPlayVoice) { Text(if (isMine) "🎙 语音  ▶" else "▶  🎙 语音", color = bubbleTextColor(isMine)) }
+                    // 功能A3: 转文字。已转写→直接显示文本(无按钮)；未转写→「转文字」小按钮；转写中→「转写中…」
+                    when {
+                        !msg.transcript.isNullOrBlank() -> {
+                            Spacer(Modifier.size(3.dp))
+                            Box(
+                                Modifier
+                                    .widthIn(max = 240.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0x11000000))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                            ) {
+                                Text(msg.transcript, fontSize = 13.sp, color = VxinTextSecondary)
+                            }
+                        }
+                        transcribing -> {
+                            Spacer(Modifier.size(3.dp))
+                            Text("转写中…", fontSize = 12.sp, color = VxinTextSecondary, modifier = Modifier.padding(horizontal = 2.dp))
+                        }
+                        else -> {
+                            Spacer(Modifier.size(3.dp))
+                            Text(
+                                "转文字",
+                                fontSize = 12.sp,
+                                color = VxinGreen,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable(onClick = onTranscribe)
+                                    .testTag("voice-transcribe-${msg.id}")
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
                 "file" -> MediaCard(isMine, onClick = onOpenFile) {
                     Text("📄 ${msg.content.ifBlank { "文件" }}", color = bubbleTextColor(isMine), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }

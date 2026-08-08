@@ -87,6 +87,9 @@ data class Message(
     // 定时消息标记：1=此消息由定时任务触发发送（已到点后才出现在会话中）
     @kotlinx.serialization.SerialName("is_scheduled")
     val isScheduled: Int = 0,
+    // 功能A3: 语音转文字结果（后端消息查询已返回该列；非空=已转写，直接显示，不再显示「转文字」按钮）
+    @kotlinx.serialization.SerialName("transcript")
+    val transcript: String? = null,
 )
 
 /** 消息本地发送态常量 */
@@ -188,4 +191,33 @@ data class MentionItem(
 data class MentionsResponse(
     val items: List<MentionItem> = emptyList(),
     val total: Int = 0,
+)
+
+// ── 功能A3: 聊天文件聚合视图 ─────────────────────────────────────────────────
+
+/** 会话文件聚合项（GET /api/messages/conversation/:convId/files 返回的 items 元素） */
+@Serializable
+data class ConversationFile(
+    val id: String = "",
+    val type: String = "file",      // image | video | file
+    val content: String = "",       // 文件名（文件类）/文本
+    val file_url: String = "",      // 相对资源路径
+    val created_at: Long = 0,       // epoch 秒
+    val senderName: String = "",
+)
+
+/** 会话文件聚合分页响应 */
+@Serializable
+data class ConversationFilesResponse(
+    val items: List<ConversationFile> = emptyList(),
+    val total: Int = 0,
+)
+
+// ── 功能A3: 语音转文字 ───────────────────────────────────────────────────────
+
+/** 语音转文字响应（POST /api/messages/:msgId/transcribe）；cached=true 表示命中后端缓存 */
+@Serializable
+data class TranscribeResponse(
+    val text: String = "",
+    val cached: Boolean = false,
 )
