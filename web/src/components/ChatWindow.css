@@ -613,7 +613,49 @@
   opacity: .9;
 }
 
-/* ── 红包详情弹窗 ── */
+/* ── 转账气泡 ── */
+.wc-transfer-card {
+  width: 200px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: linear-gradient(135deg, #09bb07, #07c160);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.15);
+}
+.wc-transfer-body {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2h);
+  padding: 12px 14px;
+}
+.wc-transfer-icon {
+  font-size: 28px;
+  line-height: var(--lh-none);
+}
+.wc-transfer-info {
+  flex: 1;
+  min-width: 0;
+}
+.wc-transfer-amount {
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+}
+.wc-transfer-note {
+  font-size: var(--text-xs);
+  opacity: .85;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wc-transfer-footer {
+  border-top: 1px solid rgba(255,255,255,.25);
+  padding: 4px 14px;
+  font-size: var(--text-xs);
+  opacity: .9;
+}
+
+
 .wc-rp-detail-overlay {
   position: fixed;
   inset: 0;

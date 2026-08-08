@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState, useRef, useEffect } from 'react';
 
 /* ── ChatWindow 顶栏（从 ChatWindow 抽离）──────────────────────────
    纯展示子组件：只读会话/功能开关/群成员数，回调全部由父级传入（均为
@@ -21,9 +21,41 @@ function ChatHeader({
   onStartCall,
   onStartGroupCall,
   onToggleGroupInfo,
+  onExportChat,
 }) {
   const isPrivate = conversation.type === 'private';
   const isGroup = conversation.type === 'group';
+
+  // "更多"下拉菜单状态（包含群信息 + 导出聊天记录）
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const menuRef = useRef(null);
+
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setShowMoreMenu(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setShowMoreMenu(false); };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [showMoreMenu]);
+
+  const handleMoreClick = () => setShowMoreMenu(v => !v);
+
+  const handleToggleInfo = () => {
+    setShowMoreMenu(false);
+    onToggleGroupInfo?.();
+  };
+
+  const handleExport = () => {
+    setShowMoreMenu(false);
+    onExportChat?.();
+  };
 
   return (
     <div className="wc-chat-header">
@@ -67,14 +99,45 @@ function ChatHeader({
           {features.groupVoiceCall !== false && <button className="wc-chat-header-btn" title="群语音通话" aria-label="群语音通话" onClick={() => onStartGroupCall('audio')}><IcoVoiceCall /></button>}
           {features.groupVideoCall !== false && <button className="wc-chat-header-btn" title="群视频通话" aria-label="群视频通话" onClick={() => onStartGroupCall('video')}><IcoVideoCall /></button>}
         </>}
-        <button
-          className={`wc-chat-header-btn${showGroupInfo ? ' active' : ''}`}
-          title={isGroup ? '群聊信息' : '更多'}
-          aria-label={isGroup ? '群聊信息' : '更多'}
-          aria-expanded={showGroupInfo}
-          data-testid="chat-group-info-btn"
-          onClick={onToggleGroupInfo}
-        ><IcoMore /></button>
+        {/* 更多按钮 + 下拉菜单 */}
+        <div style={{ position: 'relative' }} ref={menuRef}>
+          <button
+            className={`wc-chat-header-btn${showGroupInfo || showMoreMenu ? ' active' : ''}`}
+            title="更多"
+            aria-label="更多"
+            aria-expanded={showMoreMenu}
+            data-testid="chat-group-info-btn"
+            onClick={handleMoreClick}
+          ><IcoMore /></button>
+          {showMoreMenu && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, zIndex: 200,
+              background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-md)', boxShadow: '0 4px 16px rgba(0,0,0,.15)',
+              minWidth: 140, overflow: 'hidden',
+            }} role="menu" aria-label="更多选项">
+              <button
+                style={{ display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left',
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 14,
+                  color: 'var(--text-primary)' }}
+                role="menuitem"
+                onClick={handleToggleInfo}
+              >
+                {isGroup ? '群聊信息' : '聊天信息'}
+              </button>
+              <button
+                style={{ display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left',
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 14,
+                  color: 'var(--text-primary)', borderTop: '1px solid var(--border-default)' }}
+                role="menuitem"
+                onClick={handleExport}
+                data-testid="export-chat-btn"
+              >
+                导出聊天记录
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

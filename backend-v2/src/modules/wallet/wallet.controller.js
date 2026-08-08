@@ -19,3 +19,14 @@ exports.recharge = asyncHandler(async (req, res) => {
   const { balance } = svc.recharge(req.user.id, amount);
   res.json({ success: true, balance, recharged: amount });
 });
+
+// 好友转账：POST /api/wallet/transfer
+exports.transfer = asyncHandler(async (req, res) => {
+  const { to_user_id, amount, note } = req.body;
+  const result = await svc.transfer(req.user.id, {
+    to_user_id,
+    amount: parseInt(amount, 10),
+    note,
+  });
+  res.json(result);
+});

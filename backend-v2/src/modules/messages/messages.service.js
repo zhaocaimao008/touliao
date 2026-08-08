@@ -643,7 +643,67 @@ function aroundMessage(convId, msgId, userId) {
   };
 }
 
+// ── 聊天记录导出（单会话，最多 10000 条，返回 UTF-8 纯文本）──────
+function exportConversation(convId, userId) {
+  requireMember(convId, userId);
+
+  const conv = db.prepare('SELECT type, name FROM conversations WHERE id=?').get(convId);
+
+  // 最多导出 10000 条，按时间升序
+  const msgs = db.prepare(`
+    SELECT m.created_at, m.type, m.content, m.file_url, m.deleted,
+           u.username AS senderName
+    FROM messages m JOIN users u ON u.id=m.sender_id
+    WHERE m.conversation_id=? AND m.deleted=0
+    ORDER BY m.created_at ASC, m.rowid ASC
+    LIMIT 10000
+  `).all(convId, );
+
+  // 非文本消息的类型标注
+  const typeLabel = {
+    image: '[图片]', voice: '[语音]', video: '[视频]',
+    file: '[文件]', sticker: '[表情包]', red_packet: '[红包]',
+    transfer: '[转账]', contact_card: '[名片]', nudge: '[拍一拍]',
+  };
+
+  const fmtTime = (sec) => {
+    try {
+      return new Date(sec * 1000).toLocaleString('zh-CN', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+      });
+    } catch { return String(sec); }
+  };
+
+  const convTitle = conv?.name || convId;
+  const lines = [
+    `=== 聊天记录：${convTitle} ===`,
+    `导出时间：${fmtTime(Math.floor(Date.now() / 1000))}`,
+    `消息条数：${msgs.length}`,
+    '────────────────────────────────',
+    '',
+  ];
+
+  for (const m of msgs) {
+    const time    = fmtTime(m.created_at);
+    const sender  = m.senderName || '未知用户';
+    let body;
+    if (typeLabel[m.type]) {
+      body = typeLabel[m.type];
+    } else {
+      // text / 未知类型
+      body = m.content || '';
+    }
+    lines.push(`[${time}] ${sender}`);
+    lines.push(body);
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
 module.exports = {
   history, missed, send, saveUploadedFile, forward, batchDelete,
   remove, react, edit, collect, searchGlobal, searchInConversation, aroundMessage,
+  exportConversation,
 };

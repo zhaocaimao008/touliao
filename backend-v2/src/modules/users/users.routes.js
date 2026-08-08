@@ -434,6 +434,9 @@ router.delete('/me/collections/:id',    auth, u.removeCollection);
  */
 router.get   ('/me/call-logs', auth, u.getCallLogs);
 
+// 换绑手机号
+router.put   ('/me/phone',     auth, u.changePhone);
+
 /**
  * @swagger
  * /users/block/{targetId}:

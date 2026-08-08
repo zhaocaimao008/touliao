@@ -40,3 +40,7 @@ exports.removeCollection  = asyncHandler(async (req, res) => res.json(svc.remove
 exports.searchCollections = asyncHandler(async (req, res) => res.json(svc.searchCollections(req.user.id, req.query)));
 exports.getCollection     = asyncHandler(async (req, res) => res.json(svc.getCollection(req.user.id, req.params.id)));
 exports.getCallLogs = asyncHandler(async (req, res) => res.json(svc.getCallLogs(req.user.id, req.query.limit)));
+
+// 换绑手机号：PUT /api/users/me/phone
+exports.changePhone = asyncHandler(async (req, res) =>
+  res.json(await svc.changePhone(req.user.id, req.body)));

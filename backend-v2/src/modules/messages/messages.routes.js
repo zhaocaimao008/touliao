@@ -686,6 +686,9 @@ router.delete('/conversations/messages',        auth, conv.clearAll);
  */
 router.get   ('/conversation/:convId/search',   auth, msg.searchInConv);
 
+// 聊天记录导出（必须在 /:conversationId 通配前注册）
+router.get   ('/conversation/:convId/export',   auth, msg.exportConversation);
+
 // ── 媒体列表（修正：上移到 /:conversationId 之前）───────────────
 
 /**

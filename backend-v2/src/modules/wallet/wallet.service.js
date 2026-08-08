@@ -8,7 +8,8 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
-const { badRequest } = require('../../utils/http');
+const { badRequest, notFound, forbidden } = require('../../utils/http');
+const broadcaster = require('../../realtime/broadcaster');
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -60,4 +61,60 @@ function recharge(userId, amount) {
   return { balance };
 }
 
-module.exports = { ensureWallet, getBalance, applyDeltaTx, applyDelta, listTransactions, recharge };
+/**
+ * 好友转账：即时到账，双方各写一条流水，并在双方私聊会话发一条 type='transfer' 消息。
+ * 金额单位：金币（整数），与红包一致，上限 20000。
+ */
+async function transfer(senderId, { to_user_id, amount, note }) {
+  if (!to_user_id) throw badRequest('请填写收款人');
+  const amt = Number(amount);
+  if (!Number.isInteger(amt) || amt <= 0 || amt > 20000)
+    throw badRequest('转账金额需为 1~20000 的整数（单位：金币）');
+  if (to_user_id === senderId) throw badRequest('不能给自己转账');
+
+  // 验证收款方存在且未注销
+  const toUser = db.prepare('SELECT id, username FROM users WHERE id=? AND banned=0').get(to_user_id);
+  if (!toUser) throw notFound('收款用户不存在');
+
+  // 双方必须有私聊会话才能发消息气泡
+  const conv = db.prepare(`
+    SELECT c.id FROM conversations c
+    JOIN conversation_members cm1 ON cm1.conversation_id=c.id AND cm1.user_id=?
+    JOIN conversation_members cm2 ON cm2.conversation_id=c.id AND cm2.user_id=?
+    WHERE c.type='private' LIMIT 1
+  `).get(senderId, to_user_id);
+  if (!conv) throw badRequest('请先与对方建立会话后再转账');
+
+  const fromUser = db.prepare('SELECT username FROM users WHERE id=?').get(senderId);
+  const safeNote = note && typeof note === 'string' ? note.trim().slice(0, 50) : '';
+  const refId  = uuidv4(); // 两条流水共用同一 refId，方便对账
+  const msgId  = uuidv4();
+  const msgContent = JSON.stringify({ amount: amt, note: safeNote, refId });
+
+  try {
+    db.transaction(() => {
+      // 扣款（sender）— balance 不足时 applyDeltaTx 抛 WALLET_INSUFFICIENT 自动回滚
+      applyDeltaTx(senderId,    -amt, 'transfer_out', refId, `转账给${toUser.username}`);
+      // 入账（receiver）— 即时到账
+      applyDeltaTx(to_user_id, +amt, 'transfer_in',  refId, `收到${fromUser.username}的转账`);
+      // 消息入库
+      db.prepare('INSERT INTO messages (id,conversation_id,sender_id,type,content) VALUES (?,?,?,?,?)')
+        .run(msgId, conv.id, senderId, 'transfer', msgContent);
+    })();
+  } catch (e) {
+    if (e.status) throw e; // ApiError 原样抛（如余额不足）
+    console.error('[transfer] 转账失败:', e.code, e.message);
+    throw new Error('转账失败，请重试');
+  }
+
+  // 读回消息体并 socket 广播
+  const msg = db.prepare(
+    'SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?'
+  ).get(msgId);
+  msg.reactions = [];
+  broadcaster.broadcastMessage(conv.id, msg);
+
+  return { success: true, balance: getBalance(senderId), message: msg };
+}
+
+module.exports = { ensureWallet, getBalance, applyDeltaTx, applyDelta, listTransactions, recharge, transfer };

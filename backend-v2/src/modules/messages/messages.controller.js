@@ -53,6 +53,14 @@ exports.searchGlobal = asyncHandler(async (req, res) => res.json(await svc.searc
 exports.searchInConv = asyncHandler(async (req, res) =>
   res.json(await svc.searchInConversation(req.params.convId, req.user.id, req.query.q)));
 
+// 聊天记录导出：GET /api/messages/conversation/:convId/export
+exports.exportConversation = asyncHandler(async (req, res) => {
+  const text = svc.exportConversation(req.params.convId, req.user.id);
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="chat-${req.params.convId}.txt"`);
+  res.send(text);
+});
+
 // ── 文件上传：权限门控 → multer+魔数 → 入库广播+推送 ─────────────
 exports.uploadGuard = (req, res, next) => {
   const convId = req.params.conversationId;

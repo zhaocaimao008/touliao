@@ -283,6 +283,26 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 </div>
               );
             })()}
+            {msg.type === 'transfer' && (() => {
+              let tf;
+              try { tf = JSON.parse(msg.content); } catch { tf = {}; }
+              // 转账即到账，无需收款按钮，直接显示已收钱状态
+              const isReceiver = !isMine;
+              return (
+                <div className="wc-transfer-card" aria-label={`转账 ${tf.amount} 金币`}>
+                  <div className="wc-transfer-body">
+                    <div className="wc-transfer-icon">💸</div>
+                    <div className="wc-transfer-info">
+                      <div className="wc-transfer-amount">¥ {tf.amount} 金币</div>
+                      {tf.note ? <div className="wc-transfer-note">{tf.note}</div> : null}
+                    </div>
+                  </div>
+                  <div className="wc-transfer-footer">
+                    {isReceiver ? '已收钱' : '转账成功'}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
         {convType === 'group' && isMine && msg.readCount > 0 && (

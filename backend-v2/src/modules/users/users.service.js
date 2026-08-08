@@ -282,9 +282,42 @@ function getMyInvite(userId) {
   return { code: me.invite_code || '', invitedCount, invitees };
 }
 
+// ── 换绑手机号 ────────────────────────────────────────────────────
+// 校验：新手机号格式 + 未被占用 + 密码正确；更新成功后当前 token 保持有效。
+async function changePhone(userId, { new_phone, password }) {
+  if (!new_phone || !password) throw badRequest('请填写新手机号和密码');
+  // 11 位纯数字（国内手机号）或宽松的国际格式，与注册保持一致
+  if (typeof new_phone !== 'string' || new_phone.length < 5 || new_phone.length > 20 ||
+      !/^\+?[\d\s\-]{5,20}$/.test(new_phone))
+    throw badRequest('手机号格式不正确');
+
+  // 校验密码
+  const bcrypt = require('bcryptjs');
+  const user = db.prepare('SELECT password, phone FROM users WHERE id=?').get(userId);
+  if (!user) throw notFound('用户不存在');
+  if (!await bcrypt.compare(password, user.password)) throw badRequest('密码错误');
+
+  // 新手机号不能与旧号相同
+  if (user.phone === new_phone) throw badRequest('新手机号与当前手机号相同');
+
+  // 新手机号是否已被占用
+  const existing = db.prepare('SELECT id FROM users WHERE phone=? AND id!=?').get(new_phone, userId);
+  if (existing) throw badRequest('该手机号已被其他账号使用');
+
+  try {
+    db.prepare('UPDATE users SET phone=? WHERE id=?').run(new_phone, userId);
+  } catch (e) {
+    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') throw badRequest('该手机号已被其他账号使用');
+    throw e;
+  }
+
+  await cache.del(cache.keys.user(userId));
+  return { success: true, phone: new_phone };
+}
+
 module.exports = {
   ensureSettings, serializeSettings, getSettings, updateSettings,
   qrPayload, search, updateProfile, setAvatar, setCover,
   getUserDetail, getCollections, addCollection, removeCollection, getCallLogs,
-  searchCollections, getCollection, getMyInvite,
+  searchCollections, getCollection, getMyInvite, changePhone,
 };

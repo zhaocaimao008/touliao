@@ -204,7 +204,86 @@ function EditBio({ user, updateUser, onBack }) {
   );
 }
 
-/* ── 我的钱包（余额 + 流水 + 充值）── */
+/* ── 换绑手机号 ── */
+function ChangePhone({ user, updateUser, onBack }) {
+  const [newPhone, setNewPhone]   = useState('');
+  const [password, setPassword]   = useState('');
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState('');
+
+  const save = async () => {
+    if (saving) return;
+    if (!newPhone.trim() || !password) { setError('请填写新手机号和密码'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const { data } = await axios.put('/api/users/me/phone', {
+        new_phone: newPhone.trim(),
+        password,
+      });
+      // 更新本地用户信息中的手机号
+      updateUser({ ...user, phone: data.phone });
+      showToast('手机号已换绑成功', 'success');
+      onBack();
+    } catch (err) {
+      setError(err.response?.data?.error || '换绑失败，请重试');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <PageBg>
+      <PageHeader title="换绑手机号" onBack={onBack}
+        right={
+          <button className="wc-save-btn" onClick={save} disabled={saving}>
+            {saving ? '保存中' : '保存'}
+          </button>
+        }
+      />
+      <div className="wc-edit-pad">
+        <Card>
+          <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>当前手机号</div>
+              <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{user?.phone || '未绑定'}</div>
+            </div>
+            <div>
+              <label htmlFor="cp-phone" style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>新手机号</label>
+              <input
+                id="cp-phone"
+                type="tel"
+                value={newPhone}
+                onChange={e => { setNewPhone(e.target.value); setError(''); }}
+                placeholder="请输入新手机号"
+                aria-label="新手机号"
+                className="wc-edit-input"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label htmlFor="cp-pass" style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>登录密码（用于验证身份）</label>
+              <input
+                id="cp-pass"
+                type="password"
+                value={password}
+                onChange={e => { setPassword(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && save()}
+                placeholder="请输入登录密码"
+                aria-label="登录密码"
+                className="wc-edit-input"
+              />
+            </div>
+          </div>
+        </Card>
+        {error && <div className="wc-edit-error" role="alert">{error}</div>}
+        <div className="wc-edit-hint">换绑后请使用新手机号登录</div>
+      </div>
+    </PageBg>
+  );
+}
+
+
 function Wallet({ onBack }) {
   const [balance, setBalance] = useState(null);
   const [txns, setTxns] = useState([]);
@@ -847,7 +926,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
       <div className="wc-section-pad">
         <Card>
           <CRow label="v信号" value={user?.wechat_id || ''} onClick={user?.wechat_id ? copyVid : undefined} />
-          <CRow label="手机号" value={user?.phone || ''} />
+          <CRow label="手机号" value={user?.phone || ''} onClick={() => navigateTo?.('change-phone')} />
         </Card>
       </div>
 
@@ -951,6 +1030,7 @@ export default function Profile({ isMobile = false }) {
   if (subPage === 'profile-detail') return <ProfileDetail user={user} updateUser={updateUser} onBack={() => setSubPage(null)} navigateTo={setSubPage} />;
   if (subPage === 'edit-name')     return <EditName user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
   if (subPage === 'edit-bio')      return <EditBio user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
+  if (subPage === 'change-phone')  return <ChangePhone user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
   if (subPage === 'wallet')        return <Wallet onBack={() => setSubPage(null)} />;
   if (subPage === 'invite')        return <InviteFriends onBack={() => setSubPage(null)} />;
   if (subPage === 'devices')       return <DeviceList onBack={() => setSubPage(null)} />;

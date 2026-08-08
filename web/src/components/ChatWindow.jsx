@@ -34,6 +34,7 @@ import StickerPanel from './StickerPanel';
 import GroupInfo from './GroupInfo';
 import UserProfile from './UserProfile';
 import RedPacketModal from './RedPacketModal';
+import TransferModal from './TransferModal';
 import ForwardModal from './ForwardModal';
 import GroupCallModal from './GroupCallModal';
 import PrivateChatSettings from './PrivateChatSettings';
@@ -122,6 +123,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [cardContacts, setCardContacts] = useState([]);
   const [forwardMsg, setForwardMsg] = useState(null);
   const [showRedPacket, setShowRedPacket] = useState(false);
+  const [showTransfer,  setShowTransfer]  = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
   // 多选模式
   const [multiSelect, setMultiSelect] = useState(false);
@@ -2067,6 +2069,21 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         onStartCall={startCall}
         onStartGroupCall={startGroupCall}
         onToggleGroupInfo={toggleGroupInfo}
+        onExportChat={useCallback(async () => {
+          try {
+            const res = await axios.get(`/api/messages/conversation/${conversation.id}/export`, {
+              responseType: 'blob',
+            });
+            const url = URL.createObjectURL(res.data);
+            const a   = document.createElement('a');
+            a.href    = url;
+            a.download = `chat-${conversation.name || conversation.id}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+          } catch {
+            showToast('导出失败，请重试', 'error');
+          }
+        }, [conversation.id, conversation.name])}
       />
 
       {/* 会话内搜索面板已随「顶栏对齐微信·去搜索」下线：入口移除后该面板无任何
@@ -2348,6 +2365,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:'视频通话', testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
               { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:'语音通话', testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:'名片', action: openCardPicker },
+              ...(conversation.type === 'private' ? [
+                { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>, label:'转账', action: () => { setShowTransfer(true); closePanels(); } },
+              ] : []),
             ].map(item => (
               <div key={item.label} data-testid={item.testid} className="wc-more-item" role="button" tabIndex={0} onClick={item.action} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.action(); } }}>
                 <div className="wc-more-icon" style={{ background: item.bg }}>{item.svg}</div>
@@ -2534,6 +2554,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           onSent={() => {
             // 红包消息由 socket 事件自动添加，这里不需要手动处理
             dispatchCompose({ type: 'SET_INPUT', value: '' });
+          }}
+        />
+      )}
+      {showTransfer && (
+        <TransferModal
+          conversation={conversation}
+          onClose={() => setShowTransfer(false)}
+          onSent={() => {
+            // 转账消息由 socket 广播自动添加
           }}
         />
       )}
