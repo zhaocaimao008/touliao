@@ -310,16 +310,21 @@ export default function CallModal({ socket, call, onClose }) {
       const s = pc.connectionState;
       if (s === 'connected' && statusRef.current === 'connecting') {
         clearTimeout(iceTimeoutRef.current);
+        clearTimeout(disconnectRef.current);
         setStatus('connected');
       } else if (s === 'disconnected') {
+        // iOS 锁屏/切后台时 ICE 会短暂进入 disconnected(网络探测间隙)，
+        // 几秒内会自动恢复 connected。旧逻辑 5s 宽限太短 → iOS 长语音被误挂断。
+        // 延长到 15s 且允许 disconnected→connected 恢复路径(上面分支已 clearTimeout)。
+        // 只有持续 disconnected 超过宽限才挂断，且挂断必须通知对方(notify=true)。
         disconnectRef.current = setTimeout(() => {
           if (pcRef.current?.connectionState === 'disconnected' && statusRef.current === 'connected')
-            endCall(false, 'network');
-        }, 5000);
+            endCall(true, 'network');
+        }, 15000);
       } else {
         clearTimeout(disconnectRef.current);
         if (['failed', 'closed'].includes(s) && statusRef.current === 'connected')
-          endCall(false, 'network');
+          endCall(true, 'network');
       }
     };
     return pc;

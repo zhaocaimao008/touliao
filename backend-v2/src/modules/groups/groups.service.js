@@ -222,7 +222,7 @@ function dissolve(io, convId, userId) {
 function info(convId, userId) {
   const myRole = memberRole(convId, userId);
   if (!myRole) throw forbidden('不在群内');
-  const conv = db.prepare('SELECT id, name, avatar, announcement, owner_id, no_private_chat, mute_all, no_add_friend, member_can_invite, group_number FROM conversations WHERE id=?').get(convId);
+  const conv = db.prepare('SELECT id, type, name, avatar, announcement, owner_id, no_private_chat, mute_all, no_add_friend, member_can_invite, group_number FROM conversations WHERE id=?').get(convId);
   if (!conv) throw notFound('群不存在');
   const members = db.prepare(`
     SELECT u.id, u.username, u.avatar, u.bio, cm.role, cm.nickname

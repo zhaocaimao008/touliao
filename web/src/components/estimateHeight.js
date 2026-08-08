@@ -9,11 +9,12 @@
 // (即「文字渲染进回复图片消息」)。异步 ResizeObserver 事后修正在 Electron/WebView
 // 下有一帧竞态且不稳定——多次只改引用块 CSS/重测时机的修复因此复发。此处从首帧源头
 // 并入引用高度，杜绝偏移，不再依赖异步修正。
-//   图片/表情引用：名字(~16)+缩略图 34+上下 margin/padding(~10) ≈ 58
-//   文本/其他引用：名字(~16)+单行文本(~18)+padding/margin(~12)  ≈ 44
-// ================================================================
-export const REPLY_MEDIA_HEIGHT = 58;
-export const REPLY_TEXT_HEIGHT = 44;
+//   图片/表情引用：名字(~18+1)+缩略图 34+上下 margin(2+2)+引用块 padding(4+4)+margin-bottom(5) ≈ 70
+//   文本/其他引用：名字(~18+1)+单行文本(~18)+padding/margin(~12)  ≈ 50
+//   ⚠ 实测(2026-08)：媒体引用旧值 58 低估 ~12px → 引用图片的行预留过矮，
+//     下一行(刚发的文字)落进引用行底部 = Windows 端「气泡挤在一起」。宁高勿低。
+export const REPLY_MEDIA_HEIGHT = 70;
+export const REPLY_TEXT_HEIGHT = 50;
 
 // ── 文本行高常量（与 ChatWindow.css 实测对齐）───────────────────────
 //   .wc-msg-row     padding-top: 13px（consecutive 连续消息为 3px）
@@ -64,13 +65,21 @@ export function estimateHeight(item) {
   }
 
   let base;
-  if (msg.type === 'image') base = 260;
+  // 图片/视频按 CSS 实际最大高度估算（.wc-msg-img/.wc-msg-video max-height: 320px，
+  // 竖图可达 320 + 行 padding 13 = 333px）。宁可高估(轻微收缩)也绝不低估——
+  // 低估会导致下一行按过小的偏移定位、压进图片/视频区域（桌面端 Electron 加载慢、
+  // 异步 ResizeObserver 修正前存在整帧重叠，视觉上即「气泡/图片重叠残影」）。
+  // 高估仅产生轻微空隙，由 onLoad/ResizeObserver 一次性收缩修正，无重叠风险。
+  const MEDIA_MAX_H = 320;
+  const MEDIA_ROW_PAD = 13;
+  const MEDIA_ROW_PAD_BOTTOM = 6;   // 媒体行底部留白(与 .wc-msg-row:has(.wc-msg-img) 的 padding-bottom 对齐)
+  if (msg.type === 'image') base = MEDIA_MAX_H + MEDIA_ROW_PAD + MEDIA_ROW_PAD_BOTTOM;
   else if (msg.type === 'voice') base = 72;
   else if (msg.type === 'file') base = 88;
-  else if (msg.type === 'video') base = 220;
+  else if (msg.type === 'video') base = MEDIA_MAX_H + MEDIA_ROW_PAD + MEDIA_ROW_PAD_BOTTOM;
   else if (msg.type === 'red_packet') base = 130;
   else if (msg.type === 'contact_card') base = 100;
-  else if (msg.type === 'sticker') base = 140;
+  else if (msg.type === 'sticker') base = 140 + MEDIA_ROW_PAD_BOTTOM;
   else {
     // 文本(及未知类型兜底)：按内容行数精确估算，首帧即贴近真实高度 → 发送不抖、长文不叠。
     const rowPad = item.consecutive ? TEXT_ROW_PAD_CONSECUTIVE : TEXT_ROW_PAD;

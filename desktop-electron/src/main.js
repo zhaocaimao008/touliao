@@ -10,6 +10,18 @@ const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const Store = require('electron-store');
 
+// ── Windows 渲染修复：硬件加速冲突导致的气泡/图片重叠残影 ──
+// 现象：Web 端正常，桌面端出现消息气泡、图片局部残影错乱（GPU 合成器驱动 bug 的典型症状）。
+// 方案：全局禁用硬件加速 + GPU 合成 + GPU 缓存，渲染全部走软件光栅化，彻底规避驱动层残影。
+// 代价：滚动/动画由 GPU 合成改为 CPU，聊天列表滚动仍流畅（Chromium 软件光栅化足够），
+//       视频通话走 WebRTC 软编解码不受影响。若后续换驱动可移除本行恢复硬件加速。
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu-compositing');
+app.commandLine.appendSwitch('disable-gpu-cache');
+// 显式开启高 DPI 感知：Windows 125%/150% 缩放下按物理像素渲染，
+// 避免 Chromium 默认模糊缩放导致的边框/气泡边缘错位重绘。
+app.commandLine.appendSwitch('high-dpi-support', '1');
+
 // WebAudio 提示音「叮咚」由 AudioContext 合成。Chromium 默认 autoplay 策略要求
 // 用户手势后才允许出声，导致 App 刚启动或后台收消息时 AudioContext 被静默阻止 → 没声音。
 // 关闭 autoplay 手势门槛，让提示音无条件可播（桌面 IM 提醒的刚需，非网页滥用场景）。
@@ -378,11 +390,17 @@ function createWindow() {
     icon: path.join(__dirname, '../assets/icon.png'),
     frame: false,
     titleBarStyle: 'hidden',
+    // 高 DPI 适配：以内容区尺寸为准计算窗口尺寸，避免 Windows 125%/150% 缩放下
+    // 边框/标题栏补偿导致的内容偏移与撕裂
+    useContentSize: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,                // 安全：启用沙箱，隔离渲染进程
+      // 固定页面缩放 100%（Windows 系统缩放由 high-dpi-support 以物理像素处理，
+      // 避免 Chromium 默认缩放 + 系统缩放叠加导致模糊/错位）
+      zoomFactor: 1.0,
       // 沙箱化 preload 无法可靠 require 本地文件；用 app.getVersion()(取自打包 package.json)
       // 经启动参数同步下发真实版本，替代 preload 里读错文件(读到仓库根 2.0.0)的旧写法。
       // 一并下发运行时解析出的真实后端地址，避免 preload 里硬编码 dipsin.com 误导渲染层。
@@ -960,13 +978,44 @@ if (!app.requestSingleInstanceLock()) {
   // 强制所有渲染进程启用沙箱（即使将来新增窗口忘记设置）
   app.enableSandbox();
 
-  app.whenReady().then(async () => {
+  // ── 清理渲染缓存：修复旧缓存导致的气泡/图片残影重绘 ──
+// 桌面端曾出现消息气泡、图片局部残影错乱（旧 GPU/磁盘缓存里的损坏图层被复用）。
+// 每次启动清理 Chromium 磁盘/GPU 缓存目录（保留 localStorage/登录态，不清 userData 配置）。
+// 仅清理 Cache/Code Cache/GPUCache/DawnCache 子目录，不动 indexdb/localStorage。
+async function clearRenderCaches() {
+  const userData = app.getPath('userData');
+  const cacheDirs = ['Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'ShaderCache'];
+  for (const d of cacheDirs) {
+    const p = path.join(userData, d);
+    try {
+      if (fs.existsSync(p)) {
+        fs.rmSync(p, { recursive: true, force: true });
+        log.info('已清理渲染缓存目录:', d);
+      }
+    } catch (e) {
+      log.warn('清理缓存目录失败(可能被占用,忽略):', d, e.message);
+    }
+  }
+  // 会话级缓存(内存中的 HTTP cache 等)也一并清空
+  try {
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearCodeCaches({});
+  } catch (e) {
+    log.warn('clearCache 失败(忽略):', e.message);
+  }
+}
+
+app.whenReady().then(async () => {
     if (store.get('autoLaunch')) {
       app.setLoginItemSettings({ openAtLogin: true });
     }
 
     // 先据远程 config.json 解析后端地址，再建窗口/装 CSP，使 connect-src 跟随远程配置
     await loadRemoteServerUrl();
+
+    // 启动时清理渲染缓存（残影修复）：必须在创建窗口之前执行，
+    // 否则 Chromium 已打开缓存文件句柄，Windows 上删除会失败/部分生效
+    await clearRenderCaches();
 
     setupSecurity();
     setupIPC();

@@ -73,12 +73,46 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
     expect(h).toBe(SINGLE_LINE_TEXT + REPLY_TEXT_HEIGHT);
   });
 
-  it('图片消息带图片引用 = 图片基线 + 图片引用高度', () => {
+  it('图片消息带图片引用 = 图片基线(按最大高估算) + 图片引用高度', () => {
     const h = estimateHeight(mk({
       type: 'image', file_url: '/a.jpg',
       replyTo: { type: 'image', file_url: '/b.jpg' },
     }));
-    expect(h).toBe(260 + REPLY_MEDIA_HEIGHT);
+    expect(h).toBe(339 + REPLY_MEDIA_HEIGHT);
+  });
+
+  // 回归防护(2026-08 桌面端残影)：图片/视频按 CSS max-height(320)+行 padding(13)+底部留白(6)=339 估算，
+  // 绝不低估——低估会让下一行按过小偏移压进图片区(重叠残影)。
+  it('图片消息估算必须 ≥ 图片最大显示高 320 + 行 padding(含底部留白)', () => {
+    const h = estimateHeight(mk({ type: 'image', file_url: '/a.jpg' }));
+    expect(h).toBe(339);
+    expect(h).toBeGreaterThanOrEqual(320 + 13 + 6);
+  });
+
+  it('视频消息同样按最大高估算，防下一行压进视频区', () => {
+    const h = estimateHeight(mk({ type: 'video', file_url: '/v.mp4' }));
+    expect(h).toBe(339);
+    expect(h).toBeGreaterThanOrEqual(320 + 13 + 6);
+  });
+
+  it('语音/文件/红包/名片/表情 估算保持契约(不回归)', () => {
+    expect(estimateHeight(mk({ type: 'voice' }))).toBe(72);
+    expect(estimateHeight(mk({ type: 'file' }))).toBe(88);
+    expect(estimateHeight(mk({ type: 'red_packet' }))).toBe(130);
+    expect(estimateHeight(mk({ type: 'contact_card' }))).toBe(100);
+    expect(estimateHeight(mk({ type: 'sticker' }))).toBe(146); // 140 + 6 媒体行底部留白
+  });
+
+  // 回归防护(2026-08 Windows 气泡挤压)：引用图片的行 = 图片基线 + 媒体引用高度，
+  // 媒体引用估算必须覆盖 名字+缩略图+padding+margin 的真实高度(≈70)，否则下一行压进引用区。
+  it('媒体引用高度 ≥ 70(实测引用块真实高度,防下一行挤压)', () => {
+    expect(REPLY_MEDIA_HEIGHT).toBeGreaterThanOrEqual(70);
+    // 带图片引用的图片消息：339 + 70
+    const h = estimateHeight(mk({ type: 'image', file_url: '/a.jpg', replyTo: { type: 'image', file_url: '/b.jpg' } }));
+    expect(h).toBe(339 + REPLY_MEDIA_HEIGHT);
+    // 文本引用 < 媒体引用(文本占位更矮)
+    expect(REPLY_TEXT_HEIGHT).toBeLessThan(REPLY_MEDIA_HEIGHT);
+    expect(REPLY_TEXT_HEIGHT).toBeGreaterThanOrEqual(50);
   });
 
   it('divider / 空 item / 已删除消息 保持原契约', () => {

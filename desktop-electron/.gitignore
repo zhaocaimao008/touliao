@@ -9,3 +9,6 @@ node_modules/
 
 # electron-log / 本地缓存
 *.log
+
+# 本地调试脚本（残影复现测试等）
+test-ghost.js

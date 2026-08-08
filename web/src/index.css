@@ -38,7 +38,7 @@
   --bg-messages:      #F3F1FA;   /* 聊天区：极浅薰衣草灰 */
   --bg-search:        #EEEBF7;   /* 搜索框：柔紫浅灰 */
   --bg-input-search:  #EEEBF7;
-  --bg-msg-mine:      #6D5AE6;   /* 我方气泡底(渐变由 override 追加) */
+  --bg-msg-mine:      #95EC69;   /* 我方气泡底：企业微信浅绿 */
   --bg-msg-other:     #FFFFFF;
   --bg-shell:         #241F38;   /* 应用外壳：深靛夜幕(非纯黑，更有质感) */
 
@@ -87,7 +87,7 @@ body.dark-mode {
   --bg-search:        var(--bg-input-search);
   --bg-msg-other:     var(--bg-input-search);
   --text-placeholder: var(--text-muted);
-  --bg-msg-mine:      #6D5AE6;   /* 暗色下我方气泡：极光靛 */
+  --bg-msg-mine:      #95EC69;   /* 暗色下我方气泡：同样企业微信浅绿(浅绿气泡+深色字在暗色下依然清晰) */
   --bg-shell:         #17132A;   /* 暗色外壳更深的靛夜幕 */
 }
 
@@ -641,6 +641,10 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   /* ⚠ content-visibility:auto 已移除：react-window 已负责虚拟化，此属性与
      ResizeObserver 测高冲突——对 overscan 行上报 intrinsic 占位值(62px)而非真实
      高度，sizeMap 缓存错误 → resetAfterIndex → 发消息时持续抖动。 */
+  /* ⚠ 不在此处设置 transform/translateZ/isolation：
+     软件渲染(disableHardwareAcceleration)下强制独立合成层 → 每行一个图层，
+     滚动时图层释放不及时，反成「残影」来源。行定位由 react-window 的
+     position:absolute top 完成，无需 CSS 合成层干预。 */
 }
 .wc-msg-row.mine { flex-direction: row-reverse; }
 .wc-msg-row:not(.mine) .wc-msg-avatar { margin-right: var(--sp-2); }
@@ -689,14 +693,14 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   transition: box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .wc-msg-bubble.mine {
-  background: linear-gradient(135deg, var(--brand-400) 0%, var(--bg-msg-mine) 100%);
-  color: #FFFFFF;   /* 蓝底气泡→白字，保证对比度(WCAG AA) */
-  box-shadow: 0 2px 8px rgba(var(--bubble-mine-rgb), .26), 0 1px 2px rgba(var(--bubble-mine-rgb), .18);
+  background: var(--bg-msg-mine);
+  color: #1F2329;   /* 企业微信风格：浅绿气泡 + 深色文字，干净清爽 */
+  box-shadow: 0 1px 3px rgba(20, 24, 40, .08), 0 1px 8px rgba(20, 24, 40, .05);
 }
-/* 蓝底气泡内的次级元素同步反白，避免深色文字压在蓝底上不可读 */
-.wc-msg-bubble.mine a { color: #EAF2FF; }
+/* 浅绿气泡内文字/链接/时间用深色(企业微信标准) */
+.wc-msg-bubble.mine a { color: #576B95; }
 .wc-msg-bubble.mine .wc-msg-time,
-.wc-msg-bubble.mine .wc-msg-meta { color: rgba(255,255,255,.72); }
+.wc-msg-bubble.mine .wc-msg-meta { color: rgba(31, 33, 41, .5); }
 .wc-msg-bubble.other {
   background: var(--bg-msg-other);
   color: var(--text-primary);
@@ -716,7 +720,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
 .wc-msg-bubble.mine::after {
   right: -5px;
   border-width: 5px 0 5px 6px;
-  border-color: transparent transparent transparent var(--brand-500);
+  border-color: transparent transparent transparent var(--bg-msg-mine);
 }
 .wc-msg-bubble.other::after {
   left: -5px;
@@ -759,12 +763,12 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   max-width: 100%;
 }
 .wc-msg-bubble.mine .wc-msg-reply--on-media {
-  background: rgba(0, 0, 0, .18);
-  border-left-color: rgba(255, 255, 255, .55);
+  background: rgba(0, 0, 0, .06);
+  border-left-color: rgba(31, 33, 41, .25);
 }
 .wc-msg-bubble.mine .wc-msg-reply--on-media .wc-msg-reply-name,
 .wc-msg-bubble.mine .wc-msg-reply--on-media .wc-msg-reply-text {
-  color: rgba(255, 255, 255, .82);
+  color: rgba(31, 33, 41, .75);
 }
 
 /* 聊天图片：限定最大尺寸避免大图撑爆气泡；min 占位 + shimmer 减小"0→满"的布局跳动、
@@ -778,6 +782,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   border-radius: var(--radius-md);
   cursor: zoom-in;
   background: var(--bg-search);
+  /* ⚠ 不加 transform/translateZ：软件渲染下强制独立图层反而导致滚动残影 */
 }
 .wc-msg-img:not(.loaded) {
   background-image: linear-gradient(100deg, var(--bg-search) 30%, rgba(var(--green-rgb), .06) 50%, var(--bg-search) 70%);
@@ -792,6 +797,15 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
 .wc-msg-row.consecutive { padding-top: 3px; }
 .wc-msg-row.consecutive .wc-msg-avatar { visibility: hidden; height: 0; }
 .wc-msg-row.consecutive .wc-msg-bubble::after { display: none; }
+
+/* 媒体消息(图片/视频/表情)行底部留白：react-window 行高=padding-top+内容高，
+   若只有顶 padding，图片底正好贴行底 → 下一条文字"粘贴"在图片上(0 间距)。
+   加 padding-bottom 让图片/媒体与后续消息之间始终保留呼吸间距(微信/企业微信行为)。 */
+.wc-msg-row:has(.wc-msg-img),
+.wc-msg-row:has(.wc-msg-video),
+.wc-msg-row:has(.wc-msg-sticker) {
+  padding-bottom: 6px;
+}
 
 /* 气泡轻微的按下/悬停反馈，柔和不抢眼 */
 .wc-msg-bubble.mine:active  { filter: brightness(.97); }
@@ -1736,9 +1750,9 @@ body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
 body.dark-mode .wc-moment-comment-user,
 body.dark-mode .wc-moment-comment-submit { color: var(--link); }
 
-/* 气泡 — 暗色模式下我方气泡：AURORA 极光靛渐变，白字 */
+/* 气泡 — 暗色模式下我方气泡：企业微信浅绿，深色文字 */
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }
-body.dark-mode .wc-msg-bubble.mine { background: var(--grad-brand); color: var(--gray-0); border-color: transparent; box-shadow: 0 4px 14px rgba(var(--green-rgb), .30); }
+body.dark-mode .wc-msg-bubble.mine { background: var(--bg-msg-mine); color: #1F2329; border-color: transparent; box-shadow: 0 1px 3px rgba(20,24,40,.08), 0 1px 8px rgba(20,24,40,.05); }
 body.dark-mode .wc-msg-bubble.other { background: var(--bg-input-search); color: #e6e6e6; border-color: rgba(255,255,255,.06); }
 body.dark-mode .wc-msg-bubble.mine::after,
 body.dark-mode .wc-msg-bubble.other::after { display: none; }
@@ -1812,7 +1826,8 @@ body.dark-mode .wc-settings-entry:hover {
    ============================================================ */
 @media (max-width: 767px) {
   /* 全局调整 */
-  html, body, #root { height: 100dvh; overflow: hidden; touch-action: manipulation; }
+  /* 全局调整：vh 兜底在前，dvh 在后（旧 iOS Safari 不识别 dvh 时回退 vh） */
+  html, body, #root { height: 100vh; height: 100dvh; overflow: hidden; touch-action: manipulation; }
   body { -webkit-tap-highlight-color: transparent; -webkit-overflow-scrolling: touch; }
   ::-webkit-scrollbar { width: 0; height: 0; }
 
@@ -1835,6 +1850,7 @@ body.dark-mode .wc-settings-entry:hover {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    max-height: calc(100vh - 50px);
     max-height: calc(100dvh - 50px);
   }
 
@@ -2710,7 +2726,7 @@ body {
 
 /* 气泡保留柔和投影，从画布上浮起（与基础规则一致，不再抹平） */
 .wc-msg-bubble.other { box-shadow: var(--shadow-bubble-other-soft, 0 1px 3px rgba(20,24,40,.07), 0 1px 8px rgba(20,24,40,.05)); }
-.wc-msg-bubble.mine { box-shadow: 0 2px 8px rgba(var(--bubble-mine-rgb), .26), 0 1px 2px rgba(var(--bubble-mine-rgb), .18); }
+.wc-msg-bubble.mine { box-shadow: 0 1px 3px rgba(20, 24, 40, .08), 0 1px 8px rgba(20, 24, 40, .05); }
 
 /* 微信会话列表选中态不带左侧绿条 —— 去除 */
 
@@ -4049,7 +4065,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
    移动端专属布局 (Mobile IM) — 底部 TabBar + 全屏页 + 全屏聊天
    宽度 < 768px 或 Capacitor 原生 App 启用，不显示 PC 侧边栏
    ============================================================ */
-.m-shell { position: fixed; top: 0; left: 0; right: 0; height: 100dvh; display: flex; flex-direction: column; background: var(--bg-search); overflow: hidden; }
+.m-shell { position: fixed; top: 0; left: 0; right: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: var(--bg-search); overflow: hidden; }
 .m-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .m-topbar {
   flex-shrink: 0; min-height: 50px; padding-top: env(safe-area-inset-top);
@@ -4088,7 +4104,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   background: var(--color-badge); color: var(--gray-0); font-size: var(--text-2xs); line-height: 16px; border-radius: var(--radius-md); text-align: center;
 }
 /* 全屏聊天页 */
-.m-chat-page { position: fixed; top: 0; left: 0; right: 0; height: 100dvh; z-index: var(--z-page); display: flex; flex-direction: column; background: var(--bg-messages); }
+.m-chat-page { position: fixed; top: 0; left: 0; right: 0; height: 100vh; height: 100dvh; z-index: var(--z-page); display: flex; flex-direction: column; background: var(--bg-messages); }
 .m-chat-page > .wc-chat { flex: 1; min-height: 0; height: 100%; }
 .m-chat-page .wc-chat-header { padding-top: env(safe-area-inset-top); }
 .m-chat-page .wc-chat-header-back {
@@ -4366,11 +4382,12 @@ select:focus-visible {
 }
 .wc-app.wc-mobile .home-chat-area { border-radius: 0; box-shadow: none; }
 
-/* ── 我方气泡：靛→青碧极光渐变，柔投影+辉光，去掉小三角尾巴（更现代）── */
+/* ── 我方气泡：企业微信浅绿，柔投影（2026-08 用户要求与企业微信一致、更干净）── */
 .wc-msg-bubble.mine {
-  background: var(--grad-brand) !important;
-  box-shadow: 0 3px 12px rgba(var(--color-primary-rgb), .30), 0 1px 3px rgba(var(--color-primary-rgb), .20);
+  background: var(--bg-msg-mine) !important;
+  box-shadow: 0 1px 3px rgba(20, 24, 40, .08), 0 1px 8px rgba(20, 24, 40, .05);
   border: none;
+  color: #1F2329;
 }
 /* ── 他人气泡：纯白浮起，轻投影，清晰从画布分离 ── */
 .wc-msg-bubble.other {
@@ -4385,8 +4402,8 @@ select:focus-visible {
 .wc-search { border-radius: var(--radius-full); }
 .wc-search input { background: transparent; }
 
-/* ── 主按钮 / 主色元素：链接与强调用青碧点缀感知 ── */
-.wc-msg-bubble.mine a { color: #EAFBF7; }
+/* ── 主按钮 / 主色元素：浅绿气泡内链接用微信蓝 ── */
+.wc-msg-bubble.mine a { color: #576B95; }
 
 /* ── 空态插画色跟随品牌 ── */
 .we-empty-svg { opacity: .9; }

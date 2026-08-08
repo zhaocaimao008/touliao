@@ -389,7 +389,7 @@
   --bg-chat-header:   #FFFFFF;
   --bg-input:         #FFFFFF;
   --bg-search:        var(--bg-input-search);
-  --bg-msg-mine:      var(--bubble-mine);
+  --bg-msg-mine:      #95EC69;   /* 我方气泡：企业微信浅绿(2026-08 用户要求) */
   --bg-msg-other:     var(--bubble-other);
   --bg-hover:         rgba(0, 0, 0, .04);
   --bg-active:        var(--bg-panel-item-active);
@@ -534,7 +534,7 @@ body.dark-mode {
   --green-hover:    var(--color-primary-hover);  /* 原 #1F8044 是遗留绿色，暗色下主色 hover 会误变绿，改为跟随靛紫主色 */
   --link-color:     var(--color-primary);
   --link:           #A99CF0;   /* 暗色下提亮为浅薰衣草靛，保证深底对比度（WCAG）且与 AURORA 和谐 */
-  --bg-msg-mine:    var(--bubble-mine);
+  --bg-msg-mine:    #95EC69;   /* 暗色下我方气泡：同样企业微信浅绿 */
   --bg-msg-other:   var(--bubble-other);
   --bg-active:      var(--bg-panel-item-active);
   --bg-active-hover:var(--bg-panel-item-active-hover);

@@ -1365,7 +1365,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         let url;
         try {
           url = await uploadToCloud(file, file.type, file.name);
-        } catch (cloudErr) {
+        } catch {
           // 503 = 云存储未配置；其他（网络错误/CORS等）均降级本地
           const fd = new FormData();
           fd.append('file', file);
@@ -1840,6 +1840,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const items = [];
     let lastTime = 0;
     let prevSenderId = null;
+    let prevIsMedia = false;
 
     for (const msg of messages) {
       let dividerInserted = false;
@@ -1855,8 +1856,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         dividerInserted = true;
       }
       // 同一发送者、且中间无时间分割线 → 连续消息（隐藏重复头像、收紧间距）
-      const consecutive = !dividerInserted && prevSenderId === msg.sender_id;
+      // ⚠ 媒体消息(图片/视频/文件/语音/名片/红包/表情)不参与连续压缩：
+      //   它们自带卡片高度，若按 consecutive 收紧到 3px，图片/文字会"粘贴在一起"。
+      //   企业微信/微信行为：媒体消息之间永远保留正常 13px 间距。
+      const MEDIA_TYPES = new Set(['image', 'video', 'file', 'voice', 'contact_card', 'red_packet', 'sticker']);
+      const isMedia = MEDIA_TYPES.has(msg.type);
+      const consecutive = !dividerInserted && prevSenderId === msg.sender_id
+        && !isMedia && !prevIsMedia;
       prevSenderId = msg.sender_id;
+      prevIsMedia = isMedia;
 
       const isMine = msg.sender_id === user.id;
       const isLastMine = isMine && msg.id === lastMineId;

@@ -35,6 +35,11 @@ export default defineConfig(({ mode, command }) => ({
     cssCodeSplit:          false,
     chunkSizeWarningLimit: 1000,
     minify:                'esbuild',
+    // 兼容目标：es2018（iOS Safari 12+ / Chrome 65+ / 现代安卓 WebView 全覆盖）。
+    // 之前用 Vite 默认 target 未转译 ES2021 语法(如 ??= 逻辑空赋值)，
+    // 导致 iOS Safari 14 及以下解析 vendor chunk 抛 SyntaxError → React 不加载 → 白屏。
+    // esbuild/oxc 会把 ??=、?.、可选链等降级为兼容写法，代价是产物略大(可接受)。
+    target: 'es2018',
 
     rollupOptions: {
       output: {
