@@ -129,7 +129,7 @@ struct NotificationSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
+            Section(content: {
                 Toggle("接收消息通知", isOn: Binding(
                     get: { vm.messageNotify },
                     set: { vm.messageNotify = $0; vm.update(messageNotify: $0) }
@@ -413,7 +413,7 @@ struct PrivacySecurityView: View {
                     get: { vm.addByPhone }, set: { vm.addByPhone = $0; vm.update(addByPhone: $0) }
                 ))
             }
-            Section {
+            Section(content: {
                 Toggle("需要验证才能添加好友", isOn: Binding(
                     get: { vm.requireVerify }, set: { vm.requireVerify = $0; vm.update(requireVerify: $0) }
                 ))
