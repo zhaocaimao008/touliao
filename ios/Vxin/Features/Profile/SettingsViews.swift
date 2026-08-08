@@ -143,14 +143,14 @@ struct NotificationSettingsView: View {
                 Toggle("通知显示消息详情", isOn: Binding(
                     get: { vm.detailPreview }, set: { vm.detailPreview = $0; vm.update(detailPreview: $0) }
                 ))
-            } footer: {
+            }, footer: {
                 Text("关闭「消息详情」后，通知只提示有新消息，不显示内容。")
-            }
-            Section {
+            })
+            Section(content: {
                 NavigationLink("勿扰模式") { QuietSettingsView() }
-            } footer: {
+            }, footer: {
                 Text("开启后在指定时段内仅抑制推送，聊天正常收消息。")
-            }
+            })
         }
         .navigationTitle("通知")
         .navigationBarTitleDisplayMode(.inline)
@@ -309,14 +309,14 @@ struct QuietSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
+            Section(content: {
                 Toggle("开启勿扰模式", isOn: Binding(
                     get: { vm.quietEnabled },
                     set: { vm.quietEnabled = $0 }
                 ))
-            } footer: {
+            }, footer: {
                 Text("仅抑制推送通知，聊天正常收消息。支持跨夜时段（如 23:00 - 07:00）。")
-            }
+            })
             if vm.quietEnabled {
                 Section("勿扰时段", content: {
                     DatePicker(
@@ -420,9 +420,9 @@ struct PrivacySecurityView: View {
                 Toggle("不允许好友直接邀请我进群", isOn: Binding(
                     get: { vm.noDirectGroupInvite }, set: { vm.noDirectGroupInvite = $0; vm.update(noDirectGroupInvite: $0) }
                 ))
-            } footer: {
+            }, footer: {
                 Text("开启后好友无法把你直接拉进群，需你扫码/点链接自行加入。")
-            }
+            })
             Section("隐私") {
                 NavigationLink("黑名单管理") { BlockedView() }
             }
