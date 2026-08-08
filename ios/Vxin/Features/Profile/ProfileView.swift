@@ -111,6 +111,25 @@ struct ProfileView: View {
             }
 
             Section {
+                // 换绑手机号：展示当前手机号，点击进入换绑页
+                NavigationLink {
+                    ChangePhoneView(currentPhone: session.currentUser?.phone ?? "") { newPhone in
+                        if let user = session.currentUser {
+                            var updated = user
+                            updated.phone = newPhone
+                            session.updateCurrentUser(updated)
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Label("手机号", systemImage: "phone.circle")
+                        Spacer()
+                        let phone = session.currentUser?.phone ?? ""
+                        Text(phone.isEmpty ? "未绑定" : phone)
+                            .foregroundColor(.vxinTextSecondary)
+                    }
+                }
+                .accessibilityIdentifier("profile-change-phone")
                 NavigationLink { WalletView() } label: {
                     Label("我的钱包", systemImage: "creditcard")
                 }

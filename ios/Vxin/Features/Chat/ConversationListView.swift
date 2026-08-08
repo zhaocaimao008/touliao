@@ -194,6 +194,7 @@ private struct ConversationRow: View {
         case "video": body = "[视频]"
         case "file": body = "[文件]"
         case "red_packet": body = "[红包]"
+        case "transfer": body = "[转账]"
         case "sticker": body = "[表情]"
         case "nudge": body = "[拍一拍]"
         case "contact_card", "contact": body = "[名片]"

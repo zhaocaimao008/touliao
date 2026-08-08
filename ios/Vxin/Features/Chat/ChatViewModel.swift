@@ -57,6 +57,11 @@ final class ChatViewModel: ObservableObject {
     @Published var claimedAmount: Int?                 // 刚领取到的金额
     @Published var sendingRedPacket = false            // 发红包进行中，防连点重复扣币
     @Published var claimingRedPacket = false           // 抢红包进行中，防连点重复领取
+    // ── 转账 ──
+    @Published var sendingTransfer = false             // 转账进行中，防连点重复扣币
+    // ── 聊天记录导出 ──
+    @Published var exportingChat = false               // 导出进行中
+    @Published var exportContent: String?              // 非空 = 已拿到导出文本，View 写文件并分享后清空
     @Published var error: String?
 
     let conversationId: String
@@ -529,6 +534,50 @@ final class ChatViewModel: ObservableObject {
     }
 
     func closeRedPacket() { redPacketDetail = nil; claimedAmount = nil }
+
+    // MARK: - 转账
+    /// 解析 transfer 消息的 content（失败返回 nil）
+    func parseTransfer(_ msg: Message) -> TransferContent? {
+        guard msg.type == "transfer", let data = msg.content.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(TransferContent.self, from: data)
+    }
+
+    /// 私聊对方 userId（供转账对话框使用；群聊为 nil）
+    func peerUserId() -> String? { peerId() }
+
+    /// 向对方转账 amount 金币（1~20000），note 为备注（≤50 字）。成功后消息列表追加 transfer 气泡。
+    func sendTransfer(toUserId: String, amount: Int, note: String) {
+        guard !sendingTransfer else { return }   // 资金操作：进行中禁止重复触发，防快速双击重复扣币
+        sendingTransfer = true
+        Task {
+            defer { sendingTransfer = false }
+            do {
+                let resp = try await WalletRepository.shared.transfer(
+                    toUserId: toUserId, amount: amount, note: note.trimmingCharacters(in: .whitespaces)
+                )
+                if let msg = resp.message { appendUnique(msg) }   // socket 通常也会广播，appendUnique 去重
+                Haptics.notify(.success)   // 转账成功反馈
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "转账失败"
+                Haptics.notify(.error)
+            }
+        }
+    }
+
+    // MARK: - 聊天记录导出
+    /// 拉取当前会话全量聊天记录文本，存入 exportContent；View 监听到非空后写文件并分享，随后调 clearExportContent()。
+    func exportChat() {
+        guard !exportingChat else { return }
+        exportingChat = true
+        Task {
+            defer { exportingChat = false }
+            do { exportContent = try await repo.exportConversation(conversationId) }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "导出失败" }
+        }
+    }
+
+    /// View 写完文件/分享后调用，清除一次性 exportContent 避免重复触发。
+    func clearExportContent() { exportContent = nil }
 
     // MARK: - 音视频通话
     /// 私聊对方 userId：优先用 Conversation.otherUser.id(可靠,对端没发过消息也能拿到);

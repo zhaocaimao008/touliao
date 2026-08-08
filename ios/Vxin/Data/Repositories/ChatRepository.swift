@@ -189,6 +189,12 @@ final class ChatRepository {
     func collectMessage(_ msgId: String) async throws {
         let _: EmptyResponse = try await api.send("api/messages/\(msgId)/collect", method: "POST")
     }
+
+    /// 导出会话全量聊天记录（GET .../export，响应 text/plain）。以 UTF-8 解码为字符串返回。
+    func exportConversation(_ conversationId: String) async throws -> String {
+        let data = try await api.fetchData("api/messages/conversation/\(conversationId)/export")
+        return String(data: data, encoding: .utf8) ?? ""
+    }
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }

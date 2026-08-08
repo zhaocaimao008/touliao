@@ -22,6 +22,9 @@ struct ChatView: View {
     @State private var showStickerPanel = false
     @State private var showFuncPanel = false
     @State private var showRedPacketSend = false
+    @State private var showTransferSend = false          // 好友转账弹窗
+    @State private var exportShareURL: URL?               // 导出的临时 txt 文件 URL
+    @State private var showExportShare = false            // 分享面板开关
     @State private var showPinnedList = false
     @State private var showAnnouncement = false
     @State private var editText = ""
@@ -120,6 +123,15 @@ struct ChatView: View {
                     } label: {
                         Label("阅后即焚" + (vm.burnAfter > 0 ? "（\(ChatView.burnLabel(vm.burnAfter))）" : ""), systemImage: "flame")
                     }
+                    Divider()
+                    // 导出聊天记录：拉取全量文本存 txt 并分享
+                    Button {
+                        vm.exportChat()
+                    } label: {
+                        Label(vm.exportingChat ? "导出中…" : "导出聊天记录", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(vm.exportingChat)
+                    .accessibilityIdentifier("chat-export-btn")
                 } label: { Image(systemName: "photo.on.rectangle") }
                 .accessibilityLabel("聊天设置")
             }
@@ -143,6 +155,23 @@ struct ChatView: View {
                 vm.sendRedPacket(totalAmount: amount, totalCount: count, greeting: greeting)
                 showRedPacketSend = false
             }
+        }
+        .sheet(isPresented: $showTransferSend) {
+            SendTransferSheet(sending: vm.sendingTransfer) { amount, note in
+                guard let peer = vm.peerUserId() else { vm.error = "无法确定转账对象"; return }
+                vm.sendTransfer(toUserId: peer, amount: amount, note: note)
+                showTransferSend = false
+            }
+        }
+        // 导出聊天记录：拿到文本后写入临时 txt 文件并调起系统分享
+        .onChange(of: vm.exportContent) { content in
+            guard let content else { return }
+            exportShareURL = writeExportFile(content)
+            vm.clearExportContent()
+            if exportShareURL != nil { showExportShare = true } else { vm.error = "导出失败" }
+        }
+        .sheet(isPresented: $showExportShare) {
+            if let url = exportShareURL { ShareSheet(items: [url]) }
         }
         .sheet(isPresented: Binding(get: { vm.redPacketDetail != nil }, set: { if !$0 { vm.closeRedPacket() } })) {
             if let detail = vm.redPacketDetail {
@@ -279,7 +308,7 @@ struct ChatView: View {
     private func pinnedPreview(_ p: PinnedMessage) -> String {
         switch p.type {
         case "image": return "[图片]"; case "voice": return "[语音]"; case "video": return "[视频]"
-        case "file": return "[文件]"; case "red_packet": return "[红包]"
+        case "file": return "[文件]"; case "red_packet": return "[红包]"; case "transfer": return "[转账]"
         case "sticker": return "[表情]"; case "contact_card", "contact": return "[名片]"
         default: return p.content
         }
@@ -485,6 +514,12 @@ struct ChatView: View {
             Button { showFuncPanel = false; showRedPacketSend = true } label: { funcItem(emoji: "🧧", label: "红包") }
                 .accessibilityIdentifier("chat-attach-redpacket")
                 .accessibilityLabel("发红包")
+            // 转账仅私聊可用（群聊不显示）
+            if !vm.isGroup {
+                Button { showFuncPanel = false; showTransferSend = true } label: { funcItem(emoji: "💸", label: "转账") }
+                    .accessibilityIdentifier("chat-attach-transfer")
+                    .accessibilityLabel("转账")
+            }
             Spacer()
         }
         .padding(.horizontal, 24).padding(.vertical, 16)
@@ -547,7 +582,7 @@ struct ChatView: View {
         switch msg.type {
         case "image": return "[图片]"; case "voice": return "[语音]"
         case "video": return "[视频]"; case "file": return "[文件]"
-        case "red_packet": return "[红包]"; case "sticker": return "[表情]"
+        case "red_packet": return "[红包]"; case "transfer": return "[转账]"; case "sticker": return "[表情]"
         case "contact_card", "contact": return "[名片]"
         default: return msg.content
         }
@@ -600,6 +635,18 @@ struct ChatView: View {
         let mime = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
         vm.upload(data: data, fileName: url.lastPathComponent, mimeType: mime, localType: "file", preview: nil)
     }
+
+    /// 把导出文本写入临时目录的 chat-<会话id>.txt，返回文件 URL（供系统分享）。失败返回 nil。
+    private func writeExportFile(_ content: String) -> URL? {
+        let name = "chat-\(vm.conversationId).txt"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        do {
+            try content.data(using: .utf8)?.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
+    }
 }
 
 // MARK: - 气泡
@@ -636,7 +683,8 @@ private struct MessageBubble: View {
                             Button("复制") { UIPasteboard.general.string = msg.content }
                         }
                         Button("回复") { vm.startReply(msg) }
-                        if msg.type != "red_packet" {
+                        // 红包/转账为资金凭证，不支持转发/收藏
+                        if msg.type != "red_packet" && msg.type != "transfer" {
                             Button("转发") { vm.loadForwardTargets(); vm.forwardTarget = msg }
                             Button("收藏") { vm.collectMessage(msg) }
                         }
@@ -746,6 +794,8 @@ private struct MessageBubble: View {
             card { Text("🎬 视频") }.onTapGesture { openFile() }
         case "red_packet":
             redPacketCard.onTapGesture { vm.openRedPacket(msg) }
+        case "transfer":
+            transferCard
         case "contact_card", "contact":
             card { Text("👤 \(contactCardTitle)") }
         default:
@@ -797,12 +847,45 @@ private struct MessageBubble: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
+    /// 转账气泡（绿色卡片，对齐 Android TransferCard）：自己发的显示「转账给xx ¥xx」，
+    /// 对方发的显示「转账 ¥xx」；有备注显备注，无备注显「已到账」。转账即到账，无需点击领取。
+    @ViewBuilder private var transferCard: some View {
+        let t = vm.parseTransfer(msg)
+        HStack(spacing: 10) {
+            Text("💸").font(.system(size: 26))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(transferTitle(t))
+                    .foregroundColor(.white).font(.subheadline).lineLimit(1)
+                if let note = t?.note, !note.isEmpty {
+                    Text(note).foregroundColor(.white.opacity(0.8)).font(.caption).lineLimit(1)
+                } else {
+                    Text("已到账").foregroundColor(.white.opacity(0.75)).font(.caption)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: 240, alignment: .leading)
+        .background(
+            LinearGradient(colors: [Color(red: 0.03, green: 0.76, blue: 0.38), Color(red: 0.02, green: 0.61, blue: 0.29)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func transferTitle(_ t: TransferContent?) -> String {
+        let amount = t?.amount ?? 0
+        if isMine, let name = t?.toUsername, !name.isEmpty {
+            return "转账给 \(name)  ¥\(amount)"
+        }
+        return "转账  ¥\(amount)"
+    }
+
     private func replyPreview(_ rt: ReplyPreview) -> String {
         if rt.deleted == 1 { return "消息已撤回" }   // 对齐 Web：被回复消息已撤回
         switch rt.type {
         case "image": return "[图片]"; case "voice": return "[语音]"
         case "video": return "[视频]"; case "file": return "[文件]"
-        case "red_packet": return "[红包]"; case "sticker": return "[表情]"
+        case "red_packet": return "[红包]"; case "transfer": return "[转账]"; case "sticker": return "[表情]"
         case "contact_card", "contact": return "[名片]"
         default: return rt.content
         }
@@ -920,6 +1003,48 @@ private struct SendRedPacketSheet: View {
         if a < c { return "总金币不能小于红包个数" }
         return nil
     }
+}
+
+// MARK: - 发起转账（金额 1-20000 整数 + 备注 ≤50 字 + 确认）
+private struct SendTransferSheet: View {
+    let sending: Bool
+    var onSend: (Int, String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var amount = ""
+    @State private var note = ""
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("金额（金币，1-20000）", text: $amount).keyboardType(.numberPad)
+                TextField("备注（可选，≤50字）", text: $note)
+                if let error { Text(error).foregroundColor(.vxinError).font(.footnote) }
+            }
+            .navigationTitle("转账")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(sending) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("确认转账") {
+                        let a = Int(amount) ?? 0
+                        error = (a < 1 || a > 20000) ? "金额范围 1-20000 金币" : nil
+                        if error == nil { onSend(a, String(note.prefix(50))) }
+                    }
+                    .disabled(sending)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 系统分享面板（UIActivityViewController 封装，用于分享导出的 txt 文件）
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - 全屏图片画廊（多图左右滑，双指缩放，点击关闭）
@@ -1090,6 +1215,7 @@ private struct MessageSearchSheet: View {
         case "video": return "[视频]"
         case "file": return "[文件] \(m.content)"
         case "red_packet": return "[红包]"
+        case "transfer": return "[转账]"
         case "sticker": return "[表情]"
         default: return m.content.isEmpty ? "[消息]" : m.content
         }

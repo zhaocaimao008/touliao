@@ -155,6 +155,85 @@ struct NotificationSettingsView: View {
     }
 }
 
+// MARK: - 换绑手机号（新手机号 + 当前登录密码验证）
+
+@MainActor
+final class ChangePhoneViewModel: ObservableObject {
+    @Published var newPhone = ""
+    @Published var password = ""
+    @Published var changing = false
+    @Published var message: String?
+
+    private let repo = ProfileRepository.shared
+
+    /// 表单有效：手机号≥6位、密码非空。
+    var valid: Bool {
+        newPhone.trimmingCharacters(in: .whitespaces).count >= 6 &&
+        !password.isEmpty
+    }
+
+    /// 换绑：调 PUT /api/users/me/phone；成功后回调更新本地用户信息。
+    func submit(onSuccess: @escaping (String) -> Void) {
+        guard !changing, valid else { return }
+        changing = true; message = nil
+        let phone = newPhone.trimmingCharacters(in: .whitespaces)
+        Task {
+            do {
+                try await repo.updatePhone(newPhone: phone, password: password)
+                message = "手机号已更新"
+                onSuccess(phone)
+            } catch {
+                message = (error as? LocalizedError)?.errorDescription ?? "换绑失败"
+            }
+            changing = false
+        }
+    }
+}
+
+/// 换绑手机号页：展示当前手机号，输入新手机号 + 登录密码提交。
+struct ChangePhoneView: View {
+    let currentPhone: String
+    var onChanged: (String) -> Void
+    @StateObject private var vm = ChangePhoneViewModel()
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Form {
+            if !currentPhone.isEmpty {
+                Section("当前手机号") {
+                    Text(currentPhone).foregroundColor(.vxinTextSecondary)
+                }
+            }
+            Section("新手机号") {
+                TextField("请输入新手机号", text: $vm.newPhone)
+                    .keyboardType(.phonePad)
+                    .textContentType(.telephoneNumber)
+                    .accessibilityIdentifier("change-phone-input")
+            }
+            Section("验证密码") {
+                SecureField("当前登录密码", text: $vm.password)
+                    .textContentType(.password)
+                    .accessibilityIdentifier("change-phone-password")
+            }
+            Section {
+                Button {
+                    vm.submit { newPhone in
+                        onChanged(newPhone)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { dismiss() }
+                    }
+                } label: {
+                    if vm.changing { ProgressView() } else { Text("提交").foregroundColor(.vxinGreen) }
+                }
+                .disabled(!vm.valid || vm.changing)
+                .accessibilityIdentifier("change-phone-submit")
+            }
+        }
+        .navigationTitle("换绑手机号")
+        .navigationBarTitleDisplayMode(.inline)
+        .toast($vm.message)
+    }
+}
+
 // MARK: - 隐私与安全（添加方式/好友权限开关 + 黑名单管理）
 
 @MainActor

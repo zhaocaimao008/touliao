@@ -31,6 +31,43 @@ struct WalletTransaction: Decodable, Identifiable {
 /// 充值请求体（amount 单位：金币，1-100000）。
 struct RechargeBody: Encodable { let amount: Int }
 
+/// 好友转账请求体（POST /api/wallet/transfer）。字段名对齐后端 snake_case。
+struct TransferBody: Encodable {
+    let to_user_id: String
+    let amount: Int
+    let note: String
+}
+
+/// 转账响应 —— { success, balance, message? }。message 为新产生的 transfer 类型消息（可选）。
+struct TransferResponse: Decodable {
+    let success: Bool
+    let balance: Int
+    let message: Message?
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        success = (try? c.decode(Bool.self, forKey: .success)) ?? false
+        balance = (try? c.decode(Int.self, forKey: .balance)) ?? 0
+        message = try? c.decode(Message.self, forKey: .message)
+    }
+    enum CodingKeys: String, CodingKey { case success, balance, message }
+}
+
+/// transfer 类型消息的 content（JSON 字符串）解析结果。与 Web/Android 对齐：amount / note / toUserId / toUsername。
+struct TransferContent: Decodable {
+    let amount: Int
+    let note: String
+    let toUserId: String
+    let toUsername: String
+    enum CodingKeys: String, CodingKey { case amount, note, toUserId, toUsername }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        amount = (try? c.decode(Int.self, forKey: .amount)) ?? 0
+        note = (try? c.decode(String.self, forKey: .note)) ?? ""
+        toUserId = (try? c.decode(String.self, forKey: .toUserId)) ?? ""
+        toUsername = (try? c.decode(String.self, forKey: .toUsername)) ?? ""
+    }
+}
+
 /// 充值响应 —— { success, balance, recharged }。
 struct RechargeResponse: Decodable {
     let success: Bool
@@ -63,5 +100,14 @@ final class WalletRepository {
     /// 充值 amount 金币（1-100000），返回最新余额与入账数。
     func recharge(amount: Int) async throws -> RechargeResponse {
         try await api.send("api/wallet/recharge", method: "POST", body: RechargeBody(amount: amount))
+    }
+
+    /// 好友转账 amount 金币（1-20000）到 toUserId，note 为备注（可选，≤50 字）。
+    /// 成功后返回最新余额及 transfer 类型消息（转账即到账）。
+    func transfer(toUserId: String, amount: Int, note: String = "") async throws -> TransferResponse {
+        try await api.send(
+            "api/wallet/transfer", method: "POST",
+            body: TransferBody(to_user_id: toUserId, amount: amount, note: note)
+        )
     }
 }

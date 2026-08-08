@@ -1,6 +1,17 @@
 import Foundation
 
 struct UpdateProfileBody: Encodable { let username: String?; let bio: String? }
+/// 换绑手机号请求体（PUT /api/users/me/phone）。字段名对齐后端 snake_case。
+struct UpdatePhoneBody: Encodable { let new_phone: String; let password: String }
+/// 换绑手机号响应 —— { success }。
+struct UpdatePhoneResponse: Decodable {
+    let success: Bool
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        success = (try? c.decode(Bool.self, forKey: .success)) ?? false
+    }
+    enum CodingKeys: String, CodingKey { case success }
+}
 struct ChangePasswordBody: Encodable { let oldPassword: String; let newPassword: String }
 /// 改密响应：后端下发新 token（旧 token 已失效），须覆盖本地 Bearer。
 struct ChangePasswordResponse: Decodable { let success: Bool?; let token: String? }
@@ -120,6 +131,16 @@ final class ProfileRepository {
 
     func updateProfile(username: String?, bio: String?) async throws -> User {
         try await api.send("api/users/profile", method: "PUT", body: UpdateProfileBody(username: username, bio: bio))
+    }
+
+    /// 换绑手机号：new_phone + 当前登录密码验证，成功后 UI 负责更新本地用户信息。
+    @discardableResult
+    func updatePhone(newPhone: String, password: String) async throws -> Bool {
+        let res: UpdatePhoneResponse = try await api.send(
+            "api/users/me/phone", method: "PUT",
+            body: UpdatePhoneBody(new_phone: newPhone, password: password)
+        )
+        return res.success
     }
 
     /// 改密：返回后端新签发的 token（旧 token 已失效，须覆盖本地）。
