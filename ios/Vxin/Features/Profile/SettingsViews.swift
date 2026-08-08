@@ -318,7 +318,7 @@ struct QuietSettingsView: View {
                 Text("仅抑制推送通知，聊天正常收消息。支持跨夜时段（如 23:00 - 07:00）。")
             }
             if vm.quietEnabled {
-                Section("勿扰时段") {
+                Section("勿扰时段", content: {
                     DatePicker(
                         "开始时间",
                         selection: $vm.quietStart,
@@ -332,9 +332,9 @@ struct QuietSettingsView: View {
                         displayedComponents: .hourAndMinute
                     )
                     .accessibilityIdentifier("quiet-end-picker")
-                } footer: {
+                }, footer: {
                     Text("示例：23:00 - 07:00 表示每天晚11点至次日早7点不推送通知。")
-                }
+                })
             }
             Section {
                 Button {

@@ -549,7 +549,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// 私聊对方 userId（供转账对话框使用；群聊为 nil）
-    func peerUserId() -> String? { peerId() }
+    func transferPeerId() -> String? { peerId() }
 
     /// 向对方转账 amount 金币（1~20000），note 为备注（≤50 字）。成功后消息列表追加 transfer 气泡。
     func sendTransfer(toUserId: String, amount: Int, note: String) {

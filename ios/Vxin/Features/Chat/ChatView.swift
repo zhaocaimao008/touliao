@@ -168,7 +168,7 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showTransferSend) {
             SendTransferSheet(sending: vm.sendingTransfer) { amount, note in
-                guard let peer = vm.peerUserId() else { vm.error = "无法确定转账对象"; return }
+                guard let peer = vm.transferPeerId() else { vm.error = "无法确定转账对象"; return }
                 vm.sendTransfer(toUserId: peer, amount: amount, note: note)
                 showTransferSend = false
             }
