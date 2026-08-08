@@ -17,6 +17,13 @@ data class UserSettings(
     val detailPreview: Boolean = true,      // 通知详情预览
     val sound: Boolean = true,              // 通知声音
     val vibrate: Boolean = false,           // 通知震动
+    // 勿扰时段
+    @kotlinx.serialization.SerialName("quiet_enabled")
+    val quietEnabled: Int = 0,              // 0=关闭 1=开启
+    @kotlinx.serialization.SerialName("quiet_start")
+    val quietStart: String = "22:00",       // 开始时间 HH:MM
+    @kotlinx.serialization.SerialName("quiet_end")
+    val quietEnd: String = "07:00",         // 结束时间 HH:MM（支持跨夜）
 )
 
 /** 更新设置（仅传需要改的字段，后端按 undefined 忽略） */
@@ -32,4 +39,11 @@ data class UpdateSettingsBody(
     val detailPreview: Boolean? = null,
     val sound: Boolean? = null,
     val vibrate: Boolean? = null,
+    // 勿扰时段
+    @kotlinx.serialization.SerialName("quiet_enabled")
+    val quietEnabled: Int? = null,
+    @kotlinx.serialization.SerialName("quiet_start")
+    val quietStart: String? = null,
+    @kotlinx.serialization.SerialName("quiet_end")
+    val quietEnd: String? = null,
 )

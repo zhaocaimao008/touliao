@@ -65,6 +65,7 @@ import com.vxin.app.ui.theme.VxinTextSecondary
 fun ConversationListScreen(
     onOpenConversation: (Conversation) -> Unit,
     onOpenSearch: () -> Unit = {},
+    onOpenMentions: () -> Unit = {},
     viewModel: ConversationListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -115,6 +116,10 @@ fun ConversationListScreen(
                     }
                 },
                 actions = {
+                    // @我的消息聚合入口
+                    IconButton(onClick = onOpenMentions) {
+                        Text("@", fontSize = 20.sp, color = VxinGreen)
+                    }
                     IconButton(onClick = onOpenSearch) {
                         Icon(VxinIcons.Search, contentDescription = "搜索")
                     }

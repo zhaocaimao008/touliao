@@ -124,6 +124,7 @@ private object Routes {
     const val CREATE_GROUP = "createGroup"
     const val SEARCH = "search"
     const val ADD_ACCOUNT = "addAccount"
+    const val MENTIONS = "mentions"   // @我消息聚合
     const val GROUP_INFO = "groupInfo/{conversationId}"
     const val GROUP_QR = "groupQr/{conversationId}"
     const val INVITE_MEMBERS = "inviteMembers/{conversationId}"
@@ -229,6 +230,16 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                 ConversationListScreen(
                     onOpenConversation = { conv -> navController.navigate(Routes.chat(conv.id, conv.name, conv.type, conv.otherUser?.id.orEmpty())) },
                     onOpenSearch = { navController.navigate(Routes.SEARCH) },
+                    onOpenMentions = { navController.navigate(Routes.MENTIONS) },
+                )
+            }
+            composable(Routes.MENTIONS) {
+                com.vxin.app.feature.chat.MentionsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenConversation = { convId, convName ->
+                        // 跳转对应会话（不携带 peerUserId，因为 @我 可能来自群聊）
+                        navController.navigate(Routes.chat(convId, convName, "private"))
+                    },
                 )
             }
             composable(Routes.SEARCH) {

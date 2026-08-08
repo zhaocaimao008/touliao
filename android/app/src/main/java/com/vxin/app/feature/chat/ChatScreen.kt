@@ -124,6 +124,8 @@ fun ChatScreen(
     val context = LocalContext.current
     var showRedPacketSend by remember { mutableStateOf(false) }
     var showTransferDialog by remember { mutableStateOf(false) }   // 好友转账弹窗
+    var showScheduleDialog by remember { mutableStateOf(false) }   // 定时发送弹窗
+    var showScheduledList by remember { mutableStateOf(false) }    // 定时消息列表弹窗
     var showPinnedList by remember { mutableStateOf(false) }
     var showAnnouncement by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Message?>(null) }
@@ -388,6 +390,10 @@ fun ChatScreen(
                         onTransfer = if (!viewModel.isGroup) {
                             { showTransferDialog = true; showFuncPanel = false }
                         } else null,
+                        // 定时发送
+                        onSchedule = { showScheduleDialog = true; showFuncPanel = false },
+                        // 定时列表
+                        onScheduleList = { viewModel.loadScheduledMessages(); showScheduledList = true; showFuncPanel = false },
                     )
                 }
             }
@@ -625,6 +631,28 @@ fun ChatScreen(
             showTransferDialog = false
             LaunchedEffect(Unit) { viewModel.consumeError() }
         }
+    }
+
+    // 定时发送弹窗
+    if (showScheduleDialog) {
+        ScheduleMessageDialog(
+            sending = state.schedulingMessage,
+            onDismiss = { showScheduleDialog = false },
+            onConfirm = { content, sendAt ->
+                viewModel.scheduleMessage(content, sendAt)
+                showScheduleDialog = false
+            },
+        )
+    }
+
+    // 定时消息列表弹窗
+    if (showScheduledList) {
+        ScheduledMessagesDialog(
+            loading = state.scheduledLoading,
+            messages = state.scheduledMessages,
+            onCancel = { id -> viewModel.cancelScheduledMessage(id) },
+            onDismiss = { showScheduledList = false },
+        )
     }
 
     state.redPacketDetail?.let { detail ->
@@ -968,6 +996,15 @@ private fun MessageBubble(
                         color = if (isRead) VxinGreen else VxinTextSecondary,
                     )
                 }
+            }
+            // 定时消息角标（后端到点后才出现，is_scheduled=1 表示由定时任务发送）
+            if (msg.isScheduled == 1) {
+                Text(
+                    "⏱ 定时",
+                    fontSize = 10.sp,
+                    color = VxinTextSecondary,
+                    modifier = Modifier.padding(vertical = 1.dp),
+                )
             }
             // 被回复消息引用条
             msg.replyTo?.let { rt ->
@@ -1350,19 +1387,23 @@ private fun MessageInputBar(
     }
 }
 
-/** +面板：图片 / 文件 / 红包 / 转账（私聊专属，对齐微信「更多功能」面板） */
+/** +面板：图片 / 文件 / 红包 / 转账 / 定时发送（对齐微信「更多功能」面板） */
 @Composable
 private fun FunctionPanel(
     onPickImage: () -> Unit,
     onPickFile: () -> Unit,
     onRedPacket: () -> Unit,
     onTransfer: (() -> Unit)? = null,   // null = 群聊不显示转账
+    onSchedule: (() -> Unit)? = null,   // 定时发送入口
+    onScheduleList: (() -> Unit)? = null, // 我的定时消息列表
 ) {
     val items = buildList {
         add(Triple("🖼", "图片", onPickImage))
         add(Triple("📎", "文件", onPickFile))
         add(Triple("🧧", "红包", onRedPacket))
         if (onTransfer != null) add(Triple("💸", "转账", onTransfer))
+        if (onSchedule != null) add(Triple("⏰", "定时发送", onSchedule))
+        if (onScheduleList != null) add(Triple("📋", "定时列表", onScheduleList))
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(4),
@@ -1393,6 +1434,126 @@ private val EMOJIS = listOf(
     "😀","😁","😂","🤣","😊","😍","😘","😎","🤔","😅","😉","😴","😭","😡","🥺","👍",
     "👎","🙏","👏","💪","🎉","❤️","💔","🔥","⭐","✅","❌","🌹","🍺","☕","🤝","👌",
 )
+
+// ── 功能A2: 消息定时发送弹窗 ─────────────────────────────────────────────────
+
+/**
+ * 定时发送弹窗：输入消息内容 + 选择发送时间。
+ * 默认 1 小时后，格式 yyyy-MM-dd HH:mm（本地时间）。
+ * 前端校验 ≥15 分钟、≤30 天，后端会二次校验。
+ */
+@Composable
+private fun ScheduleMessageDialog(
+    sending: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (content: String, sendAt: Long) -> Unit,
+) {
+    val sdf = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()) }
+    // 默认 1 小时后
+    val defaultTime = remember { sdf.format(java.util.Date(System.currentTimeMillis() + 3600_000L)) }
+    var content  by remember { mutableStateOf("") }
+    var timeText by remember { mutableStateOf(defaultTime) }
+    var error    by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("定时发送") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it; error = null },
+                    label = { Text("消息内容") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 4,
+                )
+                OutlinedTextField(
+                    value = timeText,
+                    onValueChange = { timeText = it; error = null },
+                    label = { Text("发送时间（yyyy-MM-dd HH:mm）") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                )
+                error?.let {
+                    Text(it, color = Color(0xFFFA5151), fontSize = 12.sp)
+                }
+                Text(
+                    "• 至少 15 分钟后，不超过 30 天\n• 到点后后端自动发送",
+                    fontSize = 11.sp,
+                    color = Color(0xFF888888),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !sending,
+                onClick = {
+                    if (content.isBlank()) { error = "请输入消息内容"; return@TextButton }
+                    val parsed = runCatching { sdf.parse(timeText)?.time }.getOrNull()
+                    if (parsed == null) { error = "时间格式错误，请用 yyyy-MM-dd HH:mm"; return@TextButton }
+                    val diffMin = (parsed - System.currentTimeMillis()) / 60_000
+                    if (diffMin < 15) { error = "发送时间需在 15 分钟后"; return@TextButton }
+                    if (diffMin > 43200) { error = "发送时间不能超过 30 天"; return@TextButton }
+                    onConfirm(content, parsed / 1000)   // 转为 UNIX 秒
+                },
+            ) {
+                if (sending) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 1.5.dp)
+                else Text("确认定时", color = VxinGreen)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
+}
+
+/**
+ * 我的定时消息列表弹窗：展示全部 pending 定时消息，支持单条取消。
+ */
+@Composable
+private fun ScheduledMessagesDialog(
+    loading: Boolean,
+    messages: List<com.vxin.app.data.model.ScheduledMessage>,
+    onCancel: (id: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sdf = remember { java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("我的定时消息") },
+        text = {
+            if (loading) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(24.dp))
+                }
+            } else if (messages.isEmpty()) {
+                Text("暂无待发送的定时消息", color = Color(0xFF888888))
+            } else {
+                LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                    items(messages) { msg ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(msg.content, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp)
+                                Text(
+                                    "⏰ ${sdf.format(java.util.Date(msg.send_at * 1000))}",
+                                    fontSize = 11.sp, color = Color(0xFF888888),
+                                )
+                            }
+                            TextButton(onClick = { onCancel(msg.id) }) {
+                                Text("取消", color = Color(0xFFFA5151), fontSize = 12.sp)
+                            }
+                        }
+                        HorizontalDivider(thickness = 0.5.dp)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+    )
+}
 
 @Composable
 private fun StickerEmojiPanel(

@@ -165,4 +165,33 @@ class ChatRepository @Inject constructor(
     /** 导出指定会话的聊天记录，返回 text/plain 纯文本内容（由 Screen 负责写文件）。 */
     suspend fun exportConversation(conversationId: String): String =
         api.exportConversation(conversationId).string()
+
+    // ── 功能A2: 消息定时发送 ────────────────────────────────────────────────
+
+    /** 创建定时消息（send_at 为 UNIX 秒，需 ≥15分钟后且 ≤30天，后端会二次校验） */
+    suspend fun scheduleMessage(
+        conversationId: String,
+        content: String,
+        sendAt: Long,
+    ): com.vxin.app.data.model.ScheduledMessage =
+        api.scheduleMessage(
+            com.vxin.app.data.model.ScheduleMessageBody(
+                conversation_id = conversationId,
+                content = content,
+                send_at = sendAt,
+            )
+        )
+
+    /** 我的全部定时消息列表（后端仅返回 pending 状态） */
+    suspend fun scheduledMessages(): List<com.vxin.app.data.model.ScheduledMessage> =
+        api.scheduledMessages()
+
+    /** 取消指定定时消息（仅本人且 pending 状态可取消） */
+    suspend fun cancelScheduledMessage(id: String) = api.cancelScheduledMessage(id)
+
+    // ── 功能A2: @我消息聚合 ─────────────────────────────────────────────────
+
+    /** 获取 @我 消息分页列表 */
+    suspend fun mentionsMe(offset: Int = 0, limit: Int = 20): com.vxin.app.data.model.MentionsResponse =
+        api.mentionsMe(offset = offset, limit = limit)
 }

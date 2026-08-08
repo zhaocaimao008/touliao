@@ -84,6 +84,9 @@ data class Message(
     @Transient val localStatus: String? = null,
     // 幂等键：乐观消息发送时生成，失败重发复用，后端据此去重（防重复气泡）
     @Transient val clientMsgId: String? = null,
+    // 定时消息标记：1=此消息由定时任务触发发送（已到点后才出现在会话中）
+    @kotlinx.serialization.SerialName("is_scheduled")
+    val isScheduled: Int = 0,
 )
 
 /** 消息本地发送态常量 */
@@ -142,4 +145,47 @@ data class PinnedMessage(
     val file_url: String = "",
     val senderName: String = "",
     val pinnedByName: String = "",
+)
+
+// ── 功能A2: 消息定时发送 ─────────────────────────────────────────────────────
+
+/** 创建定时消息请求体（POST /api/messages/schedule） */
+@Serializable
+data class ScheduleMessageBody(
+    val conversation_id: String,
+    val content: String,
+    val type: String = "text",
+    val send_at: Long,   // UNIX 秒，需 ≥15 分钟后且 ≤30 天
+)
+
+/** 定时消息列表项（GET /api/messages/schedule） */
+@Serializable
+data class ScheduledMessage(
+    val id: String = "",
+    val conversation_id: String = "",
+    val content: String = "",
+    val type: String = "text",
+    val send_at: Long = 0,       // UNIX 秒
+    val status: String = "pending",   // pending | sent | cancelled
+    val created_at: Long = 0,
+)
+
+// ── 功能A2: @我消息聚合 ──────────────────────────────────────────────────────
+
+/** @我消息列表项（GET /api/messages/mentions/me） */
+@Serializable
+data class MentionItem(
+    val msgId: String = "",
+    val convId: String = "",
+    val convName: String = "",
+    val senderName: String = "",
+    val content: String = "",
+    val createdAt: Long = 0,   // UNIX 秒
+)
+
+/** @我消息分页响应 */
+@Serializable
+data class MentionsResponse(
+    val items: List<MentionItem> = emptyList(),
+    val total: Int = 0,
 )

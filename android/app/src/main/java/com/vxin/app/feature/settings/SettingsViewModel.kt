@@ -68,5 +68,19 @@ class SettingsViewModel @Inject constructor(
     fun setSound(v: Boolean) = patch({ it.copy(sound = v) }, UpdateSettingsBody(sound = v))
     fun setVibrate(v: Boolean) = patch({ it.copy(vibrate = v) }, UpdateSettingsBody(vibrate = v))
 
+    // 勿扰时段：开关切换（乐观更新）
+    fun setQuietEnabled(enabled: Boolean) =
+        patch(
+            { it.copy(quietEnabled = if (enabled) 1 else 0) },
+            UpdateSettingsBody(quietEnabled = if (enabled) 1 else 0),
+        )
+
+    /** 保存勿扰时段时间（start/end 格式 HH:MM，支持跨夜如 23:00-07:00）。 */
+    fun saveQuietTime(start: String, end: String) =
+        patch(
+            { it.copy(quietStart = start, quietEnd = end) },
+            UpdateSettingsBody(quietStart = start, quietEnd = end),
+        )
+
     fun clearError() = _uiState.update { it.copy(error = null) }
 }

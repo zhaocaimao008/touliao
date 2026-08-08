@@ -166,4 +166,27 @@ interface MessageApi {
     /** 置顶消息列表 */
     @GET("api/messages/conversation/{convId}/pinned-messages")
     suspend fun pinnedMessages(@Path("convId") convId: String): List<PinnedMessage>
+
+    // ── 功能A2: 消息定时发送 ────────────────────────────────────────────────
+
+    /** 创建定时消息（send_at 需 ≥15分钟后且 ≤30天，UNIX 秒） */
+    @POST("api/messages/schedule")
+    suspend fun scheduleMessage(@Body body: com.vxin.app.data.model.ScheduleMessageBody): com.vxin.app.data.model.ScheduledMessage
+
+    /** 我的定时消息列表（pending 状态） */
+    @GET("api/messages/schedule")
+    suspend fun scheduledMessages(): List<com.vxin.app.data.model.ScheduledMessage>
+
+    /** 取消定时消息（仅本人，仅 pending 状态） */
+    @DELETE("api/messages/schedule/{id}")
+    suspend fun cancelScheduledMessage(@Path("id") id: String)
+
+    // ── 功能A2: @我消息聚合 ─────────────────────────────────────────────────
+
+    /** @我消息聚合列表（分页：offset/limit） */
+    @GET("api/messages/mentions/me")
+    suspend fun mentionsMe(
+        @Query("offset") offset: Int = 0,
+        @Query("limit") limit: Int = 20,
+    ): com.vxin.app.data.model.MentionsResponse
 }

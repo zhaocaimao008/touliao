@@ -87,6 +87,10 @@ data class ChatUiState(
     // ── 聊天记录导出 ──
     val exportingChat: Boolean = false,             // 导出请求进行中
     val exportContent: String? = null,             // 非空时 Screen 负责写文件并清除
+    // ── 消息定时发送 ──
+    val schedulingMessage: Boolean = false,         // 创建定时消息请求进行中，防连点
+    val scheduledMessages: List<com.vxin.app.data.model.ScheduledMessage> = emptyList(),  // 我的 pending 定时消息列表
+    val scheduledLoading: Boolean = false,          // 定时消息列表加载中
     // ── 后台功能开关（群通话按钮显隐）默认开启，拉取失败不误伤 ──
     val groupVoiceCallEnabled: Boolean = true,
     val groupVideoCallEnabled: Boolean = true,
@@ -327,6 +331,40 @@ class ChatViewModel @Inject constructor(
 
     /** Screen 写完文件后调用，清除一次性 exportContent 避免重复触发。 */
     fun clearExportContent() = _uiState.update { it.copy(exportContent = null) }
+
+    // ── 消息定时发送 ──────────────────────────────────────
+    /**
+     * 创建定时消息：content 为文本，sendAt 为 UNIX 秒（后端校验 ≥15 分钟后且 ≤30 天）。
+     * 未到点前不显示在会话，后端到点自动发送。成功后弹 toast（复用 error 字段承载一次性提示）。
+     */
+    fun scheduleMessage(content: String, sendAt: Long) {
+        if (_uiState.value.schedulingMessage) return   // 进行中禁止重复触发
+        _uiState.update { it.copy(schedulingMessage = true) }
+        viewModelScope.launch {
+            runCatching { chatRepository.scheduleMessage(conversationId, content.trim(), sendAt) }
+                .onSuccess { _uiState.update { it.copy(schedulingMessage = false, error = "已设置定时发送") } }
+                .onFailure { e -> _uiState.update { it.copy(schedulingMessage = false, error = e.toUserMessage("定时发送设置失败")) } }
+        }
+    }
+
+    /** 拉取我的 pending 定时消息列表（供定时列表 dialog 展示）。 */
+    fun loadScheduledMessages() {
+        _uiState.update { it.copy(scheduledLoading = true) }
+        viewModelScope.launch {
+            runCatching { chatRepository.scheduledMessages() }
+                .onSuccess { list -> _uiState.update { it.copy(scheduledLoading = false, scheduledMessages = list) } }
+                .onFailure { e -> _uiState.update { it.copy(scheduledLoading = false, error = e.toUserMessage("加载定时消息失败")) } }
+        }
+    }
+
+    /** 取消一条 pending 定时消息（仅本人），成功后从列表移除。 */
+    fun cancelScheduledMessage(id: String) {
+        viewModelScope.launch {
+            runCatching { chatRepository.cancelScheduledMessage(id) }
+                .onSuccess { _uiState.update { s -> s.copy(scheduledMessages = s.scheduledMessages.filterNot { it.id == id }, error = "已取消定时消息") } }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("取消失败")) } }
+        }
+    }
 
     // ── 音视频通话 ─────────────────────────────────────────
     /** 私聊对方 userId：优先用导航传入的 peerUserId，其次从消息历史推断（兜底） */
