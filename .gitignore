@@ -86,3 +86,5 @@ ios/Vxin.xcodeproj/
 scripts/__pycache__/
 .ios-review-last
 .ios-review.log
+# 内部任务书(Claude 开发批次指令)
+.claude-briefs/

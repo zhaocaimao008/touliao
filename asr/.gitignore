@@ -1,0 +1,5 @@
+# ASR 服务 — 不入库的大文件/运行时产物
+# 模型权重(142MB, 由 start.sh 首次启动自动下载)与 Python venv(447MB)绝不入库
+models/
+venv/
+*.log
