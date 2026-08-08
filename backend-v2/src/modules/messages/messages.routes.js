@@ -1047,6 +1047,30 @@ router.post('/:msgId/react', auth, reactLimiter, msg.react);
  */
 router.put ('/:msgId/edit',  auth, reactLimiter, msg.edit);
 
+// ── 语音转文字（多段路由，不被单段通配吞）──────────────────────
+/**
+ * @swagger
+ * /messages/{msgId}/transcribe:
+ *   post:
+ *     tags:
+ *       - Messages
+ *     summary: Transcribe a voice message to text (real ASR)
+ *     parameters:
+ *       - in: path
+ *         name: msgId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Transcript text (cached on repeat calls)
+ *       503:
+ *         description: ASR service unavailable
+ */
+router.post('/:msgId/transcribe', auth, reactLimiter, msg.transcribe);
+
 // ── 置顶消息 ────────────────────────────────────────────────────
 
 /**

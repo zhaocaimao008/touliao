@@ -483,6 +483,8 @@ function applySchema(db) {
     "CREATE INDEX IF NOT EXISTS idx_scheduled_msgs_sender ON scheduled_messages(sender_id, status)",
     // ── 定时消息发出后在 messages 上留标记，前端气泡渲染「定时」角标 ──
     "ALTER TABLE messages ADD COLUMN is_scheduled INTEGER DEFAULT 0",
+    // ── 语音消息转写缓存：ASR 结果落此列，二次点「转文字」直接命中，幂等 ──
+    "ALTER TABLE messages ADD COLUMN transcript TEXT DEFAULT NULL",
   ];
   migrations.forEach(sql => {
     try { db.prepare(sql).run(); }

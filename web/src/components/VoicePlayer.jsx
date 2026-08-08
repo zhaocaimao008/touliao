@@ -1,14 +1,35 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { isVoicePlayed, markVoicePlayed } from '../utils/playedVoice';
+import { transcribeVoice } from '../utils/transcribe';
+import { showToast } from '../utils/toast';
 
-const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = false }) {
+const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = false, transcript = null }) {
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [loaded, setLoaded] = useState(false);
   // 「未播放」红点：仅收到的语音(非自己发)且从未播放过才显示(对齐微信)
   const [unplayed, setUnplayed] = useState(() => !isMine && !!msgId && !isVoicePlayed(msgId));
+  // 转文字：text 初始取后端缓存(msg.transcript)，刷新后仍展示；loading 控制转写中态
+  const [text, setText] = useState(transcript || '');
+  const [transcribing, setTranscribing] = useState(false);
   const audioRef = useRef(null);
+
+  // 后端缓存的 transcript 变化(如历史消息重载)时同步到本地展示
+  useEffect(() => { setText(transcript || ''); }, [transcript]);
+
+  const handleTranscribe = useCallback(async () => {
+    if (!msgId || transcribing) return;
+    setTranscribing(true);
+    try {
+      const { text: result } = await transcribeVoice(msgId);
+      setText(result || '（未识别到语音内容）');
+    } catch (e) {
+      showToast(e.message || '转写失败', 'error');
+    } finally {
+      setTranscribing(false);
+    }
+  }, [msgId, transcribing]);
 
   const fmt = (s) => {
     // 某些服务端流式语音会上报 duration=Infinity/NaN,直接算会渲染成「Infinity:NaN」
@@ -79,7 +100,8 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
   }, [duration, currentTime]);
 
   return (
-    <div className="wc-msg-voice-player wc-voice-player" onClick={e => e.stopPropagation()}>
+   <div className="wc-voice-wrap" onClick={e => e.stopPropagation()}>
+    <div className="wc-msg-voice-player wc-voice-player">
       <button onClick={togglePlay} className="wc-voice-play-btn" aria-label={playing ? '暂停' : '播放'}>
         {playing ? (
           <svg viewBox="0 0 24 24" className="wc-voice-play-icon">
@@ -111,6 +133,22 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
       </span>
       {unplayed && <span className="wc-voice-unplayed-dot" aria-label="未播放" title="未播放" />}
     </div>
+
+    {/* 转文字：已有文本则直接展示；否则给一个「转文字」按钮，点击调 ASR。 */}
+    {text ? (
+      <div className="wc-voice-transcript" data-testid="voice-transcript">{text}</div>
+    ) : (
+      <button
+        type="button"
+        className="wc-voice-transcribe-btn"
+        onClick={handleTranscribe}
+        disabled={transcribing || !msgId}
+        aria-label="语音转文字"
+      >
+        {transcribing ? '转写中…' : '转文字'}
+      </button>
+    )}
+   </div>
   );
 });
 

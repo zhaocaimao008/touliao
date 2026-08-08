@@ -816,8 +816,79 @@ function getMentions(userId, { offset = 0, limit = 20 }) {
   };
 }
 
+// ── 语音转文字（ASR）───────────────────────────────────────────
+// 读取语音消息音频 → 调独立 faster-whisper 服务 → 结果落 messages.transcript 缓存。
+// 幂等：已转写过直接回缓存，不再重复调用 ASR。服务不可用抛 AsrUnavailableError，
+// 由 controller 转 503，前端提示「转写服务暂不可用」，绝不降级假数据。
+async function transcribe(userId, msgId) {
+  // 1) 取消息并校验：必须存在、未删除、类型为 voice
+  const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
+  if (!msg || msg.deleted) throw notFound('消息不存在');
+  if (msg.type !== 'voice') throw badRequest('仅语音消息支持转文字');
+
+  // 2) 权限：必须是该会话成员（自己发的和收到的都可点，与微信一致）
+  requireMember(msg.conversation_id, userId, '无权访问该消息');
+
+  // 3) 幂等：已有转写结果直接命中缓存
+  if (msg.transcript != null && msg.transcript !== '') {
+    return { text: msg.transcript, cached: true };
+  }
+
+  // 4) 读取音频字节：本地 /uploads/* 走文件系统；http(s) 云地址走网络拉取
+  const buf = await readVoiceAudio(msg.file_url);
+  const filename = deriveAudioName(msg.file_url, msg.content);
+
+  // 5) 调 ASR 服务真实转写
+  const { transcribe: asrTranscribe } = require('../../utils/asrClient');
+  const { text } = await asrTranscribe(buf, filename, 'auto');
+
+  // 空转写（纯静音/无语音）也如实缓存空结果，避免反复调用；前端按空文本提示
+  const finalText = text || '';
+
+  // 6) 落库缓存
+  await writeAsync('UPDATE messages SET transcript=? WHERE id=?', [finalText, msgId]);
+
+  return { text: finalText, cached: false };
+}
+
+// 从 file_url 读取音频原始字节。支持本地 uploads 路径与远程 http(s) 云地址。
+async function readVoiceAudio(fileUrl) {
+  if (!fileUrl) throw badRequest('该语音消息缺少音频文件');
+  const fs = require('fs');
+  const path = require('path');
+
+  // 云直传地址（https://…）：网络拉取
+  if (/^https?:\/\//i.test(fileUrl)) {
+    const resp = await fetch(fileUrl);
+    if (!resp.ok) throw badRequest('无法下载语音音频文件');
+    const ab = await resp.arrayBuffer();
+    return Buffer.from(ab);
+  }
+
+  // 本地 /uploads/xxx → 映射到 config.uploadsRoot 下的物理文件。
+  // 防路径穿越：解析后必须仍在 uploadsRoot 内。
+  const rel = fileUrl.replace(/^\/?uploads\//, '');
+  const abs = path.resolve(config.uploadsRoot, rel);
+  const rootResolved = path.resolve(config.uploadsRoot);
+  if (!abs.startsWith(rootResolved + path.sep) && abs !== rootResolved) {
+    throw badRequest('非法的音频文件路径');
+  }
+  if (!fs.existsSync(abs)) throw notFound('语音音频文件不存在');
+  return fs.promises.readFile(abs);
+}
+
+// 从 URL / content 推导带扩展名的文件名，供 ASR 服务识别容器格式。
+function deriveAudioName(fileUrl, content) {
+  const path = require('path');
+  let name = '';
+  try { name = path.basename((fileUrl || '').split('?')[0]); } catch { name = ''; }
+  if (name && /\.[a-z0-9]{1,5}$/i.test(name)) return name;
+  if (content && /\.[a-z0-9]{1,5}$/i.test(content)) return content;
+  return 'voice.webm'; // 前端录音默认 webm
+}
+
 module.exports = {
   history, missed, send, saveUploadedFile, forward, batchDelete,
   remove, react, edit, collect, searchGlobal, searchInConversation, aroundMessage,
-  exportConversation, getConversationFiles, getMentions,
+  exportConversation, getConversationFiles, getMentions, transcribe,
 };

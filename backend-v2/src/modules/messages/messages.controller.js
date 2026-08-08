@@ -69,6 +69,21 @@ exports.conversationFiles = asyncHandler(async (req, res) =>
 exports.myMentions = asyncHandler(async (req, res) =>
   res.json(svc.getMentions(req.user.id, req.query)));
 
+// ── 语音转文字：POST /api/messages/:msgId/transcribe ────────────
+// 校验语音消息 + 会话成员权限 → 调 ASR 服务真实转写 → 缓存并返回。
+// ASR 不可用（AsrUnavailableError）返回 503，前端提示服务暂不可用，绝不返回假数据。
+exports.transcribe = asyncHandler(async (req, res) => {
+  try {
+    const result = await svc.transcribe(req.user.id, req.params.msgId);
+    res.json(result);
+  } catch (e) {
+    if (e && e.asrUnavailable) {
+      return res.status(503).json({ error: '转写服务暂不可用，请稍后重试' });
+    }
+    throw e;
+  }
+});
+
 // ── 文件上传：权限门控 → multer+魔数 → 入库广播+推送 ─────────────
 exports.uploadGuard = (req, res, next) => {
   const convId = req.params.conversationId;
