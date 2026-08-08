@@ -460,6 +460,29 @@ function applySchema(db) {
     "ALTER TABLE users ADD COLUMN is_privileged INTEGER DEFAULT 0",
     "ALTER TABLE users ADD COLUMN last_online_at INTEGER DEFAULT 0",
     "CREATE INDEX IF NOT EXISTS idx_users_privileged ON users(is_privileged) WHERE is_privileged=1",
+    // ── 勿扰时段（夜间免打扰）：quiet_enabled 开关 + HH:MM 起止时间。
+    //    开启且当前时刻落在时段内时，推送/通知被抑制（消息本身照常入库送达）──
+    "ALTER TABLE user_settings ADD COLUMN quiet_enabled INTEGER DEFAULT 0",
+    "ALTER TABLE user_settings ADD COLUMN quiet_start TEXT DEFAULT '23:00'",
+    "ALTER TABLE user_settings ADD COLUMN quiet_end TEXT DEFAULT '07:00'",
+    // ── 消息定时发送：pending 待发 / sent 已发 / cancelled 已取消。
+    //    进程内定时器每 30s 扫描到期的 pending 消息并发出；服务重启后凭表中 pending 恢复 ──
+    `CREATE TABLE IF NOT EXISTS scheduled_messages (
+      id              TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      sender_id       TEXT NOT NULL,
+      content         TEXT NOT NULL,
+      type            TEXT DEFAULT 'text',
+      send_at         INTEGER NOT NULL,
+      status          TEXT DEFAULT 'pending',
+      created_at      INTEGER DEFAULT (strftime('%s','now')),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+      FOREIGN KEY (sender_id) REFERENCES users(id)
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_scheduled_msgs_status ON scheduled_messages(status, send_at)",
+    "CREATE INDEX IF NOT EXISTS idx_scheduled_msgs_sender ON scheduled_messages(sender_id, status)",
+    // ── 定时消息发出后在 messages 上留标记，前端气泡渲染「定时」角标 ──
+    "ALTER TABLE messages ADD COLUMN is_scheduled INTEGER DEFAULT 0",
   ];
   migrations.forEach(sql => {
     try { db.prepare(sql).run(); }

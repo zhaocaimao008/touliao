@@ -22,6 +22,7 @@ function ChatHeader({
   onStartGroupCall,
   onToggleGroupInfo,
   onExportChat,
+  onOpenChatFiles,
 }) {
   const isPrivate = conversation.type === 'private';
   const isGroup = conversation.type === 'group';
@@ -55,6 +56,11 @@ function ChatHeader({
   const handleExport = () => {
     setShowMoreMenu(false);
     onExportChat?.();
+  };
+
+  const handleOpenFiles = () => {
+    setShowMoreMenu(false);
+    onOpenChatFiles?.();
   };
 
   return (
@@ -134,6 +140,16 @@ function ChatHeader({
                 data-testid="export-chat-btn"
               >
                 导出聊天记录
+              </button>
+              <button
+                style={{ display: 'block', width: '100%', padding: '10px 16px', textAlign: 'left',
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 14,
+                  color: 'var(--text-primary)', borderTop: '1px solid var(--border-default)' }}
+                role="menuitem"
+                onClick={handleOpenFiles}
+                data-testid="chat-files-btn"
+              >
+                聊天文件
               </button>
             </div>
           )}

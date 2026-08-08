@@ -160,6 +160,27 @@ async function pushToUser(userId, payload) {
   }
 }
 
+// 勿扰时段判定：quietStart/quietEnd 为 "HH:MM"（服务器本地时区）。
+// 支持跨零点区间（如 23:00~07:00）：start<=end 为当日区间，start>end 为跨夜区间。
+// 时间格式非法时返回 false（不抑制推送，安全降级）。
+function isInQuietHours(quietStart, quietEnd, now = new Date()) {
+  const parse = (s) => {
+    if (typeof s !== 'string') return null;
+    const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+    if (!m) return null;
+    const h = Number(m[1]), min = Number(m[2]);
+    if (h > 23 || min > 59) return null;
+    return h * 60 + min;
+  };
+  const start = parse(quietStart);
+  const end = parse(quietEnd);
+  if (start == null || end == null || start === end) return false;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  return start < end
+    ? (cur >= start && cur < end)          // 当日区间，如 09:00~12:00
+    : (cur >= start || cur < end);          // 跨夜区间，如 23:00~07:00
+}
+
 function buildBody(type, content) {
   switch (type) {
     case 'image':        return '[图片]';
@@ -198,14 +219,17 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
       COALESCE(us.message_notify, 1) AS message_notify,
       COALESCE(us.detail_preview, 1) AS detail_preview,
       COALESCE(us.sound, 1) AS sound,
-      COALESCE(us.vibrate, 0) AS vibrate
+      COALESCE(us.vibrate, 0) AS vibrate,
+      COALESCE(us.quiet_enabled, 0) AS quiet_enabled,
+      COALESCE(us.quiet_start, '23:00') AS quiet_start,
+      COALESCE(us.quiet_end, '07:00') AS quiet_end
     FROM users u
     LEFT JOIN user_settings us ON us.user_id = u.id
     LEFT JOIN conversation_settings cs ON cs.user_id = u.id AND cs.conversation_id = ?
     WHERE u.id IN (${ph})
   `).all(conversationId, ...targetUids);
   const settingsMap = new Map(settingsRows.map(r => [r.user_id, r]));
-  const defaultSettings = { last_read_at: 0, muted: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0 };
+  const defaultSettings = { last_read_at: 0, muted: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0, quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00' };
 
   const unreadStmt = db.prepare(
     'SELECT COUNT(*) as cnt FROM (SELECT 1 FROM messages WHERE conversation_id=? AND sender_id!=? AND deleted=0 AND created_at>? LIMIT 99)'
@@ -215,6 +239,8 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
     const settings = settingsMap.get(uid) || defaultSettings;
     if (!Number(settings.message_notify)) return null;   // 全局关闭新消息通知
     if (Number(settings.muted)) return null;             // 该会话已设免打扰 → 不推送
+    // 勿扰时段检查：开启且当前时刻落在时段内 → 抑制推送（消息本身照常入库送达）
+    if (Number(settings.quiet_enabled) && isInQuietHours(settings.quiet_start, settings.quiet_end)) return null;
     const unread = unreadStmt.get(conversationId, uid, settings.last_read_at || 0)?.cnt || 1;
     return pushToUser(uid, {
       title:   senderName,
@@ -263,4 +289,4 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   await Promise.allSettled(promises);
 }
 
-module.exports = { pushToUser, pushNewMessage, pushCallInvite, isAllowedPushEndpoint };
+module.exports = { pushToUser, pushNewMessage, pushCallInvite, isAllowedPushEndpoint, isInQuietHours };

@@ -132,7 +132,7 @@ function ChatListSkeleton() {
   );
 }
 
-export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0 }) {
+export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions }) {
   const [conversations, setConversations] = useState([]);
   const [loaded, setLoaded] = useState(false);   // 首屏是否已拉过一次：未拉完显示骨架，避免闪「暂无聊天」
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -350,6 +350,27 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)' }}>
+      {/* @我消息快捷入口（仅无搜索时显示） */}
+      {!searchQuery && (
+        <button
+          onClick={onOpenMentions}
+          data-testid="mention-list-btn"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '9px 16px', background: 'none', border: 'none',
+            borderBottom: '1px solid var(--border-subtle)',
+            cursor: 'pointer', width: '100%', textAlign: 'left',
+            color: 'var(--text-secondary)', fontSize: 13,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+        >
+          <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, fill: 'currentColor', flexShrink: 0 }}>
+            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+          </svg>
+          @我的消息
+        </button>
+      )}
       <div className="wc-list" style={{ flex: 1 }}>
         {!loaded && conversations.length === 0 ? (
           <ChatListSkeleton />

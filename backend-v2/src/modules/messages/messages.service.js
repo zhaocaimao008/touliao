@@ -659,11 +659,33 @@ function exportConversation(convId, userId) {
     LIMIT 10000
   `).all(convId, );
 
-  // 非文本消息的类型标注
+  // 非文本消息的类型标注（transfer/red_packet 单独展开，见下方 formatBody）
   const typeLabel = {
     image: '[图片]', voice: '[语音]', video: '[视频]',
-    file: '[文件]', sticker: '[表情包]', red_packet: '[红包]',
-    transfer: '[转账]', contact_card: '[名片]', nudge: '[拍一拍]',
+    file: '[文件]', sticker: '[表情包]',
+    contact_card: '[名片]', nudge: '[拍一拍]',
+  };
+
+  // 转账/红包展开：content 是 JSON。转账展开金额+备注，红包展开祝福语。
+  // 解析失败时回退到占位符，保证导出不因单条脏数据中断。
+  const formatBody = (m) => {
+    if (m.type === 'transfer') {
+      try {
+        const d = JSON.parse(m.content);
+        const amount = Number(d.amount) || 0;
+        const note = d.note ? ` 备注:${d.note}` : '';
+        return `[转账] ${amount} 金币${note}`;
+      } catch { return '[转账]'; }
+    }
+    if (m.type === 'red_packet') {
+      try {
+        const d = JSON.parse(m.content);
+        const greet = d.greeting ? ` ${d.greeting}` : '';
+        return `[红包]${greet}`;
+      } catch { return '[红包]'; }
+    }
+    if (typeLabel[m.type]) return typeLabel[m.type];
+    return m.content || '';
   };
 
   const fmtTime = (sec) => {
@@ -687,13 +709,7 @@ function exportConversation(convId, userId) {
   for (const m of msgs) {
     const time    = fmtTime(m.created_at);
     const sender  = m.senderName || '未知用户';
-    let body;
-    if (typeLabel[m.type]) {
-      body = typeLabel[m.type];
-    } else {
-      // text / 未知类型
-      body = m.content || '';
-    }
+    const body    = formatBody(m);
     lines.push(`[${time}] ${sender}`);
     lines.push(body);
     lines.push('');
@@ -702,8 +718,106 @@ function exportConversation(convId, userId) {
   return lines.join('\n');
 }
 
+// ── 聊天文件聚合视图（会话内图片/视频/文件按类型列表）──────────────
+function getConversationFiles(convId, userId, { type = 'all', offset = 0, limit = 50 }) {
+  requireMember(convId, userId);
+
+  const safeLimit  = Math.min(Math.max(parseInt(limit)  || 50, 1), 100);
+  const safeOffset = Math.max(parseInt(offset) || 0, 0);
+
+  // type 参数映射到 SQL 条件（参数化，防 SQL 注入）
+  const VALID_TYPES = { image: ['image'], video: ['video'], file: ['file'], all: ['image', 'video', 'file'] };
+  const types = VALID_TYPES[type] || VALID_TYPES.all;
+  const ph    = types.map(() => '?').join(',');
+
+  const rows = db.prepare(`
+    SELECT m.id, m.type, m.content, m.file_url, m.created_at,
+           u.username AS sender_name, u.avatar AS sender_avatar
+    FROM messages m
+    JOIN users u ON u.id = m.sender_id
+    WHERE m.conversation_id = ? AND m.deleted = 0
+      AND m.type IN (${ph})
+    ORDER BY m.created_at DESC, m.rowid DESC
+    LIMIT ? OFFSET ?
+  `).all(convId, ...types, safeLimit, safeOffset);
+
+  const { cnt: total } = db.prepare(`
+    SELECT COUNT(*) AS cnt
+    FROM messages m
+    WHERE m.conversation_id = ? AND m.deleted = 0
+      AND m.type IN (${ph})
+  `).get(convId, ...types);
+
+  return {
+    items: rows.map(r => ({
+      id:           r.id,
+      type:         r.type,
+      fileName:     r.content || '',   // file/image 消息的 content = 原始文件名
+      fileUrl:      r.file_url || '',
+      createdAt:    r.created_at,
+      senderName:   r.sender_name,
+      senderAvatar: r.sender_avatar,
+    })),
+    total,
+    offset: safeOffset,
+    limit:  safeLimit,
+  };
+}
+
+// ── @我的消息聚合（所有会话中 @自己 的消息）──────────────────────
+function getMentions(userId, { offset = 0, limit = 20 }) {
+  const safeLimit  = Math.min(Math.max(parseInt(limit)  || 20, 1), 50);
+  const safeOffset = Math.max(parseInt(offset) || 0, 0);
+
+  // 查当前用户昵称（@提及用 @username 形式存在 content 里）
+  const me = db.prepare('SELECT username FROM users WHERE id=?').get(userId);
+  if (!me) return { items: [], total: 0 };
+
+  const mention = '@' + me.username;
+
+  // 查所有会话内 @我的消息（instr 避免 LIKE 通配歧义）
+  const rows = db.prepare(`
+    SELECT m.id, m.conversation_id, m.content, m.created_at, m.sender_id,
+           u.username AS sender_name,
+           c.name AS conv_name, c.type AS conv_type
+    FROM messages m
+    JOIN users u ON u.id = m.sender_id
+    JOIN conversations c ON c.id = m.conversation_id
+    JOIN conversation_members cm
+         ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
+    WHERE m.deleted = 0
+      AND m.sender_id != ?
+      AND instr(m.content, ?) > 0
+    ORDER BY m.created_at DESC, m.rowid DESC
+    LIMIT ? OFFSET ?
+  `).all(userId, userId, mention, safeLimit, safeOffset);
+
+  const { cnt: total } = db.prepare(`
+    SELECT COUNT(*) AS cnt
+    FROM messages m
+    JOIN conversation_members cm
+         ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
+    WHERE m.deleted = 0
+      AND m.sender_id != ?
+      AND instr(m.content, ?) > 0
+  `).get(userId, userId, mention);
+
+  return {
+    items: rows.map(r => ({
+      msgId:      r.id,
+      convId:     r.conversation_id,
+      convName:   r.conv_name || '私聊',
+      convType:   r.conv_type,
+      senderName: r.sender_name,
+      content:    r.content.length > 120 ? r.content.slice(0, 120) + '…' : r.content,
+      createdAt:  r.created_at,
+    })),
+    total,
+  };
+}
+
 module.exports = {
   history, missed, send, saveUploadedFile, forward, batchDelete,
   remove, react, edit, collect, searchGlobal, searchInConversation, aroundMessage,
-  exportConversation,
+  exportConversation, getConversationFiles, getMentions,
 };

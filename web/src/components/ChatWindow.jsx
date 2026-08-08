@@ -38,6 +38,8 @@ import TransferModal from './TransferModal';
 import ForwardModal from './ForwardModal';
 import GroupCallModal from './GroupCallModal';
 import PrivateChatSettings from './PrivateChatSettings';
+import ChatFiles from './ChatFiles';
+import ScheduleSendModal from './ScheduleSendModal';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
@@ -159,6 +161,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [claiming, setClaiming] = useState(false);
   const [lightboxState, setLightboxState] = useState(null); // { urls, idx } or null
   const [isDragOver, setIsDragOver] = useState(false);
+  // 聊天文件聚合视图
+  const [showChatFiles, setShowChatFiles] = useState(false);
+  // 定时发送弹窗
+  const [showScheduleSend, setShowScheduleSend] = useState(false);
   const dragCounterRef = useRef(0);
   const isUploadingRef    = useRef(false); // 防止并发上传
   const lastSendRef       = useRef({ text: '', time: 0 }); // 防止 Enter 连击重复发送
@@ -1190,6 +1196,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setShowCardPicker(true);
   };
 
+  // 定时发送弹窗入口
+  const openScheduleModal = useCallback(() => setShowScheduleSend(true), []);
+
   const sendContactCard = (contact) => {
     if (!socket) return;
     setShowCardPicker(false);
@@ -2069,6 +2078,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         onStartCall={startCall}
         onStartGroupCall={startGroupCall}
         onToggleGroupInfo={toggleGroupInfo}
+        onOpenChatFiles={useCallback(() => setShowChatFiles(true), [])}
         onExportChat={useCallback(async () => {
           try {
             const res = await axios.get(`/api/messages/conversation/${conversation.id}/export`, {
@@ -2365,6 +2375,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:'视频通话', testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
               { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:'语音通话', testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
               { bg:'#8A93A6', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:'名片', action: openCardPicker },
+              // 定时发送：把输入框当前文本设为定时消息，到点自动发出
+              { bg:'#576B95', testid:'chat-schedule-btn', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>, label:'定时发送', action: () => { closePanels(); openScheduleModal(); } },
               ...(conversation.type === 'private' ? [
                 { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>, label:'转账', action: () => { setShowTransfer(true); closePanels(); } },
               ] : []),
@@ -2563,6 +2575,29 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           onClose={() => setShowTransfer(false)}
           onSent={() => {
             // 转账消息由 socket 广播自动添加
+          }}
+        />
+      )}
+
+      {/* 聊天文件聚合视图 */}
+      {showChatFiles && (
+        <ChatFiles
+          convId={conversation.id}
+          onClose={() => setShowChatFiles(false)}
+        />
+      )}
+
+      {/* 定时发送弹窗 */}
+      {showScheduleSend && (
+        <ScheduleSendModal
+          convId={conversation.id}
+          defaultContent={input}
+          onClose={() => setShowScheduleSend(false)}
+          onScheduled={(_content) => {
+            // 定时消息已创建，清空输入框（可选）
+            showToast('定时消息已设置，到点自动发出 ✓', 'success');
+            dispatchCompose({ type: 'SET_INPUT', value: '' });
+            setShowScheduleSend(false);
           }}
         />
       )}

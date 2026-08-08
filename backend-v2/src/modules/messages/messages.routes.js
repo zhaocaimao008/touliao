@@ -19,6 +19,7 @@ const conv = require('../conversations/conversations.controller');
 const msg  = require('./messages.controller');
 const grp  = require('../groups/groups.controller');
 const rp   = require('../redpackets/redpackets.controller');
+const sched = require('./scheduled.controller');
 
 // ── 会话创建 / 列表 ─────────────────────────────────────────────
 
@@ -688,6 +689,18 @@ router.get   ('/conversation/:convId/search',   auth, msg.searchInConv);
 
 // 聊天记录导出（必须在 /:conversationId 通配前注册）
 router.get   ('/conversation/:convId/export',   auth, msg.exportConversation);
+
+// 聊天文件聚合视图（type=all|image|video|file，分页）
+router.get   ('/conversation/:convId/files',    auth, msg.conversationFiles);
+
+// @我消息聚合（跨会话，倒序）
+router.get   ('/mentions/me', auth, msg.myMentions);
+
+// ── 定时消息（字面量前缀，早于 /:conversationId 通配）────────────
+// 创建定时消息、列出我的定时消息、取消定时消息
+router.post  ('/schedule',     auth, sendMsgLimiter, sched.create);
+router.get   ('/schedule',     auth, sched.list);
+router.delete('/schedule/:id', auth, sched.cancel);
 
 // ── 媒体列表（修正：上移到 /:conversationId 之前）───────────────
 

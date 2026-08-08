@@ -617,6 +617,10 @@ function NotificationSettings({ onBack }) {
   const [messageNotify, setMessageNotify] = useState(true);
   const [preview, setPreview]             = useState(true);
   const [vibrate, setVibrate]             = useState(false);
+  // 勿扰时段（夜间免打扰）：开关 + 起止时间（HH:MM）
+  const [quietEnabled, setQuietEnabled]   = useState(false);
+  const [quietStart, setQuietStart]       = useState('23:00');
+  const [quietEnd, setQuietEnd]           = useState('07:00');
   const [saving, setSaving]               = useState(false);
   const [loaded, setLoaded]               = useState(false);
 
@@ -628,6 +632,9 @@ function NotificationSettings({ onBack }) {
       setMessageNotify(s.messageNotify !== false);
       setPreview(s.detailPreview !== false);
       setVibrate(s.vibrate === true);
+      setQuietEnabled(s.quietEnabled === true);
+      if (s.quietStart) setQuietStart(s.quietStart);
+      if (s.quietEnd) setQuietEnd(s.quietEnd);
       // 同步 localStorage（向后兼容老版本）
       localStorage.setItem('wc_lock_screen', s.messageNotify !== false ? '1' : '0');
       localStorage.setItem('wc_notify_preview', s.detailPreview !== false ? '1' : '0');
@@ -667,6 +674,29 @@ function NotificationSettings({ onBack }) {
             right={<Toggle checked={notifySound} onChange={setNotifySound} />} />
           <CRow label="通知震动"
             right={<Toggle checked={vibrate} onChange={v => { setVibrate(v); saveSettings('vibrate', v); }} disabled={saving} />} />
+        </Card>
+      </div>
+
+      {/* 勿扰时段（夜间免打扰）：时段内消息照常送达，仅抑制推送通知 */}
+      <SLabel>勿扰时段</SLabel>
+      <div className="wc-notif-pad">
+        <Card>
+          <CRow label="夜间免打扰" desc="开启后，设定时段内不推送通知（消息照常送达）"
+            right={<Toggle checked={quietEnabled} onChange={v => { setQuietEnabled(v); saveSettings('quietEnabled', v); }} disabled={saving} />} />
+          {quietEnabled && (
+            <>
+              <CRow label="开始时间"
+                right={<input type="time" value={quietStart} disabled={saving}
+                  data-testid="quiet-start-input"
+                  onChange={e => { setQuietStart(e.target.value); saveSettings('quietStart', e.target.value); }}
+                  style={{ border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 8px', fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
+              <CRow label="结束时间"
+                right={<input type="time" value={quietEnd} disabled={saving}
+                  data-testid="quiet-end-input"
+                  onChange={e => { setQuietEnd(e.target.value); saveSettings('quietEnd', e.target.value); }}
+                  style={{ border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 8px', fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
+            </>
+          )}
         </Card>
       </div>
     </PageBg>

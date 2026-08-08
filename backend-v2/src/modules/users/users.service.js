@@ -17,7 +17,19 @@ const settingDefaults = {
   add_by_vxin_id: 1, add_by_phone: 1, require_verify: 1, profile_visible: 1,
   block_unknown_messages: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0,
   chat_background: null, moments_visible_days: 0, no_direct_group_invite: 0,
+  // 勿扰时段（夜间免打扰）：开关 + HH:MM 起止时间，命中时段抑制离线推送
+  quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00',
 };
+
+// 校验 HH:MM 格式（00:00~23:59），非法返回 null
+function normalizeHHMM(v) {
+  if (typeof v !== 'string') return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+  if (!m) return null;
+  const h = Number(m[1]), min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
 const toBool = v => !!Number(v);
 const toIntBool = v => (v ? 1 : 0);
 // 朋友圈"最近 N 天可见"允许的取值：0=全部 / 1=今天 / 3=三天 / 30=半年
@@ -37,6 +49,9 @@ function serializeSettings(row) {
     detailPreview: toBool(s.detail_preview), sound: toBool(s.sound), vibrate: toBool(s.vibrate),
     chatBackground: s.chat_background || '', momentsVisibleDays: Number(s.moments_visible_days) || 0,
     noDirectGroupInvite: toBool(s.no_direct_group_invite),
+    quietEnabled: toBool(s.quiet_enabled),
+    quietStart: normalizeHHMM(s.quiet_start) || '23:00',
+    quietEnd: normalizeHHMM(s.quiet_end) || '07:00',
   };
 }
 
@@ -59,6 +74,16 @@ function normalizeSettings(body) {
   if (body.momentsVisibleDays !== undefined) {
     const d = Number(body.momentsVisibleDays);
     patch.moments_visible_days = MOMENTS_DAY_OPTIONS.includes(d) ? d : 0;
+  }
+  // 勿扰时段：布尔开关 + HH:MM 格式时间
+  if (body.quietEnabled !== undefined) patch.quiet_enabled = toIntBool(body.quietEnabled);
+  if (body.quietStart !== undefined) {
+    const v = normalizeHHMM(body.quietStart);
+    if (v !== null) patch.quiet_start = v;
+  }
+  if (body.quietEnd !== undefined) {
+    const v = normalizeHHMM(body.quietEnd);
+    if (v !== null) patch.quiet_end = v;
   }
   return patch;
 }

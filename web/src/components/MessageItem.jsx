@@ -46,6 +46,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
 
   const showRead      = isMine && msg._read      && convType === 'private';
   const showDelivered = isMine && msg._delivered && convType === 'private' && !msg._read;
+  // 定时消息标记：由后端调度器发出的消息带 is_scheduled=1
+  const isScheduled   = !!msg.is_scheduled;
 
   const canClickAvatar = (() => {
     if (isMine || convType !== 'group') return true;
@@ -135,6 +137,19 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   ? <div className="wc-msg-read wc-msg-status-delivered">✓✓ 已送达</div>
                   : <div className="wc-msg-read wc-msg-status-sent">✓ 已发送</div>
             ) : null
+          )}
+          {/* 定时消息标记：气泡左上角「定时」角标 */}
+          {isScheduled && (
+            <span
+              data-testid="msg-scheduled-badge"
+              title="定时发送的消息"
+              style={{
+                position: 'absolute', top: 2, left: isMine ? 'auto' : 2, right: isMine ? 2 : 'auto',
+                fontSize: 10, padding: '1px 5px', borderRadius: 10,
+                background: 'rgba(87,107,149,.85)', color: '#fff',
+                pointerEvents: 'none', zIndex: 1,
+              }}
+            >定时</span>
           )}
           <div
             data-testid={`msg-bubble-${msg.id}`}

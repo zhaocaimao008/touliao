@@ -61,6 +61,14 @@ exports.exportConversation = asyncHandler(async (req, res) => {
   res.send(text);
 });
 
+// 聊天文件聚合：GET /api/messages/conversation/:convId/files
+exports.conversationFiles = asyncHandler(async (req, res) =>
+  res.json(svc.getConversationFiles(req.params.convId, req.user.id, req.query)));
+
+// @我消息聚合：GET /api/messages/mentions/me
+exports.myMentions = asyncHandler(async (req, res) =>
+  res.json(svc.getMentions(req.user.id, req.query)));
+
 // ── 文件上传：权限门控 → multer+魔数 → 入库广播+推送 ─────────────
 exports.uploadGuard = (req, res, next) => {
   const convId = req.params.conversationId;
