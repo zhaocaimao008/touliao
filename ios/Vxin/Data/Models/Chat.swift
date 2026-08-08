@@ -89,9 +89,11 @@ struct Message: Decodable, Identifiable, Equatable {
     var clientMsgId: String? = nil
     /// 由定时任务发送的消息（is_scheduled=1），气泡右下角显示「定时」角标
     var isScheduled: Int = 0
+    /// 语音转文字结果（后端消息查询已返回该列；非空=已转写，直接显示，不再显示「转文字」按钮）
+    var transcript: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, type, content, reactions, replyTo, edited, deleted
+        case id, type, content, reactions, replyTo, edited, deleted, transcript
         case conversationId = "conversation_id"
         case senderId = "sender_id"
         case fileUrl = "file_url"
@@ -120,6 +122,7 @@ struct Message: Decodable, Identifiable, Equatable {
         replyTo = try? c.decode(ReplyPreview.self, forKey: .replyTo)
         clientMsgId = try? c.decode(String.self, forKey: .clientMsgId)
         isScheduled = (try? c.decode(Int.self, forKey: .isScheduled)) ?? 0
+        transcript = try? c.decode(String.self, forKey: .transcript)
     }
 
     /// 便捷构造：从离线缓存快照还原「已确认历史消息」（localStatus/clientMsgId 均为 nil）。
@@ -238,6 +241,66 @@ struct MentionItem: Decodable, Identifiable {
         senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
         content = (try? c.decode(String.self, forKey: .content)) ?? ""
         createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
+    }
+}
+
+/// 会话文件聚合项（GET .../files 列表项；与 Android ConversationFile 对齐）
+struct ConversationFile: Decodable, Identifiable, Equatable {
+    var id: String = ""
+    var type: String = "file"      // image | video | file
+    var content: String = ""       // 文件名（文件类）/文本
+    var fileUrl: String = ""       // 相对资源路径
+    var createdAt: Double = 0      // epoch 秒
+    var senderName: String = ""
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, content, senderName
+        case fileUrl = "file_url"
+        case createdAt = "created_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(String.self, forKey: .id)) ?? UUID().uuidString
+        type = (try? c.decode(String.self, forKey: .type)) ?? "file"
+        content = (try? c.decode(String.self, forKey: .content)) ?? ""
+        fileUrl = (try? c.decode(String.self, forKey: .fileUrl)) ?? ""
+        createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
+        senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
+    }
+
+    /// 文件名：优先 content，否则从 fileUrl 末段提取（去掉 query）
+    var displayName: String {
+        if !content.isEmpty { return content }
+        let seg = fileUrl.components(separatedBy: "?").first?
+            .components(separatedBy: "/").last ?? ""
+        return seg.isEmpty ? "文件" : seg
+    }
+}
+
+/// 会话文件聚合分页响应（items + total）
+struct ConversationFilesResponse: Decodable {
+    var items: [ConversationFile] = []
+    var total: Int = 0
+
+    enum CodingKeys: String, CodingKey { case items, total }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        items = (try? c.decode([ConversationFile].self, forKey: .items)) ?? []
+        total = (try? c.decode(Int.self, forKey: .total)) ?? 0
+    }
+}
+
+/// 语音转文字响应（POST /api/messages/:msgId/transcribe）；cached=true 表示命中后端缓存
+struct TranscribeResponse: Decodable {
+    var text: String = ""
+    var cached: Bool = false
+
+    enum CodingKeys: String, CodingKey { case text, cached }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        text = (try? c.decode(String.self, forKey: .text)) ?? ""
+        cached = (try? c.decode(Bool.self, forKey: .cached)) ?? false
     }
 }
 

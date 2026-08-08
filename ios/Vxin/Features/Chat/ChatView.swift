@@ -25,6 +25,7 @@ struct ChatView: View {
     @State private var showTransferSend = false          // 好友转账弹窗
     @State private var showScheduleSend = false          // 定时发送弹窗
     @State private var showScheduleList = false          // 定时消息列表弹窗
+    @State private var showConversationFiles = false      // 聊天文件聚合全屏页
     @State private var exportShareURL: URL?               // 导出的临时 txt 文件 URL
     @State private var showExportShare = false            // 分享面板开关
     @State private var showPinnedList = false
@@ -126,6 +127,13 @@ struct ChatView: View {
                         Label("阅后即焚" + (vm.burnAfter > 0 ? "（\(ChatView.burnLabel(vm.burnAfter))）" : ""), systemImage: "flame")
                     }
                     Divider()
+                    // 聊天文件聚合：图片/视频/文件汇总全屏页
+                    Button {
+                        showConversationFiles = true
+                    } label: {
+                        Label("聊天文件", systemImage: "folder")
+                    }
+                    .accessibilityIdentifier("chat-files-btn")
                     // 导出聊天记录：拉取全量文本存 txt 并分享
                     Button {
                         vm.exportChat()
@@ -183,6 +191,10 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showExportShare) {
             if let url = exportShareURL { ShareSheet(items: [url]) }
+        }
+        // 聊天文件聚合全屏页
+        .fullScreenCover(isPresented: $showConversationFiles) {
+            ConversationFilesView(conversationId: vm.conversationId)
         }
         .sheet(isPresented: Binding(get: { vm.redPacketDetail != nil }, set: { if !$0 { vm.closeRedPacket() } })) {
             if let detail = vm.redPacketDetail {
@@ -807,7 +819,11 @@ private struct MessageBubble: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .onTapGesture { vm.openImage(msg) }
         case "voice":
-            card { Text("🎙 语音  ▶") }.onTapGesture { vm.playVoice(msg) }
+            // 语音气泡 + 转文字三态（对齐 Android ChatScreen）
+            VStack(alignment: isMine ? .trailing : .leading, spacing: 3) {
+                card { Text("🎙 语音  ▶") }.onTapGesture { vm.playVoice(msg) }
+                voiceTranscript
+            }
         case "file":
             card { Text("📄 \(msg.content.isEmpty ? "文件" : msg.content)").lineLimit(2) }
                 .onTapGesture { openFile() }
@@ -821,6 +837,31 @@ private struct MessageBubble: View {
             card { Text("👤 \(contactCardTitle)") }
         default:
             card { Text(mentionHighlighted(msg.content, mine: isMine)) }
+        }
+    }
+
+    /// 语音转文字三态（对齐 Android）：
+    /// 1) 已转写(transcript 非空) → 直接显示灰底文本，无按钮
+    /// 2) 转写中 → 「转写中…」
+    /// 3) 未转写 → 绿色「转文字」小按钮，点击发起转写
+    @ViewBuilder private var voiceTranscript: some View {
+        if let text = msg.transcript, !text.isEmpty {
+            Text(text)
+                .font(.footnote).foregroundColor(.vxinTextSecondary)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .frame(maxWidth: 240, alignment: .leading)
+                .background(Color.gray.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else if vm.isTranscribing(msg.id) {
+            Text("转写中…").font(.caption).foregroundColor(.vxinTextSecondary)
+                .padding(.horizontal, 2)
+        } else {
+            Button { vm.transcribeVoice(msg) } label: {
+                Text("转文字").font(.caption).foregroundColor(.vxinGreen)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("voice-transcribe-\(msg.id)")
         }
     }
 

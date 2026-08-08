@@ -222,6 +222,20 @@ final class ChatRepository {
     func mentionsMe(offset: Int = 0, limit: Int = 20) async throws -> [MentionItem] {
         try await api.send("api/messages/mentions/me?offset=\(offset)&limit=\(limit)")
     }
+
+    // MARK: - 聊天文件聚合视图
+
+    /// 会话文件聚合分页列表（type=all|image|video|file）
+    func conversationFiles(_ conversationId: String, type: String = "all", offset: Int = 0, limit: Int = 30) async throws -> ConversationFilesResponse {
+        try await api.send("api/messages/conversation/\(conversationId)/files?type=\(type)&offset=\(offset)&limit=\(limit)")
+    }
+
+    // MARK: - 语音转文字
+
+    /// 语音转文字（幂等：已转写返回缓存；ASR 不可用后端返回 503）
+    func transcribe(_ msgId: String) async throws -> TranscribeResponse {
+        try await api.send("api/messages/\(msgId)/transcribe", method: "POST")
+    }
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }

@@ -66,6 +66,8 @@ final class ChatViewModel: ObservableObject {
     // ── 聊天记录导出 ──
     @Published var exportingChat = false               // 导出进行中
     @Published var exportContent: String?              // 非空 = 已拿到导出文本，View 写文件并分享后清空
+    // ── 语音转文字 ──
+    @Published var transcribingIds: Set<String> = []   // 正在转写的语音消息 id（气泡显示「转写中…」）
     @Published var error: String?
 
     let conversationId: String
@@ -936,6 +938,34 @@ final class ChatViewModel: ObservableObject {
     func playVoice(_ message: Message) {
         if let url = resolveMediaUrl(message.fileUrl) { player.play(urlString: url) }
     }
+
+    // MARK: - 语音转文字
+    /// 语音消息转文字。幂等由后端管理（已转写直接返回缓存）；成功后把 transcript 写回消息并落盘。
+    /// ASR 不可用后端返回 503 → toast「转写服务暂不可用」；其他失败 toast 错误信息；不显示假数据。
+    func transcribeVoice(_ msg: Message) {
+        // 已有转写结果或正在转写 → 不重复请求
+        guard msg.transcript?.isEmpty ?? true else { return }
+        guard !transcribingIds.contains(msg.id) else { return }
+        transcribingIds.insert(msg.id)
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.transcribingIds.remove(msg.id) }
+            do {
+                let resp = try await self.repo.transcribe(msg.id)
+                if let idx = self.messages.firstIndex(where: { $0.id == msg.id }) {
+                    self.messages[idx].transcript = resp.text
+                }
+                self.persistCache()   // 转写结果随消息落盘，下次进入直接显示
+            } catch APIError.server(503, _) {
+                self.error = "转写服务暂不可用"
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "转文字失败"
+            }
+        }
+    }
+
+    /// 某条语音消息是否正在转写中（供气泡显示「转写中…」）
+    func isTranscribing(_ msgId: String) -> Bool { transcribingIds.contains(msgId) }
 
     func dismissFailed(_ id: String) {
         pending.removeAll { $0.id == id }
