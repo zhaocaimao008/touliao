@@ -91,8 +91,11 @@
   /* 我的页 — 功能行图标底色(原散落硬编码，收敛为令牌) */
   --icon-bg-wallet:      #F0A020;   /* 钱包/金币 */
   --icon-bg-invite:      #17B8A6;   /* 邀请好友 */
-  --icon-bg-neutral:     #8A93A6;   /* 中性功能项(设置/隐私/通知/设备…) */
+  --icon-bg-neutral:     #8A93A6;   /* 中性功能项(设置/隐私/通知/设备/黑名单…) */
   --icon-bg-filehelper:  #10AEFF;   /* 文件传输助手(经典微信天蓝，功能识别色) */
+  --icon-bg-newfriend:   #FA9D3B;   /* 新的朋友(暖橙) */
+  --icon-bg-group:       #17B8A6;   /* 群聊(青碧) */
+  --icon-bg-label:       #FF6B35;   /* 好友标签(珊瑚橙) */
 
   /* ── 信息类横幅（群公告 / 桌面更新条）──
      原散落纯蓝 #3B82F6/#EAF4FF 与 AURORA 靛紫主色系割裂，
