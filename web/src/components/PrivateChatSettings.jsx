@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { showToast, showConfirm } from '../utils/toast';
+import { useConvSettings } from '../hooks/useConvSettings';
 
 const BURN_OPTIONS = [
   { value: 0,      label: '关闭' },
@@ -18,30 +19,10 @@ const BURN_OPTIONS = [
  * 从 ChatWindow.jsx 抽出（原 2705 行大文件拆分），无状态耦合，仅回调通信。
  */
 export default function PrivateChatSettings({ conversation, onClose, onConvUpdate, onPickBackground, onClearBackground, onCleared, onOpenChatFiles }) {
-  const [muted, setMuted] = useState(!!conversation.muted);
-  const [pinned, setPinned] = useState(!!conversation.pinned);
+  // 免打扰 / 置顶：与 GroupInfo 共用 useConvSettings（state + /mute /pin API），
+  // saving 沿用同一忙碌标志（切换/清空互斥），保持原有交互不回归。
+  const { muted, pinned, saving, toggleMute, togglePin, setSaving } = useConvSettings(conversation, onConvUpdate);
   const [burnAfter, setBurnAfter] = useState(conversation.burn_after || 0);
-  const [saving, setSaving] = useState(false);
-
-  const toggleMute = async (val) => {
-    setSaving(true);
-    try {
-      await axios.post(`/api/messages/conversation/${conversation.id}/mute`, { muted: val ? 1 : 0 });
-      setMuted(val);
-      onConvUpdate?.({ muted: val ? 1 : 0 });
-    } catch { showToast('操作失败', 'error'); }
-    setSaving(false);
-  };
-
-  const togglePin = async (val) => {
-    setSaving(true);
-    try {
-      await axios.post(`/api/messages/conversation/${conversation.id}/pin`, { pinned: val ? 1 : 0 });
-      setPinned(val);
-      onConvUpdate?.({ pinned: val ? 1 : 0 });
-    } catch { showToast('操作失败', 'error'); }
-    setSaving(false);
-  };
 
   const clearMessages = async () => {
     const name = conversation.name || '当前聊天';

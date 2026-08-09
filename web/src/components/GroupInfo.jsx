@@ -4,6 +4,7 @@ import { FixedSizeList } from 'react-window';
 import Avatar, { getColor } from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
+import { useConvSettings } from '../hooks/useConvSettings';
 
 /* ── 宫格单元：头像加载失败回退首字母，避免碎图 ── */
 function GroupGridCell({ member = {}, cellSize }) {
@@ -181,10 +182,10 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   const [togglingNoAddFriend, setTogglingNoAddFriend] = useState(false);
   const [togglingMemberInvite, setTogglingMemberInvite] = useState(false);
   // 个人会话设置
-  const [myMuted, setMyMuted] = useState(!!conversation.muted);
-  const [myPinned, setMyPinned] = useState(!!conversation.pinned);
-  const [togglingMyMute, setTogglingMyMute] = useState(false);
-  const [togglingMyPin, setTogglingMyPin] = useState(false);
+  // 免打扰 / 置顶：与 PrivateChatSettings 共用 useConvSettings（state + /mute /pin API）。
+  // 原为 mute/pin 各自独立的 toggling 标志，现统一为单个 saving（切换期间两个开关一起禁用，
+  // 防跨开关重复提交）；行为与私聊设置面板一致。
+  const { muted: myMuted, pinned: myPinned, saving: savingSetting, toggleMute, togglePin } = useConvSettings(conversation, onConvUpdate);
   // 踢人搜索
   const [kickSearch, setKickSearch] = useState('');
   // 群头像上传
@@ -724,16 +725,8 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             <Toggle
               label="消息免打扰"
               on={myMuted}
-              disabled={togglingMyMute}
-              onChange={async (val) => {
-                setTogglingMyMute(true);
-                try {
-                  await axios.post(`/api/messages/conversation/${conversation.id}/mute`, { muted: val ? 1 : 0 });
-                  setMyMuted(val);
-                  onConvUpdate?.({ muted: val ? 1 : 0 });
-                } catch { showToast('操作失败', 'error'); }
-                setTogglingMyMute(false);
-              }}
+              disabled={savingSetting}
+              onChange={toggleMute}
             />
           </div>
           <div className="gi-row">
@@ -741,16 +734,8 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             <Toggle
               label="置顶聊天"
               on={myPinned}
-              disabled={togglingMyPin}
-              onChange={async (val) => {
-                setTogglingMyPin(true);
-                try {
-                  await axios.post(`/api/messages/conversation/${conversation.id}/pin`, { pinned: val ? 1 : 0 });
-                  setMyPinned(val);
-                  onConvUpdate?.({ pinned: val ? 1 : 0 });
-                } catch { showToast('操作失败', 'error'); }
-                setTogglingMyPin(false);
-              }}
+              disabled={savingSetting}
+              onChange={togglePin}
             />
           </div>
           <div className={`gi-row${conversation.background ? '' : ' gi-row-noborder'}`} style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onPickBackground?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPickBackground?.(); } }}>
