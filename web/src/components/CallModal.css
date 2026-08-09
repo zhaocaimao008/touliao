@@ -31,7 +31,7 @@
   position: absolute; top: 0; left: 0; right: 0; z-index: 10;
   background: rgba(220, 60, 60, .92);
   color: var(--gray-0);
-  font-size: 13px; text-align: center;
+  font-size: var(--text-sm2); text-align: center;
   padding: 8px 14px;
   backdrop-filter: blur(6px);
 }
@@ -66,11 +66,11 @@
 }
 .cm-video-name { flex: 1; text-align: center; }
 .cm-video-name-text {
-  font-size: 16px; font-weight: 600;
+  font-size: var(--text-lg); font-weight: 600;
   text-shadow: 0 1px 4px rgba(0, 0, 0, .5);
 }
 .cm-video-status {
-  font-size: 12px; color: rgba(255, 255, 255, .7); margin-top: 2px;
+  font-size: var(--text-sm); color: rgba(255, 255, 255, .7); margin-top: 2px;
 }
 
 /* 来电居中区域 */
@@ -85,7 +85,7 @@
   text-shadow: 0 1px 6px rgba(0, 0, 0, .6);
 }
 .cm-incoming-desc {
-  font-size: 14px; color: rgba(255, 255, 255, .6); margin-top: 8px;
+  font-size: var(--text-base); color: rgba(255, 255, 255, .6); margin-top: 8px;
 }
 
 /* 底部控制区 */
@@ -123,7 +123,7 @@
   text-shadow: 0 1px 6px rgba(0, 0, 0, .5);
 }
 .cm-voice-status {
-  font-size: 14px; margin-top: 10px;
+  font-size: var(--text-base); margin-top: 10px;
   color: rgba(255, 255, 255, .7);
   min-height: 20px;
 }
@@ -138,7 +138,7 @@
   display: flex; align-items: center; justify-content: center;
   background: var(--scrim-strong);
 }
-.cm-ended-text { font-size: 16px; color: var(--gray-0); font-weight: 500; }
+.cm-ended-text { font-size: var(--text-lg); color: var(--gray-0); font-weight: 500; }
 
 /* ── 缩小悬浮气泡 ── */
 .cm-bubble {
@@ -164,7 +164,7 @@
   display: flex; flex-direction: column; align-items: center;
 }
 .cm-bubble-timer {
-  color: var(--gray-0); font-size: 11px; font-weight: 500;
+  color: var(--gray-0); font-size: var(--text-xs); font-weight: 500;
 }
 /* 小语音气泡 */
 .cm-bubble-audio {
@@ -178,7 +178,7 @@
   background: rgba(0, 0, 0, .72);
   border-radius: var(--radius-2xl);
   padding: 2px 10px;
-  color: var(--gray-0); font-size: 11px;
+  color: var(--gray-0); font-size: var(--text-xs);
   backdrop-filter: blur(6px);
 }
 
@@ -213,5 +213,5 @@
   color: var(--gray-0);
 }
 .cm-circle-btn-label {
-  font-size: 12px; color: rgba(255, 255, 255, .75); white-space: nowrap;
+  font-size: var(--text-sm); color: rgba(255, 255, 255, .75); white-space: nowrap;
 }
