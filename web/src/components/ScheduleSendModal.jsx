@@ -159,7 +159,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
             style={{
               padding: '8px 18px', borderRadius: 'var(--radius-sm)',
               border: 'none', background: 'var(--green)',
-              color: '#fff', cursor: 'pointer', fontSize: 14,
+              color: 'var(--text-on-brand)', cursor: 'pointer', fontSize: 14,
               opacity: (saving || !content.trim()) ? 0.6 : 1,
             }}
           >{saving ? '设置中…' : '确认定时发送'}</button>

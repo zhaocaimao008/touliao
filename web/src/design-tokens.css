@@ -49,6 +49,9 @@
   --bubble-mine-rgb: var(--color-primary-rgb);
   --bubble-other:    #FFFFFF;
   --shadow-bubble-other-soft: 0 1px 3px rgba(20,24,40,.07), 0 1px 8px rgba(20,24,40,.05);
+  /* 浅绿气泡内文字/链接（企业微信经典：深色正文 + 微信蓝链接），收敛原散落裸写值 */
+  --bubble-mine-text: #1F2329;
+  --bubble-mine-link: #576B95;
 
   /* 品牌渐变（AURORA 靛→青碧）：我方气泡、侧栏头像、确认按钮等使用。
      原定义在 index.css :root，随单一真相源合并迁移至此。*/
@@ -86,6 +89,16 @@
   --icon-bg-wallet:      #F0A020;   /* 钱包/金币 */
   --icon-bg-invite:      #17B8A6;   /* 邀请好友 */
   --icon-bg-neutral:     #8A93A6;   /* 中性功能项(设置/隐私/通知/设备…) */
+  --icon-bg-filehelper:  #10AEFF;   /* 文件传输助手(经典微信天蓝，功能识别色) */
+
+  /* ── 信息类横幅（群公告 / 桌面更新条）──
+     原散落纯蓝 #3B82F6/#EAF4FF 与 AURORA 靛紫主色系割裂，
+     统一收敛到品牌主色，明暗一致、整体和谐 */
+  --info-banner-bg:       var(--brand-50);           /* 横幅底：极浅靛紫 */
+  --info-banner-bg-soft:  rgba(var(--color-primary-rgb), .06);  /* 展开层更淡 */
+  --info-banner-fg:       var(--color-primary);      /* 徽标/图标/进度条前景 */
+  --info-banner-fg-hover: var(--color-primary-hover);
+  --info-banner-border:   rgba(var(--color-primary-rgb), .25);
 
   /* 模态遮罩层(scrim) — 弹窗背后压暗层, 统一档位, 明暗一致 */
   --scrim:               rgba(0, 0, 0, .45);   /* 标准模态遮罩 */
@@ -474,6 +487,11 @@ body.dark-mode {
   --bg-modal:             #1C1C1E;
   --bg-success-tint:      rgba(7, 193, 96, .16);  /* 暗色下绿态浅底 */
   --bg-ctx-menu:          #2C2C2E;   /* 暗色右键菜单与卡片同底 */
+
+  /* 信息类横幅（暗色）：靛紫 tint，比浅色更透以贴合深底 */
+  --info-banner-bg:       rgba(var(--color-primary-rgb), .12);
+  --info-banner-bg-soft:  rgba(var(--color-primary-rgb), .08);
+  --info-banner-border:   rgba(var(--color-primary-rgb), .30);
   --bg-hover:             rgba(255, 255, 255, .06);
   /* 与浅色一致，复用面板选中态（原蓝色调值被 §14 legacy alias 覆盖成中性，
      此处对齐生效值以消除"文档≠生效"冲突，视觉零变化）*/
