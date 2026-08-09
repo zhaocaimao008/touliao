@@ -245,14 +245,14 @@ private fun FileGridItem(
                     Row {
                         Text(
                             file.senderName.ifBlank { "某人" },
-                            fontSize = 11.sp,
+                            fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
                             color = VxinTextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
                         Spacer(Modifier.size(8.dp))
-                        Text(sdf.format(Date(file.created_at * 1000)), fontSize = 11.sp, color = VxinTextSecondary)
+                        Text(sdf.format(Date(file.created_at * 1000)), fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, color = VxinTextSecondary)
                     }
                 }
             }

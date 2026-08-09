@@ -124,9 +124,9 @@ fun GroupInfoScreen(
                                 if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp), color = Color.White)
                             }
                             Spacer(Modifier.size(12.dp))
-                            Text(info.name.ifBlank { "未命名群聊" }, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text(info.name.ifBlank { "未命名群聊" }, color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.xxl, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.size(4.dp))
-                            Text("${info.members.size} 名成员", color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                            Text("${info.members.size} 名成员", color = Color.White.copy(alpha = 0.85f), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
                         }
                         HorizontalDivider()
                         // 群名称

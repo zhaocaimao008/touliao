@@ -175,7 +175,7 @@ private fun MentionRow(item: MentionItem, onClick: () -> Unit) {
                 )
                 Text(
                     sdf.format(Date(item.createdAt * 1000)),
-                    fontSize = 11.sp,
+                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
                     color = VxinTextSecondary,
                 )
             }

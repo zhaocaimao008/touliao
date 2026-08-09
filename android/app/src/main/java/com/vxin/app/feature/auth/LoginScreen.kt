@@ -85,7 +85,7 @@ fun LoginScreen(
         Spacer(Modifier.height(16.dp))
         Text("v信", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(6.dp))
-        Text("安全 · 私密 · 畅聊", fontSize = 14.sp, color = VxinTextSecondary)
+        Text("安全 · 私密 · 畅聊", fontSize = com.vxin.app.ui.theme.VxinTextSize.base, color = VxinTextSecondary)
         Spacer(Modifier.height(40.dp))
 
         OutlinedTextField(
@@ -107,7 +107,7 @@ fun LoginScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = {
                 TextButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Text(if (passwordVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = 12.sp)
+                    Text(if (passwordVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                 }
             },
             modifier = Modifier.fillMaxWidth().testTag("login-password-input"),
@@ -118,7 +118,7 @@ fun LoginScreen(
             Text(
                 text = state.error!!,
                 color = MaterialTheme.colorScheme.error,
-                fontSize = 13.sp,
+                fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
                 modifier = Modifier.fillMaxWidth().testTag("auth-error-text"),
             )
         }
@@ -167,11 +167,11 @@ fun LoginScreen(
             Text("注册账号", color = VxinGreen)
         }
         TextButton(onClick = onNavigateForgotPassword) {
-            Text("忘记密码", color = VxinTextSecondary, fontSize = 13.sp)
+            Text("忘记密码", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
         }
 
         TextButton(onClick = { showServerConfig = !showServerConfig }) {
-            Text("切换服务器", color = VxinTextSecondary, fontSize = 12.sp)
+            Text("切换服务器", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
         }
         if (showServerConfig) {
             OutlinedTextField(

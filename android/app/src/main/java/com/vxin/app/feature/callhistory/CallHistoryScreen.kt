@@ -108,21 +108,21 @@ private fun CallLogRow(c: CallLog, resolveUrl: (String?) -> String?, onClick: ()
         Column(Modifier.weight(1f)) {
             Text(
                 c.peer_name.ifBlank { "用户" },
-                fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                fontSize = com.vxin.app.ui.theme.VxinTextSize.md, fontWeight = FontWeight.Medium,
                 color = if (missed) ERR else MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.size(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 方向箭头：拨出 ↗ / 来电 ↙
-                Text(if (c.direction == "out") "↗" else "↙", color = if (missed) ERR else VxinTextSecondary, fontSize = 12.sp)
+                Text(if (c.direction == "out") "↗" else "↙", color = if (missed) ERR else VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                 Spacer(Modifier.width(4.dp))
                 val kind = if (c.type == "video") "视频通话" else "语音通话"
                 val dur = fmtDuration(c.duration)
                 val text = "$kind · ${statusLabel(c.status)}" + if (dur.isNotBlank()) " · $dur" else ""
-                Text(text, color = if (missed) ERR else VxinTextSecondary, fontSize = 12.sp)
+                Text(text, color = if (missed) ERR else VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
             }
         }
         Spacer(Modifier.width(8.dp))
-        Text(formatChatTime(c.created_at), color = VxinTextSecondary, fontSize = 11.sp)
+        Text(formatChatTime(c.created_at), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
     }
 }

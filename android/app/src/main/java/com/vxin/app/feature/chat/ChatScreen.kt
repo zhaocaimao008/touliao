@@ -263,7 +263,7 @@ fun ChatScreen(
                     Column {
                         Text(state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"))
                         if (state.peerTyping) {
-                            Text("对方正在输入…", fontSize = 11.sp, color = VxinGreen)
+                            Text("对方正在输入…", fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, color = VxinGreen)
                         }
                     }
                 },
@@ -330,7 +330,7 @@ fun ChatScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("已选 ${state.selectedIds.size} 条", color = VxinTextSecondary, fontSize = 14.sp)
+                    Text("已选 ${state.selectedIds.size} 条", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = { viewModel.exitMultiSelect() }) { Text("取消") }
                     Spacer(Modifier.width(8.dp))
@@ -350,7 +350,7 @@ fun ChatScreen(
                     ) {
                         Text(
                             "回复 ${r.senderName.ifBlank { "" }}: ${replyPreviewOf(r)}",
-                            Modifier.weight(1f), color = VxinTextSecondary, fontSize = 12.sp,
+                            Modifier.weight(1f), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Text("✕", Modifier.clickable { viewModel.cancelReply() }.padding(start = 8.dp), color = VxinTextSecondary)
@@ -463,7 +463,7 @@ fun ChatScreen(
                                 Text(
                                     formatChatTime(msg.created_at),
                                     color = VxinTextSecondary,
-                                    fontSize = 11.sp,
+                                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
                                         .background(Color(0x11000000))
@@ -473,7 +473,7 @@ fun ChatScreen(
                         }
                         if (msg.type == "nudge") {
                             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
-                                Text(viewModel.nudgeText(msg), color = VxinTextSecondary, fontSize = 12.sp)
+                                Text(viewModel.nudgeText(msg), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                             }
                             return@itemsIndexed
                         }
@@ -493,7 +493,7 @@ fun ChatScreen(
                                     Modifier.size(22.dp).clip(CircleShape)
                                         .background(if (checked) VxinGreen else Color(0x22000000)),
                                     contentAlignment = Alignment.Center,
-                                ) { if (checked) Text("✓", color = Color.White, fontSize = 13.sp) }
+                                ) { if (checked) Text("✓", color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2) }
                                 Box(Modifier.weight(1f)) {
                                     MessageBubble(
                                         msg = msg,
@@ -593,9 +593,9 @@ fun ChatScreen(
                         Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("↓", color = VxinGreen, fontSize = 13.sp)
+                        Text("↓", color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
                         Spacer(Modifier.width(4.dp))
-                        Text("$newMsgCount 条新消息", color = VxinGreen, fontSize = 13.sp)
+                        Text("$newMsgCount 条新消息", color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
                     }
                 }
             }
@@ -712,7 +712,7 @@ fun ChatScreen(
                     items(state.pinnedMessages, key = { it.msgId }) { p ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(p.senderName.ifBlank { "成员" }, fontSize = 12.sp, color = VxinTextSecondary)
+                                Text(p.senderName.ifBlank { "成员" }, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
                                 Text(pinnedPreview(p), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                             TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = Color(0xFFFA5151)) }
@@ -861,13 +861,13 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
                 }
             }
             if (images.size > 1) {
-                Text("${pagerState.currentPage + 1}/${images.size}", color = Color.White, fontSize = 13.sp,
+                Text("${pagerState.currentPage + 1}/${images.size}", color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp))
             }
             Text(
                 "保存图片",
                 color = Color.White,
-                fontSize = 14.sp,
+                fontSize = com.vxin.app.ui.theme.VxinTextSize.base,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 40.dp, end = 16.dp)
@@ -896,16 +896,16 @@ private fun AnnouncementBanner(text: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().background(Color(0xFFEAF4FF)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("📢", fontSize = 14.sp)
+        Text("📢", fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
         Spacer(Modifier.size(8.dp))
-        Text("群公告", color = Color(0xFF3B82F6), fontSize = 12.sp, maxLines = 1)
+        Text("群公告", color = Color(0xFF3B82F6), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, maxLines = 1)
         Spacer(Modifier.size(8.dp))
         // 置顶轮播：单行横向滚动展示（basicMarquee），点按看全文
         Text(
             text.replace("\n", "   "),
             modifier = Modifier.weight(1f).basicMarquee(),
             maxLines = 1,
-            fontSize = 13.sp,
+            fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
         )
     }
 }
@@ -917,10 +917,10 @@ private fun PinnedBanner(pinned: List<com.vxin.app.data.model.PinnedMessage>, on
         modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF7E6)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("📌", fontSize = 14.sp)
+        Text("📌", fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
         Spacer(Modifier.size(8.dp))
-        Text(pinnedPreview(latest), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
-        if (pinned.size > 1) Text("${pinned.size} 条", color = VxinTextSecondary, fontSize = 12.sp)
+        Text(pinnedPreview(latest), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+        if (pinned.size > 1) Text("${pinned.size} 条", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
     }
 }
 
@@ -990,7 +990,7 @@ private fun MessageBubble(
                 isMine && msg.localStatus == LocalMsgStatus.FAILED -> {
                     Text(
                         text = "❗发送失败，点击重发",
-                        fontSize = 10.sp,
+                        fontSize = com.vxin.app.ui.theme.VxinTextSize.xs2,
                         color = Color(0xFFE64545),
                         modifier = Modifier
                             .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.tag))
@@ -1002,7 +1002,7 @@ private fun MessageBubble(
                 isMine && showReadStatus -> {
                     Text(
                         text = if (isRead) "✓✓ 已读" else "✓",
-                        fontSize = 10.sp,
+                        fontSize = com.vxin.app.ui.theme.VxinTextSize.xs2,
                         color = if (isRead) VxinGreen else VxinTextSecondary,
                     )
                 }
@@ -1011,7 +1011,7 @@ private fun MessageBubble(
             if (msg.isScheduled == 1) {
                 Text(
                     "⏱ 定时",
-                    fontSize = 10.sp,
+                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs2,
                     color = VxinTextSecondary,
                     modifier = Modifier.padding(vertical = 1.dp),
                 )
@@ -1026,7 +1026,7 @@ private fun MessageBubble(
                 ) {
                     Text(
                         "${rt.senderName}: ${replyPreviewText(rt)}",
-                        color = VxinTextSecondary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Spacer(Modifier.size(2.dp))
@@ -1058,7 +1058,7 @@ private fun MessageBubble(
                     // 表情回应行
                     Row(Modifier.padding(horizontal = 8.dp)) {
                         REACTION_EMOJIS.forEach { e ->
-                            Text(e, fontSize = 20.sp, modifier = Modifier
+                            Text(e, fontSize = com.vxin.app.ui.theme.VxinTextSize.xxl, modifier = Modifier
                                 .padding(4.dp)
                                 .clickable { onReact(e); menuOpen = false })
                         }
@@ -1096,7 +1096,7 @@ private fun MessageBubble(
                 }
             }
             if (msg.edited == 1) {
-                Text("已编辑", color = VxinTextSecondary, fontSize = 10.sp)
+                Text("已编辑", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs2)
             }
             // 表情回应展示（高亮「我」贴过的，点击可切换回应，对齐 Web/iOS）
             if (msg.reactions.isNotEmpty()) {
@@ -1110,7 +1110,7 @@ private fun MessageBubble(
                                 .then(if (mine) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge)) else Modifier)
                                 .clickable { onReact(r.emoji) }
                                 .padding(horizontal = 6.dp, vertical = 1.dp),
-                        ) { Text("${r.emoji} ${r.count}", fontSize = 11.sp, color = if (mine) VxinGreen else Color.Unspecified) }
+                        ) { Text("${r.emoji} ${r.count}", fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, color = if (mine) VxinGreen else Color.Unspecified) }
                     }
                 }
             }
@@ -1165,7 +1165,7 @@ private fun MessageContent(
                     },
                     error = {
                         Box(Modifier.size(140.dp).background(Color(0x11000000)), contentAlignment = Alignment.Center) {
-                            Text("图片加载失败", color = VxinTextSecondary, fontSize = 12.sp)
+                            Text("图片加载失败", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                         }
                     },
                 )
@@ -1182,18 +1182,18 @@ private fun MessageContent(
                                     .background(Color(0x11000000))
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                             ) {
-                                Text(msg.transcript, fontSize = 13.sp, color = VxinTextSecondary)
+                                Text(msg.transcript, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2, color = VxinTextSecondary)
                             }
                         }
                         transcribing -> {
                             Spacer(Modifier.size(3.dp))
-                            Text("转写中…", fontSize = 12.sp, color = VxinTextSecondary, modifier = Modifier.padding(horizontal = 2.dp))
+                            Text("转写中…", fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary, modifier = Modifier.padding(horizontal = 2.dp))
                         }
                         else -> {
                             Spacer(Modifier.size(3.dp))
                             Text(
                                 "转文字",
-                                fontSize = 12.sp,
+                                fontSize = com.vxin.app.ui.theme.VxinTextSize.sm,
                                 color = VxinGreen,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
@@ -1216,7 +1216,7 @@ private fun MessageContent(
                             Spacer(Modifier.size(10.dp))
                             Column {
                                 Text(card.username.ifBlank { "用户" }, color = bubbleTextColor(isMine))
-                                Text("个人名片", color = bubbleTextColor(isMine).copy(alpha = 0.6f), fontSize = 11.sp)
+                                Text("个人名片", color = bubbleTextColor(isMine).copy(alpha = 0.6f), fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
                             }
                         }
                     }
@@ -1236,7 +1236,7 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
                 Modifier.size(20.dp).clip(CircleShape).background(Color(0xFFFA5151))
                     .clickable { onRetry() },
                 contentAlignment = Alignment.Center,
-            ) { Text("!", color = Color.White, fontSize = 13.sp) }
+            ) { Text("!", color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2) }
             Spacer(Modifier.size(6.dp))
         }
         Column(horizontalAlignment = Alignment.End) {
@@ -1470,7 +1470,7 @@ private fun FunctionPanel(
                     contentAlignment = Alignment.Center,
                 ) { Text(emoji, fontSize = 26.sp) }
                 Spacer(Modifier.size(6.dp))
-                Text(label, fontSize = 12.sp, color = VxinTextSecondary)
+                Text(label, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
             }
         }
     }
@@ -1522,11 +1522,11 @@ private fun ScheduleMessageDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 )
                 error?.let {
-                    Text(it, color = Color(0xFFFA5151), fontSize = 12.sp)
+                    Text(it, color = Color(0xFFFA5151), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                 }
                 Text(
                     "• 至少 15 分钟后，不超过 30 天\n• 到点后后端自动发送",
-                    fontSize = 11.sp,
+                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
                     color = Color(0xFF888888),
                 )
             }
@@ -1582,14 +1582,14 @@ private fun ScheduledMessagesDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(msg.content, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 14.sp)
+                                Text(msg.content, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
                                 Text(
                                     "⏰ ${sdf.format(java.util.Date(msg.send_at * 1000))}",
-                                    fontSize = 11.sp, color = Color(0xFF888888),
+                                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, color = Color(0xFF888888),
                                 )
                             }
                             TextButton(onClick = { onCancel(msg.id) }) {
-                                Text("取消", color = Color(0xFFFA5151), fontSize = 12.sp)
+                                Text("取消", color = Color(0xFFFA5151), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                             }
                         }
                         HorizontalDivider(thickness = 0.5.dp)
@@ -1626,7 +1626,7 @@ private fun StickerEmojiPanel(
         } else {
             if (stickers.isEmpty()) {
                 Box(Modifier.fillMaxWidth().heightIn(min = 80.dp), Alignment.Center) {
-                    Text("还没有表情，点右上「＋ 添加」上传，或长按聊天图片「收藏表情」", color = VxinTextSecondary, fontSize = 12.sp)
+                    Text("还没有表情，点右上「＋ 添加」上传，或长按聊天图片「收藏表情」", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                 }
             } else {
                 LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp)) {
@@ -1667,9 +1667,9 @@ private fun RedPacketCard(
         Column {
             Text(
                 content.greeting.ifBlank { "恭喜发财，大吉大利" },
-                color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.md, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            Text("领取红包", color = RedPacketGold, fontSize = 12.sp)
+            Text("领取红包", color = RedPacketGold, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
         }
     }
 }
@@ -1698,12 +1698,12 @@ private fun TransferCard(
             Text(
                 if (isMine && content.toUsername.isNotBlank()) "转账给 ${content.toUsername}  ¥${content.amount}"
                 else "转账  ¥${content.amount}",
-                color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.md, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             if (content.note.isNotBlank()) {
-                Text(content.note, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(content.note, color = Color.White.copy(alpha = 0.8f), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, maxLines = 1, overflow = TextOverflow.Ellipsis)
             } else {
-                Text("已到账", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
+                Text("已到账", color = Color.White.copy(alpha = 0.75f), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
             }
         }
     }
@@ -1743,7 +1743,7 @@ private fun SendTransferDialog(
                     enabled = !sending,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                err?.let { Spacer(Modifier.size(4.dp)); Text(it, color = Color(0xFFFA5151), fontSize = 12.sp) }
+                err?.let { Spacer(Modifier.size(4.dp)); Text(it, color = Color(0xFFFA5151), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm) }
             }
         },
         confirmButton = {
@@ -1800,7 +1800,7 @@ private fun SendRedPacketDialog(
                     label = { Text("祝福语（可选）") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                err?.let { Text(it, color = Color(0xFFFA5151), fontSize = 12.sp) }
+                err?.let { Text(it, color = Color(0xFFFA5151), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm) }
             }
         },
         confirmButton = {
@@ -1839,19 +1839,19 @@ private fun RedPacketDetailDialog(
                 Text(detail.greeting.ifBlank { "恭喜发财，大吉大利" }, color = VxinTextSecondary)
                 Spacer(Modifier.size(8.dp))
                 when {
-                    mine != null -> Text("你领取了 ${mine.amount} 金币", color = RedPacketRed, fontSize = 18.sp)
-                    claimedAmount != null -> Text("你领取了 $claimedAmount 金币", color = RedPacketRed, fontSize = 18.sp)
+                    mine != null -> Text("你领取了 ${mine.amount} 金币", color = RedPacketRed, fontSize = com.vxin.app.ui.theme.VxinTextSize.xl)
+                    claimedAmount != null -> Text("你领取了 $claimedAmount 金币", color = RedPacketRed, fontSize = com.vxin.app.ui.theme.VxinTextSize.xl)
                     finished -> Text("手慢了，红包已被领完", color = VxinTextSecondary)
                     else -> Text("点击「开」领取红包", color = VxinTextSecondary)
                 }
                 Spacer(Modifier.size(8.dp))
-                Text("已领 ${detail.claimed_count}/${detail.total_count} 个", color = VxinTextSecondary, fontSize = 12.sp)
+                Text("已领 ${detail.claimed_count}/${detail.total_count} 个", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                 if (detail.claims.isNotEmpty()) {
                     Spacer(Modifier.size(6.dp))
                     detail.claims.take(20).forEach { c ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                            Text(c.username.ifBlank { "用户" }, Modifier.weight(1f), fontSize = 13.sp)
-                            Text("${c.amount} 金币", fontSize = 13.sp, color = RedPacketRed)
+                            Text(c.username.ifBlank { "用户" }, Modifier.weight(1f), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+                            Text("${c.amount} 金币", fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2, color = RedPacketRed)
                         }
                     }
                 }
@@ -1859,7 +1859,7 @@ private fun RedPacketDetailDialog(
         },
         confirmButton = {
             if (canClaim) {
-                TextButton(onClick = onClaim) { Text("开", color = RedPacketRed, fontSize = 18.sp) }
+                TextButton(onClick = onClaim) { Text("开", color = RedPacketRed, fontSize = com.vxin.app.ui.theme.VxinTextSize.xl) }
             } else {
                 TextButton(onClick = onDismiss) { Text("关闭") }
             }
@@ -1913,12 +1913,12 @@ private fun MessageSearchOverlay(
                                 Modifier.fillMaxWidth().clickable { onResultClick(msg) }.padding(horizontal = 16.dp, vertical = 12.dp),
                             ) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(msg.senderName.ifBlank { "用户" }, color = VxinGreen, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                                    Text(msg.senderName.ifBlank { "用户" }, color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                                     Spacer(Modifier.weight(1f))
-                                    Text(formatChatTime(msg.created_at), color = VxinTextSecondary, fontSize = 11.sp)
+                                    Text(formatChatTime(msg.created_at), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
                                 }
                                 Spacer(Modifier.size(3.dp))
-                                Text(searchPreview(msg), fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(searchPreview(msg), fontSize = com.vxin.app.ui.theme.VxinTextSize.base, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                             HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp)
                         }

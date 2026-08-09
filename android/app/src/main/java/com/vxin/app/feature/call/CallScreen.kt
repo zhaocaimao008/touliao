@@ -105,7 +105,7 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),
-                    color = Color(0xFFBBBBBB), fontSize = 14.sp,
+                    color = Color(0xFFBBBBBB), fontSize = com.vxin.app.ui.theme.VxinTextSize.base,
                 )
             }
         }
@@ -168,9 +168,9 @@ private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
             Modifier.size(64.dp).clip(CircleShape).background(color)
                 .clickable { onClick() },
             contentAlignment = Alignment.Center,
-        ) { Text(label.take(3), color = Color.White, fontSize = 12.sp) }
+        ) { Text(label.take(3), color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm) }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = Color(0xFFCCCCCC), fontSize = 11.sp)
+        Text(label, color = Color(0xFFCCCCCC), fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
     }
 }
 

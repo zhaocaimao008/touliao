@@ -72,7 +72,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
             Text(
                 "群${if (state.isVideo) "视频" else "语音"}通话 · ${state.participants.size + 1} 人" +
                     if (durationText.isNotEmpty()) "  $durationText" else "",
-                color = Color.White, fontSize = 15.sp,
+                color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.md,
                 modifier = Modifier.align(Alignment.TopCenter).systemBarsPadding().padding(top = 16.dp),
             )
 
@@ -123,12 +123,12 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("${inv.fromName.ifBlank { "群成员" }} 发起了群${if (inv.type == "video") "视频" else "语音"}通话",
-                    color = Color.White, fontSize = 14.sp)
+                    color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
                 Box(Modifier.clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb)).background(CallGreen)
                     .clickable { viewModel.join(inv.callId, inv.conversationId, inv.type == "video"); invite = null }
-                    .padding(horizontal = 14.dp, vertical = 6.dp)) { Text("加入", color = Color.White, fontSize = 13.sp) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp)) { Text("加入", color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2) }
                 Box(Modifier.clickable { invite = null }.padding(horizontal = 8.dp, vertical = 6.dp)) {
-                    Text("忽略", color = Color(0xFF999999), fontSize = 13.sp)
+                    Text("忽略", color = Color(0xFF999999), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
                 }
             }
         }
@@ -146,7 +146,7 @@ private fun Tile(track: org.webrtc.VideoTrack?, eglContext: org.webrtc.EglBase.C
         } else {
             InitialAvatar(name = label, size = 64.dp)
         }
-        Text(label, color = Color.White, fontSize = 11.sp,
+        Text(label, color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
             modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
     }
 }
@@ -186,9 +186,9 @@ private fun VideoRenderer(
 private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(64.dp).clip(CircleShape).background(color).clickable { onClick() },
-            contentAlignment = Alignment.Center) { Text(label.take(3), color = Color.White, fontSize = 12.sp) }
+            contentAlignment = Alignment.Center) { Text(label.take(3), color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm) }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = Color(0xFFCCCCCC), fontSize = 11.sp)
+        Text(label, color = Color(0xFFCCCCCC), fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
     }
 }
 

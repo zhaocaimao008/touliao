@@ -77,13 +77,13 @@ fun ForgotPasswordScreen(
         Spacer(Modifier.height(6.dp))
         Text(
             "使用注册时的手机号和邀请码重置密码",
-            fontSize = 13.sp,
+            fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
             color = VxinTextSecondary,
         )
         Spacer(Modifier.height(28.dp))
 
         if (state.success) {
-            Text("密码已重置，请返回登录", color = VxinBrand, fontSize = 15.sp)
+            Text("密码已重置，请返回登录", color = VxinBrand, fontSize = com.vxin.app.ui.theme.VxinTextSize.md)
             Spacer(Modifier.height(20.dp))
             VxinGradientButton(text = "返回登录", onClick = onBack)
             return@Column
@@ -117,7 +117,7 @@ fun ForgotPasswordScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = {
                 TextButton(onClick = { pwdVisible = !pwdVisible }) {
-                    Text(if (pwdVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = 12.sp)
+                    Text(if (pwdVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -135,7 +135,7 @@ fun ForgotPasswordScreen(
 
         if (state.error != null) {
             Spacer(Modifier.height(12.dp))
-            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
         }
 
         Spacer(Modifier.height(24.dp))

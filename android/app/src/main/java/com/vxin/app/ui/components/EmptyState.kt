@@ -58,7 +58,7 @@ fun EmptyState(
         Text(
             title,
             color = VxinTextPrimary,
-            fontSize = 15.sp,
+            fontSize = com.vxin.app.ui.theme.VxinTextSize.md,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
         )
@@ -67,7 +67,7 @@ fun EmptyState(
             Text(
                 it,
                 color = VxinTextSecondary,
-                fontSize = 13.sp,
+                fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
                 textAlign = TextAlign.Center,
             )
         }

@@ -106,10 +106,10 @@ fun MomentsScreen(
                     IconButton(onClick = { viewModel.openNotif() }) {
                         BadgedBox(badge = {
                             if (state.notifUnread > 0) Badge { Text(if (state.notifUnread > 99) "99+" else state.notifUnread.toString()) }
-                        }) { Text("🔔", fontSize = 16.sp) }
+                        }) { Text("🔔", fontSize = com.vxin.app.ui.theme.VxinTextSize.lg) }
                     }
-                    IconButton(onClick = { viewModel.openSettings() }) { Text("⚙️", fontSize = 16.sp) }
-                    IconButton(onClick = onCompose) { Text("📷", fontSize = 18.sp) }
+                    IconButton(onClick = { viewModel.openSettings() }) { Text("⚙️", fontSize = com.vxin.app.ui.theme.VxinTextSize.lg) }
+                    IconButton(onClick = onCompose) { Text("📷", fontSize = com.vxin.app.ui.theme.VxinTextSize.xl) }
                 },
             )
         },
@@ -199,7 +199,7 @@ fun MomentsScreen(
             title = { Text("朋友圈设置") },
             text = {
                 Column {
-                    Text("允许朋友查看朋友圈的范围", color = VxinTextSecondary, fontSize = 13.sp)
+                    Text("允许朋友查看朋友圈的范围", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
                     Spacer(Modifier.size(8.dp))
                     listOf(0 to "全部", 1 to "最近一天", 3 to "最近三天", 30 to "最近一个月").forEach { (d, label) ->
                         Row(
@@ -242,7 +242,7 @@ private fun ImageGallery(images: List<String>, startIndex: Int, onDismiss: () ->
             }
             Text(
                 "${pagerState.currentPage + 1}/${images.size}",
-                color = Color.White, fontSize = 13.sp,
+                color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp),
             )
         }
@@ -291,14 +291,14 @@ private fun MomentCard(
         }
         Spacer(Modifier.size(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(formatChatTime(moment.created_at), color = VxinTextSecondary, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            Text(formatChatTime(moment.created_at), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, modifier = Modifier.weight(1f))
             TextButton(onClick = onLike) {
-                Text(if (moment.liked) "❤️" else "🤍", fontSize = 14.sp)
+                Text(if (moment.liked) "❤️" else "🤍", fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
                 Spacer(Modifier.size(4.dp))
                 Text(if (moment.liked) "已赞" else "赞", color = VxinGreen)
             }
             TextButton(onClick = onComment) {
-                Text("💬", fontSize = 14.sp)
+                Text("💬", fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
                 Spacer(Modifier.size(4.dp))
                 Text("评论", color = VxinGreen)
             }
@@ -306,7 +306,7 @@ private fun MomentCard(
         // 点赞名单
         if (moment.likes.isNotEmpty()) {
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm)).background(Color(0x11000000)).padding(8.dp)) {
-                Text("❤ " + moment.likes.joinToString("，") { it.username.ifBlank { "用户" } }, color = VxinGreen, fontSize = 13.sp)
+                Text("❤ " + moment.likes.joinToString("，") { it.username.ifBlank { "用户" } }, color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
             }
         }
         // 评论列表：点非自己的评论→回复该人；长按自己的评论→删除(对齐 web)
@@ -319,19 +319,19 @@ private fun MomentCard(
                         onLongClick = { if (mine) onLongPressComment(c) },
                     ),
             ) {
-                Text("${c.username.ifBlank { "用户" }}", color = VxinGreen, fontSize = 13.sp)
+                Text("${c.username.ifBlank { "用户" }}", color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
                 if (c.reply_to_username.isNotBlank()) {
-                    Text(" 回复 ", fontSize = 13.sp, color = VxinTextSecondary)
-                    Text(c.reply_to_username, color = VxinGreen, fontSize = 13.sp)
+                    Text(" 回复 ", fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2, color = VxinTextSecondary)
+                    Text(c.reply_to_username, color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
                 }
-                Text("：", color = VxinGreen, fontSize = 13.sp)
-                Text(c.content, fontSize = 13.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                Text("：", color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+                Text(c.content, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
         }
         // 热门动态：timeline 只返回前 N 条，按需加载全部
         if (moment.commentCount > moment.comments.size) {
             TextButton(onClick = onViewAllComments) {
-                Text("查看全部 ${moment.commentCount} 条评论", color = VxinGreen, fontSize = 13.sp)
+                Text("查看全部 ${moment.commentCount} 条评论", color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
             }
         }
         if (commenting) {
@@ -435,13 +435,13 @@ private fun MomentNotifSheet(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Row {
-                                Text(n.actor.username.ifBlank { "用户" }, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = 14.sp)
+                                Text(n.actor.username.ifBlank { "用户" }, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
                                 Text(
                                     if (n.type == "like") " 赞了你的动态" else " 评论：${n.commentContent}",
-                                    fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    fontSize = com.vxin.app.ui.theme.VxinTextSize.base, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            Text(formatChatTime(n.createdAt), color = VxinTextSecondary, fontSize = 12.sp)
+                            Text(formatChatTime(n.createdAt), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                         }
                         Spacer(Modifier.width(10.dp))
                         if (n.moment.thumb.isNotBlank()) {
@@ -452,7 +452,7 @@ private fun MomentNotifSheet(
                                 modifier = Modifier.size(40.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.tag)),
                             )
                         } else if (n.moment.content.isNotBlank()) {
-                            Text(n.moment.content.take(12), color = VxinTextSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 80.dp))
+                            Text(n.moment.content.take(12), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 80.dp))
                         }
                     }
                     HorizontalDivider(Modifier.padding(start = 68.dp), thickness = 0.5.dp)

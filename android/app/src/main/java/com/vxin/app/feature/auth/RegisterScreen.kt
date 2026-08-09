@@ -77,7 +77,7 @@ fun RegisterScreen(
         Spacer(Modifier.height(6.dp))
         Text(
             if (state.inviteRequired) "需要6位邀请码，可向已有用户或管理员获取" else "填写信息即可注册",
-            fontSize = 13.sp,
+            fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
             color = VxinTextSecondary,
         )
         Spacer(Modifier.height(24.dp))
@@ -120,7 +120,7 @@ fun RegisterScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = {
                 TextButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Text(if (passwordVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = 12.sp)
+                    Text(if (passwordVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
                 }
             },
             modifier = Modifier.fillMaxWidth().testTag("register-password-input"),
@@ -128,7 +128,7 @@ fun RegisterScreen(
 
         if (state.error != null) {
             Spacer(Modifier.height(12.dp))
-            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
         }
 
         Spacer(Modifier.height(28.dp))
