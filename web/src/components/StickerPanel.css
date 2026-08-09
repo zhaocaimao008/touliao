@@ -28,7 +28,7 @@
   overflow: hidden;
   background: var(--bg-search);
   border: 1px solid var(--border-color);
-  transition: border-color 150ms, box-shadow 150ms, transform 150ms;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast);
 }
 
 .sticker-item:hover {
@@ -67,7 +67,7 @@
   justify-content: center;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 120ms;
+  transition: opacity var(--dur-fast);
 }
 
 .sticker-item:hover .sticker-del,

@@ -340,7 +340,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   content-visibility: auto;
   contain-intrinsic-size: auto 64px;
 }
-.wc-chat-item:hover { background: rgba(0,0,0,.05); }
+.wc-chat-item:hover { background: var(--bg-hover); }
 .wc-chat-item.active {
   background: var(--bg-active);
 }
@@ -348,7 +348,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
 
 /* 置顶：极淡底色 */
 .wc-chat-item.pinned:not(.active) { background: rgba(0,0,0,.018); }
-.wc-chat-item.pinned:not(.active):hover { background: rgba(0,0,0,.045); }
+.wc-chat-item.pinned:not(.active):hover { background: var(--bg-hover); }
 
 .wc-chat-item-avatar { position: relative; flex-shrink: 0; }
 .wc-chat-item-badge {
@@ -503,9 +503,9 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   color: var(--text-secondary);
   transition: background var(--dur-fast);
 }
-.wc-chat-header-btn:hover { background: rgba(0,0,0,.07); }
+.wc-chat-header-btn:hover { background: var(--bg-hover); }
 .wc-chat-header-btn svg { width: 20px; height: 20px; fill: currentColor; }
-.wc-chat-header-btn.active { background: rgba(0,0,0,.08); }
+.wc-chat-header-btn.active { background: var(--bg-hover); }
 
 /* ============================================================
    Messages Area（消息区域）
@@ -838,7 +838,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   color: var(--text-secondary);
   transition: background var(--dur-fast), color var(--dur-fast);
 }
-.wc-tool-btn:hover { background: rgba(0,0,0,.07); color: var(--text-primary); transform: translateY(-1px); }
+.wc-tool-btn:hover { background: var(--bg-hover); color: var(--text-primary); transform: translateY(-1px); }
 .wc-tool-btn:active { transform: translateY(0) scale(.94); }
 .wc-tool-btn.active { background: var(--color-primary-muted); color: var(--color-primary); }
 .wc-tool-btn svg { width: 18px; height: 18px; fill: currentColor; transition: transform var(--dur-fast); }
@@ -1082,7 +1082,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   content-visibility: auto;
   contain-intrinsic-size: auto 62px;
 }
-.wc-contact-item:hover { background: rgba(0,0,0,.05); }
+.wc-contact-item:hover { background: var(--bg-hover); }
 .wc-contact-item-name { font-size: var(--text-md); color: var(--text-primary); line-height: 1.3; }
 .wc-contact-item-sub { font-size: var(--text-sm); color: var(--text-secondary); margin-top: 2px; line-height: 1.3; }
 .wc-alpha-index {
@@ -1545,8 +1545,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .wc-moment-notif-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--border-color); }
 .wc-moment-notif-bar:hover { background: var(--bg-hover); }
 .wc-moment-settings-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 4px 6px; border-radius: var(--radius-button); line-height: 0; display: inline-flex; align-items: center; }
-.wc-moment-settings-btn:hover { background: rgba(0,0,0,.05); color: var(--text-primary); }
-.wc-moment-settings-btn:hover { background: var(--bg-hover); }
+.wc-moment-settings-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .wc-moment-notif-icon { display: inline-flex; align-items: center; color: var(--text-secondary); }
 .wc-moment-notif-label { font-size: var(--text-base); color: var(--text-primary); flex: 1; }
 .wc-moment-notif-badge { background: var(--color-badge); color: var(--gray-0); font-size: var(--text-xs); min-width: 18px; height: 18px; border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center; padding: 0 5px; }
@@ -1623,8 +1622,6 @@ body.dark-mode .wc-input-area   { background: var(--bg-input) !important; border
 /* .wc-input-box 现用主题感知的 --bg-search/--border-color，亮暗自适配；textarea 透明融入容器 */
 body.dark-mode .wc-textarea,
 body.dark-mode .wc-input-box textarea { background: transparent !important; border-color: var(--border-medium) !important; }
-body.dark-mode .wc-tool-btn:hover,
-body.dark-mode .wc-chat-header-btn:hover { background: var(--bg-hover) !important; }
 body.dark-mode .wc-menu-item:hover { background: var(--bg-hover); }
 body.dark-mode .wc-modal { background: var(--bg-modal) !important; }
 body.dark-mode .wc-modal-input { background: var(--bg-input-search); border-color: var(--border-default); color: var(--text-primary); }
@@ -2485,7 +2482,7 @@ body {
   font-size: 22px;
   line-height: 26px;
 }
-.wc-user-profile-close:hover { background: rgba(0,0,0,.05); color: var(--text-title); }
+.wc-user-profile-close:hover { background: var(--bg-hover); color: var(--text-title); }
 .wc-user-profile-main {
   display: flex;
   align-items: flex-start;
@@ -2544,7 +2541,7 @@ body {
   font-size: var(--text-md);
 }
 .wc-user-profile-row:last-child { border-bottom: none; }
-.wc-user-profile-row:hover { background: rgba(0,0,0,.025); }
+.wc-user-profile-row:hover { background: var(--bg-hover); }
 .wc-user-profile-row div {
   display: flex;
   align-items: center;
@@ -2743,7 +2740,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
   border-radius: var(--radius-button); color: var(--text-secondary); cursor: pointer;
   transition: background var(--dur-fast);
 }
-.af-close:hover { background: rgba(0,0,0,.06); color: var(--text-primary); }
+.af-close:hover { background: var(--bg-hover); color: var(--text-primary); }
 .af-search-wrap {
   display: flex; align-items: center; gap: var(--sp-2);
   margin: 12px 16px; padding: 9px 12px;
@@ -2933,7 +2930,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
   border: 1px solid var(--border-color);
   transition: background var(--dur-fast);
 }
-.up-btn-ghost:hover { background: rgba(0,0,0,.05); }
+.up-btn-ghost:hover { background: var(--bg-hover); }
 .up-loading-dot {
   width: 24px; height: 24px;
   border: 2.5px solid rgba(0,0,0,.1);
@@ -3127,7 +3124,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .gi-panel { width:286px; border-left:1px solid var(--border-color); background:var(--bg-panel); display:flex; flex-direction:column; overflow:hidden; flex-shrink:0; }
 .gi-header { padding:0 14px; height:52px; background:var(--bg-panel); border-bottom:1px solid var(--border-color); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
 .gi-close-btn { width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); font-size: var(--text-base); cursor:pointer; border-radius:var(--radius-button-sm); transition:background var(--dur-fast); }
-.gi-close-btn:hover { background:rgba(0,0,0,.06); }
+.gi-close-btn:hover { background: var(--bg-hover); }
 
 /* ── Section blocks ── */
 .gi-section { background:var(--bg-msg-other); margin-bottom: var(--sp-2); }
@@ -3886,7 +3883,7 @@ body.dark-mode .wc-announce-detail { background: var(--info-banner-bg-soft); }
 /* ── 桌面端更新条 / 检查更新按钮 ── */
 .wc-update-check-btn { position: fixed; top: 3px; right: 150px; z-index: calc(var(--z-native) + 2); width: 24px; height: 24px; border: none; border-radius: var(--radius-md); background: transparent; color: var(--titlebar-fg, #888); font-size: 13px; cursor: pointer; -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center; transition: background .15s; }
 .wc-update-check-btn:hover { background: var(--titlebar-btn-hover-bg, rgba(0,0,0,.08)); color: var(--titlebar-fg-hover, #333); }
-.wc-update-banner { position: fixed; top: 34px; left: 50%; transform: translateX(-50%); z-index: 9998; display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--info-banner-bg); border: 1px solid var(--info-banner-border); border-radius: var(--radius-md); box-shadow: 0 4px 16px rgba(0,0,0,.12); font-size: var(--text-sm2); color: var(--text-primary); max-width: 90vw; -webkit-app-region: no-drag; }
+.wc-update-banner { position: fixed; top: 34px; left: 50%; transform: translateX(-50%); z-index: var(--z-top); display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--info-banner-bg); border: 1px solid var(--info-banner-border); border-radius: var(--radius-md); box-shadow: 0 4px 16px rgba(0,0,0,.12); font-size: var(--text-sm2); color: var(--text-primary); max-width: 90vw; -webkit-app-region: no-drag; }
 /* banner 内所有交互控件强制 no-drag,否则无边框窗口拖拽区会吞掉点击 */
 .wc-update-banner button, .wc-update-check-btn { -webkit-app-region: no-drag; }
 .wc-update-icon { flex-shrink: 0; font-size: 15px; }
