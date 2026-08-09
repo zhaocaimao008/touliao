@@ -546,6 +546,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               className="gi-row gi-mg-click"
               role="button"
               tabIndex={0}
+              aria-label="群管理"
               aria-expanded={showManage}
               onClick={() => setShowManage(v => !v)}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowManage(v => !v); } }}

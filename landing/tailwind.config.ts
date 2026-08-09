@@ -2,7 +2,7 @@ import type { Config } from 'tailwindcss';
 
 /**
  * 设计 token —— 落地页的视觉契约都集中在这里，改一处全站生效。
- * 风格：简洁亮色·信任风。brand 用 teal/emerald（通讯 + 安全感），
+ * 风格：简洁亮色·信任风。品牌主色 AURORA 极光靛，对齐产品端 web/android/ios。
  * 深色安全区用 ink 系。
  */
 const config: Config = {
@@ -14,7 +14,6 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // 品牌主色（青绿 teal/emerald）
         // 品牌主色（AURORA 极光靛，对齐产品端 web/android/ios --brand-*，统一品牌识别）
         brand: {
           50: '#F1EFFD',

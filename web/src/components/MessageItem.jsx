@@ -262,6 +262,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   onClick={() => card.uid && cbs.setShowUserProfile(card.uid)}
                   className="wc-contact-card"
                   role="button" tabIndex={0}
+                  aria-label={`查看${card.username || '用户'}的名片`}
                   onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && card.uid) { e.preventDefault(); cbs.setShowUserProfile(card.uid); } }}
                 >
                   <div className="wc-contact-card-body">
@@ -283,6 +284,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   onClick={() => cbs.openRedPacket(rp.packetId)}
                   className="wc-redpacket-card"
                   role="button" tabIndex={0}
+                  aria-label="打开红包"
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.openRedPacket(rp.packetId); } }}
                 >
                   <div className="wc-redpacket-body">

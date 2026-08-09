@@ -212,6 +212,7 @@ export default function ChatFiles({ convId, onClose }) {
               key={item.id}
               role="button"
               tabIndex={0}
+              aria-label={`打开 ${item.file_name || item.caption || '文件'}`}
               onClick={() => handleClick(item)}
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleClick(item)}
               style={{
