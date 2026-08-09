@@ -121,7 +121,7 @@ export default function Collections() {
             style={{ width: '100%', padding: '7px 28px 7px 10px', borderRadius: 'var(--radius-input)', border: '1px solid var(--border-color)', fontSize: 14, boxSizing: 'border-box' }} />
           {query && (
             <button type="button" aria-label="清除搜索" title="清除" onClick={() => setQuery('')}
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, border: 'none', borderRadius: 9, background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>

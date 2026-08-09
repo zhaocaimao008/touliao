@@ -106,7 +106,7 @@ img { display: block; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: rgba(0,0,0,.14);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 2px solid transparent;
   background-clip: padding-box;
   transition: background .2s;
@@ -544,7 +544,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   font-size: var(--text-xs);
   line-height: var(--lh-none);
   padding: 4px 11px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   backdrop-filter: blur(2px);
 }
 
@@ -596,7 +596,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
 /* 气泡 — 更柔和的圆角 + 阴影，让气泡从画布上浮起 */
 .wc-msg-bubble {
   padding: 11px 15px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -1364,7 +1364,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .wc-modal-close:hover { color: var(--text-primary); background: var(--bg-panel-item-hover); }
 .wc-modal-body { flex: 1; overflow-y: auto; }
 .wc-modal-footer { padding: 11px 20px; border-top: 1px solid var(--divider); display: flex; gap: var(--sp-2); }
-.wc-modal-btn { flex: 1; padding: 10px; border-radius: 10px; font-size: var(--text-base); font-weight: var(--font-semibold); cursor: pointer; border: none; transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast), border-color var(--dur-fast); }
+.wc-modal-btn { flex: 1; padding: 10px; border-radius: var(--radius-button); font-size: var(--text-base); font-weight: var(--font-semibold); cursor: pointer; border: none; transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast), border-color var(--dur-fast); }
 .wc-modal-btn:active { transform: translateY(0) scale(.985); }
 .wc-modal-btn.primary { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), .30); }
 .wc-modal-btn.primary:hover { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); box-shadow: 0 4px 14px rgba(var(--color-primary-rgb), .40); transform: translateY(-1px); }
@@ -1375,7 +1375,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .wc-modal-btn.danger:hover { background: linear-gradient(135deg, #FF5252, var(--color-danger-hover, #D83333)); box-shadow: 0 4px 14px rgba(var(--color-danger-rgb), .42); transform: translateY(-1px); }
 .wc-modal-field { padding: 11px 20px; }
 .wc-modal-field label { display: block; font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 5px; }
-.wc-modal-input { width: 100%; padding: 9px 11px; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: var(--text-base); transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.wc-modal-input { width: 100%; padding: 9px 11px; border: 1.5px solid var(--border-color); border-radius: var(--radius-input); font-size: var(--text-base); transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
 .wc-modal-input:focus { border-color: var(--color-primary); outline: none; box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), .14); }
 
 /* 群创建 */
@@ -2618,7 +2618,7 @@ body {
 /* 消息区时间戳：内敛胶囊，轻毛玻璃，不与内容争夺注意力 */
 .wc-msg-time span {
   background: rgba(20,24,40,.06);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   padding: 4px 11px;
   letter-spacing: .2px;
   backdrop-filter: blur(2px);
@@ -3710,7 +3710,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .rpm-error { padding: var(--sp-2h); background: rgba(250,81,81,.08); color: var(--color-badge); border-radius: var(--radius-md); margin-bottom: var(--sp-3); font-size: var(--text-sm2); }
 .rpm-field { margin-bottom: var(--sp-4); }
 .rpm-label { display: block; font-size: var(--text-sm2); font-weight: var(--font-semibold); color: var(--text-title); margin-bottom: 6px; }
-.rpm-input { width: 100%; padding: 11px 13px; font-size: var(--text-base); color: var(--text-primary); background: var(--bg-input, #fff); border: 1.5px solid var(--border-default); border-radius: 8px; outline: none; box-sizing: border-box; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.rpm-input { width: 100%; padding: 11px 13px; font-size: var(--text-base); color: var(--text-primary); background: var(--bg-input, #fff); border: 1.5px solid var(--border-default); border-radius: var(--radius-input); outline: none; box-sizing: border-box; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
 .rpm-input:focus { border-color: var(--rp-orange, #F4511E); box-shadow: 0 0 0 3px rgba(244,81,30,.14); }
 .rpm-preview { padding: var(--sp-3); background: var(--bg-success-tint); border-radius: var(--radius-md); margin-bottom: var(--sp-4); }
 .rpm-preview-label { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--sp-1); }
@@ -3719,9 +3719,9 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .rpm-textarea { width: 100%; padding: 10px 12px; font-size: var(--text-sm2); color: var(--text-primary); background: var(--bg-input, #fff); border: 1px solid var(--border-default); border-radius: var(--radius-input); outline: none; box-sizing: border-box; resize: none; height: 60px; font-family: inherit; }
 .rpm-counter { font-size: var(--text-xs); color: var(--text-tertiary); margin-top: var(--sp-1); }
 .rpm-actions { display: flex; gap: var(--sp-2h); justify-content: flex-end; }
-.rpm-btn-cancel { padding: 10px 20px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--bg-card); color: var(--text-primary); font-size: var(--text-base); font-weight: var(--font-semibold); cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast); }
+.rpm-btn-cancel { padding: 10px 20px; border: 1px solid var(--border-default); border-radius: var(--radius-button); background: var(--bg-card); color: var(--text-primary); font-size: var(--text-base); font-weight: var(--font-semibold); cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast); }
 .rpm-btn-cancel:hover { background: var(--bg-panel-item-hover); border-color: var(--text-tertiary); }
-.rpm-btn-send { padding: 10px 22px; border-radius: 10px; color: var(--gray-0); font-size: var(--text-base); font-weight: var(--font-semibold); border: none; cursor: pointer; background: linear-gradient(135deg, var(--rp-orange-alt, #F9A825), var(--rp-orange, #F4511E)); box-shadow: 0 3px 12px rgba(244,81,30,.34); transition: box-shadow var(--dur-fast), transform var(--dur-fast); }
+.rpm-btn-send { padding: 10px 22px; border-radius: var(--radius-button); color: var(--gray-0); font-size: var(--text-base); font-weight: var(--font-semibold); border: none; cursor: pointer; background: linear-gradient(135deg, var(--rp-orange-alt, #F9A825), var(--rp-orange, #F4511E)); box-shadow: 0 3px 12px rgba(244,81,30,.34); transition: box-shadow var(--dur-fast), transform var(--dur-fast); }
 .rpm-btn-send:hover { box-shadow: 0 5px 18px rgba(244,81,30,.46); transform: translateY(-1px); }
 .rpm-btn-send:active { transform: translateY(0); }
 .rpm-btn-send:disabled { background: var(--text-disabled); box-shadow: none; transform: none; cursor: not-allowed; }
@@ -3883,9 +3883,9 @@ body.dark-mode .wc-announce-banner { background: var(--info-banner-bg); border-b
 body.dark-mode .wc-announce-detail { background: var(--info-banner-bg-soft); }
 
 /* ── 桌面端更新条 / 检查更新按钮 ── */
-.wc-update-check-btn { position: fixed; top: 3px; right: 150px; z-index: calc(var(--z-native) + 2); width: 24px; height: 24px; border: none; border-radius: 12px; background: transparent; color: var(--titlebar-fg, #888); font-size: 13px; cursor: pointer; -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center; transition: background .15s; }
+.wc-update-check-btn { position: fixed; top: 3px; right: 150px; z-index: calc(var(--z-native) + 2); width: 24px; height: 24px; border: none; border-radius: var(--radius-md); background: transparent; color: var(--titlebar-fg, #888); font-size: 13px; cursor: pointer; -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center; transition: background .15s; }
 .wc-update-check-btn:hover { background: var(--titlebar-btn-hover-bg, rgba(0,0,0,.08)); color: var(--titlebar-fg-hover, #333); }
-.wc-update-banner { position: fixed; top: 34px; left: 50%; transform: translateX(-50%); z-index: 9998; display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--info-banner-bg); border: 1px solid var(--info-banner-border); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.12); font-size: 13px; color: var(--text-primary); max-width: 90vw; -webkit-app-region: no-drag; }
+.wc-update-banner { position: fixed; top: 34px; left: 50%; transform: translateX(-50%); z-index: 9998; display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--info-banner-bg); border: 1px solid var(--info-banner-border); border-radius: var(--radius-md); box-shadow: 0 4px 16px rgba(0,0,0,.12); font-size: 13px; color: var(--text-primary); max-width: 90vw; -webkit-app-region: no-drag; }
 /* banner 内所有交互控件强制 no-drag,否则无边框窗口拖拽区会吞掉点击 */
 .wc-update-banner button, .wc-update-check-btn { -webkit-app-region: no-drag; }
 .wc-update-icon { flex-shrink: 0; font-size: 15px; }

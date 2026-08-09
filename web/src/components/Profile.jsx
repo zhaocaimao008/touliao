@@ -689,12 +689,12 @@ function NotificationSettings({ onBack }) {
                 right={<input type="time" value={quietStart} disabled={saving}
                   data-testid="quiet-start-input"
                   onChange={e => { setQuietStart(e.target.value); saveSettings('quietStart', e.target.value); }}
-                  style={{ border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 8px', fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
+                  style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '4px 8px', fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
               <CRow label="结束时间"
                 right={<input type="time" value={quietEnd} disabled={saving}
                   data-testid="quiet-end-input"
                   onChange={e => { setQuietEnd(e.target.value); saveSettings('quietEnd', e.target.value); }}
-                  style={{ border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 8px', fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
+                  style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '4px 8px', fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
             </>
           )}
         </Card>

@@ -91,7 +91,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
     >
       {multiSelect && (
         <div style={{ display: 'flex', alignItems: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'center' }}>
-          <div style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${isSelected ? 'var(--green)' : 'var(--border-default)'}`, background: isSelected ? 'var(--green)' : 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .1s' }}>
+          <div style={{ width: 20, height: 20, borderRadius: 'var(--radius-full)', border: `2px solid ${isSelected ? 'var(--green)' : 'var(--border-default)'}`, background: isSelected ? 'var(--green)' : 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .1s' }}>
             {isSelected && <span style={{ color: 'var(--text-inverse)', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</span>}
           </div>
         </div>

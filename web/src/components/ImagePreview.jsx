@@ -229,7 +229,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           position: 'absolute', top: 18, right: 18,
           color: 'var(--text-inverse)', fontSize: 24, lineHeight: 1,
           background: 'rgba(255,255,255,.12)',
-          width: 36, height: 36, borderRadius: 18,
+          width: 36, height: 36, borderRadius: 'var(--radius-full)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           border: 'none', cursor: 'pointer', zIndex: 10,
           backdropFilter: 'blur(10px)',
