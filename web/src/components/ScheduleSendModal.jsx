@@ -104,7 +104,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
             placeholder="输入要定时发送的消息…"
             style={{
               width: '100%', boxSizing: 'border-box',
-              padding: '8px 10px', borderRadius: 6,
+              padding: '8px 10px', borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border-default)',
               background: 'var(--bg-input)',
               color: 'var(--text-primary)', fontSize: 14, resize: 'vertical',
@@ -124,7 +124,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
             onChange={e => setSendAtLocal(e.target.value)}
             style={{
               width: '100%', boxSizing: 'border-box',
-              padding: '8px 10px', borderRadius: 6,
+              padding: '8px 10px', borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border-default)',
               background: 'var(--bg-input)',
               color: 'var(--text-primary)', fontSize: 14,
@@ -135,7 +135,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
         {error && (
           <div style={{ fontSize: 13, color: 'var(--color-danger)',
             marginBottom: 12, padding: '6px 10px',
-            background: 'rgba(255,59,48,.08)', borderRadius: 6 }}>
+            background: 'rgba(255,59,48,.08)', borderRadius: 'var(--radius-sm)' }}>
             {error}
           </div>
         )}
@@ -147,7 +147,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
             onClick={onClose}
             disabled={saving}
             style={{
-              padding: '8px 18px', borderRadius: 6,
+              padding: '8px 18px', borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border-default)',
               background: 'var(--bg-card)', color: 'var(--text-secondary)',
               cursor: 'pointer', fontSize: 14,
@@ -157,7 +157,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
             type="submit"
             disabled={saving || !content.trim()}
             style={{
-              padding: '8px 18px', borderRadius: 6,
+              padding: '8px 18px', borderRadius: 'var(--radius-sm)',
               border: 'none', background: 'var(--green)',
               color: '#fff', cursor: 'pointer', fontSize: 14,
               opacity: (saving || !content.trim()) ? 0.6 : 1,

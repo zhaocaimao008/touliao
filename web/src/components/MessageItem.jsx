@@ -145,7 +145,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               title="定时发送的消息"
               style={{
                 position: 'absolute', top: 2, left: isMine ? 'auto' : 2, right: isMine ? 2 : 'auto',
-                fontSize: 10, padding: '1px 5px', borderRadius: 10,
+                fontSize: 10, padding: '1px 5px', borderRadius: 'var(--radius-badge)',
                 background: 'rgba(87,107,149,.85)', color: '#fff',
                 pointerEvents: 'none', zIndex: 1,
               }}

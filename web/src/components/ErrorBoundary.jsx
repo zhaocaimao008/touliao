@@ -113,7 +113,7 @@ const styles = {
   },
   btnRow: { display: 'flex', gap: 12, justifyContent: 'center' },
   btn: {
-    padding: '10px 22px', borderRadius: 10, fontSize: 14, fontWeight: 500,
+    padding: '10px 22px', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 500,
     cursor: 'pointer', border: 'none', transition: 'opacity .15s',
   },
   btnPrimary: { background: 'var(--green)', color: 'var(--text-inverse, #fff)' },

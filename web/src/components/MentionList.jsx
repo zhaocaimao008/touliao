@@ -129,7 +129,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
             <button
               onClick={() => load(offset)}
               style={{ background: 'none', border: '1px solid var(--border-default)',
-                borderRadius: 4, padding: '6px 18px', cursor: 'pointer',
+                borderRadius: 'var(--radius-tag)', padding: '6px 18px', cursor: 'pointer',
                 fontSize: 13, color: 'var(--text-secondary)' }}
             >
               加载更多

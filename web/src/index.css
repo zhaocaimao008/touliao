@@ -3927,7 +3927,7 @@ body.dark-mode .wc-announce-detail { background: rgba(59,130,246,.08); }
 .wc-update-text { white-space: nowrap; }
 .wc-update-progress-wrap { width: 120px; height: 6px; background: rgba(0,0,0,.08); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
 .wc-update-progress-bar { height: 100%; background: #3B82F6; border-radius: 3px; transition: width .2s; }
-.wc-update-install-btn { flex-shrink: 0; padding: 4px 12px; border: none; border-radius: 6px; background: #3B82F6; color: #fff; font-size: 12px; cursor: pointer; }
+.wc-update-install-btn { flex-shrink: 0; padding: 4px 12px; border: none; border-radius: var(--radius-sm); background: #3B82F6; color: #fff; font-size: 12px; cursor: pointer; }
 .wc-update-install-btn:hover { background: #2563EB; }
 .wc-update-dismiss { flex-shrink: 0; border: none; background: transparent; color: var(--text-secondary); font-size: 12px; cursor: pointer; padding: 4px 6px; }
 .wc-spin { display: inline-block; animation: wc-spin 1s linear infinite; }

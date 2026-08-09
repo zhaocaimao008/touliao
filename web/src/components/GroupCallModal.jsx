@@ -373,7 +373,7 @@ function Tile({ stream, streamForRef, muted, isVideo, info, self }) {
     <div
       aria-label={`${info?.name || '成员'} 的画面`}
       style={{
-        position: 'relative', background: '#000', borderRadius: 10,
+        position: 'relative', background: '#000', borderRadius: 'var(--radius-md)',
         overflow: 'hidden', minHeight: isMobileWidth() ? 100 : 140,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         border: self ? '2px solid var(--color-primary,#6D5AE6)' : '1px solid rgba(255,255,255,.08)',

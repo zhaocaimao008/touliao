@@ -118,7 +118,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
             padding: 4, color: 'var(--text-tertiary)', lineHeight: 0,
-            borderRadius: 4,
+            borderRadius: 'var(--radius-tag)',
           }}
         >
           <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'currentColor' }}>

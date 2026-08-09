@@ -178,7 +178,7 @@ export default function ChatFiles({ convId, onClose }) {
                     position: 'absolute', bottom: 0, left: '50%',
                     transform: 'translateX(-50%)',
                     width: 24, height: 2.5,
-                    borderRadius: 99,
+                    borderRadius: 'var(--radius-full)',
                     background: 'var(--green)',
                     opacity: .85,
                   }} />
@@ -218,7 +218,7 @@ export default function ChatFiles({ convId, onClose }) {
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '10px 16px',
                 margin: '0 8px 4px',
-                borderRadius: 10,
+                borderRadius: 'var(--radius-md)',
                 cursor: 'pointer',
                 background: 'var(--bg-card)',
                 boxShadow: '0 1px 3px rgba(36,31,56,.06)',
@@ -235,7 +235,7 @@ export default function ChatFiles({ convId, onClose }) {
             >
               {/* 缩略图 / 图标 */}
               <div style={{
-                flexShrink: 0, width: 46, height: 46, borderRadius: 8, overflow: 'hidden',
+                flexShrink: 0, width: 46, height: 46, borderRadius: 'var(--radius-sm)', overflow: 'hidden',
                 background: 'rgba(109,90,230,.08)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
