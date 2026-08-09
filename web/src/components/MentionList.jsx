@@ -47,13 +47,13 @@ export default function MentionList({ onClose, onJumpToMsg }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      height: '100%', background: 'var(--bg-page)',
+      height: '100%', background: 'var(--bg-panel)',
     }}>
       {/* 标题栏 */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
         borderBottom: '1px solid var(--border-default)',
-        background: 'var(--bg-elevated)',
+        background: 'var(--bg-card)',
       }}>
         <button
           onClick={onClose}

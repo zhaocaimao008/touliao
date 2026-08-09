@@ -7,6 +7,7 @@ import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import VirtualMessageList from './VirtualMessageList';
 import ChatHeader from './ChatHeader';
+import ConvSearchBar from './ConvSearchBar';
 import PinnedBanner from './PinnedBanner';
 import UploadProgressBar from './UploadProgressBar';
 import ComposeContextBar from './ComposeContextBar';
@@ -38,8 +39,6 @@ import TransferModal from './TransferModal';
 import ForwardModal from './ForwardModal';
 import GroupCallModal from './GroupCallModal';
 import PrivateChatSettings from './PrivateChatSettings';
-import ChatFiles from './ChatFiles';
-import ScheduleSendModal from './ScheduleSendModal';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
@@ -161,10 +160,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [claiming, setClaiming] = useState(false);
   const [lightboxState, setLightboxState] = useState(null); // { urls, idx } or null
   const [isDragOver, setIsDragOver] = useState(false);
-  // 聊天文件聚合视图
-  const [showChatFiles, setShowChatFiles] = useState(false);
   // 定时发送弹窗
   const [showScheduleSend, setShowScheduleSend] = useState(false);
+  const [showSearchBar, setShowSearchBar] = useState(false);
   const dragCounterRef = useRef(0);
   const isUploadingRef    = useRef(false); // 防止并发上传
   const lastSendRef       = useRef({ text: '', time: 0 }); // 防止 Enter 连击重复发送
@@ -2067,34 +2065,32 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           <button onClick={() => setGroupCallInvite(null)} style={{ background: 'transparent', color: 'rgba(255,255,255,.6)', border: 0, cursor: 'pointer' }}>忽略</button>
         </div>
       )}
-      {/* ── Header（抽离为 memo 化 ChatHeader，避免高频输入时重渲染）── */}
+      {/* ── Header ── */}
       <ChatHeader
         conversation={conversation}
         memberCount={memberCount}
         features={features}
         showGroupInfo={showGroupInfo}
+        showSearch={showSearchBar}
         onClose={onClose}
         onOpenUserProfile={openUserProfile}
         onStartCall={startCall}
         onStartGroupCall={startGroupCall}
         onToggleGroupInfo={toggleGroupInfo}
-        onOpenChatFiles={useCallback(() => setShowChatFiles(true), [])}
-        onExportChat={useCallback(async () => {
-          try {
-            const res = await axios.get(`/api/messages/conversation/${conversation.id}/export`, {
-              responseType: 'blob',
-            });
-            const url = URL.createObjectURL(res.data);
-            const a   = document.createElement('a');
-            a.href    = url;
-            a.download = `chat-${conversation.name || conversation.id}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-          } catch {
-            showToast('导出失败，请重试', 'error');
-          }
-        }, [conversation.id, conversation.name])}
+        onToggleSearch={useCallback(() => setShowSearchBar(v => !v), [])}
       />
+
+      {/* ── 会话内搜索栏 ── */}
+      {showSearchBar && (
+        <ConvSearchBar
+          convId={conversation.id}
+          onJump={useCallback((msgId) => {
+            setShowSearchBar(false);
+            setPendingScrollId(String(msgId));
+          }, [conversation.id])}
+          onClose={useCallback(() => setShowSearchBar(false), [])}
+        />
+      )}
 
       {/* 会话内搜索面板已随「顶栏对齐微信·去搜索」下线：入口移除后该面板无任何
          打开途径（git 史中从未存在 setShowMsgSearch(true)），属死代码，此处连同
@@ -2576,14 +2572,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           onSent={() => {
             // 转账消息由 socket 广播自动添加
           }}
-        />
-      )}
-
-      {/* 聊天文件聚合视图 */}
-      {showChatFiles && (
-        <ChatFiles
-          convId={conversation.id}
-          onClose={() => setShowChatFiles(false)}
         />
       )}
 

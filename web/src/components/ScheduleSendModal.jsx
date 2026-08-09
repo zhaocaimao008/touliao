@@ -82,7 +82,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
         onClick={e => e.stopPropagation()}
         style={{
           position: 'relative', zIndex: 1,
-          background: 'var(--bg-elevated)',
+          background: 'var(--bg-card)',
           borderRadius: 'var(--radius-lg)',
           boxShadow: '0 8px 32px rgba(0,0,0,.2)',
           width: Math.min(420, window.innerWidth - 32),
@@ -149,7 +149,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
             style={{
               padding: '8px 18px', borderRadius: 6,
               border: '1px solid var(--border-default)',
-              background: 'var(--bg-elevated)', color: 'var(--text-secondary)',
+              background: 'var(--bg-card)', color: 'var(--text-secondary)',
               cursor: 'pointer', fontSize: 14,
             }}
           >取消</button>
