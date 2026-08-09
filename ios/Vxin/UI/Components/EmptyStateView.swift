@@ -23,7 +23,7 @@ struct VxinEmptyState: View {
                     .foregroundColor(.vxinBrand)
             }
             Text(title)
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: VxinFontSize.md, weight: .medium))
                 .foregroundColor(.primary)
             if let subtitle {
                 Text(subtitle)

@@ -170,7 +170,7 @@ html.capacitor-app {
   .wc-chat-item-info { gap: 2px; }
 
   /* 输入区域更大 */
-  .wc-textarea { min-height: 80px; max-height: 150px; font-size: 15px; }
+  .wc-textarea { min-height: 80px; max-height: 150px; font-size: var(--text-md); }
   .wc-input-box { padding: 6px 18px 2px; }
   .wc-input-footer { padding: 0 18px 12px; }
 
