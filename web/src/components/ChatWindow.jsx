@@ -30,17 +30,17 @@ const CHAT_ALLOWED_EXTS = new Set([
   'zip','rar','7z','gz','tar','bz2','xz','tgz',
 ]);
 const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
-import EmojiPicker from './EmojiPicker';
-import StickerPanel from './StickerPanel';
-const GroupInfo   = lazy(() => import('./GroupInfo'));
-const UserProfile = lazy(() => import('./UserProfile'));
-import RedPacketModal from './RedPacketModal';
-import TransferModal from './TransferModal';
-import ForwardModal from './ForwardModal';
-import GroupCallModal from './GroupCallModal';
-import ScheduleSendModal from './ScheduleSendModal';
-import PrivateChatSettings from './PrivateChatSettings';
-import ChatFiles from './ChatFiles';
+const EmojiPicker         = lazy(() => import('./EmojiPicker'));
+const StickerPanel        = lazy(() => import('./StickerPanel'));
+const GroupInfo           = lazy(() => import('./GroupInfo'));
+const UserProfile         = lazy(() => import('./UserProfile'));
+const RedPacketModal      = lazy(() => import('./RedPacketModal'));
+const TransferModal       = lazy(() => import('./TransferModal'));
+const ForwardModal        = lazy(() => import('./ForwardModal'));
+import GroupCallModal from './GroupCallModal'; // 保持 eager：处理来电需立即挂载
+const ScheduleSendModal   = lazy(() => import('./ScheduleSendModal'));
+const PrivateChatSettings = lazy(() => import('./PrivateChatSettings'));
+const ChatFiles           = lazy(() => import('./ChatFiles'));
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
@@ -2200,6 +2200,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           </Suspense>
         )}
         {showGroupInfo && conversation.type === 'private' && (
+          <Suspense fallback={null}>
           <PrivateChatSettings
             conversation={conversation}
             onClose={() => setShowGroupInfo(false)}
@@ -2209,12 +2210,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             onOpenChatFiles={openChatFiles}
             onCleared={() => { setMessages([]); setPinnedMessages([]); }}
           />
+          </Suspense>
         )}
         {showChatFiles && (
+          <Suspense fallback={null}>
           <ChatFiles
             convId={conversation.id}
             onClose={() => setShowChatFiles(false)}
           />
+          </Suspense>
         )}
       </div>
 
@@ -2277,7 +2281,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
       {/* ── 转发弹窗 ── */}
       {forwardMsg && (
+        <Suspense fallback={null}>
         <ForwardModal message={forwardMsg} onClose={() => setForwardMsg(null)} />
+        </Suspense>
       )}
 
       {/* ── 多选模式底部工具栏（抽离为 memo 化 MultiSelectBar）── */}
@@ -2412,9 +2418,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           </div>
         )}
 
-        {/* Emoji panel — 在输入框上方展开，输入框始终可见 */}
-        {showEmoji && <EmojiPicker onSelect={e => { dispatchCompose({ type: 'APPEND_INPUT', text: e }); textareaRef.current?.focus(); }} />}
-        {showStickers && <StickerPanel onSend={sendSticker} />}
+        {/* Emoji panel */}
+        {showEmoji && <Suspense fallback={null}><EmojiPicker onSelect={e => { dispatchCompose({ type: 'APPEND_INPUT', text: e }); textareaRef.current?.focus(); }} /></Suspense>}
+        {showStickers && <Suspense fallback={null}><StickerPanel onSend={sendSticker} /></Suspense>}
 
         {/* Text / Voice input — 始终显示 */}
         {!showMore && (
@@ -2583,38 +2589,38 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       )}
 
       {showRedPacket && (
+        <Suspense fallback={null}>
         <RedPacketModal
           conversation={conversation}
           onClose={() => setShowRedPacket(false)}
-          onSent={() => {
-            // 红包消息由 socket 事件自动添加，这里不需要手动处理
-            dispatchCompose({ type: 'SET_INPUT', value: '' });
-          }}
+          onSent={() => { dispatchCompose({ type: 'SET_INPUT', value: '' }); }}
         />
+        </Suspense>
       )}
       {showTransfer && (
+        <Suspense fallback={null}>
         <TransferModal
           conversation={conversation}
           onClose={() => setShowTransfer(false)}
-          onSent={() => {
-            // 转账消息由 socket 广播自动添加
-          }}
+          onSent={() => {}}
         />
+        </Suspense>
       )}
 
       {/* 定时发送弹窗 */}
       {showScheduleSend && (
+        <Suspense fallback={null}>
         <ScheduleSendModal
           convId={conversation.id}
           defaultContent={input}
           onClose={() => setShowScheduleSend(false)}
           onScheduled={(_content) => {
-            // 定时消息已创建，清空输入框（可选）
             showToast('定时消息已设置，到点自动发出 ✓', 'success');
             dispatchCompose({ type: 'SET_INPUT', value: '' });
             setShowScheduleSend(false);
           }}
         />
+        </Suspense>
       )}
       {redPacketDetail && (
         <div
