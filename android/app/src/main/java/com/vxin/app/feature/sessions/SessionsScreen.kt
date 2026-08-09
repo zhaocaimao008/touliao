@@ -100,7 +100,7 @@ private fun SessionRow(s: DeviceSession, onKick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(s.device.ifBlank { s.platform.ifBlank { "未知设备" } }, style = MaterialTheme.typography.bodyLarge)
-                if (s.current) Text("  · 当前设备", color = Color(0xFF07C160), style = MaterialTheme.typography.bodySmall)
+                if (s.current) Text("  · 当前设备", color = com.vxin.app.ui.theme.VxinBrand, style = MaterialTheme.typography.bodySmall)
             }
             Text(
                 (if (s.ip.isNotBlank()) "IP ${s.ip} · " else "") + "最近活跃 ${formatTime(s.lastSeen)}",

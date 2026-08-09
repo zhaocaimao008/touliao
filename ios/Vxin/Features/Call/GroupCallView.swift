@@ -26,7 +26,7 @@ struct GroupCallHostView: View {
                 .font(.subheadline).foregroundColor(.white)
             Button("加入") { manager.join(callId: inv.callId, conversationId: inv.conversationId, video: inv.type == "video") }
                 .padding(.horizontal, 14).padding(.vertical, 6)
-                .background(Color.green).foregroundColor(.white).clipShape(Capsule())
+                .background(Color.vxinSuccess).foregroundColor(.white).clipShape(Capsule())
             Button("忽略") { manager.pendingInvite = nil }
                 .foregroundColor(Color(white: 0.7))
         }

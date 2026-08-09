@@ -16,6 +16,15 @@ val VxinTextPrimary = Color(0xFF1A1A1A)   // 正文近黑，对齐 web --text-pr
 val VxinTextSecondary = Color(0xFF888888) // 辅助中性灰，对齐 web --text-secondary
 val VxinError = Color(0xFFFA5151)
 
+// 语义色（对齐 web --color-success / 支付绿 / 通话接听）
+val VxinSuccess = Color(0xFF00B42A)       // 成功/正向（对齐 web --color-success #00B42A）：钱包入账、通话接听
+val VxinSuccessDark = Color(0xFF059C4B)   // 成功按下态
+// 支付/转账金钱主题绿（微信支付经典绿，对齐 web --pay-grad）：转账卡片渐变
+val VxinPay = Color(0xFF07C160)
+val VxinPayDark = Color(0xFF059C4B)       // 支付绿按下态/渐变深端（原 TransferGreenDark）
+val VxinPayGradStart = Color(0xFF09BB07)
+val VxinPayGradEnd = Color(0xFF07C160)
+
 // 聊天气泡（对齐 web AURORA）：我的=极光靛渐变 + 白字；对方=白 + 深字
 val VxinBubbleMine = VxinBrand            // 我方气泡主色（渐变见 ChatScreen bubbleBrush）
 val VxinBubbleMineText = Color(0xFFFFFFFF) // 靛底白字，保证对比度（WCAG AA）

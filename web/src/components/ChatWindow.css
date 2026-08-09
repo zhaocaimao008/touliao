@@ -604,7 +604,7 @@
   width: 200px;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: linear-gradient(135deg, #09bb07, #07c160);
+  background: linear-gradient(135deg, var(--pay-green-alt), var(--pay-green));
   color: var(--gray-0);
   box-shadow: 0 1px 4px rgba(0,0,0,.15);
 }

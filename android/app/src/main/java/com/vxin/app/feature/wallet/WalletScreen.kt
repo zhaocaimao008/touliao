@@ -161,7 +161,7 @@ private fun TransactionRow(tx: WalletTransaction) {
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 (if (positive) "+" else "") + "${tx.amount}",
-                color = if (positive) Color(0xFF07C160) else Color(0xFFFA5151),
+                color = if (positive) com.vxin.app.ui.theme.VxinSuccess else Color(0xFFFA5151),
                 fontWeight = FontWeight.SemiBold,
             )
             Text("余额 ${tx.balanceAfter}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

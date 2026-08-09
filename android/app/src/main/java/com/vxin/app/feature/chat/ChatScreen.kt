@@ -817,7 +817,7 @@ fun ChatScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(label, Modifier.weight(1f))
-                            if (state.burnAfter == secs) Text("✓", color = androidx.compose.ui.graphics.Color(0xFF07C160))
+                            if (state.burnAfter == secs) Text("✓", color = com.vxin.app.ui.theme.VxinBrand)
                         }
                     }
                 }
@@ -966,7 +966,7 @@ private fun MessageBubble(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-    val highlightBg = if (highlighted) Color(0x3307C160) else Color.Transparent
+    val highlightBg = if (highlighted) com.vxin.app.ui.theme.VxinBrand.copy(alpha = 0.20f) else Color.Transparent
 
     Row(
         modifier = Modifier.fillMaxWidth().testTag("msg-bubble-${msg.id}").background(highlightBg).padding(vertical = 2.dp),
@@ -1674,9 +1674,10 @@ private fun RedPacketCard(
     }
 }
 
-// ── 好友转账卡片（绿色，转账即到账，无需操作）─────────────────────────────────
-private val TransferGreen = Color(0xFF07C160)
-private val TransferGreenDark = Color(0xFF059C4B)
+// ── 好友转账卡片（支付绿，转账即到账，无需操作）─────────────────────────────────
+// 用支付语义 token（对齐 web --pay / --pay-dark），与「金钱」母题一致，非品牌主色
+private val TransferGreen = com.vxin.app.ui.theme.VxinPay
+private val TransferGreenDark = com.vxin.app.ui.theme.VxinPayDark
 
 @Composable
 private fun TransferCard(

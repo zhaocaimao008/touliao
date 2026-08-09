@@ -303,7 +303,7 @@ struct ChatView: View {
         Button { showAnnouncement = true } label: {
             HStack(spacing: 8) {
                 Text("📢").font(.caption)
-                Text("群公告").font(.caption).foregroundColor(Color(red: 0.23, green: 0.51, blue: 0.96))
+                Text("群公告").font(.caption).foregroundColor(.vxinInfoBannerFg)
                 MarqueeText(text: vm.groupAnnouncement.replacingOccurrences(of: "\n", with: "   "), font: .footnote)
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
@@ -928,8 +928,7 @@ private struct MessageBubble: View {
         .padding(12)
         .frame(maxWidth: 240, alignment: .leading)
         .background(
-            LinearGradient(colors: [Color(red: 0.03, green: 0.76, blue: 0.38), Color(red: 0.02, green: 0.61, blue: 0.29)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient.vxinPay
         )
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }

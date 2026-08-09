@@ -95,7 +95,7 @@ private struct CallView: View {
     @ViewBuilder private var controls: some View {
         if state.stage == .incoming {
             HStack(spacing: 56) {
-                circleButton("接听", .green) { manager.accept() }
+                circleButton("接听", .vxinSuccess) { manager.accept() }
                 circleButton("拒绝", .red) { manager.reject() }
             }
         } else {

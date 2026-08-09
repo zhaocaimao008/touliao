@@ -66,7 +66,7 @@ struct ContactsView: View {
                             InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 44)
                                 .overlay(alignment: .bottomTrailing) {
                                     if vm.onlineIds.contains(contact.id) {
-                                        Circle().fill(.green).frame(width: 12, height: 12)
+                                        Circle().fill(Color.vxinOnline).frame(width: 12, height: 12)
                                             .overlay(Circle().stroke(.white, lineWidth: 2))
                                     }
                                 }

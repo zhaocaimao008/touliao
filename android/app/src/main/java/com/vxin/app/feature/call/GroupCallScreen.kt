@@ -41,7 +41,7 @@ import com.vxin.app.core.call.GroupCallStage
 import com.vxin.app.core.realtime.GroupCallInviteEvent
 import com.vxin.app.ui.components.InitialAvatar
 
-private val CallGreen = Color(0xFF07C160)
+private val CallGreen = com.vxin.app.ui.theme.VxinSuccess   // 接听绿=语义成功色，对齐 web --color-success
 private val CallRed = Color(0xFFFA5151)
 
 /** 全局群通话浮层 + 来电邀请横幅：始终挂载，监听邀请与通话状态。 */

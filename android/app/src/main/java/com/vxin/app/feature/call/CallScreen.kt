@@ -43,7 +43,7 @@ import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
 
-private val CallGreen = Color(0xFF07C160)
+private val CallGreen = com.vxin.app.ui.theme.VxinSuccess   // 接听绿=语义成功色，对齐 web --color-success
 private val CallRed = Color(0xFFFA5151)
 
 /** 全局通话浮层：通话激活时覆盖在主界面之上 */
