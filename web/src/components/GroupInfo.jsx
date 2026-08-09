@@ -165,7 +165,7 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
 });
 
 /* ── 主组件 ── */
-export default function GroupInfo({ conversation, currentUserId, onClose, onLeave, onConvUpdate, onPickBackground, onClearBackground, onCleared }) {
+export default function GroupInfo({ conversation, currentUserId, onClose, onLeave, onConvUpdate, onPickBackground, onClearBackground, onCleared, onOpenChatFiles }) {
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editName, setEditName] = useState(false);
@@ -715,6 +715,10 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
         {/* 个人设置 */}
         <div className="gi-section">
+          <div className="gi-row" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onOpenChatFiles?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenChatFiles?.(); } }}>
+            <span className="gi-label">聊天文件</span>
+            <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+          </div>
           <div className="gi-row">
             <span className="gi-label">消息免打扰</span>
             <Toggle

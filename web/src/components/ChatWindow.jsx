@@ -40,6 +40,7 @@ import ForwardModal from './ForwardModal';
 import GroupCallModal from './GroupCallModal';
 import ScheduleSendModal from './ScheduleSendModal';
 import PrivateChatSettings from './PrivateChatSettings';
+import ChatFiles from './ChatFiles';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
@@ -164,6 +165,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 定时发送弹窗
   const [showScheduleSend, setShowScheduleSend] = useState(false);
   const [showSearchBar, setShowSearchBar] = useState(false);
+  // 聊天文件聚合视图（图片/视频/文件），从群聊信息 / 聊天设置面板打开
+  const [showChatFiles, setShowChatFiles] = useState(false);
   const dragCounterRef = useRef(0);
   const isUploadingRef    = useRef(false); // 防止并发上传
   const lastSendRef       = useRef({ text: '', time: 0 }); // 防止 Enter 连击重复发送
@@ -1206,6 +1209,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setPendingScrollId(String(msgId));
   }, []);
 
+  // 打开聊天文件聚合视图（同时收起信息面板，避免抽屉叠加）
+  const openChatFiles = useCallback(() => {
+    setShowGroupInfo(false);
+    setShowChatFiles(true);
+  }, []);
+
   const sendContactCard = (contact) => {
     if (!socket) return;
     setShowCardPicker(false);
@@ -2177,6 +2186,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             onClose={() => setShowGroupInfo(false)}
             onPickBackground={pickBackground}
             onClearBackground={() => setChatBackground('')}
+            onOpenChatFiles={openChatFiles}
             onLeave={() => { setShowGroupInfo(false); onClose?.(); }}
             onConvUpdate={(data) => {
               setConversation(prev => ({ ...prev, ...data }));
@@ -2194,7 +2204,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             onConvUpdate={(data) => setConversation(prev => ({ ...prev, ...data }))}
             onPickBackground={pickBackground}
             onClearBackground={() => setChatBackground('')}
+            onOpenChatFiles={openChatFiles}
             onCleared={() => { setMessages([]); setPinnedMessages([]); }}
+          />
+        )}
+        {showChatFiles && (
+          <ChatFiles
+            convId={conversation.id}
+            onClose={() => setShowChatFiles(false)}
           />
         )}
       </div>

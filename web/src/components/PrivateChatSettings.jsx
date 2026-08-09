@@ -17,7 +17,7 @@ const BURN_OPTIONS = [
  * 私聊「聊天设置」面板：免打扰 / 置顶 / 聊天背景 / 阅后即焚 / 双向删除记录。
  * 从 ChatWindow.jsx 抽出（原 2705 行大文件拆分），无状态耦合，仅回调通信。
  */
-export default function PrivateChatSettings({ conversation, onClose, onConvUpdate, onPickBackground, onClearBackground, onCleared }) {
+export default function PrivateChatSettings({ conversation, onClose, onConvUpdate, onPickBackground, onClearBackground, onCleared, onOpenChatFiles }) {
   const [muted, setMuted] = useState(!!conversation.muted);
   const [pinned, setPinned] = useState(!!conversation.pinned);
   const [burnAfter, setBurnAfter] = useState(conversation.burn_after || 0);
@@ -99,6 +99,12 @@ export default function PrivateChatSettings({ conversation, onClose, onConvUpdat
           {conversation.background && (
             <div className="wc-settings-row wc-settings-row-clickable" role="button" tabIndex={0} onClick={() => onClearBackground?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClearBackground?.(); } }}>
               <span className="wc-settings-row-label" style={{ color: 'var(--color-badge)' }}>清除聊天背景</span>
+            </div>
+          )}
+          {onOpenChatFiles && (
+            <div className="wc-settings-row wc-settings-row-clickable" role="button" tabIndex={0} onClick={() => onOpenChatFiles()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenChatFiles(); } }}>
+              <span className="wc-settings-row-label">聊天文件</span>
+              <span className="wc-settings-row-action">图片 / 视频 / 文件 ›</span>
             </div>
           )}
           <div className="wc-settings-row">
