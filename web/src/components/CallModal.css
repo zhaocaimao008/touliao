@@ -93,8 +93,6 @@
   position: absolute; bottom: 0; left: 0; right: 0;
   z-index: 6; padding-bottom: 48px;
 }
-.cm-controls-bottom--voice { padding-bottom: 52px; }
-
 /* 按钮行 */
 .cm-btn-row {
   display: flex; align-items: center; justify-content: center; gap: 48px;
@@ -138,7 +136,7 @@
 .cm-ended-overlay {
   position: absolute; inset: 0; z-index: 10;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0, 0, 0, .55);
+  background: var(--scrim-strong);
 }
 .cm-ended-text { font-size: 16px; color: var(--gray-0); font-weight: 500; }
 
