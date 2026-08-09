@@ -66,7 +66,7 @@ fun RegisterScreen(
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.lg))
                 .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
             contentAlignment = Alignment.Center,
         ) {
@@ -150,7 +150,7 @@ fun RegisterScreen(
                 Modifier
                     .fillMaxWidth()
                     .height(50.dp)
-                    .clip(RoundedCornerShape(25.dp))
+                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.pill))
                     .background(
                         if (state.canSubmit) Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))
                         else Brush.linearGradient(listOf(VxinTextSecondary, VxinTextSecondary))

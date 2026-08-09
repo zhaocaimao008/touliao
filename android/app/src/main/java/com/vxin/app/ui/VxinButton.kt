@@ -48,7 +48,7 @@ fun VxinGradientButton(
             Modifier
                 .fillMaxWidth()
                 .height(50.dp)
-                .clip(RoundedCornerShape(25.dp))
+                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.pill))
                 .background(
                     if (enabled)
                         Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))

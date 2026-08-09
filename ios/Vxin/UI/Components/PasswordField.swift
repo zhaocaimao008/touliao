@@ -41,7 +41,7 @@ struct PasswordField: View {
         .padding(.horizontal, 8)
         .frame(minHeight: 36)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: VxinRadius.sm)
                 .stroke(Color.gray.opacity(0.4), lineWidth: 1)
         )
     }

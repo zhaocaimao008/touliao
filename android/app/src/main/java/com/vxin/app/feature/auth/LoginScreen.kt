@@ -71,7 +71,7 @@ fun LoginScreen(
         Box(
             modifier = Modifier
                 .size(72.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.xl))
                 .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
             contentAlignment = Alignment.Center,
         ) {
@@ -142,7 +142,7 @@ fun LoginScreen(
                 Modifier
                     .fillMaxWidth()
                     .height(50.dp)
-                    .clip(RoundedCornerShape(25.dp))
+                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.pill))
                     .background(
                         if (state.canSubmit)
                             Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))

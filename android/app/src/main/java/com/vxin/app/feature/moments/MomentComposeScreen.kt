@@ -84,14 +84,14 @@ fun MomentComposeScreen(
             LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth()) {
                 items(state.images, key = { it }) { uri ->
                     Box(Modifier.padding(2.dp).aspectRatio(1f)) {
-                        AsyncImage(uri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)))
-                        Text("✕", color = Color.White, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(8.dp)).clickable { viewModel.removeImage(uri) }.padding(horizontal = 6.dp))
+                        AsyncImage(uri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm)))
+                        Text("✕", color = Color.White, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb)).clickable { viewModel.removeImage(uri) }.padding(horizontal = 6.dp))
                     }
                 }
                 if (state.images.size < 9) {
                     item {
                         Box(
-                            Modifier.padding(2.dp).aspectRatio(1f).clip(RoundedCornerShape(6.dp))
+                            Modifier.padding(2.dp).aspectRatio(1f).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
                                 .clickable { picker.launch("image/*") },
                             contentAlignment = Alignment.Center,
                         ) { Text("＋", color = VxinTextSecondary) }

@@ -90,7 +90,7 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
                         .systemBarsPadding()
                         .padding(16.dp)
                         .size(110.dp, 160.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb)),
                 )
             }
         } else {

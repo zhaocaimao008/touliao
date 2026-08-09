@@ -205,7 +205,7 @@ private fun FileGridItem(
             Modifier
                 .padding(2.dp)
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
                 .background(Color(0x11000000))
                 .clickable(onClick = onClick),
         ) {

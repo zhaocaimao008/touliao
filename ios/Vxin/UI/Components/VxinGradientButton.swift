@@ -26,7 +26,7 @@ struct VxinGradientButton: View {
                 }
             )
             .foregroundColor(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.pill, style: .continuous))
             .shadow(color: enabled ? .vxinBrand.opacity(0.35) : .clear, radius: 8, y: 4)
         }
         .disabled(!enabled || loading)

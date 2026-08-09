@@ -72,7 +72,7 @@ struct MomentComposeView: View {
                             HStack {
                                 ForEach(Array(vm.images.enumerated()), id: \.offset) { _, img in
                                     Image(uiImage: img).resizable().scaledToFill()
-                                        .frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 6))
+                                        .frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
                                 }
                             }
                         }

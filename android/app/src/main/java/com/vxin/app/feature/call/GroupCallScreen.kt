@@ -118,13 +118,13 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
     invite?.let { inv ->
         Box(Modifier.fillMaxWidth().systemBarsPadding().padding(top = 60.dp), contentAlignment = Alignment.TopCenter) {
             Row(
-                Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xFF2C2C2E)).padding(12.dp),
+                Modifier.clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.avatar)).background(Color(0xFF2C2C2E)).padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("${inv.fromName.ifBlank { "群成员" }} 发起了群${if (inv.type == "video") "视频" else "语音"}通话",
                     color = Color.White, fontSize = 14.sp)
-                Box(Modifier.clip(RoundedCornerShape(8.dp)).background(CallGreen)
+                Box(Modifier.clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb)).background(CallGreen)
                     .clickable { viewModel.join(inv.callId, inv.conversationId, inv.type == "video"); invite = null }
                     .padding(horizontal = 14.dp, vertical = 6.dp)) { Text("加入", color = Color.White, fontSize = 13.sp) }
                 Box(Modifier.clickable { invite = null }.padding(horizontal = 8.dp, vertical = 6.dp)) {
@@ -138,7 +138,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
 @Composable
 private fun Tile(track: org.webrtc.VideoTrack?, eglContext: org.webrtc.EglBase.Context, mirror: Boolean, label: String, self: Boolean = false) {
     Box(
-        Modifier.fillMaxWidth().aspectRatio(0.85f).clip(RoundedCornerShape(10.dp)).background(Color.Black),
+        Modifier.fillMaxWidth().aspectRatio(0.85f).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge)).background(Color.Black),
         contentAlignment = Alignment.Center,
     ) {
         if (track != null) {

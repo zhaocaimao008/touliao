@@ -31,7 +31,7 @@ struct GroupCallHostView: View {
                 .foregroundColor(Color(white: 0.7))
         }
         .padding(12)
-        .background(Color(white: 0.18)).clipShape(RoundedRectangle(cornerRadius: 14))
+        .background(Color(white: 0.18)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.avatar))
     }
 }
 
@@ -94,7 +94,7 @@ private struct GroupCallView: View {
             Text(label).font(.caption2).foregroundColor(.white).padding(6)
         }
         .aspectRatio(0.85, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
     }
 
     @ViewBuilder private var controls: some View {

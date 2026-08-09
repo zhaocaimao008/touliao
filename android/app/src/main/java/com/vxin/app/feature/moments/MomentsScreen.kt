@@ -305,7 +305,7 @@ private fun MomentCard(
         }
         // 点赞名单
         if (moment.likes.isNotEmpty()) {
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(Color(0x11000000)).padding(8.dp)) {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm)).background(Color(0x11000000)).padding(8.dp)) {
                 Text("❤ " + moment.likes.joinToString("，") { it.username.ifBlank { "用户" } }, color = VxinGreen, fontSize = 13.sp)
             }
         }
@@ -363,7 +363,7 @@ private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?, on
             modifier = Modifier
                 .widthIn(max = 220.dp)
                 .heightIn(max = 280.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
                 .clickable { onImageClick(0) },
         )
         return
@@ -381,7 +381,7 @@ private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?, on
                     modifier = Modifier
                         .weight(1f)
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
                         .clickable { onImageClick(index) },
                     // 加载中/失败灰底占位，避免九宫格空白闪烁
                     loading = { Box(Modifier.fillMaxSize().background(Color(0x11000000))) },
@@ -449,7 +449,7 @@ private fun MomentNotifSheet(
                                 model = resolveUrl(n.moment.thumb),
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)),
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.tag)),
                             )
                         } else if (n.moment.content.isNotBlank()) {
                             Text(n.moment.content.take(12), color = VxinTextSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 80.dp))

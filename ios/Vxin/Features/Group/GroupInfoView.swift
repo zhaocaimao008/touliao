@@ -251,7 +251,7 @@ struct GroupInfoView: View {
             KFImage(source: src)
                 .resizable().scaledToFill()
                 .frame(width: 72, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.card, style: .continuous))
         } else {
             InitialAvatar(name: info.name.isEmpty ? "群" : info.name, size: 72)
         }

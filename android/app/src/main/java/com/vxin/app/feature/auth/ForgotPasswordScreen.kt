@@ -66,7 +66,7 @@ fun ForgotPasswordScreen(
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.lg))
                 .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
             contentAlignment = Alignment.Center,
         ) {

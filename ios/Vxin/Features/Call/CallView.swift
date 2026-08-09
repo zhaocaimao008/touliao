@@ -31,7 +31,7 @@ private struct CallView: View {
                             Spacer()
                             RTCVideoViewRepresentable(track: manager.localVideoTrack)
                                 .frame(width: 110, height: 160)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.thumb))
                                 .padding()
                         }
                         Spacer()

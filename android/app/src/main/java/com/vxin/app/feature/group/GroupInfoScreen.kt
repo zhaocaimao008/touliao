@@ -117,7 +117,7 @@ fun GroupInfoScreen(
                             Box(contentAlignment = Alignment.Center) {
                                 val url = viewModel.resolveUrl(info.avatar)
                                 if (info.avatar.isNotBlank()) {
-                                    AsyncImage(model = url, contentDescription = "群头像", modifier = Modifier.size(72.dp).clip(RoundedCornerShape(16.dp)))
+                                    AsyncImage(model = url, contentDescription = "群头像", modifier = Modifier.size(72.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card)))
                                 } else {
                                     InitialAvatar(name = info.name.ifBlank { "群" }, size = 72.dp)
                                 }
@@ -194,7 +194,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Box(
-                                Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                                Modifier.size(40.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
                                     .background(VxinBrand.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center,
                             ) { Icon(VxinIcons.Add, contentDescription = null, tint = VxinBrand, modifier = Modifier.size(22.dp)) }
@@ -233,7 +233,7 @@ fun GroupInfoScreen(
                                 containerColor = Color(0xFFFFECEC),
                                 contentColor = Color(0xFFFA5151),
                             ),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.md),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         ) { Text(if (info.isOwner) "解散群聊" else "退出群聊", fontWeight = FontWeight.SemiBold) }
                         Spacer(Modifier.size(24.dp))

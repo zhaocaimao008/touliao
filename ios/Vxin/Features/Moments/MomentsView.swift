@@ -314,7 +314,7 @@ private struct MomentCard: View {
                 Text("❤ " + moment.likes.map { $0.username.isEmpty ? "用户" : $0.username }.joined(separator: "，"))
                     .font(.footnote).foregroundColor(.vxinGreen)
                     .padding(8).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.gray.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 6))
+                    .background(Color.gray.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
             }
             ForEach(moment.comments) { c in
                 commentText(c)
@@ -369,7 +369,7 @@ private struct MomentCard: View {
             KFImage(source: MediaUrlResolver.kfSource(raw: moment.images[0]))
                 .resizable().scaledToFit()
                 .frame(maxWidth: 220, maxHeight: 280, alignment: .leading)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
                 .onTapGesture { onImageTap(0) }
         } else {
             let cols = 3
@@ -382,7 +382,7 @@ private struct MomentCard: View {
                             KFImage(source: MediaUrlResolver.kfSource(raw: moment.images[i]))
                                 .resizable().scaledToFill()
                                 .frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit)
-                                .clipped().clipShape(RoundedRectangle(cornerRadius: 6))
+                                .clipped().clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
                                 .onTapGesture { onImageTap(i) }
                         }
                         ForEach(0..<(cols - (end - rowStart)), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit) }
@@ -461,7 +461,7 @@ private struct MomentNotifSheet: View {
                             if !n.moment.thumb.isEmpty {
                                 KFImage(source: MediaUrlResolver.kfSource(raw: n.moment.thumb))
                                     .resizable().scaledToFill()
-                                    .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 4))
+                                    .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: VxinRadius.tag))
                             } else if !n.moment.content.isEmpty {
                                 Text(String(n.moment.content.prefix(12)))
                                     .font(.caption2).foregroundColor(.vxinTextSecondary)

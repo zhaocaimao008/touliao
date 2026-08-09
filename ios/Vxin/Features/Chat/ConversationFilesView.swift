@@ -265,7 +265,7 @@ private struct MediaGridCell: View {
         }
         .aspectRatio(1, contentMode: .fill)
         .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
         .contentShape(Rectangle())
     }
 }

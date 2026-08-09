@@ -465,7 +465,7 @@ fun ChatScreen(
                                     color = VxinTextSecondary,
                                     fontSize = 11.sp,
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
+                                        .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
                                         .background(Color(0x11000000))
                                         .padding(horizontal = 8.dp, vertical = 2.dp),
                                 )
@@ -580,7 +580,7 @@ fun ChatScreen(
                 exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutHorizontally { it },
             ) {
                 Surface(
-                    shape = RoundedCornerShape(50),
+                    shape = com.vxin.app.ui.theme.VxinRadius.full,
                     color = if (isSystemInDarkTheme()) VxinSurfaceDark else Color.White,
                     shadowElevation = 4.dp,
                     modifier = Modifier.clickable {
@@ -871,7 +871,7 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 40.dp, end = 16.dp)
-                    .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                    .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card))
                     .clickable {
                         scope.launch {
                             com.vxin.app.core.util.saveImageToGallery(context, images.getOrNull(pagerState.currentPage))
@@ -993,7 +993,7 @@ private fun MessageBubble(
                         fontSize = 10.sp,
                         color = Color(0xFFE64545),
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.tag))
                             .clickable(onClick = onRetry)
                             .testTag("msg-send-failed-${msg.id}")
                             .padding(horizontal = 4.dp, vertical = 1.dp),
@@ -1019,7 +1019,7 @@ private fun MessageBubble(
             // 被回复消息引用条
             msg.replyTo?.let { rt ->
                 Box(
-                    Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(6.dp))
+                    Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
                         .background(Color(0x11000000))
                         .clickable { rt.id.takeIf { it.isNotBlank() }?.let(onReplyClick) }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -1105,9 +1105,9 @@ private fun MessageBubble(
                     msg.reactions.forEach { r ->
                         val mine = r.mine(myId)
                         Box(
-                            Modifier.padding(end = 4.dp).clip(RoundedCornerShape(10.dp))
+                            Modifier.padding(end = 4.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
                                 .background(if (mine) VxinGreen.copy(alpha = 0.15f) else Color(0x11000000))
-                                .then(if (mine) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), RoundedCornerShape(10.dp)) else Modifier)
+                                .then(if (mine) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge)) else Modifier)
                                 .clickable { onReact(r.emoji) }
                                 .padding(horizontal = 6.dp, vertical = 1.dp),
                         ) { Text("${r.emoji} ${r.count}", fontSize = 11.sp, color = if (mine) VxinGreen else Color.Unspecified) }
@@ -1155,7 +1155,7 @@ private fun MessageContent(
                     modifier = Modifier
                         .widthIn(max = 220.dp)
                         .heightIn(max = 280.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
                         .clickable { onImageClick() },
                     loading = {
                         // 加载中灰底占位 + 转圈(对齐微信,避免空白闪烁)
@@ -1178,7 +1178,7 @@ private fun MessageContent(
                             Box(
                                 Modifier
                                     .widthIn(max = 240.dp)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb))
                                     .background(Color(0x11000000))
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                             ) {
@@ -1196,7 +1196,7 @@ private fun MessageContent(
                                 fontSize = 12.sp,
                                 color = VxinGreen,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
                                     .clickable(onClick = onTranscribe)
                                     .testTag("voice-transcribe-${msg.id}")
                                     .padding(horizontal = 6.dp, vertical = 2.dp),
@@ -1243,7 +1243,7 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
             Box(
                 modifier = Modifier
                     .widthIn(max = 220.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
                     .background(if (p.failed) Color(0x33FA5151) else VxinGreen.copy(alpha = 0.6f))
                     .combinedClickable(
                         onClick = { if (p.failed) onRetry() },
@@ -1257,7 +1257,7 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
                             model = p.localUri,
                             contentDescription = "上传中",
                             contentScale = ContentScale.Fit,
-                            modifier = Modifier.widthIn(max = 200.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(8.dp)),
+                            modifier = Modifier.widthIn(max = 200.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb)),
                         )
                         CircularProgressIndicator(Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                     }
@@ -1285,7 +1285,7 @@ private fun TextBubble(content: String, isMine: Boolean) {
     Box(
         modifier = Modifier
             .widthIn(max = 280.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.md))
             .background(bubbleBrush(isMine))
             .padding(horizontal = 14.dp, vertical = 9.dp),
     ) {
@@ -1318,7 +1318,7 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
     Box(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.md))
             .background(bubbleBrush(isMine))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1466,7 +1466,7 @@ private fun FunctionPanel(
                 modifier = Modifier.padding(vertical = 8.dp).testTag(tag).clickable(onClick = onClick),
             ) {
                 Box(
-                    Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(Color.White),
+                    Modifier.size(56.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.md)).background(Color.White),
                     contentAlignment = Alignment.Center,
                 ) { Text(emoji, fontSize = 26.sp) }
                 Spacer(Modifier.size(6.dp))
@@ -1656,7 +1656,7 @@ private fun RedPacketCard(
     Row(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
             .background(RedPacketRed)
             .clickable(onClick = onClick)
             .padding(12.dp),
@@ -1687,7 +1687,7 @@ private fun TransferCard(
     Row(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
             .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(TransferGreen, TransferGreenDark)))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,

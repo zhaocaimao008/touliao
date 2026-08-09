@@ -11,7 +11,7 @@ struct LoginView: View {
 
             // 品牌 Logo 徽章：极光靛渐变圆角方 + 对话图标（对齐 Web/Android 登录页）
             ZStack {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: VxinRadius.xl, style: .continuous)
                     .fill(LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
                                          startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 72, height: 72)
@@ -62,7 +62,7 @@ struct LoginView: View {
                     }
                 )
                 .foregroundColor(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.pill, style: .continuous))
                 .shadow(color: vm.canLogin ? .vxinBrand.opacity(0.35) : .clear, radius: 8, y: 4)
             }
             .disabled(!vm.canLogin)

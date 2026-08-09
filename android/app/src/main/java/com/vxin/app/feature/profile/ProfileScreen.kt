@@ -116,7 +116,7 @@ fun ProfileScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card))
                     .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrand, VxinTeal)))
                     .padding(20.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -127,7 +127,7 @@ fun ProfileScreen(
                         AsyncImage(
                             model = avatarUrl,
                             contentDescription = "头像",
-                            modifier = Modifier.size(68.dp).clip(RoundedCornerShape(14.dp)).clickable { avatarPicker.launch("image/*") },
+                            modifier = Modifier.size(68.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.avatar)).clickable { avatarPicker.launch("image/*") },
                         )
                     } else {
                         Box(Modifier.clickable { avatarPicker.launch("image/*") }) {

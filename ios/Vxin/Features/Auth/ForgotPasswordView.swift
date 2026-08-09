@@ -11,7 +11,7 @@ struct ForgotPasswordView: View {
 
             // 品牌 Logo 徽章（与登录/注册页一致）
             ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: VxinRadius.lg, style: .continuous)
                     .fill(LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
                                          startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 64, height: 64)

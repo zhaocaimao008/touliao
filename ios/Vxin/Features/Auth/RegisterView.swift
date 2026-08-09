@@ -11,7 +11,7 @@ struct RegisterView: View {
 
             // 品牌 Logo 徽章（与登录页一致）
             ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: VxinRadius.lg, style: .continuous)
                     .fill(LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
                                          startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 64, height: 64)
@@ -66,7 +66,7 @@ struct RegisterView: View {
                     }
                 )
                 .foregroundColor(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.pill, style: .continuous))
                 .shadow(color: vm.canRegister ? .vxinBrand.opacity(0.35) : .clear, radius: 8, y: 4)
             }
             .disabled(!vm.canRegister)

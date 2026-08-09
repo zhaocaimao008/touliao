@@ -19,7 +19,7 @@ private struct ToastModifier: ViewModifier {
                     .foregroundColor(.white)
                     .padding(.horizontal, 16).padding(.vertical, 10)
                     .background(Color(white: 0.15).opacity(0.92))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
                     .padding(.bottom, 40)
                     .padding(.horizontal, 24)
                     .transition(.move(edge: .bottom).combined(with: .opacity))

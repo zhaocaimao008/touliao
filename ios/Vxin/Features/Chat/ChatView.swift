@@ -358,7 +358,7 @@ struct ChatView: View {
                                 .font(.caption2).foregroundColor(.vxinTextSecondary)
                                 .padding(.horizontal, 8).padding(.vertical, 2)
                                 .background(Color.gray.opacity(0.12))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 4)
                         }
@@ -559,7 +559,7 @@ struct ChatView: View {
             Text(emoji).font(.system(size: 26))
                 .frame(width: 56, height: 56)
                 .background(Color(.systemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md))
             Text(label).font(.caption).foregroundColor(.vxinTextSecondary)
         }
     }
@@ -697,7 +697,7 @@ private struct MessageBubble: View {
                         .font(.caption2).foregroundColor(.vxinTextSecondary)
                         .lineLimit(1)
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Color.gray.opacity(0.15)).clipShape(RoundedRectangle(cornerRadius: 6))
+                        .background(Color.gray.opacity(0.15)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
                         .onTapGesture { if !rt.id.isEmpty { vm.jumpTo(rt.id) } }
                 }
                 content
@@ -816,7 +816,7 @@ private struct MessageBubble: View {
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: 220, maxHeight: 280)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
                 .onTapGesture { vm.openImage(msg) }
         case "voice":
             // 语音气泡 + 转文字三态（对齐 Android ChatScreen）
@@ -851,7 +851,7 @@ private struct MessageBubble: View {
                 .padding(.horizontal, 10).padding(.vertical, 6)
                 .frame(maxWidth: 240, alignment: .leading)
                 .background(Color.gray.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.thumb))
         } else if vm.isTranscribing(msg.id) {
             Text("转写中…").font(.caption).foregroundColor(.vxinTextSecondary)
                 .padding(.horizontal, 2)
@@ -906,7 +906,7 @@ private struct MessageBubble: View {
         .padding(12)
         .frame(maxWidth: 240, alignment: .leading)
         .background(Color(red: 0.91, green: 0.31, blue: 0.23))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
     }
 
     /// 转账气泡（绿色卡片，对齐 Android TransferCard）：自己发的显示「转账给xx ¥xx」，
@@ -930,7 +930,7 @@ private struct MessageBubble: View {
         .background(
             LinearGradient.vxinPay
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
     }
 
     private func transferTitle(_ t: TransferContent?) -> String {
@@ -964,7 +964,7 @@ private struct MessageBubble: View {
                     Color(.secondarySystemBackground)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md))
             .shadow(color: (isMine ? Color.vxinBrand : .black).opacity(isMine ? 0.28 : 0.06),
                     radius: isMine ? 5 : 3, y: 1)
     }
@@ -997,7 +997,7 @@ private struct PendingBubbleView: View {
                     ZStack {
                         Image(uiImage: image).resizable().scaledToFit()
                             .frame(maxWidth: 200, maxHeight: 240)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
                         ProgressView().tint(.white)
                     }
                 } else {
@@ -1008,7 +1008,7 @@ private struct PendingBubbleView: View {
                     }
                     .padding(.horizontal, 12).padding(.vertical, 8)
                     .background(pending.failed ? Color.vxinError.opacity(0.7) : Color.vxinGreen.opacity(0.6))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
                     .onTapGesture { if pending.failed { onRetry() } }
                     .onLongPressGesture { if pending.failed { onDismiss() } }
                 }
