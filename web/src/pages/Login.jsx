@@ -92,7 +92,7 @@ export default function Login() {
               <path d="M17 15a3 3 0 013-3h11a3 3 0 013 3v10a3 3 0 01-3 3h-3v4l-5-4h-3a3 3 0 01-3-3V15z" fill="white"/>
             </svg>
           </div>
-          <h1 className="auth-brand-name">v信</h1>
+          <h1 className="auth-brand-name auth-brand-name--brand">v信</h1>
           <p className="auth-brand-desc">安全 · 私密 · 畅聊</p>
         </div>
 
@@ -214,7 +214,7 @@ export default function Login() {
               />
               记住密码
             </label>
-            <Link to="/forgot-password" className="auth-link" style={{ fontSize: 13 }}>忘记密码？</Link>
+            <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>忘记密码？</Link>
           </div>
 
           <button type="submit" className="auth-submit" data-testid="login-submit-btn" disabled={loading || !phone || !password}>

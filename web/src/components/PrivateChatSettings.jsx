@@ -94,7 +94,7 @@ export default function PrivateChatSettings({ conversation, onClose, onConvUpdat
               value={burnAfter}
               onChange={e => changeBurnAfter(e.target.value)}
               className="wc-settings-select"
-              style={{ fontSize: 13, color: burnAfter > 0 ? 'var(--green)' : 'var(--text-secondary)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+              style={{ fontSize: 'var(--text-sm2)', color: burnAfter > 0 ? 'var(--green)' : 'var(--text-secondary)', background: 'transparent', border: 'none', cursor: 'pointer' }}
             >
               {BURN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>

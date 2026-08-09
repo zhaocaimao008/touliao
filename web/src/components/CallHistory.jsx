@@ -66,11 +66,11 @@ export default function CallHistory({ onOpenChat }) {
       {loading ? (
         <Skeleton rows={6} avatar />
       ) : loadError && list.length === 0 ? (
-        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>
+        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
           加载失败，<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>点击重试</button>
         </div>
       ) : list.length === 0 ? (
-        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>暂无通话记录</div>
+        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>暂无通话记录</div>
       ) : (
         list.map(c => {
           const st = STATUS[c.status] || STATUS.completed;
@@ -82,14 +82,14 @@ export default function CallHistory({ onOpenChat }) {
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: onOpenChat ? 'pointer' : 'default' }}>
               <Avatar src={c.peer_avatar} name={c.peer_name} size={42} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || '用户'}</div>
-                <div style={{ fontSize: 12, color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || '用户'}</div>
+                <div style={{ fontSize: 'var(--text-sm)', color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span aria-hidden="true" style={{ transform: c.direction === 'out' ? 'none' : 'scaleX(-1)' }}>{c.direction === 'out' ? '↗' : '↙'}</span>
                   {c.direction === 'out' ? '去电' : '来电'} · {c.type === 'video' ? '视频通话' : '语音通话'} · {st.label}
                   {c.duration > 0 && ` · ${fmtDuration(c.duration)}`}
                 </div>
               </div>
-              <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>{ago(c.created_at)}</span>
+              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)', flexShrink: 0 }}>{ago(c.created_at)}</span>
             </div>
           );
         })

@@ -192,7 +192,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           <button data-testid="lightbox-prev" onClick={(e) => { e.stopPropagation(); prev(); }} style={arrowStyle('left')} aria-label="上一张">‹</button>
           <button data-testid="lightbox-next" onClick={(e) => { e.stopPropagation(); next(); }} style={arrowStyle('right')} aria-label="下一张">›</button>
           <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
-            color: 'rgba(255,255,255,.7)', fontSize: 13, zIndex: 10, pointerEvents: 'none' }}>
+            color: 'rgba(255,255,255,.7)', fontSize: 'var(--text-sm2)', zIndex: 10, pointerEvents: 'none' }}>
             {idx + 1} / {urls.length}
           </div>
         </>
@@ -206,7 +206,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           border: 'none', cursor: 'pointer',
           position: 'absolute', bottom: 30, left: '50%',
           transform: 'translateX(-50%)',
-          color: 'var(--text-inverse)', fontSize: 13,
+          color: 'var(--text-inverse)', fontSize: 'var(--text-sm2)',
           background: 'rgba(255,255,255,.18)',
           padding: '8px 20px', borderRadius: 'var(--radius-2xl)',
           textDecoration: 'none',
@@ -245,7 +245,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           position: 'absolute', bottom: 80, left: '50%',
           transform: 'translateX(-50%)',
           color: 'rgba(255,255,255,.5)',
-          fontSize: 12, zIndex: 10,
+          fontSize: 'var(--text-sm)', zIndex: 10,
           pointerEvents: 'none',
         }}
       >

@@ -38,7 +38,7 @@ export default function AuthImage({ src, alt = '', style, className }) {
 
   if (failed || !src) return (
     <div
-      style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}
+      style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)', cursor: 'pointer' }}
       className={className}
       role="button" tabIndex={0}
       title="点击重试"

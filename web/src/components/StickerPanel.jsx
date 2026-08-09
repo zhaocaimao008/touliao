@@ -90,11 +90,11 @@ export default function StickerPanel({ onSend }) {
   return (
     <div className="wc-emoji-picker" style={{ padding: '6px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 12px 8px' }}>
-        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>我的表情 · 点一下发送</span>
+        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>我的表情 · 点一下发送</span>
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          style={{ fontSize: 12, color: 'var(--color-primary)', background: 'rgba(var(--color-primary-rgb),.1)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '3px 10px', cursor: 'pointer' }}>
+          style={{ fontSize: 'var(--text-sm)', color: 'var(--color-primary)', background: 'rgba(var(--color-primary-rgb),.1)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '3px 10px', cursor: 'pointer' }}>
           {uploading ? '上传中…' : '＋ 添加'}
         </button>
         <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{ display: 'none' }} onChange={onPick} />

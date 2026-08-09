@@ -2076,7 +2076,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       )}
       {groupCallInvite && !groupCall && (
         <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: "calc(var(--z-call) + 100)", background: 'var(--bg-ctx-menu)', color: 'var(--text-inverse)', borderRadius: 'var(--radius-lg)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 28px rgba(0,0,0,.4)' }}>
-          <span style={{ fontSize: 14 }}>
+          <span style={{ fontSize: 'var(--text-base)' }}>
             {groupCallInvite.fromName || '群成员'} 发起了群{groupCallInvite.type === 'video' ? '视频' : '语音'}通话
           </span>
           <button onClick={joinGroupCall} style={{ background: 'var(--color-primary,#6D5AE6)', color: 'var(--text-inverse)', border: 0, borderRadius: 'var(--radius-input)', padding: '6px 14px', cursor: 'pointer' }}>加入</button>
@@ -2151,7 +2151,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           } : undefined}
         >
           {loadingMore && (
-            <div className="wc-search-status" role="status" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, background: 'rgba(245,245,245,.92)', textAlign: 'center', padding: '6px 0', fontSize: 12 }}>加载中…</div>
+            <div className="wc-search-status" role="status" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, background: 'rgba(245,245,245,.92)', textAlign: 'center', padding: '6px 0', fontSize: 'var(--text-sm)' }}>加载中…</div>
           )}
           <VirtualMessageList
             ref={virtListRef}
@@ -2483,7 +2483,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                 {/* 接近 2000 字上限时才提示,避免超长被静默截断而用户不知 */}
                 {input.length >= 1800 && (
                   <span className="wc-input-counter" aria-live="polite"
-                    style={{ marginRight: 'auto', fontSize: 12, color: input.length >= 2000 ? 'var(--color-badge)' : 'var(--text-tertiary)' }}>
+                    style={{ marginRight: 'auto', fontSize: 'var(--text-sm)', color: input.length >= 2000 ? 'var(--color-badge)' : 'var(--text-tertiary)' }}>
                     {input.length}/2000
                   </span>
                 )}

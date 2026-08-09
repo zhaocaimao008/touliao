@@ -98,15 +98,15 @@ export default function Collections() {
       const fileUrl = c.extra?.file_url;
       const label = `${c.type === 'video' ? '🎬' : '📎'} ${c.content || (c.type === 'video' ? '视频' : '文件')}`;
       // 有 file_url 才可下载；老数据无 url 则只显示（与聊天窗口一致：点击=下载，不跳网页）
-      if (!fileUrl) return <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>{label}</span>;
+      if (!fileUrl) return <span style={{ fontSize: 'var(--text-base)', color: 'var(--text-primary)' }}>{label}</span>;
       return (
         <button onClick={() => downloadFile(fileUrl, c.content)}
-          style={{ fontSize: 14, color: 'var(--text-primary)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+          style={{ fontSize: 'var(--text-base)', color: 'var(--text-primary)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
           {label}
         </button>
       );
     }
-    return <span style={{ fontSize: 14, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{c.content}</span>;
+    return <span style={{ fontSize: 'var(--text-base)', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{c.content}</span>;
   };
 
   const TYPES = [['', '全部'], ['text', '文字'], ['image', '图片'], ['file', '文件'], ['video', '视频']];
@@ -118,16 +118,16 @@ export default function Collections() {
         <div style={{ position: 'relative' }}>
           <input data-testid="collection-search-input" value={query} onChange={e => setQuery(e.target.value)}
             placeholder="搜索收藏…" aria-label="搜索收藏"
-            style={{ width: '100%', padding: '7px 28px 7px 10px', borderRadius: 'var(--radius-input)', border: '1px solid var(--border-color)', fontSize: 14, boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: '7px 28px 7px 10px', borderRadius: 'var(--radius-input)', border: '1px solid var(--border-color)', fontSize: 'var(--text-base)', boxSizing: 'border-box' }} />
           {query && (
             <button type="button" aria-label="清除搜索" title="清除" onClick={() => setQuery('')}
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {TYPES.map(([val, label]) => (
             <button key={val || 'all'} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
-              style={{ fontSize: 12, padding: '3px 10px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
+              style={{ fontSize: 'var(--text-sm)', padding: '3px 10px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
                 border: '1px solid var(--border-color)',
                 background: typeFilter === val ? 'var(--green)' : 'transparent',
                 color: typeFilter === val ? '#fff' : 'var(--text-secondary)' }}>{label}</button>
@@ -137,13 +137,13 @@ export default function Collections() {
       {loading ? (
         <Skeleton rows={6} avatar />
       ) : loadError && list.length === 0 ? (
-        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>
+        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
           加载失败，<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>点击重试</button>
         </div>
       ) : (inSearch && searching) ? (
-        <div role="status" style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 13 }}>搜索中…</div>
+        <div role="status" style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>搜索中…</div>
       ) : shown.length === 0 ? (
-        <div role="status" data-testid="collection-empty" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 13 }}>
+        <div role="status" data-testid="collection-empty" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
           {(query.trim() || typeFilter) ? '没有匹配的收藏' : '暂无收藏'}
         </div>
       ) : (
@@ -151,9 +151,9 @@ export default function Collections() {
           <div key={c.id} data-testid="collection-item" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)' }}>
             <div style={{ marginBottom: 8 }}>{renderContent(c)}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{formatDate(c.created_at)}</span>
+              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>{formatDate(c.created_at)}</span>
               <button onClick={() => remove(c.id)}
-                style={{ fontSize: 12, color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>取消收藏</button>
+                style={{ fontSize: 'var(--text-sm)', color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>取消收藏</button>
             </div>
           </div>
         ))

@@ -740,7 +740,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           </div>
           <div className={`gi-row${conversation.background ? '' : ' gi-row-noborder'}`} style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onPickBackground?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPickBackground?.(); } }}>
             <span className="gi-label">设置聊天背景</span>
-            <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>{conversation.background ? '更换 ›' : '选择图片 ›'}</span>
+            <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>{conversation.background ? '更换 ›' : '选择图片 ›'}</span>
           </div>
           {conversation.background && (
             <div className="gi-row gi-row-noborder" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onClearBackground?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClearBackground?.(); } }}>
@@ -770,7 +770,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               </>
             ) : (
               <div className="gi-f1 gi-fcsb gi-nk-cp" role="button" tabIndex={0} onClick={() => { setNicknameVal(myNickname || ''); setEditNickname(true); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNicknameVal(myNickname || ''); setEditNickname(true); } }}>
-                <span style={{ fontSize: 14, color: myNickname ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{myNickname || '未设置'}</span>
+                <span style={{ fontSize: 'var(--text-base)', color: myNickname ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{myNickname || '未设置'}</span>
                 <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
               </div>
             )}

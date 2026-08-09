@@ -65,9 +65,9 @@ export default function MentionList({ onClose, onJumpToMsg }) {
             <path d="M20 11H7.83l4.88-4.88c.39-.39.39-1.03 0-1.42-.39-.39-1.02-.39-1.41 0l-6.59 6.59c-.39.39-.39 1.02 0 1.41l6.59 6.59c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L7.83 13H20c.55 0 1-.45 1-1s-.45-1-1-1z"/>
           </svg>
         </button>
-        <span style={{ fontWeight: 600, fontSize: 15 }}>@我的消息</span>
+        <span style={{ fontWeight: 600, fontSize: 'var(--text-md)' }}>@我的消息</span>
         {total > 0 && (
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-tertiary)' }}>
+          <span style={{ marginLeft: 'auto', fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>
             共 {total} 条
           </span>
         )}
@@ -79,7 +79,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
           <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             justifyContent: 'center', height: '60%',
-            color: 'var(--text-tertiary)', fontSize: 13,
+            color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)',
           }}>
             <svg viewBox="0 0 24 24" style={{ width: 48, height: 48, fill: 'currentColor', opacity: .3, marginBottom: 8 }}>
               <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
@@ -106,15 +106,15 @@ export default function MentionList({ onClose, onJumpToMsg }) {
             {/* 会话名 + 时间 */}
             <div style={{ display: 'flex', justifyContent: 'space-between',
               alignItems: 'center', marginBottom: 4 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: 'var(--text-sm2)', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 [{item.convName}]
               </span>
-              <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
                 {formatFull(item.createdAt * 1000)}
               </span>
             </div>
             {/* 发送者名 + 内容摘要 */}
-            <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+            <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-primary)', lineHeight: 1.4 }}>
               <span style={{ color: 'var(--text-secondary)', marginRight: 4 }}>
                 {item.senderName}:
               </span>
@@ -130,7 +130,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
               onClick={() => load(offset)}
               style={{ background: 'none', border: '1px solid var(--border-default)',
                 borderRadius: 'var(--radius-tag)', padding: '6px 18px', cursor: 'pointer',
-                fontSize: 13, color: 'var(--text-secondary)' }}
+                fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}
             >
               加载更多
             </button>
@@ -138,7 +138,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
         )}
         {loading && (
           <div style={{ textAlign: 'center', padding: '16px 0',
-            color: 'var(--text-tertiary)', fontSize: 13 }}>
+            color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
             加载中…
           </div>
         )}

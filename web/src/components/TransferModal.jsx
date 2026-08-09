@@ -49,7 +49,7 @@ export default function TransferModal({ conversation, onClose, onSent }) {
       <div className="rpm-card" role="dialog" aria-modal="true" aria-label="转账" onClick={e => e.stopPropagation()}>
         <div className="rpm-title">转账</div>
         {otherUser?.username && (
-          <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>
+          <div style={{ textAlign: 'center', fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', marginBottom: 8 }}>
             收款方：{otherUser.username}
           </div>
         )}

@@ -89,11 +89,11 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
           padding: 24,
         }}
       >
-        <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600 }}>定时发送</h3>
+        <h3 style={{ margin: '0 0 16px', fontSize: 'var(--text-lg)', fontWeight: 600 }}>定时发送</h3>
 
         {/* 内容 */}
         <label style={{ display: 'block', marginBottom: 12 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+          <span style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
             消息内容
           </span>
           <textarea
@@ -107,14 +107,14 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
               padding: '8px 10px', borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border-default)',
               background: 'var(--bg-input)',
-              color: 'var(--text-primary)', fontSize: 14, resize: 'vertical',
+              color: 'var(--text-primary)', fontSize: 'var(--text-base)', resize: 'vertical',
             }}
           />
         </label>
 
         {/* 时间选择 */}
         <label style={{ display: 'block', marginBottom: 16 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+          <span style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
             发送时间（15 分钟~30 天后）
           </span>
           <input
@@ -127,13 +127,13 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
               padding: '8px 10px', borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border-default)',
               background: 'var(--bg-input)',
-              color: 'var(--text-primary)', fontSize: 14,
+              color: 'var(--text-primary)', fontSize: 'var(--text-base)',
             }}
           />
         </label>
 
         {error && (
-          <div style={{ fontSize: 13, color: 'var(--color-danger)',
+          <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--color-danger)',
             marginBottom: 12, padding: '6px 10px',
             background: 'rgba(255,59,48,.08)', borderRadius: 'var(--radius-sm)' }}>
             {error}
@@ -150,7 +150,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
               padding: '8px 18px', borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border-default)',
               background: 'var(--bg-card)', color: 'var(--text-secondary)',
-              cursor: 'pointer', fontSize: 14,
+              cursor: 'pointer', fontSize: 'var(--text-base)',
             }}
           >取消</button>
           <button
@@ -159,7 +159,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
             style={{
               padding: '8px 18px', borderRadius: 'var(--radius-sm)',
               border: 'none', background: 'var(--green)',
-              color: 'var(--text-on-brand)', cursor: 'pointer', fontSize: 14,
+              color: 'var(--text-on-brand)', cursor: 'pointer', fontSize: 'var(--text-base)',
               opacity: (saving || !content.trim()) ? 0.6 : 1,
             }}
           >{saving ? '设置中…' : '确认定时发送'}</button>

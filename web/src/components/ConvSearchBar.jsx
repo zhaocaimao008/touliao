@@ -106,11 +106,11 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
           placeholder="搜索聊天记录…"
           style={{
             flex: 1, border: 'none', outline: 'none', background: 'transparent',
-            fontSize: 14, color: 'var(--text-primary)',
+            fontSize: 'var(--text-base)', color: 'var(--text-primary)',
           }}
         />
         {loading && (
-          <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>搜索中…</span>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>搜索中…</span>
         )}
         <button
           onClick={onClose}
@@ -136,7 +136,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
           {searched && results.length === 0 && !loading && (
             <div style={{
               padding: '16px 16px',
-              fontSize: 13, color: 'var(--text-tertiary)', textAlign: 'center',
+              fontSize: 'var(--text-sm2)', color: 'var(--text-tertiary)', textAlign: 'center',
             }}>
               未找到相关消息
             </div>
@@ -158,14 +158,14 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
               onMouseLeave={e => { e.currentTarget.style.background = ''; }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' }}>
                   {msg.senderName || '未知'}
                 </span>
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
                   {format((msg.created_at || 0) * 1000)}
                 </span>
               </div>
-              <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5,
+              <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-primary)', lineHeight: 1.5,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {highlight(previewOf(msg), query.trim())}
               </div>

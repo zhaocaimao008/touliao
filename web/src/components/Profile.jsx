@@ -245,11 +245,11 @@ function ChangePhone({ user, updateUser, onBack }) {
         <Card>
           <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>当前手机号</div>
-              <div style={{ fontSize: 14, color: 'var(--text-primary)' }}>{user?.phone || '未绑定'}</div>
+              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 4 }}>当前手机号</div>
+              <div style={{ fontSize: 'var(--text-base)', color: 'var(--text-primary)' }}>{user?.phone || '未绑定'}</div>
             </div>
             <div>
-              <label htmlFor="cp-phone" style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>新手机号</label>
+              <label htmlFor="cp-phone" style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>新手机号</label>
               <input
                 id="cp-phone"
                 type="tel"
@@ -262,7 +262,7 @@ function ChangePhone({ user, updateUser, onBack }) {
               />
             </div>
             <div>
-              <label htmlFor="cp-pass" style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>登录密码（用于验证身份）</label>
+              <label htmlFor="cp-pass" style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>登录密码（用于验证身份）</label>
               <input
                 id="cp-pass"
                 type="password"
@@ -339,8 +339,8 @@ function Wallet({ onBack }) {
         right={<button className="wc-save-btn" onClick={() => { setShowRecharge(v => !v); setError(''); }}>{showRecharge ? '取消' : '充值'}</button>} />
       <div className="wc-section-pad">
         <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 6 }}>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>金币余额</div>
-          <div style={{ fontSize: 34, fontWeight: 700, color: 'var(--green)' }}>{loading ? '…' : (balance ?? '—')}</div>
+          <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}>金币余额</div>
+          <div style={{ fontSize: 'var(--text-display-xl)', fontWeight: 700, color: 'var(--green)' }}>{loading ? '…' : (balance ?? '—')}</div>
         </Card>
         {showRecharge && (
           <Card style={{ marginTop: 12, padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -418,8 +418,8 @@ function InviteFriends({ onBack }) {
       <PageHeader title="邀请好友" onBack={onBack} />
       <div className="wc-section-pad">
         <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 10 }}>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>我的专属邀请码</div>
-          <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: 6, color: 'var(--green)', userSelect: 'text' }}>
+          <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}>我的专属邀请码</div>
+          <div style={{ fontSize: 'var(--text-display-xl)', fontWeight: 700, letterSpacing: 6, color: 'var(--green)', userSelect: 'text' }}>
             {loading ? '……' : (data?.code || '—')}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -432,7 +432,7 @@ function InviteFriends({ onBack }) {
               </button>
             )}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', marginTop: 4 }}>
+          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', textAlign: 'center', marginTop: 4 }}>
             把邀请码或链接发给好友，Ta 注册后即成为你邀请的用户
           </div>
         </Card>
@@ -440,7 +440,7 @@ function InviteFriends({ onBack }) {
 
       <div className="wc-section-pad">
         <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 16px', gap: 4 }}>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>已成功邀请</div>
+          <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}>已成功邀请</div>
           <div style={{ fontSize: 28, fontWeight: 700 }}>{loading ? '…' : (data?.invitedCount ?? 0)} 人</div>
         </Card>
       </div>
@@ -455,7 +455,7 @@ function InviteFriends({ onBack }) {
               icon={<Avatar src={u.avatar} name={u.username} size={28} />} bg="transparent"
               label={u.username}
               desc={u.wechat_id ? `v信号：${u.wechat_id}` : ''}
-              right={<span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{fmtTime(u.created_at)}</span>} />
+              right={<span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{fmtTime(u.created_at)}</span>} />
           )) : <CRow label="还没有邀请记录，快去分享你的邀请码吧" />)}
         </Card>
       </div>
@@ -573,7 +573,7 @@ function AppearanceSettings({ onBack }) {
               }}
               onClick={() => setThemeMode(mode)}>
               <span className="wc-appearance-emoji">{emoji}</span>
-              <span style={{ fontSize: 13.5, color: textColor, fontWeight: themeMode === mode ? 600 : 400 }}>{label}</span>
+              <span style={{ fontSize: 'var(--text-meta)', color: textColor, fontWeight: themeMode === mode ? 600 : 400 }}>{label}</span>
             </button>
           ))}
         </div>
@@ -689,12 +689,12 @@ function NotificationSettings({ onBack }) {
                 right={<input type="time" value={quietStart} disabled={saving}
                   data-testid="quiet-start-input"
                   onChange={e => { setQuietStart(e.target.value); saveSettings('quietStart', e.target.value); }}
-                  style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '4px 8px', fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
+                  style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '4px 8px', fontSize: 'var(--text-base)', background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
               <CRow label="结束时间"
                 right={<input type="time" value={quietEnd} disabled={saving}
                   data-testid="quiet-end-input"
                   onChange={e => { setQuietEnd(e.target.value); saveSettings('quietEnd', e.target.value); }}
-                  style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '4px 8px', fontSize: 14, background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
+                  style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '4px 8px', fontSize: 'var(--text-base)', background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
             </>
           )}
         </Card>
@@ -1021,7 +1021,7 @@ function ServerSettings({ onBack }) {
           className="wc-server-input"
         />
         {testResult && (
-          <div role="status" style={{ marginTop: 8, fontSize: 13, color: testResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
+          <div role="status" style={{ marginTop: 8, fontSize: 'var(--text-sm2)', color: testResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
             {testResult.msg}
           </div>
         )}
@@ -1163,7 +1163,7 @@ export default function Profile({ isMobile = false }) {
       </div>
 
       {/* ── 版本号：桌面端显示应用版本，网页端显示 web 构建版本 ── */}
-      <div style={{ textAlign: 'center', padding: '16px 0 24px', color: 'var(--text-tertiary)', fontSize: 12 }}>
+      <div style={{ textAlign: 'center', padding: '16px 0 24px', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>
         v信 v{window.__ELECTRON_CONFIG__?.appVersion || __APP_VERSION__}
       </div>
     </PageBg>

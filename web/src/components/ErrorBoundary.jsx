@@ -105,18 +105,18 @@ const styles = {
   },
   icon: { fontSize: 56, lineHeight: 1, marginBottom: 16 },
   title: { fontSize: 20, fontWeight: 600, color: 'var(--text-primary, #1a1a1a)', margin: '0 0 10px' },
-  desc: { fontSize: 14, color: 'var(--text-secondary, #666)', lineHeight: 1.6, margin: '0 0 18px' },
+  desc: { fontSize: 'var(--text-base)', color: 'var(--text-secondary, #666)', lineHeight: 1.6, margin: '0 0 18px' },
   errBox: {
-    textAlign: 'left', fontSize: 12, color: 'var(--color-badge, #FA5151)', background: 'var(--bg-secondary, #fdf0ef)',
+    textAlign: 'left', fontSize: 'var(--text-sm)', color: 'var(--color-badge, #FA5151)', background: 'var(--bg-secondary, #fdf0ef)',
     border: '1px solid var(--border-color, #f5d5d2)', borderRadius: 'var(--radius-input)', padding: '10px 12px', margin: '0 0 20px',
     whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 120, overflow: 'auto',
   },
   btnRow: { display: 'flex', gap: 12, justifyContent: 'center' },
   btn: {
-    padding: '10px 22px', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 500,
+    padding: '10px 22px', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-base)', fontWeight: 500,
     cursor: 'pointer', border: 'none', transition: 'opacity .15s',
   },
   btnPrimary: { background: 'var(--green)', color: 'var(--text-inverse, #fff)' },
   btnGhost: { background: 'var(--bg-hover, #f0f0f0)', color: 'var(--text-primary, #333)' },
-  hint: { fontSize: 12, color: 'var(--text-tertiary, #aaa)', margin: '18px 0 0' },
+  hint: { fontSize: 'var(--text-sm)', color: 'var(--text-tertiary, #aaa)', margin: '18px 0 0' },
 };

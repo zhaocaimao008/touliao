@@ -92,7 +92,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
       {multiSelect && (
         <div style={{ display: 'flex', alignItems: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'center' }}>
           <div style={{ width: 20, height: 20, borderRadius: 'var(--radius-full)', border: `2px solid ${isSelected ? 'var(--green)' : 'var(--border-default)'}`, background: isSelected ? 'var(--green)' : 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .1s' }}>
-            {isSelected && <span style={{ color: 'var(--text-inverse)', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+            {isSelected && <span style={{ color: 'var(--text-inverse)', fontSize: 'var(--text-sm)', fontWeight: 700, lineHeight: 1 }}>✓</span>}
           </div>
         </div>
       )}
@@ -145,7 +145,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               title="定时发送的消息"
               style={{
                 position: 'absolute', top: 2, left: isMine ? 'auto' : 2, right: isMine ? 2 : 'auto',
-                fontSize: 10, padding: '1px 5px', borderRadius: 'var(--radius-badge)',
+                fontSize: 'var(--text-2xs)', padding: '1px 5px', borderRadius: 'var(--radius-badge)',
                 background: 'rgba(87,107,149,.85)', color: '#fff',
                 pointerEvents: 'none', zIndex: 1,
               }}

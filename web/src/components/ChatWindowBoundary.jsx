@@ -86,13 +86,13 @@ const styles = {
   },
   icon: { fontSize: 36, marginBottom: 12 },
   msg: {
-    fontSize: 14,
+    fontSize: 'var(--text-base)',
     color: 'var(--text-secondary, #555)',
     margin: '0 0 12px',
   },
   detail: {
     textAlign: 'left',
-    fontSize: 11,
+    fontSize: 'var(--text-xs)',
     color: 'var(--color-badge, #FA5151)',
     background: 'var(--bg-secondary, #fdf0ef)',
     border: '1px solid var(--border-color, #f5d5d2)',
@@ -107,7 +107,7 @@ const styles = {
   btn: {
     padding: '8px 20px',
     borderRadius: 'var(--radius-input)',
-    fontSize: 13,
+    fontSize: 'var(--text-sm2)',
     fontWeight: 500,
     cursor: 'pointer',
     border: 'none',

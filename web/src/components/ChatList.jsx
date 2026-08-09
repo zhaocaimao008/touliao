@@ -360,7 +360,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
             padding: '9px 16px', background: 'none', border: 'none',
             borderBottom: '1px solid var(--border-subtle)',
             cursor: 'pointer', width: '100%', textAlign: 'left',
-            color: 'var(--text-secondary)', fontSize: 13,
+            color: 'var(--text-secondary)', fontSize: 'var(--text-sm2)',
           }}
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = ''; }}
@@ -375,7 +375,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         {!loaded && conversations.length === 0 ? (
           <ChatListSkeleton />
         ) : filtered.length === 0 ? (
-          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 13 }}>暂无聊天</div>
+          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm2)' }}>暂无聊天</div>
         ) : (
           <AutoSizer>
             {({ height, width }) => (

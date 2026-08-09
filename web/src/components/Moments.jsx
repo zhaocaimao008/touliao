@@ -478,7 +478,7 @@ export default function Moments() {
               <button className="wc-modal-close" onClick={() => setShowSettings(false)} aria-label="关闭">✕</button>
             </div>
             <div style={{ padding: '8px 0' }}>
-              <div style={{ padding: '10px 18px', fontSize: 13, color: 'var(--text-secondary)' }}>允许朋友查看朋友圈的范围</div>
+              <div style={{ padding: '10px 18px', fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}>允许朋友查看朋友圈的范围</div>
               <div role="radiogroup" aria-label="可见范围">
                 {[{ d: 0, label: '全部' }, { d: 1, label: '最近一天' }, { d: 3, label: '最近三天' }, { d: 30, label: '最近一个月' }].map(o => (
                   <div key={o.d} className="wc-moment-vis-opt"
@@ -518,7 +518,7 @@ export default function Moments() {
                     <div className="wc-moment-notif-body">
                       <div className="wc-moment-notif-text">{f.remark || f.username}</div>
                     </div>
-                    <span style={{ width: 20, height: 20, borderRadius: 'var(--radius-full)', border: `2px solid ${checked ? 'var(--green)' : 'var(--border-medium)'}`, background: checked ? 'var(--green)' : 'var(--bg-card)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>{checked ? '✓' : ''}</span>
+                    <span style={{ width: 20, height: 20, borderRadius: 'var(--radius-full)', border: `2px solid ${checked ? 'var(--green)' : 'var(--border-medium)'}`, background: checked ? 'var(--green)' : 'var(--bg-card)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--text-sm)' }}>{checked ? '✓' : ''}</span>
                   </div>
                 );
               })}

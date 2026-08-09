@@ -13,7 +13,7 @@ function WinBtn({ onClick, isClose, children, title }) {
         width: 46, height: 30, border: 'none', outline: 'none',
         background: hov ? (isClose ? 'var(--titlebar-close-hover)' : 'var(--titlebar-btn-hover-bg)') : 'transparent',
         color: hov ? 'var(--titlebar-fg-hover)' : 'var(--titlebar-fg)',
-        cursor: 'pointer', fontSize: 14, transition: 'background .1s, color .1s',
+        cursor: 'pointer', fontSize: 'var(--text-base)', transition: 'background .1s, color .1s',
         WebkitAppRegion: 'no-drag',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         position: 'relative', zIndex: "calc(var(--z-native) + 1)",
@@ -64,7 +64,7 @@ export default function ElectronTitlebar() {
       }}
     >
       <span style={{
-        flex: 1, paddingLeft: 56, fontSize: 12,
+        flex: 1, paddingLeft: 56, fontSize: 'var(--text-sm)',
         color: 'var(--titlebar-title)', letterSpacing: 1,
       }}>v信</span>
 
