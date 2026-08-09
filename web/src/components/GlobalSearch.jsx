@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { GroupAvatar } from './GroupInfo';
@@ -30,8 +30,15 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   const [messages, setMessages] = useState([]);
   const [searchingMsg, setSearchingMsg] = useState(false);
   const [convError, setConvError] = useState(null);
+  // 懒加载守卫：联系人 + 会话仅在用户首次输入时拉取一次，之后走本地过滤。
+  // （原先在组件挂载即预拉，未输入也产生两个请求；改为按需拉取，省掉无谓请求，
+  //   且只拉一次，后续按键不重复请求、无每键网络延迟。）
+  const loadedRef = useRef(false);
 
   useEffect(() => {
+    if (!query.trim() || loadedRef.current) return;
+    loadedRef.current = true;
+
     axios.get('/api/users/contacts')
       .then(r => {
         setContacts(r.data || []);
@@ -52,7 +59,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
         // [GlobalSearch] Failed to load conversations — suppressed
         setConvError(errorMsg);
       });
-  }, []);
+  }, [query]);
 
   const q = query.trim().toLowerCase();
 
