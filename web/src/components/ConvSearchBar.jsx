@@ -110,7 +110,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
           }}
         />
         {loading && (
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>搜索中…</span>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>搜索中…</span>
         )}
         <button
           onClick={onClose}
@@ -136,7 +136,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
           {searched && results.length === 0 && !loading && (
             <div style={{
               padding: '16px 16px',
-              fontSize: 'var(--text-sm2)', color: 'var(--text-tertiary)', textAlign: 'center',
+              fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', textAlign: 'center',
             }}>
               未找到相关消息
             </div>
@@ -161,7 +161,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
                 <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' }}>
                   {msg.senderName || '未知'}
                 </span>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                   {format((msg.created_at || 0) * 1000)}
                 </span>
               </div>

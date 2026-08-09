@@ -139,7 +139,7 @@ export default function ChatFiles({ convId, onClose }) {
             </svg>
           </button>
           <span style={{ fontWeight: 600, fontSize: 'var(--text-md)', color: 'var(--text-primary)' }}>聊天文件</span>
-          <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)', marginLeft: 'auto' }}>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginLeft: 'auto' }}>
             共 {total} 项
           </span>
         </div>
@@ -198,7 +198,7 @@ export default function ChatFiles({ convId, onClose }) {
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               justifyContent: 'center', height: '60%',
-              color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)', gap: 10,
+              color: 'var(--text-secondary)', fontSize: 'var(--text-sm2)', gap: 10,
             }}>
               <svg viewBox="0 0 24 24" style={{ width: 44, height: 44, fill: 'currentColor', opacity: .22 }}>
                 <path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/>
@@ -275,7 +275,7 @@ export default function ChatFiles({ convId, onClose }) {
 
           <div ref={loaderRef} style={{ height: 1 }} />
           {loading && (
-            <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
+            <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-secondary)', fontSize: 'var(--text-sm2)' }}>
               加载中…
             </div>
           )}

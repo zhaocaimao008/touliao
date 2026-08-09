@@ -109,7 +109,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
               <span style={{ fontSize: 'var(--text-sm2)', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 [{item.convName}]
               </span>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                 {formatFull(item.createdAt * 1000)}
               </span>
             </div>

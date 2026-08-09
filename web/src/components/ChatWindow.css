@@ -461,7 +461,8 @@
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
-  word-break: break-all;      /* 长链接不撑破气泡 */
+  word-break: break-all;
+  transition: opacity var(--dur-fast);
 }
 .wc-msg-bubble.other .wc-msg-link { color: var(--link, #576b95); }  /* 白底气泡用微信蓝 */
 .wc-msg-link:hover { opacity: .85; }
@@ -852,7 +853,7 @@
   padding-top: 6px;
   border-top: 1px solid rgba(0,0,0,.08);
   font-size: var(--text-sm);
-  line-height: 1.5;
+  line-height: var(--lh-normal);
   color: var(--text-primary);
   white-space: pre-wrap;
   word-break: break-word;
@@ -916,7 +917,7 @@
   font-size: var(--text-base);
   color: var(--text-primary);
 }
-.wc-settings-row-clickable { cursor: pointer; }
+.wc-settings-row-clickable { cursor: pointer; transition: background var(--dur-fast); }
 .wc-settings-row-clickable:hover { background: var(--hover-bg, rgba(0,0,0,.03)); }
 .wc-settings-row-action { font-size: var(--text-sm2); color: var(--text-secondary, #888); }
 .wc-settings-toggle {
