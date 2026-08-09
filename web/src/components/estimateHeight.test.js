@@ -78,21 +78,23 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
       type: 'image', file_url: '/a.jpg',
       replyTo: { type: 'image', file_url: '/b.jpg' },
     }));
-    expect(h).toBe(339 + REPLY_MEDIA_HEIGHT);
+    expect(h).toBe(379 + REPLY_MEDIA_HEIGHT);
   });
 
-  // 回归防护(2026-08 桌面端残影)：图片/视频按 CSS max-height(320)+行 padding(13)+底部留白(6)=339 估算，
-  // 绝不低估——低估会让下一行按过小偏移压进图片区(重叠残影)。
-  it('图片消息估算必须 ≥ 图片最大显示高 320 + 行 padding(含底部留白)', () => {
+  // 回归防护(2026-08 桌面端残影/Windows 图文粘连)：图片/视频按「全断点最大」CSS
+  // max-height(桌面 ≥1024px 为 360)+行 padding(13)+底部留白(6)=379 估算，绝不低估——
+  // 低估会让下一行按过小偏移压进图片区(重叠/粘连残影)。旧值 320 在桌面宽布局下系统性
+  // 低估 40px，导致「图片再发文字粘贴在一起」，故基线抬到 360。
+  it('图片消息估算必须 ≥ 图片最大显示高 360 + 行 padding(含底部留白)', () => {
     const h = estimateHeight(mk({ type: 'image', file_url: '/a.jpg' }));
-    expect(h).toBe(339);
-    expect(h).toBeGreaterThanOrEqual(320 + 13 + 6);
+    expect(h).toBe(379);
+    expect(h).toBeGreaterThanOrEqual(360 + 13 + 6);
   });
 
   it('视频消息同样按最大高估算，防下一行压进视频区', () => {
     const h = estimateHeight(mk({ type: 'video', file_url: '/v.mp4' }));
-    expect(h).toBe(339);
-    expect(h).toBeGreaterThanOrEqual(320 + 13 + 6);
+    expect(h).toBe(379);
+    expect(h).toBeGreaterThanOrEqual(360 + 13 + 6);
   });
 
   it('语音/文件/红包/名片/表情 估算保持契约(不回归)', () => {
@@ -107,9 +109,9 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
   // 媒体引用估算必须覆盖 名字+缩略图+padding+margin 的真实高度(≈70)，否则下一行压进引用区。
   it('媒体引用高度 ≥ 70(实测引用块真实高度,防下一行挤压)', () => {
     expect(REPLY_MEDIA_HEIGHT).toBeGreaterThanOrEqual(70);
-    // 带图片引用的图片消息：339 + 70
+    // 带图片引用的图片消息：379 + 70
     const h = estimateHeight(mk({ type: 'image', file_url: '/a.jpg', replyTo: { type: 'image', file_url: '/b.jpg' } }));
-    expect(h).toBe(339 + REPLY_MEDIA_HEIGHT);
+    expect(h).toBe(379 + REPLY_MEDIA_HEIGHT);
     // 文本引用 < 媒体引用(文本占位更矮)
     expect(REPLY_TEXT_HEIGHT).toBeLessThan(REPLY_MEDIA_HEIGHT);
     expect(REPLY_TEXT_HEIGHT).toBeGreaterThanOrEqual(50);

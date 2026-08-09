@@ -38,6 +38,7 @@ import RedPacketModal from './RedPacketModal';
 import TransferModal from './TransferModal';
 import ForwardModal from './ForwardModal';
 import GroupCallModal from './GroupCallModal';
+import ScheduleSendModal from './ScheduleSendModal';
 import PrivateChatSettings from './PrivateChatSettings';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -1197,6 +1198,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 定时发送弹窗入口
   const openScheduleModal = useCallback(() => setShowScheduleSend(true), []);
 
+  // 会话内搜索相关回调（提升到组件顶层，避免在 JSX / 条件分支里调用 Hook）
+  const toggleSearchBar = useCallback(() => setShowSearchBar(v => !v), []);
+  const closeSearchBar = useCallback(() => setShowSearchBar(false), []);
+  const handleSearchJump = useCallback((msgId) => {
+    setShowSearchBar(false);
+    setPendingScrollId(String(msgId));
+  }, []);
+
   const sendContactCard = (contact) => {
     if (!socket) return;
     setShowCardPicker(false);
@@ -2077,18 +2086,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         onStartCall={startCall}
         onStartGroupCall={startGroupCall}
         onToggleGroupInfo={toggleGroupInfo}
-        onToggleSearch={useCallback(() => setShowSearchBar(v => !v), [])}
+        onToggleSearch={toggleSearchBar}
       />
 
       {/* ── 会话内搜索栏 ── */}
       {showSearchBar && (
         <ConvSearchBar
           convId={conversation.id}
-          onJump={useCallback((msgId) => {
-            setShowSearchBar(false);
-            setPendingScrollId(String(msgId));
-          }, [conversation.id])}
-          onClose={useCallback(() => setShowSearchBar(false), [])}
+          onJump={handleSearchJump}
+          onClose={closeSearchBar}
         />
       )}
 

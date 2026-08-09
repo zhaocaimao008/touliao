@@ -65,12 +65,15 @@ export function estimateHeight(item) {
   }
 
   let base;
-  // 图片/视频按 CSS 实际最大高度估算（.wc-msg-img/.wc-msg-video max-height: 320px，
-  // 竖图可达 320 + 行 padding 13 = 333px）。宁可高估(轻微收缩)也绝不低估——
+  // 图片/视频按 CSS 实际最大高度估算。宁可高估(轻微收缩)也绝不低估——
   // 低估会导致下一行按过小的偏移定位、压进图片/视频区域（桌面端 Electron 加载慢、
   // 异步 ResizeObserver 修正前存在整帧重叠，视觉上即「气泡/图片重叠残影」）。
   // 高估仅产生轻微空隙，由 onLoad/ResizeObserver 一次性收缩修正，无重叠风险。
-  const MEDIA_MAX_H = 320;
+  // ⚠ 实测(2026-08)：桌面端(窗口≥1024px)有 CSS 覆盖 .wc-msg-img{max-height:360px}
+  //   (见 mobile-adapt.css)，而此处旧值 320 系统性低估 40px → 竖图后的文字行落进图片
+  //   底部 = Windows 端「图片再发文字粘贴在一起」。取全断点最大值 360，保证任何平台
+  //   预留高度都不小于真实图片高度(宁高勿低)。
+  const MEDIA_MAX_H = 360;
   const MEDIA_ROW_PAD = 13;
   const MEDIA_ROW_PAD_BOTTOM = 6;   // 媒体行底部留白(与 .wc-msg-row:has(.wc-msg-img) 的 padding-bottom 对齐)
   if (msg.type === 'image') base = MEDIA_MAX_H + MEDIA_ROW_PAD + MEDIA_ROW_PAD_BOTTOM;
