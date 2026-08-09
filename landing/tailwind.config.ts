@@ -15,17 +15,18 @@ const config: Config = {
     extend: {
       colors: {
         // 品牌主色（青绿 teal/emerald）
+        // 品牌主色（AURORA 极光靛，对齐产品端 web/android/ios --brand-*，统一品牌识别）
         brand: {
-          50: '#ecfdf8',
-          100: '#d1faef',
-          200: '#a7f3e0',
-          300: '#6ee7cb',
-          400: '#34d3b0',
-          500: '#10b89a',
-          600: '#059682',
-          700: '#047768',
-          800: '#065f55',
-          900: '#064e46',
+          50: '#F1EFFD',
+          100: '#E2DEFB',
+          200: '#C7BFF6',
+          300: '#A99CF0',
+          400: '#8A78EB',
+          500: '#6D5AE6',
+          600: '#5A47D6',
+          700: '#4938B8',
+          800: '#382C90',
+          900: '#281F68',
         },
         // 深色系（安全区背景 / 文字）
         ink: {
@@ -60,7 +61,7 @@ const config: Config = {
       },
       boxShadow: {
         soft: '0 1px 2px rgba(11,18,32,0.04), 0 8px 30px rgba(11,18,32,0.06)',
-        lift: '0 10px 40px rgba(5,150,130,0.14)',
+        lift: '0 10px 40px rgba(109,90,230,0.14)',
       },
       keyframes: {
         'fade-up': {
