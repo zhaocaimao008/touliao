@@ -101,7 +101,7 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
             ) {
                 InitialAvatar(name = state.peerName.ifBlank { "?" }, size = 96.dp)
                 Spacer(Modifier.height(16.dp))
-                Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = 22.sp)
+                Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.displaySm)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),

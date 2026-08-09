@@ -83,7 +83,7 @@ fun LoginScreen(
             )
         }
         Spacer(Modifier.height(16.dp))
-        Text("v信", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Text("v信", fontSize = com.vxin.app.ui.theme.VxinTextSize.displayLg, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(6.dp))
         Text("安全 · 私密 · 畅聊", fontSize = com.vxin.app.ui.theme.VxinTextSize.base, color = VxinTextSecondary)
         Spacer(Modifier.height(40.dp))

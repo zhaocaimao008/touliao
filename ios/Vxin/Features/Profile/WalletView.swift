@@ -50,7 +50,7 @@ struct WalletView: View {
             Section {
                 VStack(spacing: 8) {
                     Text("当前余额（金币）").font(.caption).foregroundColor(.vxinTextSecondary)
-                    Text("\(vm.balance)").font(.system(size: 40, weight: .bold)).foregroundColor(Color(red: 0.98, green: 0.62, blue: 0.23))
+                    Text("\(vm.balance)").font(.system(size: VxinFontSize.displayXl, weight: .bold)).foregroundColor(Color(red: 0.98, green: 0.62, blue: 0.23))
                     Button {
                         rechargeInput = ""; showRecharge = true
                     } label: {

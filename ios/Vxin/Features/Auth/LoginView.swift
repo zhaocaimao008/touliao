@@ -21,7 +21,7 @@ struct LoginView: View {
                     .foregroundColor(.white)
             }
             Text("v信")
-                .font(.system(size: 30, weight: .bold))
+                .font(.system(size: VxinFontSize.displayLg, weight: .bold))
                 .foregroundColor(.primary)
             Text("安全 · 私密 · 畅聊")
                 .font(.subheadline)

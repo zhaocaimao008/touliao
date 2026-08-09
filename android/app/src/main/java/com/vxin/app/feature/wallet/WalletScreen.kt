@@ -92,7 +92,7 @@ fun WalletScreen(onBack: () -> Unit, viewModel: WalletViewModel = hiltViewModel(
                         Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("当前余额（金币）", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                             Spacer(Modifier.size(8.dp))
-                            Text("${state.balance}", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFA9D3B))
+                            Text("${state.balance}", fontSize = com.vxin.app.ui.theme.VxinTextSize.displayXl, fontWeight = FontWeight.Bold, color = Color(0xFFFA9D3B))
                             Spacer(Modifier.size(12.dp))
                             Button(onClick = { showRechargeDialog = true }, enabled = !state.recharging) {
                                 Text(if (state.recharging) "充值中…" else "充值")
