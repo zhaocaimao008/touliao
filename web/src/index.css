@@ -1608,13 +1608,6 @@ body.dark-mode .wc-msg-bubble.other { box-shadow: none; }
 body.dark-mode .wc-empty[class] { background: var(--bg-messages); }
 body.dark-mode .wc-empty p { color: var(--text-muted); }
 body.dark-mode .wc-discover,
-body.dark-mode .wc-profile,
-body.dark-mode .wc-settings,
-body.dark-mode .wc-moments  { background: var(--bg-panel) !important; }
-body.dark-mode .wc-discover-section,
-body.dark-mode .wc-menu-section,
-body.dark-mode .wc-moment-card,
-body.dark-mode .wc-profile-card { background: var(--bg-card) !important; border-color: var(--border-default) !important; }
 body.dark-mode .wc-panel-topbar,
 body.dark-mode .wc-chat-header,
 body.dark-mode .wc-sub-header  { background: var(--bg-panel-header) !important; border-color: var(--border-subtle) !important; }
@@ -2057,6 +2050,8 @@ body.dark-mode .wc-settings-entry:hover {
 /* 暗色：glass 边框/分隔/阴影补暗色值。此前只在 :root(浅色) 定义白色边框，
    暗色下未覆盖，导致 .as-dropdown 等毛玻璃面板在深色背景上带刺眼白边（不协调）。 */
 body.dark-mode {
+  --glass-bg:        var(--bg-card);      /* 暗色下 glass 背景 → 主题感知卡片色 */
+  --glass-bg-strong: var(--bg-panel);     /* 暗色下 glass 强背景 → 面板色 */
   --glass-border: rgba(255,255,255,.12);
   --glass-line: rgba(255,255,255,.08);
   --glass-shadow: 0 18px 42px rgba(0,0,0,.45);
@@ -2275,9 +2270,9 @@ body {
   box-shadow: none;
 }
 
-.wc-profile,
-.wc-settings,
-.wc-discover {
+body:not(.dark-mode) .wc-profile,
+body:not(.dark-mode) .wc-settings,
+body:not(.dark-mode) .wc-discover {
   background:
     radial-gradient(circle at 18% 4%, rgba(var(--green-rgb),.06), transparent 34%),
     linear-gradient(180deg, rgba(242,244,247,.82), rgba(249,250,251,.88)) !important;
@@ -2289,9 +2284,7 @@ body {
 .wc-forward-modal,
 .wc-group-info,
 .wc-user-profile-card {
-  background: var(--glass-bg) !important;
-
-
+  background: var(--bg-card) !important;
   border: 1px solid var(--glass-border) !important;
   box-shadow: var(--glass-shadow);
 }

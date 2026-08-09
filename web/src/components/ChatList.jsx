@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
-import { GroupAvatar } from './GroupInfo';
+import { GroupAvatar } from './GroupAvatar';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from '../utils/time';

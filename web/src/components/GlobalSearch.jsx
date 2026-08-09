@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
-import { GroupAvatar } from './GroupInfo';
+import { GroupAvatar } from './GroupAvatar';
 
 const gsHlCls = 'gs-highlight';
 

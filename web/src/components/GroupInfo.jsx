@@ -5,44 +5,8 @@ import Avatar, { getColor } from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 import { useConvSettings } from '../hooks/useConvSettings';
-
-/* ── 宫格单元：头像加载失败回退首字母，避免碎图 ── */
-function GroupGridCell({ member = {}, cellSize }) {
-  const [err, setErr] = useState(false);
-  // avatar 变化即复位错误态：render 期派生（存上一次 avatar），避免 effect 内同步 setState
-  const [prevAvatar, setPrevAvatar] = useState(member.avatar);
-  if (member.avatar !== prevAvatar) { setPrevAvatar(member.avatar); setErr(false); }
-  return (
-    <div style={{ width: cellSize, height: cellSize, borderRadius: 'var(--radius-xs)', overflow: 'hidden', background: getColor(member.username || '?'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {member.avatar && !err
-        ? <img loading="lazy" src={mediaUrl(member.avatar)} alt="" className="gi-avatar-img" onError={() => setErr(true)} />
-        : <span style={{ fontSize: cellSize * 0.45, fontWeight: 600, color: 'var(--text-inverse)' }}>{(member.username || '?')[0]}</span>}
-    </div>
-  );
-}
-
-/* ── 群头像拼图（微信风格 N宫格，支持自定义头像） ── */
-export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
-  const [avatarErr, setAvatarErr] = useState(false);
-  const [prevAvatar, setPrevAvatar] = useState(avatar);
-  if (avatar !== prevAvatar) { setPrevAvatar(avatar); setAvatarErr(false); }
-  // 有自定义群头像直接显示；加载失败则回退到下面的宫格拼图
-  if (avatar && !avatarErr) {
-    return <img src={mediaUrl(avatar)} alt="" loading="lazy" onError={() => setAvatarErr(true)} style={{ width: size, height: size, borderRadius: Math.max(3, Math.round(size * 0.13)), objectFit: 'cover', flexShrink: 0 }} />;
-  }
-  const n = Math.min(members.length, 9);
-  if (n === 0) return <Avatar name="群" size={size} />;
-  if (n === 1) return <Avatar src={members[0].avatar} name={members[0].username} size={size} />;
-  const grid = n <= 4 ? 2 : 3;
-  const cellSize = Math.floor((size - (grid + 1) * 2) / grid);
-  return (
-    <div style={{ width: size, height: size, borderRadius: Math.max(3, Math.round(size * 0.13)), background: 'var(--bg-input-search)', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
-      {members.slice(0, grid * grid).map((m, i) => (
-        <GroupGridCell key={m.id ?? m.username ?? i} member={m} cellSize={cellSize} />
-      ))}
-    </div>
-  );
-}
+import { GroupAvatar } from './GroupAvatar';
+export { GroupAvatar } from './GroupAvatar'; // re-export 向后兼容
 
 /* ── 群头像上传（管理员 hover 显示相机图标） ── */
 function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, onChange }) {

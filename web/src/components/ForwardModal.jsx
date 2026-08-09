@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
-import { GroupAvatar } from './GroupInfo';
+import { GroupAvatar } from './GroupAvatar';
 import { showToast } from '../utils/toast';
 import useFocusTrap from '../hooks/useFocusTrap';
 import './ForwardModal.css';

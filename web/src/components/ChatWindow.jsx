@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { composeReducer, initialComposeState } from '../reducers/composeReducer';
 import { showToast, showConfirm } from '../utils/toast';
@@ -32,8 +32,8 @@ const CHAT_ALLOWED_EXTS = new Set([
 const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
 import EmojiPicker from './EmojiPicker';
 import StickerPanel from './StickerPanel';
-import GroupInfo from './GroupInfo';
-import UserProfile from './UserProfile';
+const GroupInfo   = lazy(() => import('./GroupInfo'));
+const UserProfile = lazy(() => import('./UserProfile'));
 import RedPacketModal from './RedPacketModal';
 import TransferModal from './TransferModal';
 import ForwardModal from './ForwardModal';
@@ -2180,6 +2180,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         </div>
 
         {showGroupInfo && conversation.type === 'group' && (
+          <Suspense fallback={null}>
           <GroupInfo
             conversation={conversation}
             currentUserId={user.id}
@@ -2196,6 +2197,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             }}
             onCleared={() => { setMessages([]); setPinnedMessages([]); }}
           />
+          </Suspense>
         )}
         {showGroupInfo && conversation.type === 'private' && (
           <PrivateChatSettings
@@ -2218,6 +2220,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
       {/* User profile modal */}
       {showUserProfile && (
+        <Suspense fallback={null}>
         <UserProfile
           userId={showUserProfile}
           onClose={() => setShowUserProfile(null)}
@@ -2225,6 +2228,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           onFriendDeleted={() => { setShowUserProfile(null); onClose?.(); }}
           onNudge={(id) => { callbacksRef.current.onNudge?.(id); }}
         />
+        </Suspense>
       )}
 
       {/* ── 分享名片：联系人选择器 ── */}

@@ -3,7 +3,7 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import UserProfile from './UserProfile';
 import './ContactList.css';
-import { GroupAvatar } from './GroupInfo';
+import { GroupAvatar } from './GroupAvatar';
 import { useSocket } from '../contexts/SocketContext';
 import AddFriendModal from './AddFriendModal';
 import { showToast, showConfirm } from '../utils/toast';
