@@ -6,6 +6,7 @@ struct MainTabView: View {
 
     // 选中的 Tab（0=消息）；点推送通知需切回消息页再打开会话
     @State private var selectedTab = 0
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -28,6 +29,14 @@ struct MainTabView: View {
         // 点推送通知 → 切回消息页（会话打开由 ConversationListView 观察同一通知处理）
         .onReceive(NotificationCenter.default.publisher(for: .vxinOpenConversation)) { _ in
             selectedTab = 0
+        }
+        // App 每次进入前台时刷新 FCM token 注册，确保服务端 token 有效。
+        // 修复「我发好友无通知」：好友 token 被服务端因 FCM 失效删除后，
+        // 只要下次打开 App 就会重新注册，不再依赖 onToken 被动触发。
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                PushManager.shared.refreshRegistrationIfNeeded()
+            }
         }
     }
 }

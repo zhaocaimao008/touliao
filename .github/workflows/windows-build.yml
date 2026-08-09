@@ -27,13 +27,19 @@ jobs:
         working-directory: web
         run: npm ci
 
+      - name: Build web (desktop mode)
+        working-directory: web
+        run: npx vite build --mode desktop
+
       - name: Install desktop deps
         working-directory: desktop-electron
         run: npm ci
 
       - name: Build Windows installer
         working-directory: desktop-electron
-        run: npm run build:win
+        # build:win 内部的 build:web 在 Windows cmd 里 cd 可能不生效；
+        # web 已在上一步构建好，直接跑 electron-builder 即可。
+        run: npx electron-builder --win --x64
 
       - name: Upload installer + update feed
         uses: actions/upload-artifact@v4
