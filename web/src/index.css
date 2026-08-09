@@ -2190,7 +2190,7 @@ body {
   display: flex; align-items: center; justify-content: center;
   padding: 0 3px;
   pointer-events: none;
-  border: 1.5px solid #1A2033;
+  border: 1.5px solid var(--bg-shell);
 }
 
 /* 微信扁平化：面板/顶栏/聊天区一律不透明纯色，去毛玻璃与绿色渐变 */

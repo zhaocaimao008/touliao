@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { formatFull } from '../utils/time';
 
@@ -17,28 +17,36 @@ export default function MentionList({ onClose, onJumpToMsg }) {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const LIMIT = 20;
+  const abortRef = useRef(null);
 
   const load = useCallback(async (from = 0) => {
     if (loading) return;
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
     setLoading(true);
     try {
       const { data } = await axios.get('/api/messages/mentions/me', {
         params: { offset: from, limit: LIMIT },
+        signal: ac.signal,
       });
       setItems(prev => from === 0 ? data.items : [...prev, ...data.items]);
       setTotal(data.total);
       setHasMore(from + data.items.length < data.total);
       setOffset(from + data.items.length);
-    } catch {
-      // 静默失败
+    } catch (err) {
+      if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') {
+        // 静默失败
+      }
     } finally {
-      setLoading(false);
+      if (!ac.signal.aborted) setLoading(false);
     }
   }, [loading]);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => { load(0); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  /* eslint-enable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    load(0);
+    return () => { abortRef.current?.abort(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleClick = (item) => {
     onJumpToMsg?.({ convId: item.convId, msgId: item.msgId });

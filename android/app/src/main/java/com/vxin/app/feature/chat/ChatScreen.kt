@@ -111,6 +111,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import com.vxin.app.ui.theme.VxinSurfaceDark
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -273,13 +275,13 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.openSearch() }, modifier = Modifier.testTag("chat-search-btn")) { Text("🔍", style = MaterialTheme.typography.titleMedium) }
+                    IconButton(onClick = { viewModel.openSearch() }, modifier = Modifier.testTag("chat-search-btn").semantics { contentDescription = "搜索" }) { Text("🔍", style = MaterialTheme.typography.titleMedium) }
                     // 群聊：语音/视频按钮受后台开关控制（关闭即隐藏）；私聊不受影响
                     if (!viewModel.isGroup || state.groupVoiceCallEnabled) {
-                        IconButton(onClick = { launchCall(false) }, modifier = Modifier.testTag("chat-call-audio-btn")) { Text("📞", style = MaterialTheme.typography.titleMedium) }
+                        IconButton(onClick = { launchCall(false) }, modifier = Modifier.testTag("chat-call-audio-btn").semantics { contentDescription = "语音通话" }) { Text("📞", style = MaterialTheme.typography.titleMedium) }
                     }
                     if (!viewModel.isGroup || state.groupVideoCallEnabled) {
-                        IconButton(onClick = { launchCall(true) }, modifier = Modifier.testTag("chat-call-video-btn")) { Text("📹", style = MaterialTheme.typography.titleMedium) }
+                        IconButton(onClick = { launchCall(true) }, modifier = Modifier.testTag("chat-call-video-btn").semantics { contentDescription = "视频通话" }) { Text("📹", style = MaterialTheme.typography.titleMedium) }
                     }
                     if (viewModel.isGroup) {
                         IconButton(onClick = { onOpenGroupInfo(viewModel.conversationId) }) {
@@ -288,7 +290,7 @@ fun ChatScreen(
                     }
                     // 聊天背景设置
                     Box {
-                        IconButton(onClick = { showChatMenu = true }) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
+                        IconButton(onClick = { showChatMenu = true }, modifier = Modifier.semantics { contentDescription = "聊天背景" }) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
                         DropdownMenu(expanded = showChatMenu, onDismissRequest = { showChatMenu = false }) {
                             DropdownMenuItem(text = { Text(if (state.background.isBlank()) "设置聊天背景" else "更换聊天背景") }, onClick = {
                                 showChatMenu = false; backgroundPicker.launch("image/*")
@@ -1389,11 +1391,11 @@ private fun MessageInputBar(
             verticalAlignment = Alignment.Bottom,
         ) {
             // 语音输入切换（对齐微信左侧麦克风）
-            IconButton(onClick = onMicClick, modifier = Modifier.testTag("chat-voice-btn")) {
+            IconButton(onClick = onMicClick, modifier = Modifier.testTag("chat-voice-btn").semantics { contentDescription = if (recording) "停止录音" else "语音输入" }) {
                 Text(if (recording) "⏹" else "🎤", style = MaterialTheme.typography.titleMedium)
             }
             if (showMention) {
-                IconButton(onClick = onMention) { Text("@", style = MaterialTheme.typography.titleMedium) }
+                IconButton(onClick = onMention, modifier = Modifier.semantics { contentDescription = "提及成员" }) { Text("@", style = MaterialTheme.typography.titleMedium) }
             }
             OutlinedTextField(
                 value = value,
@@ -1404,7 +1406,7 @@ private fun MessageInputBar(
             )
             Spacer(Modifier.size(2.dp))
             // 表情面板切换
-            IconButton(onClick = onToggleEmoji, modifier = Modifier.testTag("chat-emoji-btn")) {
+            IconButton(onClick = onToggleEmoji, modifier = Modifier.testTag("chat-emoji-btn").semantics { contentDescription = if (emojiPanelOpen) "切换键盘" else "表情" }) {
                 Text(if (emojiPanelOpen) "⌨" else "😀", style = MaterialTheme.typography.titleMedium)
             }
             // 有文字 → 发送键；无文字 → +(功能面板)。对齐微信输入栏交互。
@@ -1421,7 +1423,7 @@ private fun MessageInputBar(
                     }
                 }
             } else {
-                IconButton(onClick = onToggleFunc, modifier = Modifier.testTag("chat-more-btn")) {
+                IconButton(onClick = onToggleFunc, modifier = Modifier.testTag("chat-more-btn").semantics { contentDescription = if (funcPanelOpen) "收起功能" else "更多功能" }) {
                     Text(
                         if (funcPanelOpen) "✕" else "＋",
                         style = MaterialTheme.typography.titleLarge,
