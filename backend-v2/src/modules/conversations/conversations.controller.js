@@ -17,7 +17,11 @@ exports.createPrivateBatch = asyncHandler(async (req, res) => {
 });
 exports.fileHelper    = asyncHandler(async (req, res) => res.json(svc.getOrCreateFileHelper(req.user.id)));
 exports.createGroup   = asyncHandler(async (req, res) => res.json(svc.createGroup(io(req), req.user.id, req.body)));
-exports.list          = asyncHandler(async (req, res) => res.json(await svc.listConversations(req.user.id)));
+exports.list          = asyncHandler(async (req, res) => {
+  // 会话列表变化频率高，短时缓存 10s 防重连风暴批量请求；stale-while-revalidate 保证实时感
+  res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=30');
+  res.json(await svc.listConversations(req.user.id));
+});
 exports.members       = asyncHandler(async (req, res) => res.json(svc.listMembers(req.params.conversationId, req.user.id)));
 exports.unreadCounts  = asyncHandler(async (req, res) => res.json(svc.unreadCounts(req.user.id)));
 exports.myGroups      = asyncHandler(async (req, res) => res.json(svc.myGroups(req.user.id)));

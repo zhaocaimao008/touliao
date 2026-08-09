@@ -4,7 +4,11 @@ const svc = require('./contacts.service');
 
 const io = req => req.app.get('io');
 
-exports.listContacts   = asyncHandler(async (req, res) => res.json(svc.listContacts(req.user.id)));
+exports.listContacts   = asyncHandler(async (req, res) => {
+  // 联系人列表变化频率低(添加/删除好友才变)，短暂缓存 30s 避免重连风暴中重复请求
+  res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+  res.json(svc.listContacts(req.user.id));
+});
 exports.deleteContact  = asyncHandler(async (req, res) => { svc.deleteContact(req.user.id, req.params.contactId); res.json({ success: true }); });
 exports.setRemark      = asyncHandler(async (req, res) => { svc.setRemark(req.user.id, req.params.contactId, req.body.remark); res.json({ success: true }); });
 

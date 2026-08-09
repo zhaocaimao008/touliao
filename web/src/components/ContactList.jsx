@@ -4,7 +4,7 @@ import Avatar from './Avatar';
 import UserProfile from './UserProfile';
 import './ContactList.css';
 import { GroupAvatar } from './GroupAvatar';
-import { useSocket } from '../contexts/SocketContext';
+import { useSocketCore } from '../contexts/SocketContext'; // 只订阅 socket，重连不触发无关 re-render
 import AddFriendModal from './AddFriendModal';
 import { showToast, showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
@@ -27,7 +27,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const [handlingReq, setHandlingReq] = useState(null); // 正在处理的申请 id，防连点重复提交
   const [contactsLoaded, setContactsLoaded] = useState(false); // 首屏是否已拉过：未拉完显示骨架，避免闪「暂无联系人」
   const listRef = useRef(null);
-  const { socket } = useSocket();
+  const { socket } = useSocketCore();
 
   // 统一兜底成数组：若接口异常返回非数组，避免下方 .filter/.map 抛错导致整页白屏
   const fetchContacts = useCallback(() =>

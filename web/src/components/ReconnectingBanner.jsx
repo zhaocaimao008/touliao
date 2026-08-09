@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useSocket } from '../contexts/SocketContext';
+import { useSocketStatus } from '../contexts/SocketContext'; // 只订阅 connected，重连不触发无关 re-render
 
 /**
  * 断线重连提示条。socket 断开超过 2s 仍未恢复才显示，避免初次连接/瞬断闪烁。
@@ -8,7 +8,7 @@ import { useSocket } from '../contexts/SocketContext';
  * ~2s 后自动收起（对齐一线 App 的「断—连」闭环体感）。
  */
 export default function ReconnectingBanner() {
-  const { connected } = useSocket();
+  const { connected } = useSocketStatus();
   const [state, setState] = useState('hidden');   // hidden | reconnecting | restored
   const wasShownRef = useRef(false);              // 是否真实展示过「断开」提示
 
