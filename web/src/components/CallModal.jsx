@@ -487,14 +487,8 @@ export default function CallModal({ socket, call, onClose }) {
     const isConnected = status === 'connected';
     return (
       <div
-        style={{
-          position: 'fixed',
-          left: bubble.pos.x, top: bubble.pos.y,
-          zIndex: "var(--z-call-top)",
-          cursor: 'grab',
-          userSelect: 'none',
-          touchAction: 'none',
-        }}
+        className="cm-bubble"
+        style={{ left: bubble.pos.x, top: bubble.pos.y }}
         onPointerDown={bubble.onPointerDown}
         onPointerMove={bubble.onPointerMove}
         onPointerUp={(e) => {
@@ -503,80 +497,56 @@ export default function CallModal({ socket, call, onClose }) {
         }}
       >
         {/* 音频持续输出（ref callback 重挂时自动恢复 srcObject） */}
-        <audio ref={onRemoteAudioMount} autoPlay style={{ display: 'none' }} />
+        <audio ref={onRemoteAudioMount} autoPlay hidden />
 
         {isVideo ? (
-          <div style={{
-            width: 100, height: 140,
-            borderRadius: 'var(--radius-lg)',
-            overflow: 'hidden',
-            boxShadow: '0 6px 24px rgba(0,0,0,.5)',
-            background: '#000',
-            position: 'relative',
-          }}>
-            <video
-              ref={onMiniVideoMount}
-              autoPlay playsInline
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-            <div style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              background: 'linear-gradient(transparent, rgba(0,0,0,.7))',
-              padding: '18px 8px 8px',
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-            }}>
-              <div style={{ color: 'var(--gray-0)', fontSize: 11, fontWeight: 500 }}>
+          <div className="cm-bubble-video">
+            <video ref={onMiniVideoMount} autoPlay playsInline />
+            <div className="cm-bubble-video-overlay">
+              <span className="cm-bubble-timer">
                 {isConnected ? timer : '连接中…'}
-              </div>
+              </span>
             </div>
-            <div
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
+              className="cm-mini-hangup"
               aria-label="挂断"
+              title="挂断"
               onPointerDown={e => e.stopPropagation()}
               onClick={e => { e.stopPropagation(); endCall(true); }}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); endCall(true); } }}
-              style={miniHangupStyle}
-              title="挂断"
             >
               <IcoHangup />
-            </div>
+            </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-            <div style={{
-              width: 68, height: 68,
-              borderRadius: '50%',
-              position: 'relative',
-              boxShadow: isConnected
-                ? '0 0 0 3px rgba(7,193,96,.8), 0 6px 20px rgba(0,0,0,.4)'
-                : '0 6px 20px rgba(0,0,0,.4)',
-              animation: isConnected ? 'callPulse 2s ease-in-out infinite' : 'none',
-            }}>
+          <div className="cm-bubble-audio">
+            <div
+              className="cm-bubble-audio-avatar"
+              style={{
+                boxShadow: isConnected
+                  ? '0 0 0 3px rgba(7,193,96,.8), 0 6px 20px rgba(0,0,0,.4)'
+                  : '0 6px 20px rgba(0,0,0,.4)',
+                animation: isConnected ? 'callPulse 2s ease-in-out infinite' : 'none',
+              }}
+            >
               <Avatar
                 src={remoteUser?.avatar} name={remoteUser?.name || '?'}
                 size={68}
                 style={{ borderRadius: '50%', display: 'block' }}
               />
-              <div
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
+                className="cm-mini-hangup"
                 aria-label="挂断"
+                title="挂断"
+                style={{ width: 26, height: 26, bottom: -4, right: -4 }}
                 onPointerDown={e => e.stopPropagation()}
                 onClick={e => { e.stopPropagation(); endCall(true); }}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); endCall(true); } }}
-                style={{ ...miniHangupStyle, width: 26, height: 26, bottom: -4, right: -4 }}
-                title="挂断"
               >
                 <IcoHangup />
-              </div>
+              </button>
             </div>
-            <div style={{
-              background: 'rgba(0,0,0,.72)', borderRadius: 'var(--radius-2xl)',
-              padding: '2px 10px',
-              color: 'var(--gray-0)', fontSize: 11,
-              backdropFilter: 'blur(6px)',
-            }}>
+            <div className="cm-bubble-audio-label">
               {isConnected ? timer : (status === 'calling' ? '等待接听…' : '连接中…')}
             </div>
           </div>
@@ -598,19 +568,14 @@ export default function CallModal({ socket, call, onClose }) {
       role="dialog"
       aria-modal="true"
       aria-label={isVideo ? '视频通话' : '语音通话'}
-      style={{ position: 'fixed', inset: 0, zIndex: "var(--z-call)", color: 'var(--gray-0)', overflow: 'hidden' }}
+      className="cm-dialog"
     >
       {/* 音频（ref callback 重挂恢复） */}
-      <audio ref={onRemoteAudioMount} autoPlay style={{ display: 'none' }} />
+      <audio ref={onRemoteAudioMount} autoPlay hidden />
 
-      {/* 麦克风/摄像头获取失败提示：否则对方收不到音视频而本人不知情 */}
+      {/* 麦克风/摄像头获取失败提示 */}
       {mediaError && (
-        <div role="alert" style={{
-          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
-          background: 'rgba(220,60,60,.92)', color: 'var(--gray-0)',
-          fontSize: 13, textAlign: 'center', padding: '8px 14px',
-          backdropFilter: 'blur(6px)',
-        }}>
+        <div role="alert" className="cm-media-error">
           无法访问{isVideo ? '摄像头/麦克风' : '麦克风'}，对方将听不到你，请检查浏览器权限或设备占用
         </div>
       )}
@@ -620,11 +585,7 @@ export default function CallModal({ socket, call, onClose }) {
         <video
           ref={onRemoteVideoMount}
           autoPlay playsInline
-          style={{
-            position: 'absolute', inset: 0,
-            width: '100%', height: '100%',
-            objectFit: 'cover', background: '#000',
-          }}
+          className="cm-remote-video"
         />
         <div className="cm-scrim-top" />
         <div className="cm-scrim-bottom" />
@@ -632,33 +593,27 @@ export default function CallModal({ socket, call, onClose }) {
         {/* 本地视频 PiP（可拖拽） */}
         {(status === 'connected' || status === 'connecting') && (
           <div
-            style={{
-              position: 'absolute', left: pip.pos.x, top: pip.pos.y,
-              width: 100, height: 140, zIndex: 5,
-              borderRadius: 'var(--radius-lg)', overflow: 'hidden',
-              boxShadow: '0 4px 20px rgba(0,0,0,.5)',
-              cursor: 'grab', touchAction: 'none',
-              border: '2px solid rgba(255,255,255,.3)',
-            }}
+            className="cm-pip"
+            style={{ left: pip.pos.x, top: pip.pos.y }}
             onPointerDown={pip.onPointerDown}
             onPointerMove={pip.onPointerMove}
             onPointerUp={pip.onPointerUp}
           >
-            <video ref={onLocalVideoMount} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <video ref={onLocalVideoMount} autoPlay playsInline muted />
           </div>
         )}
 
         {/* 顶部：缩小 + 名字/计时 */}
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 6, display: 'flex', alignItems: 'center', padding: '16px 20px 0', gap: 16 }}>
+        <div className="cm-video-top">
           {canMinimize && (
-            <button onClick={() => setMinimized(true)} style={minimizeBtnStyle} title="缩小" aria-label="缩小">
+            <button type="button" onClick={() => setMinimized(true)} className="cm-minimize-btn" title="缩小" aria-label="缩小">
               <IcoMinimize />
             </button>
           )}
           {status !== 'incoming' && (
-            <div style={{ flex: 1, textAlign: 'center', marginRight: canMinimize ? 36 : 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,.5)' }}>{remoteUser?.name}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.7)', marginTop: 2 }}>
+            <div className="cm-video-name" style={{ marginRight: canMinimize ? 36 : 0 }}>
+              <div className="cm-video-name-text">{remoteUser?.name}</div>
+              <div className="cm-video-status">
                 {status === 'connected' ? timer : (status === 'calling' ? '等待对方接听…' : '连接中…')}
               </div>
             </div>
@@ -667,17 +622,17 @@ export default function CallModal({ socket, call, onClose }) {
 
         {/* 来电居中显示 */}
         {status === 'incoming' && (
-          <div style={incomingCenterStyle}>
+          <div className="cm-incoming-center">
             <Avatar src={remoteUser?.avatar} name={remoteUser?.name || '?'} size={88} style={{ borderRadius: '50%', boxShadow: '0 4px 20px rgba(0,0,0,.4)' }} />
-            <div style={{ fontSize: 22, fontWeight: 600, marginTop: 16, textShadow: '0 1px 6px rgba(0,0,0,.6)' }}>{remoteUser?.name}</div>
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,.6)', marginTop: 8 }}>邀请你进行视频通话</div>
+            <div className="cm-incoming-name">{remoteUser?.name}</div>
+            <div className="cm-incoming-desc">邀请你进行视频通话</div>
           </div>
         )}
 
         {/* 底部控制 */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 6, paddingBottom: 48 }}>
+        <div className="cm-controls-bottom">
           {status === 'incoming' ? (
-            <div style={btnRowStyle}>
+            <div className="cm-btn-row">
               <CircleBtn icon={<IcoHangup />} label="拒绝" color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
@@ -685,7 +640,7 @@ export default function CallModal({ socket, call, onClose }) {
               />
             </div>
           ) : (
-            <div style={btnRowStyle}>
+            <div className="cm-btn-row">
               <CircleBtn icon={<IcoMute on={muted} />} label={muted ? '取消静音' : '静音'} active={muted} onClick={toggleMute} />
               <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
               <CircleBtn icon={<IcoCam off={cameraOff} />} label={cameraOff ? '开摄像头' : '关摄像头'} active={cameraOff} onClick={toggleCamera} />
@@ -696,24 +651,24 @@ export default function CallModal({ socket, call, onClose }) {
 
       {/* ── 语音通话 ── */}
       {!isVideo && <>
-        <div style={{
-          position: 'absolute', inset: 0,
-          ...(voiceBg ? {
+        <div
+          className="cm-voice-bg"
+          style={voiceBg ? {
             backgroundImage: voiceBg,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             filter: 'blur(32px) brightness(0.35) saturate(0.4)',
             transform: 'scale(1.08)',
-          } : {
-            background: 'linear-gradient(160deg, #2c3e50 0%, #1a252f 100%)',
-          }),
-        }} />
+          } : undefined}
+        />
         <div className="cm-scrim-full" />
 
         {canMinimize && (
           <button
+            type="button"
             onClick={() => setMinimized(true)}
-            style={{ ...minimizeBtnStyle, position: 'absolute', top: 20, left: 20, zIndex: 4 }}
+            className="cm-minimize-btn"
+            style={{ position: 'absolute', top: 20, left: 20, zIndex: 4 }}
             title="缩小"
             aria-label="缩小"
           >
@@ -721,12 +676,13 @@ export default function CallModal({ socket, call, onClose }) {
           </button>
         )}
 
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 2,
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: status === 'incoming' ? 'center' : 'flex-start',
-          paddingTop: status === 'incoming' ? 0 : 80,
-        }}>
+        <div
+          className="cm-voice-content"
+          style={{
+            justifyContent: status === 'incoming' ? 'center' : 'flex-start',
+            paddingTop: status === 'incoming' ? 0 : 80,
+          }}
+        >
           <div style={{
             width: status === 'incoming' ? 110 : 96,
             height: status === 'incoming' ? 110 : 96,
@@ -744,12 +700,12 @@ export default function CallModal({ socket, call, onClose }) {
             />
           </div>
 
-          <div style={{ fontSize: status === 'incoming' ? 24 : 20, fontWeight: 600, marginTop: 20, textShadow: '0 1px 6px rgba(0,0,0,.5)' }}>
+          <div className="cm-voice-name" style={{ fontSize: status === 'incoming' ? 24 : 20 }}>
             {remoteUser?.name}
           </div>
 
-          <div style={{ fontSize: 14, marginTop: 10, color: 'rgba(255,255,255,.7)', minHeight: 20 }}>
-            {status === 'connected' ? <span style={{ color: 'var(--green)' }}>{timer}</span> :
+          <div className="cm-voice-status">
+            {status === 'connected' ? <span style={{ color: 'var(--color-success)' }}>{timer}</span> :
              status === 'incoming'  ? '语音通话' :
              status === 'calling'   ? '等待对方接听…' :
              status === 'ended'     ? (END_TEXT[endReason] || '通话已结束') :
@@ -757,9 +713,9 @@ export default function CallModal({ socket, call, onClose }) {
           </div>
         </div>
 
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 4, paddingBottom: 52 }}>
+        <div className="cm-voice-bottom">
           {status === 'incoming' && (
-            <div style={btnRowStyle}>
+            <div className="cm-btn-row">
               <CircleBtn icon={<IcoHangup />} label="拒绝" color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>}
@@ -768,7 +724,7 @@ export default function CallModal({ socket, call, onClose }) {
             </div>
           )}
           {inProgress && status !== 'incoming' && (
-            <div style={btnRowStyle}>
+            <div className="cm-btn-row">
               <CircleBtn icon={<IcoMute on={muted} />} label={muted ? '取消静音' : '静音'} active={muted} onClick={toggleMute} />
               <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
             </div>
@@ -777,12 +733,8 @@ export default function CallModal({ socket, call, onClose }) {
       </>}
 
       {status === 'ended' && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 10,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,.55)',
-        }}>
-          <div style={{ fontSize: 16, color: 'var(--gray-0)', fontWeight: 500 }}>
+        <div className="cm-ended-overlay">
+          <div className="cm-ended-text">
             {END_TEXT[endReason] || '通话已结束'}
           </div>
         </div>
@@ -795,56 +747,21 @@ export default function CallModal({ socket, call, onClose }) {
 function CircleBtn({ icon, label, color, size = 54, active, onClick, testid }) {
   const bg = color || (active ? 'rgba(255,255,255,.35)' : 'rgba(255,255,255,.15)');
   return (
-    <div
-      role="button" aria-label={label} data-testid={testid}
-      tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+    <button
+      type="button"
+      aria-label={label} data-testid={testid}
       onClick={onClick}
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 0 }}
+      className="cm-circle-btn"
     >
-      <div
-        style={{
-          width: size, height: size, borderRadius: '50%',
-          background: bg,
-          backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'transform .12s',
-          boxShadow: '0 2px 12px rgba(0,0,0,.25)',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+      <span
+        className="cm-circle-btn-disc"
+        style={{ width: size, height: size, background: bg }}
       >
-        <span style={{ width: size * 0.44, height: size * 0.44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gray-0)' }}>
+        <span className="cm-circle-btn-icon" style={{ width: size * 0.44, height: size * 0.44 }}>
           {icon}
         </span>
-      </div>
-      <span style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', whiteSpace: 'nowrap' }}>{label}</span>
-    </div>
+      </span>
+      <span className="cm-circle-btn-label">{label}</span>
+    </button>
   );
 }
-
-/* ── 共用样式常量 ── */
-const btnRowStyle = {
-  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 48,
-};
-
-const minimizeBtnStyle = {
-  background: 'rgba(255,255,255,.18)',
-  backdropFilter: 'blur(6px)',
-  border: 'none', borderRadius: '50%',
-  width: 36, height: 36,
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  color: 'var(--gray-0)', cursor: 'pointer', flexShrink: 0,
-};
-
-const miniHangupStyle = {
-  position: 'absolute', bottom: 6, right: 6,
-  width: 30, height: 30, borderRadius: '50%',
-  background: 'var(--color-danger)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  cursor: 'pointer', color: 'var(--gray-0)',
-};
-
-const incomingCenterStyle = {
-  position: 'absolute', inset: 0, zIndex: 3,
-  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-};

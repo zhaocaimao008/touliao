@@ -94,7 +94,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-button { border: none; cursor: pointer; background: none; outline: none; font-family: inherit; }
+button { border: none; cursor: pointer; background: none; outline: none; font-family: inherit; -webkit-appearance: none; appearance: none; }
+/* 语义化 div→button 的行/菜单项：抹平原生 button 默认样式，保持原有块级左对齐布局 */
+.wc-ctx-item, .fwd-sel-all, .fwd-item, .up-row { width: 100%; text-align: left; font-size: inherit; color: inherit; }
 input, textarea { font-family: inherit; outline: none; border: none; background: none; }
 a { text-decoration: none; color: inherit; }
 img { display: block; }

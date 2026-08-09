@@ -208,7 +208,7 @@ export default function ForwardModal({ message, onClose }) {
             <div className="fwd-list" role="tabpanel">
               {/* 全选行 */}
               {tab === 'friends' && filteredFriends.length > 0 && (
-                <div className="fwd-sel-all" role="button" tabIndex={0} onClick={selectAllFriends} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectAllFriends(); } }}>
+                <button type="button" className="fwd-sel-all" onClick={selectAllFriends}>
                   <div className={`fwd-check${allFriendsSelected ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
@@ -217,10 +217,10 @@ export default function ForwardModal({ message, onClose }) {
                     </span>
                   </div>
                   <span className="fwd-sel-all-txt">全选好友（<em>{filteredFriends.length}</em>人）</span>
-                </div>
+                </button>
               )}
               {tab === 'groups' && filteredGroups.length > 0 && (
-                <div className="fwd-sel-all" role="button" tabIndex={0} onClick={selectAllGroups} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectAllGroups(); } }}>
+                <button type="button" className="fwd-sel-all" onClick={selectAllGroups}>
                   <div className={`fwd-check${allGroupsSelected ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
@@ -229,12 +229,12 @@ export default function ForwardModal({ message, onClose }) {
                     </span>
                   </div>
                   <span className="fwd-sel-all-txt">全选群聊（<em>{filteredGroups.length}</em>个）</span>
-                </div>
+                </button>
               )}
 
               {/* 好友列表 */}
               {tab === 'friends' && filteredFriends.map(f => (
-                <div key={f.id} className="fwd-item" role="button" tabIndex={0} onClick={() => toggleFriend(f)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFriend(f); } }}>
+                <button type="button" key={f.id} className="fwd-item" onClick={() => toggleFriend(f)}>
                   <div className={`fwd-check${isFriendSelected(f) ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
@@ -246,7 +246,7 @@ export default function ForwardModal({ message, onClose }) {
                   <div className="fwd-item-info">
                     <div className="fwd-item-name">{f.remark || f.username}</div>
                   </div>
-                </div>
+                </button>
               ))}
               {tab === 'friends' && filteredFriends.length === 0 && (
                 <div role="status" className="fwd-empty">暂无好友</div>
@@ -254,7 +254,7 @@ export default function ForwardModal({ message, onClose }) {
 
               {/* 群聊列表 */}
               {tab === 'groups' && filteredGroups.map(g => (
-                <div key={g.id} className="fwd-item" role="button" tabIndex={0} onClick={() => toggleGroup(g)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleGroup(g); } }}>
+                <button type="button" key={g.id} className="fwd-item" onClick={() => toggleGroup(g)}>
                   <div className={`fwd-check${selected.has(g.id) ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
@@ -267,7 +267,7 @@ export default function ForwardModal({ message, onClose }) {
                     <div className="fwd-item-name">{g.name}</div>
                     <div className="fwd-item-sub">{g.memberCount}人</div>
                   </div>
-                </div>
+                </button>
               ))}
               {tab === 'groups' && filteredGroups.length === 0 && (
                 <div role="status" className="fwd-empty">暂无群聊</div>

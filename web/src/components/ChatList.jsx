@@ -120,7 +120,7 @@ function ChatListSkeleton() {
   return (
     <div aria-hidden="true" style={{ padding: '4px 0' }}>
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="wc-chat-item" style={{ cursor: 'default' }}>
+        <div key={`skel-${i}`} className="wc-chat-item" style={{ cursor: 'default' }}>
           <div className="wc-skel wc-skel-avatar" />
           <div className="wc-chat-item-info" style={{ gap: 8 }}>
             <div className="wc-skel wc-skel-line" style={{ width: '42%' }} />
@@ -409,27 +409,19 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
             role="menu"
             onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setCtxMenu(null); } }}
           >
-            <div className="wc-ctx-item" onClick={() => toggleMarkUnread(ctxMenu.conv)}
-              role="button" tabIndex={0}
-              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleMarkUnread(ctxMenu.conv))}>
+            <button type="button" className="wc-ctx-item" role="menuitem" onClick={() => toggleMarkUnread(ctxMenu.conv)}>
               {ctxMenu.conv.manually_unread ? '取消标记' : '标记为未读'}
-            </div>
-            <div className="wc-ctx-item" onClick={() => pin(ctxMenu.conv, !ctxMenu.conv.pinned)}
-              role="button" tabIndex={0}
-              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), pin(ctxMenu.conv, !ctxMenu.conv.pinned))}>
+            </button>
+            <button type="button" className="wc-ctx-item" role="menuitem" onClick={() => pin(ctxMenu.conv, !ctxMenu.conv.pinned)}>
               {ctxMenu.conv.pinned ? '取消置顶' : '置顶聊天'}
-            </div>
-            <div className="wc-ctx-item" onClick={() => mute(ctxMenu.conv, !ctxMenu.conv.muted)}
-              role="button" tabIndex={0}
-              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), mute(ctxMenu.conv, !ctxMenu.conv.muted))}>
+            </button>
+            <button type="button" className="wc-ctx-item" role="menuitem" onClick={() => mute(ctxMenu.conv, !ctxMenu.conv.muted)}>
               {ctxMenu.conv.muted ? '取消免打扰' : '消息免打扰'}
-            </div>
+            </button>
             <div className="wc-ctx-divider" />
-            <div className="wc-ctx-item danger" onClick={() => deleteConv(ctxMenu.conv)}
-              role="button" tabIndex={0}
-              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), deleteConv(ctxMenu.conv))}>
+            <button type="button" className="wc-ctx-item danger" role="menuitem" onClick={() => deleteConv(ctxMenu.conv)}>
               {ctxMenu.conv.type === 'group' ? '退出群聊' : '删除聊天'}
-            </div>
+            </button>
           </div>
         </>
       )}

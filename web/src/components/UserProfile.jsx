@@ -167,14 +167,13 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
           <div className="up-name">{displayName}</div>
           {user.remark && <div className="up-sub">昵称：{user.username}</div>}
           {user.wechat_id && (
-            <div
+            <button
+              type="button"
               className="up-sub up-copyable"
-              role="button" tabIndex={0}
               title="点击复制 v信号"
               aria-label={`v信号 ${user.wechat_id}，点击复制`}
               onClick={async () => { const ok = await copyToClipboard(user.wechat_id); showToast(ok ? '已复制 v信号' : '复制失败，请长按手动复制', ok ? 'success' : 'error'); }}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
-            >v信号：{user.wechat_id}</div>
+            >v信号：{user.wechat_id}</button>
           )}
           {user.bio && <div className="up-bio">{user.bio}</div>}
           {/* 特权账户：精确最后在线时间 */}
@@ -191,11 +190,11 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {/* 好友信息行 */}
         {user.isFriend && (
           <div className="up-rows">
-            <div className="up-row" role="button" tabIndex={0} onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setRemark(user.remark || ''), setShowRemarkEdit(true))}>
+            <button type="button" className="up-row" onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }}>
               <span className="up-row-label">备注名</span>
               <span className="up-row-value">{user.remark || <span style={{ color: 'var(--text-tertiary)' }}>未设置</span>}</span>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-            </div>
+            </button>
             {user.phone && (
               <div className="up-row">
                 <span className="up-row-label">手机号</span>
