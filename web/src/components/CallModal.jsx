@@ -678,16 +678,16 @@ export default function CallModal({ socket, call, onClose }) {
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 6, paddingBottom: 48 }}>
           {status === 'incoming' ? (
             <div style={btnRowStyle}>
-              <CircleBtn icon={<IcoHangup />} label="拒绝" color="#FF3B30" size={68} onClick={reject} testid="call-reject-btn" />
+              <CircleBtn icon={<IcoHangup />} label="拒绝" color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
-                label="接听" color="#07C160" size={68} onClick={accept} testid="call-accept-btn"
+                label="接听" color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
               />
             </div>
           ) : (
             <div style={btnRowStyle}>
               <CircleBtn icon={<IcoMute on={muted} />} label={muted ? '取消静音' : '静音'} active={muted} onClick={toggleMute} />
-              <CircleBtn icon={<IcoHangup />} label="挂断" color="#FF3B30" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
+              <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
               <CircleBtn icon={<IcoCam off={cameraOff} />} label={cameraOff ? '开摄像头' : '关摄像头'} active={cameraOff} onClick={toggleCamera} />
             </div>
           )}
@@ -760,17 +760,17 @@ export default function CallModal({ socket, call, onClose }) {
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 4, paddingBottom: 52 }}>
           {status === 'incoming' && (
             <div style={btnRowStyle}>
-              <CircleBtn icon={<IcoHangup />} label="拒绝" color="#FF3B30" size={68} onClick={reject} testid="call-reject-btn" />
+              <CircleBtn icon={<IcoHangup />} label="拒绝" color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>}
-                label="接听" color="#07C160" size={68} onClick={accept} testid="call-accept-btn"
+                label="接听" color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
               />
             </div>
           )}
           {inProgress && status !== 'incoming' && (
             <div style={btnRowStyle}>
               <CircleBtn icon={<IcoMute on={muted} />} label={muted ? '取消静音' : '静音'} active={muted} onClick={toggleMute} />
-              <CircleBtn icon={<IcoHangup />} label="挂断" color="#FF3B30" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
+              <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
             </div>
           )}
         </div>
@@ -839,7 +839,7 @@ const minimizeBtnStyle = {
 const miniHangupStyle = {
   position: 'absolute', bottom: 6, right: 6,
   width: 30, height: 30, borderRadius: '50%',
-  background: '#FF3B30',
+  background: 'var(--color-danger)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   cursor: 'pointer', color: 'var(--gray-0)',
 };

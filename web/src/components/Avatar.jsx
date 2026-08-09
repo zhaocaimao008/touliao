@@ -3,7 +3,7 @@ import { mediaUrl } from '../utils/url';
 
 // 无头像时的字母头像配色：AURORA 极光系多彩，按名字 hash 稳定取色，去掉"整页灰"
 const COLORS = [
-  '#6D5AE6', // 极光靛(主)
+  'var(--color-primary)', // 极光靛(主)——跟随品牌主色 token，暗色自动切换
   '#17B8A6', // 青碧(辅)
   '#5B7BF0', // 靛蓝
   '#9B7BF5', // 薰衣草紫

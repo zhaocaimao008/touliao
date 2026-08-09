@@ -274,7 +274,7 @@ export default function Login() {
                   spellCheck={false}
                 />
                 {serverTest && (
-                  <div className="auth-server-result" role="alert" style={{ color: serverTest.ok ? 'var(--green)' : '#FF7575' }}>
+                  <div className="auth-server-result" role="alert" style={{ color: serverTest.ok ? 'var(--green)' : 'var(--color-danger)' }}>
                     {serverTest.msg}
                   </div>
                 )}
