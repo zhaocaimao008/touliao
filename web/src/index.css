@@ -1003,7 +1003,7 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   transition: background var(--dur-fast);
   line-height: var(--lh-none);
 }
-.wc-ctx-item:hover { background: rgba(255,255,255,.09); }
+.wc-ctx-item:hover { background: rgba(var(--green-rgb),.1); }
 .wc-ctx-item.danger { color: var(--color-danger); }
 .wc-ctx-divider { height: .5px; background: rgba(255,255,255,.1); }
 
@@ -1384,35 +1384,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .wc-group-check { width: 18px; height: 18px; border-radius: var(--radius-full); border: 1.5px solid var(--border-color); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background var(--dur-fast), border-color var(--dur-fast); }
 .wc-group-check.checked { background: var(--green); border-color: var(--green); color: var(--gray-0); font-size: var(--text-xs); font-weight: var(--font-bold); }
 
-/* ── 转发弹窗 ── */
-.fwd-modal { width: 460px; height: 540px; }
-.wc-modal.fwd-modal { background: var(--bg-modal, #fff) !important; border: none !important; }
-.fwd-header { background: var(--bg-panel); border-bottom: 1px solid var(--divider); padding: 13px 18px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-.fwd-preview { padding: 9px 16px; background: var(--bg-panel); border-bottom: 1px solid var(--divider); display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
-.fwd-preview-label { font-size: var(--text-xs); color: var(--text-tertiary); white-space: nowrap; }
-.fwd-preview-text { font-size: var(--text-sm2); color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fwd-search-wrap { padding: 8px 12px; border-bottom: 1px solid var(--divider); flex-shrink: 0; }
-.fwd-tabs-wrap { padding: 8px 14px 10px; background: var(--bg-panel); border-bottom: 1px solid var(--divider); flex-shrink: 0; }
-.fwd-tabs { display: flex; background: rgba(0,0,0,.07); border-radius: var(--radius-input); padding: 3px; gap: 0; }
-.fwd-tab { flex: 1; padding: 7px 10px; font-size: var(--text-sm2); font-weight: var(--font-medium); cursor: pointer; color: var(--text-secondary); border-radius: var(--radius-button); transition: color var(--dur-fast), background var(--dur-fast), box-shadow var(--dur-fast); background: none; border: none; font-family: inherit; text-align: center; }
-.fwd-tab:hover { color: var(--text-primary); }
-.fwd-tab.active { background: var(--bg-card); color: var(--text-primary); font-weight: var(--font-semibold); box-shadow: 0 1px 4px rgba(0,0,0,.20), 0 0 0 .5px rgba(0,0,0,.07); }
-.fwd-list { flex: 1; overflow-y: auto; background: var(--bg-card); }
-.fwd-select-all { display: flex; align-items: center; padding: 8px 16px; gap: var(--sp-2h); cursor: pointer; background: var(--bg-panel); border-bottom: 1px solid var(--divider); transition: background var(--dur-fast); }
-.fwd-select-all:hover { background: var(--bg-active-hover); }
-.fwd-item { display: flex; align-items: center; padding: 8px 16px; gap: var(--sp-2h); cursor: pointer; border-bottom: 1px solid var(--divider); transition: background var(--dur-fast); }
-.fwd-item:hover { background: var(--bg-hover); }
-.fwd-item-name { font-size: var(--text-base); color: var(--text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fwd-item-sub { font-size: var(--text-xs); color: var(--text-tertiary); }
-.fwd-empty { padding: 48px 0; text-align: center; color: var(--text-tertiary); font-size: var(--text-sm2); }
-.fwd-footer { padding: 10px 16px; border-top: 1px solid var(--divider); background: var(--bg-panel); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-.fwd-footer-count { font-size: var(--text-sm2); color: var(--text-secondary); }
-.fwd-footer-btns { display: flex; gap: var(--sp-2); }
-.fwd-done-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 32px 24px 28px; }
-.fwd-done-icon { width: 56px; height: 56px; border-radius: var(--radius-full); background: var(--green); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
-.fwd-done-title { font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--text-primary); margin-bottom: 6px; }
-.fwd-done-sub { font-size: var(--text-sm2); color: var(--text-secondary); margin-bottom: 28px; }
-.fwd-done-sub span { color: var(--green); font-weight: var(--font-semibold); }
+/* 转发弹窗样式已全部迁移至 components/ForwardModal.css（旧的 index.css 定义为死代码，已移除）*/
 
 /* ============================================================
    Empty State
@@ -1686,10 +1658,7 @@ body.dark-mode .wc-textarea,
 body.dark-mode .wc-input-box textarea { background: transparent !important; border-color: var(--border-subtle) !important; box-shadow: none !important; }
 body.dark-mode .wc-chat[class],
 body.dark-mode .wc-messages[class] { background: var(--bg-chat) !important; }
-body.dark-mode .fwd-tabs-wrap { background: var(--glass-panel-bg) !important; border-bottom-color: var(--border-subtle) !important; }
-body.dark-mode .fwd-tabs { background: var(--bg-hover) !important; }
-body.dark-mode .fwd-tab { color: var(--text-secondary); }
-body.dark-mode .fwd-tab.active { background: var(--border-default) !important; color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,.5), 0 0 0 .5px rgba(255,255,255,.06); }
+/* 转发弹窗 tab 暗色覆盖已移除：新版为下划线设计，直接用 --color-primary token（本身适配暗色），旧的药丸背景/阴影覆盖为死规则 */
 body.dark-mode {
   background:
     radial-gradient(circle at 12% 10%, rgba(var(--green-rgb),.05), transparent 28%),
@@ -2716,12 +2685,6 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
   overflow: hidden;
   animation: scaleIn .12s var(--ease);
   transform-origin: top left;
-}
-.wc-ctx-item {
-  transition: background var(--dur-fast);
-}
-.wc-ctx-item:hover {
-  background: rgba(var(--green-rgb),.1) !important;
 }
 
 /* Modal 弹窗精致化 */
