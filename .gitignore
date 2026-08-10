@@ -51,6 +51,14 @@ vxin-config/
 # 图标生成临时目录
 .icon-build/
 
+# 机器人审计/UI 快照产物（含源码备份，一次性生成物，不入库）
+.robot-audit/
+.robot-audit-20/
+.robot-ui-20/
+.robot-ui-5/
+.android-web-parity-audit.md
+.tri-platform-audit-*.md
+
 # 任何 node_modules（兜底：防止子目录 node_modules 被误提交撑爆仓库）
 node_modules/
 **/node_modules/
