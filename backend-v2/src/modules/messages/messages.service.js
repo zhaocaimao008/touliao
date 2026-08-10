@@ -9,7 +9,7 @@ const { writeAsync, writeBatch } = require('../../db/writer');
 const config = require('../../config');
 const { badRequest, forbidden, notFound, conflict } = require('../../utils/http');
 const { collectionDedupKey } = require('../../utils/collections');
-const { isMember, requireMember, memberRole, buildMessage, privateSendBlockReason, strangerBlockReason } = require('./shared');
+const { isMember, requireMember, memberRole, buildMessage, privateSendGuard } = require('./shared');
 const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
 // 会话列表缓存失效：发消息/转发/撤回改变会话「最新消息/排序」，需失效该会话所有成员
@@ -199,12 +199,9 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
-  // 黑名单：任一方拉黑对方即拒绝私聊发消息（防止拉黑后经既有会话继续骚扰）
-  const blockReason = privateSendBlockReason(convId, userId);
-  if (blockReason) throw forbidden(blockReason);
-  // 屏蔽陌生人消息：私聊会话中，若对方开启该设置且发送者不在其联系人中，则拒绝发送
-  const strangerReason = strangerBlockReason(convId, userId);
-  if (strangerReason) throw forbidden(strangerReason);
+  // 私聊守卫：黑名单 + 屏蔽陌生人合并校验（复用已取的 conv，省去重复 conversations 查询）
+  const guardReason = privateSendGuard(convId, userId, conv);
+  if (guardReason) throw forbidden(guardReason);
   if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
   if (reply_to_id) {
     const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
@@ -231,14 +228,11 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, reply_to_id }) {
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
-  const conv = db.prepare('SELECT mute_all FROM conversations WHERE id=?').get(convId);
+  const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
   if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
-  // 黑名单：任一方拉黑对方即拒绝私聊发文件（与文本发送一致）
-  const blockReason = privateSendBlockReason(convId, userId);
-  if (blockReason) throw forbidden(blockReason);
-  // 屏蔽陌生人消息：与文本发送一致，防止陌生人用文件/图片/表情绕过该设置骚扰
-  const strangerReason = strangerBlockReason(convId, userId);
-  if (strangerReason) throw forbidden(strangerReason);
+  // 私聊守卫：黑名单 + 屏蔽陌生人合并校验（复用已取的 conv），防止陌生人用文件/图片/表情绕过设置骚扰
+  const guardReason = privateSendGuard(convId, userId, conv);
+  if (guardReason) throw forbidden(guardReason);
   if (reply_to_id) {
     const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
     if (!ref) throw badRequest('被回复消息不存在');
@@ -296,10 +290,8 @@ async function forward(io, userId, { msgId, msgIds, conversationIds }) {
   const allowedConvIds = conversationIds.filter(convId => {
     if (!memberConvIds.has(convId)) return false;
     if (muteMap.get(convId) && roleMap.get(convId) === 'member') return false;
-    // 黑名单私聊：静默跳过被拉黑/已拉黑的目标（不计入成功转发数）
-    if (privateSendBlockReason(convId, userId)) return false;
-    // 屏蔽陌生人：静默跳过"对方开启屏蔽陌生人且我非其好友"的私聊目标，防止用转发绕过
-    if (strangerBlockReason(convId, userId)) return false;
+    // 私聊守卫：静默跳过被拉黑/已拉黑、或对方屏蔽陌生人且我非其好友的目标，防止用转发绕过
+    if (privateSendGuard(convId, userId)) return false;
     return true;
   });
   // 保持消息原始顺序：外层消息、内层会话

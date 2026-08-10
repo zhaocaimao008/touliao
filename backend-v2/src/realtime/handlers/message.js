@@ -7,7 +7,7 @@ const { pushNewMessage } = require('../../utils/push');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
-const { privateSendBlockReason, strangerBlockReason, memberRole } = require('../../modules/messages/shared');
+const { privateSendGuard, memberRole } = require('../../modules/messages/shared');
 
 // @所有人 的可识别 token（大小写不敏感）——仅群主/管理员使用时生效
 const MENTION_ALL_TOKENS = new Set(['所有人', '全体成员', 'all', 'everyone']);
@@ -121,13 +121,9 @@ module.exports = function registerMessageHandler(io, socket) {
       ack?.({ success: false, error: '全员禁言中，您没有发言权限' }); return;
     }
 
-    // 黑名单：任一方拉黑对方即拒绝私聊发消息（防止拉黑后经既有会话继续骚扰）
-    const blockReason = privateSendBlockReason(conversationId, userId);
-    if (blockReason) { ack?.({ success: false, error: blockReason }); return; }
-
-    // 屏蔽陌生人消息（私聊）——与 HTTP/文件发送路径共用同一校验
-    const strangerReason = strangerBlockReason(conversationId, userId);
-    if (strangerReason) { ack?.({ success: false, error: strangerReason }); return; }
+    // 私聊守卫：黑名单 + 屏蔽陌生人合并校验（复用上方已取的 conv，省去重复 conversations 查询）
+    const guardReason = privateSendGuard(conversationId, userId, conv);
+    if (guardReason) { ack?.({ success: false, error: guardReason }); return; }
 
     const id = uuidv4();
     const created_at = Math.floor(Date.now() / 1000);

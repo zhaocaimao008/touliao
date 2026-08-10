@@ -10,41 +10,45 @@ function isMember(convId, userId) {
   return !!db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
 }
 
-// 私聊黑名单校验：任一方已拉黑对方，则拒绝在既有会话内发消息（防止拉黑后仍被骚扰）。
-// 与 getOrCreatePrivate / 通话 / 朋友圈的黑名单拦截保持一致；群聊(type!=private)不受影响。
-// 返回拒绝原因字符串；允许发送时返回 null。读走 readDb（block() 经 db 同步提交，此处立即可见）。
-function privateSendBlockReason(convId, senderId) {
-  const conv = readDb.prepare('SELECT type FROM conversations WHERE id=?').get(convId);
-  if (conv?.type !== 'private') return null;
+// 私聊发送统一守卫：合并「黑名单拦截」与「屏蔽陌生人」两道校验，覆盖全部发送路径
+// （文本 HTTP/socket、文件/图片/语音/视频/表情、红包、拍一拍）。返回拒绝原因字符串；允许时返回 null。
+//
+// 性能：此前拆成 privateSendBlockReason + strangerBlockReason 两个函数，各自重查
+// conversations.type 与「对方成员」，热路径每条私聊消息产生 2 次 conv 查询 + 2 次成员查询。
+// 合并后仅查 1 次成员，且 conv 可由调用方（禁言校验时已取过）经参数传入省去 conv 查询。
+//
+// 读走 readDb（block()/settings 经 db 同步提交，此处立即可见）。群聊(type!=private)直接放行。
+// @param conv 可选：调用方已查到的会话行，至少含 { type }。传入则省一次 conversations 查询。
+function privateSendGuard(convId, senderId, conv = null) {
+  const type = conv?.type ?? readDb.prepare('SELECT type FROM conversations WHERE id=?').get(convId)?.type;
+  if (type !== 'private') return null;
+
   const other = readDb.prepare(
     'SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?'
   ).get(convId, senderId);
   if (!other) return null;
+  const otherId = other.user_id;
+
+  // 1) 黑名单：任一方已拉黑对方，则拒绝在既有会话内发消息（防止拉黑后仍被骚扰）
   const bl = readDb.prepare(
     'SELECT user_id FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?)'
-  ).all(senderId, other.user_id, other.user_id, senderId);
-  if (!bl.length) return null;
-  return bl.some(r => r.user_id === senderId)
-    ? '你已将对方加入黑名单，移出后才能发送'
-    : '消息已发出，但被对方拒收';
-}
+  ).all(senderId, otherId, otherId, senderId);
+  if (bl.length) {
+    return bl.some(r => r.user_id === senderId)
+      ? '你已将对方加入黑名单，移出后才能发送'
+      : '消息已发出，但被对方拒收';
+  }
 
-// 屏蔽陌生人消息：私聊会话中，若接收方开启了该设置且发送者不在其联系人中，则拒收。
-// 与 privateSendBlockReason(拉黑) 并列，须覆盖全部发送路径——文本(HTTP/socket)与
-// 文件/图片/语音/视频/表情(saveUploadedFile)。返回拒绝原因；允许时返回 null。
-// 场景：双方曾是好友(私聊会话已建)，接收方删除好友后开启屏蔽陌生人——旧会话仍在，
-// 若只拦文本不拦文件，陌生人仍可经既有会话用图片/文件骚扰。
-function strangerBlockReason(convId, senderId) {
-  const conv = readDb.prepare('SELECT type FROM conversations WHERE id=?').get(convId);
-  if (conv?.type !== 'private') return null;
-  const other = readDb.prepare(
-    'SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?'
-  ).get(convId, senderId);
-  if (!other) return null;
-  const setting = readDb.prepare('SELECT block_unknown_messages FROM user_settings WHERE user_id=?').get(other.user_id);
-  if (!setting?.block_unknown_messages) return null;
-  const isFriend = readDb.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(other.user_id, senderId);
-  return isFriend ? null : '对方已开启屏蔽陌生人消息';
+  // 2) 屏蔽陌生人：对方开启该设置且发送者不在其联系人中则拒收。
+  //    场景：双方曾是好友(会话已建)，对方删好友后开启屏蔽——旧会话仍在，
+  //    须覆盖文件/图片等所有路径，否则陌生人可绕过文本拦截继续骚扰。
+  const setting = readDb.prepare('SELECT block_unknown_messages FROM user_settings WHERE user_id=?').get(otherId);
+  if (setting?.block_unknown_messages) {
+    const isFriend = readDb.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(otherId, senderId);
+    if (!isFriend) return '对方已开启屏蔽陌生人消息';
+  }
+
+  return null;
 }
 
 function requireMember(convId, userId, msg = '无权访问') {
@@ -99,4 +103,4 @@ function purgeConversation(id) {
   })();
 }
 
-module.exports = { isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendBlockReason, strangerBlockReason };
+module.exports = { isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendGuard };

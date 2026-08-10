@@ -7,7 +7,7 @@ const { getPublicBase } = require('../../utils/cloudStorage');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
-const { privateSendBlockReason, strangerBlockReason } = require('../../modules/messages/shared');
+const { privateSendGuard } = require('../../modules/messages/shared');
 
 const TYPE_FALLBACK = { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]' };
 
@@ -76,15 +76,12 @@ module.exports = function registerFileHandler(io, socket) {
     const member = readDb.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(conversationId, userId);
     if (!member) { ack?.({ success: false, error: '非群成员' }); return; }
 
-    const conv = readDb.prepare('SELECT mute_all FROM conversations WHERE id=?').get(conversationId);
+    const conv = readDb.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(conversationId);
     if (conv?.mute_all && member.role === 'member') { ack?.({ success: false, error: '全员禁言中，您没有发言权限' }); return; }
 
-    // 黑名单：任一方拉黑对方即拒绝私聊发文件（与文本发送一致）
-    const blockReason = privateSendBlockReason(conversationId, userId);
-    if (blockReason) { ack?.({ success: false, error: blockReason }); return; }
-    // 屏蔽陌生人消息：与文本/HTTP 文件路径一致，防止陌生人用云存储文件绕过该设置骚扰
-    const strangerReason = strangerBlockReason(conversationId, userId);
-    if (strangerReason) { ack?.({ success: false, error: strangerReason }); return; }
+    // 私聊守卫：黑名单 + 屏蔽陌生人合并校验（复用已取的 conv），防止陌生人用云存储文件绕过骚扰
+    const guardReason = privateSendGuard(conversationId, userId, conv);
+    if (guardReason) { ack?.({ success: false, error: guardReason }); return; }
 
     const id = uuidv4();
     const created_at = Math.floor(Date.now() / 1000);
