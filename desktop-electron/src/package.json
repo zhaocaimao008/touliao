@@ -1,6 +1,6 @@
 {
   "name": "vxin-desktop",
-  "version": "2.0.53",
+  "version": "2.0.54",
   "description": "v信 桌面客户端",
   "main": "src/main.js",
   "scripts": {
