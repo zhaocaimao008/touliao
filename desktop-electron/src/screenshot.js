@@ -24,11 +24,16 @@ function cleanupOldScreenshots() {
 async function createCapturer() {
   cleanupOldScreenshots();
 
-  const displays = screen.getAllDisplays();
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.workAreaSize;
+  // 关键修复：用整屏 size（含任务栏区域），而非 workAreaSize；
+  // 并按 scaleFactor 还原到物理像素分辨率。旧写法用逻辑像素（workAreaSize）
+  // 请求缩略图，在 125%/150% 等缩放的 Windows 高分屏上会被下采样 → 截图发虚/发糊。
+  const { width: logicalW, height: logicalH } = primaryDisplay.size;
+  const scale = primaryDisplay.scaleFactor || 1;
+  const width = Math.round(logicalW * scale);
+  const height = Math.round(logicalH * scale);
 
-  // 获取屏幕源
+  // 获取屏幕源（缩略图尺寸给到物理分辨率，拿到清晰全屏图）
   const sources = await desktopCapturer.getSources({
     types: ['screen'],
     thumbnailSize: { width, height },
@@ -38,12 +43,14 @@ async function createCapturer() {
     throw new Error('无法获取屏幕源');
   }
 
-  // 使用主屏幕
-  const source = sources.find(s =>
-    s.name.includes('Entire Screen') || s.name.includes('整个屏幕')
-  ) || sources[0];
+  // 优先匹配主屏：display_id 与主屏一致最可靠；否则回退英文/中文名，再退第一个源
+  const primaryId = String(primaryDisplay.id);
+  const source =
+    sources.find(s => String(s.display_id) === primaryId) ||
+    sources.find(s => s.name.includes('Entire Screen') || s.name.includes('整个屏幕')) ||
+    sources[0];
 
-  if (!source || !source.thumbnail) {
+  if (!source || !source.thumbnail || source.thumbnail.isEmpty()) {
     throw new Error('截图为空');
   }
 

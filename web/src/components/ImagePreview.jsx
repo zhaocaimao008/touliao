@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { downloadFile } from '../utils/download';
+import { shareMessage, canShare } from '../utils/share';
 
 // 从(可能带 ?token= 的)图片地址里抽一个像样的下载文件名
 function filenameFromUrl(u) {
@@ -198,28 +199,54 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         </>
       )}
 
-      {/* Download button：走统一 downloadFile,桌面/移动端与跨域云图也能可靠落盘(裸 <a download> 跨域失效) */}
-      <button
-        onClick={(e) => { e.stopPropagation(); downloadFile(currentUrl, filenameFromUrl(currentUrl)); }}
-        aria-label="下载图片"
+      {/* 底部操作条：下载 + 分享到第三方。下载走统一 downloadFile,桌面/移动端与跨域云图也能可靠落盘 */}
+      <div
+        onClick={(e) => e.stopPropagation()}
         style={{
-          border: 'none', cursor: 'pointer',
           position: 'absolute', bottom: 30, left: '50%',
           transform: 'translateX(-50%)',
-          color: 'var(--text-inverse)', fontSize: 'var(--text-sm2)',
-          background: 'rgba(255,255,255,.18)',
-          padding: '8px 20px', borderRadius: 'var(--radius-2xl)',
-          textDecoration: 'none',
-          display: 'flex', alignItems: 'center', gap: 6,
-          backdropFilter: 'blur(10px)',
-          zIndex: 10,
+          display: 'flex', alignItems: 'center', gap: 12, zIndex: 10,
         }}
       >
-        <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
-          <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-        </svg>
-        下载
-      </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); downloadFile(currentUrl, filenameFromUrl(currentUrl)); }}
+          aria-label="下载图片"
+          style={{
+            border: 'none', cursor: 'pointer',
+            color: 'var(--text-inverse)', fontSize: 'var(--text-sm2)',
+            background: 'rgba(255,255,255,.18)',
+            padding: '8px 20px', borderRadius: 'var(--radius-2xl)',
+            textDecoration: 'none',
+            display: 'flex', alignItems: 'center', gap: 6,
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          </svg>
+          下载
+        </button>
+        {canShare() && (
+          <button
+            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: currentUrl, filename: filenameFromUrl(currentUrl), title: '分享图片' }); }}
+            aria-label="分享图片"
+            data-testid="lightbox-share"
+            style={{
+              border: 'none', cursor: 'pointer',
+              color: 'var(--text-inverse)', fontSize: 'var(--text-sm2)',
+              background: 'rgba(255,255,255,.18)',
+              padding: '8px 20px', borderRadius: 'var(--radius-2xl)',
+              display: 'flex', alignItems: 'center', gap: 6,
+              backdropFilter: 'blur(10px)',
+            }}
+          >
+            <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
+              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
+            </svg>
+            分享
+          </button>
+        )}
+      </div>
 
       {/* Close button */}
       <button

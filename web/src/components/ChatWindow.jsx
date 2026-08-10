@@ -48,6 +48,7 @@ import { mediaUrl } from '../utils/url';
 import { rememberAspect } from '../utils/imgDimCache';
 import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import { downloadFile } from '../utils/download';
+import { shareMessage, canShare } from '../utils/share';
 import './ChatWindow.css';
 
 const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
@@ -1797,6 +1798,22 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         setForwardMsg(msg);
         break;
 
+      case 'share':
+        // 分享到第三方软件（微信/QQ/邮件/AirDrop 等）：
+        // 图片/视频/文件走文件级分享，文本走文案分享；不支持则回退下载/复制。
+        if (msg.type === 'text') {
+          await shareMessage({ text: msg.content, title: '分享消息' });
+        } else if (msg.file_url) {
+          const fname = msg.content || (
+            msg.type === 'video' ? `video_${msg.id}.mp4`
+              : msg.type === 'image' ? `image_${msg.id}.jpg`
+                : `file_${msg.id}`);
+          await shareMessage({ fileUrl: msg.file_url, filename: fname, title: fname });
+        } else {
+          showToast('该消息类型不支持分享');
+        }
+        break;
+
       case 'multiselect':
         setMultiSelect(true);
         setSelectedMsgs(new Set([msg.id]));
@@ -2597,6 +2614,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             )}
             {/* 转发：所有类型消息都可转发 */}
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>转发</div>
+            {/* 分享到第三方：图片/视频/文件/文档/文本，走系统分享面板（不支持则回退下载） */}
+            {!ctxMenu.msg.deleted && canShare() && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (ctxMenu.msg.type === 'text' || ctxMenu.msg.file_url) && (
+              <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-share" onClick={() => ctxAction('share')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('share'); } }}>分享到…</div>
+            )}
             {/* 收藏：文字/图片/视频/文件消息可收藏到「我的收藏」 */}
             {!ctxMenu.msg.deleted && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (
               <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>收藏</div>
