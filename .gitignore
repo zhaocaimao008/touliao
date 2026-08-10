@@ -34,6 +34,14 @@ landing/public/downloads/
 backend/uploads/
 backend-v2/uploads/
 
+# SQLite 数据库（运行时数据，含用户数据，绝不入库）
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.db-journal
+
 # 源码备份
 *.bak
 
