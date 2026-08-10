@@ -9,8 +9,8 @@
 
 | 端 | 版本真相源文件 | 字段 | 当前版本 |
 |----|--------------|------|---------|
-| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 2.0.55 |
-| 桌面端渲染层内嵌 | `desktop-electron/src/package.json` | `version` | 与上一致（2.0.55） |
+| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 2.0.56 |
+| 桌面端渲染层内嵌 | `desktop-electron/src/package.json` | `version` | 与上一致（2.0.56） |
 | Web 前端 | `web/package.json` | `version` | 2.0.18 |
 | 后端 | `backend-v2/package.json` | `version` | 2.0.0 |
 | Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.49 / code 50 |
