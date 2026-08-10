@@ -44,6 +44,8 @@ export default function MentionList({ onClose, onJumpToMsg }) {
   }, [loading]);
 
   useEffect(() => {
+    // 挂载时首次拉取；load 内部的 setLoading 是刻意的加载态，非级联渲染问题
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load(0);
     return () => { abortRef.current?.abort(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
