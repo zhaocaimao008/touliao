@@ -116,21 +116,22 @@ function safeExt(originalname, mimetype) {
 }
 
 // 读取文件头做魔数识别，返回 {ext,mime} 或 null（识别不出/文件过小/异常均返回 null，不抛）。
+// 使用 fs.promises 异步 I/O，避免在 async middleware 中阻塞 Node 事件循环。
 async function readMagic(filePath) {
-  let fd;
+  let fh;
   try {
-    const size = fs.statSync(filePath).size;
-    const len = Math.min(size, MAGIC_SAMPLE_BYTES);
+    const stat = await fs.promises.stat(filePath);
+    const len = Math.min(stat.size, MAGIC_SAMPLE_BYTES);
     if (len === 0) return null;
     const buf = Buffer.alloc(len);
-    fd = fs.openSync(filePath, 'r');
-    fs.readSync(fd, buf, 0, len, 0);
-    fs.closeSync(fd); fd = null;
+    fh = await fs.promises.open(filePath, 'r');
+    await fh.read(buf, 0, len, 0);
+    await fh.close(); fh = null;
     try { return await fileType.fromBuffer(buf); } catch { return null; }
   } catch {
     return null;
   } finally {
-    if (fd != null) try { fs.closeSync(fd); } catch {}
+    if (fh != null) try { await fh.close(); } catch {}
   }
 }
 

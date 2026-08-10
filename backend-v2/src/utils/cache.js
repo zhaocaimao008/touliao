@@ -31,10 +31,12 @@ function init() {
   // 吞掉错误事件，避免未捕获异常 & 日志刷屏
   client.on('error', () => { disabled = true; });
   // 自动重连成功后恢复缓存（reconnectStrategy 重试路径不经过 connect().then）
-  client.on('ready', () => { if (disabled) { disabled = false; console.log('[Redis Cache] Reconnected, cache re-enabled'); } });
+  // 测试环境静默：连接可能在测试结束后才 resolve，避免 jest "Cannot log after tests" 噪音
+  const quiet = process.env.NODE_ENV === 'test';
+  client.on('ready', () => { if (disabled) { disabled = false; if (!quiet) console.log('[Redis Cache] Reconnected, cache re-enabled'); } });
 
   initPromise = client.connect()
-    .then(() => { disabled = false; console.log('[Redis Cache] Connected'); })
+    .then(() => { disabled = false; if (!quiet) console.log('[Redis Cache] Connected'); })
     .catch(() => { disabled = true; })   // Redis 未运行 → 禁用缓存，降级为无缓存
     .finally(() => { initPromise = null; });
 
@@ -83,14 +85,16 @@ async function del(key) {
 }
 
 // 删除匹配模式的缓存（SCAN 替代 KEYS，避免阻塞 Redis）
+// redis v6 scanIterator 按批次 yield 键数组，需展开。
 async function delPattern(pattern) {
   try {
     if (disabled) return;
     await init();
     if (disabled || !client?.isReady) return;
     const toDelete = [];
-    for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
-      toDelete.push(key);
+    for await (const batch of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+      if (Array.isArray(batch)) toDelete.push(...batch);
+      else toDelete.push(batch);
     }
     if (toDelete.length > 0) await client.del(toDelete);
   } catch { /* noop */ }

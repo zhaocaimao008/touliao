@@ -485,14 +485,41 @@ function applySchema(db) {
     "ALTER TABLE messages ADD COLUMN is_scheduled INTEGER DEFAULT 0",
     // ── 语音消息转写缓存：ASR 结果落此列，二次点「转文字」直接命中，幂等 ──
     "ALTER TABLE messages ADD COLUMN transcript TEXT DEFAULT NULL",
+    // ── 红包过期回收查询索引：reclaimExpired 每10分钟扫 status='active' AND created_at<cutoff，
+    //    无此索引则全表扫描。局部索引仅覆盖 active 行，随红包被领/过期而收缩，体积极小。──
+    "CREATE INDEX IF NOT EXISTS idx_red_packets_status_time ON red_packets(status, created_at) WHERE status='active'",
   ];
-  migrations.forEach(sql => {
-    try { db.prepare(sql).run(); }
-    catch (e) {
-      // 幂等：仅忽略"列/表/索引已存在"错误，其余错误记录日志
-      if (!e.message.includes('already exists') && !e.message.includes('duplicate column name')) {
-        console.error('[db] Migration failed:', sql.slice(0, 120), '|', e.message);
+
+  // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────
+  // schema_migrations 记录已成功执行的迁移序号（幂等：已执行的直接跳过）。
+  // 「已存在/重复列」是幂等重跑的正常现象，静默；其余错误（磁盘满、约束冲突、
+  // 语法错误）说明数据库处于非预期状态，直接抛出中止启动，避免后续迁移在
+  // 损坏的 schema 上继续执行、放大问题（此前仅打日志继续跑会掩盖真实故障）。
+  db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+    idx        INTEGER PRIMARY KEY,
+    applied_at INTEGER DEFAULT (strftime('%s','now'))
+  )`);
+  const isBenign = (msg) =>
+    msg.includes('already exists') ||
+    msg.includes('duplicate column name');
+  const markApplied = db.prepare('INSERT OR IGNORE INTO schema_migrations (idx) VALUES (?)');
+  const alreadyApplied = new Set(
+    db.prepare('SELECT idx FROM schema_migrations').all().map(r => r.idx)
+  );
+  migrations.forEach((sql, idx) => {
+    if (alreadyApplied.has(idx)) return; // 已成功执行过，跳过
+    try {
+      db.prepare(sql).run();
+      markApplied.run(idx);
+    } catch (e) {
+      if (isBenign(e.message)) {
+        // 幂等重跑遇到「已存在」：视为成功，记入版本表以后跳过
+        markApplied.run(idx);
+        return;
       }
+      // 真实故障：中止启动，暴露问题而非继续在损坏 schema 上跑
+      console.error('[db] Migration FAILED (aborting):', `#${idx}`, sql.slice(0, 120), '|', e.message);
+      throw new Error(`数据库迁移 #${idx} 失败: ${e.message}`);
     }
   });
 }

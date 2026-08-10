@@ -136,13 +136,19 @@ function createGroup(io, ownerId, { name, memberIds }) {
 const convCache = new Map();
 const CONV_CACHE_TTL = 2000;
 const CONV_CACHE_MAX = 1000;
-// 每分钟清理过期缓存条目，防止长期不活跃用户累积内存
+// 每分钟清理过期条目并做 LRU 淘汰：超过容量时删最旧的 10%，
+// 而非 clear() 全清（全清会引发一次缓存雪崩，所有用户同时穿透 DB）。
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of convCache) {
     if (now - val.ts >= CONV_CACHE_TTL) convCache.delete(key);
   }
-  if (convCache.size > CONV_CACHE_MAX) convCache.clear();
+  if (convCache.size > CONV_CACHE_MAX) {
+    // 按 ts 升序排列，删掉最旧的 10%
+    const evictCount = Math.ceil(convCache.size * 0.1);
+    const sorted = [...convCache.entries()].sort((a, b) => a[1].ts - b[1].ts);
+    for (let i = 0; i < evictCount; i++) convCache.delete(sorted[i][0]);
+  }
 }, 60_000).unref();
 
 // 失效某会话所有成员的会话列表缓存。

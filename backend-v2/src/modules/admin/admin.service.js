@@ -7,6 +7,7 @@ const { badRequest, notFound, unauthorized } = require('../../utils/http');
 const { purgeConversation } = require('../messages/shared');
 const moments = require('../moments/moments.service');
 const wallet = require('../wallet/wallet.service');
+const { invalidateUser } = require('../../utils/userStatusCache');
 
 // ── 凭证校验（恒定时间比较，防时序侧信道）──────────────────────
 function timingSafeEqual(a, b) {
@@ -116,6 +117,7 @@ function setBanned(io, id, banned) {
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
   if (!user) throw notFound('用户不存在');
   db.prepare('UPDATE users SET banned=? WHERE id=?').run(banned ? 1 : 0, id);
+  invalidateUser(id); // 驱逐状态缓存，封禁立即生效
   if (banned && io) io.to(`user_${id}`).disconnectSockets(true);
   return { id, banned: banned ? 1 : 0 };
 }
@@ -128,6 +130,7 @@ async function resetPassword(io, id, newPassword) {
   if (!user) throw notFound('用户不存在');
   const hash = await bcrypt.hash(newPassword, 12);
   db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, Math.floor(Date.now() / 1000), id);
+  invalidateUser(id); // 驱逐状态缓存，令旧 JWT 立即失效
   // 踢掉该用户所有会话并强制断开 socket，使旧 JWT 立即失效
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(id);
   if (io) io.to(`user_${id}`).disconnectSockets(true);
@@ -216,6 +219,7 @@ function deleteUser(io, id) {
     `).run();
     db.prepare('DELETE FROM users WHERE id=?').run(id);
   })();
+  invalidateUser(id); // 驱逐状态缓存
   if (io) io.to(`user_${id}`).disconnectSockets(true);
 }
 

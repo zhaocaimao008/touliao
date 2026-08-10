@@ -6,6 +6,7 @@ const config = require('../../config');
 const { db, generateVxinId, generateUserInviteCode } = require('../../db/connection');
 const { badRequest, notFound, forbidden } = require('../../utils/http');
 const { addToBlacklist } = require('../../utils/tokenBlacklist');
+const { invalidateUser } = require('../../utils/userStatusCache');
 
 // 运行时邀请码：支持多个逗号分隔（后台可改）
 function currentInviteCode() {
@@ -158,6 +159,7 @@ function deleteAllOtherSessions(userId, device, platform) {
     // 推进 password_changed_at，令所有被踢设备的 JWT（iat < 该时间戳）立即失效
     db.prepare('UPDATE users SET password_changed_at=? WHERE id=?').run(now, userId);
   })();
+  invalidateUser(userId); // 驱逐状态缓存，令被踢设备下次请求立即拦截
 }
 
 async function deleteAccount(userId, password) {
@@ -193,6 +195,7 @@ async function deleteAccount(userId, password) {
 
     db.prepare("UPDATE users SET username=?, phone=?, password='*', avatar='', bio='', wechat_id='', banned=1 WHERE id=?")
       .run(`已注销${rand}`, `deleted_${rand}@x`, userId);
+    invalidateUser(userId); // 驱逐状态缓存，令已注销账号立即被拒
     db.prepare('DELETE FROM contacts WHERE user_id=? OR contact_id=?').run(userId, userId);
     db.prepare('DELETE FROM blocked_users WHERE user_id=? OR blocked_id=?').run(userId, userId);
     db.prepare('DELETE FROM friend_requests WHERE from_id=? OR to_id=?').run(userId, userId);
@@ -222,6 +225,7 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
   // 将当前 token 加入黑名单，防止改密后旧 token 继续有效（最长 7 天）
   if (currentToken) await addToBlacklist(currentToken, jwt.decode(currentToken)?.exp);
+  invalidateUser(userId); // 驱逐状态缓存
   return signToken(user);
 }
 
@@ -270,6 +274,7 @@ async function resetPassword({ phone, inviteCode, newPassword }) {
   const resetAt = Math.floor(Date.now() / 1000);
   db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, resetAt, user.id);
   db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(user.id);
+  invalidateUser(user.id); // 驱逐状态缓存
   return { success: true };
 }
 

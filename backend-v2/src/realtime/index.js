@@ -65,8 +65,12 @@ module.exports = function setupRealtime(io, app) {
     socket.join(`user_${userId}`);
     setImmediate(() => {
       try {
-        const convIds = readDb.prepare('SELECT conversation_id FROM conversation_members WHERE user_id=?')
-          .all(userId).map(c => c.conversation_id);
+        // 限制加入房间数上限：极端情况下（用户在数千个群）无上限 join 会阻塞事件循环。
+        // 500 与 maxGroupMembers 配置一致，覆盖绝大多数正常使用场景。
+        const MAX_ROOMS = 500;
+        const convIds = readDb.prepare(
+          'SELECT conversation_id FROM conversation_members WHERE user_id=? LIMIT ?'
+        ).all(userId, MAX_ROOMS).map(c => c.conversation_id);
         if (convIds.length) socket.join(convIds);
       } catch (err) {
         console.error('[realtime] join rooms error:', err);

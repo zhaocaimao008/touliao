@@ -92,7 +92,9 @@ function enrich(viewerId, m, { likeLimit = 0, commentLimit = 0 } = {}) {
   const comments = db.prepare(
     `SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id=? ORDER BY mc.created_at${commentCap}`
   ).all(m.id);
-  const { visible_to, ...mPub } = m; // 不外泄分组可见名单
+  // 剥离 visible_to（分组可见名单，不外泄）与 likes（已废弃的 JSON 旧字段，
+  // 点赞真相源是 moment_likes 表；此处剥离防止 SELECT * 把死数据带进响应）
+  const { visible_to, likes: _legacyLikes, ...mPub } = m;
   return {
     ...mPub,
     images: safeImages(m.images),
@@ -152,7 +154,8 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
     const comments = commentsMap.get(m.id);
     const likeCount = likeCountMap.get(m.id);
     const commentCount = commentCountMap.get(m.id);
-    const { visible_to, ...mPub } = m; // 不外泄分组可见名单
+    // 剥离 visible_to（分组可见名单）与 likes（废弃 JSON 旧字段，真相源是 moment_likes 表）
+    const { visible_to, likes: _legacyLikes, ...mPub } = m;
     return {
       ...mPub,
       images: safeImages(m.images),

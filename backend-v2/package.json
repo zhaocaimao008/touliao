@@ -38,10 +38,10 @@
     ],
     "coverageThreshold": {
       "global": {
-        "statements": 42,
-        "branches": 25,
-        "functions": 35,
-        "lines": 46
+        "statements": 43,
+        "branches": 26,
+        "functions": 38,
+        "lines": 49
       }
     },
     "testTimeout": 15000
@@ -50,7 +50,6 @@
     "@aws-sdk/client-s3": "^3.1057.0",
     "@aws-sdk/s3-request-presigner": "^3.1057.0",
     "@sentry/node": "^10.57.0",
-    "@sentry/tracing": "^7.120.4",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.6.0",
     "cookie-parser": "^1.4.7",
@@ -65,6 +64,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "qrcode": "^1.5.4",
+    "rate-limit-redis": "4.3.1",
     "redis": "^6.0.0",
     "socket.io": "^4.7.4",
     "supertest": "^7.2.2",

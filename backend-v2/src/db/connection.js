@@ -30,21 +30,46 @@ applySchema(db);
 applyFts(db);
 
 // ── ID 生成器 ───────────────────────────────────────────────────
+// 优化：先从 DB 计算当前已用数量，据此估算冲突概率。
+// 空间使用率 < 80% 时纯随机（平均不到2次SELECT即命中）；
+// ≥ 80% 时改为「从随机起点顺序扫描」，O(剩余空间)而非最坏 O(N)随机重试。
+// 这避免了高密度下随机尝试退化为近全表扫描的问题。
+
 function generateGroupNumber() {
-  for (let i = 0; i < 1000; i += 1) {
-    const value = String(Math.floor(1000000 + Math.random() * 9000000));
+  // 群号 7 位：[1000000, 9999999]，共 9000000 个
+  const total = 9000000;
+  const used = db.prepare("SELECT COUNT(*) AS n FROM conversations WHERE group_number != '' AND group_number IS NOT NULL").get().n;
+  if (used >= total) throw new Error('群号已分配完');
+  if (used / total < 0.8) {
+    // 随机模式：低密度下碰撞率极低，平均 1/(1-fill) 次即命中
+    for (let i = 0; i < 2000; i++) {
+      const value = String(Math.floor(1000000 + Math.random() * 9000000));
+      if (!db.prepare('SELECT 1 FROM conversations WHERE group_number=?').get(value)) return value;
+    }
+  }
+  // 顺序扫描模式：从随机起点找第一个空位
+  const start = Math.floor(1000000 + Math.random() * 9000000);
+  for (let i = 0; i < total; i++) {
+    const value = String(1000000 + ((start - 1000000 + i) % total));
     if (!db.prepare('SELECT 1 FROM conversations WHERE group_number=?').get(value)) return value;
   }
   throw new Error('群号已分配完');
 }
 
 function generateVxinId() {
-  for (let i = 0; i < 1000; i += 1) {
-    const value = String(Math.floor(100000 + Math.random() * 900000));
-    if (!db.prepare('SELECT 1 FROM users WHERE wechat_id=?').get(value)) return value;
+  // v信号 6 位：[100000, 999999]，共 900000 个
+  const total = 900000;
+  const used = db.prepare("SELECT COUNT(*) AS n FROM users WHERE wechat_id != '' AND wechat_id IS NOT NULL AND length(wechat_id)=6").get().n;
+  if (used >= total) throw new Error('v信号已分配完');
+  if (used / total < 0.8) {
+    for (let i = 0; i < 2000; i++) {
+      const value = String(Math.floor(100000 + Math.random() * 900000));
+      if (!db.prepare('SELECT 1 FROM users WHERE wechat_id=?').get(value)) return value;
+    }
   }
-  for (let n = 100000; n <= 999999; n += 1) {
-    const value = String(n);
+  const start = Math.floor(100000 + Math.random() * 900000);
+  for (let i = 0; i < total; i++) {
+    const value = String(100000 + ((start - 100000 + i) % total));
     if (!db.prepare('SELECT 1 FROM users WHERE wechat_id=?').get(value)) return value;
   }
   throw new Error('v信号已分配完');
@@ -52,12 +77,18 @@ function generateVxinId() {
 
 // 生成一个未被占用的 6 位数字专属邀请码（用户级，避免与现有 invite_code 冲突）
 function generateUserInviteCode() {
-  for (let i = 0; i < 2000; i += 1) {
-    const value = String(Math.floor(100000 + Math.random() * 900000));
-    if (!db.prepare('SELECT 1 FROM users WHERE invite_code=?').get(value)) return value;
+  const total = 900000;
+  const used = db.prepare("SELECT COUNT(*) AS n FROM users WHERE invite_code IS NOT NULL AND invite_code != ''").get().n;
+  if (used >= total) throw new Error('专属邀请码已分配完');
+  if (used / total < 0.8) {
+    for (let i = 0; i < 2000; i++) {
+      const value = String(Math.floor(100000 + Math.random() * 900000));
+      if (!db.prepare('SELECT 1 FROM users WHERE invite_code=?').get(value)) return value;
+    }
   }
-  for (let n = 100000; n <= 999999; n += 1) {
-    const value = String(n);
+  const start = Math.floor(100000 + Math.random() * 900000);
+  for (let i = 0; i < total; i++) {
+    const value = String(100000 + ((start - 100000 + i) % total));
     if (!db.prepare('SELECT 1 FROM users WHERE invite_code=?').get(value)) return value;
   }
   throw new Error('专属邀请码已分配完');

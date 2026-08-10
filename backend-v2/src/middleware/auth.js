@@ -3,12 +3,16 @@
  * 鉴权中间件：仅从 httpOnly Cookie 读取 JWT，不接受 Authorization header
  * （Token 从不进响应体/localStorage，消除 XSS 窃取风险）。
  * 校验通过后顺带下发 CSRF 双提交 Cookie + header，供前端回传比对。
+ *
+ * 性能优化：banned / password_changed_at 通过 userStatusCache 进程内缓存（30s TTL），
+ * 命中时跳过 DB SELECT，大幅降低每请求的 SQLite 读压力。
  */
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const { csrfCookieOptions } = require('../utils/cookies');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
 const { readDb } = require('../db/connection');
+const { getUserStatus, setUserStatus } = require('../utils/userStatusCache');
 
 module.exports = function auth(req, res, next) {
   // Cookie first (web); fall back to Bearer header (Electron desktop)
@@ -26,11 +30,14 @@ module.exports = function auth(req, res, next) {
 
     try {
       const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
-      // 检查 token 签发时间是否早于密码修改时间（resetPassword / changePassword 均会更新）
-      // 校验账号状态：封禁即拒（与 socket 握手一致，否则被封用户凭既有 token 仍可
-      // 调用全部 HTTP 接口、甚至 /refresh 无限续签），及 token 是否早于密码修改时间。
+      // 校验账号状态：封禁即拒（与 socket 握手一致），及 token 是否早于密码修改时间。
+      // 优先命中进程内缓存（30s TTL），未命中才查 DB 并回填缓存。
       if (payload.id) {
-        const row = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(payload.id);
+        let row = getUserStatus(payload.id);
+        if (!row) {
+          row = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(payload.id);
+          if (row) setUserStatus(payload.id, row.banned, row.password_changed_at);
+        }
         if (row?.banned) {
           res.clearCookie(config.cookieName, { path: '/' });
           return res.status(403).json({ error: '账号已被封禁' });

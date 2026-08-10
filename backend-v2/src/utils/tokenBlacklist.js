@@ -3,12 +3,39 @@
  * Token 黑名单 —— 支持内存和 Redis 存储（生产用 Redis）
  * Logout 时加入黑名单，拒绝后续使用
  * 降级顺序：Redis → SQLite（持久，重启不丢）→ 内存（最后兜底）
+ *
+ * 性能优化：
+ *   cleanCache — 进程内 Map，缓存"确认干净"的 token，TTL=30s。
+ *   正常请求（非黑名单 token）命中 cleanCache 后跳过 Redis+SQLite 双查，
+ *   将每请求 2 次 I/O 降为 0。加入黑名单时立即驱逐对应条目，保证一致性。
  */
 
 const redis = require('redis');
 
 let redisClient = null;
 let useRedis = false;
+
+// ── 干净 token 进程内短期缓存（30s TTL）──────────────────────────
+const CLEAN_TTL_MS = 30_000;
+const cleanCache = new Map(); // token → expiresAtMs
+function _cleanGet(token) {
+  const exp = cleanCache.get(token);
+  if (exp === undefined) return false;
+  if (Date.now() < exp) return true;
+  cleanCache.delete(token);
+  return false;
+}
+function _cleanSet(token) {
+  cleanCache.set(token, Date.now() + CLEAN_TTL_MS);
+}
+function _cleanDel(token) {
+  cleanCache.delete(token);
+}
+// 每5分钟清理过期条目，防止 Map 随 token 无限增长
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, exp] of cleanCache) if (now >= exp) cleanCache.delete(k);
+}, 5 * 60_000).unref();
 
 // SQLite 延迟初始化（避免循环依赖：connection 模块在 schema 执行前加载）
 let _db = null;
@@ -63,6 +90,9 @@ async function addToBlacklist(token, expiresAt) {
   const ttl = expiresAt - now;
   if (ttl <= 0) return;
 
+  // 立即驱逐干净缓存，防止同一 token 在 30s 内继续被放行
+  _cleanDel(token);
+
   const key = `blacklist:${token}`;
   try {
     if (useRedis && redisClient) {
@@ -87,6 +117,9 @@ async function addToBlacklist(token, expiresAt) {
  * @returns {boolean}
  */
 async function isBlacklisted(token) {
+  // 命中干净缓存：该 token 在 30s 内已确认不在黑名单，直接跳过 I/O
+  if (_cleanGet(token)) return false;
+
   try {
     if (useRedis && redisClient) {
       const exists = await redisClient.exists(`blacklist:${token}`);
@@ -101,7 +134,10 @@ async function isBlacklisted(token) {
   try {
     const now = Math.floor(Date.now() / 1000);
     const row = getDb().prepare('SELECT 1 FROM token_blacklist WHERE token=? AND expires_at > ?').get(token, now);
-    return !!row;
+    if (row) return true;
+    // 两层均未命中 → 确认干净，写入短期缓存
+    _cleanSet(token);
+    return false;
   } catch (err) {
     console.error('[TokenBlacklist] SQLite check error:', err.message);
     throw err; // 双重降级失败：让 auth.js 返回 503，不 fail open
@@ -112,10 +148,18 @@ async function isBlacklisted(token) {
  * 清空黑名单（仅用于测试）
  */
 async function clear() {
+  // 同时清掉进程内干净缓存，确保测试隔离
+  cleanCache.clear();
   try {
     if (useRedis && redisClient) {
-      const keys = await redisClient.keys('blacklist:*');
-      if (keys.length > 0) await redisClient.del(keys);
+      // 用 SCAN 替代 KEYS，避免阻塞 Redis（KEYS 是 O(N) 阻塞命令）。
+      // redis v6 scanIterator 按批次 yield 键数组，需展开。
+      const toDelete = [];
+      for await (const batch of redisClient.scanIterator({ MATCH: 'blacklist:*', COUNT: 100 })) {
+        if (Array.isArray(batch)) toDelete.push(...batch);
+        else toDelete.push(batch);
+      }
+      if (toDelete.length > 0) await redisClient.del(toDelete);
     }
   } catch (err) {
     console.error('[TokenBlacklist] Clear error:', err.message);
