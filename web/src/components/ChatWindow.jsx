@@ -1578,6 +1578,24 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (file) handleFileSelect(file);
   };
 
+  // 截图并发送到当前会话：截图按钮 + 全局快捷键(Ctrl+Alt+A)共用同一入口。
+  // 主进程采集全屏 → 返回 base64 → 转 File → 复用 handleFileSelect 上传。
+  const captureAndSendScreenshot = useCallback(async () => {
+    const base64 = await import('../utils/electron').then(m => m.triggerScreenshot());
+    if (!base64) return;
+    const blob = await (await fetch(base64)).blob();
+    const file = new File([blob], `screenshot-${Date.now()}.png`, { type: 'image/png' });
+    handleFileSelect(file);
+  }, [handleFileSelect]);
+
+  // 全局快捷键触发的截图：只有聊天窗打开时才发送到当前会话（ChatWindow 挂载即代表有会话）。
+  useEffect(() => {
+    if (!window.__ELECTRON_CONFIG__) return;
+    const onShortcut = () => { captureAndSendScreenshot(); };
+    window.addEventListener('electron:shortcut-screenshot', onShortcut);
+    return () => window.removeEventListener('electron:shortcut-screenshot', onShortcut);
+  }, [captureAndSendScreenshot]);
+
   // 粘贴直接发送：图片（截图/表情包）+ 文档/文件（从文件管理器复制的 PDF/Word/压缩包等）。
   // 剪贴板里的文件项 kind==='file'；纯文本(kind==='string')不拦截，正常粘贴进输入框。
   const handlePaste = useCallback((e) => {
@@ -2401,20 +2419,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               className="wc-tool-btn"
               title="截图（快捷键可在 设置 → 快捷键 中自定义）"
               aria-label="截图"
-              onClick={async () => {
-                const base64 = await import('../utils/electron').then(m => m.triggerScreenshot());
-                if (!base64) return;
-                // 将截图作为文件上传
-                const blob = await (await fetch(base64)).blob();
-                const file = new File([blob], `screenshot-${Date.now()}.png`, { type: 'image/png' });
-                // 复用文件上传逻辑
-                const hiddenInput = document.createElement('input');
-                hiddenInput.type = 'file';
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                hiddenInput.files = dt.files;
-                handleFileUpload({ target: hiddenInput });
-              }}
+              onClick={() => { captureAndSendScreenshot(); }}
             ><svg viewBox="0 0 24 24" className="wc-tool-svg"><path d="M3 5v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2zm16 0v14H5V5h14zm-2 4.5c0 .83-.67 1.5-1.5 1.5S14 10.33 14 9.5 14.67 8 15.5 8s1.5.67 1.5 1.5zM12 19l5-6H7l5 6z"/></svg></button>
           )}
 

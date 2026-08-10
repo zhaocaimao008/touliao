@@ -12,10 +12,8 @@
 export function initElectronFeatures() {
   if (!window.__ELECTRON_CONFIG__) return;
 
-  // 截图快捷键：主进程通过 IPC 通知渲染进程（不再用 executeJavaScript）
-  window.addEventListener('electron:shortcut-screenshot', () => {
-    triggerScreenshot().catch(() => {});
-  });
+  // 截图快捷键(electron:shortcut-screenshot)由 ChatWindow 直接监听并发送到当前会话，
+  // 此处不再兜底截图——否则会重复采集一次（截两张图）。
 
   // 更新进度日志
   window.addEventListener('electron:update-available',  (e) => console.log(`[electron] 新版本 ${e.detail?.version} 可用`));
