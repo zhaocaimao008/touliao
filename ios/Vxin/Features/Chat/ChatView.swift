@@ -534,6 +534,9 @@ struct ChatView: View {
             Button { showFuncPanel = false; showFileImporter = true } label: { funcItem(emoji: "📎", label: "文件") }
                 .accessibilityIdentifier("chat-attach-file")
                 .accessibilityLabel("发送文件")
+            Button { captureAndSend() } label: { funcItem(emoji: "📷", label: "截屏") }
+                .accessibilityIdentifier("chat-attach-screenshot")
+                .accessibilityLabel("截屏并发送")
             Button { showFuncPanel = false; showRedPacketSend = true } label: { funcItem(emoji: "🧧", label: "红包") }
                 .accessibilityIdentifier("chat-attach-redpacket")
                 .accessibilityLabel("发红包")
@@ -629,6 +632,22 @@ struct ChatView: View {
             let jpeg = image?.jpegData(compressionQuality: 0.85) ?? data
             let name = "image_\(Int(Date().timeIntervalSince1970)).jpg"
             vm.upload(data: jpeg, fileName: name, mimeType: "image/jpeg", localType: "image", preview: image)
+        }
+    }
+
+    /// App 内截当前聊天界面并直接发送（不经相册）。
+    /// 先收起功能面板，待界面渲染完成后再截图，避免把面板拍进去。
+    private func captureAndSend() {
+        showFuncPanel = false
+        // 等一拍让面板收起动画完成、界面稳定，再截屏
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            guard let image = ScreenshotHelper.captureKeyWindow(),
+                  let png = image.pngData() else {
+                vm.error = "截图失败"
+                return
+            }
+            let name = "screenshot_\(Int(Date().timeIntervalSince1970)).png"
+            vm.upload(data: png, fileName: name, mimeType: "image/png", localType: "image", preview: image)
         }
     }
 
