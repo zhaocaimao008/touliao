@@ -158,6 +158,100 @@ suspend fun copyImageToClipboard(context: Context, url: String?) {
     }
 }
 
+/**
+ * 分享到第三方软件（微信/QQ/邮件等）：图片/视频/文件/文档。
+ * 做法：先把资源落到 cache/share（图片走 Coil 复用鉴权栈；其它走 OkHttp 流式下载，
+ *   url 需已带 ?token= 鉴权），再用 FileProvider 授出 content:// URI，
+ *   最后 Intent.ACTION_SEND 拉起系统分享面板。
+ * 不能直接分享 http 链接（对方 App 拿不到鉴权、也不是「文件分享」体验）。
+ *
+ * @param mime  资源 MIME（拿不到会从扩展名推断，兜底 application/octet-stream）
+ */
+suspend fun shareFile(context: Context, url: String?, filename: String?, mime: String? = null) {
+    if (url.isNullOrBlank()) return
+    val result = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = java.io.File(context.cacheDir, "share").apply { mkdirs() }
+            // 按文件名落盘并清洗非法字符
+            val name = downloadName(filename, Uri.parse(url))
+            val file = java.io.File(dir, name)
+
+            val ext = name.substringAfterLast('.', "").lowercase()
+            val resolvedMime = mime
+                ?: (if (ext.isNotBlank()) MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) else null)
+                ?: "application/octet-stream"
+
+            if (resolvedMime.startsWith("image/")) {
+                // 图片：走 Coil 复用应用鉴权/缓存栈拿原图
+                val request = ImageRequest.Builder(context)
+                    .data(url).allowHardware(false).build()
+                val res = context.imageLoader.execute(request)
+                if (res !is SuccessResult) throw IllegalStateException("图片加载失败")
+                val bitmap = (res.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                    ?: throw IllegalStateException("无法获取图片数据")
+                val isPng = resolvedMime == "image/png" || ext == "png"
+                java.io.FileOutputStream(file).use { out ->
+                    bitmap.compress(
+                        if (isPng) android.graphics.Bitmap.CompressFormat.PNG else android.graphics.Bitmap.CompressFormat.JPEG,
+                        95, out,
+                    )
+                }
+            } else {
+                // 视频/文件/文档：OkHttp 流式下载（url 已带鉴权 token）
+                val client = okhttp3.OkHttpClient()
+                val req = okhttp3.Request.Builder().url(url).build()
+                client.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IllegalStateException("下载失败 HTTP ${resp.code}")
+                    val body = resp.body ?: throw IllegalStateException("空响应")
+                    file.outputStream().use { out -> body.byteStream().copyTo(out) }
+                }
+            }
+
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", file,
+            )
+            Pair(uri, resolvedMime)
+        }
+    }
+    result.onSuccess { (uri, resolvedMime) ->
+        withContext(Dispatchers.Main) {
+            runCatching {
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = resolvedMime
+                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = android.content.Intent.createChooser(send, "分享到")
+                    .apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+                context.startActivity(chooser)
+            }.onFailure {
+                Toast.makeText(context, "分享失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }.onFailure {
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "分享失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+/** 分享纯文本到第三方软件。 */
+fun shareText(context: Context, text: String?) {
+    if (text.isNullOrBlank()) return
+    runCatching {
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, text)
+        }
+        context.startActivity(
+            android.content.Intent.createChooser(send, "分享到")
+                .apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) },
+        )
+    }.onFailure {
+        Toast.makeText(context, "分享失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+    }
+}
+
 /** 选定下载文件名：优先用原始文件名；无名/无扩展名则用 URL 末段(uuid.ext)补全；并清洗非法字符。 */
 private fun downloadName(filename: String?, url: Uri): String {
     val urlName = url.lastPathSegment.orEmpty()

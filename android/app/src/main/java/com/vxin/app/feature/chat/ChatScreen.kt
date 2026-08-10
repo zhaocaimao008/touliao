@@ -551,6 +551,19 @@ fun ChatScreen(
                             canEdit = viewModel.canEdit(msg),
                             onEdit = { editTarget = msg },
                             onForward = { forwardTarget = msg; viewModel.loadForwardTargets() },
+                            onShare = {
+                                if (msg.type == "text") {
+                                    com.vxin.app.core.util.shareText(context, msg.content)
+                                } else {
+                                    scope.launch {
+                                        com.vxin.app.core.util.shareFile(
+                                            context,
+                                            viewModel.resolveMediaUrl(msg.file_url),
+                                            msg.content,
+                                        )
+                                    }
+                                }
+                            },
                             onCollect = { viewModel.collectMessage(msg) },
                             highlighted = highlightedMsgId == msg.id,
                             onImageClick = {
@@ -866,21 +879,37 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
                 Text("${pagerState.currentPage + 1}/${images.size}", color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp))
             }
-            Text(
-                "保存图片",
-                color = Color.White,
-                fontSize = com.vxin.app.ui.theme.VxinTextSize.base,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 40.dp, end = 16.dp)
-                    .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card))
-                    .clickable {
-                        scope.launch {
-                            com.vxin.app.core.util.saveImageToGallery(context, images.getOrNull(pagerState.currentPage))
+            Row(
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp, end = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    "分享",
+                    color = Color.White,
+                    fontSize = com.vxin.app.ui.theme.VxinTextSize.base,
+                    modifier = Modifier
+                        .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card))
+                        .clickable {
+                            scope.launch {
+                                com.vxin.app.core.util.shareFile(context, images.getOrNull(pagerState.currentPage), null, "image/jpeg")
+                            }
                         }
-                    }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+                Text(
+                    "保存图片",
+                    color = Color.White,
+                    fontSize = com.vxin.app.ui.theme.VxinTextSize.base,
+                    modifier = Modifier
+                        .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card))
+                        .clickable {
+                            scope.launch {
+                                com.vxin.app.core.util.saveImageToGallery(context, images.getOrNull(pagerState.currentPage))
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
         }
     }
 }
@@ -954,6 +983,7 @@ private fun MessageBubble(
     canEdit: Boolean = false,
     onEdit: () -> Unit = {},
     onForward: () -> Unit = {},
+    onShare: () -> Unit = {},
     onCollect: () -> Unit = {},
     onImageClick: () -> Unit = {},
     onNudge: () -> Unit = {},
@@ -1074,6 +1104,10 @@ private fun MessageBubble(
                     DropdownMenuItem(text = { Text("回复") }, onClick = { onReply(); menuOpen = false })
                     if (msg.type != "red_packet") {
                         DropdownMenuItem(text = { Text("转发") }, onClick = { onForward(); menuOpen = false })
+                    }
+                    // 分享到第三方软件：文本 + 图片/视频/文件/文档
+                    if (msg.type == "text" || (msg.type in listOf("image", "video", "file") && !msg.file_url.isNullOrBlank())) {
+                        DropdownMenuItem(text = { Text("分享到…") }, onClick = { onShare(); menuOpen = false })
                     }
                     if (canEdit) {
                         DropdownMenuItem(text = { Text("编辑") }, onClick = { onEdit(); menuOpen = false })
