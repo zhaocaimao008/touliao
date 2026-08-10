@@ -709,7 +709,7 @@ function PrivacySettings({ user, onBack }) {
   const [settings, setSettings] = useState({
     // 仅保留后端 serializeSettings 真实支持的开关（对齐 Android/iOS）
     addByVxinId: true, addByPhone: true, requireVerify: true,
-    noDirectGroupInvite: false,
+    noDirectGroupInvite: false, profileVisible: true, blockUnknownMessages: false,
   });
 
   useEffect(() => {
@@ -754,6 +754,10 @@ function PrivacySettings({ user, onBack }) {
             right={<Toggle checked={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
           <CRow label="不允许好友直接邀请我进群" desc="开启后好友无法把你直接拉进群，需你扫码/点链接自行加入"
             right={<Toggle checked={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
+          <CRow label="向陌生人展示个人信息" desc="关闭后非好友无法查看你的签名等资料"
+            right={<Toggle checked={settings.profileVisible} onChange={v => setFlag('profileVisible', v)} />} />
+          <CRow label="屏蔽陌生人消息" desc="开启后仅好友可以给你发消息"
+            right={<Toggle checked={settings.blockUnknownMessages} onChange={v => setFlag('blockUnknownMessages', v)} />} />
         </Card>
       </div>
     </PageBg>

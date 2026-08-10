@@ -4,17 +4,20 @@ import { playMessageTone } from '../utils/notifySound';
 import './Home.css';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
-import ChatWindow from '../components/ChatWindow';
 import ChatWindowBoundary from '../components/ChatWindowBoundary';
 import ContactList from '../components/ContactList';
 import Profile from '../components/Profile';
 import GlobalSearch from '../components/GlobalSearch';
 // 非常驻的重型面板/模态框懒加载，减小首屏 chunk（各自本地 Suspense 兜底）
+// ChatWindow(~2700 行)仅在选中会话后才渲染，懒加载可显著缩小 Home 首屏 chunk。
+const ChatWindow    = lazy(() => import('../components/ChatWindow'));
 const Moments       = lazy(() => import('../components/Moments'));
 const CallHistory   = lazy(() => import('../components/CallHistory'));
 const CallModal     = lazy(() => import('../components/CallModal'));
 const Collections   = lazy(() => import('../components/Collections'));
 const AddFriendModal = lazy(() => import('../components/AddFriendModal'));
+const MentionList   = lazy(() => import('../components/MentionList'));
+const ScanQR        = lazy(() => import('../components/ScanQR'));
 import Avatar from '../components/Avatar';
 import AuthImage from '../components/AuthImage';
 import ReconnectingBanner from '../components/ReconnectingBanner';
@@ -79,9 +82,9 @@ const TABS = [
   { key: 'me',        Icon: IcoMe,       label: '我' },
 ];
 
-// 朋友圈 / 通话记录 / 收藏：功能代码保留，暂在前端隐藏。
-// 需恢复入口时把对应 key 从此集合移除即可。
-const HIDDEN_TABS = new Set(['calls', 'moments', 'favorites']);
+// 前端硬隐藏的 tab（此集合为空时全部由后端 features 开关控制）。
+// 朋友圈/收藏/通话为完整功能，恢复由后端 features.moments / features.collect 开关决定。
+const HIDDEN_TABS = new Set();
 const visibleTabs = (features) =>
   TABS.filter(t => !HIDDEN_TABS.has(t.key) && (!t.feature || features[t.feature] !== false));
 
@@ -517,6 +520,8 @@ export default function Home() {
   const [tab, setTab] = useState('chats');
   const [features, setFeatures] = useState({ moments: true, collect: true });
   const [netSearchQ, setNetSearchQ] = useState(null); // null=关闭；字符串=带词打开网络搜索
+  const [showMentions, setShowMentions] = useState(false); // @我的消息聚合面板
+  const [showScan, setShowScan] = useState(false);          // 扫一扫入群
   const [activeConv, setActiveConv] = useState(null);
   const [unread, setUnread] = useState({});
   const [friendReqCount, setFriendReqCount] = useState(0);
@@ -540,13 +545,32 @@ export default function Home() {
     setTab('chats');
   }, []);
 
+  // @我的消息：点某条 → 拉取会话信息并打开、滚动定位到该消息
+  const handleJumpToMention = useCallback(async ({ convId, msgId }) => {
+    if (!convId) return;
+    setShowMentions(false);
+    try {
+      const { data } = await axios.get('/api/messages/conversations');
+      const conv = Array.isArray(data) ? data.find(c => c.id === convId) : null;
+      if (conv) {
+        handleSelectConv({ ...conv, scrollToId: msgId });
+      } else {
+        // 兜底：仅凭 id 打开，ChatWindow 会自行拉取历史并按 scrollToId 定位
+        handleSelectConv({ id: convId, type: 'group', name: '', scrollToId: msgId });
+      }
+    } catch {
+      handleSelectConv({ id: convId, type: 'group', name: '', scrollToId: msgId });
+    }
+  }, [handleSelectConv]);
+
   useEffect(() => {
     const handler = (e) => {
-      const { conversationId } = e.detail || {};
+      const { conversationId, scrollToId } = e.detail || {};
       if (!conversationId) return;
       axios.get('/api/messages/conversations').then(r => {
         const conv = r.data.find(c => c.id === conversationId);
-        if (conv) handleSelectConv(conv);
+        // scrollToId 存在时透传给 ChatWindow，定位到原消息（收藏跳转用）
+        if (conv) handleSelectConv(scrollToId ? { ...conv, scrollToId } : conv);
       }).catch(() => {});
     };
     window.addEventListener('vxin:open-conversation', handler);
@@ -777,7 +801,7 @@ export default function Home() {
   const renderMain = () => {
     switch (tab) {
       case 'chats':
-        return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} convRefreshKey={convRefreshKey} />;
+        return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} convRefreshKey={convRefreshKey} onOpenMentions={() => setShowMentions(true)} />;
       case 'contacts':
         return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} onAddFriendConsumed={handleAddFriendConsumed} />;
       case 'moments':
@@ -824,6 +848,19 @@ export default function Home() {
     if (tab !== 'contacts') handleTabChange('contacts');
     setAddFriendRequest(n => n + 1);
   };
+  const handleScan = () => {
+    closeAddMenu();
+    setShowScan(true);
+  };
+  // 扫码入群成功回调：带 convId 则打开该群会话
+  const handleScanDone = useCallback((convId) => {
+    setShowScan(false);
+    if (convId) {
+      window.dispatchEvent(new CustomEvent('vxin:open-conversation', {
+        detail: { conversationId: convId },
+      }));
+    }
+  }, []);
   // 稳定引用：ContactList 消费"添加朋友"信号后复位为 0（避免 effect 依赖每帧变化）
   const handleAddFriendConsumed = useCallback(() => setAddFriendRequest(0), []);
 
@@ -864,6 +901,9 @@ export default function Home() {
             <div className="home-add-divider" />
             <AddDropItem icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
               label="添加朋友" onClick={handleAddFriend} />
+            <div className="home-add-divider" />
+            <AddDropItem testid="scan-qr-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 0h3v3h-2v-1h-1v-2zm5 5h3v3h-3v-3zm-5 0h3v3h-3v-3z"/></svg>}
+              label="扫一扫" onClick={handleScan} />
           </div>
         </>
       )}
@@ -873,6 +913,22 @@ export default function Home() {
       )}
       {netSearchQ !== null && (
         <Suspense fallback={null}><AddFriendModal initialQuery={netSearchQ} onClose={() => setNetSearchQ(null)} /></Suspense>
+      )}
+      {showMentions && (
+        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowMentions(false)}>
+          <div role="dialog" aria-modal="true" aria-label="@我的消息"
+            style={{ width: 'min(440px, 92vw)', height: 'min(70vh, 640px)', background: 'var(--bg-panel)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,.28)' }}
+            onClick={e => e.stopPropagation()}>
+            <Suspense fallback={null}>
+              <MentionList onClose={() => setShowMentions(false)} onJumpToMsg={handleJumpToMention} />
+            </Suspense>
+          </div>
+        </div>
+      )}
+      {showScan && (
+        <Suspense fallback={null}>
+          <ScanQR onClose={handleScanDone} />
+        </Suspense>
       )}
     </>
   );
@@ -889,7 +945,9 @@ export default function Home() {
         {activeConv ? (
           <div className="m-chat-page">
             <ChatWindowBoundary convId={activeConv.id}>
-              <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={handleMobileBack} onStartCall={handleStartCall} />
+              <Suspense fallback={<div className="wc-lazy-pane" />}>
+                <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={handleMobileBack} onStartCall={handleStartCall} />
+              </Suspense>
             </ChatWindowBoundary>
           </div>
         ) : (
@@ -925,7 +983,7 @@ export default function Home() {
                 ) : tab === 'chats' ? (
                   <ChatList onSelectConv={handleMobileSelectConv} activeConvId={activeConv?.id}
                     unread={unread} searchQuery={search}
-                    convRefreshKey={convRefreshKey} />
+                    convRefreshKey={convRefreshKey} onOpenMentions={() => setShowMentions(true)} />
                 ) : renderMain()}
               </div>
             </div>
@@ -1027,7 +1085,9 @@ export default function Home() {
             {activeConv
               ? (
                 <ChatWindowBoundary convId={activeConv.id}>
-                  <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} />
+                  <Suspense fallback={<div className="wc-lazy-pane" />}>
+                    <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} />
+                  </Suspense>
                 </ChatWindowBoundary>
               )
               : <WcEmpty />

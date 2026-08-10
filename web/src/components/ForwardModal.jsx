@@ -6,7 +6,10 @@ import { showToast } from '../utils/toast';
 import useFocusTrap from '../hooks/useFocusTrap';
 import './ForwardModal.css';
 
-export default function ForwardModal({ message, onClose }) {
+export default function ForwardModal({ message, messages, onClose }) {
+  // 支持单条(message)与多条(messages)转发；统一成数组处理
+  const msgList = Array.isArray(messages) && messages.length ? messages : (message ? [message] : []);
+  const primaryMsg = msgList[0] || null;
   const trapRef = useFocusTrap();
   const [tab, setTab] = useState('friends');
   const [friends, setFriends] = useState([]);
@@ -116,13 +119,14 @@ export default function ForwardModal({ message, onClose }) {
   };
 
   const forward = async () => {
-    if (selected.size === 0) return;
+    if (selected.size === 0 || msgList.length === 0) return;
     setSending(true);
     try {
-      const { data } = await axios.post('/api/messages/forward', {
-        msgId: message.id,
-        conversationIds: [...selected]
-      });
+      // 多条走 msgIds，单条走 msgId（后端两者都兼容）
+      const payload = { conversationIds: [...selected] };
+      if (msgList.length > 1) payload.msgIds = msgList.map(m => m.id);
+      else payload.msgId = msgList[0].id;
+      const { data } = await axios.post('/api/messages/forward', payload);
       setSentCount(data.sent);
       setDone(true);
       setTimeout(onClose, 3000);
@@ -132,14 +136,18 @@ export default function ForwardModal({ message, onClose }) {
     setSending(false);
   };
 
+  const typePreview = (m) => {
+    if (!m) return '';
+    if (m.type === 'image') return '[图片]';
+    if (m.type === 'file') return `[文件] ${m.content}`;
+    if (m.type === 'voice') return '[语音]';
+    if (m.type === 'video') return '[视频]';
+    if (m.type === 'red_packet') return '[红包]';
+    return (m.content?.slice(0, 50) || '') + (m.content?.length > 50 ? '…' : '');
+  };
   const msgPreview = () => {
-    if (!message) return '';
-    if (message.type === 'image') return '[图片]';
-    if (message.type === 'file') return `[文件] ${message.content}`;
-    if (message.type === 'voice') return '[语音]';
-    if (message.type === 'video') return '[视频]';
-    if (message.type === 'red_packet') return '[红包]';
-    return message.content?.slice(0, 50) + (message.content?.length > 50 ? '…' : '');
+    if (msgList.length > 1) return `[逐条转发] 共 ${msgList.length} 条消息`;
+    return typePreview(primaryMsg);
   };
 
   const allFriendsSelected = filteredFriends.length > 0 && filteredFriends.every(f => isFriendSelected(f));

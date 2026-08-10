@@ -17,6 +17,9 @@ exports.createInviteLink = asyncHandler(async (req, res) =>
 exports.qrCode = asyncHandler(async (req, res) =>
   res.json(await svc.getQrCode(req.params.convId, req.user.id)));
 
+exports.joinPreview = asyncHandler(async (req, res) =>
+  res.json(svc.previewByToken(req.user.id, req.params.token)));
+
 exports.join = asyncHandler(async (req, res) =>
   res.json(svc.joinByToken(io(req), req.user.id, req.params.token)));
 

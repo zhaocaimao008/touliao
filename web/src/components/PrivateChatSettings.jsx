@@ -47,6 +47,24 @@ export default function PrivateChatSettings({ conversation, onClose, onConvUpdat
     } catch { showToast('设置失败', 'error'); }
   };
 
+  const exportChat = async () => {
+    setSaving(true);
+    try {
+      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/export`, { responseType: 'blob' });
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `聊天记录-${conversation.name || conversation.id}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (err) {
+      showToast(err.response?.data?.error || '导出失败', 'error');
+    }
+    setSaving(false);
+  };
+
   return (
     <div className="wc-settings-panel">
       <div className="wc-settings-header">
@@ -88,6 +106,10 @@ export default function PrivateChatSettings({ conversation, onClose, onConvUpdat
               <span className="wc-settings-row-action">图片 / 视频 / 文件 ›</span>
             </div>
           )}
+          <div className="wc-settings-row wc-settings-row-clickable" role="button" tabIndex={0} onClick={() => !saving && exportChat()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!saving) exportChat(); } }}>
+            <span className="wc-settings-row-label">导出聊天记录</span>
+            <span className="wc-settings-row-action">保存为 .txt ›</span>
+          </div>
           <div className="wc-settings-row">
             <span className="wc-settings-row-label">阅后即焚</span>
             <select

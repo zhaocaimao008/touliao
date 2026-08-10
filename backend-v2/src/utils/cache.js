@@ -43,10 +43,10 @@ function init() {
 
 // 缓存键生成器
 const keys = {
-  conversations: userId => `conv:${userId}`,
+  // 会话列表缓存改为 conversations.service 进程内 convCache（2s TTL + 成员级失效），
+  // 不再走 Redis；search 缓存键在 messages.service 内联拼接；userSessions 未启用。
+  // 此处仅保留真实在用的 user 键（users.service 的用户详情缓存）。
   user: userId => `user:${userId}`,
-  search: (userId, query) => `search:${userId}:${query}`,
-  userSessions: userId => `sessions:${userId}`,
 };
 
 // 获取缓存

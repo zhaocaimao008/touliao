@@ -145,6 +145,20 @@ setInterval(() => {
   if (convCache.size > CONV_CACHE_MAX) convCache.clear();
 }, 60_000).unref();
 
+// 失效某会话所有成员的会话列表缓存。
+// 发消息/转发/撤回等改变会话「最新消息/排序」的操作调用，使收发双方(群则全员)
+// 下次拉列表都能读到最新状态，而非等 2s TTL 自然过期。
+// 注：仅操作进程内 convCache（listConversations 真正读的缓存），一次带索引的成员查询。
+function invalidateConvCacheForConversation(convId) {
+  const members = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(convId);
+  for (const m of members) convCache.delete(m.user_id);
+}
+
+// 失效单个用户的会话列表缓存（仅影响自己的操作，如置顶/免打扰/清空）。
+function invalidateConvCacheForUser(userId) {
+  convCache.delete(userId);
+}
+
 async function listConversations(uid) {
   // 检查内存缓存（过期时主动删除，防止无限累积）
   const cached = convCache.get(uid);
@@ -317,8 +331,7 @@ async function setPinned(userId, convId, pinned) {
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET pinned=excluded.pinned
   `, [userId, convId, pinned ? 1 : 0]);
   // P2 优化：删除缓存，下次查询重新加载
-  convCache.delete(userId);
-  await cache.del(cache.keys.conversations(userId));
+  invalidateConvCacheForUser(userId);
 }
 
 async function setMuted(userId, convId, muted) {
@@ -329,8 +342,7 @@ async function setMuted(userId, convId, muted) {
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET muted=excluded.muted
   `, [userId, convId, muted ? 1 : 0]);
   // P2 优化：删除缓存，下次查询重新加载
-  convCache.delete(userId);
-  await cache.del(cache.keys.conversations(userId));
+  invalidateConvCacheForUser(userId);
 }
 
 // ── 聊天专属背景（按用户按会话）：空串/null = 清除，回退到全局默认 ──
@@ -341,8 +353,7 @@ async function setBackground(userId, convId, background) {
     INSERT INTO conversation_settings (user_id, conversation_id, background) VALUES (?, ?, ?)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET background=excluded.background
   `, [userId, convId, bg]);
-  convCache.delete(userId);
-  await cache.del(cache.keys.conversations(userId));
+  invalidateConvCacheForUser(userId);
   return { background: bg || '' };
 }
 
@@ -370,8 +381,7 @@ async function markRead(io, userId, convId, messageId) {
       last_read_message_id = excluded.last_read_message_id,
       manually_unread = 0
   `, [userId, convId, readAt, readMsgId]);
-  convCache.delete(userId);
-  cache.del(cache.keys.conversations(userId)).catch(() => {});
+  invalidateConvCacheForUser(userId);
 
   if (io) {
     io.to(convId).emit('message_read', { userId, conversationId: convId, readAt, lastReadMessageId: readMsgId });
@@ -387,8 +397,7 @@ async function markUnread(userId, convId) {
     INSERT INTO conversation_settings (user_id, conversation_id, manually_unread) VALUES (?, ?, 1)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET manually_unread=1
   `, [userId, convId]);
-  convCache.delete(userId);
-  cache.del(cache.keys.conversations(userId)).catch(() => {});
+  invalidateConvCacheForUser(userId);
 }
 
 // ── 阅后即焚：每个用户对某会话的独立销毁时间（秒）──────────────
@@ -400,8 +409,7 @@ async function setBurnAfter(userId, convId, seconds) {
     INSERT INTO conversation_settings (user_id, conversation_id, burn_after) VALUES (?, ?, ?)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET burn_after=excluded.burn_after
   `, [userId, convId, s]);
-  convCache.delete(userId);
-  cache.del(cache.keys.conversations(userId)).catch(() => {});
+  invalidateConvCacheForUser(userId);
   return { burn_after: s };
 }
 
@@ -510,4 +518,5 @@ module.exports = {
   getOrCreatePrivate, batchGetOrCreatePrivate, getOrCreateFileHelper, createGroup, listConversations, listMembers,
   unreadCounts, myGroups, setPinned, setMuted, setBackground, markRead, markUnread, setBurnAfter,
   clearConversation, clearAllConversations, media,
+  invalidateConvCacheForConversation, invalidateConvCacheForUser,
 };

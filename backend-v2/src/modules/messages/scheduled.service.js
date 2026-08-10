@@ -21,6 +21,7 @@ const { requireMember, buildMessage } = require('./shared');
 const { pushNewMessage } = require('../../utils/push');
 const broadcaster = require('../../realtime/broadcaster');
 const cache = require('../../utils/cache');
+const convSvc = require('../conversations/conversations.service');
 
 const MAX = config.limits.maxMsgLength;
 // 允许的提前量：最少 15 分钟，最多 30 天（任务书硬性区间）
@@ -79,7 +80,7 @@ async function deliverOne(sched) {
     [msgId, sched.conversation_id, sched.sender_id, sched.type, sched.content]
   );
   cache.delPattern(`search:*${sched.sender_id}*`).catch(() => {});
-  cache.del(cache.keys.conversations(sched.sender_id)).catch(() => {});
+  convSvc.invalidateConvCacheForConversation(sched.conversation_id);
 
   const msg = buildMessage(msgId);
   if (msg) {

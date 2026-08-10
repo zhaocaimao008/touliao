@@ -382,6 +382,20 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     } catch (e) { showToast(e.response?.data?.error || '清空聊天记录失败', 'error'); }
   };
 
+  const exportChat = async () => {
+    try {
+      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/export`, { responseType: 'blob' });
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `聊天记录-${info?.name || conversation.name || conversation.id}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) { showToast(e.response?.data?.error || '导出失败', 'error'); }
+  };
+
   /* 修改群头像 */
   const uploadAvatar = async (e) => {
     const file = e.target.files[0];
@@ -746,6 +760,14 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         <div className="gi-qr">
           <div className="gi-qr-row" role="button" tabIndex={0} onClick={loadQR} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadQR(); } }}>
             <span className="gi-text14">群二维码</span>
+            <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+          </div>
+        </div>
+
+        {/* 导出聊天记录 */}
+        <div className="gi-qr">
+          <div className="gi-qr-row" role="button" tabIndex={0} onClick={exportChat} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); exportChat(); } }}>
+            <span className="gi-text14">导出聊天记录</span>
             <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
           </div>
         </div>

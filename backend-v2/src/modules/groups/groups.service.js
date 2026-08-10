@@ -60,6 +60,23 @@ async function getQrCode(convId, userId) {
   return { qrCode, url, token: invite.token };
 }
 
+// 凭 token 预览群信息（不入群）：供扫码/链接落地页展示"是否加入该群"。
+function previewByToken(userId, token) {
+  const invite = db.prepare('SELECT * FROM group_invite_tokens WHERE token=? AND expires_at>?')
+    .get(token, Math.floor(Date.now() / 1000));
+  if (!invite) throw notFound('邀请链接无效或已过期');
+  const conv = db.prepare("SELECT id,name,avatar FROM conversations WHERE id=? AND type='group'").get(invite.conversation_id);
+  if (!conv) throw notFound('群聊不存在或已解散');
+  const memberCount = db.prepare('SELECT COUNT(*) AS n FROM conversation_members WHERE conversation_id=?').get(conv.id).n;
+  return {
+    conversationId: conv.id,
+    name: conv.name,
+    avatar: conv.avatar || '',
+    memberCount,
+    alreadyMember: isMember(conv.id, userId),
+  };
+}
+
 function joinByToken(io, userId, token) {
   const invite = db.prepare('SELECT * FROM group_invite_tokens WHERE token=? AND expires_at>?')
     .get(token, Math.floor(Date.now() / 1000));
@@ -339,7 +356,7 @@ function listPinned(convId, userId) {
 }
 
 module.exports = {
-  setNickname, createInviteLink, getQrCode, joinByToken,
+  setNickname, createInviteLink, getQrCode, previewByToken, joinByToken,
   updateInfo, setAvatar, invite, kick, leave, dissolve, info, manage, setRole, transferOwner,
   pinMessage, unpinMessage, listPinned,
 };

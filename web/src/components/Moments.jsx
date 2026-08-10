@@ -20,7 +20,7 @@ function ago(sec) {
 const CONTENT_LIMIT = 120;
 
 /* 单条动态（memo：仅当本卡片数据 m 变化时才重渲染，点赞/评论不再重刷整个 feed）*/
-const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments }) {
+const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments, onReport, onEdit }) {
   const [commenting, setCommenting] = useState(false);
   const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState(null); // { userId, username } | null：回复某条评论
@@ -62,8 +62,13 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
       <div className="wc-moment-body">
         <div className="wc-moment-header">
           <span className="wc-moment-name">{m.author?.username || '用户'}</span>
-          {m.user_id === meId && (
-            <button className="wc-moment-delete" onClick={() => onDelete(m)}>删除</button>
+          {m.user_id === meId ? (
+            <span style={{ display: 'inline-flex', gap: 8 }}>
+              <button className="wc-moment-delete" onClick={() => onEdit(m)}>编辑</button>
+              <button className="wc-moment-delete" onClick={() => onDelete(m)}>删除</button>
+            </span>
+          ) : (
+            <button className="wc-moment-delete" onClick={() => onReport(m)}>举报</button>
           )}
         </div>
         {m.content && (() => {
@@ -234,6 +239,9 @@ export default function Moments() {
   const [notifList, setNotifList] = useState(null); // null = 面板关闭；[] = 已打开
   const [showSettings, setShowSettings] = useState(false);
   const [visibleDays, setVisibleDays] = useState(0); // 最近 N 天可见：0=全部
+  const [editing, setEditing] = useState(null); // 正在编辑的动态 { id, content } | null
+  const [editText, setEditText] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
   const imgInputRef = useRef(null);
   const likingRef = useRef({});
   const imagesRef = useRef(images);
@@ -443,6 +451,38 @@ export default function Moments() {
     catch (e) { showToast(e.response?.data?.error || '删除失败', 'error'); }
   }, []);
 
+  const onReport = useCallback(async (m) => {
+    if (!(await showConfirm('举报这条动态？举报后将提交后台审核。'))) return;
+    try {
+      await axios.post(`/api/moments/${m.id}/report`, {});
+      showToast('已举报，感谢反馈', 'success');
+    } catch (e) {
+      showToast(e.response?.status === 409 ? '你已举报过该动态' : (e.response?.data?.error || '举报失败'), e.response?.status === 409 ? 'info' : 'error');
+    }
+  }, []);
+
+  const onEdit = useCallback((m) => {
+    setEditing(m);
+    setEditText(m.content || '');
+  }, []);
+
+  const saveEdit = async () => {
+    if (savingEdit || !editing) return;
+    const val = editText.trim();
+    if (!val) { showToast('内容不能为空', 'error'); return; }
+    if (val === (editing.content || '')) { setEditing(null); return; }
+    setSavingEdit(true);
+    try {
+      const { data } = await axios.put(`/api/moments/${editing.id}`, { content: val });
+      setList(p => p.map(x => x.id === editing.id ? { ...x, ...data } : x));
+      setEditing(null);
+    } catch (e) {
+      showToast(e.response?.data?.error || '保存失败', 'error');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const onDeleteComment = useCallback(async (m, c) => {
     // 删评论前确认，与「删除动态」及移动端一致，避免误删
     if (!(await showConfirm('删除这条评论？'))) return;
@@ -491,6 +531,32 @@ export default function Moments() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 编辑动态：仅改文字内容（图片保持不变） */}
+      {editing && (
+        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && !savingEdit && setEditing(null)}>
+          <div className="wc-modal" role="dialog" aria-modal="true" aria-label="编辑动态" style={{ maxWidth: 420, width: '90%' }}>
+            <div className="wc-modal-header">
+              <span className="wc-modal-title">编辑动态</span>
+              <button className="wc-modal-close" onClick={() => !savingEdit && setEditing(null)} aria-label="关闭">✕</button>
+            </div>
+            <div style={{ padding: 16 }}>
+              <textarea autoFocus value={editText} onChange={e => setEditText(e.target.value)}
+                rows={4} maxLength={5000} aria-label="编辑动态内容"
+                style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: 10, borderRadius: 'var(--radius-input)', border: '1px solid var(--border-default)', fontSize: 'var(--text-base)' }} />
+              {editing.images?.length > 0 && (
+                <div style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>图片不可编辑（{editing.images.length} 张）</div>
+              )}
+            </div>
+            <div style={{ padding: 12, textAlign: 'right', borderTop: '1px solid var(--divider)' }}>
+              <button className="wc-moment-editor-cancel" onClick={() => setEditing(null)} disabled={savingEdit} style={{ marginRight: 8 }}>取消</button>
+              <button className="wc-moment-editor-publish" onClick={saveEdit} disabled={savingEdit || !editText.trim()}>
+                {savingEdit ? '保存中…' : '保存'}
+              </button>
             </div>
           </div>
         </div>
@@ -634,7 +700,7 @@ export default function Moments() {
           list.map(m => (
             <MomentCard key={m.id} m={m} meId={meId}
               onLike={onLike} onComment={onComment} onDelete={onDelete} onDeleteComment={onDeleteComment}
-              onLoadComments={onLoadComments} />
+              onLoadComments={onLoadComments} onReport={onReport} onEdit={onEdit} />
           ))
         )}
       </div>

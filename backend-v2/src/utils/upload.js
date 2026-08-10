@@ -14,9 +14,10 @@ const fs       = require('fs');
 const fileType = require('file-type');
 const { v4: uuidv4 } = require('uuid');
 
-// 单文件上限：默认不限制（Infinity）；如需设安全上限可配环境变量 MAX_UPLOAD_BYTES。
-// diskStorage 边收边落盘、不整体入内存，故不限制不会撑爆内存（磁盘占用请自行留意）。
-const MAX_UPLOAD_BYTES = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || Infinity;
+// 单文件上限：环境变量覆盖，默认 200 MB。
+// diskStorage 边收边落盘不撑爆内存，但无上限会被恶意用户耗尽磁盘（DoS）。
+// 200 MB 对聊天文件（视频/文档）已充足；生产如需更大可设 MAX_UPLOAD_BYTES=524288000。
+const MAX_UPLOAD_BYTES = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || (200 * 1024 * 1024);
 
 // 魔数采样字节数：file-type 需足够样本才能识别 webm/ogg/mp3(ID3)/tiff 等（旧代码仅读 16 字节会漏判）。
 const MAGIC_SAMPLE_BYTES = 4100;

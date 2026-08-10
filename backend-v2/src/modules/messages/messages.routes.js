@@ -272,6 +272,26 @@ router.get ('/conversation/:convId/qr-code',     auth, grp.qrCode);
  *       200:
  *         description: Joined group successfully
  */
+/**
+ * @swagger
+ * /messages/join/{token}/preview:
+ *   get:
+ *     tags:
+ *       - Groups
+ *     summary: Preview group info by invite token (does not join)
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Group preview info
+ */
+router.get ('/join/:token/preview',              auth, grp.joinPreview);
 router.post('/join/:token',                      auth, joinGroupLimiter, grp.join);
 
 // ── 断线补拉 ────────────────────────────────────────────────────

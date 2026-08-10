@@ -82,6 +82,16 @@ export default function Collections() {
     catch (e) { showToast(e.response?.data?.error || '取消收藏失败', 'error'); }
   };
 
+  // 跳转到原消息：派发全局事件，由 Home 打开对应会话并滚动定位
+  const jumpToSource = (c) => {
+    const convId = c.extra?.source_conv_id;
+    const msgId = c.extra?.source_msg_id;
+    if (!convId) return;
+    window.dispatchEvent(new CustomEvent('vxin:open-conversation', {
+      detail: { conversationId: convId, scrollToId: msgId },
+    }));
+  };
+
   const renderContent = (c) => {
     if (c.type === 'image') {
       const url = mediaUrl(c.extra?.file_url || c.content);
@@ -152,8 +162,14 @@ export default function Collections() {
             <div style={{ marginBottom: 8 }}>{renderContent(c)}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>{formatDate(c.created_at)}</span>
-              <button onClick={() => remove(c.id)}
-                style={{ fontSize: 'var(--text-sm)', color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>取消收藏</button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {c.extra?.source_conv_id && (
+                  <button onClick={() => jumpToSource(c)}
+                    style={{ fontSize: 'var(--text-sm)', color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>跳转到原消息</button>
+                )}
+                <button onClick={() => remove(c.id)}
+                  style={{ fontSize: 'var(--text-sm)', color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>取消收藏</button>
+              </div>
             </div>
           </div>
         ))

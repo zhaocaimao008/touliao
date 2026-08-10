@@ -5,6 +5,7 @@ import { showToast, showConfirm } from '../utils/toast';
 import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
+import VideoPreview from './VideoPreview';
 import VirtualMessageList from './VirtualMessageList';
 import ChatHeader from './ChatHeader';
 import ConvSearchBar from './ConvSearchBar';
@@ -46,6 +47,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
 import { rememberAspect } from '../utils/imgDimCache';
 import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
+import { downloadFile } from '../utils/download';
 import './ChatWindow.css';
 
 const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
@@ -125,6 +127,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [showCardPicker, setShowCardPicker] = useState(false);  // 分享名片：联系人选择器
   const [cardContacts, setCardContacts] = useState([]);
   const [forwardMsg, setForwardMsg] = useState(null);
+  const [forwardMsgs, setForwardMsgs] = useState(null); // 多条转发：消息数组 | null
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [showTransfer,  setShowTransfer]  = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -161,6 +164,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [redPacketDetail, setRedPacketDetail] = useState(null);
   const [claiming, setClaiming] = useState(false);
   const [lightboxState, setLightboxState] = useState(null); // { urls, idx } or null
+  const [videoPreview, setVideoPreview] = useState(null);   // { url, name } or null
   const [isDragOver, setIsDragOver] = useState(false);
   // 定时发送弹窗
   const [showScheduleSend, setShowScheduleSend] = useState(false);
@@ -1782,6 +1786,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         startEdit(msg);
         break;
 
+      case 'download':
+        if (msg.file_url) {
+          const filename = msg.content || (msg.type === 'video' ? `video_${msg.id}.mp4` : `file_${msg.id}`);
+          downloadFile(msg.file_url, filename);
+        }
+        break;
+
       case 'forward':
         setForwardMsg(msg);
         break;
@@ -1828,7 +1839,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
       default:
         if (action === 'collect') {
-          const extra = msg.file_url ? { file_url: msg.file_url } : {};
+          // 带上来源会话/消息 id，收藏列表可「跳转到原消息」
+          const extra = { source_conv_id: conversation.id, source_msg_id: msg.id };
+          if (msg.file_url) extra.file_url = msg.file_url;
           await axios.post('/api/users/me/collections', { type: msg.type === 'text' ? 'text' : msg.type === 'image' ? 'image' : msg.type === 'video' ? 'video' : 'file', content: msg.content || msg.file_url || '', extra })
             .then(() => showToast('已收藏', 'success'))
             .catch(e => showToast(e.response?.data?.error || '收藏失败', 'error'));
@@ -1841,9 +1854,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 多选辅助（toggleMsgSelect 经 callbacksRef 注入，见下方）
   const exitMultiSelect = useCallback(() => { setMultiSelect(false); setSelectedMsgs(new Set()); }, []);
   const multiForward = useCallback(() => {
+    // 保持选中消息的时间顺序（messages 已按时间升序）
     const msgs = messages.filter(m => selectedMsgs.has(m.id));
-    if (msgs.length === 1) { setForwardMsg(msgs[0]); exitMultiSelect(); }
-    else showToast('请逐条转发（每次选一条）');
+    if (msgs.length === 0) return;
+    // 仅可转发类型（红包/名片以外的富媒体均可）；过滤后为空则提示
+    const FORWARDABLE = new Set(['text', 'image', 'voice', 'video', 'file', 'contact_card']);
+    const valid = msgs.filter(m => FORWARDABLE.has(m.type));
+    if (valid.length === 0) { showToast('所选消息不支持转发'); return; }
+    if (valid.length < msgs.length) showToast(`已跳过 ${msgs.length - valid.length} 条不可转发的消息`, 'info');
+    if (valid.length === 1) setForwardMsg(valid[0]);
+    else setForwardMsgs(valid);
+    exitMultiSelect();
   }, [messages, selectedMsgs, exitMultiSelect]);
   const multiDelete = useCallback(async () => {
     if (!await showConfirm(`确认撤回/删除选中的 ${selectedMsgs.size} 条消息？`)) return;
@@ -1984,6 +2005,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const idx = imageUrls.indexOf(clickedUrl);
     setLightboxState({ urls: imageUrls, idx: idx >= 0 ? idx : 0 });
   };
+  callbacksRef.current.setVideoUrl = (v) => setVideoPreview(v); // { url, name } → 全屏视频预览
   callbacksRef.current.setHighlightedMsgId = setHighlightedMsgId;
   callbacksRef.current.setShowUserProfile = setShowUserProfile;
   callbacksRef.current.openRedPacket = openRedPacket;
@@ -2064,6 +2086,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           initialIdx={lightboxState.idx}
           url={lightboxState.urls[lightboxState.idx]}
           onClose={() => setLightboxState(null)}
+        />
+      )}
+      {/* ── 视频全屏预览 ── */}
+      {videoPreview && (
+        <VideoPreview
+          url={videoPreview.url}
+          name={videoPreview.name}
+          onClose={() => setVideoPreview(null)}
         />
       )}
       {groupCall && (
@@ -2279,10 +2309,16 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         onCancelReply={cancelReply}
       />
 
-      {/* ── 转发弹窗 ── */}
+      {/* ── 转发弹窗（单条）── */}
       {forwardMsg && (
         <Suspense fallback={null}>
         <ForwardModal message={forwardMsg} onClose={() => setForwardMsg(null)} />
+        </Suspense>
+      )}
+      {/* ── 转发弹窗（多条逐条转发）── */}
+      {forwardMsgs && (
+        <Suspense fallback={null}>
+        <ForwardModal messages={forwardMsgs} onClose={() => setForwardMsgs(null)} />
         </Suspense>
       )}
 
@@ -2553,12 +2589,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                 {ctxMenu.msg.type === 'text' ? '复制' : '复制图片'}
               </div>
             )}
+            {/* 下载视频/文件：视频和文件消息显示下载按钮 */}
+            {(ctxMenu.msg.type === 'video' || ctxMenu.msg.type === 'file') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted && (
+              <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-download" onClick={() => ctxAction('download')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('download'); } }}>
+                {ctxMenu.msg.type === 'video' ? '下载视频' : '下载文件'}
+              </div>
+            )}
             {/* 转发：所有类型消息都可转发 */}
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>转发</div>
-            {/* 收藏功能暂在前端隐藏（逻辑保留，改为 true 即可恢复入口） */}
-            {/* eslint-disable-next-line no-constant-binary-expression -- 收藏入口暂隐藏，逻辑保留，改 true 即恢复 */}
-            {false && (
-              <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>收藏</div>
+            {/* 收藏：文字/图片/视频/文件消息可收藏到「我的收藏」 */}
+            {!ctxMenu.msg.deleted && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (
+              <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>收藏</div>
             )}
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('pin'); } }}>
               {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}

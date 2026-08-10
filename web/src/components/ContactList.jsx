@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense, lazy } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import UserProfile from './UserProfile';
 import './ContactList.css';
 import { GroupAvatar } from './GroupAvatar';
 import { useSocketCore } from '../contexts/SocketContext'; // 只订阅 socket，重连不触发无关 re-render
-import AddFriendModal from './AddFriendModal';
+// 懒加载：AddFriendModal 仅在点「添加朋友」时才渲染，避免打进 ContactList/Home 首屏 chunk
+const AddFriendModal = lazy(() => import('./AddFriendModal'));
 import { showToast, showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
 import { formatLastOnline } from '../utils/time';
@@ -376,7 +377,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       {activeChar && <div className="wc-alpha-bubble">{activeChar}</div>}
 
       {/* 添加好友弹窗 */}
-      {showAddFriend && <AddFriendModal onClose={() => setShowAddFriend(false)} />}
+      {showAddFriend && <Suspense fallback={null}><AddFriendModal onClose={() => setShowAddFriend(false)} /></Suspense>}
 
       {/* 查看联系人资料 */}
       {viewProfile && (

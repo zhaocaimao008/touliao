@@ -52,6 +52,9 @@ export default defineConfig(({ mode, command }) => ({
             if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'vendor-react';
             if (id.includes('socket.io')) return 'vendor-socket';
             if (id.includes('axios')) return 'vendor-axios';
+            // jsqr(~250KB) 仅被懒加载的 ScanQR 使用，单独成 chunk，
+            // 避免混入首屏 vendor；扫码时才拉取。
+            if (id.includes('jsqr')) return 'vendor-jsqr';
             return 'vendor';
           }
         },

@@ -5,6 +5,7 @@ import { downloadFile } from '../utils/download';
 import { format } from '../utils/time';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
+import VideoPreview from './VideoPreview';
 
 /**
  * 聊天文件聚合视图（抽屉面板）
@@ -87,7 +88,7 @@ export default function ChatFiles({ convId, onClose }) {
 
   const handleClick = (item) => {
     if (item.type === 'image' || item.type === 'video') {
-      setPreview({ url: mediaUrl(item.fileUrl), type: item.type });
+      setPreview({ url: mediaUrl(item.fileUrl), type: item.type, name: item.fileName });
     } else {
       downloadFile(mediaUrl(item.fileUrl), item.fileName || 'download');
     }
@@ -284,7 +285,9 @@ export default function ChatFiles({ convId, onClose }) {
       </div>
 
       {preview && (
-        <ImagePreview src={preview.url} onClose={() => setPreview(null)} />
+        preview.type === 'video'
+          ? <VideoPreview url={preview.url} name={preview.name} onClose={() => setPreview(null)} />
+          : <ImagePreview url={preview.url} onClose={() => setPreview(null)} />
       )}
     </div>
   );

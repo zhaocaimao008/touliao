@@ -12,6 +12,9 @@ const { collectionDedupKey } = require('../../utils/collections');
 const { isMember, requireMember, memberRole, buildMessage, privateSendBlockReason, strangerBlockReason } = require('./shared');
 const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
+// 会话列表缓存失效：发消息/转发/撤回改变会话「最新消息/排序」，需失效该会话所有成员
+// (收发双方/群全员)的会话列表缓存。conversations.service 只 require messages/shared，无循环依赖。
+const convSvc = require('../conversations/conversations.service');
 
 const MAX = config.limits.maxMsgLength;
 
@@ -216,7 +219,8 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 
   // #4 尾延迟：缓存失效是非关键写，改后台异步执行，不阻塞响应
   cache.delPattern(`search:*${userId}*`).catch(() => {});
-  cache.del(cache.keys.conversations(userId)).catch(() => {});
+  // 失效该会话所有成员的会话列表缓存（收发双方/群全员），修复接收方列表 2s 内陈旧
+  convSvc.invalidateConvCacheForConversation(convId);
 
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
@@ -246,21 +250,31 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
     [id, convId, userId, type, content, fileUrl, reply_to_id || null]
   );
   cache.delPattern(`search:*${userId}*`).catch(() => {});
-  cache.del(cache.keys.conversations(userId)).catch(() => {});
+  convSvc.invalidateConvCacheForConversation(convId);
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
   return msg;
 }
 
 // ── 转发 ────────────────────────────────────────────────────────
-async function forward(io, userId, { msgId, conversationIds }) {
-  if (!msgId || !conversationIds?.length) throw badRequest('参数缺失');
+async function forward(io, userId, { msgId, msgIds, conversationIds }) {
+  // 兼容单条(msgId)与多条(msgIds)转发；统一去重、保序
+  const rawIds = Array.isArray(msgIds) && msgIds.length ? msgIds : (msgId ? [msgId] : []);
+  const ids = [...new Set(rawIds.filter(Boolean))];
+  if (!ids.length || !conversationIds?.length) throw badRequest('参数缺失');
   if (conversationIds.length > 20) throw badRequest('单次转发最多20个会话');
+  if (ids.length > 30) throw badRequest('单次最多转发30条消息');
   const FORWARDABLE_TYPES = new Set(['text', 'image', 'voice', 'video', 'file', 'contact_card']);
-  const msg = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(msgId);
-  if (!msg) throw notFound('消息不存在');
-  if (!FORWARDABLE_TYPES.has(msg.type)) throw badRequest('该类型消息不支持转发');
-  requireMember(msg.conversation_id, userId, '无权转发该消息');
+
+  // 逐条校验消息存在、类型可转发、且转发者是所在会话成员
+  const msgs = [];
+  for (const id of ids) {
+    const m = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(id);
+    if (!m) throw notFound('消息不存在');
+    if (!FORWARDABLE_TYPES.has(m.type)) throw badRequest('该类型消息不支持转发');
+    requireMember(m.conversation_id, userId, '无权转发该消息');
+    msgs.push(m);
+  }
 
   const insertSql = 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration) VALUES (?,?,?,?,?,?,?)';
   const ops = [];
@@ -278,23 +292,31 @@ async function forward(io, userId, { msgId, conversationIds }) {
   const roleMap = new Map(
     db.prepare(`SELECT conversation_id, role FROM conversation_members WHERE user_id=? AND conversation_id IN (${placeholders})`).all(userId, ...conversationIds).map(r => [r.conversation_id, r.role])
   );
-  conversationIds.forEach(convId => {
-    if (!memberConvIds.has(convId)) return;
-    if (muteMap.get(convId) && roleMap.get(convId) === 'member') return;
+  // 目标会话过滤一次（与具体消息无关），再对每条消息生成插入
+  const allowedConvIds = conversationIds.filter(convId => {
+    if (!memberConvIds.has(convId)) return false;
+    if (muteMap.get(convId) && roleMap.get(convId) === 'member') return false;
     // 黑名单私聊：静默跳过被拉黑/已拉黑的目标（不计入成功转发数）
-    if (privateSendBlockReason(convId, userId)) return;
+    if (privateSendBlockReason(convId, userId)) return false;
     // 屏蔽陌生人：静默跳过"对方开启屏蔽陌生人且我非其好友"的私聊目标，防止用转发绕过
-    if (strangerBlockReason(convId, userId)) return;
-    const id = uuidv4();
-    ops.push({ sql: insertSql, params: [id, convId, userId, msg.type, msg.content, msg.file_url || '', msg.duration || 0] });
-    targets.push({ convId, id });
+    if (strangerBlockReason(convId, userId)) return false;
+    return true;
+  });
+  // 保持消息原始顺序：外层消息、内层会话
+  msgs.forEach(msg => {
+    allowedConvIds.forEach(convId => {
+      const id = uuidv4();
+      ops.push({ sql: insertSql, params: [id, convId, userId, msg.type, msg.content, msg.file_url || '', msg.duration || 0] });
+      targets.push({ convId, id });
+    });
   });
 
   // P0-1：原子批次走 worker（保持"多条转发要么全成功要么全失败"语义），await 落库后再读回广播
   if (ops.length) await writeBatch(ops);
   if (ops.length) {
     cache.delPattern(`search:*${userId}*`).catch(() => {});
-    cache.del(cache.keys.conversations(userId)).catch(() => {});
+    // 失效每个目标会话所有成员的会话列表缓存（去重）
+    for (const cid of new Set(targets.map(t => t.convId))) convSvc.invalidateConvCacheForConversation(cid);
   }
 
   const selectStmt = db.prepare('SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?');
@@ -304,7 +326,8 @@ async function forward(io, userId, { msgId, conversationIds }) {
     newMsg.reactions = [];
     broadcaster.broadcastMessage(convId, newMsg);
   });
-  return targets.length;
+  // 返回目标会话去重数（前端按"发送给 N 个会话"提示，与单条转发语义一致）
+  return new Set(targets.map(t => t.convId)).size;
 }
 
 // ── 批量撤回 ────────────────────────────────────────────────────
@@ -332,7 +355,7 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
   if (ops.length) await writeBatch(ops);
   if (ops.length) {
     cache.delPattern(`search:*${userId}*`).catch(() => {});
-    cache.del(cache.keys.conversations(userId)).catch(() => {});
+    convSvc.invalidateConvCacheForConversation(conversationId);
   }
   // 批量 emit（单次事件，减少前端重渲染次数）
   if (io && deleted.length > 0) io.to(conversationId).emit('messages_batch_deleted', { msgIds: deleted, conversationId });
@@ -352,7 +375,7 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
     if (msg.sender_id !== userId && !isAdmin) throw forbidden('无权删除该消息');
     await writeAsync("UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", [msgId]);
     cache.delPattern(`search:*${userId}*`).catch(() => {});
-    cache.del(cache.keys.conversations(userId)).catch(() => {});
+    convSvc.invalidateConvCacheForConversation(msg.conversation_id);
     if (io) io.to(msg.conversation_id).emit('message_vanished', { msgId, conversationId: msg.conversation_id });
     return;
   }
@@ -367,7 +390,7 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
     // 撤回不限时间：任意时长的消息本人（或群管理员）均可撤回
     await writeAsync("UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", [msgId]);
     cache.delPattern(`search:*${userId}*`).catch(() => {});
-    cache.del(cache.keys.conversations(userId)).catch(() => {});
+    convSvc.invalidateConvCacheForConversation(msg.conversation_id);
     if (io) io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });
   }
   // 仅自己隐藏：前端处理，不改库
@@ -414,7 +437,7 @@ async function edit(io, userId, msgId, content) {
   // P0-1：worker 异步写，await 落库后再广播
   await writeAsync('UPDATE messages SET content=?, edited=1 WHERE id=?', [trimmed, msgId]);
   cache.delPattern(`search:*${userId}*`).catch(() => {});
-  cache.del(cache.keys.conversations(userId)).catch(() => {});
+  convSvc.invalidateConvCacheForConversation(msg.conversation_id);
   if (io) io.to(msg.conversation_id).emit('message_edited', { msgId, content: trimmed, conversationId: msg.conversation_id });
   return trimmed;
 }
@@ -424,7 +447,7 @@ async function collect(userId, msgId) {
   const msg = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(msgId);
   if (!msg) throw notFound('消息不存在或已删除');
   requireMember(msg.conversation_id, userId, '无权操作');
-  const extra = { file_url: msg.file_url, source_msg_id: msg.id };
+  const extra = { file_url: msg.file_url, source_msg_id: msg.id, source_conv_id: msg.conversation_id };
   const dedupKey = collectionDedupKey(msg.type, msg.content, extra);
   // 去重：同一内容已收藏则 409（唯一索引兜底竞态，避免重复行）
   const existing = db.prepare('SELECT id FROM collections WHERE user_id=? AND dedup_key=?').get(userId, dedupKey);

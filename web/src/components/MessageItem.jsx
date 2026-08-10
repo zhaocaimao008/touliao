@@ -225,19 +225,47 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               const vidSrc = mediaUrl(msg.file_url);
               // 复用图片的宽高比缓存，视频加载 metadata 前也能预留正确高度,消除布局抖动
               const vAspect = getAspect(vidSrc);
+              // 用 #t=0.1 让浏览器抓取首帧作为封面缩略图（不自动播放，点击才全屏播放）
+              const posterSrc = vidSrc.includes('#') ? vidSrc : `${vidSrc}#t=0.1`;
+              const openPreview = () => cbs.setVideoUrl?.({ url: vidSrc, name: msg.content });
               return (
-                <video
-                  src={vidSrc}
-                  controls
-                  preload="metadata"
-                  className="wc-msg-video"
-                  style={vAspect ? { aspectRatio: String(vAspect), width: 'min(240px, 62vw)' } : undefined}
-                  onLoadedMetadata={e => {
-                    const v = e.currentTarget;
-                    rememberAspect(vidSrc, v.videoWidth, v.videoHeight);
-                    measure?.(); // 视频 metadata 到达→按真实宽高比撑开后同步重测本行
+                <div
+                  className="wc-msg-video-wrap"
+                  role="button" tabIndex={0} aria-label="播放视频"
+                  onClick={openPreview}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPreview(); } }}
+                  style={{
+                    position: 'relative', display: 'inline-block', cursor: 'pointer',
+                    borderRadius: 'var(--radius-input, 8px)', overflow: 'hidden', background: '#000',
+                    ...(vAspect ? { aspectRatio: String(vAspect), width: 'min(240px, 62vw)' } : { width: 'min(240px, 62vw)' }),
                   }}
-                />
+                >
+                  {/* 首帧缩略图（preload=metadata + #t=0.1 抓封面，不播放、不显控件） */}
+                  <video
+                    src={posterSrc}
+                    preload="metadata"
+                    muted
+                    playsInline
+                    tabIndex={-1}
+                    className="wc-msg-video"
+                    style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                    onLoadedMetadata={e => {
+                      const v = e.currentTarget;
+                      rememberAspect(vidSrc, v.videoWidth, v.videoHeight);
+                      measure?.(); // 视频 metadata 到达→按真实宽高比撑开后同步重测本行
+                    }}
+                  />
+                  {/* 中央播放按钮浮层 */}
+                  <span aria-hidden="true" style={{
+                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                    width: 48, height: 48, borderRadius: '50%', background: 'rgba(0,0,0,.5)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <svg viewBox="0 0 24 24" style={{ width: 24, height: 24, fill: '#fff', marginLeft: 3 }}>
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </span>
+                </div>
               );
             })()}
             {msg.type === 'file' && (

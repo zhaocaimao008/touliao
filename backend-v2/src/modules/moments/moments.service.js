@@ -328,6 +328,30 @@ function deleteMoment(userId, momentId) {
   return { success: true };
 }
 
+// ── 编辑动态（仅作者，只改文字内容与可见范围；图片不变）──────────
+function editMoment(userId, momentId, { content, visibility, visibleTo } = {}) {
+  const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
+  if (!m) throw notFound('动态不存在');
+  if (m.user_id !== userId) throw forbidden('只能编辑自己的动态');
+
+  const nextContent = content == null ? m.content : String(content).trim();
+  const imgs = safeImages(m.images);
+  if (!nextContent && imgs.length === 0) throw badRequest('内容不能为空');
+
+  const VALID_VIS = new Set(['all', 'friends', 'private', 'include', 'exclude']);
+  const nextVis = (visibility && VALID_VIS.has(visibility)) ? visibility : m.visibility;
+  let nextVisibleTo = m.visible_to;
+  if (nextVis === 'include' || nextVis === 'exclude') {
+    if (Array.isArray(visibleTo)) nextVisibleTo = JSON.stringify(visibleTo);
+  } else {
+    nextVisibleTo = null;
+  }
+
+  db.prepare('UPDATE moments SET content=?, visibility=?, visible_to=? WHERE id=?')
+    .run(nextContent, nextVis, nextVisibleTo, momentId);
+  return enrich(userId, db.prepare('SELECT * FROM moments WHERE id=?').get(momentId));
+}
+
 // ── 点赞 / 取消（toggle）───────────────────────────────────────
 function toggleLike(io, userId, momentId) {
   const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
@@ -519,7 +543,7 @@ function markNotificationsRead(userId) {
 }
 
 module.exports = {
-  createMoment, timeline, userMoments, getMoment, deleteMoment, purgeMoment,
+  createMoment, timeline, userMoments, getMoment, deleteMoment, editMoment, purgeMoment,
   toggleLike, addComment, deleteComment, listLikes, listComments,
   reportMoment,
   listNotifications, unreadNotificationCount, markNotificationsRead,

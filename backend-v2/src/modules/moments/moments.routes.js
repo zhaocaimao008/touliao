@@ -189,6 +189,37 @@ router.delete('/:id',             auth, m.remove);
 
 /**
  * @swagger
+ * /moments/{id}:
+ *   put:
+ *     tags:
+ *       - Moments
+ *     summary: Edit moment text/visibility (author only)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               content:
+ *                 type: string
+ *               visibility:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Moment updated
+ */
+router.put   ('/:id',             auth, createMomentLimiter, m.edit);
+
+/**
+ * @swagger
  * /moments/{id}/like:
  *   post:
  *     tags:
