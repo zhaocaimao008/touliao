@@ -3100,6 +3100,15 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .wc-server-hint { padding: 0 14px 20px; }
 .wc-server-hint-box { padding: 10px 14px; background: var(--bg-hover); border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.7; }
 
+/* ── 快捷键设置 ── */
+.wc-shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border-color); }
+.wc-shortcut-row:last-child { border-bottom: none; }
+.wc-shortcut-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 100px; padding: 8px 14px; background: var(--bg-search); border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-size: var(--text-sm2); font-family: ui-monospace, 'Cascadia Code', 'Courier New', monospace; color: var(--text-primary); font-weight: var(--font-medium); white-space: nowrap; }
+.wc-shortcut-kbd--recording { border-color: var(--color-primary); background: var(--bg-primary-subtle, rgba(52,199,89,.08)); color: var(--color-primary); animation: shortcutPulse 1.5s ease-in-out infinite; }
+@keyframes shortcutPulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .wc-shortcut-kbd--recording { animation: none; } }
+.wc-shortcut-rec-active { background: var(--color-primary) !important; color: var(--gray-0) !important; border-color: var(--color-primary) !important; }
+
 /* ── Section wrappers ── */
 .wc-section-pad { padding: 0 14px; }
 .wc-logout-div { padding: 20px 14px 32px; }

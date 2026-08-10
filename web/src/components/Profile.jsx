@@ -40,6 +40,7 @@ const IcoMoon    = () => <Ico d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c
 const IcoBell    = () => <Ico d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>;
 const IcoShield  = () => <Ico d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>;
 const IcoServer  = () => <Ico d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zM6 4a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>;
+const IcoKeyboard = () => <Ico d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 5H5v-2h2v2zm0-3H5v-2h2v2zm0-3H5V8h2v2zm10 6H7v-2h10v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2zm3 6h-2v-2h2v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2z"/>;
 const IcoQR      = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
     <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2z"/>
@@ -1047,6 +1048,125 @@ function ServerSettings({ onBack }) {
   );
 }
 
+/* ── 快捷键设置（仅桌面端） ── */
+function ShortcutSettings({ onBack }) {
+  // 快捷键定义：key = store 里的键名，label = 显示名，desc = 功能说明
+  const SHORTCUT_DEFS = [
+    { key: 'screenshot', label: '截图', desc: '截取全屏并发送到当前会话' },
+  ];
+
+  const [shortcuts, setShortcuts] = useState({});
+  const [recording, setRecording] = useState(null); // 正在录制的 key
+  const [status, setStatus] = useState({});          // { [key]: { ok, msg } }
+
+  useEffect(() => {
+    window.electronAPI?.getShortcuts?.().then(s => setShortcuts(s || {}));
+  }, []);
+
+  const saveShortcut = useCallback(async (key, accel) => {
+    const ok = await window.electronAPI?.setShortcut?.(key, accel);
+    if (ok) {
+      setShortcuts(prev => ({ ...prev, [key]: accel }));
+      setStatus(prev => ({ ...prev, [key]: { ok: true, msg: '已保存 ✓' } }));
+    } else {
+      setStatus(prev => ({ ...prev, [key]: { ok: false, msg: '快捷键无效或被系统占用' } }));
+    }
+    setTimeout(() => setStatus(prev => ({ ...prev, [key]: null })), 2500);
+  }, []);
+
+  // 监听键盘录制
+  const handleKeyDown = useCallback((e) => {
+    if (!recording) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // 忽略纯修饰键
+    if (['Control','Shift','Alt','Meta','OS'].includes(e.key)) return;
+    const parts = [];
+    if (e.ctrlKey  || e.metaKey) parts.push('CommandOrControl');
+    if (e.altKey)   parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    // 普通键名映射：F1-F12 / 字母 / 数字 / 符号
+    const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+    parts.push(key);
+    const accel = parts.join('+');
+    setRecording(null);
+    saveShortcut(recording, accel);
+  }, [recording, saveShortcut]);
+
+  useEffect(() => {
+    if (recording) {
+      window.addEventListener('keydown', handleKeyDown, true);
+      return () => window.removeEventListener('keydown', handleKeyDown, true);
+    }
+  }, [recording, handleKeyDown]);
+
+  const resetOne = async (key) => {
+    await window.electronAPI?.resetShortcuts?.(key);
+    const fresh = await window.electronAPI?.getShortcuts?.();
+    setShortcuts(fresh || {});
+    setStatus(prev => ({ ...prev, [key]: { ok: true, msg: '已恢复默认 ✓' } }));
+    setTimeout(() => setStatus(prev => ({ ...prev, [key]: null })), 2500);
+  };
+
+  // 把 Electron 加速键格式 (CommandOrControl+Alt+A) 转为可读展示 (Ctrl+Alt+A)
+  const displayAccel = (accel = '') =>
+    accel.replace('CommandOrControl', 'Ctrl').replace(/\+/g, ' + ');
+
+  return (
+    <PageBg>
+      <PageHeader title="快捷键设置" onBack={onBack} />
+      <div className="wc-server-pad">
+        <div className="wc-server-label">
+          点击「录制」后按下目标组合键即可绑定（需含至少一个修饰键：Ctrl / Alt / Shift）
+        </div>
+      </div>
+      {SHORTCUT_DEFS.map(({ key, label, desc }) => {
+        const current = shortcuts[key] || '';
+        const isRec = recording === key;
+        const st = status[key];
+        return (
+          <div key={key} className="wc-server-pad" style={{ paddingTop: 0 }}>
+            <div className="wc-shortcut-row">
+              <div>
+                <div style={{ fontWeight: 'var(--font-medium)', fontSize: 'var(--text-base)' }}>{label}</div>
+                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginTop: 2 }}>{desc}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <kbd className={`wc-shortcut-kbd${isRec ? ' wc-shortcut-kbd--recording' : ''}`}
+                  aria-label={isRec ? '正在录制…' : `当前快捷键：${displayAccel(current)}`}>
+                  {isRec ? '请按键…' : (displayAccel(current) || '未设置')}
+                </kbd>
+                <button
+                  className={`wc-btn-test${isRec ? ' wc-shortcut-rec-active' : ''}`}
+                  style={{ padding: '6px 12px', flex: 'none' }}
+                  onClick={() => setRecording(isRec ? null : key)}
+                  aria-pressed={isRec}>
+                  {isRec ? '取消' : '录制'}
+                </button>
+                <button className="wc-btn-link" onClick={() => resetOne(key)} title="恢复默认">
+                  重置
+                </button>
+              </div>
+            </div>
+            {st && (
+              <div role="status" style={{ marginTop: 4, fontSize: 'var(--text-sm2)', paddingLeft: 2,
+                color: st.ok ? 'var(--green)' : 'var(--color-badge)' }}>
+                {st.msg}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div className="wc-server-hint">
+        <div className="wc-server-hint-box">
+          快捷键在全局生效（即使 v信 窗口不在前台）。若保存后提示「被占用」，
+          请先在系统或其它应用中解除该组合键的绑定后重试。
+        </div>
+      </div>
+    </PageBg>
+  );
+}
+
 /* ── 主页面 ── */
 export default function Profile({ isMobile = false }) {
   const { user, updateUser, logout, accounts, login, switchAccount } = useAuth();
@@ -1072,6 +1192,7 @@ export default function Profile({ isMobile = false }) {
   if (subPage === 'notifications') return <NotificationSettings onBack={() => setSubPage(null)} />;
   if (subPage === 'privacy')       return <PrivacySettings user={user} onBack={() => setSubPage(null)} />;
   if (subPage === 'server')        return <ServerSettings onBack={() => setSubPage(null)} />;
+  if (subPage === 'shortcuts')     return <ShortcutSettings onBack={() => setSubPage(null)} />;
 
   return (
     <PageBg>
@@ -1151,7 +1272,19 @@ export default function Profile({ isMobile = false }) {
         </>
       )}
 
-      {/* ── 账号管理（仅手机端：桌面端侧边栏已有账号切换器） ── */}
+      {/* ── 快捷键（仅桌面端） ── */}
+      {window.__ELECTRON_CONFIG__ && (
+        <>
+          <SLabel>快捷键</SLabel>
+          <div className="wc-section-pad">
+            <Card>
+              <CRow icon={<IcoKeyboard />} bg="var(--icon-bg-neutral)" label="快捷键设置"
+                desc="自定义截图等快捷键"
+                onClick={() => setSubPage('shortcuts')} />
+            </Card>
+          </div>
+        </>
+      )}
       {isMobile && (
         <>
           <SLabel>账号</SLabel>

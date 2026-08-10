@@ -50,6 +50,11 @@ const electronAPI = {
   screenshot:       ()         => ipcRenderer.invoke('screenshot:capture'),
   readFileAsBase64: (filePath) => ipcRenderer.invoke('file:readAsBase64', filePath),
 
+  // 快捷键设置：读取 / 修改 / 重置（供「设置 → 快捷键」页使用）
+  getShortcuts:     ()              => ipcRenderer.invoke('shortcuts:getAll'),
+  setShortcut:      (key, accel)    => ipcRenderer.invoke('shortcuts:set', key, accel),
+  resetShortcuts:   (key)           => ipcRenderer.invoke('shortcuts:reset', key),
+
   // 服务器配置
   setServerUrl:     (url) => ipcRenderer.invoke('config:setServerUrl', url),
   getServerUrl:     ()    => ipcRenderer.invoke('config:getServerUrl'),

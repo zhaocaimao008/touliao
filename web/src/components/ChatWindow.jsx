@@ -2399,7 +2399,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           {window.__ELECTRON_CONFIG__ && (
             <button
               className="wc-tool-btn"
-              title="截图 (Ctrl+Alt+A)"
+              title="截图（快捷键可在 设置 → 快捷键 中自定义）"
               aria-label="截图"
               onClick={async () => {
                 const base64 = await import('../utils/electron').then(m => m.triggerScreenshot());

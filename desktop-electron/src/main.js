@@ -58,6 +58,9 @@ const store = new Store({
     windowBounds: { width: 1200, height: 800 },
     minimizeToTray: true,
     notifications: true,
+    shortcuts: {
+      screenshot: 'CommandOrControl+Alt+A',
+    },
   },
 });
 
@@ -847,16 +850,19 @@ function setupIPC() {
     return result.canceled ? [] : result.filePaths;
   });
 
-  // 截图：主进程截取 → 写入 temp → 返回路径
-  // 先隐藏窗口再截屏，避免把 v信 自身拍进去。用短延时代替监听 'minimize' 事件：
-  // 旧写法若窗口已最小化则该事件永不触发，Promise 泄漏且窗口卡在最小化。
+  // 截图：先把窗口透明度归零（视觉立即消失）再 hide()，
+  // 避免 Windows DWM 合成器 hide() 后仍需数百毫秒才真正从屏幕移除的问题。
+  // 延时从 250ms 提升到 450ms 以覆盖慢速 GPU/虚拟机场景。
   ipcMain.handle('screenshot:capture', async (_e) => {
     if (!isTrustedSender(_e)) return null;
     if (!mainWindow) return null;
     const wasVisible = mainWindow.isVisible() && !mainWindow.isMinimized();
-    if (wasVisible) mainWindow.hide();
-    // 给合成器一帧时间让窗口真正从屏幕移除
-    await new Promise((r) => setTimeout(r, 250));
+    if (wasVisible) {
+      // 透明度先清零：视觉上立即消失；再 hide 确保窗口真正从 z-order 移除
+      mainWindow.setOpacity(0);
+      mainWindow.hide();
+    }
+    await new Promise((r) => setTimeout(r, 450));
     let imgPath = null;
     try {
       const { createCapturer } = require('./screenshot');
@@ -864,9 +870,9 @@ function setupIPC() {
     } catch (e) {
       log.error('截图失败:', e);
     } finally {
-      // 截图期间窗口可能被关闭置为 null：对 null 取 isDestroyed 会抛错，故先判空。
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
+        mainWindow.setOpacity(1);
         mainWindow.focus();
       }
     }
@@ -934,6 +940,40 @@ function setupIPC() {
   });
   ipcMain.handle('config:getServerUrl', () => store.get('serverUrl'));
 
+  // 快捷键设置：读取 / 修改 / 重置
+  ipcMain.handle('shortcuts:getAll', (_e) => {
+    if (!isTrustedSender(_e)) return null;
+    return store.get('shortcuts');
+  });
+  ipcMain.handle('shortcuts:set', (_e, key, accelerator) => {
+    if (!isTrustedSender(_e)) return false;
+    if (typeof key !== 'string' || typeof accelerator !== 'string') return false;
+    // 允许的快捷键名白名单（目前只有 screenshot，后续扩展在此加）
+    const ALLOWED_KEYS = new Set(['screenshot']);
+    if (!ALLOWED_KEYS.has(key)) return false;
+    // 简单格式校验：必须含至少一个修饰键 + 普通键
+    const valid = /^(CommandOrControl|Ctrl|Alt|Shift|Super)(\+(CommandOrControl|Ctrl|Alt|Shift|Super))*\+.+$/i.test(accelerator);
+    if (!valid) return false;
+    const shortcuts = store.get('shortcuts') || {};
+    shortcuts[key] = accelerator;
+    store.set('shortcuts', shortcuts);
+    // 重新注册（先全清再装）
+    globalShortcut.unregisterAll();
+    setupShortcuts();
+    return true;
+  });
+  ipcMain.handle('shortcuts:reset', (_e, key) => {
+    if (!isTrustedSender(_e)) return false;
+    const DEFAULTS = { screenshot: 'CommandOrControl+Alt+A' };
+    const shortcuts = store.get('shortcuts') || {};
+    if (key && DEFAULTS[key]) shortcuts[key] = DEFAULTS[key];
+    else Object.assign(shortcuts, DEFAULTS);
+    store.set('shortcuts', shortcuts);
+    globalShortcut.unregisterAll();
+    setupShortcuts();
+    return true;
+  });
+
   // 系统信息
   ipcMain.handle('system:getPlatform', () => process.platform);
 
@@ -953,13 +993,16 @@ function setupIPC() {
   });
 }
 
-// ── 全局快捷键（截图） ─────────────────────────────────────
-// 使用 IPC 通知渲染进程触发截图流程，避免 executeJavaScript
+// ── 全局快捷键（截图等）──────────────────────────────────
+// 从 store 读取用户自定义快捷键（默认 Ctrl+Alt+A），支持运行时热更新。
 function setupShortcuts() {
-  globalShortcut.register('CommandOrControl+Alt+A', () => {
+  const shortcuts = store.get('shortcuts') || {};
+  const screenshotKey = shortcuts.screenshot || 'CommandOrControl+Alt+A';
+  const ok = globalShortcut.register(screenshotKey, () => {
     if (!mainWindow) return;
     mainWindow.webContents.send('shortcut:screenshot');
   });
+  if (!ok) log.warn(`快捷键注册失败（可能被系统/其它 App 占用）: ${screenshotKey}`);
 }
 
 // ── 应用生命周期 ───────────────────────────────────────────
