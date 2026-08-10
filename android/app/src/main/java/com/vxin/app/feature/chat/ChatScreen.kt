@@ -172,6 +172,42 @@ fun ChatScreen(
     val stickerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.uploadSticker(it) }
     }
+
+    // ── 全屏截图（方案B：截整屏含其它 App，截完直接发送，不经相册）──
+    // 1) MediaProjection 授权框回调 → 起前台服务开始截屏（悬浮「截屏」小球）
+    val projectionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && data != null) {
+            viewModel.markAwaitingScreenshot()   // 只让本会话消费随后的截图结果
+            androidx.core.content.ContextCompat.startForegroundService(
+                context, com.vxin.app.core.capture.ScreenCaptureService.startIntent(context, result.resultCode, data),
+            )
+        }
+    }
+    // 2) 悬浮窗权限回调 → 回来后继续拉起投影授权
+    val overlayLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (android.provider.Settings.canDrawOverlays(context)) {
+            val mpm = context.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+            projectionLauncher.launch(mpm.createScreenCaptureIntent())
+        } else {
+            viewModel.showToast("需要悬浮窗权限才能全屏截图")
+        }
+    }
+    fun startScreenshot() {
+        // 先要悬浮窗权限（放置「截屏」小球），再要录屏/投影授权
+        if (!android.provider.Settings.canDrawOverlays(context)) {
+            overlayLauncher.launch(
+                android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:${context.packageName}"),
+                ),
+            )
+            return
+        }
+        val mpm = context.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+        projectionLauncher.launch(mpm.createScreenCaptureIntent())
+    }
+
     var showChatMenu by remember { mutableStateOf(false) }
     var showBurnDialog by remember { mutableStateOf(false) }
 
@@ -393,6 +429,7 @@ fun ChatScreen(
                     FunctionPanel(
                         onPickImage = { imagePicker.launch("image/*"); showFuncPanel = false },
                         onPickFile = { filePicker.launch("*/*"); showFuncPanel = false },
+                        onScreenshot = { startScreenshot(); showFuncPanel = false },
                         onRedPacket = { showRedPacketSend = true; showFuncPanel = false },
                         // 转账仅私聊可用
                         onTransfer = if (!viewModel.isGroup) {
@@ -1475,6 +1512,7 @@ private fun FunctionPanel(
     onPickImage: () -> Unit,
     onPickFile: () -> Unit,
     onRedPacket: () -> Unit,
+    onScreenshot: (() -> Unit)? = null, // 全屏截图直接发送
     onTransfer: (() -> Unit)? = null,   // null = 群聊不显示转账
     onSchedule: (() -> Unit)? = null,   // 定时发送入口
     onScheduleList: (() -> Unit)? = null, // 我的定时消息列表
@@ -1482,6 +1520,7 @@ private fun FunctionPanel(
     val items = buildList {
         add(Triple("🖼", "图片", onPickImage))
         add(Triple("📎", "文件", onPickFile))
+        if (onScreenshot != null) add(Triple("📷", "截屏", onScreenshot))
         add(Triple("🧧", "红包", onRedPacket))
         if (onTransfer != null) add(Triple("💸", "转账", onTransfer))
         if (onSchedule != null) add(Triple("⏰", "定时发送", onSchedule))

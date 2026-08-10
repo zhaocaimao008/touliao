@@ -21,6 +21,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <!-- 全屏截图：MediaProjection 前台服务 + 悬浮「截屏」小球 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- 媒体读取：Android 13+ 细分权限，12 及以下用 READ_EXTERNAL_STORAGE -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
@@ -80,6 +83,12 @@
             android:name=".core.call.CallForegroundService"
             android:exported="false"
             android:foregroundServiceType="microphone|camera" />
+
+        <!-- 全屏截图前台服务（MediaProjection）。type 必须为 mediaProjection（Android 14+ 强制）。 -->
+        <service
+            android:name=".core.capture.ScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <!-- 应用内更新：FileProvider 为系统安装器提供 APK 文件访问 -->
         <provider

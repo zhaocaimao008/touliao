@@ -135,6 +135,9 @@ class ChatViewModel @Inject constructor(
     /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻（错误与"已收藏/已转发"等成功提示共用 error 字段） */
     fun consumeError() = _uiState.update { it.copy(error = null) }
 
+    /** 一次性轻提示（复用 error 字段，Screen 统一 toast 透出）。 */
+    fun showToast(message: String) = _uiState.update { it.copy(error = message) }
+
     private var lastTypingEmit = 0L
     private var typingClearJob: Job? = null
     private val json = Json { ignoreUnknownKeys = true }
@@ -153,6 +156,7 @@ class ChatViewModel @Inject constructor(
         observeEdited()
         observeRedPacketClaimed()
         observeConnection()
+        observeScreenshot()
         if (isGroup) {
             loadPinned()
             observePinChanged()
@@ -1047,6 +1051,41 @@ class ChatViewModel @Inject constructor(
                     markPendingFailed(pending.tempId)
                     _uiState.update { it.copy(error = e.toUserMessage("上传失败")) }
                 }
+        }
+    }
+
+    // ── 全屏截图直接发送（不经相册）──────────────────────
+    /** 用户在本会话点了「截屏」并完成授权 → 置位，只让本 VM 消费随后的截图结果。 */
+    @Volatile private var awaitingScreenshot = false
+    fun markAwaitingScreenshot() { awaitingScreenshot = true }
+
+    /**
+     * 订阅截图事件总线：ScreenCaptureService 抓到一帧落成 PNG 后发来 File，
+     * 只有发起截图的会话（awaitingScreenshot=true）消费并直接上传发送，随后复位总线缓存。
+     * 截图即发，不落相册。
+     */
+    private fun observeScreenshot() {
+        viewModelScope.launch {
+            com.vxin.app.core.capture.ScreenCaptureBus.events.collect { file ->
+                if (!awaitingScreenshot) return@collect
+                awaitingScreenshot = false
+                com.vxin.app.core.capture.ScreenCaptureBus.resetReplay()
+                val prepared = withContext(Dispatchers.IO) {
+                    runCatching { mediaUploader.prepareFromFile(file, "image/png", file.name) }.getOrNull()
+                }
+                if (prepared == null) {
+                    _uiState.update { it.copy(error = "截图读取失败") }
+                    return@collect
+                }
+                val pending = PendingUpload(
+                    tempId = UUID.randomUUID().toString(),
+                    type = "image",
+                    name = prepared.displayName,
+                    localUri = android.net.Uri.fromFile(file).toString(),
+                )
+                val replyId = _uiState.value.replyingTo?.id
+                runUpload(pending) { chatRepository.uploadPrepared(conversationId, prepared, replyId) }
+            }
         }
     }
 
