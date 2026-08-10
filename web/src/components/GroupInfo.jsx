@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { FixedSizeList } from 'react-window';
-import Avatar, { getColor } from './Avatar';
+import Avatar from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 import { useConvSettings } from '../hooks/useConvSettings';
