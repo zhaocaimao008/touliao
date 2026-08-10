@@ -682,6 +682,10 @@ private struct MessageBubble: View {
     let isMine: Bool
     let vm: ChatViewModel
 
+    @State private var shareItems: [Any]?     // 非空 → 弹系统分享面板
+    @State private var showShare = false
+    @State private var preparingShare = false
+
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             if isMine { Spacer(minLength: 40) } else {
@@ -715,6 +719,10 @@ private struct MessageBubble: View {
                             Button("转发") { vm.loadForwardTargets(); vm.forwardTarget = msg }
                             Button("收藏") { vm.collectMessage(msg) }
                         }
+                        // 分享到第三方软件：文本 + 图片/视频/文件/文档
+                        if msg.type == "text" || (["image", "video", "file"].contains(msg.type) && !(msg.fileUrl ?? "").isEmpty) {
+                            Button("分享到…") { shareMessage() }
+                        }
                         if vm.canEdit(msg) {
                             Button("编辑") { vm.editTarget = msg }
                         }
@@ -734,6 +742,9 @@ private struct MessageBubble: View {
                         }
                         Divider()
                         Button("多选") { vm.enterMultiSelect(msg) }
+                    }
+                    .sheet(isPresented: $showShare) {
+                        if let items = shareItems { ShareSheet(items: items) }
                     }
                 if !msg.reactions.isEmpty {
                     HStack(spacing: 4) {
@@ -805,6 +816,36 @@ private struct MessageBubble: View {
                 vm.error = "图片已复制"
             } catch {
                 vm.error = (error as? LocalizedError)?.errorDescription ?? "复制失败"
+            }
+        }
+    }
+
+    /// 分享到第三方：文本直接分享文案；媒体先下载成临时文件再走系统分享面板。
+    private func shareMessage() {
+        if msg.type == "text" {
+            shareItems = [msg.content]
+            showShare = true
+            return
+        }
+        guard !preparingShare else { return }
+        preparingShare = true
+        Task {
+            do {
+                let fileUrl = try await FileShareHelper.prepareShareFile(
+                    rawUrl: msg.fileUrl,
+                    filename: msg.content.isEmpty ? nil : msg.content,
+                    isImage: msg.type == "image",
+                )
+                await MainActor.run {
+                    shareItems = [fileUrl]
+                    showShare = true
+                    preparingShare = false
+                }
+            } catch {
+                await MainActor.run {
+                    vm.error = (error as? LocalizedError)?.errorDescription ?? "分享失败"
+                    preparingShare = false
+                }
             }
         }
     }
@@ -1242,6 +1283,8 @@ private struct ChatImageGalleryView: View {
     @State private var page = 0
     @State private var scale: CGFloat = 1
     @State private var saveToast: String?
+    @State private var shareItems: [Any]?
+    @State private var showShare = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -1263,6 +1306,21 @@ private struct ChatImageGalleryView: View {
                     .accessibilityLabel("关闭")
                 Spacer()
                 if images.count > 1 { Text("\(page + 1)/\(images.count)").foregroundColor(.white).padding() }
+                Button {
+                    Task {
+                        do {
+                            let fileUrl = try await FileShareHelper.prepareShareFile(rawUrl: images[page], filename: nil, isImage: true)
+                            shareItems = [fileUrl]
+                            showShare = true
+                        } catch {
+                            saveToast = (error as? LocalizedError)?.errorDescription ?? "分享失败"
+                        }
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundColor(.white).padding()
+                }
+                .accessibilityLabel("分享图片")
                 Button {
                     Task {
                         do {
@@ -1291,6 +1349,9 @@ private struct ChatImageGalleryView: View {
             }
         }
         .onAppear { page = min(max(start, 0), max(images.count - 1, 0)) }
+        .sheet(isPresented: $showShare) {
+            if let items = shareItems { ShareSheet(items: items) }
+        }
     }
 }
 
