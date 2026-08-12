@@ -9,6 +9,7 @@ import './mobile-adapt.css';
 import { loadRemoteConfig, getConfig } from './utils/config';
 import { initWebVitals } from './utils/webVitals';
 import { initImageOptimizer } from './utils/imageOptimizer';
+import { setupAxiosInterceptors } from './utils/axiosInterceptor';
 
 // ── 通用加载流程 ──────────────────────────────────────────
 // 1. 加载远程配置（所有平台统一入口）
@@ -34,6 +35,9 @@ import { initImageOptimizer } from './utils/imageOptimizer';
   }
   // 跨域请求必须携带 Cookie，全局开启
   axios.defaults.withCredentials = true;
+
+  // 设置 Axios 拦截器（CSRF、token 刷新、错误重试）
+  setupAxiosInterceptors(axios);
 
   // 3. Electron / 移动端恢复 Bearer token（localStorage 持久化）
   if (isElectron || isMobile) {

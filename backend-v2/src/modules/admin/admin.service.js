@@ -8,6 +8,7 @@ const { purgeConversation } = require('../messages/shared');
 const moments = require('../moments/moments.service');
 const wallet = require('../wallet/wallet.service');
 const { invalidateUser } = require('../../utils/userStatusCache');
+const { logAuditEvent } = require('../../utils/auditLogger');
 
 // ── 凭证校验（恒定时间比较，防时序侧信道）──────────────────────
 function timingSafeEqual(a, b) {

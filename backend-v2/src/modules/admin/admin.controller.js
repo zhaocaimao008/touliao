@@ -10,6 +10,7 @@ const svc = require('./admin.service');
 const sec = require('./security.service');
 const prodMetrics = require('../../utils/prodMetrics');
 const presence = require('../../realtime/presence');
+const { logAuditEvent } = require('../../utils/auditLogger');
 
 const io = req => req.app.get('io');
 const DEVICE_COOKIE = 'vxin_admin_device';
@@ -117,16 +118,103 @@ exports.metrics = asyncHandler(async (req, res) => {
 
 exports.listUsers  = asyncHandler(async (req, res) => res.json(svc.listUsers(req.query)));
 exports.userDetail = asyncHandler(async (req, res) => res.json(svc.userDetail(req.params.id)));
-exports.ban        = asyncHandler(async (req, res) => res.json(svc.setBanned(req.app.get('io'), req.params.id, true)));
-exports.unban      = asyncHandler(async (req, res) => res.json(svc.setBanned(req.app.get('io'), req.params.id, false)));
+exports.ban = asyncHandler(async (req, res) => {
+  const result = svc.setBanned(req.app.get('io'), req.params.id, true);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'USER_BAN',
+    resourceType: 'user',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
+  res.json(result);
+});
+
+exports.unban = asyncHandler(async (req, res) => {
+  const result = svc.setBanned(req.app.get('io'), req.params.id, false);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'USER_UNBAN',
+    resourceType: 'user',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
+  res.json(result);
+});
 exports.resetPassword = asyncHandler(async (req, res) => {
   await svc.resetPassword(req.app.get('io'), req.params.id, req.body.newPassword);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'USER_PASSWORD_RESET',
+    resourceType: 'user',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
   res.json({ success: true });
 });
-exports.grantPrivilege  = asyncHandler(async (req, res) => res.json(svc.setPrivilege(req.params.id, true)));
-exports.revokePrivilege = asyncHandler(async (req, res) => res.json(svc.setPrivilege(req.params.id, false)));
-exports.grantCoins = asyncHandler(async (req, res) => res.json(svc.grantCoins(req.params.id, req.body.amount, req.body.memo)));
-exports.deleteUser = asyncHandler(async (req, res) => { svc.deleteUser(req.app.get('io'), req.params.id); res.json({ success: true }); });
+
+exports.grantPrivilege = asyncHandler(async (req, res) => {
+  const result = svc.setPrivilege(req.params.id, true);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'USER_GRANT_PRIVILEGE',
+    resourceType: 'user',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
+  res.json(result);
+});
+
+exports.revokePrivilege = asyncHandler(async (req, res) => {
+  const result = svc.setPrivilege(req.params.id, false);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'USER_REVOKE_PRIVILEGE',
+    resourceType: 'user',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
+  res.json(result);
+});
+
+exports.grantCoins = asyncHandler(async (req, res) => {
+  const result = svc.grantCoins(req.params.id, req.body.amount, req.body.memo);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'USER_GRANT_COINS',
+    resourceType: 'user',
+    resourceId: req.params.id,
+    details: { amount: req.body.amount, memo: req.body.memo },
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
+  res.json(result);
+});
+
+exports.deleteUser = asyncHandler(async (req, res) => {
+  svc.deleteUser(req.app.get('io'), req.params.id);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'USER_DELETE',
+    resourceType: 'user',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
+  res.json({ success: true });
+});
 
 exports.listMessages = asyncHandler(async (req, res) => res.json(svc.listMessages(req.query)));
 
