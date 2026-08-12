@@ -194,6 +194,24 @@ app.use('/api/admin',         require('./modules/admin/admin.routes'));
 app.use('/api/friend-labels', require('./modules/contacts/friend_labels.routes'));
 app.use('/api/monitoring',    require('./routes/monitoring.routes'));
 
+// P4.1: 全文搜索
+app.use('/api/search',        require('./routes/search.routes'));
+
+// P4.2: 消息可靠性
+app.use('/api/reliability',   require('./routes/reliability.routes'));
+
+// P4.3-P4.7: 优化特性 (搜索排序、批量 ACK、去重、缓存预热、网络感知)
+app.use('/api/optimization',  require('./routes/optimization.routes'));
+
+// P11: 全球部署 (CDN、多区域同步、负载均衡、全球监控)
+app.use('/api/global',        require('./routes/p11-global-deployment.routes'));
+
+// P12: AI 增强 (LLM、内容审核、翻译、语音识别)
+app.use('/api/ai',            require('./routes/p12-ai-enhancement.routes'));
+
+// P13: Web3 集成 (区块链、NFT、DAO)
+app.use('/api/web3',          require('./routes/p13-web3-integration.routes'));
+
 // 公开配置（前端读取功能开关，决定朋友圈/收藏入口显隐）
 const { getFeatures } = require('./modules/admin/admin.service');
 app.get('/api/config', (req, res) => res.json({ features: getFeatures() }));

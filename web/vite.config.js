@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react';
 import viteCompression from 'vite-plugin-compression';
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '2.2.0'),
+  },
   plugins: [
     react(),
     // Gzip 压缩

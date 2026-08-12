@@ -1,0 +1,103 @@
+groups:
+  - name: vxin_alerts
+    interval: 30s
+    rules:
+      # CPU 使用率告警
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU 使用率过高"
+          description: "{{ $labels.instance }} CPU 使用率 {{ $value }}% 超过 80%，持续 5 分钟"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "内存使用率过高"
+          description: "{{ $labels.instance }} 内存使用率 {{ $value }}% 超过 90%"
+
+      # 磁盘使用率告警
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"} / node_filesystem_size_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "磁盘使用率过高"
+          description: "{{ $labels.instance }} 磁盘 {{ $labels.mountpoint }} 使用率 {{ $value }}% 超过 85%"
+
+      # 服务宕机告警
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务宕机"
+          description: "{{ $labels.job }} 服务 {{ $labels.instance }} 已宕机超过 1 分钟"
+
+      # HTTP 错误率告警
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 错误率过高"
+          description: "{{ $labels.job }} 5xx 错误率 {{ $value }}% 超过 5%"
+
+      # 响应时间告警
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "响应时间过长"
+          description: "{{ $labels.job }} P95 响应时间 {{ $value }}s 超过 500ms"
+
+      # Redis 连接数告警
+      - alert: HighRedisConnections
+        expr: redis_connected_clients > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 连接数过高"
+          description: "Redis 连接数 {{ $value }} 超过 100"
+
+      # 消息发送失败率告警
+      - alert: HighMessageFailureRate
+        expr: rate(messages_failed_total[5m]) / rate(messages_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "消息发送失败率过高"
+          description: "消息发送失败率 {{ $value }}% 超过 5%"
+
+      # 在线用户数突降告警
+      - alert: OnlineUsersDrop
+        expr: delta(online_users_total[5m]) < -100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "在线用户数突然下降"
+          description: "在线用户数在 5 分钟内下降 {{ $value }} 人"
+
+      # 数据库响应时间告警
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库查询慢"
+          description: "数据库 P95 查询时间 {{ $value }}s 超过 500ms"

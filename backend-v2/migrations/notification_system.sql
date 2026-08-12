@@ -73,9 +73,19 @@ CREATE TABLE IF NOT EXISTS notification_dedup (
 
 CREATE INDEX IF NOT EXISTS idx_notification_dedup_expires_at ON notification_dedup(expires_at);
 
--- 添加用户相关字段（如果表不存在这些列）
-ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS dingtalk_id TEXT;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS wechat_work_id TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+-- 注意: 以下 ALTER TABLE 命令需要在应用启动时执行
+-- SQLite 不支持 IF NOT EXISTS 语法，请在 src/server.js 中添加如下代码:
+--
+-- try {
+--   db.prepare('ALTER TABLE users ADD COLUMN phone TEXT').run();
+-- } catch (e) {}
+--
+-- try {
+--   db.prepare('ALTER TABLE users ADD COLUMN dingtalk_id TEXT').run();
+-- } catch (e) {}
+--
+-- try {
+--   db.prepare('ALTER TABLE users ADD COLUMN wechat_work_id TEXT').run();
+-- } catch (e) {}
+--
+-- CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)

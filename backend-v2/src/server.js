@@ -28,6 +28,99 @@ async function startServer() {
     console.warn('[Redis] 连接失败，将降级运行:', err.message);
   });
 
+  // P4.1: 初始化 FTS5 全文搜索索引
+  const { initFTS5 } = require('./utils/ftsSearch');
+  try {
+    initFTS5();
+    console.log('[FTS5] 全文搜索引擎已初始化');
+  } catch (err) {
+    console.warn('[FTS5] 初始化失败，将降级运行:', err.message);
+  }
+
+  // P4.2: 初始化消息队列
+  const MessageQueue = require('./utils/messageQueue');
+  const AckManager = require('./utils/ackManager');
+  const msgQueue = new MessageQueue({ maxRetries: 3, retryDelayMs: 5000 });
+  const ackManager = new AckManager({ ackTtl: 86400 });
+
+  // P4.3: 初始化搜索排序引擎
+  const SearchRanking = require('./utils/searchRanking');
+  const searchRanking = new SearchRanking({
+    relevanceWeight: 0.4,
+    recencyWeight: 0.3,
+    popularityWeight: 0.3,
+  });
+  console.log('[P4.3] 搜索排序引擎已初始化');
+
+  // P4.4: 初始化消息去重管理
+  const MessageDeduplicator = require('./utils/deduplicator');
+  const deduplicator = new MessageDeduplicator({ dedupTTL: 86400 });
+  console.log('[P4.4] 消息去重管理已初始化');
+
+  // P4.5: 初始化批量 ACK 管理
+  const BatchAckManager = require('./utils/batchAckManager');
+  const batchAckManager = new BatchAckManager({
+    batchSize: 50,
+    batchTimeout: 1000,
+  });
+  console.log('[P4.5] 批量 ACK 管理已初始化');
+
+  // P4.6: 初始化缓存预热
+  const CacheWarmer = require('./utils/cacheWarmer');
+  const cacheWarmer = new CacheWarmer({
+    maxActiveUsers: 1000,
+    maxHotMessages: 10000,
+    hotDays: 7,
+  });
+  // 异步执行缓存预热，不阻塞启动
+  cacheWarmer.warmAll().then(results => {
+    console.log('[P4.6] 缓存预热完成:', results.duration, 'ms');
+    cacheWarmer.startPeriodicWarming(60 * 60 * 1000); // 每小时更新一次
+  }).catch(err => {
+    console.warn('[P4.6] 缓存预热失败:', err.message);
+  });
+
+  // P4.7: 初始化网络感知重试
+  const NetworkAwareRetry = require('./utils/networkAwareRetry');
+  const networkAware = new NetworkAwareRetry();
+  networkAware.detectNetworkQuality().then(quality => {
+    console.log('[P4.7] 网络质量检测完成:', quality);
+    networkAware.startMonitoring(30000); // 每 30 秒检测一次
+  });
+
+  // P4.8: 初始化通知队列系统
+  const NotificationQueue = require('./modules/notifications/notificationQueue');
+  const notificationQueue = new NotificationQueue({ maxRetries: 3, retryDelayMs: 5000 });
+  notificationQueue.startProcessing();
+  console.log('[P4.8] 通知异步队列已初始化，开始后台处理');
+
+  // 初始化用户相关字段（SQLite 兼容性处理）
+  try {
+    db.prepare('ALTER TABLE users ADD COLUMN phone TEXT').run();
+  } catch (e) {
+    // 列已存在，忽略错误
+  }
+  try {
+    db.prepare('ALTER TABLE users ADD COLUMN dingtalk_id TEXT').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE users ADD COLUMN wechat_work_id TEXT').run();
+  } catch (e) {}
+  try {
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)').run();
+  } catch (e) {}
+
+  // 挂到 app 全局访问
+  app.set('msgQueue', msgQueue);
+  app.set('ackManager', ackManager);
+  app.set('searchRanking', searchRanking);
+  app.set('deduplicator', deduplicator);
+  app.set('batchAckManager', batchAckManager);
+  app.set('cacheWarmer', cacheWarmer);
+  app.set('networkAware', networkAware);
+  app.set('notificationQueue', notificationQueue);
+  console.log('[P4.2-P4.8] 所有 P4 优化模块已初始化');
+
   // 确保上传目录存在
   ['avatars', 'files', 'stickers', 'moments'].forEach(d => fs.mkdirSync(path.join(config.uploadsRoot, d), { recursive: true }));
 

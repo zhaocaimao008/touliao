@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台数据脱敏示例</title>
+<style>
+.masked { filter: blur(4px); cursor: pointer; }
+.masked:hover { filter: none; }
+.phone-masked { font-family: monospace; }
+</style>
+</head>
+<body>
+<h1>数据脱敏示例</h1>
+<p>手机号: <span class="phone-masked">138****0000</span></p>
+<p>消息内容: <span class="masked">这是一条敏感消息内容...</span> (鼠标悬停查看)</p>
+<script>
+// 手机号脱敏
+function maskPhone(phone) {
+  if (!phone || phone.length < 11) return phone;
+  return phone.slice(0, 3) + '****' + phone.slice(-4);
+}
+
+// 消息内容脱敏
+function maskContent(content, maxLen = 20) {
+  if (!content) return '';
+  if (content.length <= maxLen) return content;
+  return content.slice(0, maxLen) + '...';
+}
+</script>
+</body>
+</html>
