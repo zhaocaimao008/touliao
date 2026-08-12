@@ -1,7 +1,12 @@
 {
   "name": "vxin-desktop",
-  "version": "2.0.58",
+  "version": "2.2.1",
   "description": "v信 桌面客户端",
+  "homepage": "https://dipsin.com",
+  "author": {
+    "name": "Vxin Team",
+    "email": "support@dipsin.com"
+  },
   "main": "src/main.js",
   "scripts": {
     "dev": "electron .",
