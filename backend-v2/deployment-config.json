@@ -1,0 +1,98 @@
+{
+  "project": {
+    "name": "v信后端推送系统优化",
+    "id": "VXIN-FCM-OPT-001",
+    "version": "1.0.0",
+    "description": "Android FCM推送系统性能优化"
+  },
+  "deployment": {
+    "strategy": "canary",
+    "phases": [
+      {
+        "phase": 1,
+        "name": "金丝雀测试",
+        "percentage": 5,
+        "duration_hours": 48,
+        "description": "5% 用户测试"
+      },
+      {
+        "phase": 2,
+        "name": "小流量验证",
+        "percentage": 20,
+        "duration_hours": 48,
+        "description": "20% 用户验证"
+      },
+      {
+        "phase": 3,
+        "name": "全量上线",
+        "percentage": 100,
+        "duration_hours": 0,
+        "description": "所有用户"
+      }
+    ]
+  },
+  "monitoring": {
+    "check_interval_seconds": 60,
+    "metrics": [
+      {
+        "name": "fcm_success_rate",
+        "type": "percentage",
+        "threshold_min": 95,
+        "threshold_max": 100,
+        "critical_min": 90
+      },
+      {
+        "name": "avg_latency_ms",
+        "type": "milliseconds",
+        "threshold_max": 100,
+        "critical_max": 200
+      },
+      {
+        "name": "error_rate",
+        "type": "percentage",
+        "threshold_max": 1,
+        "critical_max": 5
+      }
+    ]
+  },
+  "rollback": {
+    "auto_trigger": true,
+    "conditions": [
+      {
+        "metric": "fcm_success_rate",
+        "operator": "<",
+        "value": 95,
+        "action": "rollback"
+      },
+      {
+        "metric": "avg_latency_ms",
+        "operator": ">",
+        "value": 200,
+        "action": "rollback"
+      },
+      {
+        "metric": "error_rate",
+        "operator": ">",
+        "value": 5,
+        "action": "rollback"
+      }
+    ]
+  },
+  "notifications": {
+    "enabled": true,
+    "channels": [
+      "log",
+      "email",
+      "slack"
+    ],
+    "email": {
+      "recipients": ["ops@example.com"],
+      "send_on": ["phase_complete", "error", "rollback"]
+    }
+  },
+  "backup": {
+    "enabled": true,
+    "retention_days": 7,
+    "location": "./backups"
+  }
+}
