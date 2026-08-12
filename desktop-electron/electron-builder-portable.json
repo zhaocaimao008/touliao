@@ -1,0 +1,30 @@
+{
+  "appId": "com.vxin.desktop",
+  "productName": "v信",
+  "directories": {
+    "output": "dist",
+    "buildResources": "assets"
+  },
+  "files": [
+    "src/**/*",
+    "assets/**/*",
+    {
+      "from": "../web/dist",
+      "to": "web/dist",
+      "filter": ["**/*"]
+    }
+  ],
+  "win": {
+    "target": [
+      "portable"
+    ],
+    "icon": "assets/icon.ico",
+    "artifactName": "vxin-${version}-portable.${ext}",
+    "signingHashAlgorithms": ["sha256"]
+  },
+  "publish": {
+    "provider": "generic",
+    "url": "https://dipsin.com/downloads/updates",
+    "channel": "latest"
+  }
+}

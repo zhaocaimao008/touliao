@@ -1,0 +1,46 @@
+{
+  "appId": "com.vxin.desktop",
+  "productName": "v信",
+  "directories": {
+    "output": "dist",
+    "buildResources": "assets"
+  },
+  "files": [
+    "src/**/*",
+    "assets/**/*",
+    {
+      "from": "../web/dist",
+      "to": "web/dist",
+      "filter": ["**/*"]
+    }
+  ],
+  "win": {
+    "target": [
+      "nsis",
+      "portable"
+    ],
+    "icon": "assets/icon.ico",
+    "artifactName": "vxin-${version}-setup.${ext}",
+    "signingHashAlgorithms": ["sha256"],
+    "certificateFile": null,
+    "certificatePassword": null,
+    "sign": null,
+    "signAndEditExecutable": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "v信",
+    "runAfterFinish": true,
+    "installerIcon": "assets/icon.ico",
+    "uninstallerIcon": "assets/icon.ico"
+  },
+  "publish": {
+    "provider": "generic",
+    "url": "https://dipsin.com/downloads/updates",
+    "channel": "latest"
+  }
+}
