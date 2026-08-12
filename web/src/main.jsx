@@ -7,6 +7,8 @@ import './design-tokens.css';
 import './index.css';
 import './mobile-adapt.css';
 import { loadRemoteConfig, getConfig } from './utils/config';
+import { initWebVitals } from './utils/webVitals';
+import { initImageOptimizer } from './utils/imageOptimizer';
 
 // ── 通用加载流程 ──────────────────────────────────────────
 // 1. 加载远程配置（所有平台统一入口）
@@ -44,6 +46,12 @@ import { loadRemoteConfig, getConfig } from './utils/config';
     import('./utils/electron').then(mod => mod.initElectronFeatures()).catch(() => {});
   }
 
-  // 5. 渲染 React
+  // 5. 性能监控初始化（非阻塞）
+  if (!isElectron && !isMobile) {
+    initWebVitals();
+    initImageOptimizer();
+  }
+
+  // 6. 渲染 React
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 })();

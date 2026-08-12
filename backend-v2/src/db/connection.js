@@ -12,14 +12,24 @@ const { applySchema, applyFts } = require('./schema');
 
 function tunePragmas(conn, { readonly = false } = {}) {
   conn.pragma('busy_timeout = 5000');   // 并发锁等待 5s，避免高并发下立即 SQLITE_BUSY
-  conn.pragma('cache_size = -32000');   // 32 MB page cache
+  conn.pragma('cache_size = -64000');   // 64 MB page cache（提升至 2x）
   conn.pragma('temp_store = MEMORY');
-  conn.pragma('mmap_size = 268435456'); // 256 MB mmap
+  conn.pragma('mmap_size = 536870912'); // 512 MB mmap（提升至 2x）
+  conn.pragma('page_size = 8192');      // 8KB 页（适配现代 SSD，减少碎片）
   if (!readonly) {
     conn.pragma('journal_mode = WAL');
     conn.pragma('synchronous = NORMAL');
     conn.pragma('foreign_keys = ON');
+    conn.pragma('wal_autocheckpoint = 2000'); // 每 2000 页检查点（减少检查点频率）
   }
+  // 只读连接优化：线程安全 + 无锁查询
+  if (readonly) {
+    conn.pragma('query_only = ON');
+    conn.pragma('locking_mode = NORMAL'); // 允许多读并发
+  }
+  // 额外性能优化
+  conn.pragma('journal_size_limit = 67108864'); // 限制 WAL 日志到 64MB
+  conn.pragma('cache_spill = OFF');             // 禁用缓存溢出（全内存缓存）
 }
 
 // ── 主写连接 ────────────────────────────────────────────────────

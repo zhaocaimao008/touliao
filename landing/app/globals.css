@@ -11,7 +11,12 @@ html {
 }
 
 body {
-  @apply bg-white text-ink-900 antialiased;
+  background: #F7F4EF;
+  color: #1F2421;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'tnum';
 }
 
@@ -24,7 +29,7 @@ section[id] {
 .reveal {
   opacity: 0;
   transform: translateY(18px);
-  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .reveal.in-view {
   opacity: 1;
@@ -37,4 +42,30 @@ section[id] {
     linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 44px 44px;
+}
+
+/* Warm earthy design tokens */
+.warm-card {
+  background: #FFFFFF;
+  border: 1px solid #E7E1D7;
+  box-shadow: 0 1px 2px rgba(31, 36, 33, 0.04), 0 8px 24px rgba(31, 36, 33, 0.06);
+  transition: all 0.2s ease;
+}
+
+.warm-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(31, 36, 33, 0.08), 0 12px 32px rgba(31, 36, 33, 0.1);
+}
+
+/* Terracotta accent utilities */
+.text-terracotta {
+  color: #C4612F;
+}
+
+.bg-terracotta {
+  background: #C4612F;
+}
+
+.bg-terracotta-soft {
+  background: #F2E3D6;
 }

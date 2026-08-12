@@ -34,15 +34,42 @@ function ToastRoot() {
           className={`wc-toast${toast.type === 'error' ? ' error' : toast.type === 'success' ? ' success' : ''}`}
           onClick={() => { clearTimeout(timerRef.current); setToast(null); }}
           title="点击关闭"
+          style={{
+            animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
         >{toast.msg}</div>
       )}
       {confirmState && (
-        <div className="wc-confirm-overlay" onClick={e => { if (e.target === e.currentTarget) { confirmState.resolve(false); setConfirm(null); } }}>
-          <div className="wc-confirm-box" role="dialog" aria-modal="true" aria-label="确认">
+        <div
+          className="wc-confirm-overlay"
+          onClick={e => { if (e.target === e.currentTarget) { confirmState.resolve(false); setConfirm(null); } }}
+          style={{
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+        >
+          <div
+            className="wc-confirm-box"
+            role="dialog"
+            aria-modal="true"
+            aria-label="确认"
+            style={{
+              animation: 'scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
             <div className="wc-confirm-msg">{confirmState.msg}</div>
             <div className="wc-confirm-btns">
-              <button className="wc-confirm-cancel" data-testid="confirm-cancel" onClick={() => { confirmState.resolve(false); setConfirm(null); }}>取消</button>
-              <button className="wc-confirm-ok" data-testid="confirm-ok" onClick={() => { confirmState.resolve(true); setConfirm(null); }}>确认</button>
+              <button
+                className="wc-confirm-cancel"
+                data-testid="confirm-cancel"
+                onClick={() => { confirmState.resolve(false); setConfirm(null); }}
+                style={{ transition: 'all 0.15s ease' }}
+              >取消</button>
+              <button
+                className="wc-confirm-ok"
+                data-testid="confirm-ok"
+                onClick={() => { confirmState.resolve(true); setConfirm(null); }}
+                style={{ transition: 'all 0.15s ease' }}
+              >确认</button>
             </div>
           </div>
         </div>

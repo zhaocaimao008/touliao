@@ -14,9 +14,9 @@
  */
 const { info } = require('../utils/logger');
 
-const BATCH_WINDOW_MS = 10;   // 5~20：合并窗口
-const MAX_BATCH       = 128;  // 50~200：单房间一批最多合并条数，达到即提前冲刷
-const SHARD_ROOMS     = 64;   // 单 tick 最多冲刷的房间数（多房间时分片）
+const BATCH_WINDOW_MS = 5;    // 5ms 合并窗口（降低延迟，保持高合并率）
+const MAX_BATCH       = 200;  // 单房间最多合并 200 条，提升批次效率
+const SHARD_ROOMS     = 96;   // 单 tick 最多冲刷 96 个房间（提升吞吐）
 
 let _io = null;
 // room → { event, msgs: [] }   仅合并 new_message；其它事件直接单发

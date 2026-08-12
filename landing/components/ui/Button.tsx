@@ -1,4 +1,6 @@
-import { type ReactNode } from 'react';
+'use client';
+
+import { type ReactNode, type CSSProperties } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'onDark';
 
@@ -22,6 +24,9 @@ export function Button({
   className = '',
   disabled = false,
   download = false,
+  style,
+  onMouseEnter,
+  onMouseLeave,
 }: {
   children: ReactNode;
   href?: string;
@@ -29,6 +34,9 @@ export function Button({
   className?: string;
   disabled?: boolean;
   download?: boolean;
+  style?: CSSProperties;
+  onMouseEnter?: (e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => void;
+  onMouseLeave?: (e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => void;
 }) {
   const cls = `${base} ${variants[variant]} ${className}`;
   if (href && !disabled) {
@@ -37,6 +45,9 @@ export function Button({
       <a
         href={href}
         className={cls}
+        style={style}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
         {...(download ? { download: true } : {})}
         {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
       >
@@ -45,7 +56,13 @@ export function Button({
     );
   }
   return (
-    <button className={cls} disabled={disabled}>
+    <button
+      className={cls}
+      disabled={disabled}
+      style={style}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       {children}
     </button>
   );

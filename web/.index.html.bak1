@@ -3,26 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover" />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="build-time" content="2026-08-12T00:00:00Z" />
-
-    <!-- DNS 预解析和预连接（减少 API 请求延迟） -->
-    <link rel="dns-prefetch" href="//api.vxin.app" />
-    <link rel="preconnect" href="//api.vxin.app" crossorigin />
-
-    <!-- 预加载关键资源 -->
-    <link rel="modulepreload" href="/src/main.jsx" />
-
+    <meta name="build-time" content="2026-07-26T00:00:00Z" />
     <title>v信</title>
-    <meta name="description" content="v信 - 极致体验的即时通讯应用" />
     <link rel="manifest" href="/manifest.json" />
-
-    <!-- PWA 相关 -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="v信" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; }

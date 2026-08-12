@@ -82,6 +82,105 @@
   flex-shrink: 0;
 }
 
+/* ── Toast 入场动画 ── */
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── 模态对话框动画 ── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ── 骨架屏脉冲动画优化 ── */
+@keyframes skeletonPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.wc-skeleton-avatar,
+.wc-skeleton-line {
+  animation: skeletonPulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ── 微交互：按钮点击反馈（GPU 加速优化）── */
+.wc-btn,
+.wc-confirm-ok,
+.wc-confirm-cancel,
+button[type="submit"],
+button[type="button"] {
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  will-change: transform;
+}
+
+.wc-btn:active,
+.wc-confirm-ok:active,
+.wc-confirm-cancel:active,
+button[type="submit"]:active,
+button[type="button"]:active {
+  transform: scale(0.97) translateZ(0);
+}
+
+/* ── 聊天列表项悬停微提升（GPU 加速）── */
+.wc-chat-item {
+  transition: background var(--dur-fast) ease, transform 0.15s ease;
+  will-change: transform;
+}
+
+.wc-chat-item:hover {
+  transform: translateX(2px) translateZ(0);
+}
+
+/* ── 消息气泡入场动画 ── */
+@keyframes msgFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wc-msg-row {
+  animation: msgFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+/* ── 发送成功微动效 ── */
+@keyframes sendSuccess {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.wc-msg-row.mine.just-sent {
+  animation: sendSuccess 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 /* 用 dvh 让布局随手机软键盘动态收缩，彻底解决输入框被键盘遮挡问题 */
@@ -101,19 +200,37 @@ input, textarea { font-family: inherit; outline: none; border: none; background:
 a { text-decoration: none; color: inherit; }
 img { display: block; }
 
-/* ── Scrollbar（细腻，几乎隐形）── */
-::-webkit-scrollbar { width: 8px; height: 8px; }
+/* ── Scrollbar（细腻优化版）── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,.14);
+  background: rgba(0,0,0,.08);
   border-radius: var(--radius-full);
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   background-clip: padding-box;
-  transition: background .2s;
+  transition: background .15s ease;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.28); background-clip: padding-box; }
-body.dark-mode ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); background-clip: padding-box; }
-body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,.18);
+  background-clip: padding-box;
+}
+body.dark-mode ::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.1);
+  background-clip: padding-box;
+}
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,.22);
+  background-clip: padding-box;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,.08) transparent;
+}
+body.dark-mode * {
+  scrollbar-color: rgba(255,255,255,.1) transparent;
+}
 
 /* ============================================================
    App Shell
@@ -127,17 +244,21 @@ body.dark-mode ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3
   transition: background var(--dur) var(--ease);
 }
 
-/* 响应式布局过渡 — 面板/消息区宽度随断点平滑变化 */
+/* 响应式布局过渡（优化版） — 面板/消息区宽度随断点平滑变化 */
 .wc-main {
-  transition: flex var(--dur) var(--ease);
+  transition: flex 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .wc-panel {
-  transition: width var(--dur) var(--ease), min-width var(--dur) var(--ease), padding var(--dur) var(--ease);
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              min-width 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
 }
 
 .wc-chat {
-  transition: flex var(--dur) var(--ease);
+  transition: flex 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  contain: layout style;
 }
 
 /* 主内容区（面板 + 聊天，水平排列） */

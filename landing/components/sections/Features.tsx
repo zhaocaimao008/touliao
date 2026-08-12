@@ -10,28 +10,72 @@ export function Features() {
         title={features.heading}
         sub={features.sub}
       />
-      <div className="mt-16 space-y-16">
+      <div className="mt-20 space-y-24">
         {features.items.map((item, i) => {
           const flip = i % 2 === 1;
           return (
             <Reveal key={item.title}>
-              <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+              <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
                 {/* 文案 */}
                 <div className={flip ? 'lg:order-2' : ''}>
-                  <span className="inline-flex rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brand-700">
+                  <span
+                    className="inline-flex px-4 py-1.5 text-xs font-medium uppercase tracking-wide"
+                    style={{
+                      background: '#F2E3D6',
+                      color: '#C4612F',
+                      borderRadius: '999px',
+                      letterSpacing: '0.05em'
+                    }}
+                  >
                     {item.tag}
                   </span>
-                  <h3 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">
+                  <h3
+                    className="mt-5 tracking-tight"
+                    style={{
+                      fontFamily: '"Playfair Display", "Noto Serif SC", serif',
+                      fontSize: 'clamp(1.75rem, 3vw, 2.25rem)',
+                      fontWeight: 400,
+                      color: '#1F2421',
+                      letterSpacing: '-0.01em',
+                      lineHeight: 1.2
+                    }}
+                  >
                     {item.title}
                   </h3>
-                  <p className="mt-3 text-ink-600">{item.desc}</p>
-                  <ul className="mt-6 grid grid-cols-2 gap-3">
+                  <p
+                    className="mt-4 leading-relaxed"
+                    style={{
+                      fontSize: '1rem',
+                      fontWeight: 300,
+                      color: '#5C635D',
+                      lineHeight: '1.7'
+                    }}
+                  >
+                    {item.desc}
+                  </p>
+                  <ul className="mt-8 space-y-3">
                     {item.bullets.map((b) => (
                       <li
                         key={b}
-                        className="flex items-center gap-2 text-sm text-ink-800"
+                        className="flex items-start gap-3"
+                        style={{
+                          fontSize: '0.9375rem',
+                          color: '#1F2421'
+                        }}
                       >
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[11px] text-brand-700">
+                        <span
+                          className="flex shrink-0 items-center justify-center"
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '999px',
+                            background: '#F2E3D6',
+                            color: '#C4612F',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            marginTop: '2px'
+                          }}
+                        >
                           ✓
                         </span>
                         {b}
@@ -39,11 +83,17 @@ export function Features() {
                     ))}
                   </ul>
                 </div>
-                {/* 视觉占位块 */}
+                {/* 视觉占位块 - 真实截图框 */}
                 <div className={flip ? 'lg:order-1' : ''}>
-                  <div className="relative aspect-[4/3] overflow-hidden rounded-xl2 border border-ink-100 bg-gradient-to-br from-brand-50 to-ink-50 shadow-soft">
+                  <div
+                    className="warm-card relative aspect-[4/3] overflow-hidden"
+                    style={{
+                      borderRadius: '1.25rem',
+                      background: 'linear-gradient(135deg, #FBF9F5 0%, #F7F4EF 100%)'
+                    }}
+                  >
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-6xl opacity-80">
+                      <span style={{ fontSize: '4rem', opacity: 0.3 }}>
                         {item.tag === '聊天'
                           ? '💬'
                           : item.tag === '朋友圈'
@@ -53,8 +103,17 @@ export function Features() {
                               : '👥'}
                       </span>
                     </div>
-                    <div className="absolute bottom-3 left-3 rounded-lg bg-white/80 px-3 py-1 text-xs font-medium text-ink-600 backdrop-blur">
-                      {item.tag} · 示意
+                    <div
+                      className="absolute bottom-4 left-4 px-3 py-1.5 text-xs font-medium"
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.9)',
+                        color: '#5C635D',
+                        borderRadius: '8px',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(231, 225, 215, 0.5)'
+                      }}
+                    >
+                      {item.tag} · 功能示意
                     </div>
                   </div>
                 </div>

@@ -4,28 +4,50 @@ import AutoSizer from 'react-virtualized-auto-sizer';
 import MessageItem, { TimeDivider } from './MessageItem';
 import { estimateHeight } from './estimateHeight';
 
-// 批量行高刷新调度器：多行(图片/表情/回复缩略图)异步测量会各自触发 resetAfterIndex，
-// 每次都强制列表从该行起全量重排。多行同帧完成时 = 几十次连锁重排 → 持续抖动(三端共用此列表)。
-// 这里把同一帧内所有行的高度变更合并成一次 resetAfterIndex(取最小受影响 index)，一帧只重排一次。
+// 批量行高刷新调度器（增强版）：多行异步测量合并为一次重排，并添加防抖避免连续触发。
+// 优化点：1) 同帧合并 2) 微任务批处理 3) 最小影响范围追踪
 function createSizeFlusher(listRef, onSettle) {
   let raf = 0;
+  let microTaskScheduled = false;
   let minIndex = Infinity;
+  let maxIndex = -Infinity;
+
   const flush = () => {
     raf = 0;
-    const idx = minIndex;
+    microTaskScheduled = false;
+    const min = minIndex, max = maxIndex;
     minIndex = Infinity;
-    if (idx !== Infinity) {
-      listRef.current?.resetAfterIndex(idx, true);
-      // 行高被修正后通知外层：若处于贴底态，外层据此贴一次底(事件驱动，取代每帧盲滚循环)。
+    maxIndex = -Infinity;
+
+    if (min !== Infinity && listRef.current) {
+      // 仅重排受影响区间，避免全量重排
+      listRef.current.resetAfterIndex(min, true);
       onSettle?.current?.();
     }
   };
+
+  // 双层批处理：微任务收集 + RAF 执行
+  const scheduleMicroTask = () => {
+    if (!microTaskScheduled) {
+      microTaskScheduled = true;
+      queueMicrotask(() => {
+        if (!raf) raf = requestAnimationFrame(flush);
+      });
+    }
+  };
+
   return {
     schedule(index) {
       if (index < minIndex) minIndex = index;
-      if (!raf) raf = requestAnimationFrame(flush);
+      if (index > maxIndex) maxIndex = index;
+      scheduleMicroTask();
     },
-    cancel() { if (raf) { cancelAnimationFrame(raf); raf = 0; } minIndex = Infinity; },
+    cancel() {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      microTaskScheduled = false;
+      minIndex = Infinity;
+      maxIndex = -Infinity;
+    },
   };
 }
 

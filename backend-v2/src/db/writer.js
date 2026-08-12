@@ -16,14 +16,14 @@ const config = require('../config');
 const prodMetrics = require('../utils/prodMetrics');
 
 const WORKER_SCRIPT = path.join(__dirname, 'worker.js');
-// maxBatch 提到 500：单事务合并更多写，减少 transaction 次数，加快积压排空（#3）
-const WORKER_DATA   = { dbPath: config.dbPath, flushMs: 8, maxBatch: 500 };
+// 极致优化：flushMs 降至 5ms + maxBatch 提升至 800，最大化批处理效率
+const WORKER_DATA   = { dbPath: config.dbPath, flushMs: 5, maxBatch: 800 };
 const RESTART_DELAY = 500;
 
-// ── 背压参数（#2）：禁止未决写 Promise 无限堆积 ──────────────────
-const MAX_QUEUE_SIZE   = 20000;  // 未决写超过此值：writeAsync/writeBatch 立即快速失败
-const HIGH_WATER_MARK  = 15000;  // 进入过载（拒绝 fire-and-forget write，避免雪上加霜）
-const LOW_WATER_MARK   = 5000;   // 退出过载（迟滞，避免抖动）
+// ── 背压参数（优化）：提升队列容量，匹配高并发场景 ──────────────────
+const MAX_QUEUE_SIZE   = 30000;  // 提升至 30k（适配峰值流量）
+const HIGH_WATER_MARK  = 22000;  // 进入过载阈值
+const LOW_WATER_MARK   = 8000;   // 退出过载阈值（更宽松，减少抖动）
 let _overloaded = false;
 const backpressure = { rejected: 0, droppedWrites: 0, overloadedEnters: 0, get queueDepth() { return _pending.size; }, get overloaded() { return _overloaded; } };
 function updateOverload() {
