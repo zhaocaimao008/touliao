@@ -58,6 +58,14 @@ app.use(requestId);
 app.use(requestLogger);
 app.use(metricsMiddleware);
 
+// 分布式追踪中间件
+const { tracing } = require('./integrations/tracing');
+app.use(tracing.middleware());
+
+// CDN 优化中间件
+const { cdnRewriteMiddleware, uploadsCacheMiddleware } = require('./integrations/cdnOptimizer');
+app.use(cdnRewriteMiddleware);
+
 app.use(cookieParser());
 // body 体积上限：JSON/表单请求只承载文本消息与元数据（最长消息 2000 字），
 // 大文件走 multipart/分片上传通道。限 1MB 防止超大 JSON 撑爆内存（DoS 加固）。
@@ -88,7 +96,7 @@ app.use('/uploads', (req, res, next) => {
     console.error('[uploads] blacklist check error:', err.message);
     res.status(503).json({ error: '认证服务暂时不可用' });
   });
-}, express.static(config.uploadsRoot, {
+}, uploadsCacheMiddleware, express.static(config.uploadsRoot, {
   // uploads 均为 uuid 命名、内容永不变更 → 强缓存，消除每次加载的 304 回源往返，
   // 头像/图片打开会话即从本地缓存秒出。private：内容经鉴权，禁止共享缓存(CDN/代理)存储，
   // 只允许当前用户浏览器缓存（与该用户已被授权取得这些字节一致，无安全回归）。
@@ -184,6 +192,7 @@ app.use('/api/wallet',        require('./modules/wallet/wallet.routes'));
 app.use('/api/turn',          require('./modules/turn/turn.routes'));
 app.use('/api/admin',         require('./modules/admin/admin.routes'));
 app.use('/api/friend-labels', require('./modules/contacts/friend_labels.routes'));
+app.use('/api/monitoring',    require('./routes/monitoring.routes'));
 
 // 公开配置（前端读取功能开关，决定朋友圈/收藏入口显隐）
 const { getFeatures } = require('./modules/admin/admin.service');

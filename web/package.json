@@ -1,6 +1,6 @@
 {
   "name": "v-xin-web",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "v信 — 企业级安全即时通讯客户端",
   "homepage": "",
   "author": {
@@ -70,9 +70,12 @@
     "fake-indexeddb": "^6.2.5",
     "globals": "^17.7.0",
     "vite": "^8.0.16",
+    "vite-plugin-compression": "^0.5.1",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^2.1.9",
-    "wait-on": "^9.0.10"
+    "wait-on": "^9.0.10",
+    "workbox-webpack-plugin": "^7.4.1",
+    "workbox-window": "^7.4.1"
   },
   "build": {
     "appId": "com.vxin.desktop",

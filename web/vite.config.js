@@ -1,74 +1,77 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { viteSingleFile } from 'vite-plugin-singlefile';
-import { readFileSync } from 'fs';
+import viteCompression from 'vite-plugin-compression';
 
-// web 版本号：构建时从 package.json 注入为全局常量 __APP_VERSION__，供「我的」页显示。
-const WEB_VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url))).version;
-
-// desktop 模式：vite build --mode desktop
-// web 模式（默认）：vite build
-const isDesktop = (mode) => mode === 'desktop';
-
-export default defineConfig(({ mode, command }) => ({
-  define: {
-    __APP_VERSION__: JSON.stringify(WEB_VERSION),
-  },
-  // 单文件内联仅用于 desktop(Electron file://) 与移动端(Capacitor) 打包；
-  // 纯 web 构建走多 chunk + 路由级代码分割，减小首屏体积。
-  plugins: [react(), ...(isDesktop(mode) ? [viteSingleFile()] : [])],
-  publicDir: 'public',
-
-  // desktop 构建使用相对路径，保证 file:// 协议下 public/ 静态资源可寻址
-  // viteSingleFile 将所有 JS/CSS 内联进 index.html，base 主要影响非内联资源
-  base: isDesktop(mode) ? './' : '/',
-
-  // ── oxc (Vite 8+)：所有 build 命令均剥离 console.* / debugger
-  // 用 command==='build' 而非检查 mode 名，防止 --mode staging 等非标准 mode 漏掉
-  oxc: command === 'build' ? {
-    drop: ['console', 'debugger'],
-    legalComments: 'none',
-  } : undefined,
-
+export default defineConfig({
+  plugins: [
+    react(),
+    // Gzip 压缩
+    viteCompression({
+      algorithm: 'gzip',
+      ext: '.gz',
+      threshold: 10240, // 大于 10KB 才压缩
+      deleteOriginFile: false,
+    }),
+    // Brotli 压缩（更高压缩率）
+    viteCompression({
+      algorithm: 'brotliCompress',
+      ext: '.br',
+      threshold: 10240,
+      deleteOriginFile: false,
+    }),
+  ],
   build: {
-    sourcemap:             false,
-    cssCodeSplit:          false,
-    chunkSizeWarningLimit: 1000,
-    minify:                'esbuild',
-    // 兼容目标：es2018（iOS Safari 12+ / Chrome 65+ / 现代安卓 WebView 全覆盖）。
-    // 之前用 Vite 默认 target 未转译 ES2021 语法(如 ??= 逻辑空赋值)，
-    // 导致 iOS Safari 14 及以下解析 vendor chunk 抛 SyntaxError → React 不加载 → 白屏。
-    // esbuild/oxc 会把 ??=、?.、可选链等降级为兼容写法，代价是产物略大(可接受)。
-    target: 'es2018',
-
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // 生产环境移除 console
+        drop_debugger: true,
+        pure_funcs: ['console.log', 'console.info', 'console.debug'],
+      },
+    },
     rollupOptions: {
       output: {
-        // desktop/移动端：不分包（viteSingleFile 内联一切）；
-        // 纯 web：拆出稳定第三方库为长缓存 vendor chunk，
-        //         页面级 chunk 由 App.jsx 的 React.lazy 自动产生。
-        manualChunks: isDesktop(mode) ? undefined : (id) => {
+        manualChunks: (id) => {
           if (id.includes('node_modules')) {
-            if (id.includes('react-router')) return 'vendor-router';
-            if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'vendor-react';
-            if (id.includes('socket.io')) return 'vendor-socket';
-            if (id.includes('axios')) return 'vendor-axios';
-            // jsqr(~250KB) 仅被懒加载的 ScanQR 使用，单独成 chunk，
-            // 避免混入首屏 vendor；扫码时才拉取。
-            if (id.includes('jsqr')) return 'vendor-jsqr';
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('socket.io-client')) {
+              return 'vendor-socket';
+            }
+            if (id.includes('axios')) {
+              return 'vendor-axios';
+            }
+            if (id.includes('jsqr')) {
+              return 'vendor-jsqr';
+            }
             return 'vendor';
           }
         },
-        entryFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]',
+        // 文件名加 hash 指纹
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+      },
+    },
+    // 打包大小警告阈值
+    chunkSizeWarningLimit: 1000,
+  },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+      },
+      '/socket.io': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+        ws: true,
       },
     },
   },
-
-  server: {
-    proxy: {
-      '/api':       'http://localhost:3002',
-      '/uploads':   'http://localhost:3002',
-      '/socket.io': { target: 'http://localhost:3002', ws: true },
-    },
-  },
-}));
+});

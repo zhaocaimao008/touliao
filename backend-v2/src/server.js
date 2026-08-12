@@ -12,6 +12,18 @@ const setupRealtime = require('./realtime');
 const { shutdown: shutdownWriter } = require('./db/writer');
 const { db } = require('./db/connection');
 
+// 初始化 Redis 缓存
+const { redisCache } = require('./integrations/redisCache');
+redisCache.connect().catch(err => {
+  console.warn('[Redis] 连接失败，将降级运行:', err.message);
+});
+
+// 初始化分布式追踪
+const { tracing } = require('./integrations/tracing');
+tracing.initialize({ enabled: process.env.TRACING_ENABLED !== 'false' }).catch(err => {
+  console.warn('[Tracing] 初始化失败，将降级运行:', err.message);
+});
+
 // 确保上传目录存在
 ['avatars', 'files', 'stickers', 'moments'].forEach(d => fs.mkdirSync(path.join(config.uploadsRoot, d), { recursive: true }));
 
@@ -65,11 +77,15 @@ server.listen(config.port, '127.0.0.1', () => {
 
 // 优雅退出：通知 worker flush 落盘后再退出（pm2 restart / 停服时不丢写）
 let _closing = false;
-function graceful(sig) {
+async function graceful(sig) {
   if (_closing) return;
   _closing = true;
   console.log(`[server] 收到 ${sig}，优雅退出中…`);
-  try { shutdownWriter(); } catch {}
+  try {
+    shutdownWriter();
+    await redisCache.disconnect();
+    await tracing.shutdown();
+  } catch {}
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 3000).unref();
 }
