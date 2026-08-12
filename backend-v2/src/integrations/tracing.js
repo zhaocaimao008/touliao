@@ -35,7 +35,7 @@ class DistributedTracing {
       // 配置资源
       const resource = new Resource({
         [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
-        [SemanticResourceAttributes.SERVICE_VERSION]: process.env.npm_package_version || '2.1.0',
+        [SemanticResourceAttributes.SERVICE_VERSION]: process.env.npm_package_version || '2.2.0',
         [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
       });
 
