@@ -1,6 +1,6 @@
 {
   "name": "vxin-backend-v2",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "v信后端 —— 分层模块化重写（drop-in 替换 v1）",
   "main": "src/server.js",
   "scripts": {
