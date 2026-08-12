@@ -5,9 +5,10 @@
 
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
-const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
+const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc');
 const { Resource } = require('@opentelemetry/resources');
-const { SemanticResourceAttributes } = require('@opentelemetry/semantic-conventions');
+const { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } = require('@opentelemetry/semantic-conventions');
+const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 const opentelemetry = require('@opentelemetry/api');
 
 class DistributedTracing {
@@ -23,7 +24,7 @@ class DistributedTracing {
    */
   async initialize(config = {}) {
     const serviceName = config.serviceName || process.env.SERVICE_NAME || 'vxin-backend';
-    const exporterEndpoint = config.exporterEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces';
+    const exporterEndpoint = config.exporterEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4317';
     const enabled = config.enabled !== false && process.env.TRACING_ENABLED !== 'false';
 
     if (!enabled) {
@@ -33,22 +34,38 @@ class DistributedTracing {
 
     try {
       // 配置资源
-      const resource = new Resource({
-        [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
-        [SemanticResourceAttributes.SERVICE_VERSION]: process.env.npm_package_version || '2.2.0',
-        [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
-      });
+      const resource = Resource.default().merge(
+        new Resource({
+          [SEMRESATTRS_SERVICE_NAME]: serviceName,
+          [SEMRESATTRS_SERVICE_VERSION]: process.env.npm_package_version || '2.2.0',
+          [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
+        })
+      );
 
-      // 配置导出器
+      // 配置导出器（使用GRPC，更可靠）
+      const { DiagConsoleLogger, DiagLogLevel, diag } = require('@opentelemetry/api');
+
+      // 启用详细日志（仅在开发环境）
+      if (process.env.NODE_ENV !== 'production') {
+        diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
+      }
+
       const traceExporter = new OTLPTraceExporter({
         url: exporterEndpoint,
-        headers: {},
+      });
+
+      // 配置批处理器（更激进的导出策略）
+      const spanProcessor = new BatchSpanProcessor(traceExporter, {
+        maxQueueSize: 2048,
+        maxExportBatchSize: 128,  // 减小批次以更快导出
+        scheduledDelayMillis: 2000,  // 2秒导出一次
+        exportTimeoutMillis: 10000,
       });
 
       // 初始化 SDK
       this.sdk = new NodeSDK({
         resource,
-        traceExporter,
+        spanProcessor,
         instrumentations: [
           getNodeAutoInstrumentations({
             '@opentelemetry/instrumentation-fs': {
@@ -59,11 +76,14 @@ class DistributedTracing {
       });
 
       await this.sdk.start();
-      
+
       this.tracer = opentelemetry.trace.getTracer(serviceName);
+      this.spanProcessor = spanProcessor;
       this.isEnabled = true;
 
-      console.log(`[Tracing] Initialized - Service: ${serviceName}, Exporter: ${exporterEndpoint}`);
+      console.log(`[Tracing] ✓ Initialized - Service: ${serviceName}, Exporter: ${exporterEndpoint}`);
+      await this.spanProcessor.forceFlush();
+      console.log('[Tracing] Test span sent');
     } catch (error) {
       console.error('[Tracing] Failed to initialize:', error.message);
       console.log('[Tracing] Falling back to in-memory tracing');
