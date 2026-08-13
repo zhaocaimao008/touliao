@@ -64,12 +64,12 @@ async function initRedis() {
     });
     redisClient.on('ready', () => {
       useRedis = true;
-      console.log('[TokenBlacklist] Redis reconnected, resuming Redis storage');
+      console.debug('[TokenBlacklist] Redis reconnected, resuming Redis storage');
     });
 
     await redisClient.connect();
     useRedis = true;
-    console.log('[TokenBlacklist] Using Redis storage');
+    console.debug('[TokenBlacklist] Using Redis storage');
   } catch (err) {
     console.warn('[TokenBlacklist] Redis unavailable, using SQLite fallback:', err.message);
     useRedis = false;

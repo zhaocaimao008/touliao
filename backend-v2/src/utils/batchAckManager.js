@@ -85,7 +85,7 @@ class BatchAckManager extends AckManager {
       }
 
       await pipeline.exec();
-      console.log(`[BatchACK] 处理完成: ${type} x${items.length} (user: ${userId})`);
+      console.debug(`[BatchACK] 处理完成: ${type} x${items.length} (user: ${userId})`);
 
       this.pendingBatches.delete(batchKey);
       return { processed: items.length, type };

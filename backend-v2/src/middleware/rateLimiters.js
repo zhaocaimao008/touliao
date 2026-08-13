@@ -34,7 +34,7 @@ let _redisReady  = false;
     await c.connect();
     _redisClient = c;
     _redisReady  = true;
-    console.log('[RateLimit] Redis store connected (db3)');
+    console.debug('[RateLimit] Redis store connected (db3)');
   } catch {
     console.warn('[RateLimit] Redis unavailable, using in-memory store');
   }

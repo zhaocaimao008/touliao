@@ -30,7 +30,7 @@ const SQL_INJECTION_PATTERNS = [
 // 路径遍历攻击模式
 const PATH_TRAVERSAL_PATTERNS = [
   /\.\.\//g,
-  /\.\.\\g,
+  /\.\.\\/g,
   /%2e%2e%2f/gi,
   /%2e%2e\\/gi,
 ];

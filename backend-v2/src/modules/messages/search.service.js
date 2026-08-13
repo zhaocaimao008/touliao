@@ -2,11 +2,17 @@
 /**
  * 消息搜索业务逻辑
  * 集成 FTS5 + Redis 缓存
+ *
+ * 性能设计要点：
+ *   - searchInConversation：分页结果 + COUNT(*) 各一条 SQL（共 2 次 FTS5 查询），
+ *     不再用 limit=999999 把全部结果加载进内存来计数。
+ *   - searchGlobal：一次性把用户所有会话 ID 传给 searchMessagesInConversations，
+ *     只发起 2 条 SQL（COUNT + SELECT），消除 N+1 循环。
+ *     会话信息用一条 IN(?) 批量拉取，不在循环里逐个查库。
  */
 
 const { db } = require('../../db/connection');
-const { ftsSearch } = require('../../integrations/redisCache');
-const { searchMessages, getSearchStats } = require('../../utils/ftsSearch');
+const { searchMessages, countMessages, searchMessagesInConversations, getSearchStats } = require('../../utils/ftsSearch');
 const { requireMember } = require('./shared');
 const cache = require('../../utils/cache');
 
@@ -44,23 +50,13 @@ async function searchInConversation(conversationId, userId, query, options = {})
     console.warn('[Search] 缓存查询失败:', err.message);
   }
 
-  // FTS5 搜索
-  const results = searchMessages(query, conversationId, userId, {
-    limit,
-    offset,
-    senderOnly,
-  });
-
-  // 获取总数（无 offset/limit）
-  const allResults = searchMessages(query, conversationId, userId, {
-    limit: 999999,
-    offset: 0,
-    senderOnly,
-  });
+  // 分页结果 + COUNT — 各一条 SQL，不再用 limit=999999 全量加载
+  const results = searchMessages(query, conversationId, userId, { limit, offset, senderOnly });
+  const total   = countMessages(query, conversationId, senderOnly);
 
   const result = {
     results,
-    total: allResults.length,
+    total,
     limit,
     offset,
     took: Date.now() - startTime,
@@ -107,43 +103,32 @@ async function searchGlobal(userId, query, options = {}) {
     console.warn('[Search] 缓存查询失败:', err.message);
   }
 
-  // 获取用户所有会话
-  const convRows = db.prepare(`
-    SELECT DISTINCT conversation_id FROM conversation_members WHERE user_id = ?
-  `).all(userId);
-
+  // 获取用户所有会话 ID
+  const convRows = db.prepare(
+    'SELECT DISTINCT conversation_id FROM conversation_members WHERE user_id = ?'
+  ).all(userId);
   const conversationIds = convRows.map(r => r.conversation_id);
 
   if (conversationIds.length === 0) {
     return { results: [], total: 0, conversations: {}, took: 0 };
   }
 
-  // 在所有会话中搜索
-  const results = [];
-  const conversationMap = {};
+  // 一次性 FTS5 搜索（COUNT + SELECT，共 2 条 SQL，不再 N+1 循环）
+  const { results, total } = searchMessagesInConversations(query, conversationIds, { limit, offset });
 
-  for (const convId of conversationIds) {
-    const convResults = searchMessages(query, convId, userId, {
-      limit: 999999,
-      offset: 0,
-    });
-
-    convResults.forEach(msg => {
-      results.push(msg);
-      if (!conversationMap[convId]) {
-        const conv = db.prepare('SELECT id, name, type FROM conversations WHERE id = ?').get(convId);
-        conversationMap[convId] = conv;
-      }
-    });
+  // 批量拉取本次结果涉及的会话信息（一条 IN 查询，不在循环里逐个查）
+  const hitConvIds = [...new Set(results.map(m => m.conversation_id))];
+  let conversationMap = {};
+  if (hitConvIds.length > 0) {
+    const ph2 = hitConvIds.map(() => '?').join(',');
+    db.prepare(`SELECT id, name, type FROM conversations WHERE id IN (${ph2})`)
+      .all(...hitConvIds)
+      .forEach(c => { conversationMap[c.id] = c; });
   }
 
-  // 排序并分页
-  results.sort((a, b) => b.created_at - a.created_at);
-  const paged = results.slice(offset, offset + limit);
-
   const result = {
-    results: paged,
-    total: results.length,
+    results,
+    total,
     conversations: conversationMap,
     limit,
     offset,

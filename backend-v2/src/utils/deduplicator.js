@@ -46,7 +46,7 @@ class MessageDeduplicator {
       });
       
       await redis.setex(key, this.dedup_ttl, data);
-      console.log(`[Dedup] 消息已标记: ${userId}:${clientMsgId}`);
+      console.debug(`[Dedup] 消息已标记: ${userId}:${clientMsgId}`);
     } catch (err) {
       console.error('[Dedup] 标记失败:', err.message);
     }
@@ -92,7 +92,7 @@ class MessageDeduplicator {
       
       if (keys.length > 0) {
         await redis.del(...keys);
-        console.log(`[Dedup] 已清除用户去重记录: ${userId} (${keys.length} 条)`);
+        console.debug(`[Dedup] 已清除用户去重记录: ${userId} (${keys.length} 条)`);
       }
     } catch (err) {
       console.error('[Dedup] 清除记录失败:', err.message);

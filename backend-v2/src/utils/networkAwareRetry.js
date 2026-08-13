@@ -63,7 +63,7 @@ class NetworkAwareRetry {
         this.networkQuality = 'offline';
       }
 
-      console.log(`[NetworkAware] 网络质量: ${this.networkQuality} (延迟: ${latency}ms)`);
+      console.debug(`[NetworkAware] 网络质量: ${this.networkQuality} (延迟: ${latency}ms)`);
       return this.networkQuality;
     } catch (err) {
       this.networkQuality = 'offline';
@@ -95,7 +95,7 @@ class NetworkAwareRetry {
     
     for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
       try {
-        console.log(`[NetworkAware] 执行 ${taskName} (尝试 ${attempt}/${config.maxRetries})`);
+        console.debug(`[NetworkAware] 执行 ${taskName} (尝试 ${attempt}/${config.maxRetries})`);
         return await task();
       } catch (err) {
         if (attempt === config.maxRetries) {
@@ -156,7 +156,7 @@ class NetworkAwareRetry {
   setNetworkQuality(quality) {
     if (this.retryConfigs[quality]) {
       this.networkQuality = quality;
-      console.log(`[NetworkAware] 网络质量已设置: ${quality}`);
+      console.debug(`[NetworkAware] 网络质量已设置: ${quality}`);
     }
   }
 
@@ -168,7 +168,7 @@ class NetworkAwareRetry {
       await this.detectNetworkQuality();
     }, interval).unref();
 
-    console.log(`[NetworkAware] 网络监测已启动 (间隔: ${interval}ms)`);
+    console.debug(`[NetworkAware] 网络监测已启动 (间隔: ${interval}ms)`);
   }
 }
 

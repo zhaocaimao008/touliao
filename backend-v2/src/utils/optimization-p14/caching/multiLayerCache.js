@@ -72,7 +72,9 @@ class MultiLayerCache {
    * 主动失效策略
    */
   async invalidate(keyPattern) {
-    const regex = new RegExp(keyPattern);
+    // 转义用户输入，防止 ReDoS（直接 new RegExp(用户输入) 存在灾难性回溯风险）
+    const escaped = keyPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped);
     
     // L1失效
     for (const key of this.l1Cache.keys()) {

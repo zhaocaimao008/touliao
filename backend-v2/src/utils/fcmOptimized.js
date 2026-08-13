@@ -26,12 +26,12 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && proc
       });
     }
     firebaseAdmin = admin;
-    console.log('[FCM] Firebase Admin 初始化成功 (优化版)');
+    console.debug('[FCM] Firebase Admin 初始化成功 (优化版)');
   } catch (e) {
     console.warn('[FCM] Firebase Admin 初始化失败:', e.message);
   }
 } else {
-  console.log('[FCM] Firebase 未配置，FCM 推送不可用');
+  console.debug('[FCM] Firebase 未配置，FCM 推送不可用');
 }
 
 // ── Token 缓存管理 (5 分钟 TTL) ──────────────────────────────────
@@ -67,7 +67,7 @@ setInterval(() => {
       cleaned++;
     }
   }
-  if (cleaned > 0) console.log(`[FCM] 清理过期缓存 ${cleaned} 条`);
+  if (cleaned > 0) console.debug(`[FCM] 清理过期缓存 ${cleaned} 条`);
 }, 60000);
 
 // ── 智能优先级 ────────────────────────────────────────────────────
@@ -128,7 +128,7 @@ async function sendBatchAndroidNotifications(userId, payload) {
     // 1. 获取用户的 Android 设备 Token (使用缓存)
     const tokens = await getAndroidTokens(userId);
     if (tokens.length === 0) {
-      console.log(`[FCM] 用户 ${userId} 无 Android 设备`);
+      console.debug(`[FCM] 用户 ${userId} 无 Android 设备`);
       return null;
     }
     
@@ -173,7 +173,7 @@ async function sendBatchAndroidNotifications(userId, payload) {
     const tokenList = tokens.map(t => t.token);
     
     // 4. 批量发送 (一次 API 调用，而不是多次)
-    console.log(`[FCM] 批量发送 user=${userId} devices=${tokenList.length}`);
+    console.debug(`[FCM] 批量发送 user=${userId} devices=${tokenList.length}`);
     
     const response = await firebaseAdmin.messaging().sendMulticast({
       ...message,
@@ -185,7 +185,7 @@ async function sendBatchAndroidNotifications(userId, payload) {
     response.responses.forEach((resp, idx) => {
       if (resp.success) {
         successCount++;
-        console.log(`[FCM] ✅ 发送成功 user=${userId} device=${idx} msgId=${resp.messageId}`);
+        console.debug(`[FCM] ✅ 发送成功 user=${userId} device=${idx} msgId=${resp.messageId}`);
       } else {
         const error = resp.error;
         console.warn(`[FCM] ❌ 发送失败 user=${userId} device=${idx} code=${error.code} msg=${error.message}`);
@@ -193,7 +193,7 @@ async function sendBatchAndroidNotifications(userId, payload) {
         // 清理失效 Token
         if (error.code === 'messaging/invalid-registration-token' ||
             error.code === 'messaging/registration-token-not-registered') {
-          console.log(`[FCM] 清理失效 Token: ${tokens[idx].id}`);
+          console.debug(`[FCM] 清理失效 Token: ${tokens[idx].id}`);
           db.prepare('DELETE FROM device_tokens WHERE id=?').run(tokens[idx].id);
         }
       }
@@ -203,7 +203,7 @@ async function sendBatchAndroidNotifications(userId, payload) {
     const latency = Date.now() - startTime;
     recordMetric(latency, successCount > 0);
     
-    console.log(`[FCM] 批量发送完成 user=${userId} success=${successCount}/${tokenList.length} latency=${latency}ms`);
+    console.debug(`[FCM] 批量发送完成 user=${userId} success=${successCount}/${tokenList.length} latency=${latency}ms`);
     
     return {
       success: successCount > 0,
@@ -239,7 +239,7 @@ function getMetrics() {
 // ── 清空缓存 (用于测试) ────────────────────────────────────────────
 function clearCache() {
   tokenCache.clear();
-  console.log('[FCM] Token 缓存已清空');
+  console.debug('[FCM] Token 缓存已清空');
 }
 
 module.exports = {

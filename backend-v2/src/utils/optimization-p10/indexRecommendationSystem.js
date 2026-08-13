@@ -1,4 +1,11 @@
 /**
+ * ⚠️  安全警告：此文件为死代码，从未被任何路由或模块 require。
+ *
+ * 危险模式（禁止引入生产路由）：
+ *   - 含有 `new RegExp(query)` 模式 —— 若 query 来自用户输入，存在 ReDoS 风险
+ *
+ * 切勿将该类 require 到任何 HTTP 请求处理链中。
+ *
  * P10.3: 自动索引推荐系统
  */
 class IndexRecommendationSystem {

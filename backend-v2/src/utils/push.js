@@ -49,12 +49,12 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && proc
       });
     }
     firebaseAdmin = admin;
-    console.log('[Push] Firebase Admin 初始化成功');
+    console.debug('[Push] Firebase Admin 初始化成功');
   } catch (e) {
     console.warn('[Push] Firebase Admin 初始化失败:', e.message);
   }
 } else {
-  console.log('[Push] Firebase 未配置，FCM/APNs 推送不可用');
+  console.debug('[Push] Firebase 未配置，FCM/APNs 推送不可用');
 }
 
 async function pushToUser(userId, payload) {
@@ -140,7 +140,7 @@ async function pushToUser(userId, payload) {
       };
       promises.push(
         firebaseAdmin.messaging().send(message)
-          .then(id => { console.log(`[push] iOS APNs 发送成功 user=${userId} msgId=${id}`); })
+          .then(id => { console.debug(`[push] iOS APNs 发送成功 user=${userId} msgId=${id}`); })
           .catch(err => {
             console.warn(`[push] iOS APNs 发送失败 user=${userId} code=${err.code || '?'} msg=${err.message}`);
             if (err.code === 'messaging/invalid-registration-token' ||
@@ -173,7 +173,7 @@ async function pushToUser(userId, payload) {
             db.prepare('DELETE FROM device_tokens WHERE id=?').run(row.id);
           }
         } else {
-          console.log(`[push] 个推成功 user=${userId}`);
+          console.debug(`[push] 个推成功 user=${userId}`);
         }
       }).catch(e => console.warn(`[push] 个推异常: ${e.message}`));
     }

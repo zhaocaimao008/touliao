@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const adminAuth = require('../middleware/adminAuth');
 router.use(auth); // 所有端点需登录鉴权
 
 
@@ -33,12 +34,12 @@ router.post('/cache/preheat', async (req, res) => {
   res.json({ message: '缓存预热完成', stats: cache.getStats() });
 });
 
-router.get('/cache/get/:key', async (req, res) => {
+router.get('/cache/get/:key', adminAuth, async (req, res) => {
   const value = await cache.get(req.params.key);
   res.json({ value, stats: cache.getStats() });
 });
 
-router.post('/cache/invalidate', async (req, res) => {
+router.post('/cache/invalidate', adminAuth, async (req, res) => {
   const { keyPattern } = req.body;
   await cache.invalidate(keyPattern);
   res.json({ message: '缓存失效完成' });
@@ -58,7 +59,7 @@ router.get('/metrics/heatmap', (req, res) => {
 });
 
 // P14.3: 异步处理
-router.post('/async/execute', async (req, res) => {
+router.post('/async/execute', adminAuth, async (req, res) => {
   const { tasks } = req.body;
   const results = await async.executeBatch(tasks);
   res.json({ stats: async.getStats() });
@@ -91,7 +92,7 @@ router.post('/disaster/setup-replica', async (req, res) => {
   res.json(replica);
 });
 
-router.post('/disaster/failover', async (req, res) => {
+router.post('/disaster/failover', adminAuth, async (req, res) => {
   const { dataId, failedRegion } = req.body;
   const result = await disaster.failover(dataId, failedRegion);
   res.json(result);
@@ -102,7 +103,7 @@ router.get('/disaster/predictions', (req, res) => {
 });
 
 // P14.7: 安全加固
-router.post('/security/pentest', (req, res) => {
+router.post('/security/pentest', adminAuth, (req, res) => {
   const results = security.performPenetrationTest();
   res.json(results);
 });

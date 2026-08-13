@@ -49,27 +49,28 @@ class NotificationQueue {
     if (this.processing) return;
     this.processing = true;
 
-    const process = async () => {
+    // 注意：避免用 'process' 命名，防止遮蔽 Node.js 全局 process 对象
+    const processNext = async () => {
       try {
         const item = await redis.rpop(NOTIFICATION_QUEUE);
         if (!item) {
           // 队列为空，1秒后重试
-          setTimeout(process, 1000);
+          setTimeout(processNext, 1000);
           return;
         }
 
         const notification = JSON.parse(item);
         await this._processNotification(notification);
-        
+
         // 继续处理下一条
-        setImmediate(process);
+        setImmediate(processNext);
       } catch (error) {
         logger.error(`Queue processing error: ${error.message}`);
-        setTimeout(process, 5000);
+        setTimeout(processNext, 5000);
       }
     };
 
-    process();
+    processNext();
   }
 
   /**

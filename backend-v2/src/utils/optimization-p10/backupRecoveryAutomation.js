@@ -1,4 +1,13 @@
 /**
+ * ⚠️  安全警告：此文件为死代码，从未被任何路由或模块 require。
+ *
+ * 危险模式（禁止引入生产路由）：
+ *   - 第 24 行：`VACUUM INTO '${backupFile}'` —— backupFile 含用户可控路径时可写入任意位置
+ *   - 第 62 行：`RESTORE FROM '${backupFile}'` —— backupFile 为参数时可加载任意数据库文件
+ *
+ * 若需实现备份功能，请使用 better-sqlite3 官方 backup() API 并对路径做严格白名单校验，
+ * 切勿将该类 require 到任何 HTTP 请求处理链中。
+ *
  * P10.2: 备份恢复流程自动化
  * RPO < 1小时, RTO < 15分钟
  */

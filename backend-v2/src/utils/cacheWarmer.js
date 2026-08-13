@@ -21,7 +21,7 @@ class CacheWarmer {
    */
   async warmActiveUsers() {
     try {
-      console.log('[CacheWarmer] 开始预热活跃用户...');
+      console.debug('[CacheWarmer] 开始预热活跃用户...');
       
       const users = db.prepare(`
         SELECT * FROM users 
@@ -36,11 +36,11 @@ class CacheWarmer {
         cached++;
 
         if (cached % 100 === 0) {
-          console.log(`[CacheWarmer] 已缓存 ${cached} 个用户`);
+          console.debug(`[CacheWarmer] 已缓存 ${cached} 个用户`);
         }
       }
 
-      console.log(`[CacheWarmer] 用户预热完成: ${cached} 个`);
+      console.debug(`[CacheWarmer] 用户预热完成: ${cached} 个`);
       return { cached, type: 'users' };
     } catch (err) {
       console.error('[CacheWarmer] 用户预热失败:', err.message);
@@ -53,7 +53,7 @@ class CacheWarmer {
    */
   async warmHotMessages() {
     try {
-      console.log('[CacheWarmer] 开始预热热消息...');
+      console.debug('[CacheWarmer] 开始预热热消息...');
       
       const cutoffTime = Math.floor((Date.now() - this.hotDays * 86400000) / 1000);
       
@@ -71,11 +71,11 @@ class CacheWarmer {
         cached++;
 
         if (cached % 1000 === 0) {
-          console.log(`[CacheWarmer] 已缓存 ${cached} 条消息`);
+          console.debug(`[CacheWarmer] 已缓存 ${cached} 条消息`);
         }
       }
 
-      console.log(`[CacheWarmer] 消息预热完成: ${cached} 条`);
+      console.debug(`[CacheWarmer] 消息预热完成: ${cached} 条`);
       return { cached, type: 'messages' };
     } catch (err) {
       console.error('[CacheWarmer] 消息预热失败:', err.message);
@@ -88,7 +88,7 @@ class CacheWarmer {
    */
   async warmGroups() {
     try {
-      console.log('[CacheWarmer] 开始预热群组...');
+      console.debug('[CacheWarmer] 开始预热群组...');
       
       const groups = db.prepare(`
         SELECT * FROM conversations
@@ -113,7 +113,7 @@ class CacheWarmer {
         cached++;
       }
 
-      console.log(`[CacheWarmer] 群组预热完成: ${cached} 个`);
+      console.debug(`[CacheWarmer] 群组预热完成: ${cached} 个`);
       return { cached, type: 'groups' };
     } catch (err) {
       console.error('[CacheWarmer] 群组预热失败:', err.message);
@@ -126,7 +126,7 @@ class CacheWarmer {
    */
   async warmSearchIndex() {
     try {
-      console.log('[CacheWarmer] 开始预热搜索索引...');
+      console.debug('[CacheWarmer] 开始预热搜索索引...');
       
       const stats = db.prepare(`
         SELECT 
@@ -139,7 +139,7 @@ class CacheWarmer {
       const key = 'search:index:stats';
       await redis.setex(key, this.userTTL, JSON.stringify(stats));
 
-      console.log(`[CacheWarmer] 搜索索引预热完成: ${stats.total} 条消息`);
+      console.debug(`[CacheWarmer] 搜索索引预热完成: ${stats.total} 条消息`);
       return { stats, type: 'search' };
     } catch (err) {
       console.error('[CacheWarmer] 搜索索引预热失败:', err.message);
@@ -152,7 +152,7 @@ class CacheWarmer {
    */
   async warmAll() {
     const startTime = Date.now();
-    console.log('[CacheWarmer] ========== 全量缓存预热开始 ==========');
+    console.debug('[CacheWarmer] ========== 全量缓存预热开始 ==========');
 
     const results = {
       startTime,
@@ -174,8 +174,8 @@ class CacheWarmer {
     results.totalCached = warmResults.reduce((sum, r) => sum + (r.cached || 0), 0);
     results.duration = Date.now() - startTime;
 
-    console.log(`[CacheWarmer] ========== 预热完成 ==========`);
-    console.log(`总缓存项: ${results.totalCached}, 耗时: ${results.duration}ms`);
+    console.debug(`[CacheWarmer] ========== 预热完成 ==========`);
+    console.debug(`总缓存项: ${results.totalCached}, 耗时: ${results.duration}ms`);
 
     return results;
   }
@@ -190,7 +190,7 @@ class CacheWarmer {
       });
     }, interval).unref();
 
-    console.log(`[CacheWarmer] 定期预热已启动 (间隔: ${interval}ms)`);
+    console.debug(`[CacheWarmer] 定期预热已启动 (间隔: ${interval}ms)`);
   }
 
   /**

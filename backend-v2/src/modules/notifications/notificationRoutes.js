@@ -1,4 +1,15 @@
 /**
+ * ⚠️  安全警告：此文件为死代码，从未被 app.js / server.js require 或挂载。
+ *
+ * 危险模式（禁止挂载到生产路由）：
+ *   1. GET /template/:type — 无任何认证，任意人可访问（虽然只返回模板字符串，风险低）
+ *   2. 多处 catch 使用 `res.status(500).json({ error: error.message })`，
+ *      会将内部错误信息（如文件路径、DB schema）暴露给客户端
+ *   3. 包含 `notificationTemplate.js` 的 render() 使用了 `new RegExp(key)`，
+ *      若 data 中含用户可控键名，存在 ReDoS 风险（见 notificationTemplate.js）
+ *
+ * 生产通知路由请使用 notifications.routes.js（已正确鉴权且无上述问题）。
+ *
  * 通知系统扩展路由
  */
 

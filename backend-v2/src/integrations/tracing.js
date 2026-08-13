@@ -23,7 +23,7 @@ class DistributedTracing {
    * 初始化追踪系统
    */
   async initialize(config = {}) {
-    const serviceName = config.serviceName || process.env.SERVICE_NAME || 'vxin-backend';
+    const serviceName = config.serviceName || process.env.SERVICE_NAME || 'touliao-backend';
     const exporterEndpoint = config.exporterEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4317';
     const enabled = config.enabled !== false && process.env.TRACING_ENABLED !== 'false';
 
@@ -65,7 +65,7 @@ class DistributedTracing {
       // 初始化 SDK
       this.sdk = new NodeSDK({
         resource,
-        spanProcessor,
+        spanProcessors: [spanProcessor],
         instrumentations: [
           getNodeAutoInstrumentations({
             '@opentelemetry/instrumentation-fs': {

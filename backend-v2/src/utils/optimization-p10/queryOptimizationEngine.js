@@ -1,4 +1,13 @@
 /**
+ * ⚠️  安全警告：此文件为死代码，从未被任何路由或模块 require。
+ *
+ * 危险模式（禁止引入生产路由）：
+ *   - 第 17 行：`EXPLAIN QUERY PLAN ${query}` —— query 来自外部时可执行任意 SQL
+ *   - 第 59 行：`this.db.prepare(query).all(...params)` —— 同上，任意 SQL 执行
+ *
+ * 若需实现查询分析，应使用参数化预编译语句，
+ * 切勿将 query 字符串直接拼入 SQL 模板。
+ *
  * P10.3: 查询优化引擎 + EXPLAIN分析
  */
 

@@ -40,7 +40,7 @@ module.exports = function setupRealtime(io, app) {
         return next(new Error('Token已失效，请重新登录'));
       }
       // 检查封禁状态 + password_changed_at（与 HTTP auth 中间件等价）
-      const user = db.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(socket.user.id);
+      const user = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(socket.user.id);
       if (user?.banned) { prodMetrics.recordConnResult(false); return next(new Error('账号已被封禁')); }
       if (user?.password_changed_at && socket.user.iat < user.password_changed_at) {
         prodMetrics.recordConnResult(false);

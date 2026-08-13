@@ -46,10 +46,15 @@ module.exports = function registerFileHandler(io, socket) {
     if (!conversationId || !file_url || !ALLOWED.has(type)) { ack?.({ success: false, error: '参数无效' }); return; }
     if (!presence.checkMsgRate(userId)) { ack?.({ success: false, error: '发送频率过高，请稍后再试' }); return; }
 
-    // URL 必须来自已配置的云存储域名，防注入任意链接
+    // URL 白名单校验：只接受本服务器上传的文件 URL，防止注入任意外链（钓鱼/SSRF）。
+    // 两种合法来源：
+    //   1. 本地存储模式：相对路径以 /uploads/ 开头
+    //   2. 云存储模式：以已配置的 CDN 公共域名开头
     const publicBase = getPublicBase();
-    if (!publicBase || !file_url.startsWith(publicBase + '/')) {
-      ack?.({ success: false, error: '文件 URL 非法：不属于已配置的云存储域名' }); return;
+    const isLocalUrl = typeof file_url === 'string' && file_url.startsWith('/uploads/');
+    const isCloudUrl = publicBase && typeof file_url === 'string' && file_url.startsWith(publicBase + '/');
+    if (!isLocalUrl && !isCloudUrl) {
+      ack?.({ success: false, error: '文件 URL 非法：须为本站上传路径或已配置的云存储域名' }); return;
     }
 
     // ── 幂等性去重（fix: 防止弱网 ack 超时重发导致消息重复）──

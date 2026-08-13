@@ -15,7 +15,7 @@
  *   - socket.on('disconnect')：断线时彻底清理该用户涉及的全部通话（fix: 防网络闪断泄漏）
  */
 const { v4: uuidv4 } = require('uuid');
-const { db } = require('../../db/connection');
+const { db, readDb } = require('../../db/connection');
 const presence = require('../presence');
 const { pushCallInvite } = require('../../utils/push');
 
@@ -86,8 +86,8 @@ module.exports = function registerCallHandler(io, socket) {
     callRateMap.set(userId, now);
     setTimeout(() => callRateMap.delete(userId), CALL_COOLDOWN_MS);
     // 防骚扰 / 防绕过拉黑：被叫已拉黑主叫，或双方无私聊会话(非任意ID都能拨)，则拒接。
-    const blocked = db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(to, userId);
-    const shareConv = db.prepare(`
+    const blocked = readDb.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(to, userId);
+    const shareConv = readDb.prepare(`
       SELECT 1 FROM conversation_members cm1
       JOIN conversation_members cm2 ON cm1.conversation_id = cm2.conversation_id
       JOIN conversations c ON c.id = cm1.conversation_id AND c.type='private'
@@ -122,7 +122,7 @@ module.exports = function registerCallHandler(io, socket) {
         .run(id, userId, to, t, 'missed', nowSec());
     } catch (e) { console.warn('[call] log insert 失败:', e.message); }
     // 服务端从 DB 取真实用户信息，不透传客户端 caller 字段（防视觉身份冒充）
-    const callerInfo = db.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
+    const callerInfo = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
     io.to(`user_${to}`).emit('call:incoming', { from: userId, type: t, caller: { id: userId, name: callerInfo?.username, avatar: callerInfo?.avatar } });
     // 被叫不在线（App 未连 socket，如后台/熄屏）→ 发 data-only FCM 唤起来电界面；在线则 socket 已推 call:incoming
     if (!presence.isOnline(to)) {

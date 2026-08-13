@@ -61,7 +61,7 @@ class AsyncOrchestrator {
   handleEvent(event) {
     // 异步处理事件
     this.executeAsyncTask(async () => {
-      console.log(`处理事件: ${event.type}`);
+      console.debug(`处理事件: ${event.type}`);
       // 事件处理逻辑
     });
   }

@@ -5,21 +5,28 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const adminAuth = require('../middleware/adminAuth');
 
 // /health 无需鉴权（给监控探针/负载均衡使用）
+// 注：详细系统诊断数据（内存/Redis/tracing）需登录，见下方各端点。
+// 公开轻量探针见 app.js /health（仅 SELECT 1）。
+
 const { redisCache } = require('../integrations/redisCache');
 const { tracing } = require('../integrations/tracing');
 const { getCdnStatus } = require('../integrations/cdnOptimizer');
 const { getStats: getQueryStats } = require('../utils/queryOptimizer');
 
+// 以下端点需要登录
+router.use(auth);
+
 /**
  * GET /api/monitoring/health
- * 健康检查端点
+ * 详细健康检查端点（含内存/Redis/tracing/CDN，需鉴权）
  */
 router.get('/health', (req, res) => {
   const redisStats = redisCache.getStats();
   const tracingStats = tracing.getInMemoryStats();
-  
+
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -44,12 +51,9 @@ router.get('/health', (req, res) => {
     },
     cdn: getCdnStatus(),
   };
-  
+
   res.json(health);
 });
-
-// 以下端点需要登录
-router.use(auth);
 
 
 /**
@@ -78,9 +82,9 @@ router.get('/query-stats', (req, res) => {
 
 /**
  * POST /api/monitoring/redis-clear
- * 清空 Redis 缓存
+ * 清空 Redis 缓存（仅后台管理员）
  */
-router.post('/redis-clear', async (req, res) => {
+router.post('/redis-clear', adminAuth, async (req, res) => {
   try {
     const pattern = req.body.pattern || '*';
     const count = await redisCache.delPattern(pattern);

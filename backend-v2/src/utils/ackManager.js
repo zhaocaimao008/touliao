@@ -34,7 +34,7 @@ class AckManager {
       const ackKey = ACK_PREFIX + messageId + ':' + userId + ':delivery';
       await redis.setex(ackKey, this.ackTtl, timestamp);
 
-      console.log(`[ACK] 送达确认: ${messageId} -> ${userId}`);
+      console.debug(`[ACK] 送达确认: ${messageId} -> ${userId}`);
     } catch (err) {
       console.error('[ACK] 记录送达失败:', err.message);
     }
@@ -56,7 +56,7 @@ class AckManager {
       const ackKey = ACK_PREFIX + messageId + ':' + userId + ':read';
       await redis.setex(ackKey, this.ackTtl, timestamp);
 
-      console.log(`[ACK] 已读确认: ${messageId} -> ${userId}`);
+      console.debug(`[ACK] 已读确认: ${messageId} -> ${userId}`);
     } catch (err) {
       console.error('[ACK] 记录已读失败:', err.message);
     }
@@ -167,7 +167,7 @@ class AckManager {
         await redis.del(...keys);
       }
 
-      console.log(`[ACK] 消息 ACK 数据已清除: ${messageId}`);
+      console.debug(`[ACK] 消息 ACK 数据已清除: ${messageId}`);
     } catch (err) {
       console.error('[ACK] 清除失败:', err.message);
     }

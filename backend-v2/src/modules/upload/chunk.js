@@ -65,8 +65,14 @@ function init(req, res) {
   return res.json({ uploadId: id, received: received(id), chunkSize: MAX_CHUNK });
 }
 
+// uploadId 格式验证：必须是 sha1 hex（40位小写十六进制），防止路径穿越
+function validateUploadId(uploadId) {
+  return typeof uploadId === 'string' && /^[0-9a-f]{40}$/.test(uploadId);
+}
+
 function status(req, res) {
   const { uploadId } = req.params;
+  if (!validateUploadId(uploadId)) return res.status(400).json({ error: '无效的上传ID' });
   const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在或已过期' });
   return res.json({ received: received(uploadId), size: m.size });
@@ -74,6 +80,7 @@ function status(req, res) {
 
 async function chunk(req, res) {
   const { uploadId } = req.params;
+  if (!validateUploadId(uploadId)) return res.status(400).json({ error: '无效的上传ID' });
   const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在或已过期，请重新 init' });
   const offset = parseInt(req.query.offset, 10) || 0;
@@ -89,6 +96,7 @@ async function chunk(req, res) {
 
 async function finish(req, res) {
   const { conversationId, uploadId } = req.params;
+  if (!validateUploadId(uploadId)) return res.status(400).json({ error: '无效的上传ID' });
   const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在' });
   if (conversationId !== m.convId) return res.status(400).json({ error: '会话不匹配' });

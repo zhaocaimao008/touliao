@@ -83,6 +83,15 @@ function upsertSession(userId, req) {
 }
 
 // ── 业务 ────────────────────────────────────────────────────────
+
+/**
+ * 时序保护用的 dummy bcrypt hash（12 轮，与注册/改密保持一致）。
+ * login() 在用户不存在时仍用此 hash 执行完整 bcrypt.compare，
+ * 使"手机号不存在"与"密码错误"的响应耗时无法区分，
+ * 防止攻击者通过响应时间枚举有效手机号（时序侧信道攻击）。
+ */
+const DUMMY_HASH = '$2a$12$ErA03kEvTKMib3uxqcUUnOn4m6heavegWxgv/JDf5qdu00uCRT9EO';
+
 async function register({ username, phone, password, inviteCode }) {
   if (!username || !phone || !password) throw badRequest('请填写所有字段');
   // 用户名 2-20 字符（与前端 Register 保持一致，后端为权威）
@@ -126,7 +135,11 @@ async function register({ username, phone, password, inviteCode }) {
 async function login({ phone, password }) {
   if (!phone || !password) throw badRequest('请填写手机号和密码');
   const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,password,banned FROM users WHERE phone=?').get(phone);
-  if (!user || !await bcrypt.compare(password, user?.password || '')) throw badRequest('手机号或密码错误');
+  // 时序保护：无论用户是否存在，都执行完整 bcrypt.compare（约 200ms），
+  // 防止通过响应时间区分「手机号未注册」与「密码错误」（时序侧信道 / 用户枚举）。
+  const hashToCompare = user?.password || DUMMY_HASH;
+  const passwordMatch = await bcrypt.compare(password, hashToCompare);
+  if (!user || !passwordMatch) throw badRequest('手机号或密码错误');
   if (user.banned) throw forbidden('账号已被封禁，请联系管理员');
   return { token: signToken(user), user: serializeUser(user) };
 }
@@ -259,17 +272,19 @@ function switchAccount(walletId, userId) {
   return { token: signToken(user), user: serializeUser(user) };
 }
 
-/** 忘记密码：手机号 + 邀请码验证后重置（无需登录） */
+/** 忘记密码：手机号 + 用户自己的专属邀请码验证后重置（无需登录） */
 async function resetPassword({ phone, inviteCode, newPassword }) {
   if (!phone || !inviteCode || !newPassword) throw badRequest('请填写所有字段');
   if (typeof phone !== 'string' || phone.length < 5 || phone.length > 20 || !/^\+?[\d\s\-]{5,20}$/.test(phone))
     throw badRequest('手机号格式不正确');
   if (!/^\d{6}$/.test(inviteCode)) throw badRequest('邀请码必须是6位数字');
-  if (!isValidInviteCode(inviteCode)) throw badRequest('邀请码不正确');
   if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword))
     throw badRequest('密码必须至少8位，且至少包含1个字母和1个数字');
-  const user = db.prepare('SELECT id FROM users WHERE phone=?').get(phone);
-  if (!user) return { success: true }; // 不暴露手机号是否已注册，防枚举
+  // 用用户自己的专属邀请码（users.invite_code，每人唯一）验证身份，
+  // 而非全局管理员码，避免平台内任意用户可重置他人密码。
+  const user = db.prepare('SELECT id, invite_code FROM users WHERE phone=?').get(phone);
+  // 不区分"手机号不存在"和"邀请码错误"两种情况，防止枚举
+  if (!user || user.invite_code !== inviteCode) return { success: true };
   const hash = await bcrypt.hash(newPassword, 12);
   const resetAt = Math.floor(Date.now() / 1000);
   db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, resetAt, user.id);

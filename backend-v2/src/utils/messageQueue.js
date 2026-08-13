@@ -45,7 +45,7 @@ class MessageQueue {
       // 设置过期时间（24 小时）
       await redis.expire(queueKey, 86400);
 
-      console.log(`[Queue] 消息入队: ${queueName}/${msgId}`);
+      console.debug(`[Queue] 消息入队: ${queueName}/${msgId}`);
       return msgId;
     } catch (err) {
       console.error('[Queue] 入队失败:', err.message);
@@ -82,7 +82,7 @@ class MessageQueue {
     try {
       const retryKey = RETRY_PREFIX + messageId;
       await redis.del(retryKey);
-      console.log(`[Queue] 消息已处理: ${messageId}`);
+      console.debug(`[Queue] 消息已处理: ${messageId}`);
     } catch (err) {
       console.error('[Queue] 标记失败:', err.message);
     }
@@ -126,7 +126,7 @@ class MessageQueue {
       };
 
       await this.enqueue(queueName, retryMessage);
-      console.log(`[Queue] 消息重试: ${messageId} (${retryCount}/${this.maxRetries})`);
+      console.debug(`[Queue] 消息重试: ${messageId} (${retryCount}/${this.maxRetries})`);
       
       return true;
     } catch (err) {
@@ -186,7 +186,7 @@ class MessageQueue {
     
     try {
       await redis.del(dlqKey);
-      console.log(`[Queue] 死信队列已清空: ${queueName}`);
+      console.debug(`[Queue] 死信队列已清空: ${queueName}`);
     } catch (err) {
       console.error('[Queue] DLQ 清空失败:', err.message);
     }

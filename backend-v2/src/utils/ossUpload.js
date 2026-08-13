@@ -21,13 +21,13 @@ class OSSUploader {
           accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET,
           bucket: process.env.OSS_BUCKET || 'vxin-media',
         });
-        console.log('[OSS] 初始化成功');
+        console.debug('[OSS] 初始化成功');
       } catch (err) {
         console.warn('[OSS] ali-oss 未安装，OSS 上传功能将被禁用');
         this.enabled = false;
       }
     } else {
-      console.log('[OSS] 未配置，使用本地存储');
+      console.debug('[OSS] 未配置，使用本地存储');
     }
   }
 
@@ -83,7 +83,7 @@ class OSSUploader {
         ? `${this.cdnDomain}/${key}` 
         : result.url;
 
-      console.log(`[OSS] 上传成功: ${url}`);
+      console.debug(`[OSS] 上传成功: ${url}`);
       return url;
 
     } catch (err) {
@@ -121,7 +121,7 @@ class OSSUploader {
       }
 
       await this.client.delete(key);
-      console.log(`[OSS] 删除成功: ${key}`);
+      console.debug(`[OSS] 删除成功: ${key}`);
     } catch (err) {
       console.error('[OSS] 删除失败:', err.message);
     }
@@ -144,7 +144,7 @@ class OSSUploader {
 
     try {
       const result = await this.client.deleteMulti(keys, { quiet: true });
-      console.log(`[OSS] 批量删除成功: ${keys.length} 个文件`);
+      console.debug(`[OSS] 批量删除成功: ${keys.length} 个文件`);
       return result;
     } catch (err) {
       console.error('[OSS] 批量删除失败:', err.message);

@@ -56,7 +56,7 @@ class RedisCache {
     });
 
     this.client.on('reconnecting', () => {
-      console.log('[RedisCache] Reconnecting...');
+      console.debug('[RedisCache] Reconnecting...');
     });
 
     // 等待连接就绪

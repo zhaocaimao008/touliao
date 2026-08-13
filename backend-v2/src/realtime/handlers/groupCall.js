@@ -19,7 +19,7 @@
  *   （断线自动按 leave 处理）
  */
 const { v4: uuidv4 } = require('uuid');
-const { db } = require('../../db/connection');
+const { db, readDb } = require('../../db/connection');
 const { isMember } = require('../../modules/messages/shared');
 const presence = require('../presence');
 
@@ -31,7 +31,7 @@ const nowSec = () => Math.floor(Date.now() / 1000);
 // 直接读 admin_settings 表，避免引入 admin.service 造成循环依赖；每次发起时读，实时生效。
 function groupCallAllowed(type) {
   const key = type === 'video' ? 'feature_group_video_call' : 'feature_group_voice_call';
-  const v = db.prepare('SELECT value FROM admin_settings WHERE key=?').get(key)?.value;
+  const v = readDb.prepare('SELECT value FROM admin_settings WHERE key=?').get(key)?.value;
   return v !== 'off';
 }
 
@@ -70,7 +70,7 @@ module.exports = function registerGroupCallHandler(io, socket) {
     if (userCall.has(userId)) { socket.emit('group_call:error', { reason: 'busy' }); return; }
     const activeInConv = [...groupCalls.values()].find(c => c.conversationId === conversationId);
     if (activeInConv) { socket.emit('group_call:error', { reason: 'active_call' }); return; }
-    const conv = db.prepare("SELECT type FROM conversations WHERE id=?").get(conversationId);
+    const conv = readDb.prepare("SELECT type FROM conversations WHERE id=?").get(conversationId);
     if (!conv || conv.type !== 'group') { socket.emit('group_call:error', { reason: 'not_group' }); return; }
 
     const t = type === 'video' ? 'video' : 'audio';
@@ -96,7 +96,7 @@ module.exports = function registerGroupCallHandler(io, socket) {
         .run(callId, conversationId, userId, t);
     } catch (e) { console.warn('[groupCall] start 落库失败:', e.message); }
 
-    const starter = db.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
+    const starter = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
     // 通知会话内其他成员有群通话邀请（conversationId 房间已在连接时 join）
     socket.to(conversationId).emit('group_call:invite', {
       callId, conversationId, type: t, from: userId,
