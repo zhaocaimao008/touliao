@@ -22,7 +22,7 @@ class PostgreSQLMigration {
 
     this.sqliteDb = new sqlite3(process.env.DB_PATH || './wechat.db');
     this.stats = { migrated: 0, failed: 0, errors: [] };
-    this.dualWrite = options.dualWrite !== false; // 默认启用双写
+    this.dualWriteEnabled = options.dualWrite !== false; // 默认启用双写
     this.switchRatio = options.switchRatio || 0.1; // 灰度: 10% 流量
   }
 
@@ -104,7 +104,7 @@ class PostgreSQLMigration {
    * 双写: 同时写入 SQLite 和 PostgreSQL
    */
   async dualWrite(table, data) {
-    if (!this.dualWrite) return;
+    if (!this.dualWriteEnabled) return;
 
     try {
       // 写入 PostgreSQL

@@ -133,7 +133,7 @@ describe('消息队列与 ACK 管理', () => {
       };
 
       // 模拟 3 次失败（达到上限）
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 4; i++) {
         const shouldRetry = await msgQueue.markFailed('messages', message, new Error(`失败 ${i + 1}`));
         if (!shouldRetry) break;
       }

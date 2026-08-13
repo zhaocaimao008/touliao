@@ -108,7 +108,7 @@ function searchMessages(query, conversationId, userId, options = {}) {
       u.avatar as senderAvatar,
       rank
     FROM messages_fts fts
-    JOIN messages m ON m.id = fts.id
+    JOIN messages m ON m.id = fts.message_id
     JOIN users u ON u.id = m.sender_id
     WHERE fts.content MATCH ?
   `;
@@ -150,19 +150,10 @@ function indexMessage(message) {
   if (['text', 'image', 'file', 'video'].indexOf(message.type) === -1) return;
 
   try {
-    const insert = db.prepare(`
-      INSERT INTO messages_fts(id, content, type, conversation_id, sender_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    insert.run(
-      message.id,
-      message.content || '',
-      message.type,
-      message.conversation_id,
-      message.sender_id,
-      message.created_at
-    );
+    db.prepare(`
+      INSERT INTO messages_fts(message_id, conversation_id, content)
+      VALUES (?, ?, ?)
+    `).run(message.id, message.conversation_id, message.content || '');
   } catch (err) {
     console.warn('[FTS5] 索引添加失败:', err.message);
   }
@@ -177,8 +168,7 @@ function removeMessageFromIndex(messageId) {
   if (!messageId) return;
 
   try {
-    const del = db.prepare('DELETE FROM messages_fts WHERE id = ?');
-    del.run(messageId);
+    db.prepare('DELETE FROM messages_fts WHERE message_id = ?').run(messageId);
   } catch (err) {
     console.warn('[FTS5] 索引删除失败:', err.message);
   }

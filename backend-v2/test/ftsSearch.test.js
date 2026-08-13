@@ -8,6 +8,14 @@ const { initFTS5, searchMessages, indexMessage, removeMessageFromIndex } = requi
 
 describe('FTS5 全文搜索', () => {
   beforeAll(() => {
+    db.pragma('foreign_keys = OFF');
+    try {
+      db.prepare(`INSERT OR IGNORE INTO users (id, username, phone, password) VALUES ('user-1', 'testuser', '13800000001', 'x')`).run();
+      db.prepare(`INSERT OR IGNORE INTO conversations (id, type) VALUES ('conv-1', 'private')`).run();
+    } catch (err) {
+      console.log('[Test] 前置数据插入:', err.message);
+    }
+    db.pragma('foreign_keys = ON');
     try {
       initFTS5();
     } catch (err) {
@@ -41,7 +49,7 @@ describe('FTS5 全文搜索', () => {
     // 再添加到 FTS5 索引
     indexMessage(testMessage);
 
-    const indexed = db.prepare('SELECT * FROM messages_fts WHERE id = ?').get(testMessage.id);
+    const indexed = db.prepare('SELECT * FROM messages_fts WHERE message_id = ?').get(testMessage.id);
     expect(indexed).toBeTruthy();
     expect(indexed.content).toBe('hello world');
   });
@@ -76,13 +84,13 @@ describe('FTS5 全文搜索', () => {
 
     indexMessage(testMessage);
 
-    let indexed = db.prepare('SELECT * FROM messages_fts WHERE id = ?').get(testMessage.id);
+    let indexed = db.prepare('SELECT * FROM messages_fts WHERE message_id = ?').get(testMessage.id);
     expect(indexed).toBeTruthy();
 
     // 删除
     removeMessageFromIndex(testMessage.id);
 
-    indexed = db.prepare('SELECT * FROM messages_fts WHERE id = ?').get(testMessage.id);
+    indexed = db.prepare('SELECT * FROM messages_fts WHERE message_id = ?').get(testMessage.id);
     expect(indexed).toBeUndefined();
   });
 
@@ -110,6 +118,6 @@ describe('FTS5 全文搜索', () => {
 
   afterAll(() => {
     // 清理测试数据
-    db.prepare('DELETE FROM messages_fts WHERE id LIKE "test-msg-%"').run();
+    db.prepare("DELETE FROM messages_fts WHERE message_id LIKE 'test-msg-%'").run();
   });
 });

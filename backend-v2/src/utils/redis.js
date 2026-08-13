@@ -42,9 +42,73 @@ function createMockRedis() {
       storage.set(key, value);
       // 简化版：忽略 TTL 管理
     },
-    async del(key) {
-      storage.delete(key);
-      return 1;
+    async del(...keys) {
+      let count = 0;
+      for (const key of keys) {
+        if (storage.delete(key)) count++;
+      }
+      return count;
+    },
+    async exists(key) {
+      return storage.has(key) ? 1 : 0;
+    },
+    async incr(key) {
+      const current = parseInt(storage.get(key) || '0', 10);
+      const newVal = current + 1;
+      storage.set(key, newVal.toString());
+      return newVal;
+    },
+    async lpush(key, ...values) {
+      const list = storage.get(key) || [];
+      list.unshift(...values.reverse());
+      storage.set(key, list);
+      return list.length;
+    },
+    async rpush(key, ...values) {
+      const list = storage.get(key) || [];
+      list.push(...values);
+      storage.set(key, list);
+      return list.length;
+    },
+    async lrange(key, start, stop) {
+      const list = storage.get(key) || [];
+      const end = stop === -1 ? undefined : stop + 1;
+      return list.slice(start, end);
+    },
+    async llen(key) {
+      return (storage.get(key) || []).length;
+    },
+    async lrem(key, count, value) {
+      const list = storage.get(key) || [];
+      const filtered = list.filter(v => v !== value);
+      storage.set(key, filtered);
+      return list.length - filtered.length;
+    },
+    async sadd(key, ...members) {
+      const set = storage.get(key) || new Set();
+      let added = 0;
+      for (const m of members) {
+        if (!set.has(m)) { set.add(m); added++; }
+      }
+      storage.set(key, set);
+      return added;
+    },
+    async smembers(key) {
+      const set = storage.get(key);
+      return set ? Array.from(set) : [];
+    },
+    async sismember(key, member) {
+      const set = storage.get(key);
+      return set && set.has(member) ? 1 : 0;
+    },
+    async srem(key, ...members) {
+      const set = storage.get(key);
+      if (!set) return 0;
+      let removed = 0;
+      for (const m of members) {
+        if (set.delete(m)) removed++;
+      }
+      return removed;
     },
     async mget(...keys) {
       return keys.map(key => storage.get(key) || null);
