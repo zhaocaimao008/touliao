@@ -4,6 +4,9 @@
  */
 const express = require('express');
 const router = express.Router();
+const auth = require('../middleware/auth');
+router.use(auth); // 所有端点需登录鉴权
+
 
 const MultiLayerCache = require('../utils/optimization-p14/caching/multiLayerCache');
 const FineGrainedMetrics = require('../utils/optimization-p14/monitoring/finegrainedMetrics');

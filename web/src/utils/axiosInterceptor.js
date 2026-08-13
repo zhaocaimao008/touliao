@@ -37,7 +37,7 @@ async function refreshToken(axios) {
     .then(res => {
       const newToken = res.data?.token;
       if (newToken && (window.__ELECTRON_CONFIG__ || window.Capacitor)) {
-        localStorage.setItem('vxin_electron_token', newToken);
+        localStorage.setItem('touliao_electron_token', newToken);
         axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       }
       return newToken;
@@ -46,7 +46,7 @@ async function refreshToken(axios) {
       // 刷新失败，清除认证状态
       console.error('[axios] Token refresh failed:', err);
       if (window.__ELECTRON_CONFIG__ || window.Capacitor) {
-        localStorage.removeItem('vxin_electron_token');
+        localStorage.removeItem('touliao_electron_token');
         delete axios.defaults.headers.common['Authorization'];
       }
       // 跳转登录由各组件的 401 拦截处理

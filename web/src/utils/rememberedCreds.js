@@ -13,11 +13,11 @@
 //   · 桌面端(Electron)/移动端(Capacitor)本就用 Bearer token 持久化免登录，
 //     此功能主要惠及网页端「登出后再登录」与多账户切换回填。
 //
-// 存储结构：localStorage['vxin_remembered_creds_v1'] = JSON({ [phone]: obf(password) })
-// 与「最近登录」(vxin_accounts_v2) 解耦：账户记录只存 {id,user}，绝不含密码。
+// 存储结构：localStorage['touliao_creds_v1'] = JSON({ [phone]: obf(password) })
+// 与「最近登录」(touliao_accounts_v2) 解耦：账户记录只存 {id,user}，绝不含密码。
 // ================================================================
 
-const KEY = 'vxin_remembered_creds_v1';
+const KEY = 'touliao_creds_v1';
 // 固定混淆密钥：仅用于可逆混淆，不承担安全职责（见上方安全边界说明）。
 const OBF_KEY = 'vxin::remember::v1';
 

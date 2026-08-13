@@ -4,6 +4,9 @@
  */
 const express = require('express');
 const router = express.Router();
+const auth = require('../middleware/auth');
+
+// /health 无需鉴权（给监控探针/负载均衡使用）
 const { redisCache } = require('../integrations/redisCache');
 const { tracing } = require('../integrations/tracing');
 const { getCdnStatus } = require('../integrations/cdnOptimizer');
@@ -44,6 +47,10 @@ router.get('/health', (req, res) => {
   
   res.json(health);
 });
+
+// 以下端点需要登录
+router.use(auth);
+
 
 /**
  * GET /api/monitoring/redis-stats

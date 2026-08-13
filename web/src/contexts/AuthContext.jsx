@@ -17,7 +17,7 @@ axios.interceptors.response.use(
       sessionStorage.setItem('csrf_token', csrfHeader);
       // 移动端浏览器刷新后 sessionStorage 清空但 Cookie 保留会导致 403，
       // 用 localStorage 作为兜底，避免首次 POST 前 token 尚未到达时失败。
-      localStorage.setItem('csrf_token_cache', csrfHeader);
+      localStorage.setItem('touliao_csrf_cache', csrfHeader);
     }
     return res;
   },
@@ -28,7 +28,7 @@ axios.interceptors.response.use(
 axios.interceptors.request.use(
   (config) => {
     if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())) {
-      const csrfToken = sessionStorage.getItem('csrf_token') || localStorage.getItem('csrf_token_cache');
+      const csrfToken = sessionStorage.getItem('csrf_token') || localStorage.getItem('touliao_csrf_cache');
       if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken;
     }
     return config;
@@ -40,7 +40,7 @@ const AuthContext = createContext(null);
 
 // Electron 模式下 Cookie 跨域无法自动携带，用 sessionStorage 存 token，
 // 设到 axios Authorization header 实现 Bearer 鉴权
-const ELECTRON_TOKEN_KEY = 'vxin_electron_token';
+const ELECTRON_TOKEN_KEY = 'touliao_electron_token';
 // Electron(file://)与移动端(Capacitor 跨域 https://localhost)均无法可靠使用 Cookie，
 // 统一改用 Bearer token；用 localStorage 持久化，App 重启后免重新登录。
 const isBearerClient = () => !!(window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.());
@@ -50,7 +50,7 @@ const isBearerClient = () => !!(window.__ELECTRON_CONFIG__ || window.Capacitor?.
 // localStorage，被下一个会话的首个 POST 取用（请求拦截器会 fallback 到它）导致 403。
 function clearCsrfCache() {
   sessionStorage.removeItem('csrf_token');
-  localStorage.removeItem('csrf_token_cache');
+  localStorage.removeItem('touliao_csrf_cache');
 }
 
 function setElectronToken(token) {
@@ -68,7 +68,7 @@ function setElectronToken(token) {
 // 只存 { id, user, lastLoginAt }，不存 token。
 // token 始终只在后端签发的 httpOnly Cookie 中，JS 无法读取。
 // 切换账号需重新登录（无静默换 Cookie 能力），这是正确的安全边界。
-const ACCOUNTS_KEY = 'vxin_accounts_v2';   // v2 = 无 token 版本
+const ACCOUNTS_KEY = 'touliao_accounts_v2';   // v2 = 无 token 版本
 const MAX_ACCOUNTS = 15;
 
 function readAccounts() {
@@ -193,7 +193,7 @@ export const AuthProvider = ({ children }) => {
     const clean = newUrl.trim().replace(/\/$/, '');
     try { await axios.post('/api/auth/logout'); } catch { /* logout is best-effort on server switch */ }
     if (window.__ELECTRON_CONFIG__) {
-      localStorage.setItem('vxin_server_url', clean);
+      localStorage.setItem('touliao_server_url', clean);
       window.electronAPI?.setServerUrl?.(clean);
     }
     axios.defaults.baseURL = clean;

@@ -7,13 +7,13 @@
 //   所以这里必须显式拼接。
 //
 // 地址优先级：
-//   1. 运行时手动切换（localStorage vxin_server_url）
+//   1. 运行时手动切换（localStorage touliao_server_url）
 //   2. 远程配置（Config.api/socket）
 //   3. 空值 → Web 同源，相对路径可用
 import { getConfig, isConfigLoaded } from './config';
 
 function getBaseUrl() {
-  const manualUrl = localStorage.getItem('vxin_server_url');
+  const manualUrl = localStorage.getItem('touliao_server_url');
   if (manualUrl) return manualUrl;
 
   // config 可能还未加载（页面渲染时资源先于配置加载）
@@ -27,7 +27,7 @@ function getBaseUrl() {
 }
 
 function bearerToken() {
-  try { return localStorage.getItem('vxin_electron_token') || ''; } catch { return ''; }
+  try { return localStorage.getItem('touliao_electron_token') || ''; } catch { return ''; }
 }
 
 export function mediaUrl(u) {

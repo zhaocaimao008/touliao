@@ -35,8 +35,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       connectSrc: ["'self'", 'ws:', 'wss:', 'https:'],
       imgSrc:     ["'self'", 'data:', 'blob:', 'https:'],
-      scriptSrc:  ["'self'", "'unsafe-inline'"],
-      styleSrc:   ["'self'", "'unsafe-inline'", 'https:'],
+      scriptSrc:  ["'self'"],   // 生产构建无内联脚本；如需 eval 在此添加
+      styleSrc:   ["'self'", "'unsafe-inline'"],  // CSS-in-JS 仍需 unsafe-inline
       fontSrc:    ["'self'", 'https:'],
       frameSrc:   ["'self'"],
       mediaSrc:   ["'self'", 'data:', 'blob:', 'https:'],

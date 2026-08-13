@@ -759,7 +759,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         confirmedMsgIds.current.delete(msg.id);
         return;
       }
-      window.__vxinPerf?.recv(msg, user.id, 'socket');
+      window.__touliaoPerf?.recv(msg, user.id, 'socket');
       // 自己发的消息(如文件/图片经后端广播回来)：无条件贴底，与文本发送一致
       if (msg.sender_id === user.id) forceScrollRef.current = true;
       else {
@@ -1176,7 +1176,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     // 3. 发送并等待 socket.io ack（后端已在 send_message handler 中调用 ack()）
     const msgClientId = `perf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    window.__vxinPerf?.send(msgClientId, user.id, conversation.id);
+    window.__touliaoPerf?.send(msgClientId, user.id, conversation.id);
     socket.emit('send_message', {
       conversationId: conversation.id,
       content,
@@ -1187,7 +1187,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       clearTimeout(pendingMsgsRef.current.get(tempId));
       pendingMsgsRef.current.delete(tempId);
       if (ack?.success && ack.message) {
-        window.__vxinPerf?.ack(msgClientId, user.id);
+        window.__touliaoPerf?.ack(msgClientId, user.id);
         // 把真实 id 存入 confirmed，防止 new_message 广播重复添加
         confirmedMsgIds.current.add(ack.message.id);
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...ack.message } : m));
@@ -1391,7 +1391,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     inp.onchange = async () => {
       const file = inp.files?.[0];
       if (!file) return;
-      if (!file.type.startsWith('image/')) { showToast('请选择图片', 'error'); return; }
+      // 双重校验：MIME类型 + 扩展名黑名单（防改名伪装）
+      const DANGEROUS_EXT = /\.(exe|bat|cmd|sh|ps1|msi|dll|vbs|js|jar|php|py|rb|pl)$/i;
+      if (!file.type.startsWith('image/') || DANGEROUS_EXT.test(file.name)) {
+        showToast('请选择图片文件', 'error'); return;
+      }
       if (file.size > 10 * 1024 * 1024) { showToast('图片不能超过 10MB', 'error'); return; }
       try {
         // 优先尝试云存储直传；云存储未配置(503)或网络失败时降级到本地上传

@@ -4,6 +4,9 @@
  */
 const express = require('express');
 const router = express.Router();
+const auth = require('../middleware/auth');
+router.use(auth); // 所有端点需登录鉴权
+
 
 const CDNManager = require('../utils/optimization-p11/cdnManager');
 const MultiRegionSync = require('../utils/optimization-p11/multiRegionSync');

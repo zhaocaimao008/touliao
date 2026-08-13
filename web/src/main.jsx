@@ -1,4 +1,4 @@
-import './perf-monitor.js';   // 端到端性能打点（注入 window.__vxinPerf，须在 App 之前）
+import './perf-monitor.js';   // 端到端性能打点（注入 window.__touliaoPerf，须在 App 之前）
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
@@ -8,6 +8,7 @@ import './design-tokens.css';
 import './index.css';
 import './mobile-adapt.css';
 import { loadRemoteConfig, getConfig } from './utils/config';
+import { migrateStorage } from './utils/migrateStorage';
 import { initWebVitals } from './utils/webVitals';
 import { initImageOptimizer } from './utils/imageOptimizer';
 import { setupAxiosInterceptors } from './utils/axiosInterceptor';
@@ -35,6 +36,9 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 // 3. 启动 React
 
 (async function boot() {
+  // 迁移旧版 vxin_* localStorage key
+  migrateStorage();
+
   // 平台判断
   const isElectron = !!window.__ELECTRON_CONFIG__;
   const isMobile   = !!(window.Capacitor && window.Capacitor.isNativePlatform());
@@ -45,7 +49,7 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 
   // 2. 设置 Axios baseURL
   //    优先级：运行时手动切换的 URL > 远程配置 > Vite 环境变量
-  const manualUrl = localStorage.getItem('vxin_server_url');
+  const manualUrl = localStorage.getItem('touliao_server_url');
   const apiBase = manualUrl || cfg.api || import.meta.env.VITE_API_BASE || '';
 
   if (apiBase) {
@@ -59,7 +63,7 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 
   // 3. Electron / 移动端恢复 Bearer token（localStorage 持久化）
   if (isElectron || isMobile) {
-    const stored = localStorage.getItem('vxin_electron_token');
+    const stored = localStorage.getItem('touliao_electron_token');
     if (stored) axios.defaults.headers.common['Authorization'] = `Bearer ${stored}`;
   }
 

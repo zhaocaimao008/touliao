@@ -987,7 +987,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
 /* ── 设置总览页（二级） ── */
 function ServerSettings({ onBack }) {
   const { changeServer } = useAuth();
-  const currentUrl = localStorage.getItem('vxin_server_url') || axios.defaults.baseURL || '';
+  const currentUrl = localStorage.getItem('touliao_server_url') || axios.defaults.baseURL || '';
   const [input, setInput] = useState(currentUrl);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
@@ -1265,7 +1265,7 @@ export default function Profile({ isMobile = false }) {
           <div className="wc-section-pad">
             <Card>
               <CRow icon={<IcoServer />} bg="var(--icon-bg-neutral)" label="服务器地址"
-                desc={(localStorage.getItem('vxin_server_url') || '').replace(/^https?:\/\//, '') || '远程配置'}
+                desc={(localStorage.getItem('touliao_server_url') || '').replace(/^https?:\/\//, '') || '远程配置'}
                 onClick={() => setSubPage('server')} />
             </Card>
           </div>

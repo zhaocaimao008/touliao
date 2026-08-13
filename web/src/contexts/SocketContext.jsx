@@ -36,12 +36,12 @@ export const SocketProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!userId) { setSocket(null); setConnected(false); return; }
 
-    const manualUrl = localStorage.getItem('vxin_server_url');
+    const manualUrl = localStorage.getItem('touliao_server_url');
     const cfg = getConfig();
     const serverUrl = manualUrl || cfg.socket || import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_BASE || '/';
 
     const electronToken = (window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.())
-      ? localStorage.getItem('vxin_electron_token')
+      ? localStorage.getItem('touliao_electron_token')
       : null;
 
     const s = io(serverUrl, {

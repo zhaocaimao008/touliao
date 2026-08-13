@@ -11,7 +11,7 @@
  */
 
 (function () {
-  if (window.__vxinPerf) return;
+  if (window.__touliaoPerf) return;
   const P = {
     sends: new Map(),      // clientMsgId → { t0, userId, conversationId }
     recvs: [],             // { clientMsgId, tReceive, userId, conversationId, tRender, source }
@@ -45,7 +45,7 @@
     P.observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
   }
 
-  window.__vxinPerf = {
+  window.__touliaoPerf = {
     send(clientMsgId, userId, conversationId) {
       P.sends.set(clientMsgId, { t0: performance.now(), userId, conversationId });
       P.totalLatency.length = 0; // reset accumulator
@@ -142,23 +142,27 @@
 
     showOverlay() {
       const div = document.createElement('div');
-      div.id = '__vxinPerfPanel';
+      div.id = '__touliaoPerfPanel';
       div.style.cssText = 'position:fixed;bottom:10px;left:10px;z-index:99999;background:rgba(0,0,0,0.85);color:#0f0;padding:12px;border-radius:8px;font:12px/1.5 monospace;max-height:300px;overflow-y:auto;min-width:280px;';
       const update = () => {
         const r = this.getReport();
-        div.innerHTML = `
-┌───── vxin 性能实时 ─────┐<br>
-<b>总端到端(n=${r.totalCount}):</b><br>
-  p50=${r.total.p50}  p95=${r.total.p95}  p99=${r.total.p99}<br>
-<b>发送到Ack(n=${r.ackCount}):</b><br>
-  p50=${r.send_to_ack.p50}  p95=${r.send_to_ack.p95}  p99=${r.send_to_ack.p99}<br>
-<b>Socket→渲染(n=${r.renderCount}):</b><br>
-  p50=${r.socket_to_render.p50}  p95=${r.socket_to_render.p95}  p99=${r.socket_to_render.p99}<br>
-<b>渲染→绘制(n=${r.paintCount}):</b><br>
-  p50=${r.render_to_paint.p50}  p95=${r.render_to_paint.p95}  p99=${r.render_to_paint.p99}<br>
-<b>文件延迟(n=${r.fileCount}):</b><br>
-  p50=${r.file_latency.p50}  p95=${r.file_latency.p95}  p99=${r.file_latency.p99}<br>
-<button onclick="this.parentElement.remove()" style="margin-top:6px;cursor:pointer">关闭</button>`;
+        // textContent 替代 innerHTML，消除 XSS 风险（最佳实践）
+        div.textContent = [
+          '┌─── 投聊性能实时 ───┐',
+          `总端对端(${r.totalCount}) p50=${r.total.p50} p95=${r.total.p95} p99=${r.total.p99}`,
+          `发→Ack(${r.ackCount})   p50=${r.send_to_ack.p50} p95=${r.send_to_ack.p95}`,
+          `Sock→渲(${r.renderCount}) p50=${r.socket_to_render.p50} p95=${r.socket_to_render.p95}`,
+          `渲→绘(${r.paintCount})  p50=${r.render_to_paint.p50} p95=${r.render_to_paint.p95}`,
+          `文件(${r.fileCount})    p50=${r.file_latency.p50} p95=${r.file_latency.p95}`,
+        ].join('\n');
+        // 关闭按钮（安全方式）
+        if (!div.querySelector('button')) {
+          const btn = document.createElement('button');
+          btn.textContent = '关闭';
+          btn.style.cssText = 'display:block;margin-top:6px;cursor:pointer';
+          btn.onclick = () => div.remove();
+          div.appendChild(btn);
+        }
         requestAnimationFrame(update);
       };
       document.body.appendChild(div);
@@ -171,9 +175,9 @@
 // Auto-show on ?perf=1
 if (location.search.includes('perf=1')) {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => window.__vxinPerf.showOverlay());
+    document.addEventListener('DOMContentLoaded', () => window.__touliaoPerf.showOverlay());
   } else {
-    window.__vxinPerf.showOverlay();
+    window.__touliaoPerf.showOverlay();
   }
 }
 

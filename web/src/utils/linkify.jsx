@@ -29,7 +29,11 @@ export function linkify(text) {
     const clean = trimTrailing(raw);
     const start = m.index;
     if (start > last) out.push(s.slice(last, start));
+    // 安全校验：拒绝 javascript:/data:/vbscript: 等非 http(s) 协议（防 XSS）
     const href = clean.startsWith('http') ? clean : `https://${clean}`;
+    // 二次校验（trim+lower 防绕过）
+    const proto = href.toLowerCase().trimStart();
+    if (!proto.startsWith('http://') && !proto.startsWith('https://')) continue;
     out.push(
       <a key={start} href={href} target="_blank" rel="noopener noreferrer nofollow"
         className="wc-msg-link" onClick={e => e.stopPropagation()}>{clean}</a>

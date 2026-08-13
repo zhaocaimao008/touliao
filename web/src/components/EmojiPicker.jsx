@@ -9,7 +9,7 @@ const CATEGORIES = [
   { label: '🌟', name: '自然', emojis: ['🌟','⭐','🌙','☀️','🌈','⛅','🌤️','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌊','🌀','🌪️','🌫️','🌬️','🌸','🌺','🌻','🌼','💐','🌷','🍀','🍁','🍂','🍃','🌿','☘️','🌱','🌲','🌳','🌴','🌵','🎋','🎍','🌾','🍄','🌰','🦔','🦦','🐾','🦁','🐯','🐻','🐼','🐨','🐸','🐧','🐦','🦅','🦆','🦉','🦚','🦜','🐝','🦋','🐛','🐌','🐞','🐜'] },
 ];
 
-const RECENT_KEY = 'vxin_emoji_recent';
+const RECENT_KEY = 'touliao_emoji_recent';
 const MAX_RECENT = 24;
 function loadRecent() {
   try { const a = JSON.parse(localStorage.getItem(RECENT_KEY)); return Array.isArray(a) ? a.slice(0, MAX_RECENT) : []; }
@@ -18,7 +18,7 @@ function loadRecent() {
 
 // 记住上次选的分类名（跨开合）——持久化到 localStorage，避免任何模块级可变状态，
 // 满足 react-hooks 纯度约束（globals/immutability），同时跨挂载保留选择。
-const LAST_CAT_KEY = 'vxin_emoji_last_cat';
+const LAST_CAT_KEY = 'touliao_emoji_last_cat';
 const getLastCat = () => { try { return localStorage.getItem(LAST_CAT_KEY); } catch { return null; } };
 const setLastCat = (name) => { try { localStorage.setItem(LAST_CAT_KEY, name); } catch { /* 存储不可用则忽略 */ } };
 

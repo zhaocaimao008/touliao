@@ -32,7 +32,7 @@ export default class ErrorBoundary extends React.Component {
         url: typeof location !== 'undefined' ? location.href : '',
         ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       };
-      const KEY = 'vxin_error_log';
+      const KEY = 'touliao_error_log';
       const prev = JSON.parse(sessionStorage.getItem(KEY) || '[]');
       prev.unshift(log);
       sessionStorage.setItem(KEY, JSON.stringify(prev.slice(0, 10)));

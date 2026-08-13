@@ -35,7 +35,7 @@ export default function Login() {
   // ── 服务器切换（仅桌面端，登录前即可切换，无需重装） ──
   // 地址来自 localStorage（手动切换）或远程配置（CONFIG_URLS：jsDelivr + dipsin.com）
   // 不再硬编码任何域名（config/api/ws/cdn 子域名均未启用，统一走 dipsin.com）
-  const currentServer = localStorage.getItem('vxin_server_url') || axios.defaults.baseURL || '';
+  const currentServer = localStorage.getItem('touliao_server_url') || axios.defaults.baseURL || '';
   const [showServer, setShowServer] = useState(false);
   const [serverInput, setServerInput] = useState(currentServer);
   const [serverTest, setServerTest] = useState(null);
@@ -56,7 +56,7 @@ export default function Login() {
   const saveServer = () => {
     const url = serverInput.trim().replace(/\/$/, '');
     if (!url.startsWith('http')) { setServerTest({ ok: false, msg: '请以 http:// 或 https:// 开头' }); return; }
-    localStorage.setItem('vxin_server_url', url);
+    localStorage.setItem('touliao_server_url', url);
     axios.defaults.baseURL = url;
     window.location.reload();
   };

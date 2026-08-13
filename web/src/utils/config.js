@@ -28,8 +28,8 @@ const CONFIG_URLS = [
   'https://cdn.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json', // 主：GitHub+jsDelivr CDN
   'https://dipsin.com/config.json',                                          // 兜底：当前应用服务器（过渡期）
 ];
-const CACHE_KEY   = 'vxin_remote_config';
-const CACHE_TS    = 'vxin_remote_config_ts';
+const CACHE_KEY   = 'touliao_remote_config';
+const CACHE_TS    = 'touliao_remote_config_ts';
 
 // AbortSignal.timeout 在旧 WKWebView(旧版 iOS Capacitor)上可能缺失,直接用会抛 TypeError
 // 让所有引导地址「假失败」→ 无谓退化到缓存/兜底。用手写定时器兜底,保证超时控制普遍可用。
