@@ -25,7 +25,7 @@ class CacheWarmer {
       
       const users = db.prepare(`
         SELECT * FROM users 
-        ORDER BY last_active DESC 
+        ORDER BY created_at DESC 
         LIMIT ?
       `).all(this.maxActiveUsers);
 
@@ -91,7 +91,7 @@ class CacheWarmer {
       console.log('[CacheWarmer] 开始预热群组...');
       
       const groups = db.prepare(`
-        SELECT * FROM groups 
+        SELECT * FROM conversations WHERE type='group'
         WHERE deleted = 0
         ORDER BY last_message_time DESC
         LIMIT 500
