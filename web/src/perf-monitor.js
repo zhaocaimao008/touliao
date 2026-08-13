@@ -181,4 +181,4 @@ if (location.search.includes('perf=1')) {
   }
 }
 
-console.debug('[투리아오Perf] 性能打点已加载');
+console.debug('[touliaoPerf] 性能打点已加载');

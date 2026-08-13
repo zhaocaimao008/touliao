@@ -33,7 +33,7 @@ class NotificationQueue {
     };
 
     try {
-      await redis.get().lpush(NOTIFICATION_QUEUE, JSON.stringify(item));
+      await redis.lpush(NOTIFICATION_QUEUE, JSON.stringify(item));
       logger.info(`Notification queued: ${notifId}`);
       return { id: notifId, status: 'queued' };
     } catch (error) {
@@ -51,7 +51,7 @@ class NotificationQueue {
 
     const process = async () => {
       try {
-        const item = await redis.get().rpop(NOTIFICATION_QUEUE);
+        const item = await redis.rpop(NOTIFICATION_QUEUE);
         if (!item) {
           // 队列为空，1秒后重试
           setTimeout(process, 1000);
@@ -87,15 +87,15 @@ class NotificationQueue {
       
       if (item.retries >= this.maxRetries) {
         // 超过重试次数，进入死信队列
-        await redis.get().lpush(NOTIFICATION_DLQ, JSON.stringify(item));
+        await redis.lpush(NOTIFICATION_DLQ, JSON.stringify(item));
         logger.error(`Notification moved to DLQ: ${item.id}`);
       } else {
         // 重新入队等待重试
         const retryKey = `${RETRY_KEY}${item.id}`;
-        await redis.get().setex(retryKey, this.retryDelayMs / 1000, '1');
+        await redis.setex(retryKey, this.retryDelayMs / 1000, '1');
         
         setTimeout(async () => {
-          await redis.get().lpush(NOTIFICATION_QUEUE, JSON.stringify(item));
+          await redis.lpush(NOTIFICATION_QUEUE, JSON.stringify(item));
         }, this.retryDelayMs);
         
         logger.warn(`Notification retry scheduled: ${item.id} (attempt ${item.retries})`);
@@ -108,7 +108,7 @@ class NotificationQueue {
    */
   async getDLQMessages() {
     try {
-      const messages = await redis.get().lrange(NOTIFICATION_DLQ, 0, -1);
+      const messages = await redis.lrange(NOTIFICATION_DLQ, 0, -1);
       return messages.map(m => JSON.parse(m));
     } catch (error) {
       logger.error(`Failed to get DLQ messages: ${error.message}`);
@@ -121,7 +121,7 @@ class NotificationQueue {
    */
   async clearDLQ() {
     try {
-      await redis.get().del(NOTIFICATION_DLQ);
+      await redis.del(NOTIFICATION_DLQ);
       logger.info('DLQ cleared');
     } catch (error) {
       logger.error(`Failed to clear DLQ: ${error.message}`);

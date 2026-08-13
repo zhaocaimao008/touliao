@@ -149,6 +149,29 @@ module.exports = {
     if (!client && process.env.NODE_ENV !== 'test') {
       console.warn('[redis] Redis client not initialized. Ensure redisCache.connect() is called in server.js');
     }
-    return client || { get: async () => null, set: async () => {}, del: async () => {} };
+    return client || {
+      // 无 Redis 时的 no-op 降级对象（防止 TypeError，不影响主流程）
+      get:    async () => null,
+      set:    async () => 'OK',
+      setex:  async () => 'OK',
+      del:    async () => 0,
+      exists: async () => 0,
+      incr:   async () => 0,
+      lpush:  async () => 0,
+      rpush:  async () => 0,
+      rpop:   async () => null,
+      lpop:   async () => null,
+      lrange: async () => [],
+      llen:   async () => 0,
+      hset:   async () => 0,
+      hget:   async () => null,
+      hmset:  async () => 'OK',
+      hgetall:async () => null,
+      sadd:   async () => 0,
+      smembers: async () => [],
+      expire: async () => 0,
+      keys:   async () => [],
+      pipeline: () => ({ exec: async () => [] }),
+    };
   },
 };
