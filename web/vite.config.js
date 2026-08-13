@@ -8,7 +8,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 8192, deleteOriginFile: false }),
+    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 1024, deleteOriginFile: false }),
   ],
   build: {
     outDir: 'dist',

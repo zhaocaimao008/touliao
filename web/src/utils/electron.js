@@ -16,9 +16,9 @@ export function initElectronFeatures() {
   // 此处不再兜底截图——否则会重复采集一次（截两张图）。
 
   // 更新进度日志
-  window.addEventListener('electron:update-available',  (e) => console.log(`[electron] 新版本 ${e.detail?.version} 可用`));
-  window.addEventListener('electron:update-progress',   (e) => console.log(`[electron] 下载进度 ${e.detail}%`));
-  window.addEventListener('electron:update-downloaded', ()  => console.log('[electron] 更新已下载，等待用户确认安装'));
+  window.addEventListener('electron:update-available',  (e) => console.debug(`[electron] 新版本 ${e.detail?.version} 可用`));
+  window.addEventListener('electron:update-progress',   (e) => console.debug(`[electron] 下载进度 ${e.detail}%`));
+  window.addEventListener('electron:update-downloaded', ()  => console.debug('[electron] 更新已下载，等待用户确认安装'));
 }
 
 // ── 截图 ──────────────────────────────────────────────────

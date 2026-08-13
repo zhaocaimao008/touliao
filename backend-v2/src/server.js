@@ -3,7 +3,10 @@
  * 启动入口：HTTP server + Socket.io + 实时层装配 + 监听。
  */
 
-// ⚠️ 必须在所有其他模块之前初始化追踪（自动插桩需要在 require 之前）
+// ⚠️ 必须最先加载 .env，否则 TRACING_ENABLED 等环境变量在追踪初始化时尚未注入
+require('dotenv').config();
+
+// ⚠️ 追踪插桩必须在所有 require 之前（auto-instrumentations 依赖此时序）
 const { tracing } = require('./integrations/tracing');
 
 async function startServer() {

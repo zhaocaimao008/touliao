@@ -91,9 +91,9 @@ class CacheWarmer {
       console.log('[CacheWarmer] 开始预热群组...');
       
       const groups = db.prepare(`
-        SELECT * FROM conversations WHERE type='group'
-        WHERE deleted = 0
-        ORDER BY last_message_time DESC
+        SELECT * FROM conversations
+        WHERE type='group'
+        ORDER BY created_at DESC
         LIMIT 500
       `).all();
 
@@ -104,8 +104,7 @@ class CacheWarmer {
         
         // 同时预热群成员
         const members = db.prepare(`
-          SELECT * FROM group_members 
-          WHERE group_id = ?
+          SELECT * FROM conversation_members WHERE conversation_id = ?
         `).all(group.id);
         
         const memberKey = `group:${group.id}:members`;
