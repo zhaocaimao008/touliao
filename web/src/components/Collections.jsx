@@ -87,7 +87,7 @@ export default function Collections() {
     const convId = c.extra?.source_conv_id;
     const msgId = c.extra?.source_msg_id;
     if (!convId) return;
-    window.dispatchEvent(new CustomEvent('vxin:open-conversation', {
+    window.dispatchEvent(new CustomEvent('touliao:open-conversation', {
       detail: { conversationId: convId, scrollToId: msgId },
     }));
   };

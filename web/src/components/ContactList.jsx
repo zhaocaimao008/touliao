@@ -78,8 +78,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       if (userId) setContacts(prev => prev.map(c => c.id === userId ? { ...c, remark: remark || '' } : c));
       fetchContacts();
     };
-    window.addEventListener('vxin:remark-changed', handler);
-    return () => window.removeEventListener('vxin:remark-changed', handler);
+    window.addEventListener('touliao:remark-changed', handler);
+    return () => window.removeEventListener('touliao:remark-changed', handler);
   }, [fetchContacts]);
 
   // 从顶栏"添加朋友"入口触发（addFriendRequest 为递增触发信号）——

@@ -10,13 +10,13 @@
  *
  * config.json 格式：
  * {
- *   "api":    "https://api.vxin.com",     // API 服务器（Axios baseURL）
- *   "socket": "https://ws.vxin.com",       // WebSocket 服务器（Socket.io）
- *   "cdn":    "https://cdn.vxin.com",      // CDN（图片/文件/头像等静态资源）
+ *   "api":    "https://api.dipsin.com",     // API 服务器（Axios baseURL）
+ *   "socket": "https://ws.dipsin.com",       // WebSocket 服务器（Socket.io）
+ *   "cdn":    "https://cdn.dipsin.com",      // CDN（图片/文件/头像等静态资源）
  *   "version":"2.0.0"                     // 版本号
  * }
  *
- * 换服务器步骤：编辑 vxin-config 仓库的 config.json → git push（jsDelivr 自动同步，
+ * 换服务器步骤：编辑 vxin-config（配置仓库）的 config.json → git push（jsDelivr 自动同步，
  * 需立即生效可调 https://purge.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json）。
  *
  * Web 端：api/socket 为空时使用同源相对路径（默认行为）。

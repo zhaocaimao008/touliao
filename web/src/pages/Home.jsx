@@ -575,8 +575,8 @@ export default function Home() {
         if (conv) handleSelectConv(scrollToId ? { ...conv, scrollToId } : conv);
       }).catch(() => {});
     };
-    window.addEventListener('vxin:open-conversation', handler);
-    return () => window.removeEventListener('vxin:open-conversation', handler);
+    window.addEventListener('touliao:open-conversation', handler);
+    return () => window.removeEventListener('touliao:open-conversation', handler);
   }, [handleSelectConv]);
 
   useEffect(() => {
@@ -858,7 +858,7 @@ export default function Home() {
   const handleScanDone = useCallback((convId) => {
     setShowScan(false);
     if (convId) {
-      window.dispatchEvent(new CustomEvent('vxin:open-conversation', {
+      window.dispatchEvent(new CustomEvent('touliao:open-conversation', {
         detail: { conversationId: convId },
       }));
     }

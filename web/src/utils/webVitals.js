@@ -16,7 +16,7 @@ function reportVital(metric) {
   vitalsData[metric.name.toLowerCase()] = metric.value;
   
   if (import.meta.env.DEV) {
-    console.log(`[Web Vitals] ${metric.name}:`, metric.value.toFixed(2), 'ms');
+    console.debug(`[Web Vitals] ${metric.name}:`, metric.value.toFixed(2), 'ms');
   }
   
   // 生产环境上报

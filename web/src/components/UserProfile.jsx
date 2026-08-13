@@ -84,7 +84,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
       await axios.put(`/api/users/contacts/${userId}/remark`, { remark: next });
       setUser(u => ({ ...u, remark: next }));
       setShowRemarkEdit(false);
-      window.dispatchEvent(new CustomEvent('vxin:remark-changed', { detail: { userId, remark: next } }));
+      window.dispatchEvent(new CustomEvent('touliao:remark-changed', { detail: { userId, remark: next } }));
       onFriendAdded?.();
     } catch (err) {
       setErrMsg(err.response?.data?.error || '保存失败');

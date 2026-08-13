@@ -55,7 +55,7 @@ export const SocketProvider = ({ children }) => {
     });
 
     setSocket(s);
-    if (typeof window !== 'undefined') window.__vxinSocket = s;
+    if (typeof window !== 'undefined') window.__touliaoSocket = s;
 
     s.on('connect', () => {
       setConnected(true);
@@ -74,7 +74,7 @@ export const SocketProvider = ({ children }) => {
     });
     ['new_moment', 'moment_liked', 'moment_commented'].forEach((ev) => {
       s.on(ev, (payload) => {
-        try { window.dispatchEvent(new CustomEvent('vxin:moment', { detail: { type: ev, payload } })); } catch { /* ignore */ }
+        try { window.dispatchEvent(new CustomEvent('touliao:moment', { detail: { type: ev, payload } })); } catch { /* ignore */ }
       });
     });
 

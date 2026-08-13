@@ -2,8 +2,9 @@
 // 契约见 docs/offline-message-cache-contract.md。定位：首屏占位缓存，非真相源。
 // 只存「已被服务端确认的历史消息」(真实 id)；未确认/失败消息由 outbox 负责。
 // 任何 IndexedDB 异常（隐私模式/配额满/被禁用）一律静默降级，不影响主流程。
+// 注：旧 DB_NAME='vxin' 用户首次打开时旧库自然失效（另一个名字），数据从服务端拉取补全，无需迁移。
 
-const DB_NAME = 'vxin';
+const DB_NAME = 'touliao';
 const STORE = 'msgcache_v1';       // schema 版本前缀；破坏性变更时改此名弃用旧库
 const MAX_PER_CONV = 50;           // 与 outbox 一致，每会话最近 50 条
 

@@ -281,8 +281,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   // 备注变更后刷新会话列表
   useEffect(() => {
     const handler = () => fetchConvs();
-    window.addEventListener('vxin:remark-changed', handler);
-    return () => window.removeEventListener('vxin:remark-changed', handler);
+    window.addEventListener('touliao:remark-changed', handler);
+    return () => window.removeEventListener('touliao:remark-changed', handler);
   }, [fetchConvs]);
 
   const pin = async (conv, pinned) => {

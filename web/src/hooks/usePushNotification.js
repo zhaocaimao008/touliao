@@ -37,7 +37,7 @@ export function usePushNotification(user) {
           // 点击推送 → 跳转到对应会话
           const actL = await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
             const cid = action?.notification?.data?.conversationId;
-            if (cid) window.dispatchEvent(new CustomEvent('vxin:open-conversation', { detail: { conversationId: cid } }));
+            if (cid) window.dispatchEvent(new CustomEvent('touliao:open-conversation', { detail: { conversationId: cid } }));
           });
           listeners = [regL, errL, actL];
           // await 期间可能已卸载：立即移除已注册的 listener，不再 register
@@ -91,7 +91,7 @@ export function usePushNotification(user) {
 
     function handleSWMessage(event) {
       if (event.data?.type === 'OPEN_CONVERSATION') {
-        window.dispatchEvent(new CustomEvent('vxin:open-conversation', {
+        window.dispatchEvent(new CustomEvent('touliao:open-conversation', {
           detail: { conversationId: event.data.conversationId },
         }));
       }

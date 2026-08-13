@@ -297,8 +297,8 @@ export default function Moments() {
       loadNotifCount();
       if (e?.detail?.type === 'new_moment') load();
     };
-    window.addEventListener('vxin:moment', onMoment);
-    return () => window.removeEventListener('vxin:moment', onMoment);
+    window.addEventListener('touliao:moment', onMoment);
+    return () => window.removeEventListener('touliao:moment', onMoment);
   }, [load, loadNotifCount]);
 
   useEffect(() => {

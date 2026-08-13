@@ -242,13 +242,13 @@ export default function Login() {
           <div className="auth-download">
             <p className="auth-download-label">下载客户端</p>
             <div className="auth-download-row">
-              <a href="/downloads/vxin-windows-latest-setup.exe" download className="auth-download-btn">
+              <a href="/downloads/touliao-windows-latest-setup.exe" download className="auth-download-btn">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
                   <path d="M3 5.48l7.2-.98v6.96H3V5.48zm0 13.04l7.2.98v-6.86H3v5.88zm8.04 1.09L21 21V12.6h-9.96v6.0zM11.04 3L21 3.6V11.4h-9.96V3z"/>
                 </svg>
                 Windows 版
               </a>
-              <a href="/downloads/vxin-android-latest.apk" download className="auth-download-btn">
+              <a href="/downloads/touliao-android-latest.apk" download className="auth-download-btn">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
                   <path d="M17.6 9.48l1.84-3.18a.39.39 0 00-.14-.53.39.39 0 00-.53.14l-1.86 3.22a11.46 11.46 0 00-9.82 0L5.23 5.91a.39.39 0 00-.53-.14.39.39 0 00-.14.53L6.4 9.48A10.78 10.78 0 001 18h22a10.78 10.78 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"/>
                 </svg>

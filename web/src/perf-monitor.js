@@ -1,5 +1,5 @@
 /**
- * vxin 端到端性能打点模块
+ * 投聊 端到端性能打点模块
  *
  * 用法: import './perf-monitor.js' 或其他方式注入
  *
@@ -181,4 +181,4 @@ if (location.search.includes('perf=1')) {
   }
 }
 
-console.log('[vxinPerf] 性能打点已加载');
+console.debug('[투리아오Perf] 性能打点已加载');

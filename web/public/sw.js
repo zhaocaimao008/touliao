@@ -1,5 +1,5 @@
-/* V信 Service Worker — 离线缓存 + Web Push 推送处理 */
-const CACHE_NAME = 'vxin-v2.0.19';
+/* 投聊 Service Worker — 离线缓存 + Web Push 推送处理 */
+const CACHE_NAME = 'touliao-v2.0.19';
 const CACHE_URLS = [
   '/',
   '/index.html',
@@ -79,22 +79,22 @@ self.addEventListener('fetch', (e) => {
 
 // ── Push 事件：收到推送消息 ──────────────────────────────────────
 self.addEventListener('push', (e) => {
-  let payload = { title: 'V信新消息', body: '你有一条新消息' };
+  let payload = { title: '投聊新消息', body: '你有一条新消息' };
 
   if (e.data) {
     try {
       payload = e.data.json();
     } catch {
-      payload = { title: 'V信', body: e.data.text() };
+      payload = { title: '投聊', body: e.data.text() };
     }
   }
 
-  const title = payload.senderName || payload.title || 'V信新消息';
+  const title = payload.senderName || payload.title || '投聊新消息';
   const options = {
     body: payload.body || '',
     icon: '/icon.png',
     badge: '/icon.png',
-    tag: `vxin-conv-${payload.conversationId || 'default'}`,
+    tag: `touliao-conv-${payload.conversationId || 'default'}`,
     renotify: true,
     silent: false,
     vibrate: [200, 100, 200],

@@ -145,7 +145,7 @@ export function setupAxiosInterceptors(axios) {
         originalRequest.__retryCount = (originalRequest.__retryCount || 0) + 1;
         const delay = getRetryDelay(originalRequest.__retryCount);
         
-        console.log(`[axios] 重试请求 (${originalRequest.__retryCount}/3): ${originalRequest.url}, 延迟 ${Math.round(delay)}ms`);
+        console.debug(`[axios] 重试请求 (${originalRequest.__retryCount}/3): ${originalRequest.url}, 延迟 ${Math.round(delay)}ms`);
         
         await new Promise(resolve => setTimeout(resolve, delay));
         return axios(originalRequest);
@@ -162,7 +162,7 @@ export function setupAxiosInterceptors(axios) {
     }
   );
   
-  console.log('[axios] 拦截器已初始化');
+  console.debug('[axios] 拦截器已初始化');
 }
 
 /**

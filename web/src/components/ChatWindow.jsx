@@ -608,8 +608,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         }));
       }).catch(() => {});
     };
-    window.addEventListener('vxin:remark-changed', handler);
-    return () => window.removeEventListener('vxin:remark-changed', handler);
+    window.addEventListener('touliao:remark-changed', handler);
+    return () => window.removeEventListener('touliao:remark-changed', handler);
   }, [conversation.type, conversation.otherUser?.id]);
 
   // 发送/收到消息时自动跟随到底部。

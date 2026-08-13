@@ -43,7 +43,7 @@ export async function downloadFile(fileUrl, filename) {
   }
 
   // Electron：交主进程 downloadURL 流式落盘到「下载」并自动打开（渲染进程跨域 fetch 会被 CORS 拦）。
-  const electronDownload = window.electronAPI?.downloadFile || window.vxinAPI?.downloadFile;
+  const electronDownload = window.electronAPI?.downloadFile || window.touliaoAPI?.downloadFile;
   if (isElectron && electronDownload) {
     electronDownload(url, name);
     return;

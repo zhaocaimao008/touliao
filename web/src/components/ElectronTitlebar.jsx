@@ -54,7 +54,7 @@ export default function ElectronTitlebar() {
 
   return (
     <div
-      id="vxin-titlebar"
+      id="touliao-titlebar"
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: 30,
         background: 'var(--titlebar-bg)', zIndex: "calc(var(--z-native) - 1)",
