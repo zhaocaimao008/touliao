@@ -134,7 +134,7 @@ export function setupAxiosInterceptors(axios) {
           await refreshToken(axios);
           // 重试原请求
           return axios(originalRequest);
-        } catch (refreshError) {
+        } catch (_refreshError) {
           // 刷新失败，由各组件处理跳转登录
           return Promise.reject(error);
         }

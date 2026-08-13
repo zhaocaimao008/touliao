@@ -19,7 +19,7 @@ export function debounce(fn, delay = 300, options = {}) {
 
   return function debounced(...args) {
     const time = Date.now();
-    const timeSinceLastCall = time - lastCallTime;
+    const _timeSinceLastCall = time - lastCallTime;
     const timeSinceLastInvoke = time - lastInvokeTime;
 
     lastCallTime = time;
@@ -273,7 +273,7 @@ export class RequestCache {
 }
 
 // 带缓存的请求包装器
-export function cachedRequest(key, requestFn, cache, ttl) {
+export function cachedRequest(key, requestFn, cache, _ttl) {
   const cached = cache.get(key);
   if (cached) return Promise.resolve(cached);
 

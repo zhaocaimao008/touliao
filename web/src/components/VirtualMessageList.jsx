@@ -15,7 +15,7 @@ function createSizeFlusher(listRef, onSettle) {
   const flush = () => {
     raf = 0;
     microTaskScheduled = false;
-    const min = minIndex, max = maxIndex;
+    const min = minIndex, _max = maxIndex;
     minIndex = Infinity;
     maxIndex = -Infinity;
 

@@ -63,7 +63,7 @@ export function getOptimizedImageUrl(originalUrl, options = {}) {
 }
 
 // 模糊占位符生成（使用 Canvas 缩放）
-export function generateBlurPlaceholder(img, blurAmount = 10) {
+export function generateBlurPlaceholder(img, _blurAmount = 10) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   

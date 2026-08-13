@@ -30,7 +30,7 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
     tracesSampleRate: 0.1, // 10% 性能监控采样
     replaysSessionSampleRate: 0.1, // 10% 正常会话录制
     replaysOnErrorSampleRate: 1.0, // 100% 错误会话录制
-    beforeSend(event, hint) {
+    beforeSend(event, _hint) {
       // 过滤敏感信息
       if (event.request?.cookies) {
         delete event.request.cookies;
