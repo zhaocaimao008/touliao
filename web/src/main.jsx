@@ -2,7 +2,7 @@ import './perf-monitor.js';   // 端到端性能打点（注入 window.__vxinPer
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
-import * as Sentry from '@sentry/react';
+// Sentry 异步加载（不阻塞首屏渲染）
 import App from './App';
 import './design-tokens.css';
 import './index.css';
@@ -12,39 +12,21 @@ import { initWebVitals } from './utils/webVitals';
 import { initImageOptimizer } from './utils/imageOptimizer';
 import { setupAxiosInterceptors } from './utils/axiosInterceptor';
 
-// ── Sentry 错误监控初始化 ─────────────────────────────────
+// ── Sentry 错误监控（异步懒加载，不阻塞首屏）─────────────
 if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
-  Sentry.init({
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    environment: import.meta.env.MODE,
-    release: `vxin@${__APP_VERSION__}`,
-    integrations: [
-      new Sentry.BrowserTracing({
-        tracePropagationTargets: ['localhost', /^https:\/\/dipsin\.com/],
-      }),
-      new Sentry.Replay({
-        maskAllText: true,
-        blockAllMedia: true,
-      }),
-    ],
-    tracesSampleRate: 0.1, // 10% 性能监控采样
-    replaysSessionSampleRate: 0.1, // 10% 正常会话录制
-    replaysOnErrorSampleRate: 1.0, // 100% 错误会话录制
-    beforeSend(event, _hint) {
-      // 过滤敏感信息
-      if (event.request?.cookies) {
-        delete event.request.cookies;
-      }
-      if (event.request?.headers?.Authorization) {
-        event.request.headers.Authorization = '[Filtered]';
-      }
-      // 过滤用户数据中的手机号
-      if (event.user?.phone) {
-        event.user.phone = event.user.phone.slice(0, 3) + '****' + event.user.phone.slice(-4);
-      }
-      return event;
-    },
-  });
+  const loadSentry = () => import('@sentry/react').then(Sentry => {
+    Sentry.init({
+      dsn: import.meta.env.VITE_SENTRY_DSN,
+      environment: import.meta.env.MODE,
+      release: `touliao@${__APP_VERSION__}`,
+      tracesSampleRate: 0.05,
+    });
+  }).catch(() => {});
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(loadSentry, { timeout: 5000 });
+  } else {
+    setTimeout(loadSentry, 3000);
+  }
 }
 
 // ── 通用加载流程 ──────────────────────────────────────────

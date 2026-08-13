@@ -87,7 +87,10 @@ export default function Login() {
         {/* Logo区域 */}
         <div className="auth-brand">
           <div className="auth-brand-icon" style={{background:'none',boxShadow:'none',padding:0,overflow:'hidden'}}>
-            <img src="/icon.png" alt="投聊" width="68" height="68" style={{borderRadius:'var(--radius-2xl)',display:'block',objectFit:'cover'}} />
+            <picture>
+              <source srcSet="/icon.webp" type="image/webp" />
+              <img src="/icon.png" alt="投聊" width="68" height="68" style={{borderRadius:'var(--radius-2xl)',display:'block',objectFit:'cover'}} />
+            </picture>
           </div>
           <h1 className="auth-brand-name auth-brand-name--brand">投聊</h1>
           <p className="auth-brand-desc">安全 · 私密 · 畅聊</p>

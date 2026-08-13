@@ -2,7 +2,7 @@
 // PWA 离线回退 + 推送通知处理
 // Capacitor 移动端使用原生推送，此 SW 仅用于 Web 端推送
 
-const CACHE_NAME = 'vxin-cache-v1';
+const CACHE_NAME = 'touliao-cache-v2';
 
 // 安装阶段：预缓存关键资源（由 Vite 构建后填充）
 self.addEventListener('install', (event) => {
