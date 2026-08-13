@@ -1,33 +1,39 @@
 import './auth.css';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { timeoutSignal } from '../utils/config';
-import { saveCred, loadCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
+import { saveCred, loadCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
 export default function Login() {
-  // 「记住账户和密码」：登录页首帧即回填上次勾选记住的手机号 + 密码，免手输。
-  // 凭证仅在本地做可逆混淆存储，默认不勾选，详见 utils/rememberedCreds.js 安全边界。
+  // 「记住账户和密码」：loadCred 为 async（AES-GCM），用 useEffect 加载初始密码。
   const initialPhone = lastRememberedPhone();
-  const initialPwd = initialPhone ? loadCred(initialPhone) : '';
   const [phone, setPhone] = useState(initialPhone);
-  const [password, setPassword] = useState(initialPwd);
-  const [remember, setRemember] = useState(!!initialPwd);
+  const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [showPwd, setShowPwd] = useState(false);
+
+  // 异步加载已记住的密码（AES-GCM 解密，SubtleCrypto 需 microtask）
+  useEffect(() => {
+    if (!initialPhone) return;
+    loadCred(initialPhone).then(pwd => {
+      if (pwd) { setPassword(pwd); setRemember(true); }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const { login, accounts, removeAccount, maxAccounts } = useAuth();
   const navigate = useNavigate();
 
   // 点击「最近登录」某账户：回填手机号，并在存有记住密码时一并回填密码 + 勾选记住。
-  const fillAccount = (acct) => {
+  const fillAccount = async (acct) => {
     const p = acct?.user?.phone || '';
     setPhone(p);
-    const saved = loadCred(p);
+    const saved = await loadCred(p);
     if (saved) { setPassword(saved); setRemember(true); }
     else { setPassword(''); setRemember(false); }
   };
@@ -68,7 +74,7 @@ export default function Login() {
     try {
       const { data } = await axios.post('/api/auth/login', { phone, password });
       // 登录成功后按勾选保存/清除本地记住的密码（凭证按手机号归档，可逆混淆存储）
-      if (remember) saveCred(phone, password);
+      if (remember) await saveCred(phone, password);
       else removeCred(phone);
       login(data.user, data.token);
       navigate('/');
@@ -110,7 +116,7 @@ export default function Login() {
                   type="button"
                   className="auth-account-btn"
                   onClick={() => fillAccount(account)}
-                  title={loadCred(account.user?.phone || '') ? '填入账户与密码' : '填入手机号'}
+                  title={hasCred(account.user?.phone || '') ? '填入账户与密码' : '填入手机号'}
                 >
                   <div className="auth-account-avatar">
                     {(account.user?.username || '?')[0].toUpperCase()}
