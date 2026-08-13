@@ -1,11 +1,11 @@
-package com.vxin.app.feature.favorites
+package com.touliao.app.feature.favorites
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.core.util.MediaUrlResolver
-import com.vxin.app.data.model.Collection
-import com.vxin.app.data.repository.FavoritesRepository
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.core.util.MediaUrlResolver
+import com.touliao.app.data.model.Collection
+import com.touliao.app.data.repository.FavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -1,4 +1,4 @@
-package com.vxin.app.feature.search
+package com.touliao.app.feature.search
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -35,13 +35,13 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
-import com.vxin.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinGreen
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.data.model.SearchResult
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.data.model.SearchResult
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,7 +80,7 @@ fun SearchScreen(
             when {
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.query.isBlank() -> Text("输入关键词搜索聊天记录", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
-                state.searched && state.results.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "🔍", title = "没有找到相关消息", modifier = Modifier.align(Alignment.Center))
+                state.searched && state.results.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "🔍", title = "没有找到相关消息", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.results, key = { it.id }) { r ->
                         ResultRow(r, avatarUrl = viewModel.resolveUrl(r.otherUser?.avatar), query = state.query) { onOpenResult(r) }

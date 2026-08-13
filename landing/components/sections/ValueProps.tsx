@@ -7,7 +7,7 @@ export function ValueProps() {
   return (
     <Section id="value" tone="muted">
       <SectionHeading
-        eyebrow="为什么选 v信"
+        eyebrow="为什么选 投聊"
         title={valueProps.heading}
         sub={valueProps.sub}
       />

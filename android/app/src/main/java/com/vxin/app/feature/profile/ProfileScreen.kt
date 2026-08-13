@@ -1,4 +1,4 @@
-package com.vxin.app.feature.profile
+package com.touliao.app.feature.profile
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -53,15 +53,15 @@ import coil.compose.AsyncImage
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.vxin.app.ui.VxinIcons
-import com.vxin.app.ui.theme.VxinBrand
-import com.vxin.app.ui.theme.VxinBrandLight
-import com.vxin.app.ui.theme.VxinTeal
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
-import com.vxin.app.feature.update.UpdateCheckDialog
-import com.vxin.app.feature.update.UpdateViewModel
+import com.touliao.app.ui.VxinIcons
+import com.touliao.app.ui.theme.VxinBrand
+import com.touliao.app.ui.theme.VxinBrandLight
+import com.touliao.app.ui.theme.VxinTeal
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
+import com.touliao.app.feature.update.UpdateCheckDialog
+import com.touliao.app.feature.update.UpdateViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +97,7 @@ fun ProfileScreen(
 
     // 静默检查到新版后自动弹出对话框（只弹一次）
     LaunchedEffect(silentResult) {
-        if (silentResult is com.vxin.app.feature.update.SilentCheckResult.HasUpdate) {
+        if (silentResult is com.touliao.app.feature.update.SilentCheckResult.HasUpdate) {
             showUpdateDialog = true
             updateViewModel.openDialog()   // 同步把 uiState 推到 Available，否则弹窗空白
         }
@@ -116,7 +116,7 @@ fun ProfileScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card))
+                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.card))
                     .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrand, VxinTeal)))
                     .padding(20.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -127,7 +127,7 @@ fun ProfileScreen(
                         AsyncImage(
                             model = avatarUrl,
                             contentDescription = "头像",
-                            modifier = Modifier.size(68.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.avatar)).clickable { avatarPicker.launch("image/*") },
+                            modifier = Modifier.size(68.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.avatar)).clickable { avatarPicker.launch("image/*") },
                         )
                     } else {
                         Box(Modifier.clickable { avatarPicker.launch("image/*") }) {
@@ -145,7 +145,7 @@ fun ProfileScreen(
                     )
                     Spacer(Modifier.size(6.dp))
                     user?.wechat_id?.takeIf { it.isNotBlank() }?.let {
-                        Text("v信号: $it", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
+                        Text("投聊号: $it", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
                     }
                     user?.phone?.takeIf { it.isNotBlank() }?.let {
                         Text(
@@ -243,7 +243,7 @@ fun ProfileScreen(
                 },
                 modifier = Modifier.fillMaxWidth().testTag("profile-check-update"),
             ) {
-                if (silentResult is com.vxin.app.feature.update.SilentCheckResult.HasUpdate) {
+                if (silentResult is com.touliao.app.feature.update.SilentCheckResult.HasUpdate) {
                     Text("检查更新 ● 新版本可用", color = VxinGreen)
                 } else {
                     Text("检查更新")
@@ -257,7 +257,7 @@ fun ProfileScreen(
             ) { Text("退出登录") }
             Spacer(Modifier.size(16.dp))
             Text(
-                "v信 v${com.vxin.app.BuildConfig.VERSION_NAME} (${com.vxin.app.BuildConfig.VERSION_CODE})",
+                "投聊 v${com.touliao.app.BuildConfig.VERSION_NAME} (${com.touliao.app.BuildConfig.VERSION_CODE})",
                 style = MaterialTheme.typography.bodySmall,
                 color = VxinTextSecondary,
             )

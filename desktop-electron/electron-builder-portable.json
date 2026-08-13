@@ -1,6 +1,6 @@
 {
-  "appId": "com.vxin.desktop",
-  "productName": "v信",
+  "appId": "com.touliao.desktop",
+  "productName": "投聊",
   "directories": {
     "output": "dist",
     "buildResources": "assets"
@@ -11,7 +11,9 @@
     {
       "from": "../web/dist",
       "to": "web/dist",
-      "filter": ["**/*"]
+      "filter": [
+        "**/*"
+      ]
     }
   ],
   "win": {
@@ -19,8 +21,10 @@
       "portable"
     ],
     "icon": "assets/icon.ico",
-    "artifactName": "vxin-${version}-portable.${ext}",
-    "signingHashAlgorithms": ["sha256"]
+    "artifactName": "touliao-${version}-portable.${ext}",
+    "signingHashAlgorithms": [
+      "sha256"
+    ]
   },
   "publish": {
     "provider": "generic",

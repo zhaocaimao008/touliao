@@ -10,7 +10,7 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'v信 API 文档',
+      title: '投聊 API 文档',
       version: '2.0.0',
       description: '实时消息应用后端 API 文档（自动生成）',
       contact: {

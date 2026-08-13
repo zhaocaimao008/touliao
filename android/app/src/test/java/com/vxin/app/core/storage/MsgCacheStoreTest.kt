@@ -1,9 +1,9 @@
-package com.vxin.app.core.storage
+package com.touliao.app.core.storage
 
-import com.vxin.app.data.model.Message
-import com.vxin.app.core.storage.MsgCacheStore.Companion.MAX_PER_CONV
-import com.vxin.app.core.storage.MsgCacheStore.Companion.mergeById
-import com.vxin.app.core.storage.MsgCacheStore.Companion.normalize
+import com.touliao.app.data.model.Message
+import com.touliao.app.core.storage.MsgCacheStore.Companion.MAX_PER_CONV
+import com.touliao.app.core.storage.MsgCacheStore.Companion.mergeById
+import com.touliao.app.core.storage.MsgCacheStore.Companion.normalize
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

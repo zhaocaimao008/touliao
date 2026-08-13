@@ -1,14 +1,14 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.CommentPage
-import com.vxin.app.data.model.CreateMomentBody
-import com.vxin.app.data.model.Moment
-import com.vxin.app.data.model.MomentComment
-import com.vxin.app.data.model.MomentCommentBody
-import com.vxin.app.data.model.MomentImagesResponse
-import com.vxin.app.data.model.MomentLikeResponse
-import com.vxin.app.data.model.MomentNotifPage
-import com.vxin.app.data.model.UnreadCountResponse
+import com.touliao.app.data.model.CommentPage
+import com.touliao.app.data.model.CreateMomentBody
+import com.touliao.app.data.model.Moment
+import com.touliao.app.data.model.MomentComment
+import com.touliao.app.data.model.MomentCommentBody
+import com.touliao.app.data.model.MomentImagesResponse
+import com.touliao.app.data.model.MomentLikeResponse
+import com.touliao.app.data.model.MomentNotifPage
+import com.touliao.app.data.model.UnreadCountResponse
 import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE

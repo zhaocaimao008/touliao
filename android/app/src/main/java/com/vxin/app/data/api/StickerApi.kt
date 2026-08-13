@@ -1,10 +1,10 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.Message
-import com.vxin.app.data.model.Sticker
-import com.vxin.app.data.model.StickerCollectBody
-import com.vxin.app.data.model.StickerSendBody
-import com.vxin.app.data.model.StickerUploadResponse
+import com.touliao.app.data.model.Message
+import com.touliao.app.data.model.Sticker
+import com.touliao.app.data.model.StickerCollectBody
+import com.touliao.app.data.model.StickerSendBody
+import com.touliao.app.data.model.StickerUploadResponse
 import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.GET

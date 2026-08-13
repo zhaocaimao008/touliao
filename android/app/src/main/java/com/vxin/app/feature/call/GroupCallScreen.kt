@@ -1,4 +1,4 @@
-package com.vxin.app.feature.call
+package com.touliao.app.feature.call
 
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,11 +37,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.core.call.GroupCallStage
-import com.vxin.app.core.realtime.GroupCallInviteEvent
-import com.vxin.app.ui.components.InitialAvatar
+import com.touliao.app.core.call.GroupCallStage
+import com.touliao.app.core.realtime.GroupCallInviteEvent
+import com.touliao.app.ui.components.InitialAvatar
 
-private val CallGreen = com.vxin.app.ui.theme.VxinSuccess   // 接听绿=语义成功色，对齐 web --color-success
+private val CallGreen = com.touliao.app.ui.theme.VxinSuccess   // 接听绿=语义成功色，对齐 web --color-success
 private val CallRed = Color(0xFFFA5151)
 
 /** 全局群通话浮层 + 来电邀请横幅：始终挂载，监听邀请与通话状态。 */
@@ -72,7 +72,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
             Text(
                 "群${if (state.isVideo) "视频" else "语音"}通话 · ${state.participants.size + 1} 人" +
                     if (durationText.isNotEmpty()) "  $durationText" else "",
-                color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.md,
+                color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.md,
                 modifier = Modifier.align(Alignment.TopCenter).systemBarsPadding().padding(top = 16.dp),
             )
 
@@ -118,17 +118,17 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
     invite?.let { inv ->
         Box(Modifier.fillMaxWidth().systemBarsPadding().padding(top = 60.dp), contentAlignment = Alignment.TopCenter) {
             Row(
-                Modifier.clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.avatar)).background(Color(0xFF2C2C2E)).padding(12.dp),
+                Modifier.clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.avatar)).background(Color(0xFF2C2C2E)).padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("${inv.fromName.ifBlank { "群成员" }} 发起了群${if (inv.type == "video") "视频" else "语音"}通话",
-                    color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
-                Box(Modifier.clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb)).background(CallGreen)
+                    color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
+                Box(Modifier.clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)).background(CallGreen)
                     .clickable { viewModel.join(inv.callId, inv.conversationId, inv.type == "video"); invite = null }
-                    .padding(horizontal = 14.dp, vertical = 6.dp)) { Text("加入", color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp)) { Text("加入", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2) }
                 Box(Modifier.clickable { invite = null }.padding(horizontal = 8.dp, vertical = 6.dp)) {
-                    Text("忽略", color = Color(0xFF999999), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+                    Text("忽略", color = Color(0xFF999999), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                 }
             }
         }
@@ -138,7 +138,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
 @Composable
 private fun Tile(track: org.webrtc.VideoTrack?, eglContext: org.webrtc.EglBase.Context, mirror: Boolean, label: String, self: Boolean = false) {
     Box(
-        Modifier.fillMaxWidth().aspectRatio(0.85f).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge)).background(Color.Black),
+        Modifier.fillMaxWidth().aspectRatio(0.85f).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge)).background(Color.Black),
         contentAlignment = Alignment.Center,
     ) {
         if (track != null) {
@@ -146,7 +146,7 @@ private fun Tile(track: org.webrtc.VideoTrack?, eglContext: org.webrtc.EglBase.C
         } else {
             InitialAvatar(name = label, size = 64.dp)
         }
-        Text(label, color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
+        Text(label, color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
             modifier = Modifier.align(Alignment.BottomStart).padding(6.dp))
     }
 }
@@ -186,9 +186,9 @@ private fun VideoRenderer(
 private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(64.dp).clip(CircleShape).background(color).clickable { onClick() },
-            contentAlignment = Alignment.Center) { Text(label.take(3), color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm) }
+            contentAlignment = Alignment.Center) { Text(label.take(3), color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = Color(0xFFCCCCCC), fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
+        Text(label, color = Color(0xFFCCCCCC), fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
     }
 }
 

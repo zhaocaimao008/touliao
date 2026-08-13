@@ -20,7 +20,7 @@ function arg(name) {
 
 const token = arg('token');
 const userId = arg('user');
-const title = arg('title') || 'v信 测试推送';
+const title = arg('title') || '投聊 测试推送';
 const body = arg('body') || '这是一条来自后端的测试推送 🎉';
 
 if (!token && !userId) {

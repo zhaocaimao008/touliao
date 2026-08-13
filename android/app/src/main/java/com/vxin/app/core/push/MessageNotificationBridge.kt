@@ -1,15 +1,15 @@
-package com.vxin.app.core.push
+package com.touliao.app.core.push
 
 import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
-import com.vxin.app.core.auth.SessionManager
-import com.vxin.app.core.di.AppScope
+import com.touliao.app.core.auth.SessionManager
+import com.touliao.app.core.di.AppScope
 import dagger.hilt.android.qualifiers.ApplicationContext
-import com.vxin.app.data.api.UserApi
-import com.vxin.app.data.model.Message
-import com.vxin.app.data.repository.ChatRepository
+import com.touliao.app.data.api.UserApi
+import com.touliao.app.data.model.Message
+import com.touliao.app.data.repository.ChatRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex

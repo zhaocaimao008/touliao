@@ -20,7 +20,7 @@ struct LoginView: View {
                     .font(.system(size: 30))
                     .foregroundColor(.white)
             }
-            Text("v信")
+            Text("投聊")
                 .font(.system(size: VxinFontSize.displayLg, weight: .bold))
                 .foregroundColor(.primary)
             Text("安全 · 私密 · 畅聊")

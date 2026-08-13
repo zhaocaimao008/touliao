@@ -1,4 +1,4 @@
-package com.vxin.app.feature.favorites
+package com.touliao.app.feature.favorites
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -42,9 +42,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalContext
-import com.vxin.app.core.util.downloadFile
-import com.vxin.app.data.model.Collection
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.core.util.downloadFile
+import com.touliao.app.data.model.Collection
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -93,8 +93,8 @@ fun FavoritesScreen(
                     state.searching -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     shown.isEmpty() -> {
                         val isFiltering = state.query.isNotBlank() || state.typeFilter.isNotBlank()
-                        if (isFiltering) com.vxin.app.ui.components.EmptyState(icon = "🔍", title = "没有匹配的收藏", subtitle = "换个关键词或类型试试", modifier = Modifier.align(Alignment.Center))
-                        else com.vxin.app.ui.components.EmptyState(icon = "⭐", title = "暂无收藏", subtitle = "长按消息可收藏到这里", modifier = Modifier.align(Alignment.Center))
+                        if (isFiltering) com.touliao.app.ui.components.EmptyState(icon = "🔍", title = "没有匹配的收藏", subtitle = "换个关键词或类型试试", modifier = Modifier.align(Alignment.Center))
+                        else com.touliao.app.ui.components.EmptyState(icon = "⭐", title = "暂无收藏", subtitle = "长按消息可收藏到这里", modifier = Modifier.align(Alignment.Center))
                     }
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(shown, key = { it.id }) { item ->

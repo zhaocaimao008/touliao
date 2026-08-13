@@ -35,7 +35,7 @@ function generateSecret() {
 }
 
 // otpauth:// URL —— 扫码绑定用
-function otpauthURL(secret, { label = 'v信后台', issuer = 'v信' } = {}) {
+function otpauthURL(secret, { label = '投聊后台', issuer = '投聊' } = {}) {
   const l = encodeURIComponent(`${issuer}:${label}`);
   return `otpauth://totp/${l}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 }

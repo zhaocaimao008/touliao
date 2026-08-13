@@ -1,4 +1,4 @@
-package com.vxin.app.feature.chat
+package com.touliao.app.feature.chat
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -88,28 +88,28 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
-import com.vxin.app.core.util.downloadFile
-import com.vxin.app.core.util.formatChatTime
+import com.touliao.app.core.util.downloadFile
+import com.touliao.app.core.util.formatChatTime
 import androidx.compose.ui.focus.focusRequester
-import com.vxin.app.data.model.ContactCardContent
-import com.vxin.app.data.model.LocalMsgStatus
-import com.vxin.app.data.model.Message
-import com.vxin.app.ui.components.InitialAvatar
+import com.touliao.app.data.model.ContactCardContent
+import com.touliao.app.data.model.LocalMsgStatus
+import com.touliao.app.data.model.Message
+import com.touliao.app.ui.components.InitialAvatar
 import kotlinx.serialization.json.Json
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinGreenDark
-import com.vxin.app.ui.theme.VxinTextSecondary
-import com.vxin.app.ui.theme.VxinBubbleMine
-import com.vxin.app.ui.theme.VxinBubbleMineText
-import com.vxin.app.ui.theme.VxinBubbleText
-import com.vxin.app.ui.theme.VxinBubbleOtherDark
-import com.vxin.app.ui.theme.VxinBubbleTextDark
-import com.vxin.app.ui.theme.VxinBrandLight
-import com.vxin.app.ui.theme.VxinBrandDark
-import com.vxin.app.ui.theme.VxinTeal
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinGreenDark
+import com.touliao.app.ui.theme.VxinTextSecondary
+import com.touliao.app.ui.theme.VxinBubbleMine
+import com.touliao.app.ui.theme.VxinBubbleMineText
+import com.touliao.app.ui.theme.VxinBubbleText
+import com.touliao.app.ui.theme.VxinBubbleOtherDark
+import com.touliao.app.ui.theme.VxinBubbleTextDark
+import com.touliao.app.ui.theme.VxinBrandLight
+import com.touliao.app.ui.theme.VxinBrandDark
+import com.touliao.app.ui.theme.VxinTeal
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
-import com.vxin.app.ui.theme.VxinSurfaceDark
+import com.touliao.app.ui.theme.VxinSurfaceDark
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -180,7 +180,7 @@ fun ChatScreen(
         if (result.resultCode == android.app.Activity.RESULT_OK && data != null) {
             viewModel.markAwaitingScreenshot()   // 只让本会话消费随后的截图结果
             androidx.core.content.ContextCompat.startForegroundService(
-                context, com.vxin.app.core.capture.ScreenCaptureService.startIntent(context, result.resultCode, data),
+                context, com.touliao.app.core.capture.ScreenCaptureService.startIntent(context, result.resultCode, data),
             )
         }
     }
@@ -260,7 +260,7 @@ fun ChatScreen(
         val filename = "chat-${viewModel.conversationId}.txt"
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
-                com.vxin.app.core.util.saveTextToDownloads(context, filename, content)
+                com.touliao.app.core.util.saveTextToDownloads(context, filename, content)
             }.onSuccess { savedPath ->
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                     android.widget.Toast.makeText(context, "聊天记录已导出：$savedPath", android.widget.Toast.LENGTH_LONG).show()
@@ -301,7 +301,7 @@ fun ChatScreen(
                     Column {
                         Text(state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"))
                         if (state.peerTyping) {
-                            Text("对方正在输入…", fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, color = VxinGreen)
+                            Text("对方正在输入…", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = VxinGreen)
                         }
                     }
                 },
@@ -368,7 +368,7 @@ fun ChatScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("已选 ${state.selectedIds.size} 条", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
+                    Text("已选 ${state.selectedIds.size} 条", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = { viewModel.exitMultiSelect() }) { Text("取消") }
                     Spacer(Modifier.width(8.dp))
@@ -388,7 +388,7 @@ fun ChatScreen(
                     ) {
                         Text(
                             "回复 ${r.senderName.ifBlank { "" }}: ${replyPreviewOf(r)}",
-                            Modifier.weight(1f), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm,
+                            Modifier.weight(1f), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         Text("✕", Modifier.clickable { viewModel.cancelReply() }.padding(start = 8.dp), color = VxinTextSecondary)
@@ -466,7 +466,7 @@ fun ChatScreen(
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             } else if (!state.loading && state.messages.isEmpty() && state.pending.isEmpty()) {
                 // 空会话友好提示(对齐微信「打个招呼吧」)
-                com.vxin.app.ui.components.EmptyState(
+                com.touliao.app.ui.components.EmptyState(
                     icon = "👋",
                     title = "还没有消息",
                     subtitle = "发条消息，打个招呼吧",
@@ -502,9 +502,9 @@ fun ChatScreen(
                                 Text(
                                     formatChatTime(msg.created_at),
                                     color = VxinTextSecondary,
-                                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
+                                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
+                                        .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                                         .background(Color(0x11000000))
                                         .padding(horizontal = 8.dp, vertical = 2.dp),
                                 )
@@ -512,7 +512,7 @@ fun ChatScreen(
                         }
                         if (msg.type == "nudge") {
                             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
-                                Text(viewModel.nudgeText(msg), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                                Text(viewModel.nudgeText(msg), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                             }
                             return@itemsIndexed
                         }
@@ -532,7 +532,7 @@ fun ChatScreen(
                                     Modifier.size(22.dp).clip(CircleShape)
                                         .background(if (checked) VxinGreen else Color(0x22000000)),
                                     contentAlignment = Alignment.Center,
-                                ) { if (checked) Text("✓", color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2) }
+                                ) { if (checked) Text("✓", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2) }
                                 Box(Modifier.weight(1f)) {
                                     MessageBubble(
                                         msg = msg,
@@ -571,12 +571,12 @@ fun ChatScreen(
                             onCollectSticker = { viewModel.collectSticker(msg.file_url) },
                             onSaveImage = {
                                 scope.launch {
-                                    com.vxin.app.core.util.saveImageToGallery(context, viewModel.resolveMediaUrl(msg.file_url), msg.content)
+                                    com.touliao.app.core.util.saveImageToGallery(context, viewModel.resolveMediaUrl(msg.file_url), msg.content)
                                 }
                             },
                             onCopyImage = {
                                 scope.launch {
-                                    com.vxin.app.core.util.copyImageToClipboard(context, viewModel.resolveMediaUrl(msg.file_url))
+                                    com.touliao.app.core.util.copyImageToClipboard(context, viewModel.resolveMediaUrl(msg.file_url))
                                 }
                             },
                             redPacket = viewModel.parseRedPacket(msg),
@@ -590,10 +590,10 @@ fun ChatScreen(
                             onForward = { forwardTarget = msg; viewModel.loadForwardTargets() },
                             onShare = {
                                 if (msg.type == "text") {
-                                    com.vxin.app.core.util.shareText(context, msg.content)
+                                    com.touliao.app.core.util.shareText(context, msg.content)
                                 } else {
                                     scope.launch {
-                                        com.vxin.app.core.util.shareFile(
+                                        com.touliao.app.core.util.shareFile(
                                             context,
                                             viewModel.resolveMediaUrl(msg.file_url),
                                             msg.content,
@@ -632,7 +632,7 @@ fun ChatScreen(
                 exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutHorizontally { it },
             ) {
                 Surface(
-                    shape = com.vxin.app.ui.theme.VxinRadius.full,
+                    shape = com.touliao.app.ui.theme.VxinRadius.full,
                     color = if (isSystemInDarkTheme()) VxinSurfaceDark else Color.White,
                     shadowElevation = 4.dp,
                     modifier = Modifier.clickable {
@@ -645,9 +645,9 @@ fun ChatScreen(
                         Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("↓", color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+                        Text("↓", color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                         Spacer(Modifier.width(4.dp))
-                        Text("$newMsgCount 条新消息", color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+                        Text("$newMsgCount 条新消息", color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                     }
                 }
             }
@@ -764,7 +764,7 @@ fun ChatScreen(
                     items(state.pinnedMessages, key = { it.msgId }) { p ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(p.senderName.ifBlank { "成员" }, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
+                                Text(p.senderName.ifBlank { "成员" }, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
                                 Text(pinnedPreview(p), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                             TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = Color(0xFFFA5151)) }
@@ -869,7 +869,7 @@ fun ChatScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(label, Modifier.weight(1f))
-                            if (state.burnAfter == secs) Text("✓", color = com.vxin.app.ui.theme.VxinBrand)
+                            if (state.burnAfter == secs) Text("✓", color = com.touliao.app.ui.theme.VxinBrand)
                         }
                     }
                 }
@@ -913,7 +913,7 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
                 }
             }
             if (images.size > 1) {
-                Text("${pagerState.currentPage + 1}/${images.size}", color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
+                Text("${pagerState.currentPage + 1}/${images.size}", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 40.dp))
             }
             Row(
@@ -923,12 +923,12 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
                 Text(
                     "分享",
                     color = Color.White,
-                    fontSize = com.vxin.app.ui.theme.VxinTextSize.base,
+                    fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
                     modifier = Modifier
-                        .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card))
+                        .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.card))
                         .clickable {
                             scope.launch {
-                                com.vxin.app.core.util.shareFile(context, images.getOrNull(pagerState.currentPage), null, "image/jpeg")
+                                com.touliao.app.core.util.shareFile(context, images.getOrNull(pagerState.currentPage), null, "image/jpeg")
                             }
                         }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -936,12 +936,12 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
                 Text(
                     "保存图片",
                     color = Color.White,
-                    fontSize = com.vxin.app.ui.theme.VxinTextSize.base,
+                    fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
                     modifier = Modifier
-                        .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card))
+                        .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.card))
                         .clickable {
                             scope.launch {
-                                com.vxin.app.core.util.saveImageToGallery(context, images.getOrNull(pagerState.currentPage))
+                                com.touliao.app.core.util.saveImageToGallery(context, images.getOrNull(pagerState.currentPage))
                             }
                         }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -951,7 +951,7 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
     }
 }
 
-private fun pinnedPreview(p: com.vxin.app.data.model.PinnedMessage): String = when (p.type) {
+private fun pinnedPreview(p: com.touliao.app.data.model.PinnedMessage): String = when (p.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"; "red_packet" -> "[红包]"
     "transfer" -> "[转账]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> p.content
@@ -964,31 +964,31 @@ private fun AnnouncementBanner(text: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().background(Color(0xFFEAF4FF)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("📢", fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
+        Text("📢", fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
         Spacer(Modifier.size(8.dp))
-        Text("群公告", color = Color(0xFF3B82F6), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, maxLines = 1)
+        Text("群公告", color = Color(0xFF3B82F6), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, maxLines = 1)
         Spacer(Modifier.size(8.dp))
         // 置顶轮播：单行横向滚动展示（basicMarquee），点按看全文
         Text(
             text.replace("\n", "   "),
             modifier = Modifier.weight(1f).basicMarquee(),
             maxLines = 1,
-            fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
+            fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
         )
     }
 }
 
 @Composable
-private fun PinnedBanner(pinned: List<com.vxin.app.data.model.PinnedMessage>, onClick: () -> Unit) {
+private fun PinnedBanner(pinned: List<com.touliao.app.data.model.PinnedMessage>, onClick: () -> Unit) {
     val latest = pinned.firstOrNull() ?: return
     Row(
         modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF7E6)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("📌", fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
+        Text("📌", fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
         Spacer(Modifier.size(8.dp))
-        Text(pinnedPreview(latest), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
-        if (pinned.size > 1) Text("${pinned.size} 条", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+        Text(pinnedPreview(latest), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+        if (pinned.size > 1) Text("${pinned.size} 条", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
     }
 }
 
@@ -1011,9 +1011,9 @@ private fun MessageBubble(
     onCollectSticker: () -> Unit,
     onSaveImage: () -> Unit = {},
     onCopyImage: () -> Unit = {},
-    redPacket: com.vxin.app.data.model.RedPacketContent? = null,
+    redPacket: com.touliao.app.data.model.RedPacketContent? = null,
     onOpenRedPacket: () -> Unit = {},
-    transfer: com.vxin.app.data.model.TransferContent? = null,
+    transfer: com.touliao.app.data.model.TransferContent? = null,
     canPin: Boolean = false,
     isPinned: Boolean = false,
     onTogglePin: () -> Unit = {},
@@ -1035,7 +1035,7 @@ private fun MessageBubble(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-    val highlightBg = if (highlighted) com.vxin.app.ui.theme.VxinBrand.copy(alpha = 0.20f) else Color.Transparent
+    val highlightBg = if (highlighted) com.touliao.app.ui.theme.VxinBrand.copy(alpha = 0.20f) else Color.Transparent
 
     Row(
         modifier = Modifier.fillMaxWidth().testTag("msg-bubble-${msg.id}").background(highlightBg).padding(vertical = 2.dp),
@@ -1059,10 +1059,10 @@ private fun MessageBubble(
                 isMine && msg.localStatus == LocalMsgStatus.FAILED -> {
                     Text(
                         text = "❗发送失败，点击重发",
-                        fontSize = com.vxin.app.ui.theme.VxinTextSize.xs2,
+                        fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                         color = Color(0xFFE64545),
                         modifier = Modifier
-                            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.tag))
+                            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.tag))
                             .clickable(onClick = onRetry)
                             .testTag("msg-send-failed-${msg.id}")
                             .padding(horizontal = 4.dp, vertical = 1.dp),
@@ -1071,7 +1071,7 @@ private fun MessageBubble(
                 isMine && showReadStatus -> {
                     Text(
                         text = if (isRead) "✓✓ 已读" else "✓",
-                        fontSize = com.vxin.app.ui.theme.VxinTextSize.xs2,
+                        fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                         color = if (isRead) VxinGreen else VxinTextSecondary,
                     )
                 }
@@ -1080,7 +1080,7 @@ private fun MessageBubble(
             if (msg.isScheduled == 1) {
                 Text(
                     "⏱ 定时",
-                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs2,
+                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                     color = VxinTextSecondary,
                     modifier = Modifier.padding(vertical = 1.dp),
                 )
@@ -1088,14 +1088,14 @@ private fun MessageBubble(
             // 被回复消息引用条
             msg.replyTo?.let { rt ->
                 Box(
-                    Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
+                    Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                         .background(Color(0x11000000))
                         .clickable { rt.id.takeIf { it.isNotBlank() }?.let(onReplyClick) }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
                     Text(
                         "${rt.senderName}: ${replyPreviewText(rt)}",
-                        color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Spacer(Modifier.size(2.dp))
@@ -1127,7 +1127,7 @@ private fun MessageBubble(
                     // 表情回应行
                     Row(Modifier.padding(horizontal = 8.dp)) {
                         REACTION_EMOJIS.forEach { e ->
-                            Text(e, fontSize = com.vxin.app.ui.theme.VxinTextSize.xxl, modifier = Modifier
+                            Text(e, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, modifier = Modifier
                                 .padding(4.dp)
                                 .clickable { onReact(e); menuOpen = false })
                         }
@@ -1169,7 +1169,7 @@ private fun MessageBubble(
                 }
             }
             if (msg.edited == 1) {
-                Text("已编辑", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs2)
+                Text("已编辑", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2)
             }
             // 表情回应展示（高亮「我」贴过的，点击可切换回应，对齐 Web/iOS）
             if (msg.reactions.isNotEmpty()) {
@@ -1178,12 +1178,12 @@ private fun MessageBubble(
                     msg.reactions.forEach { r ->
                         val mine = r.mine(myId)
                         Box(
-                            Modifier.padding(end = 4.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
+                            Modifier.padding(end = 4.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
                                 .background(if (mine) VxinGreen.copy(alpha = 0.15f) else Color(0x11000000))
-                                .then(if (mine) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge)) else Modifier)
+                                .then(if (mine) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge)) else Modifier)
                                 .clickable { onReact(r.emoji) }
                                 .padding(horizontal = 6.dp, vertical = 1.dp),
-                        ) { Text("${r.emoji} ${r.count}", fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, color = if (mine) VxinGreen else Color.Unspecified) }
+                        ) { Text("${r.emoji} ${r.count}", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = if (mine) VxinGreen else Color.Unspecified) }
                     }
                 }
             }
@@ -1192,7 +1192,7 @@ private fun MessageBubble(
     }
 }
 
-private fun replyPreviewText(rt: com.vxin.app.data.model.ReplyPreview): String = if (rt.deleted == 1) "消息已撤回" else when (rt.type) {
+private fun replyPreviewText(rt: com.touliao.app.data.model.ReplyPreview): String = if (rt.deleted == 1) "消息已撤回" else when (rt.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
     "red_packet" -> "[红包]"; "transfer" -> "[转账]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
     else -> rt.content
@@ -1228,7 +1228,7 @@ private fun MessageContent(
                     modifier = Modifier
                         .widthIn(max = 220.dp)
                         .heightIn(max = 280.dp)
-                        .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
+                        .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
                         .clickable { onImageClick() },
                     loading = {
                         // 加载中灰底占位 + 转圈(对齐微信,避免空白闪烁)
@@ -1238,7 +1238,7 @@ private fun MessageContent(
                     },
                     error = {
                         Box(Modifier.size(140.dp).background(Color(0x11000000)), contentAlignment = Alignment.Center) {
-                            Text("图片加载失败", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                            Text("图片加载失败", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                         }
                     },
                 )
@@ -1251,25 +1251,25 @@ private fun MessageContent(
                             Box(
                                 Modifier
                                     .widthIn(max = 240.dp)
-                                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb))
+                                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb))
                                     .background(Color(0x11000000))
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                             ) {
-                                Text(msg.transcript, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2, color = VxinTextSecondary)
+                                Text(msg.transcript, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, color = VxinTextSecondary)
                             }
                         }
                         transcribing -> {
                             Spacer(Modifier.size(3.dp))
-                            Text("转写中…", fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary, modifier = Modifier.padding(horizontal = 2.dp))
+                            Text("转写中…", fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary, modifier = Modifier.padding(horizontal = 2.dp))
                         }
                         else -> {
                             Spacer(Modifier.size(3.dp))
                             Text(
                                 "转文字",
-                                fontSize = com.vxin.app.ui.theme.VxinTextSize.sm,
+                                fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
                                 color = VxinGreen,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
+                                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                                     .clickable(onClick = onTranscribe)
                                     .testTag("voice-transcribe-${msg.id}")
                                     .padding(horizontal = 6.dp, vertical = 2.dp),
@@ -1289,7 +1289,7 @@ private fun MessageContent(
                             Spacer(Modifier.size(10.dp))
                             Column {
                                 Text(card.username.ifBlank { "用户" }, color = bubbleTextColor(isMine))
-                                Text("个人名片", color = bubbleTextColor(isMine).copy(alpha = 0.6f), fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
+                                Text("个人名片", color = bubbleTextColor(isMine).copy(alpha = 0.6f), fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
                             }
                         }
                     }
@@ -1309,14 +1309,14 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
                 Modifier.size(20.dp).clip(CircleShape).background(Color(0xFFFA5151))
                     .clickable { onRetry() },
                 contentAlignment = Alignment.Center,
-            ) { Text("!", color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2) }
+            ) { Text("!", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2) }
             Spacer(Modifier.size(6.dp))
         }
         Column(horizontalAlignment = Alignment.End) {
             Box(
                 modifier = Modifier
                     .widthIn(max = 220.dp)
-                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
+                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
                     .background(if (p.failed) Color(0x33FA5151) else VxinGreen.copy(alpha = 0.6f))
                     .combinedClickable(
                         onClick = { if (p.failed) onRetry() },
@@ -1330,7 +1330,7 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
                             model = p.localUri,
                             contentDescription = "上传中",
                             contentScale = ContentScale.Fit,
-                            modifier = Modifier.widthIn(max = 200.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb)),
+                            modifier = Modifier.widthIn(max = 200.dp).heightIn(max = 240.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)),
                         )
                         CircularProgressIndicator(Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                     }
@@ -1358,7 +1358,7 @@ private fun TextBubble(content: String, isMine: Boolean) {
     Box(
         modifier = Modifier
             .widthIn(max = 280.dp)
-            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.md))
+            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
             .background(bubbleBrush(isMine))
             .padding(horizontal = 14.dp, vertical = 9.dp),
     ) {
@@ -1391,7 +1391,7 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
     Box(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.md))
+            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
             .background(bubbleBrush(isMine))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1541,11 +1541,11 @@ private fun FunctionPanel(
                 modifier = Modifier.padding(vertical = 8.dp).testTag(tag).clickable(onClick = onClick),
             ) {
                 Box(
-                    Modifier.size(56.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.md)).background(Color.White),
+                    Modifier.size(56.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md)).background(Color.White),
                     contentAlignment = Alignment.Center,
                 ) { Text(emoji, fontSize = 26.sp) }
                 Spacer(Modifier.size(6.dp))
-                Text(label, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
+                Text(label, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
             }
         }
     }
@@ -1597,11 +1597,11 @@ private fun ScheduleMessageDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 )
                 error?.let {
-                    Text(it, color = Color(0xFFFA5151), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                    Text(it, color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 }
                 Text(
                     "• 至少 15 分钟后，不超过 30 天\n• 到点后后端自动发送",
-                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
+                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
                     color = Color(0xFF888888),
                 )
             }
@@ -1633,7 +1633,7 @@ private fun ScheduleMessageDialog(
 @Composable
 private fun ScheduledMessagesDialog(
     loading: Boolean,
-    messages: List<com.vxin.app.data.model.ScheduledMessage>,
+    messages: List<com.touliao.app.data.model.ScheduledMessage>,
     onCancel: (id: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1657,14 +1657,14 @@ private fun ScheduledMessagesDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(msg.content, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = com.vxin.app.ui.theme.VxinTextSize.base)
+                                Text(msg.content, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
                                 Text(
                                     "⏰ ${sdf.format(java.util.Date(msg.send_at * 1000))}",
-                                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, color = Color(0xFF888888),
+                                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = Color(0xFF888888),
                                 )
                             }
                             TextButton(onClick = { onCancel(msg.id) }) {
-                                Text("取消", color = Color(0xFFFA5151), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                                Text("取消", color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                             }
                         }
                         HorizontalDivider(thickness = 0.5.dp)
@@ -1678,10 +1678,10 @@ private fun ScheduledMessagesDialog(
 
 @Composable
 private fun StickerEmojiPanel(
-    stickers: List<com.vxin.app.data.model.Sticker>,
+    stickers: List<com.touliao.app.data.model.Sticker>,
     resolveUrl: (String?) -> String?,
     onEmoji: (String) -> Unit,
-    onSticker: (com.vxin.app.data.model.Sticker) -> Unit,
+    onSticker: (com.touliao.app.data.model.Sticker) -> Unit,
     onUploadSticker: () -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(0) }
@@ -1701,7 +1701,7 @@ private fun StickerEmojiPanel(
         } else {
             if (stickers.isEmpty()) {
                 Box(Modifier.fillMaxWidth().heightIn(min = 80.dp), Alignment.Center) {
-                    Text("还没有表情，点右上「＋ 添加」上传，或长按聊天图片「收藏表情」", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                    Text("还没有表情，点右上「＋ 添加」上传，或长按聊天图片「收藏表情」", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 }
             } else {
                 LazyVerticalGrid(columns = GridCells.Fixed(4), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp)) {
@@ -1724,14 +1724,14 @@ private val RedPacketGold = Color(0xFFFCE2A8)
 
 @Composable
 private fun RedPacketCard(
-    content: com.vxin.app.data.model.RedPacketContent,
+    content: com.touliao.app.data.model.RedPacketContent,
     isMine: Boolean,
     onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
+            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
             .background(RedPacketRed)
             .clickable(onClick = onClick)
             .padding(12.dp),
@@ -1742,27 +1742,27 @@ private fun RedPacketCard(
         Column {
             Text(
                 content.greeting.ifBlank { "恭喜发财，大吉大利" },
-                color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.md, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.md, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            Text("领取红包", color = RedPacketGold, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+            Text("领取红包", color = RedPacketGold, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
         }
     }
 }
 
 // ── 好友转账卡片（支付绿，转账即到账，无需操作）─────────────────────────────────
 // 用支付语义 token（对齐 web --pay / --pay-dark），与「金钱」母题一致，非品牌主色
-private val TransferGreen = com.vxin.app.ui.theme.VxinPay
-private val TransferGreenDark = com.vxin.app.ui.theme.VxinPayDark
+private val TransferGreen = com.touliao.app.ui.theme.VxinPay
+private val TransferGreenDark = com.touliao.app.ui.theme.VxinPayDark
 
 @Composable
 private fun TransferCard(
-    content: com.vxin.app.data.model.TransferContent,
+    content: com.touliao.app.data.model.TransferContent,
     isMine: Boolean,
 ) {
     Row(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
+            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
             .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(TransferGreen, TransferGreenDark)))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1773,12 +1773,12 @@ private fun TransferCard(
             Text(
                 if (isMine && content.toUsername.isNotBlank()) "转账给 ${content.toUsername}  ¥${content.amount}"
                 else "转账  ¥${content.amount}",
-                color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.md, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.md, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             if (content.note.isNotBlank()) {
-                Text(content.note, color = Color.White.copy(alpha = 0.8f), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(content.note, color = Color.White.copy(alpha = 0.8f), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, maxLines = 1, overflow = TextOverflow.Ellipsis)
             } else {
-                Text("已到账", color = Color.White.copy(alpha = 0.75f), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                Text("已到账", color = Color.White.copy(alpha = 0.75f), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
             }
         }
     }
@@ -1818,7 +1818,7 @@ private fun SendTransferDialog(
                     enabled = !sending,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                err?.let { Spacer(Modifier.size(4.dp)); Text(it, color = Color(0xFFFA5151), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm) }
+                err?.let { Spacer(Modifier.size(4.dp)); Text(it, color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
             }
         },
         confirmButton = {
@@ -1875,7 +1875,7 @@ private fun SendRedPacketDialog(
                     label = { Text("祝福语（可选）") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                err?.let { Text(it, color = Color(0xFFFA5151), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm) }
+                err?.let { Text(it, color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
             }
         },
         confirmButton = {
@@ -1897,7 +1897,7 @@ private fun SendRedPacketDialog(
 
 @Composable
 private fun RedPacketDetailDialog(
-    detail: com.vxin.app.data.model.RedPacketDetail,
+    detail: com.touliao.app.data.model.RedPacketDetail,
     myId: String,
     claimedAmount: Int?,
     onClaim: () -> Unit,
@@ -1914,19 +1914,19 @@ private fun RedPacketDetailDialog(
                 Text(detail.greeting.ifBlank { "恭喜发财，大吉大利" }, color = VxinTextSecondary)
                 Spacer(Modifier.size(8.dp))
                 when {
-                    mine != null -> Text("你领取了 ${mine.amount} 金币", color = RedPacketRed, fontSize = com.vxin.app.ui.theme.VxinTextSize.xl)
-                    claimedAmount != null -> Text("你领取了 $claimedAmount 金币", color = RedPacketRed, fontSize = com.vxin.app.ui.theme.VxinTextSize.xl)
+                    mine != null -> Text("你领取了 ${mine.amount} 金币", color = RedPacketRed, fontSize = com.touliao.app.ui.theme.VxinTextSize.xl)
+                    claimedAmount != null -> Text("你领取了 $claimedAmount 金币", color = RedPacketRed, fontSize = com.touliao.app.ui.theme.VxinTextSize.xl)
                     finished -> Text("手慢了，红包已被领完", color = VxinTextSecondary)
                     else -> Text("点击「开」领取红包", color = VxinTextSecondary)
                 }
                 Spacer(Modifier.size(8.dp))
-                Text("已领 ${detail.claimed_count}/${detail.total_count} 个", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                Text("已领 ${detail.claimed_count}/${detail.total_count} 个", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 if (detail.claims.isNotEmpty()) {
                     Spacer(Modifier.size(6.dp))
                     detail.claims.take(20).forEach { c ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                            Text(c.username.ifBlank { "用户" }, Modifier.weight(1f), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
-                            Text("${c.amount} 金币", fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2, color = RedPacketRed)
+                            Text(c.username.ifBlank { "用户" }, Modifier.weight(1f), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                            Text("${c.amount} 金币", fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, color = RedPacketRed)
                         }
                     }
                 }
@@ -1934,7 +1934,7 @@ private fun RedPacketDetailDialog(
         },
         confirmButton = {
             if (canClaim) {
-                TextButton(onClick = onClaim) { Text("开", color = RedPacketRed, fontSize = com.vxin.app.ui.theme.VxinTextSize.xl) }
+                TextButton(onClick = onClaim) { Text("开", color = RedPacketRed, fontSize = com.touliao.app.ui.theme.VxinTextSize.xl) }
             } else {
                 TextButton(onClick = onDismiss) { Text("关闭") }
             }
@@ -1988,12 +1988,12 @@ private fun MessageSearchOverlay(
                                 Modifier.fillMaxWidth().clickable { onResultClick(msg) }.padding(horizontal = 16.dp, vertical = 12.dp),
                             ) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(msg.senderName.ifBlank { "用户" }, color = VxinGreen, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                                    Text(msg.senderName.ifBlank { "用户" }, color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                                     Spacer(Modifier.weight(1f))
-                                    Text(formatChatTime(msg.created_at), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
+                                    Text(formatChatTime(msg.created_at), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
                                 }
                                 Spacer(Modifier.size(3.dp))
-                                Text(searchPreview(msg), fontSize = com.vxin.app.ui.theme.VxinTextSize.base, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(searchPreview(msg), fontSize = com.touliao.app.ui.theme.VxinTextSize.base, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                             HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp)
                         }

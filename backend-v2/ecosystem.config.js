@@ -1,4 +1,4 @@
-// PM2 部署配置 —— v信 后端 v2
+// PM2 部署配置 —— 投聊 后端 v2
 //
 // 方案 B：单实例 fork 模式。
 // 原因：Socket.IO 未接共享适配器(Redis)，多实例(cluster)会导致跨实例的
@@ -9,7 +9,7 @@
 module.exports = {
   apps: [
     {
-      name: 'vxin-server-v2',
+      name: 'touliao-server-v2',
       script: 'src/server.js',
       cwd: __dirname,
       instances: 1,
@@ -24,8 +24,8 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: '3002',
       },
-      error_file: '/root/.pm2/logs/vxin-server-v2-error.log',
-      out_file: '/root/.pm2/logs/vxin-server-v2-out.log',
+      error_file: '/root/.pm2/logs/touliao-server-v2-error.log',
+      out_file: '/root/.pm2/logs/touliao-server-v2-out.log',
       merge_logs: true,
       time: true,
     },

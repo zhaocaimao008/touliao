@@ -94,7 +94,7 @@ autoUpdater.autoInstallOnAppQuit = true;
 // 安全：关闭自动下载，改由 update-available 事件中先对更新元数据(latest.yml)做
 // Ed25519 二次验签，通过后再 downloadUpdate()。使更新真实性不单纯依赖 TLS。
 autoUpdater.autoDownload = false;
-log.info('v信 Desktop v2 启动');
+log.info('投聊 Desktop v2 启动');
 
 // 截图读取上限，防止超大 temp 文件导致 OOM
 const MAX_READ_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -389,7 +389,7 @@ function createWindow() {
     height: bounds.height,
     minWidth: 900,
     minHeight: 600,
-    title: 'v信',
+    title: '投聊',
     icon: path.join(__dirname, '../assets/icon.png'),
     frame: false,
     titleBarStyle: 'hidden',
@@ -431,7 +431,7 @@ function createWindow() {
     if (!isMainFrame || errorCode === -3 || !mainWindow) return;
     log.error('页面加载失败:', errorCode, errorDesc, url);
     dialog.showMessageBox(mainWindow, {
-      type: 'error', title: 'v信',
+      type: 'error', title: '投聊',
       message: '界面加载失败',
       detail: `错误：${errorDesc || errorCode}`,
       buttons: ['重试', '退出'], defaultId: 0, cancelId: 1,
@@ -649,11 +649,11 @@ function createTray() {
     log.error('创建系统托盘失败，跳过托盘（应用仍可用）:', e.message);
     return;
   }
-  tray.setToolTip('v信');
+  tray.setToolTip('投聊');
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: '打开 v信',
+      label: '打开 投聊',
       click: () => { mainWindow?.show(); mainWindow?.focus(); },
     },
     {
@@ -696,7 +696,7 @@ function startTrayFlash() {
     if (!tray || tray.isDestroyed?.()) { stopTrayFlash(); return; }
     try {
       tray.setImage(on ? nativeImage.createEmpty() : (_trayBaseIcon || nativeImage.createEmpty()));
-      tray.setToolTip(on ? 'v信 · 有新消息' : 'v信');
+      tray.setToolTip(on ? '投聊 · 有新消息' : '投聊');
     } catch { /* noop */ }
     on = !on;
   }, 600);
@@ -705,7 +705,7 @@ function startTrayFlash() {
 function stopTrayFlash() {
   if (_trayFlashTimer) { clearInterval(_trayFlashTimer); _trayFlashTimer = null; }
   if (tray && _trayBaseIcon) {
-    try { tray.setImage(_trayBaseIcon); tray.setToolTip('v信'); } catch { /* noop */ }
+    try { tray.setImage(_trayBaseIcon); tray.setToolTip('投聊'); } catch { /* noop */ }
   }
 }
 
@@ -928,7 +928,7 @@ function setupIPC() {
       cancelId: 0,
       noLink: true,
       title: '切换服务器',
-      message: '确认将 v信 连接的服务器切换为：',
+      message: '确认将 投聊 连接的服务器切换为：',
       detail: u.origin,
     });
     if (response !== 1) {

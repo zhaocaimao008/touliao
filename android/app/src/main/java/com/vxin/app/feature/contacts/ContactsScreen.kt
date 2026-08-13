@@ -1,4 +1,4 @@
-package com.vxin.app.feature.contacts
+package com.touliao.app.feature.contacts
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
-import com.vxin.app.ui.VxinIcons
+import com.touliao.app.ui.VxinIcons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -52,12 +52,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.data.model.Contact
-import com.vxin.app.ui.components.InitialAvatar
+import com.touliao.app.data.model.Contact
+import com.touliao.app.ui.components.InitialAvatar
 import androidx.compose.foundation.isSystemInDarkTheme
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinSurfaceDark
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinSurfaceDark
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

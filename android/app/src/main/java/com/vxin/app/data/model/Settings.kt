@@ -1,4 +1,4 @@
-package com.vxin.app.data.model
+package com.touliao.app.data.model
 
 import kotlinx.serialization.Serializable
 
@@ -8,7 +8,7 @@ data class UserSettings(
     val chatBackground: String = "",
     val momentsVisibleDays: Int = 0,        // 朋友圈对他人可见天数：0=全部 / 1 / 3 / 30
     // 隐私与安全
-    val addByVxinId: Boolean = true,        // 允许通过 v信号添加
+    val addByVxinId: Boolean = true,        // 允许通过 投聊号添加
     val addByPhone: Boolean = true,         // 允许通过手机号添加
     val requireVerify: Boolean = true,      // 加我为好友需验证
     val noDirectGroupInvite: Boolean = false, // 不允许好友直接邀请我进群

@@ -1,8 +1,8 @@
-package com.vxin.app.core.storage
+package com.touliao.app.core.storage
 
 import android.content.Context
-import com.vxin.app.data.model.LocalMsgStatus
-import com.vxin.app.data.model.Message
+import com.touliao.app.data.model.LocalMsgStatus
+import com.touliao.app.data.model.Message
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json

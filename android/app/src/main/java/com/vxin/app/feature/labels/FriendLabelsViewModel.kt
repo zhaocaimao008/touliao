@@ -1,12 +1,12 @@
-package com.vxin.app.feature.labels
+package com.touliao.app.feature.labels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.data.model.Contact
-import com.vxin.app.data.model.FriendLabel
-import com.vxin.app.data.repository.ContactRepository
-import com.vxin.app.data.repository.FriendLabelRepository
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.data.model.Contact
+import com.touliao.app.data.model.FriendLabel
+import com.touliao.app.data.repository.ContactRepository
+import com.touliao.app.data.repository.FriendLabelRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

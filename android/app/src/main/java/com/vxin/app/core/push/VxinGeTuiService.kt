@@ -1,4 +1,4 @@
-package com.vxin.app.core.push
+package com.touliao.app.core.push
 
 import android.content.Context
 import android.util.Log

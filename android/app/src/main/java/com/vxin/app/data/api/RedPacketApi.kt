@@ -1,9 +1,9 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.ClaimRedPacketResponse
-import com.vxin.app.data.model.RedPacketDetail
-import com.vxin.app.data.model.SendRedPacketBody
-import com.vxin.app.data.model.SendRedPacketResponse
+import com.touliao.app.data.model.ClaimRedPacketResponse
+import com.touliao.app.data.model.RedPacketDetail
+import com.touliao.app.data.model.SendRedPacketBody
+import com.touliao.app.data.model.SendRedPacketResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST

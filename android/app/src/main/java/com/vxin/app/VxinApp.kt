@@ -1,4 +1,4 @@
-package com.vxin.app
+package com.touliao.app
 
 import android.app.Application
 import coil.ImageLoader
@@ -17,14 +17,14 @@ class VxinApp : Application(), ImageLoaderFactory {
     @EntryPoint
     @InstallIn(SingletonComponent::class)
     interface BridgeEntryPoint {
-        fun messageNotificationBridge(): com.vxin.app.core.push.MessageNotificationBridge
-        fun notificationHelper(): com.vxin.app.core.push.NotificationHelper
-        fun pushManager(): com.vxin.app.core.push.PushManager
+        fun messageNotificationBridge(): com.touliao.app.core.push.MessageNotificationBridge
+        fun notificationHelper(): com.touliao.app.core.push.NotificationHelper
+        fun pushManager(): com.touliao.app.core.push.PushManager
     }
 
     override fun onCreate() {
         super.onCreate()
-        com.vxin.app.core.storage.ThemeStore.syncInitial(this)
+        com.touliao.app.core.storage.ThemeStore.syncInitial(this)
         val entry = EntryPointAccessors.fromApplication(this, BridgeEntryPoint::class.java)
         entry.notificationHelper()
         entry.messageNotificationBridge().install(this)
@@ -61,7 +61,7 @@ class VxinApp : Application(), ImageLoaderFactory {
             val pm = com.igexin.sdk.PushManager.getInstance()
             // 用单参 initialize + 单独 registerPushIntentService（3.2.x 推荐顺序）
             pm.initialize(applicationContext)
-            pm.registerPushIntentService(applicationContext, com.vxin.app.core.push.VxinGeTuiService::class.java)
+            pm.registerPushIntentService(applicationContext, com.touliao.app.core.push.VxinGeTuiService::class.java)
             // 兜底：CID 回调偶发不触发时，延迟主动轮询 getClientid 并上报
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 runCatching {

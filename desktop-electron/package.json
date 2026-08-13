@@ -1,10 +1,10 @@
 {
-  "name": "vxin-desktop",
+  "name": "touliao-desktop",
   "version": "8.0.0",
-  "description": "v信 桌面客户端",
+  "description": "投聊 桌面客户端",
   "homepage": "https://dipsin.com",
   "author": {
-    "name": "Vxin Team",
+    "name": "Touliao Team",
     "email": "support@dipsin.com"
   },
   "main": "src/main.js",
@@ -19,8 +19,8 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
-    "appId": "com.vxin.desktop",
-    "productName": "v信",
+    "appId": "com.touliao.desktop",
+    "productName": "投聊",
     "directories": {
       "output": "dist",
       "buildResources": "assets"
@@ -41,7 +41,7 @@
         "nsis"
       ],
       "icon": "assets/icon.ico",
-      "artifactName": "vxin-${version}-setup.${ext}"
+      "artifactName": "touliao-${version}-setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -49,7 +49,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "v信",
+      "shortcutName": "投聊",
       "runAfterFinish": true,
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico"

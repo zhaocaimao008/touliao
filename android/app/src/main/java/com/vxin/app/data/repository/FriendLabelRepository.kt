@@ -1,9 +1,9 @@
-package com.vxin.app.data.repository
+package com.touliao.app.data.repository
 
-import com.vxin.app.data.api.FriendLabelApi
-import com.vxin.app.data.model.FriendLabel
-import com.vxin.app.data.model.FriendLabelBody
-import com.vxin.app.data.model.FriendLabelMemberBody
+import com.touliao.app.data.api.FriendLabelApi
+import com.touliao.app.data.model.FriendLabel
+import com.touliao.app.data.model.FriendLabelBody
+import com.touliao.app.data.model.FriendLabelMemberBody
 import javax.inject.Inject
 import javax.inject.Singleton
 

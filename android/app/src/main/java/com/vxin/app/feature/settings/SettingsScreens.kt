@@ -1,4 +1,4 @@
-package com.vxin.app.feature.settings
+package com.touliao.app.feature.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,7 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.core.storage.ThemeMode
+import com.touliao.app.core.storage.ThemeMode
 
 // ── 通用：设置行（标题 + 副标题 + 右侧开关） ──
 @Composable
@@ -89,7 +89,7 @@ fun PrivacySettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hil
         }
         val s = state.settings
         SectionCaption("添加我的方式")
-        ToggleRow("通过 v信号添加", checked = s.addByVxinId) { viewModel.setAddByVxinId(it) }
+        ToggleRow("通过 投聊号添加", checked = s.addByVxinId) { viewModel.setAddByVxinId(it) }
         HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp)
         ToggleRow("通过手机号添加", checked = s.addByPhone) { viewModel.setAddByPhone(it) }
         SectionCaption("好友与群")

@@ -1,11 +1,11 @@
-package com.vxin.app.data.repository
+package com.touliao.app.data.repository
 
-import com.vxin.app.data.api.WalletApi
-import com.vxin.app.data.model.RechargeResponse
-import com.vxin.app.data.model.RechargeRequest
-import com.vxin.app.data.model.TransferRequest
-import com.vxin.app.data.model.TransferResponse
-import com.vxin.app.data.model.WalletTransaction
+import com.touliao.app.data.api.WalletApi
+import com.touliao.app.data.model.RechargeResponse
+import com.touliao.app.data.model.RechargeRequest
+import com.touliao.app.data.model.TransferRequest
+import com.touliao.app.data.model.TransferResponse
+import com.touliao.app.data.model.WalletTransaction
 import javax.inject.Inject
 import javax.inject.Singleton
 

@@ -1,4 +1,4 @@
-package com.vxin.app.feature.auth
+package com.touliao.app.feature.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,12 +40,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Icon
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.ui.VxinIcons
-import com.vxin.app.ui.theme.VxinBrand
-import com.vxin.app.ui.theme.VxinBrandLight
-import com.vxin.app.ui.theme.VxinBrandDark
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.ui.VxinIcons
+import com.touliao.app.ui.theme.VxinBrand
+import com.touliao.app.ui.theme.VxinBrandLight
+import com.touliao.app.ui.theme.VxinBrandDark
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @Composable
 fun RegisterScreen(
@@ -66,18 +66,18 @@ fun RegisterScreen(
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.lg))
+                .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.lg))
                 .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
             contentAlignment = Alignment.Center,
         ) {
             Icon(VxinIcons.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(14.dp))
-        Text("注册账号", fontSize = com.vxin.app.ui.theme.VxinTextSize.display, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Text("注册账号", fontSize = com.touliao.app.ui.theme.VxinTextSize.display, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(6.dp))
         Text(
             if (state.inviteRequired) "需要6位邀请码，可向已有用户或管理员获取" else "填写信息即可注册",
-            fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
+            fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
             color = VxinTextSecondary,
         )
         Spacer(Modifier.height(24.dp))
@@ -120,7 +120,7 @@ fun RegisterScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = {
                 TextButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Text(if (passwordVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                    Text(if (passwordVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 }
             },
             modifier = Modifier.fillMaxWidth().testTag("register-password-input"),
@@ -128,7 +128,7 @@ fun RegisterScreen(
 
         if (state.error != null) {
             Spacer(Modifier.height(12.dp))
-            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
         }
 
         Spacer(Modifier.height(28.dp))
@@ -150,7 +150,7 @@ fun RegisterScreen(
                 Modifier
                     .fillMaxWidth()
                     .height(50.dp)
-                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.pill))
+                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.pill))
                     .background(
                         if (state.canSubmit) Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))
                         else Brush.linearGradient(listOf(VxinTextSecondary, VxinTextSecondary))

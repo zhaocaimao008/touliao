@@ -1,10 +1,10 @@
-package com.vxin.app.feature.chat
+package com.touliao.app.feature.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.data.model.MentionItem
-import com.vxin.app.data.repository.ChatRepository
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.data.model.MentionItem
+import com.touliao.app.data.repository.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

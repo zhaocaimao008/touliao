@@ -1,6 +1,6 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.SearchResponse
+import com.touliao.app.data.model.SearchResponse
 import retrofit2.http.GET
 import retrofit2.http.Query
 

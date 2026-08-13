@@ -1,7 +1,7 @@
 name: 部署落地页 (landing → dipsin.com/welcome)
 
 # 落地页是 Next.js 静态导出（output: 'export'，basePath /welcome），
-# 产物 landing/out/ 由生产机 Nginx 直接托管（root /root/v信/landing/out）。
+# 产物 landing/out/ 由生产机 Nginx 直接托管（root /root/投聊/landing/out）。
 # 主 deploy.yml 只管 backend-v2 + web，不含 landing，故单列此 workflow。
 on:
   push:
@@ -53,8 +53,8 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          # Nginx root（见 /etc/nginx/sites-enabled/vxin-dipsin.conf）
-          LANDING_PATH: /root/v信/landing/out
+          # Nginx root（见 /etc/nginx/sites-enabled/touliao-dipsin.conf）
+          LANDING_PATH: /root/投聊/landing/out
         run: |
           # --delete 保证生产目录与构建产物一致（清理已删除的旧资源）
           rsync -az --delete \
@@ -65,7 +65,7 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          LANDING_PATH: /root/v信/landing/out
+          LANDING_PATH: /root/投聊/landing/out
         run: |
           # 在生产机上核对产物已落盘
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \

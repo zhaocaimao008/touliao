@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * hermes_loadtest.js —— v信 压力测试（Hermes 在服务器本机执行）
+ * hermes_loadtest.js —— 投聊 压力测试（Hermes 在服务器本机执行）
  *
  * 用【预播种测试账号 + 测试群】(见 seed_test_users.js) 跑真实负载：
  *   A. 并发登录         —— 唯一手机号、分批，避免 bcrypt 雪崩
@@ -24,7 +24,7 @@ const MSG_RATE = parseInt(process.env.LOAD_MSG_RATE || '20', 10);
 const DURATION = parseInt(process.env.LOAD_DURATION || '20', 10);
 const LOGIN_BATCH = parseInt(process.env.LOGIN_BATCH || '25', 10);
 const SOAK     = parseInt(process.env.SOAK_SECONDS || '90', 10);
-const APP_DIR  = process.env.APP_DIR || '/root/v信/backend-v2';
+const APP_DIR  = process.env.APP_DIR || '/root/投聊/backend-v2';
 const OUT      = process.env.OUT || '';
 const GROUP_ID = '__lt_group__';
 

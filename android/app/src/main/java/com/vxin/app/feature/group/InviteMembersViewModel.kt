@@ -1,12 +1,12 @@
-package com.vxin.app.feature.group
+package com.touliao.app.feature.group
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.data.model.Contact
-import com.vxin.app.data.repository.ContactRepository
-import com.vxin.app.data.repository.GroupRepository
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.data.model.Contact
+import com.touliao.app.data.repository.ContactRepository
+import com.touliao.app.data.repository.GroupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

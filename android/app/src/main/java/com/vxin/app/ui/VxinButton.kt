@@ -1,4 +1,4 @@
-package com.vxin.app.ui
+package com.touliao.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -18,12 +18,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.vxin.app.ui.theme.VxinBrandDark
-import com.vxin.app.ui.theme.VxinBrandLight
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.ui.theme.VxinBrandDark
+import com.touliao.app.ui.theme.VxinBrandLight
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 /**
- * v信 主按钮：极光靛渐变实心药丸 + 加载态（对齐 Web 主按钮 / 登录注册页）。
+ * 投聊 主按钮：极光靛渐变实心药丸 + 加载态（对齐 Web 主按钮 / 登录注册页）。
  * 统一各处 CTA 视觉，避免重复渐变 Box 样板代码。
  */
 @Composable
@@ -48,7 +48,7 @@ fun VxinGradientButton(
             Modifier
                 .fillMaxWidth()
                 .height(50.dp)
-                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.pill))
+                .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.pill))
                 .background(
                     if (enabled)
                         Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))

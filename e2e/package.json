@@ -2,7 +2,7 @@
   "name": "vxin-e2e",
   "version": "1.0.0",
   "private": true,
-  "description": "v信 四端全功能自动化测试(Playwright web+electron / Appium android+ios)",
+  "description": "投聊 四端全功能自动化测试(Playwright web+electron / Appium android+ios)",
   "scripts": {
     "pw:install": "playwright install chromium",
     "build:web": "cd ../web && npm run build",

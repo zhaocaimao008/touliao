@@ -1,4 +1,4 @@
-package com.vxin.app.feature.sessions
+package com.touliao.app.feature.sessions
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,8 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.data.model.DeviceSession
-import com.vxin.app.ui.components.EmptyState
+import com.touliao.app.data.model.DeviceSession
+import com.touliao.app.ui.components.EmptyState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -100,7 +100,7 @@ private fun SessionRow(s: DeviceSession, onKick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(s.device.ifBlank { s.platform.ifBlank { "未知设备" } }, style = MaterialTheme.typography.bodyLarge)
-                if (s.current) Text("  · 当前设备", color = com.vxin.app.ui.theme.VxinBrand, style = MaterialTheme.typography.bodySmall)
+                if (s.current) Text("  · 当前设备", color = com.touliao.app.ui.theme.VxinBrand, style = MaterialTheme.typography.bodySmall)
             }
             Text(
                 (if (s.ip.isNotBlank()) "IP ${s.ip} · " else "") + "最近活跃 ${formatTime(s.lastSeen)}",

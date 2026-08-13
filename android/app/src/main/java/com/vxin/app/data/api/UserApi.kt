@@ -1,14 +1,14 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.AvatarResponse
-import com.vxin.app.data.model.CallLog
-import com.vxin.app.data.model.InviteInfo
-import com.vxin.app.data.model.UpdatePhoneRequest
-import com.vxin.app.data.model.UpdatePhoneResponse
-import com.vxin.app.data.model.UpdateProfileRequest
-import com.vxin.app.data.model.UpdateSettingsBody
-import com.vxin.app.data.model.User
-import com.vxin.app.data.model.UserSettings
+import com.touliao.app.data.model.AvatarResponse
+import com.touliao.app.data.model.CallLog
+import com.touliao.app.data.model.InviteInfo
+import com.touliao.app.data.model.UpdatePhoneRequest
+import com.touliao.app.data.model.UpdatePhoneResponse
+import com.touliao.app.data.model.UpdateProfileRequest
+import com.touliao.app.data.model.UpdateSettingsBody
+import com.touliao.app.data.model.User
+import com.touliao.app.data.model.UserSettings
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import retrofit2.http.Body

@@ -1,11 +1,11 @@
-package com.vxin.app.feature.moments
+package com.touliao.app.feature.moments
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.media.MediaUploader
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.data.repository.MomentRepository
+import com.touliao.app.core.media.MediaUploader
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.data.repository.MomentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +21,7 @@ data class MomentComposeUiState(
     val images: List<Uri> = emptyList(),
     val visibility: String = "all",   // all | friends | private | include | exclude
     val visibleTo: List<String> = emptyList(),  // include/exclude 选中的好友 id
-    val friends: List<com.vxin.app.data.model.Contact> = emptyList(),
+    val friends: List<com.touliao.app.data.model.Contact> = emptyList(),
     val showFriendPicker: Boolean = false,
     val publishing: Boolean = false,
     val done: Boolean = false,
@@ -31,7 +31,7 @@ data class MomentComposeUiState(
 @HiltViewModel
 class MomentComposeViewModel @Inject constructor(
     private val momentRepository: MomentRepository,
-    private val contactRepository: com.vxin.app.data.repository.ContactRepository,
+    private val contactRepository: com.touliao.app.data.repository.ContactRepository,
     private val mediaUploader: MediaUploader,
 ) : ViewModel() {
 

@@ -1,14 +1,14 @@
 {
-  "name": "v-xin-web",
+  "name": "touliao-web",
   "version": "8.0.0",
-  "description": "v信 — 企业级安全即时通讯客户端",
+  "description": "投聊 — 企业级安全即时通讯客户端",
   "homepage": "",
   "author": {
-    "name": "v信",
+    "name": "投聊",
     "email": ""
   },
   "main": "electron/main.js",
-  "desktopName": "com.vxin.desktop",
+  "desktopName": "com.touliao.desktop",
   "scripts": {
     "dev": "vite --port 3000",
     "build": "vite build",
@@ -25,9 +25,9 @@
     "build:android": "npm run build && cap add android && cap sync android && cap open android",
     "build:ios": "npm run build && cap add ios && cap sync ios && cap open ios",
     "android:build": "cd android && ./gradlew assembleRelease",
-    "ios:build": "cd ios && xcodebuild -workspace vxin.xcworkspace -scheme vxin -configuration Release",
+    "ios:build": "cd ios && xcodebuild -workspace touliao.xcworkspace -scheme touliao -configuration Release",
     "android:run": "cd android && ./gradlew assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk",
-    "ios:run": "cd ios && xcodebuild -workspace vxin.xcworkspace -scheme vxin",
+    "ios:run": "cd ios && xcodebuild -workspace touliao.xcworkspace -scheme touliao",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "test": "vitest run --config vitest.config.mjs",
@@ -80,9 +80,9 @@
     "workbox-window": "^7.4.1"
   },
   "build": {
-    "appId": "com.vxin.desktop",
-    "productName": "v信",
-    "copyright": "Copyright © 2026 v信",
+    "appId": "com.touliao.desktop",
+    "productName": "投聊",
+    "copyright": "Copyright © 2026 投聊",
     "directories": {
       "output": "dist-electron"
     },
@@ -98,11 +98,11 @@
       ],
       "category": "Network",
       "icon": "build/icons",
-      "description": "v信 — 企业级安全即时通讯",
+      "description": "投聊 — 企业级安全即时通讯",
       "syncDesktopName": true
     },
     "deb": {
-      "maintainer": "v信 <admin@91aigu.com>",
+      "maintainer": "投聊 <admin@91aigu.com>",
       "depends": [
         "libgtk-3-0",
         "libnotify4",
@@ -128,7 +128,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "v信",
+      "shortcutName": "投聊",
       "installerIcon": "build/icons/icon.ico",
       "uninstallerIcon": "build/icons/icon.ico",
       "installerHeaderIcon": "build/icons/icon.ico"

@@ -10,7 +10,7 @@
 const BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://dipsin.com').replace(/\/$/, '');
 
 export const site = {
-  name: 'v信',
+  name: '投聊',
   tagline: '私有化部署的私密通讯',
   // 站点规范地址（用于 OG/canonical）。Web 应用部署在根路径，落地页挪到 /welcome。
   url: BASE,
@@ -41,7 +41,7 @@ export const hero = {
   pill: '🔒 私有化部署 · 隐私优先',
   title: ['你的数据', '你做主'],
   subtitle:
-    'v信 —— 私有化部署的私密通讯。聊天、朋友圈、收藏，三端实时同步，数据自主可控。',
+    '投聊 —— 私有化部署的私密通讯。聊天、朋友圈、收藏，三端实时同步，数据自主可控。',
   primary: { label: '立即下载', href: '#download' },
   secondary: { label: '网页版体验', href: site.links.webApp },
   trustBar: [

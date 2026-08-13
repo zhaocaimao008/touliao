@@ -9,12 +9,12 @@
  * 清理只删带该前缀的账号及其会话/消息，绝不触碰真实用户。
  *
  * 用法（在 backend-v2 同机执行）：
- *   APP_DIR=/root/v信/backend-v2 node seed_test_users.js create 300
- *   APP_DIR=/root/v信/backend-v2 node seed_test_users.js cleanup
+ *   APP_DIR=/root/投聊/backend-v2 node seed_test_users.js create 300
+ *   APP_DIR=/root/投聊/backend-v2 node seed_test_users.js cleanup
  */
 'use strict';
 const path = require('path');
-const APP_DIR = process.env.APP_DIR || '/root/v信/backend-v2';
+const APP_DIR = process.env.APP_DIR || '/root/投聊/backend-v2';
 const Database = require(path.join(APP_DIR, 'node_modules/better-sqlite3'));
 const bcrypt = require(path.join(APP_DIR, 'node_modules/bcryptjs'));
 // 不要 require('src/config')！它在缺 JWT_SECRET 时会 process.exit(1)，从 ops/ 目录跑必崩。

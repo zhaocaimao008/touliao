@@ -1,4 +1,4 @@
-package com.vxin.app.ui
+package com.touliao.app.ui
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathFillType
@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 
 /**
- * v信 自绘品牌图标集（对齐 Web 线性图标风格，圆润 24dp 网格）。
+ * 投聊 自绘品牌图标集（对齐 Web 线性图标风格，圆润 24dp 网格）。
  * 全部走 currentColor（tint 由调用方 Icon 的 tint 决定），
  * 取代早期 Material 通用图标（Email/DateRange/Star）与文本字符（▦）。
  */

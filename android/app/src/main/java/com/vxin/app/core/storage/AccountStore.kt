@@ -1,10 +1,10 @@
-package com.vxin.app.core.storage
+package com.touliao.app.core.storage
 
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import com.vxin.app.data.model.Account
+import com.touliao.app.data.model.Account
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

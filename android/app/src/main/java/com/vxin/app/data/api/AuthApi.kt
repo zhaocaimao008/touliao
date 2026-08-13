@@ -1,9 +1,9 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.AuthResponse
-import com.vxin.app.data.model.LoginRequest
-import com.vxin.app.data.model.RegisterRequest
-import com.vxin.app.data.model.User
+import com.touliao.app.data.model.AuthResponse
+import com.touliao.app.data.model.LoginRequest
+import com.touliao.app.data.model.RegisterRequest
+import com.touliao.app.data.model.User
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -27,19 +27,19 @@ interface AuthApi {
 
     /** 修改密码；需 Bearer。旧 token 失效，响应带新 token，须覆盖本地。 */
     @PUT("api/auth/change-password")
-    suspend fun changePassword(@Body body: com.vxin.app.data.model.ChangePasswordRequest): com.vxin.app.data.model.ChangePasswordResponse
+    suspend fun changePassword(@Body body: com.touliao.app.data.model.ChangePasswordRequest): com.touliao.app.data.model.ChangePasswordResponse
 
     /** 注销账户（需当前密码确认；需 Bearer）。成功后本地须清登录态。 */
     @POST("api/auth/delete-account")
-    suspend fun deleteAccount(@Body body: com.vxin.app.data.model.DeleteAccountRequest): com.vxin.app.data.model.SuccessResponse
+    suspend fun deleteAccount(@Body body: com.touliao.app.data.model.DeleteAccountRequest): com.touliao.app.data.model.SuccessResponse
 
     /** 忘记密码：手机号 + 邀请码验证后重置 */
     @POST("api/auth/reset-password")
-    suspend fun resetPassword(@Body body: com.vxin.app.data.model.ResetPasswordRequest): com.vxin.app.data.model.SuccessResponse
+    suspend fun resetPassword(@Body body: com.touliao.app.data.model.ResetPasswordRequest): com.touliao.app.data.model.SuccessResponse
 
     /** 登录设备/会话列表（含 current 标记当前设备） */
     @GET("api/auth/sessions")
-    suspend fun sessions(): List<com.vxin.app.data.model.DeviceSession>
+    suspend fun sessions(): List<com.touliao.app.data.model.DeviceSession>
 
     /** 踢下线：删除指定会话 */
     @DELETE("api/auth/sessions/{id}")

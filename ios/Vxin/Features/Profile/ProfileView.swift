@@ -40,11 +40,11 @@ struct ProfileView: View {
                             Text(user.username.isEmpty ? "未设置昵称" : user.username)
                                 .font(.title3.bold()).foregroundColor(.white)
                             if !user.wechatId.isEmpty {
-                                Text("v信号: \(user.wechatId)")
+                                Text("投聊号: \(user.wechatId)")
                                     .font(.footnote).foregroundColor(.white.opacity(0.85))
                             }
                         }
-                        // 昵称/v信号 区域不参与点击命中，避免触发头像 PhotosPicker（用户反馈：点昵称也弹换头像）
+                        // 昵称/投聊号 区域不参与点击命中，避免触发头像 PhotosPicker（用户反馈：点昵称也弹换头像）
                         .allowsHitTesting(false)
                     }
                 }
@@ -55,7 +55,7 @@ struct ProfileView: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing)
                 )
                 .listRowInsets(EdgeInsets())
-                // 关键修复：List/Form 行默认整行可点，会让点昵称/v信号也触发头像 PhotosPicker。
+                // 关键修复：List/Form 行默认整行可点，会让点昵称/投聊号也触发头像 PhotosPicker。
                 // 每个可点元素各自独立处理点击，行本身不再作为一个整体按钮响应。
                 .buttonStyle(.plain)
             }
@@ -173,7 +173,7 @@ struct ProfileView: View {
             Section {
                 HStack {
                     Spacer()
-                    Text("v信 v\(Self.appVersion)")
+                    Text("投聊 v\(Self.appVersion)")
                         .font(.footnote)
                         .foregroundColor(.vxinTextSecondary)
                     Spacer()

@@ -2,7 +2,7 @@ name: Android Build
 
 # 在云端 Ubuntu runner 上编译 Android，产出可直接安装的 debug APK（免签名）。
 # 用于在没有本地开发环境时验证 Android 工程可编译，并下载 APK 装手机测试。
-# 跑完后到本次运行页面底部 "Artifacts" 下载 vxin-debug-apk。
+# 跑完后到本次运行页面底部 "Artifacts" 下载 touliao-debug-apk。
 on:
   push:
     # 仅分支 push 时按 paths 触发；不限定 branches 会导致 tag push 也触发本工作流，
@@ -63,6 +63,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vxin-debug-apk
+          name: touliao-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: warn

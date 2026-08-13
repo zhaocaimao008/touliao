@@ -1,4 +1,4 @@
-package com.vxin.app
+package com.touliao.app
 
 import android.app.KeyguardManager
 import android.content.Context
@@ -15,11 +15,11 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import com.vxin.app.core.call.CallManager
-import com.vxin.app.core.push.NotificationHelper
-import com.vxin.app.core.realtime.SocketManager
-import com.vxin.app.navigation.AppNavigation
-import com.vxin.app.ui.theme.VxinThemeWithPref
+import com.touliao.app.core.call.CallManager
+import com.touliao.app.core.push.NotificationHelper
+import com.touliao.app.core.realtime.SocketManager
+import com.touliao.app.navigation.AppNavigation
+import com.touliao.app.ui.theme.VxinThemeWithPref
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 

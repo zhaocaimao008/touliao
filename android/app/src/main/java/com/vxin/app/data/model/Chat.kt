@@ -1,4 +1,4 @@
-package com.vxin.app.data.model
+package com.touliao.app.data.model
 
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable

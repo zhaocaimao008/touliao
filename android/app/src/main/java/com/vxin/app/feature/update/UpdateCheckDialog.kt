@@ -1,4 +1,4 @@
-package com.vxin.app.feature.update
+package com.touliao.app.feature.update
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,7 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.vxin.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinGreen
 
 /**
  * 更新流程弹窗。传入 UpdateViewModel 由外层 ProfileScreen 持有。
@@ -135,7 +135,7 @@ fun UpdateCheckDialog(
             AlertDialog(
                 onDismissRequest = { viewModel.dismiss(); onDismiss() },
                 title = { Text("需要安装权限") },
-                text = { Text("为完成更新，请在系统设置中允许 v信 安装未知应用，授权后将自动继续安装。") },
+                text = { Text("为完成更新，请在系统设置中允许 投聊 安装未知应用，授权后将自动继续安装。") },
                 confirmButton = {
                     Button(
                         onClick = { viewModel.openInstallPermissionSettings() },

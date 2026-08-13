@@ -1,4 +1,4 @@
-package com.vxin.app.feature.chat
+package com.touliao.app.feature.chat
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,10 +39,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.data.model.MentionItem
-import com.vxin.app.ui.components.EmptyState
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.data.model.MentionItem
+import com.touliao.app.ui.components.EmptyState
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -175,7 +175,7 @@ private fun MentionRow(item: MentionItem, onClick: () -> Unit) {
                 )
                 Text(
                     sdf.format(Date(item.createdAt * 1000)),
-                    fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
+                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
                     color = VxinTextSecondary,
                 )
             }

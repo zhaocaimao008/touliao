@@ -25,7 +25,7 @@ struct AddFriendView: View {
             .padding(.horizontal)
 
             HStack {
-                TextField("手机号 / v信号 / 用户名", text: $vm.query)
+                TextField("手机号 / 投聊号 / 用户名", text: $vm.query)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled(true)
                     .textInputAutocapitalization(.never)
@@ -43,7 +43,7 @@ struct AddFriendView: View {
             if vm.searching {
                 ProgressView().padding()
             } else if vm.searched && vm.results.isEmpty {
-                VxinEmptyState(systemImage: "magnifyingglass", title: "未找到用户", subtitle: "换个手机号 / v信号试试")
+                VxinEmptyState(systemImage: "magnifyingglass", title: "未找到用户", subtitle: "换个手机号 / 投聊号试试")
             }
 
             List(vm.results) { user in
@@ -52,7 +52,7 @@ struct AddFriendView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(user.username.isEmpty ? "未命名" : user.username)
                         if !user.wechatId.isEmpty {
-                            Text("v信号: \(user.wechatId)").font(.caption).foregroundColor(.vxinTextSecondary)
+                            Text("投聊号: \(user.wechatId)").font(.caption).foregroundColor(.vxinTextSecondary)
                         }
                     }
                     Spacer()
@@ -129,7 +129,7 @@ private struct ScannedUserProfileSheet: View {
                 .font(.title3).fontWeight(.semibold)
 
             if !detail.wechatId.isEmpty {
-                Text("v信号: \(detail.wechatId)")
+                Text("投聊号: \(detail.wechatId)")
                     .font(.caption).foregroundColor(.vxinTextSecondary)
             }
 

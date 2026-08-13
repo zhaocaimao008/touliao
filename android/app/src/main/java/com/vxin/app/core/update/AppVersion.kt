@@ -1,4 +1,4 @@
-package com.vxin.app.core.update
+package com.touliao.app.core.update
 
 import kotlinx.serialization.Serializable
 

@@ -1,4 +1,4 @@
-package com.vxin.app.feature.chat
+package com.touliao.app.feature.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -52,13 +52,13 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import com.vxin.app.core.realtime.SocketStatus
-import com.vxin.app.core.util.formatChatTime
-import com.vxin.app.data.model.Conversation
-import com.vxin.app.ui.VxinIcons
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.core.realtime.SocketStatus
+import com.touliao.app.core.util.formatChatTime
+import com.touliao.app.data.model.Conversation
+import com.touliao.app.ui.VxinIcons
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.material.ExperimentalMaterialApi::class)
 @Composable
@@ -99,7 +99,7 @@ fun ConversationListScreen(
                     Column {
                         // 已连接时标题简洁显示「消息」；异常时才追加状态(对齐微信「收取中…」)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("消息", fontSize = com.vxin.app.ui.theme.VxinTextSize.xl)
+                            Text("消息", fontSize = com.touliao.app.ui.theme.VxinTextSize.xl)
                             if (socketStatus != SocketStatus.CONNECTED) {
                                 Spacer(Modifier.width(6.dp))
                                 if (socketStatus == SocketStatus.CONNECTING) {
@@ -107,7 +107,7 @@ fun ConversationListScreen(
                                 }
                                 Text(
                                     text = if (socketStatus == SocketStatus.CONNECTING) "收取中…" else "未连接",
-                                    fontSize = com.vxin.app.ui.theme.VxinTextSize.sm,
+                                    fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
                                     color = if (socketStatus == SocketStatus.CONNECTING) VxinTextSecondary else Color(0xFFFA5151),
                                     modifier = Modifier.padding(start = 4.dp),
                                 )
@@ -118,14 +118,14 @@ fun ConversationListScreen(
                 actions = {
                     // @我的消息聚合入口
                     IconButton(onClick = onOpenMentions) {
-                        Text("@", fontSize = com.vxin.app.ui.theme.VxinTextSize.xxl, color = VxinGreen)
+                        Text("@", fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, color = VxinGreen)
                     }
                     IconButton(onClick = onOpenSearch) {
                         Icon(VxinIcons.Search, contentDescription = "搜索")
                     }
                     var addMenu by remember { mutableStateOf(false) }
                     Box {
-                        IconButton(onClick = { addMenu = true }) { Text("＋", fontSize = com.vxin.app.ui.theme.VxinTextSize.xxl) }
+                        IconButton(onClick = { addMenu = true }) { Text("＋", fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl) }
                         DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
                             DropdownMenuItem(text = { Text("文件传输助手") }, onClick = {
                                 addMenu = false
@@ -152,7 +152,7 @@ fun ConversationListScreen(
                     )
 
                 state.conversations.isEmpty() ->
-                    com.vxin.app.ui.components.EmptyState(
+                    com.touliao.app.ui.components.EmptyState(
                         icon = "💬",
                         title = "暂无会话",
                         subtitle = "去「通讯录」找好友开始聊天吧",
@@ -235,7 +235,7 @@ private fun ConversationRow(
                         append(draft)
                     },
                     color = VxinTextSecondary,
-                    fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
+                    fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -247,7 +247,7 @@ private fun ConversationRow(
                         append(previewText(conv))
                     },
                     color = VxinTextSecondary,
-                    fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
+                    fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -255,7 +255,7 @@ private fun ConversationRow(
                 Text(
                     text = previewText(conv),
                     color = VxinTextSecondary,
-                    fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
+                    fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -263,7 +263,7 @@ private fun ConversationRow(
         }
         Spacer(Modifier.width(8.dp))
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.Center) {
-            Text(formatChatTime(conv.lastTime), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
+            Text(formatChatTime(conv.lastTime), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
             Spacer(Modifier.size(4.dp))
             when {
                 // 免打扰：有未读只显示小红点(不显示数字)，并保留🔕(对齐微信)
@@ -272,7 +272,7 @@ private fun ConversationRow(
                         Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFA5151)))
                         Spacer(Modifier.width(4.dp))
                     }
-                    Text("🔕", fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
+                    Text("🔕", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
                 }
                 // 正常会话：显示未读数字角标
                 conv.unreadCount > 0 -> Box(
@@ -284,7 +284,7 @@ private fun ConversationRow(
                 ) {
                     Text(
                         if (conv.unreadCount > 99) "99+" else conv.unreadCount.toString(),
-                        color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs2,
+                        color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                     )
                 }
             }

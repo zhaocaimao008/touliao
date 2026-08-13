@@ -1,4 +1,4 @@
-name: 自动部署 V信后端
+name: 自动部署投聊后端
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
           # 必须 ≥32 字符，否则 config/index.js 的安全校验会 process.exit(1)，
           # 令冒烟检查失败、部署闸门永远关闭（此前每次 push 部署都被此卡死）。
           JWT_SECRET: ci-smoke-jwt-secret-0123456789abcdef
-          DB_PATH: /tmp/vxin-ci-smoke.db
+          DB_PATH: /tmp/touliao-ci-smoke.db
 
   # ── 部署闸门（除冒烟外，追加真实门禁，任一红则不部署）──
   backend-jest:
@@ -123,7 +123,7 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          DEPLOY_PATH: /root/v信/backend-v2
+          DEPLOY_PATH: /root/投聊/backend-v2
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # ⚠ 用单引号 heredoc 保持脚本字面量；把变量通过远端 bash -s 的命令行 env 传进去
@@ -131,9 +131,9 @@ jobs:
           ssh -i ~/.ssh/deploy_key ${DEPLOY_USER}@${DEPLOY_HOST} \
             "DEPLOY_PATH='${DEPLOY_PATH}' GH_TOKEN='${GH_TOKEN}' bash -s" << 'DEPLOY_SCRIPT'
           set -e
-          REPO_ROOT="$(dirname "$DEPLOY_PATH")"   # git 仓库根 = backend-v2 的上一级（/root/v信）
-          AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/zhaocaimao008/vxin-1.0.git"
-          CLEAN_URL="https://github.com/zhaocaimao008/vxin-1.0.git"
+          REPO_ROOT="$(dirname "$DEPLOY_PATH")"   # git 仓库根 = backend-v2 的上一级（/root/投聊）
+          AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/zhaocaimao008/touliao.git"
+          CLEAN_URL="https://github.com/zhaocaimao008/touliao.git"
 
           echo "📋 V信后端自动部署 $(date)"
           echo "仓库根: $REPO_ROOT | 应用目录: $DEPLOY_PATH"
@@ -167,8 +167,8 @@ jobs:
           npm ci --omit=dev
           chmod 600 .env 2>/dev/null || true
 
-          echo "🚀 步骤 3: 重启应用（pm2: vxin-server-v2）"
-          pm2 restart vxin-server-v2 --update-env || PORT=3002 pm2 start src/server.js --name vxin-server-v2
+          echo "🚀 步骤 3: 重启应用（pm2: touliao-server-v2）"
+          pm2 restart touliao-server-v2 --update-env || PORT=3002 pm2 start src/server.js --name touliao-server-v2
           pm2 save || true
 
           echo "🔄 步骤 3b: Reload nginx（使静态文件变更立即生效）"
@@ -192,7 +192,7 @@ jobs:
               git -C "$REPO_ROOT" reset --hard "$PREV_SHA"
               cd "$REPO_ROOT/web" && npm ci && npm run build || echo "⚠ 回滚 web 构建失败（前端可能保留新版 dist）"
               cd "$DEPLOY_PATH" && npm ci --omit=dev
-              pm2 restart vxin-server-v2 --update-env || PORT=3002 pm2 start src/server.js --name vxin-server-v2
+              pm2 restart touliao-server-v2 --update-env || PORT=3002 pm2 start src/server.js --name touliao-server-v2
               pm2 save || true
               sleep 5
               RB_OK=0
@@ -202,7 +202,7 @@ jobs:
                 fi
                 echo "回滚后等待启动... ($i/15)"; sleep 2
               done
-              [ "$RB_OK" = "1" ] || echo "🚨 回滚后仍不健康！需人工介入：pm2 logs vxin-server-v2 --lines 80"
+              [ "$RB_OK" = "1" ] || echo "🚨 回滚后仍不健康！需人工介入：pm2 logs touliao-server-v2 --lines 80"
             else
               echo "🚨 无部署前版本（首次部署）可回滚，需人工介入"
             fi
@@ -223,5 +223,5 @@ jobs:
         if: failure()
         run: |
           echo "❌ 部署失败！"
-          echo "请检查服务器日志: pm2 logs vxin-server-v2 --lines 50"
+          echo "请检查服务器日志: pm2 logs touliao-server-v2 --lines 50"
           exit 1

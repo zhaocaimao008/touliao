@@ -15,7 +15,7 @@ struct MyQRCodeView: View {
                 InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 64)
                 Text(user.username).font(.headline)
                 if !user.wechatId.isEmpty {
-                    Text("v信号: \(user.wechatId)").font(.footnote).foregroundColor(.vxinTextSecondary)
+                    Text("投聊号: \(user.wechatId)").font(.footnote).foregroundColor(.vxinTextSecondary)
                 }
             }
 

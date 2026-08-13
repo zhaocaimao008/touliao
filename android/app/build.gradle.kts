@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.vxin.app"
+    namespace = "com.touliao.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.vxin.app"
+        applicationId = "com.touliao.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 53

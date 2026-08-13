@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// v信 圆角规范 —— 单一真相源（对齐 Web design-tokens.css / Android VxinRadius）。
+/// 投聊 圆角规范 —— 单一真相源（对齐 Web design-tokens.css / Android VxinRadius）。
 /// 命名与取值跨端保持一致，统一圆角语汇：
 ///   tag=4  sm=6  badge=10  md=12  avatar=14  card=16  lg=18  xl=20
 /// 说明：thumb(8) 与 pill(25) 为移动端历史取值，暂保留原值以零视觉回归。

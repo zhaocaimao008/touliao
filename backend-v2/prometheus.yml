@@ -19,7 +19,7 @@ rule_files:
 
 # 抓取配置
 scrape_configs:
-  # v信后端服务
+  # 投聊后端服务
   - job_name: 'vxin-backend'
     static_configs:
       - targets: ['localhost:3002']

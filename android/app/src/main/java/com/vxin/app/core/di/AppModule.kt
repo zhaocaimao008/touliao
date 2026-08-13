@@ -1,17 +1,17 @@
-package com.vxin.app.core.di
+package com.touliao.app.core.di
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
-import com.vxin.app.core.network.AuthInterceptor
-import com.vxin.app.core.network.HostSelectionInterceptor
-import com.vxin.app.core.storage.ServerConfig
-import com.vxin.app.data.api.AuthApi
-import com.vxin.app.data.api.ContactApi
-import com.vxin.app.data.api.GroupApi
-import com.vxin.app.data.api.MessageApi
-import com.vxin.app.data.api.NotificationApi
-import com.vxin.app.data.api.SearchApi
-import com.vxin.app.data.api.StickerApi
-import com.vxin.app.data.api.UserApi
+import com.touliao.app.core.network.AuthInterceptor
+import com.touliao.app.core.network.HostSelectionInterceptor
+import com.touliao.app.core.storage.ServerConfig
+import com.touliao.app.data.api.AuthApi
+import com.touliao.app.data.api.ContactApi
+import com.touliao.app.data.api.GroupApi
+import com.touliao.app.data.api.MessageApi
+import com.touliao.app.data.api.NotificationApi
+import com.touliao.app.data.api.SearchApi
+import com.touliao.app.data.api.StickerApi
+import com.touliao.app.data.api.UserApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -109,8 +109,8 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideConfigApi(retrofit: Retrofit): com.vxin.app.data.api.ConfigApi =
-        retrofit.create(com.vxin.app.data.api.ConfigApi::class.java)
+    fun provideConfigApi(retrofit: Retrofit): com.touliao.app.data.api.ConfigApi =
+        retrofit.create(com.touliao.app.data.api.ConfigApi::class.java)
 
     @Provides
     @Singleton
@@ -126,31 +126,31 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideWalletApi(retrofit: Retrofit): com.vxin.app.data.api.WalletApi =
-        retrofit.create(com.vxin.app.data.api.WalletApi::class.java)
+    fun provideWalletApi(retrofit: Retrofit): com.touliao.app.data.api.WalletApi =
+        retrofit.create(com.touliao.app.data.api.WalletApi::class.java)
 
     @Provides
     @Singleton
-    fun provideFriendLabelApi(retrofit: Retrofit): com.vxin.app.data.api.FriendLabelApi =
-        retrofit.create(com.vxin.app.data.api.FriendLabelApi::class.java)
+    fun provideFriendLabelApi(retrofit: Retrofit): com.touliao.app.data.api.FriendLabelApi =
+        retrofit.create(com.touliao.app.data.api.FriendLabelApi::class.java)
 
     @Provides
     @Singleton
-    fun provideRedPacketApi(retrofit: Retrofit): com.vxin.app.data.api.RedPacketApi =
-        retrofit.create(com.vxin.app.data.api.RedPacketApi::class.java)
+    fun provideRedPacketApi(retrofit: Retrofit): com.touliao.app.data.api.RedPacketApi =
+        retrofit.create(com.touliao.app.data.api.RedPacketApi::class.java)
 
     @Provides
     @Singleton
-    fun provideTurnApi(retrofit: Retrofit): com.vxin.app.data.api.TurnApi =
-        retrofit.create(com.vxin.app.data.api.TurnApi::class.java)
+    fun provideTurnApi(retrofit: Retrofit): com.touliao.app.data.api.TurnApi =
+        retrofit.create(com.touliao.app.data.api.TurnApi::class.java)
 
     @Provides
     @Singleton
-    fun provideFavoritesApi(retrofit: Retrofit): com.vxin.app.data.api.FavoritesApi =
-        retrofit.create(com.vxin.app.data.api.FavoritesApi::class.java)
+    fun provideFavoritesApi(retrofit: Retrofit): com.touliao.app.data.api.FavoritesApi =
+        retrofit.create(com.touliao.app.data.api.FavoritesApi::class.java)
 
     @Provides
     @Singleton
-    fun provideMomentApi(retrofit: Retrofit): com.vxin.app.data.api.MomentApi =
-        retrofit.create(com.vxin.app.data.api.MomentApi::class.java)
+    fun provideMomentApi(retrofit: Retrofit): com.touliao.app.data.api.MomentApi =
+        retrofit.create(com.touliao.app.data.api.MomentApi::class.java)
 }

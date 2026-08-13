@@ -1,25 +1,25 @@
-package com.vxin.app.feature.chat
+package com.touliao.app.feature.chat
 
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.auth.AuthState
-import com.vxin.app.core.auth.SessionManager
-import com.vxin.app.core.media.AudioPlayer
-import com.vxin.app.core.media.AudioRecorder
-import com.vxin.app.core.media.MediaUploader
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.core.util.MediaUrlResolver
-import com.vxin.app.data.model.LocalMsgStatus
-import com.vxin.app.data.model.Message
-import com.vxin.app.data.model.ReplyPreview
-import com.vxin.app.data.model.RedPacketContent
-import com.vxin.app.data.model.RedPacketDetail
-import com.vxin.app.data.model.TransferContent
-import com.vxin.app.data.repository.ChatRepository
-import com.vxin.app.data.repository.RedPacketRepository
-import com.vxin.app.data.repository.WalletRepository
+import com.touliao.app.core.auth.AuthState
+import com.touliao.app.core.auth.SessionManager
+import com.touliao.app.core.media.AudioPlayer
+import com.touliao.app.core.media.AudioRecorder
+import com.touliao.app.core.media.MediaUploader
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.core.util.MediaUrlResolver
+import com.touliao.app.data.model.LocalMsgStatus
+import com.touliao.app.data.model.Message
+import com.touliao.app.data.model.ReplyPreview
+import com.touliao.app.data.model.RedPacketContent
+import com.touliao.app.data.model.RedPacketDetail
+import com.touliao.app.data.model.TransferContent
+import com.touliao.app.data.repository.ChatRepository
+import com.touliao.app.data.repository.RedPacketRepository
+import com.touliao.app.data.repository.WalletRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
@@ -62,12 +62,12 @@ data class ChatUiState(
     val closed: Boolean = false,      // 被踢/群解散 → 关闭聊天页
     val loadingEarlier: Boolean = false,
     val reachedStart: Boolean = false,   // 已加载到最早
-    val stickers: List<com.vxin.app.data.model.Sticker> = emptyList(),
-    val groupMembers: List<com.vxin.app.data.model.GroupMember> = emptyList(),
+    val stickers: List<com.touliao.app.data.model.Sticker> = emptyList(),
+    val groupMembers: List<com.touliao.app.data.model.GroupMember> = emptyList(),
     val canManageGroup: Boolean = false,          // 我是群主/管理员（决定能否 @所有人）
     val groupAnnouncement: String = "",           // 群公告（非空时聊天页顶部置顶展示）
-    val pinnedMessages: List<com.vxin.app.data.model.PinnedMessage> = emptyList(),
-    val forwardTargets: List<com.vxin.app.data.model.Conversation> = emptyList(),  // 转发可选会话
+    val pinnedMessages: List<com.touliao.app.data.model.PinnedMessage> = emptyList(),
+    val forwardTargets: List<com.touliao.app.data.model.Conversation> = emptyList(),  // 转发可选会话
     // ── 会话内消息搜索 ──
     val searchActive: Boolean = false,
     val searchQuery: String = "",
@@ -89,7 +89,7 @@ data class ChatUiState(
     val exportContent: String? = null,             // 非空时 Screen 负责写文件并清除
     // ── 消息定时发送 ──
     val schedulingMessage: Boolean = false,         // 创建定时消息请求进行中，防连点
-    val scheduledMessages: List<com.vxin.app.data.model.ScheduledMessage> = emptyList(),  // 我的 pending 定时消息列表
+    val scheduledMessages: List<com.touliao.app.data.model.ScheduledMessage> = emptyList(),  // 我的 pending 定时消息列表
     val scheduledLoading: Boolean = false,          // 定时消息列表加载中
     // ── 后台功能开关（群通话按钮显隐）默认开启，拉取失败不误伤 ──
     val groupVoiceCallEnabled: Boolean = true,
@@ -102,21 +102,21 @@ data class ChatUiState(
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
-    private val stickerRepository: com.vxin.app.data.repository.StickerRepository,
+    private val stickerRepository: com.touliao.app.data.repository.StickerRepository,
     private val redPacketRepository: RedPacketRepository,
     private val walletRepository: WalletRepository,
-    private val callManager: com.vxin.app.core.call.CallManager,
-    private val groupCallManager: com.vxin.app.core.call.GroupCallManager,
-    private val groupRepository: com.vxin.app.data.repository.GroupRepository,
-    private val momentRepository: com.vxin.app.data.repository.MomentRepository,
+    private val callManager: com.touliao.app.core.call.CallManager,
+    private val groupCallManager: com.touliao.app.core.call.GroupCallManager,
+    private val groupRepository: com.touliao.app.data.repository.GroupRepository,
+    private val momentRepository: com.touliao.app.data.repository.MomentRepository,
     private val mediaUploader: MediaUploader,
     private val audioRecorder: AudioRecorder,
     private val audioPlayer: AudioPlayer,
     private val mediaUrlResolver: MediaUrlResolver,
-    private val draftStore: com.vxin.app.core.storage.DraftStore,
-    private val outboxStore: com.vxin.app.core.storage.OutboxStore,
-    private val msgCacheStore: com.vxin.app.core.storage.MsgCacheStore,
-    private val configApi: com.vxin.app.data.api.ConfigApi,
+    private val draftStore: com.touliao.app.core.storage.DraftStore,
+    private val outboxStore: com.touliao.app.core.storage.OutboxStore,
+    private val msgCacheStore: com.touliao.app.core.storage.MsgCacheStore,
+    private val configApi: com.touliao.app.data.api.ConfigApi,
     sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -207,7 +207,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun appendMention(member: com.vxin.app.data.model.GroupMember) {
+    fun appendMention(member: com.touliao.app.data.model.GroupMember) {
         _uiState.update { it.copy(input = it.input + "@${member.username} ") }
         draftStore.set(conversationId, _uiState.value.input)   // @追加也存草稿
     }
@@ -492,7 +492,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun sendSticker(sticker: com.vxin.app.data.model.Sticker) {
+    fun sendSticker(sticker: com.touliao.app.data.model.Sticker) {
         viewModelScope.launch {
             runCatching { stickerRepository.send(conversationId, sticker.id) }
                 .onSuccess { msg -> appendUnique(msg) }
@@ -688,7 +688,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun updateReactions(msgId: String, reactions: List<com.vxin.app.data.model.MessageReaction>) {
+    private fun updateReactions(msgId: String, reactions: List<com.touliao.app.data.model.MessageReaction>) {
         _uiState.update { s ->
             s.copy(messages = s.messages.map { if (it.id == msgId) it.copy(reactions = reactions) else it })
         }
@@ -770,7 +770,7 @@ class ChatViewModel @Inject constructor(
                     val merged = (list + stillPending).sortedBy { it.created_at }
                     _uiState.update { it.copy(loading = false, messages = merged, reachedStart = list.size < HISTORY_PAGE) }
                     // 离线缓存：server 覆盖旧缓存（含已编辑/已删同步），再落盘最近 50。
-                    persistCache(com.vxin.app.core.storage.MsgCacheStore.mergeById(msgCacheStore.load(conversationId), list))
+                    persistCache(com.touliao.app.core.storage.MsgCacheStore.mergeById(msgCacheStore.load(conversationId), list))
                     markReadLatest()   // 打开会话即标记已读
                     healFailedMessages()   // 连线且有失败气泡 → 进会话自动重发一次
                 }
@@ -844,9 +844,9 @@ class ChatViewModel @Inject constructor(
     /** 断线重连后：自动自愈发送失败的文本气泡（弱网/电梯/地铁场景，对齐 Web） */
     private fun observeConnection() {
         viewModelScope.launch {
-            var wasConnected = chatRepository.socketStatus.value == com.vxin.app.core.realtime.SocketStatus.CONNECTED
+            var wasConnected = chatRepository.socketStatus.value == com.touliao.app.core.realtime.SocketStatus.CONNECTED
             chatRepository.socketStatus.collect { status ->
-                val nowConnected = status == com.vxin.app.core.realtime.SocketStatus.CONNECTED
+                val nowConnected = status == com.touliao.app.core.realtime.SocketStatus.CONNECTED
                 if (nowConnected && !wasConnected) healFailedMessages(announce = true)   // 从断开→连上：安抚一次
                 wasConnected = nowConnected
             }
@@ -978,7 +978,7 @@ class ChatViewModel @Inject constructor(
      * @param announce 为 true 时轻量安抚一次（网络恢复场景），进会话静默不打扰（对齐 Web）。
      */
     private fun healFailedMessages(announce: Boolean = false) {
-        if (chatRepository.socketStatus.value != com.vxin.app.core.realtime.SocketStatus.CONNECTED) return
+        if (chatRepository.socketStatus.value != com.touliao.app.core.realtime.SocketStatus.CONNECTED) return
         val failed = _uiState.value.messages.filter { it.localStatus == LocalMsgStatus.FAILED }
         if (failed.isEmpty()) return
         if (announce) _uiState.update { it.copy(error = "网络已恢复，正在重发 ${failed.size} 条消息") }
@@ -1066,10 +1066,10 @@ class ChatViewModel @Inject constructor(
      */
     private fun observeScreenshot() {
         viewModelScope.launch {
-            com.vxin.app.core.capture.ScreenCaptureBus.events.collect { file ->
+            com.touliao.app.core.capture.ScreenCaptureBus.events.collect { file ->
                 if (!awaitingScreenshot) return@collect
                 awaitingScreenshot = false
-                com.vxin.app.core.capture.ScreenCaptureBus.resetReplay()
+                com.touliao.app.core.capture.ScreenCaptureBus.resetReplay()
                 val prepared = withContext(Dispatchers.IO) {
                     runCatching { mediaUploader.prepareFromFile(file, "image/png", file.name) }.getOrNull()
                 }

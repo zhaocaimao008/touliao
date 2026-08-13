@@ -4,8 +4,8 @@
  * 注册两个临时用户 → 全流程断言 → 清理所有测试数据。
  */
 const http = require('http');
-const { io } = require('/root/v信/web/node_modules/socket.io-client');
-const Database = require('/root/v信/backend/node_modules/better-sqlite3');
+const { io } = require('/root/投聊/web/node_modules/socket.io-client');
+const Database = require('/root/投聊/backend/node_modules/better-sqlite3');
 
 const BASE = process.env.E2E_BASE || 'http://localhost:3003';
 const INVITE = '888888';
@@ -171,7 +171,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
   // ── 清理 ──
   console.log('\n━━━ 清理测试数据 ━━━');
-  const db = new Database('/root/v信/backend/wechat.db');
+  const db = new Database('/root/投聊/backend/wechat.db');
   const convPh = created.convIds.map(() => '?').join(',');
   const userPh = created.userIds.map(() => '?').join(',');
   db.transaction(() => {

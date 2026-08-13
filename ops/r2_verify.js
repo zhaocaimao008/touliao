@@ -2,13 +2,13 @@
 /**
  * r2_verify.js —— 自动设置 R2 桶 CORS + 端到端验证(直传 + 公开读)。
  * 从环境变量读配置(不写死密钥)；Hermes 在服务器上运行：
- *   export $(grep -E '^(R2_|CLOUD_)' /root/v信/backend-v2/.env | xargs) \
- *     && APP_DIR=/root/v信/backend-v2 node /root/v信/ops/r2_verify.js
+ *   export $(grep -E '^(R2_|CLOUD_)' /root/投聊/backend-v2/.env | xargs) \
+ *     && APP_DIR=/root/投聊/backend-v2 node /root/投聊/ops/r2_verify.js
  */
 'use strict';
 const path = require('path');
 const https = require('https');
-const APP = process.env.APP_DIR || '/root/v信/backend-v2';
+const APP = process.env.APP_DIR || '/root/投聊/backend-v2';
 const {
   S3Client, PutBucketCorsCommand, GetBucketCorsCommand, PutObjectCommand,
 } = require(path.join(APP, 'node_modules/@aws-sdk/client-s3'));

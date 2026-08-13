@@ -1,7 +1,7 @@
-package com.vxin.app.core.util
+package com.touliao.app.core.util
 
-import com.vxin.app.core.storage.ServerConfig
-import com.vxin.app.core.storage.TokenStore
+import com.touliao.app.core.storage.ServerConfig
+import com.touliao.app.core.storage.TokenStore
 import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton

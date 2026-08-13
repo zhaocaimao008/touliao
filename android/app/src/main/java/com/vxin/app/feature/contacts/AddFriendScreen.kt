@@ -1,4 +1,4 @@
-package com.vxin.app.feature.contacts
+package com.touliao.app.feature.contacts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,12 +49,12 @@ import com.google.android.gms.common.GoogleApiAvailability
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
-import com.vxin.app.data.model.SearchUser
-import com.vxin.app.data.model.UserDetail
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.VxinGradientButton
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.data.model.SearchUser
+import com.touliao.app.data.model.UserDetail
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.VxinGradientButton
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -148,7 +148,7 @@ fun AddFriendScreen(
                 value = state.query,
                 onValueChange = viewModel::onQueryChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("手机号 / v信号 / 用户名") },
+                label = { Text("手机号 / 投聊号 / 用户名") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { viewModel.search() }),
@@ -170,7 +170,7 @@ fun AddFriendScreen(
                 when {
                     state.searching -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     state.searched && state.results.isEmpty() ->
-                        com.vxin.app.ui.components.EmptyState(icon = "🔍", title = "未找到用户", subtitle = "换个手机号 / v信号试试", modifier = Modifier.align(Alignment.Center))
+                        com.touliao.app.ui.components.EmptyState(icon = "🔍", title = "未找到用户", subtitle = "换个手机号 / 投聊号试试", modifier = Modifier.align(Alignment.Center))
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(state.results, key = { it.id }) { user ->
                             SearchRow(user, sent = user.id in state.sentIds) { viewModel.sendRequest(user) }
@@ -193,7 +193,7 @@ private fun SearchRow(user: SearchUser, sent: Boolean, onAdd: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(user.username.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)
             if (user.wechat_id.isNotBlank()) {
-                Text("v信号: ${user.wechat_id}", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                Text("投聊号: ${user.wechat_id}", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         }
         Button(
@@ -246,7 +246,7 @@ private fun ScannedUserProfileSheet(
                 )
                 if (detail.wechat_id.isNotBlank()) {
                     Spacer(Modifier.height(4.dp))
-                    Text("v信号: ${detail.wechat_id}", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Text("投聊号: ${detail.wechat_id}", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
                 }
                 if (detail.bio.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))

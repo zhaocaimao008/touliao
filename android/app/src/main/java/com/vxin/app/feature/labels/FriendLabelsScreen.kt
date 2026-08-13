@@ -1,4 +1,4 @@
-package com.vxin.app.feature.labels
+package com.touliao.app.feature.labels
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,8 +41,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.data.model.FriendLabel
-import com.vxin.app.ui.components.EmptyState
+import com.touliao.app.data.model.FriendLabel
+import com.touliao.app.ui.components.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

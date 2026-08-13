@@ -40,7 +40,7 @@ receivers:
     email_configs:
       - to: 'admin@dipsin.com'
         headers:
-          Subject: '🚨 v信严重告警：{{ .GroupLabels.alertname }}'
+          Subject: '🚨 投聊严重告警：{{ .GroupLabels.alertname }}'
     webhook_configs:
       - url: 'http://localhost:3002/api/alerts/webhook'
         send_resolved: true
@@ -53,7 +53,7 @@ receivers:
     email_configs:
       - to: 'dev@dipsin.com'
         headers:
-          Subject: '⚠️ v信警告：{{ .GroupLabels.alertname }}'
+          Subject: '⚠️ 投聊警告：{{ .GroupLabels.alertname }}'
 
 # 抑制规则
 inhibit_rules:

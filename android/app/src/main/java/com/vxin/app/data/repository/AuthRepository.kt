@@ -1,13 +1,13 @@
-package com.vxin.app.data.repository
+package com.touliao.app.data.repository
 
-import com.vxin.app.core.storage.AccountStore
-import com.vxin.app.core.storage.TokenStore
-import com.vxin.app.data.api.AuthApi
-import com.vxin.app.data.model.Account
-import com.vxin.app.data.model.LoginRequest
-import com.vxin.app.data.model.RegisterRequest
-import com.vxin.app.data.model.ResetPasswordRequest
-import com.vxin.app.data.model.User
+import com.touliao.app.core.storage.AccountStore
+import com.touliao.app.core.storage.TokenStore
+import com.touliao.app.data.api.AuthApi
+import com.touliao.app.data.model.Account
+import com.touliao.app.data.model.LoginRequest
+import com.touliao.app.data.model.RegisterRequest
+import com.touliao.app.data.model.ResetPasswordRequest
+import com.touliao.app.data.model.User
 import javax.inject.Inject
 import javax.inject.Singleton
 

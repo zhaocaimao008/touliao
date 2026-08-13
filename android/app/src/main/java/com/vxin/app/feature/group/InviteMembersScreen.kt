@@ -1,4 +1,4 @@
-package com.vxin.app.feature.group
+package com.touliao.app.feature.group
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -31,10 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.data.model.Contact
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.data.model.Contact
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +66,7 @@ fun InviteMembersScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.candidates.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "👥", title = "没有可邀请的联系人", modifier = Modifier.align(Alignment.Center))
+                state.candidates.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "👥", title = "没有可邀请的联系人", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.candidates, key = { it.id }) { contact ->
                         CandidateRow(contact, checked = contact.id in state.selected) { viewModel.toggle(contact.id) }

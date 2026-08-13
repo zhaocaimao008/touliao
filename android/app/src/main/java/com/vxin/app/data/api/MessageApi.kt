@@ -1,20 +1,20 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.Conversation
-import com.vxin.app.data.model.CreateConversationResponse
-import com.vxin.app.data.model.CreateGroupBody
-import com.vxin.app.data.model.CreatePrivateBody
-import com.vxin.app.data.model.DeleteMessageBody
-import com.vxin.app.data.model.MarkReadRequest
-import com.vxin.app.data.model.Message
-import com.vxin.app.data.model.PinMessageBody
-import com.vxin.app.data.model.PinnedMessage
-import com.vxin.app.data.model.ChunkReceivedResponse
-import com.vxin.app.data.model.ReactBody
-import com.vxin.app.data.model.ReactResponse
-import com.vxin.app.data.model.UploadFinishBody
-import com.vxin.app.data.model.UploadInitBody
-import com.vxin.app.data.model.UploadInitResponse
+import com.touliao.app.data.model.Conversation
+import com.touliao.app.data.model.CreateConversationResponse
+import com.touliao.app.data.model.CreateGroupBody
+import com.touliao.app.data.model.CreatePrivateBody
+import com.touliao.app.data.model.DeleteMessageBody
+import com.touliao.app.data.model.MarkReadRequest
+import com.touliao.app.data.model.Message
+import com.touliao.app.data.model.PinMessageBody
+import com.touliao.app.data.model.PinnedMessage
+import com.touliao.app.data.model.ChunkReceivedResponse
+import com.touliao.app.data.model.ReactBody
+import com.touliao.app.data.model.ReactResponse
+import com.touliao.app.data.model.UploadFinishBody
+import com.touliao.app.data.model.UploadInitBody
+import com.touliao.app.data.model.UploadInitResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
@@ -104,7 +104,7 @@ interface MessageApi {
 
     /** 批量撤回/删除消息（多选，单次≤20 条） */
     @POST("api/messages/batch-delete")
-    suspend fun batchDelete(@Body body: com.vxin.app.data.model.BatchDeleteBody)
+    suspend fun batchDelete(@Body body: com.touliao.app.data.model.BatchDeleteBody)
 
     /** 表情回应(切换) */
     @POST("api/messages/{msgId}/react")
@@ -116,19 +116,19 @@ interface MessageApi {
 
     /** 编辑消息（本人文本，2 分钟内） */
     @PUT("api/messages/{msgId}/edit")
-    suspend fun editMessage(@Path("msgId") msgId: String, @Body body: com.vxin.app.data.model.EditMessageBody)
+    suspend fun editMessage(@Path("msgId") msgId: String, @Body body: com.touliao.app.data.model.EditMessageBody)
 
     /** 转发消息到多个会话 */
     @POST("api/messages/forward")
-    suspend fun forward(@Body body: com.vxin.app.data.model.ForwardBody)
+    suspend fun forward(@Body body: com.touliao.app.data.model.ForwardBody)
 
     /** 会话置顶（pinned: 1/0） */
     @POST("api/messages/conversation/{convId}/pin")
-    suspend fun pinConversation(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.PinConversationBody)
+    suspend fun pinConversation(@Path("convId") convId: String, @Body body: com.touliao.app.data.model.PinConversationBody)
 
     /** 会话免打扰（muted: 1/0） */
     @POST("api/messages/conversation/{convId}/mute")
-    suspend fun muteConversation(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.MuteConversationBody)
+    suspend fun muteConversation(@Path("convId") convId: String, @Body body: com.touliao.app.data.model.MuteConversationBody)
 
     /** 标为未读（会话列表长按） */
     @POST("api/messages/conversation/{convId}/mark-unread")
@@ -136,15 +136,15 @@ interface MessageApi {
 
     /** 阅后即焚（seconds=0 关闭） */
     @POST("api/messages/conversation/{convId}/burn-after")
-    suspend fun setBurnAfter(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.BurnAfterBody)
+    suspend fun setBurnAfter(@Path("convId") convId: String, @Body body: com.touliao.app.data.model.BurnAfterBody)
 
     /** 文件传输助手会话（获取或创建），返回 { conversationId } */
     @GET("api/messages/file-helper")
-    suspend fun fileHelper(): com.vxin.app.data.model.FileHelperResponse
+    suspend fun fileHelper(): com.touliao.app.data.model.FileHelperResponse
 
     /** 聊天专属背景（background 为图片 URL，空串=清除） */
     @PUT("api/messages/conversation/{convId}/background")
-    suspend fun setBackground(@Path("convId") convId: String, @Body body: com.vxin.app.data.model.BackgroundBody)
+    suspend fun setBackground(@Path("convId") convId: String, @Body body: com.touliao.app.data.model.BackgroundBody)
 
     /** 导出聊天记录（text/plain），Authorization 由 AuthInterceptor 自动注入。 */
     @Streaming
@@ -171,11 +171,11 @@ interface MessageApi {
 
     /** 创建定时消息（send_at 需 ≥15分钟后且 ≤30天，UNIX 秒） */
     @POST("api/messages/schedule")
-    suspend fun scheduleMessage(@Body body: com.vxin.app.data.model.ScheduleMessageBody): com.vxin.app.data.model.ScheduledMessage
+    suspend fun scheduleMessage(@Body body: com.touliao.app.data.model.ScheduleMessageBody): com.touliao.app.data.model.ScheduledMessage
 
     /** 我的定时消息列表（pending 状态） */
     @GET("api/messages/schedule")
-    suspend fun scheduledMessages(): List<com.vxin.app.data.model.ScheduledMessage>
+    suspend fun scheduledMessages(): List<com.touliao.app.data.model.ScheduledMessage>
 
     /** 取消定时消息（仅本人，仅 pending 状态） */
     @DELETE("api/messages/schedule/{id}")
@@ -188,7 +188,7 @@ interface MessageApi {
     suspend fun mentionsMe(
         @Query("offset") offset: Int = 0,
         @Query("limit") limit: Int = 20,
-    ): com.vxin.app.data.model.MentionsResponse
+    ): com.touliao.app.data.model.MentionsResponse
 
     // ── 功能A3: 聊天文件聚合视图 ─────────────────────────────────────────────
 
@@ -199,11 +199,11 @@ interface MessageApi {
         @Query("type") type: String = "all",
         @Query("offset") offset: Int = 0,
         @Query("limit") limit: Int = 30,
-    ): com.vxin.app.data.model.ConversationFilesResponse
+    ): com.touliao.app.data.model.ConversationFilesResponse
 
     // ── 功能A3: 语音转文字 ──────────────────────────────────────────────────
 
     /** 语音转文字（幂等：已转写直接返回缓存；ASR 不可用返回 503） */
     @POST("api/messages/{msgId}/transcribe")
-    suspend fun transcribe(@Path("msgId") msgId: String): com.vxin.app.data.model.TranscribeResponse
+    suspend fun transcribe(@Path("msgId") msgId: String): com.touliao.app.data.model.TranscribeResponse
 }

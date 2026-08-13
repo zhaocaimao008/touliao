@@ -1,9 +1,9 @@
-package com.vxin.app.ui.theme
+package com.touliao.app.ui.theme
 
 import androidx.compose.ui.unit.sp
 
 /**
- * v信 字号规范 —— 单一真相源（对齐 Web design-tokens.css --text-* 体系）。
+ * 投聊 字号规范 —— 单一真相源（对齐 Web design-tokens.css --text-* 体系）。
  * 命名与取值与 Web 端保持一致，跨端统一字号语汇（单位 sp≈px）：
  *   xs2=10  xs=11  sm=12  sm2=13  base=14  md=15  lg=16  xl=18  xxl=20
  * 说明：22sp 以上为大号展示数字（余额/品牌名/认证标题等），归入展示字阶

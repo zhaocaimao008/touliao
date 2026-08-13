@@ -1,6 +1,6 @@
-package com.vxin.app.core.network
+package com.touliao.app.core.network
 
-import com.vxin.app.data.model.ApiErrorBody
+import com.touliao.app.data.model.ApiErrorBody
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
 import java.io.IOException

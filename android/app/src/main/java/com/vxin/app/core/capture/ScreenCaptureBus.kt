@@ -1,4 +1,4 @@
-package com.vxin.app.core.capture
+package com.touliao.app.core.capture
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow

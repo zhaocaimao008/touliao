@@ -122,7 +122,7 @@ class OfflinePWA {
   enhancePWA() {
     return {
       manifest: {
-        name: 'v信',
+        name: '投聊',
         shortName: 'vXin',
         description: '全功能社交应用',
         startUrl: '/',

@@ -67,10 +67,10 @@ function generateGroupNumber() {
 }
 
 function generateVxinId() {
-  // v信号 6 位：[100000, 999999]，共 900000 个
+  // 投聊号 6 位：[100000, 999999]，共 900000 个
   const total = 900000;
   const used = db.prepare("SELECT COUNT(*) AS n FROM users WHERE wechat_id != '' AND wechat_id IS NOT NULL AND length(wechat_id)=6").get().n;
-  if (used >= total) throw new Error('v信号已分配完');
+  if (used >= total) throw new Error('投聊号已分配完');
   if (used / total < 0.8) {
     for (let i = 0; i < 2000; i++) {
       const value = String(Math.floor(100000 + Math.random() * 900000));
@@ -82,7 +82,7 @@ function generateVxinId() {
     const value = String(100000 + ((start - 100000 + i) % total));
     if (!db.prepare('SELECT 1 FROM users WHERE wechat_id=?').get(value)) return value;
   }
-  throw new Error('v信号已分配完');
+  throw new Error('投聊号已分配完');
 }
 
 // 生成一个未被占用的 6 位数字专属邀请码（用户级，避免与现有 invite_code 冲突）
@@ -114,7 +114,7 @@ function ensureInviteCodes() {
   })();
 }
 
-// 确保所有用户都有 6 位纯数字 v信号（幂等：仅修补不合规者）
+// 确保所有用户都有 6 位纯数字 投聊号（幂等：仅修补不合规者）
 function ensureNumericVxinIds() {
   const users = db.prepare(`
     SELECT id FROM users

@@ -1,4 +1,4 @@
-package com.vxin.app.core.storage
+package com.touliao.app.core.storage
 
 import android.content.Context
 import android.content.SharedPreferences

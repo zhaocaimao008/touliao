@@ -1,4 +1,4 @@
-package com.vxin.app.feature.auth
+package com.touliao.app.feature.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,13 +39,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Icon
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.ui.VxinGradientButton
-import com.vxin.app.ui.VxinIcons
-import com.vxin.app.ui.theme.VxinBrand
-import com.vxin.app.ui.theme.VxinBrandLight
-import com.vxin.app.ui.theme.VxinBrandDark
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.ui.VxinGradientButton
+import com.touliao.app.ui.VxinIcons
+import com.touliao.app.ui.theme.VxinBrand
+import com.touliao.app.ui.theme.VxinBrandLight
+import com.touliao.app.ui.theme.VxinBrandDark
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @Composable
 fun ForgotPasswordScreen(
@@ -66,24 +66,24 @@ fun ForgotPasswordScreen(
         Box(
             modifier = Modifier
                 .size(64.dp)
-                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.lg))
+                .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.lg))
                 .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
             contentAlignment = Alignment.Center,
         ) {
             Icon(VxinIcons.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(14.dp))
-        Text("忘记密码", fontSize = com.vxin.app.ui.theme.VxinTextSize.display, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Text("忘记密码", fontSize = com.touliao.app.ui.theme.VxinTextSize.display, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(6.dp))
         Text(
             "使用注册时的手机号和邀请码重置密码",
-            fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
+            fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
             color = VxinTextSecondary,
         )
         Spacer(Modifier.height(28.dp))
 
         if (state.success) {
-            Text("密码已重置，请返回登录", color = VxinBrand, fontSize = com.vxin.app.ui.theme.VxinTextSize.md)
+            Text("密码已重置，请返回登录", color = VxinBrand, fontSize = com.touliao.app.ui.theme.VxinTextSize.md)
             Spacer(Modifier.height(20.dp))
             VxinGradientButton(text = "返回登录", onClick = onBack)
             return@Column
@@ -117,7 +117,7 @@ fun ForgotPasswordScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = {
                 TextButton(onClick = { pwdVisible = !pwdVisible }) {
-                    Text(if (pwdVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                    Text(if (pwdVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -135,7 +135,7 @@ fun ForgotPasswordScreen(
 
         if (state.error != null) {
             Spacer(Modifier.height(12.dp))
-            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
         }
 
         Spacer(Modifier.height(24.dp))

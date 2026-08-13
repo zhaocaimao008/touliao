@@ -57,7 +57,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rate(vxin_requests_total[5m])",
+          "expr": "rate(touliao_requests_total[5m])",
           "refId": "A"
         }
       ],
@@ -137,12 +137,12 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(vxin_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, rate(touliao_request_duration_seconds_bucket[5m]))",
           "legendFormat": "p95",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.99, rate(vxin_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.99, rate(touliao_request_duration_seconds_bucket[5m]))",
           "legendFormat": "p99",
           "refId": "B"
         }
@@ -219,7 +219,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "vxin_cache_hit_rate * 100",
+          "expr": "touliao_cache_hit_rate * 100",
           "legendFormat": "Cache Hit Rate",
           "refId": "A"
         }
@@ -296,12 +296,12 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rate(vxin_requests_total{status=~'2..|3..'}[5m])",
+          "expr": "rate(touliao_requests_total{status=~'2..|3..'}[5m])",
           "legendFormat": "Success",
           "refId": "A"
         },
         {
-          "expr": "rate(vxin_requests_total{status=~'4..|5..'}[5m])",
+          "expr": "rate(touliao_requests_total{status=~'4..|5..'}[5m])",
           "legendFormat": "Errors",
           "refId": "B"
         }
@@ -378,7 +378,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rate(vxin_db_query_duration_seconds_sum[5m])",
+          "expr": "rate(touliao_db_query_duration_seconds_sum[5m])",
           "legendFormat": "Database Query Duration",
           "refId": "A"
         }
@@ -429,7 +429,7 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "(sum(rate(vxin_requests_total{status=~'2..|3..'}[5m])) / sum(rate(vxin_requests_total[5m]))) * 100",
+          "expr": "(sum(rate(touliao_requests_total{status=~'2..|3..'}[5m])) / sum(rate(touliao_requests_total[5m]))) * 100",
           "refId": "A"
         }
       ],
@@ -505,22 +505,22 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, rate(vxin_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, rate(touliao_request_duration_seconds_bucket[5m]))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.90, rate(vxin_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.90, rate(touliao_request_duration_seconds_bucket[5m]))",
           "legendFormat": "p90",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.95, rate(vxin_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, rate(touliao_request_duration_seconds_bucket[5m]))",
           "legendFormat": "p95",
           "refId": "C"
         },
         {
-          "expr": "histogram_quantile(0.99, rate(vxin_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.99, rate(touliao_request_duration_seconds_bucket[5m]))",
           "legendFormat": "p99",
           "refId": "D"
         }
@@ -533,7 +533,7 @@
   "schemaVersion": 27,
   "style": "dark",
   "tags": [
-    "v信",
+    "投聊",
     "backend",
     "performance"
   ],
@@ -546,7 +546,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "v信 Backend Dashboard",
-  "uid": "vxin-backend",
+  "title": "投聊 Backend Dashboard",
+  "uid": "touliao-backend",
   "version": 1
 }

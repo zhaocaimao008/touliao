@@ -7,7 +7,7 @@
  */
 const { request, app, makeUser, befriend, privateConversation } = require('./helpers');
 
-describe('v信 后端 E2E 集成测试', () => {
+describe('投聊 后端 E2E 集成测试', () => {
   let u1, u2;
   let conversationId, groupId, messageId;
 

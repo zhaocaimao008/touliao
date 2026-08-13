@@ -1,6 +1,6 @@
 {
   "project": {
-    "name": "v信后端推送系统优化",
+    "name": "投聊后端推送系统优化",
     "id": "VXIN-FCM-OPT-001",
     "version": "1.0.0",
     "description": "Android FCM推送系统性能优化"

@@ -1,4 +1,4 @@
-package com.vxin.app.ui.components
+package com.touliao.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,9 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vxin.app.ui.theme.VxinBrand
-import com.vxin.app.ui.theme.VxinTextPrimary
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.ui.theme.VxinBrand
+import com.touliao.app.ui.theme.VxinTextPrimary
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 /**
  * 统一空态：emoji 图标置于品牌色圆形柔和徽章内 + 主文案 + 可选副文案。
@@ -58,7 +58,7 @@ fun EmptyState(
         Text(
             title,
             color = VxinTextPrimary,
-            fontSize = com.vxin.app.ui.theme.VxinTextSize.md,
+            fontSize = com.touliao.app.ui.theme.VxinTextSize.md,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
         )
@@ -67,7 +67,7 @@ fun EmptyState(
             Text(
                 it,
                 color = VxinTextSecondary,
-                fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
+                fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
                 textAlign = TextAlign.Center,
             )
         }

@@ -1,4 +1,4 @@
-package com.vxin.app.core.push
+package com.touliao.app.core.push
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,7 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.vxin.app.MainActivity
+import com.touliao.app.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -139,9 +139,9 @@ class NotificationHelper @Inject constructor(
         const val CALL_NOTIFICATION_ID = 424242
 
         // 来电通知 Intent action / extra（MainActivity 据此进入 INCOMING）
-        const val ACTION_CALL_SHOW = "com.vxin.app.action.CALL_SHOW"
-        const val ACTION_CALL_ACCEPT = "com.vxin.app.action.CALL_ACCEPT"
-        const val ACTION_CALL_DECLINE = "com.vxin.app.action.CALL_DECLINE"
+        const val ACTION_CALL_SHOW = "com.touliao.app.action.CALL_SHOW"
+        const val ACTION_CALL_ACCEPT = "com.touliao.app.action.CALL_ACCEPT"
+        const val ACTION_CALL_DECLINE = "com.touliao.app.action.CALL_DECLINE"
         const val EXTRA_CALL_ID = "callId"
         const val EXTRA_CALL_FROM = "callFrom"
         const val EXTRA_CALL_NAME = "callerName"

@@ -1,9 +1,9 @@
 {
   "mode": "external",
   "locale": "zh-Hans",
-  "bundle": "com.vxin.app",
+  "bundle": "com.touliao.app",
   "feedback_email": "4063461zhaocaimao@gmail.com",
-  "description": "v信 是一款即时通讯应用，支持单聊与群聊、朋友圈、音视频通话、扫码加好友等功能。",
+  "description": "投聊 是一款即时通讯应用，支持单聊与群聊、朋友圈、音视频通话、扫码加好友等功能。",
   "whats_new": "请体验：注册/登录、单聊与群聊、发送图片/语音/文件、朋友圈、音视频通话、扫码加好友。",
   "demo_account": "13800138006",
   "demo_password": "Review2026ab",

@@ -1,14 +1,14 @@
-package com.vxin.app.feature.moments
+package com.touliao.app.feature.moments
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.auth.SessionManager
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.core.util.MediaUrlResolver
-import com.vxin.app.data.model.Moment
-import com.vxin.app.data.model.MomentComment
-import com.vxin.app.data.model.MomentNotification
-import com.vxin.app.data.repository.MomentRepository
+import com.touliao.app.core.auth.SessionManager
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.core.util.MediaUrlResolver
+import com.touliao.app.data.model.Moment
+import com.touliao.app.data.model.MomentComment
+import com.touliao.app.data.model.MomentNotification
+import com.touliao.app.data.repository.MomentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,7 +37,7 @@ private const val PAGE = 20
 @HiltViewModel
 class MomentsViewModel @Inject constructor(
     private val momentRepository: MomentRepository,
-    private val profileRepository: com.vxin.app.data.repository.ProfileRepository,
+    private val profileRepository: com.touliao.app.data.repository.ProfileRepository,
     private val mediaUrlResolver: MediaUrlResolver,
     sessionManager: SessionManager,
 ) : ViewModel() {

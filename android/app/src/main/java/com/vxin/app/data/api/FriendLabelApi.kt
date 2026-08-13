@@ -1,9 +1,9 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.FriendLabel
-import com.vxin.app.data.model.FriendLabelBody
-import com.vxin.app.data.model.FriendLabelMemberBody
-import com.vxin.app.data.model.SuccessResponse
+import com.touliao.app.data.model.FriendLabel
+import com.touliao.app.data.model.FriendLabelBody
+import com.touliao.app.data.model.FriendLabelMemberBody
+import com.touliao.app.data.model.SuccessResponse
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET

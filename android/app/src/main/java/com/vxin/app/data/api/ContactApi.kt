@@ -1,14 +1,14 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.BlockedUser
-import com.vxin.app.data.model.Contact
-import com.vxin.app.data.model.FriendRequest
-import com.vxin.app.data.model.FriendRequestBody
-import com.vxin.app.data.model.HandleRequestBody
-import com.vxin.app.data.model.RemarkBody
-import com.vxin.app.data.model.SearchUser
-import com.vxin.app.data.model.SendRequestResponse
-import com.vxin.app.data.model.UserDetail
+import com.touliao.app.data.model.BlockedUser
+import com.touliao.app.data.model.Contact
+import com.touliao.app.data.model.FriendRequest
+import com.touliao.app.data.model.FriendRequestBody
+import com.touliao.app.data.model.HandleRequestBody
+import com.touliao.app.data.model.RemarkBody
+import com.touliao.app.data.model.SearchUser
+import com.touliao.app.data.model.SendRequestResponse
+import com.touliao.app.data.model.UserDetail
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -22,7 +22,7 @@ interface ContactApi {
     @GET("api/users/contacts")
     suspend fun contacts(): List<Contact>
 
-    /** 搜索用户（手机号 / v信号 / 用户名） */
+    /** 搜索用户（手机号 / 投聊号 / 用户名） */
     @GET("api/users/search")
     suspend fun search(@Query("q") q: String): List<SearchUser>
 
@@ -33,7 +33,7 @@ interface ContactApi {
     suspend fun receivedRequests(): List<FriendRequest>
 
     @GET("api/users/friend-requests/sent")
-    suspend fun sentRequests(): List<com.vxin.app.data.model.SentRequest>
+    suspend fun sentRequests(): List<com.touliao.app.data.model.SentRequest>
 
     /** action = accept | reject */
     @POST("api/users/friend-request/{id}/handle")

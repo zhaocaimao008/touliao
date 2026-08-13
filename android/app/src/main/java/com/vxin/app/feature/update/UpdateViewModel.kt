@@ -1,11 +1,11 @@
-package com.vxin.app.feature.update
+package com.touliao.app.feature.update
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.update.ApkDownloader
-import com.vxin.app.core.update.ApkInstaller
-import com.vxin.app.core.update.CheckResult
-import com.vxin.app.core.update.UpdateChecker
+import com.touliao.app.core.update.ApkDownloader
+import com.touliao.app.core.update.ApkInstaller
+import com.touliao.app.core.update.CheckResult
+import com.touliao.app.core.update.UpdateChecker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow

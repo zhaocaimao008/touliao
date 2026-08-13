@@ -1,4 +1,4 @@
-// ── v信 服务工作线程 ──────────────────────────────────────────
+// ── 投聊 服务工作线程 ──────────────────────────────────────────
 // PWA 离线回退 + 推送通知处理
 // Capacitor 移动端使用原生推送，此 SW 仅用于 Web 端推送
 
@@ -63,7 +63,7 @@ self.addEventListener('push', (event) => {
       actions: data.actions || [],
     };
     event.waitUntil(
-      self.registration.showNotification(data.title || 'v信', options)
+      self.registration.showNotification(data.title || '投聊', options)
     );
   } catch (e) {
     console.warn('[SW] 推送解析失败:', e);

@@ -1,6 +1,6 @@
-package com.vxin.app.core.network
+package com.touliao.app.core.network
 
-import com.vxin.app.core.storage.ServerConfig
+import com.touliao.app.core.storage.ServerConfig
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.Response

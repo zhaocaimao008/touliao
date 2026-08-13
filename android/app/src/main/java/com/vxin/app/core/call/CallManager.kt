@@ -1,10 +1,10 @@
-package com.vxin.app.core.call
+package com.touliao.app.core.call
 
 import android.content.Context
 import android.util.Log
-import com.vxin.app.core.auth.SessionManager
-import com.vxin.app.core.di.AppScope
-import com.vxin.app.core.realtime.SocketManager
+import com.touliao.app.core.auth.SessionManager
+import com.touliao.app.core.di.AppScope
+import com.touliao.app.core.realtime.SocketManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -59,7 +59,7 @@ class CallManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val socketManager: SocketManager,
     private val sessionManager: SessionManager,
-    private val turnApi: com.vxin.app.data.api.TurnApi,
+    private val turnApi: com.touliao.app.data.api.TurnApi,
     @AppScope private val scope: CoroutineScope,
 ) {
     val eglBase: EglBase = EglBase.create()

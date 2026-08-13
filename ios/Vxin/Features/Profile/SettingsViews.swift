@@ -409,7 +409,7 @@ struct PrivacySecurityView: View {
     var body: some View {
         Form {
             Section("添加我的方式") {
-                Toggle("通过 v信号添加", isOn: Binding(
+                Toggle("通过 投聊号添加", isOn: Binding(
                     get: { vm.addByVxinId }, set: { vm.addByVxinId = $0; vm.update(addByVxinId: $0) }
                 ))
                 Toggle("通过手机号添加", isOn: Binding(

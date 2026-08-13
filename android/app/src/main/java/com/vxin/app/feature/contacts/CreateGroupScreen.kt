@@ -1,4 +1,4 @@
-package com.vxin.app.feature.contacts
+package com.touliao.app.feature.contacts
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -35,10 +35,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.data.model.Contact
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.data.model.Contact
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,7 +82,7 @@ fun CreateGroupScreen(
             Box(Modifier.fillMaxSize()) {
                 when {
                     state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                    state.contacts.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "👥", title = "还没有联系人", modifier = Modifier.align(Alignment.Center))
+                    state.contacts.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "👥", title = "还没有联系人", modifier = Modifier.align(Alignment.Center))
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(state.contacts, key = { it.id }) { contact ->
                             SelectableContactRow(

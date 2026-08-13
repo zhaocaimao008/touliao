@@ -70,8 +70,8 @@ router.get('/', (req, res) => {
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>v信 · 下载中心</title>
-<meta name="description" content="v信 客户端下载 — 安全、私密、多端同步的企业级即时通讯"/>
+<title>投聊 · 下载中心</title>
+<meta name="description" content="投聊 客户端下载 — 安全、私密、多端同步的企业级即时通讯"/>
 <style>
 :root{
   --green:#07C160; --green-light:#09D96C; --green-dark:#06AD56;
@@ -197,7 +197,7 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.5px;margin-bottom:10px}
         <path d="M17 15a3 3 0 013-3h11a3 3 0 013 3v10a3 3 0 01-3 3h-3v4l-5-4h-3a3 3 0 01-3-3V15z" fill="#fff"/>
       </svg>
     </div>
-    <h1>v信</h1>
+    <h1>投聊</h1>
     <p class="tagline">安全 · 私密 · 多端同步的即时通讯</p>
     <div class="version-pill"><span class="dot"></span>最新版本 v${VERSION}</div>
   </div>
@@ -212,7 +212,7 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.5px;margin-bottom:10px}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/></svg>
       无需下载，网页版直接使用
     </a>
-    <div>© ${new Date().getFullYear()} v信 · All rights reserved</div>
+    <div>© ${new Date().getFullYear()} 投聊 · All rights reserved</div>
   </div>
 </div>
 

@@ -1,4 +1,4 @@
-package com.vxin.app.core.capture
+package com.touliao.app.core.capture
 
 import android.app.Notification
 import android.app.PendingIntent
@@ -26,8 +26,8 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import com.vxin.app.MainActivity
-import com.vxin.app.core.push.NotificationHelper
+import com.touliao.app.MainActivity
+import com.touliao.app.core.push.NotificationHelper
 import java.io.File
 import java.io.FileOutputStream
 
@@ -36,7 +36,7 @@ import java.io.FileOutputStream
  * 1. 以 mediaProjection 类型起前台（Android 14+ 硬性要求，且必须先起前台再取 MediaProjection）。
  * 2. 悬浮一个「截屏」小球，用户可切到任意 App，点小球截当前整屏。
  * 3. 用 MediaProjection + VirtualDisplay + ImageReader 抓一帧 → 存 PNG 到 cache/screenshot →
- *    通过 ScreenCaptureBus 发给发起方 ViewModel（去发送），并把 v信 拉回前台。
+ *    通过 ScreenCaptureBus 发给发起方 ViewModel（去发送），并把 投聊 拉回前台。
  * 4. 截完即停：释放投影/虚拟屏/悬浮窗，撤前台。
  *
  * 权限：需 FOREGROUND_SERVICE_MEDIA_PROJECTION + SYSTEM_ALERT_WINDOW（悬浮球）。
@@ -191,7 +191,7 @@ class ScreenCaptureService : Service() {
             FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
             bitmap.recycle()
             ScreenCaptureBus.emit(file)
-            // 把 v信 拉回前台，让用户看到截图已发送
+            // 把 投聊 拉回前台，让用户看到截图已发送
             startActivity(Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             })
@@ -237,7 +237,7 @@ class ScreenCaptureService : Service() {
         private const val NOTIFICATION_ID = 424244   // 与来电(424242)/通话(424243)分开
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
-        const val ACTION_STOP = "com.vxin.app.capture.STOP"
+        const val ACTION_STOP = "com.touliao.app.capture.STOP"
 
         fun startIntent(context: Context, resultCode: Int, data: Intent): Intent =
             Intent(context, ScreenCaptureService::class.java).apply {

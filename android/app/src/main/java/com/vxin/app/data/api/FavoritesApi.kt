@@ -1,7 +1,7 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.Collection
-import com.vxin.app.data.model.CollectionPage
+import com.touliao.app.data.model.Collection
+import com.touliao.app.data.model.CollectionPage
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Path

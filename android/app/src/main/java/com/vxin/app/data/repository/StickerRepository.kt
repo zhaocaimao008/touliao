@@ -1,10 +1,10 @@
-package com.vxin.app.data.repository
+package com.touliao.app.data.repository
 
-import com.vxin.app.data.api.StickerApi
-import com.vxin.app.data.model.Message
-import com.vxin.app.data.model.Sticker
-import com.vxin.app.data.model.StickerCollectBody
-import com.vxin.app.data.model.StickerSendBody
+import com.touliao.app.data.api.StickerApi
+import com.touliao.app.data.model.Message
+import com.touliao.app.data.model.Sticker
+import com.touliao.app.data.model.StickerCollectBody
+import com.touliao.app.data.model.StickerSendBody
 import javax.inject.Inject
 import javax.inject.Singleton
 

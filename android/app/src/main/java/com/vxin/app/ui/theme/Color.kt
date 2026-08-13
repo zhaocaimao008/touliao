@@ -1,8 +1,8 @@
-package com.vxin.app.ui.theme
+package com.touliao.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// v信 品牌色（AURORA 极光靛，对齐 Web 端 --brand-500 #6D5AE6）
+// 投聊 品牌色（AURORA 极光靛，对齐 Web 端 --brand-500 #6D5AE6）
 val VxinBrand = Color(0xFF6D5AE6)         // 主品牌色 极光靛（brand-500）
 val VxinBrandLight = Color(0xFF8A78EB)    // brand-400 渐变浅端
 val VxinBrandDark = Color(0xFF5A47D6)     // brand-600 渐变深端 / 按下态

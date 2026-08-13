@@ -3,18 +3,18 @@
   "objects": [
     {
       "type": "index-pattern",
-      "id": "v信-logs",
+      "id": "投聊-logs",
       "attributes": {
-        "title": "v信-logs-*",
+        "title": "投聊-logs-*",
         "timeFieldName": "@timestamp",
         "fields": "[{\"name\":\"@timestamp\",\"type\":\"date\",\"searchable\":true,\"aggregatable\":true},{\"name\":\"level\",\"type\":\"string\",\"searchable\":true,\"aggregatable\":true},{\"name\":\"userId\",\"type\":\"string\",\"searchable\":true,\"aggregatable\":true},{\"name\":\"duration\",\"type\":\"number\",\"searchable\":true,\"aggregatable\":true},{\"name\":\"status\",\"type\":\"number\",\"searchable\":true,\"aggregatable\":true}]"
       }
     },
     {
       "type": "dashboard",
-      "id": "v信-backend-logs",
+      "id": "投聊-backend-logs",
       "attributes": {
-        "title": "v信 Backend Logs Dashboard",
+        "title": "投聊 Backend Logs Dashboard",
         "description": "后端日志分析仪表板",
         "panelsJSON": "[{\"version\":\"8.5.0\",\"gridData\":{\"x\":0,\"y\":0,\"w\":24,\"h\":15},\"panelRefName\":\"panel_1\"},{\"version\":\"8.5.0\",\"gridData\":{\"x\":0,\"y\":15,\"w\":12,\"h\":15},\"panelRefName\":\"panel_2\"},{\"version\":\"8.5.0\",\"gridData\":{\"x\":12,\"y\":15,\"w\":12,\"h\":15},\"panelRefName\":\"panel_3\"}]",
         "timeRestore": true,

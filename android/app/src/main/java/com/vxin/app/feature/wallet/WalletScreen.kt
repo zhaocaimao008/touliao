@@ -1,4 +1,4 @@
-package com.vxin.app.feature.wallet
+package com.touliao.app.feature.wallet
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,8 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.data.model.WalletTransaction
-import com.vxin.app.ui.components.EmptyState
+import com.touliao.app.data.model.WalletTransaction
+import com.touliao.app.ui.components.EmptyState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -92,7 +92,7 @@ fun WalletScreen(onBack: () -> Unit, viewModel: WalletViewModel = hiltViewModel(
                         Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("当前余额（金币）", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                             Spacer(Modifier.size(8.dp))
-                            Text("${state.balance}", fontSize = com.vxin.app.ui.theme.VxinTextSize.displayXl, fontWeight = FontWeight.Bold, color = Color(0xFFFA9D3B))
+                            Text("${state.balance}", fontSize = com.touliao.app.ui.theme.VxinTextSize.displayXl, fontWeight = FontWeight.Bold, color = Color(0xFFFA9D3B))
                             Spacer(Modifier.size(12.dp))
                             Button(onClick = { showRechargeDialog = true }, enabled = !state.recharging) {
                                 Text(if (state.recharging) "充值中…" else "充值")
@@ -161,7 +161,7 @@ private fun TransactionRow(tx: WalletTransaction) {
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 (if (positive) "+" else "") + "${tx.amount}",
-                color = if (positive) com.vxin.app.ui.theme.VxinSuccess else Color(0xFFFA5151),
+                color = if (positive) com.touliao.app.ui.theme.VxinSuccess else Color(0xFFFA5151),
                 fontWeight = FontWeight.SemiBold,
             )
             Text("余额 ${tx.balanceAfter}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

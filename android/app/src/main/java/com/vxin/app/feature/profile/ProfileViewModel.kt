@@ -1,14 +1,14 @@
-package com.vxin.app.feature.profile
+package com.touliao.app.feature.profile
 
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.auth.SessionManager
-import com.vxin.app.core.media.MediaUploader
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.core.util.MediaUrlResolver
-import com.vxin.app.data.model.User
-import com.vxin.app.data.repository.ProfileRepository
+import com.touliao.app.core.auth.SessionManager
+import com.touliao.app.core.media.MediaUploader
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.core.util.MediaUrlResolver
+import com.touliao.app.data.model.User
+import com.touliao.app.data.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +24,7 @@ data class ProfileUiState(
     val saving: Boolean = false,
     val uploadingAvatar: Boolean = false,
     val message: String? = null,     // 提示（成功/失败）
-    val invite: com.vxin.app.data.model.InviteInfo? = null, // 我的专属邀请码+战绩
+    val invite: com.touliao.app.data.model.InviteInfo? = null, // 我的专属邀请码+战绩
     val changingPhone: Boolean = false,  // 换绑手机号进行中
 )
 
@@ -51,7 +51,7 @@ class ProfileViewModel @Inject constructor(
 
     // ── 多账号 ──────────────────────────────────────────
     private val _accounts = MutableStateFlow(sessionManager.accounts())
-    val accounts: StateFlow<List<com.vxin.app.data.model.Account>> = _accounts.asStateFlow()
+    val accounts: StateFlow<List<com.touliao.app.data.model.Account>> = _accounts.asStateFlow()
     val activeAccountId: String? get() = sessionManager.activeAccountId()
 
     fun refreshAccounts() { _accounts.value = sessionManager.accounts() }

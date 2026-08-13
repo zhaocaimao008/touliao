@@ -1,12 +1,12 @@
-package com.vxin.app.core.push
+package com.touliao.app.core.push
 
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessaging
-import com.vxin.app.core.di.AppScope
-import com.vxin.app.core.storage.TokenStore
-import com.vxin.app.data.api.NotificationApi
-import com.vxin.app.data.model.DeleteTokenRequest
-import com.vxin.app.data.model.DeviceTokenRequest
+import com.touliao.app.core.di.AppScope
+import com.touliao.app.core.storage.TokenStore
+import com.touliao.app.data.api.NotificationApi
+import com.touliao.app.data.model.DeleteTokenRequest
+import com.touliao.app.data.model.DeviceTokenRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine

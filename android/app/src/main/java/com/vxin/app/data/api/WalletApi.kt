@@ -1,11 +1,11 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.RechargeRequest
-import com.vxin.app.data.model.RechargeResponse
-import com.vxin.app.data.model.TransferRequest
-import com.vxin.app.data.model.TransferResponse
-import com.vxin.app.data.model.WalletBalance
-import com.vxin.app.data.model.WalletTransaction
+import com.touliao.app.data.model.RechargeRequest
+import com.touliao.app.data.model.RechargeResponse
+import com.touliao.app.data.model.TransferRequest
+import com.touliao.app.data.model.TransferResponse
+import com.touliao.app.data.model.WalletBalance
+import com.touliao.app.data.model.WalletTransaction
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST

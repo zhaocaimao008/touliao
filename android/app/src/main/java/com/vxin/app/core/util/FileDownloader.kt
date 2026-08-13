@@ -1,4 +1,4 @@
-package com.vxin.app.core.util
+package com.touliao.app.core.util
 
 import android.app.DownloadManager
 import android.content.ContentValues

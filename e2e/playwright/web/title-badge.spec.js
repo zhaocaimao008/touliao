@@ -1,7 +1,7 @@
 'use strict';
 // ================================================================
 // TITLE — 浏览器标签页未读角标
-//   TB-01 未打开会话时收到消息 → document.title 变「(N) v信」；读后复位
+//   TB-01 未打开会话时收到消息 → document.title 变「(N) 投聊」；读后复位
 // ================================================================
 const { test, expect } = require('../fixtures');
 const { LoginPage } = require('../pages/LoginPage');
@@ -20,7 +20,7 @@ test.describe('标签页未读角标 TITLE', () => {
     await chatA.waitReady();
     await chatA.waitSocketConnected();   // 确保 A 在房间,B 发来的消息才能推到 A 触发未读角标
     // 基线：无未读 → 纯标题
-    await expect.poll(() => pageA.title(), { timeout: 5000 }).toBe('v信');
+    await expect.poll(() => pageA.title(), { timeout: 5000 }).toBe('投聊');
 
     // B 端：登录并打开同一私聊，发一条
     const ctxB = await makeCtx();
@@ -31,10 +31,10 @@ test.describe('标签页未读角标 TITLE', () => {
     await chatB.sendText('tb-' + Date.now());
 
     // A 端：未打开会话 → 标题出现未读角标
-    await expect.poll(() => pageA.title(), { timeout: 8000 }).toMatch(/^\(\d+\) v信$/);
+    await expect.poll(() => pageA.title(), { timeout: 8000 }).toMatch(/^\(\d+\) 投聊$/);
 
     // A 打开该会话读掉 → 标题复位
     await chatA.openConv(seeded.convAB);
-    await expect.poll(() => pageA.title(), { timeout: 8000 }).toBe('v信');
+    await expect.poll(() => pageA.title(), { timeout: 8000 }).toBe('投聊');
   });
 });

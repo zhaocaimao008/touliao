@@ -1,6 +1,6 @@
-package com.vxin.app.core.network
+package com.touliao.app.core.network
 
-import com.vxin.app.core.storage.TokenStore
+import com.touliao.app.core.storage.TokenStore
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import okhttp3.Interceptor

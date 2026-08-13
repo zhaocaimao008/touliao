@@ -1,4 +1,4 @@
-package com.vxin.app.core.call
+package com.touliao.app.core.call
 
 import android.app.Notification
 import android.app.PendingIntent
@@ -11,8 +11,8 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
-import com.vxin.app.MainActivity
-import com.vxin.app.core.push.NotificationHelper
+import com.touliao.app.MainActivity
+import com.touliao.app.core.push.NotificationHelper
 
 /**
  * 通话保活前台服务：通话建立本地媒体（开始采集麦克风）后启动，展示一条"通话中"常驻通知，

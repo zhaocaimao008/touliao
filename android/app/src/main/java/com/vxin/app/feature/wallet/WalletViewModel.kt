@@ -1,10 +1,10 @@
-package com.vxin.app.feature.wallet
+package com.touliao.app.feature.wallet
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.data.model.WalletTransaction
-import com.vxin.app.data.repository.WalletRepository
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.data.model.WalletTransaction
+import com.touliao.app.data.repository.WalletRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

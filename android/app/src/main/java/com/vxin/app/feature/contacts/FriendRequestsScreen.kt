@@ -1,4 +1,4 @@
-package com.vxin.app.feature.contacts
+package com.touliao.app.feature.contacts
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,11 +36,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.data.model.FriendRequest
-import com.vxin.app.data.model.SentRequest
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.data.model.FriendRequest
+import com.touliao.app.data.model.SentRequest
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,7 +72,7 @@ fun FriendRequestsScreen(
                 if (tab == 0) {
                     when {
                         state.loading && state.requests.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                        state.requests.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "👋", title = "没有新的好友申请", modifier = Modifier.align(Alignment.Center))
+                        state.requests.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "👋", title = "没有新的好友申请", modifier = Modifier.align(Alignment.Center))
                         else -> LazyColumn(Modifier.fillMaxSize()) {
                             items(state.requests, key = { it.id }) { req ->
                                 RequestRow(
@@ -87,7 +87,7 @@ fun FriendRequestsScreen(
                     }
                 } else {
                     if (state.sent.isEmpty()) {
-                        com.vxin.app.ui.components.EmptyState(icon = "📮", title = "没有已发送的申请", modifier = Modifier.align(Alignment.Center))
+                        com.touliao.app.ui.components.EmptyState(icon = "📮", title = "没有已发送的申请", modifier = Modifier.align(Alignment.Center))
                     } else {
                         LazyColumn(Modifier.fillMaxSize()) {
                             items(state.sent, key = { it.id }) { req -> SentRow(req, avatarUrl = viewModel.resolveUrl(req.avatar)) }

@@ -1,10 +1,10 @@
-package com.vxin.app.feature.call
+package com.touliao.app.feature.call
 
 import androidx.lifecycle.ViewModel
-import com.vxin.app.core.call.GroupCallManager
-import com.vxin.app.core.call.GroupCallState
-import com.vxin.app.core.realtime.GroupCallInviteEvent
-import com.vxin.app.core.realtime.SocketManager
+import com.touliao.app.core.call.GroupCallManager
+import com.touliao.app.core.call.GroupCallState
+import com.touliao.app.core.realtime.GroupCallInviteEvent
+import com.touliao.app.core.realtime.SocketManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow

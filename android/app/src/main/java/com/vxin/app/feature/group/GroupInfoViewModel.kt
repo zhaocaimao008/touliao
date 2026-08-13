@@ -1,16 +1,16 @@
-package com.vxin.app.feature.group
+package com.touliao.app.feature.group
 
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.auth.SessionManager
-import com.vxin.app.core.media.MediaUploader
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.core.util.MediaUrlResolver
-import com.vxin.app.data.model.GroupInfo
-import com.vxin.app.data.model.GroupMember
-import com.vxin.app.data.repository.GroupRepository
+import com.touliao.app.core.auth.SessionManager
+import com.touliao.app.core.media.MediaUploader
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.core.util.MediaUrlResolver
+import com.touliao.app.data.model.GroupInfo
+import com.touliao.app.data.model.GroupMember
+import com.touliao.app.data.repository.GroupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -155,7 +155,7 @@ class GroupInfoViewModel @Inject constructor(
         if (_uiState.value.updating) return
         _uiState.update { it.copy(updating = true, error = null) }
         viewModelScope.launch {
-            runCatching { groupRepository.manage(conversationId, com.vxin.app.data.model.ManageBody(muteAll, noPrivateChat, noAddFriend)) }
+            runCatching { groupRepository.manage(conversationId, com.touliao.app.data.model.ManageBody(muteAll, noPrivateChat, noAddFriend)) }
                 .onSuccess {
                     _uiState.update { s ->
                         s.copy(updating = false, info = s.info?.copy(

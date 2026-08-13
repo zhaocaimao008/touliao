@@ -1,7 +1,7 @@
-package com.vxin.app.core.config
+package com.touliao.app.core.config
 
 import android.util.Log
-import com.vxin.app.core.storage.ServerConfig
+import com.touliao.app.core.storage.ServerConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable

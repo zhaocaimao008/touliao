@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// v信 字号规范 —— 单一真相源（对齐 Web design-tokens.css --text-* 体系 / Android VxinTextSize）。
+/// 投聊 字号规范 —— 单一真相源（对齐 Web design-tokens.css --text-* 体系 / Android VxinTextSize）。
 /// 命名与取值跨端保持一致，统一字号语汇（单位 pt≈px）：
 ///   xs2=10  xs=11  sm=12  sm2=13  base=14  md=15  lg=16  xl=18  xxl=20  xxxl=24
 /// 说明：展示型大字（余额/品牌名/认证标题等）见下方展示字阶 display*；

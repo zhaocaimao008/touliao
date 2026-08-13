@@ -1,4 +1,4 @@
-name: v信 CI/CD Pipeline
+name: 投聊 CI/CD Pipeline
 
 on:
   push:
@@ -167,16 +167,16 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /root/v信
+            cd /root/投聊
             git pull origin main
             
             # 备份数据库
-            /usr/local/bin/backup-vxin-db.sh
+            /usr/local/bin/backup-touliao-db.sh
             
             # 更新后端
             cd backend-v2
             npm ci --production
-            pm2 restart vxin-server-v2
+            pm2 restart touliao-server-v2
             
             # 更新前端
             cd ../web
@@ -193,7 +193,7 @@ jobs:
         uses: 8398a7/action-slack@v3
         with:
           status: ${{ job.status }}
-          text: '部署 ${{ job.status }}: v信 ${{ github.sha }}'
+          text: '部署 ${{ job.status }}: 投聊 ${{ github.sha }}'
           webhook_url: ${{ secrets.SLACK_WEBHOOK }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

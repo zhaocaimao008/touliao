@@ -1,6 +1,6 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.AppConfig
+import com.touliao.app.data.model.AppConfig
 import retrofit2.http.GET
 
 interface ConfigApi {

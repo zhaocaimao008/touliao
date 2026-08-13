@@ -1,10 +1,10 @@
-package com.vxin.app.core.auth
+package com.touliao.app.core.auth
 
-import com.vxin.app.core.di.AppScope
-import com.vxin.app.core.network.AuthInterceptor
-import com.vxin.app.core.realtime.SocketManager
-import com.vxin.app.data.model.User
-import com.vxin.app.data.repository.AuthRepository
+import com.touliao.app.core.di.AppScope
+import com.touliao.app.core.network.AuthInterceptor
+import com.touliao.app.core.realtime.SocketManager
+import com.touliao.app.data.model.User
+import com.touliao.app.data.repository.AuthRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,11 +29,11 @@ sealed interface AuthState {
 class SessionManager @Inject constructor(
     private val authRepository: AuthRepository,
     private val socketManager: SocketManager,
-    private val pushManager: com.vxin.app.core.push.PushManager,
-    private val remoteConfig: com.vxin.app.core.config.RemoteConfig,
-    private val tokenStore: com.vxin.app.core.storage.TokenStore,
-    private val accountStore: com.vxin.app.core.storage.AccountStore,
-    private val msgCacheStore: com.vxin.app.core.storage.MsgCacheStore,
+    private val pushManager: com.touliao.app.core.push.PushManager,
+    private val remoteConfig: com.touliao.app.core.config.RemoteConfig,
+    private val tokenStore: com.touliao.app.core.storage.TokenStore,
+    private val accountStore: com.touliao.app.core.storage.AccountStore,
+    private val msgCacheStore: com.touliao.app.core.storage.MsgCacheStore,
     authInterceptor: AuthInterceptor,
     @AppScope private val scope: CoroutineScope,
 ) {
@@ -80,7 +80,7 @@ class SessionManager @Inject constructor(
     val currentUser: User? get() = (_state.value as? AuthState.Authenticated)?.user
 
     // ── 多账号 ──────────────────────────────────────────
-    fun accounts(): List<com.vxin.app.data.model.Account> = accountStore.accounts()
+    fun accounts(): List<com.touliao.app.data.model.Account> = accountStore.accounts()
     fun activeAccountId(): String? = accountStore.activeId()
 
     /** 移除非当前账号（当前账号请用退出登录） */

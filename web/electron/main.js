@@ -167,7 +167,7 @@ function createTray() {
     // mac 托盘图标需 template + 小尺寸
     const trayImg = IS_MAC ? img.resize({ width: 18, height: 18 }) : img;
     g_tray = new Tray(trayImg);
-    g_tray.setToolTip('v信');
+    g_tray.setToolTip('投聊');
     g_tray.setContextMenu(buildTrayMenu());
     // 左键点击：切换显示/隐藏(win/linux)；mac 左键默认弹菜单，这里也显示窗口
     g_tray.on('click', () => showMainWindow());
@@ -179,7 +179,7 @@ function createTray() {
 
 function buildTrayMenu() {
   return Menu.buildFromTemplate([
-    { label: '打开 v信', click: () => showMainWindow() },
+    { label: '打开 投聊', click: () => showMainWindow() },
     { type: 'separator' },
     { label: '退出', click: () => { g_quitting = true; app.quit(); } },
   ]);
@@ -216,7 +216,7 @@ ipcMain.on('badge:set', (_e, rawCount) => {
   g_unread = count;
   try { app.setBadgeCount(count); } catch { /* 平台不支持则忽略 */ }
   // 托盘 tooltip 反映未读
-  try { g_tray?.setToolTip(count > 0 ? `v信 · ${count > 99 ? '99+' : count} 条未读` : 'v信'); } catch {}
+  try { g_tray?.setToolTip(count > 0 ? `投聊 · ${count > 99 ? '99+' : count} 条未读` : '投聊'); } catch {}
   const win = BrowserWindow.getAllWindows()[0];
   if (!win || win.isDestroyed()) return;
   if (process.platform === 'win32') {

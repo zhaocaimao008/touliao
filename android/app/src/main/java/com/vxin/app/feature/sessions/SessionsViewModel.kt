@@ -1,10 +1,10 @@
-package com.vxin.app.feature.sessions
+package com.touliao.app.feature.sessions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.data.api.AuthApi
-import com.vxin.app.data.model.DeviceSession
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.data.api.AuthApi
+import com.touliao.app.data.model.DeviceSession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

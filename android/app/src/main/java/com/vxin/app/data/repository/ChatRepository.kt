@@ -1,19 +1,19 @@
-package com.vxin.app.data.repository
+package com.touliao.app.data.repository
 
-import com.vxin.app.core.realtime.ReactionEvent
-import com.vxin.app.core.realtime.ReadEvent
-import com.vxin.app.core.realtime.RedPacketClaimedEvent
-import com.vxin.app.core.media.ChunkUploader
-import com.vxin.app.core.media.MediaUploader
-import com.vxin.app.core.realtime.SocketManager
-import com.vxin.app.core.realtime.SocketStatus
-import com.vxin.app.core.realtime.TypingEvent
-import com.vxin.app.data.api.MessageApi
-import com.vxin.app.data.model.Conversation
-import com.vxin.app.data.model.DeleteMessageBody
-import com.vxin.app.data.model.MarkReadRequest
-import com.vxin.app.data.model.Message
-import com.vxin.app.data.model.ReactBody
+import com.touliao.app.core.realtime.ReactionEvent
+import com.touliao.app.core.realtime.ReadEvent
+import com.touliao.app.core.realtime.RedPacketClaimedEvent
+import com.touliao.app.core.media.ChunkUploader
+import com.touliao.app.core.media.MediaUploader
+import com.touliao.app.core.realtime.SocketManager
+import com.touliao.app.core.realtime.SocketStatus
+import com.touliao.app.core.realtime.TypingEvent
+import com.touliao.app.data.api.MessageApi
+import com.touliao.app.data.model.Conversation
+import com.touliao.app.data.model.DeleteMessageBody
+import com.touliao.app.data.model.MarkReadRequest
+import com.touliao.app.data.model.Message
+import com.touliao.app.data.model.ReactBody
 import okhttp3.MultipartBody
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
@@ -47,9 +47,9 @@ class ChatRepository @Inject constructor(
     val pinChangedEvents: SharedFlow<String> = socketManager.pinChangedEvents
     val groupGoneEvents: SharedFlow<String> = socketManager.groupGoneEvents
     val groupChangedEvents: SharedFlow<String> = socketManager.groupChangedEvents
-    val messageEditedEvents: SharedFlow<com.vxin.app.core.realtime.MessageEditedEvent> = socketManager.messageEditedEvents
+    val messageEditedEvents: SharedFlow<com.touliao.app.core.realtime.MessageEditedEvent> = socketManager.messageEditedEvents
     /** 后台功能开关实时更新 → 最新 Features */
-    val configUpdatedEvents: SharedFlow<com.vxin.app.data.model.Features> = socketManager.configUpdatedEvents
+    val configUpdatedEvents: SharedFlow<com.touliao.app.data.model.Features> = socketManager.configUpdatedEvents
 
     fun joinConversation(conversationId: String) = socketManager.joinConversation(conversationId)
     fun emitTyping(conversationId: String) = socketManager.emitTyping(conversationId)
@@ -60,7 +60,7 @@ class ChatRepository @Inject constructor(
 
     /** 设置/清除聊天专属背景（空串=清除） */
     suspend fun setConversationBackground(conversationId: String, background: String) =
-        api.setBackground(conversationId, com.vxin.app.data.model.BackgroundBody(background))
+        api.setBackground(conversationId, com.touliao.app.data.model.BackgroundBody(background))
 
     /** 标记会话已读 */
     suspend fun markRead(conversationId: String, messageId: String?) {
@@ -117,7 +117,7 @@ class ChatRepository @Inject constructor(
 
     /** 批量撤回/删除（多选） */
     suspend fun batchDelete(conversationId: String, msgIds: List<String>) =
-        api.batchDelete(com.vxin.app.data.model.BatchDeleteBody(msgIds, conversationId))
+        api.batchDelete(com.touliao.app.data.model.BatchDeleteBody(msgIds, conversationId))
 
     suspend fun vanishMessage(msgId: String) =
         runCatching { api.deleteMessage(msgId, DeleteMessageBody(vanish = true)) }
@@ -128,7 +128,7 @@ class ChatRepository @Inject constructor(
 
     // ── 群置顶消息 ──
     suspend fun pinMessage(conversationId: String, msgId: String) =
-        api.pinMessage(conversationId, com.vxin.app.data.model.PinMessageBody(msgId))
+        api.pinMessage(conversationId, com.touliao.app.data.model.PinMessageBody(msgId))
 
     suspend fun unpinMessage(conversationId: String, msgId: String) =
         api.unpinMessage(conversationId, msgId)
@@ -137,17 +137,17 @@ class ChatRepository @Inject constructor(
 
     // ── 会话操作 ──
     suspend fun setConversationPinned(conversationId: String, pinned: Boolean) =
-        api.pinConversation(conversationId, com.vxin.app.data.model.PinConversationBody(if (pinned) 1 else 0))
+        api.pinConversation(conversationId, com.touliao.app.data.model.PinConversationBody(if (pinned) 1 else 0))
 
     suspend fun setConversationMuted(conversationId: String, muted: Boolean) =
-        api.muteConversation(conversationId, com.vxin.app.data.model.MuteConversationBody(if (muted) 1 else 0))
+        api.muteConversation(conversationId, com.touliao.app.data.model.MuteConversationBody(if (muted) 1 else 0))
 
     /** 标为未读 */
     suspend fun markConversationUnread(conversationId: String) = api.markUnread(conversationId)
 
     /** 阅后即焚（seconds=0 关闭） */
     suspend fun setBurnAfter(conversationId: String, seconds: Int) =
-        api.setBurnAfter(conversationId, com.vxin.app.data.model.BurnAfterBody(seconds))
+        api.setBurnAfter(conversationId, com.touliao.app.data.model.BurnAfterBody(seconds))
 
     /** 文件传输助手会话（获取或创建），返回 conversationId */
     suspend fun fileHelper(): String = api.fileHelper().conversationId
@@ -155,10 +155,10 @@ class ChatRepository @Inject constructor(
     suspend fun clearMessages(conversationId: String) = api.clearMessages(conversationId)
 
     suspend fun editMessage(msgId: String, content: String) =
-        api.editMessage(msgId, com.vxin.app.data.model.EditMessageBody(content))
+        api.editMessage(msgId, com.touliao.app.data.model.EditMessageBody(content))
 
     suspend fun forward(msgId: String, conversationIds: List<String>) =
-        api.forward(com.vxin.app.data.model.ForwardBody(msgId, conversationIds))
+        api.forward(com.touliao.app.data.model.ForwardBody(msgId, conversationIds))
 
     suspend fun collectMessage(msgId: String) = api.collectMessage(msgId)
 
@@ -173,9 +173,9 @@ class ChatRepository @Inject constructor(
         conversationId: String,
         content: String,
         sendAt: Long,
-    ): com.vxin.app.data.model.ScheduledMessage =
+    ): com.touliao.app.data.model.ScheduledMessage =
         api.scheduleMessage(
-            com.vxin.app.data.model.ScheduleMessageBody(
+            com.touliao.app.data.model.ScheduleMessageBody(
                 conversation_id = conversationId,
                 content = content,
                 send_at = sendAt,
@@ -183,7 +183,7 @@ class ChatRepository @Inject constructor(
         )
 
     /** 我的全部定时消息列表（后端仅返回 pending 状态） */
-    suspend fun scheduledMessages(): List<com.vxin.app.data.model.ScheduledMessage> =
+    suspend fun scheduledMessages(): List<com.touliao.app.data.model.ScheduledMessage> =
         api.scheduledMessages()
 
     /** 取消指定定时消息（仅本人且 pending 状态可取消） */
@@ -192,7 +192,7 @@ class ChatRepository @Inject constructor(
     // ── 功能A2: @我消息聚合 ─────────────────────────────────────────────────
 
     /** 获取 @我 消息分页列表 */
-    suspend fun mentionsMe(offset: Int = 0, limit: Int = 20): com.vxin.app.data.model.MentionsResponse =
+    suspend fun mentionsMe(offset: Int = 0, limit: Int = 20): com.touliao.app.data.model.MentionsResponse =
         api.mentionsMe(offset = offset, limit = limit)
 
     // ── 功能A3: 聊天文件聚合视图 ─────────────────────────────────────────────
@@ -203,12 +203,12 @@ class ChatRepository @Inject constructor(
         type: String = "all",
         offset: Int = 0,
         limit: Int = 30,
-    ): com.vxin.app.data.model.ConversationFilesResponse =
+    ): com.touliao.app.data.model.ConversationFilesResponse =
         api.conversationFiles(conversationId, type = type, offset = offset, limit = limit)
 
     // ── 功能A3: 语音转文字 ──────────────────────────────────────────────────
 
     /** 语音转文字（幂等由后端管理；ASR 不可用后端返回 503） */
-    suspend fun transcribe(msgId: String): com.vxin.app.data.model.TranscribeResponse =
+    suspend fun transcribe(msgId: String): com.touliao.app.data.model.TranscribeResponse =
         api.transcribe(msgId)
 }

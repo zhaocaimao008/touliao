@@ -1,8 +1,8 @@
-package com.vxin.app.feature.call
+package com.touliao.app.feature.call
 
 import androidx.lifecycle.ViewModel
-import com.vxin.app.core.call.CallManager
-import com.vxin.app.core.call.CallState
+import com.touliao.app.core.call.CallManager
+import com.touliao.app.core.call.CallState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import org.webrtc.EglBase

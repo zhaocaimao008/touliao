@@ -1,4 +1,4 @@
-package com.vxin.app.ui.theme
+package com.touliao.app.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -48,13 +48,13 @@ fun VxinTheme(
 /** 按用户外观偏好（跟随系统 / 日间 / 夜间）解析是否用暗色。 */
 @Composable
 fun VxinTheme(
-    mode: com.vxin.app.core.storage.ThemeMode,
+    mode: com.touliao.app.core.storage.ThemeMode,
     content: @Composable () -> Unit,
 ) {
     val dark = when (mode) {
-        com.vxin.app.core.storage.ThemeMode.SYSTEM -> isSystemInDarkTheme()
-        com.vxin.app.core.storage.ThemeMode.LIGHT -> false
-        com.vxin.app.core.storage.ThemeMode.DARK -> true
+        com.touliao.app.core.storage.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        com.touliao.app.core.storage.ThemeMode.LIGHT -> false
+        com.touliao.app.core.storage.ThemeMode.DARK -> true
     }
     VxinTheme(darkTheme = dark, content = content)
 }
@@ -67,6 +67,6 @@ fun VxinTheme(
 fun VxinThemeWithPref(content: @Composable () -> Unit) {
     // 订阅全局主题流（模块级 StateFlow，无 DI、无 LifecycleOwner 依赖）：
     // 切换外观即时重组换肤；初值已由 App 启动时从 prefs 同步。
-    val mode by com.vxin.app.core.storage.ThemeStore.live.collectAsState()
+    val mode by com.touliao.app.core.storage.ThemeStore.live.collectAsState()
     VxinTheme(mode = mode, content = content)
 }

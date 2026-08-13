@@ -1,4 +1,4 @@
-package com.vxin.app.feature.call
+package com.touliao.app.feature.call
 
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,14 +36,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.core.call.CallStage
-import com.vxin.app.ui.components.InitialAvatar
+import com.touliao.app.core.call.CallStage
+import com.touliao.app.ui.components.InitialAvatar
 import org.webrtc.EglBase
 import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
 
-private val CallGreen = com.vxin.app.ui.theme.VxinSuccess   // 接听绿=语义成功色，对齐 web --color-success
+private val CallGreen = com.touliao.app.ui.theme.VxinSuccess   // 接听绿=语义成功色，对齐 web --color-success
 private val CallRed = Color(0xFFFA5151)
 
 /** 全局通话浮层：通话激活时覆盖在主界面之上 */
@@ -90,7 +90,7 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
                         .systemBarsPadding()
                         .padding(16.dp)
                         .size(110.dp, 160.dp)
-                        .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.thumb)),
+                        .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)),
                 )
             }
         } else {
@@ -101,11 +101,11 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
             ) {
                 InitialAvatar(name = state.peerName.ifBlank { "?" }, size = 96.dp)
                 Spacer(Modifier.height(16.dp))
-                Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.displaySm)
+                Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.displaySm)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),
-                    color = Color(0xFFBBBBBB), fontSize = com.vxin.app.ui.theme.VxinTextSize.base,
+                    color = Color(0xFFBBBBBB), fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
                 )
             }
         }
@@ -168,9 +168,9 @@ private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
             Modifier.size(64.dp).clip(CircleShape).background(color)
                 .clickable { onClick() },
             contentAlignment = Alignment.Center,
-        ) { Text(label.take(3), color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm) }
+        ) { Text(label.take(3), color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = Color(0xFFCCCCCC), fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
+        Text(label, color = Color(0xFFCCCCCC), fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
     }
 }
 

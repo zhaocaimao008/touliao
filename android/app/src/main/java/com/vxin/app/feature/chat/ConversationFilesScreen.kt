@@ -1,4 +1,4 @@
-package com.vxin.app.feature.chat
+package com.touliao.app.feature.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -53,10 +53,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.vxin.app.core.util.downloadFile
-import com.vxin.app.data.model.ConversationFile
-import com.vxin.app.ui.components.EmptyState
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.core.util.downloadFile
+import com.touliao.app.data.model.ConversationFile
+import com.touliao.app.ui.components.EmptyState
+import com.touliao.app.ui.theme.VxinTextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -205,7 +205,7 @@ private fun FileGridItem(
             Modifier
                 .padding(2.dp)
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.sm))
+                .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                 .background(Color(0x11000000))
                 .clickable(onClick = onClick),
         ) {
@@ -245,14 +245,14 @@ private fun FileGridItem(
                     Row {
                         Text(
                             file.senderName.ifBlank { "某人" },
-                            fontSize = com.vxin.app.ui.theme.VxinTextSize.xs,
+                            fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
                             color = VxinTextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
                         Spacer(Modifier.size(8.dp))
-                        Text(sdf.format(Date(file.created_at * 1000)), fontSize = com.vxin.app.ui.theme.VxinTextSize.xs, color = VxinTextSecondary)
+                        Text(sdf.format(Date(file.created_at * 1000)), fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = VxinTextSecondary)
                     }
                 }
             }

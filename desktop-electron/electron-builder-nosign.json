@@ -1,6 +1,6 @@
 {
-  "appId": "com.vxin.desktop",
-  "productName": "v信",
+  "appId": "com.touliao.desktop",
+  "productName": "投聊",
   "directories": {
     "output": "dist",
     "buildResources": "assets"
@@ -11,7 +11,9 @@
     {
       "from": "../web/dist",
       "to": "web/dist",
-      "filter": ["**/*"]
+      "filter": [
+        "**/*"
+      ]
     }
   ],
   "win": {
@@ -20,8 +22,10 @@
       "portable"
     ],
     "icon": "assets/icon.ico",
-    "artifactName": "vxin-${version}-setup.${ext}",
-    "signingHashAlgorithms": ["sha256"],
+    "artifactName": "touliao-${version}-setup.${ext}",
+    "signingHashAlgorithms": [
+      "sha256"
+    ],
     "certificateFile": null,
     "certificatePassword": null,
     "sign": null,
@@ -33,7 +37,7 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "v信",
+    "shortcutName": "投聊",
     "runAfterFinish": true,
     "installerIcon": "assets/icon.ico",
     "uninstallerIcon": "assets/icon.ico"

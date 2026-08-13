@@ -1,10 +1,10 @@
-package com.vxin.app.ui.theme
+package com.touliao.app.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 
 /**
- * v信 圆角规范 —— 单一真相源（对齐 Web design-tokens.css --radius-* 体系）。
+ * 投聊 圆角规范 —— 单一真相源（对齐 Web design-tokens.css --radius-* 体系）。
  * 命名与取值与 Web 端保持一致，跨端统一圆角语汇：
  *   tag=4  sm=6  badge=10  md=12  avatar=14  card=16  lg=18  xl=20
  * 说明：thumb(8) 与 pill(25) 为移动端历史取值，暂保留原值以零视觉回归，

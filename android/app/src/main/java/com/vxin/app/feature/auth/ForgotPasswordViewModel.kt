@@ -1,9 +1,9 @@
-package com.vxin.app.feature.auth
+package com.touliao.app.feature.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.data.repository.AuthRepository
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.data.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

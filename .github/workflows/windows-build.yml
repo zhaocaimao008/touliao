@@ -2,7 +2,7 @@ name: Windows Desktop Build
 
 # 在云端 Windows runner 上用 electron-builder 打 Windows 安装包（NSIS .exe）。
 # 无需本地/服务器装 wine。用法：Actions →「Windows Desktop Build」→ Run workflow，
-# 跑完在底部 Artifacts 下载 vxin-windows-setup。
+# 跑完在底部 Artifacts 下载 touliao-windows-setup。
 on:
   workflow_dispatch:
   push:
@@ -44,7 +44,7 @@ jobs:
       - name: Upload installer + update feed
         uses: actions/upload-artifact@v4
         with:
-          name: vxin-windows-setup
+          name: touliao-windows-setup
           # latest.yml / *.blockmap 是 electron-updater 自动更新所必需：必须与 .exe
           # 一并上传到更新源 https://dipsin.com/downloads/updates，否则客户端拉不到更新。
           path: |
@@ -64,7 +64,7 @@ jobs:
       - name: 下载构建产物
         uses: actions/download-artifact@v4
         with:
-          name: vxin-windows-setup
+          name: touliao-windows-setup
           path: artifacts
 
       - name: 配置 SSH
@@ -81,7 +81,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
             "mkdir -p /var/www/downloads/updates"
           scp -i ~/.ssh/deploy_key "$EXE" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/vxin-windows-latest-setup.exe"
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/touliao-windows-latest-setup.exe"
           # 关键：把带版本名的 exe 也放进 updates/，electron-updater 读 latest.yml 后按原名去 updates/ 取，
           # 否则自动更新会 404（此前 updates/ 只有旧版 exe）。
           scp -i ~/.ssh/deploy_key "$EXE" \
@@ -92,4 +92,4 @@ jobs:
             scp -i ~/.ssh/deploy_key "$f" \
               "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/" || true
           done
-          echo "✅ 已发布到 https://dipsin.com/downloads/vxin-windows-latest-setup.exe"
+          echo "✅ 已发布到 https://dipsin.com/downloads/touliao-windows-latest-setup.exe"

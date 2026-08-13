@@ -87,14 +87,14 @@ jobs:
           # 安装 Provisioning Profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode \
-            > ~/Library/MobileDevice/Provisioning\ Profiles/vxin.mobileprovision
+            > ~/Library/MobileDevice/Provisioning\ Profiles/touliao.mobileprovision
 
       - name: Resolve Swift packages
         working-directory: ios
         run: |
           xcodebuild -resolvePackageDependencies \
-            -project Vxin.xcodeproj \
-            -scheme Vxin
+            -project Touliao.xcodeproj \
+            -scheme Touliao
 
       - name: 计算 build 号（Unix 时间戳，保证唯一且单调递增）
         id: buildno
@@ -112,17 +112,17 @@ jobs:
           APP_VERSION: ${{ env.VERSION }}
         run: |
           set -o pipefail
-          # 签名配置已内置到 project.yml 的 Vxin target（仅 App 主 target），
+          # 签名配置已内置到 project.yml 的 Touliao target（仅 App 主 target），
           # 命令行不再传 CODE_SIGN_*/PROVISIONING_PROFILE_SPECIFIER，否则会被
           # 全局套用到 SPM 依赖(Firebase/Kingfisher)导致
           # "does not support provisioning profiles" 而归档失败。
           # CURRENT_PROJECT_VERSION 用上一步的时间戳 build 号，自动递增。
           xcodebuild archive \
-            -project Vxin.xcodeproj \
-            -scheme Vxin \
+            -project Touliao.xcodeproj \
+            -scheme Touliao \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath /tmp/Vxin.xcarchive \
+            -archivePath /tmp/Touliao.xcarchive \
             MARKETING_VERSION="$APP_VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
 
@@ -143,19 +143,19 @@ jobs:
             <string>manual</string>
             <key>provisioningProfiles</key>
             <dict>
-              <key>com.vxin.app</key>
-              <string>vxin_distribution</string>
+              <key>com.touliao.app</key>
+              <string>touliao_distribution</string>
             </dict>
           </dict>
           </plist>
           EOF
 
           xcodebuild -exportArchive \
-            -archivePath /tmp/Vxin.xcarchive \
-            -exportPath /tmp/vxin-ipa \
+            -archivePath /tmp/Touliao.xcarchive \
+            -exportPath /tmp/touliao-ipa \
             -exportOptionsPlist /tmp/ExportOptions.plist
 
-          ls -lh /tmp/vxin-ipa/
+          ls -lh /tmp/touliao-ipa/
 
       - name: 上传到 TestFlight
         env:
@@ -168,7 +168,7 @@ jobs:
           echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode \
             > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
 
-          IPA=$(ls /tmp/vxin-ipa/*.ipa | head -1)
+          IPA=$(ls /tmp/touliao-ipa/*.ipa | head -1)
           echo "上传: $IPA"
 
           # 校验后上传到 App Store Connect / TestFlight。
@@ -190,8 +190,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vxin-ios-ipa
-          path: /tmp/vxin-ipa/*.ipa
+          name: touliao-ios-ipa
+          path: /tmp/touliao-ipa/*.ipa
           if-no-files-found: ignore
 
       # ── 自动填测试信息 + 提交外部 Beta 审核 ─────────────────────────────

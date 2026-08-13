@@ -1,7 +1,7 @@
-package com.vxin.app.core.update
+package com.touliao.app.core.update
 
 import android.util.Log
-import com.vxin.app.BuildConfig
+import com.touliao.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json

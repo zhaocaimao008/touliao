@@ -1,7 +1,7 @@
-package com.vxin.app.data.repository
+package com.touliao.app.data.repository
 
-import com.vxin.app.data.api.FavoritesApi
-import com.vxin.app.data.model.Collection
+import com.touliao.app.data.api.FavoritesApi
+import com.touliao.app.data.model.Collection
 import javax.inject.Inject
 import javax.inject.Singleton
 

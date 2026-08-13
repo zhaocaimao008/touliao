@@ -2,7 +2,7 @@
 'use strict';
 /**
  * 用服务账号(.env 中的 FIREBASE_*)调用 Firebase 管理 API：
- *   1) 确保项目里存在 iOS 应用(bundleId=com.vxin.app)，不存在则创建
+ *   1) 确保项目里存在 iOS 应用(bundleId=com.touliao.app)，不存在则创建
  *   2) 拉取该 iOS 应用的 GoogleService-Info.plist，写入 ios/Vxin/GoogleService-Info.plist
  * 需要服务账号具备 Firebase 管理权限(firebase.admin / editor)。
  */
@@ -12,7 +12,7 @@ const path = require('path');
 const { JWT } = require('google-auth-library');
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID;
-const BUNDLE_ID = 'com.vxin.app';
+const BUNDLE_ID = 'com.touliao.app';
 const OUT = path.resolve(__dirname, '../../ios/Vxin/GoogleService-Info.plist');
 const API = 'https://firebase.googleapis.com/v1beta1';
 
@@ -53,7 +53,7 @@ async function main() {
   // 2. 不存在则创建（长时操作，轮询）
   if (!app) {
     console.log(`创建 iOS 应用 bundleId=${BUNDLE_ID} …`);
-    const op = await api('POST', `${API}/projects/${PROJECT_ID}/iosApps`, { bundleId: BUNDLE_ID, displayName: 'v信 iOS' });
+    const op = await api('POST', `${API}/projects/${PROJECT_ID}/iosApps`, { bundleId: BUNDLE_ID, displayName: '投聊 iOS' });
     if (op.name && !op.done) {
       for (let i = 0; i < 30; i++) {
         await sleep(2000);
@@ -87,7 +87,7 @@ main().catch(e => {
   if (e.status === 403) {
     console.error('\n服务账号没有 Firebase 管理权限(无法创建/读取应用)。');
     console.error('解决: GCP 控制台 → IAM → 给该服务账号加 "Firebase Admin" 角色后重试；');
-    console.error('或手动在 Firebase 控制台添加 iOS 应用(Bundle ID: com.vxin.app)下载 plist。');
+    console.error('或手动在 Firebase 控制台添加 iOS 应用(Bundle ID: com.touliao.app)下载 plist。');
   }
   process.exit(1);
 });

@@ -1,4 +1,4 @@
-package com.vxin.app.feature.group
+package com.touliao.app.feature.group
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,14 +52,14 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.vxin.app.data.model.GroupMember
-import com.vxin.app.ui.VxinIcons
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.theme.VxinBrand
-import com.vxin.app.ui.theme.VxinBrandLight
-import com.vxin.app.ui.theme.VxinTeal
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.data.model.GroupMember
+import com.touliao.app.ui.VxinIcons
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.theme.VxinBrand
+import com.touliao.app.ui.theme.VxinBrandLight
+import com.touliao.app.ui.theme.VxinTeal
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,16 +117,16 @@ fun GroupInfoScreen(
                             Box(contentAlignment = Alignment.Center) {
                                 val url = viewModel.resolveUrl(info.avatar)
                                 if (info.avatar.isNotBlank()) {
-                                    AsyncImage(model = url, contentDescription = "群头像", modifier = Modifier.size(72.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.card)))
+                                    AsyncImage(model = url, contentDescription = "群头像", modifier = Modifier.size(72.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.card)))
                                 } else {
                                     InitialAvatar(name = info.name.ifBlank { "群" }, size = 72.dp)
                                 }
                                 if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp), color = Color.White)
                             }
                             Spacer(Modifier.size(12.dp))
-                            Text(info.name.ifBlank { "未命名群聊" }, color = Color.White, fontSize = com.vxin.app.ui.theme.VxinTextSize.xxl, fontWeight = FontWeight.Bold)
+                            Text(info.name.ifBlank { "未命名群聊" }, color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.size(4.dp))
-                            Text("${info.members.size} 名成员", color = Color.White.copy(alpha = 0.85f), fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+                            Text("${info.members.size} 名成员", color = Color.White.copy(alpha = 0.85f), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                         }
                         HorizontalDivider()
                         // 群名称
@@ -194,7 +194,7 @@ fun GroupInfoScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Box(
-                                Modifier.size(40.dp).clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.badge))
+                                Modifier.size(40.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
                                     .background(VxinBrand.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center,
                             ) { Icon(VxinIcons.Add, contentDescription = null, tint = VxinBrand, modifier = Modifier.size(22.dp)) }
@@ -233,7 +233,7 @@ fun GroupInfoScreen(
                                 containerColor = Color(0xFFFFECEC),
                                 contentColor = Color(0xFFFA5151),
                             ),
-                            shape = RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.md),
+                            shape = RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         ) { Text(if (info.isOwner) "解散群聊" else "退出群聊", fontWeight = FontWeight.SemiBold) }
                         Spacer(Modifier.size(24.dp))

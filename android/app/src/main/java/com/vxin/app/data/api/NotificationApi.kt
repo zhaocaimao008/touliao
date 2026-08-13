@@ -1,7 +1,7 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.DeleteTokenRequest
-import com.vxin.app.data.model.DeviceTokenRequest
+import com.touliao.app.data.model.DeleteTokenRequest
+import com.touliao.app.data.model.DeviceTokenRequest
 import retrofit2.http.Body
 import retrofit2.http.HTTP
 import retrofit2.http.POST

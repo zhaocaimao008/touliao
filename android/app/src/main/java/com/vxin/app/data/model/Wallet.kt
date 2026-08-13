@@ -1,4 +1,4 @@
-package com.vxin.app.data.model
+package com.touliao.app.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

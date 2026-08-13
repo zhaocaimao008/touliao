@@ -1,13 +1,13 @@
-package com.vxin.app.data.repository
+package com.touliao.app.data.repository
 
-import com.vxin.app.data.api.GroupApi
-import com.vxin.app.data.model.GroupInfo
-import com.vxin.app.data.model.InviteBody
-import com.vxin.app.data.model.ManageBody
-import com.vxin.app.data.model.NicknameBody
-import com.vxin.app.data.model.RenameGroupBody
-import com.vxin.app.data.model.SetRoleBody
-import com.vxin.app.data.model.UpdateGroupBody
+import com.touliao.app.data.api.GroupApi
+import com.touliao.app.data.model.GroupInfo
+import com.touliao.app.data.model.InviteBody
+import com.touliao.app.data.model.ManageBody
+import com.touliao.app.data.model.NicknameBody
+import com.touliao.app.data.model.RenameGroupBody
+import com.touliao.app.data.model.SetRoleBody
+import com.touliao.app.data.model.UpdateGroupBody
 import okhttp3.MultipartBody
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,7 +15,7 @@ import javax.inject.Singleton
 @Singleton
 class GroupRepository @Inject constructor(
     private val groupApi: GroupApi,
-    socketManager: com.vxin.app.core.realtime.SocketManager,
+    socketManager: com.touliao.app.core.realtime.SocketManager,
 ) {
     /** 群资料/设置/角色/成员变更 → convId */
     val groupChangedEvents = socketManager.groupChangedEvents
@@ -43,7 +43,7 @@ class GroupRepository @Inject constructor(
         groupApi.setRole(conversationId, userId, SetRoleBody(role))
 
     suspend fun transferOwner(conversationId: String, userId: String) =
-        groupApi.transferOwner(conversationId, com.vxin.app.data.model.TransferOwnerBody(userId))
+        groupApi.transferOwner(conversationId, com.touliao.app.data.model.TransferOwnerBody(userId))
 
     suspend fun invite(conversationId: String, userIds: List<String>) =
         groupApi.invite(conversationId, InviteBody(userIds))

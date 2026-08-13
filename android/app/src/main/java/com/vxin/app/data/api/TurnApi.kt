@@ -1,6 +1,6 @@
-package com.vxin.app.data.api
+package com.touliao.app.data.api
 
-import com.vxin.app.data.model.TurnCredentials
+import com.touliao.app.data.model.TurnCredentials
 import retrofit2.http.GET
 
 interface TurnApi {

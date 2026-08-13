@@ -1,4 +1,4 @@
-package com.vxin.app.navigation
+package com.touliao.app.navigation
 
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
@@ -28,30 +28,30 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.vxin.app.core.auth.AuthState
-import com.vxin.app.core.auth.SessionManager
-import com.vxin.app.core.update.UpdateChecker
-import com.vxin.app.feature.auth.ForgotPasswordScreen
-import com.vxin.app.feature.auth.LoginScreen
-import com.vxin.app.feature.auth.RegisterScreen
-import com.vxin.app.feature.call.CallHost
-import com.vxin.app.feature.chat.ChatScreen
-import com.vxin.app.feature.chat.ConversationListScreen
-import com.vxin.app.feature.contacts.AddFriendScreen
-import com.vxin.app.feature.contacts.BlockedScreen
-import com.vxin.app.feature.contacts.ContactsScreen
-import com.vxin.app.feature.contacts.CreateGroupScreen
-import com.vxin.app.feature.contacts.FriendRequestsScreen
-import com.vxin.app.feature.group.GroupInfoScreen
-import com.vxin.app.feature.group.GroupQrScreen
-import com.vxin.app.feature.group.InviteMembersScreen
-import com.vxin.app.feature.profile.MyQrCodeScreen
-import com.vxin.app.feature.profile.ProfileScreen
-import com.vxin.app.feature.search.SearchScreen
-import com.vxin.app.ui.VxinIcons
-import com.vxin.app.data.api.ConfigApi
-import com.vxin.app.data.repository.ChatRepository
-import com.vxin.app.data.model.Features
+import com.touliao.app.core.auth.AuthState
+import com.touliao.app.core.auth.SessionManager
+import com.touliao.app.core.update.UpdateChecker
+import com.touliao.app.feature.auth.ForgotPasswordScreen
+import com.touliao.app.feature.auth.LoginScreen
+import com.touliao.app.feature.auth.RegisterScreen
+import com.touliao.app.feature.call.CallHost
+import com.touliao.app.feature.chat.ChatScreen
+import com.touliao.app.feature.chat.ConversationListScreen
+import com.touliao.app.feature.contacts.AddFriendScreen
+import com.touliao.app.feature.contacts.BlockedScreen
+import com.touliao.app.feature.contacts.ContactsScreen
+import com.touliao.app.feature.contacts.CreateGroupScreen
+import com.touliao.app.feature.contacts.FriendRequestsScreen
+import com.touliao.app.feature.group.GroupInfoScreen
+import com.touliao.app.feature.group.GroupQrScreen
+import com.touliao.app.feature.group.InviteMembersScreen
+import com.touliao.app.feature.profile.MyQrCodeScreen
+import com.touliao.app.feature.profile.ProfileScreen
+import com.touliao.app.feature.search.SearchScreen
+import com.touliao.app.ui.VxinIcons
+import com.touliao.app.data.api.ConfigApi
+import com.touliao.app.data.repository.ChatRepository
+import com.touliao.app.data.model.Features
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -236,7 +236,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                 )
             }
             composable(Routes.MENTIONS) {
-                com.vxin.app.feature.chat.MentionsScreen(
+                com.touliao.app.feature.chat.MentionsScreen(
                     onBack = { navController.popBackStack() },
                     onOpenConversation = { convId, convName ->
                         // 跳转对应会话（不携带 peerUserId，因为 @我 可能来自群聊）
@@ -261,7 +261,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                 )
             }
             composable(Routes.FRIEND_LABELS) {
-                com.vxin.app.feature.labels.FriendLabelsScreen(onBack = { navController.popBackStack() })
+                com.touliao.app.feature.labels.FriendLabelsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.PROFILE) {
                 ProfileScreen(
@@ -276,22 +276,22 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                 )
             }
             composable(Routes.WALLET) {
-                com.vxin.app.feature.wallet.WalletScreen(onBack = { navController.popBackStack() })
+                com.touliao.app.feature.wallet.WalletScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.SESSIONS) {
-                com.vxin.app.feature.sessions.SessionsScreen(onBack = { navController.popBackStack() })
+                com.touliao.app.feature.sessions.SessionsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.PRIVACY) {
-                com.vxin.app.feature.settings.PrivacySettingsScreen(onBack = { navController.popBackStack() })
+                com.touliao.app.feature.settings.PrivacySettingsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.NOTIFICATIONS) {
-                com.vxin.app.feature.settings.NotificationSettingsScreen(onBack = { navController.popBackStack() })
+                com.touliao.app.feature.settings.NotificationSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.APPEARANCE) {
-                com.vxin.app.feature.settings.AppearanceSettingsScreen(onBack = { navController.popBackStack() })
+                com.touliao.app.feature.settings.AppearanceSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.CALL_HISTORY) {
-                com.vxin.app.feature.callhistory.CallHistoryScreen(
+                com.touliao.app.feature.callhistory.CallHistoryScreen(
                     onBack = { navController.popBackStack() },
                     onOpenChat = { target -> navController.navigate(Routes.chat(target.conversationId, target.title, "private", target.peerUserId)) },
                 )
@@ -347,7 +347,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
             route = Routes.CONVERSATION_FILES,
             arguments = listOf(navArgument("conversationId") { type = NavType.StringType }),
         ) {
-            com.vxin.app.feature.chat.ConversationFilesScreen(onBack = { navController.popBackStack() })
+            com.touliao.app.feature.chat.ConversationFilesScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = Routes.GROUP_INFO,
@@ -378,7 +378,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
         }
     }
         CallHost()
-        com.vxin.app.feature.call.GroupCallHost()
+        com.touliao.app.feature.call.GroupCallHost()
     }
 }
 

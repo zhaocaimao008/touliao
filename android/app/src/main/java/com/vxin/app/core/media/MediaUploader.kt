@@ -1,4 +1,4 @@
-package com.vxin.app.core.media
+package com.touliao.app.core.media
 
 import android.content.Context
 import android.net.Uri

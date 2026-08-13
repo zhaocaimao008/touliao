@@ -2,7 +2,7 @@ name: Android Release APK (signed)
 
 # 云端打「正式签名版」原生 APK（Kotlin/Compose）：用同一套密钥签名，可覆盖升级、可上架。
 # 用法：本仓库 → Actions → 「Android Release APK (signed)」→ Run workflow。
-# 跑完在运行页底部 Artifacts 下载 vxin-release-apk，同时自动部署到香港服务器。
+# 跑完在运行页底部 Artifacts 下载 touliao-release-apk，同时自动部署到香港服务器。
 # 需要 4 个仓库 Secret：ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD /
 #                       ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD（已配置）。
 on:
@@ -39,12 +39,12 @@ jobs:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KS_B64" ]; then echo "::error::缺少 ANDROID_KEYSTORE_BASE64 secret"; exit 1; fi
-          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/vxin-release.jks"
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/touliao-release.jks"
 
       - name: Build signed release APK
         working-directory: android
         env:
-          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/vxin-release.jks
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/touliao-release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -59,7 +59,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vxin-release-apk
+          name: touliao-release-apk
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
 
@@ -74,15 +74,15 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
-          echo "部署: $APK → /var/www/downloads/vxin-android-latest.apk"
+          echo "部署: $APK → /var/www/downloads/touliao-android-latest.apk"
           ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /var/www/downloads"
-          scp -i ~/.ssh/deploy_key "$APK" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/vxin-android-latest.apk"
-          echo "✅ APK 已发布到 https://dipsin.com/downloads/vxin-android-latest.apk"
+          scp -i ~/.ssh/deploy_key "$APK" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/touliao-android-latest.apk"
+          echo "✅ APK 已发布到 https://dipsin.com/downloads/touliao-android-latest.apk"
           # 同步应用内更新清单：从 build.gradle.kts 读出真实版本，生成 version.json 并部署。
           # 安卓端"检查更新"靠这个文件比对版本；不同步会导致存量用户拉不到更新提示。
           VN=$(grep -oP 'versionName\s*=\s*"\K[^"]+' android/app/build.gradle.kts | head -1)
           VC=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' android/app/build.gradle.kts | head -1)
           echo "版本清单: versionName=$VN versionCode=$VC"
-          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://dipsin.com/downloads/vxin-android-latest.apk",\n  "notes": "当前最新版本 %s。"\n}\n' "$VC" "$VN" "$VN" > /tmp/vxin-android-version.json
-          scp -i ~/.ssh/deploy_key /tmp/vxin-android-version.json "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/vxin-android-version.json"
-          echo "✅ 版本清单已发布到 https://dipsin.com/downloads/vxin-android-version.json"
+          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://dipsin.com/downloads/touliao-android-latest.apk",\n  "notes": "当前最新版本 %s。"\n}\n' "$VC" "$VN" "$VN" > /tmp/touliao-android-version.json
+          scp -i ~/.ssh/deploy_key /tmp/touliao-android-version.json "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/touliao-android-version.json"
+          echo "✅ 版本清单已发布到 https://dipsin.com/downloads/touliao-android-version.json"

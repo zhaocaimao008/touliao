@@ -1,4 +1,4 @@
-package com.vxin.app.feature.callhistory
+package com.touliao.app.feature.callhistory
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -32,11 +32,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.core.util.formatChatTime
-import com.vxin.app.data.model.CallLog
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.core.util.formatChatTime
+import com.touliao.app.data.model.CallLog
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 private val ERR = androidx.compose.ui.graphics.Color(0xFFFA5151)
 
@@ -59,7 +59,7 @@ private fun fmtDuration(s: Int): String {
 @Composable
 fun CallHistoryScreen(
     onBack: () -> Unit,
-    onOpenChat: (com.vxin.app.feature.contacts.ConversationTarget) -> Unit = {},
+    onOpenChat: (com.touliao.app.feature.contacts.ConversationTarget) -> Unit = {},
     viewModel: CallHistoryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -78,7 +78,7 @@ fun CallHistoryScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.loading && state.items.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.items.isEmpty() -> com.vxin.app.ui.components.EmptyState(icon = "📞", title = "暂无通话记录", subtitle = "拨打或接听后会出现在这里", modifier = Modifier.align(Alignment.Center))
+                state.items.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "📞", title = "暂无通话记录", subtitle = "拨打或接听后会出现在这里", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.items, key = { it.id }) { c ->
                         CallLogRow(c, resolveUrl = viewModel::resolveUrl, onClick = { viewModel.openPeerChat(c) })
@@ -108,21 +108,21 @@ private fun CallLogRow(c: CallLog, resolveUrl: (String?) -> String?, onClick: ()
         Column(Modifier.weight(1f)) {
             Text(
                 c.peer_name.ifBlank { "用户" },
-                fontSize = com.vxin.app.ui.theme.VxinTextSize.md, fontWeight = FontWeight.Medium,
+                fontSize = com.touliao.app.ui.theme.VxinTextSize.md, fontWeight = FontWeight.Medium,
                 color = if (missed) ERR else MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.size(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 方向箭头：拨出 ↗ / 来电 ↙
-                Text(if (c.direction == "out") "↗" else "↙", color = if (missed) ERR else VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                Text(if (c.direction == "out") "↗" else "↙", color = if (missed) ERR else VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 Spacer(Modifier.width(4.dp))
                 val kind = if (c.type == "video") "视频通话" else "语音通话"
                 val dur = fmtDuration(c.duration)
                 val text = "$kind · ${statusLabel(c.status)}" + if (dur.isNotBlank()) " · $dur" else ""
-                Text(text, color = if (missed) ERR else VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                Text(text, color = if (missed) ERR else VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
             }
         }
         Spacer(Modifier.width(8.dp))
-        Text(formatChatTime(c.created_at), color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.xs)
+        Text(formatChatTime(c.created_at), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
     }
 }

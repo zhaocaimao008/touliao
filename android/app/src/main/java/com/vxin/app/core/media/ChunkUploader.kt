@@ -1,10 +1,10 @@
-package com.vxin.app.core.media
+package com.touliao.app.core.media
 
-import com.vxin.app.data.api.MessageApi
-import com.vxin.app.data.model.ChunkConflictResponse
-import com.vxin.app.data.model.Message
-import com.vxin.app.data.model.UploadFinishBody
-import com.vxin.app.data.model.UploadInitBody
+import com.touliao.app.data.api.MessageApi
+import com.touliao.app.data.model.ChunkConflictResponse
+import com.touliao.app.data.model.Message
+import com.touliao.app.data.model.UploadFinishBody
+import com.touliao.app.data.model.UploadInitBody
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody

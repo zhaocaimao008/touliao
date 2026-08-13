@@ -1,10 +1,10 @@
-package com.vxin.app.data.repository
+package com.touliao.app.data.repository
 
-import com.vxin.app.data.api.MomentApi
-import com.vxin.app.data.model.CreateMomentBody
-import com.vxin.app.data.model.Moment
-import com.vxin.app.data.model.MomentComment
-import com.vxin.app.data.model.MomentCommentBody
+import com.touliao.app.data.api.MomentApi
+import com.touliao.app.data.model.CreateMomentBody
+import com.touliao.app.data.model.Moment
+import com.touliao.app.data.model.MomentComment
+import com.touliao.app.data.model.MomentCommentBody
 import okhttp3.MultipartBody
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -12,7 +12,7 @@ import javax.inject.Singleton
 @Singleton
 class MomentRepository @Inject constructor(
     private val momentApi: MomentApi,
-    socketManager: com.vxin.app.core.realtime.SocketManager,
+    socketManager: com.touliao.app.core.realtime.SocketManager,
 ) {
     /** 朋友圈实时事件（新动态/点赞/评论） */
     val momentEvents = socketManager.momentEvents

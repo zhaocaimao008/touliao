@@ -1,4 +1,4 @@
-package com.vxin.app.feature.profile
+package com.touliao.app.feature.profile
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
@@ -27,8 +27,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.ui.components.InitialAvatar
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.ui.components.InitialAvatar
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +60,7 @@ fun MyQrCodeScreen(
             Spacer(Modifier.size(8.dp))
             Text(user?.username ?: "", style = MaterialTheme.typography.titleMedium)
             user?.wechat_id?.takeIf { it.isNotBlank() }?.let {
-                Text("v信号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
+                Text("投聊号: $it", color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
             }
             Spacer(Modifier.size(32.dp))
 

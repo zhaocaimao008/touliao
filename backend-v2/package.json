@@ -1,7 +1,7 @@
 {
-  "name": "vxin-backend-v2",
+  "name": "touliao-backend-v2",
   "version": "8.0.0",
-  "description": "v信后端 —— 分层模块化重写（drop-in 替换 v1）",
+  "description": "投聊后端 —— 分层模块化重写",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// v信 主按钮：极光靛渐变实心药丸 + 加载态（对齐 Web / Android VxinGradientButton）。
+/// 投聊 主按钮：极光靛渐变实心药丸 + 加载态（对齐 Web / Android VxinGradientButton）。
 /// 统一各处 CTA 视觉。
 struct VxinGradientButton: View {
     let title: String

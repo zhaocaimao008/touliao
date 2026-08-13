@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension Color {
-    /// v信 品牌色 —— AURORA 极光靛（对齐 Web --brand-500 #6D5AE6）
+    /// 投聊 品牌色 —— AURORA 极光靛（对齐 Web --brand-500 #6D5AE6）
     static let vxinBrand = Color(red: 0x6D / 255, green: 0x5A / 255, blue: 0xE6 / 255)
     static let vxinBrandLight = Color(red: 0x8A / 255, green: 0x78 / 255, blue: 0xEB / 255) // brand-400
     static let vxinBrandDark = Color(red: 0x5A / 255, green: 0x47 / 255, blue: 0xD6 / 255)  // brand-600

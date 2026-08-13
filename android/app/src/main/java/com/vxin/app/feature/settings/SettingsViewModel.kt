@@ -1,13 +1,13 @@
-package com.vxin.app.feature.settings
+package com.touliao.app.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.core.storage.ThemeMode
-import com.vxin.app.core.storage.ThemeStore
-import com.vxin.app.data.model.UpdateSettingsBody
-import com.vxin.app.data.model.UserSettings
-import com.vxin.app.data.repository.ProfileRepository
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.core.storage.ThemeMode
+import com.touliao.app.core.storage.ThemeStore
+import com.touliao.app.data.model.UpdateSettingsBody
+import com.touliao.app.data.model.UserSettings
+import com.touliao.app.data.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -3,8 +3,8 @@ const path = require('path');
 
 const options = {
   config: {
-    appId: 'com.vxin.desktop',
-    productName: 'v信',
+    appId: 'com.touliao.desktop',
+    productName: '投聊',
     directories: {
       output: 'dist',
       buildResources: 'assets'
@@ -42,7 +42,7 @@ const options = {
       allowToChangeInstallationDirectory: true,
       createDesktopShortcut: true,
       createStartMenuShortcut: true,
-      shortcutName: 'v信',
+      shortcutName: '投聊',
       runAfterFinish: true,
       installerIcon: 'assets/icon.ico',
       uninstallerIcon: 'assets/icon.ico'

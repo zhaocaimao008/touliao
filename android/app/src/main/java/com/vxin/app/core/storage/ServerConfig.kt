@@ -1,7 +1,7 @@
-package com.vxin.app.core.storage
+package com.touliao.app.core.storage
 
 import android.content.Context
-import com.vxin.app.BuildConfig
+import com.touliao.app.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton

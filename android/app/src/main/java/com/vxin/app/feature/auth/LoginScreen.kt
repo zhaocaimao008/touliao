@@ -1,4 +1,4 @@
-package com.vxin.app.feature.auth
+package com.touliao.app.feature.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,13 +40,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.Icon
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vxin.app.ui.VxinIcons
-import com.vxin.app.ui.theme.VxinBrand
-import com.vxin.app.ui.theme.VxinBrandLight
-import com.vxin.app.ui.theme.VxinBrandDark
-import com.vxin.app.ui.theme.VxinTeal
-import com.vxin.app.ui.theme.VxinGreen
-import com.vxin.app.ui.theme.VxinTextSecondary
+import com.touliao.app.ui.VxinIcons
+import com.touliao.app.ui.theme.VxinBrand
+import com.touliao.app.ui.theme.VxinBrandLight
+import com.touliao.app.ui.theme.VxinBrandDark
+import com.touliao.app.ui.theme.VxinTeal
+import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinTextSecondary
 
 @Composable
 fun LoginScreen(
@@ -71,7 +71,7 @@ fun LoginScreen(
         Box(
             modifier = Modifier
                 .size(72.dp)
-                .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.xl))
+                .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.xl))
                 .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
             contentAlignment = Alignment.Center,
         ) {
@@ -83,9 +83,9 @@ fun LoginScreen(
             )
         }
         Spacer(Modifier.height(16.dp))
-        Text("v信", fontSize = com.vxin.app.ui.theme.VxinTextSize.displayLg, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        Text("投聊", fontSize = com.touliao.app.ui.theme.VxinTextSize.displayLg, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(6.dp))
-        Text("安全 · 私密 · 畅聊", fontSize = com.vxin.app.ui.theme.VxinTextSize.base, color = VxinTextSecondary)
+        Text("安全 · 私密 · 畅聊", fontSize = com.touliao.app.ui.theme.VxinTextSize.base, color = VxinTextSecondary)
         Spacer(Modifier.height(40.dp))
 
         OutlinedTextField(
@@ -107,7 +107,7 @@ fun LoginScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = {
                 TextButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Text(if (passwordVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+                    Text(if (passwordVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 }
             },
             modifier = Modifier.fillMaxWidth().testTag("login-password-input"),
@@ -118,7 +118,7 @@ fun LoginScreen(
             Text(
                 text = state.error!!,
                 color = MaterialTheme.colorScheme.error,
-                fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2,
+                fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
                 modifier = Modifier.fillMaxWidth().testTag("auth-error-text"),
             )
         }
@@ -142,7 +142,7 @@ fun LoginScreen(
                 Modifier
                     .fillMaxWidth()
                     .height(50.dp)
-                    .clip(RoundedCornerShape(com.vxin.app.ui.theme.VxinRadius.pill))
+                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.pill))
                     .background(
                         if (state.canSubmit)
                             Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))
@@ -167,11 +167,11 @@ fun LoginScreen(
             Text("注册账号", color = VxinGreen)
         }
         TextButton(onClick = onNavigateForgotPassword) {
-            Text("忘记密码", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm2)
+            Text("忘记密码", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
         }
 
         TextButton(onClick = { showServerConfig = !showServerConfig }) {
-            Text("切换服务器", color = VxinTextSecondary, fontSize = com.vxin.app.ui.theme.VxinTextSize.sm)
+            Text("切换服务器", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
         }
         if (showServerConfig) {
             OutlinedTextField(

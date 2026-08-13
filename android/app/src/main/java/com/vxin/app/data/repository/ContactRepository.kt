@@ -1,15 +1,15 @@
-package com.vxin.app.data.repository
+package com.touliao.app.data.repository
 
-import com.vxin.app.data.api.ContactApi
-import com.vxin.app.data.api.MessageApi
-import com.vxin.app.data.model.Contact
-import com.vxin.app.data.model.CreateGroupBody
-import com.vxin.app.data.model.CreatePrivateBody
-import com.vxin.app.data.model.FriendRequest
-import com.vxin.app.data.model.FriendRequestBody
-import com.vxin.app.data.model.HandleRequestBody
-import com.vxin.app.data.model.SearchUser
-import com.vxin.app.data.model.SendRequestResponse
+import com.touliao.app.data.api.ContactApi
+import com.touliao.app.data.api.MessageApi
+import com.touliao.app.data.model.Contact
+import com.touliao.app.data.model.CreateGroupBody
+import com.touliao.app.data.model.CreatePrivateBody
+import com.touliao.app.data.model.FriendRequest
+import com.touliao.app.data.model.FriendRequestBody
+import com.touliao.app.data.model.HandleRequestBody
+import com.touliao.app.data.model.SearchUser
+import com.touliao.app.data.model.SendRequestResponse
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,7 +17,7 @@ import javax.inject.Singleton
 class ContactRepository @Inject constructor(
     private val contactApi: ContactApi,
     private val messageApi: MessageApi,
-    socketManager: com.vxin.app.core.realtime.SocketManager,
+    socketManager: com.touliao.app.core.realtime.SocketManager,
 ) {
     /** 好友申请相关实时事件（新申请/被通过） */
     val friendEvents = socketManager.friendEvents
@@ -41,7 +41,7 @@ class ContactRepository @Inject constructor(
     suspend fun deleteContact(id: String) = contactApi.deleteContact(id)
 
     suspend fun setRemark(id: String, remark: String) =
-        contactApi.setRemark(id, com.vxin.app.data.model.RemarkBody(remark))
+        contactApi.setRemark(id, com.touliao.app.data.model.RemarkBody(remark))
 
     suspend fun block(id: String) = contactApi.block(id)
 

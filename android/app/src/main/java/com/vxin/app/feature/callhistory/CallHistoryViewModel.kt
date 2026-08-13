@@ -1,13 +1,13 @@
-package com.vxin.app.feature.callhistory
+package com.touliao.app.feature.callhistory
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vxin.app.core.network.toUserMessage
-import com.vxin.app.core.util.MediaUrlResolver
-import com.vxin.app.data.model.CallLog
-import com.vxin.app.data.repository.ContactRepository
-import com.vxin.app.data.repository.ProfileRepository
-import com.vxin.app.feature.contacts.ConversationTarget
+import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.core.util.MediaUrlResolver
+import com.touliao.app.data.model.CallLog
+import com.touliao.app.data.repository.ContactRepository
+import com.touliao.app.data.repository.ProfileRepository
+import com.touliao.app.feature.contacts.ConversationTarget
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
