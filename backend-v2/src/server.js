@@ -131,8 +131,17 @@ async function startServer() {
 
   const io = new Server(server, {
     transports: ['websocket'], // 仅 websocket 防集群握手死锁
-    pingInterval: 25000,  // 25s 心跳间隔
+    pingInterval: 25000,  // 25s 心跳间隔（保持 NAT 活跃）
     pingTimeout: 20000,   // 20s 无响应视为断线
+    // WebSocket 逐帧压缩：消息体积 -30~60%（文本聊天效果显著）
+    // threshold=512：小帧（<512B ack/typing/ping）跳过压缩，避免负优化
+    perMessageDeflate: {
+      zlibDeflateOptions: { chunkSize: 1024, level: 6 },
+      zlibInflateOptions: { chunkSize: 10 * 1024 },
+      clientNoContextTakeover: true,   // 客户端不保留压缩上下文（兼容性好）
+      serverNoContextTakeover: true,   // 服务端不保留（节省内存，代价是压缩率低 5%）
+      threshold: 512,                  // <512B 不压缩
+    },
     cors: {
       origin: config.allowedOrigins,
       credentials: true,
