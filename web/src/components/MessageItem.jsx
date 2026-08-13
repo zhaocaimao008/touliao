@@ -6,6 +6,7 @@ import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
 import { downloadFile } from '../utils/download';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
+import ImgOptimized from './ImgOptimized';
 import { linkify } from '../utils/linkify';
 
 // 图片加载失败占位图（过期/被删的云文件）：灰底 + 可见文字，保证不显示浏览器裂图
@@ -195,26 +196,21 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 ? { aspectRatio: String(aspect), width: aspect < 0.75 ? `${Math.round(320 * aspect)}px` : 'min(240px, 62vw)' }
                 : undefined;
               return (
-                <img loading="lazy"
+                <ImgOptimized
                   data-testid="msg-image"
                   src={imgSrc}
                   alt="消息图片"
                   className="wc-msg-img"
-                  style={aspectStyle}
+                  aspectStyle={aspectStyle}
                   role="button" tabIndex={0} aria-label="查看大图"
                   onClick={() => cbs.setLightboxUrl(imgSrc)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.setLightboxUrl(imgSrc); } }}
                   onLoad={e => {
                     const el = e.currentTarget;
                     rememberAspect(imgSrc, el.naturalWidth, el.naturalHeight);
-                    el.classList.add('loaded');
-                    // 图片解码完成→立即同步重测本行高度，修正 react-window 的预加载高度缓存。
-                    // 仅靠 ResizeObserver(异步)在 Chromium/Electron 上可能晚于下一行按旧高排版，
-                    // 导致下一条(文字)贴到/压到图片上。此处在 onLoad 直接测量，闭合竞态。
                     measure?.();
                     cbs.onImageLoad?.();
                   }}
-                  onError={e => { const el = e.currentTarget; el.onerror = null; el.src = IMG_BROKEN; el.alt = '图片加载失败'; el.style.cursor = 'default'; el.style.pointerEvents = 'none'; el.tabIndex = -1; el.classList.add('loaded'); measure?.(); }}
                 />
               );
             })()}

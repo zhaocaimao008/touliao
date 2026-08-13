@@ -8,12 +8,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    viteCompression({
-      algorithm: 'gzip',
-      ext: '.gz',
-      threshold: 8192,
-      deleteOriginFile: false,
-    }),
+    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 8192, deleteOriginFile: false }),
   ],
   build: {
     outDir: 'dist',
@@ -21,15 +16,18 @@ export default defineConfig({
     sourcemap: false,
     minify: 'esbuild',
     target: 'es2020',
-    cssCodeSplit: false,
+    cssCodeSplit: true,   // 开启 CSS 按 chunk 拆分：auth.css 随 Login 懒加载
     rollupOptions: {
+      external: (id) => id.startsWith('@capacitor/'),
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
           if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) return 'vendor-react';
           if (id.includes('socket.io-client')) return 'vendor-socket';
-          if (id.includes('jsqr')) return 'vendor-jsqr';
-          if (id.includes('axios') || id.includes('timeago') || id.includes('dompurify') || id.includes('qrcode')) return 'vendor-misc';
+          if (id.includes('jsqr'))   return 'vendor-jsqr';  // QR 扫描，仅扫码时加载
+          if (id.includes('@capacitor')) return null;        // Capacitor 动态加载，不打包
+          if (id.includes('axios') || id.includes('timeago') || id.includes('dompurify') || id.includes('qrcode'))
+            return 'vendor-misc';
           return 'vendor';
         },
         chunkFileNames:  'assets/[name]-[hash].js',

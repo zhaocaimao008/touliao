@@ -6,7 +6,7 @@
 // 注：出货安卓是原生 Kotlin App，其文件下载在 Kotlin 侧用 DownloadManager 实现，不走本文件。
 import { mediaUrl } from './url';
 import { showToast } from './toast';
-import { Filesystem, Directory } from '@capacitor/filesystem';
+// @capacitor/filesystem 仅在原生 App 运行时动态加载，不打入 web bundle
 
 function isNative() {
   return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -56,9 +56,10 @@ export async function downloadFile(fileUrl, filename) {
     const blob = await resp.blob();
 
     if (isNative()) {
-      // 原生 App：存到 Documents，提示可在系统「文件」中打开
+      // 原生 App：动态加载 @capacitor/filesystem（不打入 web bundle）
       showToast('正在保存…');
       const base64 = await blobToBase64(blob);
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
       await Filesystem.writeFile({ path: name, data: base64, directory: Directory.Documents, recursive: true });
       showToast(`已保存：${name}（可在系统「文件」中打开）`, 'success');
     } else {

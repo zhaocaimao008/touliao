@@ -35,13 +35,6 @@
     "check:capacitor": "node scripts/check-capacitor-versions.mjs"
   },
   "dependencies": {
-    "@capacitor/app": "^4.0.0",
-    "@capacitor/camera": "^4.0.0",
-    "@capacitor/core": "^4.0.0",
-    "@capacitor/filesystem": "^4.0.0",
-    "@capacitor/geolocation": "^4.0.0",
-    "@capacitor/network": "^4.0.0",
-    "@capacitor/push-notifications": "^4.0.0",
     "@sentry/react": "^10.70.0",
     "@sentry/tracing": "^7.120.4",
     "axios": "^1.6.7",
@@ -133,5 +126,14 @@
       "uninstallerIcon": "build/icons/icon.ico",
       "installerHeaderIcon": "build/icons/icon.ico"
     }
+  },
+  "optionalDependencies": {
+    "@capacitor/app": "^4.0.0",
+    "@capacitor/camera": "^4.0.0",
+    "@capacitor/core": "^4.0.0",
+    "@capacitor/filesystem": "^4.0.0",
+    "@capacitor/geolocation": "^4.0.0",
+    "@capacitor/network": "^4.0.0",
+    "@capacitor/push-notifications": "^4.0.0"
   }
 }

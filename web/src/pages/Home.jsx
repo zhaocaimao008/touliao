@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy, startTransition } from 'react';
 import { showConfirm } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
 import './Home.css';
@@ -8,6 +8,8 @@ import ChatWindowBoundary from '../components/ChatWindowBoundary';
 import ContactList from '../components/ContactList';
 import Profile from '../components/Profile';
 import GlobalSearch from '../components/GlobalSearch';
+import PanelBoundary from '../components/PanelBoundary';
+import { ChatSkeleton, PanelSkeleton } from '../components/PanelSkeleton';
 // 非常驻的重型面板/模态框懒加载，减小首屏 chunk（各自本地 Suspense 兜底）
 // ChatWindow(~2700 行)仅在选中会话后才渲染，懒加载可显著缩小 Home 首屏 chunk。
 const ChatWindow    = lazy(() => import('../components/ChatWindow'));
@@ -805,11 +807,11 @@ export default function Home() {
       case 'contacts':
         return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} onAddFriendConsumed={handleAddFriendConsumed} />;
       case 'moments':
-        return <Suspense fallback={<div className="wc-lazy-pane" />}><Moments /></Suspense>;
+        return <PanelBoundary name="动态"><Suspense fallback={<PanelSkeleton />}><Moments /></Suspense></PanelBoundary>;
       case 'calls':
-        return <Suspense fallback={<div className="wc-lazy-pane" />}><CallHistory onOpenChat={isMobile ? handleMobileSelectConv : handleSelectConv} /></Suspense>;
+        return <PanelBoundary name="通话记录"><Suspense fallback={<PanelSkeleton />}><CallHistory onOpenChat={isMobile ? handleMobileSelectConv : handleSelectConv} /></Suspense></PanelBoundary>;
       case 'favorites':
-        return <Suspense fallback={<div className="wc-lazy-pane" />}><Collections /></Suspense>;
+        return <PanelBoundary name="收藏"><Suspense fallback={<PanelSkeleton />}><Collections /></Suspense></PanelBoundary>;
       case 'profile':
       case 'me':
         return <Profile isMobile={isMobile} />;
@@ -945,7 +947,7 @@ export default function Home() {
         {activeConv ? (
           <div className="m-chat-page">
             <ChatWindowBoundary convId={activeConv.id}>
-              <Suspense fallback={<div className="wc-lazy-pane" />}>
+              <Suspense fallback={<ChatSkeleton />}>
                 <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={handleMobileBack} onStartCall={handleStartCall} />
               </Suspense>
             </ChatWindowBoundary>

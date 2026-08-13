@@ -46,6 +46,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
 import { rememberAspect } from '../utils/imgDimCache';
+import PanelBoundary from './PanelBoundary';
 import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
