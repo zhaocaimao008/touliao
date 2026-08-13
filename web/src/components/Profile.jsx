@@ -455,7 +455,7 @@ function InviteFriends({ onBack }) {
             <CRow key={u.id}
               icon={<Avatar src={u.avatar} name={u.username} size={28} />} bg="transparent"
               label={u.username}
-              desc={u.wechat_id ? `v信号：${u.wechat_id}` : ''}
+              desc={u.wechat_id ? `投聊号：${u.wechat_id}` : ''}
               right={<span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{fmtTime(u.created_at)}</span>} />
           )) : <CRow label="还没有邀请记录，快去分享你的邀请码吧" />)}
         </Card>
@@ -736,7 +736,7 @@ function PrivacySettings({ user, onBack }) {
       <div className="wc-privacy-outer">
         <div className="wc-privacy-desc">允许他人通过以下方式添加我</div>
         <Card>
-          <CRow label="ID号" desc={user?.wechat_id ? `v信号: ${user.wechat_id}` : '未分配'}
+          <CRow label="ID号" desc={user?.wechat_id ? `投聊号: ${user.wechat_id}` : '未分配'}
             right={<Toggle checked={settings.addByVxinId} onChange={v => setFlag('addByVxinId', v)} />} />
           <CRow label="手机号" desc={user?.phone || ''}
             right={<Toggle checked={settings.addByPhone} onChange={v => setFlag('addByPhone', v)} />} />
@@ -884,7 +884,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
   const copyVid = async () => {
     if (!user?.wechat_id) return;
     const ok = await copyToClipboard(user.wechat_id);
-    showToast(ok ? '已复制 v信号' : '复制失败', ok ? 'success' : 'error');
+    showToast(ok ? '已复制 投聊号' : '复制失败', ok ? 'success' : 'error');
   };
 
   const handleFileChange = async (e) => {
@@ -941,8 +941,8 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
           <div className="pf-hero-name">{user?.username || '未设置昵称'}</div>
           <div className="pf-hero-bio">{user?.bio || '这个人很酷，还没有签名'}</div>
           {user?.wechat_id && (
-            <button className="pf-vid-chip" onClick={copyVid} title="点击复制 v信号">
-              <span className="pf-vid-label">v信号</span>
+            <button className="pf-vid-chip" onClick={copyVid} title="点击复制 投聊号">
+              <span className="pf-vid-label">投聊号</span>
               <span className="pf-vid-value">{user.wechat_id}</span>
               <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
             </button>
@@ -960,7 +960,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
       <SLabel>账号信息</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow label="v信号" value={user?.wechat_id || ''} onClick={user?.wechat_id ? copyVid : undefined} />
+          <CRow label="投聊号" value={user?.wechat_id || ''} onClick={user?.wechat_id ? copyVid : undefined} />
           <CRow label="手机号" value={user?.phone || ''} onClick={() => navigateTo?.('change-phone')} />
         </Card>
       </div>
@@ -1159,7 +1159,7 @@ function ShortcutSettings({ onBack }) {
       })}
       <div className="wc-server-hint">
         <div className="wc-server-hint-box">
-          快捷键在全局生效（即使 v信 窗口不在前台）。若保存后提示「被占用」，
+          快捷键在全局生效（即使 投聊 窗口不在前台）。若保存后提示「被占用」，
           请先在系统或其它应用中解除该组合键的绑定后重试。
         </div>
       </div>
@@ -1203,7 +1203,7 @@ export default function Profile({ isMobile = false }) {
         </div>
         <div className="wc-me-info">
           <div className="wc-me-name">{user?.username || '未设置昵称'}</div>
-          {user?.wechat_id && <div className="wc-me-vid">v信号：{user.wechat_id}</div>}
+          {user?.wechat_id && <div className="wc-me-vid">投聊号：{user.wechat_id}</div>}
           {user?.bio && <div className="wc-me-bio">{user.bio}</div>}
         </div>
         <div className="wc-me-actions">
@@ -1301,7 +1301,7 @@ export default function Profile({ isMobile = false }) {
 
       {/* ── 版本号：桌面端显示应用版本，网页端显示 web 构建版本 ── */}
       <div style={{ textAlign: 'center', padding: '16px 0 24px', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>
-        v信 v{window.__ELECTRON_CONFIG__?.appVersion || __APP_VERSION__}
+        投聊 v{window.__ELECTRON_CONFIG__?.appVersion || __APP_VERSION__}
       </div>
     </PageBg>
   );

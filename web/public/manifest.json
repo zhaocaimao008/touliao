@@ -20,6 +20,9 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["social", "communication"],
+  "categories": [
+    "social",
+    "communication"
+  ],
   "prefer_related_applications": false
 }

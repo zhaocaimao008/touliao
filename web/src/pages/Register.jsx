@@ -97,7 +97,7 @@ export default function Register() {
             </svg>
           </div>
           <h1 className="auth-brand-name">创建账号</h1>
-          <p className="auth-brand-desc">注册 v信，开始畅聊</p>
+          <p className="auth-brand-desc">注册 投聊，开始畅聊</p>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>

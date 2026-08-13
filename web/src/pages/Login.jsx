@@ -86,13 +86,10 @@ export default function Login() {
       <div className="auth-container">
         {/* Logo区域 */}
         <div className="auth-brand">
-          <div className="auth-brand-icon">
-            <svg viewBox="0 0 40 40" width="38" height="38" fill="none">
-              <path d="M5 7a3 3 0 013-3h16a3 3 0 013 3v12a3 3 0 01-3 3H14l-5 5V7z" fill="rgba(255,255,255,.3)"/>
-              <path d="M17 15a3 3 0 013-3h11a3 3 0 013 3v10a3 3 0 01-3 3h-3v4l-5-4h-3a3 3 0 01-3-3V15z" fill="white"/>
-            </svg>
+          <div className="auth-brand-icon" style={{background:'none',boxShadow:'none',padding:0,overflow:'hidden'}}>
+            <img src="/icon.png" alt="投聊" width="68" height="68" style={{borderRadius:'var(--radius-2xl)',display:'block',objectFit:'cover'}} />
           </div>
-          <h1 className="auth-brand-name auth-brand-name--brand">v信</h1>
+          <h1 className="auth-brand-name auth-brand-name--brand">投聊</h1>
           <p className="auth-brand-desc">安全 · 私密 · 畅聊</p>
         </div>
 
@@ -116,7 +113,7 @@ export default function Login() {
                   </div>
                   <div className="auth-account-info">
                     <span className="auth-account-name">{account.user?.username || '未命名'}</span>
-                    <span className="auth-account-id">v信ID {account.user?.wechat_id || account.user?.phone}</span>
+                    <span className="auth-account-id">投聊ID {account.user?.wechat_id || account.user?.phone}</span>
                   </div>
                 </button>
                 <button

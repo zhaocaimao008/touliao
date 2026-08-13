@@ -170,10 +170,10 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             <button
               type="button"
               className="up-sub up-copyable"
-              title="点击复制 v信号"
-              aria-label={`v信号 ${user.wechat_id}，点击复制`}
-              onClick={async () => { const ok = await copyToClipboard(user.wechat_id); showToast(ok ? '已复制 v信号' : '复制失败，请长按手动复制', ok ? 'success' : 'error'); }}
-            >v信号：{user.wechat_id}</button>
+              title="点击复制 投聊号"
+              aria-label={`投聊号 ${user.wechat_id}，点击复制`}
+              onClick={async () => { const ok = await copyToClipboard(user.wechat_id); showToast(ok ? '已复制 投聊号' : '复制失败，请长按手动复制', ok ? 'success' : 'error'); }}
+            >投聊号：{user.wechat_id}</button>
           )}
           {user.bio && <div className="up-bio">{user.bio}</div>}
           {/* 特权账户：精确最后在线时间 */}

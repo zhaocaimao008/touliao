@@ -66,7 +66,7 @@ export default function ElectronTitlebar() {
       <span style={{
         flex: 1, paddingLeft: 56, fontSize: 'var(--text-sm)',
         color: 'var(--titlebar-title)', letterSpacing: 1,
-      }}>v信</span>
+      }}>投聊</span>
 
       <div style={{
         display: 'flex', height: '100%',

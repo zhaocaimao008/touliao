@@ -17,7 +17,7 @@ function AfResultItem({ user: u, onClick }) {
         <div className="afm-result-name">{u.username}</div>
         {(u.wechat_id || u.phone) && (
           <div className="afm-result-sub">
-            {u.wechat_id ? `v信号：${u.wechat_id}` : `手机：${u.phone.slice(0, 3)}****${u.phone.slice(-4)}`}
+            {u.wechat_id ? `投聊号：${u.wechat_id}` : `手机：${u.phone.slice(0, 3)}****${u.phone.slice(-4)}`}
           </div>
         )}
       </div>
@@ -121,7 +121,7 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
               </svg>
               <input
                 ref={inputRef}
-                placeholder="搜索 v信号、手机号或昵称"
+                placeholder="搜索 投聊号、手机号或昵称"
                 aria-label="搜索好友"
                 value={query}
                 onChange={onChange}
@@ -151,10 +151,10 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
                   输入账号查找朋友
                 </div>
                 <div className="afm-idle-desc">
-                  支持通过 v信号、手机号或昵称<br />精准定位你想添加的联系人
+                  支持通过 投聊号、手机号或昵称<br />精准定位你想添加的联系人
                 </div>
                 <div className="afm-idle-tags">
-                  {['v信号', '手机号', '昵称'].map(t => (
+                  {['投聊号', '手机号', '昵称'].map(t => (
                     <span key={t} className="afm-idle-tag">{t}</span>
                   ))}
                 </div>
@@ -204,7 +204,7 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
             {!searching && searched && !searchError && query && results.length === 0 && (
               <div className="afm-not-found">
                 <div className="afm-not-found-title">未找到「{query}」相关用户</div>
-                <div className="afm-not-found-sub">换个 v信号或手机号试试</div>
+                <div className="afm-not-found-sub">换个 投聊号或手机号试试</div>
               </div>
             )}
           </div>

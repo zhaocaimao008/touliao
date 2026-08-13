@@ -262,10 +262,10 @@ function AccountSwitcher() {
           {/* 资料详情（展开时显示） */}
           {showProfile && (
             <div className="as-profile-detail">
-              {/* v信号 */}
+              {/* 投聊号 */}
               {user?.wechat_id && (
                 <div className="as-profile-item">
-                  <span className="as-profile-label-text">v信号</span>
+                  <span className="as-profile-label-text">投聊号</span>
                   <span className="as-profile-value">{user.wechat_id}</span>
                 </div>
               )}
@@ -766,11 +766,11 @@ export default function Home() {
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
   const badges = { chats: totalUnread, contacts: friendReqCount };
 
-  // 浏览器标签页标题显示未读总数「(N) v信」——切到别的 tab 也能一眼看到有新消息(对齐一线 IM)。
-  // N>99 记作 99+；为 0 时恢复纯「v信」；组件卸载时复位，避免残留角标。
+  // 浏览器标签页标题显示未读总数「(N) 投聊」——切到别的 tab 也能一眼看到有新消息(对齐一线 IM)。
+  // N>99 记作 99+；为 0 时恢复纯「投聊」；组件卸载时复位，避免残留角标。
   // 桌面端(Electron)同步把未读总数反映到 Dock/任务栏角标。
   useEffect(() => {
-    const base = 'v信';
+    const base = '投聊';
     document.title = totalUnread > 0 ? `(${totalUnread > 99 ? '99+' : totalUnread}) ${base}` : base;
     try { window.electronAPI?.setBadge?.(totalUnread); } catch { /* 非桌面端忽略 */ }
     return () => {

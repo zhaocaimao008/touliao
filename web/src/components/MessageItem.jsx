@@ -297,7 +297,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                     <Avatar src={card.avatar} name={card.username} size={44} style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
                     <div className="wc-contact-card-info">
                       <div className="wc-contact-card-name">{card.username || '用户'}</div>
-                      {card.wechat_id && <div className="wc-contact-card-wechat">v信号：{card.wechat_id}</div>}
+                      {card.wechat_id && <div className="wc-contact-card-wechat">投聊号：{card.wechat_id}</div>}
                     </div>
                   </div>
                   <div className="wc-contact-card-footer">个人名片</div>
@@ -324,7 +324,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                       <div className="wc-redpacket-hint">点击领取红包</div>
                     </div>
                   </div>
-                  <div className="wc-redpacket-footer">v信红包</div>
+                  <div className="wc-redpacket-footer">投聊红包</div>
                 </div>
               );
             })()}

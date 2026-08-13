@@ -2323,7 +2323,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   <Avatar src={c.avatar} name={c.remark || c.username} size={42} style={{ borderRadius: 'var(--radius-sm)' }} />
                   <div className="wc-card-picker-item-info">
                     <div className="wc-card-picker-item-name">{c.remark || c.username}</div>
-                    {c.wechat_id && <div className="wc-card-picker-item-wechat">v信号：{c.wechat_id}</div>}
+                    {c.wechat_id && <div className="wc-card-picker-item-wechat">投聊号：{c.wechat_id}</div>}
                   </div>
                 </div>
               ))}

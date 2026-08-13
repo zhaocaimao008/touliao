@@ -1,5 +1,5 @@
 /* ================================================================
-   v信 Enterprise Design System — 企业微信视觉规范对齐
+   投聊 Enterprise Design System — 企业微信视觉规范对齐
    设计 Token 唯一真相源：src/design-tokens.css
    此文件不含任何 :root token 定义；所有 CSS 变量均在 design-tokens.css
    的 :root / body.dark-mode 段统一管理，修改请前往该文件。
@@ -1373,7 +1373,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
   box-shadow: 0 10px 34px rgba(var(--color-primary-rgb),.48), inset 0 1px 0 rgba(255,255,255,.25), 0 0 0 1px rgba(var(--color-primary-rgb),.25);
 }
 .auth-brand-name { font-size: var(--text-display); font-weight: var(--font-bold); color: var(--gray-0); margin-bottom: 5px; letter-spacing: -.5px; }
-.auth-brand-name--brand { font-size: var(--text-display-lg); } /* 登录页品牌名 v信 —— 对齐原生 30 */
+.auth-brand-name--brand { font-size: var(--text-display-lg); } /* 登录页品牌名 投聊 —— 对齐原生 30 */
 .auth-brand-desc { font-size: var(--text-sm2); color: rgba(255,255,255,.38); letter-spacing: .3px; }
 .auth-accounts {
   background: rgba(255,255,255,.05);
@@ -2718,7 +2718,7 @@ body:not(.dark-mode) .wc-discover {
 }
 
 /* ============================================================
-   v信 2.0 UI 精细化补丁
+   投聊 2.0 UI 精细化补丁
    ============================================================ */
 
 /* 气泡保留柔和投影，从画布上浮起（与基础规则一致，不再抹平） */
