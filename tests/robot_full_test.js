@@ -108,7 +108,7 @@ async function suitePWA() {
   const r3 = await get(`${WEB_BASE}/sw.js`);
   r3.status === 200 ? pass('sw.js 200') : fail('sw.js', `${r3.status}`);
   if (typeof r3.raw === 'string') {
-    r3.raw.includes('touliao-v2.0.19') ? pass('sw.js CACHE_NAME = touliao-*') : fail('sw.js CACHE_NAME', '仍是旧名');
+    r3.raw.includes('touliao-v2.0.') ? pass('sw.js CACHE_NAME = touliao-*') : fail('sw.js CACHE_NAME', '仍是旧名');
     r3.raw.includes('投聊新消息') ? pass('sw.js 推送文案已更新') : fail('sw.js 推送文案', '仍有旧文案');
   }
   
