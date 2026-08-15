@@ -216,7 +216,21 @@ exports.deleteUser = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
-exports.listMessages = asyncHandler(async (req, res) => res.json(svc.listMessages(req.query)));
+exports.listMessages = asyncHandler(async (req, res) => {
+  const result = svc.listMessages(req.query);
+  // 全文检索所有用户私聊内容属高敏操作，此前完全没有审计记录
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: req.query.q ? 'MESSAGE_SEARCH' : 'MESSAGE_BROWSE',
+    resourceType: 'message',
+    details: { q: req.query.q || null, period: req.query.period || null, resultCount: result.total },
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    riskLevel: req.query.q ? 'high' : 'medium',
+  });
+  res.json(result);
+});
 
 exports.listGroups  = asyncHandler(async (req, res) => res.json(svc.listGroups(req.query)));
 exports.groupDetail = asyncHandler(async (req, res) => res.json(svc.groupDetail(req.params.id)));

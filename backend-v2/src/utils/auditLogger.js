@@ -352,9 +352,38 @@ function auditMiddleware(eventType, options = {}) {
   };
 }
 
+// admin.controller.js / admin.service.js 调用的是这个扁平化签名
+// (adminId/adminUsername/ip 而非 log() 的 userId/ipAddress)。
+// 之前这里没有导出 logAuditEvent，导致解构出 undefined，
+// 封禁/解封/重置密码/加撤权限/发币/删号这些操作一调用审计日志就直接抛异常。
+function logAuditEvent({
+  adminId = null,
+  adminUsername = null,
+  action = null,
+  resourceType = null,
+  resourceId = null,
+  details = null,
+  ip = null,
+  userAgent = null,
+  riskLevel = RiskLevel.MEDIUM,
+} = {}) {
+  auditLogger.log({
+    eventType: AuditEventType.ADMIN_ACTION,
+    riskLevel,
+    userId: adminId,
+    ipAddress: ip,
+    userAgent,
+    resourceType,
+    resourceId,
+    action,
+    details: adminUsername ? { ...details, adminUsername } : details,
+  });
+}
+
 module.exports = {
   auditLogger,
   auditMiddleware,
+  logAuditEvent,
   AuditEventType,
   RiskLevel,
 };
