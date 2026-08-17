@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
-import { getConfig } from '../utils/config';
+import { getConfig, isConfigLoaded } from '../utils/config';
 
 // 拆分成两个 context 避免 reconnect 引起无关组件 re-render：
 // SocketCoreContext  — socket 实例 + 稳定回调（重连时不变）
@@ -37,8 +37,10 @@ export const SocketProvider = ({ children }) => {
     if (!userId) { setSocket(null); setConnected(false); return; }
 
     const manualUrl = localStorage.getItem('touliao_server_url');
-    const cfg = getConfig();
-    const serverUrl = manualUrl || cfg.socket || import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_BASE || '/';
+    // FE-001 之后 config 可能尚未加载完成（Web 端 800ms 超时降级），
+    // 此处必须容错：未加载时退到环境变量/同源，避免 getConfig() 抛异常炸掉 Socket 上下文
+    const cfg = isConfigLoaded() ? getConfig() : null;
+    const serverUrl = manualUrl || cfg?.socket || import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_BASE || '/';
 
     const electronToken = (window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.())
       ? localStorage.getItem('touliao_electron_token')
