@@ -422,8 +422,12 @@ function applySchema(db) {
       user_id         TEXT NOT NULL,
       conversation_id TEXT NOT NULL,
       cleared_at      INTEGER NOT NULL,
+      cleared_rowid   INTEGER DEFAULT 0,
       PRIMARY KEY (user_id, conversation_id)
     )`,
+    // 存量 clears 回填：先补列（新库建表已含；旧库幂等 ALTER），再回填同秒精确水位线
+    "ALTER TABLE conversation_clears ADD COLUMN cleared_rowid INTEGER DEFAULT 0",
+    "UPDATE conversation_clears SET cleared_rowid = COALESCE((SELECT MAX(m.rowid) FROM messages m WHERE m.conversation_id = conversation_clears.conversation_id AND m.created_at <= conversation_clears.cleared_at), 0) WHERE cleared_rowid = 0",
     // ── 标记未读：用户手动将某会话标为未读 ──
     "ALTER TABLE conversation_settings ADD COLUMN manually_unread INTEGER DEFAULT 0",
     // ── 阅后即焚：每个用户对某会话独立设置的销毁秒数（0=关闭）──

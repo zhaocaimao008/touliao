@@ -29,8 +29,7 @@ function history(convId, userId, { before, after, limit, beforeId }) {
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id=m.sender_id
     WHERE m.conversation_id=? AND m.deleted=0
-      AND m.created_at > COALESCE(
-        (SELECT cleared_at FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0
+      AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0
       )
   `;
   const params = [convId, userId];
@@ -134,8 +133,10 @@ function missed(io, userId, after) {
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id = m.sender_id
     WHERE m.conversation_id IN (${ph}) AND m.deleted = 0 AND m.created_at > ?
+      AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+                                   WHERE user_id=? AND conversation_id=m.conversation_id), 0)
     ORDER BY m.created_at ASC LIMIT 300
-  `).all(...convIds, after);
+  `).all(...convIds, after, userId);
 
   const replyIds = [...new Set(messages.filter(m => m.reply_to_id).map(m => m.reply_to_id))];
   const replyMap = new Map();
@@ -496,8 +497,10 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
              ON cm_o.conversation_id = m.conversation_id AND cm_o.user_id != ? AND c.type = 'private'
       LEFT JOIN users ou ON ou.id = cm_o.user_id
       WHERE m.type = 'text' AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
+        AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+                                     WHERE user_id=? AND conversation_id=m.conversation_id), 0)
       ORDER BY m.created_at DESC LIMIT ? OFFSET ?
-    `).all(userId, userId, like, safeLimit, safeOffset);
+    `).all(userId, userId, like, userId, safeLimit, safeOffset);
   } else {
     // FTS5 phrase query: double-quote wrap 防止特殊字符被解析为 FTS5 语法
     const ftsQuery = '"' + trimmed.replace(/"/g, '""') + '"';
@@ -524,8 +527,10 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
              ON cm_o.conversation_id = m.conversation_id AND cm_o.user_id != ? AND c.type = 'private'
       LEFT JOIN users ou ON ou.id = cm_o.user_id
       WHERE messages_fts MATCH ?
+        AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+                                     WHERE user_id=? AND conversation_id=m.conversation_id), 0)
       ORDER BY m.created_at DESC LIMIT ? OFFSET ?
-    `).all(userId, userId, ftsQuery, safeLimit, safeOffset);
+    `).all(userId, userId, ftsQuery, userId, safeLimit, safeOffset);
   }
 
   const results = rows.map(({ ou_id, ou_username, ou_avatar, ou_status, ...msg }) => {
@@ -594,15 +599,13 @@ async function searchInConversation(convId, userId, q) {
 function aroundMessage(convId, msgId, userId) {
   requireMember(convId, userId);
 
-  const clearClause = `AND m.created_at > COALESCE(
-    (SELECT cleared_at FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0
+  const clearClause = `AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0
   )`;
 
   const target = db.prepare(`
     SELECT created_at FROM messages
     WHERE id=? AND conversation_id=? AND deleted=0
-    AND created_at > COALESCE(
-      (SELECT cleared_at FROM conversation_clears WHERE user_id=? AND conversation_id=?), 0
+    AND rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=?), 0
     )
   `).get(msgId, convId, userId, convId);
   if (!target) return null;
@@ -670,9 +673,11 @@ function exportConversation(convId, userId) {
            u.username AS senderName
     FROM messages m JOIN users u ON u.id=m.sender_id
     WHERE m.conversation_id=? AND m.deleted=0
+      AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+                                   WHERE user_id=? AND conversation_id=m.conversation_id), 0)
     ORDER BY m.created_at ASC, m.rowid ASC
     LIMIT 10000
-  `).all(convId, );
+  `).all(convId, userId);
 
   // 非文本消息的类型标注（transfer/red_packet 单独展开，见下方 formatBody）
   const typeLabel = {

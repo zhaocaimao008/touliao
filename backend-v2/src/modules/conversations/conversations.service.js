@@ -208,6 +208,8 @@ async function listConversations(uid) {
           AND  mu.sender_id      != ?
           AND  mu.deleted         = 0
           AND  mu.created_at      > COALESCE(cs.last_read_at, 0)
+          AND  mu.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+                                              WHERE user_id=? AND conversation_id=c.id), 0)
         LIMIT 99
       )) AS unreadCount,
       (SELECT COUNT(*) FROM (
@@ -235,6 +237,8 @@ async function listConversations(uid) {
     JOIN conversation_members cm ON cm.conversation_id = c.id AND cm.user_id = ?
     LEFT JOIN messages m ON m.id = (
       SELECT id FROM messages WHERE conversation_id = c.id AND deleted = 0
+        AND rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+                                   WHERE user_id=? AND conversation_id=c.id), 0)
       ORDER BY created_at DESC LIMIT 1
     )
     LEFT JOIN users su ON su.id = m.sender_id
@@ -245,7 +249,7 @@ async function listConversations(uid) {
     LEFT JOIN contacts ct ON ct.user_id = ? AND ct.contact_id = ou.id
     ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC
     LIMIT 500
-  `).all(uid, uid, meUsername, meUsername, uid, uid, uid, uid);
+  `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid);
 
   const memberMap = new Map();
   if (rows.some(r => r.type === 'group')) {
@@ -423,11 +427,13 @@ async function setBurnAfter(userId, convId, seconds) {
 function clearConversation(io, userId, convId) {
   requireMember(convId, userId, '无权操作该会话');
   const now = Math.floor(Date.now() / 1000);
+  // 精确水位线：该会话当前最大消息 rowid（rowid 单调递增，无同秒歧义）
+  const maxRowid = db.prepare('SELECT COALESCE(MAX(rowid), 0) AS r FROM messages WHERE conversation_id=?').get(convId).r;
   db.prepare(`
-    INSERT INTO conversation_clears (user_id, conversation_id, cleared_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at
-  `).run(userId, convId, now);
+    INSERT INTO conversation_clears (user_id, conversation_id, cleared_at, cleared_rowid)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
+  `).run(userId, convId, now, maxRowid);
   if (io) io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId });
   return 1;
 }
@@ -437,11 +443,11 @@ function clearAllConversations(io, userId) {
   if (!convs.length) return { conversations: 0, deleted: 0 };
   const now = Math.floor(Date.now() / 1000);
   const upsert = db.prepare(`
-    INSERT INTO conversation_clears (user_id, conversation_id, cleared_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at
+    INSERT INTO conversation_clears (user_id, conversation_id, cleared_at, cleared_rowid)
+    VALUES (?, ?, ?, (SELECT COALESCE(MAX(rowid), 0) FROM messages WHERE conversation_id=?))
+    ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
   `);
-  db.transaction(() => { for (const { conversation_id } of convs) upsert.run(userId, conversation_id, now); })();
+  db.transaction(() => { for (const { conversation_id } of convs) upsert.run(userId, conversation_id, now, conversation_id); })();
   if (io) for (const { conversation_id } of convs) {
     io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: conversation_id, clearedBy: userId });
   }
