@@ -19,6 +19,12 @@ const { v4: uuidv4 } = require('uuid');
 // 200 MB 对聊天文件（视频/文档）已充足；生产如需更大可设 MAX_UPLOAD_BYTES=524288000。
 const MAX_UPLOAD_BYTES = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || (200 * 1024 * 1024);
 
+// 单用户同时进行中的分片上传会话上限（防并发小文件叠堆耗尽磁盘/内存）
+const MAX_CONCURRENT_UPLOADS = 5;
+
+// 磁盘剩余空间安全阈值：低于该值拒绝新上传（防磁盘耗尽 DoS）
+const MIN_DISK_FREE_BYTES = 500 * 1024 * 1024; // 500MB
+
 // 魔数采样字节数：file-type 需足够样本才能识别 webm/ogg/mp3(ID3)/tiff 等（旧代码仅读 16 字节会漏判）。
 const MAGIC_SAMPLE_BYTES = 4100;
 
@@ -274,6 +280,7 @@ function isBrowserRenderableType(contentType) {
 
 module.exports = {
   ALLOWED_CHAT_EXTS, ALLOWED_IMAGE_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS,
+  MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES,
   sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader,
   verifyMagicBytes, verifyChatFile, isBrowserRenderableType,
 };

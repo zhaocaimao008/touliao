@@ -12,14 +12,25 @@ const fs = require('fs');
 const crypto = require('crypto');
 const config = require('../../config');
 const { isMember } = require('../messages/shared');
-const { verifyChatFile, ALLOWED_CHAT_EXTS, sanitizeFilename } = require('../../utils/upload');
+const { verifyChatFile, ALLOWED_CHAT_EXTS, sanitizeFilename, MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES } = require('../../utils/upload');
+const { registerFile } = require('../../utils/fileRegistry');
 
-const MAX_FILE = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || Infinity; // 默认不限制；可配 MAX_UPLOAD_BYTES 设安全上限
+const MAX_FILE = MAX_UPLOAD_BYTES; // 单文件上限（默认 200MB，可配 MAX_UPLOAD_BYTES）
 const MAX_CHUNK = 8 * 1024 * 1024; // 单片上限 8MB
 const CHUNK_DIR = path.join(config.uploadsRoot, 'chunks');
 const FILES_DIR = path.join(config.uploadsRoot, 'files');
 fs.mkdirSync(CHUNK_DIR, { recursive: true });
 fs.mkdirSync(FILES_DIR, { recursive: true });
+
+// 磁盘剩余空间阈值检查：低于 MIN_DISK_FREE_BYTES 拒绝新上传/续传
+function diskSafe() {
+  try {
+    if (typeof fs.statfsSync !== 'function') return true;
+    const s = fs.statfsSync(config.uploadsRoot);
+    const free = s.bavail * s.bsize;
+    return free >= MIN_DISK_FREE_BYTES;
+  } catch { return true; } // 无法探测时放行（不因统计失败误伤）
+}
 
 const meta = new Map(); // uploadId -> {userId,convId,filename,size,mime,hash,createdAt}
 const metaPath = (id) => path.join(CHUNK_DIR, id + '.meta.json');
@@ -50,8 +61,15 @@ function init(req, res) {
   if (!filename || !size || !hash) return res.status(400).json({ error: '参数缺失: filename,size,hash' });
   const total = parseInt(size, 10);
   if (!(total > 0) || total > MAX_FILE) {
-    const cap = Number.isFinite(MAX_FILE) ? `1 ~ ${Math.floor(MAX_FILE / 1024 / 1024)}MB` : '正整数字节';
-    return res.status(400).json({ error: `文件大小需为 ${cap}` });
+    return res.status(400).json({ error: `文件大小需为 1 ~ ${Math.floor(MAX_FILE / 1024 / 1024)}MB` });
+  }
+  // P1-03：磁盘剩余空间阈值（防磁盘耗尽 DoS）
+  if (!diskSafe()) return res.status(503).json({ error: '服务器磁盘空间不足，请稍后再试' });
+  // P1-03：单用户并发分片上传会话数上限（防多路小文件叠堆）
+  let active = 0;
+  for (const m of meta.values()) if (m.userId === req.user.id) active += 1;
+  if (active >= MAX_CONCURRENT_UPLOADS) {
+    return res.status(429).json({ error: `同时进行中的上传过多（上限 ${MAX_CONCURRENT_UPLOADS}），请先完成或等待清理` });
   }
   // 仅放行常见格式（按扩展名快速拒绝冷门/危险格式；finish 时再做魔数反伪装校验）。
   const ext = path.extname(filename).toLowerCase().replace(/^\./, '');
@@ -90,6 +108,7 @@ async function chunk(req, res) {
   if (!Buffer.isBuffer(body) || body.length === 0) return res.status(400).json({ error: '空分片' });
   if (body.length > MAX_CHUNK) return res.status(413).json({ error: '单片过大' });
   if (cur + body.length > m.size) return res.status(400).json({ error: '超出声明大小' });
+  if (!diskSafe()) return res.status(503).json({ error: '服务器磁盘空间不足，请稍后再试' });
   await fs.promises.appendFile(partPath(uploadId), body);
   return res.json({ received: received(uploadId) });
 }
@@ -128,6 +147,7 @@ async function finish(req, res) {
   const mime = check.mime || m.mime || '';
   const type = mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'voice' : mime.startsWith('video/') ? 'video' : 'file';
   const fileUrl = `/uploads/files/${finalName}`;
+  registerFile({ path: fileUrl, ownerId: req.user.id, conversationId, kind: 'files' });
 
   const svc = require('../messages/messages.service');
   const io = req.app.get('io');
@@ -149,4 +169,14 @@ function sweep() {
 }
 setInterval(sweep, 3600 * 1000).unref?.();
 
-module.exports = { init, status, chunk, finish, MAX_CHUNK, MAX_FILE };
+// 测试辅助：删除指定 uploadId 的内存 meta（用于并发上限用例的清理，避免污染其他用例）
+function __testDeleteMeta(uploadId) {
+  meta.delete(uploadId);
+}
+
+// 测试辅助：删除指定用户的所有内存 meta（用例前重置并发计数）
+function __testResetForUser(userId) {
+  for (const [id, m] of meta) if (m.userId === userId) meta.delete(id);
+}
+
+module.exports = { init, status, chunk, finish, MAX_CHUNK, MAX_FILE, __testDeleteMeta, __testResetForUser };

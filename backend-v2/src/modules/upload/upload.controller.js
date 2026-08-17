@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const { asyncHandler, badRequest, forbidden } = require('../../utils/http');
 const { isConfigured, getPresignedPutUrl } = require('../../utils/cloudStorage');
 const path = require('path');
-const { safeExt, ALLOWED_CHAT_EXTS, isBrowserRenderableType } = require('../../utils/upload');
+const { safeExt, ALLOWED_CHAT_EXTS, isBrowserRenderableType, MAX_UPLOAD_BYTES } = require('../../utils/upload');
 const { isMember } = require('../messages/shared');
 
 /**
@@ -24,7 +24,7 @@ exports.credential = asyncHandler(async (req, res) => {
     if (!Number.isInteger(size) || size < 1) {
       throw badRequest('fileSize 无效（需为正整数字节）');
     }
-    const MAX = parseInt(process.env.MAX_UPLOAD_BYTES, 10) || Infinity;
+    const MAX = MAX_UPLOAD_BYTES;
     if (size > MAX) {
       throw badRequest(`文件超过上限 ${Math.floor(MAX / 1024 / 1024)}MB`);
     }
