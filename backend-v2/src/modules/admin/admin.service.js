@@ -143,6 +143,17 @@ function deleteUser(io, id) {
   if (!user) throw notFound('用户不存在');
 
   db.transaction(() => {
+    // P1-05：资金守恒 —— 删除前先结清该用户「发出且在途」的红包，剩余金额
+    // 原路退回本人钱包（复用注销结算口径：status CAS 防双花，同一红包只退一次）。
+    const redpackets = require('../redpackets/redpackets.service');
+    redpackets.settleUserActivePacketsTx(id);
+    // 钱包余额：记账后清零（每分钱都有 ledger 去向，不凭空消失）；
+    // wallet_transactions 保留作审计痕迹（下方不再 DELETE）。
+    const walletRow = db.prepare('SELECT balance FROM wallets WHERE user_id=?').get(id);
+    if (walletRow && walletRow.balance > 0) {
+      wallet.applyDeltaTx(id, -walletRow.balance, 'admin_delete_refund', null, '管理员删除用户·余额清零');
+    }
+
     // 该用户发的消息及其衍生数据（用子查询避免 IN(?) 参数爆炸）
     db.prepare('DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE sender_id=?)').run(id);
     db.prepare('DELETE FROM message_deliveries WHERE message_id IN (SELECT id FROM messages WHERE sender_id=?)').run(id);
@@ -203,7 +214,7 @@ function deleteUser(io, id) {
     // 导致后台删除用户恒定 500。修正列名以清理该用户所发红包的领取记录。
     db.prepare('DELETE FROM red_packet_claims WHERE packet_id IN (SELECT id FROM red_packets WHERE sender_id=?)').run(id);
     db.prepare('DELETE FROM red_packets WHERE sender_id=?').run(id);
-    db.prepare('DELETE FROM wallet_transactions WHERE user_id=?').run(id);
+    // wallet_transactions 保留作审计痕迹（P1-05：删除前已结算红包/余额清零并记账，流水不可抹除）
     db.prepare('DELETE FROM wallets WHERE user_id=?').run(id);
     db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(id);
     db.prepare('DELETE FROM user_stickers WHERE user_id=?').run(id);
