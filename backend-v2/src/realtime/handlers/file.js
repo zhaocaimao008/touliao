@@ -8,6 +8,7 @@ const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
 const { privateSendGuard } = require('../../modules/messages/shared');
+const { lookupFile } = require('../../utils/fileRegistry');
 
 const TYPE_FALLBACK = { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]' };
 
@@ -55,6 +56,12 @@ module.exports = function registerFileHandler(io, socket) {
     const isCloudUrl = publicBase && typeof file_url === 'string' && file_url.startsWith(publicBase + '/');
     if (!isLocalUrl && !isCloudUrl) {
       ack?.({ success: false, error: '文件 URL 非法：须为本站上传路径或已配置的云存储域名' }); return;
+    }
+
+    // P1-02：本地文件必须已登记在 file_registry（上传流程写入），
+    // 防攻击者植入任意 /uploads/ URL 到消息行冒充自己的附件（planted-row 攻击）。
+    if (isLocalUrl && !lookupFile(file_url)) {
+      ack?.({ success: false, error: '文件不存在或已失效' }); return;
     }
 
     // ── 幂等性去重（fix: 防止弱网 ack 超时重发导致消息重复）──

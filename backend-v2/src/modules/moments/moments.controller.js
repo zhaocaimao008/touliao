@@ -1,5 +1,6 @@
 'use strict';
 const { asyncHandler, badRequest } = require('../../utils/http');
+const { registerFile } = require('../../utils/fileRegistry');
 const svc = require('./moments.service');
 
 const io = req => req.app.get('io');
@@ -26,5 +27,6 @@ exports.uploadImages = asyncHandler(async (req, res) => {
   const files = req.files || [];
   if (!files.length) throw badRequest('请选择图片');
   const urls = files.map(f => `/uploads/moments/${f.filename}`);
+  for (const u of urls) registerFile({ path: u, ownerId: req.user.id, kind: 'moments' });
   res.json({ urls });
 });

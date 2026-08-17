@@ -13,6 +13,7 @@ const path = require('path');
 const request = require('supertest');
 const config = require('../src/config');
 const { app, makeUser, befriend, privateConversation } = require('./helpers');
+const { db } = require('../src/db/connection');
 
 // 1x1 透明 PNG（真实魔数，可通过 magic bytes 校验）
 const PNG_1x1 = Buffer.from(
@@ -144,5 +145,45 @@ describe('P1-02 /uploads 越权访问（IDOR）', () => {
       .get(fileUrl)
       .set('Authorization', 'Bearer forged.token.value');
     expect(res.status).toBe(401);
+  });
+
+  test('PLANTED-ROW：攻击者植入引用受害者文件的消息行仍无法读取（file_registry 兜底）', async () => {
+    // 模拟真实攻击面：攻击者 C 在自己的会话植入 file_url 指向受害者文件的消息行
+    // （realtime send_file_message 曾接受任意 /uploads/ URL；此处直接插库模拟最坏情形）
+    const plantedConv = await privateConversation(a, c);
+    db.prepare(
+      "INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,deleted,created_at) VALUES (?,?,?,?,?,?,0,?)"
+    ).run('planted-' + Date.now(), plantedConv, c.userId, 'file', 'secret.png', fileUrl, Math.floor(Date.now() / 1000));
+
+    const res = await request(app).get(fileUrl).set('Authorization', `Bearer ${c.token}`);
+    expect([403, 404]).toContain(res.status);
+  });
+
+  test('PLANTED-MOMENT：攻击者在自己朋友圈引用受害者文件 URL 仍无法读取', async () => {
+    // 攻击者 C 创建一条含受害者文件 URL 的公开朋友圈（createMoment 白名单允许 /uploads/ 前缀）
+    const mom = await request(app)
+      .post('/api/moments')
+      .set('Authorization', `Bearer ${c.token}`)
+      .send({ content: '盗图', images: [fileUrl], visibility: 'all' });
+    expect(mom.status).toBe(200);
+
+    const res = await request(app).get(fileUrl).set('Authorization', `Bearer ${c.token}`);
+    expect([403, 404]).toContain(res.status);
+  });
+
+  test('stickers 类别：本人上传的表情可访问（登录即可，功能回归保护）', async () => {
+    const up = await request(app)
+      .post('/api/stickers/upload')
+      .set('Authorization', `Bearer ${a.token}`)
+      .attach('image', PNG_1x1, { filename: 'emoji.png', contentType: 'image/png' });
+    expect(up.status).toBe(200);
+    const sUrl = up.body.url;
+    expect(sUrl.startsWith('/uploads/stickers/')).toBe(true);
+    const sPath = path.join(config.uploadsRoot, sUrl.replace(/^\/uploads\//, ''));
+    expect(fs.existsSync(sPath)).toBe(true);
+
+    const res = await request(app).get(sUrl).set('Authorization', `Bearer ${a.token}`);
+    expect(res.status).toBe(200);
+    try { fs.unlinkSync(sPath); } catch { /* 忽略 */ }
   });
 });

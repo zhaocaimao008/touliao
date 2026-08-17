@@ -5,6 +5,7 @@ const { asyncHandler, badRequest } = require('../../utils/http');
 const { makeChatUploader, sanitizeFilename, decodeMultipartName } = require('../../utils/upload');
 const { isMember } = require('./shared');
 const { pushNewMessage } = require('../../utils/push');
+const { registerFile } = require('../../utils/fileRegistry');
 const svc = require('./messages.service');
 
 const io = req => req.app.get('io');
@@ -105,6 +106,7 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
              : mime.startsWith('video/') ? 'video' : 'file';
   const safeOriginalName = sanitizeFilename(decodeMultipartName(req.file.originalname));
   const url = `/uploads/files/${req.file.filename}`;
+  registerFile({ path: url, ownerId: req.user.id, conversationId, kind: 'files' });
 
   const msg = await svc.saveUploadedFile(io(req), conversationId, req.user.id, {
     type, content: safeOriginalName, fileUrl: url, reply_to_id: req.body.reply_to_id,
@@ -129,5 +131,9 @@ exports.backgroundUpload = asyncHandler(async (req, res) => {
     require('fs').unlink(req.file.path, () => {});
     throw badRequest('仅支持图片格式');
   }
-  res.json({ url: `/uploads/bg/${req.file.filename}` });
+  const url = `/uploads/bg/${req.file.filename}`;
+  registerFile({ path: url, ownerId: req.user.id, conversationId: req.params.convId, kind: 'bg' });
+  res.json({ url });
 });
+
+// ── 聊天背景图本地上传（不发消息，仅存文件返回 URL）─────────────

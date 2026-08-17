@@ -5,6 +5,7 @@ const { db } = require('../../db/connection');
 const config = require('../../config');
 const { asyncHandler, badRequest, notFound, forbidden } = require('../../utils/http');
 const { makeImageUploader } = require('../../utils/upload');
+const { registerFile } = require('../../utils/fileRegistry');
 const { isMember } = require('../messages/shared');
 const msgSvc = require('../messages/messages.service');
 const { getPublicBase } = require('../../utils/cloudStorage');
@@ -28,6 +29,7 @@ exports.uploadMiddlewares = stickerUploader;
 exports.uploadHandle = asyncHandler(async (req, res) => {
   if (!req.file) throw badRequest('请选择图片');
   const url = `/uploads/stickers/${req.file.filename}`;
+  registerFile({ path: url, ownerId: req.user.id, kind: 'stickers' });
   const id = uuidv4();
   db.transaction(() => {
     if (countOf(req.user.id) >= MAX_STICKERS) throw badRequest(`表情已达上限 ${MAX_STICKERS} 个`);

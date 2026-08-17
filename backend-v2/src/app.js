@@ -88,43 +88,47 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // H9: /uploads 静态文件鉴权 — 用户JWT或Admin JWT均可访问，同时校验黑名单
 // P1-02 加固：认证通过后，按资源类别做所有权/权限校验（IDOR 防护），
 // 禁止只凭有效 JWT 越权读取他人私聊附件/私密朋友圈图片/会话背景。
+// 授权唯一依据 = file_registry（上传时登记的真实归属），不信任 messages/moments 引用行
+// （引用行可被攻击者植入伪造，见 p1-02-review-bypass2 回归测试）。
 const jwt = require('jsonwebtoken');
 const { isBlacklisted } = require('./utils/tokenBlacklist');
 const { isMember } = require('./modules/messages/shared');
 const { assertVisible } = require('./modules/moments/moments.service');
-const { db: uploadsDb } = require('./db/connection');
+const { lookupFile } = require('./utils/fileRegistry');
 
 // 解析 /uploads/<category>/<file>，校验当前用户是否可访问该资源。
 // 返回 { ok: true } 放行；{ ok: false, status } 拒绝；null 表示资源不存在/未知类别。
 function resolveUploadAccess(userId, reqPath) {
-  const db = uploadsDb;
   const m = String(reqPath || '').match(/^\/([^/]+)\/([^/]+)$/);
   if (!m) return null;
   const category = m[1];
   const file = m[2];
 
-  if (category === 'avatars') {
-    // 头像：登录可见（社交展示用途，非私密资源）
+  if (category === 'avatars' || category === 'stickers') {
+    // 头像：登录可见（社交展示用途）；表情：用户私有上传，登录可见（本人/收藏者查看）
     return { ok: true };
   }
   if (category === 'chunks') {
     // 分片临时文件：仅上传流程内部使用，禁止静态访问
     return { ok: false, status: 403 };
   }
+
+  // 其余类别一律以 file_registry 为准：文件必须真实登记过且归属权匹配
+  const path = `/uploads/${category}/${file}`;
+  const reg = lookupFile(path);
+  if (!reg) return null; // 未登记 = 不存在（含已删除消息的文件）
+
   if (category === 'files') {
-    // 私聊/群聊附件：必须是该消息所属会话的成员
-    const row = db.prepare(
-      "SELECT conversation_id FROM messages WHERE file_url LIKE ? AND deleted=0 LIMIT 1"
-    ).get(`%/uploads/files/${file}`);
-    if (!row) return null;
-    if (!isMember(row.conversation_id, userId)) return { ok: false, status: 403 };
+    // 私聊/群聊附件：必须是该文件所属会话的成员
+    if (!reg.conversation_id || !isMember(reg.conversation_id, userId)) return { ok: false, status: 403 };
     return { ok: true };
   }
   if (category === 'moments') {
-    // 朋友圈图片：复用 moments 可见性门控（好友/私密/分组/拉黑/时间窗）
+    // 朋友圈图片：文件必须属于某条动态，且满足 moments 可见性门控
+    // （好友/私密/分组/拉黑/时间窗）——引用行是伪造的也拿不到 registry 归属。
     const row = db.prepare(
-      'SELECT id, user_id, visibility, visible_to, created_at FROM moments WHERE images LIKE ? LIMIT 1'
-    ).get(`%${file}%`);
+      'SELECT id, user_id, visibility, visible_to, created_at FROM moments WHERE user_id=? AND images LIKE ? LIMIT 1'
+    ).get(reg.owner_id, `%${file}%`);
     if (!row) return null;
     try {
       assertVisible(userId, row);
@@ -134,12 +138,8 @@ function resolveUploadAccess(userId, reqPath) {
     }
   }
   if (category === 'bg') {
-    // 会话背景图：仅该会话成员可见（背景是成员自己的偏好设置）
-    const row = db.prepare(
-      'SELECT conversation_id FROM conversation_settings WHERE background LIKE ? LIMIT 1'
-    ).get(`%${file}%`);
-    if (!row) return null;
-    if (!isMember(row.conversation_id, userId)) return { ok: false, status: 403 };
+    // 会话背景图：仅该文件所属会话成员可见
+    if (!reg.conversation_id || !isMember(reg.conversation_id, userId)) return { ok: false, status: 403 };
     return { ok: true };
   }
   return null; // 未知类别

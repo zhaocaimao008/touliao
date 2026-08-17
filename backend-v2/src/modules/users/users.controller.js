@@ -1,6 +1,7 @@
 'use strict';
 const QRCode = require('qrcode');
 const { asyncHandler, badRequest } = require('../../utils/http');
+const { registerFile } = require('../../utils/fileRegistry');
 const svc = require('./users.service');
 
 exports.qrcode = asyncHandler(async (req, res) => {
@@ -22,6 +23,7 @@ exports.updateProfile  = asyncHandler(async (req, res) => res.json(await svc.upd
 exports.uploadAvatar = asyncHandler(async (req, res) => {
   if (!req.file) throw badRequest('请选择图片');
   const url = `/uploads/avatars/${req.file.filename}`;
+  registerFile({ path: url, ownerId: req.user.id, kind: 'avatars' });
   await svc.setAvatar(req.user.id, url);
   res.json({ avatar: url });
 });
@@ -29,6 +31,7 @@ exports.uploadAvatar = asyncHandler(async (req, res) => {
 exports.uploadCover = asyncHandler(async (req, res) => {
   if (!req.file) throw badRequest('请选择图片');
   const url = `/uploads/avatars/${req.file.filename}`;
+  registerFile({ path: url, ownerId: req.user.id, kind: 'avatars' });
   await svc.setCover(req.user.id, url);
   res.json({ cover_photo: url });
 });

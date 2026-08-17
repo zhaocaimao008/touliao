@@ -84,6 +84,14 @@ function applySchema(db) {
       PRIMARY KEY (user_id, conversation_id)
     );
 
+    CREATE TABLE IF NOT EXISTS file_registry (
+      path TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      conversation_id TEXT DEFAULT '',
+      kind TEXT NOT NULL,
+      created_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
     CREATE TABLE IF NOT EXISTS friend_requests (
       id TEXT PRIMARY KEY,
       from_id TEXT NOT NULL,
@@ -495,6 +503,7 @@ function applySchema(db) {
   // 「已存在/重复列」是幂等重跑的正常现象，静默；其余错误（磁盘满、约束冲突、
   // 语法错误）说明数据库处于非预期状态，直接抛出中止启动，避免后续迁移在
   // 损坏的 schema 上继续执行、放大问题（此前仅打日志继续跑会掩盖真实故障）。
+
   db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
     idx        INTEGER PRIMARY KEY,
     applied_at INTEGER DEFAULT (strftime('%s','now'))

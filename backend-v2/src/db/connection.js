@@ -148,3 +148,8 @@ const readDb = new Database(config.dbPath, { readonly: true });
 tunePragmas(readDb, { readonly: true });
 
 module.exports = { db, readDb, generateGroupNumber, generateVxinId, generateUserInviteCode };
+
+// P1-02：存量文件登记回填（幂等，仅启动时一次；file_registry 为 /uploads 授权唯一依据）。
+// 放在 exports 之后执行，避免循环依赖（fileRegistry 延迟 require 本模块）。
+const { backfillRegistry } = require('../utils/fileRegistry');
+backfillRegistry();
