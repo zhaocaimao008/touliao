@@ -180,6 +180,10 @@ async function deleteAccount(userId, password) {
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(password, user.password)) throw badRequest('密码错误，注销失败');
   const rand = Math.random().toString(36).slice(2, 8);
+  // P1-04：匿名化唯一性 —— username/phone 有 UNIQUE 约束，
+  // 旧实现用 6 位随机（约 2.2B 空间），两个注销用户撞同一随机值 → 唯一索引 500。
+  // 改用 uuid 片段（128bit）保证碰撞概率可忽略，从根上消除。
+  const anonSuffix = require('uuid').v4().replace(/-/g, '').slice(0, 12);
   const redpackets = require('../redpackets/redpackets.service');
 
   // 产品语义与顺序：
@@ -206,8 +210,8 @@ async function deleteAccount(userId, password) {
       throw badRequest(`钱包仍有余额 ${balance} 金币，请先提现或清零后再注销`, 'WALLET_NOT_EMPTY');
     }
 
-    db.prepare("UPDATE users SET username=?, phone=?, password='*', avatar='', bio='', wechat_id='', banned=1 WHERE id=?")
-      .run(`已注销${rand}`, `deleted_${rand}@x`, userId);
+    db.prepare("UPDATE users SET username=?, phone=?, password='*', avatar='', bio='', wechat_id=NULL, banned=1 WHERE id=?")
+      .run(`已注销${anonSuffix}`, `deleted_${anonSuffix}@x`, userId);
     invalidateUser(userId); // 驱逐状态缓存，令已注销账号立即被拒
     db.prepare('DELETE FROM contacts WHERE user_id=? OR contact_id=?').run(userId, userId);
     db.prepare('DELETE FROM blocked_users WHERE user_id=? OR blocked_id=?').run(userId, userId);
