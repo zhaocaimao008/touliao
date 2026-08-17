@@ -13,6 +13,7 @@ const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const cache = require('../../utils/cache');
 const { privateSendGuard } = require('../../modules/messages/shared');
+const { guardPayload, guardId } = require('../guard');
 
 // 防刷：同一发起者最短 3s 一次（使用 cache 层跨进程共享，防 PM2 cluster 绕过）
 const COOLDOWN_MS = 3000;
@@ -30,7 +31,13 @@ function displayName(conversationId, userId) {
 module.exports = function registerNudgeHandler(io, socket) {
   const userId = socket.user.id;
 
-  socket.on('nudge', async ({ conversationId, targetId } = {}, ack) => {
+  socket.on('nudge', async (payload, ack) => {
+    // P0-002 强校验：负载必须是对象，conversationId 必须是合法字符串 ID
+    const p = guardPayload(socket, 'nudge', payload);
+    if (!p) { ack?.({ success: false, error: '参数缺失' }); return; }
+    const conversationId = guardId(socket, 'nudge', 'conversationId', p.conversationId);
+    if (!conversationId) { ack?.({ success: false, error: '参数缺失' }); return; }
+    const targetId = typeof p.targetId === 'string' && p.targetId.length <= 64 ? p.targetId : null;
     try {
       if (!conversationId) { ack?.({ success: false, error: '参数缺失' }); return; }
 

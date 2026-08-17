@@ -18,6 +18,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db, readDb } = require('../../db/connection');
 const presence = require('../presence');
 const { pushCallInvite } = require('../../utils/push');
+const { guardPayload, guardId } = require('../guard');
 
 // 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）
 const CALL_TIMEOUT_MS = 120_000;
@@ -78,8 +79,21 @@ function cleanupUserCalls(io, userId) {
 module.exports = function registerCallHandler(io, socket) {
   const userId = socket.user.id;
 
-  socket.on('call:request', ({ to, type }) => {
-    if (!to || to === userId) return;
+  socket.on('call:request', (payload) => {
+    // P0-002 强校验：负载必须是对象，to 必须是合法字符串 ID，type 必须是枚举
+    const p = guardPayload(socket, 'call:request', payload);
+    if (!p) return;
+    const to = guardId(socket, 'call:request', 'to', p.to);
+    if (!to) return;
+    const rawType = p.type;
+    // callType 枚举校验：缺省(null/undefined)默认 audio；其余必须为字符串且∈{audio,video}，否则拒绝
+    if (rawType != null && (typeof rawType !== 'string' || (rawType !== 'audio' && rawType !== 'video'))) {
+      console.warn(`[realtime] 非法 callType 被拒绝 event=call:request type=${typeof rawType === 'string' ? rawType : typeof rawType} from=${userId}`);
+      socket.emit('call:error', { code: 'INVALID_CALL_REQUEST', event: 'call:request', field: 'type' });
+      return;
+    }
+    const type = rawType == null ? 'audio' : rawType;
+    if (to === userId) return;
     // 频率限制：5s 内同一主叫只能发起一次（防呼叫骚扰）
     const now = Date.now();
     if (now - (callRateMap.get(userId) || 0) < CALL_COOLDOWN_MS) return;
@@ -131,7 +145,13 @@ module.exports = function registerCallHandler(io, socket) {
     }
   });
 
-  socket.on('call:response', ({ to, accepted, busy, reason }) => {
+  socket.on('call:response', (payload) => {
+    // P0-002 强校验：负载必须是对象，to 必须是合法字符串 ID
+    const p = guardPayload(socket, 'call:response', payload);
+    if (!p) return;
+    const to = guardId(socket, 'call:response', 'to', p.to);
+    if (!to) return;
+    const accepted = !!p.accepted, busy = !!p.busy, reason = p.reason;
     // 被叫(userId)回应主叫(to)：key 方向为 主叫>被叫 = to>userId
     const key = `${to}>${userId}`;
     const c = activeCalls.get(key);
@@ -155,11 +175,17 @@ module.exports = function registerCallHandler(io, socket) {
   function inActiveCall(toId) {
     return activeCalls.has(`${userId}>${toId}`) || activeCalls.has(`${toId}>${userId}`);
   }
-  socket.on('call:offer',  ({ to, offer })     => { if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:offer',  { from: userId, offer }); });
-  socket.on('call:answer', ({ to, answer })    => { if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:answer', { from: userId, answer }); });
-  socket.on('call:ice',    ({ to, candidate }) => { if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:ice',    { from: userId, candidate }); });
+  socket.on('call:offer',  (payload) => { const p = guardPayload(socket, 'call:offer', payload); if (!p) return; const to = guardId(socket, 'call:offer', 'to', p.to); if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:offer',  { from: userId, offer: p.offer }); });
+  socket.on('call:answer', (payload) => { const p = guardPayload(socket, 'call:answer', payload); if (!p) return; const to = guardId(socket, 'call:answer', 'to', p.to); if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:answer', { from: userId, answer: p.answer }); });
+  socket.on('call:ice',    (payload) => { const p = guardPayload(socket, 'call:ice', payload); if (!p) return; const to = guardId(socket, 'call:ice', 'to', p.to); if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:ice',    { from: userId, candidate: p.candidate }); });
 
-  socket.on('call:end', ({ to, reason }) => {
+  socket.on('call:end', (payload) => {
+    // P0-002 强校验：负载必须是对象，to 必须是合法字符串 ID
+    const p = guardPayload(socket, 'call:end', payload);
+    if (!p) return;
+    const to = guardId(socket, 'call:end', 'to', p.to);
+    if (!to) return;
+    const reason = typeof p.reason === 'string' ? p.reason : undefined;
     // 挂断可能来自任一方，两个方向都查
     const k1 = `${userId}>${to}`;
     const k2 = `${to}>${userId}`;

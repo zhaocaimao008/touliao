@@ -22,6 +22,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db, readDb } = require('../../db/connection');
 const { isMember } = require('../../modules/messages/shared');
 const presence = require('../presence');
+const { guardPayload, guardId } = require('../guard');
 
 const MAX_PARTICIPANTS = 9;
 const MAX_CALL_DURATION_MS = 4 * 60 * 60 * 1000; // 4小时强制结束，防单用户永久独占
@@ -65,8 +66,21 @@ function removeMember(io, callId, userId) {
 module.exports = function registerGroupCallHandler(io, socket) {
   const userId = socket.user.id;
 
-  socket.on('group_call:start', ({ conversationId, type }) => {
-    if (!conversationId || !isMember(conversationId, userId)) return;
+  socket.on('group_call:start', (payload) => {
+    // P0-002 强校验：负载必须是对象，conversationId 必须是合法字符串 ID
+    const p = guardPayload(socket, 'group_call:start', payload);
+    if (!p) return;
+    const conversationId = guardId(socket, 'group_call:start', 'conversationId', p.conversationId);
+    if (!conversationId) return;
+    const rawType = p.type;
+    // callType 枚举校验：缺省默认 audio；其余必须为字符串且∈{audio,video}，否则拒绝（与 call.js 口径一致）
+    if (rawType != null && (typeof rawType !== 'string' || (rawType !== 'audio' && rawType !== 'video'))) {
+      console.warn(`[realtime] 非法 callType 被拒绝 event=group_call:start type=${typeof rawType === 'string' ? rawType : typeof rawType} from=${userId}`);
+      socket.emit('group_call:error', { reason: 'invalid_type' });
+      return;
+    }
+    const type = rawType == null ? 'audio' : rawType;
+    if (!isMember(conversationId, userId)) return;
     if (userCall.has(userId)) { socket.emit('group_call:error', { reason: 'busy' }); return; }
     const activeInConv = [...groupCalls.values()].find(c => c.conversationId === conversationId);
     if (activeInConv) { socket.emit('group_call:error', { reason: 'active_call' }); return; }
@@ -105,7 +119,11 @@ module.exports = function registerGroupCallHandler(io, socket) {
     socket.emit('group_call:started', { callId, conversationId, type: t });
   });
 
-  socket.on('group_call:join', ({ callId }) => {
+  socket.on('group_call:join', (payload) => {
+    const p = guardPayload(socket, 'group_call:join', payload);
+    if (!p) return;
+    const callId = guardId(socket, 'group_call:join', 'callId', p.callId);
+    if (!callId) return;
     const call = groupCalls.get(callId);
     if (!call) { socket.emit('group_call:error', { reason: 'not_found', callId }); return; }
     if (!isMember(call.conversationId, userId)) return;
@@ -125,18 +143,25 @@ module.exports = function registerGroupCallHandler(io, socket) {
   });
 
   // 纯定向转发：附带 from，让接收端知道是哪条连接
-  socket.on('group_call:offer',  ({ callId, to, offer })     => fwd('group_call:offer',  { callId, from: userId, offer }, to, callId));
-  socket.on('group_call:answer', ({ callId, to, answer })    => fwd('group_call:answer', { callId, from: userId, answer }, to, callId));
-  socket.on('group_call:ice',    ({ callId, to, candidate }) => fwd('group_call:ice',    { callId, from: userId, candidate }, to, callId));
+  socket.on('group_call:offer',  (payload) => { const p = guardPayload(socket, 'group_call:offer', payload); if (!p) return; const { callId, to, offer } = p; fwd('group_call:offer',  { callId, from: userId, offer }, to, callId); });
+  socket.on('group_call:answer', (payload) => { const p = guardPayload(socket, 'group_call:answer', payload); if (!p) return; const { callId, to, answer } = p; fwd('group_call:answer', { callId, from: userId, answer }, to, callId); });
+  socket.on('group_call:ice',    (payload) => { const p = guardPayload(socket, 'group_call:ice', payload); if (!p) return; const { callId, to, candidate } = p; fwd('group_call:ice',    { callId, from: userId, candidate }, to, callId); });
 
   function fwd(event, payload, to, callId) {
-    if (!to) return;
+    if (typeof to !== 'string' || !to || to.length > 64) return;
+    if (typeof callId !== 'string' || !callId || callId.length > 64) return;
     const call = groupCalls.get(callId);
     if (!call || !call.members.has(userId) || !call.members.has(to)) return; // 只在同一通话成员间转发
     io.to(`user_${to}`).emit(event, payload);
   }
 
-  socket.on('group_call:leave', ({ callId }) => removeMember(io, callId, userId));
+  socket.on('group_call:leave', (payload) => {
+    const p = guardPayload(socket, 'group_call:leave', payload);
+    if (!p) return;
+    const callId = guardId(socket, 'group_call:leave', 'callId', p.callId);
+    if (!callId) return;
+    removeMember(io, callId, userId);
+  });
 
   // 断线：仅当该账号所有 socket 都断开时才移除通话（多端场景：一端断线不应踢出通话）
   socket.on('disconnect', () => {
