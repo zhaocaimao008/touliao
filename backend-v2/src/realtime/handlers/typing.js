@@ -11,20 +11,27 @@ const { guardPayload, guardId } = require('../guard');
 // P1-07 SOCKET-003：typing 限流 —— 每 (userId, conversationId) 至少 400ms 才广播一次，
 // 窗口内重复 typing 直接丢弃（不广播、不重置 timer）。1 个 socket 100 次/秒 → 最多 2.5 次/秒
 // 广播，大群事件风暴/DoS 被截断。节流表带过期清理，防 Map 无限增长。
+// stop_typing 使用独立 key（:stop 后缀），与 typing 互不干扰：
+//   - 攻击者改用 stop_typing 洪泛同样被 400ms 截断（REVIEW-P1-07 A1/A2 绕过路径封堵）
+//   - 正常用户「typing 后立即 stop_typing」不被误吞，体验不受影响
 const TYPING_THROTTLE_MS = 400;
 const TYPING_THROTTLE_MAX = 20000;      // 超过此规模触发惰性清理
 const TYPING_THROTTLE_TTL = 60 * 1000;   // 条目 60s 未更新即视为过期
-const typingThrottle = new Map(); // `${userId}:${conversationId}` → lastTs
-function throttleTyping(userId, conversationId) {
+const typingThrottle = new Map(); // `${userId}:${conversationId}[:stop]` → lastTs
+function throttleTyping(userId, conversationId, event = 'typing') {
   const now = Date.now();
-  const key = `${userId}:${conversationId}`;
+  const key = `${userId}:${conversationId}:${event}`;
   const last = typingThrottle.get(key);
   if (last && now - last < TYPING_THROTTLE_MS) return false;
   typingThrottle.set(key, now);
   if (typingThrottle.size > TYPING_THROTTLE_MAX) {
-    // 惰性清理：只保留最近 TTL 内仍活跃的条目
+    // 惰性清理：先删过期条目；仍超限则按插入序删最旧（Map 保序），防 fresh 条目撑破上限
     for (const [k, ts] of typingThrottle) {
       if (now - ts > TYPING_THROTTLE_TTL) typingThrottle.delete(k);
+    }
+    for (const [k] of typingThrottle) {
+      if (typingThrottle.size <= TYPING_THROTTLE_MAX) break;
+      typingThrottle.delete(k);
     }
   }
   return true;
@@ -59,6 +66,8 @@ module.exports = function registerTypingHandler(io, socket) {
     if (!p) return;
     const conversationId = guardId(socket, 'stop_typing', 'conversationId', p.conversationId);
     if (!conversationId || !socket.rooms.has(conversationId)) return;
+    // P1-07：stop_typing 独立节流（与 typing 同频 400ms 截断），防对称事件绕过
+    if (!throttleTyping(userId, conversationId, 'stop')) return;
     clearTyping(conversationId);
     socket.to(conversationId).emit('stop_typing', { userId, conversationId });
   });

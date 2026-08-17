@@ -95,7 +95,9 @@ module.exports = function setupRealtime(io, app) {
   // P1-07 SOCKET-004：每用户并发连接数上限，防连接洪泛 DoS。
   // 插在鉴权中间件之后（按注册顺序执行，此时 socket.user 已填充）。
   // 正常多端 ≤ 4 台，留余量到 5；超额连接在握手阶段直接拒绝，
-  // 不进入后续 DB 查询链（JWT verify 已过、isBlacklisted/状态查询/房间查询全被跳过）。
+  // 不进入 connection 事件（避免后续房间/联系人 DB 查询链放大）。
+  // 注：JWT verify + isBlacklisted + 用户状态查询在计数检查前已执行（鉴权必需），
+  // 连接洪泛的剩余放大由 per-IP 握手限流（60s/30 次）兜底。
   io.use((socket, next) => {
     if (!socket.user) return next(new Error('未授权'));
     const n = presence.onlineUsers.get(socket.user.id)?.size || 0;

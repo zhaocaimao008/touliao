@@ -147,6 +147,69 @@ describe('P1-07 typing 洪泛限流（SOCKET-003）', () => {
     sa.disconnect();
     sb.disconnect();
   });
+
+  test('stop_typing 洪泛（1s 110 次）→ 广播 ≤ 4 次，与 typing 同频截断（REVIEW P1 绕过路径）', async () => {
+    const sa = await connect(a.token);
+    const sb = await connect(b.token);
+    await tick();
+    sa.emit('join_conversation', { conversationId: convId });
+    sb.emit('join_conversation', { conversationId: convId });
+    await tick();
+
+    let bStop = 0;
+    sb.on('stop_typing', () => { bStop += 1; });
+
+    // 攻击：1s 内连发 110 次 stop_typing（修复前全部即时广播）
+    const start = Date.now();
+    let sent = 0;
+    while (Date.now() - start < 1000 && sent < 110) {
+      sa.emit('stop_typing', { conversationId: convId });
+      sent += 1;
+      await tick(8);
+    }
+    expect(sent).toBeGreaterThanOrEqual(100);
+    await tick(500);
+
+    // 独立 :stop 节流 400ms → 1s 窗口最多 ~3 次广播
+    expect(bStop).toBeLessThanOrEqual(4);
+
+    // 正常 stop_typing 不被节流长期卡死：等窗口过再发 → 仍放行
+    await tick(500);
+    sa.emit('stop_typing', { conversationId: convId });
+    await tick(300);
+    expect(bStop).toBeLessThanOrEqual(5);
+
+    sa.disconnect();
+    sb.disconnect();
+  });
+
+  test('typing + stop_typing 交替反转洪泛 → 合计广播仍 ≤ 8/s（对称事件不能叠加绕过）', async () => {
+    const sa = await connect(a.token);
+    const sb = await connect(b.token);
+    await tick();
+    sa.emit('join_conversation', { conversationId: convId });
+    sb.emit('join_conversation', { conversationId: convId });
+    await tick();
+
+    let bEvt = 0;
+    sb.on('typing', () => { bEvt += 1; });
+    sb.on('stop_typing', () => { bEvt += 1; });
+
+    // 攻击：typing / stop_typing 各 30 次交替（修复前 30/30 全穿透）
+    const start = Date.now();
+    while (Date.now() - start < 1000) {
+      sa.emit('typing', { conversationId: convId });
+      sa.emit('stop_typing', { conversationId: convId });
+      await tick(8);
+    }
+    await tick(500);
+
+    // typing key + stop key 各自 ≤3/s → 合计 ≤ 8 次（1s 内）
+    expect(bEvt).toBeLessThanOrEqual(8);
+
+    sa.disconnect();
+    sb.disconnect();
+  });
 });
 
 describe('P1-07 Socket 连接洪泛保护（SOCKET-004）', () => {
