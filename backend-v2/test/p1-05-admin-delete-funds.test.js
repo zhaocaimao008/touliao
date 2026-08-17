@@ -173,4 +173,107 @@ describe('P1-05 admin 删除用户·资金守恒', () => {
     const del = await adminDeleteUser('no-such-user');
     expect(del.status).toBe(404);
   });
+
+  test('ghost 碰撞：真实用户已注册 username=ghost 时删用户仍成功（不再 FK 500）', async () => {
+    // 复现 reviewer 场景：先注册 username='ghost' 的真实用户，再删另一个领过红包的用户
+    const realGhost = await makeUser({ username: 'ghost' });
+    const sender = await makeUser({ username: 'adm_collide_sender' });
+    const victim = await makeUser({ username: 'adm_collide_victim' });
+    await befriend(sender, victim);
+    const conversationId = await privateConversation(sender, victim);
+
+    wallet.applyDelta(sender.userId, 100, 'test_seed', null, '测试入账');
+    const sendRes = await request(app)
+      .post('/api/messages/red-packet/send')
+      .set('Authorization', `Bearer ${sender.token}`)
+      .send({ conversationId, totalAmount: 100, totalCount: 1, greeting: '碰撞' });
+    expect(sendRes.status).toBe(200);
+    const packetId = sendRes.body.packetId;
+    const claimRes = await request(app)
+      .post(`/api/messages/red-packet/${packetId}/claim`)
+      .set('Authorization', `Bearer ${victim.token}`)
+      .send({});
+    expect(claimRes.status).toBe(200);
+
+    // 删 victim：修复前 INSERT OR IGNORE('ghost') 被真实用户 UNIQUE 挡住 → FK 违规 500
+    const del = await adminDeleteUser(victim.userId);
+    expect(del.status).toBe(200);
+    // ghost 占位用户已创建（随机后缀名，不冲突）且领取行转移成功
+    const GHOST_ID = '00000000-0000-0000-0000-000000000000';
+    expect(db.prepare('SELECT id FROM users WHERE id=?').get(GHOST_ID)).toBeTruthy();
+    expect(db.prepare('SELECT * FROM red_packet_claims WHERE packet_id=? AND user_id=?').get(packetId, GHOST_ID)).toBeTruthy();
+    // 真实 ghost 用户未被影响
+    expect(db.prepare('SELECT username FROM users WHERE id=?').get(realGhost.userId).username).toBe('ghost');
+  });
+
+  test('洞 B 延伸：admin dismissGroup 解散他人红包 → 原路退款（purgeConversation 结算）', async () => {
+    const owner = await makeUser({ username: 'adm_dismiss_owner' });
+    const member = await makeUser({ username: 'adm_dismiss_member' });
+    await befriend(owner, member);
+    const groupRes = await request(app)
+      .post('/api/messages/conversation/group')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: '解散结算群', memberIds: [member.userId] });
+    expect(groupRes.status).toBe(200);
+    const groupId = groupRes.body.id || groupRes.body.conversationId;
+
+    wallet.applyDelta(member.userId, 100, 'test_seed', null, '测试入账');
+    const sendRes = await request(app)
+      .post('/api/messages/red-packet/send')
+      .set('Authorization', `Bearer ${member.token}`)
+      .send({ conversationId: groupId, totalAmount: 100, totalCount: 1, greeting: '解散结算' });
+    expect(sendRes.status).toBe(200);
+    const packetId = sendRes.body.packetId;
+
+    // admin 解散群（不走 deleteUser，直接 dismissGroup）
+    const del = await request(app)
+      .delete(`/api/admin/groups/${groupId}`)
+      .set('Cookie', `vxin_admin_token=${adminToken()}`)
+      .set('X-CSRF-Token', 'p105-csrf-token');
+    expect(del.status).toBe(200);
+
+    // member 收到 100 退款（settleConversationPacketsTx 原路退回）+ 红包行已删
+    const refundTx = db.prepare(
+      "SELECT COUNT(*) c, SUM(amount) s FROM wallet_transactions WHERE user_id=? AND type='red_packet_refund' AND ref_id=?"
+    ).get(member.userId, packetId);
+    expect(refundTx.c).toBe(1);
+    expect(refundTx.s).toBe(100);
+    expect(wallet.getBalance(member.userId)).toBe(100);
+    expect(db.prepare('SELECT id FROM red_packets WHERE id=?').get(packetId)).toBeUndefined();
+    expect(db.prepare('SELECT id FROM conversations WHERE id=?').get(groupId)).toBeUndefined();
+  });
+
+  test('洞 B 延伸：用户侧 dissolve 解散 → 同样结算退款', async () => {
+    const owner = await makeUser({ username: 'adm_dissolve_owner' });
+    const member = await makeUser({ username: 'adm_dissolve_member' });
+    await befriend(owner, member);
+    const groupRes = await request(app)
+      .post('/api/messages/conversation/group')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ name: '解散结算群2', memberIds: [member.userId] });
+    expect(groupRes.status).toBe(200);
+    const groupId = groupRes.body.id || groupRes.body.conversationId;
+
+    wallet.applyDelta(member.userId, 100, 'test_seed', null, '测试入账');
+    const sendRes = await request(app)
+      .post('/api/messages/red-packet/send')
+      .set('Authorization', `Bearer ${member.token}`)
+      .send({ conversationId: groupId, totalAmount: 100, totalCount: 1, greeting: '解散结算2' });
+    expect(sendRes.status).toBe(200);
+    const packetId = sendRes.body.packetId;
+
+    // 群主 dissolve
+    const diss = await request(app)
+      .post(`/api/messages/conversation/${groupId}/dissolve`)
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(diss.status).toBe(200);
+
+    const refundTx = db.prepare(
+      "SELECT COUNT(*) c, SUM(amount) s FROM wallet_transactions WHERE user_id=? AND type='red_packet_refund' AND ref_id=?"
+    ).get(member.userId, packetId);
+    expect(refundTx.c).toBe(1);
+    expect(refundTx.s).toBe(100);
+    expect(wallet.getBalance(member.userId)).toBe(100);
+    expect(db.prepare('SELECT id FROM conversations WHERE id=?').get(groupId)).toBeUndefined();
+  });
 });

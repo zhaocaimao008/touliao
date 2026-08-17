@@ -123,6 +123,11 @@ exports.deleteAccount = asyncHandler(async (req, res) => {
   const { password } = req.body || {};
   if (!password) throw badRequest('请输入密码确认注销');
   await svc.deleteAccount(req.user.id, password);
+  // HARDEN-01：注销事务已 COMMIT 成功，此时再主动断开该用户全部已建立 Socket
+  // （与 admin 删除路径一致）。若上面事务 rollback（余额拦截/密码错误等），
+  // 不会走到这里 → 正常用户不会被误踢下线。
+  const io = req.app.get('io');
+  if (io) io.to(`user_${req.user.id}`).disconnectSockets(true);
   // 黑名单化当前 token，防止注销后 Bearer token 仍可调用 API
   if (req.token) {
     const { addToBlacklist } = require('../../utils/tokenBlacklist');

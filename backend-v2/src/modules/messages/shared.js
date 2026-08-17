@@ -85,6 +85,12 @@ function buildMessage(id) {
 // 必须按外键依赖顺序删除，否则 foreign_keys=ON 下删 conversations 会约束失败。
 function purgeConversation(id) {
   db.transaction(() => {
+    // P1-05 洞 B（独立解散路径）：admin dismissGroup 与用户侧 dissolve 都经此函数
+    // 删除会话。删红包前必须先结算本会话全部在途红包（含已退群成员发出的），
+    // 剩余金额原路退回各自 sender；否则直接 DELETE 会凭空销毁他人资金。
+    // 延迟 require 避免循环依赖（redpackets.service 顶层依赖本模块）。
+    const redpackets = require('../redpackets/redpackets.service');
+    redpackets.settleConversationPacketsTx(id);
     const msgIds = db.prepare('SELECT id FROM messages WHERE conversation_id=?').all(id).map(r => r.id);
     if (msgIds.length) {
       const ph = msgIds.map(() => '?').join(',');

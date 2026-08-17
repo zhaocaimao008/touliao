@@ -114,23 +114,26 @@ function ensureInviteCodes() {
   })();
 }
 
-// 确保所有用户都有 6 位纯数字 投聊号（幂等：仅修补不合规者）
+// 确保所有有效用户都有 6 位纯数字 投聊号（幂等：仅修补不合规者）。
+// HARDEN-02：跳过已注销/封禁用户（banned=1，注销时 wechat_id 置 NULL）——
+// 否则启动补号会误认为「缺投聊号」重新分配，导致已注销用户被重新激活。
 function ensureNumericVxinIds() {
   const users = db.prepare(`
     SELECT id FROM users
-    WHERE wechat_id IS NULL OR wechat_id = ''
-       OR length(wechat_id) != 6 OR wechat_id GLOB '*[^0-9]*'
+    WHERE banned = 0
+      AND (wechat_id IS NULL OR wechat_id = ''
+         OR length(wechat_id) != 6 OR wechat_id GLOB '*[^0-9]*')
   `).all();
   const update = db.prepare('UPDATE users SET wechat_id=? WHERE id=?');
   db.transaction(() => {
     for (const user of users) update.run(generateVxinId(), user.id);
     const dups = db.prepare(`
       SELECT wechat_id FROM users
-      WHERE wechat_id IS NOT NULL AND wechat_id != ''
+      WHERE banned = 0 AND wechat_id IS NOT NULL AND wechat_id != ''
       GROUP BY wechat_id HAVING COUNT(*) > 1
     `).all();
     for (const { wechat_id } of dups) {
-      const rows = db.prepare('SELECT id FROM users WHERE wechat_id=? ORDER BY created_at, id').all(wechat_id);
+      const rows = db.prepare('SELECT id FROM users WHERE banned=0 AND wechat_id=? ORDER BY created_at, id').all(wechat_id);
       for (const row of rows.slice(1)) update.run(generateVxinId(), row.id);
     }
   })();
@@ -147,7 +150,7 @@ db.prepare("UPDATE users SET status='offline' WHERE status='online'").run();
 const readDb = new Database(config.dbPath, { readonly: true });
 tunePragmas(readDb, { readonly: true });
 
-module.exports = { db, readDb, generateGroupNumber, generateVxinId, generateUserInviteCode };
+module.exports = { db, readDb, generateGroupNumber, generateVxinId, generateUserInviteCode, ensureNumericVxinIds, ensureInviteCodes };
 
 // P1-02：存量文件登记回填（幂等，仅启动时一次；file_registry 为 /uploads 授权唯一依据）。
 // 放在 exports 之后执行，避免循环依赖（fileRegistry 延迟 require 本模块）。

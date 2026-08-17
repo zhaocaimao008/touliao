@@ -217,10 +217,18 @@ function deleteUser(io, id) {
     // FK ON 下 user_id 必须指向存在的 users 行，故转移给系统占位用户（ghost，
     // offline 永不登录），保留 SUM(claimed)；自己发的红包的领取行随下方
     // packet_id IN (sender_id=?) 清理。
+    // ⚠ ghost 用户名不能用固定 'ghost'：真实用户可注册该名（无字符集限制）→
+    //   INSERT OR IGNORE 被 UNIQUE 静默跳过 → UPDATE claims 触发 FK 违规 500。
+    //   改用随机后缀（username 限 2-20 字符，含 '_'+12hex 合法但不可能被注册）
+    //   + 存在性检查幂等，彻底消除碰撞。
     const GHOST_ID = '00000000-0000-0000-0000-000000000000';
-    db.prepare(
-      "INSERT OR IGNORE INTO users (id,username,phone,password,status) VALUES (?,?,?,?,'offline')"
-    ).run(GHOST_ID, 'ghost', GHOST_ID, '!');
+    const ghostRow = db.prepare('SELECT id FROM users WHERE id=?').get(GHOST_ID);
+    if (!ghostRow) {
+      const gs = require('uuid').v4().replace(/-/g, '').slice(0, 12);
+      db.prepare(
+        "INSERT INTO users (id,username,phone,password,status) VALUES (?,?,?,?,'offline')"
+      ).run(GHOST_ID, `ghost_${gs}`, `ghost_${gs}@x`, '!');
+    }
     db.prepare(`
       UPDATE red_packet_claims SET user_id=?
       WHERE user_id=? AND packet_id IN (SELECT id FROM red_packets WHERE sender_id != ?)
