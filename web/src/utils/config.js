@@ -25,8 +25,9 @@
 
 // 引导配置地址（按顺序尝试，任意一个成功即用）。互不依赖，单点故障不影响整体。
 const CONFIG_URLS = [
-  'https://cdn.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json', // 主：GitHub+jsDelivr CDN
-  'https://dipsin.com/config.json',                                          // 兜底：当前应用服务器（过渡期）
+  'https://dipsin.cc/config.json',                                                    // 主：投聊独立配置（P0-001，不依赖 vxin-config 共享仓库）
+  'https://cdn.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json', // 兜底 1：GitHub+jsDelivr CDN（过渡期）
+  'https://dipsin.com/config.json',                                          // 兜底 2：旧应用服务器（过渡期）
 ];
 const CACHE_KEY   = 'touliao_remote_config';
 const CACHE_TS    = 'touliao_remote_config_ts';
@@ -50,7 +51,7 @@ const DEFAULTS = {
 };
 
 // Electron 下远程配置和缓存均失败时的硬编码兜底
-const ELECTRON_FALLBACK = window?.__ELECTRON_CONFIG__ ? 'https://dipsin.com' : '';
+const ELECTRON_FALLBACK = window?.__ELECTRON_CONFIG__ ? 'https://dipsin.cc' : '';
 
 let _config   = null;
 let _loaded   = false;
