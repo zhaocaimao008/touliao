@@ -7,12 +7,13 @@
  *      而非因登录失败而静默跳过。
  */
 const fs = require('fs');
-const { TEST_DB } = require('./testEnv');
+const { TEST_DB, TEST_UPLOADS } = require('./testEnv');
 
 module.exports = async () => {
   for (const suffix of ['', '-wal', '-shm']) {
     try { fs.unlinkSync(TEST_DB + suffix); } catch { /* 不存在即忽略 */ }
   }
+  try { fs.rmSync(TEST_UPLOADS, { recursive: true, force: true }); } catch { /* 不存在即忽略 */ }
 
   const bcrypt = require('bcryptjs');
   const { v4: uuid } = require('uuid');

@@ -86,25 +86,95 @@ app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // H9: /uploads 静态文件鉴权 — 用户JWT或Admin JWT均可访问，同时校验黑名单
+// P1-02 加固：认证通过后，按资源类别做所有权/权限校验（IDOR 防护），
+// 禁止只凭有效 JWT 越权读取他人私聊附件/私密朋友圈图片/会话背景。
 const jwt = require('jsonwebtoken');
 const { isBlacklisted } = require('./utils/tokenBlacklist');
+const { isMember } = require('./modules/messages/shared');
+const { assertVisible } = require('./modules/moments/moments.service');
+const { db: uploadsDb } = require('./db/connection');
+
+// 解析 /uploads/<category>/<file>，校验当前用户是否可访问该资源。
+// 返回 { ok: true } 放行；{ ok: false, status } 拒绝；null 表示资源不存在/未知类别。
+function resolveUploadAccess(userId, reqPath) {
+  const db = uploadsDb;
+  const m = String(reqPath || '').match(/^\/([^/]+)\/([^/]+)$/);
+  if (!m) return null;
+  const category = m[1];
+  const file = m[2];
+
+  if (category === 'avatars') {
+    // 头像：登录可见（社交展示用途，非私密资源）
+    return { ok: true };
+  }
+  if (category === 'chunks') {
+    // 分片临时文件：仅上传流程内部使用，禁止静态访问
+    return { ok: false, status: 403 };
+  }
+  if (category === 'files') {
+    // 私聊/群聊附件：必须是该消息所属会话的成员
+    const row = db.prepare(
+      "SELECT conversation_id FROM messages WHERE file_url LIKE ? AND deleted=0 LIMIT 1"
+    ).get(`%/uploads/files/${file}`);
+    if (!row) return null;
+    if (!isMember(row.conversation_id, userId)) return { ok: false, status: 403 };
+    return { ok: true };
+  }
+  if (category === 'moments') {
+    // 朋友圈图片：复用 moments 可见性门控（好友/私密/分组/拉黑/时间窗）
+    const row = db.prepare(
+      'SELECT id, user_id, visibility, visible_to, created_at FROM moments WHERE images LIKE ? LIMIT 1'
+    ).get(`%${file}%`);
+    if (!row) return null;
+    try {
+      assertVisible(userId, row);
+      return { ok: true };
+    } catch {
+      return { ok: false, status: 403 };
+    }
+  }
+  if (category === 'bg') {
+    // 会话背景图：仅该会话成员可见（背景是成员自己的偏好设置）
+    const row = db.prepare(
+      'SELECT conversation_id FROM conversation_settings WHERE background LIKE ? LIMIT 1'
+    ).get(`%${file}%`);
+    if (!row) return null;
+    if (!isMember(row.conversation_id, userId)) return { ok: false, status: 403 };
+    return { ok: true };
+  }
+  return null; // 未知类别
+}
+
 app.use('/uploads', (req, res, next) => {
   // Cookie 优先；Electron/移动端用 Bearer 鉴权、<img> 无法带 header，故同时支持 ?token= 查询参数与 Bearer 兜底
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
   const token = req.cookies?.[config.cookieName] || req.cookies?.[config.admin.cookieName]
     || req.query?.token || bearer;
   if (!token) return res.status(401).json({ error: '未授权' });
+
+  let userId = null;
+  let isAdmin = false;
   try {
-    jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+    const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+    userId = payload.id;
   } catch {
     try {
       jwt.verify(token, config.adminJwtSecret, { algorithms: ['HS256'] });
+      isAdmin = true;
     } catch {
       return res.status(401).json({ error: '未授权' });
     }
   }
+
   isBlacklisted(token).then(blacklisted => {
     if (blacklisted) return res.status(401).json({ error: '登录已失效，请重新登录' });
+
+    // P1-02：管理员放行全部；普通用户按资源类别做所有权/权限校验
+    if (!isAdmin) {
+      const access = resolveUploadAccess(userId, req.path);
+      if (!access) return res.status(404).json({ error: '资源不存在' });
+      if (!access.ok) return res.status(access.status || 403).json({ error: '无权访问' });
+    }
     next();
   }).catch(err => {
     console.error('[uploads] blacklist check error:', err.message);

@@ -550,4 +550,6 @@ module.exports = {
   toggleLike, addComment, deleteComment, listLikes, listComments,
   reportMoment,
   listNotifications, unreadNotificationCount, markNotificationsRead,
+  // P1-02：/uploads 静态文件所有权校验复用同一套可见性门控
+  assertVisible,
 };

@@ -15,9 +15,11 @@
 const path = require('path');
 
 const TEST_DB = path.join(__dirname, '.tmp-test-db.sqlite');
+const TEST_UPLOADS = path.join(__dirname, '.tmp-test-uploads');
 
 process.env.NODE_ENV          = 'test';
 process.env.DB_PATH           = TEST_DB;
+process.env.UPLOADS_ROOT      = TEST_UPLOADS;
 process.env.DISABLE_CSRF      = '1';
 process.env.DISABLE_RATE_LIMIT = '1';
 process.env.INVITE_CODE       = process.env.TEST_INVITE_CODE || '123456';
@@ -25,4 +27,4 @@ process.env.ENABLE_FAKE_RECHARGE = 'true';
 process.env.JWT_SECRET        = process.env.JWT_SECRET || 'test_jwt_secret_at_least_32_chars_long__x';
 process.env.ADMIN_JWT_SECRET  = process.env.ADMIN_JWT_SECRET || 'test_admin_jwt_secret_at_least_32_chars_x';
 
-module.exports = { TEST_DB, INVITE_CODE: process.env.INVITE_CODE };
+module.exports = { TEST_DB, TEST_UPLOADS, INVITE_CODE: process.env.INVITE_CODE };
