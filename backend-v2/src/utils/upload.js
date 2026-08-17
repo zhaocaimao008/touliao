@@ -216,12 +216,15 @@ function makeUploadGuard(dest) {
       return res.status(429).json({ error: `同时进行中的上传过多（上限 ${MAX_CONCURRENT_UPLOADS}），请先完成或等待清理` });
     }
     activeDirectUploads.set(uid, active + 1);
+    // 只监听 close 释放（finish 之后必触发 close），避免 finish+close 双触发导致计数漂移
+    let released = false;
     const release = () => {
+      if (released) return;
+      released = true;
       const cur = activeDirectUploads.get(uid) || 1;
       if (cur <= 1) activeDirectUploads.delete(uid);
       else activeDirectUploads.set(uid, cur - 1);
     };
-    res.on('finish', release);
     res.on('close', release);
     next();
   };

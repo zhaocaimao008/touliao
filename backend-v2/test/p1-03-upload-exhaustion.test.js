@@ -180,6 +180,41 @@ describe('P1-03 上传磁盘耗尽防护', () => {
     }
   });
 
+  test('直传完成后计数释放：完成若干直传后再并发不误杀（M1 回归）', async () => {
+    const { MAX_CONCURRENT_UPLOADS } = require('../src/utils/upload');
+    // 先串行完成 2 个直传，再并发 MAX 个：若 release 双触发导致计数漂移（净-1），
+    // 并发 MAX 个时实际在途会超过上限仍放行（漂移）或误杀；此处应恰好 MAX 全 200。
+    for (let i = 0; i < 2; i++) {
+      const r = await request(app)
+        .post(`/api/messages/${convId}/upload`)
+        .set('Authorization', `Bearer ${u1.token}`)
+        .field('reply_to_id', '')
+        .attach('file', Buffer.alloc(1024 * 1024, i + 1), `done${i}.png`);
+      expect(r.status).toBe(200);
+    }
+    const bufs = Array.from({ length: MAX_CONCURRENT_UPLOADS }, (_, i) => Buffer.alloc(1024 * 1024, i + 9));
+    const results = await Promise.all(
+      bufs.map((b, i) =>
+        request(app)
+          .post(`/api/messages/${convId}/upload`)
+          .set('Authorization', `Bearer ${u1.token}`)
+          .field('reply_to_id', '')
+          .attach('file', b, `parM1_${i}.png`)
+      )
+    );
+    const statuses = results.map(r => r.status);
+    // 无漂移：MAX 个并发应全部成功（正好等于上限）；若漂移净-1 会放行更多，
+    // 若残留计数则部分 429。两者都说明 release 计数不正确。
+    expect(statuses.every(s => s === 200)).toBe(true);
+    const fs = require('fs');
+    const path = require('path');
+    const dir = path.join(require('../src/config').uploadsRoot, 'files');
+    for (const f of fs.readdirSync(dir)) {
+      const p = path.join(dir, f);
+      if (fs.statSync(p).size >= 1024 * 1024) fs.unlinkSync(p);
+    }
+  });
+
   test('background-upload 超大图片（>5MB）→ 413（已切回 5MB 图片上传器）', async () => {
     const res = await request(app)
       .post(`/api/messages/conversation/${convId}/background-upload`)

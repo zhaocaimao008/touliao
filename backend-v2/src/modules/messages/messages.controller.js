@@ -2,7 +2,7 @@
 const path = require('path');
 const config = require('../../config');
 const { asyncHandler, badRequest } = require('../../utils/http');
-const { makeChatUploader, makeImageUploader, sanitizeFilename, decodeMultipartName } = require('../../utils/upload');
+const { makeChatUploader, makeImageUploader, makeUploadGuard, sanitizeFilename, decodeMultipartName } = require('../../utils/upload');
 const { isMember } = require('./shared');
 const { pushNewMessage } = require('../../utils/push');
 const { registerFile } = require('../../utils/fileRegistry');
@@ -14,6 +14,9 @@ const chatUploader = makeChatUploader(path.join(config.uploadsRoot, 'files'));
 // P1-03：背景图是图片，切回 5MB 图片上传器（严格 MIME + 魔数 + 5MB 上限），
 // 不再复用 200MB 聊天上传器——避免经 background-upload 无限流直传耗尽磁盘。
 const bgUploader = makeImageUploader(path.join(config.uploadsRoot, 'bg'), 'file', 1, 5 * 1024 * 1024);
+// P1-03 M2：background-upload 前置磁盘阈值 + 并发守卫（与直传同一策略），
+// 否则 5MB 图片可被并行流式写盘压到磁盘 0，绕开 500MB 阈值拦截。
+const bgUploadGuard = makeUploadGuard(path.join(config.uploadsRoot, 'bg'));
 
 exports.history = asyncHandler(async (req, res) =>
   res.json(svc.history(req.params.conversationId, req.user.id, req.query)));
@@ -124,7 +127,7 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
 });
 
 // ── 聊天背景图本地上传（不发消息，仅存文件返回 URL）─────────────
-exports.bgUploadMiddleware = bgUploader;
+exports.bgUploadMiddleware = [bgUploadGuard, ...bgUploader];
 exports.backgroundUpload = asyncHandler(async (req, res) => {
   if (!req.file) throw badRequest('请选择图片');
   if (!isMember(req.params.convId, req.user.id)) return res.status(403).json({ error: '无权操作' });
