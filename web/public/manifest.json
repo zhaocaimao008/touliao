@@ -1,28 +1,53 @@
 {
   "name": "投聊",
   "short_name": "投聊",
-  "description": "安全、高效的企业级通讯",
+  "description": "安全、高效的企业级即时通讯",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#241F38",
   "theme_color": "#6D5AE6",
+  "lang": "zh-CN",
+  "dir": "ltr",
   "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "categories": [
     "social",
     "communication"
   ],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "发起会话",
+      "short_name": "会话",
+      "url": "/?tab=chats",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
 }

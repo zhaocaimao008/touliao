@@ -1,40 +1,14 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { clearCache } from '../utils/msgCache';
+import { clearCsrfToken } from '../utils/axiosInterceptor';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
 axios.defaults.withCredentials = true;
 
-// ── CSRF 防护：响应拦截器 ──────────────────────────────────────────
-// 从任何 API 响应头中读取 X-CSRF-Token 并存入 sessionStorage
-// 注：使用 sessionStorage 而非 localStorage，标签页关闭即清除，
-//     XSS 仍可读取（SameSite=Strict Cookie 是防 CSRF 的主力），
-//     但至少不会跨会话持久化。
-axios.interceptors.response.use(
-  (res) => {
-    const csrfHeader = res.headers['x-csrf-token'];
-    if (csrfHeader) {
-      sessionStorage.setItem('csrf_token', csrfHeader);
-      // 移动端浏览器刷新后 sessionStorage 清空但 Cookie 保留会导致 403，
-      // 用 localStorage 作为兜底，避免首次 POST 前 token 尚未到达时失败。
-      localStorage.setItem('touliao_csrf_cache', csrfHeader);
-    }
-    return res;
-  },
-  (err) => Promise.reject(err)
-);
-
-// ── CSRF 防护：请求拦截器 ──────────────────────────────────────────
-axios.interceptors.request.use(
-  (config) => {
-    if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())) {
-      const csrfToken = sessionStorage.getItem('csrf_token') || localStorage.getItem('touliao_csrf_cache');
-      if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken;
-    }
-    return config;
-  },
-  (err) => Promise.reject(err)
-);
+// ── CSRF 防护 ───────────────────────────────────────────────────
+// 统一由 utils/axiosInterceptor.js 的拦截器处理（提取 + 附加 X-CSRF-Token），
+// 本模块不再重复注册，避免两套拦截器并存互相覆盖（FE-002）。
 
 const AuthContext = createContext(null);
 
@@ -48,9 +22,11 @@ const isBearerClient = () => !!(window.__ELECTRON_CONFIG__ || window.Capacitor?.
 // 清除 CSRF token 缓存（会话结束/切换账号或服务器时调用）：
 // session 与 localStorage 兜底缓存必须一起清，否则旧会话的 token 会残留在
 // localStorage，被下一个会话的首个 POST 取用（请求拦截器会 fallback 到它）导致 403。
+// FE-002：CSRF 已统一由 utils/axiosInterceptor.js 管理，此处同时清其模块级缓存。
 function clearCsrfCache() {
   sessionStorage.removeItem('csrf_token');
   localStorage.removeItem('touliao_csrf_cache');
+  clearCsrfToken();
 }
 
 function setElectronToken(token) {

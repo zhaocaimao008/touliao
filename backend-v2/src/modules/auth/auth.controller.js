@@ -27,18 +27,16 @@ function ensureWallet(req, res) {
 }
 
 exports.register = asyncHandler(async (req, res) => {
-  const { token, user } = await svc.register(req.body);
+  const { token, user } = await svc.register(req.body, req);
   setAuthCookie(req, res, token);
   svc.recordDeviceAccount(ensureWallet(req, res), user.id);
-  svc.upsertSession(user.id, req);
   res.json({ token, user });
 });
 
 exports.login = asyncHandler(async (req, res) => {
-  const { token, user } = await svc.login(req.body);
+  const { token, user } = await svc.login(req.body, req);
   setAuthCookie(req, res, token);
   svc.recordDeviceAccount(ensureWallet(req, res), user.id);
-  svc.upsertSession(user.id, req);
   res.json({ token, user });
 });
 
@@ -47,9 +45,8 @@ exports.switchAccount = asyncHandler(async (req, res) => {
   const { userId } = req.body || {};
   if (!userId) throw badRequest('缺少 userId');
   const walletId = req.cookies?.[config.walletCookie];
-  const { token, user } = svc.switchAccount(walletId, userId);
+  const { token, user } = svc.switchAccount(walletId, userId, req);
   setAuthCookie(req, res, token);
-  svc.upsertSession(user.id, req);
   res.json({ user });
 });
 

@@ -44,19 +44,38 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   const isMobile   = !!(window.Capacitor && window.Capacitor.isNativePlatform());
 
   // 1. 加载远程配置
-  await loadRemoteConfig();
-  const cfg = getConfig();
+  //    FE-001：Web 端不阻塞首屏——最多等 800ms，超时先用同源相对路径渲染，
+  //    config 到达后再补设 baseURL（后续请求自动生效）。
+  //    Electron/Capacitor 必须等到完整 URL（相对路径无效），保持原行为。
+  const manualUrl = localStorage.getItem('touliao_server_url');
+  let cfg = null;
+  if (isElectron || isMobile) {
+    await loadRemoteConfig();
+    cfg = getConfig();
+  } else {
+    cfg = await Promise.race([
+      loadRemoteConfig().catch(() => null),
+      new Promise(resolve => setTimeout(() => resolve(null), 800)),
+    ]);
+  }
 
   // 2. 设置 Axios baseURL
   //    优先级：运行时手动切换的 URL > 远程配置 > Vite 环境变量
-  const manualUrl = localStorage.getItem('touliao_server_url');
-  const apiBase = manualUrl || cfg.api || import.meta.env.VITE_API_BASE || '';
+  const apiBase = manualUrl || cfg?.api || import.meta.env.VITE_API_BASE || '';
 
   if (apiBase) {
     axios.defaults.baseURL = apiBase;
   }
   // 跨域请求必须携带 Cookie，全局开启
   axios.defaults.withCredentials = true;
+
+  // Web 端 config 迟到时补设 baseURL（仅当首次未设置，避免覆盖手动切换）
+  if (!isElectron && !isMobile && !manualUrl && !axios.defaults.baseURL) {
+    loadRemoteConfig().then(() => {
+      const late = getConfig()?.api;
+      if (late && !axios.defaults.baseURL) axios.defaults.baseURL = late;
+    }).catch(() => {});
+  }
 
   // 设置 Axios 拦截器（CSRF、token 刷新、错误重试）
   setupAxiosInterceptors(axios);

@@ -104,3 +104,7 @@ scripts/__pycache__/
 .ios-review.log
 # 内部任务书(Claude 开发批次指令)
 .claude-briefs/
+
+# Test artifacts
+backend-v2/test/.tmp-test-db.sqlite*
+backend-v2/test/.tmp-test-uploads/
