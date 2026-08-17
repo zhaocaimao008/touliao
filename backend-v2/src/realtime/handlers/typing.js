@@ -8,6 +8,28 @@
 const { readDb } = require('../../db/connection');
 const { guardPayload, guardId } = require('../guard');
 
+// P1-07 SOCKET-003：typing 限流 —— 每 (userId, conversationId) 至少 400ms 才广播一次，
+// 窗口内重复 typing 直接丢弃（不广播、不重置 timer）。1 个 socket 100 次/秒 → 最多 2.5 次/秒
+// 广播，大群事件风暴/DoS 被截断。节流表带过期清理，防 Map 无限增长。
+const TYPING_THROTTLE_MS = 400;
+const TYPING_THROTTLE_MAX = 20000;      // 超过此规模触发惰性清理
+const TYPING_THROTTLE_TTL = 60 * 1000;   // 条目 60s 未更新即视为过期
+const typingThrottle = new Map(); // `${userId}:${conversationId}` → lastTs
+function throttleTyping(userId, conversationId) {
+  const now = Date.now();
+  const key = `${userId}:${conversationId}`;
+  const last = typingThrottle.get(key);
+  if (last && now - last < TYPING_THROTTLE_MS) return false;
+  typingThrottle.set(key, now);
+  if (typingThrottle.size > TYPING_THROTTLE_MAX) {
+    // 惰性清理：只保留最近 TTL 内仍活跃的条目
+    for (const [k, ts] of typingThrottle) {
+      if (now - ts > TYPING_THROTTLE_TTL) typingThrottle.delete(k);
+    }
+  }
+  return true;
+}
+
 module.exports = function registerTypingHandler(io, socket) {
   const userId = socket.user.id;
   const typingTimers = new Map(); // conversationId → timeoutId
@@ -22,6 +44,8 @@ module.exports = function registerTypingHandler(io, socket) {
     if (!p) return;
     const conversationId = guardId(socket, 'typing', 'conversationId', p.conversationId);
     if (!conversationId || !socket.rooms.has(conversationId)) return;
+    // P1-07 SOCKET-003：窗口内重复 typing 直接丢弃，不广播不重置 timer
+    if (!throttleTyping(userId, conversationId)) return;
     clearTyping(conversationId);
     socket.to(conversationId).emit('typing', { userId, conversationId });
     typingTimers.set(conversationId, setTimeout(() => {
@@ -61,3 +85,6 @@ module.exports = function registerTypingHandler(io, socket) {
     },
   };
 };
+
+// ── P1-07 测试钩子（生产无副作用，仅断言节流状态）──────────────
+module.exports._throttle = { throttleTyping, typingThrottle, TYPING_THROTTLE_MS, TYPING_THROTTLE_MAX, TYPING_THROTTLE_TTL };

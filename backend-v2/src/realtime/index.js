@@ -20,12 +20,50 @@ const registerNudge   = require('./handlers/nudge');
 const registerCall    = require('./handlers/call');
 const registerGroupCall = require('./handlers/groupCall');
 
+// P1-07 SOCKET-004：每用户并发 socket 上限，防连接洪泛 DoS。
+// 正常多端 ≤ 3~4 台，留余量到 5。超额连接在握手阶段直接拒绝（不进入 DB 查询链）。
+const MAX_SOCKETS_PER_USER = 5;
+
+// P1-07 增强：per-IP 握手频率限制（防单 IP 换多个账号批量建连耗尽握手/DB 查询）。
+// 60s 窗口内同一 IP 最多 30 次握手尝试，超限拒绝。条目带过期清理防 Map 增长。
+const IP_HANDSHAKE_WINDOW_MS = 60 * 1000;
+const IP_HANDSHAKE_MAX = 30;
+const ipHandshake = new Map(); // ip → { count, resetAt }
+function checkIpHandshake(ip) {
+  const now = Date.now();
+  const r = ipHandshake.get(ip);
+  if (!r || now >= r.resetAt) {
+    ipHandshake.set(ip, { count: 1, resetAt: now + IP_HANDSHAKE_WINDOW_MS });
+    return true;
+  }
+  if (r.count >= IP_HANDSHAKE_MAX) return false;
+  r.count += 1;
+  return true;
+}
+// 惰性清理：每 1000 次拒绝检查时清一次过期条目，避免 Map 无限增长
+let ipHandshakeChecks = 0;
+function pruneIpHandshake() {
+  ipHandshakeChecks += 1;
+  if (ipHandshakeChecks % 1000 !== 0) return;
+  const now = Date.now();
+  for (const [k, v] of ipHandshake) {
+    if (now >= v.resetAt) ipHandshake.delete(k);
+  }
+}
+
 module.exports = function setupRealtime(io, app) {
   broadcaster.setIo(io); // 广播调度器绑定 io 实例（分片削峰派发）
 
   // ── 握手鉴权（Cookie 优先，Electron 降级到 auth.token）──────
   io.use(async (socket, next) => {
     prodMetrics.recordConnAttempt(); // 监控：连接/重连成功率（每次握手即一次尝试）
+    // P1-07 增强：per-IP 握手频率限制（先于 JWT 验证，挡住廉价批量握手风暴）
+    const ip = socket.handshake.address || 'unknown';
+    if (!checkIpHandshake(ip)) {
+      prodMetrics.recordConnResult(false);
+      return next(new Error('连接过于频繁，请稍后再试'));
+    }
+    pruneIpHandshake();
     const cookieHeader = socket.handshake.headers.cookie || '';
     const match = cookieHeader.match(new RegExp(`${config.cookieName}=([^;]+)`));
     const cookieToken = match ? decodeURIComponent(match[1]) : null;
@@ -52,6 +90,20 @@ module.exports = function setupRealtime(io, app) {
       prodMetrics.recordConnResult(false);
       next(new Error('Token无效'));
     }
+  });
+
+  // P1-07 SOCKET-004：每用户并发连接数上限，防连接洪泛 DoS。
+  // 插在鉴权中间件之后（按注册顺序执行，此时 socket.user 已填充）。
+  // 正常多端 ≤ 4 台，留余量到 5；超额连接在握手阶段直接拒绝，
+  // 不进入后续 DB 查询链（JWT verify 已过、isBlacklisted/状态查询/房间查询全被跳过）。
+  io.use((socket, next) => {
+    if (!socket.user) return next(new Error('未授权'));
+    const n = presence.onlineUsers.get(socket.user.id)?.size || 0;
+    if (n >= MAX_SOCKETS_PER_USER) {
+      prodMetrics.recordConnResult(false);
+      return next(new Error('连接数超限，请关闭其他设备'));
+    }
+    next();
   });
 
   io.on('connection', (socket) => {
@@ -110,3 +162,9 @@ module.exports = function setupRealtime(io, app) {
     });
   });
 };
+
+// ── P1-07 测试钩子（生产无副作用，仅断言限流内部状态）──────────
+module.exports.MAX_SOCKETS_PER_USER = MAX_SOCKETS_PER_USER;
+module.exports.checkIpHandshake = checkIpHandshake;
+module.exports.ipHandshakeSize = () => ipHandshake.size;
+module.exports._resetIpHandshake = () => ipHandshake.clear();
