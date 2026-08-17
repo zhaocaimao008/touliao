@@ -70,6 +70,22 @@ describe('P1-06 清空聊天记录消息复活', () => {
     const searchArr = search.body.results || search.body.messages || [];
     expect(searchArr.map(m => m.id)).not.toContain(oldMsgId);
 
+    // ③b 会话内搜索（GET /api/search/messages）：同样不返回已清空消息
+    const inConv = await request(app)
+      .get(`/api/search/messages?conversationId=${convId}&q=p106-secret`)
+      .set('Authorization', `Bearer ${a.token}`);
+    expect(inConv.status).toBe(200);
+    const inConvArr = inConv.body.results || inConv.body.messages || [];
+    expect(inConvArr.map(m => m.id)).not.toContain(oldMsgId);
+
+    // ③c 对照：b 未清空，会话内搜索仍能搜到旧消息（per-user 隐藏语义）
+    const bInConv = await request(app)
+      .get(`/api/search/messages?conversationId=${convId}&q=p106-secret`)
+      .set('Authorization', `Bearer ${b.token}`);
+    expect(bInConv.status).toBe(200);
+    const bInConvArr = bInConv.body.results || bInConv.body.messages || [];
+    expect(bInConvArr.map(m => m.id)).toContain(oldMsgId);
+
     // ④ 会话列表 lastMessage：不再是旧消息
     const convs = await request(app)
       .get('/api/messages/conversations')

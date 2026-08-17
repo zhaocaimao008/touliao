@@ -124,6 +124,12 @@ function searchMessages(query, conversationId, userId, options = {}) {
     params.push(conversationId);
   }
 
+  if (userId) {
+    // P1-06 统一水位线：清空后会话内搜索不得返回已隐藏消息
+    sql += ' AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)';
+    params.push(userId);
+  }
+
   if (senderOnly) {
     sql += ' AND m.sender_id = ?';
     params.push(senderOnly);
@@ -215,7 +221,7 @@ function getSearchStats(conversationId) {
  * @param {string|null} senderOnly - 仅统计该发送者的消息（可选）
  * @returns {number} 匹配行数
  */
-function countMessages(query, conversationId, senderOnly = null) {
+function countMessages(query, conversationId, senderOnly = null, userId = null) {
   const trimmed = (query || '').trim().substring(0, 100);
   if (!trimmed) return 0;
 
@@ -228,6 +234,11 @@ function countMessages(query, conversationId, senderOnly = null) {
     AND m.conversation_id = ?
   `;
   const params = [ftsPhrase, conversationId];
+  if (userId) {
+    // P1-06 统一水位线：total 与 rows 保持一致
+    sql += ' AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)';
+    params.push(userId);
+  }
   if (senderOnly) {
     sql += ' AND m.sender_id = ?';
     params.push(senderOnly);
@@ -248,7 +259,7 @@ function countMessages(query, conversationId, senderOnly = null) {
  * @param {object}   options         - { limit, offset }
  * @returns {{ results: Array, total: number }}
  */
-function searchMessagesInConversations(query, conversationIds, { limit = 100, offset = 0 } = {}) {
+function searchMessagesInConversations(query, conversationIds, userId = null, { limit = 100, offset = 0 } = {}) {
   if (!Array.isArray(conversationIds) || conversationIds.length === 0) {
     return { results: [], total: 0 };
   }
@@ -267,10 +278,15 @@ function searchMessagesInConversations(query, conversationIds, { limit = 100, of
     WHERE fts.content MATCH ?
     AND m.conversation_id IN (${ph})
   `;
-  const baseParams = [ftsPhrase, ...conversationIds];
+  // P1-06 统一水位线：全局搜索也按 per-user cleared_rowid 过滤（参数在 IN 之前）
+  const watermarkClause = userId
+    ? `\n    AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)`
+    : '';
+  const baseParams = userId ? [ftsPhrase, userId, ...conversationIds] : [ftsPhrase, ...conversationIds];
+  const baseWhereFull = `${baseWhere}${watermarkClause}`;
 
   try {
-    const total = db.prepare(`SELECT COUNT(*) AS n ${baseWhere}`)
+    const total = db.prepare(`SELECT COUNT(*) AS n ${baseWhereFull}`)
       .get(...baseParams)?.n ?? 0;
 
     const results = db.prepare(`
@@ -283,7 +299,7 @@ function searchMessagesInConversations(query, conversationIds, { limit = 100, of
         m.created_at,
         u.username AS senderName,
         u.avatar   AS senderAvatar
-      ${baseWhere}
+      ${baseWhereFull}
       ORDER BY m.created_at DESC
       LIMIT ? OFFSET ?
     `).all(...baseParams, limit, offset);

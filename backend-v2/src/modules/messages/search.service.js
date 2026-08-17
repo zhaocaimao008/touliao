@@ -35,7 +35,7 @@ async function searchInConversation(conversationId, userId, query, options = {})
   const { limit = 50, offset = 0, senderOnly = null } = options;
 
   // 生成缓存 key
-  const cacheKey = `search:${conversationId}:${query}:${senderOnly || 'all'}:${limit}:${offset}`;
+  const cacheKey = `search:${conversationId}:${userId}:${query}:${senderOnly || 'all'}:${limit}:${offset}`;
 
   // 先查缓存（10 分钟有效期）
   try {
@@ -52,7 +52,7 @@ async function searchInConversation(conversationId, userId, query, options = {})
 
   // 分页结果 + COUNT — 各一条 SQL，不再用 limit=999999 全量加载
   const results = searchMessages(query, conversationId, userId, { limit, offset, senderOnly });
-  const total   = countMessages(query, conversationId, senderOnly);
+  const total   = countMessages(query, conversationId, senderOnly, userId);
 
   const result = {
     results,
@@ -114,7 +114,7 @@ async function searchGlobal(userId, query, options = {}) {
   }
 
   // 一次性 FTS5 搜索（COUNT + SELECT，共 2 条 SQL，不再 N+1 循环）
-  const { results, total } = searchMessagesInConversations(query, conversationIds, { limit, offset });
+  const { results, total } = searchMessagesInConversations(query, conversationIds, userId, { limit, offset });
 
   // 批量拉取本次结果涉及的会话信息（一条 IN 查询，不在循环里逐个查）
   const hitConvIds = [...new Set(results.map(m => m.conversation_id))];

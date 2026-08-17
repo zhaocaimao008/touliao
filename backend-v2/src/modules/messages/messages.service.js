@@ -575,8 +575,9 @@ async function searchInConversation(convId, userId, q) {
       JOIN users u ON u.id = m.sender_id
       WHERE m.conversation_id = ? AND m.deleted = 0
         AND m.content LIKE ? ESCAPE '\\'
+        AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
       ORDER BY m.created_at DESC LIMIT 30
-    `).all(convId, like);
+    `).all(convId, like, userId);
   } else {
     const ftsQuery = tokens.map(t => `"${t.replace(/"/g, '""')}"`).join(' OR ');
     result = db.prepare(`
@@ -585,8 +586,9 @@ async function searchInConversation(convId, userId, q) {
       JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
       JOIN users u ON u.id = m.sender_id
       WHERE messages_fts MATCH ? AND messages_fts.conversation_id = ?
+        AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
       ORDER BY m.created_at DESC LIMIT 30
-    `).all(ftsQuery, convId);
+    `).all(ftsQuery, convId, userId);
   }
 
   // 写入缓存（TTL: 10 分钟）
