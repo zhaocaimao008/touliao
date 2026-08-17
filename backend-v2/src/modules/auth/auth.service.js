@@ -272,25 +272,19 @@ function switchAccount(walletId, userId) {
   return { token: signToken(user), user: serializeUser(user) };
 }
 
-/** 忘记密码：手机号 + 用户自己的专属邀请码验证后重置（无需登录） */
-async function resetPassword({ phone, inviteCode, newPassword }) {
-  if (!phone || !inviteCode || !newPassword) throw badRequest('请填写所有字段');
-  if (typeof phone !== 'string' || phone.length < 5 || phone.length > 20 || !/^\+?[\d\s\-]{5,20}$/.test(phone))
-    throw badRequest('手机号格式不正确');
-  if (!/^\d{6}$/.test(inviteCode)) throw badRequest('邀请码必须是6位数字');
-  if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword))
-    throw badRequest('密码必须至少8位，且至少包含1个字母和1个数字');
-  // 用用户自己的专属邀请码（users.invite_code，每人唯一）验证身份，
-  // 而非全局管理员码，避免平台内任意用户可重置他人密码。
-  const user = db.prepare('SELECT id, invite_code FROM users WHERE phone=?').get(phone);
-  // 不区分"手机号不存在"和"邀请码错误"两种情况，防止枚举
-  if (!user || user.invite_code !== inviteCode) return { success: true };
-  const hash = await bcrypt.hash(newPassword, 12);
-  const resetAt = Math.floor(Date.now() / 1000);
-  db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, resetAt, user.id);
-  db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(user.id);
-  invalidateUser(user.id); // 驱逐状态缓存
-  return { success: true };
+/** 忘记密码：安全策略禁用（P1-01）。
+ *
+ * 原实现「手机号 + 用户专属邀请码」即可重置密码：
+ *  - 邀请码是 6 位数字且会随邀请行为传播，不是安全凭证；
+ *  - 无短信/邮箱验证码投递能力，无法建立真正的身份验证；
+ *  - 可被用于账号接管。
+ *
+ * 修复：公开重置通道统一拒绝，响应不区分手机号是否存在（防枚举）。
+ * 密码重置请走管理员通道：POST /admin/users/:id/reset-password（adminAuth 保护）。
+ */
+async function resetPassword() {
+  // 无论手机号/邀请码/密码如何组合，统一返回相同错误，不泄露账号是否存在
+  throw badRequest('密码重置功能暂不可用，请联系管理员');
 }
 
 module.exports = {
