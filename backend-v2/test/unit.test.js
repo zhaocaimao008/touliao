@@ -88,9 +88,13 @@ describe('安全', () => {
   });
 
   test('全局搜索返回 { results } 信封', async () => {
+    // A004 修复后 logout 会拉黑会话 jti（正确安全行为），beforeAll 的 register token
+    // 可能已被前面 logout 测试拉黑（同 device/platform 复用同一 session），故重新登录取新 token。
+    const fresh = await request(app).post('/api/auth/login')
+      .send({ phone: user.phone, password: user.password });
     const res = await request(app).get('/api/messages/search')
       .query({ q: '你好' })
-      .set('Authorization', `Bearer ${user.token}`);
+      .set('Authorization', `Bearer ${fresh.body.token}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('results');
     expect(Array.isArray(res.body.results)).toBe(true);

@@ -77,8 +77,19 @@ module.exports = function setupRealtime(io, app) {
         prodMetrics.recordConnResult(false);
         return next(new Error('Token已失效，请重新登录'));
       }
+      // A004 复审 FAIL-2：被删会话的 JWT（payload.jti）已加入 jti 黑名单，
+      // 握手必须一并校验，否则旧 JWT 可新建 socket 连接并发消息。
+      if (socket.user.jti && (await isBlacklisted(`jti:${socket.user.jti}`))) {
+        prodMetrics.recordConnResult(false);
+        return next(new Error('会话已失效，请重新登录'));
+      }
       // 检查封禁状态 + password_changed_at（与 HTTP auth 中间件等价）
       const user = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(socket.user.id);
+      // A004 复审 FAIL-3：admin 硬删除用户后用户行不存在，旧 JWT 不得再接入。
+      if (!user) {
+        prodMetrics.recordConnResult(false);
+        return next(new Error('用户不存在，请重新登录'));
+      }
       if (user?.banned) { prodMetrics.recordConnResult(false); return next(new Error('账号已被封禁')); }
       if (user?.password_changed_at && socket.user.iat < user.password_changed_at) {
         prodMetrics.recordConnResult(false);
@@ -111,6 +122,32 @@ module.exports = function setupRealtime(io, app) {
   io.on('connection', (socket) => {
     const userId = socket.user.id;
     const isFirstDevice = !presence.isOnline(userId);
+
+    // A004 复审 FAIL-1：会话被删除/失效后，已建立的 socket 不得继续发消息。
+    // 逐事件复检（socket.use 在每事件 handler 前执行）：
+    //  - jti 黑名单（logout 删会话 → 立即失效，不等断开重连）
+    //  - 用户存在性 / banned（admin 硬删用户 → 立即失效）
+    socket.use(async ([event, ...args], next) => {
+      try {
+        if (socket.user?.jti && (await isBlacklisted(`jti:${socket.user.jti}`))) {
+          prodMetrics.recordConnResult(false);
+          socket.emit('session_expired', { reason: '会话已失效，请重新登录' });
+          socket.disconnect(true);
+          return next(new Error('会话已失效'));
+        }
+        const u = readDb.prepare('SELECT banned FROM users WHERE id=?').get(socket.user.id);
+        if (!u || u.banned) {
+          prodMetrics.recordConnResult(false);
+          socket.disconnect(true);
+          return next(new Error('账号不可用'));
+        }
+        next();
+      } catch {
+        // 鉴权检查自身异常时 fail-closed：拒绝事件（安全优先）
+        socket.disconnect(true);
+        next(new Error('鉴权检查失败'));
+      }
+    });
 
     presence.addSocket(userId, socket.id);
     if (app) app.set('onlineUsers', presence.onlineUserIdSet());

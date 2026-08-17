@@ -82,15 +82,26 @@ exports.refresh = asyncHandler(async (req, res) => {
 
 exports.logout = asyncHandler(async (req, res) => {
   // 将 token 加入黑名单 + 从本设备钱包移除当前账号（其余账号仍可丝滑切换）。
-  // logout 路由无 auth 中间件，故从 cookie 解码取 userId。
+  // logout 路由无 auth 中间件，故从 cookie/Bearer 解码取 userId。
+  // A004 复审：Electron/Capacitor 为 Bearer-only 客户端（无 cookie），
+  // 必须同时支持 Authorization: Bearer，否则 logout 后旧 JWT 仍有效。
   try {
     const jwt = require('jsonwebtoken');
-    const tok = req.cookies?.[config.cookieName];
+    const cookieTok = req.cookies?.[config.cookieName];
+    const authHdr = req.headers.authorization || '';
+    const bearerTok = authHdr.startsWith('Bearer ') ? authHdr.slice(7) : null;
+    const tok = cookieTok || bearerTok;
     const walletId = req.cookies?.[config.walletCookie];
     if (tok) {
       const payload = jwt.verify(tok, config.jwtSecret, { algorithms: ['HS256'] });
       const { addToBlacklist } = require('../../utils/tokenBlacklist');
       await addToBlacklist(tok, payload.exp);
+      // A004：logout 时删除当前会话行 + 拉黑其 jti。
+      // 注意：仅拉黑 jti 不够——upsertSession 同设备同平台会复用原 session id，
+      // 若不删行，重登仍拿到被拉黑的 jti，导致 logout 后无法重新登录。
+      if (payload.jti) {
+        try { svc.deleteSession(payload.id, payload.jti); } catch {} // 删行（deleteSession 内部同时拉黑 jti）
+      }
       if (walletId) {
         svc.removeDeviceAccount(walletId, payload.id);
       }
