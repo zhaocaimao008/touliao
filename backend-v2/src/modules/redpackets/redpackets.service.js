@@ -149,6 +149,31 @@ function reclaimExpired() {
   return { scanned: expired.length, refunded };
 }
 
+// ── 群解散结算：把某会话内「仍有人在途」的红包（含他人已退群者发出）──
+//   剩余金额原路退回各自 sender。P1-05 洞 B：deleteUser 群解散分支若直接
+//   DELETE red_packets 会凭空销毁他人红包资金；必须先按会话结算（同样 status
+//   CAS 抢占 + 剩余退回，与 settleUserActivePacketsTx / reclaimExpired 同口径）。
+//   ⚠ 供 deleteUser 在其外层事务内内联调用（同事务原子）；不自开事务。
+function settleConversationPacketsTx(conversationId) {
+  const active = db.prepare(
+    "SELECT id, sender_id, total_amount FROM red_packets WHERE conversation_id=? AND status='active'"
+  ).all(conversationId);
+  let refundedTotal = 0;
+  let refundedCount = 0;
+  for (const p of active) {
+    const upd = db.prepare("UPDATE red_packets SET status='expired' WHERE id=? AND status='active'").run(p.id);
+    if (upd.changes === 0) continue;
+    const { s } = db.prepare('SELECT COALESCE(SUM(amount),0) AS s FROM red_packet_claims WHERE packet_id=?').get(p.id);
+    const remaining = p.total_amount - s;
+    if (remaining > 0) {
+      wallet.applyDeltaTx(p.sender_id, remaining, 'red_packet_refund', p.id, '群解散·红包退款');
+      refundedTotal += remaining;
+      refundedCount += 1;
+    }
+  }
+  return { scanned: active.length, refundedCount, refundedTotal };
+}
+
 // ── 注销结算：把某用户「发出且仍在途」的红包剩余金额退回其本人钱包 ──
 //   复用 reclaimExpired 的口径（status 'active'→'expired' 抢占 + 剩余原路退回 sender）。
 //   与过期回收/并发领取靠同一把 status CAS 互斥，保证同一红包只退一次、不会与领取双花。
@@ -185,4 +210,4 @@ function startExpiryReclaim() {
   return timer;
 }
 
-module.exports = { send, detail, claim, reclaimExpired, settleUserActivePacketsTx, startExpiryReclaim };
+module.exports = { send, detail, claim, reclaimExpired, settleUserActivePacketsTx, settleConversationPacketsTx, startExpiryReclaim };

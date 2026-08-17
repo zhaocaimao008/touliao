@@ -424,6 +424,16 @@ async function setBurnAfter(userId, convId, seconds) {
 }
 
 // ── 按用户清空会话（H-2）：仅对操作者隐藏，对方消息不受影响 ──────
+// P1-06 review：清空后必须失效该会话搜索缓存 + 该用户全局搜索缓存，
+// 否则 Redis 在线时同 TTL 内二次搜索会从 stale 缓存「复活」已清空消息。
+function invalidateSearchCaches(userId, convIds) {
+  const patterns = [];
+  for (const convId of convIds) patterns.push(`search:${convId}:*`);
+  patterns.push(`search:${userId}:*`);      // messages.service.js 全局搜索缓存
+  patterns.push(`search:global:${userId}:*`); // search.service.js 全局搜索缓存
+  for (const p of patterns) cache.delPattern(p).catch(() => {});
+}
+
 function clearConversation(io, userId, convId) {
   requireMember(convId, userId, '无权操作该会话');
   const now = Math.floor(Date.now() / 1000);
@@ -434,6 +444,7 @@ function clearConversation(io, userId, convId) {
     VALUES (?, ?, ?, ?)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
   `).run(userId, convId, now, maxRowid);
+  invalidateSearchCaches(userId, [convId]);
   if (io) io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId });
   return 1;
 }
@@ -448,6 +459,7 @@ function clearAllConversations(io, userId) {
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
   `);
   db.transaction(() => { for (const { conversation_id } of convs) upsert.run(userId, conversation_id, now, conversation_id); })();
+  invalidateSearchCaches(userId, convs.map(c => c.conversation_id));
   if (io) for (const { conversation_id } of convs) {
     io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: conversation_id, clearedBy: userId });
   }

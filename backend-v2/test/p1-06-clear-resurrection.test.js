@@ -86,6 +86,35 @@ describe('P1-06 清空聊天记录消息复活', () => {
     const bInConvArr = bInConv.body.results || bInConv.body.messages || [];
     expect(bInConvArr.map(m => m.id)).toContain(oldMsgId);
 
+    // ③d 全局搜索（/api/search/global，走 searchMessagesInConversations 跨会话 FTS）：
+    // P0 参数绑定回归——修复前参数数组顺序错位（[ftsPhrase, userId, ...convIds]）导致
+    // 单会话用户恒空 / 双会话水位线失效（已清空消息复活）。
+    const gSearch = await request(app)
+      .get(`/api/search/global?q=p106-secret`)
+      .set('Authorization', `Bearer ${a.token}`);
+    expect(gSearch.status).toBe(200);
+    const gArr = gSearch.body.results || [];
+    expect(gArr.map(m => m.id)).not.toContain(oldMsgId);
+    // total 与 results 一致（P1 修复：total COUNT 同样过滤水位线，不再虚高）
+    expect(gSearch.body.total).toBe(0);
+
+    // ③e 对照：b 未清空，全局搜索仍能搜到旧消息
+    const bGSearch = await request(app)
+      .get(`/api/search/global?q=p106-secret`)
+      .set('Authorization', `Bearer ${b.token}`);
+    expect(bGSearch.status).toBe(200);
+    const bGArr = bGSearch.body.results || [];
+    expect(bGArr.map(m => m.id)).toContain(oldMsgId);
+    expect(bGSearch.body.total).toBe(1);
+
+    // ③f 全局搜索（LIKE 分支，2 字短词）：同样不返回已清空消息
+    const shortRes = await request(app)
+      .get(`/api/search/global?q=p1`)
+      .set('Authorization', `Bearer ${a.token}`);
+    expect(shortRes.status).toBe(200);
+    const shortArr = shortRes.body.results || [];
+    expect(shortArr.map(m => m.id)).not.toContain(oldMsgId);
+
     // ④ 会话列表 lastMessage：不再是旧消息
     const convs = await request(app)
       .get('/api/messages/conversations')

@@ -2,7 +2,7 @@
 const path = require('path');
 const config = require('../../config');
 const { asyncHandler, badRequest } = require('../../utils/http');
-const { makeChatUploader, sanitizeFilename, decodeMultipartName } = require('../../utils/upload');
+const { makeChatUploader, makeImageUploader, sanitizeFilename, decodeMultipartName } = require('../../utils/upload');
 const { isMember } = require('./shared');
 const { pushNewMessage } = require('../../utils/push');
 const { registerFile } = require('../../utils/fileRegistry');
@@ -11,7 +11,9 @@ const svc = require('./messages.service');
 const io = req => req.app.get('io');
 const chatUploader = makeChatUploader(path.join(config.uploadsRoot, 'files'));
 // 群/私聊背景图专用上传（仅存文件，不发消息）
-const bgUploader = makeChatUploader(path.join(config.uploadsRoot, 'bg'));
+// P1-03：背景图是图片，切回 5MB 图片上传器（严格 MIME + 魔数 + 5MB 上限），
+// 不再复用 200MB 聊天上传器——避免经 background-upload 无限流直传耗尽磁盘。
+const bgUploader = makeImageUploader(path.join(config.uploadsRoot, 'bg'), 'file', 1, 5 * 1024 * 1024);
 
 exports.history = asyncHandler(async (req, res) =>
   res.json(svc.history(req.params.conversationId, req.user.id, req.query)));

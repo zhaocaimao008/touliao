@@ -176,7 +176,7 @@ async function verifyChatFile(filePath, originalname, claimedMime = '') {
 
 function handleMulterError(err, req, res, next) {
   if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: '文件超过服务器配置的大小上限' });
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: '文件超过服务器配置的大小上限' });
     return res.status(400).json({ error: `上传错误: ${err.message}` });
   }
   if (err?.message) return res.status(400).json({ error: err.message });
@@ -189,6 +189,41 @@ function wrapUpload(multerMiddleware) {
       if (err) return handleMulterError(err, req, res, next);
       next();
     });
+  };
+}
+
+// P1-03：直传路径磁盘阈值 + 单用户并发上限（与分片路径 chunk.js 同口径）。
+// 直传 multer diskStorage 边收边落盘，无此守卫可被并行大文件流式耗尽磁盘。
+// 内存 Map 计数：请求进入 +1，响应完成/中断 -1（res close/finish 均触发）。
+const activeDirectUploads = new Map(); // userId -> 进行中的直传数
+function makeUploadGuard(dest) {
+  return (req, res, next) => {
+    // 磁盘阈值：低于 MIN_DISK_FREE_BYTES 拒绝新上传（探测失败放行，不误伤）
+    try {
+      if (typeof fs.statfsSync === 'function') {
+        const s = fs.statfsSync(dest);
+        const free = s.bavail * s.bsize;
+        if (free < MIN_DISK_FREE_BYTES) {
+          return res.status(503).json({ error: '服务器磁盘空间不足，请稍后再试' });
+        }
+      }
+    } catch { /* 无法探测时放行 */ }
+
+    // 并发上限：同用户同时进行中的直传请求数
+    const uid = req.user?.id || 'anon';
+    const active = activeDirectUploads.get(uid) || 0;
+    if (active >= MAX_CONCURRENT_UPLOADS) {
+      return res.status(429).json({ error: `同时进行中的上传过多（上限 ${MAX_CONCURRENT_UPLOADS}），请先完成或等待清理` });
+    }
+    activeDirectUploads.set(uid, active + 1);
+    const release = () => {
+      const cur = activeDirectUploads.get(uid) || 1;
+      if (cur <= 1) activeDirectUploads.delete(uid);
+      else activeDirectUploads.set(uid, cur - 1);
+    };
+    res.on('finish', release);
+    res.on('close', release);
+    next();
   };
 }
 
@@ -242,7 +277,9 @@ function makeChatUploader(dest) {
     storage,
     limits: { fileSize: MAX_UPLOAD_BYTES },
   }).single('file'));
-  return [multerMw, makeChatMagicMiddleware()];
+  // P1-03：直传路径与分片路径同口径 —— 磁盘阈值 + 单用户并发上限，
+  // 否则攻击者可绕过 upload-init 的分片限制走直传耗尽磁盘（审计 BACKEND-A005）。
+  return [makeUploadGuard(dest), multerMw, makeChatMagicMiddleware()];
 }
 
 function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 * 1024 * 1024) {
@@ -281,6 +318,6 @@ function isBrowserRenderableType(contentType) {
 module.exports = {
   ALLOWED_CHAT_EXTS, ALLOWED_IMAGE_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS,
   MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES,
-  sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader,
+  sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader, makeUploadGuard,
   verifyMagicBytes, verifyChatFile, isBrowserRenderableType,
 };

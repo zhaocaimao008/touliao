@@ -183,6 +183,9 @@ function deleteUser(io, id) {
       } else {
         // 无其他成员 → 解散整群（按外键依赖顺序级联，与 purgeConversation 一致；
         // 此处内联以复用当前事务，避免 better-sqlite3 嵌套事务报错）。
+        // P1-05 洞 B：解散前先结算该群在途红包（含已退群成员发出的），
+        // 剩余原路退回各自 sender，否则直接 DELETE 会凭空销毁他人资金。
+        redpackets.settleConversationPacketsTx(g.id);
         const msgIds = db.prepare('SELECT id FROM messages WHERE conversation_id=?').all(g.id).map(r => r.id);
         for (let i = 0; i < msgIds.length; i += 500) {
           const chunk = msgIds.slice(i, i + 500);
@@ -209,9 +212,19 @@ function deleteUser(io, id) {
     db.prepare('DELETE FROM push_subscriptions WHERE user_id=?').run(id);
     db.prepare('DELETE FROM device_tokens WHERE user_id=?').run(id);
     db.prepare('DELETE FROM collections WHERE user_id=?').run(id);
-    db.prepare('DELETE FROM red_packet_claims WHERE user_id=?').run(id);
-    // 列名为 packet_id（非 red_packet_id）——原写法引用不存在的列会抛错并回滚整个删除事务，
-    // 导致后台删除用户恒定 500。修正列名以清理该用户所发红包的领取记录。
+    // P1-05 洞 A：该用户领取「他人红包」的领取行不能物理删除——否则他人红包
+    // SUM(claimed) 变小 → remaining 虚增 → 到期回收 double refund（同一笔钱付两次）。
+    // FK ON 下 user_id 必须指向存在的 users 行，故转移给系统占位用户（ghost，
+    // offline 永不登录），保留 SUM(claimed)；自己发的红包的领取行随下方
+    // packet_id IN (sender_id=?) 清理。
+    const GHOST_ID = '00000000-0000-0000-0000-000000000000';
+    db.prepare(
+      "INSERT OR IGNORE INTO users (id,username,phone,password,status) VALUES (?,?,?,?,'offline')"
+    ).run(GHOST_ID, 'ghost', GHOST_ID, '!');
+    db.prepare(`
+      UPDATE red_packet_claims SET user_id=?
+      WHERE user_id=? AND packet_id IN (SELECT id FROM red_packets WHERE sender_id != ?)
+    `).run(GHOST_ID, id, id);
     db.prepare('DELETE FROM red_packet_claims WHERE packet_id IN (SELECT id FROM red_packets WHERE sender_id=?)').run(id);
     db.prepare('DELETE FROM red_packets WHERE sender_id=?').run(id);
     // wallet_transactions 保留作审计痕迹（P1-05：删除前已结算红包/余额清零并记账，流水不可抹除）

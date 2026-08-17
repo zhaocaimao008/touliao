@@ -482,7 +482,9 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
       FROM messages m
       JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
       WHERE m.type = 'text' AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
-    `).get(userId, like)?.cnt || 0;
+        AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+                                     WHERE user_id=? AND conversation_id=m.conversation_id), 0)
+    `).get(userId, like, userId)?.cnt || 0;
 
     rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
@@ -511,7 +513,9 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
       JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
       JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
       WHERE messages_fts MATCH ?
-    `).get(userId, ftsQuery)?.cnt || 0;
+        AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+                                     WHERE user_id=? AND conversation_id=m.conversation_id), 0)
+    `).get(userId, ftsQuery, userId)?.cnt || 0;
 
     rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,

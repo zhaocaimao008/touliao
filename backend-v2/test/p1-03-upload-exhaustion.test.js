@@ -139,4 +139,52 @@ describe('P1-03 上传磁盘耗尽防护', () => {
     expect(res.status).toBe(404);
     chunkUp.__testDeleteMeta?.(r.body.uploadId);
   });
+
+  test('直传超大文件（>200MB）→ 413 且不落盘', async () => {
+    const before = require('fs').readdirSync(require('path').join(require('../src/config').uploadsRoot, 'files')).length;
+    const res = await request(app)
+      .post(`/api/messages/${convId}/upload`)
+      .set('Authorization', `Bearer ${u1.token}`)
+      .field('reply_to_id', '')
+      .attach('file', Buffer.alloc(MAX + 1), 'huge.png');
+    expect(res.status).toBe(413);
+    const after = require('fs').readdirSync(require('path').join(require('../src/config').uploadsRoot, 'files')).length;
+    expect(after).toBe(before); // multer 超限自动清理已写部分
+  });
+
+  test('直传同用户并发请求超过上限 → 429（guard 生效）', async () => {
+    const { MAX_CONCURRENT_UPLOADS } = require('../src/utils/upload');
+    // 并发发出 MAX_CONCURRENT_UPLOADS+1 个直传（各 3MB，避免 413 干扰）
+    const bufs = Array.from({ length: MAX_CONCURRENT_UPLOADS + 1 }, (_, i) => Buffer.alloc(3 * 1024 * 1024, i + 1));
+    const results = await Promise.all(
+      bufs.map((b, i) =>
+        request(app)
+          .post(`/api/messages/${convId}/upload`)
+          .set('Authorization', `Bearer ${u1.token}`)
+          .field('reply_to_id', '')
+          .attach('file', b, `par${i}.png`)
+      )
+    );
+    const statuses = results.map(r => r.status);
+    const okCount = statuses.filter(s => s === 200).length;
+    const limited = statuses.filter(s => s === 429).length;
+    expect(okCount).toBeLessThanOrEqual(MAX_CONCURRENT_UPLOADS);
+    expect(limited).toBeGreaterThanOrEqual(1);
+    // 清理并发直传产生的文件（防止后续用例/全量回归污染磁盘与 registry）
+    const fs = require('fs');
+    const path = require('path');
+    const dir = path.join(require('../src/config').uploadsRoot, 'files');
+    for (const f of fs.readdirSync(dir)) {
+      const p = path.join(dir, f);
+      if (fs.statSync(p).size >= 3 * 1024 * 1024) fs.unlinkSync(p);
+    }
+  });
+
+  test('background-upload 超大图片（>5MB）→ 413（已切回 5MB 图片上传器）', async () => {
+    const res = await request(app)
+      .post(`/api/messages/conversation/${convId}/background-upload`)
+      .set('Authorization', `Bearer ${u1.token}`)
+      .attach('file', Buffer.alloc(6 * 1024 * 1024, 7), 'bg.png');
+    expect(res.status).toBe(413);
+  });
 });

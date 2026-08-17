@@ -282,7 +282,7 @@ function searchMessagesInConversations(query, conversationIds, userId = null, { 
   const watermarkClause = userId
     ? `\n    AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)`
     : '';
-  const baseParams = userId ? [ftsPhrase, userId, ...conversationIds] : [ftsPhrase, ...conversationIds];
+  const baseParams = userId ? [ftsPhrase, ...conversationIds, userId] : [ftsPhrase, ...conversationIds];
   const baseWhereFull = `${baseWhere}${watermarkClause}`;
 
   try {
