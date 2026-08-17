@@ -8,7 +8,7 @@
  */
 const Database = require('better-sqlite3');
 const config = require('../config');
-const { applySchema, applyFts } = require('./schema');
+const { applySchema, applyFts, ensureClearWatermarkColumn, assertRequiredColumns } = require('./schema');
 
 function tunePragmas(conn, { readonly = false } = {}) {
   conn.pragma('busy_timeout = 5000');   // 并发锁等待 5s，避免高并发下立即 SQLITE_BUSY
@@ -38,6 +38,10 @@ tunePragmas(db);
 
 applySchema(db);
 applyFts(db);
+// P0-PROD-SCHEMA-DRIFT：幂等自愈补列（缺 cleared_rowid 时 ALTER，历史行回填 0）
+ensureClearWatermarkColumn(db);
+// 防回归：启动时断言 production-required 列存在，缺失即抛错中止启动（而非用户 500）
+assertRequiredColumns(db);
 
 // ── ID 生成器 ───────────────────────────────────────────────────
 // 优化：先从 DB 计算当前已用数量，据此估算冲突概率。

@@ -591,4 +591,38 @@ function applyFts(db) {
   }
 }
 
-module.exports = { applySchema, applyFts };
+// ── Schema Drift 防回归断言（启动时执行）───────────────────────────
+// P0-PROD-SCHEMA-DRIFT 根因：schema_migrations 标记已 applied，但实际列缺失
+// （生产库初始化早于 76/77/78 序号内容变更，runner 按 idx 跳过不重放）。
+// 最小 guard：启动/部署时断言 production-required 列存在，缺失即抛错中止启动，
+// 避免「迁移元数据=applied、实际列=缺失」静默漂移到用户 500。
+const REQUIRED_COLUMNS = {
+  conversation_clears: ['user_id', 'conversation_id', 'cleared_at', 'cleared_rowid'],
+};
+
+// 幂等修复：conversation_clears 缺 cleared_rowid 时补列（P0 HOTFIX 逻辑）。
+// 表 0 行时无 UPDATE 需要；有历史行时回填 0。返回是否实际执行了修复。
+function ensureClearWatermarkColumn(db) {
+  const cols = new Set(db.prepare('PRAGMA table_info(conversation_clears)').all().map(c => c.name));
+  if (cols.has('cleared_rowid')) return false;
+  db.exec('ALTER TABLE conversation_clears ADD COLUMN cleared_rowid INTEGER DEFAULT 0');
+  db.exec('UPDATE conversation_clears SET cleared_rowid = 0 WHERE cleared_rowid IS NULL');
+  return true;
+}
+
+function assertRequiredColumns(db) {
+  const missing = [];
+  for (const [table, cols] of Object.entries(REQUIRED_COLUMNS)) {
+    const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?")
+      .get(table);
+    if (!exists) { missing.push(`table:${table}`); continue; }
+    const actual = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name));
+    for (const col of cols) if (!actual.has(col)) missing.push(`${table}.${col}`);
+  }
+  if (missing.length) {
+    throw new Error(`[db] Schema drift detected — 迁移标记已 applied 但列缺失: ${missing.join(', ')}。` +
+      `请检查迁移记录与实际 schema 一致性（勿直接伪造 applied 记录）。`);
+  }
+}
+
+module.exports = { applySchema, applyFts, ensureClearWatermarkColumn, assertRequiredColumns };
