@@ -95,6 +95,8 @@ const { isBlacklisted } = require('./utils/tokenBlacklist');
 const { isMember } = require('./modules/messages/shared');
 const { assertVisible } = require('./modules/moments/moments.service');
 const { lookupFile } = require('./utils/fileRegistry');
+// P1-02 v2：moments 可见性门控查询需要 db（resolveUploadAccess 内使用）
+const db = require('./db');
 
 // 解析 /uploads/<category>/<file>，校验当前用户是否可访问该资源。
 // 返回 { ok: true } 放行；{ ok: false, status } 拒绝；null 表示资源不存在/未知类别。

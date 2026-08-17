@@ -186,4 +186,45 @@ describe('P1-02 /uploads 越权访问（IDOR）', () => {
     expect(res.status).toBe(200);
     try { fs.unlinkSync(sPath); } catch { /* 忽略 */ }
   });
+
+  test('moments 类别（真实 /uploads/moments/ 路径）：作者可看、非好友 403、植入后仍拒', async () => {
+    // 全新用户 d：与 a 无任何好友/私聊关系（避免被其他用例的免验证互加污染）
+    const d = await makeUser({ username: 'p102_d_outsider' });
+    // 上传真实朋友圈图片（field 名 images，最多 9 张）
+    const up = await request(app)
+      .post('/api/moments/images')
+      .set('Authorization', `Bearer ${a.token}`)
+      .attach('images', PNG_1x1, { filename: 'moment.png', contentType: 'image/png' });
+    expect(up.status).toBe(200);
+    const mUrl = up.body.urls[0];
+    expect(mUrl.startsWith('/uploads/moments/')).toBe(true);
+    const mPath = path.join(config.uploadsRoot, mUrl.replace(/^\/uploads\//, ''));
+    expect(fs.existsSync(mPath)).toBe(true);
+
+    // 创建私密/好友可见动态引用该图
+    const mom = await request(app)
+      .post('/api/moments')
+      .set('Authorization', `Bearer ${a.token}`)
+      .send({ content: '私密照片', images: [mUrl], visibility: 'friends' });
+    expect(mom.status).toBe(200);
+
+    // 作者本人可看
+    const self = await request(app).get(mUrl).set('Authorization', `Bearer ${a.token}`);
+    expect(self.status).toBe(200);
+
+    // 非好友 d（与 a 无任何关系）不可看 → 403
+    const outsider = await request(app).get(mUrl).set('Authorization', `Bearer ${d.token}`);
+    expect(outsider.status).toBe(403);
+
+    // 植入场景：攻击者 d 在自己动态引用该 URL，仍不可看（registry 归属是 a）
+    const planted = await request(app)
+      .post('/api/moments')
+      .set('Authorization', `Bearer ${d.token}`)
+      .send({ content: '盗图', images: [mUrl], visibility: 'all' });
+    expect(planted.status).toBe(200);
+    const plantedGet = await request(app).get(mUrl).set('Authorization', `Bearer ${d.token}`);
+    expect(plantedGet.status).toBe(403);
+
+    try { fs.unlinkSync(mPath); } catch { /* 忽略 */ }
+  });
 });
