@@ -107,20 +107,21 @@ class MainActivity : ComponentActivity() {
         val from = intent.getStringExtra(NotificationHelper.EXTRA_CALL_FROM).orEmpty()
         val callType = intent.getStringExtra(NotificationHelper.EXTRA_CALL_TYPE) ?: "audio"
         val callerName = intent.getStringExtra(NotificationHelper.EXTRA_CALL_NAME).orEmpty()
+        val callId = intent.getStringExtra(NotificationHelper.EXTRA_CALL_ID).orEmpty()
         notificationHelper.cancelCallNotification()
         // 后台被唤醒时 socket 可能已断，接听/拒绝的信令需要它 → 先确保连接
         socketManager.connect()
 
         when (action) {
             NotificationHelper.ACTION_CALL_DECLINE -> {
-                callManager.incomingFromPush(from, callType, callerName)
+                callManager.incomingFromPush(from, callType, callerName, callId)
                 callManager.reject()
             }
             else -> {
                 // SHOW / ACCEPT 均只进入来电界面（INCOMING）。
                 // 不在此直接 accept()：接听需麦克风/摄像头运行时权限，由 CallHost 挂载后统一申请再建连，
                 // 避免冷启动权限未授予就 createLocalTracks。用户在来电界面点「接听」走正常权限流。
-                callManager.incomingFromPush(from, callType, callerName)
+                callManager.incomingFromPush(from, callType, callerName, callId)
             }
         }
         // 消费掉，避免旋转/重建时重复触发

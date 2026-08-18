@@ -31,7 +31,7 @@ data class PresenceEvent(val userId: String, val online: Boolean)
 data class RedPacketClaimedEvent(val packetId: String, val userId: String, val username: String, val amount: Int)
 
 // ── WebRTC 通话信令 ──
-data class CallIncomingEvent(val from: String, val type: String, val callerName: String)
+data class CallIncomingEvent(val from: String, val type: String, val callerName: String, val callId: String = "")
 data class CallResponseEvent(val from: String, val accepted: Boolean)
 data class CallSdpEvent(val from: String, val sdp: String)            // offer / answer 的 sdp
 data class CallIceEvent(val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
@@ -333,7 +333,7 @@ class SocketManager @Inject constructor(
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val from = o.optString("from")
                 val caller = o.optJSONObject("caller")?.optString("name").orEmpty()
-                if (from.isNotEmpty()) _callIncoming.tryEmit(CallIncomingEvent(from, o.optString("type", "audio"), caller))
+                if (from.isNotEmpty()) _callIncoming.tryEmit(CallIncomingEvent(from, o.optString("type", "audio"), caller, o.optString("callId")))
             }
         }
         s.on("call:response") { args ->
@@ -511,14 +511,37 @@ class SocketManager @Inject constructor(
     }
 
     // ── 通话信令发送 ──
-    fun emitCallRequest(to: String, type: String, callerName: String) {
-        socket?.emit("call:request", JSONObject()
+    /**
+     * 主叫发起：ack 携带服务端生成的 callId（随后随 accept/reject/hangup 回传，
+     * 供服务端做过期应答校验，对齐 iOS/被叫侧）。连接已断或 ack 超时(10s)则返回 null，
+     * 不阻断通话主流程——callId 缺失时服务端跳过校验，保持兼容。
+     */
+    suspend fun emitCallRequest(to: String, type: String, callerName: String): String? {
+        val s = socket ?: return null
+        if (!s.connected()) return null
+        val payload = JSONObject()
             .put("to", to).put("type", type)
-            .put("caller", JSONObject().put("name", callerName)))
+            .put("caller", JSONObject().put("name", callerName))
+        return suspendCancellableCoroutine { cont ->
+            s.emit("call:request", arrayOf<Any>(payload), object : io.socket.client.AckWithTimeout(10_000) {
+                override fun onSuccess(vararg ackArgs: Any?) {
+                    if (!cont.isActive) return
+                    val callId = (ackArgs.firstOrNull() as? JSONObject)?.optString("callId")?.takeIf { it.isNotEmpty() }
+                    cont.resume(callId)
+                }
+
+                override fun onTimeout() {
+                    if (!cont.isActive) return
+                    cont.resume(null)
+                }
+            })
+        }
     }
 
-    fun emitCallResponse(to: String, accepted: Boolean) {
-        socket?.emit("call:response", JSONObject().put("to", to).put("accepted", accepted))
+    fun emitCallResponse(to: String, accepted: Boolean, callId: String = "") {
+        val payload = JSONObject().put("to", to).put("accepted", accepted)
+        if (callId.isNotEmpty()) payload.put("callId", callId)
+        socket?.emit("call:response", payload)
     }
 
     fun emitCallOffer(to: String, sdp: String) {
@@ -540,8 +563,10 @@ class SocketManager @Inject constructor(
                 .put("sdpMLineIndex", sdpMLineIndex)))
     }
 
-    fun emitCallEnd(to: String) {
-        socket?.emit("call:end", JSONObject().put("to", to))
+    fun emitCallEnd(to: String, callId: String = "") {
+        val payload = JSONObject().put("to", to)
+        if (callId.isNotEmpty()) payload.put("callId", callId)
+        socket?.emit("call:end", payload)
     }
 
     // ── 群通话信令发送 ──

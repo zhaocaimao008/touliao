@@ -82,7 +82,7 @@ function cleanupUserCalls(io, userId) {
 module.exports = function registerCallHandler(io, socket) {
   const userId = socket.user.id;
 
-  socket.on('call:request', (payload) => {
+  socket.on('call:request', (payload, ack) => {
     // P0-002 强校验：负载必须是对象，to 必须是合法字符串 ID，type 必须是枚举
     const p = guardPayload(socket, 'call:request', payload);
     if (!p) return;
@@ -146,6 +146,9 @@ module.exports = function registerCallHandler(io, socket) {
       pushCallInvite({ toUserId: to, fromUserId: userId, callerName: callerInfo?.username || '', callType: t, callId: id })
         .catch(e => console.warn('[call] 来电推送失败:', e.message));
     }
+    // 主叫侧回执携带 callId：随后随 accept/reject/hangup 回传做过期应答校验（对齐被叫侧）。
+    // 旧客户端不传 ack 回调则跳过，无兼容风险。
+    if (typeof ack === 'function') ack({ callId: id });
   });
 
   socket.on('call:response', (payload) => {

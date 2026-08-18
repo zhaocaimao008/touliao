@@ -43,6 +43,7 @@ data class CallState(
     val peerName: String = "",
     val isVideo: Boolean = false,
     val isCaller: Boolean = false,
+    val callId: String = "",          // 服务端通话 id，随 accept/reject/hangup 回传做过期应答校验
     val micEnabled: Boolean = true,
     val cameraEnabled: Boolean = true,
     val remoteVideoActive: Boolean = false,
@@ -142,7 +143,7 @@ class CallManager @Inject constructor(
             delay(60_000)
             val st = _state.value.stage
             if (st == CallStage.OUTGOING || st == CallStage.CONNECTING) {
-                if (_state.value.peerId.isNotEmpty()) socketManager.emitCallEnd(_state.value.peerId)
+                if (_state.value.peerId.isNotEmpty()) socketManager.emitCallEnd(_state.value.peerId, _state.value.callId)
                 cleanup(CallStage.ENDED)
             }
         }
@@ -154,7 +155,11 @@ class CallManager @Inject constructor(
             // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（此刻 App 在前台、权限已授予，满足 FGS 合规）
             CallForegroundService.start(context, video)
             val name = sessionManager.currentUser?.username.orEmpty()
-            socketManager.emitCallRequest(peerId, if (video) "video" else "audio", name)
+            // ack 携带服务端生成的 callId；期间可能已挂断/被覆盖，仅在仍是同一通呼出时才回填
+            val callId = socketManager.emitCallRequest(peerId, if (video) "video" else "audio", name)
+            if (callId != null && _state.value.peerId == peerId && _state.value.stage != CallStage.ENDED) {
+                _state.update { it.copy(callId = callId) }
+            }
         }
     }
 
@@ -170,7 +175,7 @@ class CallManager @Inject constructor(
             createLocalTracks(s.isVideo)
             // 本地媒体已开始采集 → 起前台服务保活（接听时 App 在前台、权限已授予）
             CallForegroundService.start(context, s.isVideo)
-            socketManager.emitCallResponse(s.peerId, true)
+            socketManager.emitCallResponse(s.peerId, true, s.callId)
             // 等待主叫的 call:offer
         }
     }
@@ -178,14 +183,14 @@ class CallManager @Inject constructor(
     /** 被叫拒接 */
     fun reject() {
         val s = _state.value
-        if (s.peerId.isNotEmpty()) socketManager.emitCallResponse(s.peerId, false)
+        if (s.peerId.isNotEmpty()) socketManager.emitCallResponse(s.peerId, false, s.callId)
         cleanup(CallStage.ENDED)
     }
 
     /** 挂断（任一方） */
     fun hangup() {
         val s = _state.value
-        if (s.peerId.isNotEmpty()) socketManager.emitCallEnd(s.peerId)
+        if (s.peerId.isNotEmpty()) socketManager.emitCallEnd(s.peerId, s.callId)
         cleanup(CallStage.ENDED)
     }
 
@@ -213,13 +218,13 @@ class CallManager @Inject constructor(
      * 由后台 FCM 来电推送触发进入 INCOMING（App 被通知拉起、socket 可能尚未重连时）。
      * 幂等：若已在展示同一来电或正在通话则不覆盖；socket 后续补发 call:incoming 会因 peer 相同被去重。
      */
-    fun incomingFromPush(from: String, callType: String, callerName: String) {
+    fun incomingFromPush(from: String, callType: String, callerName: String, callId: String = "") {
         if (from.isEmpty()) return
         val st = _state.value
         // 空闲或结束态才进 incoming；已在处理同一 peer 的来电则忽略（避免覆盖 socket 已建立的状态）
         if (st.stage != CallStage.IDLE && st.stage != CallStage.ENDED) return
         _state.value = CallState(
-            CallStage.INCOMING, from, callerName, isVideo = callType == "video", isCaller = false,
+            CallStage.INCOMING, from, callerName, isVideo = callType == "video", isCaller = false, callId = callId,
         )
     }
 
@@ -231,11 +236,11 @@ class CallManager @Inject constructor(
                 if (_state.value.stage == CallStage.INCOMING && _state.value.peerId == e.from) return@collect
                 if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) {
                     // 忙线：直接拒接
-                    socketManager.emitCallResponse(e.from, false)
+                    socketManager.emitCallResponse(e.from, false, e.callId)
                     return@collect
                 }
                 _state.value = CallState(
-                    CallStage.INCOMING, e.from, e.callerName, isVideo = e.type == "video", isCaller = false,
+                    CallStage.INCOMING, e.from, e.callerName, isVideo = e.type == "video", isCaller = false, callId = e.callId,
                 )
             }
         }
