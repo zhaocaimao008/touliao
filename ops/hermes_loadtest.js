@@ -9,7 +9,7 @@
  *   D. 实时广播扇出       —— 1 人 socket 发 send_message → 群内其余 N-1 人收 new_message,
  *                           测真实聊天投递的完整率与延迟
  *
- * 可走真实路径(经 Nginx/TLS): 设 LOADTEST_URL=https://dipsin.com
+ * 可走真实路径(经 Nginx/TLS): 设 LOADTEST_URL=https://touliao.cc
  * 环境: LOADTEST_URL|BACKEND_URL, LOAD_CONNS, LOAD_MSG_RATE, LOAD_DURATION,
  *       LOGIN_BATCH, SOAK_SECONDS, APP_DIR, OUT, TARGET_ONLINE
  */
