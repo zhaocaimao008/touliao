@@ -4,6 +4,7 @@ const { db } = require('../../db/connection');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const usersSvc = require('../users/users.service');
 const { getOrCreatePrivate } = require('../conversations/conversations.service');
+const { pushToUser } = require('../../utils/push');
 
 // ── 联系人 ──────────────────────────────────────────────────────
 function listContacts(userId) {
@@ -47,7 +48,9 @@ function setRemark(userId, contactId, remark) {
 // 返回 { result, sideEffects } —— controller 负责 io.emit（service 不碰 io）
 function sendFriendRequest(io, fromId, { toId, message }) {
   if (!toId) throw badRequest('参数缺失');
-  if (message && message.length > 100) throw badRequest('验证消息最长 100 个字符');
+  // 规范化 message：非字符串（如数字 123）在库内/推送处 trim 会抛错且请求已入库 → 统一转字符串再校验
+  const safeMessage = typeof message === 'string' ? message.trim() : '';
+  if (safeMessage.length > 100) throw badRequest('验证消息最长 100 个字符');
   if (toId === fromId) throw badRequest('不能添加自己');
   if (!db.prepare('SELECT id FROM users WHERE id=?').get(toId)) throw notFound('用户不存在');
   if (db.prepare('SELECT id FROM contacts WHERE user_id=? AND contact_id=?').get(fromId, toId)) throw badRequest('已是好友');
@@ -96,12 +99,22 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   let inserted = false;
   db.transaction(() => {
     if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) return;
-    db.prepare('INSERT INTO friend_requests (id,from_id,to_id,message) VALUES (?,?,?,?)').run(id, fromId, toId, message || '');
+    db.prepare('INSERT INTO friend_requests (id,from_id,to_id,message) VALUES (?,?,?,?)').run(id, fromId, toId, safeMessage);
     inserted = true;
   })();
   if (!inserted) throw badRequest('请求已发送');
   const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
-  if (io) io.to(`user_${toId}`).emit('new_friend_request', { id, from: sender, message: message || '' });
+  if (io) io.to(`user_${toId}`).emit('new_friend_request', { id, from: sender, message: safeMessage });
+  // 离线推送 best-effort，不阻塞、不抛错（同 moments 互动通知的处理方式）：
+  // 好友请求不是"新消息"，不受 message_notify/muted 影响 —— 那两项按既有约定仅约束会话内消息。
+  const senderName = sender?.username || '有人';
+  pushToUser(toId, {
+    title: senderName,
+    senderName,
+    body: safeMessage || '请求添加你为好友',
+    type: 'friend_request',
+    senderId: fromId,
+  }).catch(() => {});
   return { success: true, id };
 }
 

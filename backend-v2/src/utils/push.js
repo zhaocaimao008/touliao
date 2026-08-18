@@ -164,7 +164,7 @@ async function pushToUser(userId, payload) {
       getuiPush.pushToCid(row.token, {
         title: payload.senderName || '新消息',
         body: payload.body || '收到一条新消息',
-        payload: { conversationId: payload.conversationId || '', senderId: payload.senderId || '' },
+        payload: { type: payload.type || 'message', conversationId: payload.conversationId || '', senderId: payload.senderId || '' },
       }).then(({ json }) => {
         if (json.code !== 0) {
           console.warn(`[push] 个推失败 user=${userId} code=${json.code} msg=${json.msg}`);
