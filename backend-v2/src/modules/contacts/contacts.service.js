@@ -48,7 +48,9 @@ function setRemark(userId, contactId, remark) {
 // 返回 { result, sideEffects } —— controller 负责 io.emit（service 不碰 io）
 function sendFriendRequest(io, fromId, { toId, message }) {
   if (!toId) throw badRequest('参数缺失');
-  if (message && message.length > 100) throw badRequest('验证消息最长 100 个字符');
+  // 规范化 message：非字符串（如数字 123）在库内/推送处 trim 会抛错且请求已入库 → 统一转字符串再校验
+  const safeMessage = typeof message === 'string' ? message.trim() : '';
+  if (safeMessage.length > 100) throw badRequest('验证消息最长 100 个字符');
   if (toId === fromId) throw badRequest('不能添加自己');
   if (!db.prepare('SELECT id FROM users WHERE id=?').get(toId)) throw notFound('用户不存在');
   if (db.prepare('SELECT id FROM contacts WHERE user_id=? AND contact_id=?').get(fromId, toId)) throw badRequest('已是好友');
@@ -97,7 +99,7 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   let inserted = false;
   db.transaction(() => {
     if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) return;
-    db.prepare('INSERT INTO friend_requests (id,from_id,to_id,message) VALUES (?,?,?,?)').run(id, fromId, toId, message || '');
+    db.prepare('INSERT INTO friend_requests (id,from_id,to_id,message) VALUES (?,?,?,?)').run(id, fromId, toId, safeMessage);
     inserted = true;
   })();
   if (!inserted) throw badRequest('请求已发送');
@@ -109,7 +111,7 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   pushToUser(toId, {
     title: senderName,
     senderName,
-    body: message && message.trim() ? message.trim() : '请求添加你为好友',
+    body: safeMessage || '请求添加你为好友',
     type: 'friend_request',
     senderId: fromId,
   }).catch(() => {});
