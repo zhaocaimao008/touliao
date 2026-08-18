@@ -54,8 +54,6 @@ import com.touliao.app.feature.update.UpdateCheckDialog
 import com.touliao.app.feature.update.UpdateViewModel
 import com.touliao.app.ui.VxinIcons
 import com.touliao.app.ui.theme.VxinBrand
-import com.touliao.app.ui.theme.VxinTextPrimary
-import com.touliao.app.ui.theme.VxinTextSecondary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -247,15 +245,15 @@ private fun HubRow(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(12.dp))
-        Text(title, Modifier.weight(1f), color = VxinTextPrimary, fontSize = com.touliao.app.ui.theme.VxinTextSize.md)
+        Text(title, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface, fontSize = com.touliao.app.ui.theme.VxinTextSize.md)
         if (trailingContent != null) {
             trailingContent()
             Spacer(Modifier.width(8.dp))
         } else if (trailing != null) {
-            Text(trailing, color = trailingColor ?: VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 8.dp))
+            Text(trailing, color = trailingColor ?: MaterialTheme.colorScheme.onSurfaceVariant, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 8.dp))
         }
-        Icon(VxinIcons.ChevronRight, contentDescription = null, tint = VxinTextSecondary.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+        Icon(VxinIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
     }
 }

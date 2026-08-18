@@ -54,8 +54,6 @@ import coil.compose.AsyncImage
 import com.touliao.app.ui.VxinIcons
 import com.touliao.app.ui.components.InitialAvatar
 import com.touliao.app.ui.theme.VxinBrand
-import com.touliao.app.ui.theme.VxinTextPrimary
-import com.touliao.app.ui.theme.VxinTextSecondary
 
 /**
  * 个人资料页（投聊版）：真实字段绑定（User 模型 username/phone/avatar/bio/wechat_id）。
@@ -223,16 +221,16 @@ private fun EditRow(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = VxinTextPrimary, fontSize = com.touliao.app.ui.theme.VxinTextSize.md)
+        Text(label, color = MaterialTheme.colorScheme.onSurface, fontSize = com.touliao.app.ui.theme.VxinTextSize.md)
         Spacer(Modifier.weight(1f))
         if (trailingContent != null) {
             trailingContent()
         } else if (value != null) {
-            Text(value, color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (clickable) {
             Spacer(Modifier.width(8.dp))
-            Icon(VxinIcons.ChevronRight, contentDescription = null, tint = VxinTextSecondary.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+            Icon(VxinIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
         }
     }
 }

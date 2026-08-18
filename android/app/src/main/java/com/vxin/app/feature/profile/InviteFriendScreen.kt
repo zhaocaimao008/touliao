@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.touliao.app.ui.theme.VxinTextSecondary
 
 /** 邀请好友页（投聊版）：邀请码卡片 + 复制 + 已邀请战绩 + 邀请好友列表。 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,7 +59,7 @@ fun InviteFriendScreen(
                 // 邀请码卡片
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp)) {
-                        Text("我的邀请码", fontSize = 13.sp, color = VxinTextSecondary)
+                        Text("我的邀请码", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -84,13 +83,13 @@ fun InviteFriendScreen(
                             }
                         }
                         Spacer(Modifier.height(4.dp))
-                        Text("已成功邀请 ${invite.invitedCount} 位好友", fontSize = 13.sp, color = VxinTextSecondary)
+                        Text("已成功邀请 ${invite.invitedCount} 位好友", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
                 if (invite.invitees.isNotEmpty()) {
                     Spacer(Modifier.height(24.dp))
-                    Text("邀请的好友", fontSize = 13.sp, color = VxinTextSecondary)
+                    Text("邀请的好友", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     invite.invitees.take(20).forEach { u ->
                         Row(
