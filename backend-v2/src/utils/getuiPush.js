@@ -85,6 +85,7 @@ async function pushToCid(cid, { title, body, payload }) {
   const transmissionPayload = JSON.stringify({
     title,
     body,
+    type: payload?.type || '',      // 事件类型（message/call/friend_request…），客户端据此区分展示/跳转（NOTIFY-004 P1-2）
     conversationId: payload?.conversationId || '',
     senderId: payload?.senderId || '',
   });
