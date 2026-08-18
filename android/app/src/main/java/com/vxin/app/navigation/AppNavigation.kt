@@ -100,7 +100,24 @@ class AppViewModel @Inject constructor(
                 .onSuccess { list -> _unreadTotal.value = list.filter { it.muted != 1 }.sumOf { it.unreadCount } }
         }
     }
+
+    /**
+     * 通知点击只带 conversationId，按本地会话列表回填 name/type/peerUserId 供 Routes.chat 跳转用。
+     * 查不到（如列表未刷新到）就给默认值，不阻塞跳转——ChatScreen 进入后会自行拉取会话详情。
+     */
+    suspend fun resolveChatTarget(conversationId: String): ChatTarget {
+        val conv = runCatching { chatRepository.loadConversations() }
+            .getOrNull()?.firstOrNull { it.id == conversationId }
+        return ChatTarget(
+            conversationId = conversationId,
+            title = conv?.name.orEmpty(),
+            type = conv?.type ?: "private",
+            peerUserId = conv?.otherUser?.id.orEmpty(),
+        )
+    }
 }
+
+data class ChatTarget(val conversationId: String, val title: String, val type: String, val peerUserId: String)
 
 private object Routes {
     const val LOGIN = "login"
@@ -187,13 +204,25 @@ private val TAB_ITEMS = listOf(
 private val TAB_ROUTES = TAB_ITEMS.map { it.route }.toSet()
 
 @Composable
-private fun MainFlow(features: Features, unreadTotal: Int = 0) {
+private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: AppViewModel = hiltViewModel()) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
     // 底部 tab 已固定为 消息/通讯录/我，无需再按 features 开关过滤
     val visibleTabs = TAB_ITEMS
+
+    // 通知点击跳会话：navController 在这里已就绪，消费 PendingConversationHolder 并导航。
+    // 立即置空 holder 防止重复触发（同一 convId 只导航一次）。
+    val pendingConvId by PendingConversationHolder.conversationId.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(pendingConvId) {
+        val convId = pendingConvId ?: return@LaunchedEffect
+        PendingConversationHolder.conversationId.value = null
+        val target = appViewModel.resolveChatTarget(convId)
+        navController.navigate(Routes.chat(target.conversationId, target.title, target.type, target.peerUserId)) {
+            launchSingleTop = true
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
