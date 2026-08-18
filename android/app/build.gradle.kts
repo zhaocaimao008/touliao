@@ -15,7 +15,7 @@ android {
         applicationId = "com.touliao.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 53
+        versionCode = 54
         versionName = "8.0.0"
 
         // 默认服务器地址（运行时可在 App 内切换并持久化覆盖）
@@ -133,7 +133,15 @@ dependencies {
 
     // 个推 SDK（国产 ROM 覆盖，无 GMS 设备锁屏通知兜底）
     // AppID/AppKey/AppSecret 在 manifestPlaceholders 注入，不硬编码
-    implementation(libs.getui.sdk)
+    // DEVICE-P1-001: exclude com.zxid.sdk:sdk-prod-channel-getui（getui 传递依赖）。
+    //   该 SDK 的 libzxprotect.so 启动时 native 校验宿主包名/签名（packageName/signatureNonce/
+    //   persist.sys.package.SHA1/HmacSHA1），包名 com.vxin.app→com.touliao.app 后校验不匹配 →
+    //   native abort（SIGABRT），Java runCatching 拦不住 → 所有机型启动即闪退。
+    //   getui 通过反射调用 ZXManager（Class.forName + try/catch），类缺失会被捕获，
+    //   不影响 getui 核心 CID 注册/推送。
+    implementation(libs.getui.sdk) {
+        exclude(group = "com.zxid.sdk", module = "sdk-prod-channel-getui")
+    }
 
     // Unit tests (pure JVM; offline msgCache 语义基线对齐 Web vitest)
     testImplementation(libs.junit)

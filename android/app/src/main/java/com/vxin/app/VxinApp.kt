@@ -22,6 +22,12 @@ class VxinApp : Application(), ImageLoaderFactory {
         fun pushManager(): com.touliao.app.core.push.PushManager
     }
 
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(base)
+        // DEVICE-P1-001: 最早安全入口注册崩溃记录器（不吞 crash，仅落盘脱敏诊断）
+        com.touliao.app.core.crash.StartupCrashRecorder.install(this)
+    }
+
     override fun onCreate() {
         super.onCreate()
         com.touliao.app.core.storage.ThemeStore.syncInitial(this)
