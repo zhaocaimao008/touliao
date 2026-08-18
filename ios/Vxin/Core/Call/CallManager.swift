@@ -178,6 +178,9 @@ final class CallManager: NSObject, ObservableObject {
     }
 
     func reject() {
+        // 必须仅在真正处于来电态时才执行：若当前是已建立的通话（如过期通知的 incomingFromPush
+        // 因 stage!=idle/ended 未覆盖 state），无守卫会让过期 DECLINE 静默拒接/拆毁一通不相关的活跃通话（Hermes F1）。
+        guard state.stage == .incoming else { return }
         if !state.peerId.isEmpty { socket.emitCallResponse(to: state.peerId, accepted: false, callId: state.callId) }
         cleanup(.ended)
     }
@@ -297,6 +300,21 @@ final class CallManager: NSObject, ObservableObject {
             if let error = error {
                 print("[CallManager] 来电通知失败: \(error.localizedDescription)")
             }
+        }
+    }
+
+    /// App 回前台时调用：清掉通知中心里所有残留的来电通知（不论 from）。
+    /// 服务端超时静默（未接听 120s，E3 修复前）或用户从未交互的悬挂来电，只靠
+    /// accept/reject/cleanup 触发的按 from 清理覆盖不到；前台来电本就改由横幅 UI 展示
+    /// （见下方 observeSignaling），通知中心残留只会在数小时后被误触触发过期 DECLINE（Hermes F2）。
+    func clearAllIncomingCallNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { notifications in
+            let ids = notifications
+                .filter { $0.request.content.categoryIdentifier == "INCOMING_CALL" }
+                .map { $0.request.identifier }
+            guard !ids.isEmpty else { return }
+            center.removeDeliveredNotifications(withIdentifiers: ids)
         }
     }
 

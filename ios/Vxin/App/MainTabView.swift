@@ -40,6 +40,8 @@ struct MainTabView: View {
             if phase == .active {
                 PushManager.shared.refreshRegistrationIfNeeded()
                 UNUserNotificationCenter.current().setBadgeCount(0)
+                // 清掉通知中心悬挂的来电通知，避免数小时后误触过期通知触发 DECLINE 杀死当前通话（Hermes F2）
+                CallManager.shared.clearAllIncomingCallNotifications()
             }
         }
     }

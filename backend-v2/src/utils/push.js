@@ -310,6 +310,8 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
           'apns-priority': '10',
           // 同一对通话方复呼时收敛为一条系统通知，避免旧来电通知堆积可操作
           'apns-collapse-id': `call_${fromUserId}_${toUserId}`.slice(0, 64),
+          // 立即过期：离线期间堆积的旧来电不应在设备恢复在线后被 APNs 补投
+          'apns-expiration': '0',
         },
         payload: {
           aps: {

@@ -35,7 +35,7 @@ const nowSec = () => Math.floor(Date.now() / 1000);
 /**
  * 创建通话超时定时器：未被应答的通话在 CALL_TIMEOUT_MS 后自动清除
  */
-function scheduleCallTimeout(key) {
+function scheduleCallTimeout(key, io) {
   return setTimeout(() => {
     const c = activeCalls.get(key);
     if (c && !c.answeredAt) {
@@ -44,6 +44,9 @@ function scheduleCallTimeout(key) {
           .run(nowSec(), c.id);
       } catch (e) { console.warn('[call] timeout 落库失败:', e.message); }
       activeCalls.delete(key);
+      // 未接听超时也要补发 call:end，否则被叫端 UI/本地通知（未收到任何结束信号）会永久悬挂（NOTIFY-002 E3）
+      const [callerId, calleeId] = key.split('>');
+      io.to(`user_${calleeId}`).emit('call:end', { from: callerId, reason: 'timeout' });
     }
   }, CALL_TIMEOUT_MS);
 }
@@ -129,7 +132,7 @@ module.exports = function registerCallHandler(io, socket) {
         }
       } catch {}
     }
-    const timer = scheduleCallTimeout(key);
+    const timer = scheduleCallTimeout(key, io);
     activeCalls.set(key, { id, answeredAt: null, timer });
     try {
       db.prepare('INSERT INTO call_logs (id,caller_id,callee_id,type,status,started_at) VALUES (?,?,?,?,?,?)')
