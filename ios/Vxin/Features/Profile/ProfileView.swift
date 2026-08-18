@@ -3,258 +3,297 @@ import UIKit
 import PhotosUI
 import Kingfisher
 
+// MARK: - Design Tokens
+// 语义色（UIColor.system*）自动跟随 Light/Dark，替代母版硬编码 RGB。
+
+private enum Tok {
+    static let xs: CGFloat = 4;  static let s: CGFloat = 8
+    static let m: CGFloat = 12;  static let l: CGFloat = 16
+    static let xl: CGFloat = 20; static let xxl: CGFloat = 24
+    static let cardRadius: CGFloat = 18
+    static let avatarSize: CGFloat = 66
+    static let iconSize: CGFloat = 22
+    static let rowHeight: CGFloat = 57
+    static let green    = Color.vxinBrand
+    static let greenBg  = Color.vxinBrand.opacity(0.12)
+    static let primary  = Color(UIColor.label)
+    static let secondary = Color(UIColor.secondaryLabel)
+    static let bg       = Color(UIColor.systemGroupedBackground)
+    static let cardBg   = Color(UIColor.secondarySystemGroupedBackground)
+    static let divider  = Color(UIColor.separator)
+    static let red      = Color(UIColor.systemRed)
+    static let iconGray = Color(UIColor.label)
+}
+
+// MARK: - Reusable components
+
+/// Section card wrapper (rounded card, very light border)
+private struct VxCard<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        VStack(spacing: 0) { content }
+            .background(Tok.cardBg)
+            .clipShape(RoundedRectangle(cornerRadius: Tok.cardRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Tok.cardRadius, style: .continuous)
+                    .stroke(Tok.divider, lineWidth: 0.5)
+            )
+    }
+}
+
+/// Section header label above a card
+private struct SectionHeader: View {
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(.system(size: 14, weight: .medium))
+            .foregroundColor(Tok.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Tok.xl)
+            .padding(.top, Tok.xl)
+            .padding(.bottom, Tok.s)
+    }
+}
+
+/// Standard settings row: icon | title | [trailing] | chevron
+private struct SettingsRow: View {
+    let icon: String
+    let title: String
+    var trailing: String? = nil
+    var iconColor: Color = Tok.iconGray
+    var body: some View {
+        HStack(spacing: Tok.m) {
+            Image(systemName: icon)
+                .font(.system(size: Tok.iconSize - 2, weight: .light))
+                .foregroundColor(iconColor)
+                .frame(width: Tok.xxl, alignment: .center)
+            Text(title)
+                .font(.system(size: 16.5))
+                .foregroundColor(Tok.primary)
+            Spacer()
+            if let t = trailing {
+                Text(t)
+                    .font(.system(size: 15))
+                    .foregroundColor(Tok.secondary)
+                    .lineLimit(1)
+            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Tok.secondary.opacity(0.6))
+        }
+        .padding(.horizontal, Tok.l)
+        .frame(minHeight: Tok.rowHeight)
+        .background(Tok.cardBg)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct RowDivider: View {
+    var body: some View {
+        Divider()
+            .background(Tok.divider)
+            .padding(.leading, Tok.l + Tok.xxl + Tok.m)
+    }
+}
+
+// MARK: - ProfileView (我的)
+
 struct ProfileView: View {
     @EnvironmentObject private var session: SessionStore
+    @State private var showEdit = false
+    @State private var showLogout = false
+    @State private var showSwitchAccount = false
+    @State private var versionTaps = 0
+    @State private var showBuild = false
 
-    @State private var username = ""
-    @State private var bio = ""
-    @State private var saving = false
-    @State private var uploadingAvatar = false
-    @State private var message: String?
-    @State private var photoItem: PhotosPickerItem?
-    @State private var showAddAccount = false
-    @State private var invite: InviteInfo?
-    @State private var inviteCopied = false
+    private var user: User? { session.currentUser }
 
-    private let repo = ProfileRepository.shared
+    private func maskedPhone(_ phone: String) -> String {
+        guard phone.count >= 7 else { return phone.isEmpty ? "未绑定" : phone }
+        return "\(phone.prefix(3))****\(phone.suffix(4))"
+    }
 
-    /// App 版本号 "1.0.16 (16)"，取自 Info.plist（构建时由 project.yml 注入）。
-    static var appVersion: String {
-        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        return "\(v) (\(b))"
+    static var shortVer: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }
+    static var buildNum: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
     }
 
     var body: some View {
-        Form {
-            // Hero 横幅：极光靛渐变（对齐 Web/Android pf-hero），边到边
-            Section {
-                VStack(spacing: 10) {
-                    avatarView
-                    PhotosPicker(selection: $photoItem, matching: .images) {
-                        Text("更换头像").font(.footnote).foregroundColor(.white.opacity(0.9))
+        ScrollView {
+            VStack(spacing: 0) {
+                // ── 1. Profile header card ──────────────────────────
+                profileHeader
+                    .padding(.horizontal, Tok.l)
+                    .padding(.top, Tok.xxl)
+                    .padding(.bottom, Tok.m)
+
+                // ── 2. 账户与服务 ───────────────────────────────────
+                SectionHeader(text: "账户与服务")
+                    .padding(.horizontal, 0)
+                VxCard {
+                    NavigationLink(destination: ChangePhoneView(
+                        currentPhone: user?.phone ?? "",
+                        onChanged: { p in
+                            if var u = session.currentUser { u.phone = p; session.updateCurrentUser(u) }
+                        })) {
+                        SettingsRow(icon: "phone",
+                                    title: "手机号",
+                                    trailing: maskedPhone(user?.phone ?? ""))
                     }
-                    if uploadingAvatar { ProgressView().tint(.white) }
-                    if let user = session.currentUser {
-                        VStack(spacing: 6) {
-                            Text(user.username.isEmpty ? "未设置昵称" : user.username)
-                                .font(.title3.bold()).foregroundColor(.white)
-                            if !user.wechatId.isEmpty {
-                                Text("投聊号: \(user.wechatId)")
-                                    .font(.footnote).foregroundColor(.white.opacity(0.85))
-                            }
+                    .buttonStyle(.plain)
+                    RowDivider()
+                    NavigationLink(destination: WalletView()) {
+                        SettingsRow(icon: "creditcard", title: "我的钱包")
+                    }
+                    .buttonStyle(.plain)
+                    RowDivider()
+                    NavigationLink(destination: FavoritesView()) {
+                        SettingsRow(icon: "star", title: "收藏")
+                    }
+                    .buttonStyle(.plain)
+                    RowDivider()
+                    NavigationLink(destination: CallHistoryView()) {
+                        SettingsRow(icon: "phone.arrow.up.right", title: "通话记录")
+                    }
+                    .buttonStyle(.plain)
+                    RowDivider()
+                    NavigationLink(destination: SessionsView()) {
+                        SettingsRow(icon: "laptopcomputer.and.iphone", title: "登录设备管理")
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, Tok.l)
+                .padding(.bottom, Tok.m)
+
+                // ── 3. 设置（收拢进独立设置页）──────────────────────
+                VxCard {
+                    NavigationLink(destination: SettingsHomeView()) {
+                        SettingsRow(icon: "gearshape", title: "设置")
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, Tok.l)
+                .padding(.top, Tok.m)
+                .padding(.bottom, Tok.m)
+
+                // ── 4. 其他 ────────────────────────────────────────
+                SectionHeader(text: "其他")
+                VxCard {
+                    NavigationLink(destination: InviteFriendView()) {
+                        SettingsRow(icon: "person.badge.plus", title: "邀请好友")
+                    }
+                    .buttonStyle(.plain)
+                    RowDivider()
+                    Button { showSwitchAccount = true } label: {
+                        SettingsRow(
+                            icon: "person.2",
+                            title: "切换账号",
+                            trailing: "\(user?.username.isEmpty == false ? user!.username : "当前") · 当前"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, Tok.l)
+                .padding(.bottom, Tok.m)
+
+                // ── 5. 退出登录 ────────────────────────────────────
+                VxCard {
+                    Button {
+                        showLogout = true
+                    } label: {
+                        Text("退出登录")
+                            .font(.system(size: 16.5))
+                            .foregroundColor(Tok.red)
+                            .frame(maxWidth: .infinity, minHeight: 54)
+                    }
+                }
+                .padding(.horizontal, Tok.l)
+                .padding(.bottom, Tok.m)
+
+                // ── 6. 版本号 ──────────────────────────────────────
+                VStack(spacing: 2) {
+                    Text(showBuild ? "投聊 \(Self.shortVer) (\(Self.buildNum))" : "投聊 \(Self.shortVer)")
+                        .font(.system(size: 13))
+                        .foregroundColor(Tok.secondary)
+                        .onTapGesture {
+                            versionTaps += 1
+                            if versionTaps >= 5 { showBuild = true }
                         }
-                        // 昵称/投聊号 区域不参与点击命中，避免触发头像 PhotosPicker（用户反馈：点昵称也弹换头像）
-                        .allowsHitTesting(false)
-                    }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-                .background(
-                    LinearGradient(colors: [.vxinBrandLight, .vxinBrand, .vxinTeal],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                )
-                .listRowInsets(EdgeInsets())
-                // 关键修复：List/Form 行默认整行可点，会让点昵称/投聊号也触发头像 PhotosPicker。
-                // 每个可点元素各自独立处理点击，行本身不再作为一个整体按钮响应。
+                .padding(.bottom, Tok.xxl)
+            }
+        }
+        .background(Tok.bg.ignoresSafeArea())
+        .navigationBarHidden(true)
+        .sheet(isPresented: $showEdit) {
+            NavigationStack { ProfileEditView() }
+        }
+        .sheet(isPresented: $showSwitchAccount) {
+            NavigationStack { AccountManagementView() }
+        }
+        .alert("退出登录", isPresented: $showLogout) {
+            Button("退出", role: .destructive) { Task { await session.logout() } }
+            Button("取消", role: .cancel) {}
+        } message: { Text("确认退出当前账号？") }
+    }
+
+    // MARK: Profile header card
+
+    private var profileHeader: some View {
+        Button { showEdit = true } label: {
+            HStack(spacing: Tok.m) {
+                avatarView
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(user?.username.isEmpty == false ? user!.username : "未设置昵称")
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundColor(Tok.primary)
+                        .lineLimit(1)
+                    if let id = user?.wechatId, !id.isEmpty {
+                        Text("投聊号：\(id)")
+                            .font(.system(size: 14))
+                            .foregroundColor(Tok.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                // QR code button — independent tap
+                NavigationLink(destination: MyQRCodeView()) {
+                    Image(systemName: "qrcode")
+                        .font(.system(size: 21, weight: .light))
+                        .foregroundColor(Tok.green)
+                }
                 .buttonStyle(.plain)
-            }
-
-            Section {
-                // 我的二维码入口（对齐微信 + 安卓）
-                NavigationLink {
-                    MyQRCodeView()
-                } label: {
-                    HStack {
-                        Image(systemName: "qrcode").foregroundColor(.vxinBrand)
-                        Text("我的二维码")
-                    }
-                }
+                .simultaneousGesture(TapGesture())   // prevent card tap from firing
                 .accessibilityIdentifier("profile-my-qr")
+                .padding(.trailing, 4)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Tok.secondary.opacity(0.6))
             }
-
-            Section("资料") {
-                TextField("昵称", text: $username)
-                Button(action: saveProfile) {
-                    if saving { ProgressView() } else { Text("保存资料").foregroundColor(.vxinGreen) }
-                }
-                .disabled(saving || username.isEmpty)
-            }
-
-            // 朋友圈 / 收藏 已是底部 Tab，移除「我」页内重复入口（四端一致）
-
-            if let inv = invite {
-                Section("邀请好友") {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("我的邀请码：\(inv.code.isEmpty ? "—" : inv.code)")
-                                .foregroundColor(.vxinGreen)
-                            Text("已成功邀请 \(inv.invitedCount) 人")
-                                .font(.footnote).foregroundColor(.vxinTextSecondary)
-                        }
-                        Spacer()
-                        Button(inviteCopied ? "已复制" : "复制") {
-                            guard !inv.code.isEmpty else { return }
-                            UIPasteboard.general.string = inv.code
-                            inviteCopied = true
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundColor(.vxinGreen)
-                    }
-                    ForEach(inv.invitees.prefix(20)) { u in
-                        HStack {
-                            InitialAvatar(name: u.username.isEmpty ? "?" : u.username, size: 28)
-                            Text(u.username.isEmpty ? "未命名" : u.username)
-                        }
-                    }
-                }
-            }
-
-            Section {
-                // 换绑手机号：展示当前手机号，点击进入换绑页
-                NavigationLink {
-                    ChangePhoneView(currentPhone: session.currentUser?.phone ?? "") { newPhone in
-                        if let user = session.currentUser {
-                            var updated = user
-                            updated.phone = newPhone
-                            session.updateCurrentUser(updated)
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Label("手机号", systemImage: "phone.circle")
-                        Spacer()
-                        let phone = session.currentUser?.phone ?? ""
-                        Text(phone.isEmpty ? "未绑定" : phone)
-                            .foregroundColor(.vxinTextSecondary)
-                    }
-                }
-                .accessibilityIdentifier("profile-change-phone")
-                NavigationLink { WalletView() } label: {
-                    Label("我的钱包", systemImage: "creditcard")
-                }
-                NavigationLink { CallHistoryView() } label: {
-                    Label("通话记录", systemImage: "phone")
-                }
-                NavigationLink { SessionsView() } label: {
-                    Label("登录设备管理", systemImage: "desktopcomputer")
-                }
-            }
-
-            Section("设置") {
-                NavigationLink("隐私与安全") { PrivacySecurityView() }
-                NavigationLink("外观") { AppearanceSettingsView() }
-                NavigationLink("通知") { NotificationSettingsView() }
-            }
-
-            Section("账号") {
-                ForEach(session.accountList) { acc in
-                    HStack {
-                        InitialAvatar(name: acc.username.isEmpty ? "?" : acc.username, size: 32)
-                        Text(acc.username.isEmpty ? "未命名" : acc.username)
-                        Spacer()
-                        if acc.id == session.activeAccountId {
-                            Text("当前").font(.caption).foregroundColor(.vxinGreen)
-                        } else {
-                            Button("移除", role: .destructive) { session.removeAccount(acc.id) }
-                                .buttonStyle(.borderless)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture { if acc.id != session.activeAccountId { session.switchAccount(acc.id) } }
-                }
-                Button("添加账号") { showAddAccount = true }
-            }
-
-            Section {
-                Button("退出登录", role: .destructive) { Task { await session.logout() } }
-            }
-
-            Section {
-                HStack {
-                    Spacer()
-                    Text("投聊 v\(Self.appVersion)")
-                        .font(.footnote)
-                        .foregroundColor(.vxinTextSecondary)
-                    Spacer()
-                }
-                .listRowBackground(Color.clear)
-            }
+            .padding(Tok.l)
+            .background(Tok.cardBg)
+            .clipShape(RoundedRectangle(cornerRadius: Tok.cardRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Tok.cardRadius, style: .continuous)
+                    .stroke(Tok.divider, lineWidth: 0.5)
+            )
         }
-        .navigationTitle("我")
-        // 屏幕级底部 toast：保存/头像结果一定可见，不受表单滚动位置影响（与其它设置页一致）
-        .toast($message)
-        .sheet(isPresented: $showAddAccount) {
-            NavigationStack { LoginView() }
-        }
-        .onAppear {
-            if username.isEmpty { username = session.currentUser?.username ?? "" }
-            if bio.isEmpty { bio = session.currentUser?.bio ?? "" }
-            if invite == nil { Task { invite = try? await repo.myInvite() } }
-        }
-        .onChange(of: photoItem) { item in handlePhoto(item) }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder private var avatarView: some View {
-        let user = session.currentUser
-        PhotosPicker(selection: $photoItem, matching: .images) {
-            if let avatar = user?.avatar, !avatar.isEmpty, let src = MediaUrlResolver.kfSource(raw: avatar) {
-                KFImage(source: src)
-                    .resizable().scaledToFill()
-                    .frame(width: 80, height: 80).clipShape(Circle())
-            } else {
-                InitialAvatar(name: user?.username ?? "?", size: 80)
-            }
+        if let avatar = user?.avatar, !avatar.isEmpty,
+           let src = MediaUrlResolver.kfSource(raw: avatar) {
+            KFImage(source: src)
+                .resizable().scaledToFill()
+                .frame(width: Tok.avatarSize, height: Tok.avatarSize)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else {
+            InitialAvatar(name: user?.username ?? "?", size: Tok.avatarSize)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .accessibilityLabel("更换头像")
-    }
-
-    private func saveProfile() {
-        saving = true; message = nil
-        // 收起键盘，避免首次点击只是关闭键盘而看似「没反应」
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        Task {
-            do {
-                var user = try await repo.updateProfile(username: username.trimmingCharacters(in: .whitespaces), bio: bio)
-                // 后端 /users/profile 返回行不含 phone，避免整体替换时清空本地手机号
-                if user.phone.isEmpty, let phone = session.currentUser?.phone { user.phone = phone }
-                session.updateCurrentUser(user)
-                message = "已保存"
-            } catch {
-                message = (error as? LocalizedError)?.errorDescription ?? "保存失败"
-            }
-            saving = false
-        }
-    }
-
-    private func handlePhoto(_ item: PhotosPickerItem?) {
-        guard let item else { return }
-        uploadingAvatar = true; message = nil
-        Task {
-            defer { uploadingAvatar = false; photoItem = nil }
-            guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-            let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.85) ?? data
-            do {
-                let url = try await repo.uploadAvatar(data: jpeg, fileName: "avatar.jpg")
-                if let user = session.currentUser {
-                    var updated = user
-                    updated.avatar = url
-                    session.updateCurrentUser(updated)
-                }
-                message = "头像已更新"
-            } catch {
-                message = (error as? LocalizedError)?.errorDescription ?? "头像上传失败"
-            }
-        }
-    }
-
-}
-
-private struct LabeledRow: View {
-    let label: String
-    let value: String
-    init(_ label: String, _ value: String) { self.label = label; self.value = value }
-    var body: some View {
-        HStack { Text(label); Spacer(); Text(value).foregroundColor(.vxinTextSecondary) }
     }
 }
