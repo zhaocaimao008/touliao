@@ -44,7 +44,7 @@
   },
   "publish": {
     "provider": "generic",
-    "url": "https://dipsin.com/downloads/updates",
+    "url": "https://touliao.cc/downloads/updates",
     "channel": "latest"
   }
 }

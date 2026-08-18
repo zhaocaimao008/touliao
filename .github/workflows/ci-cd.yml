@@ -148,7 +148,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment:
       name: production
-      url: https://dipsin.com
+      url: https://touliao.cc
     
     steps:
       - name: Checkout 代码
@@ -186,7 +186,7 @@ jobs:
             
             # 验证部署
             sleep 5
-            curl -f https://dipsin.com/health || exit 1
+            curl -f https://touliao.cc/health || exit 1
       
       - name: 部署通知
         if: always()
@@ -236,7 +236,7 @@ jobs:
           };
 
           export default function () {
-            const res = http.get('https://dipsin.com/health');
+            const res = http.get('https://touliao.cc/health');
             check(res, {
               'status is 200': (r) => r.status === 200,
               'response time < 500ms': (r) => r.timings.duration < 500,

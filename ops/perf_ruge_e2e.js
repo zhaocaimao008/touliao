@@ -7,7 +7,7 @@
  *
  * 用法:
  *   BASE=http://127.0.0.1:3002 PHONE=13900009999 PASS=qwe64932 FRIEND=如歌 N=30 node perf_ruge_e2e.js
- *   BASE=https://dipsin.com   ... （走 Nginx/TLS 真实链路）
+ *   BASE=https://touliao.cc   ... （走 Nginx/TLS 真实链路）
  */
 'use strict';
 const http = require('http'), https = require('https');

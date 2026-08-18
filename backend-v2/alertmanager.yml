@@ -2,8 +2,8 @@
 global:
   resolve_timeout: 5m
   smtp_smarthost: 'smtp.example.com:587'
-  smtp_from: 'alerts@dipsin.com'
-  smtp_auth_username: 'alerts@dipsin.com'
+  smtp_from: 'alerts@touliao.cc'
+  smtp_auth_username: 'alerts@touliao.cc'
   smtp_auth_password: 'your-password'
 
 # 告警路由
@@ -38,7 +38,7 @@ receivers:
   # 严重告警接收器
   - name: 'critical-alerts'
     email_configs:
-      - to: 'admin@dipsin.com'
+      - to: 'admin@touliao.cc'
         headers:
           Subject: '🚨 投聊严重告警：{{ .GroupLabels.alertname }}'
     webhook_configs:
@@ -51,7 +51,7 @@ receivers:
   # 警告告警接收器
   - name: 'warning-alerts'
     email_configs:
-      - to: 'dev@dipsin.com'
+      - to: 'dev@touliao.cc'
         headers:
           Subject: '⚠️ 投聊警告：{{ .GroupLabels.alertname }}'
 

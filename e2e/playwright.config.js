@@ -5,7 +5,7 @@ const env = require('./shared/env');
 
 /**
  * 两个 project:
- *  - web:     用 chromium 打开 vite preview(或 dipsin.com),localStorage 注入测试后端地址
+ *  - web:     用 chromium 打开 vite preview(或 touliao.cc),localStorage 注入测试后端地址
  *  - electron: 用 _electron 启动 desktop-electron(loadFile web/dist),复用 web 的 POM
  * globalSetup 起隔离 backend-v2 + 造号,globalTeardown 关闭。
  */

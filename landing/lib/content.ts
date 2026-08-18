@@ -5,9 +5,9 @@
  */
 
 // 站点基址：换服务器时只需设环境变量 NEXT_PUBLIC_SITE_URL=https://新域名
-// （构建时注入），不填则默认 dipsin.com。下方所有下载/体验链接据此拼接，
-// 与三端 App 的 vxin-config 一键切换机制对齐——换域名无需改本文件。
-const BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://dipsin.com').replace(/\/$/, '');
+// （构建时注入），不填则默认 touliao.cc。下方所有下载/体验链接据此拼接，
+// 与三端 App 的远程配置一键切换机制对齐——换域名无需改本文件。
+const BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://touliao.cc').replace(/\/$/, '');
 
 export const site = {
   name: '投聊',

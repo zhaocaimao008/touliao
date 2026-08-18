@@ -2,10 +2,10 @@
   "name": "touliao-desktop",
   "version": "8.0.0",
   "description": "投聊 桌面客户端",
-  "homepage": "https://dipsin.com",
+  "homepage": "https://touliao.cc",
   "author": {
     "name": "Touliao Team",
-    "email": "support@dipsin.com"
+    "email": "support@touliao.cc"
   },
   "main": "src/main.js",
   "scripts": {
@@ -72,7 +72,7 @@
     },
     "publish": {
       "provider": "generic",
-      "url": "https://dipsin.com/downloads/updates",
+      "url": "https://touliao.cc/downloads/updates",
       "channel": "latest"
     }
   },

@@ -18,7 +18,7 @@ const BUCKET  = process.env.R2_BUCKET;
 const AK      = process.env.R2_ACCESS_KEY_ID;
 const SK      = process.env.R2_SECRET_ACCESS_KEY;
 const PUBDOM  = process.env.R2_PUBLIC_DOMAIN;
-const ORIGINS = ['https://dipsin.com', 'https://www.dipsin.com'];
+const ORIGINS = ['https://touliao.cc', 'https://www.touliao.cc'];
 
 if (!ACCOUNT || !BUCKET || !AK || !SK) { console.log('❌ 缺少 R2 环境变量'); process.exit(1); }
 
