@@ -2,6 +2,7 @@
 const { v4: uuidv4 } = require('uuid');
 const { asyncHandler, badRequest, forbidden } = require('../../utils/http');
 const { isConfigured, getPresignedPutUrl } = require('../../utils/cloudStorage');
+const { registerFile } = require('../../utils/fileRegistry');
 const path = require('path');
 const { safeExt, ALLOWED_CHAT_EXTS, isBrowserRenderableType, MAX_UPLOAD_BYTES } = require('../../utils/upload');
 const { isMember } = require('../messages/shared');
@@ -43,9 +44,16 @@ exports.credential = asyncHandler(async (req, res) => {
   }
 
   const ext = safeExt(filename, contentType);
-  const key = `chat/${conversationId}/${uuidv4()}${ext}`;
+  // R2 key 与本站访问路径一一对应（去前导斜杠），保证 /uploads 下载侧可直接映射；
+  // file_url 保持本站路径格式（前端零改动），下载时经 file_registry 权限校验后 302 到短时 presigned GET。
+  const fileName = `${uuidv4()}${ext}`;
+  const key = `uploads/files/${fileName}`;
+  const publicUrl = `/uploads/files/${fileName}`;
   try {
-    const { uploadUrl, publicUrl } = await getPresignedPutUrl(key, contentType);
+    const { uploadUrl } = await getPresignedPutUrl(key, contentType);
+    // 上传即登记归属（owner + conversation），供下载侧 file_registry 权限校验（P1-02 体系）。
+    // 生成 URL 成功后才登记，避免失败时留下无对象残留。
+    registerFile({ path: publicUrl, ownerId: req.user.id, conversationId, kind: 'files' });
     res.json({ uploadUrl, publicUrl, key, expiresIn: 600 });
   } catch (e) {
     console.error('[upload/credential] 生成预签名 URL 失败:', e.message);
