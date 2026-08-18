@@ -2,7 +2,7 @@
 # ============================================================================
 # vxin 远程配置服务器部署脚本
 # ============================================================================
-# 在 93.179.127.50 上执行一次，配置 config.dipsin.com 的静态文件服务器。
+# 在 93.179.127.50 上执行一次，配置 config.touliao.cc 的静态文件服务器。
 #
 # 用法：
 #   chmod +x deploy-config.sh
@@ -13,7 +13,7 @@
 # ============================================================================
 set -euo pipefail
 
-DOMAIN="config.dipsin.com"
+DOMAIN="config.touliao.cc"
 ROOT="/var/www/config"
 NGINX_CONF="/etc/nginx/sites-available/${DOMAIN}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${DOMAIN}"
@@ -31,10 +31,10 @@ mkdir -p "${ROOT}"
 echo "◆ 创建 ${ROOT}/config.json..."
 cat > "${ROOT}/config.json" <<'CONFIG_EOF'
 {
-  "api":    "https://api.dipsin.com",
-  "socket": "https://ws.dipsin.com",
-  "cdn":    "https://cdn.dipsin.com",
-  "upload": "https://api.dipsin.com",
+  "api":    "https://api.touliao.cc",
+  "socket": "https://ws.touliao.cc",
+  "cdn":    "https://cdn.touliao.cc",
+  "upload": "https://api.touliao.cc",
   "version":"2.0.1"
 }
 CONFIG_EOF
@@ -123,7 +123,7 @@ echo "◆ 申请 SSL 证书..."
 if command -v certbot &>/dev/null; then
   echo "  已安装 certbot"
   if [ ! -d "${CERT_DIR}" ]; then
-    echo "  执行: certbot --nginx -d ${DOMAIN} --non-interactive --agree-tos -m admin@dipsin.com"
+    echo "  执行: certbot --nginx -d ${DOMAIN} --non-interactive --agree-tos -m admin@touliao.cc"
     echo "  ⚠ 首次执行可能需要交互。上面的命令可直接复制执行。"
   else
     echo "  证书已存在，跳过"
@@ -132,7 +132,7 @@ else
   echo "  certbot 未安装，请先安装："
   echo "    apt install -y certbot python3-certbot-nginx"
   echo "  然后执行："
-  echo "    certbot --nginx -d ${DOMAIN} --non-interactive --agree-tos -m admin@dipsin.com"
+  echo "    certbot --nginx -d ${DOMAIN} --non-interactive --agree-tos -m admin@touliao.cc"
 fi
 
 # ── 6. 验证 ──────────────────────────────────────────────────

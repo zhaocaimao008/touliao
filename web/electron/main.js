@@ -11,8 +11,8 @@ const { net } = require('electron');
 
 // 引导配置地址（按顺序尝试，任意一个成功即用）— 与 web/src/utils/config.js 保持一致
 const CONFIG_URLS = [
-  'https://cdn.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json',
-  'https://dipsin.com/config.json',
+  'https://touliao.cc/config.json',
+  'https://touliao.cc/config.json',
 ];
 const PROD_INDEX  = path.join(__dirname, '../dist/index.html');
 const IS_DEV      = process.env.ELECTRON_DEV === '1';
@@ -27,9 +27,9 @@ let g_quitting = false; // true=真正退出；否则关闭窗口=隐藏到托�
 let g_unread = 0;      // 记住未读数，用于托盘 tooltip
 
 let g_config = {
-  api:    'https://dipsin.com',
-  socket: 'https://dipsin.com',
-  cdn:    'https://dipsin.com',
+  api:    'https://touliao.cc',
+  socket: 'https://touliao.cc',
+  cdn:    'https://touliao.cc',
   version:'2.0.1',
 };
 
@@ -40,9 +40,9 @@ async function fetchRemoteConfig() {
       if (!res.ok) continue;
       const data = await res.json();
       g_config = {
-        api:    data.api    || 'https://dipsin.com',
-        socket: data.socket || 'https://dipsin.com',
-        cdn:    data.cdn    || 'https://dipsin.com',
+        api:    data.api    || 'https://touliao.cc',
+        socket: data.socket || 'https://touliao.cc',
+        cdn:    data.cdn    || 'https://touliao.cc',
         version:data.version|| '2.0.1',
       };
       return true;

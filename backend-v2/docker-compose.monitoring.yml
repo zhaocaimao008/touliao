@@ -30,7 +30,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_SERVER_ROOT_URL=https://dipsin.com/grafana
+      - GF_SERVER_ROOT_URL=https://touliao.cc/grafana
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_INSTALL_PLUGINS=redis-datasource
     volumes:

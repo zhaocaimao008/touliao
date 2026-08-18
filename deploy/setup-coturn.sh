@@ -5,7 +5,7 @@
 # 用法：
 #   sudo bash deploy/setup-coturn.sh <PUBLIC_IP> <REALM> [BACKEND_ENV_PATH]
 # 例：
-#   sudo bash deploy/setup-coturn.sh 93.179.127.50 dipsin.com /root/v信/backend-v2/.env
+#   sudo bash deploy/setup-coturn.sh 93.179.127.50 touliao.cc /root/v信/backend-v2/.env
 #
 # 做的事：
 #   1) 安装 coturn

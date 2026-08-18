@@ -55,8 +55,8 @@ const config = {
     // 默认白名单只保留当前生产域名 + 本地开发；换服务器靠 APP_URL 自动放行(见上)，
     // 不再硬编码任何客户旧域名。需额外放行用 CORS_ORIGINS 环境变量追加。
     const defaults = [
-      'https://dipsin.com',
-      'https://www.dipsin.com',
+      'https://touliao.cc',
+      'https://www.touliao.cc',
       'http://localhost:3000',
       'http://localhost:5173',
       // Capacitor Android/iOS WebView 的 Origin（androidScheme: "https"）
@@ -69,8 +69,8 @@ const config = {
 
   // ── 应用 ────────────────────────────────────────────────────
   // 服务端生成绝对链接(邮件/分享/重定向等)用。换服务器只需设 APP_URL；
-  // 兜底用当前生产域名 dipsin.com，不再硬编码客户旧域名 chat.91aigu.com。
-  appUrl:      process.env.APP_URL || 'https://dipsin.com',
+  // 兜底用当前生产域名 touliao.cc，不再硬编码客户旧域名 chat.91aigu.com。
+  appUrl:      process.env.APP_URL || 'https://touliao.cc',
   // 未显式配置时：老部署沿用 backend/uploads（兼容线上），全新部署自包含到 backend-v2/uploads
   uploadsRoot: process.env.UPLOADS_ROOT || (() => {
     const legacy = path.resolve(__dirname, '../../../backend/uploads');

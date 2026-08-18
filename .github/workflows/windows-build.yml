@@ -46,7 +46,7 @@ jobs:
         with:
           name: touliao-windows-setup
           # latest.yml / *.blockmap 是 electron-updater 自动更新所必需：必须与 .exe
-          # 一并上传到更新源 https://dipsin.com/downloads/updates，否则客户端拉不到更新。
+          # 一并上传到更新源 https://touliao.cc/downloads/updates，否则客户端拉不到更新。
           path: |
             desktop-electron/dist/*.exe
             desktop-electron/dist/latest.yml
@@ -92,4 +92,4 @@ jobs:
             scp -i ~/.ssh/deploy_key "$f" \
               "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/" || true
           done
-          echo "✅ 已发布到 https://dipsin.com/downloads/touliao-windows-latest-setup.exe"
+          echo "✅ 已发布到 https://touliao.cc/downloads/touliao-windows-latest-setup.exe"

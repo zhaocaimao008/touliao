@@ -12,7 +12,7 @@ const argValue = (prefix) => {
 const APP_VERSION = argValue('--vxin-app-version=');
 // 真实后端地址由主进程据远程 config.json 解析后经启动参数下发；缺省回退默认域名。
 // 不再硬编码，避免换服务器后此字段与实际连接的后端不一致。
-const SERVER_URL = argValue('--vxin-server-url=') || 'https://dipsin.com';
+const SERVER_URL = argValue('--vxin-server-url=') || 'https://touliao.cc';
 
 // 渲染进程通过 window.__ELECTRON_CONFIG__ 判断 Electron 环境
 contextBridge.exposeInMainWorld('__ELECTRON_CONFIG__', {

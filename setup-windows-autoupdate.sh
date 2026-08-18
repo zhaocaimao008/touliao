@@ -54,10 +54,10 @@ cat > "$UPDATE_DIR/app-update.yml" << YAML
 version: $VERSION
 releaseDate: '$RELEASE_DATE'
 files:
-  - url: 'https://dipsin.com/downloads/updates/v${VERSION}/$INSTALLER_FILE'
+  - url: 'https://touliao.cc/downloads/updates/v${VERSION}/$INSTALLER_FILE'
     sha512: '$SHA512'
     size: $SIZE
-path: 'https://dipsin.com/downloads/updates/v${VERSION}/$INSTALLER_FILE'
+path: 'https://touliao.cc/downloads/updates/v${VERSION}/$INSTALLER_FILE'
 sha512: '$SHA512'
 releaseNotes: |
   v信 v${VERSION} 更新日志
@@ -104,10 +104,10 @@ echo ""
 echo "测试命令 (需在另一个终端执行):"
 echo ""
 echo "1. 验证元数据文件:"
-echo "   curl -v https://dipsin.com/downloads/updates/app-update.yml"
+echo "   curl -v https://touliao.cc/downloads/updates/app-update.yml"
 echo ""
 echo "2. 验证安装包下载:"
-echo "   curl -I https://dipsin.com/downloads/updates/v${VERSION}/$INSTALLER_FILE"
+echo "   curl -I https://touliao.cc/downloads/updates/v${VERSION}/$INSTALLER_FILE"
 echo ""
 
 # 显示最终信息
@@ -117,7 +117,7 @@ echo "╚═══════════════════════�
 echo ""
 echo "📊 部署信息："
 echo "  版本: $VERSION"
-echo "  发布 URL: https://dipsin.com/downloads/updates"
+echo "  发布 URL: https://touliao.cc/downloads/updates"
 echo "  元数据: $UPDATE_DIR/app-update.yml"
 echo "  安装包: $UPDATE_DIR/v${VERSION}/$INSTALLER_FILE"
 echo "  文件大小: $SIZE bytes"

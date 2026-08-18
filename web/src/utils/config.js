@@ -10,14 +10,14 @@
  *
  * config.json 格式：
  * {
- *   "api":    "https://api.dipsin.com",     // API 服务器（Axios baseURL）
- *   "socket": "https://ws.dipsin.com",       // WebSocket 服务器（Socket.io）
- *   "cdn":    "https://cdn.dipsin.com",      // CDN（图片/文件/头像等静态资源）
+ *   "api":    "https://touliao.cc",          // API 服务器（Axios baseURL）
+ *   "socket": "https://touliao.cc",        // WebSocket 服务器（Socket.io）
+ *   "cdn":    "https://touliao.cc",          // CDN（图片/文件/头像等静态资源）
  *   "version":"2.0.0"                     // 版本号
  * }
  *
- * 换服务器步骤：编辑 vxin-config（配置仓库）的 config.json → git push（jsDelivr 自动同步，
- * 需立即生效可调 https://purge.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json）。
+ * 换服务器步骤：编辑 touliao 配置仓库（config.json）→ 部署到 touliao.cc 即生效。
+ * 换服务器步骤：编辑 touliao 配置仓库（config.json）→ 部署到 touliao.cc 即生效。
  *
  * Web 端：api/socket 为空时使用同源相对路径（默认行为）。
  * Electron / Capacitor：必须指定完整 URL。
@@ -25,9 +25,8 @@
 
 // 引导配置地址（按顺序尝试，任意一个成功即用）。互不依赖，单点故障不影响整体。
 const CONFIG_URLS = [
-  'https://dipsin.cc/config.json',                                                    // 主：投聊独立配置（P0-001，不依赖 vxin-config 共享仓库）
-  'https://cdn.jsdelivr.net/gh/zhaocaimao008/vxin-config@main/config.json', // 兜底 1：GitHub+jsDelivr CDN（过渡期）
-  'https://dipsin.com/config.json',                                          // 兜底 2：旧应用服务器（过渡期）
+  'https://touliao.cc/config.json',                                          // 主：投聊独立配置（不依赖共享配置仓库）
+  'https://www.touliao.cc/config.json',                                      // 兜底：www 子域（同源站）
 ];
 const CACHE_KEY   = 'touliao_remote_config';
 const CACHE_TS    = 'touliao_remote_config_ts';
@@ -51,7 +50,7 @@ const DEFAULTS = {
 };
 
 // Electron 下远程配置和缓存均失败时的硬编码兜底
-const ELECTRON_FALLBACK = window?.__ELECTRON_CONFIG__ ? 'https://dipsin.cc' : '';
+const ELECTRON_FALLBACK = window?.__ELECTRON_CONFIG__ ? 'https://touliao.cc' : '';
 
 let _config   = null;
 let _loaded   = false;

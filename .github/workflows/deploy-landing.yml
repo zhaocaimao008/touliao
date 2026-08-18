@@ -1,4 +1,4 @@
-name: 部署落地页 (landing → dipsin.com/welcome)
+name: 部署落地页 (landing → touliao.cc/welcome)
 
 # 落地页是 Next.js 静态导出（output: 'export'，basePath /welcome），
 # 产物 landing/out/ 由生产机 Nginx 直接托管（root /root/投聊/landing/out）。
@@ -53,7 +53,7 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          # Nginx root（见 /etc/nginx/sites-enabled/touliao-dipsin.conf）
+          # Nginx root（见 /etc/nginx/sites-enabled/touliao-touliao.conf）
           LANDING_PATH: /root/投聊/landing/out
         run: |
           # --delete 保证生产目录与构建产物一致（清理已删除的旧资源）
@@ -73,4 +73,4 @@ jobs:
             "test -f '${LANDING_PATH}/index.html' && echo '✅ 生产机 index.html 已更新' || (echo '❌ 产物缺失'; exit 1)"
           # 公网侧核对（静态站，index.html 已设 no-store）
           echo "公网 /welcome/ 抓取："
-          curl -s "https://dipsin.com/welcome/?t=${GITHUB_SHA}" | grep -o 'TestFlight\|即将上线' | sort -u || true
+          curl -s "https://touliao.cc/welcome/?t=${GITHUB_SHA}" | grep -o 'TestFlight\|即将上线' | sort -u || true
