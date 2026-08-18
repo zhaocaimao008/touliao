@@ -275,11 +275,14 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   await Promise.allSettled(pushPromises);
 }
 
-// ── 来电推送（data-only）────────────────────────────────────────
-// 被叫离线时用：发 data-only 高优先级 FCM，不带 notification 块，
+// ── 来电推送 ────────────────────────────────────────────────────
+// 被叫离线时用。Android：发 data-only 高优先级 FCM，不带 notification 块，
 // 以保证 Android 端 onMessageReceived 一定被触发（去构建 fullScreenIntent 来电界面）；
 // 带 notification 块的推送在 App 后台会被系统托盘直接消费、拿不到 data。
-// iOS 后台来电需 PushKit/CallKit(VoIP push)，此处不含 apns，避免普通 APNs 静默无效。
+// iOS：本仓库未实现 PushKit/CallKit(VoIP push)，data-only 消息在 App 挂起/被杀时
+// 系统不会投递、也没有代码路径能建本地通知 —— App 被杀时来电完全不可达(NOTIFY-002 F1)。
+// 改走 APNs alert（category=INCOMING_CALL），锁屏/后台/被杀均由系统直接展示，
+// 且带上与消息内文案一致的 data 字段，供 AppDelegate 的 ANSWER/DECLINE 动作复用。
 async function pushCallInvite({ toUserId, fromUserId, callerName, callType, callId }) {
   if (!firebaseAdmin) return;
   // 同 pushToUser：只发真正的 FCM token，避免把个推 CID 丢给 FCM 触发误删。
@@ -287,18 +290,36 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
     "SELECT * FROM device_tokens WHERE user_id=? AND platform IN ('android','ios')"
   ).all(toUserId);
   if (!deviceTokens.length) return;
+  const isVideo = callType === 'video';
   const promises = deviceTokens.map(row => {
     const message = {
       token: row.token,
       data: {
         type:       'call',
-        callType:   callType === 'video' ? 'video' : 'audio',
+        callType:   isVideo ? 'video' : 'audio',
         from:       String(fromUserId || ''),
         callerName: String(callerName || ''),
         callId:     String(callId || ''),
       },
       android: { priority: 'high' },
     };
+    if (row.platform === 'ios') {
+      message.apns = {
+        headers: {
+          'apns-push-type': 'alert',
+          'apns-priority': '10',
+          // 同一对通话方复呼时收敛为一条系统通知，避免旧来电通知堆积可操作
+          'apns-collapse-id': `call_${fromUserId}_${toUserId}`.slice(0, 64),
+        },
+        payload: {
+          aps: {
+            alert: { title: callerName || '来电', body: isVideo ? '邀请你视频通话' : '邀请你语音通话' },
+            sound: 'default',
+            category: 'INCOMING_CALL',
+          },
+        },
+      };
+    }
     return firebaseAdmin.messaging().send(message).catch(err => {
       if (err.code === 'messaging/invalid-registration-token' ||
           err.code === 'messaging/registration-token-not-registered') {

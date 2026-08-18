@@ -137,7 +137,7 @@ module.exports = function registerCallHandler(io, socket) {
     } catch (e) { console.warn('[call] log insert 失败:', e.message); }
     // 服务端从 DB 取真实用户信息，不透传客户端 caller 字段（防视觉身份冒充）
     const callerInfo = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
-    io.to(`user_${to}`).emit('call:incoming', { from: userId, type: t, caller: { id: userId, name: callerInfo?.username, avatar: callerInfo?.avatar } });
+    io.to(`user_${to}`).emit('call:incoming', { from: userId, type: t, callId: id, caller: { id: userId, name: callerInfo?.username, avatar: callerInfo?.avatar } });
     // 被叫不在线（App 未连 socket，如后台/熄屏）→ 发 data-only FCM 唤起来电界面；在线则 socket 已推 call:incoming
     if (!presence.isOnline(to)) {
       pushCallInvite({ toUserId: to, fromUserId: userId, callerName: callerInfo?.username || '', callType: t, callId: id })
@@ -152,9 +152,13 @@ module.exports = function registerCallHandler(io, socket) {
     const to = guardId(socket, 'call:response', 'to', p.to);
     if (!to) return;
     const accepted = !!p.accepted, busy = !!p.busy, reason = p.reason;
+    const callId = typeof p.callId === 'string' && p.callId ? p.callId : null;
     // 被叫(userId)回应主叫(to)：key 方向为 主叫>被叫 = to>userId
     const key = `${to}>${userId}`;
     const c = activeCalls.get(key);
+    // callId 不匹配当前活跃通话（如：来电通知已过期/被同一对用户的新来电覆盖后才被点击）→
+    // 忽略，防止过期应答误伤新通话（NOTIFY-002 F3）。旧客户端不传 callId 时不做该校验，保持兼容。
+    if (c && callId && c.id !== callId) return;
     if (c) {
       if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 已应答不再超时清理）
       try {
@@ -186,10 +190,13 @@ module.exports = function registerCallHandler(io, socket) {
     const to = guardId(socket, 'call:end', 'to', p.to);
     if (!to) return;
     const reason = typeof p.reason === 'string' ? p.reason : undefined;
+    const callId = typeof p.callId === 'string' && p.callId ? p.callId : null;
     // 挂断可能来自任一方，两个方向都查
     const k1 = `${userId}>${to}`;
     const k2 = `${to}>${userId}`;
     const c = activeCalls.get(k1) || activeCalls.get(k2);
+    // 同上：callId 不匹配当前活跃通话则忽略（过期挂断/拒绝不应打断同一对用户的新通话）
+    if (c && callId && c.id !== callId) return;
     if (c) {
       if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 主动挂断不再等待超时）
       try {

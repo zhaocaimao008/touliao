@@ -13,6 +13,7 @@ struct CallState {
     var peerName: String = ""
     var isVideo: Bool = false
     var isCaller: Bool = false
+    var callId: String = ""             // 服务端通话 id，随 accept/reject/hangup 回传做过期应答校验
     var micEnabled: Bool = true
     var cameraEnabled: Bool = true
     var remoteVideoActive: Bool = false
@@ -133,7 +134,7 @@ final class CallManager: NSObject, ObservableObject {
             guard !Task.isCancelled else { return }
             // 仍在呼叫/连接中（未接通、未挂断）才判定为未接听
             guard self.state.stage == .outgoing || self.state.stage == .connecting else { return }
-            if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId) }
+            if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId, callId: self.state.callId) }
             self.cleanup(.ended)
             self.state.timedOut = true
         }
@@ -162,6 +163,9 @@ final class CallManager: NSObject, ObservableObject {
 
     func accept() {
         guard state.stage == .incoming else { return }
+        let peerId = state.peerId
+        let callId = state.callId
+        clearIncomingCallNotifications(from: peerId)   // 接听后清掉该来电的通知，避免用户误触过期通知
         state.stage = .connecting
         Task { @MainActor in
             await refreshIceServers()
@@ -169,17 +173,17 @@ final class CallManager: NSObject, ObservableObject {
             configureAudioSession()             // 建流前配好通话音频会话
             createPeerConnection()
             createLocalTracks(video: state.isVideo)
-            socket.emitCallResponse(to: state.peerId, accepted: true)
+            socket.emitCallResponse(to: peerId, accepted: true, callId: callId)
         }
     }
 
     func reject() {
-        if !state.peerId.isEmpty { socket.emitCallResponse(to: state.peerId, accepted: false) }
+        if !state.peerId.isEmpty { socket.emitCallResponse(to: state.peerId, accepted: false, callId: state.callId) }
         cleanup(.ended)
     }
 
     func hangup() {
-        if !state.peerId.isEmpty { socket.emitCallEnd(to: state.peerId) }
+        if !state.peerId.isEmpty { socket.emitCallEnd(to: state.peerId, callId: state.callId) }
         cleanup(.ended)
     }
 
@@ -209,24 +213,24 @@ final class CallManager: NSObject, ObservableObject {
 
     /// 重建 incoming 状态：用于通知 ANSWER/DECLINE 动作把 App 从后台/被杀状态拉起时，
     /// state 尚未由 socket.callIncoming 建立的情况。幂等：已在展示同一来电或通话中不覆盖。
-    func incomingFromPush(from: String, callType: String, callerName: String) {
+    func incomingFromPush(from: String, callType: String, callerName: String, callId: String = "") {
         guard !from.isEmpty else { return }
         guard state.stage == .idle || state.stage == .ended else { return }
-        state = CallState(stage: .incoming, peerId: from, peerName: callerName, isVideo: callType == "video", isCaller: false)
+        state = CallState(stage: .incoming, peerId: from, peerName: callerName, isVideo: callType == "video", isCaller: false, callId: callId)
     }
 
     // MARK: - 信令
     private func observeSignaling() {
-        socket.callIncoming.receive(on: DispatchQueue.main).sink { [weak self] (from, type, name) in
+        socket.callIncoming.receive(on: DispatchQueue.main).sink { [weak self] (from, type, name, callId) in
             guard let self else { return }
             if self.state.stage != .idle && self.state.stage != .ended {
-                self.socket.emitCallResponse(to: from, accepted: false); return
+                self.socket.emitCallResponse(to: from, accepted: false, callId: callId); return
             }
-            self.state = CallState(stage: .incoming, peerId: from, peerName: name, isVideo: type == "video", isCaller: false)
+            self.state = CallState(stage: .incoming, peerId: from, peerName: name, isVideo: type == "video", isCaller: false, callId: callId)
             // 锁屏/后台来电：App 不在前台时补弹本地通知（含接听/拒绝按钮），
             // 前台由来电邀请横幅 UI 展示，避免重复打扰。
             if UIApplication.shared.applicationState != .active {
-                self.showIncomingCallNotification(from: from, callerName: name, callType: type)
+                self.showIncomingCallNotification(from: from, callerName: name, callType: type, callId: callId)
             }
         }.store(in: &cancellables)
 
@@ -276,13 +280,13 @@ final class CallManager: NSObject, ObservableObject {
 
     /// 锁屏/后台来电本地通知：categoryIdentifier=INCOMING_CALL 对应 AppDelegate 注册的
     /// 接听/拒绝按钮；userInfo 携带 from/callType/callerName 供动作分支使用。
-    private func showIncomingCallNotification(from: String, callerName: String, callType: String) {
+    private func showIncomingCallNotification(from: String, callerName: String, callType: String, callId: String) {
         let content = UNMutableNotificationContent()
         content.title = callerName.isEmpty ? "来电" : callerName
         content.body = callType == "video" ? "邀请你视频通话" : "邀请你语音通话"
         content.sound = .default
         content.categoryIdentifier = "INCOMING_CALL"
-        content.userInfo = ["from": from, "callType": callType, "callerName": callerName]
+        content.userInfo = ["from": from, "callType": callType, "callerName": callerName, "callId": callId]
 
         let request = UNNotificationRequest(
             identifier: "incoming_call_\(from)",
@@ -293,6 +297,24 @@ final class CallManager: NSObject, ObservableObject {
             if let error = error {
                 print("[CallManager] 来电通知失败: \(error.localizedDescription)")
             }
+        }
+    }
+
+    /// 接听/拒绝/挂断/超时/被替换/通话结束时调用：清掉该来电已展示或待展示的本地/远程(APNs)通知，
+    /// 避免用户之后误触已过期的通知——点击会经 incomingFromPush() 重建一个早已结束的通话并发出
+    /// 过期应答（NOTIFY-002 F3）。pending 用固定 identifier 精确删；delivered（含 F1 新增的远程 APNs
+    /// alert，其 identifier 由系统生成、并非 "incoming_call_<from>"）按 categoryIdentifier+from 匹配删。
+    private func clearIncomingCallNotifications(from: String) {
+        guard !from.isEmpty else { return }
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["incoming_call_\(from)"])
+        center.getDeliveredNotifications { notifications in
+            let ids = notifications.filter {
+                $0.request.content.categoryIdentifier == "INCOMING_CALL" &&
+                ($0.request.content.userInfo["from"] as? String) == from
+            }.map { $0.request.identifier }
+            guard !ids.isEmpty else { return }
+            center.removeDeliveredNotifications(withIdentifiers: ids)
         }
     }
 
@@ -370,6 +392,7 @@ final class CallManager: NSObject, ObservableObject {
 
     // MARK: - 清理
     private func cleanup(_ finalStage: CallStage) {
+        clearIncomingCallNotifications(from: state.peerId)  // 清掉该通话残留的来电通知，防止过期误触
         tonePlayer.stop()                   // 停回铃/接通音
         cancelCallTimeout()                 // 取消未接听超时，避免正常挂断被误判超时
         videoCapturer?.stopCapture()
@@ -425,7 +448,7 @@ extension CallManager: RTCPeerConnectionDelegate {
                     try? await Task.sleep(nanoseconds: 15 * 1_000_000_000)
                     guard let self, !Task.isCancelled else { return }
                     guard self.state.stage == .connected else { return }
-                    if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId) }
+                    if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId, callId: self.state.callId) }
                     self.state.networkEnded = true
                     self.cleanup(.ended)
                 }
@@ -433,7 +456,7 @@ extension CallManager: RTCPeerConnectionDelegate {
                 // 连接彻底失败：结束通话并通知对方（不能静默挂断）
                 self.cancelDisconnectGrace()
                 if self.state.stage == .connected || self.state.stage == .connecting {
-                    if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId) }
+                    if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId, callId: self.state.callId) }
                     self.state.networkEnded = true
                     self.cleanup(.ended)
                 }

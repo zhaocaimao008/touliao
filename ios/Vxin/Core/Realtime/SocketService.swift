@@ -78,7 +78,7 @@ final class SocketService {
     let configUpdated = PassthroughSubject<(groupVoiceCall: Bool, groupVideoCall: Bool), Never>()
 
     // ── WebRTC 通话信令 ──
-    let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String), Never>()
+    let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String, callId: String), Never>()
     let callResponse = PassthroughSubject<(from: String, accepted: Bool), Never>()
     let callOffer = PassthroughSubject<(from: String, sdp: String), Never>()
     let callAnswer = PassthroughSubject<(from: String, sdp: String), Never>()
@@ -247,7 +247,8 @@ final class SocketService {
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
             let type = d["type"] as? String ?? "audio"
             let name = (d["caller"] as? [String: Any])?["name"] as? String ?? ""
-            self?.callIncoming.send((from, type, name))
+            let callId = d["callId"] as? String ?? ""
+            self?.callIncoming.send((from, type, name, callId))
         }
         sock.on("call:response") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
@@ -384,8 +385,10 @@ final class SocketService {
     func emitCallRequest(to: String, type: String, callerName: String) {
         socket?.emit("call:request", ["to": to, "type": type, "caller": ["name": callerName]])
     }
-    func emitCallResponse(to: String, accepted: Bool) {
-        socket?.emit("call:response", ["to": to, "accepted": accepted])
+    func emitCallResponse(to: String, accepted: Bool, callId: String = "") {
+        var payload: [String: Any] = ["to": to, "accepted": accepted]
+        if !callId.isEmpty { payload["callId"] = callId }
+        socket?.emit("call:response", payload)
     }
     func emitCallOffer(to: String, sdp: String) {
         socket?.emit("call:offer", ["to": to, "offer": ["type": "offer", "sdp": sdp]])
@@ -398,8 +401,10 @@ final class SocketService {
         if let sdpMid { cand["sdpMid"] = sdpMid }
         socket?.emit("call:ice", ["to": to, "candidate": cand])
     }
-    func emitCallEnd(to: String) {
-        socket?.emit("call:end", ["to": to])
+    func emitCallEnd(to: String, callId: String = "") {
+        var payload: [String: Any] = ["to": to]
+        if !callId.isEmpty { payload["callId"] = callId }
+        socket?.emit("call:end", payload)
     }
 
     // ── 群通话信令发送 ──
