@@ -244,7 +244,12 @@ async function listConversations(uid) {
     LEFT JOIN users su ON su.id = m.sender_id
     LEFT JOIN conversation_settings cs ON cs.user_id = ? AND cs.conversation_id = c.id
     LEFT JOIN conversation_members cm_o
-           ON cm_o.conversation_id = c.id AND cm_o.user_id != ? AND c.type = 'private'
+           ON cm_o.conversation_id = c.id AND c.type = 'private'
+          AND cm_o.user_id = (
+                SELECT user_id FROM conversation_members
+                WHERE conversation_id = c.id AND user_id != ?
+                ORDER BY user_id LIMIT 1
+              )
     LEFT JOIN users ou ON ou.id = cm_o.user_id
     LEFT JOIN contacts ct ON ct.user_id = ? AND ct.contact_id = ou.id
     ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC

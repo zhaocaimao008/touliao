@@ -496,7 +496,12 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
       JOIN users u ON u.id = m.sender_id
       JOIN conversations c ON c.id = m.conversation_id
       LEFT JOIN conversation_members cm_o
-             ON cm_o.conversation_id = m.conversation_id AND cm_o.user_id != ? AND c.type = 'private'
+             ON cm_o.conversation_id = m.conversation_id AND c.type = 'private'
+            AND cm_o.user_id = (
+                  SELECT user_id FROM conversation_members
+                  WHERE conversation_id = m.conversation_id AND user_id != ?
+                  ORDER BY user_id LIMIT 1
+                )
       LEFT JOIN users ou ON ou.id = cm_o.user_id
       WHERE m.type = 'text' AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
@@ -528,7 +533,12 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
       JOIN users u ON u.id = m.sender_id
       JOIN conversations c ON c.id = m.conversation_id
       LEFT JOIN conversation_members cm_o
-             ON cm_o.conversation_id = m.conversation_id AND cm_o.user_id != ? AND c.type = 'private'
+             ON cm_o.conversation_id = m.conversation_id AND c.type = 'private'
+            AND cm_o.user_id = (
+                  SELECT user_id FROM conversation_members
+                  WHERE conversation_id = m.conversation_id AND user_id != ?
+                  ORDER BY user_id LIMIT 1
+                )
       LEFT JOIN users ou ON ou.id = cm_o.user_id
       WHERE messages_fts MATCH ?
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
