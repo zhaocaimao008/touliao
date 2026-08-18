@@ -55,6 +55,9 @@ final class SessionStore: ObservableObject {
     }
 
     func onAuthenticated(_ user: User) {
+        // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
+        SocketService.shared.disconnect()
+        MsgCacheStore.shared.clear()   // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
         SocketService.shared.connect()
         PushManager.shared.requestAuthorizationAndRegister()
         refreshAccounts()   // 登录成功后 AuthRepository 已 upsert 新账号，同步发布列表
@@ -83,6 +86,7 @@ final class SessionStore: ObservableObject {
         SocketService.shared.disconnect()
         AccountStore.shared.setActive(id)
         KeychainStore.shared.token = token
+        MsgCacheStore.shared.clear()   // 切号缓存隔离：新账号不读旧账号离线消息
         SocketService.shared.connect()
         PushManager.shared.requestAuthorizationAndRegister()
         refreshAccounts()   // active 变化 → 刷新「当前」标记

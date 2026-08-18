@@ -337,6 +337,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                 LoginScreen(
                     onNavigateRegister = { navController.navigate(Routes.REGISTER) },
                     onSuccess = { navController.popBackStack(Routes.CONVERSATIONS, inclusive = false) },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Routes.ADD_FRIEND) {

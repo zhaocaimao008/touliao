@@ -3,10 +3,25 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject private var session: SessionStore
     @StateObject private var vm = AuthViewModel()
+    // 添加账号入口专用：传入后显示「取消」按钮关闭弹层；普通登录入口不传，无影响
+    var onCancel: (() -> Void)? = nil
     @State private var showServerConfig = false
 
     var body: some View {
         VStack(spacing: 16) {
+            if let onCancel {
+                HStack {
+                    Button(action: onCancel) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("返回")
+                        }
+                    }
+                    .foregroundColor(.vxinBrand)
+                    Spacer()
+                }
+                .padding(.top, 8)
+            }
             Spacer()
 
             // 品牌 Logo 徽章：极光靛渐变圆角方 + 对话图标（对齐 Web/Android 登录页）

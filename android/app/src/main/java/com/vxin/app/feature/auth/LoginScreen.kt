@@ -38,6 +38,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.layout.Row
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.ui.VxinIcons
@@ -53,11 +58,14 @@ fun LoginScreen(
     onNavigateRegister: () -> Unit,
     onNavigateForgotPassword: () -> Unit = {},
     onSuccess: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     androidx.compose.runtime.LaunchedEffect(state.loggedIn) { if (state.loggedIn) onSuccess() }
     var showServerConfig by remember { mutableStateOf(false) }
+    // 添加账号入口：系统返回键/手势返回 = 返回上一页；普通登录页 onBack=null 时不拦截
+    BackHandler(enabled = onBack != null) { onBack?.invoke() }
 
     Column(
         modifier = Modifier
@@ -67,6 +75,17 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        if (onBack != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         // 品牌 Logo 徽章：极光靛渐变圆角方 + 对话图标（对齐 Web 登录页）
         Box(
             modifier = Modifier

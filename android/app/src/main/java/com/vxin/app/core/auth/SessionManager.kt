@@ -67,6 +67,9 @@ class SessionManager @Inject constructor(
     }
 
     fun onAuthenticated(user: User) {
+        // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
+        socketManager.disconnect()
+        msgCacheStore.clear()          // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
         socketManager.connect()
         pushManager.registerCurrentToken()
         _state.value = AuthState.Authenticated(user)
@@ -95,6 +98,7 @@ class SessionManager @Inject constructor(
             socketManager.disconnect()
             accountStore.setActive(accountId)
             tokenStore.token = token
+            msgCacheStore.clear()          // 切号缓存隔离：新账号不读旧账号离线消息
             socketManager.connect()
             pushManager.registerCurrentToken()
             restoreSession()

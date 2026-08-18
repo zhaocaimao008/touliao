@@ -47,7 +47,7 @@ struct AccountManagementView: View {
         .sheet(isPresented: $showAddAccount) {
             // 添加账号成功后 SessionStore.onAuthenticated 已完成账号切换 + socket 重连，
             // 这里只需收起弹层回到主界面。
-            NavigationStack { LoginView() }
+            NavigationStack { LoginView(onCancel: { showAddAccount = false }) }
         }
     }
 }
