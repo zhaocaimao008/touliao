@@ -4,6 +4,7 @@ const { db } = require('../../db/connection');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const usersSvc = require('../users/users.service');
 const { getOrCreatePrivate } = require('../conversations/conversations.service');
+const { pushToUser } = require('../../utils/push');
 
 // ── 联系人 ──────────────────────────────────────────────────────
 function listContacts(userId) {
@@ -102,6 +103,16 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   if (!inserted) throw badRequest('请求已发送');
   const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
   if (io) io.to(`user_${toId}`).emit('new_friend_request', { id, from: sender, message: message || '' });
+  // 离线推送 best-effort，不阻塞、不抛错（同 moments 互动通知的处理方式）：
+  // 好友请求不是"新消息"，不受 message_notify/muted 影响 —— 那两项按既有约定仅约束会话内消息。
+  const senderName = sender?.username || '有人';
+  pushToUser(toId, {
+    title: senderName,
+    senderName,
+    body: message && message.trim() ? message.trim() : '请求添加你为好友',
+    type: 'friend_request',
+    senderId: fromId,
+  }).catch(() => {});
   return { success: true, id };
 }
 
