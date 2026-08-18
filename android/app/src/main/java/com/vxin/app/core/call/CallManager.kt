@@ -68,6 +68,7 @@ class CallManager @Inject constructor(
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var callTimeoutJob: Job? = null   // 主叫呼出超时:对方无应答/断线时自动收尾,防卡死"呼叫中"
+    private var callAttempt = 0L              // 主叫呼出序号：ack 延迟时防止旧 callId 写入新一次呼出（P2）
     private var audioSource: org.webrtc.AudioSource? = null
     private var videoSource: VideoSource? = null
     private var localAudioTrack: AudioTrack? = null
@@ -134,6 +135,7 @@ class CallManager @Inject constructor(
     /** 主叫发起 */
     fun startCall(peerId: String, peerName: String, video: Boolean) {
         if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) return
+        val attempt = ++callAttempt          // 本次呼出序号，ack 回填时校验（P2）
         _state.value = CallState(CallStage.OUTGOING, peerId, peerName, isVideo = video, isCaller = true)
         playRingbackTone()                  // 主叫拨出→接通前循环回铃音（接通/挂断时停）
         // 本地呼出超时:60s 内未接通(对方不接/断线,后端 timeout 不向主叫发事件)则自动挂断收尾,
@@ -155,9 +157,9 @@ class CallManager @Inject constructor(
             // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（此刻 App 在前台、权限已授予，满足 FGS 合规）
             CallForegroundService.start(context, video)
             val name = sessionManager.currentUser?.username.orEmpty()
-            // ack 携带服务端生成的 callId；期间可能已挂断/被覆盖，仅在仍是同一通呼出时才回填
+            // ack 携带服务端生成的 callId；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
             val callId = socketManager.emitCallRequest(peerId, if (video) "video" else "audio", name)
-            if (callId != null && _state.value.peerId == peerId && _state.value.stage != CallStage.ENDED) {
+            if (callId != null && attempt == callAttempt && _state.value.peerId == peerId && _state.value.stage != CallStage.ENDED) {
                 _state.update { it.copy(callId = callId) }
             }
         }
@@ -232,8 +234,14 @@ class CallManager @Inject constructor(
     private fun observeSignaling() {
         scope.launch {
             socketManager.callIncomingEvents.collect { e ->
-                // 已在展示同一 peer 的来电（如先由 FCM 推送进入 INCOMING）→ 忽略重复，勿误拒
-                if (_state.value.stage == CallStage.INCOMING && _state.value.peerId == e.from) return@collect
+                // 已在展示同一 peer 的来电：仅当 callId 相同才是重复事件（同一通），直接忽略；
+                // callId 不同 = 主叫重拨的新一通 → 用新 callId 覆盖旧状态（否则应答/拒接带过期 callId 被服务端忽略）（P1）
+                if (_state.value.stage == CallStage.INCOMING && _state.value.peerId == e.from) {
+                    if (e.callId.isNotEmpty() && _state.value.callId != e.callId) {
+                        _state.update { it.copy(callId = e.callId) }
+                    }
+                    return@collect
+                }
                 if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) {
                     // 忙线：直接拒接
                     socketManager.emitCallResponse(e.from, false, e.callId)
