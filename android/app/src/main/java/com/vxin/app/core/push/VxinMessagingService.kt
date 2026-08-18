@@ -38,6 +38,9 @@ class VxinMessagingService : FirebaseMessagingService() {
         // 负责前台震动），再弹通知会重复打扰。后台/锁屏时 onMessageReceived 的 notification 块
         // 由系统托盘直接展示（不进此回调），故这里只处理前台 data 消息。
         if (MessageNotificationBridge.appForeground) return
-        notificationHelper.showMessageNotification(title, body, data["conversationId"])
+        // badge 为后端 SQL COUNT(未读)>last_read_at 算出的真实未读数（见 push.js pushNewMessage），
+        // 用它做角标而非本地聚合条数（本地最多只缓存 5 条摘要，不能代表真实未读）。
+        val badge = data["badge"]?.toIntOrNull()
+        notificationHelper.showMessageNotification(title, body, data["conversationId"], badge)
     }
 }

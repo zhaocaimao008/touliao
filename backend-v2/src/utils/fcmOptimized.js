@@ -90,6 +90,9 @@ function compressData(data) {
     senderId: data.senderId || '',
     timestamp: String(data.timestamp || Date.now()),
     type: data.type || 'message',
+    // 会话真实未读数（SQL COUNT>last_read_at，见 pushNewMessage），Android 端通知角标用它
+    // 而非本地聚合估算。FCM data payload 只能传字符串。
+    badge: String(data.badge || 1),
   };
 }
 
@@ -143,6 +146,7 @@ async function sendBatchAndroidNotifications(userId, payload) {
         senderId: payload.senderId,
         timestamp: payload.timestamp,
         type: payload.type,
+        badge: payload.badge,
       }),
       android: {
         priority: getPriority(payload.type, payload.isSilentHour),

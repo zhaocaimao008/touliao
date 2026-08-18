@@ -153,7 +153,7 @@ private object Routes {
     const val INVITE_MEMBERS = "inviteMembers/{conversationId}"
     const val CHAT = "chat/{conversationId}?title={title}&type={type}&peerUserId={peerUserId}"
     fun chat(conversationId: String, title: String, type: String, peerUserId: String = "") =
-        "chat/$conversationId?title=${Uri.encode(title)}&type=$type&peerUserId=${Uri.encode(peerUserId)}"
+        "chat/${Uri.encode(conversationId)}?title=${Uri.encode(title)}&type=$type&peerUserId=${Uri.encode(peerUserId)}"
     fun conversationFiles(conversationId: String) = "conversationFiles/$conversationId"
     fun groupInfo(conversationId: String) = "groupInfo/$conversationId"
     fun groupQr(conversationId: String) = "groupQr/$conversationId"
@@ -213,14 +213,18 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
     val visibleTabs = TAB_ITEMS
 
     // 通知点击跳会话：navController 在这里已就绪，消费 PendingConversationHolder 并导航。
-    // 立即置空 holder 防止重复触发（同一 convId 只导航一次）。
-    val pendingConvId by PendingConversationHolder.conversationId.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(pendingConvId) {
-        val convId = pendingConvId ?: return@LaunchedEffect
-        PendingConversationHolder.conversationId.value = null
-        val target = appViewModel.resolveChatTarget(convId)
-        navController.navigate(Routes.chat(target.conversationId, target.title, target.type, target.peerUserId)) {
-            launchSingleTop = true
+    // 用 LaunchedEffect(Unit) + collect（而非 LaunchedEffect(pendingConvId) 配合状态变量）：
+    // 后者若在协程体内把 holder 置空会改变自己的 key，导致 Compose 在 resolveChatTarget/navigate
+    // 完成前就把这次 effect 取消掉（自取消），锁屏点击进会话可能因此失效。这里改为在同一个协程里
+    // collect，且导航成功后才清空 holder，避免自取消，也避免重复消费同一个 convId。
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        PendingConversationHolder.conversationId.collect { convId ->
+            if (convId == null) return@collect
+            val target = appViewModel.resolveChatTarget(convId)
+            navController.navigate(Routes.chat(target.conversationId, target.title, target.type, target.peerUserId)) {
+                launchSingleTop = true
+            }
+            PendingConversationHolder.conversationId.value = null
         }
     }
 

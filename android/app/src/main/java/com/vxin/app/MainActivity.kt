@@ -136,8 +136,16 @@ class MainActivity : ComponentActivity() {
     private fun handleMessageIntent(intent: Intent?) {
         if (isCallIntent(intent)) return
         val convId = intent?.getStringExtra(NotificationHelper.EXTRA_CONVERSATION_ID) ?: return
+        // MainActivity exported=true，任意外部 App 可显式 startActivity 附带任意字符串。
+        // conversationId 后续会拼进 Compose 路由 path 段并作为后端会话查询参数，格式校验兜底：
+        // 真正的越权访问在后端 requireMember() 已挡住（非会话成员 403），这里只防畸形值
+        // 撑爆路由解析 / 打断导航（真实 id 为 uuidv4，见 conversations.service.js）。
+        if (!isValidConversationId(convId)) return
         PendingConversationHolder.conversationId.value = convId
         // 消费掉，避免旋转/重建时重复触发
         intent.removeExtra(NotificationHelper.EXTRA_CONVERSATION_ID)
     }
+
+    private fun isValidConversationId(id: String): Boolean =
+        id.isNotBlank() && id.length <= 64 && id.all { it.isLetterOrDigit() || it == '-' || it == '_' }
 }
