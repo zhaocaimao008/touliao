@@ -35,7 +35,7 @@ data class CallIncomingEvent(val from: String, val type: String, val callerName:
 data class CallResponseEvent(val from: String, val accepted: Boolean)
 data class CallSdpEvent(val from: String, val sdp: String)            // offer / answer 的 sdp
 data class CallIceEvent(val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
-data class CallEndEvent(val from: String)
+data class CallEndEvent(val from: String, val callId: String = "")
 
 // ── 群通话(mesh) 信令事件 ──
 data class GroupCallInviteEvent(val callId: String, val conversationId: String, val type: String, val from: String, val fromName: String, val fromAvatar: String = "")
@@ -373,8 +373,10 @@ class SocketManager @Inject constructor(
             }
         }
         s.on("call:end") { args ->
-            (args.firstOrNull() as? JSONObject)?.optString("from")?.takeIf { it.isNotEmpty() }
-                ?.let { _callEnd.tryEmit(CallEndEvent(it)) }
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val from = o.optString("from").takeIf { it.isNotEmpty() } ?: return@let
+                _callEnd.tryEmit(CallEndEvent(from, o.optString("callId")))
+            }
         }
 
         // ── 群通话信令接收 ──

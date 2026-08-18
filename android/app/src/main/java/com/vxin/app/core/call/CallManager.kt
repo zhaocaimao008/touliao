@@ -68,7 +68,7 @@ class CallManager @Inject constructor(
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var callTimeoutJob: Job? = null   // 主叫呼出超时:对方无应答/断线时自动收尾,防卡死"呼叫中"
-    private var callAttempt = 0L              // 主叫呼出序号：ack 延迟时防止旧 callId 写入新一次呼出（P2）
+    @Volatile private var callAttempt = 0L   // 主叫呼出序号：ack 延迟时防止旧 callId 写入新一次呼出（P2-1 @Volatile 防跨线程撕裂）
     private var audioSource: org.webrtc.AudioSource? = null
     private var videoSource: VideoSource? = null
     private var localAudioTrack: AudioTrack? = null
@@ -151,7 +151,9 @@ class CallManager @Inject constructor(
         }
         scope.launch {
             refreshIceServers()                 // 先拿到含 TURN 的 ICE，再建连接
-            if (_state.value.stage == CallStage.ENDED) return@launch  // 期间被取消
+            // generation 前置校验（P1-2）：挂断→秒重拨后旧协程恢复时不得继续建连/采音/发请求，
+            // 否则泄漏 PeerConnection/摄像头并产生幽灵 call:request
+            if (attempt != callAttempt || _state.value.stage != CallStage.OUTGOING) return@launch
             createPeerConnection()
             createLocalTracks(video)
             // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（此刻 App 在前台、权限已授予，满足 FGS 合规）
@@ -159,7 +161,12 @@ class CallManager @Inject constructor(
             val name = sessionManager.currentUser?.username.orEmpty()
             // ack 携带服务端生成的 callId；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
             val callId = socketManager.emitCallRequest(peerId, if (video) "video" else "audio", name)
-            if (callId != null && attempt == callAttempt && _state.value.peerId == peerId && _state.value.stage != CallStage.ENDED) {
+            if (callId == null) {
+                // ack 超时/socket 未连/请求被拒（P1-4）：立即收尾并提示，不再静默回铃 60s
+                if (attempt == callAttempt && _state.value.stage == CallStage.OUTGOING) cleanup(CallStage.ENDED)
+                return@launch
+            }
+            if (attempt == callAttempt && _state.value.peerId == peerId && _state.value.stage != CallStage.ENDED) {
                 _state.update { it.copy(callId = callId) }
             }
         }
@@ -222,12 +229,19 @@ class CallManager @Inject constructor(
      */
     fun incomingFromPush(from: String, callType: String, callerName: String, callId: String = "") {
         if (from.isEmpty()) return
-        val st = _state.value
-        // 空闲或结束态才进 incoming；已在处理同一 peer 的来电则忽略（避免覆盖 socket 已建立的状态）
-        if (st.stage != CallStage.IDLE && st.stage != CallStage.ENDED) return
-        _state.value = CallState(
-            CallStage.INCOMING, from, callerName, isVideo = callType == "video", isCaller = false, callId = callId,
-        )
+        // 原子读-改-写（P2-3）：stage 判断与写入放同一临界区，防 Default 线程 socket collect 与
+        // 主线程 push 处理 TOCTOU；已展示同 peer 来电时仅升级 callId（防过期通知带旧 id 应答被服务端丢弃）
+        _state.update { st ->
+            if (st.stage == CallStage.IDLE || st.stage == CallStage.ENDED) {
+                CallState(
+                    CallStage.INCOMING, from, callerName, isVideo = callType == "video", isCaller = false, callId = callId,
+                )
+            } else if (st.stage == CallStage.INCOMING && st.peerId == from && callId.isNotEmpty() && st.callId != callId) {
+                st.copy(callId = callId)
+            } else {
+                st  // 正在通话/展示其他来电 → 不覆盖
+            }
+        }
     }
 
     // ── 信令处理 ───────────────────────────────────────────
@@ -235,10 +249,11 @@ class CallManager @Inject constructor(
         scope.launch {
             socketManager.callIncomingEvents.collect { e ->
                 // 已在展示同一 peer 的来电：仅当 callId 相同才是重复事件（同一通），直接忽略；
-                // callId 不同 = 主叫重拨的新一通 → 用新 callId 覆盖旧状态（否则应答/拒接带过期 callId 被服务端忽略）（P1）
+                // callId 不同 = 主叫重拨的新一通 → 覆盖旧状态（callId/isVideo/callerName 一并更新，
+                // 防应答带过期 callId 被服务端忽略、防 audio/video 类型降级）（P1 + P2-2）
                 if (_state.value.stage == CallStage.INCOMING && _state.value.peerId == e.from) {
                     if (e.callId.isNotEmpty() && _state.value.callId != e.callId) {
-                        _state.update { it.copy(callId = e.callId) }
+                        _state.update { it.copy(callId = e.callId, isVideo = e.type == "video", peerName = e.callerName) }
                     }
                     return@collect
                 }
@@ -255,7 +270,8 @@ class CallManager @Inject constructor(
         scope.launch {
             socketManager.callResponseEvents.collect { e ->
                 val s = _state.value
-                if (!s.isCaller || e.from != s.peerId) return@collect
+                // stage 守卫（P2-5）：主叫挂断瞬间被叫恰好接听，迟到的 accepted 不得把 ENDED 重新唤醒回 CONNECTING
+                if (!s.isCaller || e.from != s.peerId || s.stage != CallStage.OUTGOING) return@collect
                 if (e.accepted) {
                     _state.update { it.copy(stage = CallStage.CONNECTING) }
                     createOfferAndSend()
@@ -297,7 +313,12 @@ class CallManager @Inject constructor(
         }
         scope.launch {
             socketManager.callEndEvents.collect { e ->
-                if (e.from == _state.value.peerId) cleanup(CallStage.ENDED)
+                // 按 callId 匹配（P1-3 客户端侧）：旧通话迟到的 call:end 不得误杀重拨后的新来电；
+                // 服务端旧版不带 callId 时兼容放行（callId 为空 → 仅按 peer 匹配，行为同旧版）
+                if (e.from == _state.value.peerId &&
+                    (e.callId.isEmpty() || e.callId == _state.value.callId)) {
+                    cleanup(CallStage.ENDED)
+                }
             }
         }
     }

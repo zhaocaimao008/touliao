@@ -44,9 +44,13 @@ function scheduleCallTimeout(key, io) {
           .run(nowSec(), c.id);
       } catch (e) { console.warn('[call] timeout 落库失败:', e.message); }
       activeCalls.delete(key);
+      // 通话已结束 → 清除冷却，允许立即重拨（P1-1）
+      const [callerId] = key.split('>');
+      callRateMap.delete(callerId);
       // 未接听超时也要补发 call:end，否则被叫端 UI/本地通知（未收到任何结束信号）会永久悬挂（NOTIFY-002 E3）
-      const [callerId, calleeId] = key.split('>');
-      io.to(`user_${calleeId}`).emit('call:end', { from: callerId, reason: 'timeout' });
+      // 带 callId：客户端 callEndEvents 按 callId 匹配，防跨事件流乱序误杀新来电（P1-3）
+      const [cId2, calleeId] = key.split('>');
+      io.to(`user_${calleeId}`).emit('call:end', { from: cId2, reason: 'timeout', callId: c.id });
     }
   }, CALL_TIMEOUT_MS);
 }
@@ -71,8 +75,9 @@ function cleanupUserCalls(io, userId) {
           db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(end, c.id);
         }
         // 被叫断线且未接通 → 保留 missed 状态
-        // 通知对方通话已因断线结束，避免对方 UI 永久卡住
-        io.to(`user_${otherId}`).emit('call:end', { from: userId, reason: 'disconnected' });
+        // 通知对方通话已因断线结束（带 callId，P1-3）+ 清除冷却允许秒重拨（P1-1）
+        io.to(`user_${otherId}`).emit('call:end', { from: userId, reason: 'disconnected', callId: c.id });
+        callRateMap.delete(a);
       } catch (e) { console.warn('[call] disconnect 落库失败:', e.message); }
       activeCalls.delete(k);
     }
@@ -123,13 +128,15 @@ module.exports = function registerCallHandler(io, socket) {
       try {
         const endNow = nowSec();
         if (old.answeredAt) {
-          // 已接通的通话被新呼叫覆盖 → 标记 completed 并通知被叫结束
+          // 已接通的通话被新呼叫覆盖 → 标记 completed 并通知被叫结束（带 callId，P1-3）
           db.prepare("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?")
             .run(endNow, Math.max(0, endNow - old.answeredAt), old.id);
-          io.to(`user_${to}`).emit('call:end', { from: userId, reason: 'replaced' });
+          io.to(`user_${to}`).emit('call:end', { from: userId, reason: 'replaced', callId: old.id });
         } else {
           db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(endNow, old.id);
         }
+        // 旧通话被覆盖 → 清除冷却，允许立即重拨（P1-1）
+        callRateMap.delete(userId);
       } catch {}
     }
     const timer = scheduleCallTimeout(key, io);
@@ -164,11 +171,23 @@ module.exports = function registerCallHandler(io, socket) {
     const c = activeCalls.get(key);
     // callId 不匹配当前活跃通话（如：来电通知已过期/被同一对用户的新来电覆盖后才被点击）→
     // 忽略，防止过期应答误伤新通话（NOTIFY-002 F3）。旧客户端不传 callId 时不做该校验，保持兼容。
-    if (c && callId && c.id !== callId) return;
+    if (c && callId && c.id !== callId) {
+      // 过期应答回执 call:end(stale)，否则被叫端 accept() 后无 offer 可等、永久卡 CONNECTING（P1-5）
+      io.to(`user_${userId}`).emit('call:end', { from: to, reason: 'stale', callId });
+      return;
+    }
+    if (!c && callId) {
+      // 活跃通话已不存在（120s 超时清除/断线清理后迟到的应答）→ 同样回 stale，防客户端卡死（P1-5）
+      io.to(`user_${userId}`).emit('call:end', { from: to, reason: 'stale', callId });
+      return;
+    }
     if (c) {
       if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 已应答不再超时清理）
       try {
         if (accepted) {
+          // 重复 accepted 守卫（P2-4）：同账号双端先后接听同一通，第二次不得回拨 answeredAt
+          // （否则 duration 变短 + 向主叫二次转发 accepted → 重复 setRemoteDescription）
+          if (c.answeredAt) return;
           c.answeredAt = nowSec();
           db.prepare("UPDATE call_logs SET status='ongoing' WHERE id=?").run(c.id);
         } else {
@@ -216,8 +235,10 @@ module.exports = function registerCallHandler(io, socket) {
       } catch (e) { console.warn('[call] end 落库失败:', e.message); }
       activeCalls.delete(k1);
       activeCalls.delete(k2);
-      // 只有活跃通话存在时才转发：防止任意用户强制关闭他人通话界面
-      io.to(`user_${to}`).emit('call:end', { from: userId, reason });
+      // 只有活跃通话存在时才转发：防止任意用户强制关闭他人通话界面（带 callId，P1-3）
+      io.to(`user_${to}`).emit('call:end', { from: userId, reason, callId: c.id });
+      // 通话已结束 → 清除冷却，允许立即重拨（P1-1）
+      callRateMap.delete(userId);
     }
   });
 
