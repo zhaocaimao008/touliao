@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * 远程版本清单，在服务器上放一份 vxin-android-version.json。
- * 服务器上需部署：https://dipsin.com/downloads/vxin-android-version.json
+ * 服务器上需部署：https://touliao.cc/downloads/touliao-android-version.json
  */
 @Serializable
 data class AppVersionDto(

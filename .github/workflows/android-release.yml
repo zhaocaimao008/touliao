@@ -74,15 +74,15 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
-          echo "部署: $APK → /var/www/downloads/touliao-android-latest.apk"
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /var/www/downloads"
-          scp -i ~/.ssh/deploy_key "$APK" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/touliao-android-latest.apk"
-          echo "✅ APK 已发布到 https://dipsin.com/downloads/touliao-android-latest.apk"
+          echo "部署: $APK → /var/www/touliao-downloads/touliao-android-latest.apk"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /var/www/touliao-downloads"
+          scp -i ~/.ssh/deploy_key "$APK" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/touliao-downloads/touliao-android-latest.apk"
+          echo "✅ APK 已发布到 https://touliao.cc/downloads/touliao-android-latest.apk"
           # 同步应用内更新清单：从 build.gradle.kts 读出真实版本，生成 version.json 并部署。
           # 安卓端"检查更新"靠这个文件比对版本；不同步会导致存量用户拉不到更新提示。
           VN=$(grep -oP 'versionName\s*=\s*"\K[^"]+' android/app/build.gradle.kts | head -1)
           VC=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' android/app/build.gradle.kts | head -1)
           echo "版本清单: versionName=$VN versionCode=$VC"
-          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://dipsin.com/downloads/touliao-android-latest.apk",\n  "notes": "当前最新版本 %s。"\n}\n' "$VC" "$VN" "$VN" > /tmp/touliao-android-version.json
-          scp -i ~/.ssh/deploy_key /tmp/touliao-android-version.json "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/touliao-android-version.json"
-          echo "✅ 版本清单已发布到 https://dipsin.com/downloads/touliao-android-version.json"
+          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://touliao.cc/downloads/touliao-android-latest.apk",\n  "notes": "当前最新版本 %s。"\n}\n' "$VC" "$VN" "$VN" > /tmp/touliao-android-version.json
+          scp -i ~/.ssh/deploy_key /tmp/touliao-android-version.json "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/touliao-downloads/touliao-android-version.json"
+          echo "✅ 版本清单已发布到 https://touliao.cc/downloads/touliao-android-version.json"

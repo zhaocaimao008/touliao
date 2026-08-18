@@ -31,11 +31,11 @@ class UpdateChecker @Inject constructor(
         .build()
 
     /**
-     * 远程版本清单 URL 列表（优先 CDN，兜底 dipsin.com 源站）。
+     * 远程版本清单 URL 列表（优先 CDN，兜底 touliao.cc 源站）。
      * 返回第一个能成功拉取并解析的结果。
      */
     private val CHECK_URLS = listOf(
-        "https://dipsin.com/downloads/vxin-android-version.json",
+        "https://touliao.cc/downloads/touliao-android-version.json",
     )
 
     /** 静默检查：返回结果不抛异常，适合启动时调用 */

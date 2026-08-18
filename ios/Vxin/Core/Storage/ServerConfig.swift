@@ -7,7 +7,7 @@ final class ServerConfig {
     private init() {}
 
     /// 编译内置兜底（仅在远程+无手动覆盖时使用）
-    static let defaultURL = "https://dipsin.com"
+    static let defaultURL = "https://touliao.cc"
 
     private let overrideKey = "vxin_base_url_override"   // 手动「切换服务器」
     private let remoteKey = "vxin_base_url_remote"       // RemoteConfig 拉取写入

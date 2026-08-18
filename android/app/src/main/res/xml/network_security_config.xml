@@ -9,8 +9,8 @@
 <network-security-config>
     <!-- 已知生产域名：强制 HTTPS，不允许明文降级 -->
     <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">dipsin.com</domain>
-        <domain includeSubdomains="true">91aigu.com</domain>
+        <domain includeSubdomains="true">touliao.cc</domain>
+        <domain includeSubdomains="true">www.touliao.cc</domain>
     </domain-config>
 
     <!-- 兜底：用户自建服务器可能为局域网 HTTP，允许明文（仅此场景）。
