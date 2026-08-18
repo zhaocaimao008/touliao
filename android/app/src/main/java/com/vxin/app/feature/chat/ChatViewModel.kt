@@ -10,6 +10,7 @@ import com.touliao.app.core.media.AudioPlayer
 import com.touliao.app.core.media.AudioRecorder
 import com.touliao.app.core.media.MediaUploader
 import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.core.push.NotificationHelper
 import com.touliao.app.core.util.MediaUrlResolver
 import com.touliao.app.data.model.LocalMsgStatus
 import com.touliao.app.data.model.Message
@@ -117,6 +118,7 @@ class ChatViewModel @Inject constructor(
     private val outboxStore: com.touliao.app.core.storage.OutboxStore,
     private val msgCacheStore: com.touliao.app.core.storage.MsgCacheStore,
     private val configApi: com.touliao.app.data.api.ConfigApi,
+    private val notificationHelper: NotificationHelper,
     sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -143,6 +145,7 @@ class ChatViewModel @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
+        notificationHelper.clearConversationNotifications(conversationId)   // 进入会话即清理该会话的锁屏/通知栏聚合通知
         chatRepository.joinConversation(conversationId)
         primeFromCache()    // 首屏占位：先渲染离线缓存历史，随后 loadHistory 拉取真相源覆盖
         loadHistory()

@@ -19,6 +19,7 @@ import com.touliao.app.core.call.CallManager
 import com.touliao.app.core.push.NotificationHelper
 import com.touliao.app.core.realtime.SocketManager
 import com.touliao.app.navigation.AppNavigation
+import com.touliao.app.navigation.PendingConversationHolder
 import com.touliao.app.ui.theme.VxinThemeWithPref
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
         // 需主动点亮屏幕并越过锁屏展示来电界面，否则用户只看到黑屏/锁屏、看不到弹窗。
         if (isCallIntent(intent)) enableShowOverLockscreen()
         handleCallIntent(intent)
+        handleMessageIntent(intent)
         setContent {
             // 主题：由 VxinTheme 内部读取本地外观偏好（不在 Activity 根注入/收集 Flow，
             // 与 1.0.14 的启动路径保持一致，杜绝启动期换肤相关的崩溃风险）。
@@ -59,6 +61,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         if (isCallIntent(intent)) enableShowOverLockscreen()
         handleCallIntent(intent)
+        handleMessageIntent(intent)
     }
 
     private fun isCallIntent(intent: Intent?): Boolean = when (intent?.action) {
@@ -123,4 +126,27 @@ class MainActivity : ComponentActivity() {
         // 消费掉，避免旋转/重建时重复触发
         intent.action = null
     }
+
+    /**
+     * 处理消息通知点击拉起的意图：只带 EXTRA_CONVERSATION_ID、无 call action。
+     * 冷启动时 navController 未组合完成，这里不能直接 navigate，写入 PendingConversationHolder，
+     * 由 AppNavigation 的 LaunchedEffect 监听并在 navController 就绪后再跳转
+     * （未登录/会话过期时会先停在登录页，holder 里的值等登录成功进入 MainFlow 后仍会被消费）。
+     */
+    private fun handleMessageIntent(intent: Intent?) {
+        if (isCallIntent(intent)) return
+        val convId = intent?.getStringExtra(NotificationHelper.EXTRA_CONVERSATION_ID) ?: return
+        // MainActivity exported=true，任意外部 App 可显式 startActivity 附带任意字符串。
+        // conversationId 后续会拼进 Compose 路由 path 段并作为后端会话查询参数，格式校验兜底：
+        // 真正的越权访问在后端 requireMember() 已挡住（非会话成员 403），这里只防路由畸形值
+        // 撑爆路由解析 / 打断导航（isLetterOrDigit 也放行 CJK 全角字符，非严格 uuid 字符集校验，
+        // 真实 id 为 uuidv4，见 conversations.service.js，此处只做粗粒度长度/字符防御）。
+        if (!isValidConversationId(convId)) return
+        PendingConversationHolder.conversationId.value = convId
+        // 消费掉，避免旋转/重建时重复触发
+        intent.removeExtra(NotificationHelper.EXTRA_CONVERSATION_ID)
+    }
+
+    private fun isValidConversationId(id: String): Boolean =
+        id.isNotBlank() && id.length <= 64 && id.all { it.isLetterOrDigit() || it == '-' || it == '_' }
 }

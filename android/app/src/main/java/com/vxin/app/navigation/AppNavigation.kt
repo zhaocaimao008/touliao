@@ -100,7 +100,24 @@ class AppViewModel @Inject constructor(
                 .onSuccess { list -> _unreadTotal.value = list.filter { it.muted != 1 }.sumOf { it.unreadCount } }
         }
     }
+
+    /**
+     * 通知点击只带 conversationId，按本地会话列表回填 name/type/peerUserId 供 Routes.chat 跳转用。
+     * 查不到（如列表未刷新到）就给默认值，不阻塞跳转——ChatScreen 进入后会自行拉取会话详情。
+     */
+    suspend fun resolveChatTarget(conversationId: String): ChatTarget {
+        val conv = runCatching { chatRepository.loadConversations() }
+            .getOrNull()?.firstOrNull { it.id == conversationId }
+        return ChatTarget(
+            conversationId = conversationId,
+            title = conv?.name.orEmpty(),
+            type = conv?.type ?: "private",
+            peerUserId = conv?.otherUser?.id.orEmpty(),
+        )
+    }
 }
+
+data class ChatTarget(val conversationId: String, val title: String, val type: String, val peerUserId: String)
 
 private object Routes {
     const val LOGIN = "login"
@@ -136,7 +153,7 @@ private object Routes {
     const val INVITE_MEMBERS = "inviteMembers/{conversationId}"
     const val CHAT = "chat/{conversationId}?title={title}&type={type}&peerUserId={peerUserId}"
     fun chat(conversationId: String, title: String, type: String, peerUserId: String = "") =
-        "chat/$conversationId?title=${Uri.encode(title)}&type=$type&peerUserId=${Uri.encode(peerUserId)}"
+        "chat/${Uri.encode(conversationId)}?title=${Uri.encode(title)}&type=$type&peerUserId=${Uri.encode(peerUserId)}"
     fun conversationFiles(conversationId: String) = "conversationFiles/$conversationId"
     fun groupInfo(conversationId: String) = "groupInfo/$conversationId"
     fun groupQr(conversationId: String) = "groupQr/$conversationId"
@@ -187,13 +204,35 @@ private val TAB_ITEMS = listOf(
 private val TAB_ROUTES = TAB_ITEMS.map { it.route }.toSet()
 
 @Composable
-private fun MainFlow(features: Features, unreadTotal: Int = 0) {
+private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: AppViewModel = hiltViewModel()) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
     // 底部 tab 已固定为 消息/通讯录/我，无需再按 features 开关过滤
     val visibleTabs = TAB_ITEMS
+
+    // 通知点击跳会话：navController 在这里已就绪，消费 PendingConversationHolder 并导航。
+    // 用 LaunchedEffect(Unit) + collect（而非 LaunchedEffect(pendingConvId) 配合状态变量）：
+    // 后者若在协程体内把 holder 置空会改变自己的 key，导致 Compose 在 resolveChatTarget/navigate
+    // 完成前就把这次 effect 取消掉（自取消），锁屏点击进会话可能因此失效。这里改为在同一个协程里
+    // collect，且导航成功后才清空 holder，避免自取消，也避免重复消费同一个 convId。
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        PendingConversationHolder.conversationId.collect { convId ->
+            if (convId == null) return@collect
+            // navigate/resolveChatTarget 抛异常时若不捕获，collect 所在协程会直接死亡，
+            // 且 LaunchedEffect(Unit) 不会因 key 不变而重启 → 之后所有通知点击都静默失效。
+            runCatching {
+                val target = appViewModel.resolveChatTarget(convId)
+                navController.navigate(Routes.chat(target.conversationId, target.title, target.type, target.peerUserId)) {
+                    launchSingleTop = true
+                }
+            }.onFailure { android.util.Log.e("AppNavigation", "通知跳转会话失败 convId=$convId", it) }
+            // compareAndSet 而非无条件置 null：快速连点两个不同会话通知时，先处理完的一次
+            // 不能把此刻已经是「第二个会话」的新值误清掉，只清掉自己刚消费的那个旧值。
+            PendingConversationHolder.conversationId.compareAndSet(convId, null)
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
