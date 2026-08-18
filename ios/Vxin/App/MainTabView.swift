@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// 底部 Tab：消息 / 通讯录 / 我（已按需移除 朋友圈 与 收藏）
 struct MainTabView: View {
@@ -33,9 +34,12 @@ struct MainTabView: View {
         // App 每次进入前台时刷新 FCM token 注册，确保服务端 token 有效。
         // 修复「我发好友无通知」：好友 token 被服务端因 FCM 失效删除后，
         // 只要下次打开 App 就会重新注册，不再依赖 onToken 被动触发。
+        // 同时清零角标：APNs payload 的 badge 只在收到新推送时才会更新数字，
+        // 回到前台代表用户已看过通知列表，残留角标不会再自行消失，需主动清零。
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 PushManager.shared.refreshRegistrationIfNeeded()
+                UNUserNotificationCenter.current().setBadgeCount(0)
             }
         }
     }

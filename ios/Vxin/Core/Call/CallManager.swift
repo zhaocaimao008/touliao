@@ -2,6 +2,8 @@ import Foundation
 import Combine
 import AVFoundation
 import WebRTC
+import UIKit
+import UserNotifications
 
 enum CallStage { case idle, outgoing, incoming, connecting, connected, ended }
 
@@ -205,6 +207,14 @@ final class CallManager: NSObject, ObservableObject {
         if state.stage == .ended { state = CallState() }
     }
 
+    /// 重建 incoming 状态：用于通知 ANSWER/DECLINE 动作把 App 从后台/被杀状态拉起时，
+    /// state 尚未由 socket.callIncoming 建立的情况。幂等：已在展示同一来电或通话中不覆盖。
+    func incomingFromPush(from: String, callType: String, callerName: String) {
+        guard !from.isEmpty else { return }
+        guard state.stage == .idle || state.stage == .ended else { return }
+        state = CallState(stage: .incoming, peerId: from, peerName: callerName, isVideo: callType == "video", isCaller: false)
+    }
+
     // MARK: - 信令
     private func observeSignaling() {
         socket.callIncoming.receive(on: DispatchQueue.main).sink { [weak self] (from, type, name) in
@@ -213,6 +223,11 @@ final class CallManager: NSObject, ObservableObject {
                 self.socket.emitCallResponse(to: from, accepted: false); return
             }
             self.state = CallState(stage: .incoming, peerId: from, peerName: name, isVideo: type == "video", isCaller: false)
+            // 锁屏/后台来电：App 不在前台时补弹本地通知（含接听/拒绝按钮），
+            // 前台由来电邀请横幅 UI 展示，避免重复打扰。
+            if UIApplication.shared.applicationState != .active {
+                self.showIncomingCallNotification(from: from, callerName: name, callType: type)
+            }
         }.store(in: &cancellables)
 
         socket.callResponse.receive(on: DispatchQueue.main).sink { [weak self] (from, accepted) in
@@ -257,6 +272,28 @@ final class CallManager: NSObject, ObservableObject {
     private func drainIce() {
         pendingIce.forEach { pc?.add($0) }
         pendingIce.removeAll()
+    }
+
+    /// 锁屏/后台来电本地通知：categoryIdentifier=INCOMING_CALL 对应 AppDelegate 注册的
+    /// 接听/拒绝按钮；userInfo 携带 from/callType/callerName 供动作分支使用。
+    private func showIncomingCallNotification(from: String, callerName: String, callType: String) {
+        let content = UNMutableNotificationContent()
+        content.title = callerName.isEmpty ? "来电" : callerName
+        content.body = callType == "video" ? "邀请你视频通话" : "邀请你语音通话"
+        content.sound = .default
+        content.categoryIdentifier = "INCOMING_CALL"
+        content.userInfo = ["from": from, "callType": callType, "callerName": callerName]
+
+        let request = UNNotificationRequest(
+            identifier: "incoming_call_\(from)",
+            content: content,
+            trigger: nil   // 立即触发
+        )
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("[CallManager] 来电通知失败: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func createOfferAndSend() {
