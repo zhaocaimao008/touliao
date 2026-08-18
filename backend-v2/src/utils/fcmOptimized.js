@@ -93,6 +93,10 @@ function compressData(data) {
     // 会话真实未读数（SQL COUNT>last_read_at，见 pushNewMessage），Android 端通知角标用它
     // 而非本地聚合估算。FCM data payload 只能传字符串。
     badge: String(data.badge || 1),
+    // data-only 消息（见下方 sendBatchAndroidNotifications 说明）需要客户端自己起标题/正文，
+    // 对应 VxinMessagingService.onMessageReceived 的 data["senderName"]/data["body"] 兜底读取。
+    senderName: data.senderName || '',
+    body: data.body || '',
   };
 }
 
@@ -136,26 +140,23 @@ async function sendBatchAndroidNotifications(userId, payload) {
     }
     
     // 2. 构建消息
+    // data-only（不带顶层 notification 块）：带 notification 块的 FCM 消息在 App 后台/被杀时
+    // 由系统托盘直接展示，onMessageReceived 根本不会被调用，NotificationHelper 里做的
+    // 通知聚合(InboxStyle)/未读角标/群组汇总/点击进会话全部失效（见 pushCallInvite 对同一问题
+    // 的既有说明与做法，这里对齐它）。改为 data-only 后 onMessageReceived 始终会被系统拉起，
+    // 由客户端自己用 NotificationHelper.showMessageNotification 起通知。
     const message = {
-      notification: {
-        title: payload.senderName || '新消息',
-        body: payload.body || '',
-      },
       data: compressData({
         conversationId: payload.conversationId,
         senderId: payload.senderId,
         timestamp: payload.timestamp,
         type: payload.type,
         badge: payload.badge,
+        senderName: payload.senderName,
+        body: payload.body,
       }),
       android: {
         priority: getPriority(payload.type, payload.isSilentHour),
-        notification: {
-          channelId: 'vxin_messages_v3',
-          sound: 'default',
-          notificationPriority: 'PRIORITY_HIGH',
-          defaultVibrateTimings: true,
-        },
         ttl: 3600000, // 1 小时后过期
       },
       apns: {

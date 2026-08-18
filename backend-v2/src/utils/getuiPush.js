@@ -98,11 +98,15 @@ async function pushToCid(cid, { title, body, payload }) {
       transmission: transmissionPayload,
     },
     // App 离线/后台：厂商通道展示（需在个推控制台配置各厂商 Key）
+    // 点击 intent 带 conversationId extra，与 NotificationHelper.EXTRA_CONVERSATION_ID
+    // ("conversationId") 一致，使国产 ROM 被杀场景（透传回调不可达）点击也能直接进会话，
+    // 而不是只打开主页。package/component 须为真实 applicationId（此前误写成 vxin 母版遗留的
+    // com.vxin.app，导致系统根本解析不到组件、厂商通道通知点击完全无响应）。
     push_channel: {
       android: {
         ups: {
           notification: { title, body, click_type: 'intent',
-            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.vxin.app;component=com.vxin.app/com.vxin.app.MainActivity;end` },
+            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;${payload?.conversationId ? `S.conversationId=${encodeURIComponent(payload.conversationId)};` : ''}end` },
           // 各厂商离线厂商通道 options（保证锁屏送达）
           options: {
             HW: { '/message/android/notification/importance': 'HIGH' },

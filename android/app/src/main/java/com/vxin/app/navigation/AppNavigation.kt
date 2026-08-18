@@ -220,11 +220,17 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
     androidx.compose.runtime.LaunchedEffect(Unit) {
         PendingConversationHolder.conversationId.collect { convId ->
             if (convId == null) return@collect
-            val target = appViewModel.resolveChatTarget(convId)
-            navController.navigate(Routes.chat(target.conversationId, target.title, target.type, target.peerUserId)) {
-                launchSingleTop = true
-            }
-            PendingConversationHolder.conversationId.value = null
+            // navigate/resolveChatTarget 抛异常时若不捕获，collect 所在协程会直接死亡，
+            // 且 LaunchedEffect(Unit) 不会因 key 不变而重启 → 之后所有通知点击都静默失效。
+            runCatching {
+                val target = appViewModel.resolveChatTarget(convId)
+                navController.navigate(Routes.chat(target.conversationId, target.title, target.type, target.peerUserId)) {
+                    launchSingleTop = true
+                }
+            }.onFailure { android.util.Log.e("AppNavigation", "通知跳转会话失败 convId=$convId", it) }
+            // compareAndSet 而非无条件置 null：快速连点两个不同会话通知时，先处理完的一次
+            // 不能把此刻已经是「第二个会话」的新值误清掉，只清掉自己刚消费的那个旧值。
+            PendingConversationHolder.conversationId.compareAndSet(convId, null)
         }
     }
 

@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.touliao.app.MainActivity
+import com.touliao.app.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -37,6 +38,7 @@ class NotificationHelper @Inject constructor(
 
         // 聚合摘要列表 + 出通知：整段读-改-notify 序列在同一把（每会话独立的）锁内完成，
         // 保证并发到达的消息严格按处理顺序落进通知（不会出现旧快照 notify 覆盖新快照）。
+        var notifyMgrForSummary: NotificationManagerCompat? = null
         synchronized(lines) {
             lines.addFirst(body)
             if (lines.size > 5) lines.removeLast()
@@ -52,7 +54,7 @@ class NotificationHelper @Inject constructor(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_email)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setAutoCancel(true)
@@ -88,10 +90,13 @@ class NotificationHelper @Inject constructor(
             try {
                 val mgr = NotificationManagerCompat.from(context)
                 mgr.notify(convId, MESSAGE_NOTIFICATION_ID, builder.build())
-                // 更新群组汇总通知（Android 7+ 折叠多会话）
-                showGroupSummary(mgr)
+                notifyMgrForSummary = mgr
             } catch (_: SecurityException) { /* 无权限，忽略 */ }
         }
+        // 群组汇总通知移出 synchronized(lines) 块之外调用：showGroupSummary 内部会遍历并
+        // 获取其它会话各自的锁，若在持有当前会话锁时嵌套获取，并发到达的不同会话消息
+        // 互相等待对方释放锁时理论上会 ABBA 死锁（当前回调虽跑主线程串行未触发，仍应避免）。
+        notifyMgrForSummary?.let { showGroupSummary(it) }
     }
 
     /** 清除某会话的聚合缓存（进入聊天时调用） */
@@ -106,7 +111,7 @@ class NotificationHelper @Inject constructor(
         val totalUnread = pendingLines.values.sumOf { synchronized(it) { it.size } }
         if (totalUnread < 2) return   // 只有 1 条时不显示汇总
         val summary = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("投聊")
             .setContentText("${totalUnread} 条新消息")
             .setGroup(GROUP_KEY_MESSAGES)
