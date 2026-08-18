@@ -8,8 +8,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -118,6 +120,9 @@ private object Routes {
     const val NOTIFICATIONS = "notificationSettings"
     const val APPEARANCE = "appearanceSettings"
     const val CALL_HISTORY = "callHistory"
+    const val SETTINGS_HOME = "settingsHome"
+    const val PROFILE_EDIT = "profileEdit"
+    const val INVITE_FRIEND = "inviteFriend"
     const val MOMENTS = "moments"
     const val MOMENT_COMPOSE = "momentCompose"
     const val REQUESTS = "requests"
@@ -192,9 +197,13 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (currentRoute in TAB_ROUTES) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = com.touliao.app.ui.theme.VxinBrand,
+                ) {
                     visibleTabs.forEach { tab ->
                         NavigationBarItem(
                             modifier = Modifier.testTag("nav-tab-${tab.testKey}"),
@@ -217,6 +226,13 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                                 }
                             },
                             label = { Text(tab.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = com.touliao.app.ui.theme.VxinBrand,
+                                selectedTextColor = com.touliao.app.ui.theme.VxinBrand,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = com.touliao.app.ui.theme.VxinBrandMuted,
+                            ),
                         )
                     }
                 }
@@ -270,9 +286,29 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
                     onOpenCallHistory = { navController.navigate(Routes.CALL_HISTORY) },
                     onOpenWallet = { navController.navigate(Routes.WALLET) },
                     onOpenSessions = { navController.navigate(Routes.SESSIONS) },
-                    onOpenPrivacy = { navController.navigate(Routes.PRIVACY) },
+                    onOpenInviteFriend = { navController.navigate(Routes.INVITE_FRIEND) },
+                    onOpenSettings = { navController.navigate(Routes.SETTINGS_HOME) },
+                    onOpenProfileEdit = { navController.navigate(Routes.PROFILE_EDIT) },
+                )
+            }
+            composable(Routes.SETTINGS_HOME) {
+                com.touliao.app.feature.settings.SettingsHomeScreen(
+                    onBack = { navController.popBackStack() },
                     onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                    onOpenPrivacy = { navController.navigate(Routes.PRIVACY) },
                     onOpenAppearance = { navController.navigate(Routes.APPEARANCE) },
+                    onOpenSessions = { navController.navigate(Routes.SESSIONS) },
+                )
+            }
+            composable(Routes.PROFILE_EDIT) {
+                com.touliao.app.feature.profile.ProfileEditScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenMyQr = { navController.navigate(Routes.MY_QRCODE) },
+                )
+            }
+            composable(Routes.INVITE_FRIEND) {
+                com.touliao.app.feature.profile.InviteFriendScreen(
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable(Routes.WALLET) {
@@ -300,7 +336,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0) {
             composable(Routes.ADD_ACCOUNT) {
                 LoginScreen(
                     onNavigateRegister = { navController.navigate(Routes.REGISTER) },
-                    onSuccess = { navController.popBackStack() },
+                    onSuccess = { navController.popBackStack(Routes.CONVERSATIONS, inclusive = false) },
                 )
             }
             composable(Routes.ADD_FRIEND) {

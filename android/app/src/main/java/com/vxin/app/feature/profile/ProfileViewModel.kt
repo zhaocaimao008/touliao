@@ -58,6 +58,11 @@ class ProfileViewModel @Inject constructor(
     fun switchAccount(id: String) { sessionManager.switchAccount(id) }
     fun removeAccount(id: String) { sessionManager.removeAccount(id); refreshAccounts() }
 
+    /** 编辑资料页返回后重新同步当前用户（对齐母版 refreshUser 行为）。 */
+    fun refreshUser() {
+        _uiState.update { it.copy(user = sessionManager.currentUser) }
+    }
+
     fun resolveAvatarUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     fun saveProfile(username: String, bio: String) {
