@@ -3,7 +3,7 @@
 # 投聊 生产健康检查（独立脚本，可 cron 或人工执行）
 #
 # 用法:
-#   bash deploy/health-check.sh              # 检查本机 touliao-backend@3002
+#   bash deploy/health-check.sh              # 检查本机 touliao-backend@3003
 #   PORT=3003 bash deploy/health-check.sh    # 检查其他端口（如投聊）
 #   PM2_NAME=touliao-backend bash deploy/health-check.sh
 #
@@ -15,7 +15,7 @@ ok()   { echo -e "${GRN}[✓]${NC} $*"; }
 warn() { echo -e "${YEL}[!]${NC} $*"; }
 bad()  { echo -e "${RED}[✗]${NC} $*"; }
 
-PORT="${PORT:-3002}"
+PORT="${PORT:-3003}"
 PM2_NAME="${PM2_NAME:-touliao-backend}"
 BASE="http://127.0.0.1:${PORT}"
 FAIL=0
