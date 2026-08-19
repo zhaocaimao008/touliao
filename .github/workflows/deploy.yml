@@ -167,8 +167,8 @@ jobs:
           npm ci --omit=dev
           chmod 600 .env 2>/dev/null || true
 
-          echo "🚀 步骤 3: 重启应用（pm2: touliao-server-v2）"
-          pm2 restart touliao-server-v2 --update-env || PORT=3002 pm2 start src/server.js --name touliao-server-v2
+          echo "🚀 步骤 3: 重启应用（pm2: touliao-backend）"
+          pm2 restart touliao-backend --update-env || PORT=3003 pm2 start src/server.js --name touliao-backend
           pm2 save || true
 
           echo "🔄 步骤 3b: Reload nginx（使静态文件变更立即生效）"
@@ -178,7 +178,7 @@ jobs:
           sleep 5
           HEALTH_OK=0
           for i in $(seq 1 15); do
-            if curl -s http://localhost:3002/health | grep -q "ok"; then
+            if curl -s http://localhost:3003/health | grep -q "ok"; then
               echo "✅ 健康检查通过"; HEALTH_OK=1; break
             fi
             echo "等待启动... ($i/15)"; sleep 2
@@ -192,17 +192,17 @@ jobs:
               git -C "$REPO_ROOT" reset --hard "$PREV_SHA"
               cd "$REPO_ROOT/web" && npm ci && npm run build || echo "⚠ 回滚 web 构建失败（前端可能保留新版 dist）"
               cd "$DEPLOY_PATH" && npm ci --omit=dev
-              pm2 restart touliao-server-v2 --update-env || PORT=3002 pm2 start src/server.js --name touliao-server-v2
+              pm2 restart touliao-backend --update-env || PORT=3003 pm2 start src/server.js --name touliao-backend
               pm2 save || true
               sleep 5
               RB_OK=0
               for i in $(seq 1 15); do
-                if curl -s http://localhost:3002/health | grep -q "ok"; then
+                if curl -s http://localhost:3003/health | grep -q "ok"; then
                   echo "✅ 回滚后健康检查通过（生产已恢复到 $PREV_SHA）"; RB_OK=1; break
                 fi
                 echo "回滚后等待启动... ($i/15)"; sleep 2
               done
-              [ "$RB_OK" = "1" ] || echo "🚨 回滚后仍不健康！需人工介入：pm2 logs touliao-server-v2 --lines 80"
+              [ "$RB_OK" = "1" ] || echo "🚨 回滚后仍不健康！需人工介入：pm2 logs touliao-backend --lines 80"
             else
               echo "🚨 无部署前版本（首次部署）可回滚，需人工介入"
             fi
@@ -223,5 +223,5 @@ jobs:
         if: failure()
         run: |
           echo "❌ 部署失败！"
-          echo "请检查服务器日志: pm2 logs touliao-server-v2 --lines 50"
+          echo "请检查服务器日志: pm2 logs touliao-backend --lines 50"
           exit 1
