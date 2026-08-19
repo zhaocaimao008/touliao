@@ -16,10 +16,10 @@ final class NotificationRepository {
 
     private let api = APIClient.shared
 
-    func register(token: String) async {
+    func register(token: String, platform: String = "ios") async {
         let _: EmptyResponse? = try? await api.send(
             "api/notifications/device-token", method: "POST",
-            body: DeviceTokenBody(token: token, platform: "ios")
+            body: DeviceTokenBody(token: token, platform: platform)
         )
     }
 
