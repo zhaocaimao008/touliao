@@ -7,7 +7,7 @@ set -euo pipefail
 : "${VXIN_ROOT:?需要 VXIN_ROOT 环境变量（由安装脚本设定）}"
 ENV_FILE="$VXIN_ROOT/backend-v2/.env"
 BE_PORT="${BE_PORT:-3002}"
-PM2_APP="${PM2_APP:-vxin-server-v2}"
+PM2_APP="${PM2_APP:-touliao-backend}"
 MEM_THRESHOLD="${ALERT_MEM_THRESHOLD:-85}"
 DISK_THRESHOLD="${ALERT_DISK_THRESHOLD:-85}"
 

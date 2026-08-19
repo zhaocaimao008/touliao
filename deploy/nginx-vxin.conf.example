@@ -15,11 +15,11 @@ server {
 
     client_max_body_size 1124m;  # 安全兜底 ~1GB（后端 MAX_UPLOAD_BYTES 精确卡 1GB）
 
-    # 后端 API + WebSocket → Node(127.0.0.1:3002)
-    location /api/      { proxy_pass http://127.0.0.1:3002; include /etc/nginx/proxy_params; }
-    location /uploads/  { proxy_pass http://127.0.0.1:3002; include /etc/nginx/proxy_params; }
+    # 后端 API + WebSocket → Node(127.0.0.1:3003)
+    location /api/      { proxy_pass http://127.0.0.1:3003; include /etc/nginx/proxy_params; }
+    location /uploads/  { proxy_pass http://127.0.0.1:3003; include /etc/nginx/proxy_params; }
     location /socket.io/ {
-        proxy_pass http://127.0.0.1:3002;
+        proxy_pass http://127.0.0.1:3003;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;     # WebSocket 必需
         proxy_set_header Connection "upgrade";

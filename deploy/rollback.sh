@@ -17,7 +17,7 @@ step() { echo -e "\n${YEL}── $* ──${NC}"; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BE="$ROOT/backend-v2"
-PM2_APP="vxin-server-v2"
+PM2_APP="touliao-backend"
 MODE=""
 TARGET=""
 DB_BACKUP=""

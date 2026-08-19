@@ -80,7 +80,7 @@ else
   ADMIN_WL="${ADMIN_IP_WHITELIST:-${AUTO_IP:-}}"
 
   cat > "$BE/.env" <<ENV
-PORT=3002
+PORT=3003
 NODE_ENV=production
 APP_URL=$APP_URL
 
@@ -118,12 +118,12 @@ fi
 step "4/8 启动后端 (pm2)"
 cd "$BE"
 pm2 start ecosystem.config.js --update-env 2>/dev/null || \
-  pm2 restart vxin-server-v2 --update-env 2>/dev/null || \
-  pm2 start src/server.js --name vxin-server-v2
+  pm2 restart touliao-backend --update-env 2>/dev/null || \
+  pm2 start src/server.js --name touliao-backend
 pm2 save >/dev/null
 pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
 sleep 2
-curl -sf "http://127.0.0.1:3002/health" >/dev/null && ok "后端健康检查: 通过" || warn "后端可能还在启动，稍候查看: pm2 logs vxin-server-v2"
+curl -sf "http://127.0.0.1:3003/health" >/dev/null && ok "后端健康检查: 通过" || warn "后端可能还在启动，稍候查看: pm2 logs touliao-backend"
 
 # ── [5/8] 前端构建 ──────────────────────────────────────────────────
 step "5/8 构建前端"
@@ -148,7 +148,7 @@ server {
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 
     location /api/ {
-        proxy_pass         http://127.0.0.1:3002;
+        proxy_pass         http://127.0.0.1:3003;
         proxy_set_header   Host \$host;
         proxy_set_header   X-Real-IP \$remote_addr;
         proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -156,7 +156,7 @@ server {
         proxy_read_timeout 60s;
     }
     location /socket.io/ {
-        proxy_pass             http://127.0.0.1:3002;
+        proxy_pass             http://127.0.0.1:3003;
         proxy_http_version     1.1;
         proxy_set_header       Upgrade \$http_upgrade;
         proxy_set_header       Connection "upgrade";
@@ -166,12 +166,12 @@ server {
         proxy_read_timeout     3600s;
     }
     location /uploads/ {
-        proxy_pass       http://127.0.0.1:3002;
+        proxy_pass       http://127.0.0.1:3003;
         proxy_set_header Host \$host;
         expires          7d;
     }
-    location /health   { proxy_pass http://127.0.0.1:3002; access_log off; }
-    location /download { proxy_pass http://127.0.0.1:3002; }
+    location /health   { proxy_pass http://127.0.0.1:3003; access_log off; }
+    location /download { proxy_pass http://127.0.0.1:3003; }
     location /downloads/ { root /var/www; add_header Cache-Control no-cache; }
     location / { try_files \$uri \$uri/ /index.html; }
 }
@@ -232,7 +232,7 @@ echo -e "${GRN}║           v信 部署完成                          ║${NC}
 echo -e "${GRN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
 echo "  访问地址:  $APP_URL"
-echo "  后端健康:  $(curl -sf http://127.0.0.1:3002/health >/dev/null 2>&1 && echo '✅ 正常' || echo '⚠ 请查看 pm2 logs vxin-server-v2')"
+echo "  后端健康:  $(curl -sf http://127.0.0.1:3003/health >/dev/null 2>&1 && echo '✅ 正常' || echo '⚠ 请查看 pm2 logs touliao-backend')"
 echo "  admin 密码: $(cat "$BE/ADMIN_PASSWORD.txt" 2>/dev/null || echo '见 backend-v2/ADMIN_PASSWORD.txt')"
 echo ""
 echo "  下一步："
@@ -241,7 +241,7 @@ echo "    2. 切换所有 App 到新域名: GitHub vxin-config → Actions → �
 echo "    3. 通话 NAT 穿透(可选):   bash deploy/setup-coturn.sh"
 echo ""
 if [[ -z "${ALERT_BOT_TOKEN:-}" ]]; then
-  echo "  可选监控配置（部署后在 .env 填写，填完 pm2 restart vxin-server-v2）:"
+  echo "  可选监控配置（部署后在 .env 填写，填完 pm2 restart touliao-backend）:"
   echo "    ALERT_BOT_TOKEN=xxx  # Telegram bot token"
   echo "    ALERT_CHAT_ID=xxx    # Telegram chat id"
   echo "    SENTRY_DSN=https://… # 错误监控"
