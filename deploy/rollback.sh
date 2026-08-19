@@ -17,7 +17,7 @@ step() { echo -e "\n${YEL}── $* ──${NC}"; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BE="$ROOT/backend-v2"
-PM2_APP="vxin-server-v2"
+PM2_APP="touliao-backend"
 MODE=""
 TARGET=""
 DB_BACKUP=""
@@ -44,7 +44,7 @@ esac
 
 # ── 健康检查函数 ─────────────────────────────────────────────────────────────
 check_health() {
-  local url="${APP_URL:-http://127.0.0.1:3002}/health"
+  local url="${APP_URL:-http://127.0.0.1:3003}/health"
   for i in $(seq 1 10); do
     if curl -sf "$url" -o /dev/null --max-time 5; then
       ok "健康检查通过: $url"

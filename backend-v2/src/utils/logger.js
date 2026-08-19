@@ -30,7 +30,7 @@ const consoleFormat = winston.format.combine(
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: jsonFormat,
-  defaultMeta: { service: 'vxin-backend' },
+  defaultMeta: { service: 'touliao-backend' },
   transports: [
     // 控制台输出
     new winston.transports.Console({

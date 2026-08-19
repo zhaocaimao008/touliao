@@ -34,7 +34,7 @@ function saveDeviceToken(userId, token, platform) {
   // getui = 国产 ROM 的个推 CID（无 GMS 设备靠它兜底锁屏推送）。此前漏了 getui，
   // 导致个推 CID 注册被 400 拒绝、永远存不进库 → getuiPush 的 WHERE platform='getui'
   // 查询恒空 → 国产 ROM 锁屏推送从未生效。
-  if (!['android', 'ios', 'getui'].includes(platform)) throw badRequest('参数无效，platform 必须为 android、ios 或 getui');
+  if (!['android', 'ios', 'ios_voip', 'getui'].includes(platform)) throw badRequest('参数无效，platform 必须为 android、ios、ios_voip 或 getui');
   db.prepare(`
     INSERT INTO device_tokens (id, user_id, token, platform)
     VALUES (?, ?, ?, ?)

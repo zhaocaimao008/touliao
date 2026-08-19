@@ -3,7 +3,7 @@
  * 云存储抽象（Cloudflare R2 / 阿里云 OSS / 腾讯云 COS）。
  * 通过 CLOUD_PROVIDER 选择。客户端直传，文件绝不经过本服务器。
  */
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl }               = require('@aws-sdk/s3-request-presigner');
 
 const PROVIDER = (process.env.CLOUD_PROVIDER || '').toLowerCase();
@@ -81,10 +81,25 @@ function getConfig() {
 
 async function getPresignedPutUrl(key, contentType) {
   if (!isConfigured()) throw new Error('云存储未配置，请先设置 CLOUD_PROVIDER 及对应环境变量');
-  const { client, bucket, publicBase } = getConfig();
+  const { client, bucket } = getConfig();
   const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType });
   const uploadUrl = await getSignedUrl(client, cmd, { expiresIn: 600 });
-  return { uploadUrl, publicUrl: `${publicBase}/${key}` };
+  // 上传凭证只暴露短时 PUT URL；公开访问地址一律不给（Private bucket，下载走权限校验后的 302 跳转）。
+  return { uploadUrl, publicUrl: '' };
+}
+
+/**
+ * 生成短时 GET 预签名 URL（默认 600s）。
+ * 仅允许在服务端完成 file_registry 权限校验后调用；预签名 URL 在有效期内是 bearer capability，
+ * 不得写入日志、不得持久化存储。
+ * @param {string} key R2 对象 key
+ * @param {number} [expiresIn=600] 秒
+ */
+async function getPresignedGetUrl(key, expiresIn = 600) {
+  if (!isConfigured()) throw new Error('云存储未配置，请先设置 CLOUD_PROVIDER 及对应环境变量');
+  const { client, bucket } = getConfig();
+  const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
+  return getSignedUrl(client, cmd, { expiresIn });
 }
 
 async function uploadFile(key, buffer, contentType) {
@@ -99,4 +114,4 @@ function getPublicBase() {
   return getConfig().publicBase;
 }
 
-module.exports = { isConfigured, getPresignedPutUrl, uploadFile, getPublicBase };
+module.exports = { isConfigured, getPresignedPutUrl, getPresignedGetUrl, uploadFile, getPublicBase };

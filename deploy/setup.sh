@@ -16,7 +16,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BE="$ROOT/backend-v2"
 WEB="$ROOT/web"
 WEBROOT="${WEBROOT:-/var/www/vxin}"
-PM2_NAME="vxin-server-v2"
+PM2_NAME="touliao-backend"
 
 log(){ printf '\033[36m[deploy]\033[0m %s\n' "$*"; }
 die(){ printf '\033[31m[错误]\033[0m %s\n' "$*" >&2; exit 1; }

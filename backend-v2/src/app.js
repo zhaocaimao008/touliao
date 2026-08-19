@@ -3,6 +3,7 @@
  * Express 应用装配（不含 HTTP/Socket 启动，便于测试与复用）。
  * 中间件顺序：compression → helmet → cors → cookieParser → body 解析 → 静态 → CSRF 门控 → 路由 → 错误处理。
  */
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const compression = require('compression');
@@ -95,6 +96,7 @@ const { isBlacklisted } = require('./utils/tokenBlacklist');
 const { isMember } = require('./modules/messages/shared');
 const { assertVisible } = require('./modules/moments/moments.service');
 const { lookupFile } = require('./utils/fileRegistry');
+const cloudStorage = require('./utils/cloudStorage');
 // P1-02 v2：moments 可见性门控查询需要 db（resolveUploadAccess 内使用）
 const db = require('./db');
 
@@ -168,7 +170,7 @@ app.use('/uploads', (req, res, next) => {
     }
   }
 
-  isBlacklisted(token).then(blacklisted => {
+  isBlacklisted(token).then(async blacklisted => {
     if (blacklisted) return res.status(401).json({ error: '登录已失效，请重新登录' });
 
     // P1-02：管理员放行全部；普通用户按资源类别做所有权/权限校验
@@ -176,6 +178,22 @@ app.use('/uploads', (req, res, next) => {
       const access = resolveUploadAccess(userId, req.path);
       if (!access) return res.status(404).json({ error: '资源不存在' });
       if (!access.ok) return res.status(access.status || 403).json({ error: '无权访问' });
+    }
+
+    // R2/云存储模式：file_registry 权限校验通过后，本地无此对象时生成短时 presigned GET 并 302。
+    // 预签名 URL 属 bearer capability，不落日志、不持久化；未授权请求已在上面被拦截，绝拿不到 URL。
+    if (cloudStorage.isConfigured()) {
+      const localFile = path.join(config.uploadsRoot, req.path);
+      if (!fs.existsSync(localFile)) {
+        try {
+          const key = `uploads${req.path}`; // /uploads/files/x.png → uploads/files/x.png
+          const signed = await cloudStorage.getPresignedGetUrl(key, 600);
+          return res.redirect(302, signed);
+        } catch (e) {
+          console.error('[uploads] presigned GET 生成失败:', e.message);
+          return res.status(500).json({ error: '文件读取失败，请稍后重试' });
+        }
+      }
     }
     next();
   }).catch(err => {

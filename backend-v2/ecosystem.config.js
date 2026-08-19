@@ -9,7 +9,7 @@
 module.exports = {
   apps: [
     {
-      name: 'touliao-server-v2',
+      name: 'touliao-backend',
       script: 'src/server.js',
       cwd: __dirname,
       instances: 1,
@@ -22,7 +22,7 @@ module.exports = {
       kill_timeout: 5000,
       env: {
         NODE_ENV: 'production',
-        PORT: '3002',
+        PORT: '3003',
       },
       error_file: '/root/.pm2/logs/touliao-server-v2-error.log',
       out_file: '/root/.pm2/logs/touliao-server-v2-out.log',
