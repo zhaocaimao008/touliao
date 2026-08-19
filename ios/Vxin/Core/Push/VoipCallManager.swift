@@ -77,14 +77,30 @@ final class VoipCallManager: NSObject, PKPushRegistryDelegate, CXProviderDelegat
         let callerName = d["callerName"] as? String ?? ""
         let callType = d["callType"] as? String ?? "audio"
 
-        // 前台不弹 CallKit：应用内 CallHostView 已有来电 UI，避免双 UI（与 Android appForeground 去重对齐）
+        // 前台不弹 CallKit 全屏：应用内 CallHostView 已有来电 UI，避免双 UI（与 Android appForeground 去重对齐）。
+        // 但 iOS 13+ 要求每个 PushKit VoIP push 必须上报 CallKit，否则进程会被终止、后续 VoIP push 被抑制
+        // （Codex review P1）→ 前台也 reportNewIncomingCall，随后立即以 remoteEnded 结束，满足系统要求且不干扰应用内 UI。
         guard UIApplication.shared.applicationState != .active else {
             CallManager.shared.incomingFromPush(from: from, callType: callType, callerName: callerName, callId: callId)
+            reportAndImmediatelyEnd(callId: callId, from: from, callerName: callerName, callType: callType)
             return
         }
         // 同 callId 幂等忽略（对齐 incomingFromPush 的 peerId 去重）
         if let p = pendingCallInfo, p.callId == callId { return }
         reportIncomingCall(callId: callId, from: from, callerName: callerName, callType: callType)
+    }
+
+    /// 前台场景：上报 CallKit 后立即结束，满足「每个 VoIP push 必须上报 CallKit」的系统要求（iOS 13+），
+    /// 同时避免与应用内 CallHostView 双 UI 冲突。
+    private func reportAndImmediatelyEnd(callId: String, from: String, callerName: String, callType: String) {
+        let uuid = UUID()
+        let update = CXCallUpdate()
+        update.remoteHandle = CXHandle(type: .generic, value: from)
+        update.localizedCallerName = callerName.isEmpty ? "来电" : callerName
+        update.hasVideo = callType == "video"
+        provider?.reportNewIncomingCall(with: uuid, update: update) { [weak self] _ in
+            self?.provider?.reportCall(with: uuid, endedAt: Date(), reason: .remoteEnded)
+        }
     }
 
     private func reportIncomingCall(callId: String, from: String, callerName: String, callType: String) {
