@@ -176,7 +176,7 @@ jobs:
             # 更新后端
             cd backend-v2
             npm ci --production
-            pm2 restart touliao-server-v2
+            pm2 restart touliao-backend
             
             # 更新前端
             cd ../web

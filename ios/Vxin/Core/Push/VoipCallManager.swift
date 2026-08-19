@@ -49,6 +49,14 @@ final class VoipCallManager: NSObject, PKPushRegistryDelegate, CXProviderDelegat
         }
     }
 
+    /// 登录后调用：把 PushKit 在未登录期间缓存的 VoIP token 补注册到后端。
+    /// PushKit 通常只在 token 变化时回调，登录后再也不会触发 didUpdate，
+    /// 若不补注册，该设备永远收不到 VoIP 来电（Codex review P1）。
+    func registerCachedTokenIfNeeded() {
+        guard let token = latestVoipToken, KeychainStore.shared.isLoggedIn else { return }
+        Task { await NotificationRepository.shared.register(token: token, platform: "ios_voip") }
+    }
+
     func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
         guard type == .voIP else { return }
         if let token = latestVoipToken {
@@ -71,7 +79,7 @@ final class VoipCallManager: NSObject, PKPushRegistryDelegate, CXProviderDelegat
 
         // 前台不弹 CallKit：应用内 CallHostView 已有来电 UI，避免双 UI（与 Android appForeground 去重对齐）
         guard UIApplication.shared.applicationState != .active else {
-            CallManager.shared.incomingFromPush(from: from, callType: callType, callerName: callerName)
+            CallManager.shared.incomingFromPush(from: from, callType: callType, callerName: callerName, callId: callId)
             return
         }
         // 同 callId 幂等忽略（对齐 incomingFromPush 的 peerId 去重）
@@ -84,7 +92,7 @@ final class VoipCallManager: NSObject, PKPushRegistryDelegate, CXProviderDelegat
         pendingCallUUID = uuid
         pendingCallInfo = (callId: callId, from: from, callerName: callerName, callType: callType)
         // 先置本地通话状态，防止随后到达的 socket call:incoming 与 CallKit 竞态
-        CallManager.shared.incomingFromPush(from: from, callType: callType, callerName: callerName)
+        CallManager.shared.incomingFromPush(from: from, callType: callType, callerName: callerName, callId: callId)
 
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(type: .generic, value: from)
@@ -99,9 +107,10 @@ final class VoipCallManager: NSObject, PKPushRegistryDelegate, CXProviderDelegat
             }
         }
 
-        // 被叫侧本地 120s 响铃超时（对齐服务端 CALL_TIMEOUT_MS）→ 未接听自动结束 CallKit + reject 信令
+        // 被叫侧本地 120s 响铃超时（对齐服务端 CALL_TIMEOUT_MS）→ 未接听自动结束 CallKit + reject 信令。
+        // 接听后 pendingCallInfo 会被置 nil，此处据此跳过，避免已接通通话被定时器误挂。
         DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in
-            guard let self, self.pendingCallUUID == uuid else { return }
+            guard let self, self.pendingCallUUID == uuid, self.pendingCallInfo != nil else { return }
             self.endCallIfNeeded(uuid: uuid)
             CallManager.shared.reject()
         }
@@ -117,7 +126,9 @@ final class VoipCallManager: NSObject, PKPushRegistryDelegate, CXProviderDelegat
 
     func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         CallManager.shared.accept()
-        pendingCallUUID = nil
+        // 保留 pendingCallUUID 供 endActiveCall() 在通话结束时关闭系统通话 UI；
+        // 清空 pendingCallInfo，使后续 CXEndCallAction 走 hangup() 而非 reject()（已不是 incoming 态）。
+        pendingCallInfo = nil
         action.fulfill()
     }
 

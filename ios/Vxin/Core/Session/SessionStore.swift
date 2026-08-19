@@ -48,6 +48,7 @@ final class SessionStore: ObservableObject {
         if let user = await repo.restoreSession() {
             SocketService.shared.connect()
             PushManager.shared.requestAuthorizationAndRegister()
+            VoipCallManager.shared.registerCachedTokenIfNeeded()   // 补注册 PushKit 在未登录期缓存的 VoIP token
             state = .authenticated(user)
         } else {
             state = .unauthenticated
@@ -60,6 +61,7 @@ final class SessionStore: ObservableObject {
         MsgCacheStore.shared.clear()   // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
         SocketService.shared.connect()
         PushManager.shared.requestAuthorizationAndRegister()
+        VoipCallManager.shared.registerCachedTokenIfNeeded()   // 补注册 PushKit 在未登录期缓存的 VoIP token
         refreshAccounts()   // 登录成功后 AuthRepository 已 upsert 新账号，同步发布列表
         state = .authenticated(user)
     }
@@ -89,6 +91,7 @@ final class SessionStore: ObservableObject {
         MsgCacheStore.shared.clear()   // 切号缓存隔离：新账号不读旧账号离线消息
         SocketService.shared.connect()
         PushManager.shared.requestAuthorizationAndRegister()
+        VoipCallManager.shared.registerCachedTokenIfNeeded()   // 切号后补注册 VoIP token
         refreshAccounts()   // active 变化 → 刷新「当前」标记
         Task { await restoreSession() }
     }

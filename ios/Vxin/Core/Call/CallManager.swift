@@ -182,11 +182,13 @@ final class CallManager: NSObject, ObservableObject {
         // 因 stage!=idle/ended 未覆盖 state），无守卫会让过期 DECLINE 静默拒接/拆毁一通不相关的活跃通话（Hermes F1）。
         guard state.stage == .incoming else { return }
         if !state.peerId.isEmpty { socket.emitCallResponse(to: state.peerId, accepted: false, callId: state.callId) }
+        VoipCallManager.shared.endActiveCall()   // 同步收尾 CallKit 来电界面
         cleanup(.ended)
     }
 
     func hangup() {
         if !state.peerId.isEmpty { socket.emitCallEnd(to: state.peerId, callId: state.callId) }
+        VoipCallManager.shared.endActiveCall()   // 同步收尾 CallKit 通话界面
         cleanup(.ended)
     }
 
@@ -272,6 +274,7 @@ final class CallManager: NSObject, ObservableObject {
 
         socket.callEnd.receive(on: DispatchQueue.main).sink { [weak self] from in
             guard let self, from == self.state.peerId else { return }
+            VoipCallManager.shared.endActiveCall()   // 对方挂断时同步收尾 CallKit
             self.cleanup(.ended)
         }.store(in: &cancellables)
     }

@@ -387,9 +387,8 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
 // 改走 APNs alert（category=INCOMING_CALL），锁屏/后台/被杀均由系统直接展示，
 // 且带上与消息内文案一致的 data 字段，供 AppDelegate 的 ANSWER/DECLINE 动作复用。
 async function pushCallInvite({ toUserId, fromUserId, callerName, callType, callId }) {
-  if (!firebaseAdmin) return;
-  // 同 pushToUser：android/ios 走 FCM；ios_voip 是 PushKit 专用 token，
-  // 走独立的 APNs 直连通路，不依赖 firebaseAdmin。
+  // 注意：ios_voip 走独立 APNs 直连通路（sendVoipPush），不依赖 firebaseAdmin；
+  // 因此这里不能用 if (!firebaseAdmin) return 整体短路，否则 APNs VoIP 被误拦。
   const deviceTokens = db.prepare(
     "SELECT * FROM device_tokens WHERE user_id=? AND platform IN ('android','ios','ios_voip')"
   ).all(toUserId);
@@ -431,6 +430,7 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
         },
       };
     }
+    if (!firebaseAdmin) continue;   // FCM 未配置时跳过 android/ios（ios_voip 已在上方走独立 APNs 直连）
     promises.push(firebaseAdmin.messaging().send(message).catch(err => {
       if (err.code === 'messaging/invalid-registration-token' ||
           err.code === 'messaging/registration-token-not-registered') {
