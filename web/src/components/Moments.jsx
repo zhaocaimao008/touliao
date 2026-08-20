@@ -58,7 +58,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
 
   return (
     <div className="wc-moment-card">
-      <Avatar src={m.author?.avatar} name={m.author?.username} size={42} />
+      <Avatar src={m.author?.avatar} name={m.author?.username} size={40} />
       <div className="wc-moment-body">
         <div className="wc-moment-header">
           <span className="wc-moment-name">{m.author?.username || '用户'}</span>

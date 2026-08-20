@@ -2745,7 +2745,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .af-modal {
   width: 440px; max-width: 92vw;
   background: var(--bg-msg-other);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--elev-dialog);
   animation: scaleIn .15s var(--ease);
@@ -2807,9 +2807,9 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .up-card {
   width: 360px; max-width: 94vw;
   background: var(--bg-msg-other);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--elev-modal);
+  box-shadow: var(--elev-dialog);
   animation: scaleIn .15s var(--ease);
   display: flex; flex-direction: column;
 }
@@ -3761,7 +3761,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 
 /* === RedPacketModal component classes === */
 .rpm-overlay { position: fixed; inset: 0; background-color: var(--scrim); display: flex; align-items: center; justify-content: center; z-index: calc(var(--z-modal) + 2); }
-.rpm-card { background-color: var(--bg-card); border-radius: var(--radius-xl); padding: var(--sp-6); width: 90%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,.16); }
+.rpm-card { background-color: var(--bg-card); border-radius: var(--radius-lg); padding: var(--sp-6); width: 90%; max-width: 400px; box-shadow: var(--elev-dialog); }
 .rpm-title { font-size: var(--text-xl); font-weight: var(--font-bold); color: var(--text-title); margin-bottom: var(--sp-5); }
 .rpm-error { padding: var(--sp-2h); background: rgba(250,81,81,.08); color: var(--color-badge); border-radius: var(--radius-md); margin-bottom: var(--sp-3); font-size: var(--text-sm2); }
 .rpm-field { margin-bottom: var(--sp-4); }

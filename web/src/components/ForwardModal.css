@@ -9,11 +9,11 @@
   height: 600px;
   max-height: 90vh;
   background: var(--bg-modal);
-  border-radius: var(--radius-modal);
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--elev-dialog);
   animation: fwd-panel-in var(--dur-base) var(--ease-enter) both;
 }
 @keyframes fwd-panel-in {

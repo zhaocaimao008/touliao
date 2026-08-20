@@ -29,7 +29,7 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
     >
       {info.avatar && !avErr
         ? <img src={mediaUrl(info.avatar)} alt="" loading="lazy" className="gi-av-img" onError={() => setAvErr(true)} style={{ borderRadius: r }} />
-        : <GroupAvatar members={info.members} size={50} />
+        : <GroupAvatar members={info.members} size={48} />
       }
       {isAdmin && (hovered || uploading) && (
         <div className="gi-av-overlay" style={{ borderRadius: r }}>
@@ -84,7 +84,7 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
   const q = kickSearch.toLowerCase();
   return (
     <div className="gi-mi" style={style}>
-      <Avatar src={m.avatar} name={m.username} size={38} />
+      <Avatar src={m.avatar} name={m.username} size={40} />
       <div className="gi-f1">
         <div className="gi-mn">
           {q && m.username.toLowerCase().includes(q)

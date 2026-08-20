@@ -80,7 +80,7 @@ export default function CallHistory({ onOpenChat }) {
               role={onOpenChat ? 'button' : undefined} tabIndex={onOpenChat ? 0 : undefined}
               onKeyDown={e => { if (onOpenChat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPeer(c); } }}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: onOpenChat ? 'pointer' : 'default' }}>
-              <Avatar src={c.peer_avatar} name={c.peer_name} size={42} />
+              <Avatar src={c.peer_avatar} name={c.peer_name} size={40} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || '用户'}</div>
                 <div style={{ fontSize: 'var(--text-sm)', color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -17,7 +17,7 @@ function GroupGridCell({ member = {}, cellSize }) {
 }
 
 /** 群头像拼图（微信风格 N宫格，支持自定义头像） */
-export function GroupAvatar({ members = [], size = 46, avatar = '' }) {
+export function GroupAvatar({ members = [], size = 48, avatar = '' }) {
   const [avatarErr, setAvatarErr] = useState(false);
   const [prevAvatar, setPrevAvatar] = useState(avatar);
   if (avatar !== prevAvatar) { setPrevAvatar(avatar); setAvatarErr(false); }

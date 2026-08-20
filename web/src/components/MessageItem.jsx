@@ -290,7 +290,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && card.uid) { e.preventDefault(); cbs.setShowUserProfile(card.uid); } }}
                 >
                   <div className="wc-contact-card-body">
-                    <Avatar src={card.avatar} name={card.username} size={44} style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
+                    <Avatar src={card.avatar} name={card.username} size={40} style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
                     <div className="wc-contact-card-info">
                       <div className="wc-contact-card-name">{card.username || '用户'}</div>
                       {card.wechat_id && <div className="wc-contact-card-wechat">投聊号：{card.wechat_id}</div>}

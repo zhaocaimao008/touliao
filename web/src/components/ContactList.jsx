@@ -264,7 +264,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 )}
                 {requests.map(r => (
                   <div key={r.id} className="req-item">
-                    <Avatar src={r.avatar || r.from?.avatar} name={r.username || r.from?.username} size={46} className="cl-avatar-rounded" />
+                    <Avatar src={r.avatar || r.from?.avatar} name={r.username || r.from?.username} size={48} className="cl-avatar-rounded" />
                     <div className="req-info">
                       <div className="req-name">{r.username || r.from?.username}</div>
                       <div className="req-msg">{r.message || '请求添加您为好友'}</div>
@@ -287,7 +287,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 )}
                 {sentRequests.map(r => (
                   <div key={r.id} className="req-item">
-                    <Avatar src={r.avatar} name={r.username} size={46} className="cl-avatar-rounded" />
+                    <Avatar src={r.avatar} name={r.username} size={48} className="cl-avatar-rounded" />
                     <div className="req-info">
                       <div className="req-name">{r.username}</div>
                       <div className="req-msg">{r.message || '请求添加对方为好友'}</div>
@@ -313,7 +313,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             )}
             {blockedUsers.map(u => (
               <div key={u.id} className="req-item">
-                <Avatar src={u.avatar} name={u.username} size={46} className="cl-avatar-rounded" />
+                <Avatar src={u.avatar} name={u.username} size={48} className="cl-avatar-rounded" />
                 <div className="req-info">
                   <div className="req-name">{u.username}</div>
                 </div>

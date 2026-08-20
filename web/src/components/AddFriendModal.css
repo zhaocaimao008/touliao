@@ -20,9 +20,9 @@
   max-width: 92vw;
   max-height: 72vh;
   background: var(--bg-modal);
-  border-radius: var(--radius-modal);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--elev-dialog);
   display: flex;
   flex-direction: column;
   animation: afm-panel-in var(--dur-base) var(--ease-enter) both;
