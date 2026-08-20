@@ -155,7 +155,7 @@ export default function ScanQR({ onClose }) {
               disabled={phase === 'joining'}
               style={{
                 marginTop: 6, padding: '10px 40px', border: 'none', borderRadius: 'var(--radius-2xl, 20px)',
-                background: 'var(--green, #07C160)', color: '#fff', fontSize: 'var(--text-base, 15px)',
+                background: 'var(--green, #6D5AE6)', color: '#fff', fontSize: 'var(--text-base, 15px)',
                 cursor: phase === 'joining' ? 'default' : 'pointer', opacity: phase === 'joining' ? 0.7 : 1,
               }}
             >{phase === 'joining' ? '加入中…' : (info.alreadyMember ? '进入群聊' : '加入群聊')}</button>
@@ -169,7 +169,7 @@ export default function ScanQR({ onClose }) {
               onClick={() => onClose()}
               style={{
                 padding: '8px 24px', border: 'none', borderRadius: 'var(--radius-2xl, 20px)',
-                background: 'var(--green, #07C160)', color: '#fff', fontSize: 'var(--text-base, 15px)', cursor: 'pointer',
+                background: 'var(--green, #6D5AE6)', color: '#fff', fontSize: 'var(--text-base, 15px)', cursor: 'pointer',
               }}
             >关闭</button>
           </div>

@@ -524,7 +524,7 @@ export default function CallModal({ socket, call, onClose }) {
               className="cm-bubble-audio-avatar"
               style={{
                 boxShadow: isConnected
-                  ? '0 0 0 3px rgba(7,193,96,.8), 0 6px 20px rgba(0,0,0,.4)'
+                  ? '0 0 0 3px rgba(var(--color-primary-rgb),.8), 0 6px 20px rgba(0,0,0,.4)'
                   : '0 6px 20px rgba(0,0,0,.4)',
                 animation: isConnected ? 'callPulse 2s ease-in-out infinite' : 'none',
               }}
@@ -688,7 +688,7 @@ export default function CallModal({ socket, call, onClose }) {
             height: status === 'incoming' ? 110 : 96,
             borderRadius: '50%',
             boxShadow: status === 'connected'
-              ? '0 0 0 4px rgba(7,193,96,.6), 0 8px 32px rgba(0,0,0,.5)'
+              ? '0 0 0 4px rgba(var(--color-primary-rgb),.6), 0 8px 32px rgba(0,0,0,.5)'
               : '0 8px 32px rgba(0,0,0,.5)',
             animation: status === 'connected' ? 'callPulse 2s ease-in-out infinite' : 'none',
             transition: 'box-shadow .4s',

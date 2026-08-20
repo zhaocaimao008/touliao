@@ -51,7 +51,7 @@
   --shadow-bubble-other-soft: 0 1px 3px rgba(20,24,40,.07), 0 1px 8px rgba(20,24,40,.05);
   /* 浅绿气泡内文字/链接（企业微信经典：深色正文 + 微信蓝链接），收敛原散落裸写值 */
   --bubble-mine-text: #1F2329;
-  --bubble-mine-link: #576B95;
+  --bubble-mine-link: var(--color-primary);   /* 白字紫底气泡内链接 */
 
   /* 品牌渐变（AURORA 靛→青碧）：我方气泡、侧栏头像、确认按钮等使用。
      原定义在 index.css :root，随单一真相源合并迁移至此。*/
@@ -414,7 +414,7 @@
   --bg-chat-header:   #FFFFFF;
   --bg-input:         rgba(251,250,254,.92);
   --bg-search:        var(--bg-input-search);
-  --bg-msg-mine:      #95EC69;   /* 我方气泡：企业微信浅绿(2026-08 用户要求) */
+  --bg-msg-mine:      var(--brand-500);   /* 我方气泡：品牌紫(2026-08 chat-window 改版) */
   --bg-msg-other:     var(--bubble-other);
   --bg-hover:         rgba(0, 0, 0, .04);
   --bg-active:        var(--bg-panel-item-active);
@@ -565,7 +565,7 @@ body.dark-mode {
   --green-hover:    var(--color-primary-hover);  /* 原 #1F8044 是遗留绿色，暗色下主色 hover 会误变绿，改为跟随靛紫主色 */
   --link-color:     var(--color-primary);
   --link:           #A99CF0;   /* 暗色下提亮为浅薰衣草靛，保证深底对比度（WCAG）且与 AURORA 和谐 */
-  --bg-msg-mine:    #95EC69;   /* 暗色下我方气泡：同样企业微信浅绿 */
+  --bg-msg-mine:    var(--brand-500);   /* 暗色下我方气泡：同样品牌紫 */
   --bg-msg-other:   var(--bg-input-search);   /* 暗色他人气泡：深灰搜索框色（原 var(--bubble-other)=#26262A，index.css 覆盖为 #2C2C2E，此处对齐零回归）*/
   --bg-active:      var(--bg-panel-item-active);
   --bg-active-hover:var(--bg-panel-item-active-hover);

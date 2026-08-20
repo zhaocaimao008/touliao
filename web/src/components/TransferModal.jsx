@@ -91,7 +91,7 @@ export default function TransferModal({ conversation, onClose, onSent }) {
             disabled={!canSend || sending}
             className="rpm-btn-send"
             style={{
-              background: canSend && !sending ? 'var(--green)' : 'rgba(7,193,96,.4)',
+              background: canSend && !sending ? 'var(--green)' : 'rgba(var(--color-primary-rgb),.35)',
               cursor:     canSend && !sending ? 'pointer'     : 'not-allowed',
             }}
           >

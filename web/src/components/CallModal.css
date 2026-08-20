@@ -113,7 +113,7 @@
 /* 语音通话背景（默认渐变；有头像时背景图在内联） */
 .cm-voice-bg {
   position: absolute; inset: 0;
-  background: linear-gradient(160deg, #2c3e50 0%, #1a252f 100%);
+  background: linear-gradient(160deg, #2A2440 0%, #17132A 100%);
 }
 .cm-voice-content {
   position: absolute; inset: 0; z-index: 2;

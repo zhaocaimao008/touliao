@@ -116,7 +116,7 @@ const styles = {
     padding: '10px 22px', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-base)', fontWeight: 500,
     cursor: 'pointer', border: 'none', transition: 'opacity .15s',
   },
-  btnPrimary: { background: 'var(--green)', color: 'var(--text-inverse, #fff)' },
+  btnPrimary: { background: 'linear-gradient(135deg, var(--brand-400), var(--brand-600))', color: 'var(--text-inverse, #fff)' },
   btnGhost: { background: 'var(--bg-hover, #f0f0f0)', color: 'var(--text-primary, #333)' },
   hint: { fontSize: 'var(--text-sm)', color: 'var(--text-tertiary, #aaa)', margin: '18px 0 0' },
 };

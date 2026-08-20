@@ -138,7 +138,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-server-btn { flex: 1; padding: 10px 0; border-radius: var(--radius-md); font-size: var(--text-sm2); font-weight: var(--font-medium); cursor: pointer; border: none; transition: opacity var(--dur-fast); }
 .auth-server-btn:hover { opacity: .85; }
 .auth-server-btn.ghost { background: rgba(255,255,255,.08); color: var(--gray-0); border: 1px solid rgba(255,255,255,.12); }
-.auth-server-btn.primary { background: var(--green); color: var(--gray-0); }
+.auth-server-btn.primary { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); }
 .auth-server-cancel { display: block; width: 100%; margin-top: var(--sp-2); background: none; border: none; color: rgba(255,255,255,.4); font-size: var(--text-sm); cursor: pointer; padding: var(--sp-1); }
 .auth-server-cancel:hover { color: var(--gray-0); }
 
