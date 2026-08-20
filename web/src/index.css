@@ -1445,7 +1445,7 @@ body.dark-mode .wc-me-header { background: var(--bg-card); }
   margin: 4px 0 8px; white-space: pre-wrap;
   word-break: break-word; line-height: 1.55;
 }
-.wc-moment-text .wc-msg-link { color: var(--link, #576b95); text-decoration: none; }
+.wc-moment-text .wc-msg-link { color: var(--color-primary, #6d5ae6); text-decoration: none; }
 .wc-moment-text .wc-msg-link:hover { text-decoration: underline; }
 .wc-moment-images {
   display: grid; gap: var(--sp-1); margin: 6px 0 8px; max-width: 300px;
@@ -2844,7 +2844,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .up-last-online {
   margin-top: var(--sp-1h, 6px);
   font-size: var(--text-xs, 12px);
-  color: var(--color-green, #07c160);
+  color: var(--color-primary, #6d5ae6);
   line-height: var(--lh-normal);
 }
 .up-rows {

@@ -464,7 +464,7 @@
   word-break: break-all;
   transition: opacity var(--dur-fast);
 }
-.wc-msg-bubble.other .wc-msg-link { color: var(--link, #576b95); }  /* 白底气泡用微信蓝 */
+.wc-msg-bubble.other .wc-msg-link { color: var(--color-primary); }  /* 白底气泡链接用品牌紫 */
 .wc-msg-link:hover { opacity: .85; }
 
 /* ── 消息状态指示（已读/已送达/已发送） ── */
