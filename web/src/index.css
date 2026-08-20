@@ -730,14 +730,15 @@ body.dark-mode * {
   transition: box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .wc-msg-bubble.mine {
-  background: var(--bg-msg-mine);
-  color: var(--bubble-mine-text);   /* 企业微信风格：浅绿气泡 + 深色文字，干净清爽 */
-  box-shadow: 0 1px 3px rgba(20, 24, 40, .08), 0 1px 8px rgba(20, 24, 40, .05);
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  color: #fff;   /* 紫渐变气泡：白色文字，对比清晰 */
+  border: none;
+  box-shadow: 0 2px 10px rgba(var(--color-primary-rgb), .35);
 }
-/* 浅绿气泡内文字/链接/时间用深色(企业微信标准) */
-.wc-msg-bubble.mine a { color: var(--bubble-mine-link); }
+/* 紫渐变气泡内文字/链接/时间用白色(半透明分级) */
+.wc-msg-bubble.mine a { color: rgba(255,255,255,.92); }
 .wc-msg-bubble.mine .wc-msg-time,
-.wc-msg-bubble.mine .wc-msg-meta { color: rgba(31, 33, 41, .5); }
+.wc-msg-bubble.mine .wc-msg-meta { color: rgba(255,255,255,.72); }
 .wc-msg-bubble.other {
   background: var(--bg-msg-other);
   color: var(--text-primary);
@@ -757,13 +758,26 @@ body.dark-mode * {
 .wc-msg-bubble.mine::after {
   right: -5px;
   border-width: 5px 0 5px 6px;
-  border-color: transparent transparent transparent var(--bg-msg-mine);
+  border-color: transparent transparent transparent var(--brand-500);
 }
 .wc-msg-bubble.other::after {
   left: -5px;
   border-width: 5px 6px 5px 0;
   border-color: transparent var(--bg-msg-other) transparent transparent;
 }
+
+/* 紫渐变气泡内部元素白色适配：引用块、语音进度条/时长等(浅绿时代的深色系不再可读) */
+.wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) {
+  background: rgba(255,255,255,.14);
+  border-left-color: rgba(255,255,255,.45);
+}
+.wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) .wc-msg-reply-name,
+.wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) .wc-msg-reply-text {
+  color: rgba(255,255,255,.92);
+}
+.wc-msg-bubble.mine .wc-voice-progress-track { background: rgba(255,255,255,.25); }
+.wc-msg-bubble.mine .wc-voice-duration { color: rgba(255,255,255,.72); }
+.wc-msg-bubble.mine .wc-voice-unplayed-dot { background: #FFD1D6; }
 
 /* 图片/视频/贴纸/红包/名片：自带卡片样式，气泡设为透明无内边距无尾巴，避免双层框与尖角错位 */
 .wc-msg-bubble:has(.wc-msg-img),
@@ -957,17 +971,32 @@ body.dark-mode * {
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text-secondary);
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition: background var(--dur-fast), color var(--dur-fast), transform var(--dur-fast) var(--ease);
 }
 .wc-tool-btn:hover { background: var(--bg-hover); color: var(--text-primary); transform: translateY(-1px); }
 .wc-tool-btn:active { transform: translateY(0) scale(.94); }
+.wc-tool-btn:focus-visible { outline: 2px solid rgba(var(--color-primary-rgb), .45); outline-offset: 1px; }
 .wc-tool-btn.active { background: var(--color-primary-muted); color: var(--color-primary); }
 .wc-tool-btn svg { width: 18px; height: 18px; fill: currentColor; transition: transform var(--dur-fast); }
 .wc-tool-svg { width: 22px; height: 22px; fill: currentColor; }
 
 /* 输入框区域 */
 /* 微信输入区无边框无圆角卡片，直接平铺白底 */
-.wc-input-box { padding: 4px 14px 2px; position: relative; background: transparent; border: none; border-radius: var(--radius-none); margin: 0; }
+/* 焦点环(对比图方案②)：聚焦时品牌紫边框 + 外发光，失焦恢复透明 */
+.wc-input-box {
+  padding: 4px 14px 2px;
+  position: relative;
+  background: transparent;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  margin: 0;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.wc-input-box:focus-within {
+  border-color: rgba(var(--color-primary-rgb), .55);
+  background: var(--bg-card);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), .12);
+}
 .wc-textarea {
   width: 100%;
   min-height: 72px;
@@ -1012,7 +1041,18 @@ body.dark-mode * {
   box-shadow: 0 4px 14px rgba(var(--color-primary-rgb), .42);
   transform: translateY(-1px);
 }
-.wc-send-btn.active:active { transform: translateY(0); box-shadow: 0 2px 6px rgba(var(--color-primary-rgb), .3); }
+.wc-send-btn.active:active { transform: scale(.94); box-shadow: 0 1px 4px rgba(var(--color-primary-rgb), .25); }
+/* 禁用态显式兜底：任何状态下都不许 hover/active 变渐变 */
+.wc-send-btn:disabled,
+.wc-send-btn:disabled:hover,
+.wc-send-btn:disabled:active {
+  background: var(--bg-search);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  opacity: 1;
+}
 
 /* 语音按钮 */
 .wc-voice-btn {
@@ -1609,9 +1649,9 @@ body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
 body.dark-mode .wc-moment-comment-user,
 body.dark-mode .wc-moment-comment-submit { color: var(--link); }
 
-/* 气泡 — 暗色模式下我方气泡：企业微信浅绿，深色文字 */
+/* 气泡 — 暗色模式下我方气泡：品牌紫渐变，白色文字 */
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }
-body.dark-mode .wc-msg-bubble.mine { background: var(--bg-msg-mine); color: var(--bubble-mine-text); border-color: transparent; box-shadow: 0 1px 3px rgba(20,24,40,.08), 0 1px 8px rgba(20,24,40,.05); }
+body.dark-mode .wc-msg-bubble.mine { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: #fff; border-color: transparent; box-shadow: 0 2px 10px rgba(var(--color-primary-rgb), .35); }
 body.dark-mode .wc-msg-bubble.other { background: var(--bg-input-search); color: #e6e6e6; border-color: rgba(255,255,255,.06); }
 body.dark-mode .wc-msg-bubble.mine::after,
 body.dark-mode .wc-msg-bubble.other::after { display: none; }
@@ -4241,12 +4281,12 @@ select:focus-visible {
 }
 .wc-app.wc-mobile .home-chat-area { border-radius: 0; box-shadow: none; }
 
-/* ── 我方气泡：企业微信浅绿，柔投影（2026-08 用户要求与企业微信一致、更干净）── */
+/* ── 我方气泡：品牌紫渐变（对比图方案①），柔投影 ── */
 .wc-msg-bubble.mine {
-  background: var(--bg-msg-mine) !important;
-  box-shadow: 0 1px 3px rgba(20, 24, 40, .08), 0 1px 8px rgba(20, 24, 40, .05);
+  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  box-shadow: 0 2px 10px rgba(var(--color-primary-rgb), .35);
   border: none;
-  color: var(--bubble-mine-text);
+  color: #fff;
 }
 /* ── 他人气泡：纯白浮起，轻投影，清晰从画布分离 ── */
 .wc-msg-bubble.other {
@@ -4261,8 +4301,8 @@ select:focus-visible {
 .wc-search { border-radius: var(--radius-full); }
 .wc-search input { background: transparent; }
 
-/* ── 主按钮 / 主色元素：浅绿气泡内链接用微信蓝 ── */
-.wc-msg-bubble.mine a { color: var(--bubble-mine-link); }
+/* ── 主按钮 / 主色元素：紫渐变气泡内链接用白色 ── */
+.wc-msg-bubble.mine a { color: rgba(255,255,255,.92); }
 
 /* ── 空态插画色跟随品牌 ── */
 .we-empty-svg { opacity: .9; }

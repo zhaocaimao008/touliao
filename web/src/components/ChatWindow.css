@@ -860,6 +860,22 @@
   max-width: 240px;
 }
 
+/* ── 紫渐变气泡内的语音控件白色适配（2026-08 chat-window 改版：mine 由浅绿改品牌紫渐变）── */
+.wc-msg-bubble.mine .wc-voice-play-btn {
+  background: rgba(255,255,255,.95);   /* 白底紫图标，从紫渐变底上浮起 */
+}
+.wc-msg-bubble.mine .wc-voice-play-icon,
+.wc-msg-bubble.mine .wc-voice-play-icon-offset { fill: var(--brand-600); }
+.wc-msg-bubble.mine .wc-voice-transcribe-btn {
+  color: rgba(255,255,255,.9);
+  background: rgba(255,255,255,.14);
+}
+.wc-msg-bubble.mine .wc-voice-transcribe-btn:hover:not(:disabled) { background: rgba(255,255,255,.24); }
+.wc-msg-bubble.mine .wc-voice-transcript {
+  border-top-color: rgba(255,255,255,.2);
+  color: rgba(255,255,255,.85);
+}
+
 /* ── 聊天设置面板 ── */
 .wc-settings-panel {
   width: 240px;
