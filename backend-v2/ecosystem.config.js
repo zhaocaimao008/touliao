@@ -23,6 +23,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: '3003',
+        TRACING_ENABLED: 'false',  // 本机无 OTLP collector，禁用避免启动卡死（2026-08-20 修复）
       },
       error_file: '/root/.pm2/logs/touliao-server-v2-error.log',
       out_file: '/root/.pm2/logs/touliao-server-v2-out.log',
