@@ -108,3 +108,4 @@ scripts/__pycache__/
 # Test artifacts
 backend-v2/test/.tmp-test-db.sqlite*
 backend-v2/test/.tmp-test-uploads/
+backups/
