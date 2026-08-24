@@ -3,6 +3,11 @@
  * Express 应用装配（不含 HTTP/Socket 启动，便于测试与复用）。
  * 中间件顺序：compression → helmet → cors → cookieParser → body 解析 → 静态 → CSRF 门控 → 路由 → 错误处理。
  */
+// ⚠️ Sentry 必须先于 express 等 HTTP 框架初始化（v10 OTel 插桩依赖此时序，
+// 否则警告 "express is not instrumented"：错误上报仍可用，但请求级追踪丢失）
+const sentry = require('./utils/sentry');
+sentry.initSentry();
+
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -18,12 +23,10 @@ const { notFoundHandler, errorHandler } = require('./middleware/error');
 const { requestLogger, warn } = require('./utils/logger');
 const { metricsMiddleware, metrics } = require('./utils/monitoring');
 const swaggerSpec = require('./utils/swagger');
-const sentry = require('./utils/sentry');
 
 const app = express();
 
-// ── Sentry 错误追踪初始化 ────────────────────────────────────────
-sentry.initSentry();
+// ── Sentry 请求级追踪中间件（初始化已提前至文件顶部）─────────────
 sentry.attachSentryMiddleware(app);
 
 // ── HTTP 响应压缩（gzip/deflate）──────────────────────────────────
