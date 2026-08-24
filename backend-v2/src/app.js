@@ -269,6 +269,26 @@ app.post('/api/client-errors', clientErrorLimiter, (req, res) => {
 // CSRF 双提交门控（路由之前）
 app.use('/api', csrfProtection);
 
+// ── Web Vitals 上报端点（前端 sendBeacon，无需鉴权）───────────────
+// 内存环形缓冲记录最近 500 条，/api/metrics/vitals/recent 可查；不落库不阻塞。
+const vitalsBuffer = [];
+const VITALS_MAX = 500;
+app.post('/api/metrics/vitals', express.text({ type: 'text/plain', limit: '10kb' }), (req, res) => {
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    if (body && body.name) {
+      vitalsBuffer.push({
+        name: body.name, value: body.value, rating: body.rating,
+        url: (body.url || '').slice(0, 200), ua: (body.userAgent || '').slice(0, 120),
+        t: Date.now(),
+      });
+      if (vitalsBuffer.length > VITALS_MAX) vitalsBuffer.splice(0, vitalsBuffer.length - VITALS_MAX);
+    }
+    res.status(204).end();
+  } catch { res.status(204).end(); } // 解析失败静默（sendBeacon 无响应处理）
+});
+app.get('/api/metrics/vitals/recent', (req, res) => res.json(vitalsBuffer.slice(-100)));
+
 // ── 路由 ────────────────────────────────────────────────────────
 app.use('/api/auth',          require('./modules/auth/auth.routes'));
 app.use('/api/users',         require('./modules/users/users.routes'));

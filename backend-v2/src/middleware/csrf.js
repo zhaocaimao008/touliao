@@ -13,7 +13,7 @@ const config = require('../config');
 // 未鉴权入口：登录/注册。此时尚无会话可被 CSRF 攻击；若浏览器残留旧的
 // csrf_token Cookie(如上次退出未清)，会让这些请求误报"CSRF token 无效"，
 // 把真实的"邀请码不正确/密码错误"提示盖掉。故直接放行。
-const CSRF_EXEMPT = ['/auth/login', '/auth/register'];
+const CSRF_EXEMPT = ['/auth/login', '/auth/register', '/metrics/vitals'];
 
 module.exports = function csrfProtection(req, res, next) {
   // 测试模式:e2e 跨端口前端读不到 csrf cookie,关双提交校验(生产默认不开)
