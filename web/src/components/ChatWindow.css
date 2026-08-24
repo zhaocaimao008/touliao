@@ -509,7 +509,7 @@
   max-height: 320px;
   border-radius: var(--radius-md);
   display: block;
-  background: #000;
+  background: var(--media-bg);
 }
 
 /* ── 文件消息链接 ── */

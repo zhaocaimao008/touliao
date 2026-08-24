@@ -244,13 +244,13 @@ function ChangePhone({ user, updateUser, onBack }) {
       />
       <div className="wc-edit-pad">
         <Card>
-          <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="profile-phone-body">
             <div>
-              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginBottom: 4 }}>当前手机号</div>
-              <div style={{ fontSize: 'var(--text-base)', color: 'var(--text-primary)' }}>{user?.phone || '未绑定'}</div>
+              <div className="profile-field-label">当前手机号</div>
+              <div className="profile-field-value">{user?.phone || '未绑定'}</div>
             </div>
             <div>
-              <label htmlFor="cp-phone" style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>新手机号</label>
+              <label htmlFor="cp-phone" className="profile-field-label-block">新手机号</label>
               <input
                 id="cp-phone"
                 type="tel"
@@ -263,7 +263,7 @@ function ChangePhone({ user, updateUser, onBack }) {
               />
             </div>
             <div>
-              <label htmlFor="cp-pass" style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>登录密码（用于验证身份）</label>
+              <label htmlFor="cp-pass" className="profile-field-label-block">登录密码（用于验证身份）</label>
               <input
                 id="cp-pass"
                 type="password"
@@ -339,20 +339,19 @@ function Wallet({ onBack }) {
       <PageHeader title="我的钱包" onBack={onBack}
         right={<button className="wc-save-btn" onClick={() => { setShowRecharge(v => !v); setError(''); }}>{showRecharge ? '取消' : '充值'}</button>} />
       <div className="wc-section-pad">
-        <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 6 }}>
-          <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}>金币余额</div>
-          <div style={{ fontSize: 'var(--text-display-xl)', fontWeight: 700, color: 'var(--green)' }}>{loading ? '…' : (balance ?? '—')}</div>
+        <Card className="profile-balance-card">
+          <div className="profile-card-subtitle">金币余额</div>
+          <div className="profile-balance-amount">{loading ? '…' : (balance ?? '—')}</div>
         </Card>
         {showRecharge && (
-          <Card style={{ marginTop: 12, padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Card className="profile-recharge-card">
             <input
               type="number" min="1" max="100000"
               placeholder="充值金币数量（1-100000）"
               aria-label="充值金币数量"
               value={rechargeInput}
               onChange={e => { setRechargeInput(e.target.value); setError(''); }}
-              className="wc-server-input"
-              style={{ marginTop: 0, flex: 1 }}
+              className="wc-server-input profile-recharge-input"
               onKeyDown={e => e.key === 'Enter' && recharge()}
             />
             <button className="wc-save-btn" onClick={recharge} disabled={recharging || !rechargeInput}>
@@ -373,7 +372,7 @@ function Wallet({ onBack }) {
             <CRow key={t.id}
               label={TYPE_LABEL[t.type] || t.memo || t.type}
               desc={fmtTime(t.created_at)}
-              right={<span style={{ color: t.amount >= 0 ? 'var(--green)' : 'var(--text-primary)', fontWeight: 600 }}>
+              right={<span className="profile-txn-amount" style={{ color: t.amount >= 0 ? 'var(--green)' : 'var(--text-primary)' }}>
                 {t.amount >= 0 ? '+' : ''}{t.amount}
               </span>} />
           ))}
@@ -418,12 +417,12 @@ function InviteFriends({ onBack }) {
     <PageBg>
       <PageHeader title="邀请好友" onBack={onBack} />
       <div className="wc-section-pad">
-        <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '28px 16px', gap: 10 }}>
-          <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}>我的专属邀请码</div>
-          <div style={{ fontSize: 'var(--text-display-xl)', fontWeight: 700, letterSpacing: 6, color: 'var(--green)', userSelect: 'text' }}>
+        <Card className="profile-invite-code-card">
+          <div className="profile-card-subtitle">我的专属邀请码</div>
+          <div className="profile-invite-code-value">
             {loading ? '……' : (data?.code || '—')}
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div className="profile-invite-actions">
             <button className="wc-save-btn" onClick={() => copyText(data?.code, 'code')} disabled={!data?.code}>
               {copied === 'code' ? '已复制' : '复制邀请码'}
             </button>
@@ -433,16 +432,16 @@ function InviteFriends({ onBack }) {
               </button>
             )}
           </div>
-          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', textAlign: 'center', marginTop: 4 }}>
+          <div className="profile-invite-hint">
             把邀请码或链接发给好友，Ta 注册后即成为你邀请的用户
           </div>
         </Card>
       </div>
 
       <div className="wc-section-pad">
-        <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 16px', gap: 4 }}>
-          <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}>已成功邀请</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{loading ? '…' : (data?.invitedCount ?? 0)} 人</div>
+        <Card className="profile-invited-card">
+          <div className="profile-card-subtitle">已成功邀请</div>
+          <div className="profile-invited-count">{loading ? '…' : (data?.invitedCount ?? 0)} 人</div>
         </Card>
       </div>
 
@@ -456,7 +455,7 @@ function InviteFriends({ onBack }) {
               icon={<Avatar src={u.avatar} name={u.username} size={28} />} bg="transparent"
               label={u.username}
               desc={u.wechat_id ? `投聊号：${u.wechat_id}` : ''}
-              right={<span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{fmtTime(u.created_at)}</span>} />
+              right={<span className="profile-meta-sm">{fmtTime(u.created_at)}</span>} />
           )) : <CRow label="还没有邀请记录，快去分享你的邀请码吧" />)}
         </Card>
       </div>
@@ -535,7 +534,7 @@ function DeviceList({ onBack }) {
         )}
         <div className="wc-device-hint">点击&quot;退出&quot;可远程下线该设备</div>
         {sessions.some(s => !s.current) && (
-          <div className="wc-section-pad" style={{ marginTop: 8 }}>
+          <div className="wc-section-pad profile-mt-8">
             <button className="wc-btn-exit-all" onClick={removeAllSessions}>一键退出其他全部设备</button>
           </div>
         )}
@@ -574,7 +573,7 @@ function AppearanceSettings({ onBack }) {
               }}
               onClick={() => setThemeMode(mode)}>
               <span className="wc-appearance-emoji">{emoji}</span>
-              <span style={{ fontSize: 'var(--text-meta)', color: textColor, fontWeight: themeMode === mode ? 600 : 400 }}>{label}</span>
+              <span className="profile-appearance-label" style={{ color: textColor, fontWeight: themeMode === mode ? 600 : 400 }}>{label}</span>
             </button>
           ))}
         </div>
@@ -594,7 +593,7 @@ function AppearanceSettings({ onBack }) {
             ))}
           </div>
           <div className="wc-font-demo">
-            <span style={{ fontSize: 'var(--font-msg, 14px)' }}>消息示例：今天天气真好！</span>
+            <span className="profile-font-demo-text">消息示例：今天天气真好！</span>
           </div>
         </Card>
       </div>
@@ -690,12 +689,12 @@ function NotificationSettings({ onBack }) {
                 right={<input type="time" value={quietStart} disabled={saving}
                   data-testid="quiet-start-input"
                   onChange={e => { setQuietStart(e.target.value); saveSettings('quietStart', e.target.value); }}
-                  style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '4px 8px', fontSize: 'var(--text-base)', background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
+                  className="profile-time-input" />} />
               <CRow label="结束时间"
                 right={<input type="time" value={quietEnd} disabled={saving}
                   data-testid="quiet-end-input"
                   onChange={e => { setQuietEnd(e.target.value); saveSettings('quietEnd', e.target.value); }}
-                  style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', padding: '4px 8px', fontSize: 'var(--text-base)', background: 'var(--bg-input)', color: 'var(--text-primary)' }} />} />
+                  className="profile-time-input" />} />
             </>
           )}
         </Card>
@@ -920,7 +919,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
   return (
     <PageBg>
       <PageHeader title="个人资料" onBack={onBack} />
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+      <input ref={fileRef} type="file" accept="image/*" className="profile-hidden-input" onChange={handleFileChange} />
 
       {/* ── 渐变 Hero ── */}
       <div className="pf-hero">
@@ -1026,7 +1025,7 @@ function ServerSettings({ onBack }) {
           className="wc-server-input"
         />
         {testResult && (
-          <div role="status" style={{ marginTop: 8, fontSize: 'var(--text-sm2)', color: testResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
+          <div role="status" className="profile-test-result" style={{ color: testResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
             {testResult.msg}
           </div>
         )}
@@ -1125,20 +1124,19 @@ function ShortcutSettings({ onBack }) {
         const isRec = recording === key;
         const st = status[key];
         return (
-          <div key={key} className="wc-server-pad" style={{ paddingTop: 0 }}>
+          <div key={key} className="wc-server-pad profile-shortcut-row-pad">
             <div className="wc-shortcut-row">
               <div>
-                <div style={{ fontWeight: 'var(--font-medium)', fontSize: 'var(--text-base)' }}>{label}</div>
-                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', marginTop: 2 }}>{desc}</div>
+                <div className="profile-shortcut-label">{label}</div>
+                <div className="profile-shortcut-desc">{desc}</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <div className="profile-shortcut-actions">
                 <kbd className={`wc-shortcut-kbd${isRec ? ' wc-shortcut-kbd--recording' : ''}`}
                   aria-label={isRec ? '正在录制…' : `当前快捷键：${displayAccel(current)}`}>
                   {isRec ? '请按键…' : (displayAccel(current) || '未设置')}
                 </kbd>
                 <button
-                  className={`wc-btn-test${isRec ? ' wc-shortcut-rec-active' : ''}`}
-                  style={{ padding: '6px 12px', flex: 'none' }}
+                  className={`wc-btn-test profile-btn-compact${isRec ? ' wc-shortcut-rec-active' : ''}`}
                   onClick={() => setRecording(isRec ? null : key)}
                   aria-pressed={isRec}>
                   {isRec ? '取消' : '录制'}
@@ -1149,8 +1147,7 @@ function ShortcutSettings({ onBack }) {
               </div>
             </div>
             {st && (
-              <div role="status" style={{ marginTop: 4, fontSize: 'var(--text-sm2)', paddingLeft: 2,
-                color: st.ok ? 'var(--green)' : 'var(--color-badge)' }}>
+              <div role="status" className="profile-status-msg" style={{ color: st.ok ? 'var(--green)' : 'var(--color-badge)' }}>
                 {st.msg}
               </div>
             )}
@@ -1300,7 +1297,7 @@ export default function Profile({ isMobile = false }) {
       </div>
 
       {/* ── 版本号：桌面端显示应用版本，网页端显示 web 构建版本 ── */}
-      <div style={{ textAlign: 'center', padding: '16px 0 24px', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>
+      <div className="profile-version-footer">
         投聊 v{window.__ELECTRON_CONFIG__?.appVersion || __APP_VERSION__}
       </div>
     </PageBg>

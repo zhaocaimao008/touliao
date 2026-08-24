@@ -4547,3 +4547,113 @@ body.dark-mode .skeleton-box {
   min-width: 60px; min-height: 60px;
   animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }
+
+/* ── Profile.jsx（个人资料/设置页）静态样式：P2 UI 体检内联样式迁移 ── */
+.profile-phone-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+.profile-field-label { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 4px; }
+.profile-field-label-block { font-size: var(--text-sm); color: var(--text-secondary); display: block; margin-bottom: 4px; }
+.profile-field-value { font-size: var(--text-base); color: var(--text-primary); }
+.profile-balance-card { display: flex; flex-direction: column; align-items: center; padding: 28px 16px; gap: 6px; }
+.profile-card-subtitle { font-size: var(--text-sm2); color: var(--text-secondary); }
+.profile-balance-amount { font-size: var(--text-display-xl); font-weight: 700; color: var(--green); }
+.profile-recharge-card { margin-top: 12px; padding: 12px 16px; display: flex; gap: 8px; align-items: center; }
+.profile-recharge-input { margin-top: 0; flex: 1; }
+.profile-txn-amount { font-weight: 600; }
+.profile-invite-code-card { display: flex; flex-direction: column; align-items: center; padding: 28px 16px; gap: 10px; }
+.profile-invite-code-value { font-size: var(--text-display-xl); font-weight: 700; letter-spacing: 6px; color: var(--green); user-select: text; }
+.profile-invite-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.profile-invite-hint { font-size: var(--text-sm); color: var(--text-secondary); text-align: center; margin-top: 4px; }
+.profile-invited-card { display: flex; flex-direction: column; align-items: center; padding: 20px 16px; gap: 4px; }
+.profile-invited-count { font-size: 28px; font-weight: 700; }
+.profile-meta-sm { font-size: var(--text-sm); color: var(--text-secondary); }
+.profile-mt-8 { margin-top: 8px; }
+.profile-appearance-label { font-size: var(--text-meta); }
+.profile-font-demo-text { font-size: var(--font-msg, 14px); }
+.profile-time-input { border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: 4px 8px; font-size: var(--text-base); background: var(--bg-input); color: var(--text-primary); }
+.profile-hidden-input { display: none; }
+.profile-test-result { margin-top: 8px; font-size: var(--text-sm2); }
+.profile-shortcut-row-pad { padding-top: 0; }
+.profile-shortcut-label { font-weight: var(--font-medium); font-size: var(--text-base); }
+.profile-shortcut-desc { font-size: var(--text-sm); color: var(--text-secondary); margin-top: 2px; }
+.profile-shortcut-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.profile-btn-compact { padding: 6px 12px; flex: none; }
+.profile-status-msg { margin-top: 4px; font-size: var(--text-sm2); padding-left: 2px; }
+.profile-version-footer { text-align: center; padding: 16px 0 24px; color: var(--text-tertiary); font-size: var(--text-sm); }
+
+/* ── Moments.jsx（朋友圈）静态样式：P2 UI 体检内联样式迁移 ── */
+.moments-inline-actions { display: inline-flex; gap: 8px; }
+.moments-zoom-cursor { cursor: zoom-in; }
+.moments-skel-body { display: flex; flex-direction: column; gap: 8px; }
+.moments-skel-w30 { width: 30%; }
+.moments-skel-w85 { width: 85%; }
+.moments-skel-w55 { width: 55%; }
+.moments-skel-imgs-row { display: flex; gap: 6px; margin-top: 4px; }
+.moments-skel-img-block { width: 76px; height: 76px; border-radius: var(--radius-sm); }
+.moments-root { height: 100%; display: flex; flex-direction: column; }
+.moments-spacer { flex: 1; }
+.moments-modal-sm { max-width: 360px; width: 90%; }
+.moments-modal-md { max-width: 420px; width: 90%; }
+.moments-modal-section { padding: 8px 0; }
+.moments-modal-desc { padding: 10px 18px; font-size: var(--text-sm2); color: var(--text-secondary); }
+.moments-vis-opt-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; cursor: pointer; border-top: 1px solid var(--divider); }
+.moments-check-green { color: var(--green); }
+.moments-modal-pad16 { padding: 16px; }
+.moments-edit-textarea { width: 100%; box-sizing: border-box; resize: vertical; padding: 10px; border-radius: var(--radius-input); border: 1px solid var(--border-default); font-size: var(--text-base); }
+.moments-edit-note { margin-top: 8px; font-size: var(--text-sm); color: var(--text-tertiary); }
+.moments-modal-footer { padding: 12px; text-align: right; border-top: 1px solid var(--divider); }
+.moments-mr-8 { margin-right: 8px; }
+.moments-friend-list { max-height: 50vh; overflow-y: auto; }
+.moments-state-pad40 { padding: 40px; }
+.moments-state-pad60 { padding: 60px; }
+.moments-cursor-pointer { cursor: pointer; }
+.moments-check-circle { width: 20px; height: 20px; border-radius: var(--radius-full); color: var(--text-inverse); display: flex; align-items: center; justify-content: center; font-size: var(--text-sm); }
+.moments-hidden-input { display: none; }
+
+/* ── ChatFiles.jsx（聊天文件抽屉）静态样式：P2 UI 体检内联样式迁移 ── */
+.chatfiles-tab-icon { width: 28px; height: 28px; fill: rgba(109,90,230,.50); }
+.chatfiles-overlay-root { position: fixed; inset: 0; z-index: 400; display: flex; align-items: flex-start; justify-content: flex-end; }
+.chatfiles-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.28); }
+.chatfiles-panel { position: relative; z-index: 1; height: 100vh; background: var(--bg-panel); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
+.chatfiles-header { display: flex; align-items: center; gap: 8px; padding: 14px 16px; background: var(--bg-card); border-bottom: 1px solid var(--border-default); }
+.chatfiles-close-btn { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 8px; color: var(--text-secondary); transition: background .12s, color .12s; }
+.chatfiles-close-icon { width: 20px; height: 20px; fill: currentColor; display: block; }
+.chatfiles-title { font-weight: 600; font-size: var(--text-md); color: var(--text-primary); }
+.chatfiles-count { color: var(--text-secondary); font-size: var(--text-sm); margin-left: auto; }
+.chatfiles-tabs { display: flex; padding: 6px 8px 0; background: var(--bg-panel); border-bottom: 1px solid var(--border-default); gap: 2px; }
+.chatfiles-tab-btn { flex: 1; padding: 7px 0 9px; background: none; border: none; cursor: pointer; font-size: var(--text-sm2); position: relative; transition: color .15s; }
+.chatfiles-tab-indicator { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 24px; height: 2.5px; border-radius: var(--radius-full); background: var(--green); opacity: .85; }
+.chatfiles-list { flex: 1; overflow-y: auto; background: var(--bg-messages); padding: 6px 0; }
+.chatfiles-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60%; color: var(--text-secondary); font-size: var(--text-sm2); gap: 10px; }
+.chatfiles-empty-icon { width: 44px; height: 44px; fill: currentColor; opacity: .22; }
+.chatfiles-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; margin: 0 8px 4px; border-radius: var(--radius-md); cursor: pointer; background: var(--bg-card); box-shadow: 0 1px 3px rgba(36,31,56,.06); transition: background .1s, box-shadow .1s; }
+.chatfiles-thumb { flex-shrink: 0; width: 46px; height: 46px; border-radius: var(--radius-sm); overflow: hidden; background: rgba(109,90,230,.08); display: flex; align-items: center; justify-content: center; }
+.chatfiles-thumb-img { width: 100%; height: 100%; object-fit: cover; }
+.chatfiles-info { flex: 1; min-width: 0; }
+.chatfiles-info-name { font-size: var(--text-sm2); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+.chatfiles-info-meta { font-size: var(--text-tiny); color: var(--text-tertiary); margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+.chatfiles-info-sender { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chatfiles-loader-sentinel { height: 1px; }
+.chatfiles-loading-more { text-align: center; padding: 16px 0; color: var(--text-secondary); font-size: var(--text-sm2); }
+
+/* ── Collections.jsx（我的收藏）静态样式：P2 UI 体检内联样式迁移 ── */
+.collections-thumb-img { max-width: 180px; max-height: 180px; border-radius: var(--radius-input); object-fit: cover; cursor: zoom-in; }
+.collections-content-text { font-size: var(--text-base); color: var(--text-primary); }
+.collections-content-btn { font-size: var(--text-base); color: var(--text-primary); background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+.collections-content-plain { font-size: var(--text-base); color: var(--text-primary); white-space: pre-wrap; word-break: break-word; }
+.collections-root { height: 100%; overflow-y: auto; }
+.collections-search-bar { padding: 10px 14px; position: sticky; top: 0; background: var(--bg-primary, #fff); z-index: 1; border-bottom: 1px solid var(--border-color); }
+.collections-search-wrap { position: relative; }
+.collections-search-input { width: 100%; padding: 7px 28px 7px 10px; border-radius: var(--radius-input); border: 1px solid var(--border-color); font-size: var(--text-base); box-sizing: border-box; }
+.collections-search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; border: none; border-radius: var(--radius-full); background: var(--border-color); color: var(--text-secondary); font-size: var(--text-xs); line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.collections-type-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.collections-type-btn { font-size: var(--text-sm); padding: 3px 10px; border-radius: var(--radius-bubble-tip); cursor: pointer; border: 1px solid var(--border-color); }
+.collections-state-pad60 { text-align: center; padding: 60px; color: var(--text-tertiary); font-size: var(--text-sm2); }
+.collections-state-pad40 { text-align: center; padding: 40px; color: var(--text-tertiary); font-size: var(--text-sm2); }
+.collections-retry-btn { color: var(--green); background: none; border: none; cursor: pointer; padding: 0; }
+.collections-item { padding: 14px 18px; border-bottom: 1px solid var(--border-color); }
+.collections-item-content { margin-bottom: 8px; }
+.collections-item-footer { display: flex; align-items: center; justify-content: space-between; }
+.collections-item-date { font-size: var(--text-sm); color: var(--text-tertiary); }
+.collections-item-actions { display: flex; gap: 4px; }
+.collections-jump-btn { font-size: var(--text-sm); color: var(--green); background: none; border: none; cursor: pointer; padding: 2px 6px; }
+.collections-remove-btn { font-size: var(--text-sm); color: var(--color-badge); background: none; border: none; cursor: pointer; padding: 2px 6px; }

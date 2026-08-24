@@ -41,7 +41,7 @@
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
-  background: #000; /* 视频未就绪时的黑色底 */
+  background: var(--media-bg); /* 视频未就绪时的黑色底 */
 }
 
 /* 本地 PiP 视频容器（left/top 保持内联，因为是拖拽坐标） */
@@ -113,7 +113,7 @@
 /* 语音通话背景（默认渐变；有头像时背景图在内联） */
 .cm-voice-bg {
   position: absolute; inset: 0;
-  background: linear-gradient(160deg, #2A2440 0%, #17132A 100%);
+  background: var(--grad-call-voice);
 }
 .cm-voice-content {
   position: absolute; inset: 0; z-index: 2;
@@ -154,7 +154,7 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: 0 6px 24px rgba(0, 0, 0, .5);
-  background: #000;
+  background: var(--media-bg);
   position: relative;
 }
 .cm-bubble-video video { width: 100%; height: 100%; object-fit: cover; }

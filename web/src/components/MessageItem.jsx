@@ -101,6 +101,9 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
         className="wc-msg-avatar"
         onClick={!multiSelect ? handleAvatarClick : undefined}
         onDoubleClick={!multiSelect && !isMine ? handleAvatarDblClick : undefined}
+        role={!multiSelect && !isMine ? 'button' : undefined}
+        tabIndex={!multiSelect && !isMine ? 0 : undefined}
+        onKeyDown={!multiSelect && !isMine ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doAvatarProfile(); } }) : undefined}
         title={!isMine ? '点击查看资料' : undefined}
         style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}
       >

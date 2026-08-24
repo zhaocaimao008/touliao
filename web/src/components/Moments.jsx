@@ -63,7 +63,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
         <div className="wc-moment-header">
           <span className="wc-moment-name">{m.author?.username || '用户'}</span>
           {m.user_id === meId ? (
-            <span style={{ display: 'inline-flex', gap: 8 }}>
+            <span className="moments-inline-actions">
               <button className="wc-moment-delete" onClick={() => onEdit(m)}>编辑</button>
               <button className="wc-moment-delete" onClick={() => onDelete(m)}>删除</button>
             </span>
@@ -109,7 +109,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
           ) : (
             <div className="wc-moment-images" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
               {m.images.map((src, i) => (
-                <img loading="lazy" key={src || i} src={src} alt={`图片 ${i + 1}`} style={{ cursor: 'zoom-in' }}
+                <img loading="lazy" key={src || i} src={src} alt={`图片 ${i + 1}`} className="moments-zoom-cursor"
                   role="button" tabIndex={0} aria-label={`查看第 ${i + 1} 张大图`}
                   onLoad={e => e.currentTarget.classList.add('loaded')}
                   onError={e => { e.currentTarget.classList.add('loaded'); e.currentTarget.style.display = 'none'; }}
@@ -204,13 +204,13 @@ function MomentsSkeleton() {
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="wc-moment-card">
           <div className="wc-skel wc-skel-avatar" />
-          <div className="wc-moment-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div className="wc-skel wc-skel-line" style={{ width: '30%' }} />
-            <div className="wc-skel wc-skel-line" style={{ width: '85%' }} />
-            <div className="wc-skel wc-skel-line" style={{ width: '55%' }} />
-            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+          <div className="wc-moment-body moments-skel-body">
+            <div className="wc-skel wc-skel-line moments-skel-w30" />
+            <div className="wc-skel wc-skel-line moments-skel-w85" />
+            <div className="wc-skel wc-skel-line moments-skel-w55" />
+            <div className="moments-skel-imgs-row">
               {Array.from({ length: 3 }).map((_, j) => (
-                <div key={j} className="wc-skel" style={{ width: 76, height: 76, borderRadius: 'var(--radius-sm)' }} />
+                <div key={j} className="wc-skel moments-skel-img-block" />
               ))}
             </div>
           </div>
@@ -493,14 +493,14 @@ export default function Moments() {
   }, []);
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="moments-root">
       {/* 互动通知入口 */}
       <div className="wc-moment-notif-bar" onClick={openNotif} role="button" tabIndex={0}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNotif(); } }}>
         <span className="wc-moment-notif-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg></span>
         <span className="wc-moment-notif-label">互动消息</span>
         {notifCount > 0 && <span className="wc-moment-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
-        <div style={{ flex: 1 }} />
+        <div className="moments-spacer" />
         <button
           className="wc-moment-settings-btn"
           title="朋友圈设置"
@@ -512,22 +512,21 @@ export default function Moments() {
       {/* 朋友圈设置：最近 N 天可见 */}
       {showSettings && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowSettings(false)}>
-          <div className="wc-modal" role="dialog" aria-modal="true" aria-label="朋友圈设置" style={{ maxWidth: 360, width: '90%' }}>
+          <div className="wc-modal moments-modal-sm" role="dialog" aria-modal="true" aria-label="朋友圈设置">
             <div className="wc-modal-header">
               <span className="wc-modal-title">朋友圈设置</span>
               <button className="wc-modal-close" onClick={() => setShowSettings(false)} aria-label="关闭">✕</button>
             </div>
-            <div style={{ padding: '8px 0' }}>
-              <div style={{ padding: '10px 18px', fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}>允许朋友查看朋友圈的范围</div>
+            <div className="moments-modal-section">
+              <div className="moments-modal-desc">允许朋友查看朋友圈的范围</div>
               <div role="radiogroup" aria-label="可见范围">
                 {[{ d: 0, label: '全部' }, { d: 1, label: '最近一天' }, { d: 3, label: '最近三天' }, { d: 30, label: '最近一个月' }].map(o => (
-                  <div key={o.d} className="wc-moment-vis-opt"
+                  <div key={o.d} className="wc-moment-vis-opt moments-vis-opt-row"
                     role="radio" aria-checked={visibleDays === o.d} tabIndex={0}
                     onClick={() => saveVisibleDays(o.d)}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); saveVisibleDays(o.d); } }}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', cursor: 'pointer', borderTop: '1px solid var(--divider)' }}>
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); saveVisibleDays(o.d); } }}>
                     <span>{o.label}</span>
-                    {visibleDays === o.d && <span style={{ color: 'var(--green)' }}>✓</span>}
+                    {visibleDays === o.d && <span className="moments-check-green">✓</span>}
                   </div>
                 ))}
               </div>
@@ -539,21 +538,21 @@ export default function Moments() {
       {/* 编辑动态：仅改文字内容（图片保持不变） */}
       {editing && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && !savingEdit && setEditing(null)}>
-          <div className="wc-modal" role="dialog" aria-modal="true" aria-label="编辑动态" style={{ maxWidth: 420, width: '90%' }}>
+          <div className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label="编辑动态">
             <div className="wc-modal-header">
               <span className="wc-modal-title">编辑动态</span>
               <button className="wc-modal-close" onClick={() => !savingEdit && setEditing(null)} aria-label="关闭">✕</button>
             </div>
-            <div style={{ padding: 16 }}>
+            <div className="moments-modal-pad16">
               <textarea autoFocus value={editText} onChange={e => setEditText(e.target.value)}
                 rows={4} maxLength={5000} aria-label="编辑动态内容"
-                style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: 10, borderRadius: 'var(--radius-input)', border: '1px solid var(--border-default)', fontSize: 'var(--text-base)' }} />
+                className="moments-edit-textarea" />
               {editing.images?.length > 0 && (
-                <div style={{ marginTop: 8, fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>图片不可编辑（{editing.images.length} 张）</div>
+                <div className="moments-edit-note">图片不可编辑（{editing.images.length} 张）</div>
               )}
             </div>
-            <div style={{ padding: 12, textAlign: 'right', borderTop: '1px solid var(--divider)' }}>
-              <button className="wc-moment-editor-cancel" onClick={() => setEditing(null)} disabled={savingEdit} style={{ marginRight: 8 }}>取消</button>
+            <div className="moments-modal-footer">
+              <button className="wc-moment-editor-cancel moments-mr-8" onClick={() => setEditing(null)} disabled={savingEdit}>取消</button>
               <button className="wc-moment-editor-publish" onClick={saveEdit} disabled={savingEdit || !editText.trim()}>
                 {savingEdit ? '保存中…' : '保存'}
               </button>
@@ -565,18 +564,18 @@ export default function Moments() {
       {/* 分组可见：选择好友 */}
       {showFriendPicker && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowFriendPicker(false)}>
-          <div className="wc-modal" role="dialog" aria-modal="true" aria-label="选择好友" style={{ maxWidth: 420, width: '90%' }}>
+          <div className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label="选择好友">
             <div className="wc-modal-header">
               <span className="wc-modal-title">{visibility === 'include' ? '选择可见的好友' : '选择不给谁看'}</span>
               <button className="wc-modal-close" onClick={() => setShowFriendPicker(false)} aria-label="关闭">✕</button>
             </div>
-            <div className="wc-moment-notif-list" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+            <div className="wc-moment-notif-list moments-friend-list">
               {friends.length === 0 ? (
-                <div role="status" className="wc-moment-state" style={{ padding: 40 }}>暂无好友</div>
+                <div role="status" className="wc-moment-state moments-state-pad40">暂无好友</div>
               ) : friends.map(f => {
                 const checked = visibleTo.includes(f.id);
                 return (
-                  <div key={f.id} className="wc-moment-notif-item" style={{ cursor: 'pointer' }}
+                  <div key={f.id} className="wc-moment-notif-item moments-cursor-pointer"
                     role="checkbox" tabIndex={0} aria-checked={checked}
                     onClick={() => toggleVisibleFriend(f.id)}
                     onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && toggleVisibleFriend(f.id)}>
@@ -584,12 +583,12 @@ export default function Moments() {
                     <div className="wc-moment-notif-body">
                       <div className="wc-moment-notif-text">{f.remark || f.username}</div>
                     </div>
-                    <span style={{ width: 20, height: 20, borderRadius: 'var(--radius-full)', border: `2px solid ${checked ? 'var(--green)' : 'var(--border-medium)'}`, background: checked ? 'var(--green)' : 'var(--bg-card)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--text-sm)' }}>{checked ? '✓' : ''}</span>
+                    <span className="moments-check-circle" style={{ border: `2px solid ${checked ? 'var(--green)' : 'var(--border-medium)'}`, background: checked ? 'var(--green)' : 'var(--bg-card)' }}>{checked ? '✓' : ''}</span>
                   </div>
                 );
               })}
             </div>
-            <div style={{ padding: 12, textAlign: 'right', borderTop: '1px solid var(--divider)' }}>
+            <div className="moments-modal-footer">
               <button className="wc-moment-editor-publish" onClick={() => setShowFriendPicker(false)}>
                 确定 ({visibleTo.length})
               </button>
@@ -601,14 +600,14 @@ export default function Moments() {
       {/* 互动通知面板 */}
       {notifList !== null && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setNotifList(null)}>
-          <div className="wc-modal" role="dialog" aria-modal="true" aria-label="互动消息" style={{ maxWidth: 420, width: '90%' }}>
+          <div className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label="互动消息">
             <div className="wc-modal-header">
               <span className="wc-modal-title">互动消息</span>
               <button className="wc-modal-close" onClick={() => setNotifList(null)} aria-label="关闭">✕</button>
             </div>
             <div className="wc-moment-notif-list">
               {notifList.length === 0 ? (
-                <div role="status" className="wc-moment-state" style={{ padding: 40 }}>暂无互动消息</div>
+                <div role="status" className="wc-moment-state moments-state-pad40">暂无互动消息</div>
               ) : notifList.map(n => (
                 <div key={n.id} className="wc-moment-notif-item">
                   <Avatar src={n.actor?.avatar} name={n.actor?.username} size={36} />
@@ -655,7 +654,7 @@ export default function Moments() {
                 disabled={images.length >= 9} title="添加图片" aria-label={`添加图片${images.length > 0 ? `，已选 ${images.length}/9` : ''}`}>
                 🖼 图片{images.length > 0 ? ` (${images.length}/9)` : ''}
               </button>
-              <input ref={imgInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+              <input ref={imgInputRef} type="file" accept="image/*" multiple className="moments-hidden-input"
                 onChange={handleImagePick} />
               <select className="wc-moment-vis-select" value={visibility}
                 onChange={e => onVisibilityChange(e.target.value)} title="谁可以看">
@@ -672,7 +671,7 @@ export default function Moments() {
                   {visibility === 'include' ? '可见' : '不给看'} ({visibleTo.length})
                 </button>
               )}
-              <div style={{ flex: 1 }} />
+              <div className="moments-spacer" />
               <button className="wc-moment-editor-cancel"
                 onClick={resetCompose}>取消</button>
               <button className="wc-moment-editor-publish"
@@ -691,11 +690,11 @@ export default function Moments() {
         {loading ? (
           <MomentsSkeleton />
         ) : loadError && list.length === 0 ? (
-          <div role="status" className="wc-moment-state" style={{ padding: 60 }}>
+          <div role="status" className="wc-moment-state moments-state-pad60">
             加载失败，<button className="wc-moment-expand-btn" onClick={load}>点击重试</button>
           </div>
         ) : list.length === 0 ? (
-          <div role="status" className="wc-moment-state" style={{ padding: 60 }}>还没有动态，发布第一条吧</div>
+          <div role="status" className="wc-moment-state moments-state-pad60">还没有动态，发布第一条吧</div>
         ) : (
           list.map(m => (
             <MomentCard key={m.id} m={m} meId={meId}
