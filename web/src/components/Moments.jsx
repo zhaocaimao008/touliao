@@ -537,7 +537,9 @@ export default function Moments() {
 
       {/* 编辑动态：仅改文字内容（图片保持不变） */}
       {editing && (
-        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && !savingEdit && setEditing(null)}>
+        <div className="wc-modal-overlay" role="button" tabIndex={0}
+          onClick={e => e.target === e.currentTarget && !savingEdit && setEditing(null)}
+          onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !savingEdit) { e.preventDefault(); setEditing(null); } }}>
           <div className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label="编辑动态">
             <div className="wc-modal-header">
               <span className="wc-modal-title">编辑动态</span>

@@ -391,7 +391,9 @@ function CreateGroupModal({ onClose, onCreated }) {
 
   return (
     <div className="cgm-overlay" ref={trapRef}
-      onClick={e => e.target === e.currentTarget && onClose()}>
+      role="button" tabIndex={0}
+      onClick={e => e.target === e.currentTarget && onClose()}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}>
       <div className="cgm-content"
         onClick={e => e.stopPropagation()}>
 
@@ -853,7 +855,8 @@ export default function Home() {
         </Suspense>
       )}
       {showQR && (
-        <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
+        <div className="wc-modal-overlay" role="button" tabIndex={0} onClick={() => setShowQR(false)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowQR(false); } }}>
           <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label="我的二维码" onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">我的二维码</span>
@@ -868,7 +871,8 @@ export default function Home() {
       )}
       {showAddMenu && addMenuPos && (
         <>
-          <div className="home-add-overlay" onClick={closeAddMenu} />
+          <div className="home-add-overlay" role="button" tabIndex={0} onClick={closeAddMenu}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeAddMenu(); } }} />
           <div className="home-add-dropdown" style={{ top: addMenuPos.top, right: addMenuPos.right }}>
             <AddDropItem testid="create-group-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
               label="发起群聊" onClick={handleCreateGroup} />
@@ -889,7 +893,9 @@ export default function Home() {
         <Suspense fallback={null}><AddFriendModal initialQuery={netSearchQ} onClose={() => setNetSearchQ(null)} /></Suspense>
       )}
       {showMentions && (
-        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowMentions(false)}>
+        <div className="wc-modal-overlay" role="button" tabIndex={0}
+          onClick={e => e.target === e.currentTarget && setShowMentions(false)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowMentions(false); } }}>
           <div role="dialog" aria-modal="true" aria-label="@我的消息"
             style={{ width: 'min(440px, 92vw)', height: 'min(70vh, 640px)', background: 'var(--bg-panel)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,.28)' }}
             onClick={e => e.stopPropagation()}>
