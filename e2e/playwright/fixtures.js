@@ -48,7 +48,11 @@ const test = base.test.extend({
     const make = async () => {
       const ctx = await browser.newContext();
       await ctx.addInitScript((url) => {
-        try { localStorage.setItem('vxin_server_url', url); } catch {}
+        // 与 webPage fixture 一致：touliao 前端读 touliao_server_url，vxin_* 为 fork 前旧键
+        try {
+          localStorage.setItem('touliao_server_url', url);
+          localStorage.setItem('vxin_server_url', url);
+        } catch {}
       }, backendUrl);
       created.push(ctx);
       return ctx;
