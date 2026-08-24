@@ -17,6 +17,7 @@ const { info } = require('../utils/logger');
 const BATCH_WINDOW_MS = 5;    // 5ms 合并窗口（降低延迟，保持高合并率）
 const MAX_BATCH       = 200;  // 单房间最多合并 200 条，提升批次效率
 const SHARD_ROOMS     = 96;   // 单 tick 最多冲刷 96 个房间（提升吞吐）
+const CHUNK_SOCKETS   = 300;  // 单 tick 最多同步写多少个 socket；超大房间分片广播，防止事件循环阻塞（压测: 2000连接大群曾致 ELD>2s）
 
 let _io = null;
 // room → { event, msgs: [] }   仅合并 new_message；其它事件直接单发
@@ -54,14 +55,42 @@ function broadcastMessage(room, msg) {
 function flushRoom(room, slot) {
   if (!_io) return;
   const msgs = slot.msgs;
-  if (msgs.length === 1) {
-    _io.to(room).emit('new_message', msgs[0]);
-  } else {
-    _io.to(room).emit('new_message_batch', msgs);
+  const event = msgs.length === 1 ? 'new_message' : 'new_message_batch';
+  const payload = msgs.length === 1 ? msgs[0] : msgs;
+  if (msgs.length > 1) {
     stats.batchedEmits++;
     if (msgs.length > stats.maxBatchSize) stats.maxBatchSize = msgs.length;
   }
   stats.totalEmits++;
+  emitToRoom(room, event, payload);
+}
+
+/**
+ * 房间广播，超大房间（在线 socket 数 > CHUNK_SOCKETS）分片派发：
+ * 每片同步 emit 至多 CHUNK_SOCKETS 个连接后 setImmediate 让出事件循环，
+ * 避免单 tick 对数千连接同步编码/写入导致事件循环阻塞（心跳超时、ping timeout）。
+ * 小房间走原 io.to(room).emit 路径（零额外开销）。
+ */
+function emitToRoom(room, event, payload) {
+  const adapterRooms = _io.sockets.adapter.rooms;
+  const roomSockets = adapterRooms?.get(room);
+  const count = roomSockets ? roomSockets.size : 0;
+  if (!roomSockets || count <= CHUNK_SOCKETS) {
+    _io.to(room).emit(event, payload);
+    return;
+  }
+  const allSockets = _io.sockets.sockets;
+  const ids = [...roomSockets];
+  let i = 0;
+  const sendNext = () => {
+    const end = Math.min(i + CHUNK_SOCKETS, ids.length);
+    for (; i < end; i++) {
+      const s = allSockets.get(ids[i]);
+      if (s && s.connected) s.emit(event, payload);
+    }
+    if (i < ids.length) setImmediate(sendNext); // 让出事件循环，心跳/其它连接可及时处理
+  };
+  sendNext();
 }
 
 function flushAll() {
@@ -92,7 +121,7 @@ function flushAll() {
  * 通用单发（不合并），用于非 new_message 的房间事件（如需要时）。
  */
 function emit(room, event, payload) {
-  if (_io) { _io.to(room).emit(event, payload); stats.totalEmits++; }
+  if (_io) { stats.totalEmits++; emitToRoom(room, event, payload); }
 }
 
 // 进程退出时同步清空 pending，防止 SIGTERM 时积压消息丢失

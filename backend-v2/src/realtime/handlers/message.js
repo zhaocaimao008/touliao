@@ -113,7 +113,7 @@ module.exports = function registerMessageHandler(io, socket) {
       }
     }
 
-    const member = readDb.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(conversationId, userId);
+    const member = memberRole(conversationId, userId);
     if (!member) { ack?.({ success: false, error: '非群成员' }); return; }
 
     const conv = readDb.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(conversationId);

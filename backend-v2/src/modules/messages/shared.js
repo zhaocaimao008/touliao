@@ -6,8 +6,42 @@
 const { db, readDb } = require('../../db/connection');
 const { forbidden } = require('../../utils/http');
 
+// ── 热路径查询短 TTL 缓存（大群广播风暴防护：2000 连接高频消息时，
+//    避免每条消息重复 4-5 次同步 SQLite 查询阻塞事件循环）─────────────
+// 成员关系/会话/黑名单属低频变更数据，5s 缓存可接受（群增减员最多延迟 5s 生效）。
+const CACHE_TTL_MS = 5000;
+const memberCache = new Map();   // `${convId}|${userId}` → { role, t }
+const convTypeCache = new Map(); // convId → { type, mute_all, t }
+const blockedCache = new Map();  // `${uid}|${bid}` → { blocked, t }
+const MAX_CACHE = 20000;
+
+function cacheGet(map, key) {
+  const v = map.get(key);
+  if (!v) return undefined;
+  if (Date.now() - v.t > CACHE_TTL_MS) { map.delete(key); return undefined; }
+  return v;
+}
+function cacheSet(map, key, val) {
+  if (map.size >= MAX_CACHE) map.clear(); // 简单防膨胀：超限整体清空
+  map.set(key, { ...val, t: Date.now() });
+}
+// 变更后主动失效（加人/移人/拉黑/解黑调用）
+function invalidateConv(convId) {
+  for (const k of [...memberCache.keys()]) if (k.startsWith(convId + '|')) memberCache.delete(k);
+  convTypeCache.delete(convId);
+}
+function invalidateBlocked(uid, bid) {
+  blockedCache.delete(`${uid}|${bid}`);
+  blockedCache.delete(`${bid}|${uid}`);
+}
+
 function isMember(convId, userId) {
-  return !!db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
+  const key = `${convId}|${userId}`;
+  const hit = cacheGet(memberCache, key);
+  if (hit !== undefined) return hit.role !== null;
+  const row = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
+  cacheSet(memberCache, key, { role: row?.role ?? null });
+  return !!row;
 }
 
 // 私聊发送统一守卫：合并「黑名单拦截」与「屏蔽陌生人」两道校验，覆盖全部发送路径
@@ -20,21 +54,27 @@ function isMember(convId, userId) {
 // 读走 readDb（block()/settings 经 db 同步提交，此处立即可见）。群聊(type!=private)直接放行。
 // @param conv 可选：调用方已查到的会话行，至少含 { type }。传入则省一次 conversations 查询。
 function privateSendGuard(convId, senderId, conv = null) {
-  const type = conv?.type ?? readDb.prepare('SELECT type FROM conversations WHERE id=?').get(convId)?.type;
+  const type = conv?.type ?? (cacheGet(convTypeCache, convId)?.type ?? readDb.prepare('SELECT type FROM conversations WHERE id=?').get(convId)?.type);
+  if (conv && !convTypeCache.has(convId)) cacheSet(convTypeCache, convId, { type: conv.type, mute_all: conv.mute_all ?? 0 });
   if (type !== 'private') return null;
 
-  const other = readDb.prepare(
-    'SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?'
-  ).get(convId, senderId);
+  const other = cacheGet(memberCache, `${convId}|__other__${senderId}`)
+    ?? readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?').get(convId, senderId);
+  if (other && !memberCache.has(`${convId}|__other__${senderId}`)) cacheSet(memberCache, `${convId}|__other__${senderId}`, { role: 'member' });
   if (!other) return null;
   const otherId = other.user_id;
 
   // 1) 黑名单：任一方已拉黑对方，则拒绝在既有会话内发消息（防止拉黑后仍被骚扰）
-  const bl = readDb.prepare(
-    'SELECT user_id FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?)'
-  ).all(senderId, otherId, otherId, senderId);
-  if (bl.length) {
-    return bl.some(r => r.user_id === senderId)
+  const blKey = senderId < otherId ? `${senderId}|${otherId}` : `${otherId}|${senderId}`;
+  let bl = cacheGet(blockedCache, blKey);
+  if (bl === undefined) {
+    bl = { blocked: readDb.prepare(
+      'SELECT user_id FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?)'
+    ).all(senderId, otherId, otherId, senderId) };
+    cacheSet(blockedCache, blKey, bl);
+  }
+  if (bl.blocked.length) {
+    return bl.blocked.some(r => r.user_id === senderId)
       ? '你已将对方加入黑名单，移出后才能发送'
       : '消息已发出，但被对方拒收';
   }
@@ -56,7 +96,12 @@ function requireMember(convId, userId, msg = '无权访问') {
 }
 
 function memberRole(convId, userId) {
-  return db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId)?.role || null;
+  const key = `${convId}|${userId}`;
+  const hit = cacheGet(memberCache, key);
+  if (hit !== undefined) return hit.role;
+  const role = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId)?.role || null;
+  cacheSet(memberCache, key, { role });
+  return role;
 }
 
 // 装配单条消息（含 replyTo + reactions），用于 HTTP 发送/转发等单条返回
