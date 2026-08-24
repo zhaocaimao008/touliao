@@ -1641,21 +1641,21 @@ body.dark-mode .wc-empty p { color: var(--text-muted); }
 body.dark-mode .wc-discover,
 body.dark-mode .wc-panel-topbar,
 body.dark-mode .wc-chat-header,
-body.dark-mode .wc-sub-header  { background: var(--bg-panel-header) !important; border-color: var(--border-subtle) !important; }
-body.dark-mode .wc-input-area   { background: var(--bg-input) !important; border-top-color: var(--border-subtle) !important; }
+body.dark-mode .wc-sub-header  { background: var(--bg-panel-header); border-color: var(--border-subtle); }
+body.dark-mode .wc-input-area   { background: var(--bg-input) !important; border-top-color: var(--border-subtle); }
 /* .wc-input-box 现用主题感知的 --bg-search/--border-color，亮暗自适配；textarea 透明融入容器 */
 body.dark-mode .wc-textarea,
-body.dark-mode .wc-input-box textarea { background: transparent !important; border-color: var(--border-medium) !important; }
+body.dark-mode .wc-input-box textarea { background: transparent; border-color: var(--border-medium); }
 body.dark-mode .wc-menu-item:hover { background: var(--bg-hover); }
-body.dark-mode .wc-modal { background: var(--bg-modal) !important; }
+body.dark-mode .wc-modal { background: var(--bg-modal); }
 body.dark-mode .wc-modal-input { background: var(--bg-input-search); border-color: var(--border-default); color: var(--text-primary); }
-body.dark-mode .af-modal { background: var(--bg-card) !important; }
-body.dark-mode .af-search-wrap { background: var(--border-default) !important; }
-body.dark-mode .up-card { background: var(--bg-card) !important; }
-body.dark-mode .up-avatar-wrap { border-color: var(--bg-panel) !important; }
-body.dark-mode .up-remark-input { background: var(--bg-input-search) !important; border-color: var(--border-medium) !important; }
-body.dark-mode .up-remark-box { background: var(--bg-input) !important; }
-body.dark-mode .wc-panel { background: var(--glass-panel-bg-strong) !important; border-right-color: var(--border-subtle) !important; }
+body.dark-mode .af-modal { background: var(--bg-card); }
+body.dark-mode .af-search-wrap { background: var(--border-default); }
+body.dark-mode .up-card { background: var(--bg-card); }
+body.dark-mode .up-avatar-wrap { border-color: var(--bg-panel); }
+body.dark-mode .up-remark-input { background: var(--bg-input-search); border-color: var(--border-medium); }
+body.dark-mode .up-remark-box { background: var(--bg-input); }
+body.dark-mode .wc-panel { background: var(--glass-panel-bg-strong) !important; border-right-color: var(--border-subtle); }
 body.dark-mode input, body.dark-mode textarea { color: var(--text-primary); }
 body.dark-mode .wc-moment-comment-user,
 body.dark-mode .wc-moment-comment-submit { color: var(--link); }
@@ -1675,11 +1675,11 @@ body.dark-mode .wc-search { background: var(--bg-input-search); border-color: va
 body.dark-mode .wc-panel-topbar,
 body.dark-mode .wc-chat-header,
 body.dark-mode .wc-sub-header { background: var(--glass-panel-bg) !important; border-color: var(--border-subtle) !important; }
-body.dark-mode .wc-input-area { background: var(--bg-input) !important; border-top-color: var(--border-subtle) !important; }
+body.dark-mode .wc-input-area { background: var(--bg-input) !important; border-top-color: var(--border-subtle); }
 body.dark-mode .wc-textarea,
 body.dark-mode .wc-input-box textarea { background: transparent !important; border-color: var(--border-subtle) !important; box-shadow: none !important; }
 body.dark-mode .wc-chat[class],
-body.dark-mode .wc-messages[class] { background: var(--bg-chat) !important; }
+body.dark-mode .wc-messages[class] { background: var(--bg-chat); }
 /* 转发弹窗 tab 暗色覆盖已移除：新版为下划线设计，直接用 --color-primary token（本身适配暗色），旧的药丸背景/阴影覆盖为死规则 */
 body.dark-mode {
   background:
@@ -2233,17 +2233,17 @@ body {
 .wc-panel-topbar,
 .wc-chat-header,
 .wc-sub-header {
-  background: var(--bg-panel-header) !important;
-  border-bottom: 1px solid rgba(0,0,0,.06) !important;
+  background: var(--bg-panel-header);
+  border-bottom: 1px solid rgba(0,0,0,.06);
 }
 
 .wc-chat,
 .wc-messages {
-  background: var(--bg-messages) !important;
+  background: var(--bg-messages);
 }
 
 .wc-search {
-  background: var(--bg-search) !important;
+  background: var(--bg-search);
   border: 1px solid transparent;
   box-shadow: none;
 }
@@ -2258,15 +2258,15 @@ body {
 .wc-contact-item:hover,
 .wc-menu-item:hover,
 .wc-discover-item:hover {
-  background: var(--bg-panel-item-hover) !important;
+  background: var(--bg-panel-item-hover);
 }
 /* 微信选中态：纯灰底，无绿色渐变、无竖条、无投影 */
 .wc-chat-item.active {
-  background: var(--bg-panel-item-active) !important;
+  background: var(--bg-panel-item-active);
   box-shadow: none;
 }
 .wc-chat-item.active:hover {
-  background: var(--bg-panel-item-active-hover) !important;
+  background: var(--bg-panel-item-active-hover);
 }
 
 .wc-msg-bubble {
@@ -2276,7 +2276,7 @@ body {
 
 .wc-input-area {
   background: var(--bg-chat);
-  border-top: 1px solid rgba(0,0,0,.08) !important;
+  border-top: 1px solid rgba(0,0,0,.08);
 }
 .wc-tool-btn,
 .wc-send-btn,
@@ -2287,7 +2287,7 @@ body {
 }
 .wc-tool-btn:hover,
 .wc-chat-header-btn:hover {
-  background: rgba(0,0,0,.06) !important;
+  background: rgba(0,0,0,.06);
 }
 .wc-tool-btn:active,
 .wc-send-btn:active,
@@ -2315,8 +2315,8 @@ body:not(.dark-mode) .wc-discover {
 .wc-forward-modal,
 .wc-group-info,
 .wc-user-profile-card {
-  background: var(--bg-card) !important;
-  border: 1px solid var(--glass-border) !important;
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
 }
 
@@ -2324,7 +2324,7 @@ body:not(.dark-mode) .wc-discover {
   margin: 0 12px 12px;
   overflow: hidden;
   border-radius: var(--radius-modal);
-  background: var(--glass-bg) !important;
+  background: var(--glass-bg);
 
 
   border: 1px solid var(--glass-border);
@@ -4043,7 +4043,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 .m-chat-page > .wc-chat { flex: 1; min-height: 0; height: 100%; }
 .m-chat-page .wc-chat-header { padding-top: env(safe-area-inset-top); }
 .m-chat-page .wc-chat-header-back {
-  display: flex !important; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; border: none; background: transparent; cursor: pointer;
   margin-right: 2px; flex-shrink: 0; color: var(--text-title);
 }
@@ -4062,12 +4062,12 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   background: var(--bg-card, #fff) !important;
 
 
-  border-radius: var(--radius-none) !important;
-  border-left: none !important;
-  border-right: none !important;
-  box-shadow: none !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
+  border-radius: var(--radius-none);
+  border-left: none;
+  border-right: none;
+  box-shadow: none;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 /* 设置分组卡：通栏白底，去圆角/侧边框/投影/毛玻璃 */
@@ -4113,7 +4113,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 
 
   border: 1px solid var(--border-default) !important;
-  box-shadow: var(--shadow-lg) !important;
+  box-shadow: var(--shadow-lg);
 }
 
 /* ── 字体大小选择器 ── */
@@ -4280,7 +4280,7 @@ select:focus-visible {
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
   overflow: hidden;
-  border-right: none !important;
+  border-right: none;
 }
 .wc-app.wc-mobile .wc-panel { border-radius: 0; box-shadow: none; }
 
@@ -4296,7 +4296,7 @@ select:focus-visible {
 .wc-chat-item.active:hover {
   /* 用 !important 覆盖历史 §2240 的 --bg-panel-item-active !important */
   background: var(--grad-brand) !important;
-  box-shadow: 0 6px 16px rgba(var(--green-rgb), .28) !important;
+  box-shadow: 0 6px 16px rgba(var(--green-rgb), .28);
 }
 .wc-chat-item.active .wc-chat-item-name { color: var(--gray-0); font-weight: var(--font-semibold); }
 .wc-chat-item.active .wc-chat-item-preview,
@@ -4306,7 +4306,7 @@ select:focus-visible {
 /* 选中会话头像加白描边，从渐变底上"托"出来 */
 .wc-chat-item.active .wc-chat-item-avatar img,
 .wc-chat-item.active .wc-chat-item-avatar > * { box-shadow: 0 0 0 2px rgba(255,255,255,.55); }
-.wc-chat-item.pinned:not(.active) { background: var(--grad-brand-soft) !important; }
+.wc-chat-item.pinned:not(.active) { background: var(--grad-brand-soft); }
 
 /* ── 聊天区：也做成悬浮卡 ── */
 .home-chat-area {
@@ -4331,7 +4331,7 @@ select:focus-visible {
 }
 /* 去掉气泡尖角，改为纯圆角块（原创、非微信小尖角）*/
 .wc-msg-bubble.mine::after,
-.wc-msg-bubble.other::after { display: none !important; }
+.wc-msg-bubble.other::after { display: none; }
 
 /* ── 顶栏搜索框：圆润胶囊 ── */
 .wc-search { border-radius: var(--radius-full); }
