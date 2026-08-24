@@ -3376,19 +3376,6 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .we-empty-title { font-size: var(--text-base); font-weight: var(--font-medium); color:var(--text-primary); margin-bottom:6px; }
 .we-empty-desc { font-size: var(--text-sm); color:var(--text-secondary); }
 
-/* 冷启动引导卡：零会话时占据聊天区画布，主按钮沿用 .cl-add-btn */
-.we-empty-cold .we-empty-svg { margin-bottom: 18px; }
-.we-empty-cold .we-empty-title { margin-top: 2px; }
-.we-empty-cold .we-empty-desc { margin-top: 4px; }
-.we-empty-actions { display:flex; gap:12px; margin-top:22px; }
-.we-empty-btn-ghost {
-  padding: 8px 18px; border:1px solid var(--divider); border-radius: var(--radius-md);
-  background: transparent; color: var(--text-secondary); font-size: var(--text-sm2);
-  cursor: pointer; transition: border-color var(--dur-fast), color var(--dur-fast);
-}
-.we-empty-btn-ghost:hover { border-color: var(--brand-300); color: var(--brand-500); }
-.we-empty-btn-ghost:active { transform: scale(.96); }
-
 /* ── AccountSwitcher ── */
 .as-container { position:relative; width:100%; }
 .as-avatar-btn { cursor:pointer; width:100%; display:flex; justify-content:center; }

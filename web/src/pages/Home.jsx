@@ -31,27 +31,16 @@ import useFocusTrap from '../hooks/useFocusTrap';
 import { mediaUrl, goLogin } from '../utils/url';
 import { loadCred, saveCred, removeCred } from '../utils/rememberedCreds';
 
-function WcEmpty({ cold = false, onAddFriend, onShowQR }) {
+function WcEmpty() {
   // 对齐微信 PC：未选会话时近乎纯净留白，仅一枚极淡的单色图标，无文字、无彩色
-  // 冷启动（还没有任何会话）时升级为引导卡：用最大的画布带新用户完成第一步
   return (
-    <div className={`we-empty${cold ? ' we-empty-cold' : ''}`}>
+    <div className="we-empty">
       <svg className="we-empty-svg" viewBox="0 0 64 64" aria-hidden="true">
         <rect x="6" y="12" width="44" height="32" rx="9" fill="#E6E9EF"/>
         <path d="M16 50l0-9 9 0z" fill="#E6E9EF"/>
         <rect x="14" y="22" width="28" height="3" rx="1.5" fill="#CFD5DF"/>
         <rect x="14" y="30" width="20" height="3" rx="1.5" fill="#CFD5DF"/>
       </svg>
-      {cold && (
-        <>
-          <div className="we-empty-title">开始你的第一场对话</div>
-          <div className="we-empty-desc">添加好友，或把二维码名片发给对方</div>
-          <div className="we-empty-actions">
-            <button type="button" className="cl-add-btn" onClick={onAddFriend}>＋ 添加好友</button>
-            <button type="button" className="we-empty-btn-ghost" onClick={onShowQR}>我的二维码</button>
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -517,7 +506,6 @@ export default function Home() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [addFriendRequest, setAddFriendRequest] = useState(0);
   const [convRefreshKey, setConvRefreshKey] = useState(0);
-  const [convCount, setConvCount] = useState(null);   // ChatList 上报：null=未加载，0=冷启动（用于 WcEmpty 引导卡）
   const { socket, reconnectCount, registerUnreadCleared } = useSocket();
   const { user } = useAuth();
   usePushNotification(user);
@@ -787,7 +775,7 @@ export default function Home() {
   const renderMain = () => {
     switch (tab) {
       case 'chats':
-        return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} convRefreshKey={convRefreshKey} onOpenMentions={() => setShowMentions(true)} onConvCount={setConvCount} onAddFriend={handleAddFriend} />;
+        return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} convRefreshKey={convRefreshKey} onOpenMentions={() => setShowMentions(true)} />;
       case 'contacts':
         return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} onAddFriendConsumed={handleAddFriendConsumed} />;
       case 'moments':
@@ -1076,7 +1064,7 @@ export default function Home() {
                   </Suspense>
                 </ChatWindowBoundary>
               )
-              : <WcEmpty cold={convCount === 0} onAddFriend={handleAddFriend} onShowQR={() => setShowQR(true)} />
+              : <WcEmpty />
             }
           </div>
         )}

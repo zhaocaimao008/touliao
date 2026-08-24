@@ -132,7 +132,7 @@ function ChatListSkeleton() {
   );
 }
 
-export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions, onConvCount, onAddFriend }) {
+export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions }) {
   const [conversations, setConversations] = useState([]);
   const [loaded, setLoaded] = useState(false);   // 首屏是否已拉过一次：未拉完显示骨架，避免闪「暂无聊天」
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -175,12 +175,10 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     try {
       const { data } = await axios.get('/api/messages/conversations');
       setConversations(data);
-      // 上报"真实会话数"（排除自动创建的文件传输助手）：0 = 冷启动，Home 用它切 WcEmpty 引导卡
-      if (Array.isArray(data)) onConvCount?.(data.filter(c => c && c.type !== 'filehelper').length);
     } finally {
       setLoaded(true);   // 无论成功失败都结束骨架态，不卡在加载
     }
-  }, [onConvCount]);
+  }, []);
 
   const handleSelectConv = useCallback((conv) => {
     if (conv.manually_unread) {
@@ -377,22 +375,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         {!loaded && conversations.length === 0 ? (
           <ChatListSkeleton />
         ) : filtered.length === 0 ? (
-          searchQuery ? (
-            <div className="cl-empty" role="status">
-              <div className="cl-empty-text">未找到「{searchQuery}」</div>
-            </div>
-          ) : (
-            <div className="cl-empty" role="status">
-              <svg viewBox="0 0 48 48" width="48" height="48" fill="none" className="cl-empty-icon" aria-hidden="true">
-                <path d="M8 12h24a6 6 0 016 6v12a6 6 0 01-6 6H14l-8 6V18a6 6 0 016-6z" fill="#E8ECF0"/>
-                <rect x="13" y="22" width="14" height="2.6" rx="1.3" fill="#D0D7E3"/>
-                <rect x="13" y="28" width="9" height="2.6" rx="1.3" fill="#D0D7E3"/>
-              </svg>
-              <div className="cl-empty-text">还没有会话</div>
-              <div className="cl-empty-sub">添加好友，开始第一场对话</div>
-              {onAddFriend && <button type="button" className="cl-add-btn" onClick={onAddFriend}>＋ 添加好友</button>}
-            </div>
-          )
+          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm2)' }}>暂无聊天</div>
         ) : (
           <AutoSizer>
             {({ height, width }) => (
