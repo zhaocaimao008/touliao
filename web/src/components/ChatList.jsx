@@ -401,6 +401,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           <div
             style={{ position: 'fixed', inset: 0, zIndex: "calc(var(--z-top) - 1)" }}
             onClick={() => setCtxMenu(null)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCtxMenu(null); } }}
+            role="button"
+            tabIndex={0}
             onContextMenu={e => { e.preventDefault(); setCtxMenu(null); }}
           />
           <div

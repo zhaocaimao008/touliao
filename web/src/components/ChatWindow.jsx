@@ -2307,6 +2307,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <div
           className="wc-card-picker-overlay"
           onClick={e => e.target === e.currentTarget && setShowCardPicker(false)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowCardPicker(false); } }}
+          role="button"
+          tabIndex={0}
         >
           <div className="wc-card-picker">
             <div className="wc-card-picker-header">
@@ -2584,6 +2587,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           <div
             className="wc-ctx-overlay wc-ctx-overlay-fixed"
             onClick={closeCtx}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeCtx(); } }}
+            role="button"
+            tabIndex={0}
           />
           <div
             className="wc-ctx-menu wc-ctx-menu-fixed"
@@ -2694,6 +2700,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {redPacketDetail && (
         <div
           onClick={() => setRedPacketDetail(null)}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRedPacketDetail(null); } }}
+          role="button"
+          tabIndex={0}
           className="wc-rp-detail-overlay"
         >
           <div
