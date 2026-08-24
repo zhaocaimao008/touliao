@@ -1814,7 +1814,7 @@ body.dark-mode .wc-settings-entry:hover {
   .wc-bottom-tab .wc-bottom-icon { width: 22px; height: 22px; color: rgba(0,0,0,.35); }
   .wc-bottom-tab.active .wc-bottom-icon { color: var(--green); }
   .wc-bottom-badge { top: 2px; right: 50%; margin-right: -20px; border-color: var(--text-inverse); }
-  .wc-tip { display: none !important; }
+  .wc-tip { display: none; }
 
   /* 面板 → 全屏 */
   .wc-panel {
@@ -2337,7 +2337,7 @@ body:not(.dark-mode) .wc-discover {
 }
 .wc-settings-entry {
   min-height: 50px;
-  padding: 12px 14px !important;
+  padding: var(--sp-3) var(--sp-3h);
   border-bottom: 1px solid var(--divider);
   transition: background var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
 }
@@ -2485,7 +2485,7 @@ body:not(.dark-mode) .wc-discover {
 .wc-user-profile-modal {
   width: 360px;
   max-height: 88vh;
-  background: var(--bg-app, #EDEFF2) !important;
+  background: var(--bg-app, #EDEFF2);
   border-radius: var(--radius-md);
   box-shadow: 0 18px 46px rgba(0,0,0,.22);
 }
@@ -3160,7 +3160,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .wc-shortcut-kbd--recording { border-color: var(--color-primary); background: rgba(var(--color-primary-rgb), .12); color: var(--color-primary); animation: shortcutPulse 1.5s ease-in-out infinite; }
 @keyframes shortcutPulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
 @media (prefers-reduced-motion: reduce) { .wc-shortcut-kbd--recording { animation: none; } }
-.wc-shortcut-rec-active { background: var(--color-primary) !important; color: var(--gray-0) !important; border-color: var(--color-primary) !important; }
+.wc-shortcut-rec-active { background: var(--color-primary); color: var(--gray-0); border-color: var(--color-primary); }
 
 /* ── Section wrappers ── */
 .wc-section-pad { padding: 0 14px; }
@@ -4072,30 +4072,30 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 
 /* 设置分组卡：通栏白底，去圆角/侧边框/投影/毛玻璃 */
 .wc-card {
-  background: var(--bg-card, #fff) !important;
-  border-radius: var(--radius-none) !important;
-  border-left: none !important;
-  border-right: none !important;
-  border-top: 1px solid var(--divider) !important;
-  border-bottom: 1px solid var(--divider) !important;
-  box-shadow: none !important;
+  background: var(--bg-card, #fff);
+  border-radius: var(--radius-none);
+  border-left: none;
+  border-right: none;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
+  box-shadow: none;
 
 
 }
-.wc-section-pad { padding-left: 0 !important; padding-right: 0 !important; }
+.wc-section-pad { padding-left: 0; padding-right: 0; }
 
 /* 分组小标题：去全大写与字间距，回归普通灰标签 */
-.wc-slabel { text-transform: none !important; letter-spacing: normal !important; }
+.wc-slabel { text-transform: none; letter-spacing: normal; }
 
 /* 退出登录：通栏白底红字行(微信式)，无圆角卡片/投影 */
-.wc-logout-div { padding-left: 0 !important; padding-right: 0 !important; }
+.wc-logout-div { padding-left: 0; padding-right: 0; }
 .wc-logout-btn {
-  border-radius: var(--radius-none) !important;
-  border-left: none !important;
-  border-right: none !important;
-  box-shadow: none !important;
-  border-top: 1px solid var(--divider) !important;
-  border-bottom: 1px solid var(--divider) !important;
+  border-radius: var(--radius-none);
+  border-left: none;
+  border-right: none;
+  box-shadow: none;
+  border-top: 1px solid var(--divider);
+  border-bottom: 1px solid var(--divider);
 }
 
 /* 群信息侧栏：不透明纯色、去毛玻璃(docked 面板不浮投影) */
