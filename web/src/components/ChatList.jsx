@@ -260,8 +260,11 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         return next.sort(byPinnedThenTime);
       });
     };
+    // 超大户群降级通知：不推全量消息体，只推轻量通知 → 刷新会话列表（置顶/摘要）
+    const onNotify = () => fetchConvs();
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
+    socket.on('new_message_notify', onNotify);
     socket.on('new_conversation', onNewConv);
     socket.on('conversation_messages_cleared', onCleared);
     socket.on('group_updated', onGroupUpdated);
@@ -270,6 +273,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     return () => {
       socket.off('new_message', onMsg);
       socket.off('new_message_batch', onMsgBatch);
+      socket.off('new_message_notify', onNotify);
       socket.off('new_conversation', onNewConv);
       socket.off('conversation_messages_cleared', onCleared);
       socket.off('group_updated', onGroupUpdated);

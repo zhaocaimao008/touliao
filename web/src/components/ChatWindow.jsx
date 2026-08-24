@@ -749,6 +749,35 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   useEffect(() => {
     if (!socket) return;
+    // 超大户群降级通知（new_message_notify）：服务端对 >500 在线 socket 的房间不再推全量消息，
+    // 只推轻量通知。客户端若正停留在该会话，拉取增量消息补齐。
+    const onNotify = async ({ conversationId, ts }) => {
+      if (conversationId !== convIdRef.current) return;
+      try {
+        // after-1: 覆盖同秒边界（与断线重连补拉逻辑一致），重复消息由 setMessages 内按 id 去重
+        const { data } = await axios.get(`/api/messages/${conversationId}`, {
+          params: { after: (ts || 0) - 1, limit: 100 },
+        });
+        if (!data.length) return;
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          let next = prev.slice();
+          let changed = false;
+          for (const m of data) {
+            if (existingIds.has(m.id)) continue;
+            if (m.client_msg_id) {
+              const idx = next.findIndex(x => x._tempId === m.client_msg_id || x.id === m.client_msg_id);
+              if (idx >= 0) { next[idx] = m; changed = true; continue; }
+            }
+            next.push(m);
+            changed = true;
+          }
+          if (!changed) return prev;
+          next.sort((a, b) => a.created_at - b.created_at);
+          return next;
+        });
+      } catch { /* 拉取失败静默，用户刷新或下条消息会再触发 */ }
+    };
     const onMsg = (msg) => {
       const currentConvId = convIdRef.current;
       if (msg.conversation_id !== currentConvId) return;
@@ -955,6 +984,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
+    socket.on('new_message_notify', onNotify);
     socket.on('mentioned', onAtMention);
     socket.on('typing', onTyping);
     socket.on('stop_typing', onStopTyping);
@@ -983,6 +1013,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       socket.off('mentioned', onAtMention);
       socket.off('new_message', onMsg);
       socket.off('new_message_batch', onMsgBatch);
+      socket.off('new_message_notify', onNotify);
       socket.off('typing', onTyping);
       socket.off('stop_typing', onStopTyping);
       clearTimeout(typingClearTimer.current);

@@ -18,6 +18,8 @@ const BATCH_WINDOW_MS = 5;    // 5ms 合并窗口（降低延迟，保持高合�
 const MAX_BATCH       = 200;  // 单房间最多合并 200 条，提升批次效率
 const SHARD_ROOMS     = 96;   // 单 tick 最多冲刷 96 个房间（提升吞吐）
 const CHUNK_SOCKETS   = 300;  // 单 tick 最多同步写多少个 socket；超大房间分片广播，防止事件循环阻塞（压测: 2000连接大群曾致 ELD>2s）
+const NOTIFY_THRESHOLD = 500; // 房间在线 socket 超过此数 → 降级为轻量通知(new_message_notify)+客户端拉取，
+                              // 不再推全量消息体。微信/Telegram 对超大户群的同款策略，彻底避免广播风暴。
 
 let _io = null;
 // room → { event, msgs: [] }   仅合并 new_message；其它事件直接单发
@@ -55,6 +57,30 @@ function broadcastMessage(room, msg) {
 function flushRoom(room, slot) {
   if (!_io) return;
   const msgs = slot.msgs;
+  // 超大户群降级：在线 socket 超过 NOTIFY_THRESHOLD 时，不推全量消息体，
+  // 只推轻量通知（conversationId + 最新一条概要），客户端收到后调 GET /api/messages/:id 拉取。
+  // 服务端只做 1 次轻量 emit，广播成本 O(1)（socket.io 内部对同一 room 的 emit 仍会复制到各连接，
+  // 但 payload 极小，且省略了全量消息的 JSON 序列化/压缩开销，ELD 压力下降一个量级）。
+  const roomSockets = _io.sockets.adapter.rooms.get(room);
+  if (roomSockets && roomSockets.size > NOTIFY_THRESHOLD) {
+    const latest = msgs[msgs.length - 1];
+    const preview = latest?.type === 'image' ? '[图片]'
+      : latest?.type === 'voice' ? '[语音]'
+      : latest?.type === 'file' ? '[文件]'
+      : latest?.type === 'video' ? '[视频]'
+      : String(latest?.content || '').slice(0, 60);
+    emitToRoom(room, 'new_message_notify', {
+      conversationId: room,
+      lastMsgId: latest?.id || null,
+      senderName: latest?.senderName || '',
+      preview,
+      count: msgs.length,
+      ts: latest?.created_at || Math.floor(Date.now() / 1000),
+    });
+    stats.totalEmits++;
+    if (msgs.length > 1) stats.batchedEmits++;
+    return;
+  }
   const event = msgs.length === 1 ? 'new_message' : 'new_message_batch';
   const payload = msgs.length === 1 ? msgs[0] : msgs;
   if (msgs.length > 1) {

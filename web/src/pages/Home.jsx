@@ -611,6 +611,20 @@ export default function Home() {
   const myId = user?.id;
   useEffect(() => {
     if (!socket) return;
+    // 超大户群降级通知：>500 在线 socket 的房间不推全量消息，只推轻量通知。
+    // 会话列表侧：未读数 +1、触发浏览器通知/提示音、并刷新会话列表（置顶/最新消息摘要）。
+    const onNotify = ({ conversationId, senderName, preview }) => {
+      const isActiveConv = conversationId === activeConvIdRef.current;
+      setUnread(prev => {
+        if (isActiveConv) return prev;
+        return { ...prev, [conversationId]: (prev[conversationId] || 0) + 1 };
+      });
+      if (!isActiveConv || document.hidden) {
+        showNotification(senderName || '新消息', preview || '发来了一条消息');
+        if (senderName) playMessageTone(); // 大群通知不携带 sender_id，仅在明确有发送者时响铃
+      }
+      setConvRefreshKey(k => k + 1); // 刷新会话列表（置顶 + lastMessage 摘要）
+    };
     const onMsg = (msg) => {
       const isActiveConv = msg.conversation_id === activeConvIdRef.current;
       setUnread(prev => {
@@ -685,11 +699,13 @@ export default function Home() {
     };
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
+    socket.on('new_message_notify', onNotify);
     socket.on('new_friend_request', onFriendReq);
     socket.on('friend_request_accepted', onFriendAccepted);
     return () => {
       socket.off('new_message', onMsg);
       socket.off('new_message_batch', onMsgBatch);
+      socket.off('new_message_notify', onNotify);
       socket.off('new_friend_request', onFriendReq);
       socket.off('friend_request_accepted', onFriendAccepted);
     };
