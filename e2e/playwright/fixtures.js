@@ -24,7 +24,11 @@ const test = base.test.extend({
   webPage: async ({ page, baseURL }, use) => {
     const { backendUrl } = loadState();
     await page.addInitScript((url) => {
-      try { localStorage.setItem('vxin_server_url', url); } catch {}
+      // touliao 前端读 touliao_server_url（web/src/main.jsx）；vxin_* 为 fork 前旧键，双写兼容
+      try {
+        localStorage.setItem('touliao_server_url', url);
+        localStorage.setItem('vxin_server_url', url);
+      } catch {}
     }, backendUrl);
     await use(page);
   },
