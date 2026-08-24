@@ -151,6 +151,7 @@ class ChatViewModel @Inject constructor(
         loadHistory()
         loadBackground()
         observeIncoming()
+        observeNotify()
         observeTyping()
         observeRead()
         observeDeleted()
@@ -818,6 +819,30 @@ class ChatViewModel @Inject constructor(
                 persistCache(_uiState.value.messages)   // 收到真实 socket 新消息 → 追加后落盘（截断 50）
                 // 仅在底部附近才即时标已读；看历史时留给「N 条新消息」提示，滚回底再标
                 if (msg.sender_id != myId && atBottom) markReadLatest()
+            }
+        }
+    }
+
+    /** 超大户群降级通知：>500 在线 socket 的房间不推全量消息，只推轻量通知。
+     *  正停留在此会话 → 用 after(通知时间戳) 拉取增量补齐；非本会话由会话列表 VM 处理。 */
+    private fun observeNotify() {
+        viewModelScope.launch {
+            chatRepository.newMessageNotifyEvents.collect { ev ->
+                if (ev.conversationId != conversationId) return@collect
+                viewModelScope.launch {
+                    runCatching { chatRepository.loadHistory(conversationId, after = (ev.ts - 1).coerceAtLeast(0)) }
+                        .onSuccess { inc ->
+                            if (inc.isEmpty()) return@onSuccess
+                            _uiState.update { st ->
+                                val existing = st.messages.map { it.id }.toSet()
+                                val new = inc.filterNot { it.id in existing }
+                                if (new.isEmpty()) st
+                                else st.copy(messages = (st.messages + new).sortedBy { it.created_at })
+                            }
+                            persistCache(_uiState.value.messages)
+                            if (atBottom) markReadLatest()
+                        }
+                }
             }
         }
     }

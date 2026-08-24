@@ -36,12 +36,13 @@ interface MessageApi {
     @GET("api/messages/conversations")
     suspend fun conversations(): List<Conversation>
 
-    /** 某会话历史消息，升序返回；分页用 before（早于该时间戳，epoch 秒） */
+    /** 某会话历史消息，升序返回；分页用 before（早于该时间戳，epoch 秒）或 after（晚于该时间戳，增量拉取） */
     @GET("api/messages/{conversationId}")
     suspend fun history(
         @Path("conversationId") conversationId: String,
         @Query("limit") limit: Int = 50,
         @Query("before") before: Long? = null,
+        @Query("after") after: Long? = null,
     ): List<Message>
 
     /** 会话内消息全文搜索（FTS5），按时间倒序返回命中消息 */

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.touliao.app.core.auth.AuthState
 import com.touliao.app.core.auth.SessionManager
 import com.touliao.app.core.network.toUserMessage
+import com.touliao.app.core.push.NotificationHelper
 import com.touliao.app.core.realtime.SocketStatus
 import com.touliao.app.core.util.MediaUrlResolver
 import com.touliao.app.data.model.Conversation
@@ -32,6 +33,7 @@ class ConversationListViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val mediaUrlResolver: MediaUrlResolver,
     private val draftStore: com.touliao.app.core.storage.DraftStore,
+    private val notificationHelper: NotificationHelper,
 ) : ViewModel() {
 
     private val myId: String =
@@ -50,6 +52,8 @@ class ConversationListViewModel @Inject constructor(
     init {
         refresh()
         observeIncoming()
+        observeNotify()
+        observeMentions()
         observeReconnect()
         observeUnreadCleared()
         observeNewConversation()
@@ -181,6 +185,29 @@ class ConversationListViewModel @Inject constructor(
                     list.add(0, updated)
                     state.copy(conversations = list)
                 }
+            }
+        }
+    }
+
+    /** 超大户群降级通知：不推全量消息体，只推轻量通知 → 刷新会话列表（置顶/摘要/未读） */
+    private fun observeNotify() {
+        viewModelScope.launch {
+            chatRepository.newMessageNotifyEvents.collect { _ ->
+                refresh()  // 全量刷新最稳妥（含未读计数/摘要/置顶），大群场景频率低可接受
+            }
+        }
+    }
+
+    /** @提及实时通知（对齐 Web 端）：弹本地通知 + 刷新 @我 列表 */
+    private fun observeMentions() {
+        viewModelScope.launch {
+            chatRepository.mentionedEvents.collect { ev ->
+                val title = if (ev.groupName.isNotBlank()) "${ev.fromUserName} 在 ${ev.groupName} 中@了你" else "${ev.fromUserName} @了你"
+                notificationHelper.showMessageNotification(
+                    title = title,
+                    body = ev.messagePreview.ifBlank { "查看消息" },
+                    conversationId = ev.conversationId,
+                )
             }
         }
     }

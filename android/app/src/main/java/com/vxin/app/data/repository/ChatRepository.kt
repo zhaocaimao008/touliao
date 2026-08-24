@@ -3,6 +3,8 @@ package com.touliao.app.data.repository
 import com.touliao.app.core.realtime.ReactionEvent
 import com.touliao.app.core.realtime.ReadEvent
 import com.touliao.app.core.realtime.RedPacketClaimedEvent
+import com.touliao.app.core.realtime.NewMessageNotifyEvent
+import com.touliao.app.core.realtime.MentionedEvent
 import com.touliao.app.core.media.ChunkUploader
 import com.touliao.app.core.media.MediaUploader
 import com.touliao.app.core.realtime.SocketManager
@@ -32,6 +34,8 @@ class ChatRepository @Inject constructor(
 
     /** 全局新消息流（各会话共用，UI 自行按 conversation_id 过滤） */
     val incomingMessages: SharedFlow<Message> = socketManager.incomingMessages
+    val newMessageNotifyEvents: SharedFlow<NewMessageNotifyEvent> = socketManager.newMessageNotifyEvents
+    val mentionedEvents: SharedFlow<MentionedEvent> = socketManager.mentionedEvents
 
     /** typing / 已读 / 未读清除 事件流 */
     val typingEvents: SharedFlow<TypingEvent> = socketManager.typingEvents
@@ -69,8 +73,8 @@ class ChatRepository @Inject constructor(
 
     suspend fun loadConversations(): List<Conversation> = api.conversations()
 
-    suspend fun loadHistory(conversationId: String, before: Long? = null): List<Message> =
-        api.history(conversationId, before = before)
+    suspend fun loadHistory(conversationId: String, before: Long? = null, after: Long? = null): List<Message> =
+        api.history(conversationId, before = before, after = after)
 
     /** 会话内消息搜索（FTS5，倒序命中） */
     suspend fun searchInConversation(conversationId: String, q: String): List<Message> =

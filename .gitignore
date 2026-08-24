@@ -109,3 +109,4 @@ scripts/__pycache__/
 backend-v2/test/.tmp-test-db.sqlite*
 backend-v2/test/.tmp-test-uploads/
 backups/
+android/app-release-signed.apk

@@ -29,6 +29,24 @@ data class ReactionEvent(val msgId: String, val reactions: List<MessageReaction>
 data class MessageEditedEvent(val msgId: String, val content: String, val conversationId: String)
 data class PresenceEvent(val userId: String, val online: Boolean)
 data class RedPacketClaimedEvent(val packetId: String, val userId: String, val username: String, val amount: Int)
+/** 超大户群降级通知（>500 在线 socket 的房间，服务端只推轻量摘要，客户端拉取增量） */
+data class NewMessageNotifyEvent(
+    val conversationId: String,
+    val lastMsgId: String?,
+    val senderName: String,
+    val preview: String,
+    val count: Int,
+    val ts: Long,
+)
+/** @提及实时通知（对齐 Web 端 mentioned 事件） */
+data class MentionedEvent(
+    val fromUserId: String,
+    val fromUserName: String,
+    val groupName: String,
+    val messagePreview: String,
+    val conversationId: String,
+    val msgId: String,
+)
 
 // ── WebRTC 通话信令 ──
 data class CallIncomingEvent(val from: String, val type: String, val callerName: String, val callId: String = "")
@@ -126,6 +144,14 @@ class SocketManager @Inject constructor(
     private val _messageEdited = MutableSharedFlow<MessageEditedEvent>(extraBufferCapacity = 32)
     val messageEditedEvents: SharedFlow<MessageEditedEvent> = _messageEdited.asSharedFlow()
 
+    /** 超大户群降级通知（>500 在线 socket 的房间不推全量消息，只推轻量通知 → 客户端拉取增量） */
+    private val _newMessageNotify = MutableSharedFlow<NewMessageNotifyEvent>(extraBufferCapacity = 32)
+    val newMessageNotifyEvents: SharedFlow<NewMessageNotifyEvent> = _newMessageNotify.asSharedFlow()
+
+    /** @提及实时通知（对齐 Web 端 mentioned 事件）→ UI 弹通知/刷新 @我 列表 */
+    private val _mentionedEvents = MutableSharedFlow<MentionedEvent>(extraBufferCapacity = 16)
+    val mentionedEvents: SharedFlow<MentionedEvent> = _mentionedEvents.asSharedFlow()
+
     /** 好友申请相关（新申请 / 申请被通过）→ 提示刷新通讯录与申请列表 */
     private val _friendEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
     val friendEvents: SharedFlow<Unit> = _friendEvents.asSharedFlow()
@@ -215,6 +241,21 @@ class SocketManager @Inject constructor(
                 for (i in 0 until arr.length()) parseMessage(arr.optJSONObject(i))?.let(_incomingMessages::tryEmit)
             }
         }
+        // 超大户群降级：>500 在线 socket 的房间不推全量消息，只推轻量通知 → UI 拉取增量
+        s.on("new_message_notify") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                _newMessageNotify.tryEmit(
+                    NewMessageNotifyEvent(
+                        conversationId = o.optString("conversationId"),
+                        lastMsgId = o.optString("lastMsgId").ifEmpty { null },
+                        senderName = o.optString("senderName"),
+                        preview = o.optString("preview"),
+                        count = o.optInt("count"),
+                        ts = o.optLong("ts"),
+                    )
+                )
+            }
+        }
         s.on("typing") { args -> typingEvent(args.firstOrNull(), isTyping = true) }
         s.on("stop_typing") { args -> typingEvent(args.firstOrNull(), isTyping = false) }
         s.on("message_read") { args ->
@@ -290,6 +331,21 @@ class SocketManager @Inject constructor(
         }
         s.on("message_pinned") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("convId")?.takeIf { it.isNotEmpty() }?.let(_pinChanged::tryEmit)
+        }
+        // @提及实时通知（对齐 Web 端）：被 @ → UI 弹通知 + 刷新 @我 列表
+        s.on("mentioned") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                _mentionedEvents.tryEmit(
+                    MentionedEvent(
+                        fromUserId = o.optString("fromUserId"),
+                        fromUserName = o.optString("fromUserName"),
+                        groupName = o.optString("groupName"),
+                        messagePreview = o.optString("messagePreview"),
+                        conversationId = o.optString("conversationId"),
+                        msgId = o.optString("msgId"),
+                    )
+                )
+            }
         }
         // ── 群实时事件 ──
         s.on("group_kicked") { args ->
