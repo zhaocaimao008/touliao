@@ -330,14 +330,11 @@ app.use('/api/reliability',   require('./routes/reliability.routes'));
 // P4.3-P4.7: 优化特性 (搜索排序、批量 ACK、去重、缓存预热、网络感知)
 app.use('/api/optimization',  require('./routes/optimization.routes'));
 
-// P11: 全球部署 (CDN、多区域同步、负载均衡、全球监控)
-app.use('/api/global',        require('./routes/p11-global-deployment.routes'));
-
-// P12: AI 增强 (LLM、内容审核、翻译、语音识别)
-app.use('/api/ai',            require('./routes/p12-ai-enhancement.routes'));
-
-// P13: Web3 集成 (区块链、NFT、DAO)
-app.use('/api/web3',          require('./routes/p13-web3-integration.routes'));
+// P11/P12/P13: 假数据空壳路由下线——未实现功能统一 501,禁止以 200 假响应暴露
+const stub501 = (req, res) => res.status(501).json({ error: '功能未实现', code: 'NOT_IMPLEMENTED' });
+app.use('/api/global',        stub501);   // P11 全球部署 (mock)
+app.use('/api/ai',            stub501);   // P12 AI 增强 (mock, 内容审核恒安全极具误导性)
+app.use('/api/web3',          stub501);   // P13 Web3 集成 (mock)
 
 // 公开配置（前端读取功能开关，决定朋友圈/收藏入口显隐）
 const { getFeatures } = require('./modules/admin/admin.service');

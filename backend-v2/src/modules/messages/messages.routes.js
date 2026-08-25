@@ -13,7 +13,7 @@
  */
 const router = require('express').Router();
 const auth = require('../../middleware/auth');
-const { sendMsgLimiter, reactLimiter, chunkInitLimiter, chunkUploadLimiter, joinGroupLimiter } = require('../../middleware/rateLimiters');
+const { sendMsgLimiter, reactLimiter, chunkInitLimiter, chunkUploadLimiter, joinGroupLimiter, rechargeLimiter } = require('../../middleware/rateLimiters');
 
 const conv = require('../conversations/conversations.controller');
 const msg  = require('./messages.controller');
@@ -1223,7 +1223,7 @@ router.post('/:msgId/collect', auth, reactLimiter, msg.collect);
  *       200:
  *         description: Red packet sent
  */
-router.post('/red-packet/send',            auth, rp.send);
+router.post('/red-packet/send',            auth, rechargeLimiter, rp.send);
 
 /**
  * @swagger

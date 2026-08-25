@@ -151,7 +151,8 @@ async function searchGlobal(userId, query, options = {}) {
  * @param {string} conversationId - 会话 ID
  * @returns {object} 搜索统计
  */
-function getConversationSearchStats(conversationId) {
+function getConversationSearchStats(conversationId, userId) {
+  requireMember(conversationId, userId); // 越权防护:非会话成员不得查看统计
   return getSearchStats(conversationId);
 }
 

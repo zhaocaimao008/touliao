@@ -59,6 +59,7 @@ const loginLimiter = rateLimit({
   ...base, windowMs: 10 * 60 * 1000, max: 5,
   store: makeStore('login'),
   keyGenerator: (req) => req.body?.phone || ipKeyGenerator(req.ip),
+  skipSuccessfulRequests: true, // 仅失败计数,成功登录不占额度(防误锁+防按号锁号 DoS)
   handler: (req, res) => res.status(429).json(json('登录尝试过于频繁，账户已锁定10分钟')),
   message: json('登录尝试过于频繁，请10分钟后再试'),
 });

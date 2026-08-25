@@ -144,7 +144,7 @@ router.get('/stats', auth, async (req, res, next) => {
       throw badRequest('缺少参数: conversationId');
     }
 
-    const stats = searchService.getConversationSearchStats(conversationId);
+    const stats = searchService.getConversationSearchStats(conversationId, req.user.id);
     res.json(stats);
   } catch (err) {
     next(err);

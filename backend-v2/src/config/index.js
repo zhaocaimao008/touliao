@@ -152,6 +152,14 @@ if (process.env.NODE_ENV === 'production') {
     console.error('[config] 致命错误：生产环境 ADMIN_USERNAME / ADMIN_PASSWORD 必须配置，启动中止');
     process.exit(1);
   }
+  if (process.env.ADMIN_PASSWORD.length < 12) {
+    console.error('[config] 致命错误：生产环境 ADMIN_PASSWORD 长度必须 ≥12（安全要求），启动中止');
+    process.exit(1);
+  }
+  // 提示:建议配置 ADMIN_IP_WHITELIST(逗号分隔 IP)限制后台访问来源;未配置时后台可被任意 IP 访问
+  if (!config.admin.ipWhitelist.length) {
+    console.warn('[config] 警告：ADMIN_IP_WHITELIST 未配置，后台可从任意 IP 登录。建议设置（如 45.77.131.33,8.8.8.8）');
+  }
 }
 
 module.exports = config;
