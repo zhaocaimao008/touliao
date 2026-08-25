@@ -110,3 +110,7 @@ backend-v2/test/.tmp-test-db.sqlite*
 backend-v2/test/.tmp-test-uploads/
 backups/
 android/app-release-signed.apk
+
+# 测试截图/签名临时文件
+ui-screenshots/
+*.idsig
