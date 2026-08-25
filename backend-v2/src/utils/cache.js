@@ -14,9 +14,14 @@ function init() {
   if (disabled) return Promise.resolve();
   if (client?.isReady) return Promise.resolve();
   if (initPromise) return initPromise;
+  // 只有显式配置 REDIS_URL 才连 Redis(否则纯内存模式,避免误连本机其他服务的 Redis)
+  if (!process.env.REDIS_URL) {
+    disabled = true;
+    return Promise.resolve();
+  }
 
   client = redis.createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
+    url: process.env.REDIS_URL,
     database: 0,
     socket: {
       connectTimeout: 1000,

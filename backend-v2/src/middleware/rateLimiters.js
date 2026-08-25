@@ -19,7 +19,12 @@ let _redisClient = null;
 let _redisReady  = false;
 
 (async () => {
-  const url = process.env.REDIS_URL || 'redis://localhost:6379';
+  // 只有显式配置 REDIS_URL 才连 Redis(否则纯内存限流,避免误连本机其他服务的 Redis)
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    console.debug('[RateLimit] REDIS_URL 未配置, 使用进程内存存储');
+    return;
+  }
   try {
     const c = redis.createClient({
       url,
