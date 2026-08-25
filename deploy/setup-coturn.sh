@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================
-# v信 一键部署 coturn（TURN 中继）—— 修复 4G/对称 NAT 下语音视频通话连不上
+# 投聊 一键部署 coturn（TURN 中继）—— 修复 4G/对称 NAT 下语音视频通话连不上
 # ============================================================
 # 用法：
 #   sudo bash deploy/setup-coturn.sh <PUBLIC_IP> <REALM> [BACKEND_ENV_PATH]
 # 例：
-#   sudo bash deploy/setup-coturn.sh 93.179.127.50 touliao.cc /root/v信/backend-v2/.env
+#   sudo bash deploy/setup-coturn.sh 93.179.127.50 touliao.cc /root/touliao/backend-v2/.env
 #
 # 做的事：
 #   1) 安装 coturn
@@ -14,13 +14,13 @@
 #   3) 把 TURN_SECRET / TURN_URLS / TURN_TTL 幂等写入后端 .env
 #   4) 放行防火墙端口(3478 udp/tcp + 中继 49152-65535/udp)
 #   5) enable + restart coturn
-# 之后需：pm2 restart vxin-server-v2 --update-env  让后端读到新 env。
+# 之后需：pm2 restart touliao-backend --update-env  让后端读到新 env。
 # 幂等：重复执行复用已存在的 TURN_SECRET，不会改变客户端凭证算法。
 set -euo pipefail
 
 PUBLIC_IP="${1:-}"
 REALM="${2:-}"
-ENV_FILE="${3:-/root/v信/backend-v2/.env}"
+ENV_FILE="${3:-/root/touliao/backend-v2/.env}"
 TURN_CONF="/etc/turnserver.conf"
 TTL="${TURN_TTL:-3600}"
 MIN_PORT=49152
@@ -62,7 +62,7 @@ fi
 # ── 3) 写 coturn 配置 ──
 echo "▶ 写 $TURN_CONF"
 cat > "$TURN_CONF" <<EOF
-# v信 coturn —— use-auth-secret(REST)模式，由 deploy/setup-coturn.sh 生成
+# 投聊 coturn —— use-auth-secret(REST)模式，由 deploy/setup-coturn.sh 生成
 listening-port=3478
 listening-ip=0.0.0.0
 external-ip=$PUBLIC_IP
@@ -161,7 +161,7 @@ echo "  TURN_TTL  : $TTL"
 echo "  secret    : (已写入 coturn 与 .env，未回显)"
 echo
 echo "👉 下一步(让后端读到新 env)："
-echo "   pm2 restart vxin-server-v2 --update-env && pm2 save"
+echo "   pm2 restart touliao-backend --update-env && pm2 save"
 echo "   然后 curl -s http://127.0.0.1:3002/api/turn/credentials -H 'Authorization: Bearer <token>'"
 echo "   应能看到 iceServers 里出现 turn: 服务器。"
 echo "============================================================"

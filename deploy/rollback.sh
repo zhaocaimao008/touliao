@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# v信 一键回滚脚本
+# 投聊 一键回滚脚本
 #
 # 用法:
 #   bash deploy/rollback.sh           # 回滚到上一个 commit（最常用）
@@ -108,7 +108,7 @@ elif [[ "$MODE" == "db" ]]; then
   ok "当前 DB 已备份: $SAFETY"
 
   step "解压并恢复 DB"
-  TMPDB="/tmp/vxin-restore-$$.db"
+  TMPDB="/tmp/touliao-restore-$$.db"
   if [[ "$DB_BACKUP" == *.gz ]]; then
     gunzip -c "$DB_BACKUP" > "$TMPDB"
   else

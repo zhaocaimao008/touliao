@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
             FirebaseApp.configure()
         }
-        // PushKit VoIP + CallKit：App 被杀也能被系统唤醒弹系统来电界面
+        // CallKit：来电系统界面管理（PushKit VoIP 注册已移除，见 VoipCallManager.swift 注释）
         VoipCallManager.shared.activate()
         Messaging.messaging().delegate = self
         UNUserNotificationCenter.current().delegate = self

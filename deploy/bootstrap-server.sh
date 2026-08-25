@@ -72,8 +72,7 @@ cd "$BE"
 npm ci --omit=dev 2>/dev/null || npm install --omit=dev
 
 step "3/8 启动后端（pm2: touliao-backend）"
-pm2 delete vxin-server-v2 2>/dev/null || true   # 旧进程名迁移
-pm2 delete touliao-backend 2>/dev/null || true
+pm2 delete touliao-backend 2>/dev/null || true   # 清理可能残留的旧进程
 PORT=3003 pm2 start src/server.js --name touliao-backend --update-env
 pm2 save >/dev/null
 pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
@@ -157,5 +156,5 @@ echo "  nginx    : http(s)://$HOST"
 echo "  TURN     : $(grep -E '^TURN_URLS=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || echo '未配置')"
 echo "  健康检查 : curl http://127.0.0.1:3003/health"
 echo "  日志     : pm2 logs touliao-backend --lines 50"
-echo "  告警脚本 : $SCRIPT_DIR/vxin-alert.sh（cron 每 5 分钟）"
+echo "  告警脚本 : $SCRIPT_DIR/touliao-alert.sh（cron 每 5 分钟）"
 echo "============================================================"

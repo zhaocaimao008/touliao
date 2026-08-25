@@ -1,7 +1,7 @@
 'use strict';
 /**
  * 后台管理鉴权：独立于普通用户。
- *   - 从 vxin_admin_token Cookie 读 JWT，要求 payload.admin === true
+ *   - 从 touliao_admin_token Cookie 读 JWT，要求 payload.admin === true
  *   - 通过后下发 csrf_token（复用双提交机制）
  * 普通用户的 vxin_token 无 admin 声明，无法越权进后台。
  */

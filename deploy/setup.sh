@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# v信 一键部署脚本 —— 在全新服务器上零配置部署
+# 投聊 一键部署脚本 —— 在全新服务器上零配置部署
 # 用法:  ./deploy/setup.sh <你的域名>
 # 示例:  ./deploy/setup.sh chat.example.com
 #
@@ -15,7 +15,7 @@ PORT="${PORT:-3002}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BE="$ROOT/backend-v2"
 WEB="$ROOT/web"
-WEBROOT="${WEBROOT:-/var/www/vxin}"
+WEBROOT="${WEBROOT:-/var/www/touliao}"
 PM2_NAME="touliao-backend"
 
 log(){ printf '\033[36m[deploy]\033[0m %s\n' "$*"; }
@@ -60,7 +60,7 @@ cp -r dist/* "$WEBROOT/"
 
 # ── 4. nginx 配置（由模板生成，自动填域名/端口）─────────────
 log "写入 nginx 配置"
-NGINX_CONF="/etc/nginx/conf.d/vxin.conf"
+NGINX_CONF="/etc/nginx/conf.d/touliao.conf"
 sed -e "s/__DOMAIN__/$DOMAIN/g" \
     -e "s/__PORT__/$PORT/g" \
     -e "s#__WEBROOT__#$WEBROOT#g" \

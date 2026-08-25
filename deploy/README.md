@@ -1,4 +1,4 @@
-# v信 部署指南（换服务器免配置）
+# 投聊 部署指南（换服务器免配置）
 
 ## 一键部署（全新服务器）
 
@@ -9,7 +9,7 @@
 npm i -g pm2
 
 # 2. 拉代码
-git clone <仓库地址> /root/v信 && cd /root/v信
+git clone <仓库地址> /root/touliao && cd /root/touliao
 
 # 3. 一键部署（把域名换成你的）
 ./deploy/setup.sh chat.example.com
@@ -20,7 +20,7 @@ git clone <仓库地址> /root/v信 && cd /root/v信
 - 创建 `uploads` 目录、设置自包含路径
 - 安装后端依赖、构建前端（前端用相对路径，天然适配任何域名）
 - 由 `nginx.conf.template` 生成本机 nginx 配置（自动填域名/端口）
-- 用 pm2 启动后端 `vxin-server-v2`
+- 用 pm2 启动后端 `touliao-backend`
 
 完成后申请 HTTPS 证书：
 ```bash
@@ -38,7 +38,7 @@ certbot --nginx -d chat.example.com
 ## 重新部署 / 更新代码
 
 ```bash
-cd /root/v信 && git pull && ./deploy/setup.sh chat.example.com
+cd /root/touliao && git pull && ./deploy/setup.sh chat.example.com
 ```
 脚本幂等：已存在的 `.env` 和密钥会被保留，不会重置用户登录态。
 

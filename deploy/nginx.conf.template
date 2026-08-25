@@ -1,4 +1,4 @@
-# v信 nginx 配置模板 —— 由 deploy/setup.sh 自动填充 __DOMAIN__ / __PORT__ / __WEBROOT__
+# 投聊 nginx 配置模板 —— 由 deploy/setup.sh 自动填充 __DOMAIN__ / __PORT__ / __WEBROOT__
 # 换服务器无需手改：脚本会根据传入域名生成最终配置。
 server {
     listen 80;

@@ -26,7 +26,7 @@ function adminToken() {
 async function adminDeleteUser(userId) {
   return request(app)
     .delete(`/api/admin/users/${userId}`)
-    .set('Cookie', `vxin_admin_token=${adminToken()}`)
+    .set('Cookie', `touliao_admin_token=${adminToken()}`)
     .set('X-CSRF-Token', 'p105-csrf-token');
 }
 
@@ -228,7 +228,7 @@ describe('P1-05 admin 删除用户·资金守恒', () => {
     // admin 解散群（不走 deleteUser，直接 dismissGroup）
     const del = await request(app)
       .delete(`/api/admin/groups/${groupId}`)
-      .set('Cookie', `vxin_admin_token=${adminToken()}`)
+      .set('Cookie', `touliao_admin_token=${adminToken()}`)
       .set('X-CSRF-Token', 'p105-csrf-token');
     expect(del.status).toBe(200);
 

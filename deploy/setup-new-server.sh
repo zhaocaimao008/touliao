@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ===================================================================
-# v信 一键部署脚本（新服务器）
+# 投聊 一键部署脚本（新服务器）
 #
 # 最简用法:
-#   git clone https://github.com/zhaocaimao008/vxin-1.0.git
-#   cd vxin-1.0
+#   git clone https://github.com/zhaocaimao008/touliao.git
+#   cd touliao
 #   bash deploy/setup-new-server.sh https://你的域名.com 你的邮箱
 #
 # 可选环境变量（在命令前加 KEY=val）:
@@ -33,7 +33,7 @@ HOST="${APP_URL#https://}"; HOST="${HOST#http://}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BE="$ROOT/backend-v2"
-WEBROOT="/var/www/vxin"
+WEBROOT="/var/www/touliao"
 
 apt_pkg() { command -v apt-get >/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" >/dev/null || true; }
 
@@ -136,7 +136,7 @@ ok "前端已部署到 $WEBROOT"
 # ── [6/8] nginx ─────────────────────────────────────────────────────
 step "6/8 配置 nginx"
 command -v nginx >/dev/null || { warn "安装 nginx..."; apt_pkg nginx; }
-CONF=/etc/nginx/sites-available/vxin
+CONF=/etc/nginx/sites-available/touliao
 cat > "$CONF" <<NGINX
 server {
     listen 80;
@@ -176,7 +176,7 @@ server {
     location / { try_files \$uri \$uri/ /index.html; }
 }
 NGINX
-ln -sf "$CONF" /etc/nginx/sites-enabled/vxin
+ln -sf "$CONF" /etc/nginx/sites-enabled/touliao
 rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 nginx -t && { systemctl reload nginx 2>/dev/null || service nginx reload; }
 ok "nginx 已配置（HTTP）"
@@ -197,30 +197,30 @@ fi
 # ── [8/8] 监控 & 备份 ───────────────────────────────────────────────
 step "8/8 安装监控 & 备份"
 
-# 生成包含 VXIN_ROOT 的系统级命令（解决不同机器 clone 路径不同的问题）
-cat > /usr/local/bin/vxin-alert <<WRAPPER
+# 生成包含 TOULIAO_ROOT 的系统级命令（解决不同机器 clone 路径不同的问题）
+cat > /usr/local/bin/touliao-alert <<WRAPPER
 #!/usr/bin/env bash
-export VXIN_ROOT="$ROOT"
-exec "$ROOT/deploy/vxin-alert.sh" "\$@"
+export TOULIAO_ROOT="$ROOT"
+exec "$ROOT/deploy/touliao-alert.sh" "\$@"
 WRAPPER
-chmod +x /usr/local/bin/vxin-alert
+chmod +x /usr/local/bin/touliao-alert
 
-cat > /usr/local/bin/vxin-backup <<WRAPPER
+cat > /usr/local/bin/touliao-backup <<WRAPPER
 #!/usr/bin/env bash
-export VXIN_ROOT="$ROOT"
-exec "$ROOT/deploy/vxin-backup.sh" "\$@"
+export TOULIAO_ROOT="$ROOT"
+exec "$ROOT/deploy/touliao-backup.sh" "\$@"
 WRAPPER
-chmod +x /usr/local/bin/vxin-backup
+chmod +x /usr/local/bin/touliao-backup
 
 # 安装 cron
-mkdir -p /var/log/vxin /var/backup/vxin
-(crontab -l 2>/dev/null | grep -v "vxin-alert\|vxin-backup" || true
-  echo "*/5 * * * * /usr/local/bin/vxin-alert 2>>/var/log/vxin/alert.log"
-  echo "0 3 * * *   /usr/local/bin/vxin-backup >> /var/log/vxin/backup.log 2>&1"
+mkdir -p /var/log/touliao /var/backup/touliao
+(crontab -l 2>/dev/null | grep -v "touliao-alert\|touliao-backup" || true
+  echo "*/5 * * * * /usr/local/bin/touliao-alert 2>>/var/log/touliao/alert.log"
+  echo "0 3 * * *   /usr/local/bin/touliao-backup >> /var/log/touliao/backup.log 2>&1"
 ) | crontab -
 
-ok "vxin-alert → /usr/local/bin/vxin-alert（每 5 分钟）"
-ok "vxin-backup → /usr/local/bin/vxin-backup（每日 03:00）"
+ok "touliao-alert → /usr/local/bin/touliao-alert（每 5 分钟）"
+ok "touliao-backup → /usr/local/bin/touliao-backup（每日 03:00）"
 
 [[ -n "${ALERT_BOT_TOKEN:-}" ]] && ok "Telegram 告警已配置（Bot token 已写入 .env）" || \
   warn "未配置 Telegram 告警。部署后在 .env 填写 ALERT_BOT_TOKEN 和 ALERT_CHAT_ID 即可"
@@ -228,7 +228,7 @@ ok "vxin-backup → /usr/local/bin/vxin-backup（每日 03:00）"
 # ── 完成汇报 ────────────────────────────────────────────────────────
 echo ""
 echo -e "${GRN}╔══════════════════════════════════════════════════╗${NC}"
-echo -e "${GRN}║           v信 部署完成                          ║${NC}"
+echo -e "${GRN}║           投聊 部署完成                         ║${NC}"
 echo -e "${GRN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
 echo "  访问地址:  $APP_URL"
@@ -237,7 +237,7 @@ echo "  admin 密码: $(cat "$BE/ADMIN_PASSWORD.txt" 2>/dev/null || echo '见 ba
 echo ""
 echo "  下一步："
 echo "    1. DNS 已指向本机 IP 时: certbot --nginx -d $HOST -m ${EMAIL:-你的邮箱}"
-echo "    2. 切换所有 App 到新域名: GitHub vxin-config → Actions → 「切换服务器」→ 填 $APP_URL"
+echo "    2. 切换所有 App 到新域名: GitHub touliao-config → Actions → 「切换服务器」→ 填 $APP_URL"
 echo "    3. 通话 NAT 穿透(可选):   bash deploy/setup-coturn.sh"
 echo ""
 if [[ -z "${ALERT_BOT_TOKEN:-}" ]]; then

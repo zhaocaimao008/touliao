@@ -1,4 +1,4 @@
-# v信
+# 投聊
 
 私有化部署的私密通讯应用 —— 聊天、朋友圈、收藏，三端实时同步。
 
@@ -6,10 +6,15 @@
 
 | 目录 | 说明 |
 |------|------|
-| `landing/` | 营销落地页（Next.js 静态导出） |
-| `backend-v2/` | 后端服务 |
+| `web/` | React 前端（三端共享，含桌面端渲染） |
+| `desktop-electron/` | Windows 桌面客户端（Electron） |
 | `android/` | Android 原生客户端 |
 | `ios/` | iOS 原生客户端 |
+| `landing/` | 营销落地页（Next.js 静态导出） |
+| `admin/` | 管理后台（静态页） |
+| `backend-v2/` | 后端服务 |
+| `deploy/` | 部署脚本 |
+| `docs/` | 项目文档 |
 
 各目录内有独立的 README / 构建说明，详见对应子目录。
 

@@ -34,7 +34,7 @@ const config = {
   admin: {
     username:    process.env.ADMIN_USERNAME || '',
     password:    process.env.ADMIN_PASSWORD || '',
-    cookieName:  'vxin_admin_token',
+    cookieName:  'touliao_admin_token',
     tokenMaxAge: 12 * 60 * 60, // 12小时（秒）
     // IP 白名单(逗号分隔)。为空=不限制(默认，避免误锁)；非空时仅允许列表内 IP 访问后台。
     ipWhitelist: (process.env.ADMIN_IP_WHITELIST || '').split(',').map(s => s.trim()).filter(Boolean),
@@ -90,7 +90,7 @@ const config = {
   vapid: {
     publicKey:  process.env.VAPID_PUBLIC_KEY,
     privateKey: process.env.VAPID_PRIVATE_KEY,
-    email:      process.env.VAPID_EMAIL || 'mailto:admin@vxin.app',
+    email:      process.env.VAPID_EMAIL || 'mailto:admin@touliao.cc',
   },
 
   // ── 钱包 ────────────────────────────────────────────────────

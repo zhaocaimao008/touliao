@@ -20,7 +20,7 @@ PM2_NAME="${PM2_NAME:-touliao-backend}"
 BASE="http://127.0.0.1:${PORT}"
 FAIL=0
 
-echo "══ v信 健康检查 (port=$PORT pm2=$PM2_NAME) $(date '+%F %T') ══"
+echo "══ 投聊 健康检查 (port=$PORT pm2=$PM2_NAME) $(date '+%F %T') ══"
 
 # ── 1) 进程存活 ────────────────────────────────────────────────
 if pm2 jlist 2>/dev/null | grep -q "\"name\":\"$PM2_NAME\"" ; then

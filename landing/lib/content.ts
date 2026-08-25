@@ -19,11 +19,11 @@ export const site = {
     // 网页版 = 根路径的 Web 应用（同源 /api 反代，见 BUILD.md）
     webApp: `${BASE}/`,
     // 安卓/Windows 指向自托管下载（CDN 零依赖，出新版只需替换文件）
-    android: `${BASE}/downloads/vxin-android-latest.apk`,
-    windows: `${BASE}/downloads/vxin-windows-latest-setup.exe`,
+    android: `${BASE}/downloads/touliao-android-latest.apk`,
+    windows: `${BASE}/downloads/touliao-windows-latest-setup.exe`,
     // iOS 走 TestFlight 公开外部测试链接（审核已通过，公开链接已启用）
     ios: 'https://testflight.apple.com/join/JQw5bjEz',
-    email: 'admin@vxin.app',
+    email: 'admin@touliao.cc',
   },
 } as const;
 

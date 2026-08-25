@@ -14,5 +14,8 @@
   "devDependencies": {
     "@playwright/test": "^1.48.0",
     "playwright": "^1.48.0"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

@@ -99,4 +99,19 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 
   // 6. 渲染 React
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+  // 7. 品牌启动页: 挂在 #root 外的 #app-splash, 挂载后保底展示 1.2s 再淡出移除
+  const splash = document.getElementById('app-splash');
+  if (splash) {
+    const start = performance.now();
+    const minShown = 1200;
+    requestAnimationFrame(() => {
+      const delay = Math.max(0, minShown - (performance.now() - start));
+      setTimeout(() => {
+        splash.style.transition = 'opacity .45s ease';
+        splash.style.opacity = '0';
+        setTimeout(() => splash.remove(), 500);
+      }, delay);
+    });
+  }
 })();
