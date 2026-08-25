@@ -19,7 +19,8 @@
  *   （断线自动按 leave 处理）
  */
 const { v4: uuidv4 } = require('uuid');
-const { db, readDb } = require('../../db/connection');
+const { readDb } = require('../../db/connection');
+const { write } = require('../../db/writer');
 const { isMember } = require('../../modules/messages/shared');
 const presence = require('../presence');
 const { guardPayload, guardId } = require('../guard');
@@ -47,10 +48,8 @@ function endCall(io, callId) {
   if (call.timer) clearTimeout(call.timer);
   for (const uid of call.members) if (userCall.get(uid) === callId) userCall.delete(uid);
   groupCalls.delete(callId);
-  try {
-    db.prepare("UPDATE group_call_logs SET status='ended', ended_at=?, participant_count=? WHERE id=?")
-      .run(nowSec(), call.peak, callId);
-  } catch (e) { console.warn('[groupCall] end 落库失败:', e.message); }
+  write("UPDATE group_call_logs SET status='ended', ended_at=?, participant_count=? WHERE id=?",
+    [nowSec(), call.peak, callId]);
 }
 
 function removeMember(io, callId, userId) {
@@ -105,10 +104,8 @@ module.exports = function registerGroupCallHandler(io, socket) {
     }, MAX_CALL_DURATION_MS);
     groupCalls.set(callId, call);
     userCall.set(userId, callId);
-    try {
-      db.prepare('INSERT INTO group_call_logs (id,conversation_id,started_by,type,participant_count) VALUES (?,?,?,?,1)')
-        .run(callId, conversationId, userId, t);
-    } catch (e) { console.warn('[groupCall] start 落库失败:', e.message); }
+    write('INSERT INTO group_call_logs (id,conversation_id,started_by,type,participant_count) VALUES (?,?,?,?,1)',
+      [callId, conversationId, userId, t]);
 
     const starter = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
     // 通知会话内其他成员有群通话邀请（conversationId 房间已在连接时 join）

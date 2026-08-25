@@ -15,7 +15,8 @@
  *   - socket.on('disconnect')：断线时彻底清理该用户涉及的全部通话（fix: 防网络闪断泄漏）
  */
 const { v4: uuidv4 } = require('uuid');
-const { db, readDb } = require('../../db/connection');
+const { readDb } = require('../../db/connection');
+const { write } = require('../../db/writer');
 const presence = require('../presence');
 const { pushCallInvite } = require('../../utils/push');
 const { guardPayload, guardId } = require('../guard');
@@ -39,10 +40,7 @@ function scheduleCallTimeout(key, io) {
   return setTimeout(() => {
     const c = activeCalls.get(key);
     if (c && !c.answeredAt) {
-      try {
-        db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?")
-          .run(nowSec(), c.id);
-      } catch (e) { console.warn('[call] timeout 落库失败:', e.message); }
+      write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [nowSec(), c.id]);
       activeCalls.delete(key);
       // 通话已结束 → 清除冷却，允许立即重拨（P1-1）
       const [callerId] = key.split('>');
@@ -68,11 +66,11 @@ function cleanupUserCalls(io, userId) {
         const end = nowSec();
         if (c.answeredAt) {
           // 已接通的通话 → completed（断线视为通话结束）
-          db.prepare("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?")
-            .run(end, Math.max(0, end - c.answeredAt), c.id);
+          write("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?",
+            [end, Math.max(0, end - c.answeredAt), c.id]);
         } else if (a === userId) {
           // 主叫断线且未接通 → canceled（而非 missed，missed 是被叫未接的语义）
-          db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(end, c.id);
+          write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [end, c.id]);
         }
         // 被叫断线且未接通 → 保留 missed 状态
         // 通知对方通话已因断线结束（带 callId，P1-3）+ 清除冷却允许秒重拨（P1-1）
@@ -129,11 +127,11 @@ module.exports = function registerCallHandler(io, socket) {
         const endNow = nowSec();
         if (old.answeredAt) {
           // 已接通的通话被新呼叫覆盖 → 标记 completed 并通知被叫结束（带 callId，P1-3）
-          db.prepare("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?")
-            .run(endNow, Math.max(0, endNow - old.answeredAt), old.id);
+          write("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?",
+            [endNow, Math.max(0, endNow - old.answeredAt), old.id]);
           io.to(`user_${to}`).emit('call:end', { from: userId, reason: 'replaced', callId: old.id });
         } else {
-          db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(endNow, old.id);
+          write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [endNow, old.id]);
         }
         // 旧通话被覆盖 → 清除冷却，允许立即重拨（P1-1）
         callRateMap.delete(userId);
@@ -141,10 +139,8 @@ module.exports = function registerCallHandler(io, socket) {
     }
     const timer = scheduleCallTimeout(key, io);
     activeCalls.set(key, { id, answeredAt: null, timer });
-    try {
-      db.prepare('INSERT INTO call_logs (id,caller_id,callee_id,type,status,started_at) VALUES (?,?,?,?,?,?)')
-        .run(id, userId, to, t, 'missed', nowSec());
-    } catch (e) { console.warn('[call] log insert 失败:', e.message); }
+    write('INSERT INTO call_logs (id,caller_id,callee_id,type,status,started_at) VALUES (?,?,?,?,?,?)',
+      [id, userId, to, t, 'missed', nowSec()]);
     // 服务端从 DB 取真实用户信息，不透传客户端 caller 字段（防视觉身份冒充）
     const callerInfo = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
     io.to(`user_${to}`).emit('call:incoming', { from: userId, type: t, callId: id, caller: { id: userId, name: callerInfo?.username, avatar: callerInfo?.avatar } });
@@ -183,18 +179,16 @@ module.exports = function registerCallHandler(io, socket) {
     }
     if (c) {
       if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 已应答不再超时清理）
-      try {
-        if (accepted) {
-          // 重复 accepted 守卫（P2-4）：同账号双端先后接听同一通，第二次不得回拨 answeredAt
-          // （否则 duration 变短 + 向主叫二次转发 accepted → 重复 setRemoteDescription）
-          if (c.answeredAt) return;
-          c.answeredAt = nowSec();
-          db.prepare("UPDATE call_logs SET status='ongoing' WHERE id=?").run(c.id);
-        } else {
-          db.prepare("UPDATE call_logs SET status='rejected', ended_at=? WHERE id=?").run(nowSec(), c.id);
-          activeCalls.delete(key);
-        }
-      } catch (e) { console.warn('[call] response 落库失败:', e.message); }
+      if (accepted) {
+        // 重复 accepted 守卫（P2-4）：同账号双端先后接听同一通，第二次不得回拨 answeredAt
+        // （否则 duration 变短 + 向主叫二次转发 accepted → 重复 setRemoteDescription）
+        if (c.answeredAt) return;
+        c.answeredAt = nowSec();
+        write("UPDATE call_logs SET status='ongoing' WHERE id=?", [c.id]);
+      } else {
+        write("UPDATE call_logs SET status='rejected', ended_at=? WHERE id=?", [nowSec(), c.id]);
+        activeCalls.delete(key);
+      }
     }
     // 只有活跃通话存在时才转发：防止任意用户伪造拒接信号
     if (c) io.to(`user_${to}`).emit('call:response', { from: userId, accepted, busy, reason });
@@ -224,15 +218,13 @@ module.exports = function registerCallHandler(io, socket) {
     if (c && callId && c.id !== callId) return;
     if (c) {
       if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 主动挂断不再等待超时）
-      try {
-        const end = nowSec();
-        if (c.answeredAt) {
-          db.prepare("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?")
-            .run(end, Math.max(0, end - c.answeredAt), c.id);
-        } else {
-          db.prepare("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?").run(end, c.id);
-        }
-      } catch (e) { console.warn('[call] end 落库失败:', e.message); }
+      const end = nowSec();
+      if (c.answeredAt) {
+        write("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?",
+          [end, Math.max(0, end - c.answeredAt), c.id]);
+      } else {
+        write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [end, c.id]);
+      }
       activeCalls.delete(k1);
       activeCalls.delete(k2);
       // 只有活跃通话存在时才转发：防止任意用户强制关闭他人通话界面（带 callId，P1-3）
