@@ -709,7 +709,7 @@ final class ChatViewModel: ObservableObject {
                 MsgCacheStore.shared.clear(conversationId)   // 焚毁会话不落盘
             }
             markReadLatest()   // 打开会话即标记已读
-            UNUserNotificationCenter.current().setBadgeCount(0)   // 打开会话即清零角标，避免残留
+            try? await UNUserNotificationCenter.current().setBadgeCount(0)   // 打开会话即清零角标，避免残留
             healFailedMessages(announce: announceHeal)   // 连线且有失败气泡 → 进会话/重连自动重发
         } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载消息失败" }
     }
