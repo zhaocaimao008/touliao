@@ -85,7 +85,7 @@ async function pushToUser(userId, payload) {
 
     // ────────── 优化：使用批量发送而不是逐条发送 ──────────
     // 优化前：对每个 token 逐条调用 firebaseAdmin.messaging().send()
-    // 优化后：一次 API 调用通过 sendMulticast() 批量发送
+    // 优化后：一次 API 调用通过 sendEachForMulticast() 批量发送
     // 性能提升：减少 70-90% 的 API 调用
 
     // 检查是否有 Android 设备

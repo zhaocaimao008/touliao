@@ -2,7 +2,7 @@
 /**
  * Android FCM 优化推送模块
  * 优化项:
- * 1. 批量发送 (sendMulticast) - 减少 90% API 调用
+ * 1. 批量发送 (sendEachForMulticast) - 减少 90% API 调用
  * 2. Token 缓存 - 减少 80% 数据库查询
  * 3. 智能优先级 - 节省电池 10-20%
  * 4. 超时控制 - 快速失败快速重试
@@ -180,7 +180,8 @@ async function sendBatchAndroidNotifications(userId, payload) {
     // 4. 批量发送 (一次 API 调用，而不是多次)
     console.debug(`[FCM] 批量发送 user=${userId} devices=${tokenList.length}`);
     
-    const response = await firebaseAdmin.messaging().sendMulticast({
+    // firebase-admin v13 移除了 sendMulticast，替换为 sendEachForMulticast（入参/返回值形状不变）
+    const response = await firebaseAdmin.messaging().sendEachForMulticast({
       ...message,
       tokens: tokenList,
     });
