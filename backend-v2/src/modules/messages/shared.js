@@ -58,9 +58,12 @@ function privateSendGuard(convId, senderId, conv = null) {
   if (conv && !convTypeCache.has(convId)) cacheSet(convTypeCache, convId, { type: conv.type, mute_all: conv.mute_all ?? 0 });
   if (type !== 'private') return null;
 
-  const other = cacheGet(memberCache, `${convId}|__other__${senderId}`)
-    ?? readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?').get(convId, senderId);
-  if (other && !memberCache.has(`${convId}|__other__${senderId}`)) cacheSet(memberCache, `${convId}|__other__${senderId}`, { role: 'member' });
+  const otherKey = `${convId}|__other__${senderId}`;
+  const cachedOther = cacheGet(memberCache, otherKey);
+  const other = cachedOther
+    ? (cachedOther.user_id ? { user_id: cachedOther.user_id } : null)
+    : readDb.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=?').get(convId, senderId);
+  if (!cachedOther) cacheSet(memberCache, otherKey, { role: 'member', user_id: other?.user_id ?? null });
   if (!other) return null;
   const otherId = other.user_id;
 
