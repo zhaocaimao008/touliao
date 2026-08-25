@@ -7,7 +7,8 @@
  */
 const jwt = require('jsonwebtoken');
 const config = require('../config');
-const { db, readDb } = require('../db/connection');
+const { readDb } = require('../db/connection');
+const { write } = require('../db/writer');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
 const presence = require('./presence');
 const broadcaster = require('./broadcaster');
@@ -172,7 +173,10 @@ module.exports = function setupRealtime(io, app) {
 
     // 上线广播 / 多端同步
     if (isFirstDevice) {
-      db.prepare('UPDATE users SET status=?, last_online_at=? WHERE id=?').run('online', Math.floor(Date.now()/1000), userId);
+      // 走 worker 写连接（fire-and-forget），避免跟主线程 db 争抢 WAL 写锁——
+      // 上线/下线状态更新是全站最高频的写操作之一，之前跟主线程 db 用同一把锁，
+      // 是 2026-08-24 dbWriter 队列堆到 5万+深度那次事故的根因之一。
+      write('UPDATE users SET status=?, last_online_at=? WHERE id=?', ['online', Math.floor(Date.now()/1000), userId]);
       const contacts = readDb.prepare('SELECT contact_id FROM contacts WHERE user_id=?').all(userId);
       if (contacts.length) io.to(contacts.map(c => `user_${c.contact_id}`)).emit('user_online', { userId });
     } else {
@@ -193,7 +197,7 @@ module.exports = function setupRealtime(io, app) {
       const isLastDevice = presence.removeSocket(userId, socket.id);
       if (app) app.set('onlineUsers', presence.onlineUserIdSet());
       if (isLastDevice) {
-        db.prepare('UPDATE users SET status=?, last_online_at=? WHERE id=?').run('offline', Math.floor(Date.now()/1000), userId);
+        write('UPDATE users SET status=?, last_online_at=? WHERE id=?', ['offline', Math.floor(Date.now()/1000), userId]);
         presence.cleanupUser(userId);
         const contacts = readDb.prepare('SELECT contact_id FROM contacts WHERE user_id=?').all(userId);
         if (contacts.length) io.to(contacts.map(c => `user_${c.contact_id}`)).emit('user_offline', { userId });
