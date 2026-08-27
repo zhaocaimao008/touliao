@@ -160,6 +160,15 @@ module.exports = function registerMessageHandler(io, socket) {
     }
 
     broadcaster.broadcastMessage(conversationId, msg); // 批量合并派发（客户端按 id 去重，发送者收到自身消息会被忽略）
+
+    // AI 助手：私聊发给 AI 账号 → 异步转 OpenClaw/Hermes 生成回复（与 HTTP send() 路径一致）
+    try {
+      const aiAssistant = require('../../modules/ai-assistant/assistant.service');
+      aiAssistant.maybeReply(io, conversationId, userId, msg).catch(() => {});
+    } catch (err) {
+      console.error('[AI助手] socket 触发失败:', err.message);
+    }
+
     ack?.({ success: true, message: msg });
 
     setImmediate(() => {

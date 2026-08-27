@@ -24,7 +24,7 @@ targets:
     type: application
     platform: iOS
     sources:
-      - Vxin
+      - Touliao
     dependencies:
       - package: SocketIO
       - package: Kingfisher
@@ -49,9 +49,9 @@ targets:
         PROVISIONING_PROFILE_SPECIFIER: touliao_distribution
         # 推送权限：签名时带上 aps-environment，否则 registerForRemoteNotifications
         # 拿不到 APNs token → FCM 无法送达（iOS 锁屏收不到通知的根因）。
-        CODE_SIGN_ENTITLEMENTS: Vxin/Vxin.entitlements
+        CODE_SIGN_ENTITLEMENTS: Touliao/Touliao.entitlements
     info:
-      path: Vxin/Info.plist
+      path: Touliao/Info.plist
       properties:
         CFBundleDisplayName: 投聊
         # 必须显式引用 build settings，否则 XcodeGen 默认把 CFBundleVersion
@@ -82,7 +82,7 @@ targets:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - VxinTests
+      - TouliaoTests
     dependencies:
       - target: Touliao
     settings:

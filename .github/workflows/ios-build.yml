@@ -41,16 +41,16 @@ jobs:
         working-directory: ios
         run: |
           xcodebuild -resolvePackageDependencies \
-            -project Vxin.xcodeproj \
-            -scheme Vxin
+            -project Touliao.xcodeproj \
+            -scheme Touliao
 
       - name: Build (iOS Simulator, no signing)
         working-directory: ios
         run: |
           set -o pipefail
           xcodebuild build \
-            -project Vxin.xcodeproj \
-            -scheme Vxin \
+            -project Touliao.xcodeproj \
+            -scheme Touliao \
             -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
@@ -70,16 +70,16 @@ jobs:
           echo "Using simulator UDID: $UDID"
 
       # 单测门禁：含离线消息缓存 MsgCacheStore 语义基线（与 Web vitest / Android JUnit 三端对齐）。
-      - name: Unit tests (VxinTests, iOS Simulator)
+      - name: Unit tests (TouliaoTests, iOS Simulator)
         working-directory: ios
         run: |
           set -o pipefail
           xcodebuild test \
-            -project Vxin.xcodeproj \
-            -scheme Vxin \
+            -project Touliao.xcodeproj \
+            -scheme Touliao \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -configuration Debug \
-            -only-testing:VxinTests \
+            -only-testing:TouliaoTests \
             CODE_SIGNING_ALLOWED=NO \
             | tee xcodebuild-test.log
 

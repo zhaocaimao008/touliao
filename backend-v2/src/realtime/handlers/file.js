@@ -130,6 +130,17 @@ module.exports = function registerFileHandler(io, socket) {
     // 含发送者本人：文件/图片发送方没有乐观消息，需靠广播回显；onMsg 按 id 去重。
     // 批量合并派发。
     broadcaster.broadcastMessage(conversationId, msg);
+
+    // AI 助手：图片/文件发到 AI 账号 → 异步转视觉识别 + 大脑回复（与文本路径一致）
+    if (type === 'image') {
+      try {
+        const aiAssistant = require('../../modules/ai-assistant/assistant.service');
+        aiAssistant.maybeReply(io, conversationId, userId, msg).catch(() => {});
+      } catch (err) {
+        console.error('[AI助手] 图片触发失败:', err.message);
+      }
+    }
+
     ack?.({ success: true, message: msg });
 
     setImmediate(() => {

@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "301798014154",
-    "project_id": "vxin-a1230",
-    "storage_bucket": "vxin-a1230.firebasestorage.app"
+    "project_number": "934493050959",
+    "project_id": "touliao",
+    "storage_bucket": "touliao.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:301798014154:android:0e5f442546667e9d998833",
+        "mobilesdk_app_id": "1:934493050959:android:686fde8d36e767ea0c323a",
         "android_client_info": {
-          "package_name": "com.vxin.app"
+          "package_name": "com.touliao.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBUIc71g2NIDr7-v7quisWS_6srASvfnxI"
+          "current_key": "AIzaSyDQuFYkgJnSktdGOme6RERJnYGeISh4r4g"
         }
       ],
       "services": {

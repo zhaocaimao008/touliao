@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v信 ASR 服务启动脚本（nohup 守护 + 端口占用探测）
+# 投聊 ASR 服务启动脚本（nohup 守护 + 端口占用探测）
 # 用法：./start.sh            前台启动（调试）
 #      ./start.sh --daemon   后台常驻（nohup，日志写 asr.log）
 set -euo pipefail

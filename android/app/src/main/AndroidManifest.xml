@@ -36,14 +36,14 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
-        android:name=".VxinApp"
+        android:name=".TouliaoApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@style/Theme.Vxin">
+        android:theme="@style/Theme.Touliao">
 
         <activity
             android:name=".MainActivity"
@@ -59,7 +59,7 @@
 
         <!-- FCM 接收服务 -->
         <service
-            android:name=".core.push.VxinMessagingService"
+            android:name=".core.push.TouliaoMessagingService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
@@ -75,7 +75,7 @@
         <meta-data android:name="GETUI_APPSECRET" android:value="${GETUI_APPSECRET}" />
         <!-- 个推消息接收服务：收到 CID → 上报后端；透传 → 弹通知 -->
         <service
-            android:name=".core.push.VxinGeTuiService"
+            android:name=".core.push.TouliaoGeTuiService"
             android:exported="false" />
 
         <!-- 通话保活前台服务（1对1）。type 声明 microphone|camera；实际以运行时传入的 type 起服务。 -->
@@ -111,7 +111,7 @@
           华为/无GMS 设备崩溃兜底：
           1. firebase_messaging_auto_init_enabled=false：禁止 FCM 在 App 启动时尝试向
              Google Play Services 注册（无 GMS 时会抛 ServiceNotFoundException 导致闪退）。
-             有 GMS 时由 VxinApp.initFirebaseIfGmsAvailable() 在 onCreate 中手动触发注册。
+             有 GMS 时由 TouliaoApp.initFirebaseIfGmsAvailable() 在 onCreate 中手动触发注册。
           2. firebase_auto_collection_enabled=false：同理，关闭 Analytics 自动采集，
              避免其初始化链在无 GMS 下崩溃。
           3. MlKitInitProvider 移除：play.services.code.scanner 内置的 ContentProvider

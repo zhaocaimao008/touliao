@@ -2,7 +2,9 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import viteCompression from 'vite-plugin-compression';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // desktop(Electron file:// 加载) 必须用相对路径，否则 /assets/... 指向磁盘根目录白屏
+  base: mode === 'desktop' ? './' : '/',
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '8.0.0'),
   },
@@ -40,8 +42,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api':       { target: 'http://localhost:3002', changeOrigin: true },
-      '/socket.io': { target: 'http://localhost:3002', changeOrigin: true, ws: true },
+      '/api':       { target: 'http://localhost:3003', changeOrigin: true },
+      '/socket.io': { target: 'http://localhost:3003', changeOrigin: true, ws: true },
     },
   },
-});
+}));

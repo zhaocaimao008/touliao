@@ -93,6 +93,18 @@ const config = {
     email:      process.env.VAPID_EMAIL || 'mailto:admin@touliao.cc',
   },
 
+  // ── AI 助手（投聊 x OpenClaw / Hermes 多机器人）───────────────
+  ai: {
+    botId:          process.env.AI_BOT_ID          || '',
+    hermesBotId:    process.env.HERMES_BOT_ID      || '',
+    openclawUrl:    process.env.OPENCLAW_URL       || 'http://127.0.0.1:18789',
+    openclawToken:  process.env.OPENCLAW_TOKEN     || '',
+    openclawModel:  process.env.OPENCLAW_MODEL     || 'openclaw',
+    hermesUrl:      process.env.HERMES_URL         || 'http://127.0.0.1:8642',
+    hermesToken:    process.env.HERMES_TOKEN       || '',
+    hermesModel:    process.env.HERMES_MODEL       || 'deepseek-v4-flash',
+  },
+
   // ── 钱包 ────────────────────────────────────────────────────
   // 自助充值（无支付网关，校验通过直接入账）。**默认关闭**：开启后任意登录用户
   // 可凭限流上限自造余额（10次/h × 100000 = 100万/h）并经红包转移，等同无限印钞。

@@ -29,7 +29,7 @@
     "certificateFile": null,
     "certificatePassword": null,
     "sign": null,
-    "signAndEditExecutable": false
+    "signAndEditExecutable": true
   },
   "nsis": {
     "oneClick": false,

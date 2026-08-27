@@ -222,6 +222,11 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
+
+  // AI 助手：私聊发给 AI 账号 → 异步转 OpenClaw 生成回复（不阻塞主链路）
+  const aiAssistant = require('../ai-assistant/assistant.service');
+  aiAssistant.maybeReply(io, convId, userId, msg).catch(() => {});
+
   return msg;
 }
 
@@ -248,6 +253,12 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   convSvc.invalidateConvCacheForConversation(convId);
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
+
+  // AI 助手：图片发到 AI 账号 → 视觉识别 + 大脑回复（与文本 send() 路径一致）
+  if (type === 'image') {
+    const aiAssistant = require('../ai-assistant/assistant.service');
+    aiAssistant.maybeReply(io, convId, userId, msg).catch(() => {});
+  }
   return msg;
 }
 
