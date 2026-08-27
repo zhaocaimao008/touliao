@@ -9,13 +9,6 @@ import { getAspect, rememberAspect } from '../utils/imgDimCache';
 import ImgOptimized from './ImgOptimized';
 import { linkify } from '../utils/linkify';
 
-// 图片加载失败占位图（过期/被删的云文件）：灰底 + 可见文字，保证不显示浏览器裂图
-const IMG_BROKEN = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-  "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='90'>" +
-  "<rect width='120' height='90' fill='#f0f0f0'/>" +
-  "<text x='60' y='49' font-size='12' fill='#999' text-anchor='middle'>图片加载失败</text></svg>"
-);
-
 // Time divider rendered as a list item
 export const TimeDivider = memo(function TimeDivider({ time }) {
   return (

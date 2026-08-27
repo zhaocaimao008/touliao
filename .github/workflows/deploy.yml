@@ -100,7 +100,7 @@ jobs:
         run: npm run lint -- --max-warnings=0
 
   deploy:
-    name: 部署到香港服务器
+    name: 部署到生产服务器（45.77.131.33）
     needs: [test, backend-jest, web-gate]
     runs-on: ubuntu-latest
     continue-on-error: true   # SSH key 未配置时不阻断 CI Gate

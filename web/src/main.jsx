@@ -48,7 +48,7 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   //    config 到达后再补设 baseURL（后续请求自动生效）。
   //    Electron/Capacitor 必须等到完整 URL（相对路径无效），保持原行为。
   const manualUrl = localStorage.getItem('touliao_server_url');
-  let cfg = null;
+  let cfg;
   if (isElectron || isMobile) {
     await loadRemoteConfig();
     cfg = getConfig();

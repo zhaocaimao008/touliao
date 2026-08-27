@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy, startTransition } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { showConfirm } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
 import './Home.css';
