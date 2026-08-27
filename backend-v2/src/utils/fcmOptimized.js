@@ -140,12 +140,18 @@ async function sendBatchAndroidNotifications(userId, payload) {
     }
     
     // 2. 构建消息
-    // data-only（不带顶层 notification 块）：带 notification 块的 FCM 消息在 App 后台/被杀时
-    // 由系统托盘直接展示，onMessageReceived 根本不会被调用，NotificationHelper 里做的
-    // 通知聚合(InboxStyle)/未读角标/群组汇总/点击进会话全部失效（见 pushCallInvite 对同一问题
-    // 的既有说明与做法，这里对齐它）。改为 data-only 后 onMessageReceived 始终会被系统拉起，
-    // 由客户端自己用 NotificationHelper.showMessageNotification 起通知。
+    // 必须同时带 notification 块 + data 块：
+    //   · data-only 消息在 App 被杀/后台(Android 8+/12+ 限制)时 onMessageReceived 不会被拉起，
+    //     锁屏将无任何通知——这正是"锁屏收不到消息"的根因（用户实测反馈）。
+    //   · 带 notification 块后：前台时 onMessageReceived 照常被调用（客户端用
+    //     MessageNotificationBridge.appForeground 去重，不重复弹）；后台/被杀/锁屏时
+    //     由系统托盘直接展示（channelId 指向 vxin_messages_v3，渠道已设 VISIBILITY_PUBLIC
+    //     锁屏完整显示 + IMPORTANCE_HIGH）。
     const message = {
+      notification: {
+        title: payload.senderName,
+        body: payload.body,
+      },
       data: compressData({
         conversationId: payload.conversationId,
         senderId: payload.senderId,
@@ -158,6 +164,9 @@ async function sendBatchAndroidNotifications(userId, payload) {
       android: {
         priority: getPriority(payload.type, payload.isSilentHour),
         ttl: 3600000, // 1 小时后过期
+        notification: {
+          channelId: 'vxin_messages_v3', // 与 NotificationHelper.CHANNEL_ID 一致：锁屏可见+高优先级
+        },
       },
       apns: {
         headers: {
