@@ -39,6 +39,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Messaging.messaging().apnsToken = deviceToken
+        // 同时上报 APNs 原始 token（64 位 hex）：后端直连 APNs 用它发送，
+        // 不依赖 Firebase 控制台 APNs 密钥配置（无人值守环境下传不了密钥，
+        // FCM→APNs 会因 third-party-auth-error 永远失败——锁屏无通知根因）。
+        // 登录后才上报；未登录时缓存到 PushManager，登录后 registerApnsTokenIfNeeded 补报。
+        let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
+        PushManager.shared.setApnsToken(hex)
+        if !hex.isEmpty && KeychainStore.shared.isLoggedIn {
+            Task { await NotificationRepository.shared.register(token: hex, platform: "ios_apns") }
+        }
     }
 
     func application(_ application: UIApplication,

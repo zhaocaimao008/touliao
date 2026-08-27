@@ -34,7 +34,9 @@ function saveDeviceToken(userId, token, platform) {
   // getui = 国产 ROM 的个推 CID（无 GMS 设备靠它兜底锁屏推送）。此前漏了 getui，
   // 导致个推 CID 注册被 400 拒绝、永远存不进库 → getuiPush 的 WHERE platform='getui'
   // 查询恒空 → 国产 ROM 锁屏推送从未生效。
-  if (!['android', 'ios', 'ios_voip', 'getui'].includes(platform)) throw badRequest('参数无效，platform 必须为 android、ios、ios_voip 或 getui');
+  // ios_apns = iOS 原始 APNs device token（64 位 hex），后端直连 APNs 用它发送，
+  // 不依赖 Firebase 控制台 APNs 密钥配置（无人值守环境传不了密钥,FCM→APNs 永远失败）。
+  if (!['android', 'ios', 'ios_voip', 'getui', 'ios_apns'].includes(platform)) throw badRequest('参数无效，platform 必须为 android、ios、ios_voip、getui 或 ios_apns');
   db.prepare(`
     INSERT INTO device_tokens (id, user_id, token, platform)
     VALUES (?, ?, ?, ?)

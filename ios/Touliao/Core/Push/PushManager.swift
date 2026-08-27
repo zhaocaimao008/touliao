@@ -11,6 +11,12 @@ final class PushManager {
 
     private let repo = NotificationRepository.shared
     private var latestToken: String?
+    private var latestApnsHex: String?
+
+    /// AppDelegate 拿到 APNs device token 时缓存（未登录也能存，登录后补报）。
+    func setApnsToken(_ hex: String) {
+        latestApnsHex = hex.isEmpty ? latestApnsHex : hex
+    }
 
     /// MessagingDelegate 回调：拿到/刷新 FCM token
     func onToken(_ token: String) {
@@ -29,6 +35,18 @@ final class PushManager {
             DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
         }
         Task { await fetchAndRegister() }
+        // 补报 APNs 原始 token：可能早于登录就拿到（未登录时 AppDelegate 只缓存不报）
+        registerApnsTokenIfNeeded()
+    }
+
+    /// 登录后补报 APNs 原始 token（此前未登录时 AppDelegate 拿到 APNs token 也上报不了）。
+    func registerApnsTokenIfNeeded() {
+        guard KeychainStore.shared.isLoggedIn else { return }
+        // 主动取当前 APNs token（无公开 API 可取回，但 registerForRemoteNotifications
+        // 会在授权后回调 didRegister；此处仅做一次兜底上报缓存值）
+        if let token = latestApnsHex {
+            Task { await NotificationRepository.shared.register(token: token, platform: "ios_apns") }
+        }
     }
 
     /// App 每次进入前台时调用，主动刷新确保服务端 token 有效。

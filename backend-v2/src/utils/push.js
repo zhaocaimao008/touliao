@@ -110,12 +110,69 @@ async function pushToUser(userId, payload) {
       );
     }
 
-    // iOS 单独处理（iOS 的 APNs 并不支持批量发送，需要逐条发送）
+    // iOS 单独处理：优先直连 APNs(platform='ios_apns', 原始 64 位 hex token)，
+    // 兼容旧版只上报 FCM token 的设备(platform='ios', 走 FCM 兜底)。
+    const iosApnsTokens = db.prepare(
+      "SELECT * FROM device_tokens WHERE user_id=? AND platform='ios_apns'"
+    ).all(userId);
     const iosTokens = db.prepare(
       "SELECT * FROM device_tokens WHERE user_id=? AND platform='ios'"
     ).all(userId);
 
+    for (const row of iosApnsTokens) {
+      // APNs 直连(HTTP/2 + Provider Token)：不依赖 Firebase 控制台 APNs 密钥配置。
+      // 未配置 APNS_* 时返回 skipped；直连失败降级 FCM(如有 FCM token)。
+      promises.push(
+        sendIosPush(row.token, {
+          title: payload.senderName,
+          body: payload.body,
+          badge: payload.badge || 1,
+          conversationId: payload.conversationId,
+          senderId: payload.senderId,
+          timestamp: payload.timestamp,
+          type: payload.type,
+        }).then((res) => {
+          if (res?.ok || res?.skipped || !firebaseAdmin || !iosTokens.length) return;
+          // 直连失败且有 FCM token → 降级 FCM(双保险)
+          const msg = {
+            token: iosTokens[0].token,
+            notification: { title: payload.senderName, body: payload.body },
+            data: {
+              conversationId: payload.conversationId || '',
+              senderId:       payload.senderId || '',
+              timestamp:      String(payload.timestamp || Date.now()),
+              type:           payload.type || 'message',
+            },
+            apns: {
+              headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
+              payload: {
+                aps: {
+                  alert: { title: payload.senderName, body: payload.body },
+                  sound: 'default',
+                  badge: payload.badge || 1,
+                },
+              },
+            },
+          };
+          return firebaseAdmin.messaging().send(msg)
+            .then(id => { console.debug(`[push] iOS FCM 兜底发送成功 user=${userId} msgId=${id}`); })
+            .catch(err => {
+              if (err.code === 'messaging/invalid-registration-token' ||
+                  err.code === 'messaging/registration-token-not-registered') {
+                db.prepare('DELETE FROM device_tokens WHERE id=?').run(iosTokens[0].id);
+              }
+              console.warn(`[push] iOS FCM 兜底失败 user=${userId} code=${err.code}`);
+            });
+        }).catch(err => {
+          console.warn(`[push] iOS 直连异常 user=${userId}: ${err?.message}`);
+        })
+      );
+    }
+
     for (const row of iosTokens) {
+      // 旧版设备仅上报 FCM token：走 FCM→APNs(需 Firebase 控制台已上传 APNs 密钥；
+      // 未上传时 FCM 报 third-party-auth-error,此处仅记录)。
+      if (!firebaseAdmin) continue;
       const message = {
         token: row.token,
         notification: { title: payload.senderName, body: payload.body },
@@ -142,9 +199,9 @@ async function pushToUser(userId, payload) {
       };
       promises.push(
         firebaseAdmin.messaging().send(message)
-          .then(id => { console.debug(`[push] iOS APNs 发送成功 user=${userId} msgId=${id}`); })
+          .then(id => { console.debug(`[push] iOS FCM 发送成功 user=${userId} msgId=${id}`); })
           .catch(err => {
-            console.warn(`[push] iOS APNs 发送失败 user=${userId} code=${err.code || '?'} msg=${err.message}`);
+            console.warn(`[push] iOS FCM 发送失败 user=${userId} code=${err.code || '?'} msg=${err.message}`);
             if (err.code === 'messaging/invalid-registration-token' ||
                 err.code === 'messaging/registration-token-not-registered') {
               db.prepare('DELETE FROM device_tokens WHERE id=?').run(row.id);
@@ -277,6 +334,92 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   await Promise.allSettled(pushPromises);
 }
 
+
+// ── APNs 直连（iOS 普通消息推送,不依赖 Firebase 控制台 APNs 密钥）────
+// Firebase 控制台需要浏览器登录上传 APNs 密钥才能让 FCM→APNs 转发,无人值守环境
+// 做不到;且密钥未配置时 FCM 返回 third-party-auth-error,iOS 完全收不到。
+// 方案:与 VoIP 同款直连 api.push.apple.com(HTTP/2 + ES256 Provider Token),
+// 密钥已验证对 com.touliao.app 有效(400 BadDeviceToken=认证通过)。
+const APNS_TOPIC = 'com.touliao.app';
+const APNS_HOST = 'https://api.push.apple.com:443';   // 生产环境(TestFlight/App Store)
+// const APNS_HOST = 'https://api.sandbox.push.apple.com:443'; // 开发环境(debug 真机)
+
+function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId, timestamp, type, collapseId }) {
+  return new Promise((resolve) => {
+    const authToken = getApnsVoipToken();   // 同一把 p8 密钥,复用 JWT 缓存
+    if (!authToken) {
+      console.warn('[push] APNs 未配置（缺 APNS_P8/APNS_KEY_ID/APNS_TEAM_ID）,跳过 iOS 直连');
+      resolve({ ok: false, skipped: true });
+      return;
+    }
+    const payload = {
+      aps: {
+        alert: { title: String(title || ''), body: String(body || '') },
+        sound: 'default',
+        badge: Number(badge) || 1,
+        'mutable-content': 1,
+      },
+      conversationId: String(conversationId || ''),
+      senderId: String(senderId || ''),
+      timestamp: String(timestamp || Date.now()),
+      type: type || 'message',
+    };
+    let client;
+    try {
+      client = http2.connect(APNS_HOST);
+    } catch (e) {
+      console.warn('[push] APNs 直连连接失败:', e.message);
+      resolve({ ok: false });
+      return;
+    }
+    client.on('error', (e) => {
+      console.warn('[push] APNs http2 连接异常:', e.message);
+      resolve({ ok: false });
+    });
+    const headers = {
+      ':method': 'POST',
+      ':path': `/3/device/${deviceToken}`,
+      'apns-push-type': 'alert',
+      'apns-priority': '10',
+      'apns-topic': APNS_TOPIC,
+      authorization: `bearer ${authToken}`,
+      'content-type': 'application/json',
+    };
+    if (collapseId) headers['apns-collapse-id'] = String(collapseId).slice(0, 64);
+    const req = client.request(headers);
+    let status = 0;
+    let resBody = '';
+    req.setEncoding('utf8');
+    req.on('response', (headers) => { status = headers[':status']; });
+    req.on('data', (chunk) => { resBody += chunk; });
+    req.on('end', () => {
+      client.close();
+      if (status === 200) {
+        console.debug(`[push] iOS APNs 直连成功 token=${String(deviceToken).slice(0,12)}…`);
+        resolve({ ok: true });
+        return;
+      }
+      let reason = '';
+      try { reason = JSON.parse(resBody || '{}').reason || ''; } catch {}
+      if (status === 401 || status === 403) {
+        console.warn(`[push] iOS APNs 凭据无效 status=${status} body=${resBody}`);
+      } else if (status === 410 || reason === 'BadDeviceToken' || reason === 'Unregistered') {
+        // 设备 token 已失效(卸载/重装/系统回收)→ 清理,避免反复无效推送
+        try { db.prepare('DELETE FROM device_tokens WHERE token=?').run(deviceToken); } catch {}
+        console.warn(`[push] iOS token 失效已清理 status=${status} reason=${reason}`);
+      } else {
+        console.warn(`[push] iOS APNs 推送失败 status=${status} reason=${reason}`);
+      }
+      resolve({ ok: false, status });
+    });
+    req.on('error', (e) => {
+      console.warn('[push] iOS APNs 请求异常:', e.message);
+      client.close();
+      resolve({ ok: false });
+    });
+    req.end(JSON.stringify(payload));
+  });
+}
 
 // ── APNs VoIP push（PushKit，走 firebase-admin 之外的独立通路）──────
 // firebase-admin/FCM 不代发 APNs VoIP（voip 类型 token 不是 FCM token），需直连
@@ -441,4 +584,4 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   await Promise.allSettled(promises);
 }
 
-module.exports = { pushToUser, pushNewMessage, pushCallInvite, isAllowedPushEndpoint, isInQuietHours };
+module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours };
