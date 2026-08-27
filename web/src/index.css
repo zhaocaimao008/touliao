@@ -709,6 +709,8 @@ body.dark-mode * {
   display: flex;
   align-items: flex-end;
   gap: var(--sp-1);
+  min-width: 0;   /* 允许在 body(max-width 60%) 内收缩：否则引用长文本 nowrap 会把气泡撑满/撑出面板(投聊引用显示bug) */
+  max-width: 100%; /* 关键钳制：body 已被 max-width 约束，wrap 宽度不得超出 body(column flex 交叉轴默认按内容宽度) */
 }
 .wc-msg-row.mine .wc-msg-bubble-wrap { flex-direction: row-reverse; }
 .wc-msg-read {
@@ -732,6 +734,7 @@ body.dark-mode * {
   cursor: default;
   user-select: text;
   min-width: 0;
+  max-width: 100%;   /* 兜底：气泡永不超出自身 flex 容器(引用长文本不再撑宽) */
   transition: box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .wc-msg-bubble.mine {
@@ -925,7 +928,7 @@ body.dark-mode * {
   overflow: hidden;
 }
 .wc-msg-reply-name { font-weight: var(--font-medium); color: var(--text-secondary); margin-bottom: 1px; font-size: var(--text-xs); }
-.wc-msg-reply-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc-msg-reply-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .wc-lazy-pane { flex: 1; min-height: 0; background: var(--bg-secondary, transparent); }
 .wc-msg-reply-media { margin-top: 2px; margin-bottom: 2px; } /* margin-bottom: 引用图片缩略图与引用块底边保持间距，避免文字看起来贴着图片 */
 .wc-msg-reply-thumb { display: block; width: 34px; height: 34px; object-fit: cover; border-radius: var(--radius-sm); }
