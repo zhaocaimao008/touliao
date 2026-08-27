@@ -17,6 +17,9 @@ struct ConversationListView: View {
             content
                 .navigationTitle("消息")
                 .navigationBarTitleDisplayMode(.inline)
+                // 冷启动点击推送通知兜底：App 启动时 SessionStore 异步恢复、本视图未挂载，
+                // 广播可能丢失；挂载/重新出现时检查 PendingConversation 缓存并消费。
+                .onAppear { consumePendingConversation() }
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         VStack(spacing: 2) {
@@ -86,6 +89,18 @@ struct ConversationListView: View {
                         }
                     }
                 }
+        }
+    }
+
+    /// 冷启动点击推送通知兜底：消费 PendingConversation 缓存（若有）。
+    /// AppDelegate 广播可能因视图未挂载而丢失，这里在视图出现时补一次。
+    private func consumePendingConversation() {
+        guard let id = PendingConversation.shared.take(), !id.isEmpty else { return }
+        // 延迟到导航栈完全就绪后再 push（避免 onAppear 期间修改 path 的 SwiftUI 警告）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            let conv = vm.conversations.first(where: { $0.id == id }) ?? Conversation(id: id)
+            path = NavigationPath()
+            path.append(conv)
         }
     }
 

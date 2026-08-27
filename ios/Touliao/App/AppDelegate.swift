@@ -106,7 +106,13 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 
         let info = response.notification.request.content.userInfo
         if let conversationId = info["conversationId"] as? String, !conversationId.isEmpty {
-            // 点击通知 → 路由到对应会话（后续接入导航）
+            // 点击通知 → 路由到对应会话。
+            // 冷启动时序修复：App 刚启动时 RootView 还在 .loading（SessionStore 异步恢复），
+            // ConversationListView 尚未挂载，NotificationCenter 广播会丢。因此：
+            // 1) 总是缓存 pendingConversationId（供挂载后消费）；
+            // 2) 同时照常广播——正常启动（UI 已就绪）时立即响应；
+            // 3) ConversationListView 每次挂载时检查缓存兜底冷启动场景。
+            PendingConversation.shared.set(conversationId)
             NotificationCenter.default.post(
                 name: .vxinOpenConversation, object: nil,
                 userInfo: ["conversationId": conversationId]

@@ -23,6 +23,7 @@ final class SessionStore: ObservableObject {
 
     private let repo = AuthRepository.shared
     private var observer: NSObjectProtocol?
+    private var socketAuthCancellable: AnyCancellable?
 
     init() {
         observer = NotificationCenter.default.addObserver(
@@ -33,12 +34,28 @@ final class SessionStore: ObservableObject {
                 self?.state = .unauthenticated
             }
         }
+        // socket 鉴权失败（token 失效/封禁/会话过期）→ 同样踢回登录页。
+        // 服务端在 handshake 校验失败时发 connect_error，SocketService 判定为致命
+        // 鉴权错误后停止重连并发出 authFailure；这里消费并登出，避免旧 token 无限重连。
+        socketAuthCancellable = SocketService.shared.authFailure
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] message in
+                Task { @MainActor in
+                    SocketService.shared.disconnect()
+                    self?.state = .unauthenticated
+                    // 提示语供 UI 展示（可选）
+                    self?.lastAuthError = message
+                }
+            }
         // 先拉远程配置确定服务器地址，再恢复会话
         Task {
             await RemoteConfig.refresh()
             await restoreSession()
         }
     }
+
+    /// socket 鉴权失败的最近一条错误消息（供 UI 提示，如「登录已过期，请重新登录」）。
+    @Published private(set) var lastAuthError: String?
 
     deinit {
         if let observer { NotificationCenter.default.removeObserver(observer) }

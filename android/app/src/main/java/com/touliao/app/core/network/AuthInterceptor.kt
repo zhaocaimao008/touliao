@@ -30,10 +30,19 @@ class AuthInterceptor @Inject constructor(
 
         val response = chain.proceed(request)
 
-        if (response.code == 401) {
+        // 业务 401 保护：登录/注册/找回密码/重置密码等 auth 端点的 401 是「业务失败」
+        // （如密码错误），不是 token 失效——绝不能触发全局登出，否则「添加账号」流程
+        // 输错一次密码就把当前已登录账号的 token/离线缓存全部清掉（数据丢失级事故）。
+        // 只有受保护 API 的 401 才视为 token 失效。
+        if (response.code == 401 && !isAuthEndpoint(original.url.encodedPath)) {
             tokenStore.clear()
             _unauthorized.tryEmit(Unit)
         }
         return response
+    }
+
+    /** auth 类端点：401 是业务语义（密码错误等），不触发全局登出。 */
+    private fun isAuthEndpoint(path: String): Boolean {
+        return path.startsWith("/api/auth/")
     }
 }

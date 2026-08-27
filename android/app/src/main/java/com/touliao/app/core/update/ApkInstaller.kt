@@ -2,12 +2,16 @@ package com.touliao.app.core.update
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.content.FileProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -49,6 +53,12 @@ class ApkInstaller @Inject constructor(
         }
         if (!canRequestPackageInstalls()) {
             Log.w(TAG, "未授予安装未知应用权限，无法启动安装")
+            return false
+        }
+        // 安全加固：安装前校验 APK 签名与当前已安装应用一致，防止更新服务器被入侵/
+        // 中间人劫持后投递恶意 APK（任意代码执行入口）。不一致直接拒绝安装。
+        if (!isSignatureMatch(apkFile)) {
+            Log.e(TAG, "APK 签名与当前应用不一致，拒绝安装: ${apkFile.absolutePath}")
             return false
         }
 
@@ -106,6 +116,70 @@ class ApkInstaller @Inject constructor(
         } else {
             true
         }
+    }
+
+    /**
+     * 校验待安装 APK 的签名证书与当前已安装应用是否一致。
+     * - Android 9+ 用 signingInfo（兼容 v1/v2/v3 签名）
+     * - 旧版本用 GET_SIGNATURES
+     * 不一致返回 false（拒绝安装），防止更新通道被攻破后投递恶意包。
+     */
+    fun isSignatureMatch(apkFile: File): Boolean {
+        return try {
+            val pm = context.packageManager
+            val apkSig = getApkSignatures(pm, apkFile) ?: return false
+            val installedSig = getInstalledSignatures(pm) ?: return false
+            // 双方签名指纹集合完全一致才算匹配（多签名场景全量比对）
+            val apkSet = apkSig.map { sha256Hex(it) }.toSet()
+            val instSet = installedSig.map { sha256Hex(it) }.toSet()
+            val matched = apkSet.isNotEmpty() && apkSet == instSet
+            if (!matched) Log.w(TAG, "签名不匹配: apk=${apkSet} installed=${instSet}")
+            matched
+        } catch (e: Exception) {
+            Log.e(TAG, "签名校验异常: ${e.message}", e)
+            false // 校验失败一律拒绝，安全优先
+        }
+    }
+
+    private fun getApkSignatures(pm: PackageManager, apkFile: File): List<Signature>? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val info: PackageInfo = pm.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.GET_SIGNING_CERTIFICATES,
+            ) ?: return null
+            info.signingInfo?.apkContentsSigners?.toList() ?: return null
+        } else {
+            @Suppress("DEPRECATION")
+            val info: PackageInfo = pm.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.GET_SIGNATURES,
+            ) ?: return null
+            @Suppress("DEPRECATION")
+            info.signatures?.toList() ?: return null
+        }
+    }
+
+    private fun getInstalledSignatures(pm: PackageManager): List<Signature>? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val info: PackageInfo = pm.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_SIGNING_CERTIFICATES,
+            ) ?: return null
+            info.signingInfo?.apkContentsSigners?.toList() ?: return null
+        } else {
+            @Suppress("DEPRECATION")
+            val info: PackageInfo = pm.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_SIGNATURES,
+            ) ?: return null
+            @Suppress("DEPRECATION")
+            info.signatures?.toList() ?: return null
+        }
+    }
+
+    private fun sha256Hex(sig: Signature): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(sig.toByteArray())
+        return digest.joinToString("") { "%02x".format(it) }
     }
 
     companion object {

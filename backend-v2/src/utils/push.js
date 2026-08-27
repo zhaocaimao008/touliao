@@ -310,9 +310,23 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   const settingsMap = new Map(settingsRows.map(r => [r.user_id, r]));
   const defaultSettings = { last_read_at: 0, muted: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0, quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00' };
 
-  const unreadStmt = db.prepare(
-    'SELECT COUNT(*) as cnt FROM (SELECT 1 FROM messages WHERE conversation_id=? AND sender_id!=? AND deleted=0 AND created_at>? LIMIT 99)'
-  );
+  // 批量未读数（优化 N+1）：一次查询取回所有目标用户的未读数，替代循环内逐用户 COUNT。
+  // 大群（500 人）一条消息原为 500 次同步 SQLite 查询阻塞事件循环，现为 1 次。
+  // 语义对齐原实现：排除发送者本人、按各自 last_read_at（conversation_settings）过滤。
+  const unreadRows = db.prepare(`
+    SELECT cm.user_id AS uid,
+      (SELECT COUNT(*) FROM messages m
+       WHERE m.conversation_id = cm.conversation_id
+         AND m.deleted = 0
+         AND m.sender_id != ?
+         AND m.created_at > COALESCE(
+           (SELECT cs.last_read_at FROM conversation_settings cs
+            WHERE cs.user_id = cm.user_id AND cs.conversation_id = cm.conversation_id), 0)
+      ) AS cnt
+    FROM conversation_members cm
+    WHERE cm.conversation_id = ? AND cm.user_id IN (${ph})
+  `).all(senderId, conversationId, ...targetUids);
+  const unreadMap = new Map(unreadRows.map(r => [r.uid, Math.min(Number(r.cnt) || 0, 99)]));
 
   const pushPromises = targetUids.map(uid => {
     const settings = settingsMap.get(uid) || defaultSettings;
@@ -320,7 +334,7 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
     if (Number(settings.muted)) return null;             // 该会话已设免打扰 → 不推送
     // 勿扰时段检查：开启且当前时刻落在时段内 → 抑制推送（消息本身照常入库送达）
     if (Number(settings.quiet_enabled) && isInQuietHours(settings.quiet_start, settings.quiet_end)) return null;
-    const unread = unreadStmt.get(conversationId, uid, settings.last_read_at || 0)?.cnt || 1;
+    const unread = unreadMap.get(uid) || 1;
     return pushToUser(uid, {
       title:   senderName,
       body:    Number(settings.detail_preview) ? body : '收到一条新消息',

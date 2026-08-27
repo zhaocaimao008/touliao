@@ -21,7 +21,8 @@ final class PushManager {
     /// MessagingDelegate 回调：拿到/刷新 FCM token
     func onToken(_ token: String) {
         latestToken = token
-        print("[Push] FCM token = \(token)")
+        // 只打印前缀，避免完整 token 泄漏到日志（token 等同推送凭据）
+        print("[Push] FCM token prefix = \(token.prefix(12))…")
         if KeychainStore.shared.isLoggedIn {
             Task { await repo.register(token: token) }
         }
@@ -57,10 +58,12 @@ final class PushManager {
         Task { await fetchAndRegister() }
     }
 
-    /// 登出时注销当前 token
+    /// 登出时注销当前 token（FCM + APNs 都要删，否则登出后旧账号推送继续到达本机）
     func unregister() async {
         if let token = latestToken { await repo.delete(token: token) }
+        if let apns = latestApnsHex { await repo.delete(token: apns) }
         latestToken = nil
+        latestApnsHex = nil
     }
 
     // MARK: - Private

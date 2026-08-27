@@ -37,6 +37,8 @@ final class SocketService {
     private var socket: SocketIOClient?
 
     let status = CurrentValueSubject<SocketStatus, Never>(.disconnected)
+    /// socket 鉴权失败（token 失效/封禁等）→ 上层应提示重新登录。负载为服务端错误消息。
+    let authFailure = PassthroughSubject<String, Never>()
     let incoming = PassthroughSubject<Message, Never>()
     /// @mention：(conversationId, msgId)
     let mentioned = PassthroughSubject<(convId: String, msgId: String), Never>()
@@ -126,7 +128,26 @@ final class SocketService {
         sock.on(clientEvent: .disconnect) { [weak self] _, _ in
             self?.status.send(.disconnected)
         }
-        sock.on(clientEvent: .error) { _, _ in /* 交给库自动重连 */ }
+        // 鉴权失败处理（P0）：服务端 handshake 校验 token 失败时通过 connect_error
+        // 返回错误消息。此前静默交给库自动重连——token 已失效时用旧 token 无限重连，
+        // 空耗流量与服务器连接。现在：鉴权类错误（未授权/Token失效/会话失效/用户不存在/
+        // 封禁/密码已修改）→ 停止重连并抛 authFailure 通知上层重新登录；纯网络错误继续重连。
+        sock.on(clientEvent: .error) { [weak self] data, _ in
+            guard let self else { return }
+            let message = (data.first as? String) ?? ""
+            let fatalAuth = [
+                "未授权", "Token已失效，请重新登录", "会话已失效，请重新登录",
+                "用户不存在，请重新登录", "账号已被封禁", "密码已修改，请重新登录",
+            ]
+            if fatalAuth.contains(where: { message.contains($0) }) || message.contains("请重新登录") {
+                self.manager?.disconnect()
+                self.manager = nil
+                self.socket = nil
+                self.status.send(.disconnected)
+                self.authFailure.send(message)
+            }
+            // 其他错误（网络波动等）→ 库自动重连
+        }
 
         sock.on("new_message") { [weak self] data, _ in
             self?.handleMessage(data.first)
