@@ -133,6 +133,10 @@ async function startServer() {
     transports: ['websocket'], // 仅 websocket 防集群握手死锁
     pingInterval: 25000,  // 25s 心跳间隔（保持 NAT 活跃）
     pingTimeout: 20000,   // 20s 无响应视为断线
+    // 单帧负载上限 512KB（默认 1MB）：文本消息有 maxMsgLength 限制（~2KB），
+    // 512KB 足够承载最大文件消息元数据与信令，同时防超大 payload 触发
+    // 「1MB × 多房间广播放大」的内存/带宽滥用（socket 广播是扇出到所有成员）。
+    maxHttpBufferSize: 512 * 1024,
     // WebSocket 逐帧压缩：消息体积 -30~60%（文本聊天效果显著）
     // threshold=512：小帧（<512B ack/typing/ping）跳过压缩，避免负优化
     perMessageDeflate: {

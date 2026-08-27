@@ -48,7 +48,7 @@ npm run build
 # 输出: dist/index.html + dist/assets/*
 
 # Step 2: 使用 Electron Builder 生成 Windows 安装程序
-npm run build:desktop:win
+cd ../desktop-electron && npm run build:win
 # 输出: dist-electron/v信 Setup 1.0.0.exe (≈150MB)
 #       dist-electron/v信 Setup 1.0.0.exe.blockmap (增量更新)
 
@@ -291,7 +291,7 @@ npm run dev
 # 访问 http://localhost:3000
 
 # 🟢 Electron 开发 (与 Vite 并行)
-npm run dev:desktop
+cd ../desktop-electron && npm run dev
 # 自动监听源代码变化，刷新 Electron 窗口
 
 # 🟡 移动端本地测试 (不需要真机)
@@ -307,7 +307,7 @@ npm run build                    # 构建静态文件 (dist/)
 # 上传 dist/ 到服务器 (91aigu.com)
 
 # 🖥️ Windows 版本
-npm run build:desktop:win        # 生成 exe 文件
+cd ../desktop-electron && npm run build:win        # 生成 exe 文件
 # 上传到 Windows 下载页面
 
 # 🤖 Android 版本
@@ -351,7 +351,7 @@ npm version major    # 1.0.0 → 2.0.0 (破坏性更新)
 # 解决
 npm install
 npm run build
-npm run build:desktop:win
+cd ../desktop-electron && npm run build:win
 ```
 
 **问题**: Windows 打包超大 (>300MB)
@@ -441,7 +441,7 @@ jobs:
         with:
           node-version: '18'
       - run: npm install
-      - run: npm run build:desktop:win
+      - run: cd ../desktop-electron && npm run build:win
       - uses: actions/upload-artifact@v3
         with:
           name: windows-exe
@@ -472,7 +472,7 @@ jobs:
 - [ ] 更新 `package.json` 中的版本号
 - [ ] 运行 `npm install` 安装最新依赖
 - [ ] 运行 `npm run build` 编译 Web 资源
-- [ ] Windows: `npm run build:desktop:win` → 生成 exe
+- [ ] Windows: `cd ../desktop-electron && npm run build:win` → 生成 exe
 - [ ] Android: `npm run build:android` → 生成 APK
 - [ ] iOS: `npm run build:ios` → 用 Xcode 编译
 - [ ] 在各平台进行集成测试

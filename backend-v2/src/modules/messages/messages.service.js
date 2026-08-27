@@ -898,18 +898,99 @@ async function transcribe(userId, msgId) {
   return { text: finalText, cached: false };
 }
 
+// SSRF 防护：外部 URL 必须 https + 非内网/回环/链路本地/保留地址。
+// 基于 URL 解析后的 IP 判断（域名也解析验证），挡 169.254.169.254 云元数据、
+// 127.0.0.1、10.x/172.16-31.x/192.168.x、IPv6 链路本地等 SSRF 目标。
+const dns = require('dns').promises;
+const net = require('net');
+const { isIP } = net;
+
+function isPrivateIP(ip) {
+  const v6 = isIP(ip) === 6;
+  if (v6) {
+    // IPv6：仅拦截回环(::1)、链路本地(fe80::/10)、唯一本地(fc00::/7)、
+    // 未指定(::)、IPv4映射(::ffff:0:0/96 已由 v4 分支处理)。全局单播(2000::/3)放行。
+    const lower = ip.toLowerCase();
+    if (lower === '::' || lower === '::1') return true;
+    if (lower.startsWith('fe80') || lower.startsWith('feb') || lower.startsWith('fec') || lower.startsWith('fed') || lower.startsWith('fee') || lower.startsWith('fef')) return true;
+    if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
+    return false;
+  }
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4) return true; // 无法解析的地址按不安全处理
+  const [a, b] = parts;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;       // 169.254.x.x 链路本地（云元数据）
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 0 || a === 100 && b >= 64 && b <= 127) return true; // 0.x / CGNAT 100.64/10
+  return false;
+}
+
+async function isSafeExternalUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    if (u.protocol !== 'https:') return false;   // 必须 https，挡 http/file/gopher 等
+    const host = u.hostname;
+    if (isIP(host) === 4) return !isPrivateIP(host);
+    // 域名：解析全部 A 记录，任一命中内网即拒绝（防 DNS rebinding 的部分缓解）
+    try {
+      const addrs = await dns.lookup(host, { all: true });
+      if (!addrs.length) return false;
+      return addrs.every(({ address }) => !isPrivateIP(address));
+    } catch {
+      return false; // 解析失败（DNS 异常/不存在的域）一律拒绝
+    }
+  } catch {
+    return false;
+  }
+}
+
 // 从 file_url 读取音频原始字节。支持本地 uploads 路径与远程 http(s) 云地址。
 async function readVoiceAudio(fileUrl) {
   if (!fileUrl) throw badRequest('该语音消息缺少音频文件');
   const fs = require('fs');
   const path = require('path');
 
-  // 云直传地址（https://…）：网络拉取
+  // 云直传地址（https://…）：网络拉取。
+  // SSRF 纵深防御：必须 https + 非内网/回环/链路本地地址（挡 169.254.169.254
+  // 元数据、127.0.0.1、内网段等 SSRF 目标），另加响应体大小上限与超时。
   if (/^https?:\/\//i.test(fileUrl)) {
-    const resp = await fetch(fileUrl);
-    if (!resp.ok) throw badRequest('无法下载语音音频文件');
-    const ab = await resp.arrayBuffer();
-    return Buffer.from(ab);
+    if (!isSafeExternalUrl(fileUrl)) throw badRequest('不支持的音频文件来源');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000); // 30s 超时
+    try {
+      const resp = await fetch(fileUrl, { signal: controller.signal });
+      if (!resp.ok) throw badRequest('无法下载语音音频文件');
+      const MAX_VOICE_BYTES = 30 * 1024 * 1024; // 30MB 上限（语音转写场景足够）
+      const contentLength = Number(resp.headers.get('content-length') || 0);
+      if (contentLength > MAX_VOICE_BYTES) throw badRequest('音频文件过大，无法转写');
+      // 流式读取并限流，避免 arrayBuffer 一次性载入超大文件
+      const reader = resp.body?.getReader();
+      const chunks = [];
+      let total = 0;
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value.length;
+          if (total > MAX_VOICE_BYTES) throw badRequest('音频文件过大，无法转写');
+          chunks.push(value);
+        }
+      } else {
+        // 无流式接口（极端环境）退回首部校验
+        const ab = await resp.arrayBuffer();
+        if (ab.byteLength > MAX_VOICE_BYTES) throw badRequest('音频文件过大，无法转写');
+        chunks.push(Buffer.from(ab));
+      }
+      return Buffer.concat(chunks);
+    } catch (e) {
+      if (e?.name === 'AbortError') throw badRequest('下载语音音频超时');
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // 本地 /uploads/xxx → 映射到 config.uploadsRoot 下的物理文件。

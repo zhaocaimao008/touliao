@@ -560,7 +560,11 @@ function fetchBuffer(url, { allowMissing = false } = {}) {
   });
 }
 
-// 验证更新元数据签名。返回：'ok' | 'skip'(未启用) | 'fail'(疑似篡改/校验失败)
+// 验证更新元数据签名。返回：'ok' | 'skip'(未启用验签) | 'fail'(疑似篡改/校验失败)
+// 安全策略（P1 修复）：只有「公钥未配置」才允许回退仅 TLS（skip）——那是验签功能
+// 压根没启用。一旦公钥已配置，任何「拉取元数据失败 / .sig 缺失 / 网络异常」都视为
+// fail 并阻止下载：若回退 TLS，攻击者只需让 .sig 拉取失败即可降级到无签名校验，
+// 使整条 Ed25519 防线形同虚设。
 async function verifyUpdateSignature() {
   const pub = loadUpdatePublicKey();
   if (!pub) {
@@ -577,13 +581,16 @@ async function verifyUpdateSignature() {
       fetchBuffer(sigUrl, { allowMissing: true }),
     ]);
   } catch (e) {
-    // 网络/拉取异常：不阻断合法更新(electron-updater 已能取到 yml)，回退 TLS。
-    log.warn('更新验签：拉取元数据失败，回退仅 TLS：', e.message);
-    return 'skip';
+    // 公钥已配置但元数据拉取失败：阻止下载（安全优先）。合法更新重试即可，
+    // 若持续失败说明更新源异常，不应降级到无签名校验。
+    log.error('更新验签：拉取元数据失败，已阻止下载（安全策略）：', e.message);
+    return 'fail';
   }
   if (!sigBuf) {
-    log.warn('更新验签：未找到 .sig，签名分发尚未启用，回退仅 TLS');
-    return 'skip';
+    // 公钥已配置但 .sig 缺失：阻止下载。发布侧须确保 sign-update.js 已生成并
+    // 上传 .sig（发布流水线强校验），否则视为更新通道不完整。
+    log.error('更新验签：未找到 .sig 签名文件，已阻止下载（安全策略）');
+    return 'fail';
   }
   try {
     const ok = crypto.verify(null, ymlBuf, pub, sigBuf);
@@ -621,6 +628,8 @@ function setupAutoUpdater() {
     // 渲染层 UpdateBanner 已有「立即重启安装」按钮，由它统一接管确认逻辑；
     // 主进程不再弹原生 dialog，避免两套 UI 同时出现打架、且 dialog 阻塞事件循环。
     // autoInstallOnAppQuit=true 兜底：用户不点 banner 时，退出 App 自动安装。
+    // 安全说明：能走到 update-downloaded 说明元数据已通过 Ed25519 验签（fail 会
+    // 在 update-available 阶段阻止 downloadUpdate），自动安装仅覆盖已验签的包。
     mainWindow?.webContents.send('update:downloaded', info);
   });
 
