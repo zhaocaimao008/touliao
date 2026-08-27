@@ -4,7 +4,7 @@ const QRCode = require('qrcode');
 const { db } = require('../../db/connection');
 const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
-const { isMember, requireMember, memberRole, purgeConversation } = require('../messages/shared');
+const { isMember, requireMember, memberRole, purgeConversation, invalidateConv } = require('../messages/shared');
 
 // ── 群昵称 ──────────────────────────────────────────────────────
 function setNickname(io, convId, userId, nickname) {
@@ -94,6 +94,7 @@ function joinByToken(io, userId, token) {
     db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)')
       .run(invite.conversation_id, userId, 'member');
   })();
+  invalidateConv(invite.conversation_id); // 入群后立即可见（isMember 5s 缓存失效）
   if (alreadyMember) {
     return { success: true, conversationId: invite.conversation_id, alreadyMember: true };
   }
@@ -200,6 +201,7 @@ function kick(io, convId, callerId, uid) {
   if (callerRole === 'admin' && targetRole !== 'member') throw forbidden('管理员只能移除普通成员');
 
   db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, uid);
+  invalidateConv(convId); // 移除成员后 isMember 缓存立即失效，防 5s 内仍按成员放行附件/会话
   if (io) {
     io.in(`user_${uid}`).socketsLeave(convId);
     io.to(convId).emit('group_updated', { id: convId });
@@ -215,6 +217,7 @@ function leave(io, convId, userId) {
   if (conv.owner_id === userId) throw badRequest('群主不能直接退出群聊，请先转让群主后再退出，或解散群聊');
   const result = db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, userId);
   if (result.changes === 0) throw forbidden('您不在此群中');
+  invalidateConv(convId); // 退群后立即失权（isMember 5s 缓存失效，防退群后短暂仍可访问群附件）
   if (io) {
     io.in(`user_${userId}`).socketsLeave(convId);
     io.to(convId).emit('group_updated', { id: convId });
