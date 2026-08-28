@@ -35,7 +35,26 @@ final class PushManager {
             // [诊断] 上报授权结果：区分「权限被拒」与「注册失败」
             Task { await NotificationRepository.shared.diag("requestAuth granted=\(granted) error=\(error?.localizedDescription ?? "nil") isLoggedIn=\(KeychainStore.shared.isLoggedIn)") }
             guard granted else { return }
-            DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
+            // iOS 16+ async 注册：直接拿 token 或抛错，不依赖 AppDelegate 的 didRegister 回调链路
+            // （此前系统从不回调 didRegister/didFail，疑似 delegate 链路或系统 APNs 服务问题）
+            if #available(iOS 16.0, *) {
+                Task {
+                    do {
+                        let tokenData = try await UIApplication.shared.registerForRemoteNotifications()
+                        let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+                        Messaging.messaging().apnsToken = tokenData
+                        setApnsToken(hex)
+                        await NotificationRepository.shared.diag("asyncRegister ok hexPrefix=\(String(hex.prefix(8))) isLoggedIn=\(KeychainStore.shared.isLoggedIn)")
+                        if !hex.isEmpty && KeychainStore.shared.isLoggedIn {
+                            await NotificationRepository.shared.register(token: hex, platform: "ios_apns")
+                        }
+                    } catch {
+                        await NotificationRepository.shared.diag("asyncRegister fail error=\(error.localizedDescription)")
+                    }
+                }
+            } else {
+                DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
+            }
         }
         Task { await fetchAndRegister() }
         // 补报 APNs 原始 token：可能早于登录就拿到（未登录时 AppDelegate 只缓存不报）
