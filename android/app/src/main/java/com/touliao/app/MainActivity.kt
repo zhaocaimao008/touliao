@@ -54,14 +54,29 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // 个推诊断弹窗（临时诊断用）：TouliaoApp 启动 8 秒后把诊断结果塞进 extra 弹出来
+        showDiagIfPresent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        showDiagIfPresent(intent)
         if (isCallIntent(intent)) enableShowOverLockscreen()
         handleCallIntent(intent)
         handleMessageIntent(intent)
+    }
+
+    /** 个推诊断弹窗（临时诊断用）：onCreate 与 onNewIntent 共用。 */
+    private fun showDiagIfPresent(intent: Intent?) {
+        val diag = intent?.getStringExtra("getui_diag_popup")
+        if (!diag.isNullOrBlank()) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("个推诊断结果")
+                .setMessage(diag)
+                .setPositiveButton("知道了", null)
+                .show()
+        }
     }
 
     private fun isCallIntent(intent: Intent?): Boolean = when (intent?.action) {
