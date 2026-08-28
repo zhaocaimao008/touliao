@@ -568,6 +568,7 @@ fun ChatScreen(
                             onRecall = { viewModel.recall(msg) },
                             onVanish = { viewModel.vanish(msg) },
                             onDeleteForMe = { viewModel.deleteForMe(msg) },
+                            canManage = state.canManageGroup,
                             onReact = { emoji -> viewModel.react(msg, emoji) },
                             onCollectSticker = { viewModel.collectSticker(msg.file_url) },
                             onSaveImage = {
@@ -1029,6 +1030,7 @@ private fun MessageBubble(
     onReplyClick: (String) -> Unit = {},
     onVanish: () -> Unit = {},
     onDeleteForMe: () -> Unit = {},
+    canManage: Boolean = false,        // 群主/管理员：可撤回群内他人消息
     onMultiSelect: () -> Unit = {},
     selectionMode: Boolean = false,
     onRetry: () -> Unit = {},
@@ -1162,14 +1164,12 @@ private fun MessageBubble(
                         DropdownMenuItem(text = { Text("收藏表情") }, onClick = { onCollectSticker(); menuOpen = false })
                         DropdownMenuItem(text = { Text("保存图片") }, onClick = { onSaveImage(); menuOpen = false })
                     }
-                    if (isMine) {
+                    // 撤回：自己消息，或群主/管理员撤回群内他人消息（对全员生效）
+                    if (isMine || canManage) {
                         DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { onRecall(); menuOpen = false })
                     }
                     // 删除：所有消息均可（自己/对方），仅对当前账号生效（per-user tombstone，不影响对方）
                     DropdownMenuItem(text = { Text("删除", color = Color(0xFFFA5151)) }, onClick = { onDeleteForMe(); menuOpen = false })
-                    if (isMine) {
-                        DropdownMenuItem(text = { Text("删除不留痕迹", color = Color(0xFFFA5151)) }, onClick = { onVanish(); menuOpen = false })
-                    }
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("多选") }, onClick = { onMultiSelect(); menuOpen = false })
                 }

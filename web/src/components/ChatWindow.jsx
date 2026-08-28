@@ -1970,10 +1970,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         break;
       }
 
-      // 撤回：仅自己发送的消息，对全员生效（服务端 deleted=2，UI 无痕；
+      // 撤回：自己发送的消息，或群主/管理员撤回群内他人消息（对全员生效，服务端 deleted=2，UI 无痕；
       // 会话列表 preview 由 ChatList 监听 message_recall 广播自动刷新）
       case 'recall': {
-        if (msg.sender_id !== user.id) { showToast('只能撤回自己发送的消息'); return; }
+        const isOwn = msg.sender_id === user.id;
+        const isGroupAdmin = conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin');
+        if (!isOwn && !isGroupAdmin) { showToast('只能撤回自己发送的消息'); return; }
         if (msg.deleted) return;
         // 乐观移除：先隐藏，失败则恢复
         const prevMsgs = messagesRef.current;
@@ -2758,20 +2760,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('addSticker'); } }}>添加到表情</div>
           )}
           <div className="wc-ctx-divider" />
-          {/* 撤回：仅自己发送的消息（对全员生效，服务端 deleted=2，UI 无痕） */}
-          {ctxMenu.msg.sender_id === user.id && !ctxMenu.msg.deleted && (
+          {/* 撤回：自己发送的消息，或群主/管理员撤回群内他人消息（对全员生效，服务端 deleted=2，UI 无痕） */}
+          {!ctxMenu.msg.deleted && (
+            ctxMenu.msg.sender_id === user.id ||
+            (conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin'))
+          ) && (
             <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}>撤回</div>
           )}
           {/* 删除：所有消息均可删除，仅对当前账号生效（per-user tombstone，UI 无痕，不影响对方） */}
           <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-me" onClick={() => ctxAction('deleteForMe')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('deleteForMe'); } }}>删除</div>
-          {/* 删除不留痕迹：自己的消息，或群主/管理员（保留现有能力） */}
-          {(ctxMenu.msg.sender_id === user.id ||
-            ((myGroupRole === 'owner' || myGroupRole === 'admin') && conversation.type === 'group')
-          ) && (
-            <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-vanish" onClick={() => ctxAction('vanish')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('vanish'); } }}>
-              删除不留痕迹
-            </div>
-          )}
         </CtxMenuPortal>,
         document.body
       )}

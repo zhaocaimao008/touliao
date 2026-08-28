@@ -756,9 +756,9 @@ private struct MessageBubble: View {
                             Button("收藏表情") { vm.collectSticker(msg.fileUrl) }
                             Button("保存图片") { saveImage(msg.fileUrl) }
                         }
-                        if isMine {
+                        // 撤回：自己消息，或群主/管理员撤回群内他人消息（对全员生效）
+                        if isMine || (isGroup && vm.canManageGroup) {
                             Button("撤回", role: .destructive) { vm.recall(msg) }
-                            Button("删除不留痕迹", role: .destructive) { vm.vanish(msg) }
                         }
                         // 删除：所有消息均可（自己/对方），仅对当前账号生效（per-user tombstone，不影响对方）
                         Button("删除", role: .destructive) { vm.deleteForMe(msg) }
