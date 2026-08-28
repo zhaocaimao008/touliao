@@ -56,8 +56,6 @@
           "StatusBarBackgroundColor": "#1c1c1e",
           "StatusBarStyle": "lightcontent",
           "StatusBarDefaultScrollToTop": "NO",
-          "AutoHideSplashScreen": "false",
-          "SplashScreenDelay": 2000,
           "Orientation": "Portrait"
         }
       },

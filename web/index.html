@@ -34,25 +34,10 @@
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; }
-      /* 首屏/更新后 JS 解析期间的加载占位，避免白屏（React 挂载到 #root 后自动被替换消失）*/
-      #app-splash {
-        position: fixed; inset: 0; z-index: 9999;
-        display: flex; align-items: center; justify-content: center;
-        background: #1A2033 url('/splash.png') center/cover no-repeat;
-      }
-      #app-splash .spin {
-        position: absolute; bottom: 14%;
-        width: 34px; height: 34px; border-radius: 50%;
-        border: 3px solid rgba(255,255,255,.15);
-        border-top-color: #8A78EB;
-        animation: appspin .8s linear infinite;
-      }
-      @keyframes appspin { to { transform: rotate(360deg); } }
     </style>
   </head>
   <body>
     <div id="root"></div>
-    <div id="app-splash"><div class="spin"></div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

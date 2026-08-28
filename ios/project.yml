@@ -59,9 +59,8 @@ targets:
         # 导致 TestFlight 报 "bundle version must be higher than '1'"。
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
-        UILaunchScreen:
-          UIColorName: LaunchBackground
-          UIImageName: LaunchIcon
+        # 启动画面：已按要求移除品牌图/背景（保留空 UILaunchScreen，iOS 用系统默认纯色启动）
+        UILaunchScreen: {}
         # 出口合规：仅用标准 HTTPS/系统加密(属豁免)，声明后每次上传免手动回答，
         # 且构建可直接对外分发（否则 TestFlight 外部测试会卡在“合规未回答”）。
         ITSAppUsesNonExemptEncryption: false

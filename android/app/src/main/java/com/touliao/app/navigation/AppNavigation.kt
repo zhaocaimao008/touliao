@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -167,7 +166,8 @@ fun AppNavigation(appViewModel: AppViewModel = hiltViewModel()) {
     val unreadTotal by appViewModel.unreadTotal.collectAsStateWithLifecycle()
 
     when (authState) {
-        is AuthState.Loading -> SplashScreen()
+        // 启动画面已全部移除：Loading 状态不渲染任何画面，等鉴权结果直接进主界面/登录页
+        is AuthState.Loading -> {}
         is AuthState.Authenticated -> MainFlow(features, unreadTotal)
         is AuthState.Unauthenticated -> AuthFlow()
     }
@@ -458,9 +458,3 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
     }
 }
 
-@Composable
-private fun SplashScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
-    }
-}
