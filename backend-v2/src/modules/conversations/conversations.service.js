@@ -236,10 +236,11 @@ async function listConversations(uid) {
     FROM conversations c
     JOIN conversation_members cm ON cm.conversation_id = c.id AND cm.user_id = ?
     LEFT JOIN messages m ON m.id = (
-      SELECT id FROM messages WHERE conversation_id = c.id AND deleted = 0
-        AND rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+      SELECT mm.id FROM messages mm WHERE mm.conversation_id = c.id AND mm.deleted = 0
+        AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id = mm.id AND d.user_id = ?)
+        AND mm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                    WHERE user_id=? AND conversation_id=c.id), 0)
-      ORDER BY created_at DESC LIMIT 1
+      ORDER BY mm.created_at DESC LIMIT 1
     )
     LEFT JOIN users su ON su.id = m.sender_id
     LEFT JOIN conversation_settings cs ON cs.user_id = ? AND cs.conversation_id = c.id
@@ -254,7 +255,7 @@ async function listConversations(uid) {
     LEFT JOIN contacts ct ON ct.user_id = ? AND ct.contact_id = ou.id
     ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC
     LIMIT 500
-  `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid);
+  `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid);
 
   const memberMap = new Map();
   if (rows.some(r => r.type === 'group')) {

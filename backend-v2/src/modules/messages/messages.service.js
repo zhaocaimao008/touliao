@@ -25,14 +25,18 @@ function history(convId, userId, { before, after, limit, beforeId }) {
   const rawLimit = parseInt(limit);
   const lim = (!isNaN(rawLimit) && rawLimit > 0) ? Math.min(rawLimit, 100) : 50;
 
+  // per-user tombstone：个人删除的消息（deleted=0 但 user_message_deletions 有记录）对当前用户不可见
+  const userDelClause = `AND NOT EXISTS (
+    SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?
+  )`;
   let query = `
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id=m.sender_id
-    WHERE m.conversation_id=? AND m.deleted=0
+    WHERE m.conversation_id=? AND m.deleted=0 ${userDelClause}
       AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0
       )
   `;
-  const params = [convId, userId];
+  const params = [convId, userId, userId];
   // 游标须为有限数值才生效；非法值（NaN/空串）忽略，回退为「最近 N 条」，
   // 否则 created_at < NaN 恒假会把历史吞空。排序方向也依据校验后的 after。
   const beforeTs = Number(before);
@@ -133,10 +137,11 @@ function missed(io, userId, after) {
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id = m.sender_id
     WHERE m.conversation_id IN (${ph}) AND m.deleted = 0 AND m.created_at > ?
+      AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
       AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                    WHERE user_id=? AND conversation_id=m.conversation_id), 0)
     ORDER BY m.created_at ASC LIMIT 300
-  `).all(...convIds, after, userId);
+  `).all(...convIds, after, userId, userId);
 
   const replyIds = [...new Set(messages.filter(m => m.reply_to_id).map(m => m.reply_to_id))];
   const replyMap = new Map();
@@ -366,8 +371,8 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
   return deleted.length;
 }
 
-// ── 单条撤回 ────────────────────────────────────────────────────
-async function remove(io, userId, msgId, forEveryone, vanish) {
+// ── 单条撤回 / 个人删除 / 彻底删除 ───────────────────────────────
+async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
   const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
   if (!msg) throw notFound('消息不存在');
 
@@ -384,20 +389,53 @@ async function remove(io, userId, msgId, forEveryone, vanish) {
     return;
   }
 
+  // 个人删除（per-user tombstone）：仅对当前账号生效，对方/群成员不受影响。
+  // 广播到 user_{userId} 房间 → 当前账号所有在线设备同步移除；不触碰 messages 行。
+  if (forMe) {
+    const callerRole = memberRole(msg.conversation_id, userId);
+    if (!callerRole) throw forbidden('您已不在该会话中');
+    await writeAsync(
+      'INSERT OR IGNORE INTO user_message_deletions (message_id, user_id) VALUES (?, ?)',
+      [msgId, userId]
+    );
+    cache.delPattern(`search:*${userId}*`).catch(() => {});
+    convSvc.invalidateConvCacheForConversation(msg.conversation_id);
+    if (io) {
+      io.to(`user_${userId}`).emit('message_deleted_for_me', {
+        msgId,
+        conversationId: msg.conversation_id,
+        operatorId: userId,
+        timestamp: Math.floor(Date.now() / 1000),
+      });
+    }
+    return;
+  }
+
   if (forEveryone) {
     const isOwn = msg.sender_id === userId;
     const callerRole = memberRole(msg.conversation_id, userId);
     if (!callerRole) throw forbidden('您已不在该会话中');
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
-    if (msg.deleted === 2) throw badRequest('消息已彻底删除，无法再次操作');
+    if (msg.deleted === 2) return; // 幂等：已撤回的消息再次撤回直接成功返回，不报错不重复广播
     // 撤回不限时间：任意时长的消息本人（或群管理员）均可撤回
     await writeAsync("UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", [msgId]);
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     convSvc.invalidateConvCacheForConversation(msg.conversation_id);
-    if (io) io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });
+    const now = Math.floor(Date.now() / 1000);
+    if (io) {
+      // message_recall：新协议，撤回同步（含 operator_id/timestamp，幂等）
+      io.to(msg.conversation_id).emit('message_recall', {
+        msgId,
+        conversationId: msg.conversation_id,
+        operatorId: userId,
+        timestamp: now,
+      });
+      // message_deleted：保留旧协议兼容（Android/iOS 原生端仍监听此事件）
+      io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });
+    }
   }
-  // 仅自己隐藏：前端处理，不改库
+  // 仅自己隐藏：已由 forMe 分支持久化处理
 }
 
 // ── 表情回应（toggle）────────────────────────────────────────────
@@ -493,9 +531,10 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
       FROM messages m
       JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
       WHERE m.type = 'text' AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
+        AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                      WHERE user_id=? AND conversation_id=m.conversation_id), 0)
-    `).get(userId, like, userId)?.cnt || 0;
+    `).get(userId, like, userId, userId)?.cnt || 0;
 
     rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
@@ -515,10 +554,11 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
                 )
       LEFT JOIN users ou ON ou.id = cm_o.user_id
       WHERE m.type = 'text' AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
+        AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                      WHERE user_id=? AND conversation_id=m.conversation_id), 0)
       ORDER BY m.created_at DESC LIMIT ? OFFSET ?
-    `).all(userId, userId, like, userId, safeLimit, safeOffset);
+    `).all(userId, userId, like, userId, userId, safeLimit, safeOffset);
   } else {
     // FTS5 phrase query: double-quote wrap 防止特殊字符被解析为 FTS5 语法
     const ftsQuery = '"' + trimmed.replace(/"/g, '""') + '"';
@@ -529,9 +569,10 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
       JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
       JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
       WHERE messages_fts MATCH ?
+        AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                      WHERE user_id=? AND conversation_id=m.conversation_id), 0)
-    `).get(userId, ftsQuery, userId)?.cnt || 0;
+    `).get(userId, ftsQuery, userId, userId)?.cnt || 0;
 
     rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
@@ -552,10 +593,11 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
                 )
       LEFT JOIN users ou ON ou.id = cm_o.user_id
       WHERE messages_fts MATCH ?
+        AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                      WHERE user_id=? AND conversation_id=m.conversation_id), 0)
       ORDER BY m.created_at DESC LIMIT ? OFFSET ?
-    `).all(userId, userId, ftsQuery, userId, safeLimit, safeOffset);
+    `).all(userId, userId, ftsQuery, userId, userId, safeLimit, safeOffset);
   }
 
   const results = rows.map(({ ou_id, ou_username, ou_avatar, ou_status, ...msg }) => {
@@ -600,9 +642,10 @@ async function searchInConversation(convId, userId, q) {
       JOIN users u ON u.id = m.sender_id
       WHERE m.conversation_id = ? AND m.deleted = 0
         AND m.content LIKE ? ESCAPE '\\'
+        AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
       ORDER BY m.created_at DESC LIMIT 30
-    `).all(convId, like, userId);
+    `).all(convId, like, userId, userId);
   } else {
     const ftsQuery = tokens.map(t => `"${t.replace(/"/g, '""')}"`).join(' OR ');
     result = db.prepare(`
@@ -611,9 +654,10 @@ async function searchInConversation(convId, userId, q) {
       JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
       JOIN users u ON u.id = m.sender_id
       WHERE messages_fts MATCH ? AND messages_fts.conversation_id = ?
+        AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
       ORDER BY m.created_at DESC LIMIT 30
-    `).all(ftsQuery, convId, userId);
+    `).all(ftsQuery, convId, userId, userId);
   }
 
   // 写入缓存（TTL: 10 分钟）
@@ -628,6 +672,9 @@ function aroundMessage(convId, msgId, userId) {
 
   const clearClause = `AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0
   )`;
+  const userDelClause = `AND NOT EXISTS (
+    SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?
+  )`;
 
   const target = db.prepare(`
     SELECT created_at FROM messages
@@ -641,16 +688,16 @@ function aroundMessage(convId, msgId, userId) {
   const before = db.prepare(`
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id=m.sender_id
-    WHERE m.conversation_id=? AND m.created_at<=? AND m.deleted=0 ${clearClause}
+    WHERE m.conversation_id=? AND m.created_at<=? AND m.deleted=0 ${clearClause} ${userDelClause}
     ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?
-  `).all(convId, target.created_at, userId, HALF + 1);
+  `).all(convId, target.created_at, userId, userId, HALF + 1);
 
   const after = db.prepare(`
     SELECT m.*, u.username as senderName, u.avatar as senderAvatar
     FROM messages m JOIN users u ON u.id=m.sender_id
-    WHERE m.conversation_id=? AND m.created_at>? AND m.deleted=0 ${clearClause}
+    WHERE m.conversation_id=? AND m.created_at>? AND m.deleted=0 ${clearClause} ${userDelClause}
     ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?
-  `).all(convId, target.created_at, userId, HALF);
+  `).all(convId, target.created_at, userId, userId, HALF);
 
   const hasMore = before.length > HALF;
   const messages = [...before.slice(0, HALF).reverse(), ...after];

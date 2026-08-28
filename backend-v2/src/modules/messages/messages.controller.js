@@ -40,7 +40,7 @@ exports.batchDelete = asyncHandler(async (req, res) =>
   res.json({ success: true, deleted: await svc.batchDelete(io(req), req.user.id, req.body) }));
 
 exports.remove = asyncHandler(async (req, res) => {
-  await svc.remove(io(req), req.user.id, req.params.msgId, req.body.forEveryone, req.body.vanish);
+  await svc.remove(io(req), req.user.id, req.params.msgId, req.body.forEveryone, req.body.vanish, req.body.forMe);
   res.json({ success: true });
 });
 

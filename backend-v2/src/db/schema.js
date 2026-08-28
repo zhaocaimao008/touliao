@@ -500,6 +500,19 @@ function applySchema(db) {
     // ── 红包过期回收查询索引：reclaimExpired 每10分钟扫 status='active' AND created_at<cutoff，
     //    无此索引则全表扫描。局部索引仅覆盖 active 行，随红包被领/过期而收缩，体积极小。──
     "CREATE INDEX IF NOT EXISTS idx_red_packets_status_time ON red_packets(status, created_at) WHERE status='active'",
+    // ── 个人删除（per-user tombstone）：仅对执行删除的账号生效，对方/群成员不受影响。
+    //    撤回（deleted=2）是会话级，个人删除是用户级：两者独立，撤回时清 content 但
+    //    不影响 user_message_deletions；个人删除后 history/missed/search 对该用户不可见。
+    `CREATE TABLE IF NOT EXISTS user_message_deletions (
+      message_id TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      deleted_at INTEGER DEFAULT (strftime('%s','now')),
+      PRIMARY KEY (message_id, user_id),
+      FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_user_msg_deletions_user ON user_message_deletions(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_user_msg_deletions_msg ON user_message_deletions(message_id)",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

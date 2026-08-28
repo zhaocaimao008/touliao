@@ -1138,10 +1138,20 @@ body.dark-mode * {
   position: fixed;
   z-index: var(--z-popover);
   background: var(--bg-ctx-menu);
-  border-radius: var(--radius-card);
+  border-radius: 16px;
   box-shadow: 0 6px 24px rgba(0,0,0,.28), 0 0 0 .5px rgba(255,255,255,.07);
-  overflow: hidden;
-  min-width: 148px;
+  /* 固定宽度 + 安全可视区高度限制 + 内部滚动：
+     根因修复：旧样式只有 min-width:148px，无 max-width/max-height，
+     菜单项多时被内容撑高到占满屏幕/覆盖输入框和 TabBar。 */
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px) - 140px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 4px 0;
   animation: ctxIn var(--dur) var(--ease) both;
 }
 @keyframes ctxIn {
@@ -1150,8 +1160,14 @@ body.dark-mode * {
 }
 .wc-ctx-emoji-row {
   display: flex;
-  padding: 8px 8px 6px;
-  gap: 2px;
+  flex-direction: row !important; /* 根因修复：Reaction 永远横排，禁止被全局 column 污染 */
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  gap: 4px;
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
 .wc-ctx-emoji {
@@ -1160,6 +1176,7 @@ body.dark-mode * {
   padding: 4px 5px;
   border-radius: var(--radius-button);
   line-height: var(--lh-none);
+  flex: 0 0 auto;
   transition: background var(--dur-fast);
 }
 .wc-ctx-emoji:hover { background: rgba(255,255,255,.1); }
@@ -2699,13 +2716,11 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
-/* 消息右键菜单 */
+/* 消息右键菜单（第二处定义：保留动画/圆角，继承第一处的尺寸与布局约束） */
 .wc-ctx-menu {
-  border-radius: var(--radius-card);
+  border-radius: 16px;
   box-shadow: 0 8px 24px rgba(0,0,0,.16), 0 2px 6px rgba(0,0,0,.08), 0 0 0 .5px rgba(0,0,0,.06);
-
-
-  overflow: hidden;
+  overflow-y: auto;
   animation: scaleIn .12s var(--ease);
   transform-origin: top left;
 }

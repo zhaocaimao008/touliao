@@ -13,12 +13,12 @@ describe('msgCache（离线消息历史缓存）', () => {
     expect(got.map(m => m.id)).toEqual([1, 2, 3]);
   });
 
-  it('超过 50 条只留最近 50（按 created_at）', async () => {
+  it('超过 MAX_PER_CONV 条只留最近 MAX_PER_CONV（按 created_at）', async () => {
     const many = Array.from({ length: 70 }, (_, i) => M(i + 1));
     await saveCache('c1', many);
     const got = await loadCache('c1');
     expect(got.length).toBe(__TESTING__.MAX_PER_CONV);
-    expect(got[0].id).toBe(21);          // 最近 50 → id 21..70
+    expect(got[0].id).toBe(70 - __TESTING__.MAX_PER_CONV + 1); // 最近 MAX_PER_CONV → id 41..70(MAX=30)
     expect(got[got.length - 1].id).toBe(70);
   });
 

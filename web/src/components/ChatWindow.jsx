@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, useLayoutEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { composeReducer, initialComposeState } from '../reducers/composeReducer';
 import { showToast, showConfirm } from '../utils/toast';
@@ -14,7 +14,7 @@ import UploadProgressBar from './UploadProgressBar';
 import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
-import { loadCache, saveCache, clearCache } from '../utils/msgCache';
+import { loadCache, saveCache, clearCache, removeFromCache } from '../utils/msgCache';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
 // 聊天允许的「常见」文件扩展名（与后端 ALLOWED_CHAT_EXTS 保持一致）；冷门/危险格式不允许上传。
@@ -53,6 +53,63 @@ import './ChatWindow.css';
 import { IcoEmoji, IcoMic, IcoImage, IcoFile, IcoMore } from './Icons';
 
 const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
+
+import { computeCtxPos } from '../utils/ctxPos';
+
+/**
+ * 长按菜单 Portal：Overlay 与 Menu 分离。
+ *  - Overlay: position:fixed inset:0，只负责点击空白/Esc 关闭，不承担菜单布局
+ *  - Menu: 渲染后实测自身尺寸（getBoundingClientRect），用 computeCtxPos clamp 到
+ *    viewport（顶部避 Safe Area、底部避输入框/TabBar），永不越界
+ */
+function CtxMenuPortal({ anchor, onClose, children }) {
+  const menuRef = useRef(null);
+  const [pos, setPos] = useState(null);
+
+  // 菜单渲染后实测尺寸再定位（layout effect 避免首帧闪烁）
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    // 底部保留区：输入框(~64px) + TabBar(~56px) + 安全区；顶部避状态栏
+    const bottomReserve = 140;
+    const safeTop = 8;
+    setPos(computeCtxPos(anchor, { width: r.width, height: r.height },
+      { width: vw, height: vh },
+      { safeTop, safeBottom: 8, bottomReserve, gap: 6, edge: 12 }));
+  }, [anchor, children]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <>
+      {/* Overlay：只负责关闭，不承担布局 */}
+      <div
+        className="wc-ctx-overlay wc-ctx-overlay-fixed"
+        onClick={onClose}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
+        role="button"
+        tabIndex={0}
+        aria-label="关闭菜单"
+      />
+      {/* Menu：实测尺寸 + clamp 定位 */}
+      <div
+        ref={menuRef}
+        className="wc-ctx-menu wc-ctx-menu-fixed"
+        role="menu"
+        style={pos ? { left: `${pos.x}px`, top: `${pos.y}px` } : { left: -9999, top: -9999 }}
+      >
+        {children}
+      </div>
+    </>,
+    document.body
+  );
+}
 
 // 发送图片前从本地 File 解码出真实像素宽高（w/h）。用于在拿到最终 url 后预置 aspect
 // 缓存，使图片消息 socket 回显的首帧就按真实比例预留高度，避免图片解码后撑高、
@@ -879,8 +936,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         setTypingName('');
       }
     };
-    const onDeleted = ({ msgId }) => {
-      setMessages(prev => prev.filter(m => m.id !== msgId));
+    // 撤回/删除同步：目标消息移除 + 引用它的消息引用块无痕摘除（replyTo 快照
+    // 标记 deleted，MessageItem 见 !replyTo.deleted 直接不渲染引用块）
+    const onDeleted = ({ msgId, conversationId }) => {
+      setMessages(prev => prev.map(m => {
+        if (m.id === msgId) return null;                      // 目标消息移除
+        if (m.replyTo && m.replyTo.id === msgId) return { ...m, replyTo: { ...m.replyTo, deleted: 1 } }; // 引用块摘除
+        return m;
+      }).filter(Boolean));
+      if (conversationId) removeFromCache(conversationId, msgId).catch(() => {});
     };
     const onVanished = ({ msgId }) => {
       setMessages(prev => prev.filter(m => m.id !== msgId));
@@ -996,6 +1060,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     socket.on('stop_typing', onStopTyping);
     socket.on('message_deleted', onDeleted);
     socket.on('message_vanished', onVanished);
+    // 撤回（新协议，含 operator_id/timestamp，幂等）：同 message_deleted 语义，
+    // 服务端同时发 message_deleted 兼容旧端；这里统一过滤移除 + 清本地缓存
+    socket.on('message_recall', onDeleted);
+    // 个人删除（仅当前账号生效）：多设备同步移除该消息
+    socket.on('message_deleted_for_me', onDeleted);
     socket.on('messages_batch_deleted', onBatchDeleted);
     socket.on('conversation_messages_cleared', onCleared);
     socket.on('message_edited', onEdited);
@@ -1025,6 +1094,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       clearTimeout(typingClearTimer.current);
       socket.off('message_deleted', onDeleted);
       socket.off('message_vanished', onVanished);
+      socket.off('message_recall', onDeleted);
+      socket.off('message_deleted_for_me', onDeleted);
       socket.off('messages_batch_deleted', onBatchDeleted);
       socket.off('conversation_messages_cleared', onCleared);
       socket.off('message_edited', onEdited);
@@ -1765,31 +1836,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     e.preventDefault();
     e.stopPropagation();
 
-    // 🔥 改进的菜单位置计算（使用Portal后固定到viewport）
-    let x = e.clientX;
-    let y = e.clientY;
-
-    // 菜单尺寸：宽度~220px，高度~280px
-    const MENU_WIDTH = 220;
-    const MENU_HEIGHT = 280;
-    const PADDING = 10;
-
-    // 右边界检查
-    if (x + MENU_WIDTH + PADDING > window.innerWidth) {
-      x = window.innerWidth - MENU_WIDTH - PADDING;
-    }
-
-    // 下边界检查
-    if (y + MENU_HEIGHT + PADDING > window.innerHeight) {
-      y = window.innerHeight - MENU_HEIGHT - PADDING;
-    }
-
-    // 上边界检查
-    if (y < PADDING) {
-      y = PADDING;
-    }
-
-    setCtxMenu({ x, y, msg });
+    // 🔥 动态定位根因修复：不再用 clientX/clientY + 硬编码 220×280 估算，
+    // 改为基于被长按消息 bubble 的 getBoundingClientRect()，由 CtxMenuPortal 渲染后
+    // 实测菜单尺寸并 clamp 到安全可视区（翻转/避让输入框/TabBar/Safe Area）。
+    const bubble = e.currentTarget;
+    const r = bubble.getBoundingClientRect();
+    setCtxMenu({
+      msg,
+      anchor: {
+        top: r.top, bottom: r.bottom, left: r.left, right: r.right,
+        width: r.width, height: r.height,
+      },
+    });
   };
 
   const closeCtx = () => setCtxMenu(null);
@@ -1907,7 +1965,42 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         try {
           await axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } });
           setMessages(prev => prev.filter(m => m.id !== msg.id));
+          removeFromCache(conversation.id, msg.id).catch(() => {});
         } catch (e) { showToast(e.response?.data?.error || '删除失败', 'error'); }
+        break;
+      }
+
+      // 撤回：仅自己发送的消息，对全员生效（服务端 deleted=2，UI 无痕；
+      // 会话列表 preview 由 ChatList 监听 message_recall 广播自动刷新）
+      case 'recall': {
+        if (msg.sender_id !== user.id) { showToast('只能撤回自己发送的消息'); return; }
+        if (msg.deleted) return;
+        // 乐观移除：先隐藏，失败则恢复
+        const prevMsgs = messagesRef.current;
+        setMessages(prev => prev.filter(m => m.id !== msg.id));
+        try {
+          await axios.delete(`/api/messages/${msg.id}`, { data: { forEveryone: true } });
+          removeFromCache(conversation.id, msg.id).catch(() => {});
+        } catch (e) {
+          setMessages(prevMsgs);
+          showToast(e.response?.data?.error || '撤回失败，请重试', 'error');
+        }
+        break;
+      }
+
+      // 删除：所有消息均可，仅对当前账号生效（per-user tombstone，不影响对方；
+      // 会话列表 preview 由 ChatList 监听 message_deleted_for_me 广播自动刷新）
+      case 'deleteForMe': {
+        // 乐观移除：先隐藏，失败则恢复
+        const prevMsgs = messagesRef.current;
+        setMessages(prev => prev.filter(m => m.id !== msg.id));
+        try {
+          await axios.delete(`/api/messages/${msg.id}`, { data: { forMe: true } });
+          removeFromCache(conversation.id, msg.id).catch(() => {});
+        } catch (e) {
+          setMessages(prevMsgs);
+          showToast(e.response?.data?.error || '删除失败，请重试', 'error');
+        }
         break;
       }
 
@@ -2618,85 +2711,68 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
 
 
-      {/* Context menu */}
+      {/* Context menu：CtxMenuPortal 实测菜单尺寸后 clamp 定位（根因修复：不再用硬编码 220×280） */}
       {ctxMenu && createPortal(
-        <>
-          <div
-            className="wc-ctx-overlay wc-ctx-overlay-fixed"
-            onClick={closeCtx}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeCtx(); } }}
-            role="button"
-            tabIndex={0}
-          />
-          <div
-            className="wc-ctx-menu wc-ctx-menu-fixed"
-            role="menu"
-            style={{
-              left: ctxMenu.x + 'px',
-              top: ctxMenu.y + 'px',
-            }}>
-            <div className="wc-ctx-emoji-row">
-              {REACTIONS.map(e => (
-                <span key={e} className="wc-ctx-emoji" role="button" tabIndex={0} aria-label={`回应 ${e}`} onClick={() => ctxAction(`react:${e}`)} onKeyDown={ev => ev.key === 'Enter' && ctxAction(`react:${e}`)}>{e}</span>
-              ))}
-            </div>
-            <div className="wc-ctx-divider" />
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('reply'); } }}>回复</div>
-            {/* 编辑：仅限自己的文字消息，不限时间 */}
-            {ctxMenu.msg.sender_id === user.id &&
-             ctxMenu.msg.type === 'text' &&
-             !ctxMenu.msg.deleted && (
-              <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}>编辑</div>
-            )}
-            {/* 复制：文字全端可用；图片/表情写系统剪贴板（web 走 Clipboard API，桌面走主进程原生剪贴板）。
-                出货移动端是原生 Kotlin/Swift App，其"复制图片"在原生侧实现，不经本组件。 */}
-            {(ctxMenu.msg.type === 'text' ||
-              ((ctxMenu.msg.type === 'image' || ctxMenu.msg.type === 'sticker') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted)) && (
-              <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('copy')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('copy'); } }}>
-                {ctxMenu.msg.type === 'text' ? '复制' : '复制图片'}
-              </div>
-            )}
-            {/* 下载视频/文件：视频和文件消息显示下载按钮 */}
-            {(ctxMenu.msg.type === 'video' || ctxMenu.msg.type === 'file') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted && (
-              <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-download" onClick={() => ctxAction('download')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('download'); } }}>
-                {ctxMenu.msg.type === 'video' ? '下载视频' : '下载文件'}
-              </div>
-            )}
-            {/* 转发：所有类型消息都可转发 */}
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>转发</div>
-            {/* 分享到第三方：图片/视频/文件/文档/文本，走系统分享面板（不支持则回退下载） */}
-            {!ctxMenu.msg.deleted && canShare() && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (ctxMenu.msg.type === 'text' || ctxMenu.msg.file_url) && (
-              <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-share" onClick={() => ctxAction('share')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('share'); } }}>分享到…</div>
-            )}
-            {/* 收藏：文字/图片/视频/文件消息可收藏到「我的收藏」 */}
-            {!ctxMenu.msg.deleted && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (
-              <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>收藏</div>
-            )}
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('pin'); } }}>
-              {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}
-            </div>
-            {ctxMenu.msg.type === 'image' && (
-              <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('addSticker'); } }}>添加到表情</div>
-            )}
-            <div className="wc-ctx-divider" />
-            {/* 撤回：自己的消息不限时间，或群主/管理员删除任意消息 */}
-            {(ctxMenu.msg.sender_id === user.id ||
-              ((myGroupRole === 'owner' || myGroupRole === 'admin') && conversation.type === 'group')
-            ) && (
-              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('delete')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('delete'); } }}>
-                {ctxMenu.msg.sender_id === user.id ? '撤回' : '删除'}
-              </div>
-            )}
-            {/* 删除不留痕迹：自己的消息，或群主/管理员 */}
-            {(ctxMenu.msg.sender_id === user.id ||
-              ((myGroupRole === 'owner' || myGroupRole === 'admin') && conversation.type === 'group')
-            ) && (
-              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-vanish" onClick={() => ctxAction('vanish')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('vanish'); } }}>
-                删除不留痕迹
-              </div>
-            )}
+        <CtxMenuPortal key={ctxMenu.msg.id} anchor={ctxMenu.anchor} onClose={closeCtx}>
+          <div className="wc-ctx-emoji-row">
+            {REACTIONS.map(e => (
+              <span key={e} className="wc-ctx-emoji" role="button" tabIndex={0} aria-label={`回应 ${e}`} onClick={() => ctxAction(`react:${e}`)} onKeyDown={ev => ev.key === 'Enter' && ctxAction(`react:${e}`)}>{e}</span>
+            ))}
           </div>
-        </>,
+          <div className="wc-ctx-divider" />
+          {/* 复制：文字全端可用；图片/表情写系统剪贴板（web 走 Clipboard API，桌面走主进程原生剪贴板）。
+              出货移动端是原生 Kotlin/Swift App，其"复制图片"在原生侧实现，不经本组件。 */}
+          {(ctxMenu.msg.type === 'text' ||
+            ((ctxMenu.msg.type === 'image' || ctxMenu.msg.type === 'sticker') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted)) && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-copy" onClick={() => ctxAction('copy')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('copy'); } }}>
+              {ctxMenu.msg.type === 'text' ? '复制' : '复制图片'}
+            </div>
+          )}
+          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('reply'); } }}>回复</div>
+          {/* 转发：所有类型消息都可转发 */}
+          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>转发</div>
+          {/* 收藏：文字/图片/视频/文件消息可收藏到「我的收藏」 */}
+          {!ctxMenu.msg.deleted && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>收藏</div>
+          )}
+          {/* 编辑：仅限自己的文字消息，不限时间 */}
+          {ctxMenu.msg.sender_id === user.id &&
+           ctxMenu.msg.type === 'text' &&
+           !ctxMenu.msg.deleted && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}>编辑</div>
+          )}
+          {/* 下载视频/文件：视频和文件消息显示下载按钮 */}
+          {(ctxMenu.msg.type === 'video' || ctxMenu.msg.type === 'file') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-download" onClick={() => ctxAction('download')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('download'); } }}>
+              {ctxMenu.msg.type === 'video' ? '下载视频' : '下载文件'}
+            </div>
+          )}
+          {/* 分享到第三方：图片/视频/文件/文档/文本，走系统分享面板（不支持则回退下载） */}
+          {!ctxMenu.msg.deleted && canShare() && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (ctxMenu.msg.type === 'text' || ctxMenu.msg.file_url) && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-share" onClick={() => ctxAction('share')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('share'); } }}>分享到…</div>
+          )}
+          <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('pin'); } }}>
+            {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}
+          </div>
+          {ctxMenu.msg.type === 'image' && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('addSticker'); } }}>添加到表情</div>
+          )}
+          <div className="wc-ctx-divider" />
+          {/* 撤回：仅自己发送的消息（对全员生效，服务端 deleted=2，UI 无痕） */}
+          {ctxMenu.msg.sender_id === user.id && !ctxMenu.msg.deleted && (
+            <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}>撤回</div>
+          )}
+          {/* 删除：所有消息均可删除，仅对当前账号生效（per-user tombstone，UI 无痕，不影响对方） */}
+          <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-me" onClick={() => ctxAction('deleteForMe')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('deleteForMe'); } }}>删除</div>
+          {/* 删除不留痕迹：自己的消息，或群主/管理员（保留现有能力） */}
+          {(ctxMenu.msg.sender_id === user.id ||
+            ((myGroupRole === 'owner' || myGroupRole === 'admin') && conversation.type === 'group')
+          ) && (
+            <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-vanish" onClick={() => ctxAction('vanish')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('vanish'); } }}>
+              删除不留痕迹
+            </div>
+          )}
+        </CtxMenuPortal>,
         document.body
       )}
 

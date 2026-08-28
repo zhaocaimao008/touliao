@@ -226,6 +226,12 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         unreadCount: 0,
       } : c));
     };
+    // 撤回 / 个人删除：会话列表 preview 可能指向被删消息，重拉列表让
+    // last_message 回退到上一条有效消息（服务端 listConversations 已过滤）
+    const onDeletedEvt = () => fetchConvs();
+    socket.on('message_recall', onDeletedEvt);
+    socket.on('message_deleted_for_me', onDeletedEvt);
+    socket.on('message_deleted', onDeletedEvt);
     // 群更新（群名/头像/公告等变化时刷新）
     const onGroupUpdated = () => fetchConvs();
     // 被踢出群 / 群解散：从列表中立即移除该会话
@@ -276,6 +282,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       socket.off('new_message_notify', onNotify);
       socket.off('new_conversation', onNewConv);
       socket.off('conversation_messages_cleared', onCleared);
+      socket.off('message_recall', onDeletedEvt);
+      socket.off('message_deleted_for_me', onDeletedEvt);
+      socket.off('message_deleted', onDeletedEvt);
       socket.off('group_updated', onGroupUpdated);
       socket.off('group_kicked', onGroupKicked);
       socket.off('group_dismissed', onGroupDismissed);
