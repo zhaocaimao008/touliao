@@ -15,8 +15,8 @@ android {
         applicationId = "com.touliao.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 59
-        versionName = "8.0.2"
+        versionCode = 60
+        versionName = "8.0.3"
 
         // 默认服务器地址（运行时可在 App 内切换并持久化覆盖）
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://touliao.cc\"")

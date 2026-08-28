@@ -438,7 +438,18 @@ final class ChatViewModel: ObservableObject {
     func cancelReply() { replyingTo = nil }
 
     func recall(_ msg: Message) {
-        Task { await repo.deleteMessage(msg.id) }   // 实时事件移除
+        let prev = messages
+        // 乐观移除(对齐 Web): 撤回立即从列表消失; 失败则恢复
+        removeMessage(msg.id)
+        Task {
+            do {
+                try await repo.deleteMessage(msg.id)
+                MsgCacheStore.shared.remove(conversationId, msg.id)
+            } catch {
+                messages = prev   // 失败恢复
+                self.error = (error as? LocalizedError)?.errorDescription ?? "撤回失败"
+            }
+        }   // 实时事件 message_deleted 幂等兜底(乐观已移除,重复事件无副作用)
     }
 
     func vanish(_ msg: Message) {

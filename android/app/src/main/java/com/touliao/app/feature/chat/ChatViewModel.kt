@@ -537,8 +537,18 @@ class ChatViewModel @Inject constructor(
     fun cancelReply() = _uiState.update { it.copy(replyingTo = null) }
 
     fun recall(msg: Message) {
-        viewModelScope.launch { chatRepository.deleteMessage(msg.id, forEveryone = true) }
-        // 实时事件 message_deleted 会移除;此处不乐观删除以保持一致
+        val prev = _uiState.value.messages
+        // 乐观移除(对齐 Web): 撤回立即从列表消失; 失败则恢复
+        _uiState.update { it.copy(messages = removeMessageAndDetachReplies(it.messages, msg.id)) }
+        viewModelScope.launch {
+            chatRepository.deleteMessage(msg.id, forEveryone = true)
+                .onSuccess { msgCacheStore.remove(conversationId, msg.id) }
+                .onFailure { e ->
+                    _uiState.update { s -> s.copy(messages = prev) }   // 失败恢复
+                    _uiState.update { it.copy(error = e.toUserMessage("撤回失败")) }
+                }
+        }
+        // 实时事件 message_deleted 幂等兜底(乐观已移除,重复事件无副作用)
     }
 
     fun vanish(msg: Message) {
