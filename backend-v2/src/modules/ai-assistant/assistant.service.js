@@ -75,8 +75,8 @@ function shouldReply(convId, senderId, msg) {
  */
 async function describeImage(fileUrl) {
   const ai = config.ai || {};
-  const key = ai.glmApiKey || process.env.GLM_API_KEY || '';
-  if (!key) throw new Error('未配置 GLM_API_KEY');
+  const key = ai.deepseekApiKey || process.env.DEEPSEEK_API_KEY || '';
+  if (!key) throw new Error('未配置 DEEPSEEK_API_KEY');
 
   // fileUrl 形如 /uploads/files/xxx.png → 落到 UPLOADS_ROOT（默认 /var/www/touliao-uploads）
   const fs = require('fs');
@@ -95,7 +95,7 @@ async function describeImage(fileUrl) {
   const b64 = fs.readFileSync(abs).toString('base64');
 
   const body = {
-    model: 'glm-4v-flash',
+    model: 'deepseek-v4-flash-vision-exp',
     max_tokens: 500,
     messages: [{
       role: 'user',
@@ -109,7 +109,7 @@ async function describeImage(fileUrl) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
   try {
-    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify(body),
