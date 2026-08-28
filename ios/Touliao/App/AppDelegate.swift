@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // 登录后才上报；未登录时缓存到 PushManager，登录后 registerApnsTokenIfNeeded 补报。
         let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
         PushManager.shared.setApnsToken(hex)
+        Task { await NotificationRepository.shared.diag("didRegister ok hexPrefix=\(String(hex.prefix(8))) isLoggedIn=\(KeychainStore.shared.isLoggedIn)") }
         if !hex.isEmpty && KeychainStore.shared.isLoggedIn {
             Task { await NotificationRepository.shared.register(token: hex, platform: "ios_apns") }
         }
@@ -52,8 +53,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     func application(_ application: UIApplication,
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        // 占位/未配置或模拟器无 APNs 时会进这里，忽略
-    }
+        // 占位/未配置或模拟器无 APNs 时会进这里——上报错误便于诊断锁屏无通知问题
+        Task { await NotificationRepository.shared.diag("didFail error=\(error.localizedDescription)") }
+        print("[APNs] 注册失败: \(error.localizedDescription)")
 }
 
 // MARK: - FCM token

@@ -80,6 +80,7 @@ router.delete('/web-subscribe',    auth,  c.webUnsubscribe);
  *         description: Token deleted
  */
 router.post  ('/device-token',     auth,  pushSubscribeLimiter, c.saveDeviceToken);
+router.post  ('/push-diag',          auth,  c.pushDiag);  // [诊断] iOS 推送注册诊断
 router.delete('/device-token',     auth,  c.deleteDeviceToken);
 
 /**

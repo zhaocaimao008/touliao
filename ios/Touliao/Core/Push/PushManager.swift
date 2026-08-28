@@ -31,7 +31,9 @@ final class PushManager {
     /// 登录/恢复会话后调用：请求通知授权 + 注册；主动拉取当前 FCM token，
     /// 覆盖「token 曾被服务端因失效删除但 onToken 未重触发」的场景。
     func requestAuthorizationAndRegister() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            // [诊断] 上报授权结果：区分「权限被拒」与「注册失败」
+            Task { await NotificationRepository.shared.diag("requestAuth granted=\(granted) error=\(error?.localizedDescription ?? "nil") isLoggedIn=\(KeychainStore.shared.isLoggedIn)") }
             guard granted else { return }
             DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
         }

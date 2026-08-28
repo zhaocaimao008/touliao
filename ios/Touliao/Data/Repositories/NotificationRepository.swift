@@ -29,4 +29,13 @@ final class NotificationRepository {
             body: DeleteTokenBody(token: token)
         )
     }
+
+    /// [诊断] 上报推送注册状态（排查锁屏无通知）
+    func diag(_ message: String) async {
+        struct DiagBody: Encodable { let message: String }
+        let _: EmptyResponse? = try? await api.send(
+            "api/notifications/push-diag", method: "POST",
+            body: DiagBody(message: message)
+        )
+    }
 }
