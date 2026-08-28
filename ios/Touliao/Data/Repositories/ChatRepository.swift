@@ -257,7 +257,7 @@ private struct BurnAfterBody: Encodable { let seconds: Int }
 private struct FileHelperResponse: Decodable { let conversationId: String }
 private struct EditBody: Encodable { let content: String }
 private struct ForwardBody: Encodable { let msgId: String; let conversationIds: [String] }
-private struct DeleteMessageBody: Encodable { let forEveryone: Bool; let vanish: Bool?; let forMe: Bool? }
+private struct DeleteMessageBody: Encodable { let forEveryone: Bool; let vanish: Bool?; let forMe: Bool? = nil }
 private struct BatchDeleteBody: Encodable { let msgIds: [String]; let conversationId: String }
 private struct BatchDeleteResponse: Decodable { let success: Bool?; let deleted: Int? }
 private struct ReactBody: Encodable { let emoji: String }
