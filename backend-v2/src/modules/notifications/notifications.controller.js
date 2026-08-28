@@ -36,3 +36,16 @@ exports.pushDiag = (req, res) => {
   } catch (e) { /* 日志文件写失败不影响 */ }
   res.json({ ok: true });
 };
+
+// [诊断] 个推 GeTui 诊断上报（Android 端 TouliaoApp.initGeTui 直报，带 X-Diag-Token）
+exports.getuiDiag = (req, res) => {
+  const token = req.get('X-Diag-Token');
+  if (token !== 'diag2026') return res.status(403).json({ ok: false, error: 'bad token' });
+  const body = typeof req.body === 'object' ? req.body : {};
+  const line = `[GeTuiDiag ${new Date().toISOString()}] ip=${req.ip} ${JSON.stringify(body)}`;
+  console.log(line);
+  try {
+    require('fs').appendFileSync('/root/touliao/backend-v2/push-diag.log', line + '\n');
+  } catch (e) { /* 日志文件写失败不影响 */ }
+  res.json({ ok: true });
+};

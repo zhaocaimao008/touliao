@@ -335,6 +335,8 @@ app.use('/api/users',         require('./modules/users/users.routes'));
 app.use('/api/messages',      require('./modules/messages/messages.routes'));
 app.use('/api/moments',       require('./modules/moments/moments.routes'));
 app.use('/api/notifications', require('./modules/notifications/notifications.routes'));
+// [诊断] 个推 GeTui 诊断上报（Android 端直报 https://touliao.cc/api/push/getui-diag，绕过 /api CSRF 与鉴权）
+app.post('/api/push/getui-diag', require('./modules/notifications/notifications.controller').getuiDiag);
 app.use('/api/upload',        require('./modules/upload/upload.routes'));
 app.use('/api/stickers',      require('./modules/stickers/stickers.routes'));
 app.use('/api/redpackets',    require('./modules/redpackets/redpackets.routes'));
