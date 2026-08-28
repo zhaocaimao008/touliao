@@ -57,9 +57,6 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // 临时诊断(2026-08-28): 个推 setDebugLogger 仅 FLAG_DEBUGGABLE 构建输出,
-            // 置 true 抓 SDK 内部日志定位 CID 为空; 定位后须改回 false 再发布!
-            isDebuggable = true
             if (ksPath != null && file(ksPath).exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
