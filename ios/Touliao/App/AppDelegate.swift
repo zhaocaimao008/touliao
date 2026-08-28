@@ -56,6 +56,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // 占位/未配置或模拟器无 APNs 时会进这里——上报错误便于诊断锁屏无通知问题
         Task { await NotificationRepository.shared.diag("didFail error=\(error.localizedDescription)") }
         print("[APNs] 注册失败: \(error.localizedDescription)")
+    }
 }
 
 // MARK: - FCM token
