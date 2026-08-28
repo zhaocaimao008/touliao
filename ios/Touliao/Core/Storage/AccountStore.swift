@@ -13,9 +13,9 @@ final class AccountStore {
     static let shared = AccountStore()
     private init() {}
 
-    private let service = "com.vxin.app"
-    private let account = "vxin.accounts"
-    private let activeKey = "vxin_active_account_id"
+    private let service = "com.touliao.app"
+    private let account = "touliao.accounts"
+    private let activeKey = "touliao_active_account_id"
 
     func accounts() -> [StoredAccount] {
         guard let data = read(), let list = try? JSONDecoder().decode([StoredAccount].self, from: data) else { return [] }

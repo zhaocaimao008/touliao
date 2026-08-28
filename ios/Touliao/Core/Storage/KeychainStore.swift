@@ -6,8 +6,8 @@ final class KeychainStore {
     static let shared = KeychainStore()
     private init() {}
 
-    private let service = "com.vxin.app"
-    private let account = "vxin.token"
+    private let service = "com.touliao.app"
+    private let account = "touliao.token"
 
     var token: String? {
         get { read() }
