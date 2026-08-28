@@ -178,10 +178,11 @@ struct ReplyPreview: Decodable, Equatable {
     var type: String = "text"
     var content: String = ""
     var senderName: String = ""
+    var fileUrl: String? = nil   // 图片/表情/视频等媒体地址(引用条缩略图用, 对齐 Web)
     var deleted: Int = 0   // 1 = 被回复的消息已撤回（显示「消息已撤回」，对齐 Web）
-    enum CodingKeys: String, CodingKey { case id, type, content, senderName, deleted }
-    init(id: String = "", type: String = "text", content: String = "", senderName: String = "", deleted: Int = 0) {
-        self.id = id; self.type = type; self.content = content; self.senderName = senderName; self.deleted = deleted
+    enum CodingKeys: String, CodingKey { case id, type, content, senderName, fileUrl = "file_url", deleted }
+    init(id: String = "", type: String = "text", content: String = "", senderName: String = "", fileUrl: String? = nil, deleted: Int = 0) {
+        self.id = id; self.type = type; self.content = content; self.senderName = senderName; self.fileUrl = fileUrl; self.deleted = deleted
     }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -189,6 +190,7 @@ struct ReplyPreview: Decodable, Equatable {
         type = (try? c.decode(String.self, forKey: .type)) ?? "text"
         content = (try? c.decode(String.self, forKey: .content)) ?? ""
         senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
+        fileUrl = (try? c.decode(String.self, forKey: .fileUrl)) ?? nil
         deleted = (try? c.decode(Int.self, forKey: .deleted)) ?? 0
     }
 }

@@ -2716,12 +2716,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {/* Context menu：CtxMenuPortal 实测菜单尺寸后 clamp 定位（根因修复：不再用硬编码 220×280） */}
       {ctxMenu && createPortal(
         <CtxMenuPortal key={ctxMenu.msg.id} anchor={ctxMenu.anchor} onClose={closeCtx}>
-          <div className="wc-ctx-emoji-row">
-            {REACTIONS.map(e => (
-              <span key={e} className="wc-ctx-emoji" role="button" tabIndex={0} aria-label={`回应 ${e}`} onClick={() => ctxAction(`react:${e}`)} onKeyDown={ev => ev.key === 'Enter' && ctxAction(`react:${e}`)}>{e}</span>
-            ))}
-          </div>
-          <div className="wc-ctx-divider" />
           {/* 复制：文字全端可用；图片/表情写系统剪贴板（web 走 Clipboard API，桌面走主进程原生剪贴板）。
               出货移动端是原生 Kotlin/Swift App，其"复制图片"在原生侧实现，不经本组件。 */}
           {(ctxMenu.msg.type === 'text' ||

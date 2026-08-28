@@ -993,7 +993,7 @@ class ChatViewModel @Inject constructor(
         // 去重，弱网重发/socket 重连补发都不产生重复气泡。同时作乐观消息的临时 id。
         val clientMsgId = java.util.UUID.randomUUID().toString()
         val replySnap = _uiState.value.replyingTo?.let {
-            ReplyPreview(id = it.id, type = it.type, content = it.content, senderName = it.senderName)
+            ReplyPreview(id = it.id, type = it.type, content = it.content, senderName = it.senderName, fileUrl = it.file_url.takeIf { s -> s.isNotBlank() })
         }
         // 立刻渲染「发送中」乐观气泡（对齐 Web），输入框即时清空，不再回填打断连续输入
         val optimistic = Message(

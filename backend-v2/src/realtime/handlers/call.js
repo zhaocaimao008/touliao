@@ -198,9 +198,9 @@ module.exports = function registerCallHandler(io, socket) {
   function inActiveCall(toId) {
     return activeCalls.has(`${userId}>${toId}`) || activeCalls.has(`${toId}>${userId}`);
   }
-  socket.on('call:offer',  (payload) => { const p = guardPayload(socket, 'call:offer', payload); if (!p) return; const to = guardId(socket, 'call:offer', 'to', p.to); if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:offer',  { from: userId, offer: p.offer }); });
-  socket.on('call:answer', (payload) => { const p = guardPayload(socket, 'call:answer', payload); if (!p) return; const to = guardId(socket, 'call:answer', 'to', p.to); if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:answer', { from: userId, answer: p.answer }); });
-  socket.on('call:ice',    (payload) => { const p = guardPayload(socket, 'call:ice', payload); if (!p) return; const to = guardId(socket, 'call:ice', 'to', p.to); if (!to || !inActiveCall(to)) return; io.to(`user_${to}`).emit('call:ice',    { from: userId, candidate: p.candidate }); });
+  socket.on('call:offer',  (payload) => { const p = guardPayload(socket, 'call:offer', payload); if (!p) return; const to = guardId(socket, 'call:offer', 'to', p.to); if (!to || !inActiveCall(to)) { console.log(`[call:offer] DROP from=${userId} to=${to} noActiveCall`); return; } console.log(`[call:offer] fwd ${userId}→${to} sdpLen=${(p.offer?.sdp || '').length}`); io.to(`user_${to}`).emit('call:offer',  { from: userId, offer: p.offer }); });
+  socket.on('call:answer', (payload) => { const p = guardPayload(socket, 'call:answer', payload); if (!p) return; const to = guardId(socket, 'call:answer', 'to', p.to); if (!to || !inActiveCall(to)) { console.log(`[call:answer] DROP from=${userId} to=${to} noActiveCall`); return; } console.log(`[call:answer] fwd ${userId}→${to} sdpLen=${(p.answer?.sdp || '').length}`); io.to(`user_${to}`).emit('call:answer', { from: userId, answer: p.answer }); });
+  socket.on('call:ice',    (payload) => { const p = guardPayload(socket, 'call:ice', payload); if (!p) return; const to = guardId(socket, 'call:ice', 'to', p.to); if (!to || !inActiveCall(to)) { console.log(`[call:ice] DROP from=${userId} to=${to} noActiveCall`); return; } console.log(`[call:ice] fwd ${userId}→${to} cand=${(p.candidate?.candidate || '').slice(0, 60)}`); io.to(`user_${to}`).emit('call:ice',    { from: userId, candidate: p.candidate }); });
 
   socket.on('call:end', (payload) => {
     // P0-002 强校验：负载必须是对象，to 必须是合法字符串 ID

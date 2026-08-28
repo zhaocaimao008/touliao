@@ -381,6 +381,20 @@ fun ChatScreen(
             // imePadding 提到整个底栏：键盘弹出时回复条/输入框/面板一起上移；
             // navigationBarsPadding 保证 edge-to-edge 下输入框不被手势条遮挡。
             Column(Modifier.imePadding().navigationBarsPadding()) {
+                // 编辑态横幅(微信式: 输入框内编辑, 显示"编辑消息" + 原文 + 取消)
+                editTarget?.let { target ->
+                    Row(
+                        Modifier.fillMaxWidth().background(Color(0x11000000)).padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "编辑消息: ${target.content}",
+                            Modifier.weight(1f), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text("✕", Modifier.clickable { editTarget = null }.padding(start = 8.dp), color = VxinTextSecondary)
+                    }
+                }
                 state.replyingTo?.let { r ->
                     Row(
                         Modifier.fillMaxWidth().background(Color(0x11000000)).padding(horizontal = 12.dp, vertical = 6.dp),
@@ -399,7 +413,16 @@ fun ChatScreen(
                     sending = state.sending,
                     recording = state.recording,
                     onValueChange = viewModel::onInputChange,
-                    onSend = viewModel::send,
+                    onSend = {
+                        val t = editTarget
+                        if (t != null) {
+                            viewModel.editMessage(t, state.input)
+                            editTarget = null
+                            viewModel.onInputChange("")
+                        } else {
+                            viewModel.send()
+                        }
+                    },
                     onToggleEmoji = { showEmojiPanel = !showEmojiPanel; if (showEmojiPanel) showFuncPanel = false },
                     onToggleFunc = { showFuncPanel = !showFuncPanel; if (showFuncPanel) showEmojiPanel = false },
                     funcPanelOpen = showFuncPanel,
@@ -588,7 +611,11 @@ fun ChatScreen(
                             isPinned = viewModel.isPinned(msg.id),
                             onTogglePin = { if (viewModel.isPinned(msg.id)) viewModel.unpinMessage(msg.id) else viewModel.pinMessage(msg) },
                             canEdit = viewModel.canEdit(msg),
-                            onEdit = { editTarget = msg },
+                            onEdit = {
+                                editTarget = msg
+                                // 输入框内编辑: 原文直接进输入框, 用户改完点发送即保存
+                                viewModel.onInputChange(msg.content)
+                            },
                             onForward = { forwardTarget = msg; viewModel.loadForwardTargets() },
                             onShare = {
                                 if (msg.type == "text") {
@@ -776,17 +803,6 @@ fun ChatScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { showPinnedList = false }) { Text("关闭") } },
-        )
-    }
-
-    editTarget?.let { target ->
-        var text by remember(target.id) { mutableStateOf(target.content) }
-        AlertDialog(
-            onDismissRequest = { editTarget = null },
-            title = { Text("编辑消息") },
-            text = { OutlinedTextField(text, { text = it }, modifier = Modifier.fillMaxWidth(), minLines = 1) },
-            confirmButton = { TextButton(onClick = { viewModel.editMessage(target, text); editTarget = null }, enabled = text.isNotBlank()) { Text("保存") } },
-            dismissButton = { TextButton(onClick = { editTarget = null }) { Text("取消") } },
         )
     }
 
@@ -994,8 +1010,6 @@ private fun PinnedBanner(pinned: List<com.touliao.app.data.model.PinnedMessage>,
     }
 }
 
-private val REACTION_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "🙏")
-
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
@@ -1097,10 +1111,22 @@ private fun MessageBubble(
                         .clickable { rt.id.takeIf { it.isNotBlank() }?.let(onReplyClick) }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
-                    Text(
-                        "${rt.senderName}: ${replyPreviewText(rt)}",
-                        color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 被回复的是图片/表情 → 显示缩略图(对齐 Web 引用条, 修复"表情包没了")
+                        if ((rt.type == "image" || rt.type == "sticker") && !rt.fileUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = resolveUrl(rt.fileUrl),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(30.dp).clip(RoundedCornerShape(4.dp)),
+                            )
+                            Spacer(Modifier.size(6.dp))
+                        }
+                        Text(
+                            "${rt.senderName}: ${replyPreviewText(rt)}",
+                            color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 Spacer(Modifier.size(2.dp))
             }
@@ -1128,15 +1154,7 @@ private fun MessageBubble(
                 }
                 // (highlight via Row background above)
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    // 表情回应行
-                    Row(Modifier.padding(horizontal = 8.dp)) {
-                        REACTION_EMOJIS.forEach { e ->
-                            Text(e, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, modifier = Modifier
-                                .padding(4.dp)
-                                .clickable { onReact(e); menuOpen = false })
-                        }
-                    }
-                    HorizontalDivider()
+                    // 表情回应行已按用户要求移除(长按菜单不再弹表情包)
                     if (msg.type == "text") {
                         DropdownMenuItem(text = { Text("复制") }, onClick = {
                             clipboard.setText(androidx.compose.ui.text.AnnotatedString(msg.content)); menuOpen = false

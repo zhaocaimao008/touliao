@@ -30,7 +30,6 @@ struct ChatView: View {
     @State private var showExportShare = false            // 分享面板开关
     @State private var showPinnedList = false
     @State private var showAnnouncement = false
-    @State private var editText = ""
     @State private var forwardSelected = Set<String>()
     @State private var showMentionPicker = false
     @State private var atBottom = true          // 用户是否在底部附近(决定新消息是否自动滚底)
@@ -238,12 +237,7 @@ struct ChatView: View {
         .sheet(isPresented: $vm.searchActive, onDismiss: { vm.closeSearch() }) {
             MessageSearchSheet(vm: vm)
         }
-        .alert("编辑消息", isPresented: Binding(get: { vm.editTarget != nil }, set: { if !$0 { vm.editTarget = nil } })) {
-            TextField("内容", text: $editText)
-            Button("取消", role: .cancel) { vm.editTarget = nil }
-            Button("保存") { if let m = vm.editTarget { vm.editMessage(m, newText: editText) }; vm.editTarget = nil }
-        }
-        .onChange(of: vm.editTarget?.id) { _ in editText = vm.editTarget?.content ?? "" }
+        .onChange(of: vm.editTarget?.id) { _ in if let t = vm.editTarget { vm.input = t.content } }
         .fullScreenCover(isPresented: Binding(get: { vm.galleryImages != nil }, set: { if !$0 { vm.galleryImages = nil } })) {
             if let imgs = vm.galleryImages { ChatImageGalleryView(images: imgs, start: vm.galleryStart) { vm.galleryImages = nil } }
         }
@@ -451,6 +445,18 @@ struct ChatView: View {
     // MARK: - 输入栏
     private var inputBar: some View {
         VStack(spacing: 0) {
+            // 编辑态横幅(微信式: 输入框内编辑, 点发送保存)
+            if let t = vm.editTarget {
+                HStack {
+                    Text("编辑消息: \(t.content)")
+                        .font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                    Spacer()
+                    Button { vm.editTarget = nil } label: { Image(systemName: "xmark.circle.fill").foregroundColor(.vxinTextSecondary) }
+                        .accessibilityLabel("取消编辑")
+                }
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Color.gray.opacity(0.12))
+            }
             if let r = vm.replyingTo {
                 HStack {
                     Text("回复 \(r.senderName): \(replyPreviewText(r))")
@@ -493,7 +499,16 @@ struct ChatView: View {
                 // 有文字 → 发送键；无文字(含纯空白) → +(功能面板)。对齐 Android/微信。
                 let hasText = !vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 if hasText || vm.sending {
-                    Button { vm.sendText() } label: {
+                    Button {
+                        if let t = vm.editTarget {
+                            // 输入框内编辑: 点发送即保存修改
+                            vm.editMessage(t, newText: vm.input)
+                            vm.editTarget = nil
+                            vm.input = ""
+                        } else {
+                            vm.sendText()
+                        }
+                    } label: {
                         if vm.sending { ProgressView() }
                         else { Image(systemName: "paperplane.fill").foregroundColor(.vxinGreen) }
                     }
@@ -726,10 +741,7 @@ private struct MessageBubble: View {
                 }
                 content
                     .contextMenu {
-                        ForEach(["👍", "❤️", "😂", "😮", "😢", "🙏"], id: \.self) { e in
-                            Button(e) { vm.react(msg, emoji: e) }
-                        }
-                        Divider()
+                        // 快捷表情行已按用户要求移除(长按菜单不再弹表情包)
                         if msg.type == "text" {
                             Button("复制") { UIPasteboard.general.string = msg.content }
                         }

@@ -115,6 +115,8 @@ data class ReplyPreview(
     val type: String = "text",
     val content: String = "",
     val senderName: String = "",
+    @kotlinx.serialization.SerialName("file_url")
+    val fileUrl: String? = null,   // 图片/表情/视频等媒体地址(引用条缩略图用, 对齐 Web)
     val deleted: Int = 0,   // 1 = 被回复的消息已撤回（显示「消息已撤回」，对齐 Web）
 )
 
