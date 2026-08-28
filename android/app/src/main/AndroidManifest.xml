@@ -73,6 +73,14 @@
         <meta-data android:name="GETUI_APPID"     android:value="${GETUI_APPID}"     tools:replace="android:value" />
         <meta-data android:name="GETUI_APPKEY"    android:value="${GETUI_APPKEY}" />
         <meta-data android:name="GETUI_APPSECRET" android:value="${GETUI_APPSECRET}" />
+        <!-- 个推长连接服务：必须继承 com.igexin.sdk.PushService（官方 checkManifest 硬性要求，
+             缺失 → CID 永远为空、收不到推送）。独立进程 :pushservice，与 SDK 内置基类区分。 -->
+        <service
+            android:name=".core.push.TouliaoPushService"
+            android:exported="false"
+            android:process=":pushservice"
+            tools:replace="android:exported" />
+
         <!-- 个推消息接收服务：收到 CID → 上报后端；透传 → 弹通知 -->
         <service
             android:name=".core.push.TouliaoGeTuiService"
