@@ -119,7 +119,7 @@ data class ReplyPreview(
 )
 
 @Serializable
-data class DeleteMessageBody(val forEveryone: Boolean = true, val vanish: Boolean = false)
+data class DeleteMessageBody(val forEveryone: Boolean = true, val vanish: Boolean = false, val forMe: Boolean = false)
 
 @Serializable
 data class ReactBody(val emoji: String)

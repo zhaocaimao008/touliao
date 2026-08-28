@@ -715,7 +715,8 @@ private struct MessageBubble: View {
                 if !isMine && !msg.senderName.isEmpty {
                     Text(msg.senderName).font(.caption2).foregroundColor(.vxinTextSecondary)
                 }
-                if let rt = msg.replyTo {
+                // 被回复消息引用条：被引用消息已撤回/删除(deleted!=0)时整块不渲染，UI 无痕
+                if let rt = msg.replyTo, rt.deleted == 0 {
                     Text("\(rt.senderName): \(replyPreview(rt))")
                         .font(.caption2).foregroundColor(.vxinTextSecondary)
                         .lineLimit(1)
@@ -759,6 +760,8 @@ private struct MessageBubble: View {
                             Button("撤回", role: .destructive) { vm.recall(msg) }
                             Button("删除不留痕迹", role: .destructive) { vm.vanish(msg) }
                         }
+                        // 删除：所有消息均可（自己/对方），仅对当前账号生效（per-user tombstone，不影响对方）
+                        Button("删除", role: .destructive) { vm.deleteForMe(msg) }
                         Divider()
                         Button("多选") { vm.enterMultiSelect(msg) }
                     }

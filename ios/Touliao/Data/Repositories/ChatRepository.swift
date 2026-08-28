@@ -23,6 +23,8 @@ final class ChatRepository {
     var unreadClearedPublisher: AnyPublisher<String, Never> { socket.unreadCleared.eraseToAnyPublisher() }
     var newConversationPublisher: AnyPublisher<Void, Never> { socket.newConversation.eraseToAnyPublisher() }
     var messageDeletedPublisher: AnyPublisher<String, Never> { socket.messageDeleted.eraseToAnyPublisher() }
+    var messageRecalledPublisher: AnyPublisher<String, Never> { socket.messageRecalled.eraseToAnyPublisher() }
+    var messageDeletedForMePublisher: AnyPublisher<String, Never> { socket.messageDeletedForMe.eraseToAnyPublisher() }
     var messageVanishedPublisher: AnyPublisher<String, Never> { socket.messageVanished.eraseToAnyPublisher() }
     var batchDeletedPublisher: AnyPublisher<[String], Never> { socket.batchDeleted.eraseToAnyPublisher() }
     var conversationClearedPublisher: AnyPublisher<String, Never> { socket.conversationCleared.eraseToAnyPublisher() }
@@ -86,6 +88,14 @@ final class ChatRepository {
         let _: EmptyResponse? = try? await api.send(
             "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: false, vanish: true)
         )
+    }
+
+    /// 个人删除（per-user tombstone，仅当前账号生效，对方不受影响）
+    func deleteForMeMessage(_ msgId: String) async -> Bool {
+        let resp: EmptyResponse? = try? await api.send(
+            "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: false, vanish: nil, forMe: true)
+        )
+        return resp != nil
     }
 
     /// 表情回应(切换)
@@ -247,7 +257,7 @@ private struct BurnAfterBody: Encodable { let seconds: Int }
 private struct FileHelperResponse: Decodable { let conversationId: String }
 private struct EditBody: Encodable { let content: String }
 private struct ForwardBody: Encodable { let msgId: String; let conversationIds: [String] }
-private struct DeleteMessageBody: Encodable { let forEveryone: Bool; let vanish: Bool? }
+private struct DeleteMessageBody: Encodable { let forEveryone: Bool; let vanish: Bool?; let forMe: Bool? }
 private struct BatchDeleteBody: Encodable { let msgIds: [String]; let conversationId: String }
 private struct BatchDeleteResponse: Decodable { let success: Bool?; let deleted: Int? }
 private struct ReactBody: Encodable { let emoji: String }

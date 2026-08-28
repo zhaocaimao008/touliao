@@ -549,6 +549,20 @@ class ChatViewModel @Inject constructor(
         // 实时事件 message_vanished 驱动列表更新
     }
 
+    /** 个人删除：仅当前账号生效（乐观移除 + 失败恢复 + 多设备经 message_deleted_for_me 同步） */
+    fun deleteForMe(msg: Message) {
+        val prev = _uiState.value.messages
+        _uiState.update { it.copy(messages = removeMessageAndDetachReplies(it.messages, msg.id)) }
+        viewModelScope.launch {
+            chatRepository.deleteForMeMessage(msg.id)
+                .onSuccess { msgCacheStore.remove(conversationId, msg.id) }
+                .onFailure { e ->
+                    _uiState.update { s -> s.copy(messages = prev) }   // 失败恢复
+                    _uiState.update { s -> s.copy(error = e.toUserMessage("删除失败，请重试")) }
+                }
+        }
+    }
+
     fun react(msg: Message, emoji: String) {
         viewModelScope.launch {
             chatRepository.react(msg.id, emoji)
@@ -559,23 +573,58 @@ class ChatViewModel @Inject constructor(
     private fun observeDeleted() {
         viewModelScope.launch {
             chatRepository.messageDeletedEvents.collect { msgId ->
-                _uiState.update { it.copy(messages = it.messages.filterNot { m -> m.id == msgId }) }
+                _uiState.update { it.copy(messages = removeMessageAndDetachReplies(it.messages, msgId)) }
                 msgCacheStore.remove(conversationId, msgId)   // 撤回/删除 → 缓存同步移除
             }
         }
         viewModelScope.launch {
+            // 撤回新协议(message_recall)：与 message_deleted 同语义，服务端双发，幂等
+            chatRepository.messageRecalledEvents.collect { msgId ->
+                _uiState.update { it.copy(messages = removeMessageAndDetachReplies(it.messages, msgId)) }
+                msgCacheStore.remove(conversationId, msgId)
+            }
+        }
+        viewModelScope.launch {
+            // 个人删除(message_deleted_for_me)：仅当前账号生效，多设备同步移除
+            chatRepository.messageDeletedForMeEvents.collect { msgId ->
+                _uiState.update { it.copy(messages = removeMessageAndDetachReplies(it.messages, msgId)) }
+                msgCacheStore.remove(conversationId, msgId)
+            }
+        }
+        viewModelScope.launch {
             chatRepository.messageVanishedEvents.collect { msgId ->
-                _uiState.update { it.copy(messages = it.messages.filterNot { m -> m.id == msgId }) }
+                _uiState.update { it.copy(messages = removeMessageAndDetachReplies(it.messages, msgId)) }
                 msgCacheStore.remove(conversationId, msgId)
             }
         }
         viewModelScope.launch {
             chatRepository.batchDeletedEvents.collect { ids ->
-                _uiState.update { it.copy(messages = it.messages.filterNot { m -> ids.contains(m.id) }) }
+                val idSet = ids.toSet()
+                _uiState.update { it.copy(messages = removeMessagesAndDetachReplies(it.messages, idSet)) }
                 ids.forEach { msgCacheStore.remove(conversationId, it) }
             }
         }
     }
+
+    // 移除目标消息 + 引用它的消息引用块无痕摘除(replyTo 标记 deleted,
+    // ChatScreen 见 deleted!=0 不渲染引用条)。幂等:目标不存在时仅摘除引用。
+    private fun removeMessageAndDetachReplies(msgs: List<Message>, msgId: String): List<Message> =
+        msgs.mapNotNull { m ->
+            when {
+                m.id == msgId -> null
+                m.replyTo?.id == msgId -> m.copy(replyTo = m.replyTo.copy(deleted = 2))
+                else -> m
+            }
+        }
+
+    private fun removeMessagesAndDetachReplies(msgs: List<Message>, ids: Set<String>): List<Message> =
+        msgs.mapNotNull { m ->
+            when {
+                ids.contains(m.id) -> null
+                m.replyTo != null && ids.contains(m.replyTo.id) -> m.copy(replyTo = m.replyTo.copy(deleted = 2))
+                else -> m
+            }
+        }
 
     // 多端清空同步（对齐 web）：另一端清空了本会话 → 本端也清空消息列表
     private fun observeCleared() {

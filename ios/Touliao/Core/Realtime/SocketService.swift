@@ -50,6 +50,10 @@ final class SocketService {
     let newConversation = PassthroughSubject<Void, Never>()
     /// 消息撤回/删除 → msgId
     let messageDeleted = PassthroughSubject<String, Never>()
+    /// 撤回（新协议 message_recall，幂等）→ msgId
+    let messageRecalled = PassthroughSubject<String, Never>()
+    /// 个人删除（message_deleted_for_me，仅当前账号，多设备同步）→ msgId
+    let messageDeletedForMe = PassthroughSubject<String, Never>()
     /// 彻底删除不留痕迹 → msgId
     let messageVanished = PassthroughSubject<String, Never>()
     /// 批量消息删除 → [msgId]
@@ -177,6 +181,18 @@ final class SocketService {
         sock.on("message_deleted") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["msgId"] as? String, !id.isEmpty {
                 self?.messageDeleted.send(id)
+            }
+        }
+        // 撤回新协议：服务端同时发 message_deleted 兼容旧端，两路同语义（幂等）
+        sock.on("message_recall") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["msgId"] as? String, !id.isEmpty {
+                self?.messageRecalled.send(id)
+            }
+        }
+        // 个人删除（仅当前账号，多设备同步）
+        sock.on("message_deleted_for_me") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["msgId"] as? String, !id.isEmpty {
+                self?.messageDeletedForMe.send(id)
             }
         }
         sock.on("message_vanished") { [weak self] data, _ in

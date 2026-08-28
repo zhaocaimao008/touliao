@@ -108,6 +108,14 @@ class SocketManager @Inject constructor(
     private val _messageDeleted = MutableSharedFlow<String>(extraBufferCapacity = 64)
     val messageDeletedEvents: SharedFlow<String> = _messageDeleted.asSharedFlow()
 
+    /** 撤回（新协议 message_recall，含 operatorId/timestamp，幂等）→ msgId */
+    private val _messageRecalled = MutableSharedFlow<String>(extraBufferCapacity = 64)
+    val messageRecalledEvents: SharedFlow<String> = _messageRecalled.asSharedFlow()
+
+    /** 个人删除（message_deleted_for_me，仅当前账号生效，多设备同步）→ msgId */
+    private val _messageDeletedForMe = MutableSharedFlow<String>(extraBufferCapacity = 64)
+    val messageDeletedForMeEvents: SharedFlow<String> = _messageDeletedForMe.asSharedFlow()
+
     /** 彻底删除不留痕迹 → msgId */
     private val _messageVanished = MutableSharedFlow<String>(extraBufferCapacity = 64)
     val messageVanishedEvents: SharedFlow<String> = _messageVanished.asSharedFlow()
@@ -277,6 +285,14 @@ class SocketManager @Inject constructor(
         s.on("new_conversation") { _newConversation.tryEmit(Unit) }
         s.on("message_deleted") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("msgId")?.takeIf { it.isNotEmpty() }?.let(_messageDeleted::tryEmit)
+        }
+        // 撤回新协议：服务端同时发 message_deleted 兼容旧端，两路都走同一移除逻辑（幂等）
+        s.on("message_recall") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("msgId")?.takeIf { it.isNotEmpty() }?.let(_messageRecalled::tryEmit)
+        }
+        // 个人删除（仅当前账号，多设备同步）
+        s.on("message_deleted_for_me") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("msgId")?.takeIf { it.isNotEmpty() }?.let(_messageDeletedForMe::tryEmit)
         }
         s.on("message_vanished") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("msgId")?.takeIf { it.isNotEmpty() }?.let(_messageVanished::tryEmit)

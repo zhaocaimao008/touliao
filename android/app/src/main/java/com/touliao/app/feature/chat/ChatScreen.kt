@@ -567,6 +567,7 @@ fun ChatScreen(
                             onReply = { viewModel.startReply(msg) },
                             onRecall = { viewModel.recall(msg) },
                             onVanish = { viewModel.vanish(msg) },
+                            onDeleteForMe = { viewModel.deleteForMe(msg) },
                             onReact = { emoji -> viewModel.react(msg, emoji) },
                             onCollectSticker = { viewModel.collectSticker(msg.file_url) },
                             onSaveImage = {
@@ -1027,6 +1028,7 @@ private fun MessageBubble(
     highlighted: Boolean = false,
     onReplyClick: (String) -> Unit = {},
     onVanish: () -> Unit = {},
+    onDeleteForMe: () -> Unit = {},
     onMultiSelect: () -> Unit = {},
     selectionMode: Boolean = false,
     onRetry: () -> Unit = {},
@@ -1085,8 +1087,8 @@ private fun MessageBubble(
                     modifier = Modifier.padding(vertical = 1.dp),
                 )
             }
-            // 被回复消息引用条
-            msg.replyTo?.let { rt ->
+            // 被回复消息引用条：被引用消息已撤回/删除(deleted!=0)时整块不渲染，UI 无痕
+            msg.replyTo?.takeIf { it.deleted == 0 }?.let { rt ->
                 Box(
                     Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                         .background(Color(0x11000000))
@@ -1162,6 +1164,10 @@ private fun MessageBubble(
                     }
                     if (isMine) {
                         DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { onRecall(); menuOpen = false })
+                    }
+                    // 删除：所有消息均可（自己/对方），仅对当前账号生效（per-user tombstone，不影响对方）
+                    DropdownMenuItem(text = { Text("删除", color = Color(0xFFFA5151)) }, onClick = { onDeleteForMe(); menuOpen = false })
+                    if (isMine) {
                         DropdownMenuItem(text = { Text("删除不留痕迹", color = Color(0xFFFA5151)) }, onClick = { onVanish(); menuOpen = false })
                     }
                     HorizontalDivider()

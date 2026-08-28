@@ -119,15 +119,31 @@ final class ChatViewModel: ObservableObject {
         repo.messageDeletedPublisher
             .sink { [weak self] msgId in Task { @MainActor in
                 guard let self else { return }
-                self.messages.removeAll { $0.id == msgId }
+                self.removeMessage(msgId)   // 移除 + 引用块无痕摘除
                 MsgCacheStore.shared.remove(self.conversationId, msgId)   // 撤回/删除 → 缓存同步移除
+            }}
+            .store(in: &cancellables)
+
+        repo.messageRecalledPublisher
+            .sink { [weak self] msgId in Task { @MainActor in
+                guard let self else { return }
+                self.removeMessage(msgId)   // 撤回新协议，与 message_deleted 同语义，幂等
+                MsgCacheStore.shared.remove(self.conversationId, msgId)
+            }}
+            .store(in: &cancellables)
+
+        repo.messageDeletedForMePublisher
+            .sink { [weak self] msgId in Task { @MainActor in
+                guard let self else { return }
+                self.removeMessage(msgId)   // 个人删除（仅当前账号），多设备同步
+                MsgCacheStore.shared.remove(self.conversationId, msgId)
             }}
             .store(in: &cancellables)
 
         repo.messageVanishedPublisher
             .sink { [weak self] msgId in Task { @MainActor in
                 guard let self else { return }
-                self.messages.removeAll { $0.id == msgId }
+                self.removeMessage(msgId)
                 MsgCacheStore.shared.remove(self.conversationId, msgId)
             }}
             .store(in: &cancellables)
@@ -427,6 +443,31 @@ final class ChatViewModel: ObservableObject {
 
     func vanish(_ msg: Message) {
         Task { await repo.vanishMessage(msg.id) }   // 实时事件 message_vanished 移除，无痕
+    }
+
+    /// 个人删除（per-user tombstone，仅当前账号）：乐观移除 + 失败恢复，
+    /// 多设备经 message_deleted_for_me 同步
+    func deleteForMe(_ msg: Message) {
+        let prev = messages
+        removeMessage(msg.id)
+        Task {
+            let ok = await repo.deleteForMeMessage(msg.id)
+            if ok {
+                MsgCacheStore.shared.remove(conversationId, msg.id)
+            } else {
+                messages = prev   // 失败恢复
+                error = "删除失败，请重试"
+            }
+        }
+    }
+
+    /// 移除目标消息 + 引用它的消息引用块无痕摘除(replyTo.deleted=1 →
+    /// 消息视图见 deleted 不渲染引用条)。幂等：目标不存在时仅摘除引用。
+    private func removeMessage(_ msgId: String) {
+        messages.removeAll { $0.id == msgId }
+        for i in messages.indices where messages[i].replyTo?.id == msgId {
+            messages[i].replyTo?.deleted = 1
+        }
     }
 
     func react(_ msg: Message, emoji: String) {
