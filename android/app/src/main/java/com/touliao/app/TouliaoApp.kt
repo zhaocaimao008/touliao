@@ -73,47 +73,16 @@ class TouliaoApp : Application(), ImageLoaderFactory {
 
     /** 初始化个推 SDK（异常不阻断启动；未配置 AppID 时 SDK 自身会 no-op）。 */
     private fun initGeTui() {
-        val diag = StringBuilder()
         runCatching {
             val pm = com.igexin.sdk.PushManager.getInstance()
-            // 抓 SDK 内部日志(连接/鉴权/注册错误)到诊断里,定位 CID 为空
-            pm.setDebugLogger(applicationContext, object : com.igexin.sdk.IUserLoggerInterface {
-                override fun log(s: String?) {
-                    android.util.Log.i("GeTuiSDK", s ?: "")
-                    if (s != null && s.length < 600) diag.append("SDK: $s\n")
-                }
-            })
             // 用单参 initialize + 单独 registerPushIntentService（3.2.x 推荐顺序）
             pm.initialize(applicationContext)
             pm.registerPushIntentService(applicationContext, com.touliao.app.core.push.TouliaoGeTuiService::class.java)
-
-            // ── 诊断：读 manifest 实际注入的个推配置（排查 CID 为空的根因）──
-            try {
-                val ai = applicationContext.packageManager
-                    .getApplicationInfo(packageName, android.content.pm.PackageManager.GET_META_DATA)
-                val md = ai.metaData
-                val appid = md?.getString("GETUI_APPID") ?: "(空!)"
-                val appkey = md?.getString("GETUI_APPKEY") ?: "(空!)"
-                val appsec = md?.getString("GETUI_APPSECRET") ?: "(空!)"
-                diag.append("manifest: APPID=${appid.take(8)}… APPKEY=${appkey.take(6)}… APPSECRET=${appsec.take(6)}…\n")
-            } catch (e: Exception) {
-                diag.append("读manifest失败: ${e.message}\n")
-            }
-
-            // checkManifest：个推官方集成自检（仅 debug 构建生效，无异常=通过）
-            try {
-                pm.checkManifest(applicationContext)
-                diag.append("checkManifest: 通过(无异常)\n")
-            } catch (e: Throwable) {
-                diag.append("checkManifest异常: ${e.message}\n")
-            }
-            diag.append("SDK版本: ${pm.getVersion(applicationContext)}\n")
 
             // 兜底：CID 回调偶发不触发时，延迟主动轮询 getClientid 并上报
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 runCatching {
                     val cid = pm.getClientid(applicationContext)
-                    diag.append("初始化后CID: ${if (cid.isNullOrBlank()) "仍为空!!" else cid.take(12) + "…"}\n")
                     if (!cid.isNullOrBlank()) {
                         android.util.Log.i("TouliaoApp", "个推 CID(主动轮询)=${cid.take(12)}…")
                         EntryPointAccessors.fromApplication(this, BridgeEntryPoint::class.java)
@@ -121,74 +90,11 @@ class TouliaoApp : Application(), ImageLoaderFactory {
                     } else {
                         android.util.Log.w("TouliaoApp", "个推 CID 仍为空(轮询)，等待回调")
                     }
-                    // 发诊断通知（用户可直接看到）
-                    android.util.Log.i("TouliaoApp", "个推诊断:\n$diag")
-                    showGeTuiDiag(diag.toString())
-                    reportGeTuiDiag(diag.toString())
                 }
             }, 15000)
         }.onFailure {
-            diag.append("初始化失败: ${it.message}\n")
             android.util.Log.w("TouliaoApp", "个推初始化失败(忽略): ${it.message}")
-            android.util.Log.i("TouliaoApp", "个推诊断:\n$diag")
-            showGeTuiDiag(diag.toString())
-            reportGeTuiDiag(diag.toString())
         }
-    }
-
-    /** 把个推诊断结果上报后端（服务器日志可见，绕开手机通知权限问题）。 */
-    private fun reportGeTuiDiag(text: String) {
-        runCatching {
-            Thread {
-                runCatching {
-                    val url = java.net.URL("https://touliao.cc/api/push/getui-diag")
-                    val conn = url.openConnection() as java.net.HttpURLConnection
-                    conn.requestMethod = "POST"
-                    conn.setRequestProperty("Content-Type", "application/json")
-                    conn.setRequestProperty("X-Diag-Token", "diag2026")
-                    conn.doOutput = true
-                    conn.connectTimeout = 8000
-                    conn.readTimeout = 8000
-                    val body = "{\"diag\":${org.json.JSONObject.quote(text)}}"
-                    conn.outputStream.use { it.write(body.toByteArray()) }
-                    android.util.Log.i("TouliaoApp", "诊断上报HTTP ${conn.responseCode}")
-                    conn.disconnect()
-                }
-            }.start()
-        }
-    }
-
-    /** 把个推诊断结果发成系统通知+弹窗+上报，三重保障真机可见。 */
-    private fun showGeTuiDiag(text: String) {
-        runCatching {
-            val ctx = applicationContext
-            // 弹窗：直接在最上层显示（最可靠）
-            val intent = android.content.Intent(ctx, com.touliao.app.MainActivity::class.java)
-                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            intent.putExtra("getui_diag_popup", text)
-            ctx.startActivity(intent)
-        }.onFailure { e -> android.util.Log.e("TouliaoApp", "诊断弹窗失败: ${e.message}") }
-        runCatching {
-            val ctx = applicationContext
-            val nm = ctx.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-            val channelId = "getui_diag"
-            if (android.os.Build.VERSION.SDK_INT >= 26) {
-                nm.createNotificationChannel(
-                    android.app.NotificationChannel(channelId, "个推诊断", android.app.NotificationManager.IMPORTANCE_HIGH)
-                )
-            }
-            val intent = android.content.Intent(ctx, com.touliao.app.MainActivity::class.java)
-            val pi = android.app.PendingIntent.getActivity(ctx, 0, intent, android.app.PendingIntent.FLAG_IMMUTABLE)
-            val notif = android.app.Notification.Builder(ctx, channelId)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("个推诊断结果")
-                .setContentText(text)
-                .setStyle(android.app.Notification.BigTextStyle().bigText(text))
-                .setContentIntent(pi)
-                .setAutoCancel(true)
-                .build()
-            nm.notify(9527, notif)
-        }.onFailure { e -> android.util.Log.e("TouliaoApp", "诊断通知失败: ${e.message}") }
     }
 
     /**
