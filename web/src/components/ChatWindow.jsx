@@ -1379,7 +1379,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const atCandidates = useMemo(() => {
     if (!atList) return [];
     const q = atQuery.trim().toLowerCase();
-    const list = members.filter(m => m.id !== user.id && (!q || m.username.toLowerCase().includes(q)));
+    const list = members.filter(m => m.id !== user.id && (!q || (m.username || '').toLowerCase().includes(q)));
     // 群主/管理员专属：@所有人（置顶，用合成条目，username='所有人'）
     const canManage = myGroupRole === 'owner' || myGroupRole === 'admin';
     if (canManage && (!q || '所有人'.includes(q) || 'all'.includes(q))) {

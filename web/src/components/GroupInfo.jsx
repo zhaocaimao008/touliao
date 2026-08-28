@@ -87,7 +87,7 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
       <Avatar src={m.avatar} name={m.username} size={40} />
       <div className="gi-f1">
         <div className="gi-mn">
-          {q && m.username.toLowerCase().includes(q)
+          {q && (m.username || '').toLowerCase().includes(q)
             ? (() => {
                 // 高亮全部命中(此前只高亮首个);用 q.length 切片,大小写混排也对齐
                 const name = m.username;
@@ -667,7 +667,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             {(() => {
               const q = kickSearch.toLowerCase();
               const filtered = kickSearch
-                ? info.members.filter(m => m.username.toLowerCase().includes(q))
+                ? info.members.filter(m => (m.username || '').toLowerCase().includes(q))
                 : info.members;
               if (kickSearch && filtered.length === 0) {
                 return <div className="gi-no-match">未找到匹配成员</div>;

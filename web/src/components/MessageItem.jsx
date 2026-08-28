@@ -219,7 +219,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               // 复用图片的宽高比缓存，视频加载 metadata 前也能预留正确高度,消除布局抖动
               const vAspect = getAspect(vidSrc);
               // 用 #t=0.1 让浏览器抓取首帧作为封面缩略图（不自动播放，点击才全屏播放）
-              const posterSrc = vidSrc.includes('#') ? vidSrc : `${vidSrc}#t=0.1`;
+              // 防御: file_url 缺失(撤回/删除后缓存残留)时 vidSrc 为 undefined,不得调 .includes
+              const posterSrc = (vidSrc || '').includes('#') ? vidSrc : `${vidSrc || ''}#t=0.1`;
               const openPreview = () => cbs.setVideoUrl?.({ url: vidSrc, name: msg.content });
               return (
                 <div
@@ -348,20 +349,25 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
         )}
         {msg.reactions?.length > 0 && (
           <div className="wc-reactions">
-            {msg.reactions.map(r => (
+            {msg.reactions.map(r => {
+              // 防御: 后端某些 reaction 可能缺 userIds(旧数据/部分返回) → 视为空数组
+              const uids = Array.isArray(r.userIds) ? r.userIds.map(String) : [];
+              const mine = uids.includes(String(userId));
+              return (
               <div
                 key={r.emoji}
-                className={`wc-reaction-pill${r.userIds.map(String).includes(String(userId)) ? ' mine' : ''}`}
+                className={`wc-reaction-pill${mine ? ' mine' : ''}`}
                 onClick={() => cbs.toggleReaction(msg.id, r.emoji)}
                 role="button" tabIndex={0}
-                aria-label={`${r.emoji} ${r.count > 1 ? r.count + '人' : ''}${r.userIds.map(String).includes(String(userId)) ? '，已回应' : '，点击回应'}`}
-                aria-pressed={r.userIds.map(String).includes(String(userId))}
+                aria-label={`${r.emoji} ${r.count > 1 ? r.count + '人' : ''}${mine ? '，已回应' : '，点击回应'}`}
+                aria-pressed={mine}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.toggleReaction(msg.id, r.emoji); } }}
               >
                 <span>{r.emoji}</span>
                 {r.count > 1 && <span>{r.count}</span>}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
