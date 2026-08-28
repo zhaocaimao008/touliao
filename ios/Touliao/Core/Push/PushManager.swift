@@ -37,17 +37,13 @@ final class PushManager {
             guard granted else { return }
             // iOS 16+ async 注册：直接拿 token 或抛错，不依赖 AppDelegate 的 didRegister 回调链路
             // （此前系统从不回调 didRegister/didFail，疑似 delegate 链路或系统 APNs 服务问题）
+            // iOS 26 SDK 起 async 注册不再返回 token（返回 Void），token 只能靠
+            // didRegister 回调；已禁用 Firebase swizzling，确保系统直接回调 AppDelegate。
             if #available(iOS 16.0, *) {
                 Task {
                     do {
-                        let tokenData = try await UIApplication.shared.registerForRemoteNotifications()
-                        let hex = tokenData.map { String(format: "%02x", $0) }.joined()
-                        Messaging.messaging().apnsToken = tokenData
-                        setApnsToken(hex)
-                        await NotificationRepository.shared.diag("asyncRegister ok hexPrefix=\(String(hex.prefix(8))) isLoggedIn=\(KeychainStore.shared.isLoggedIn)")
-                        if !hex.isEmpty && KeychainStore.shared.isLoggedIn {
-                            await NotificationRepository.shared.register(token: hex, platform: "ios_apns")
-                        }
+                        try await UIApplication.shared.registerForRemoteNotifications()
+                        await NotificationRepository.shared.diag("asyncRegister called (iOS16+ API, token via didRegister)")
                     } catch {
                         await NotificationRepository.shared.diag("asyncRegister fail error=\(error.localizedDescription)")
                     }

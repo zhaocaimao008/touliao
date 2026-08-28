@@ -65,6 +65,10 @@ targets:
         # 出口合规：仅用标准 HTTPS/系统加密(属豁免)，声明后每次上传免手动回答，
         # 且构建可直接对外分发（否则 TestFlight 外部测试会卡在“合规未回答”）。
         ITSAppUsesNonExemptEncryption: false
+        # 关键修复：禁用 Firebase swizzling（firebase-ios-sdk#14751：
+        # SPM 集成 Firebase + FirebaseApp.configure() 会吞掉 didRegister/didFail
+        # APNs 回调 → 锁屏无通知）。禁用它让系统直接回调我们的 AppDelegate。
+        FirebaseAppDelegateProxyEnabled: false
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         # 后台收推送（远程通知；voip 已移除——PushKit VoIP capability 已从 App ID 移除，避免 Guideline 2.5.4 审核风险）
