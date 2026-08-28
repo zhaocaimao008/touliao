@@ -64,8 +64,8 @@ app.use(helmet({
 
 app.use(cors({
   origin: (origin, cb) => {
-    // origin === 'null'：Electron 桌面端 file:// 页面发送的字面量 "null"，需放行
-    if (!origin || origin === 'null' || config.allowedOrigins.includes(origin)) return cb(null, true);
+    // 默认兼容 Electron file:// 的 "null"；严格模式仅允许显式白名单。
+    if (!origin || (!config.corsOriginsOnly && origin === 'null') || config.allowedOrigins.includes(origin)) return cb(null, true);
     cb(new Error('Not allowed by CORS'));
   },
   credentials: true,
@@ -161,9 +161,18 @@ app.use('/uploads', (req, res, next) => {
 
   let userId = null;
   let isAdmin = false;
+  let isResourceTicket = false;
   try {
     const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
-    userId = payload.id;
+    if (payload.file && !payload.id) {
+      if (payload.file !== `/uploads${req.path}`) return res.status(401).json({ error: '未授权' });
+      isResourceTicket = true;
+    } else if (payload.id) {
+      userId = payload.id;
+    } else {
+      jwt.verify(token, config.adminJwtSecret, { algorithms: ['HS256'] });
+      isAdmin = true;
+    }
   } catch {
     try {
       jwt.verify(token, config.adminJwtSecret, { algorithms: ['HS256'] });
@@ -173,11 +182,11 @@ app.use('/uploads', (req, res, next) => {
     }
   }
 
-  isBlacklisted(token).then(async blacklisted => {
+  (isResourceTicket ? Promise.resolve(false) : isBlacklisted(token)).then(async blacklisted => {
     if (blacklisted) return res.status(401).json({ error: '登录已失效，请重新登录' });
 
     // P1-02：管理员放行全部；普通用户按资源类别做所有权/权限校验
-    if (!isAdmin) {
+    if (!isAdmin && !isResourceTicket) {
       const access = resolveUploadAccess(userId, req.path);
       if (!access) return res.status(404).json({ error: '资源不存在' });
       if (!access.ok) return res.status(access.status || 403).json({ error: '无权访问' });
@@ -268,6 +277,20 @@ app.post('/api/client-errors', clientErrorLimiter, (req, res) => {
 
 // CSRF 双提交门控（路由之前）
 app.use('/api', csrfProtection);
+
+// 单文件、只读、10 分钟资源票据。响应字段保持 url，不向资源 URL 暴露登录 JWT。
+const auth = require('./middleware/auth');
+app.get('/api/uploads/ticket', auth, (req, res) => {
+  const file = String(req.query.file || '');
+  let pathname;
+  try { pathname = new URL(file, 'http://local').pathname; } catch { return res.status(400).json({ error: '无效文件路径' }); }
+  if (!/^\/uploads\/[^/]+\/[^/]+$/.test(pathname)) return res.status(400).json({ error: '无效文件路径' });
+  const access = resolveUploadAccess(req.user.id, pathname.slice('/uploads'.length));
+  if (!access) return res.status(404).json({ error: '资源不存在' });
+  if (!access.ok) return res.status(access.status || 403).json({ error: '无权访问' });
+  const token = jwt.sign({ file: pathname }, config.jwtSecret, { algorithm: 'HS256', expiresIn: 600 });
+  res.json({ url: `${pathname}?token=${encodeURIComponent(token)}` });
+});
 
 // ── Web Vitals 上报端点（前端 sendBeacon，无需鉴权）───────────────
 // 内存环形缓冲记录最近 500 条，/api/metrics/vitals/recent 可查；不落库不阻塞。

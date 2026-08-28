@@ -241,7 +241,7 @@ async function api(path,{method='GET',body}={}){
   return data;
 }
 function toast(m,bad){const t=$('toast');t.textContent=m;t.className='toast show '+(bad?'bad':'ok');setTimeout(()=>t.className='toast',2400);}
-function esc(s){return(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function esc(s){return(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtDate(ts){if(!ts)return'-';const d=new Date(ts*1000);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function fmtTime(ts){if(!ts)return'-';const d=new Date(ts*1000),n=new Date();const sameDay=d.toDateString()===n.toDateString();const hm=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');return sameDay?hm:fmtDate(ts)+' '+hm;}
 function avatar(u){return u.avatar?`<span class="av"><img src="${esc(u.avatar)}"></span>`:`<span class="av">${esc((u.username||'?')[0])}</span>`;}
@@ -296,10 +296,11 @@ function statClick(act){
 function updateUserChip(){
   let label='';
   if(uState.banned)label='仅看已封禁'; else if(uState.online)label='仅看在线'; else if(uState.period==='today')label='今日新增';
-  $('ufilter').innerHTML=label?`<span class="chip">${label} <button type="button" aria-label="清除筛选：${esc(label)}" onclick="clearUserFilter()">✕</button></span>`:'';
+  $('ufilter').innerHTML=label?`<span class="chip">${label} <button type="button" aria-label="清除筛选：${esc(label)}">✕</button></span>`:'';
+  $('ufilter').querySelector('button')?.addEventListener('click',clearUserFilter);
 }
 function clearUserFilter(){uState.banned=0;uState.online=0;uState.period='';uState.offset=0;updateUserChip();loadUsers();}
-function updateMsgChip(){$('mfilter').innerHTML=mState.period==='today'?`<span class="chip">今日消息 <button type="button" aria-label="清除筛选：今日消息" onclick="clearMsgFilter()">✕</button></span>`:'';}
+function updateMsgChip(){$('mfilter').innerHTML=mState.period==='today'?`<span class="chip">今日消息 <button type="button" aria-label="清除筛选：今日消息">✕</button></span>`:'';$('mfilter').querySelector('button')?.addEventListener('click',clearMsgFilter);}
 function clearMsgFilter(){mState.period='';mState.offset=0;updateMsgChip();loadMessages();}
 
 // ── tabs ──
@@ -360,18 +361,24 @@ async function loadUsers(){
     const q=new URLSearchParams({q:uState.q,limit:uState.limit,offset:uState.offset,banned:uState.banned,online:uState.online,period:uState.period});
     const r=await api('/users?'+q);
     $('ucount').textContent=`共 ${r.total} 名`;
-    $('ubody').innerHTML=r.users.map(u=>`<tr>
-      <td>${avatar(u)}${esc(u.username)}</td><td class="muted">${esc(u.phone)}</td><td class="muted">${esc(u.wechat_id)}</td>
-      <td>${u.contactCount}</td><td>${u.messageCount}</td>
-      <td>${u.banned?'<span class="tag ban">已封禁</span>':(u.status==='online'?'<span class="tag ok">在线</span>':'<span class="tag gray">离线</span>')}</td>
-      <td class="muted">${fmtDate(u.created_at)}</td>
-      <td><div class="acts">
-        ${u.banned?`<button class="mini" onclick="unban('${u.id}')">解封</button>`:`<button class="mini warn" onclick="ban('${u.id}','${esc(u.username)}')">封禁</button>`}
-        <button class="mini" onclick="resetPw('${u.id}','${esc(u.username)}')">改密</button>
-        <button class="mini" onclick="grantCoins('${u.id}','${esc(u.username)}')">发币</button>
-        ${u.is_privileged?`<button class="mini warn" onclick="revokePrivilege('${u.id}','${esc(u.username)}')">撤权</button>`:`<button class="mini" onclick="grantPrivilege('${u.id}','${esc(u.username)}')">授权</button>`}
-        <button class="mini danger" onclick="delUser('${u.id}','${esc(u.username)}')">删除</button>
-      </div></td></tr>`).join('')||`<tr><td colspan="8" class="muted" style="text-align:center;padding:30px">无数据</td></tr>`;
+    const body=$('ubody');body.replaceChildren();
+    if(!r.users.length){body.innerHTML=`<tr><td colspan="8" class="muted" style="text-align:center;padding:30px">无数据</td></tr>`;}
+    r.users.forEach(u=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td class="user-name"></td><td class="muted">${esc(u.phone)}</td><td class="muted">${esc(u.wechat_id)}</td>
+        <td>${u.contactCount}</td><td>${u.messageCount}</td>
+        <td>${u.banned?'<span class="tag ban">已封禁</span>':(u.status==='online'?'<span class="tag ok">在线</span>':'<span class="tag gray">离线</span>')}</td>
+        <td class="muted">${fmtDate(u.created_at)}</td><td><div class="acts"></div></td>`;
+      const nameCell=tr.querySelector('.user-name');nameCell.innerHTML=avatar(u);nameCell.append(document.createTextNode(u.username||''));
+      const actions=[
+        [u.banned?'unban':'ban',u.banned?'解封':'封禁',u.banned?'mini':'mini warn',u.banned?()=>unban(u.id):()=>ban(u.id,u.username)],
+        ['resetPw','改密','mini',()=>resetPw(u.id,u.username)],['grantCoins','发币','mini',()=>grantCoins(u.id,u.username)],
+        [u.is_privileged?'revokePrivilege':'grantPrivilege',u.is_privileged?'撤权':'授权',u.is_privileged?'mini warn':'mini',u.is_privileged?()=>revokePrivilege(u.id,u.username):()=>grantPrivilege(u.id,u.username)],
+        ['delUser','删除','mini danger',()=>delUser(u.id,u.username)],
+      ];
+      const acts=tr.querySelector('.acts');actions.forEach(([action,label,className,handler])=>{const b=document.createElement('button');b.className=className;b.textContent=label;b.dataset.action=action;b.dataset.userId=u.id;b.addEventListener('click',handler);acts.append(b);});
+      body.append(tr);
+    });
     renderPage('upage',uState,r.total,loadUsers);
   }catch(e){if(/未登录|过期/.test(e.message))location.reload();else toast(e.message,1);}
 }
@@ -410,7 +417,8 @@ async function loadGroups(){
     $('gbody').innerHTML=r.groups.map(g=>`<tr>
       <td>${avatar({username:g.name,avatar:g.avatar})}${esc(g.name||'(未命名)')}</td><td class="muted">${esc(g.group_number)}</td>
       <td>${esc(g.ownerName||'-')}</td><td>${g.memberCount}</td><td>${g.messageCount}</td><td class="muted">${fmtDate(g.created_at)}</td>
-      <td><div class="acts"><button class="mini" onclick="viewGroup('${g.id}')">成员</button><button class="mini danger" onclick="dismiss('${g.id}','${esc(g.name)}')">解散</button></div></td></tr>`).join('')||`<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">无数据</td></tr>`;
+      <td><div class="acts"><button class="mini" data-action="view-group">成员</button><button class="mini danger" data-action="dismiss-group">解散</button></div></td></tr>`).join('')||`<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">无数据</td></tr>`;
+    $('gbody').querySelectorAll('tr').forEach((tr,i)=>{const g=r.groups[i];if(!g)return;tr.querySelector('[data-action="view-group"]')?.addEventListener('click',()=>viewGroup(g.id));tr.querySelector('[data-action="dismiss-group"]')?.addEventListener('click',()=>dismiss(g.id,g.name));});
     renderPage('gpage',gState,r.total,loadGroups);
   }catch(e){if(/未登录|过期/.test(e.message))location.reload();else toast(e.message,1);}
 }
@@ -428,10 +436,12 @@ async function loadReports(){
       const imgs=(x.momentImages&&x.momentImages.length)?`<span class="muted">[图${x.momentImages.length}]</span> `:'';
       const body=x.momentContent?esc(x.momentContent.slice(0,40)):((x.momentImages&&x.momentImages.length)?'':'<span class="muted">(动态已删)</span>');
       const acts=x.status==='pending'
-        ?`<div class="acts"><button class="mini" onclick="dismissReport('${x.id}')">忽略</button><button class="mini danger" onclick="delReported('${x.id}')">删动态</button></div>`
+        ?`<div class="acts"><button class="mini" data-action="dismiss-report" data-id="${esc(x.id)}">忽略</button><button class="mini danger" data-action="delete-report" data-id="${esc(x.id)}">删动态</button></div>`
         :`<span class="muted">${x.status==='dismissed'?'已忽略':'已处理'}</span>`;
       return `<tr><td>${imgs}${body}</td><td>${esc(x.authorName||'-')}</td><td>${esc(x.reporterName||'-')}</td><td>${esc(x.reason||'-')}</td><td>${x.reportCount}</td><td class="muted">${fmtDate(x.created_at)}</td><td>${acts}</td></tr>`;
     }).join('')||`<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">无举报</td></tr>`;
+    $('rbody').querySelectorAll('[data-action="dismiss-report"]').forEach(b=>b.addEventListener('click',()=>dismissReport(b.dataset.id)));
+    $('rbody').querySelectorAll('[data-action="delete-report"]').forEach(b=>b.addEventListener('click',()=>delReported(b.dataset.id)));
     renderPage('rpage',rState,r.total,loadReports);
   }catch(e){toast(e.message,1);}
 }
@@ -449,7 +459,8 @@ async function loadSecurity(){
       : `<h3>谷歌验证器 <span class="tag gray">未开启</span></h3><p>开启后，从陌生设备或 IP 登录后台需输入谷歌验证器动态码，大幅提升安全性。</p>
          <button class="btn" id="setupbtn">开启谷歌验证</button>`;
     if(s.totpEnabled) $('disbtn').onclick=disableTotp; else $('setupbtn').onclick=setupTotp;
-    $('trbody').innerHTML=s.trusted.map(t=>`<tr><td>${esc(t.label||'设备')}</td><td class="muted">${esc(t.ip)}</td><td class="muted">${fmtTime(t.last_seen)}</td><td><button class="mini danger" onclick="revoke('${t.id}')">移除</button></td></tr>`).join('')||`<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">暂无</td></tr>`;
+    $('trbody').innerHTML=s.trusted.map(t=>`<tr><td>${esc(t.label||'设备')}</td><td class="muted">${esc(t.ip)}</td><td class="muted">${fmtTime(t.last_seen)}</td><td><button class="mini danger" data-action="revoke-device" data-id="${esc(t.id)}">移除</button></td></tr>`).join('')||`<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">暂无</td></tr>`;
+    $('trbody').querySelectorAll('[data-action="revoke-device"]').forEach(b=>b.addEventListener('click',()=>revoke(b.dataset.id)));
   }catch(e){toast(e.message,1);}
 }
 async function setupTotp(){
@@ -479,7 +490,7 @@ $('ftsave').onclick=async()=>{try{await api('/features',{method:'PUT',body:{mome
 // ── 分页 / 弹窗 ──
 function renderPage(elId,state,total,reload){const el=$(elId);const pages=Math.ceil(total/state.limit)||1;const cur=Math.floor(state.offset/state.limit)+1;if(pages<=1){el.innerHTML='';return;}el.innerHTML=`<button class="mini" ${cur<=1?'disabled':''} id="${elId}-p">上一页</button><span class="muted">${cur} / ${pages}</span><button class="mini" ${cur>=pages?'disabled':''} id="${elId}-n">下一页</button>`;const p=$(elId+'-p'),n=$(elId+'-n');if(p)p.onclick=()=>{state.offset=Math.max(0,state.offset-state.limit);reload();};if(n)n.onclick=()=>{state.offset+=state.limit;reload();};}
 let modalPrevFocus=null;
-function showModal(html){modalPrevFocus=document.activeElement;$('modal-root').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="card" role="dialog" aria-modal="true" tabindex="-1">${html}<button class="btn btn-block" onclick="closeModal()">关闭</button></div></div>`;const card=$('modal-root').querySelector('.card');if(card){const focusable=card.querySelector('input,button,select,textarea,a[href]');(focusable||card).focus();}}
+function showModal(html){modalPrevFocus=document.activeElement;$('modal-root').innerHTML=`<div class="modal"><div class="card" role="dialog" aria-modal="true" tabindex="-1">${html}<button class="btn btn-block" data-action="close-modal">关闭</button></div></div>`;const modal=$('modal-root').querySelector('.modal');modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});modal.querySelector('[data-action="close-modal"]').addEventListener('click',closeModal);const card=modal.querySelector('.card');if(card){const focusable=card.querySelector('input,button,select,textarea,a[href]');(focusable||card).focus();}}
 function closeModal(){$('modal-root').innerHTML='';if(modalPrevFocus&&typeof modalPrevFocus.focus==='function'){modalPrevFocus.focus();}modalPrevFocus=null;}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('modal-root').firstChild)closeModal();});
 

@@ -6,7 +6,7 @@
 
 const DB_NAME = 'touliao';
 const STORE = 'msgcache_v1';       // schema 版本前缀；破坏性变更时改此名弃用旧库
-const MAX_PER_CONV = 50;           // 与 outbox 一致，每会话最近 50 条
+const MAX_PER_CONV = 30;           // 仅用于当前设备会话恢复，限制持久化范围
 
 let dbPromise = null;
 
@@ -45,7 +45,9 @@ function normalize(msgs) {
     if (m.burn_after) continue;                    // 阅后即焚绝不落盘（隐私红线）
     if (seen.has(m.id)) continue;
     seen.add(m.id);
-    cleaned.push(m);
+    // 媒体 URL 属可转发的资源定位信息，不写入离线持久化缓存。
+    const { mediaUrl, file_url, fileUrl, ...withoutMediaUrl } = m;
+    cleaned.push(withoutMediaUrl);
   }
   cleaned.sort((a, b) =>
     (a.created_at || 0) - (b.created_at || 0) ||

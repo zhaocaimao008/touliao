@@ -17,7 +17,7 @@ const { db } = require('../../db/connection');
 const { writeAsync } = require('../../db/writer');
 const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
-const { requireMember, buildMessage } = require('./shared');
+const { requireMember, buildMessage, privateSendGuard } = require('./shared');
 const { pushNewMessage } = require('../../utils/push');
 const broadcaster = require('../../realtime/broadcaster');
 const cache = require('../../utils/cache');
@@ -116,11 +116,18 @@ async function sendDueMessages() {
     if (upd.changes === 0) continue;
 
     try {
-      // 发送前二次校验：发送者仍是会话成员（退群/会话解散则跳过并标记 cancelled）
+      // 发送前二次校验：与普通发送一致，复查成员身份、全员禁言及私聊守卫。
+      // 授权已失效属于确定性拒绝，直接 cancelled，避免每轮扫描无限重试。
       const stillMember = db.prepare(
-        'SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?'
+        'SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?'
       ).get(sched.conversation_id, sched.sender_id);
       if (!stillMember) {
+        db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=?").run(sched.id);
+        continue;
+      }
+      const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(sched.conversation_id);
+      const guardReason = privateSendGuard(sched.conversation_id, sched.sender_id, conv);
+      if (!conv || guardReason || (conv.mute_all && stillMember.role === 'member')) {
         db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=?").run(sched.id);
         continue;
       }

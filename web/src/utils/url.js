@@ -43,12 +43,30 @@ export function mediaUrl(u) {
   if (!base) return u;
   let abs = u.startsWith('/') ? base + u : `${base}/${u}`;
 
-  // /uploads 静态资源经 <img>/<video> 加载，无法携带 Authorization header；
-  // 桌面/移动端为 Bearer 鉴权，给受保护的 /uploads 资源附带 ?token= 以通过后端兜底鉴权，
-  // 不再依赖跨域 Cookie。仅对 /uploads 追加，尽量减少 token 暴露面。
+  // 桌面/移动端用 Bearer 请求短时、单文件资源票据；登录 JWT 不进入媒体 URL。
   const token = bearerToken();
   if (token && /\/uploads\//.test(abs)) {
-    abs += (abs.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
+    const file = new URL(abs).pathname;
+    const cacheKey = `touliao_media_ticket:${file}`;
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+      if (cached?.url && cached.expiresAt > Date.now()) {
+        return cached.url.startsWith('/') ? base + cached.url : cached.url;
+      }
+
+      // mediaUrl 的调用方需要同步字符串（img/video/href）。仅桌面/原生首次取票时
+      // 同步请求一次，之后 9 分钟均命中 sessionStorage，避免把登录 JWT 写入 URL。
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', `${base}/api/uploads/ticket?file=${encodeURIComponent(file)}`, false);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.withCredentials = true;
+      xhr.send();
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const ticket = JSON.parse(xhr.responseText);
+        sessionStorage.setItem(cacheKey, JSON.stringify({ url: ticket.url, expiresAt: Date.now() + 9 * 60 * 1000 }));
+        return ticket.url.startsWith('/') ? base + ticket.url : ticket.url;
+      }
+    } catch { /* 取票失败时返回无凭证 URL，由现有加载错误路径处理 */ }
   }
   return abs;
 }

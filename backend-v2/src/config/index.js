@@ -43,6 +43,7 @@ const config = {
   // ── CORS ────────────────────────────────────────────────────
   // CORS_ORIGINS（逗号分隔）：新部署只需在 .env 设置自己的域名即可，无需改代码。
   // CORS_ORIGINS_ONLY=true：忽略内置白名单，仅使用 CORS_ORIGINS（完全覆盖模式）。
+  corsOriginsOnly: process.env.CORS_ORIGINS_ONLY === 'true',
   allowedOrigins: (() => {
     const extra = process.env.CORS_ORIGINS
       ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)

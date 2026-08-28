@@ -169,7 +169,9 @@ async function pushToUser(userId, payload) {
       );
     }
 
-    for (const row of iosTokens) {
+    // 已存在 APNs 原生 token 的用户不再并行走 iOS FCM，避免同一设备重复通知。
+    const iosFcmTokens = iosApnsTokens.length ? [] : iosTokens;
+    for (const row of iosFcmTokens) {
       // 旧版设备仅上报 FCM token：走 FCM→APNs(需 Firebase 控制台已上传 APNs 密钥；
       // 未上传时 FCM 报 third-party-auth-error,此处仅记录)。
       if (!firebaseAdmin) continue;
@@ -360,10 +362,16 @@ const APNS_HOST = 'https://api.push.apple.com:443';   // 生产环境(TestFlight
 
 function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId, timestamp, type, collapseId }) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
     const authToken = getApnsVoipToken();   // 同一把 p8 密钥,复用 JWT 缓存
     if (!authToken) {
       console.warn('[push] APNs 未配置（缺 APNS_P8/APNS_KEY_ID/APNS_TEAM_ID）,跳过 iOS 直连');
-      resolve({ ok: false, skipped: true });
+      finish({ ok: false, skipped: true });
       return;
     }
     const payload = {
@@ -383,12 +391,18 @@ function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId
       client = http2.connect(APNS_HOST);
     } catch (e) {
       console.warn('[push] APNs 直连连接失败:', e.message);
-      resolve({ ok: false });
+      finish({ ok: false });
       return;
     }
     client.on('error', (e) => {
       console.warn('[push] APNs http2 连接异常:', e.message);
-      resolve({ ok: false });
+      client.destroy();
+      finish({ ok: false });
+    });
+    client.setTimeout(10000, () => {
+      console.warn('[push] APNs http2 连接超时');
+      client.destroy();
+      finish({ ok: false, timeout: true });
     });
     const headers = {
       ':method': 'POST',
@@ -401,6 +415,12 @@ function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId
     };
     if (collapseId) headers['apns-collapse-id'] = String(collapseId).slice(0, 64);
     const req = client.request(headers);
+    req.setTimeout(10000, () => {
+      console.warn('[push] APNs 请求超时');
+      req.close();
+      client.destroy();
+      finish({ ok: false, timeout: true });
+    });
     let status = 0;
     let resBody = '';
     req.setEncoding('utf8');
@@ -410,7 +430,7 @@ function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId
       client.close();
       if (status === 200) {
         console.debug(`[push] iOS APNs 直连成功 token=${String(deviceToken).slice(0,12)}…`);
-        resolve({ ok: true });
+        finish({ ok: true });
         return;
       }
       let reason = '';
@@ -424,12 +444,13 @@ function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId
       } else {
         console.warn(`[push] iOS APNs 推送失败 status=${status} reason=${reason}`);
       }
-      resolve({ ok: false, status });
+      finish({ ok: false, status });
     });
     req.on('error', (e) => {
       console.warn('[push] iOS APNs 请求异常:', e.message);
-      client.close();
-      resolve({ ok: false });
+      req.close();
+      client.destroy();
+      finish({ ok: false });
     });
     req.end(JSON.stringify(payload));
   });
@@ -462,10 +483,16 @@ function getApnsVoipToken() {
 // reportNewIncomingCall 弹 CallKit 界面。凭据缺失时静默降级（不影响其他推送通路）。
 function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
     const authToken = getApnsVoipToken();
     if (!authToken) {
       console.warn('[call-push] APNs voip 未配置（缺 APNS_P8/APNS_KEY_ID/APNS_TEAM_ID）');
-      resolve({ ok: false, skipped: true });
+      finish({ ok: false, skipped: true });
       return;
     }
     const body = JSON.stringify({
@@ -482,12 +509,18 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
       client = http2.connect('https://api.push.apple.com:443');
     } catch (e) {
       console.warn('[call-push] APNs voip 连接失败:', e.message);
-      resolve({ ok: false });
+      finish({ ok: false });
       return;
     }
     client.on('error', (e) => {
       console.warn('[call-push] APNs voip http2 连接异常:', e.message);
-      resolve({ ok: false });
+      client.destroy();
+      finish({ ok: false });
+    });
+    client.setTimeout(10000, () => {
+      console.warn('[call-push] APNs voip http2 连接超时');
+      client.destroy();
+      finish({ ok: false, timeout: true });
     });
 
     const req = client.request({
@@ -500,6 +533,12 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
       authorization: `Bearer ${authToken}`,
       'content-type': 'application/json',
     });
+    req.setTimeout(10000, () => {
+      console.warn('[call-push] APNs voip 请求超时');
+      req.close();
+      client.destroy();
+      finish({ ok: false, timeout: true });
+    });
 
     let status = 0;
     let resBody = '';
@@ -509,7 +548,7 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
     req.on('end', () => {
       client.close();
       if (status === 200) {
-        resolve({ ok: true });
+        finish({ ok: true });
         return;
       }
       let reason = '';
@@ -524,12 +563,13 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
       } else {
         console.warn(`[call-push] APNs voip 推送失败 status=${status} reason=${reason}`);
       }
-      resolve({ ok: false, status });
+      finish({ ok: false, status });
     });
     req.on('error', (e) => {
       console.warn('[call-push] APNs voip 请求异常:', e.message);
-      client.close();
-      resolve({ ok: false });
+      req.close();
+      client.destroy();
+      finish({ ok: false });
     });
     req.end(body);
   });

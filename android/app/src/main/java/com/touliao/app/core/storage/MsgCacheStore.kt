@@ -1,6 +1,8 @@
 package com.touliao.app.core.storage
 
 import android.content.Context
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.touliao.app.data.model.Message
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.builtins.ListSerializer
@@ -28,9 +30,20 @@ class MsgCacheStore @Inject constructor(
     @ApplicationContext context: Context,
 ) {
     // 键名带 schema 版本前缀；破坏性变更时改 KEY_PREFIX 弃用旧键。
-    private val prefs = context.getSharedPreferences("vxin_msgcache_v1", Context.MODE_PRIVATE)
+    private val prefs = EncryptedSharedPreferences.create(
+        context,
+        "vxin_msgcache_v2",
+        MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+    )
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val listSerializer = ListSerializer(Message.serializer())
+
+    init {
+        // v1 使用明文 SharedPreferences；切换到加密存储后立即清除旧缓存。
+        context.deleteSharedPreferences("vxin_msgcache_v1")
+    }
 
     /** 读取会话缓存（最近 50，created_at 升序）。任何异常 → 返回空。 */
     fun load(conversationId: String): List<Message> {

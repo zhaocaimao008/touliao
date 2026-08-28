@@ -1,41 +1,33 @@
 import './auth.css';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { timeoutSignal } from '../utils/config';
-import { saveCred, loadCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
+import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
 export default function Login() {
-  // 「记住账户和密码」：loadCred 为 async（AES-GCM），用 useEffect 加载初始密码。
+  // 仅记住用户名，密码始终由用户输入。
   const initialPhone = lastRememberedPhone();
   const [phone, setPhone] = useState(initialPhone);
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(!!initialPhone);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
   const [showPwd, setShowPwd] = useState(false);
 
-  // 异步加载已记住的密码（AES-GCM 解密，SubtleCrypto 需 microtask）
-  useEffect(() => {
-    if (!initialPhone) return;
-    loadCred(initialPhone).then(pwd => {
-      if (pwd) { setPassword(pwd); setRemember(true); }
-    });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const { login, accounts, removeAccount, maxAccounts } = useAuth();
   const navigate = useNavigate();
 
-  // 点击「最近登录」某账户：回填手机号，并在存有记住密码时一并回填密码 + 勾选记住。
-  const fillAccount = async (acct) => {
+  // 点击「最近登录」账户只回填手机号，密码不持久化。
+  const fillAccount = (acct) => {
     const p = acct?.user?.phone || '';
     setPhone(p);
-    const saved = await loadCred(p);
-    if (saved) { setPassword(saved); setRemember(true); }
-    else { setPassword(''); setRemember(false); }
+    setPassword('');
+    setRemember(hasCred(p));
   };
 
   // ── 服务器切换（仅桌面端，登录前即可切换，无需重装） ──
@@ -73,8 +65,8 @@ export default function Login() {
     setError(''); setLoading(true);
     try {
       const { data } = await axios.post('/api/auth/login', { phone, password });
-      // 登录成功后按勾选保存/清除本地记住的密码（凭证按手机号归档，可逆混淆存储）
-      if (remember) await saveCred(phone, password);
+      // 登录成功后按勾选保存/清除用户名；密码绝不落盘。
+      if (remember) await saveCred(phone);
       else removeCred(phone);
       login(data.user, data.token);
       navigate('/');
@@ -103,7 +95,7 @@ export default function Login() {
           <p className="auth-brand-desc">安全 · 私密 · 畅聊</p>
         </div>
 
-        {/* 最近登录：点击回填手机号；若曾记住密码则一并回填密码并自动勾选「记住密码」 */}
+        {/* 最近登录：点击仅回填手机号。 */}
         {accounts.length > 0 && (
           <div className="auth-accounts">
             <div className="auth-accounts-header">
@@ -116,7 +108,7 @@ export default function Login() {
                   type="button"
                   className="auth-account-btn"
                   onClick={() => fillAccount(account)}
-                  title={hasCred(account.user?.phone || '') ? '填入账户与密码' : '填入手机号'}
+                  title="填入手机号"
                 >
                   <div className="auth-account-avatar">
                     {(account.user?.username || '?')[0].toUpperCase()}
@@ -219,7 +211,7 @@ export default function Login() {
                 checked={remember}
                 onChange={e => setRemember(e.target.checked)}
               />
-              记住密码
+              记住用户名
             </label>
             <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>忘记密码？</Link>
           </div>

@@ -143,6 +143,7 @@ final class MsgCacheStore {
         }
         guard let data = try? JSONEncoder().encode(items) else { return }
         try? data.write(to: url, options: .atomic)
+        try? fm.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
     }
 }
 

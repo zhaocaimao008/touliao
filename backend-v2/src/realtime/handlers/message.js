@@ -117,7 +117,7 @@ module.exports = function registerMessageHandler(io, socket) {
     if (!member) { ack?.({ success: false, error: '非群成员' }); return; }
 
     const conv = readDb.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(conversationId);
-    if (conv?.mute_all && member.role === 'member') {
+    if (conv?.mute_all && member === 'member') {
       ack?.({ success: false, error: '全员禁言中，您没有发言权限' }); return;
     }
 

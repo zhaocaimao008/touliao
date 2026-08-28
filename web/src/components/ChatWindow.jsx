@@ -14,7 +14,7 @@ import UploadProgressBar from './UploadProgressBar';
 import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
-import { loadCache, saveCache } from '../utils/msgCache';
+import { loadCache, saveCache, clearCache } from '../utils/msgCache';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
 // 聊天允许的「常见」文件扩展名（与后端 ALLOWED_CHAT_EXTS 保持一致）；冷门/危险格式不允许上传。
@@ -331,9 +331,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   useEffect(() => {
     const convId = conversation.id;
     if (!convId) return;
+    if ((conversation.burn_after || 0) > 0) {
+      clearCache(convId);
+      return;
+    }
     const t = setTimeout(() => { saveCache(convId, messagesRef.current); }, 500);
     return () => clearTimeout(t);
-  }, [messages, conversation.id]);
+  }, [messages, conversation.id, conversation.burn_after]);
   useEffect(() => {
     // 快照 ref 指向的 Map，避免 cleanup 运行时 ref.current 已被后续渲染替换（react-hooks/exhaustive-deps）
     const burnTimers = burnTimersRef.current;
@@ -471,7 +475,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 离线缓存首屏：先渲染本地缓存历史（若有），服务端到达后合并覆盖。
     // 只在当前 messages 尚为空时填充，避免覆盖已有乐观消息/已加载内容。
     const convIdForCache = conversation.id;
-    loadCache(convIdForCache).then(cached => {
+    const cachedMessages = (conversation.burn_after || 0) > 0
+      ? clearCache(convIdForCache).then(() => [])
+      : loadCache(convIdForCache);
+    cachedMessages.then(cached => {
       if (ac.signal.aborted || !cached.length) return;
       setMessages(prev => (prev.length ? prev : cached));
     });
@@ -569,7 +576,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       confirmedIds.clear();
       readerReadAtRef.current = {};
     };
-  }, [conversation.id, fetchMessages, socket, conversation.type, conversation.scrollToId, scheduleBurn]);
+  }, [conversation.id, conversation.burn_after, fetchMessages, socket, conversation.type, conversation.scrollToId, scheduleBurn]);
 
   // 新消息到达且当前在底部时，自动标记已读（带最新消息 ID）
   // 阈值与自动滚底(<400)一致：处于 120~400px 区间时新消息会被自动拉到底，
