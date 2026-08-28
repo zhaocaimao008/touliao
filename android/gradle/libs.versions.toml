@@ -22,7 +22,8 @@ codeScanner = "16.1.0"
 webrtc = "125.6422.07"
 googleServices = "4.4.2"
 firebaseBom = "33.5.1"
-getui = "3.2.15.0"
+getui = "3.3.15.0"
+getuiGtc = "3.3.3.0"
 junit = "4.13.2"
 
 [libraries]
@@ -58,6 +59,7 @@ webrtc = { group = "io.github.webrtc-sdk", name = "android", version.ref = "webr
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
 getui-sdk = { group = "com.getui", name = "gtsdk", version.ref = "getui" }
+getui-gtc = { group = "com.getui", name = "gtc", version.ref = "getuiGtc" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 

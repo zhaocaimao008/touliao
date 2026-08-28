@@ -57,6 +57,9 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // 临时诊断(2026-08-28): 个推 setDebugLogger 仅 FLAG_DEBUGGABLE 构建输出,
+            // 置 true 抓 SDK 内部日志定位 CID 为空; 定位后须改回 false 再发布!
+            isDebuggable = true
             if (ksPath != null && file(ksPath).exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -142,6 +145,8 @@ dependencies {
     implementation(libs.getui.sdk) {
         exclude(group = "com.zxid.sdk", module = "sdk-prod-channel-getui")
     }
+    // gtc 必须显式声明:gtsdk 3.2.17.0+ 官方要求 gtc>=3.2.4.0(旧 gtc 3.2.1.0 有注册兼容问题)
+    implementation(libs.getui.gtc)
 
     // Unit tests (pure JVM; offline msgCache 语义基线对齐 Web vitest)
     testImplementation(libs.junit)
