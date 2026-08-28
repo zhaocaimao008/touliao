@@ -190,4 +190,4 @@
 - 清理了vxin(V信)项目在本仓库里的多处历史残留（含两个已在生产域名下公开可访问的静态页面）
 - 修复了若干真实的小bug（发送失败原因被前端丢弃、死代码、翻译缓存setTimeout溢出、过期的e2e测试）并给高风险的测试脚本加上了环境指纹保护
 
-**当前进度**：所有代码改动已在本地完成并通过全部自动化测试（backend jest 483/484、web vitest 76/76、web lint 0/0、e2e 30/30，另有1个测试脚本自身注释里就承认的已知flaky用例，隔离复测已确认通过）；生产环境已经生效的改动包括 `config.json` 补齐、两个vxin页面下线；**web前端新构建产物和后端代码尚未同步到生产**——推送静态资源到 `/var/www/touliao-web` 这一步被 Claude Code 的 auto-mode 分类器判定为"部署类操作"而拦截，需要你用 `!` 前缀命令自己执行最后的同步（详见对话里的操作清单）。GitHub Secrets/自动部署凭据的配置决策同样留给你，未擅自处理生产SSH授权变更。
+**当前进度**：所有代码改动已在本地完成并通过全部自动化测试（backend jest 483/484、web vitest 76/76、web lint 0/0、e2e 30/30，另有1个测试脚本自身注释里就承认的已知flaky用例，隔离复测已确认通过），已提交为 commit `5afd83f`（未push）。**生产环境已于 2026-08-28 19:20 完成部署**：`/var/www/touliao-web` 已备份旧版本(`.bak-<时间戳>`)后同步新构建产物（含撤回/删除失败原因提示、vxin残留清理），nginx已reload；`touliao-backend` 已 `pm2 restart --update-env`，重启后 `/health` 返回 `{"ok":true,"service":"touliao-backend"}`，缓存预热正常，真实用户请求已恢复正常（200/304），未见异常。GitHub Secrets/自动部署凭据的配置决策仍留给你，未擅自处理生产SSH授权变更。
