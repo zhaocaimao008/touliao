@@ -76,6 +76,13 @@ class TouliaoApp : Application(), ImageLoaderFactory {
         val diag = StringBuilder()
         runCatching {
             val pm = com.igexin.sdk.PushManager.getInstance()
+            // 抓 SDK 内部日志(连接/鉴权/注册错误)到诊断里,定位 CID 为空
+            pm.setDebugLogger(applicationContext, object : com.igexin.sdk.IUserLoggerInterface {
+                override fun log(s: String?) {
+                    android.util.Log.i("GeTuiSDK", s ?: "")
+                    if (s != null && s.length < 600) diag.append("SDK: $s\n")
+                }
+            })
             // 用单参 initialize + 单独 registerPushIntentService（3.2.x 推荐顺序）
             pm.initialize(applicationContext)
             pm.registerPushIntentService(applicationContext, com.touliao.app.core.push.TouliaoGeTuiService::class.java)
