@@ -46,7 +46,7 @@ function normalize(msgs) {
     if (seen.has(m.id)) continue;
     seen.add(m.id);
     // 媒体 URL 属可转发的资源定位信息，不写入离线持久化缓存。
-    const { mediaUrl, file_url, fileUrl, ...withoutMediaUrl } = m;
+    const { mediaUrl: _mediaUrl, file_url: _file_url, fileUrl: _fileUrl, ...withoutMediaUrl } = m;
     cleaned.push(withoutMediaUrl);
   }
   cleaned.sort((a, b) =>

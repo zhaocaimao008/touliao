@@ -9,12 +9,26 @@
  * 清理只删带该前缀的账号及其会话/消息，绝不触碰真实用户。
  *
  * 用法（在 backend-v2 同机执行）：
- *   APP_DIR=/root/投聊/backend-v2 node seed_test_users.js create 300
- *   APP_DIR=/root/投聊/backend-v2 node seed_test_users.js cleanup
+ *   APP_DIR=/root/touliao/backend-v2 node seed_test_users.js create 300
+ *   APP_DIR=/root/touliao/backend-v2 node seed_test_users.js cleanup
+ *
+ * 本机同时跑着另一个真实生产项目(vxin)，直接改库前先校验 APP_DIR 确实指向
+ * touliao-backend-v2 的 package.json，防止路径配错时误写到别的项目库上。
  */
 'use strict';
 const path = require('path');
-const APP_DIR = process.env.APP_DIR || '/root/投聊/backend-v2';
+const APP_DIR = process.env.APP_DIR || '/root/touliao/backend-v2';
+{
+  let pkg;
+  try { pkg = require(path.join(APP_DIR, 'package.json')); } catch {
+    console.error(`❌ 环境校验失败：${APP_DIR} 下找不到 package.json`);
+    process.exit(1);
+  }
+  if (pkg.name !== 'touliao-backend-v2') {
+    console.error(`❌ 环境校验失败：${APP_DIR} 是 "${pkg.name}"，不是投聊后端(touliao-backend-v2)，拒绝执行。`);
+    process.exit(1);
+  }
+}
 const Database = require(path.join(APP_DIR, 'node_modules/better-sqlite3'));
 const bcrypt = require(path.join(APP_DIR, 'node_modules/bcryptjs'));
 // 不要 require('src/config')！它在缺 JWT_SECRET 时会 process.exit(1)，从 ops/ 目录跑必崩。

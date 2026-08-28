@@ -10,10 +10,12 @@
  */
 'use strict';
 const http = require('http');
+const { assertTouliaoBackend } = require('./_envGuard');
 const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:3002';
 const U = new URL(BACKEND);
 const [phoneA, phoneB, PASS = 'Loadtest1234'] = process.argv.slice(2);
 if (!phoneA || !phoneB) { console.log('用法: node test_friend_request.js <phoneA> <phoneB> [password]'); process.exit(1); }
+assertTouliaoBackend(BACKEND);
 
 function req(method, path, { body, jar, csrf } = {}) {
   return new Promise((resolve) => {

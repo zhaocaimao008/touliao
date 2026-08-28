@@ -370,9 +370,9 @@ app.get('/health', (req, res) => {
   try {
     const db = require('./db');
     db.prepare('SELECT 1').get();
-    res.json({ ok: true, version: 2, db: 'ok' });
+    res.json({ ok: true, version: 2, db: 'ok', service: 'touliao-backend' });
   } catch (e) {
-    res.status(503).json({ ok: false, version: 2, db: 'error', error: e.message });
+    res.status(503).json({ ok: false, version: 2, db: 'error', error: e.message, service: 'touliao-backend' });
   }
 });
 

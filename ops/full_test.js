@@ -5,8 +5,10 @@
  * 账号A: 13900009999 / qwe64932   账号B: 13900008888 / qwe64932 (如歌)
  */
 const http = require('http');
+const { assertTouliaoBackend } = require('./_envGuard');
 const BASE = process.env.BASE || 'http://127.0.0.1:3002';
 const U = new URL(BASE);
+assertTouliaoBackend(BASE);
 let passCount = 0, failCount = 0, warnCount = 0;
 
 function req(method, path, opts) {

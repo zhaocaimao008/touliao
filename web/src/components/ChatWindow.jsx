@@ -52,8 +52,6 @@ import { shareMessage, canShare } from '../utils/share';
 import './ChatWindow.css';
 import { IcoEmoji, IcoMic, IcoImage, IcoFile, IcoMore } from './Icons';
 
-const REACTIONS = ['👍','❤️','😄','😮','😢','🙏'];
-
 import { computeCtxPos } from '../utils/ctxPos';
 
 /**
@@ -1140,6 +1138,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         setMessages(prev => prev.map(m => m._tempId === newTempId ? { ...ack.message } : m));
       } else {
         setMessages(prev => prev.map(m => m._tempId === newTempId ? { ...m, _status: 'error' } : m));
+        if (ack?.error) showToast(ack.error, 'error');
       }
     });
   }, [socket]);
@@ -1298,6 +1297,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...ack.message } : m));
       } else {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
+        if (ack?.error) showToast(ack.error, 'error');
       }
     });
   };
@@ -1360,6 +1360,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...ack.message } : m));
       } else {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
+        if (ack?.error) showToast(ack.error, 'error');
       }
     });
   };
@@ -1940,17 +1941,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           await axios.delete(`/api/messages/conversation/${conversation.id}/pin-message/${msg.id}`).catch(e => showToast(e.response?.data?.error || '操作失败', 'error'));
         } else {
           await axios.post(`/api/messages/conversation/${conversation.id}/pin-message`, { msgId: msg.id }).catch(e => showToast(e.response?.data?.error || '操作失败', 'error'));
-        }
-        break;
-      }
-
-      case 'delete': {
-        const isOwn = msg.sender_id === user.id;
-        const isAdmin = myGroupRole === 'owner' || myGroupRole === 'admin';
-        const prompt = isOwn ? '确认撤回这条消息？' : '删除该消息（对全员生效）？';
-        if ((isOwn || (isAdmin && conversation.type === 'group')) && await showConfirm(prompt)) {
-          await axios.delete(`/api/messages/${msg.id}`, { data: { forEveryone: true } })
-            .catch(e => showToast(e.response?.data?.error || (isOwn ? '撤回失败' : '删除失败'), 'error'));
         }
         break;
       }

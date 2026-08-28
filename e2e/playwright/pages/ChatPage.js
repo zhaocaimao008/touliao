@@ -147,12 +147,10 @@ class ChatPage {
     await this.tid(A.chatSendBtn).click();
   }
 
-  /** 撤回最后一条自己发的消息(有确认弹窗) */
+  /** 撤回最后一条自己发的消息(点击即刻乐观执行,无二次确认弹窗——见 b5e98b9) */
   async recallLast() {
     await this.openCtxMenuOnLast();
     await this.tid(A.ctxRecall).click();
-    // 撤回有"确认撤回这条消息？"弹窗,点确认
-    await this.tid(A.confirmOk).click();
   }
 
   /** 发起语音/视频通话,等通话窗出现 */

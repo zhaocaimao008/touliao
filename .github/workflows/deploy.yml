@@ -99,9 +99,57 @@ jobs:
         working-directory: web
         run: npm run lint -- --max-warnings=0
 
+  # 2026-08-28 天问审计新增：e2e-web.yml 是独立 workflow，此前不阻塞部署——
+  # 曾出现 e2e 长期报红(撤回确认弹窗测试过期)却完全不影响 deploy 照常"成功"的情况。
+  # 这里把同一套 e2e 校验复制进部署门禁本身，纳入 needs，真正卡住部署。
+  e2e-gate:
+    name: E2E Web（部署前门禁，35用例）
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install backend-v2 deps (起测试后端用)
+        working-directory: backend-v2
+        run: npm ci
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+      - name: Build web dist (供静态serve + electron)
+        working-directory: web
+        run: npm run build
+      - name: Install e2e deps
+        working-directory: e2e
+        run: npm ci
+      - name: Install Playwright chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E web
+        working-directory: e2e
+        env:
+          REDIS_URL: redis://127.0.0.1:6379
+        run: npm run test:web
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-deploy-gate
+          path: e2e/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
   deploy:
     name: 部署到生产服务器（45.77.131.33）
-    needs: [test, backend-jest, web-gate]
+    needs: [test, backend-jest, web-gate, e2e-gate]
     runs-on: ubuntu-latest
     continue-on-error: true   # SSH key 未配置时不阻断 CI Gate
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')

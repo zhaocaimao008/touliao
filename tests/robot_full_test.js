@@ -13,6 +13,7 @@ const { URL } = require('url');
 // ── 配置 ──────────────────────────────────────────────────────────
 const BASE     = process.env.API_BASE || 'http://127.0.0.1:3002';
 const WEB_BASE = process.env.WEB_BASE || 'http://127.0.0.1:8090';
+require('../ops/_envGuard').assertTouliaoBackend(BASE); // 本机另有vxin生产服务混用过3002，先校验目标
 const TS       = Date.now();
 const BOT_A    = { phone: '18099990001', password: 'RobotTest@2026!', _id: 'robot-test-bot-a' };
 const BOT_B    = { phone: '18099990002', password: 'RobotTest@2026!', _id: 'robot-test-bot-b' };

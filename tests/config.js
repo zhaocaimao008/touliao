@@ -1,6 +1,13 @@
+// 本机同时跑着另一个真实生产项目(vxin)，且历史上和投聊混用过 3002 端口。
+// 这批压测/机器人脚本会造大量账号、发大量消息，一旦端口配错会直接冲击别的项目
+// 的生产数据。这里在被 require 时就异步校验 BASE_URL 确实是投聊后端，不是则退出。
+// 注意：这是尽力而为的安全网，不保证在校验完成前的极短窗口内 0 请求逃逸，
+// 但能挡住"整轮压测跑在错误目标上而无人发现"这种规模化误伤。
+require('../ops/_envGuard').assertTouliaoBackend(process.env.BASE_URL || 'http://localhost:3002');
+
 module.exports = {
-  BASE_URL:   'http://localhost:3002',
-  WS_URL:     'http://localhost:3002',
+  BASE_URL:   process.env.BASE_URL || 'http://localhost:3002',
+  WS_URL:     process.env.BASE_URL || 'http://localhost:3002',
 
   // 账号
   BOT_COUNT:        500,
