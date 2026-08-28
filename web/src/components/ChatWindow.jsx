@@ -2747,9 +2747,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           {!ctxMenu.msg.deleted && canShare() && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (ctxMenu.msg.type === 'text' || ctxMenu.msg.file_url) && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-share" onClick={() => ctxAction('share')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('share'); } }}>分享到…</div>
           )}
+          {/* 置顶：仅群聊可用（对齐 Android/iOS canPin=isGroup） */}
+          {conversation.type === 'group' && (
           <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('pin'); } }}>
             {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}
           </div>
+          )}
           {ctxMenu.msg.type === 'image' && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('addSticker'); } }}>添加到表情</div>
           )}
