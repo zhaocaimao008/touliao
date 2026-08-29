@@ -2,11 +2,16 @@
 # -*- coding: utf-8 -*-
 """
 用 App Store Connect API 全自动完成 iOS 发布签名材料：
-  1) 确保 Bundle ID (com.vxin.app) 存在，并开启 Push
-  2) 用本地 CSR 申请 Apple Distribution 证书
-  3) 用该证书 + Bundle ID 生成 App Store 描述文件 vxin_distribution
+  1) 确保 Bundle ID (com.touliao.app) 存在
+  2) 用本地 CSR 申请一张全新的 Apple Distribution 证书(不复用/不信任任何已存在的证书，
+     避免复用到已吊销/过期的旧证书——2026-08-29 天问审计修复：此前的版本会盲目复用
+     API 返回的第一张证书，而 CI 报过"该证书已吊销"，必须始终签发新证书)
+  3) 用该证书 + Bundle ID 生成 App Store 描述文件 touliao_distribution
   4) 用 openssl 把 .cer + 本地私钥 合成 distribution.p12
-  5) 写入 7 个 GitHub Secrets（调用 gh）
+  5) 把产物写到 SIGN_DIR，供调用方自行 base64 后写入 GitHub Secrets
+     （2026-08-29 修复：不再由本脚本直接调用 gh secret set——在 CI runner 里跑时
+     默认的 GITHUB_TOKEN 没有写 secret 的权限，且不应该为此给 runner 授予更高权限；
+     交由持有仓库管理权限的调用方在自己的机器上执行最后一步）
 
 只需要你提供一个 App Store Connect API Key：
   环境变量:  ASC_KEY_ID  ASC_ISSUER_ID  ASC_P8_PATH(那个 .p8 文件路径)
@@ -14,8 +19,8 @@
 import os, sys, time, json, base64, subprocess, tempfile
 import jwt, requests
 
-BUNDLE_ID   = "com.vxin.app"
-PROFILE_NAME= "vxin_distribution"
+BUNDLE_ID   = "com.touliao.app"
+PROFILE_NAME= "touliao_distribution"
 CERT_TYPE   = "IOS_DISTRIBUTION"          # Apple Distribution
 PROFILE_TYPE= "IOS_APP_STORE"
 IOS_DIR     = os.path.join(os.path.dirname(__file__), "..", "ios")
@@ -31,8 +36,8 @@ def step(m):print(f"\n▶ {m}")
 KEY_ID    = os.environ.get("ASC_KEY_ID")    or die("缺少 ASC_KEY_ID")
 ISSUER_ID = os.environ.get("ASC_ISSUER_ID") or die("缺少 ASC_ISSUER_ID")
 P8_PATH   = os.environ.get("ASC_P8_PATH")   or die("缺少 ASC_P8_PATH（.p8 文件路径）")
-KEYCHAIN_PW = os.environ.get("IOS_KEYCHAIN_PASSWORD", "vxin-ci-keychain")
-P12_PW      = os.environ.get("IOS_CERTIFICATE_PASSWORD", "vxin-p12-pass")
+KEYCHAIN_PW = os.environ.get("IOS_KEYCHAIN_PASSWORD", "touliao-ci-keychain")
+P12_PW      = os.environ.get("IOS_CERTIFICATE_PASSWORD", "touliao-p12-pass")
 
 if not os.path.isfile(P8_PATH): die(f"找不到 .p8: {P8_PATH}")
 if not os.path.isfile(CSR_PATH): die(f"找不到 CSR: {CSR_PATH}（先跑 openssl 生成）")
@@ -62,23 +67,31 @@ if bid:
     ok(f"Bundle ID 已存在: {bid['id']}")
 else:
     body = {"data":{"type":"bundleIds","attributes":{
-            "identifier":BUNDLE_ID,"name":"Vxin","platform":"IOS"}}}
+            "identifier":BUNDLE_ID,"name":"Touliao","platform":"IOS"}}}
     bid = req("POST","/bundleIds",json=body)["data"]
     ok(f"已创建 Bundle ID: {bid['id']}")
 BID_ID = bid["id"]
 
-# 2) 证书
-step("申请 Apple Distribution 证书")
+# 2) 证书 —— 始终签发新证书，不复用任何已存在的（哪怕看起来"有效"，也可能刚被吊销）
+step("申请全新 Apple Distribution 证书")
 with open(CSR_PATH) as f: csr = f.read().strip()
-certs = req("GET", f"/certificates?filter[certificateType]={CERT_TYPE}&limit=200")["data"]
-cert = None
-if certs:
-    cert = certs[0]; ok(f"复用已有证书: {cert['id']}")
-else:
-    body = {"data":{"type":"certificates","attributes":{
-            "certificateType":CERT_TYPE,"csrContent":csr}}}
+body = {"data":{"type":"certificates","attributes":{
+        "certificateType":CERT_TYPE,"csrContent":csr}}}
+try:
     cert = req("POST","/certificates",json=body)["data"]
-    ok(f"已签发新证书: {cert['id']}")
+except SystemExit:
+    # 常见失败原因：账号下 Distribution 证书数量已达上限(通常3张)。
+    # 列出现有证书方便人工去 Apple Developer 后台吊销旧的再重跑，而不是本脚本自作主张乱删。
+    print("\n⚠ 创建证书失败，可能是证书数量已达上限。当前账号下的证书列表：")
+    try:
+        existing = req("GET", f"/certificates?filter[certificateType]={CERT_TYPE}&limit=200")["data"]
+        for c in existing:
+            a = c["attributes"]
+            print(f"  id={c['id']} name={a.get('displayName')} serial={a.get('serialNumber')} expires={a.get('expirationDate')}")
+    except Exception:
+        pass
+    raise
+ok(f"已签发新证书: {cert['id']}")
 CERT_ID = cert["id"]
 cer_der = base64.b64decode(cert["attributes"]["certificateContent"])
 with open(os.path.join(SIGN_DIR,"distribution.cer"),"wb") as f: f.write(cer_der)
@@ -111,20 +124,26 @@ subprocess.run(["openssl","pkcs12","-export","-legacy",
                 "-passout",f"pass:{P12_PW}"],check=True)
 ok(f"已合成: {P12_OUT} (密码={P12_PW})")
 
-# 5) 写 GitHub Secrets
-step("写入 GitHub Secrets")
+# 5) 产物落盘，交给调用方（有仓库管理权限的机器/人）自行写 Secrets
+#    不在这里调用 gh secret set：在 GitHub Actions runner 里跑时默认 GITHUB_TOKEN
+#    没有写 secret 权限，也不应该为此提权；本机运行时才有 gh 权限，但为了这份脚本
+#    在两种环境下行为一致，统一只落盘，写 Secrets 的动作交给外层调用方处理。
+step("产物已就绪，等待外层写入 Secrets")
 def b64f(p):
     with open(p,"rb") as f: return base64.b64encode(f.read()).decode()
-def gh_secret(name,val):
-    subprocess.run(["gh","secret","set",name,"--body",val],check=True)
-    print(f"  set {name}")
-gh_secret("IOS_CERTIFICATE_P12_BASE64",      b64f(P12_OUT))
-gh_secret("IOS_CERTIFICATE_PASSWORD",        P12_PW)
-gh_secret("IOS_PROVISIONING_PROFILE_BASE64", b64f(PROFILE_OUT))
-gh_secret("IOS_KEYCHAIN_PASSWORD",           KEYCHAIN_PW)
-gh_secret("ASC_KEY_ID",                      KEY_ID)
-gh_secret("ASC_ISSUER_ID",                   ISSUER_ID)
-gh_secret("ASC_API_KEY_BASE64",              b64f(P8_PATH))
 
-print("\n🎉 全部完成！下一步触发发版：")
-print("   gh workflow run ios-testflight.yml --ref master -f version=1.0.10")
+MANIFEST = {
+    "IOS_CERTIFICATE_P12_BASE64":      b64f(P12_OUT),
+    "IOS_CERTIFICATE_PASSWORD":        P12_PW,
+    "IOS_PROVISIONING_PROFILE_BASE64": b64f(PROFILE_OUT),
+    "IOS_KEYCHAIN_PASSWORD":           KEYCHAIN_PW,
+}
+MANIFEST_PATH = os.path.join(SIGN_DIR, "secrets_manifest.json")
+with open(MANIFEST_PATH, "w") as f:
+    json.dump(MANIFEST, f)
+ok(f"已写入 {MANIFEST_PATH}（含4个待写入 Secret 的值，注意脱敏处理，用完即删）")
+
+print("\n🎉 证书+描述文件已生成。由调用方执行：")
+print(f"   python3 -c \"import json;d=json.load(open('{MANIFEST_PATH}'));"
+      "[print(k) for k in d]\"  # 确认字段")
+print("   然后逐个 gh secret set <NAME> --body \"$(jq -r '.<NAME>' 该json)\"")

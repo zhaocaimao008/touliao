@@ -1,0 +1,59 @@
+name: iOS Provisioning (auto-generate signing materials)
+
+# 一次性/按需手动触发：用 App Store Connect API 全自动签发全新的 Apple Distribution
+# 证书 + touliao_distribution 描述文件，替代需要人工登录 Apple Developer 网页操作的流程。
+# 只在 ubuntu-latest 上跑（纯 Python + openssl + REST 调用，不需要 macOS/Xcode）。
+#
+# 产物只落成 workflow artifact（短保留期，用完即在仓库侧删除），不在 runner 内直接
+# gh secret set —— 默认 GITHUB_TOKEN 没有写 secret 权限，也不应该为此给它提权；
+# 由下载 artifact 的一方（有仓库管理权限的机器/人）完成最后写 Secrets 那一步。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install pyjwt cryptography requests
+
+      - name: 生成全新 CSR + 私钥（本次运行专用，随 runner 销毁）
+        run: |
+          openssl genrsa -out ios/signing/ios_dist.key 2048
+          openssl req -new -key ios/signing/ios_dist.key -out ios/signing/ios_dist.csr \
+            -subj "/emailAddress=dandan00198@gmail.com/CN=Touliao Distribution/C=CN"
+
+      - name: 写入 ASC API Key（仅本次运行内存/临时磁盘，不落库不提交）
+        env:
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+        run: |
+          mkdir -p /tmp/asc
+          echo "$ASC_API_KEY_BASE64" | base64 --decode > /tmp/asc/AuthKey.p8
+
+      - name: 运行自动签发脚本
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_P8_PATH: /tmp/asc/AuthKey.p8
+        run: python3 scripts/ios-auto-provision.py
+
+      - name: 上传产物（含证书私钥，短保留期，下载后请尽快删除该 artifact）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-signing-materials
+          path: |
+            ios/signing/touliao_distribution.mobileprovision
+            ios/signing/secrets_manifest.json
+          retention-days: 1
+          if-no-files-found: warn

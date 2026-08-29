@@ -9,7 +9,7 @@
 #   export ASC_ISSUER_ID='App Store Connect 的 Issuer ID'
 #   bash scripts/setup-ios-secrets.sh \
 #        /path/to/distribution.p12 \
-#        /path/to/vxin_distribution.mobileprovision \
+#        /path/to/touliao_distribution.mobileprovision \
 #        /path/to/AuthKey_XXXXXX.p8
 set -euo pipefail
 

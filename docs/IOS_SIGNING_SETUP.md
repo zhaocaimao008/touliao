@@ -15,24 +15,41 @@
 | `ASC_ISSUER_ID` | App Store Connect Issuer ID | ASC 后台（步骤4） |
 | `ASC_API_KEY_BASE64` | ASC API Key `.p8` 的 base64 | ASC 后台（步骤4） |
 
-> 工作流里已硬编码：Bundle ID = `com.vxin.app`，描述文件名 = `vxin_distribution`，
-> 签名身份 = `iPhone Distribution`。**步骤3 创建描述文件时命名必须叫 `vxin_distribution`**，否则要改工作流。
+> 工作流里已硬编码：Bundle ID = `com.touliao.app`，描述文件名 = `touliao_distribution`，
+> Team ID = `F2J52VX786`，签名身份 = `Apple Distribution`。**步骤3 创建描述文件时命名必须叫
+> `touliao_distribution`**，否则要改工作流。
+> （2026-08-29 天问审计更正：本文档此前一直写的是改名前的 `com.vxin.app`/`vxin_distribution`，
+> 与 `ios-testflight.yml` 实际读取的值不符，已同步更正。）
 
 ---
 
 ## 步骤 1：注册 App（一次性）
 App Store Connect → 我的 App → ＋ → 新建 App：
-- 平台 iOS，Bundle ID 选 `com.vxin.app`（若没有，先去 Developer 后台 Identifiers 注册这个 App ID）。
+- 平台 iOS，Bundle ID 选 `com.touliao.app`（若没有，先去 Developer 后台 Identifiers 注册这个 App ID）。
 
 ## 步骤 2：发布证书（Distribution Certificate → .p12）
-1. Apple Developer → Certificates → ＋ → **Apple Distribution**（或 iOS Distribution）。
-2. 按提示用「钥匙串访问 → 证书助理 → 从证书颁发机构请求证书」生成 CSR，上传，下载 `.cer`，双击导入钥匙串。
-3. 钥匙串访问里找到该证书 → 右键「导出」→ 存成 `distribution.p12` → **设置一个导出密码**（记住它 = `IOS_CERTIFICATE_PASSWORD`）。
+**没有 Mac 也能做**：CSR 可以用 OpenSSL 在任意机器上生成，不必依赖"钥匙串访问"。
+1. 生成私钥 + CSR（本仓库已在 `/root/touliao-ios-signing/` 生成好一份可直接用的，
+   也可自己重新生成）：
+   ```bash
+   openssl genrsa -out touliao_distribution.key 2048
+   openssl req -new -key touliao_distribution.key -out touliao_distribution.csr \
+     -subj "/emailAddress=你的邮箱/CN=Touliao Distribution/C=CN"
+   ```
+2. Apple Developer → Certificates → ＋ → **Apple Distribution** → 上传上一步的 `.csr` 文件 → 下载生成的 `.cer`。
+3. 用私钥 + `.cer` 合成 `.p12`（在同一台机器上，Linux 也可以）：
+   ```bash
+   openssl x509 -in touliao_distribution.cer -inform DER -out touliao_distribution.pem -outform PEM
+   openssl pkcs12 -export -inkey touliao_distribution.key -in touliao_distribution.pem \
+     -out distribution.p12 -password pass:自己设一个密码   # 这个密码 = IOS_CERTIFICATE_PASSWORD
+   ```
+   （如果在 Mac 上操作，也可以走"钥匙串访问 → 证书助理 → 从证书颁发机构请求证书"生成CSR、
+   双击导入证书后在钥匙串里右键导出 `.p12`，效果一样，选你顺手的方式即可。）
 
 ## 步骤 3：描述文件（Provisioning Profile）
 1. Apple Developer → Profiles → ＋ → **App Store**（Distribution）。
-2. App ID 选 `com.vxin.app`，证书选步骤2 的发布证书。
-3. **Profile 名称填 `vxin_distribution`**（务必一致）→ 生成 → 下载 `vxin_distribution.mobileprovision`。
+2. App ID 选 `com.touliao.app`，证书选步骤2 新生成的发布证书。
+3. **Profile 名称填 `touliao_distribution`**（务必一致，workflow 里写死了这个名字）→ 生成 → 下载 `touliao_distribution.mobileprovision`。
 
 ## 步骤 4：App Store Connect API Key（用于上传 TestFlight）
 1. App Store Connect → 用户与访问 → 集成 → **App Store Connect API** → 生成密钥。
@@ -70,7 +87,9 @@ gh run watch   # 或到 Actions 页看进度
 跑通后 IPA 会自动上传到 TestFlight；同时该 run 的 Artifacts 里也有 `vxin-ios-ipa`。
 
 ## 常见坑
-- **描述文件名不叫 `vxin_distribution`** → 归档/导出报 profile 不匹配。改名或改工作流二选一。
+- **描述文件名不叫 `touliao_distribution`** → 归档/导出报 profile 不匹配。改名或改工作流二选一。
 - **.p8 只能下载一次**：丢了只能重新生成新 Key。
 - **证书类型不对**：必须是「Distribution / Apple Distribution」，不是 Development。
-- **Bundle ID 不一致**：证书/描述文件/工程都必须是 `com.vxin.app`。
+- **Bundle ID 不一致**：证书/描述文件/工程都必须是 `com.touliao.app`。
+- **旧证书被吊销/过期**：2026-08-28 曾发生「Signing certificate is invalid...revoked or expired」，
+  在 Apple Developer → Certificates 里看到旧的失效证书直接吊销/忽略即可，重新走一遍步骤2生成新证书。
