@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- 通话中蓝牙耳机音频路由(startBluetoothSco)。Android 12+(31) 危险权限，未授权时
+         CallManager.hasBluetoothPermission() 会保守跳过蓝牙路由，不崩溃、只是入口不显示。 -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 通知震动：渠道 enableVibration(true) 需此权限，否则消息通知不震动 -->
     <uses-permission android:name="android.permission.VIBRATE" />

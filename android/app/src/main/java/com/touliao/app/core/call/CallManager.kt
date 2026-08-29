@@ -47,6 +47,8 @@ data class CallState(
     val micEnabled: Boolean = true,
     val cameraEnabled: Boolean = true,
     val speakerOn: Boolean = false,   // 2026-08-29 语音通话审计新增：此前完全没有扬声器切换能力
+    val bluetoothOn: Boolean = false,       // 2026-08-29 补充：蓝牙SCO是否已路由
+    val bluetoothAvailable: Boolean = false, // 通话期间是否检测到已连接的蓝牙耳机
     val remoteVideoActive: Boolean = false,
     val connectedAt: Long = 0,        // 接通时刻(elapsedRealtime ms)，用于通话计时
     val endedAt: Long = 0,            // 结束时刻(elapsedRealtime ms)，用于结束页定格总时长
@@ -89,6 +91,40 @@ class CallManager @Inject constructor(
         }
     }
 
+    // 蓝牙SCO(2026-08-29语音通话审计补充)：此前扬声器切换只处理了听筒/扬声器二选一，
+    // 完全没碰蓝牙——已配对耳机连接时无法路由通话音频到蓝牙，也没有断开自动回退。
+    // 需要 BLUETOOTH_CONNECT 运行时权限(API 31+)；未授权时不崩，只是蓝牙按钮不可用/不显示，
+    // 由调用方(CallScreen)据 state.bluetoothAvailable 决定是否展示入口。
+    private var bluetoothScoReceiverRegistered = false
+    private val bluetoothScoReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(ctx: Context, intent: android.content.Intent) {
+            val scoState = intent.getIntExtra(
+                android.media.AudioManager.EXTRA_SCO_AUDIO_STATE,
+                android.media.AudioManager.SCO_AUDIO_STATE_ERROR,
+            )
+            val connected = scoState == android.media.AudioManager.SCO_AUDIO_STATE_CONNECTED
+            _state.update { it.copy(bluetoothOn = connected) }
+        }
+    }
+
+    private fun hasBluetoothPermission(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) return true
+        return androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.BLUETOOTH_CONNECT,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+
+    /** 是否检测到已连接的蓝牙音频设备(耳机/车载等，SCO可路由的类型)。无权限时保守返回false。 */
+    private fun hasBluetoothHeadset(): Boolean {
+        if (!hasBluetoothPermission()) return false
+        return runCatching {
+            audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).any {
+                it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+            }
+        }.getOrDefault(false)
+    }
+
     private fun acquireAudioFocusAndRoute() {
         audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
         @Suppress("DEPRECATION")
@@ -97,24 +133,69 @@ class CallManager @Inject constructor(
             android.media.AudioManager.STREAM_VOICE_CALL,
             android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
         )
-        // 默认听筒（正常语音通话习惯），视频通话默认扬声器更符合使用场景
-        val defaultSpeaker = _state.value.isVideo
-        audioManager.isSpeakerphoneOn = defaultSpeaker
-        _state.update { it.copy(speakerOn = defaultSpeaker) }
+        if (hasBluetoothPermission()) {
+            runCatching {
+                context.registerReceiver(
+                    bluetoothScoReceiver,
+                    android.content.IntentFilter(android.media.AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED),
+                )
+                bluetoothScoReceiverRegistered = true
+            }
+        }
+        val btAvailable = hasBluetoothHeadset()
+        // 有已连接蓝牙耳机时默认优先走蓝牙(更符合"戴着耳机打电话"的预期)，
+        // 否则维持原逻辑：语音通话默认听筒，视频通话默认扬声器。
+        val defaultSpeaker = !btAvailable && _state.value.isVideo
+        if (btAvailable) {
+            @Suppress("DEPRECATION")
+            runCatching { audioManager.startBluetoothSco() }
+            audioManager.isBluetoothScoOn = true
+        } else {
+            audioManager.isSpeakerphoneOn = defaultSpeaker
+        }
+        _state.update { it.copy(speakerOn = defaultSpeaker, bluetoothAvailable = btAvailable, bluetoothOn = btAvailable) }
     }
 
     private fun releaseAudioFocusAndRoute() {
         @Suppress("DEPRECATION")
         runCatching { audioManager.abandonAudioFocus(audioFocusListener) }
+        if (bluetoothScoReceiverRegistered) {
+            runCatching { context.unregisterReceiver(bluetoothScoReceiver) }
+            bluetoothScoReceiverRegistered = false
+        }
+        @Suppress("DEPRECATION")
+        runCatching { audioManager.stopBluetoothSco() }
+        audioManager.isBluetoothScoOn = false
         audioManager.isSpeakerphoneOn = false
         audioManager.mode = android.media.AudioManager.MODE_NORMAL
     }
 
-    /** 切换扬声器/听筒。 */
+    /** 切换扬声器/听筒(与蓝牙互斥：开扬声器会先关蓝牙路由)。 */
     fun toggleSpeaker() {
         val enabled = !_state.value.speakerOn
+        if (enabled && _state.value.bluetoothOn) {
+            @Suppress("DEPRECATION")
+            runCatching { audioManager.stopBluetoothSco() }
+            audioManager.isBluetoothScoOn = false
+        }
         audioManager.isSpeakerphoneOn = enabled
-        _state.update { it.copy(speakerOn = enabled) }
+        _state.update { it.copy(speakerOn = enabled, bluetoothOn = if (enabled) false else it.bluetoothOn) }
+    }
+
+    /** 切换蓝牙路由(与扬声器互斥)。仅在 state.bluetoothAvailable 时应被UI调用。 */
+    fun toggleBluetooth() {
+        val enabled = !_state.value.bluetoothOn
+        if (enabled) {
+            @Suppress("DEPRECATION")
+            runCatching { audioManager.startBluetoothSco() }
+            audioManager.isBluetoothScoOn = true
+            audioManager.isSpeakerphoneOn = false
+        } else {
+            @Suppress("DEPRECATION")
+            runCatching { audioManager.stopBluetoothSco() }
+            audioManager.isBluetoothScoOn = false
+        }
+        _state.update { it.copy(bluetoothOn = enabled, speakerOn = if (enabled) false else it.speakerOn) }
     }
 
     private var factory: PeerConnectionFactory? = null

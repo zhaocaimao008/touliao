@@ -62,8 +62,12 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
 
     // 权限：进入即申请（接听 / 呼叫均需要）
     val perms = remember(state.isVideo) {
-        if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+        val base = if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
         else arrayOf(Manifest.permission.RECORD_AUDIO)
+        // 蓝牙耳机音频路由需要 BLUETOOTH_CONNECT(Android 12+)；老系统上此权限不存在，系统会自动忽略。
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            base + Manifest.permission.BLUETOOTH_CONNECT
+        } else base
     }
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
     LaunchedEffect(Unit) { permLauncher.launch(perms) }
@@ -124,6 +128,9 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
                     RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", Color(0xFF555555)) { viewModel.toggleMic() }
                     RoundButton(if (state.speakerOn) "扬声器开" else "扬声器关", Color(0xFF555555)) { viewModel.toggleSpeaker() }
+                    if (state.bluetoothAvailable) {
+                        RoundButton(if (state.bluetoothOn) "蓝牙开" else "蓝牙关", Color(0xFF555555)) { viewModel.toggleBluetooth() }
+                    }
                     RoundButton("挂断", CallRed) { viewModel.hangup() }
                     if (state.isVideo) {
                         RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", Color(0xFF555555)) { viewModel.toggleCamera() }

@@ -26,6 +26,7 @@ class CallViewModel @Inject constructor(
     fun hangup() = callManager.hangup()
     fun toggleMic() = callManager.toggleMic()
     fun toggleSpeaker() = callManager.toggleSpeaker()
+    fun toggleBluetooth() = callManager.toggleBluetooth()
     fun toggleCamera() = callManager.toggleCamera()
     fun switchCamera() = callManager.switchCamera()
     fun consumeEnded() = callManager.consumeEnded()
