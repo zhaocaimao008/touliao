@@ -126,8 +126,32 @@ function resolveUploadAccess(userId, reqPath) {
   if (!reg) return null; // 未登记 = 不存在（含已删除消息的文件）
 
   if (category === 'files') {
-    // 私聊/群聊附件：必须是该文件所属会话的成员
-    if (!reg.conversation_id || !isMember(reg.conversation_id, userId)) return { ok: false, status: 403 };
+    // 私聊/群聊附件：授权只信 file_registry / file_registry_shares（服务端上传与转发时
+    // 才会写入），绝不能信 messages 表的引用行——messages.file_url 理论上可被"在自己
+    // 会话里插入一行引用受害者文件URL"的方式伪造（P1-02 planted-row IDOR，见
+    // fileRegistry.js 头部注释与 test/p1-02-uploads-idor.test.js），必须保持这条red line。
+    //
+    // 2026-08-29 统一附件系统改造，在保持上述授权红线不变的前提下新增两点：
+    //   1) 转发到新会话后，新会话成员也能访问——registerFile 只在首次上传时写一次，
+    //      forward() 会把同一 file_url 复制到新会话的消息行但从不更新 file_registry，
+    //      导致新会话成员被误判 403。现在 forward() 会额外调用 shareFileToConversation()
+    //      把 (path, 新conversationId) 写入 file_registry_shares（同样只能由服务端写入，
+    //      不接受客户端参数），此处一并查询该表判权。
+    //   2) 撤回后阻断访问：在上面"你是不是合法关联会话成员"的强授权判断通过后，再
+    //      额外要求"该文件仍至少有一条未撤回(deleted!=2)的消息引用"——不满足则视为
+    //      已失效。这一步只用于收紧(不会放宽授权)，即使 messages 行被伪造也不可能
+    //      让攻击者绕过第1步的强授权，因此不破坏上面的安全红线。
+    const isOriginalMember = reg.conversation_id && isMember(reg.conversation_id, userId);
+    const isSharedMember = !isOriginalMember && db.prepare(
+      `SELECT 1 FROM file_registry_shares s
+       JOIN conversation_members cm ON cm.conversation_id = s.conversation_id
+       WHERE s.path = ? AND cm.user_id = ?
+       LIMIT 1`
+    ).get(path, userId);
+    if (!isOriginalMember && !isSharedMember) return { ok: false, status: 403 };
+
+    const stillLive = db.prepare('SELECT 1 FROM messages WHERE file_url = ? AND deleted != 2 LIMIT 1').get(path);
+    if (!stillLive) return { ok: false, status: 403 };
     return { ok: true };
   }
   if (category === 'moments') {

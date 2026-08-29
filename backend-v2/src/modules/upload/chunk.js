@@ -153,6 +153,7 @@ async function finish(req, res) {
   const io = req.app.get('io');
   const msg = await svc.saveUploadedFile(io, conversationId, req.user.id, {
     type, content: sanitizeFilename(m.filename), fileUrl, reply_to_id: req.body?.reply_to_id,
+    fileMime: mime, fileSize: m.size,
   });
   return res.json(msg);
 }

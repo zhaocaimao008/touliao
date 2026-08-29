@@ -41,6 +41,18 @@ function lookupFile(path) {
 }
 
 /**
+ * 转发文件到新会话后的授权登记——只能由服务端 forward() 调用，传入的 conversationId
+ * 必须是转发者已通过 requireMember 校验过的目标会话，绝不能接受客户端直接声称的值。
+ * 幂等：同一 (path, conversationId) 重复调用不报错。
+ */
+function shareFileToConversation(path, conversationId) {
+  if (!path || !conversationId) return;
+  getDb().prepare(
+    'INSERT OR IGNORE INTO file_registry_shares (path, conversation_id) VALUES (?, ?)'
+  ).run(path, conversationId);
+}
+
+/**
  * 存量数据回填：把修复前已上传、仍被引用的文件登记进注册表（幂等，启动时调用一次）。
  * 已删除消息（file_url 已清空）不登记 → 物理文件虽在磁盘但不再可被静态访问。
  */
@@ -83,4 +95,4 @@ function backfillRegistry() {
   ).run();
 }
 
-module.exports = { registerFile, lookupFile, backfillRegistry };
+module.exports = { registerFile, lookupFile, backfillRegistry, shareFileToConversation };

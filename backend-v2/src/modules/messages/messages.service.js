@@ -15,6 +15,7 @@ const broadcaster = require('../../realtime/broadcaster');
 // 会话列表缓存失效：发消息/转发/撤回改变会话「最新消息/排序」，需失效该会话所有成员
 // (收发双方/群全员)的会话列表缓存。conversations.service 只 require messages/shared，无循环依赖。
 const convSvc = require('../conversations/conversations.service');
+const { shareFileToConversation } = require('../../utils/fileRegistry');
 
 const MAX = config.limits.maxMsgLength;
 
@@ -236,7 +237,7 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 }
 
 // ── 文件消息（本地上传后入库 + 广播）───────────────────────────
-async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, reply_to_id }) {
+async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, reply_to_id, fileMime, fileSize }) {
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
@@ -250,9 +251,11 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   }
   const id = uuidv4();
   // P0-1：worker 异步写，await 落库后再读回构建消息
+  // file_mime/file_size：供前端渲染文件卡片(类型图标/大小)，来自上传时服务端已验证过的
+  // 真实值(魔数校验后的mime、实际接收字节数)，不信任客户端可另外声称的值。
   await writeAsync(
-    'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id) VALUES (?,?,?,?,?,?,?)',
-    [id, convId, userId, type, content, fileUrl, reply_to_id || null]
+    'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id,file_mime,file_size) VALUES (?,?,?,?,?,?,?,?,?)',
+    [id, convId, userId, type, content, fileUrl, reply_to_id || null, fileMime || null, fileSize || null]
   );
   cache.delPattern(`search:*${userId}*`).catch(() => {});
   convSvc.invalidateConvCacheForConversation(convId);
@@ -317,6 +320,11 @@ async function forward(io, userId, { msgId, msgIds, conversationIds }) {
       const id = uuidv4();
       ops.push({ sql: insertSql, params: [id, convId, userId, msg.type, msg.content, msg.file_url || '', msg.duration || 0] });
       targets.push({ convId, id });
+      // 转发者此刻已通过上面的 requireMember(m.conversation_id,...) 与 allowedConvIds 过滤，
+      // 即已合法持有该文件的原始访问权、且 convId 是转发者本人真实所在的会话——在此把
+      // (file_url, convId) 登记进 file_registry_shares，供 /uploads 授权判断识别"转发到的
+      // 新会话成员"，而不必信任 messages 表本身（登记动作只由服务端在这条已校验路径上触发）。
+      if (msg.file_url) shareFileToConversation(msg.file_url, convId);
     });
   });
 

@@ -513,6 +513,22 @@ function applySchema(db) {
     )`,
     "CREATE INDEX IF NOT EXISTS idx_user_msg_deletions_user ON user_message_deletions(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_user_msg_deletions_msg ON user_message_deletions(message_id)",
+    // ── 统一附件系统（2026-08-29）：补齐精确 mime/size，供前端渲染文件卡片
+    //    （文件展示名沿用既有 content 字段，不重复建列）。
+    "ALTER TABLE messages ADD COLUMN file_mime TEXT DEFAULT NULL",
+    "ALTER TABLE messages ADD COLUMN file_size INTEGER DEFAULT NULL",
+    // ── 撤回后阻断附件访问(见 app.js resolveUploadAccess 的 stillLive 查询)，按
+    //    file_url 高频查询，需要索引。
+    "CREATE INDEX IF NOT EXISTS idx_messages_file_url ON messages(file_url) WHERE file_url != ''",
+    // ── 转发文件到新会话后的授权登记（只由服务端 forward() 写入，绝不接受客户端参数，
+    //    保持 file_registry 体系"引用行不可信、只信服务端登记"的安全红线不变）。
+    `CREATE TABLE IF NOT EXISTS file_registry_shares (
+      path TEXT NOT NULL,
+      conversation_id TEXT NOT NULL,
+      created_at INTEGER DEFAULT (strftime('%s','now')),
+      PRIMARY KEY (path, conversation_id)
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_file_registry_shares_path ON file_registry_shares(path)",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

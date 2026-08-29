@@ -115,6 +115,7 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
 
   const msg = await svc.saveUploadedFile(io(req), conversationId, req.user.id, {
     type, content: safeOriginalName, fileUrl: url, reply_to_id: req.body.reply_to_id,
+    fileMime: mime, fileSize: req.file.size,
   });
 
   pushNewMessage({
