@@ -155,7 +155,12 @@ final class APIClient {
     private static func buildMultipartEnvelope(sourceFile: URL, boundary: String, fieldName: String, fileName: String, mimeType: String) throws -> URL {
         let header = "--\(boundary)\r\nContent-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\nContent-Type: \(mimeType)\r\n\r\n"
         let footer = "\r\n--\(boundary)--\r\n"
-        let envelopeURL = FileManager.default.temporaryDirectory.appendingPathComponent("upload-envelope-\(UUID().uuidString)")
+        // 2026-08-29：真机确认 temporaryDirectory 会在 App 短暂挂起期间被系统清空(见 PickedVideoFile
+        // 顶部说明)，大文件上传耗时可能覆盖一次这样的挂起窗口，信封文件同样改放 Caches 目录。
+        let envelopeDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("touliao-upload-envelope", isDirectory: true)
+        try? FileManager.default.createDirectory(at: envelopeDir, withIntermediateDirectories: true)
+        let envelopeURL = envelopeDir.appendingPathComponent("upload-envelope-\(UUID().uuidString)")
         FileManager.default.createFile(atPath: envelopeURL.path, contents: nil)
         guard let out = try? FileHandle(forWritingTo: envelopeURL) else {
             throw APIError.invalidSourceFile("临时文件创建失败，请重试")
