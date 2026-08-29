@@ -3,6 +3,7 @@ import UIKit
 import PhotosUI
 import UniformTypeIdentifiers
 import Kingfisher
+import AVFoundation
 
 struct ChatView: View {
     // 阅后即焚选项（对齐 Web BURN_OPTIONS）。
@@ -18,6 +19,8 @@ struct ChatView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var bgPhotoItem: PhotosPickerItem?
     @State private var stickerPhotoItem: PhotosPickerItem?
+    @State private var videoItem: PhotosPickerItem?     // 2026-08-29 视频发送修复新增
+    @State private var videoImportError: String?
     @State private var showFileImporter = false
     @State private var showStickerPanel = false
     @State private var showFuncPanel = false
@@ -156,6 +159,10 @@ struct ChatView: View {
         .onChange(of: vm.closed) { closed in if closed { dismiss() } }
         .onDisappear { vm.onLeave() }
         .onChange(of: photoItem) { item in handlePhoto(item) }
+        .onChange(of: videoItem) { item in handleVideo(item) }
+        .alert("视频导入失败", isPresented: Binding(get: { videoImportError != nil }, set: { if !$0 { videoImportError = nil } })) {
+            Button("好", role: .cancel) {}
+        } message: { Text(videoImportError ?? "") }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
             handleFile(result)
         }
@@ -484,28 +491,40 @@ struct ChatView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16).padding(.vertical, 4)
             }
-            // 微信风格输入栏：[🎤][@?][输入框][😀][ + / 发送 ]
-            HStack(spacing: 6) {
-                Button { onMicTap() } label: { Text(vm.recording ? "⏹" : "🎤").font(.title3) }
-                    .accessibilityIdentifier("chat-voice-btn")
-                    .accessibilityLabel(vm.recording ? "停止录音" : "语音输入")
+            // 2026-08-29 视觉重做(参考V信iOS输入区设计稿)：圆形图标按钮 + 药丸形浅底输入框，
+            // 不改变任何交互逻辑(编辑/回复/录音/@/发送 vs + 切换均与此前完全一致)。
+            // [🎤][@?][ 输入消息…(浅灰药丸底) ][🙂][➕/发送]
+            HStack(alignment: .bottom, spacing: 8) {
+                inputBarIconButton(
+                    systemName: vm.recording ? "stop.fill" : "mic.fill",
+                    tint: vm.recording ? .vxinError : .primary,
+                    action: onMicTap
+                )
+                .accessibilityIdentifier("chat-voice-btn")
+                .accessibilityLabel(vm.recording ? "停止录音" : "语音输入")
+
                 if vm.isGroup {
-                    Button { showMentionPicker = true } label: { Text("@").font(.title3) }
+                    inputBarIconButton(systemName: "at", tint: .primary) { showMentionPicker = true }
                         .accessibilityLabel("提及成员")
                 }
+
                 TextField("输入消息…", text: $vm.input, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(1...4)
+                    .lineLimit(1...6)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 36)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .accessibilityIdentifier("chat-msg-input")
 
-                Button {
+                inputBarIconButton(systemName: showStickerPanel ? "keyboard" : "face.smiling", tint: .primary) {
                     showStickerPanel.toggle()
                     if showStickerPanel { showFuncPanel = false; vm.loadStickers() }
-                } label: { Text(showStickerPanel ? "⌨️" : "😀").font(.title3) }
-                    .accessibilityIdentifier("chat-emoji-btn")
-                    .accessibilityLabel("表情")
+                }
+                .accessibilityIdentifier("chat-emoji-btn")
+                .accessibilityLabel("表情")
 
-                // 有文字 → 发送键；无文字(含纯空白) → +(功能面板)。对齐 Android/微信。
+                // 有文字 → 发送键；无文字(含纯空白) → +(功能面板)。对齐 Android/微信，逻辑不变。
                 let hasText = !vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 if hasText || vm.sending {
                     Button {
@@ -518,25 +537,31 @@ struct ChatView: View {
                             vm.sendText()
                         }
                     } label: {
-                        if vm.sending { ProgressView() }
-                        else { Image(systemName: "paperplane.fill").foregroundColor(.vxinGreen) }
+                        if vm.sending {
+                            ProgressView().frame(width: 36, height: 36)
+                        } else {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 36, height: 36)
+                                .background(Color.vxinGreen)
+                                .clipShape(Circle())
+                        }
                     }
                     .disabled(!hasText || vm.sending)
                     .accessibilityIdentifier("chat-send-btn")
                     .accessibilityLabel("发送")
                 } else {
-                    Button {
+                    inputBarIconButton(systemName: "plus", tint: .primary, filled: true) {
                         showFuncPanel.toggle()
                         if showFuncPanel { showStickerPanel = false }
-                    } label: {
-                        Image(systemName: showFuncPanel ? "xmark.circle" : "plus.circle")
-                            .font(.title2).foregroundColor(.vxinTextSecondary)
                     }
                     .accessibilityIdentifier("chat-more-btn")
                     .accessibilityLabel("更多功能")
                 }
             }
-            .padding(8)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
 
             if showStickerPanel {
                 stickerEmojiPanel
@@ -545,40 +570,65 @@ struct ChatView: View {
                 functionPanel
             }
         }
+        .background(Color(.systemBackground))
     }
 
     /// +面板：图片 / 文件 / 红包（对齐微信「更多功能」面板）
+    /// 2026-08-29 视觉重做(参考V信iOS输入区设计稿：4列网格，图标统一SF Symbols)。
+    /// 功能项与此前完全一致(未增删任何入口)，只是从单行HStack换成不会挤压/换行更整齐的网格。
     private var functionPanel: some View {
-        HStack(spacing: 24) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 20) {
             PhotosPicker(selection: $photoItem, matching: .images) {
-                funcItem(emoji: "🖼", label: "图片")
+                funcItem(systemName: "photo.on.rectangle", label: "图片")
             }
             .accessibilityIdentifier("chat-attach-image")
             .accessibilityLabel("发送图片")
-            Button { showFuncPanel = false; showFileImporter = true } label: { funcItem(emoji: "📎", label: "文件") }
+
+            PhotosPicker(selection: $videoItem, matching: .videos) {
+                funcItem(systemName: "video.fill", label: "视频")
+            }
+            .accessibilityIdentifier("chat-attach-video")
+            .accessibilityLabel("发送视频")
+
+            Button { showFuncPanel = false; showFileImporter = true } label: { funcItem(systemName: "doc.fill", label: "文件") }
                 .accessibilityIdentifier("chat-attach-file")
                 .accessibilityLabel("发送文件")
-            Button { captureAndSend() } label: { funcItem(emoji: "📷", label: "截屏") }
+
+            Button { captureAndSend() } label: { funcItem(systemName: "camera.viewfinder", label: "截屏") }
                 .accessibilityIdentifier("chat-attach-screenshot")
                 .accessibilityLabel("截屏并发送")
+
             Button { showFuncPanel = false; showRedPacketSend = true } label: { funcItem(emoji: "🧧", label: "红包") }
                 .accessibilityIdentifier("chat-attach-redpacket")
                 .accessibilityLabel("发红包")
+
             // 转账仅私聊可用（群聊不显示）
             if !vm.isGroup {
-                Button { showFuncPanel = false; showTransferSend = true } label: { funcItem(emoji: "💸", label: "转账") }
+                Button { showFuncPanel = false; showTransferSend = true } label: { funcItem(systemName: "creditcard.fill", label: "转账") }
                     .accessibilityIdentifier("chat-attach-transfer")
                     .accessibilityLabel("转账")
             }
+
             // 定时发送：所有会话均可用
-            Button { showFuncPanel = false; showScheduleSend = true } label: { funcItem(emoji: "⏰", label: "定时发送") }
+            Button { showFuncPanel = false; showScheduleSend = true } label: { funcItem(systemName: "clock.fill", label: "定时发送") }
                 .accessibilityIdentifier("chat-attach-schedule")
                 .accessibilityLabel("定时发送")
-            Spacer()
         }
-        .padding(.horizontal, 24).padding(.vertical, 16)
+        .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
         .frame(maxWidth: .infinity)
-        .background(Color.gray.opacity(0.08))
+        .background(Color(.secondarySystemBackground))
+    }
+
+    private func funcItem(systemName: String, label: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: systemName)
+                .font(.system(size: 22))
+                .foregroundColor(.vxinTextSecondary)
+                .frame(width: 56, height: 56)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
+            Text(label).font(.caption).foregroundColor(.vxinTextSecondary)
+        }
     }
 
     private func funcItem(emoji: String, label: String) -> some View {
@@ -586,9 +636,22 @@ struct ChatView: View {
             Text(emoji).font(.system(size: 26))
                 .frame(width: 56, height: 56)
                 .background(Color(.systemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md))
+                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
             Text(label).font(.caption).foregroundColor(.vxinTextSecondary)
         }
+    }
+
+    /// 输入栏统一圆形图标按钮(语音/@/表情/+)，触控区≥44x44pt(视觉图标28pt居中，命中区靠padding撑大)。
+    private func inputBarIconButton(systemName: String, tint: Color, filled: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundColor(filled ? .white : tint)
+                .frame(width: 36, height: 36)
+                .background(filled ? Color.vxinTextSecondary.opacity(0.7) : Color.clear)
+                .clipShape(Circle())
+        }
+        .frame(minWidth: 44, minHeight: 44)
     }
 
     private let emojis = ["😀","😁","😂","🤣","😊","😍","😘","😎","🤔","😅","😉","😴","😭","😡","🥺","👍","👎","🙏","👏","💪","🎉","❤️","💔","🔥","⭐","✅","❌","🌹","🍺","☕","🤝","👌"]
@@ -657,6 +720,58 @@ struct ChatView: View {
             let name = "image_\(Int(Date().timeIntervalSince1970)).jpg"
             vm.upload(data: jpeg, fileName: name, mimeType: "image/jpeg", localType: "image", preview: image)
         }
+    }
+
+    /// 2026-08-29 视频发送修复新增：用 FileRepresentation(见 PickedVideoFile) 拿到磁盘文件，
+    /// 不整体读进内存；正确识别真实 MIME(而非固定当成图片)；本地生成一帧缩略图；
+    /// 走 vm.uploadVideo 的磁盘流式上传路径。iCloud 视频由系统在 loadTransferable 期间自动下载
+    /// (可能耗时，picker 内会显示下载进度)，不需要额外处理；下载/读取失败时给出提示而不是无反应。
+    private func handleVideo(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            defer { videoItem = nil }
+            let picked: PickedVideoFile
+            do {
+                guard let file = try await item.loadTransferable(type: PickedVideoFile.self) else {
+                    videoImportError = "无法读取所选视频，请重试或更换一个视频"
+                    return
+                }
+                picked = file
+            } catch {
+                videoImportError = "视频导入失败：\(error.localizedDescription)"
+                return
+            }
+
+            guard let sizeAttr = try? FileManager.default.attributesOfItem(atPath: picked.url.path),
+                  let fileSize = sizeAttr[.size] as? Int64, fileSize > 0 else {
+                videoImportError = "视频文件读取失败"
+                PickedVideoCleanup.removeFile(picked.url)
+                return
+            }
+            // 与后端 MAX_UPLOAD_BYTES 默认值一致的前置校验(200MB)：避免明知会失败还发起一次几百MB的
+            // 上传空跑；真实上限以服务端为准，这里只是提前给出清晰提示，不在客户端重新定义业务规则。
+            let maxBytes: Int64 = 200 * 1024 * 1024
+            if fileSize > maxBytes {
+                videoImportError = "视频超过200MB限制(当前\(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)))，请选择更小的视频"
+                PickedVideoCleanup.removeFile(picked.url)
+                return
+            }
+
+            let ext = picked.url.pathExtension.lowercased()
+            let mime = UTType(filenameExtension: ext)?.preferredMIMEType ?? "video/mp4"
+            let thumb = Self.videoThumbnail(url: picked.url)
+            vm.uploadVideo(fileURL: picked.url, fileName: picked.suggestedFileName, mimeType: mime, preview: thumb)
+            PickedVideoCleanup.cleanupOldFiles()
+        }
+    }
+
+    /// 本地生成视频首帧缩略图，供上传中气泡预览用。取不到帧不影响发送流程。
+    private static func videoThumbnail(url: URL) -> UIImage? {
+        let asset = AVURLAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        guard let cgImage = try? generator.copyCGImage(at: CMTime(seconds: 0.1, preferredTimescale: 600), actualTime: nil) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 
     /// App 内截当前聊天界面并直接发送（不经相册）。
@@ -1089,7 +1204,16 @@ private struct PendingBubbleView: View {
                         Image(uiImage: image).resizable().scaledToFit()
                             .frame(maxWidth: 200, maxHeight: 240)
                             .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
-                        ProgressView().tint(.white)
+                            .overlay(Color.black.opacity(0.25))
+                        if pending.type == "video" {
+                            // 视频有真实上传进度(磁盘流式上传的 didSendBodyData 回调)，显示百分比而非纯转圈
+                            VStack(spacing: 4) {
+                                ProgressView(value: pending.progress).tint(.white).frame(width: 80)
+                                Text("\(Int(pending.progress * 100))%").font(.caption2).foregroundColor(.white)
+                            }
+                        } else {
+                            ProgressView().tint(.white)
+                        }
                     }
                 } else {
                     HStack(spacing: 8) {

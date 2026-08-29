@@ -98,6 +98,62 @@ final class APIClient {
         return try handle(data: data, response: response)
     }
 
+    /// 2026-08-29 新增：大文件(视频)流式上传。与上面 `upload(fileData:)` 走同一 multipart 接口，
+    /// 唯一区别是请求体来自磁盘文件而非内存 Data——避免把几百MB视频整个读进内存(那样会OOM崩溃)。
+    /// 做法：把 multipart 的头/尾字节 + 源文件内容，用小缓冲区分块拷贝拼成一个"信封"临时文件，
+    /// 再用 `URLSession.upload(for:fromFile:)` 从磁盘流式发送；峰值内存只有缓冲区大小(64KB)量级，
+    /// 与文件大小无关。不改变后端 multipart 协议——服务端收到的字节序列与内存方式完全一致。
+    func uploadFileStream<T: Decodable>(
+        _ path: String,
+        fileURL: URL,
+        fileName: String,
+        mimeType: String,
+        fieldName: String = "file",
+        method: String = "POST",
+        onProgress: (@Sendable (Double) -> Void)? = nil
+    ) async throws -> T {
+        var request = try makeRequest(path: path, method: method, authorized: true)
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        let envelopeURL = try Self.buildMultipartEnvelope(
+            sourceFile: fileURL, boundary: boundary, fieldName: fieldName, fileName: fileName, mimeType: mimeType
+        )
+        defer { try? FileManager.default.removeItem(at: envelopeURL) }
+
+        let delegate = onProgress.map { UploadProgressDelegate(onProgress: $0) }
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.upload(for: request, fromFile: envelopeURL, delegate: delegate)
+        } catch { throw APIError.network }
+        return try handle(data: data, response: response)
+    }
+
+    /// 把 multipart 头部 + 源文件内容 + 尾部拼接写入一个新的临时"信封"文件。
+    /// 用 64KB 缓冲区循环读写源文件，不整体载入内存；文件越大只是循环次数越多，内存占用不变。
+    private static func buildMultipartEnvelope(sourceFile: URL, boundary: String, fieldName: String, fileName: String, mimeType: String) throws -> URL {
+        let header = "--\(boundary)\r\nContent-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\nContent-Type: \(mimeType)\r\n\r\n"
+        let footer = "\r\n--\(boundary)--\r\n"
+        let envelopeURL = FileManager.default.temporaryDirectory.appendingPathComponent("upload-envelope-\(UUID().uuidString)")
+        FileManager.default.createFile(atPath: envelopeURL.path, contents: nil)
+        guard let out = try? FileHandle(forWritingTo: envelopeURL) else { throw APIError.network }
+        defer { try? out.close() }
+        out.write(header.data(using: .utf8)!)
+        guard let inp = InputStream(url: sourceFile) else { throw APIError.network }
+        inp.open()
+        defer { inp.close() }
+        let bufSize = 64 * 1024
+        var buf = [UInt8](repeating: 0, count: bufSize)
+        while inp.hasBytesAvailable {
+            let n = inp.read(&buf, maxLength: bufSize)
+            if n < 0 { throw APIError.network }
+            if n == 0 { break }
+            out.write(Data(bytes: buf, count: n))
+        }
+        out.write(footer.data(using: .utf8)!)
+        return envelopeURL
+    }
+
     // MARK: - 内部
     private func makeRequest(path: String, method: String, authorized: Bool) throws -> URLRequest {
         guard let url = URL(string: ServerConfig.shared.baseURL + "/" + path) else { throw APIError.network }
@@ -130,5 +186,16 @@ final class APIClient {
 private extension Data {
     mutating func appendString(_ string: String) {
         if let d = string.data(using: .utf8) { append(d) }
+    }
+}
+
+/// 大文件流式上传的进度回调代理，供 `uploadFileStream` 使用。
+private final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate {
+    let onProgress: @Sendable (Double) -> Void
+    init(onProgress: @escaping @Sendable (Double) -> Void) { self.onProgress = onProgress }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        onProgress(Double(totalBytesSent) / Double(totalBytesExpectedToSend))
     }
 }

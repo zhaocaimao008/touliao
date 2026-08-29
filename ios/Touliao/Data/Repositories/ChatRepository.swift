@@ -111,6 +111,11 @@ final class ChatRepository {
         try await api.upload("api/messages/\(conversationId)/upload", fileData: data, fileName: fileName, mimeType: mimeType)
     }
 
+    /// 上传大文件(视频)：走磁盘流式上传，同一个后端接口，不改变协议。
+    func uploadMediaFile(conversationId: String, fileURL: URL, fileName: String, mimeType: String, onProgress: (@Sendable (Double) -> Void)? = nil) async throws -> Message {
+        try await api.uploadFileStream("api/messages/\(conversationId)/upload", fileURL: fileURL, fileName: fileName, mimeType: mimeType, onProgress: onProgress)
+    }
+
     /// 标记会话已读（服务端发 message_read 给房间、sync:unread_cleared 给本人各端）
     func markRead(conversationId: String, messageId: String?) async {
         let _: EmptyResponse? = try? await api.send(

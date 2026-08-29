@@ -10,9 +10,12 @@ struct PendingUpload: Identifiable {
     let name: String
     let previewImage: UIImage?       // 图片本地预览
     var failed: Bool = false
-    // 失败重试所需的原始数据
+    // 失败重试所需的原始数据（图片/语音/文件走内存 Data；视频走磁盘文件見 fileURL，二选一）
     var data: Data? = nil
     var mimeType: String = ""
+    // 2026-08-29 视频上传新增：大文件走磁盘流式上传，不进内存；上传进度 0...1。
+    var fileURL: URL? = nil
+    var progress: Double = 0
 }
 
 @MainActor
@@ -963,13 +966,32 @@ final class ChatViewModel: ObservableObject {
         runUpload(item)
     }
 
+    /// 2026-08-29 新增：视频上传入口。走磁盘流式上传(不整体读进内存)，独立于上面 upload(data:)。
+    /// fileURL 指向 PickedVideoFile 已拷贝到投聊自己 tmp 目录的稳定文件，上传成功/彻底放弃后清理。
+    func uploadVideo(fileURL: URL, fileName: String, mimeType: String, preview: UIImage?) {
+        let item = PendingUpload(type: "video", name: fileName, previewImage: preview, mimeType: mimeType, fileURL: fileURL)
+        pending.append(item)
+        runUpload(item)
+    }
+
     /// 执行/重试上传（失败后可重复调用）
     private func runUpload(_ item: PendingUpload) {
         Task { [weak self] in
             guard let self else { return }
-            guard let data = item.data else { return }
             do {
-                let msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: item.name, mimeType: item.mimeType)
+                let msg: Message
+                if let fileURL = item.fileURL {
+                    msg = try await repo.uploadMediaFile(
+                        conversationId: conversationId, fileURL: fileURL, fileName: item.name, mimeType: item.mimeType,
+                        onProgress: { [weak self] frac in
+                            Task { @MainActor [weak self] in self?.updateProgress(item.id, frac) }
+                        }
+                    )
+                    PickedVideoCleanup.removeFile(fileURL)
+                } else {
+                    guard let data = item.data else { return }
+                    msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: item.name, mimeType: item.mimeType)
+                }
                 removePending(item.id)
                 appendUnique(msg)
             } catch {
@@ -977,6 +999,11 @@ final class ChatViewModel: ObservableObject {
                 self.error = (error as? LocalizedError)?.errorDescription ?? "上传失败"
             }
         }
+    }
+
+    private func updateProgress(_ id: String, _ frac: Double) {
+        guard let idx = pending.firstIndex(where: { $0.id == id }) else { return }
+        pending[idx].progress = frac
     }
 
     /// 重试失败的上传项
@@ -1043,6 +1070,9 @@ final class ChatViewModel: ObservableObject {
     func isTranscribing(_ msgId: String) -> Bool { transcribingIds.contains(msgId) }
 
     func dismissFailed(_ id: String) {
+        if let item = pending.first(where: { $0.id == id }), let fileURL = item.fileURL {
+            PickedVideoCleanup.removeFile(fileURL)
+        }
         pending.removeAll { $0.id == id }
     }
 
