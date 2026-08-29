@@ -118,8 +118,11 @@ fun UpdateCheckDialog(
         }
 
         is UpdateUiState.ReadyToInstall -> {
-            // 下载完即触发 install，不需要额外 UI
-            // 空 Compositon：让 dialog 瞬间消失
+            // 系统安装器 Intent 已成功启动(ApkInstaller.InstallResult.Launched)，接下来是
+            // 系统自己的安装确认弹窗接管，这里不需要额外 UI。
+            // 2026-08-29 修复：签名不匹配/文件缺失/Intent启动失败 等所有失败路径已改为路由到
+            // UpdateUiState.Error(见 UpdateViewModel.handleInstallResult)，不会再走到这个分支
+            // 却又什么都不显示——此前那正是"下载完看不到安装按钮"问题的根源。
         }
 
         is UpdateUiState.NeedInstallPermission -> {

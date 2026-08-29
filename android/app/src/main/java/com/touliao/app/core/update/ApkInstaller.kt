@@ -41,25 +41,32 @@ class ApkInstaller @Inject constructor(
      * - 调用前最好检查 [canRequestPackageInstalls]（用户在系统弹窗也能拒绝）
      */
     /**
-     * 触发系统安装器。返回是否成功启动安装 Intent。
-     * - 若 Android 8+ 未授予「安装未知应用」权限 → 返回 false（调用方应引导去授权）。
-     * - 旧实现直接 startActivity 而不校验权限：未授权时被系统静默拦截，
-     *   表现为「点了更新没反应」——这是本次修复的核心。
+     * 触发系统安装器。返回详细结果，调用方必须据此给用户明确反馈。
+     *
+     * 2026-08-29 修复：旧实现返回纯 Boolean，调用方(UpdateViewModel)完全没检查返回值，
+     * ReadyToInstall 状态在 UI 层还是"空 Composition 直接让弹窗消失"——任何一种失败
+     * (签名不匹配/文件缺失/Intent 启动异常)在用户看来都是"下载完了，什么都没发生，
+     * 也没有安装按钮"。最常见触发场景：v8.0.3 起投聊换了独立签名密钥(此前误用V信项目
+     * 密钥)，凡是签名迁移前安装的旧版本用户，签名必然不一致，静默卡在这里。
      */
-    fun install(apkFile: File): Boolean {
+    sealed class InstallResult {
+        object Launched : InstallResult()
+        object FileMissing : InstallResult()
+        object SignatureMismatch : InstallResult()
+        data class LaunchFailed(val reason: String) : InstallResult()
+    }
+
+    fun install(apkFile: File): InstallResult {
         if (!apkFile.exists()) {
             Log.e(TAG, "APK 文件不存在: ${apkFile.absolutePath}")
-            return false
-        }
-        if (!canRequestPackageInstalls()) {
-            Log.w(TAG, "未授予安装未知应用权限，无法启动安装")
-            return false
+            return InstallResult.FileMissing
         }
         // 安全加固：安装前校验 APK 签名与当前已安装应用一致，防止更新服务器被入侵/
-        // 中间人劫持后投递恶意 APK（任意代码执行入口）。不一致直接拒绝安装。
+        // 中间人劫持后投递恶意 APK（任意代码执行入口）。不一致直接拒绝安装，
+        // 但必须告诉用户为什么(签名变更需先卸载旧版)，不能静默失败。
         if (!isSignatureMatch(apkFile)) {
             Log.e(TAG, "APK 签名与当前应用不一致，拒绝安装: ${apkFile.absolutePath}")
-            return false
+            return InstallResult.SignatureMismatch
         }
 
         val apkUri = FileProvider.getUriForFile(
@@ -80,10 +87,10 @@ class ApkInstaller @Inject constructor(
         return try {
             Log.i(TAG, "启动安装器: $apkUri")
             context.startActivity(intent)
-            true
+            InstallResult.Launched
         } catch (e: Exception) {
             Log.e(TAG, "启动安装器失败: ${e.message}")
-            false
+            InstallResult.LaunchFailed(e.message ?: "未知错误")
         }
     }
 

@@ -152,8 +152,7 @@ class UpdateViewModel @Inject constructor(
                 // 关键修复：先校验「安装未知应用」权限，未授权则引导去开，避免静默失败（点了没反应）
                 withContext(Dispatchers.Main) {
                     if (apkInstaller.canRequestPackageInstalls()) {
-                        _uiState.value = UpdateUiState.ReadyToInstall(file)
-                        apkInstaller.install(file)
+                        handleInstallResult(apkInstaller.install(file))
                     } else {
                         _uiState.value = UpdateUiState.NeedInstallPermission(file)
                     }
@@ -173,10 +172,24 @@ class UpdateViewModel @Inject constructor(
     fun retryInstall() {
         val file = downloadedFile ?: return
         if (apkInstaller.canRequestPackageInstalls()) {
-            _uiState.value = UpdateUiState.ReadyToInstall(file)
-            apkInstaller.install(file)
+            handleInstallResult(apkInstaller.install(file))
         } else {
             _uiState.value = UpdateUiState.NeedInstallPermission(file)
+        }
+    }
+
+    /// 2026-08-29 修复：install() 结果此前被完全忽略，任何失败(尤其是v8.0.3签名迁移导致的
+    /// 旧版本用户签名不匹配)在用户看来都是"下载完了却什么都没发生"。现在每种失败都给出
+    /// 明确、可操作的提示，而不是让弹窗静默消失。
+    private fun handleInstallResult(result: ApkInstaller.InstallResult) {
+        _uiState.value = when (result) {
+            is ApkInstaller.InstallResult.Launched -> UpdateUiState.ReadyToInstall(downloadedFile ?: return)
+            is ApkInstaller.InstallResult.SignatureMismatch ->
+                UpdateUiState.Error("此更新使用了新的签名密钥，无法直接覆盖安装。请先卸载当前App，再重新安装新版本(数据不受影响，重新登录即可恢复)。")
+            is ApkInstaller.InstallResult.FileMissing ->
+                UpdateUiState.Error("安装包丢失，请重新下载")
+            is ApkInstaller.InstallResult.LaunchFailed ->
+                UpdateUiState.Error("无法启动安装程序：${result.reason}")
         }
     }
 
