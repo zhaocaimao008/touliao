@@ -96,6 +96,10 @@ const IcoCam = ({ off }) => off
   ? <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 6.5l-4-4-1.5 1.5 4 4L21 6.5zm1.99 10.5L18 12.5l-4-4L2 2 .99 3.01 3 5H1v14h16v-2.01l2.99 3 .99-.99-2-2.01L22.99 17zM4 17V7h1l13 13H4zm11.5-5.5L14 10 9 5H21v11l-5.5-4.5z"/></svg>
   : <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 8v8H5V8h10m1-2H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4V7c0-.55-.45-1-1-1z"/></svg>;
 
+const IcoOutput = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4-.91 7-4.49 7-8.77s-3-7.86-7-8.77z"/></svg>
+);
+
 const IcoHangup = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
     <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.12-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
@@ -150,6 +154,12 @@ export default function CallModal({ socket, call, onClose }) {
   const [endReason, setEndReason] = useState('');
   const [minimized, setMinimized] = useState(false);
   const [mediaError, setMediaError] = useState(false); // 麦克风/摄像头获取失败（权限拒绝/设备占用）
+  // 输出设备切换(2026-08-29语音通话审计新增)：此前 Web/Windows 端完全没有输出设备选择能力，
+  // 只能靠系统默认输出，多设备(扬声器/USB耳机/蓝牙)场景下应用内无法切换。仅 Chrome/Edge 支持
+  // setSinkId；Safari 不支持时功能自动隐藏，不强行做不兼容的事。
+  const supportsSinkId = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
+  const [outputDevices, setOutputDevices] = useState([]);
+  const [outputDeviceId, setOutputDeviceId] = useState('');
 
   const focusTrapRef = useFocusTrap(['calling', 'connecting', 'connected'].includes(status) || status === 'incoming');
   const statusRef = useRef(status);
@@ -198,7 +208,27 @@ export default function CallModal({ socket, call, onClose }) {
   const onRemoteAudioMount = useCallback((el) => {
     remoteAudioRef.current = el;
     if (el && remoteStreamRef.current) el.srcObject = remoteStreamRef.current;
-  }, []);
+    if (el && supportsSinkId && outputDeviceId) el.setSinkId(outputDeviceId).catch(() => {});
+  }, [outputDeviceId, supportsSinkId]);
+
+  // 输出设备枚举：需要先有过麦克风授权(标签才不是空字符串)，通话建立时机正合适。
+  useEffect(() => {
+    if (!supportsSinkId || !navigator.mediaDevices?.enumerateDevices) return;
+    navigator.mediaDevices.enumerateDevices()
+      .then((list) => setOutputDevices(list.filter((d) => d.kind === 'audiooutput')))
+      .catch(() => {});
+  }, [status, supportsSinkId]);
+
+  const cycleOutputDevice = useCallback(() => {
+    if (!outputDevices.length) return;
+    const idx = outputDevices.findIndex((d) => d.deviceId === outputDeviceId);
+    const next = outputDevices[(idx + 1) % outputDevices.length];
+    setOutputDeviceId(next.deviceId);
+    const applyTo = (el) => el && el.setSinkId && el.setSinkId(next.deviceId).catch(() => {});
+    applyTo(remoteAudioRef.current);
+    applyTo(remoteVideoRef.current);
+    applyTo(miniVideoRef.current);
+  }, [outputDevices, outputDeviceId]);
 
   const attachRemoteStream = useCallback((stream) => {
     remoteStreamRef.current = stream;
@@ -642,6 +672,9 @@ export default function CallModal({ socket, call, onClose }) {
           ) : (
             <div className="cm-btn-row">
               <CircleBtn icon={<IcoMute on={muted} />} label={muted ? '取消静音' : '静音'} active={muted} onClick={toggleMute} />
+              {supportsSinkId && outputDevices.length > 1 && (
+                <CircleBtn icon={<IcoOutput />} label="输出设备" onClick={cycleOutputDevice} />
+              )}
               <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
               <CircleBtn icon={<IcoCam off={cameraOff} />} label={cameraOff ? '开摄像头' : '关摄像头'} active={cameraOff} onClick={toggleCamera} />
             </div>
@@ -726,6 +759,9 @@ export default function CallModal({ socket, call, onClose }) {
           {inProgress && status !== 'incoming' && (
             <div className="cm-btn-row">
               <CircleBtn icon={<IcoMute on={muted} />} label={muted ? '取消静音' : '静音'} active={muted} onClick={toggleMute} />
+              {supportsSinkId && outputDevices.length > 1 && (
+                <CircleBtn icon={<IcoOutput />} label="输出设备" onClick={cycleOutputDevice} />
+              )}
               <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
             </div>
           )}
