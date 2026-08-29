@@ -52,6 +52,9 @@ data class CallState(
     val remoteVideoActive: Boolean = false,
     val connectedAt: Long = 0,        // 接通时刻(elapsedRealtime ms)，用于通话计时
     val endedAt: Long = 0,            // 结束时刻(elapsedRealtime ms)，用于结束页定格总时长
+    // 2026-08-29新增：通话小窗(对齐iOS)。true时CallHost渲染悬浮小窗而非全屏通话界面，
+    // 用户可退回App其它页面继续操作，PeerConnection/信令不受UI切换影响。
+    val isMinimized: Boolean = false,
 )
 
 /**
@@ -336,6 +339,11 @@ class CallManager @Inject constructor(
         cleanup(CallStage.ENDED)
     }
 
+    /** 通话小窗：最小化/恢复全屏。只切UI呈现，不碰PeerConnection/信令。 */
+    fun setMinimized(minimized: Boolean) {
+        _state.update { it.copy(isMinimized = minimized) }
+    }
+
     fun toggleMic() {
         val enabled = !_state.value.micEnabled
         localAudioTrack?.setEnabled(enabled)
@@ -587,7 +595,9 @@ class CallManager @Inject constructor(
         synchronized(iceLock) { remoteDescSet = false; pendingIce.clear() }
         val cur = _state.value
         val ended = if (cur.connectedAt > 0L && cur.endedAt == 0L) android.os.SystemClock.elapsedRealtime() else cur.endedAt
-        _state.value = cur.copy(stage = finalStage, endedAt = ended)
+        // 通话结束强制回到全屏(对齐iOS)：即便之前是小窗状态，也让用户看到结束态摘要。
+        val forceFullScreen = finalStage == CallStage.ENDED
+        _state.value = cur.copy(stage = finalStage, endedAt = ended, isMinimized = if (forceFullScreen) false else cur.isMinimized)
     }
 
     // ── 通话提示音（回铃/接通）─────────────────────────────

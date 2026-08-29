@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -31,9 +33,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.core.call.CallStage
@@ -58,6 +62,14 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
             kotlinx.coroutines.delay(800)
             viewModel.consumeEnded()
         }
+    }
+
+    // 2026-08-29新增：通话小窗(对齐iOS)。isMinimized时渲染悬浮气泡而非全屏通话界面，
+    // 用户可退回App其它页面继续操作；上面的LaunchedEffect(state.stage)在CallHost顶层，
+    // 不受这里的分支影响，结束态自动consumeEnded()在小窗状态下依然正常触发。
+    if (state.isMinimized) {
+        CallMinimizedBubble(viewModel = viewModel, state = state)
+        return
     }
 
     // 权限：进入即申请（接听 / 呼叫均需要）
@@ -112,6 +124,17 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
                     color = Color(0xFFBBBBBB), fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
                 )
             }
+        }
+
+        // 2026-08-29新增：通话小窗入口。仅呼出中/连接中/已接通显示——来电振铃态应先决定
+        // 接听或拒绝，不给"划走忽略"的误解空间。
+        if (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING || state.stage == CallStage.CONNECTED) {
+            Box(
+                Modifier.align(Alignment.TopStart).systemBarsPadding().padding(start = 16.dp, top = 8.dp)
+                    .size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
+                    .clickable { viewModel.setMinimized(true) },
+                contentAlignment = Alignment.Center,
+            ) { Text("⌄", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
         }
 
         // 控制按钮（systemBarsPadding 避免按钮被底部手势条遮挡）
@@ -210,5 +233,72 @@ private fun VideoView(
     }
     DisposableEffect(Unit) {
         onDispose { rendererState.value?.let { runCatching { it.release() } } }
+    }
+}
+
+/**
+ * 通话小窗：可拖拽悬浮气泡，默认停靠右上角；拖动跟手，松手停在拖到的位置(不做边缘吸附，
+ * 保持简单，对齐iOS CallMinimizedBubble)。视频通话已接通时显示对方画面缩略图，其余显示头像。
+ * 单指轻点(累计位移<阈值)恢复全屏；用同一个pointerInput手动区分点击/拖拽，避免和
+ * clickable抢手势(detectDragGestures会独占触摸序列，clickable的tap识别器永远等不到事件)。
+ */
+@Composable
+private fun CallMinimizedBubble(viewModel: CallViewModel, state: com.touliao.app.core.call.CallState) {
+    val bubbleSizeDp = 64.dp
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val bubblePx = with(density) { bubbleSizeDp.toPx() }
+        val marginPx = bubblePx / 2 + with(density) { 8.dp.toPx() }
+        val maxWidthPx = with(density) { maxWidth.toPx() }
+        val maxHeightPx = with(density) { maxHeight.toPx() }
+        val defaultXPx = maxWidthPx - marginPx
+        val defaultYPx = with(density) { 130.dp.toPx() }
+
+        var dragX by remember { mutableStateOf(0f) }
+        var dragY by remember { mutableStateOf(0f) }
+        var totalDrag by remember { mutableStateOf(0f) }
+
+        val centerX = (defaultXPx + dragX).coerceIn(marginPx, (maxWidthPx - marginPx).coerceAtLeast(marginPx))
+        val centerY = (defaultYPx + dragY).coerceIn(marginPx, (maxHeightPx - marginPx).coerceAtLeast(marginPx))
+
+        Box(
+            Modifier
+                .offset {
+                    androidx.compose.ui.unit.IntOffset(
+                        (centerX - bubblePx / 2).roundToInt(),
+                        (centerY - bubblePx / 2).roundToInt(),
+                    )
+                }
+                .size(bubbleSizeDp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF262626))
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { totalDrag = 0f },
+                        onDragEnd = { if (totalDrag < 8f) viewModel.setMinimized(false) },
+                    ) { change, amount ->
+                        change.consume()
+                        dragX += amount.x
+                        dragY += amount.y
+                        totalDrag += kotlin.math.abs(amount.x) + kotlin.math.abs(amount.y)
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (state.isVideo && state.remoteVideoActive && state.stage == CallStage.CONNECTED) {
+                VideoView(
+                    track = viewModel.remoteTrack(), eglContext = viewModel.eglBaseContext,
+                    mirror = false, modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                InitialAvatar(name = state.peerName.ifBlank { "?" }, size = bubbleSizeDp)
+            }
+            if (state.stage != CallStage.CONNECTED) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp,
+                )
+            }
+        }
     }
 }

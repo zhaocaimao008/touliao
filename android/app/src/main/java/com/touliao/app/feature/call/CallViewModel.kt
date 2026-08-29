@@ -30,4 +30,5 @@ class CallViewModel @Inject constructor(
     fun toggleCamera() = callManager.toggleCamera()
     fun switchCamera() = callManager.switchCamera()
     fun consumeEnded() = callManager.consumeEnded()
+    fun setMinimized(minimized: Boolean) = callManager.setMinimized(minimized)
 }
