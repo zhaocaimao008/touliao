@@ -25,6 +25,22 @@ struct PickedVideoFile: Transferable {
             // 整文件系统级拷贝（FileManager.copyItem 走 syscall，不经用户态Data缓冲），
             // 得到一份投聊自己管理生命周期的稳定文件，picker 关闭也不受影响。
             try FileManager.default.copyItem(at: received.file, to: dest)
+
+            // 2026-08-29新增：copyItem 成功不代表内容非空——iCloud视频等场景下，系统给的
+            // received.file 理论上应已完整落盘，但先前排查中不能排除偶发"文件存在但内容还没
+            // 完全就绪"的竞态。这里做一次有界重试(最多3次、每次200ms)，比在上传阶段才发现
+            // 空文件更早拦截，且能明确区分"源头本来就空"和"上传链路的bug"。
+            var size = (try? FileManager.default.attributesOfItem(atPath: dest.path)[.size] as? Int64) ?? 0
+            var attempt = 0
+            while (size ?? 0) == 0 && attempt < 3 {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                size = (try? FileManager.default.attributesOfItem(atPath: dest.path)[.size] as? Int64) ?? 0
+                attempt += 1
+            }
+            if (size ?? 0) == 0 {
+                try? FileManager.default.removeItem(at: dest)
+                throw CocoaError(.fileReadCorruptFile)
+            }
             return Self(url: dest, suggestedFileName: "video_\(Int(Date().timeIntervalSince1970)).\(ext)")
         }
     }

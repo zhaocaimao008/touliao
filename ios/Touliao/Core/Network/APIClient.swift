@@ -5,6 +5,10 @@ enum APIError: LocalizedError {
     case server(Int, String?)
     case network
     case decoding
+    // 2026-08-29新增：源文件本身有问题(拷贝/映射得到空文件、读取失败)，与真实网络故障区分开，
+    // 避免用户看到"网络异常"却误以为是WiFi问题——本轮视频上传失败排查缺乏真机数据，
+    // 先把这类问题的报错文案精确化，方便下次复现时一眼定位是哪一步。
+    case invalidSourceFile(String)
 
     var errorDescription: String? {
         switch self {
@@ -12,6 +16,7 @@ enum APIError: LocalizedError {
         case .server(_, let msg): return msg ?? "服务器开小差了，请稍后再试"
         case .network: return "网络异常，请检查网络连接"
         case .decoding: return "数据解析失败"
+        case .invalidSourceFile(let reason): return reason
         }
     }
 }
@@ -152,7 +157,9 @@ final class APIClient {
         let footer = "\r\n--\(boundary)--\r\n"
         let envelopeURL = FileManager.default.temporaryDirectory.appendingPathComponent("upload-envelope-\(UUID().uuidString)")
         FileManager.default.createFile(atPath: envelopeURL.path, contents: nil)
-        guard let out = try? FileHandle(forWritingTo: envelopeURL) else { throw APIError.network }
+        guard let out = try? FileHandle(forWritingTo: envelopeURL) else {
+            throw APIError.invalidSourceFile("临时文件创建失败，请重试")
+        }
         defer { try? out.close() }
         out.write(header.data(using: .utf8)!)
 
@@ -160,12 +167,14 @@ final class APIClient {
         do {
             mapped = try Data(contentsOf: sourceFile, options: .mappedIfSafe)
         } catch {
-            throw APIError.network
+            // 读取阶段就失败(文件不存在/无权限/系统提前清理了临时文件)，与"网络异常"是两回事，
+            // 之前统一报 APIError.network 会让人误以为是网络问题而反复重试，其实重试也没用。
+            throw APIError.invalidSourceFile("视频文件读取失败(\(error.localizedDescription))，请重新选择")
         }
         if mapped.isEmpty {
             // 源文件确实是空的(而不是读取环节的问题)，此前静默发出空文件正是Android黑屏的根因，
             // 这里直接拒绝，不再让空附件进后端。
-            throw APIError.network
+            throw APIError.invalidSourceFile("视频文件为空，请重新选择")
         }
         out.write(mapped)
         out.write(footer.data(using: .utf8)!)
