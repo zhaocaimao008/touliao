@@ -123,6 +123,7 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
                     RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", Color(0xFF555555)) { viewModel.toggleMic() }
+                    RoundButton(if (state.speakerOn) "扬声器开" else "扬声器关", Color(0xFF555555)) { viewModel.toggleSpeaker() }
                     RoundButton("挂断", CallRed) { viewModel.hangup() }
                     if (state.isVideo) {
                         RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", Color(0xFF555555)) { viewModel.toggleCamera() }

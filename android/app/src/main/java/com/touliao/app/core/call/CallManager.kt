@@ -46,6 +46,7 @@ data class CallState(
     val callId: String = "",          // 服务端通话 id，随 accept/reject/hangup 回传做过期应答校验
     val micEnabled: Boolean = true,
     val cameraEnabled: Boolean = true,
+    val speakerOn: Boolean = false,   // 2026-08-29 语音通话审计新增：此前完全没有扬声器切换能力
     val remoteVideoActive: Boolean = false,
     val connectedAt: Long = 0,        // 接通时刻(elapsedRealtime ms)，用于通话计时
     val endedAt: Long = 0,            // 结束时刻(elapsedRealtime ms)，用于结束页定格总时长
@@ -64,6 +65,57 @@ class CallManager @Inject constructor(
     @AppScope private val scope: CoroutineScope,
 ) {
     val eglBase: EglBase = EglBase.create()
+
+    // ── 音频路由(2026-08-29语音通话审计新增)：此前无 AudioManager 相关代码，通话音频
+    // 路由/焦点完全交给系统默认行为——没有扬声器切换、没有主动抢音频焦点、系统来电/
+    // 其他App抢焦点时也没有回调处理。这里补上最小可用实现：MODE_IN_COMMUNICATION +
+    // 请求音频焦点 + 扬声器开关；音频焦点丢失(如系统来电)时自动静音麦克风，
+    // 恢复焦点后恢复原有静音状态，避免"接了系统电话，投聊还在发送声音"。
+    private val audioManager: android.media.AudioManager =
+        context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+    private var micEnabledBeforeFocusLoss = true
+    private val audioFocusListener = android.media.AudioManager.OnAudioFocusChangeListener { change ->
+        when (change) {
+            android.media.AudioManager.AUDIOFOCUS_LOSS,
+            android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                micEnabledBeforeFocusLoss = _state.value.micEnabled
+                localAudioTrack?.setEnabled(false)
+                _state.update { it.copy(micEnabled = false) }
+            }
+            android.media.AudioManager.AUDIOFOCUS_GAIN -> {
+                localAudioTrack?.setEnabled(micEnabledBeforeFocusLoss)
+                _state.update { it.copy(micEnabled = micEnabledBeforeFocusLoss) }
+            }
+        }
+    }
+
+    private fun acquireAudioFocusAndRoute() {
+        audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+        @Suppress("DEPRECATION")
+        audioManager.requestAudioFocus(
+            audioFocusListener,
+            android.media.AudioManager.STREAM_VOICE_CALL,
+            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+        )
+        // 默认听筒（正常语音通话习惯），视频通话默认扬声器更符合使用场景
+        val defaultSpeaker = _state.value.isVideo
+        audioManager.isSpeakerphoneOn = defaultSpeaker
+        _state.update { it.copy(speakerOn = defaultSpeaker) }
+    }
+
+    private fun releaseAudioFocusAndRoute() {
+        @Suppress("DEPRECATION")
+        runCatching { audioManager.abandonAudioFocus(audioFocusListener) }
+        audioManager.isSpeakerphoneOn = false
+        audioManager.mode = android.media.AudioManager.MODE_NORMAL
+    }
+
+    /** 切换扬声器/听筒。 */
+    fun toggleSpeaker() {
+        val enabled = !_state.value.speakerOn
+        audioManager.isSpeakerphoneOn = enabled
+        _state.update { it.copy(speakerOn = enabled) }
+    }
 
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
@@ -407,6 +459,7 @@ class CallManager @Inject constructor(
     private fun createLocalTracks(video: Boolean) {
         val f = factory ?: return
         val pc = peerConnection ?: return
+        acquireAudioFocusAndRoute()
         // 音频
         audioSource = f.createAudioSource(MediaConstraints())
         localAudioTrack = f.createAudioTrack("audio0", audioSource).apply { setEnabled(true) }
@@ -435,6 +488,7 @@ class CallManager @Inject constructor(
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage) {
         releaseTone()                                     // 停回铃/接通音并释放 ToneGenerator
+        releaseAudioFocusAndRoute()                        // 恢复系统默认音频模式/释放焦点，防止占用
         callTimeoutJob?.cancel(); callTimeoutJob = null   // 接通/挂断/被拒 → 取消呼出超时
         CallForegroundService.stop(context)               // 停前台服务（未起过则 no-op）
         runCatching { videoCapturer?.stopCapture() }
