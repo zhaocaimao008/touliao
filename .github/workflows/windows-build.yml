@@ -78,18 +78,23 @@ jobs:
         run: |
           EXE=$(find artifacts -name "*.exe" | head -1)
           echo "部署: $EXE"
+          # 2026-08-29 修复：此前一直写到 /var/www/downloads/，但 nginx(touliao-cc.conf)
+          # 的 /downloads/ location 实际 alias 到 /var/www/touliao-downloads/ ——
+          # 前者这台服务器上根本不存在，即使 DEPLOY_* secret 配好了，文件也永远不会被真实
+          # 提供服务(https://touliao.cc/downloads/... 会 404)。同时把直链文件名统一成
+          # touliao-windows-latest.exe(不带 -setup 后缀)，与已在用的下载页命名一致。
           ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
-            "mkdir -p /var/www/downloads/updates"
+            "mkdir -p /var/www/touliao-downloads/updates"
           scp -i ~/.ssh/deploy_key "$EXE" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/touliao-windows-latest-setup.exe"
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/touliao-downloads/touliao-windows-latest.exe"
           # 关键：把带版本名的 exe 也放进 updates/，electron-updater 读 latest.yml 后按原名去 updates/ 取，
           # 否则自动更新会 404（此前 updates/ 只有旧版 exe）。
           scp -i ~/.ssh/deploy_key "$EXE" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/$(basename "$EXE")"
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/touliao-downloads/updates/$(basename "$EXE")"
           # latest.yml/*.blockmap 可能在 artifacts/dist 或 artifacts/release 子目录 → 用 find 定位，
           # 否则自动更新源不会更新（旧脚本只找顶层，导致 latest.yml 停在旧版）。
           for f in $(find artifacts -name latest.yml -o -name '*.blockmap'); do
             scp -i ~/.ssh/deploy_key "$f" \
-              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/" || true
+              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/touliao-downloads/updates/" || true
           done
-          echo "✅ 已发布到 https://touliao.cc/downloads/touliao-windows-latest-setup.exe"
+          echo "✅ 已发布到 https://touliao.cc/downloads/touliao-windows-latest.exe"
