@@ -760,8 +760,11 @@ struct ChatView: View {
             let ext = picked.url.pathExtension.lowercased()
             let mime = UTType(filenameExtension: ext)?.preferredMIMEType ?? "video/mp4"
             let thumb = Self.videoThumbnail(url: picked.url)
-            vm.uploadVideo(fileURL: picked.url, fileName: picked.suggestedFileName, mimeType: mime, preview: thumb)
+            // 2026-08-29：cleanupOldFiles 挪到 uploadVideo 之前——即便 PickedVideoFile 里已经把
+            // 拷贝的 mtime 重置为"现在"，先清理旧文件、再产出这次要上传的新文件，从时序上彻底
+            // 消除"新文件被当成旧文件误删"这类竞态的可能性，不依赖 mtime 是否被正确重置。
             PickedVideoCleanup.cleanupOldFiles()
+            vm.uploadVideo(fileURL: picked.url, fileName: picked.suggestedFileName, mimeType: mime, preview: thumb)
         }
     }
 

@@ -30,6 +30,16 @@ struct PickedVideoFile: Transferable {
             // 整文件系统级拷贝（FileManager.copyItem 走 syscall，不经用户态Data缓冲），
             // 得到一份投聊自己管理生命周期的稳定文件，picker 关闭也不受影响。
             try FileManager.default.copyItem(at: received.file, to: dest)
+            // 2026-08-29 真机复现真正根因：copyItem 会保留源文件的修改时间——也就是这份拷贝的
+            // contentModificationDate 是"视频原始拍摄/最后修改时间"，不是"刚拷贝完的现在"。
+            // handleVideo 里 uploadVideo() 之后紧接着同步调用了 cleanupOldFiles()（清理超过1小时
+            // 的旧staging文件），只要用户选的不是"1小时内刚拍的视频"（几乎所有相册里的视频都满足
+            // 这个条件），cleanupOldFiles 就会把这份刚拷贝、还没来得及被异步上传Task读取的文件当成
+            // "旧文件"立刻删掉——之前两轮改动(InputStream→FileHandle→mmap、tmp目录→Caches目录)
+            // 全部是在优化"怎么读文件"，但文件在读之前就已经被自己的清理逻辑删了，所以稳定复现、
+            // 跟真机磁盘/系统调度都无关。这里显式把拷贝的修改时间重置为"现在"，让 cleanupOldFiles
+            // 的"超过1小时"判断真正衡量的是"这份staging拷贝放了多久"，而不是原视频拍摄时间。
+            try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: dest.path)
 
             // 2026-08-29新增：copyItem 成功不代表内容非空——iCloud视频等场景下，系统给的
             // received.file 理论上应已完整落盘，但先前排查中不能排除偶发"文件存在但内容还没
