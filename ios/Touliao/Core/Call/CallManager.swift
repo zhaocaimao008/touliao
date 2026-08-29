@@ -16,6 +16,7 @@ struct CallState {
     var callId: String = ""             // 服务端通话 id，随 accept/reject/hangup 回传做过期应答校验
     var micEnabled: Bool = true
     var cameraEnabled: Bool = true
+    var speakerOn: Bool = false   // 2026-08-29 语音通话审计新增：此前完全没有扬声器切换能力
     var remoteVideoActive: Bool = false
     var timedOut: Bool = false          // 主叫未接听超时 → 结束页提示"对方未接听"
     var networkEnded: Bool = false      // 网络断开/ICE 失败 → 结束页提示"网络已断开"
@@ -110,18 +111,23 @@ final class CallManager: NSObject, ObservableObject {
             )
             try session.setMode(AVAudioSession.Mode.voiceChat)
             try session.setActive(true)
+            // 默认听筒（语音通话习惯），视频通话默认扬声器更符合使用场景
+            if state.isVideo { try? session.overrideOutputAudioPort(.speaker) }
         } catch {
             // 配置失败不阻断通话；WebRTC 兜底默认会话
         }
         session.unlockForConfiguration()
+        state.speakerOn = state.isVideo
     }
 
     /// 通话结束释放音频会话，交还系统（便于语音消息/系统音恢复常规路由）。
     private func deactivateAudioSession() {
         let session = RTCAudioSession.sharedInstance()
         session.lockForConfiguration()
+        try? session.overrideOutputAudioPort(.none)
         try? session.setActive(false)
         session.unlockForConfiguration()
+        state.speakerOn = false
     }
 
     // MARK: - 呼叫超时
@@ -196,6 +202,17 @@ final class CallManager: NSObject, ObservableObject {
         let enabled = !state.micEnabled
         localAudioTrack?.isEnabled = enabled
         state.micEnabled = enabled
+    }
+
+    /// 切换扬声器/听筒。必须走 RTCAudioSession（同 configureAudioSession 的原因：WebRTC
+    /// 持有音频会话，裸 AVAudioSession.overrideOutputAudioPort 会与其路由决策打架）。
+    func toggleSpeaker() {
+        let enabled = !state.speakerOn
+        let session = RTCAudioSession.sharedInstance()
+        session.lockForConfiguration()
+        try? session.overrideOutputAudioPort(enabled ? .speaker : .none)
+        session.unlockForConfiguration()
+        state.speakerOn = enabled
     }
 
     func toggleCamera() {
