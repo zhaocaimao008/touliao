@@ -1053,7 +1053,12 @@ private struct MessageBubble: View {
             }
             .onTapGesture { vm.openAttachment(msg) }
         case "video":
-            card { Text("▶ 视频") }.onTapGesture { vm.openAttachment(msg) }
+            if let resolved = vm.resolveMediaUrl(msg.fileUrl) {
+                VideoBubbleThumbnail(urlString: resolved)
+                    .onTapGesture { vm.openAttachment(msg) }
+            } else {
+                card { Text("▶ 视频") }.onTapGesture { vm.openAttachment(msg) }
+            }
         case "red_packet":
             redPacketCard.onTapGesture { vm.openRedPacket(msg) }
         case "transfer":
@@ -1200,6 +1205,31 @@ private struct MessageBubble: View {
                     radius: isMine ? 5 : 3, y: 1)
     }
 
+}
+
+/// 已发送视频消息的气泡预览：异步取远程视频首帧 + 播放图标覆盖，取不到帧时退回占位色块。
+private struct VideoBubbleThumbnail: View {
+    let urlString: String
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                Color.black.opacity(0.08)
+            }
+            Image(systemName: "play.circle.fill")
+                .font(.system(size: 34))
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.35), radius: 3)
+        }
+        .frame(width: 200, height: 150)
+        .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
+        .task(id: urlString) {
+            image = await VideoThumbnailLoader.thumbnail(for: urlString)
+        }
+    }
 }
 
 private struct PendingBubbleView: View {
