@@ -856,9 +856,12 @@ final class ChatViewModel: ObservableObject {
         if e.readAt > peerReadAt { peerReadAt = e.readAt }
     }
 
-    /// 我的消息是否已被对方读过（双勾）
+    /// 我的消息是否已被对方读过（双勾）。优先信服务端 history 接口按 peerLastReadAt 算好的
+    /// msg.read（覆盖"重新打开会话，对方离线期间已读的历史消息"这类 peerReadAt 还没被实时
+    /// 事件更新到的场景），不够再退回 peerReadAt（同一会话内收到实时 message_read 事件）。
     func isReadByPeer(_ msg: Message) -> Bool {
-        msg.senderId == myId && peerReadAt > 0 && msg.createdAt <= peerReadAt
+        guard msg.senderId == myId else { return false }
+        return msg.read || (peerReadAt > 0 && msg.createdAt <= peerReadAt)
     }
 
     func markReadLatest() {

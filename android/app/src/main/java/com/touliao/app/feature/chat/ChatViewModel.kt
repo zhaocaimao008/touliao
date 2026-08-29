@@ -968,7 +968,8 @@ class ChatViewModel @Inject constructor(
 
     /** 我的消息是否已被对方读过（双勾） */
     fun isReadByPeer(msg: Message): Boolean =
-        msg.sender_id == myId && _uiState.value.peerReadAt > 0 && msg.created_at <= _uiState.value.peerReadAt
+        msg.sender_id == myId &&
+            (msg.read || (_uiState.value.peerReadAt > 0 && msg.created_at <= _uiState.value.peerReadAt))
 
     private fun markReadLatest() {
         val last = _uiState.value.messages.lastOrNull() ?: return

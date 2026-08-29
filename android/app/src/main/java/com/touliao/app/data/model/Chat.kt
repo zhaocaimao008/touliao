@@ -97,6 +97,12 @@ data class Message(
     // 2026-08-29新增：语音/视频时长(秒)。后端此前从不写这个字段，语音气泡只能显示固定文字；
     // 现在上传时可选传duration，服务端落库后这里能拿到真实值渲染时长气泡。
     val duration: Int = 0,
+    // 2026-08-29新增：后端history接口早就按 peerLastReadAt 算好了每条消息是否已被对方读过
+    // (Web一直在用)，Android/iOS之前都只靠实时socket message_read事件更新peerReadAt，
+    // 重新打开会话后、对方在离线期间读过的消息全部会误显示成"未读"。这里补上对这个已有
+    // 字段的解码，isReadByPeer优先信它，不够再退回peerReadAt兜底(处理同一会话内实时更新)。
+    @kotlinx.serialization.SerialName("_read")
+    val read: Boolean = false,
 )
 
 /** 消息本地发送态常量 */

@@ -98,6 +98,11 @@ struct Message: Decodable, Identifiable, Equatable {
     // 2026-08-29新增：语音/视频时长(秒)。后端此前从不写这个字段，语音气泡只能显示固定文字；
     // 现在上传时可选传duration，服务端落库后这里能拿到真实值渲染时长气泡。
     var duration: Int = 0
+    // 2026-08-29新增：后端history接口早就按 peerLastReadAt 算好了每条消息是否已被对方读过
+    // (Web一直在用_read这个字段)，iOS/Android之前都只靠实时socket message_read事件更新
+    // peerReadAt，重新打开会话后、对方在离线期间读过的消息全部会误显示成"未读"。这里补上
+    // 对这个已有字段的解码，isReadByPeer优先信它，不够再退回peerReadAt兜底(同一会话内实时更新)。
+    var read: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id, type, content, reactions, replyTo, edited, deleted, transcript, duration
@@ -111,6 +116,7 @@ struct Message: Decodable, Identifiable, Equatable {
         case isScheduled = "is_scheduled"
         case fileMime = "file_mime"
         case fileSize = "file_size"
+        case read = "_read"
     }
 
     init(from decoder: Decoder) throws {
@@ -134,6 +140,8 @@ struct Message: Decodable, Identifiable, Equatable {
         transcript = try? c.decode(String.self, forKey: .transcript)
         fileMime = try? c.decode(String.self, forKey: .fileMime)
         fileSize = try? c.decode(Int64.self, forKey: .fileSize)
+        duration = (try? c.decode(Int.self, forKey: .duration)) ?? 0
+        read = (try? c.decode(Bool.self, forKey: .read)) ?? false
     }
 
     /// 便捷构造：从离线缓存快照还原「已确认历史消息」（localStatus/clientMsgId 均为 nil）。
