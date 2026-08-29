@@ -1019,8 +1019,19 @@ private struct MessageBubble: View {
                 .onTapGesture { vm.openImage(msg) }
         case "voice":
             // 语音气泡 + 转文字三态（对齐 Android ChatScreen）
+            // 2026-08-29：不再显示固定「🎙 语音」文案，改为播放三角 + 真实时长，宽度随时长缩放(对齐 Android MediaCard)。
             VStack(alignment: isMine ? .trailing : .leading, spacing: 3) {
-                card { Text("🎙 语音  ▶") }.onTapGesture { vm.playVoice(msg) }
+                card {
+                    HStack(spacing: 6) {
+                        if !isMine { Text("▶").font(.footnote) }
+                        Text(msg.duration > 0 ? "\(msg.duration)″" : "语音")
+                            .font(.footnote)
+                            .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
+                        if isMine { Text("▶").font(.footnote) }
+                    }
+                    .frame(width: voiceBubbleWidth(msg.duration))
+                }
+                .onTapGesture { vm.playVoice(msg) }
                 voiceTranscript
             }
         case "file":
@@ -1161,6 +1172,12 @@ private struct MessageBubble: View {
         case "contact_card", "contact": return "[名片]"
         default: return rt.content
         }
+    }
+
+    /// 语音气泡宽度随时长缩放：0s→72pt，≥30s→168pt（与 Android voiceBubbleWidth 对齐）。
+    private func voiceBubbleWidth(_ durationSeconds: Int) -> CGFloat {
+        let clamped = min(max(durationSeconds, 0), 30)
+        return CGFloat(72 + clamped * (168 - 72) / 30)
     }
 
     private func card<V: View>(@ViewBuilder _ inner: () -> V) -> some View {

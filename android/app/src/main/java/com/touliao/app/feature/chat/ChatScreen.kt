@@ -81,6 +81,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -167,6 +168,11 @@ fun ChatScreen(
         uri?.let { viewModel.uploadFromUri(it, previewLocal = true) }
     }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.uploadFromUri(it, previewLocal = false) }
+    }
+    // 2026-08-29 新增：独立视频入口(video/*)，复用与图片/文件完全相同、已验证内存安全的
+    // uploadFromUri → MediaUploader.prepareFromUri(InputStream.copyTo + OkHttp流式RequestBody)上传路径。
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.uploadFromUri(it, previewLocal = false) }
     }
     val recordPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -457,6 +463,7 @@ fun ChatScreen(
                 if (showFuncPanel) {
                     FunctionPanel(
                         onPickImage = { imagePicker.launch("image/*"); showFuncPanel = false },
+                        onPickVideo = { videoPicker.launch("video/*"); showFuncPanel = false },
                         onPickFile = { filePicker.launch("*/*"); showFuncPanel = false },
                         onScreenshot = { startScreenshot(); showFuncPanel = false },
                         onRedPacket = { showRedPacketSend = true; showFuncPanel = false },
@@ -1285,7 +1292,25 @@ private fun MessageContent(
                     },
                 )
                 "voice" -> Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
-                    MediaCard(isMine, onClick = onPlayVoice) { Text(if (isMine) "🎙 语音  ▶" else "▶  🎙 语音", color = bubbleTextColor(isMine)) }
+                    // 2026-08-29 重做：不再用固定"🎙 语音"文字气泡——真实语音时长气泡，
+                    // 宽度随时长(1~30s映射到最小~最大宽度)、显示"8″"这类真实秒数，
+                    // 对齐成熟IM语义(播放三角+时长)而非emoji图标。
+                    MediaCard(isMine, onClick = onPlayVoice) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.width(voiceBubbleWidth(msg.duration)),
+                        ) {
+                            if (!isMine) Text("▶", color = bubbleTextColor(isMine), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                            Text(
+                                if (msg.duration > 0) "${msg.duration}″" else "语音",
+                                color = bubbleTextColor(isMine), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
+                                modifier = Modifier.weight(1f),
+                                textAlign = if (isMine) TextAlign.End else TextAlign.Start,
+                            )
+                            if (isMine) Text("▶", color = bubbleTextColor(isMine), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                        }
+                    }
                     // 功能A3: 转文字。已转写→直接显示文本(无按钮)；未转写→「转文字」小按钮；转写中→「转写中…」
                     when {
                         !msg.transcript.isNullOrBlank() -> {
@@ -1470,6 +1495,12 @@ private fun bubbleTextColor(isMine: Boolean): Color =
     if (isMine) VxinBubbleMineText
     else if (isSystemInDarkTheme()) VxinBubbleTextDark else VxinBubbleText
 
+/** 语音气泡宽度：随时长在 72dp(≤1s/未知)~168dp(≥30s)间线性增长，对齐成熟IM"越长气泡越宽"的直觉。 */
+private fun voiceBubbleWidth(durationSeconds: Int): androidx.compose.ui.unit.Dp {
+    val clamped = durationSeconds.coerceIn(0, 30)
+    return (72 + clamped * (168 - 72) / 30).dp
+}
+
 private fun placeholderLabel(p: PendingUpload): String = when (p.type) {
     "image" -> "图片上传中…"
     "voice" -> "语音上传中…"
@@ -1565,14 +1596,19 @@ private fun MessageInputBar(
 private fun FunctionPanel(
     onPickImage: () -> Unit,
     onPickFile: () -> Unit,
+    onPickVideo: () -> Unit,
     onRedPacket: () -> Unit,
     onScreenshot: (() -> Unit)? = null, // 全屏截图直接发送
     onTransfer: (() -> Unit)? = null,   // null = 群聊不显示转账
     onSchedule: (() -> Unit)? = null,   // 定时发送入口
     onScheduleList: (() -> Unit)? = null, // 我的定时消息列表
 ) {
+    // 2026-08-29 修复：此前面板只有"图片"(imagePicker.launch("image/*"))和"文件"(*/*)，
+    // 没有专门的"视频"入口——用户在相册选图片时系统选择器被限定成只显示图片，视频压根选不出来，
+    // 这正是"安卓没有上传视频的选项"这个反馈的根因。新增独立视频入口(video/*)。
     val items = buildList {
         add(Triple("🖼", "图片", onPickImage))
+        add(Triple("🎬", "视频", onPickVideo))
         add(Triple("📎", "文件", onPickFile))
         if (onScreenshot != null) add(Triple("📷", "截屏", onScreenshot))
         add(Triple("🧧", "红包", onRedPacket))
@@ -1589,7 +1625,7 @@ private fun FunctionPanel(
             .padding(vertical = 12.dp),
     ) {
         gridItems(items) { (emoji, label, onClick) ->
-            val tag = when (label) { "图片" -> "chat-attach-image"; "文件" -> "chat-attach-file"; else -> "chat-attach-redpacket" }
+            val tag = when (label) { "图片" -> "chat-attach-image"; "视频" -> "chat-attach-video"; "文件" -> "chat-attach-file"; else -> "chat-attach-redpacket" }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(vertical = 8.dp).testTag(tag).clickable(onClick = onClick),

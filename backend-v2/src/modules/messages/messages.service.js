@@ -237,7 +237,7 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 }
 
 // ── 文件消息（本地上传后入库 + 广播）───────────────────────────
-async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, reply_to_id, fileMime, fileSize }) {
+async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, reply_to_id, fileMime, fileSize, duration }) {
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
@@ -254,8 +254,8 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   // file_mime/file_size：供前端渲染文件卡片(类型图标/大小)，来自上传时服务端已验证过的
   // 真实值(魔数校验后的mime、实际接收字节数)，不信任客户端可另外声称的值。
   await writeAsync(
-    'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id,file_mime,file_size) VALUES (?,?,?,?,?,?,?,?,?)',
-    [id, convId, userId, type, content, fileUrl, reply_to_id || null, fileMime || null, fileSize || null]
+    'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id,file_mime,file_size,duration) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    [id, convId, userId, type, content, fileUrl, reply_to_id || null, fileMime || null, fileSize || null, duration || 0]
   );
   cache.delPattern(`search:*${userId}*`).catch(() => {});
   convSvc.invalidateConvCacheForConversation(convId);

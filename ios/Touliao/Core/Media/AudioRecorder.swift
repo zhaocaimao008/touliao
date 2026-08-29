@@ -9,6 +9,8 @@ final class AudioRecorder {
 
     private var recorder: AVAudioRecorder?
     private(set) var currentURL: URL?
+    /// 2026-08-29新增：与 Android lastDurationSeconds 对齐，供上传时携带 duration 字段。
+    private(set) var lastDurationSeconds: Int = 0
 
     let mimeType = "audio/mp4"
 
@@ -52,6 +54,8 @@ final class AudioRecorder {
 
     /// 停止并返回录音文件 URL
     func stop() -> URL? {
+        // currentTime 必须在 stop() 之前读取——stop 后 AVAudioRecorder 会重置计时。
+        lastDurationSeconds = max(0, Int(recorder?.currentTime ?? 0))
         recorder?.stop()
         recorder = nil
         try? AVAudioSession.sharedInstance().setActive(false)

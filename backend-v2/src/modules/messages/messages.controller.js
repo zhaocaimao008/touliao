@@ -120,9 +120,15 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
   const url = `/uploads/files/${req.file.filename}`;
   registerFile({ path: url, ownerId: req.user.id, conversationId, kind: 'files' });
 
+  // 2026-08-29 好友申请/视频语音修复配套：可选 duration 字段(秒，客户端传整数字符串)。
+  // 语音/视频消息此前完全没有时长——聊天气泡只能显示固定"🎙 语音"文字而非真实时长。
+  // 不信任客户端声称的任意大数：限制在合理范围(0~24h)内，超出视为无效直接丢弃(仍能发送，只是没时长)。
+  let duration = parseInt(req.body.duration, 10);
+  if (!Number.isFinite(duration) || duration < 0 || duration > 86400) duration = 0;
+
   const msg = await svc.saveUploadedFile(io(req), conversationId, req.user.id, {
     type, content: safeOriginalName, fileUrl: url, reply_to_id: req.body.reply_to_id,
-    fileMime: mime, fileSize: req.file.size,
+    fileMime: mime, fileSize: req.file.size, duration,
   });
 
   pushNewMessage({

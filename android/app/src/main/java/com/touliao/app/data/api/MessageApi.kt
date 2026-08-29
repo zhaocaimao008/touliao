@@ -52,12 +52,14 @@ interface MessageApi {
         @Query("q") q: String,
     ): List<Message>
 
-    /** 上传媒体（图片/语音/文件）。字段名固定为 file；服务端按 MIME 判定 type，返回创建的消息 */
+    /** 上传媒体（图片/语音/文件）。字段名固定为 file；服务端按 MIME 判定 type，返回创建的消息。
+     * duration：2026-08-29新增，语音/视频时长(秒)，可选文本字段，不传则服务端记0。 */
     @Multipart
     @POST("api/messages/{conversationId}/upload")
     suspend fun upload(
         @Path("conversationId") conversationId: String,
         @Part file: MultipartBody.Part,
+        @Part("duration") duration: okhttp3.RequestBody? = null,
     ): Message
 
     /** 分片上传：初始化会话 */

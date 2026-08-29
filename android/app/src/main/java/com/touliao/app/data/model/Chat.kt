@@ -94,6 +94,9 @@ data class Message(
     // 类型/大小、判断能否 App 内预览（PDF/Word/Excel/PPT）。旧消息可能为 null。
     val file_mime: String? = null,
     val file_size: Long? = null,
+    // 2026-08-29新增：语音/视频时长(秒)。后端此前从不写这个字段，语音气泡只能显示固定文字；
+    // 现在上传时可选传duration，服务端落库后这里能拿到真实值渲染时长气泡。
+    val duration: Int = 0,
 )
 
 /** 消息本地发送态常量 */

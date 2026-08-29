@@ -1115,7 +1115,7 @@ class ChatViewModel @Inject constructor(
         }
         viewModelScope.launch {
             val prepared = withContext(Dispatchers.IO) {
-                mediaUploader.prepareFromFile(file, audioRecorder.mimeType, file.name)
+                mediaUploader.prepareFromFile(file, audioRecorder.mimeType, file.name, audioRecorder.lastDurationSeconds)
             }
             val pending = PendingUpload(UUID.randomUUID().toString(), "voice", "语音")
             val replyId = _uiState.value.replyingTo?.id

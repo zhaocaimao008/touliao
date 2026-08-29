@@ -107,8 +107,9 @@ final class ChatRepository {
     }
 
     /// 上传媒体（图片/语音/文件）；返回服务端创建的消息（同时经 Socket 广播给其他端）
-    func uploadMedia(conversationId: String, data: Data, fileName: String, mimeType: String) async throws -> Message {
-        try await api.upload("api/messages/\(conversationId)/upload", fileData: data, fileName: fileName, mimeType: mimeType)
+    /// duration：2026-08-29新增，语音/视频时长(秒)，可选，不传则服务端记0。
+    func uploadMedia(conversationId: String, data: Data, fileName: String, mimeType: String, duration: Int = 0) async throws -> Message {
+        try await api.upload("api/messages/\(conversationId)/upload", fileData: data, fileName: fileName, mimeType: mimeType, duration: duration)
     }
 
     /// 上传大文件(视频)：走磁盘流式上传，同一个后端接口，不改变协议。

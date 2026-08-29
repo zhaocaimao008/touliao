@@ -16,6 +16,8 @@ struct PendingUpload: Identifiable {
     // 2026-08-29 视频上传新增：大文件走磁盘流式上传，不进内存；上传进度 0...1。
     var fileURL: URL? = nil
     var progress: Double = 0
+    // 2026-08-29新增：语音时长(秒)，随上传携带，供气泡显示真实时长（与 Android 对齐）。
+    var duration: Int = 0
 }
 
 @MainActor
@@ -959,9 +961,9 @@ final class ChatViewModel: ObservableObject {
     }
 
     // MARK: - 媒体上传
-    func upload(data: Data, fileName: String, mimeType: String, localType: String, preview: UIImage?) {
+    func upload(data: Data, fileName: String, mimeType: String, localType: String, preview: UIImage?, duration: Int = 0) {
         // 保存原始数据，失败后可一键重传
-        let item = PendingUpload(type: localType, name: fileName, previewImage: preview, data: data, mimeType: mimeType)
+        let item = PendingUpload(type: localType, name: fileName, previewImage: preview, data: data, mimeType: mimeType, duration: duration)
         pending.append(item)
         runUpload(item)
     }
@@ -990,7 +992,7 @@ final class ChatViewModel: ObservableObject {
                     PickedVideoCleanup.removeFile(fileURL)
                 } else {
                     guard let data = item.data else { return }
-                    msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: item.name, mimeType: item.mimeType)
+                    msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: item.name, mimeType: item.mimeType, duration: item.duration)
                 }
                 removePending(item.id)
                 appendUnique(msg)
@@ -1027,7 +1029,7 @@ final class ChatViewModel: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             guard let data = try? Data(contentsOf: url) else { error = "读取录音失败"; return }
-            upload(data: data, fileName: url.lastPathComponent, mimeType: recorder.mimeType, localType: "voice", preview: nil)
+            upload(data: data, fileName: url.lastPathComponent, mimeType: recorder.mimeType, localType: "voice", preview: nil, duration: recorder.lastDurationSeconds)
         }
     }
 

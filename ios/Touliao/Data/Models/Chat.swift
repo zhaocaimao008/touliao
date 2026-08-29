@@ -95,9 +95,12 @@ struct Message: Decodable, Identifiable, Equatable {
     // 类型/大小、判断能否 App 内预览（PDF/Word/Excel/PPT）。旧消息可能为 nil。
     var fileMime: String? = nil
     var fileSize: Int64? = nil
+    // 2026-08-29新增：语音/视频时长(秒)。后端此前从不写这个字段，语音气泡只能显示固定文字；
+    // 现在上传时可选传duration，服务端落库后这里能拿到真实值渲染时长气泡。
+    var duration: Int = 0
 
     enum CodingKeys: String, CodingKey {
-        case id, type, content, reactions, replyTo, edited, deleted, transcript
+        case id, type, content, reactions, replyTo, edited, deleted, transcript, duration
         case conversationId = "conversation_id"
         case senderId = "sender_id"
         case fileUrl = "file_url"

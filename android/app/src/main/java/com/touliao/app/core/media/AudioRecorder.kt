@@ -19,8 +19,14 @@ class AudioRecorder @Inject constructor(
 ) {
     private var recorder: MediaRecorder? = null
     private var outputFile: File? = null
+    private var startedAtMs: Long = 0
 
     val mimeType: String = "audio/mp4"
+
+    /** 2026-08-29新增：最近一次成功stop()的录音时长(秒，向下取整)。语音消息此前完全没有
+     * 时长信息——聊天气泡只能显示固定"🎙 语音"文字，现在需要真实秒数渲染时长气泡。 */
+    var lastDurationSeconds: Int = 0
+        private set
 
     fun start(): Boolean {
         stopInternal(deleteFile = true)
@@ -37,6 +43,7 @@ class AudioRecorder @Inject constructor(
             r.prepare()
             r.start()
             recorder = r
+            startedAtMs = android.os.SystemClock.elapsedRealtime()
             true
         } catch (e: Exception) {
             Log.e(TAG, "start failed: ${e.message}")
@@ -55,6 +62,7 @@ class AudioRecorder @Inject constructor(
             r.stop()
             r.release()
             recorder = null
+            lastDurationSeconds = ((android.os.SystemClock.elapsedRealtime() - startedAtMs) / 1000).toInt().coerceAtLeast(0)
             outputFile
         } catch (e: Exception) {
             Log.e(TAG, "stop failed: ${e.message}")

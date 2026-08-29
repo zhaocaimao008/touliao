@@ -17,6 +17,8 @@ import com.touliao.app.data.model.MarkReadRequest
 import com.touliao.app.data.model.Message
 import com.touliao.app.data.model.ReactBody
 import okhttp3.MultipartBody
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -113,7 +115,10 @@ class ChatRepository @Inject constructor(
                 onProgress,
             )
         } else {
-            api.upload(conversationId, prepared.part)
+            val durationBody = if (prepared.durationSeconds > 0) {
+                prepared.durationSeconds.toString().toRequestBody("text/plain".toMediaTypeOrNull())
+            } else null
+            api.upload(conversationId, prepared.part, durationBody)
         }
     }
 

@@ -79,13 +79,21 @@ final class APIClient {
         fileName: String,
         mimeType: String,
         fieldName: String = "file",
-        method: String = "POST"
+        method: String = "POST",
+        duration: Int = 0
     ) async throws -> T {
         var request = try makeRequest(path: path, method: method, authorized: true)
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
         var body = Data()
+        // 2026-08-29新增：语音/视频时长(秒)，与后端 duration 字段对齐。
+        if duration > 0 {
+            body.appendString("--\(boundary)\r\n")
+            body.appendString("Content-Disposition: form-data; name=\"duration\"\r\n\r\n")
+            body.appendString("\(duration)")
+            body.appendString("\r\n")
+        }
         body.appendString("--\(boundary)\r\n")
         body.appendString("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\n")
         body.appendString("Content-Type: \(mimeType)\r\n\r\n")
@@ -99,10 +107,10 @@ final class APIClient {
     }
 
     /// 2026-08-29 新增：大文件(视频)流式上传。与上面 `upload(fileData:)` 走同一 multipart 接口，
-    /// 唯一区别是请求体来自磁盘文件而非内存 Data——避免把几百MB视频整个读进内存(那样会OOM崩溃)。
-    /// 做法：把 multipart 的头/尾字节 + 源文件内容，用小缓冲区分块拷贝拼成一个"信封"临时文件，
-    /// 再用 `URLSession.upload(for:fromFile:)` 从磁盘流式发送；峰值内存只有缓冲区大小(64KB)量级，
-    /// 与文件大小无关。不改变后端 multipart 协议——服务端收到的字节序列与内存方式完全一致。
+    /// 唯一区别是请求体来自磁盘文件(通过内存映射读取)而非整体载入内存 Data。
+    /// 做法：把 multipart 头/尾字节 + 源文件内容(内存映射)拼成一个"信封"临时文件，
+    /// 再用 `URLSession.upload(for:fromFile:)` 从磁盘流式发送。不改变后端 multipart 协议——
+    /// 服务端收到的字节序列与旧的内存方式完全一致。
     func uploadFileStream<T: Decodable>(
         _ path: String,
         fileURL: URL,
@@ -130,16 +138,15 @@ final class APIClient {
     }
 
     /// 把 multipart 头部 + 源文件内容 + 尾部拼接写入一个新的临时"信封"文件。
-    /// 用 1MB 缓冲区循环读写源文件，不整体载入内存；文件越大只是循环次数越多，内存占用不变。
     ///
-    /// 2026-08-29 修复：此前用 `InputStream(url:)` + `hasBytesAvailable` 判断结束，实测在真机上
-    /// 会导致视频内容整段丢失(生成的"信封"文件里只有 multipart 头尾、中间文件内容为空——
-    /// 服务端收到的视频附件变成 0 字节，这正是 Android 端播放"00:00/00:00 黑屏"的根因，
-    /// 不是播放器/鉴权/Range 问题，是源头就没传上内容)。
-    /// `hasBytesAvailable` 官方文档明确写明"返回true不代表一定还有数据可读，需要实际调用read
-    /// 才能确认"，但反过来在某些系统版本/文件类型下也观察到它过早报告false导致循环一次都不进入。
-    /// 改用 `FileHandle` 全同步读取，行为完全确定：一直读到 `readData` 返回空 Data 为止，
-    /// 不依赖 `hasBytesAvailable` 这类"可能不准"的探测型 API。
+    /// 2026-08-29 两轮修复记录：
+    /// 第一版用 `InputStream(url:)` + `hasBytesAvailable` 判断结束，真机上会导致视频内容
+    /// 整段丢失(信封文件里只有头尾、中间为空 → 服务端收到0字节附件 → Android播放黑屏00:00)。
+    /// 第二版改手写 `FileHandle.read(upToCount:)` 循环，真机反馈视频改成"发送失败"(疑似该版本
+    /// 循环写入环节有其他边界问题，未能100%复现定位)。
+    /// 现改用 `Data(contentsOf:options:.mappedIfSafe)` —— iOS 官方为"大文件不整体占内存"
+    /// 场景提供的标准方案(内存映射，读取时由系统按需分页载入，不会把几百MB一次性放进堆内存)，
+    /// 比手写分块读写循环更简单、更少自定义逻辑出错的空间，是Apple自己推荐的成熟模式。
     private static func buildMultipartEnvelope(sourceFile: URL, boundary: String, fieldName: String, fileName: String, mimeType: String) throws -> URL {
         let header = "--\(boundary)\r\nContent-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\nContent-Type: \(mimeType)\r\n\r\n"
         let footer = "\r\n--\(boundary)--\r\n"
@@ -149,28 +156,18 @@ final class APIClient {
         defer { try? out.close() }
         out.write(header.data(using: .utf8)!)
 
-        guard let inFile = try? FileHandle(forReadingFrom: sourceFile) else { throw APIError.network }
-        defer { try? inFile.close() }
-        var totalRead = 0
-        let bufSize = 1024 * 1024
-        while true {
-            let chunk: Data
-            if #available(iOS 13.4, *) {
-                guard let c = try? inFile.read(upToCount: bufSize) else { throw APIError.network }
-                chunk = c ?? Data()
-            } else {
-                chunk = inFile.readData(ofLength: bufSize)
-            }
-            if chunk.isEmpty { break }
-            totalRead += chunk.count
-            out.write(chunk)
-        }
-        // 防御性校验：源文件非空但一个字节都没读到，说明读取环节本身有问题，
-        // 直接失败比"悄悄发一个空文件上去"更安全——避免这类0字节附件再次进库。
-        if totalRead == 0, let attrs = try? FileManager.default.attributesOfItem(atPath: sourceFile.path),
-           let expectedSize = attrs[.size] as? Int, expectedSize > 0 {
+        let mapped: Data
+        do {
+            mapped = try Data(contentsOf: sourceFile, options: .mappedIfSafe)
+        } catch {
             throw APIError.network
         }
+        if mapped.isEmpty {
+            // 源文件确实是空的(而不是读取环节的问题)，此前静默发出空文件正是Android黑屏的根因，
+            // 这里直接拒绝，不再让空附件进后端。
+            throw APIError.network
+        }
+        out.write(mapped)
         out.write(footer.data(using: .utf8)!)
         return envelopeURL
     }

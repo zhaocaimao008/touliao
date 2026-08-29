@@ -26,6 +26,8 @@ class MediaUploader @Inject constructor(
         val localType: String,
         val file: File,
         val mime: String,
+        /** 2026-08-29新增：语音/视频时长(秒)，0表示未知。传给后端渲染真实时长气泡用。 */
+        val durationSeconds: Int = 0,
     )
 
     /** 从相册/文件选择器返回的 Uri 准备上传（IO 操作，请在 Dispatchers.IO 调用） */
@@ -41,10 +43,10 @@ class MediaUploader @Inject constructor(
     }
 
     /** 录音等已落地的本地文件直接准备上传 */
-    fun prepareFromFile(file: File, mime: String, displayName: String): Prepared =
-        buildPart(file, mime, displayName, "file")
+    fun prepareFromFile(file: File, mime: String, displayName: String, durationSeconds: Int = 0): Prepared =
+        buildPart(file, mime, displayName, "file", durationSeconds)
 
-    private fun buildPart(file: File, mime: String, displayName: String, fieldName: String): Prepared {
+    private fun buildPart(file: File, mime: String, displayName: String, fieldName: String, durationSeconds: Int = 0): Prepared {
         val body = file.asRequestBody(mime.toMediaTypeOrNull())
         val part = MultipartBody.Part.createFormData(fieldName, displayName, body)
         val type = when {
@@ -53,7 +55,7 @@ class MediaUploader @Inject constructor(
             mime.startsWith("video/") -> "video"
             else -> "file"
         }
-        return Prepared(part, displayName, type, file, mime)
+        return Prepared(part, displayName, type, file, mime, durationSeconds)
     }
 
     private fun queryDisplayName(uri: Uri): String? = runCatching {
