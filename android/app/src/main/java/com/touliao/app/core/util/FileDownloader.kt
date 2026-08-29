@@ -101,6 +101,58 @@ suspend fun saveImageToGallery(context: Context, url: String?, filename: String?
 }
 
 /**
+ * 保存聊天视频到系统相册（Movies/touliao）。
+ * 做法与 saveImageToGallery 对齐：MediaStore Video Insert API，Android 10+ 无需
+ * WRITE_EXTERNAL_STORAGE 权限；字节走 OkHttp 流式下载(url 已带 ?token= 鉴权)直接写入
+ * MediaStore 的 OutputStream，不在内存里攒完整视频（大文件也不会 OOM）。
+ * 2026-08-29 补：此前只有 saveImageToGallery，没有视频版本，视频只能靠系统
+ * DownloadManager 下到「下载」目录，用户在相册 App 里找不到。
+ */
+suspend fun saveVideoToGallery(context: Context, url: String?, filename: String? = null) {
+    if (url.isNullOrBlank()) return
+    withContext(Dispatchers.IO) {
+        runCatching {
+            val name = downloadName(filename, Uri.parse(url)).let {
+                if (it.contains('.')) it else "$it.mp4"
+            }
+            val values = ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, name)
+                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/touliao")
+                    put(MediaStore.Video.Media.IS_PENDING, 1)
+                }
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("无法创建相册文件")
+
+            val client = okhttp3.OkHttpClient()
+            val req = okhttp3.Request.Builder().url(url).build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IllegalStateException("下载失败 HTTP ${resp.code}")
+                val body = resp.body ?: throw IllegalStateException("空响应")
+                resolver.openOutputStream(uri)?.use { out -> body.byteStream().copyTo(out) }
+                    ?: throw IllegalStateException("无法写入相册文件")
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.clear()
+                values.put(MediaStore.Video.Media.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+            }
+        }.onSuccess {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "视频已保存到相册", Toast.LENGTH_SHORT).show()
+            }
+        }.onFailure {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "保存失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
+
+/**
  * 复制聊天图片到系统剪贴板，可直接粘贴到微信/QQ/备忘录等应用。
  * 做法：Coil 取原图(走应用鉴权栈) → PNG 落 cache/clipboard → FileProvider 授出 content:// URI →
  * ClipData.newUri 写剪贴板，并附 grantUriPermission 让接收方可读。
@@ -295,3 +347,14 @@ suspend fun saveTextToDownloads(context: Context, filename: String, content: Str
             file.absolutePath
         }
     }
+
+/** 人类可读文件大小格式化，供聊天文件卡片/文件详情页共用（对齐 Web 端 fileSize.js）。 */
+fun humanFileSize(bytes: Long?): String? {
+    if (bytes == null || bytes < 0) return null
+    return when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+        bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / 1024.0 / 1024.0)
+        else -> "%.2f GB".format(bytes / 1024.0 / 1024.0 / 1024.0)
+    }
+}

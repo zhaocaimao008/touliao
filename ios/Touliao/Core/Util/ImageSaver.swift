@@ -57,6 +57,42 @@ enum ImageSaver {
         }
     }
 
+    /// 保存聊天视频到系统相册。2026-08-29 补：此前只有图片能存相册，视频完全没有
+    /// App 内播放/保存能力（点击即跳 Safari）。视频用 URLSession 流式下载到临时文件
+    /// (url 已带鉴权 token)，再走 PHAssetCreationRequest 写入相册，同样只需 Add-Only 授权。
+    static func saveVideoToPhotos(rawUrl: String?) async throws {
+        guard let resolved = MediaUrlResolver.resolve(rawUrl),
+              let url = URL(string: resolved) else {
+            throw SaveError.downloadFailed
+        }
+        let (tmpUrl, response) = try await URLSession.shared.download(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw SaveError.downloadFailed
+        }
+        // download(from:) 返回的临时文件会在闭包外被系统清理，先挪到自己的临时目录
+        let localUrl = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
+        try? FileManager.default.removeItem(at: localUrl)
+        try FileManager.default.moveItem(at: tmpUrl, to: localUrl)
+        defer { try? FileManager.default.removeItem(at: localUrl) }
+
+        let status = await requestAddOnlyAuthorization()
+        guard status == .authorized || status == .limited else {
+            throw SaveError.permissionDenied
+        }
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetCreationRequest.forAsset().addResource(with: .video, fileURL: localUrl, options: nil)
+            }, completionHandler: { success, _ in
+                if success {
+                    continuation.resume(returning: ())
+                } else {
+                    continuation.resume(throwing: SaveError.saveFailed)
+                }
+            })
+        }
+    }
+
     /// 复制聊天图片到系统剪贴板，可直接粘贴到微信/备忘录等应用。
     /// 与保存相册同样用 Kingfisher 取图（复用鉴权/缓存），但**无需任何权限**——
     /// UIPasteboard 写入不涉及相册。写 PNG data 保真且带透明通道，失败退回 UIImage。

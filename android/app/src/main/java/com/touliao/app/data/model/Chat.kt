@@ -90,6 +90,10 @@ data class Message(
     // 功能A3: 语音转文字结果（后端消息查询已返回该列；非空=已转写，直接显示，不再显示「转文字」按钮）
     @kotlinx.serialization.SerialName("transcript")
     val transcript: String? = null,
+    // 2026-08-29 统一附件系统：真实 mime/size（服务端魔数校验后落库），供文件卡片显示
+    // 类型/大小、判断能否 App 内预览（PDF/Word/Excel/PPT）。旧消息可能为 null。
+    val file_mime: String? = null,
+    val file_size: Long? = null,
 )
 
 /** 消息本地发送态常量 */

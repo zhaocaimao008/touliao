@@ -120,6 +120,8 @@ dependencies {
 
     // Image loading
     implementation(libs.coil.compose)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
 
     // 扫码（Google Code Scanner，按需下载模块，免相机权限）
     implementation(libs.play.services.code.scanner)

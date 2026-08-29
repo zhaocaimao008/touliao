@@ -34,6 +34,10 @@ final class ChatViewModel: ObservableObject {
     @Published var reachedStart = false
     @Published var galleryImages: [String]?
     @Published var galleryStart = 0
+    // 2026-08-29 统一附件系统：视频/PDF/其他文件 App 内预览态（互斥，同时只开一个）
+    @Published var videoPreview: (url: String, name: String?)?
+    @Published var pdfPreview: (url: String, name: String?)?
+    @Published var fileDetails: (url: String, name: String?, size: String?)?
     @Published var scrollTarget: String?
     @Published var highlightedId: String?
     @Published var forwardTargets: [Conversation] = []
@@ -350,6 +354,23 @@ final class ChatViewModel: ObservableObject {
         let imgs = messages.filter { $0.type == "image" }
         galleryImages = imgs.map { MediaUrlResolver.resolve($0.fileUrl) ?? "" }
         galleryStart = imgs.firstIndex { $0.id == msg.id } ?? 0
+    }
+
+    /// 统一附件打开入口：视频→App内播放器；PDF→App内PDFKit预览；其余(旧版doc/ppt/压缩包等)
+    /// →文件详情页(仅下载/分享/用其他应用打开)。此前直接 UIApplication.shared.open() 跳
+    /// Safari，是本次要修的"点视频/文件跳浏览器"根因。
+    func openAttachment(_ msg: Message) {
+        guard let resolved = MediaUrlResolver.resolve(msg.fileUrl) else { return }
+        if msg.type == "video" {
+            videoPreview = (resolved, msg.content)
+            return
+        }
+        let ext = (msg.content as NSString).pathExtension.lowercased()
+        if ext == "pdf" {
+            pdfPreview = (resolved, msg.content)
+        } else {
+            fileDetails = (resolved, msg.content, humanFileSize(msg.fileSize))
+        }
     }
 
     /// 点击引用条：滚动到原消息并高亮

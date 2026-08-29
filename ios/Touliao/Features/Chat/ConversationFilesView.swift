@@ -99,6 +99,10 @@ struct ConversationFilesView: View {
 
     // 全屏图片预览（点击图片项打开）
     @State private var previewImage: String?
+    // 2026-08-29 统一附件系统：视频/PDF/其他文件 App 内预览态
+    @State private var videoPreview: (url: String, name: String?)?
+    @State private var pdfPreview: (url: String, name: String?)?
+    @State private var fileDetails: (url: String, name: String?, size: String?)?
 
     init(conversationId: String) {
         self.conversationId = conversationId
@@ -139,6 +143,15 @@ struct ConversationFilesView: View {
         // 图片全屏预览
         .fullScreenCover(isPresented: Binding(get: { previewImage != nil }, set: { if !$0 { previewImage = nil } })) {
             if let url = previewImage { FilePreviewImageView(url: url) { previewImage = nil } }
+        }
+        .fullScreenCover(isPresented: Binding(get: { videoPreview != nil }, set: { if !$0 { videoPreview = nil } })) {
+            if let v = videoPreview { VideoPlayerOverlay(url: v.url, filename: v.name) { videoPreview = nil } }
+        }
+        .fullScreenCover(isPresented: Binding(get: { pdfPreview != nil }, set: { if !$0 { pdfPreview = nil } })) {
+            if let p = pdfPreview { PdfPreviewOverlay(url: p.url, filename: p.name) { pdfPreview = nil } }
+        }
+        .fullScreenCover(isPresented: Binding(get: { fileDetails != nil }, set: { if !$0 { fileDetails = nil } })) {
+            if let f = fileDetails { FileDetailsOverlay(url: f.url, filename: f.name, sizeText: f.size) { fileDetails = nil } }
         }
     }
 
@@ -210,12 +223,19 @@ struct ConversationFilesView: View {
         }
     }
 
-    /// 打开条目：图片 → 全屏预览；视频/文件 → 系统打开/下载（复用现有逻辑）
+    /// 打开条目：图片 → 全屏预览；视频 → App内播放；PDF → App内PDFKit预览；
+    /// 其余 → 文件详情页(仅下载/分享/用其他应用打开)。此前视频/文件走
+    /// UIApplication.shared.open() 直接跳 Safari，是本次要修的根因之一。
     private func openFile(_ file: ConversationFile) {
+        guard let resolved = vm.resolveMediaUrl(file.fileUrl) else { return }
         if file.type == "image" {
-            previewImage = vm.resolveMediaUrl(file.fileUrl)
-        } else if let s = vm.resolveMediaUrl(file.fileUrl), let url = URL(string: s) {
-            UIApplication.shared.open(url)
+            previewImage = resolved
+        } else if file.type == "video" {
+            videoPreview = (resolved, file.content)
+        } else if (file.content as NSString).pathExtension.lowercased() == "pdf" {
+            pdfPreview = (resolved, file.content)
+        } else {
+            fileDetails = (resolved, file.content, humanFileSize(file.fileSize))
         }
     }
 }

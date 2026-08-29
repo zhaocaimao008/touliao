@@ -241,6 +241,15 @@ struct ChatView: View {
         .fullScreenCover(isPresented: Binding(get: { vm.galleryImages != nil }, set: { if !$0 { vm.galleryImages = nil } })) {
             if let imgs = vm.galleryImages { ChatImageGalleryView(images: imgs, start: vm.galleryStart) { vm.galleryImages = nil } }
         }
+        .fullScreenCover(isPresented: Binding(get: { vm.videoPreview != nil }, set: { if !$0 { vm.videoPreview = nil } })) {
+            if let v = vm.videoPreview { VideoPlayerOverlay(url: v.url, filename: v.name) { vm.videoPreview = nil } }
+        }
+        .fullScreenCover(isPresented: Binding(get: { vm.pdfPreview != nil }, set: { if !$0 { vm.pdfPreview = nil } })) {
+            if let p = vm.pdfPreview { PdfPreviewOverlay(url: p.url, filename: p.name) { vm.pdfPreview = nil } }
+        }
+        .fullScreenCover(isPresented: Binding(get: { vm.fileDetails != nil }, set: { if !$0 { vm.fileDetails = nil } })) {
+            if let f = vm.fileDetails { FileDetailsOverlay(url: f.url, filename: f.name, sizeText: f.size) { vm.fileDetails = nil } }
+        }
         .sheet(isPresented: $showMentionPicker) {
             NavigationStack {
                 List {
@@ -900,10 +909,22 @@ private struct MessageBubble: View {
                 voiceTranscript
             }
         case "file":
-            card { Text("📄 \(msg.content.isEmpty ? "文件" : msg.content)").lineLimit(2) }
-                .onTapGesture { openFile() }
+            card {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 6).fill(Color.vxinBrand.opacity(0.12))
+                        .frame(width: 28, height: 28)
+                        .overlay(Text("F").font(.caption2).foregroundColor(.vxinBrand))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(msg.content.isEmpty ? "文件" : msg.content).lineLimit(2)
+                        if let size = humanFileSize(msg.fileSize) {
+                            Text(size).font(.caption2).foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .onTapGesture { vm.openAttachment(msg) }
         case "video":
-            card { Text("🎬 视频") }.onTapGesture { openFile() }
+            card { Text("▶ 视频") }.onTapGesture { vm.openAttachment(msg) }
         case "red_packet":
             redPacketCard.onTapGesture { vm.openRedPacket(msg) }
         case "transfer":
@@ -1044,11 +1065,6 @@ private struct MessageBubble: View {
                     radius: isMine ? 5 : 3, y: 1)
     }
 
-    private func openFile() {
-        if let s = vm.resolveMediaUrl(msg.fileUrl), let url = URL(string: s) {
-            UIApplication.shared.open(url)
-        }
-    }
 }
 
 private struct PendingBubbleView: View {

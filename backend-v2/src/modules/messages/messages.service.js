@@ -833,7 +833,7 @@ function getConversationFiles(convId, userId, { type = 'all', offset = 0, limit 
   const ph    = types.map(() => '?').join(',');
 
   const rows = db.prepare(`
-    SELECT m.id, m.type, m.content, m.file_url, m.created_at,
+    SELECT m.id, m.type, m.content, m.file_url, m.created_at, m.file_mime, m.file_size,
            u.username AS sender_name, u.avatar AS sender_avatar
     FROM messages m
     JOIN users u ON u.id = m.sender_id

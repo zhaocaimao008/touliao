@@ -91,6 +91,10 @@ struct Message: Decodable, Identifiable, Equatable {
     var isScheduled: Int = 0
     /// 语音转文字结果（后端消息查询已返回该列；非空=已转写，直接显示，不再显示「转文字」按钮）
     var transcript: String? = nil
+    // 2026-08-29 统一附件系统：真实 mime/size（服务端魔数校验后落库），供文件卡片显示
+    // 类型/大小、判断能否 App 内预览（PDF/Word/Excel/PPT）。旧消息可能为 nil。
+    var fileMime: String? = nil
+    var fileSize: Int64? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, type, content, reactions, replyTo, edited, deleted, transcript
@@ -102,6 +106,8 @@ struct Message: Decodable, Identifiable, Equatable {
         case clientMsgId = "client_msg_id"
         case senderName, senderAvatar
         case isScheduled = "is_scheduled"
+        case fileMime = "file_mime"
+        case fileSize = "file_size"
     }
 
     init(from decoder: Decoder) throws {
@@ -123,6 +129,8 @@ struct Message: Decodable, Identifiable, Equatable {
         clientMsgId = try? c.decode(String.self, forKey: .clientMsgId)
         isScheduled = (try? c.decode(Int.self, forKey: .isScheduled)) ?? 0
         transcript = try? c.decode(String.self, forKey: .transcript)
+        fileMime = try? c.decode(String.self, forKey: .fileMime)
+        fileSize = try? c.decode(Int64.self, forKey: .fileSize)
     }
 
     /// 便捷构造：从离线缓存快照还原「已确认历史消息」（localStatus/clientMsgId 均为 nil）。
@@ -254,11 +262,13 @@ struct ConversationFile: Decodable, Identifiable, Equatable {
     var fileUrl: String = ""       // 相对资源路径
     var createdAt: Double = 0      // epoch 秒
     var senderName: String = ""
+    var fileSize: Int64? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, type, content, senderName
         case fileUrl = "file_url"
         case createdAt = "created_at"
+        case fileSize = "file_size"
     }
 
     init(from decoder: Decoder) throws {
@@ -269,6 +279,7 @@ struct ConversationFile: Decodable, Identifiable, Equatable {
         fileUrl = (try? c.decode(String.self, forKey: .fileUrl)) ?? ""
         createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
         senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
+        fileSize = try? c.decode(Int64.self, forKey: .fileSize)
     }
 
     /// 文件名：优先 content，否则从 fileUrl 末段提取（去掉 query）

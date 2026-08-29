@@ -89,6 +89,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.touliao.app.core.util.downloadFile
+import com.touliao.app.core.util.humanFileSize
 import com.touliao.app.core.util.formatChatTime
 import androidx.compose.ui.focus.focusRequester
 import com.touliao.app.data.model.ContactCardContent
@@ -107,6 +108,7 @@ import com.touliao.app.ui.theme.VxinBubbleTextDark
 import com.touliao.app.ui.theme.VxinBrandLight
 import com.touliao.app.ui.theme.VxinBrandDark
 import com.touliao.app.ui.theme.VxinTeal
+import com.touliao.app.ui.theme.VxinTextSize
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import com.touliao.app.ui.theme.VxinSurfaceDark
@@ -135,6 +137,10 @@ fun ChatScreen(
     var forwardTarget by remember { mutableStateOf<Message?>(null) }
     var galleryImages by remember { mutableStateOf<List<String>?>(null) }
     var galleryStart by remember { mutableStateOf(0) }
+    // 2026-08-29 统一附件系统：视频/PDF/其他文件 App 内预览态（三者互斥，同时只开一个）
+    var videoPreview by remember { mutableStateOf<Pair<String, String?>?>(null) }       // url to filename
+    var pdfPreview by remember { mutableStateOf<Pair<String, String?>?>(null) }
+    var fileDetails by remember { mutableStateOf<Triple<String, String?, String?>?>(null) } // url, filename, sizeText
     var highlightedMsgId by remember { mutableStateOf<String?>(null) }
     var showMentionPicker by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -586,7 +592,16 @@ fun ChatScreen(
                             isRead = isMine && viewModel.isReadByPeer(msg),
                             resolveUrl = viewModel::resolveMediaUrl,
                             onPlayVoice = { viewModel.playVoice(msg.file_url) },
-                            onOpenFile = { downloadFile(context, viewModel.resolveMediaUrl(msg.file_url), msg.content) },
+                            onOpenFile = {
+                                val resolved = viewModel.resolveMediaUrl(msg.file_url)
+                                when {
+                                    resolved.isNullOrBlank() -> {}
+                                    msg.type == "video" -> videoPreview = resolved to msg.content
+                                    msg.content.substringAfterLast('.', "").lowercase() == "pdf" ->
+                                        pdfPreview = resolved to msg.content
+                                    else -> fileDetails = Triple(resolved, msg.content, humanFileSize(msg.file_size))
+                                }
+                            },
                             onReply = { viewModel.startReply(msg) },
                             onRecall = { viewModel.recall(msg) },
                             onVanish = { viewModel.vanish(msg) },
@@ -836,6 +851,9 @@ fun ChatScreen(
     galleryImages?.let { imgs ->
         if (imgs.isNotEmpty()) ChatImageGallery(images = imgs, startIndex = galleryStart, onDismiss = { galleryImages = null })
     }
+    videoPreview?.let { (url, name) -> VideoPlayerOverlay(url = url, filename = name, onDismiss = { videoPreview = null }) }
+    pdfPreview?.let { (url, name) -> PdfViewerOverlay(url = url, filename = name, onDismiss = { pdfPreview = null }) }
+    fileDetails?.let { (url, name, size) -> FileDetailsOverlay(url = url, filename = name, sizeText = size, onDismiss = { fileDetails = null }) }
 
     if (showMentionPicker) {
         AlertDialog(
@@ -1302,9 +1320,21 @@ private fun MessageContent(
                     }
                 }
                 "file" -> MediaCard(isMine, onClick = onOpenFile) {
-                    Text("📄 ${msg.content.ifBlank { "文件" }}", color = bubbleTextColor(isMine), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(28.dp).background(Color(0x1A07C160), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) { Text("F", color = Color(0xFF07C160), fontSize = VxinTextSize.sm2) }
+                        Spacer(Modifier.size(8.dp))
+                        Column {
+                            Text(msg.content.ifBlank { "文件" }, color = bubbleTextColor(isMine), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            humanFileSize(msg.file_size)?.let {
+                                Text(it, color = bubbleTextColor(isMine).copy(alpha = .6f), fontSize = VxinTextSize.xs)
+                            }
+                        }
+                    }
                 }
-                "video" -> MediaCard(isMine, onClick = onOpenFile) { Text("🎬 视频", color = bubbleTextColor(isMine)) }
+                "video" -> MediaCard(isMine, onClick = onOpenFile) { Text("▶ 视频", color = bubbleTextColor(isMine)) }
                 "contact_card", "contact" -> {
                     val card = parseContactCard(msg.content)
                     MediaCard(isMine, onClick = {}) {
