@@ -3,32 +3,7 @@ import { mediaUrl } from '../utils/url';
 import { startDownload, subscribe, cancelDownload, retryDownload } from '../utils/downloadManager';
 import { shareMessage, canShare } from '../utils/share';
 import { humanFileSize as humanSize } from '../utils/fileSize';
-
-// ── 格式判定：全部基于真实 mime（服务端魔数校验后落库的 file_mime）+ 扩展名兜底 ──
-const PDF_TYPES = new Set(['application/pdf']);
-const DOCX_TYPES = new Set(['application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
-const XLSX_TYPES = new Set([
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel',
-]);
-const PPTX_TYPES = new Set(['application/vnd.openxmlformats-officedocument.presentationml.presentation']);
-const TEXT_EXTS = new Set(['txt', 'md', 'markdown', 'csv', 'log', 'json']);
-
-function extOf(name) {
-  const m = /\.([a-zA-Z0-9]+)$/.exec(String(name || ''));
-  return m ? m[1].toLowerCase() : '';
-}
-
-function classify(mime, filename) {
-  const ext = extOf(filename);
-  if (PDF_TYPES.has(mime) || ext === 'pdf') return 'pdf';
-  if (DOCX_TYPES.has(mime) || ext === 'docx') return 'docx';
-  if (XLSX_TYPES.has(mime) || ext === 'xlsx' || ext === 'xls') return 'xlsx';
-  if (PPTX_TYPES.has(mime) || ext === 'pptx') return 'pptx';
-  if (TEXT_EXTS.has(ext) || (mime || '').startsWith('text/')) return 'text';
-  // 明确不支持内部预览的：doc(旧二进制)、ppt(旧二进制)、zip/rar 等压缩包、其他二进制格式
-  return 'generic';
-}
+import { classify, extOf } from '../utils/attachmentType';
 
 // ── 各格式子渲染器 ──────────────────────────────────────────────
 
