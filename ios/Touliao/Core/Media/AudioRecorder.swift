@@ -11,6 +11,10 @@ final class AudioRecorder {
     private(set) var currentURL: URL?
     /// 2026-08-29新增：与 Android lastDurationSeconds 对齐，供上传时携带 duration 字段。
     private(set) var lastDurationSeconds: Int = 0
+    /// 录音开始的墙钟时间；stop() 时用它算耗时，不依赖 AVAudioRecorder.currentTime——
+    /// 真机反馈时长一直是0，怀疑是 currentTime 在读取时机上不如预期可靠，改用系统时钟
+    /// 更直接、跟 Android 用 SystemClock.elapsedRealtime() 算耗时的做法完全对齐。
+    private var startedAt: Date?
 
     let mimeType = "audio/mp4"
 
@@ -46,6 +50,7 @@ final class AudioRecorder {
             guard r.record() else { return false }
             recorder = r
             currentURL = url
+            startedAt = Date()
             return true
         } catch {
             return false
@@ -54,10 +59,12 @@ final class AudioRecorder {
 
     /// 停止并返回录音文件 URL
     func stop() -> URL? {
-        // currentTime 必须在 stop() 之前读取——stop 后 AVAudioRecorder 会重置计时。
-        lastDurationSeconds = max(0, Int(recorder?.currentTime ?? 0))
+        if let startedAt {
+            lastDurationSeconds = max(0, Int(Date().timeIntervalSince(startedAt)))
+        }
         recorder?.stop()
         recorder = nil
+        startedAt = nil
         try? AVAudioSession.sharedInstance().setActive(false)
         return currentURL
     }
@@ -65,6 +72,7 @@ final class AudioRecorder {
     func cancel() {
         recorder?.stop()
         recorder = nil
+        startedAt = nil
         if let url = currentURL { try? FileManager.default.removeItem(at: url) }
         currentURL = nil
     }

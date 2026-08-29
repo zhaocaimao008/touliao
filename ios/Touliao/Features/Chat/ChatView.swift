@@ -1022,15 +1022,22 @@ private struct MessageBubble: View {
                 .onTapGesture { vm.openImage(msg) }
         case "voice":
             // 语音气泡 + 转文字三态（对齐 Android ChatScreen）
-            // 2026-08-29：不再显示固定「🎙 语音」文案，改为播放三角 + 真实时长，宽度随时长缩放(对齐 Android MediaCard)。
+            // 2026-08-29：参照微信语音条视觉——喇叭+声波图标(靠近气泡尾部一侧，指向对话方向)+真实
+            // 时长文字，宽度随时长缩放(对齐 Android MediaCard)。发送方(isMine)图标水平镜像，让声波
+            // 朝左(气泡尾部方向)；接收方图标朝右，跟微信保持一致的方向语义。
             VStack(alignment: isMine ? .trailing : .leading, spacing: 3) {
                 card {
                     HStack(spacing: 6) {
-                        if !isMine { Text("▶").font(.footnote) }
+                        if !isMine {
+                            Image(systemName: "speaker.wave.2.fill").font(.footnote)
+                        }
                         Text(msg.duration > 0 ? "\(msg.duration)″" : "语音")
                             .font(.footnote)
                             .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
-                        if isMine { Text("▶").font(.footnote) }
+                        if isMine {
+                            Image(systemName: "speaker.wave.2.fill").font(.footnote)
+                                .scaleEffect(x: -1, y: 1)
+                        }
                     }
                     .frame(width: voiceBubbleWidth(msg.duration))
                 }
