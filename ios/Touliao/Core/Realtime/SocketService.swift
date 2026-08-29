@@ -228,6 +228,9 @@ final class SocketService {
         }
         sock.on("new_friend_request") { [weak self] _, _ in self?.friendEvents.send(()) }
         sock.on("friend_request_accepted") { [weak self] _, _ in self?.friendEvents.send(()) }
+        // 2026-08-29 好友申请提醒优化新增：拒绝操作此前后端完全没广播，多设备场景下其他设备
+        // 感知不到。后端已补上广播，这里复用同一个 friendEvents 触发列表刷新。
+        sock.on("friend_request_rejected") { [weak self] _, _ in self?.friendEvents.send(()) }
         sock.on("new_moment") { [weak self] _, _ in self?.moments.send(()) }
         sock.on("moment_liked") { [weak self] _, _ in self?.moments.send(()) }
         sock.on("moment_commented") { [weak self] _, _ in self?.moments.send(()) }

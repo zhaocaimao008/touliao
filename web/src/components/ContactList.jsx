@@ -12,7 +12,7 @@ import { firstLetter, comparePinyin } from '../utils/pinyin';
 import { formatLastOnline } from '../utils/time';
 
 /* ── 主组件 ── */
-export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed }) {
+export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed, openFriendRequests = 0, onOpenFriendRequestsConsumed }) {
   const [contacts, setContacts] = useState([]);
   const [requests, setRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
@@ -55,11 +55,15 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     const onOffline = ({ userId }) => setOnlineIds(prev => { const s = new Set(prev); s.delete(userId); return s; });
     const onFriendReq = (req) => setRequests(prev => [req, ...prev]);
     const onAccepted = () => { fetchContacts(); fetchRequests(); fetchSent(); };
+    // 2026-08-29 新增：本账号在别的设备拒绝了申请 → 这台设备也刷新，去掉那条已处理的申请，
+    // 否则会停留在"接受/拒绝"两个按钮上，点击时后端返回"请求不存在"(该请求已非pending状态)。
+    const onRejected = () => fetchRequests();
     const onNewConv = () => fetchGroups();
     socket.on('user_online', onOnline);
     socket.on('user_offline', onOffline);
     socket.on('new_friend_request', onFriendReq);
     socket.on('friend_request_accepted', onAccepted);
+    socket.on('friend_request_rejected', onRejected);
     socket.on('new_conversation', onNewConv);
     socket.on('group_updated', onNewConv);
     return () => {
@@ -67,6 +71,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       socket.off('user_offline', onOffline);
       socket.off('new_friend_request', onFriendReq);
       socket.off('friend_request_accepted', onAccepted);
+      socket.off('friend_request_rejected', onRejected);
       socket.off('new_conversation', onNewConv);
       socket.off('group_updated', onNewConv);
     };
@@ -100,6 +105,17 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   useEffect(() => {
     if (addFriendRequest && addFriendRequest === seenAddReq) onAddFriendConsumed?.();
   }, [addFriendRequest, seenAddReq, onAddFriendConsumed]);
+
+  // 2026-08-29 好友申请提醒优化新增：点顶部轻通知卡片「查看」→ 直接跳到「新的朋友」收到列表。
+  // 同一递增信号模式（理由同上：初值必须为0，否则挂载时若信号已>0会被判定"已经见过"而不生效）。
+  const [seenOpenReq, setSeenOpenReq] = useState(0);
+  if (openFriendRequests !== seenOpenReq) {
+    setSeenOpenReq(openFriendRequests);
+    if (openFriendRequests) { setTab('requests'); setRequestsSubTab('received'); }
+  }
+  useEffect(() => {
+    if (openFriendRequests && openFriendRequests === seenOpenReq) onOpenFriendRequestsConsumed?.();
+  }, [openFriendRequests, seenOpenReq, onOpenFriendRequestsConsumed]);
 
   const handleRequest = async (id, action) => {
     if (handlingReq) return; // 防连点：上一次处理未结束时忽略
@@ -163,7 +179,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
               color="var(--icon-bg-newfriend)" label="新的朋友" badge={requests.length}
-              onClick={() => setTab('requests')}
+              onClick={() => setTab('requests')} testid="cl-new-friends-entry"
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
@@ -263,15 +279,15 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   </div>
                 )}
                 {requests.map(r => (
-                  <div key={r.id} className="req-item">
+                  <div key={r.id} className="req-item" data-testid="friend-request-item">
                     <Avatar src={r.avatar || r.from?.avatar} name={r.username || r.from?.username} size={48} className="cl-avatar-rounded" />
                     <div className="req-info">
                       <div className="req-name">{r.username || r.from?.username}</div>
                       <div className="req-msg">{r.message || '请求添加您为好友'}</div>
                     </div>
                     <div className="req-btns">
-                      <button className="req-accept" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'accepted')}>接受</button>
-                      <button className="req-reject" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'rejected')}>拒绝</button>
+                      <button className="req-accept" data-testid="friend-request-accept" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'accepted')}>接受</button>
+                      <button className="req-reject" data-testid="friend-request-reject" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'rejected')}>拒绝</button>
                     </div>
                   </div>
                 ))}
@@ -576,10 +592,10 @@ const ContactRow = memo(function ContactRow({ contact: c, online, onOpen }) {
   );
 });
 
-function EntryRow({ icon, color, label, badge, onClick }) {
+function EntryRow({ icon, color, label, badge, onClick, testid }) {
   return (
     <div className="wc-contact-item gi-cp" onClick={onClick}
-      role="button" tabIndex={0}
+      role="button" tabIndex={0} data-testid={testid}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick?.(e))}>
       <div className="cl-entry-icon-box" style={{ background: color }}>
         {icon}
@@ -588,7 +604,7 @@ function EntryRow({ icon, color, label, badge, onClick }) {
         <span className="wc-contact-item-name">{label}</span>
       </div>
       {badge > 0 && (
-        <span className="cl-entry-badge">
+        <span className="cl-entry-badge" data-testid={testid ? `${testid}-badge` : undefined}>
           {badge}
         </span>
       )}

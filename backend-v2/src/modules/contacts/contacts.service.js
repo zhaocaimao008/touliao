@@ -196,6 +196,11 @@ function handleRequest(io, userId, requestId, action) {
       io.to(`user_${userId}`).emit('new_conversation', convForAccepter);
       io.to(`user_${request.from_id}`).emit('new_conversation', convForRequester);
     }
+  } else if (action === 'rejected') {
+    // 2026-08-29 好友申请提醒优化新增：此前拒绝操作完全没有socket广播——同一账号
+    // 多设备场景下(如手机拒绝了，电脑还停在"接受/拒绝"两个按钮，操作会409"请求不存在")。
+    // 只需通知"我自己"的其他设备刷新列表，不需要通知请求方(拒绝不像接受那样需要对方知晓)。
+    if (io) io.to(`user_${userId}`).emit('friend_request_rejected', { requestId });
   }
   return { success: true };
 }

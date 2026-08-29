@@ -323,6 +323,10 @@ class SocketManager @Inject constructor(
         }
         s.on("new_friend_request") { _ -> _friendEvents.tryEmit(Unit) }
         s.on("friend_request_accepted") { _ -> _friendEvents.tryEmit(Unit) }
+        // 2026-08-29 好友申请提醒优化新增：此前拒绝操作后端完全没广播，同账号多设备场景下
+        // (如网页拒绝了，手机还停在"接受/拒绝"两个按钮上)其他设备无法感知。后端已补上广播，
+        // 这里复用同一个 friendEvents 流触发列表刷新(FriendRequestsViewModel 已订阅)。
+        s.on("friend_request_rejected") { _ -> _friendEvents.tryEmit(Unit) }
         s.on("new_moment") { _ -> _momentEvents.tryEmit(Unit) }
         s.on("moment_liked") { _ -> _momentEvents.tryEmit(Unit) }
         s.on("moment_commented") { _ -> _momentEvents.tryEmit(Unit) }

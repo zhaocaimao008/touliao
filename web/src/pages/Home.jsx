@@ -6,6 +6,7 @@ import axios from 'axios';
 import ChatList from '../components/ChatList';
 import ChatWindowBoundary from '../components/ChatWindowBoundary';
 import ContactList from '../components/ContactList';
+import { showFriendRequestCard } from '../components/FriendRequestCard';
 import Profile from '../components/Profile';
 import GlobalSearch from '../components/GlobalSearch';
 import PanelBoundary from '../components/PanelBoundary';
@@ -506,6 +507,7 @@ export default function Home() {
   const [addMenuPos, setAddMenuPos] = useState(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [addFriendRequest, setAddFriendRequest] = useState(0);
+  const [openFriendRequests, setOpenFriendRequests] = useState(0);
   const [convRefreshKey, setConvRefreshKey] = useState(0);
   const { socket, reconnectCount, registerUnreadCleared } = useSocket();
   const { user } = useAuth();
@@ -607,6 +609,13 @@ export default function Home() {
     } catch { /* notification display failed; non-critical */ }
   }, []);
 
+  // 好友申请轻量卡片「查看」→ 切到通讯录 + 触发 ContactList 跳转「新的朋友」收到列表
+  const openFriendRequestsPage = useCallback(() => {
+    setTab('contacts');
+    setOpenFriendRequests(n => n + 1);
+  }, []);
+  const handleOpenFriendRequestsConsumed = useCallback(() => setOpenFriendRequests(0), []);
+
   const myId = user?.id;
   useEffect(() => {
     if (!socket) return;
@@ -651,7 +660,15 @@ export default function Home() {
     const onFriendReq = (data) => {
       setFriendReqCount(prev => prev + 1);
       const name = data?.from?.username || data?.username || '有人';
-      showNotification('新的好友申请', `${name} 请求添加您为好友`);
+      const avatar = data?.from?.avatar || data?.avatar || '';
+      const message = data?.message || data?.from?.message || '';
+      // 2026-08-29 提醒优化：App 前台时用轻量内嵌卡片(不打断当前操作)；
+      // 后台/切走标签页时才用系统通知(此时用户看不到页面内容，只能靠系统)。
+      if (!document.hidden) {
+        showFriendRequestCard({ avatar, name, message, onView: () => openFriendRequestsPage() });
+      } else {
+        showNotification('新的好友申请', `${name} 请求添加您为好友`);
+      }
     };
     const onFriendAccepted = (data) => {
       // accepter 存在 = 我是请求方，对方通过了我的申请；newFriend 存在 = 我是接受方，仅触发刷新
@@ -708,7 +725,7 @@ export default function Home() {
       socket.off('new_friend_request', onFriendReq);
       socket.off('friend_request_accepted', onFriendAccepted);
     };
-  }, [socket, showNotification, myId]);
+  }, [socket, showNotification, myId, openFriendRequestsPage]);
 
   // 被踢出群时：清除当前活跃会话 + 清零未读（ChatWindow 可能未挂载，需在此兜底）
   useEffect(() => {
@@ -794,7 +811,7 @@ export default function Home() {
       case 'chats':
         return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} convRefreshKey={convRefreshKey} onOpenMentions={() => setShowMentions(true)} />;
       case 'contacts':
-        return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} onAddFriendConsumed={handleAddFriendConsumed} />;
+        return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} onAddFriendConsumed={handleAddFriendConsumed} openFriendRequests={openFriendRequests} onOpenFriendRequestsConsumed={handleOpenFriendRequestsConsumed} />;
       case 'moments':
         return <PanelBoundary name="动态"><Suspense fallback={<PanelSkeleton />}><Moments /></Suspense></PanelBoundary>;
       case 'calls':
