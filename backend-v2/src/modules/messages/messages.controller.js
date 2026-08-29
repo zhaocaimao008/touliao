@@ -104,6 +104,13 @@ exports.uploadGuard = (req, res, next) => {
 exports.uploadMiddlewares = chatUploader;
 exports.uploadHandle = asyncHandler(async (req, res) => {
   if (!req.file) throw badRequest('请选择文件');
+  // 2026-08-29 修复：iOS视频上传曾因客户端流式拼装bug产生0字节附件——数据库正常建了消息记录，
+  // 但物理文件是空的，Android端播放器打开后黑屏卡在00:00/00:00。客户端bug已修，这里再加一道
+  // 服务端兜底：拒绝空文件，不管来自哪个端/哪次回归，都不会再让0字节附件进库生成一条永久打不开的消息。
+  if (req.file.size === 0) {
+    require('fs').unlink(req.file.path, () => {});
+    throw badRequest('文件为空，请重新选择');
+  }
   const { conversationId } = req.params;
   const mime = req.file.mimetype;
   const type = mime.startsWith('image/') ? 'image'

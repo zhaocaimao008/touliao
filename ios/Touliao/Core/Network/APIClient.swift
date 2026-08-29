@@ -130,7 +130,16 @@ final class APIClient {
     }
 
     /// 把 multipart 头部 + 源文件内容 + 尾部拼接写入一个新的临时"信封"文件。
-    /// 用 64KB 缓冲区循环读写源文件，不整体载入内存；文件越大只是循环次数越多，内存占用不变。
+    /// 用 1MB 缓冲区循环读写源文件，不整体载入内存；文件越大只是循环次数越多，内存占用不变。
+    ///
+    /// 2026-08-29 修复：此前用 `InputStream(url:)` + `hasBytesAvailable` 判断结束，实测在真机上
+    /// 会导致视频内容整段丢失(生成的"信封"文件里只有 multipart 头尾、中间文件内容为空——
+    /// 服务端收到的视频附件变成 0 字节，这正是 Android 端播放"00:00/00:00 黑屏"的根因，
+    /// 不是播放器/鉴权/Range 问题，是源头就没传上内容)。
+    /// `hasBytesAvailable` 官方文档明确写明"返回true不代表一定还有数据可读，需要实际调用read
+    /// 才能确认"，但反过来在某些系统版本/文件类型下也观察到它过早报告false导致循环一次都不进入。
+    /// 改用 `FileHandle` 全同步读取，行为完全确定：一直读到 `readData` 返回空 Data 为止，
+    /// 不依赖 `hasBytesAvailable` 这类"可能不准"的探测型 API。
     private static func buildMultipartEnvelope(sourceFile: URL, boundary: String, fieldName: String, fileName: String, mimeType: String) throws -> URL {
         let header = "--\(boundary)\r\nContent-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\nContent-Type: \(mimeType)\r\n\r\n"
         let footer = "\r\n--\(boundary)--\r\n"
@@ -139,16 +148,28 @@ final class APIClient {
         guard let out = try? FileHandle(forWritingTo: envelopeURL) else { throw APIError.network }
         defer { try? out.close() }
         out.write(header.data(using: .utf8)!)
-        guard let inp = InputStream(url: sourceFile) else { throw APIError.network }
-        inp.open()
-        defer { inp.close() }
-        let bufSize = 64 * 1024
-        var buf = [UInt8](repeating: 0, count: bufSize)
-        while inp.hasBytesAvailable {
-            let n = inp.read(&buf, maxLength: bufSize)
-            if n < 0 { throw APIError.network }
-            if n == 0 { break }
-            out.write(Data(bytes: buf, count: n))
+
+        guard let inFile = try? FileHandle(forReadingFrom: sourceFile) else { throw APIError.network }
+        defer { try? inFile.close() }
+        var totalRead = 0
+        let bufSize = 1024 * 1024
+        while true {
+            let chunk: Data
+            if #available(iOS 13.4, *) {
+                guard let c = try? inFile.read(upToCount: bufSize) else { throw APIError.network }
+                chunk = c ?? Data()
+            } else {
+                chunk = inFile.readData(ofLength: bufSize)
+            }
+            if chunk.isEmpty { break }
+            totalRead += chunk.count
+            out.write(chunk)
+        }
+        // 防御性校验：源文件非空但一个字节都没读到，说明读取环节本身有问题，
+        // 直接失败比"悄悄发一个空文件上去"更安全——避免这类0字节附件再次进库。
+        if totalRead == 0, let attrs = try? FileManager.default.attributesOfItem(atPath: sourceFile.path),
+           let expectedSize = attrs[.size] as? Int, expectedSize > 0 {
+            throw APIError.network
         }
         out.write(footer.data(using: .utf8)!)
         return envelopeURL
