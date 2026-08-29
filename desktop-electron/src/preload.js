@@ -67,7 +67,7 @@ const electronAPI = {
   checkUpdate:      ()    => ipcRenderer.invoke('update:check'),
 
   // 文件下载：主进程 downloadURL 落盘到「下载」并自动打开（绕过渲染进程 CORS/download 限制）
-  downloadFile:     (url, filename) => ipcRenderer.invoke('file:download', { url, filename }),
+  downloadFile:     (url, filename, autoOpen) => ipcRenderer.invoke('file:download', { url, filename, autoOpen }),
 
   // 复制图片到系统剪贴板：主进程按白名单来源拉取（带 ?token=）→ nativeImage → clipboard。
   // 渲染进程跑 file://，对跨源 https 图片 fetch/canvas 会撞 CORS/画布污染，故交主进程。

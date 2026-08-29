@@ -6,6 +6,7 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import VideoPreview from './VideoPreview';
+import FilePreview from './FilePreview';
 import VirtualMessageList from './VirtualMessageList';
 import ChatHeader from './ChatHeader';
 import ConvSearchBar from './ConvSearchBar';
@@ -218,6 +219,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [claiming, setClaiming] = useState(false);
   const [lightboxState, setLightboxState] = useState(null); // { urls, idx } or null
   const [videoPreview, setVideoPreview] = useState(null);   // { url, name } or null
+  const [filePreview, setFilePreview] = useState(null);     // { fileUrl, filename, mimeType, fileSize } or null
   const [isDragOver, setIsDragOver] = useState(false);
   // 定时发送弹窗
   const [showScheduleSend, setShowScheduleSend] = useState(false);
@@ -2165,6 +2167,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setLightboxState({ urls: imageUrls, idx: idx >= 0 ? idx : 0 });
   };
   callbacksRef.current.setVideoUrl = (v) => setVideoPreview(v); // { url, name } → 全屏视频预览
+  callbacksRef.current.setFilePreview = (v) => setFilePreview(v); // { fileUrl, filename, mimeType, fileSize } → App内文档预览
   callbacksRef.current.setHighlightedMsgId = setHighlightedMsgId;
   callbacksRef.current.setShowUserProfile = setShowUserProfile;
   callbacksRef.current.openRedPacket = openRedPacket;
@@ -2253,6 +2256,16 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           url={videoPreview.url}
           name={videoPreview.name}
           onClose={() => setVideoPreview(null)}
+        />
+      )}
+      {/* ── 文档(PDF/Word/Excel/PPT/TXT等)全屏预览 ── */}
+      {filePreview && (
+        <FilePreview
+          fileUrl={filePreview.fileUrl}
+          filename={filePreview.filename}
+          mimeType={filePreview.mimeType}
+          fileSize={filePreview.fileSize}
+          onClose={() => setFilePreview(null)}
         />
       )}
       {groupCall && (

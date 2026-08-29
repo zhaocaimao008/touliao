@@ -4,7 +4,7 @@ import { mediaUrl } from '../utils/url';
 import { formatFull } from '../utils/time';
 import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
-import { downloadFile } from '../utils/download';
+import { humanFileSize } from '../utils/fileSize';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
 import ImgOptimized from './ImgOptimized';
 import { linkify } from '../utils/linkify';
@@ -262,17 +262,30 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 </div>
               );
             })()}
-            {msg.type === 'file' && (
-              <a href={mediaUrl(msg.file_url)}
-                 onClick={(e) => { e.preventDefault(); downloadFile(msg.file_url, msg.content); }}
-                 className="wc-msg-file-link" data-testid="msg-file">
-                <div className="wc-msg-file-icon">📄</div>
-                <div>
-                  <div className="wc-msg-file-name">{msg.content}</div>
-                  <div className="wc-msg-file-size">点击下载</div>
-                </div>
-              </a>
-            )}
+            {msg.type === 'file' && (() => {
+              const sizeText = msg.file_size ? humanFileSize(msg.file_size) : '';
+              return (
+                <a href={mediaUrl(msg.file_url)}
+                   onClick={(e) => {
+                     e.preventDefault();
+                     cbs.setFilePreview?.({
+                       fileUrl: msg.file_url, filename: msg.content,
+                       mimeType: msg.file_mime || '', fileSize: msg.file_size || 0,
+                     });
+                   }}
+                   className="wc-msg-file-link" data-testid="msg-file">
+                  <div className="wc-msg-file-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'var(--brand-primary, #07C160)' }}>
+                      <path d="M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm8 1.5V8h4.5L14 3.5z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="wc-msg-file-name">{msg.content}</div>
+                    <div className="wc-msg-file-size">{sizeText ? `${sizeText} · 点击预览` : '点击预览'}</div>
+                  </div>
+                </a>
+              );
+            })()}
             {msg.type === 'sticker' && (
               <img loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" onLoad={() => measure?.()} onError={e => { e.currentTarget.style.display = 'none'; measure?.(); }} style={{ maxWidth: 120, maxHeight: 120 }} />
             )}

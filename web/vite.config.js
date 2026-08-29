@@ -28,6 +28,14 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('socket.io-client')) return 'vendor-socket';
           if (id.includes('jsqr'))   return 'vendor-jsqr';  // QR 扫描，仅扫码时加载
           if (id.includes('@capacitor')) return null;        // Capacitor 动态加载，不打包
+          // 文档预览四件套体积很大(pdf.js+docx-preview+xlsx+jszip 合计超1MB)，且只在
+          // 用户真正点开 PDF/Word/Excel/PPT 消息时才用得到（FilePreview.jsx 里全部是
+          // await import() 动态引入）。必须单独分桶，否则会被下面的 catch-all 'vendor'
+          // 一起打进主包，拖慢所有用户的首屏加载——哪怕他们从不打开任何文档。
+          if (id.includes('pdfjs-dist'))   return 'vendor-pdf';
+          if (id.includes('docx-preview')) return 'vendor-docx';
+          if (id.includes('/xlsx/'))       return 'vendor-xlsx';
+          if (id.includes('jszip'))        return 'vendor-jszip';
           if (id.includes('axios') || id.includes('timeago') || id.includes('dompurify') || id.includes('qrcode'))
             return 'vendor-misc';
           return 'vendor';

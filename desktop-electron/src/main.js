@@ -114,6 +114,13 @@ let _trayBaseIcon = null;    // 托盘正常态图标缓存（闪烁时还原用
 let _trayFlashTimer = null;  // 托盘闪烁定时器句柄
 // 下一个下载项的文件名（渲染进程经 file:download 传入，will-download 消费一次）
 let g_pendingDownloadName = null;
+// 2026-08-29 统一附件系统：下载完成后是否自动用系统默认应用打开该文件。
+// 默认 false——PDF/Word/Excel/PPT/图片/视频/音频这些格式投聊自己就能App内预览
+// (见 web 端 FilePreview/ImagePreview/VideoPreview)，用户点"保存到本地"只是想要
+// 一份本地文件，不需要（也不应该）再弹出系统默认程序（Windows上PDF的系统默认
+// 程序常年是Edge，这正是本次要修的"点PDF跳浏览器"根因）。只有点了"用其他应用
+// 打开"这个需要用户主动选择的动作时才传 true。
+let g_pendingAutoOpen = false;
 let isQuitting = false;
 
 // 引导配置地址（与 web/src/utils/config.js、Android/iOS RemoteConfig 一致）：
@@ -318,6 +325,8 @@ function setupSecurity() {
   ses.on('will-download', (_e, item) => {
     const raw = g_pendingDownloadName || item.getFilename() || `file_${Date.now()}`;
     g_pendingDownloadName = null;
+    const autoOpen = g_pendingAutoOpen;
+    g_pendingAutoOpen = false;
     const safe = String(raw).replace(/[/\\:*?"<>|\x00-\x1f]/g, '_').slice(0, 120) || `file_${Date.now()}`;
     // 同名去重：设了显式保存路径就绕过 Electron 的自动改名,这里手动补「file (1).ext」,避免静默覆盖已存在文件
     const dir = app.getPath('downloads');
@@ -338,8 +347,10 @@ function setupSecurity() {
       if (NO_AUTO_OPEN_EXTS.has(ext)) {
         log.info('下载完成（可执行类，不自动打开，仅定位）:', savePath);
         shell.showItemInFolder(savePath);
-      } else {
+      } else if (autoOpen) {
         shell.openPath(savePath).catch(() => {});
+      } else {
+        log.info('下载完成（App内可预览的格式，不自动打开，仅落盘）:', savePath);
       }
     });
   });
@@ -752,6 +763,7 @@ function setupIPC() {
     }
     g_pendingDownloadName = (typeof payload?.filename === 'string' && payload.filename.trim())
       ? payload.filename.trim() : null;
+    g_pendingAutoOpen = payload?.autoOpen === true;
     mainWindow.webContents.downloadURL(url);
   });
 
