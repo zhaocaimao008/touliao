@@ -124,6 +124,6 @@
 
 ## 七、遗留行动项
 
-1. **建议轮换 `static-auth-secret`**（因曾短暂无认证暴露），需你确认后执行，涉及同步改动 touliao 后端 `.env` 的 `TURN_SECRET`
-2. 找真实跨网络设备验证 relay-to-relay 是否在生产场景下同样有问题
+1. ~~建议轮换 `static-auth-secret`~~ **已完成**（2026-08-29 下一轮跟进）：生成新的64位hex密钥，同步更新 `/etc/turnserver.conf` 的 `static-auth-secret` 与 `backend-v2/.env` 的 `TURN_SECRET`，重启 coturn + `pm2 restart touliao-backend --update-env`；已验证：用新密钥生成的凭证能正常认证+完成真实中继(0丢包)，用旧密钥伪造的凭证正确被拒绝(`Cannot complete Allocation`)。旧密钥备份于 `docs/incident-evidence-20260829/turnserver.conf.pre-secret-rotation-20260829` 和 `backend-v2/.env.bak-pre-turn-rotation-20260829`（均600权限，未入库）。
+2. 找真实跨网络设备验证 relay-to-relay 是否在生产场景下同样有问题（仍待办）
 3. `/etc/coturn/certs/` 证书自动续期钩子已配好，但本身依赖 `certbot renew` 定时任务是否配置——未在本轮核实 certbot timer 是否启用（超出本次范围，标记为待确认项）
