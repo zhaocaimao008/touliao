@@ -22,6 +22,9 @@ struct CallState {
     var networkEnded: Bool = false      // 网络断开/ICE 失败 → 结束页提示"网络已断开"
     var connectedAt: Date?              // 接通时刻，用于计算通话时长(mm:ss)
     var endedAt: Date?                  // 结束时刻，用于在结束页定格总时长
+    /// 2026-08-29新增：通话小窗——true时CallHostView渲染悬浮小窗而非全屏通话界面，
+    /// 用户可退回App其它页面继续操作，媒体流不受影响(PeerConnection不因UI切换而重建)。
+    var isMinimized: Bool = false
 }
 
 /// GET /api/turn/credentials 响应。
@@ -196,6 +199,12 @@ final class CallManager: NSObject, ObservableObject {
         if !state.peerId.isEmpty { socket.emitCallEnd(to: state.peerId, callId: state.callId) }
         VoipCallManager.shared.endActiveCall()   // 同步收尾 CallKit 通话界面
         cleanup(.ended)
+    }
+
+    /// 通话小窗：最小化/恢复全屏通话界面。只切UI呈现，不触碰PeerConnection/信令，
+    /// 媒体流在最小化期间正常继续。
+    func setMinimized(_ minimized: Bool) {
+        state.isMinimized = minimized
     }
 
     func toggleMic() {
@@ -446,6 +455,17 @@ final class CallManager: NSObject, ObservableObject {
         if state.connectedAt != nil && state.endedAt == nil { state.endedAt = Date() }
         state.stage = finalStage
         state.remoteVideoActive = false
+        if finalStage == .ended {
+            // 通话结束时强制回到全屏——若之前是小窗状态，CallMinimizedBubble不会挂载
+            // CallView，之前挂在CallView.onChange里的自动consumeEnded就永远不会触发，
+            // 小窗会卡死在"已结束"画面。改成manager自己调度，不依赖哪个UI正在显示。
+            state.isMinimized = false
+            let delay: UInt64 = state.timedOut ? 1_800_000_000 : 800_000_000
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: delay)
+                self?.consumeEnded()
+            }
+        }
     }
 }
 

@@ -3,14 +3,80 @@ import AVFoundation
 import WebRTC
 
 /// 全局通话浮层：通话激活时覆盖在主界面之上。
+/// 2026-08-29新增通话小窗：isMinimized时改渲染悬浮小窗，用户可退回App其它页面操作，
+/// 媒体流(PeerConnection)不受UI切换影响——小窗和全屏通话界面共用同一个 CallManager.shared。
 struct CallHostView: View {
     @ObservedObject private var manager = CallManager.shared
 
     var body: some View {
         if manager.state.stage != .idle {
-            CallView(manager: manager)
-                .transition(.opacity)
+            if manager.state.isMinimized {
+                CallMinimizedBubble(manager: manager)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                CallView(manager: manager)
+                    .transition(.opacity)
+            }
         }
+    }
+}
+
+/// 通话小窗：可拖拽悬浮气泡，默认停靠右上角；拖动跟手，松手停在拖到的位置(不做边缘吸附，
+/// 保持简单)。视频通话且已接通时显示对方视频画面缩略图，其余情况显示头像。点击恢复全屏。
+private struct CallMinimizedBubble: View {
+    @ObservedObject var manager: CallManager
+    private var state: CallState { manager.state }
+
+    @State private var dragAccumulated: CGSize = .zero
+    @GestureState private var dragActive: CGSize = .zero
+
+    private let bubbleSize: CGFloat = 64
+
+    var body: some View {
+        GeometryReader { geo in
+            let margin: CGFloat = bubbleSize / 2 + 8
+            let defaultX = geo.size.width - margin
+            let defaultY: CGFloat = 130
+            let x = clamp(defaultX + dragAccumulated.width + dragActive.width, geo.size.width, margin)
+            let y = clamp(defaultY + dragAccumulated.height + dragActive.height, geo.size.height, margin)
+
+            bubbleContent
+                .position(x: x, y: y)
+                .gesture(
+                    DragGesture()
+                        .updating($dragActive) { value, s, _ in s = value.translation }
+                        .onEnded { value in
+                            dragAccumulated.width += value.translation.width
+                            dragAccumulated.height += value.translation.height
+                        }
+                )
+                .onTapGesture { manager.setMinimized(false) }
+        }
+        .allowsHitTesting(true)
+    }
+
+    @ViewBuilder private var bubbleContent: some View {
+        ZStack {
+            if state.isVideo && state.remoteVideoActive && state.stage == .connected {
+                RTCVideoViewRepresentable(track: manager.remoteVideoTrack)
+            } else {
+                Color(white: 0.15)
+                InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: bubbleSize)
+            }
+            if state.stage != .connected {
+                Color.black.opacity(0.35)
+                ProgressView().tint(.white).scaleEffect(0.7)
+            }
+        }
+        .frame(width: bubbleSize, height: bubbleSize)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.25), lineWidth: 1))
+        .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+    }
+
+    /// 限制气泡中心点不超出屏幕(留 margin 边距)，避免拖出可视区域后再也够不着。
+    private func clamp(_ v: CGFloat, _ total: CGFloat, _ margin: CGFloat) -> CGFloat {
+        min(max(v, margin), max(margin, total - margin))
     }
 }
 
@@ -52,15 +118,29 @@ private struct CallView: View {
                 Spacer()
                 controls.padding(.bottom, 48)
             }
-        }
-        .task { await ensurePermissions() }
-        .onChange(of: state.stage) { stage in
-            if stage == .ended {
-                // 未接听多停留一会，便于看清"对方未接听"提示
-                let delay: UInt64 = state.timedOut ? 1_800_000_000 : 800_000_000
-                Task { try? await Task.sleep(nanoseconds: delay); manager.consumeEnded() }
+
+            // 2026-08-29新增：通话小窗入口。仅在"已经在通话流程中"(呼出/连接中/已接通)显示，
+            // 来电振铃/结束态不显示——铃响时应先决定接听或拒绝，不给"划走忽略"的误解空间。
+            if state.stage == .outgoing || state.stage == .connecting || state.stage == .connected {
+                VStack {
+                    HStack {
+                        Button { manager.setMinimized(true) } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.headline).foregroundColor(.white)
+                                .frame(width: 36, height: 36)
+                                .background(Color.white.opacity(0.15)).clipShape(Circle())
+                        }
+                        .padding(.leading, 16)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.top, 8)
             }
         }
+        .task { await ensurePermissions() }
+        // 结束态的自动consumeEnded延时已挪到 CallManager.cleanup() 里统一调度(不依赖某个具体
+        // UI是否挂载——通话小窗状态下CallView根本不在视图树里，onChange不会触发)。
     }
 
     /// 已接通显示每秒递增的通话时长(mm:ss)；结束态定格总时长；否则状态文案(对齐微信/安卓)
