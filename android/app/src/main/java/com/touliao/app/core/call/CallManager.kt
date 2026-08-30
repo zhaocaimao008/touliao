@@ -67,6 +67,7 @@ class CallManager @Inject constructor(
     private val socketManager: SocketManager,
     private val sessionManager: SessionManager,
     private val turnApi: com.touliao.app.data.api.TurnApi,
+    private val notificationHelper: com.touliao.app.core.push.NotificationHelper,
     @AppScope private val scope: CoroutineScope,
 ) {
     val eglBase: EglBase = EglBase.create()
@@ -405,6 +406,17 @@ class CallManager @Inject constructor(
                 }
                 _state.value = CallState(
                     CallStage.INCOMING, e.from, e.callerName, isVideo = e.type == "video", isCaller = false, callId = e.callId,
+                )
+                // 2026-08-30 修复：此前这里只更新内存状态，没有弹系统通知——只有 FCM 推送
+                // （TouliaoMessagingService.onMessageReceived）才会调 showCallNotification()。
+                // 但后端只在 presence 判定被叫离线（socket 未连）时才发 FCM 推送；Android 后台
+                // 保活能力通常比 iOS 强，App 在锁屏/后台但 socket 仍连着是常见情况——这种情况下
+                // 来电完全走这条 live socket 通路，之前没有任何系统级提醒，用户看不到也听不到。
+                // 补上跟 FCM 分支一致的调用，不加前台判断（跟 TouliaoMessagingService 里来电
+                // 分支同样不判断 appForeground 一致——来电需要总是弹出，不像普通消息前台会有
+                // 应用内实时更新可以替代通知）。
+                notificationHelper.showCallNotification(
+                    callId = e.callId, from = e.from, callerName = e.callerName, callType = e.type,
                 )
             }
         }
