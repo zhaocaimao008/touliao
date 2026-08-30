@@ -53,19 +53,42 @@ class ApkInstaller @Inject constructor(
         object Launched : InstallResult()
         object FileMissing : InstallResult()
         object SignatureMismatch : InstallResult()
+        /** 下载到的 APK 文件里真实的 versionCode 跟更新源 json 声明的不一致——见 install() 说明 */
+        object VersionCodeMismatch : InstallResult()
         data class LaunchFailed(val reason: String) : InstallResult()
     }
 
-    fun install(apkFile: File): InstallResult {
+    /**
+     * @param apkFile 待安装的 APK
+     * @param expectedVersionCode 更新源 json 声明的 versionCode（AppVersionDto.versionCode），
+     *   用来跟 APK 文件本身 manifest 里真实的 versionCode 比对
+     */
+    fun install(apkFile: File, expectedVersionCode: Int): InstallResult {
         if (!apkFile.exists()) {
             Log.e(TAG, "APK 文件不存在: ${apkFile.absolutePath}")
             return InstallResult.FileMissing
         }
+
+        // 安全加固：APK 文件真实携带的 versionCode 必须等于更新源 json 声明的那个数字。
+        // SHA-256 只保证"下载到的文件内容没被中间人换掉"，不保证"json 吹的版本号是真的"——
+        // 一个更隐蔽的攻击是：拿一份完全合法、真实签名过的**旧版**APK（连哈希都不用伪造，
+        // 就是历史上真实发布过的文件），配一条声明"versionCode很高"的假json条目，SHA-256
+        // 和签名校验全部通过（文件本身货真价实），却让用户装回一个旧版本（可能带着已修复
+        // 的漏洞）。这道校验专门堵这个口子，比对的是APK文件自己manifest里的versionCode，
+        // 不依赖json的自述。
+        val actualVersionCode = getApkVersionCode(apkFile)
+        if (actualVersionCode == null || actualVersionCode != expectedVersionCode) {
+            Log.e(TAG, "APK内版本号与更新源声明不一致，拒绝安装: apk内=$actualVersionCode 声明=$expectedVersionCode")
+            apkFile.delete() // 不留可疑文件在磁盘上，防止被其它路径（文件管理器等）单独打开安装
+            return InstallResult.VersionCodeMismatch
+        }
+
         // 安全加固：安装前校验 APK 签名与当前已安装应用一致，防止更新服务器被入侵/
         // 中间人劫持后投递恶意 APK（任意代码执行入口）。不一致直接拒绝安装，
         // 但必须告诉用户为什么(签名变更需先卸载旧版)，不能静默失败。
         if (!isSignatureMatch(apkFile)) {
             Log.e(TAG, "APK 签名与当前应用不一致，拒绝安装: ${apkFile.absolutePath}")
+            apkFile.delete() // 同上：不留下已被判定不可信的文件
             return InstallResult.SignatureMismatch
         }
 
@@ -145,6 +168,23 @@ class ApkInstaller @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "签名校验异常: ${e.message}", e)
             false // 校验失败一律拒绝，安全优先
+        }
+    }
+
+    /** 读取待安装 APK 文件 manifest 里真实的 versionCode（不是更新源 json 声明的那个）。 */
+    private fun getApkVersionCode(apkFile: File): Int? {
+        return try {
+            val pm = context.packageManager
+            val info: PackageInfo = pm.getPackageArchiveInfo(apkFile.absolutePath, 0) ?: return null
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.longVersionCode.toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                info.versionCode
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "读取APK版本号失败: ${e.message}", e)
+            null
         }
     }
 

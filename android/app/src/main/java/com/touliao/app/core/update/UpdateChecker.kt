@@ -15,11 +15,12 @@ import javax.inject.Singleton
  * 远程版本检查器。用独立 OkHttpClient（不走 auth/host 拦截器），
  * 确保未登录 / 服务器地址错误时仍能拉取版本信息。
  *
- * 服务器上需部署 vxin-android-version.json，字段说明：
+ * 服务器上需部署 touliao-android-version.json，字段说明：
  *   versionCode  — BuildConfig.VERSION_CODE 比较用，大版本号数字
  *   versionName  — 人类可读版本名（如 "1.0.4"）
  *   url          — APK 下载直链
  *   notes        — 更新说明文案，支持多行 \n
+ *   sha256       — APK 文件 SHA-256（小写十六进制），下载完成后 ApkDownloader 会校验
  */
 @Singleton
 class UpdateChecker @Inject constructor(
@@ -51,9 +52,18 @@ class UpdateChecker @Inject constructor(
                         versionName = dto.versionName,
                         url = dto.url,
                         notes = dto.notes,
+                        sha256 = dto.sha256,
                     )
                 } else {
-                    Log.i(TAG, "已是最新版: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+                    // 结果都是安全的（不会触发下载），但 < 和 == 背后的含义不同：== 就是真的
+                    // 已是最新版；< 意味着更新源返回了一个比当前还低的版本号，这本身是个可疑
+                    // 信号（服务器被篡改/配置错误/降级攻击尝试），此前两种情况混在一起打同一条
+                    // "已是最新版" info 日志，异常被悄悄吞掉、没有留痕，单独分支出来才能追踪。
+                    if (dto.versionCode < BuildConfig.VERSION_CODE) {
+                        Log.w(TAG, "更新源返回的版本号(${dto.versionCode})低于当前版本(${BuildConfig.VERSION_CODE})，疑似降级尝试，已忽略")
+                    } else {
+                        Log.i(TAG, "已是最新版: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+                    }
                     return@withContext CheckResult.UpToDate
                 }
             } else {

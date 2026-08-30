@@ -163,5 +163,21 @@ fun UpdateCheckDialog(
                 },
             )
         }
+
+        // 哈希/版本号/签名校验被拒——跟上面普通 Error（网络超时等）故意用不同标题+图标区分，
+        // 不能让"更新服务器可能被攻破"看起来和"网络不好"一样平淡，用户更容易警觉、也更不容易
+        // 把这条提示当成日常操作误导自己去做危险动作（比如手动卸载重装）。
+        is UpdateUiState.SecurityBlocked -> {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismiss(); onDismiss() },
+                title = { Text("⚠️ 安装包校验未通过") },
+                text = { Text(s.message) },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.dismiss(); onDismiss() }) {
+                        Text("我知道了")
+                    }
+                },
+            )
+        }
     }
 }

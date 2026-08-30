@@ -12,6 +12,7 @@ import okio.buffer
 import okio.sink
 import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,6 +21,13 @@ import javax.inject.Singleton
 fun interface DownloadProgress {
     fun onProgress(bytesRead: Long, contentLength: Long, percent: Float)
 }
+
+/**
+ * 下载完成的 APK 与 [AppVersionDto.sha256] 声明的哈希不一致时抛出。防的是"内容被
+ * 中间人/被攻破的更新host替换成别的文件"——不防"json和APK都是攻击者一手炮制、自洽
+ * 的一整套"，那种场景唯一独立防线是 ApkInstaller.isSignatureMatch()。
+ */
+class ApkIntegrityException(message: String) : IOException(message)
 
 /**
  * APK 下载器。下载到 app 专属外部目录（getExternalFilesDir("downloads")），
@@ -43,14 +51,17 @@ class ApkDownloader @Inject constructor(
         get() = File(context.getExternalFilesDir(null), "downloads").also { it.mkdirs() }
 
     /**
-     * 下载 APK 到本地。
+     * 下载 APK 到本地，并校验 SHA-256。
      * @param url  APK 直链
+     * @param expectedSha256  期望的 APK 文件 SHA-256（小写十六进制，来自 AppVersionDto.sha256）
      * @param progress  进度回调（下载线程调用）
-     * @return 下载完成的本地文件
+     * @return 下载完成且哈希校验通过的本地文件
      * @throws IOException 网络/IO 异常
+     * @throws ApkIntegrityException 哈希不匹配（文件已被删除，不会残留可疑文件在磁盘上）
      */
     suspend fun download(
         url: String,
+        expectedSha256: String,
         progress: DownloadProgress? = null,
     ): File = withContext(Dispatchers.IO) {
         val target = File(downloadDir, apkFileName)
@@ -59,6 +70,8 @@ class ApkDownloader @Inject constructor(
 
         Log.i(TAG, "开始下载 APK: $url → $target")
         val request = Request.Builder().url(url).get().build()
+        // 边下载边算哈希，不需要下载完再单独读一遍大文件。
+        val digest = MessageDigest.getInstance("SHA-256")
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IOException("下载失败 HTTP ${response.code}")
@@ -75,6 +88,9 @@ class ApkDownloader @Inject constructor(
                     val read = source.read(buffer, 8192)
                     if (read == -1L) break
                     bytesRead += read
+                    // buffer.copy() 是非破坏性快照（共享底层segment，不影响下面sink.write
+                    // 真正消费掉buffer的读取位置），拿这份快照的字节喂哈希，不用另外读一遍文件。
+                    digest.update(buffer.copy().readByteArray())
                     sink.write(buffer, read)
 
                     progress?.onProgress(bytesRead, contentLength,
@@ -86,7 +102,15 @@ class ApkDownloader @Inject constructor(
         if (!target.exists() || target.length() == 0L) {
             throw IOException("下载文件为空")
         }
-        Log.i(TAG, "APK 下载完成: ${target.absolutePath} (${target.length()} bytes)")
+
+        val actualSha256 = digest.digest().joinToString("") { "%02x".format(it) }
+        if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+            Log.e(TAG, "APK 哈希不匹配，已删除文件：期望=$expectedSha256 实际=$actualSha256")
+            target.delete()
+            throw ApkIntegrityException("安装包哈希校验失败，已阻止安装")
+        }
+
+        Log.i(TAG, "APK 下载完成且哈希校验通过: ${target.absolutePath} (${target.length()} bytes)")
         target
     }
 

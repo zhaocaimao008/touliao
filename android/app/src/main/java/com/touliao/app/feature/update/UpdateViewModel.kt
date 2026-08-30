@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.touliao.app.core.update.ApkDownloader
 import com.touliao.app.core.update.ApkInstaller
+import com.touliao.app.core.update.ApkIntegrityException
 import com.touliao.app.core.update.CheckResult
 import com.touliao.app.core.update.UpdateChecker
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,8 +44,15 @@ sealed class UpdateUiState {
     /** 已下载但缺少「安装未知应用」权限，需引导用户去系统授权 */
     data class NeedInstallPermission(val file: File) : UpdateUiState()
 
-    /** 错误 */
+    /** 错误（网络/解析等非安全性质的失败） */
     data class Error(val message: String) : UpdateUiState()
+
+    /**
+     * 安全校验拦截（哈希不匹配 / APK内版本号与声明不符 / 签名不匹配）。跟上面的 [Error]
+     * 分开一个状态，是为了让 UI 层能给这类"疑似被篡改"的情况用明显区别于普通网络错误的
+     * 视觉样式展示，不要让用户把"更新服务器可能被攻破"和"网络超时"看成同一种平淡的报错。
+     */
+    data class SecurityBlocked(val message: String) : UpdateUiState()
 }
 
 /** 启动时静默检查的结果，仅用于记录是否需要显示红点/徽标 */
@@ -141,7 +149,7 @@ class UpdateViewModel @Inject constructor(
         _uiState.value = UpdateUiState.Downloading(progress = 0f)
         viewModelScope.launch {
             runCatching {
-                apkDownloader.download(version.url) { bytes, total, percent ->
+                apkDownloader.download(version.url, version.sha256) { bytes, total, percent ->
                     _uiState.update {
                         if (it is UpdateUiState.Downloading) it.copy(progress = percent)
                         else it // 状态已变，忽略旧进度
@@ -152,13 +160,19 @@ class UpdateViewModel @Inject constructor(
                 // 关键修复：先校验「安装未知应用」权限，未授权则引导去开，避免静默失败（点了没反应）
                 withContext(Dispatchers.Main) {
                     if (apkInstaller.canRequestPackageInstalls()) {
-                        handleInstallResult(apkInstaller.install(file))
+                        handleInstallResult(apkInstaller.install(file, version.versionCode))
                     } else {
                         _uiState.value = UpdateUiState.NeedInstallPermission(file)
                     }
                 }
             }.onFailure { e ->
-                _uiState.value = UpdateUiState.Error("下载失败：${e.localizedMessage ?: "未知错误"}")
+                // 哈希校验失败是安全性质的拒绝，不是普通网络问题，单独归类到 SecurityBlocked，
+                // 让 UI 用不同于"下载失败"的样式展示，不要把两者混为一谈。
+                _uiState.value = if (e is ApkIntegrityException) {
+                    UpdateUiState.SecurityBlocked("安装包内容校验失败，已阻止安装，请勿使用刚才下载的文件。如持续出现，请通过官方渠道核实。")
+                } else {
+                    UpdateUiState.Error("下载失败：${e.localizedMessage ?: "未知错误"}")
+                }
             }
         }
     }
@@ -171,8 +185,12 @@ class UpdateViewModel @Inject constructor(
     /** 从系统授权页返回后重试安装：已授权则装已下载的包，仍未授权则维持引导。 */
     fun retryInstall() {
         val file = downloadedFile ?: return
+        val versionCode = availableVersion?.versionCode ?: run {
+            _uiState.value = UpdateUiState.Error("版本信息丢失，请重新检查")
+            return
+        }
         if (apkInstaller.canRequestPackageInstalls()) {
-            handleInstallResult(apkInstaller.install(file))
+            handleInstallResult(apkInstaller.install(file, versionCode))
         } else {
             _uiState.value = UpdateUiState.NeedInstallPermission(file)
         }
@@ -181,11 +199,22 @@ class UpdateViewModel @Inject constructor(
     /// 2026-08-29 修复：install() 结果此前被完全忽略，任何失败(尤其是v8.0.3签名迁移导致的
     /// 旧版本用户签名不匹配)在用户看来都是"下载完了却什么都没发生"。现在每种失败都给出
     /// 明确、可操作的提示，而不是让弹窗静默消失。
+    /// 2026-08-30 补充：签名不匹配 / APK内版本号与声明不符 归到 SecurityBlocked（而不是普通
+    /// Error），且措辞不再简单地把"卸载重装"当成常规操作建议——那条指引本身可能被攻击场景
+    /// 复用（服务器被攻破→签名必然不匹配→用户被引导卸载掉真正安全的旧版、手动装一个来路
+    /// 不明的文件），改成提示用户去官方渠道核实，而不是无条件教用户绕开这道校验。
     private fun handleInstallResult(result: ApkInstaller.InstallResult) {
         _uiState.value = when (result) {
             is ApkInstaller.InstallResult.Launched -> UpdateUiState.ReadyToInstall(downloadedFile ?: return)
             is ApkInstaller.InstallResult.SignatureMismatch ->
-                UpdateUiState.Error("此更新使用了新的签名密钥，无法直接覆盖安装。请先卸载当前App，再重新安装新版本(数据不受影响，重新登录即可恢复)。")
+                UpdateUiState.SecurityBlocked(
+                    "安装包签名与当前应用不一致，已阻止安装，安装包已删除。" +
+                    "这通常发生在应用签名密钥迁移之后（历史上发生过一次），但也可能是安装来源异常。" +
+                    "请不要凭本次提示自行卸载重装——如需更新，请通过 touliao.cc 官方渠道核实后再操作，" +
+                    "或联系管理员确认。"
+                )
+            is ApkInstaller.InstallResult.VersionCodeMismatch ->
+                UpdateUiState.SecurityBlocked("安装包版本号与更新信息不一致，疑似被替换，已阻止安装，安装包已删除。")
             is ApkInstaller.InstallResult.FileMissing ->
                 UpdateUiState.Error("安装包丢失，请重新下载")
             is ApkInstaller.InstallResult.LaunchFailed ->

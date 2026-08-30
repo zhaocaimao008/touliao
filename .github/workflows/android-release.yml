@@ -82,7 +82,12 @@ jobs:
           # 安卓端"检查更新"靠这个文件比对版本；不同步会导致存量用户拉不到更新提示。
           VN=$(grep -oP 'versionName\s*=\s*"\K[^"]+' android/app/build.gradle.kts | head -1)
           VC=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' android/app/build.gradle.kts | head -1)
-          echo "版本清单: versionName=$VN versionCode=$VC"
-          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://touliao.cc/downloads/touliao-android-latest.apk",\n  "notes": "当前最新版本 %s。"\n}\n' "$VC" "$VN" "$VN" > /tmp/touliao-android-version.json
+          # 2026-08-30 新增：sha256 供客户端 ApkDownloader 下载完成后校验，防更新host被
+          # 中间人/被攻破后替换成别的文件。对刚打包好的同一份 $APK 算哈希（已在磁盘上是
+          # 最终产物，纯顺序shell脚本，不存在electron那次遇到的"签名时机早于文件写完"的
+          # 竞态——没有异步任务队列）。
+          SHA256=$(sha256sum "$APK" | cut -d' ' -f1)
+          echo "版本清单: versionName=$VN versionCode=$VC sha256=$SHA256"
+          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://touliao.cc/downloads/touliao-android-latest.apk",\n  "notes": "当前最新版本 %s。",\n  "sha256": "%s"\n}\n' "$VC" "$VN" "$VN" "$SHA256" > /tmp/touliao-android-version.json
           scp -i ~/.ssh/deploy_key /tmp/touliao-android-version.json "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/touliao-downloads/touliao-android-version.json"
           echo "✅ 版本清单已发布到 https://touliao.cc/downloads/touliao-android-version.json"
