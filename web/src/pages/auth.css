@@ -96,6 +96,13 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-field.focused .auth-field-icon { color: var(--brand-300); }
 .auth-field-input { flex: 1; font-size: var(--text-base); color: var(--gray-0); background: transparent; border: none; outline: none; min-width: 0; font-family: inherit; }
 .auth-field-input::placeholder { color: rgba(255,255,255,.30); font-weight: var(--font-normal); }
+.auth-captcha-row { display: flex; align-items: center; gap: var(--sp-2h); height: 52px; }
+.auth-captcha-input { flex: 1; height: 52px; padding: 0; background: transparent; color: var(--gray-0); font-size: var(--text-base); border: none; border-bottom: 1.5px solid rgba(255,255,255,.14); outline: none; font-family: inherit; transition: border-color var(--dur-fast); }
+.auth-captcha-input:focus { border-bottom-color: var(--brand-400); }
+.auth-captcha-input::placeholder { color: rgba(255,255,255,.30); }
+.auth-captcha-img-btn { flex-shrink: 0; padding: 0; border: 1px solid rgba(255,255,255,.14); border-radius: var(--radius-input); overflow: hidden; cursor: pointer; background: rgba(255,255,255,.04); line-height: 0; }
+.auth-captcha-img { display: block; width: 120px; height: 44px; }
+.auth-captcha-loading { display: flex; align-items: center; justify-content: center; width: 120px; height: 44px; font-size: var(--text-sm2); color: rgba(255,255,255,.4); }
 .auth-error { display: flex; align-items: center; gap: var(--sp-1h); padding: 9px 14px; background: rgba(255,80,80,.1); border: 1px solid rgba(255,80,80,.22); border-radius: var(--radius-input); color: #FF7575; font-size: var(--text-sm2); margin-bottom: var(--sp-3); animation: scaleIn .2s var(--ease); }
 .auth-submit { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); border-radius: var(--radius-input); font-size: var(--text-md); font-weight: var(--font-semibold); cursor: pointer; transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast), color var(--dur-fast); display: flex; align-items: center; justify-content: center; letter-spacing: .5px; box-shadow: 0 6px 22px rgba(var(--color-primary-rgb),.42); border: none; }
 .auth-submit:hover { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); box-shadow: 0 8px 28px rgba(var(--color-primary-rgb),.52); transform: translateY(-1px); }

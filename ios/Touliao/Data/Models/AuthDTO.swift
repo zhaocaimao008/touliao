@@ -3,6 +3,14 @@ import Foundation
 struct LoginBody: Encodable {
     let phone: String
     let password: String
+    let captchaId: String? = nil
+    let captchaText: String? = nil
+}
+
+/// GET /api/auth/captcha 响应：captchaId 提交登录时回传，svgDataUrl 直接当图片显示。
+struct CaptchaResponse: Decodable {
+    let captchaId: String
+    let svgDataUrl: String
 }
 
 struct RegisterBody: Encodable {

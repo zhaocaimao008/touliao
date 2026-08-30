@@ -52,6 +52,29 @@ struct LoginView: View {
             PasswordField(placeholder: "密码", text: $vm.password,
                           accessibilityId: "login-password-input")
 
+            if vm.captchaRequired {
+                HStack(spacing: 12) {
+                    TextField("请输入图中字符", text: $vm.captchaText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("login-captcha-input")
+                    Button {
+                        Task { await vm.loadCaptcha() }
+                    } label: {
+                        CaptchaImageView(svgDataUrl: vm.captchaSvg)
+                            .frame(width: 100, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous)
+                                    .stroke(Color.vxinTextSecondary.opacity(0.2), lineWidth: 1)
+                            )
+                    }
+                    .accessibilityIdentifier("login-captcha-refresh")
+                    .accessibilityLabel("验证码，点击换一张")
+                }
+            }
+
             if let error = vm.error {
                 Text(error)
                     .font(.footnote)
@@ -109,6 +132,7 @@ struct LoginView: View {
             Spacer()
         }
         .padding(.horizontal, 32)
+        .task { await vm.loadConfig() }
         .onChange(of: vm.authedUser) { user in
             if let user { session.onAuthenticated(user) }
         }

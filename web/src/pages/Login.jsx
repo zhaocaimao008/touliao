@@ -1,5 +1,5 @@
 import './auth.css';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,8 +19,32 @@ export default function Login() {
   const [focusedField, setFocusedField] = useState(null);
   const [showPwd, setShowPwd] = useState(false);
 
+  // 图形验证码：是否要求由后台开关 features.loginCaptcha 决定（GET /api/config），
+  // 默认 false（不要求），避免开关拉取失败时误挡住所有人登录。
+  const [captchaRequired, setCaptchaRequired] = useState(false);
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaSvg, setCaptchaSvg] = useState('');
+  const [captchaText, setCaptchaText] = useState('');
+
   const { login, accounts, removeAccount, maxAccounts } = useAuth();
   const navigate = useNavigate();
+
+  const loadCaptcha = useCallback(() => {
+    setCaptchaText('');
+    axios.get('/api/auth/captcha')
+      .then(r => { setCaptchaId(r.data?.captchaId || ''); setCaptchaSvg(r.data?.svgDataUrl || ''); })
+      .catch(() => { setCaptchaId(''); setCaptchaSvg(''); });
+  }, []);
+
+  useEffect(() => {
+    axios.get('/api/config')
+      .then(r => {
+        const on = r.data?.features?.loginCaptcha === true;
+        setCaptchaRequired(on);
+        if (on) loadCaptcha();
+      })
+      .catch(() => {}); // 拉取失败保持默认（不要求验证码），后端仍会最终裁决
+  }, [loadCaptcha]);
 
   // 点击「最近登录」账户只回填手机号，密码不持久化。
   const fillAccount = (acct) => {
@@ -64,7 +88,10 @@ export default function Login() {
     if (loading) return; // 防连点/回车重复提交
     setError(''); setLoading(true);
     try {
-      const { data } = await axios.post('/api/auth/login', { phone, password });
+      const { data } = await axios.post('/api/auth/login', {
+        phone, password,
+        ...(captchaRequired ? { captchaId, captchaText } : {}),
+      });
       // 登录成功后按勾选保存/清除用户名；密码绝不落盘。
       if (remember) await saveCred(phone);
       else removeCred(phone);
@@ -72,6 +99,9 @@ export default function Login() {
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || '登录失败');
+      // 验证码一次核销即失效（不管猜对猜错），报错后旧图必然已经作废，直接换一张，
+      // 不然用户会对着同一张失效的图片再试一次，永远拿到同一个错误。
+      if (captchaRequired && /验证码/.test(err.response?.data?.error || '')) loadCaptcha();
     } finally { setLoading(false); }
   };
 
@@ -193,6 +223,38 @@ export default function Login() {
             </div>
           </div>
 
+          {captchaRequired && (
+            <div className="auth-field">
+              <label className="auth-field-label" htmlFor="login-captcha">图形验证码</label>
+              <div className="auth-captcha-row">
+                <input
+                  id="login-captcha"
+                  data-testid="login-captcha-input"
+                  className="auth-field-input auth-captcha-input"
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="请输入图中字符"
+                  value={captchaText}
+                  onChange={e => setCaptchaText(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="auth-captcha-img-btn"
+                  onClick={loadCaptcha}
+                  title="看不清？点击换一张"
+                  data-testid="login-captcha-refresh"
+                >
+                  {captchaSvg
+                    ? <img src={captchaSvg} alt="验证码，点击换一张" className="auth-captcha-img" />
+                    : <span className="auth-captcha-loading">加载中…</span>}
+                </button>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="auth-error" role="alert" data-testid="auth-error-text">
               <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
@@ -216,7 +278,7 @@ export default function Login() {
             <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>忘记密码？</Link>
           </div>
 
-          <button type="submit" className="auth-submit" data-testid="login-submit-btn" disabled={loading || !phone || !password}>
+          <button type="submit" className="auth-submit" data-testid="login-submit-btn" disabled={loading || !phone || !password || (captchaRequired && !captchaText)}>
             {loading ? (
               <span className="auth-spinner" />
             ) : (

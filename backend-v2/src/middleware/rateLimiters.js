@@ -232,8 +232,17 @@ const joinGroupLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
+// 图形验证码取图：未登录可调用，单 IP 每分钟 20 次（防内存 Map 被灌爆）
+const captchaLimiter = rateLimit({
+  ...base, windowMs: 60 * 1000, max: 20,
+  store: makeStore('captcha'),
+  keyGenerator: (req) => ipKeyGenerator(req.ip),
+  message: json('获取验证码过于频繁，请稍后再试'),
+  validate: { xForwardedForHeader: false },
+});
+
 // 测试模式:DISABLE_RATE_LIMIT=1 时所有限流变 no-op
-const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter, pushSubscribeLimiter, turnCredentialLimiter, joinGroupLimiter };
+const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter, pushSubscribeLimiter, turnCredentialLimiter, joinGroupLimiter, captchaLimiter };
 if (process.env.DISABLE_RATE_LIMIT === '1') {
   const noop = (req, res, next) => next();
   for (const k of Object.keys(limiters)) limiters[k] = noop;

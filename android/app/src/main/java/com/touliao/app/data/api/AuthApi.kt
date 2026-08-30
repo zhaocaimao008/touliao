@@ -1,6 +1,7 @@
 package com.touliao.app.data.api
 
 import com.touliao.app.data.model.AuthResponse
+import com.touliao.app.data.model.CaptchaResponse
 import com.touliao.app.data.model.LoginRequest
 import com.touliao.app.data.model.RegisterRequest
 import com.touliao.app.data.model.User
@@ -14,6 +15,10 @@ interface AuthApi {
 
     @POST("api/auth/login")
     suspend fun login(@Body body: LoginRequest): AuthResponse
+
+    /** 登录图形验证码取图；未登录可调用。开关关闭时也能取图，仅登录不强制提交。 */
+    @GET("api/auth/captcha")
+    suspend fun getCaptcha(): CaptchaResponse
 
     @POST("api/auth/register")
     suspend fun register(@Body body: RegisterRequest): AuthResponse

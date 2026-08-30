@@ -7,6 +7,7 @@ const { db, generateVxinId, generateUserInviteCode } = require('../../db/connect
 const { badRequest, notFound, forbidden } = require('../../utils/http');
 const { addToBlacklist } = require('../../utils/tokenBlacklist');
 const { invalidateUser } = require('../../utils/userStatusCache');
+const captcha = require('../../utils/captcha');
 
 // 运行时邀请码：支持多个逗号分隔（后台可改）
 function currentInviteCode() {
@@ -26,6 +27,14 @@ function isValidInviteCode(code) {
 function isInviteRequired() {
   const row = db.prepare("SELECT value FROM admin_settings WHERE key='invite_required'").get();
   return row?.value !== 'off';
+}
+
+// 登录是否强制校验图形验证码（后台开关 feature_login_captcha）。默认关闭——
+// 和其它 feature_* 开关"默认开启、显式关闭"相反，这个是"默认关闭、显式开启"，
+// 因为四端客户端要先能取图+提交验证码，才能安全打开这个开关，见 deploy 说明。
+function isLoginCaptchaRequired() {
+  const row = db.prepare("SELECT value FROM admin_settings WHERE key='feature_login_captcha'").get();
+  return row?.value === 'on';
 }
 
 // 解析注册邀请码：先认管理员全局码（无邀请人），再认某用户的专属码（记其为邀请人）。
@@ -139,8 +148,13 @@ async function register({ username, phone, password, inviteCode }, req) {
   const jti = req ? upsertSession(id, req) : undefined;
   return { token: signToken({ id, username }, jti), user };
 }
-async function login({ phone, password }, req) {
+async function login({ phone, password, captchaId, captchaText }, req) {
   if (!phone || !password) throw badRequest('请填写手机号和密码');
+  // 图形验证码：开关开启时强制校验，且必须先于密码比对完成（不能等密码验证过了才发现验证码错，
+  // 那样验证码就形同虚设，暴力破解者可以完全绕过它反复试密码）。
+  if (isLoginCaptchaRequired() && !captcha.verify(captchaId, captchaText)) {
+    throw badRequest('验证码错误或已过期，请重新获取');
+  }
   const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,password,banned FROM users WHERE phone=?').get(phone);
   // 时序保护：无论用户是否存在，都执行完整 bcrypt.compare（约 200ms），
   // 防止通过响应时间区分「手机号未注册」与「密码错误」（时序侧信道 / 用户枚举）。

@@ -14,4 +14,5 @@ data class Features(
     val groupVoiceCall: Boolean = true, // 群语音通话（后台可关，关后隐藏群语音按钮）
     val groupVideoCall: Boolean = true, // 群视频通话（后台可关，关后隐藏群视频按钮）
     val changePassword: Boolean = true, // 自助修改密码（后台可关，关后隐藏入口 + 后端拦截）
+    val loginCaptcha: Boolean = false,  // 登录图形验证码（默认关闭——只有确认后端+四端都已支持才由后台打开）
 )

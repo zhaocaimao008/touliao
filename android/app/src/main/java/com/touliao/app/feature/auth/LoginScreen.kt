@@ -1,5 +1,6 @@
 package com.touliao.app.feature.auth
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -43,8 +44,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import coil.decode.SvgDecoder
+import coil.request.ImageRequest
 import com.touliao.app.ui.TouliaoIcons
 import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinBrandLight
@@ -131,6 +136,56 @@ fun LoginScreen(
             },
             modifier = Modifier.fillMaxWidth().testTag("login-password-input"),
         )
+
+        if (state.captchaRequired) {
+            Spacer(Modifier.height(16.dp))
+            val context = LocalContext.current
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedTextField(
+                    value = state.captchaText,
+                    onValueChange = viewModel::onCaptchaTextChange,
+                    label = { Text("图形验证码") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f).testTag("login-captcha-input"),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(width = 100.dp, height = 52.dp)
+                        .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .testTag("login-captcha-refresh"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (state.captchaSvgDataUrl.isNotEmpty()) {
+                        // 验证码是后端下发的 SVG data URL：手动剥掉 base64 前缀解码成字节数组，
+                        // 交给 SvgDecoder 渲染——Coil 默认不识别 data: scheme，直接传 ByteArray 最简单可靠。
+                        val bytes = remember(state.captchaSvgDataUrl) {
+                            runCatching {
+                                android.util.Base64.decode(
+                                    state.captchaSvgDataUrl.substringAfter("base64,"),
+                                    android.util.Base64.DEFAULT,
+                                )
+                            }.getOrNull()
+                        }
+                        if (bytes != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(bytes)
+                                    .decoderFactory(SvgDecoder.Factory())
+                                    .build(),
+                                contentDescription = "验证码，点击换一张",
+                                modifier = Modifier.fillMaxSize()
+                                    .clickable { viewModel.loadCaptcha() },
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         if (state.error != null) {
             Spacer(Modifier.height(12.dp))

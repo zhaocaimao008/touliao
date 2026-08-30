@@ -16,14 +16,20 @@ final class AuthRepository {
         let _: EmptyResponse? = try? await api.send("api/auth/sessions", method: "DELETE")
     }
 
-    func login(phone: String, password: String) async throws -> User {
+    func login(phone: String, password: String, captchaId: String? = nil, captchaText: String? = nil) async throws -> User {
         let res: AuthResponse = try await api.send(
             "api/auth/login", method: "POST",
-            body: LoginBody(phone: phone.trimmingCharacters(in: .whitespaces), password: password),
+            body: LoginBody(phone: phone.trimmingCharacters(in: .whitespaces), password: password,
+                             captchaId: captchaId, captchaText: captchaText),
             authorized: false
         )
         applyAuth(res)
         return res.user
+    }
+
+    /// 登录图形验证码取图；未登录可调用。开关关闭时也能取图，仅登录不强制提交。
+    func getCaptcha() async throws -> CaptchaResponse {
+        try await api.send("api/auth/captcha", authorized: false)
     }
 
     private func applyAuth(_ res: AuthResponse) {

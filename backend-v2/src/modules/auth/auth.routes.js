@@ -1,8 +1,13 @@
 'use strict';
 const router = require('express').Router();
 const auth = require('../../middleware/auth');
-const { loginLimiter, registerLimiter, switchLimiter, forgetLimiter, resetPasswordLimiter } = require('../../middleware/rateLimiters');
+const { loginLimiter, registerLimiter, switchLimiter, forgetLimiter, resetPasswordLimiter, captchaLimiter } = require('../../middleware/rateLimiters');
 const c = require('./auth.controller');
+
+// 图形验证码取图：登录前调用，无需鉴权（见 AUDIT.md 十节"登录限流/验证码"🟡）。
+// 是否在登录时强制校验由后台功能开关 feature_login_captcha 控制，默认关闭，
+// 开关关闭时这个接口仍可正常取图，只是登录不会强制要求提交。
+router.get('/captcha', captchaLimiter, c.captcha);
 
 /**
  * @swagger

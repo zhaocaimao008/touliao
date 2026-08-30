@@ -344,6 +344,8 @@ function generateInviteCode() {
 // inviteRequired=true 表示注册需填写邀请码（默认）；false 则关闭邀请码校验，任何人可注册。
 // groupVoiceCall / groupVideoCall=true 表示允许发起群语音 / 群视频通话（默认开启，可随时关闭）。
 // changePassword=true 表示允许用户自助修改密码（默认开启，关闭后隐藏入口并后端拦截）。
+// loginCaptcha=true 表示登录必须提交图形验证码（默认关闭，与其它开关"默认开启"相反——
+// 必须先确认四端客户端都已升级到能取图+提交验证码，才能安全打开，见 AUDIT.md 十节🟡）。
 function getFeatures() {
   const get = k => db.prepare('SELECT value FROM admin_settings WHERE key=?').get(k)?.value;
   return {
@@ -353,9 +355,10 @@ function getFeatures() {
     groupVoiceCall: get('feature_group_voice_call') !== 'off',
     groupVideoCall: get('feature_group_video_call') !== 'off',
     changePassword: get('feature_change_password') !== 'off',
+    loginCaptcha: get('feature_login_captcha') === 'on',
   };
 }
-function setFeatures({ moments, collect, inviteRequired, groupVoiceCall, groupVideoCall, changePassword }) {
+function setFeatures({ moments, collect, inviteRequired, groupVoiceCall, groupVideoCall, changePassword, loginCaptcha }) {
   const set = (k, on) => db.prepare(`
     INSERT INTO admin_settings (key, value, updated_at) VALUES (?, ?, strftime('%s','now'))
     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
@@ -366,6 +369,7 @@ function setFeatures({ moments, collect, inviteRequired, groupVoiceCall, groupVi
   if (groupVoiceCall !== undefined) set('feature_group_voice_call', !!groupVoiceCall);
   if (groupVideoCall !== undefined) set('feature_group_video_call', !!groupVideoCall);
   if (changePassword !== undefined) set('feature_change_password', !!changePassword);
+  if (loginCaptcha !== undefined) set('feature_login_captcha', !!loginCaptcha);
   return getFeatures();
 }
 

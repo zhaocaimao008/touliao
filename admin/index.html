@@ -209,6 +209,10 @@
           <input type="checkbox" id="ft-gvideo" style="width:18px;height:18px;cursor:pointer">
           <span><b>群视频通话</b> — 关闭后群内无法发起视频通话（进行中的通话不受影响）</span>
         </label>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer">
+          <input type="checkbox" id="ft-captcha" style="width:18px;height:18px;cursor:pointer">
+          <span><b>登录图形验证码</b> — ⚠ 只有在四端 App 都已升级到支持取图/提交验证码的版本后才能打开，否则旧版本客户端登录会失败</span>
+        </label>
         <div style="margin-top:14px"><button class="btn" id="ftsave">保存功能开关</button></div>
       </div>
       <div class="panel">
@@ -485,10 +489,10 @@ async function revoke(id){if(!confirm('移除该可信设备？下次从它登�
 async function loadInvite(){try{const r=await api('/invite-code');$('invcode').value=r.inviteCode;}catch(e){toast(e.message,1);}}
 $('invsave').onclick=async()=>{const code=$('invcode').value.trim();try{await api('/invite-code',{method:'PUT',body:{inviteCode:code}});toast('邀请码已更新');}catch(e){toast(e.message,1);}};
 $('invgen').onclick=async()=>{try{const r=await api('/invite-code/generate',{method:'POST'});$('invcode').value=r.inviteCode;toast('已生成并保存：'+r.inviteCode);}catch(e){toast(e.message,1);}};
-async function loadFeatures(){try{const r=await api('/features');$('ft-moments').checked=!!r.moments;$('ft-collect').checked=!!r.collect;$('ft-invite').checked=r.inviteRequired!==false;$('ft-gvoice').checked=r.groupVoiceCall!==false;$('ft-gvideo').checked=r.groupVideoCall!==false;}catch(e){toast(e.message,1);}}
+async function loadFeatures(){try{const r=await api('/features');$('ft-moments').checked=!!r.moments;$('ft-collect').checked=!!r.collect;$('ft-invite').checked=r.inviteRequired!==false;$('ft-gvoice').checked=r.groupVoiceCall!==false;$('ft-gvideo').checked=r.groupVideoCall!==false;$('ft-captcha').checked=!!r.loginCaptcha;}catch(e){toast(e.message,1);}}
 async function loadTopInviters(){try{const r=await api('/top-inviters?limit=20');$('inv-total').textContent='累计被邀请 '+r.totalInvited+' 人';$('inv-rank').innerHTML=r.inviters.length?('<table class="tbl"><caption class="sr-only">邀请排行榜</caption><thead><tr><th scope="col">#</th><th scope="col">用户</th><th scope="col">投聊号</th><th scope="col">拉新</th></tr></thead><tbody>'+r.inviters.map((u,i)=>`<tr><td>${i+1}</td><td>${esc(u.username)}${u.banned?' <span style="color:#FA5151">(封禁)</span>':''}</td><td>${esc(u.wechat_id)}</td><td><b>${u.invitedCount}</b></td></tr>`).join('')+'</tbody></table>'):'<div style="color:#888">暂无邀请记录</div>';}catch(e){$('inv-rank').textContent='加载失败：'+e.message;}}
 $('invrank-refresh').onclick=loadTopInviters;
-$('ftsave').onclick=async()=>{try{await api('/features',{method:'PUT',body:{moments:$('ft-moments').checked,collect:$('ft-collect').checked,inviteRequired:$('ft-invite').checked,groupVoiceCall:$('ft-gvoice').checked,groupVideoCall:$('ft-gvideo').checked}});toast('功能开关已保存');}catch(e){toast(e.message,1);}};
+$('ftsave').onclick=async()=>{try{await api('/features',{method:'PUT',body:{moments:$('ft-moments').checked,collect:$('ft-collect').checked,inviteRequired:$('ft-invite').checked,groupVoiceCall:$('ft-gvoice').checked,groupVideoCall:$('ft-gvideo').checked,loginCaptcha:$('ft-captcha').checked}});toast('功能开关已保存');}catch(e){toast(e.message,1);}};
 
 // ── 分页 / 弹窗 ──
 function renderPage(elId,state,total,reload){const el=$(elId);const pages=Math.ceil(total/state.limit)||1;const cur=Math.floor(state.offset/state.limit)+1;if(pages<=1){el.innerHTML='';return;}el.innerHTML=`<button class="mini" ${cur<=1?'disabled':''} id="${elId}-p">上一页</button><span class="muted">${cur} / ${pages}</span><button class="mini" ${cur>=pages?'disabled':''} id="${elId}-n">下一页</button>`;const p=$(elId+'-p'),n=$(elId+'-n');if(p)p.onclick=()=>{state.offset=Math.max(0,state.offset-state.limit);reload();};if(n)n.onclick=()=>{state.offset+=state.limit;reload();};}

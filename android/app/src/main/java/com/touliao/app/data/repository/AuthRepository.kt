@@ -4,6 +4,7 @@ import com.touliao.app.core.storage.AccountStore
 import com.touliao.app.core.storage.TokenStore
 import com.touliao.app.data.api.AuthApi
 import com.touliao.app.data.model.Account
+import com.touliao.app.data.model.CaptchaResponse
 import com.touliao.app.data.model.LoginRequest
 import com.touliao.app.data.model.RegisterRequest
 import com.touliao.app.data.model.ResetPasswordRequest
@@ -17,11 +18,13 @@ class AuthRepository @Inject constructor(
     private val tokenStore: TokenStore,
     private val accountStore: AccountStore,
 ) {
-    suspend fun login(phone: String, password: String): User {
-        val res = api.login(LoginRequest(phone.trim(), password))
+    suspend fun login(phone: String, password: String, captchaId: String? = null, captchaText: String? = null): User {
+        val res = api.login(LoginRequest(phone.trim(), password, captchaId, captchaText))
         applyAuth(res.token, res.user)
         return res.user
     }
+
+    suspend fun getCaptcha(): CaptchaResponse = api.getCaptcha()
 
     suspend fun register(phone: String, password: String, username: String, inviteCode: String): User {
         val res = api.register(RegisterRequest(phone.trim(), password, username.trim(), inviteCode.trim()))

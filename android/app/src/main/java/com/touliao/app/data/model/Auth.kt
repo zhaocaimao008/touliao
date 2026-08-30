@@ -18,6 +18,15 @@ data class User(
 data class LoginRequest(
     val phone: String,
     val password: String,
+    val captchaId: String? = null,
+    val captchaText: String? = null,
+)
+
+/** GET /api/auth/captcha 响应：captchaId 提交登录时回传，svgDataUrl 直接当图片显示。 */
+@Serializable
+data class CaptchaResponse(
+    val captchaId: String,
+    val svgDataUrl: String,
 )
 
 @Serializable

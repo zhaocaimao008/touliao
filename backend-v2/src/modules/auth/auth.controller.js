@@ -6,6 +6,7 @@ const { authCookieOptions, walletCookieOptions, csrfCookieOptions } = require('.
 const { asyncHandler, badRequest } = require('../../utils/http');
 const { db } = require('../../db/connection');
 const svc = require('./auth.service');
+const captcha = require('../../utils/captcha');
 
 function setAuthCookie(req, res, token) {
   res.cookie(config.cookieName, token, authCookieOptions(req));
@@ -25,6 +26,10 @@ function ensureWallet(req, res) {
   }
   return walletId;
 }
+
+exports.captcha = (req, res) => {
+  res.json(captcha.generate());
+};
 
 exports.register = asyncHandler(async (req, res) => {
   const { token, user } = await svc.register(req.body, req);

@@ -120,6 +120,7 @@ dependencies {
 
     // Image loading
     implementation(libs.coil.compose)
+    implementation(libs.coil.svg)   // 登录验证码是后端生成的 SVG data URL，Coil 默认不解码 SVG，需要这个官方扩展
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
 
