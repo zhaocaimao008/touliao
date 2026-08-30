@@ -3,8 +3,19 @@ import Foundation
 struct LoginBody: Encodable {
     let phone: String
     let password: String
-    let captchaId: String? = nil
-    let captchaText: String? = nil
+    let captchaId: String?
+    let captchaText: String?
+
+    // 显式初始化器，不依赖编译器合成的memberwise init——`let`属性带内联默认值时会被
+    // 排除在自动合成的memberwise init参数列表之外（这正是CI报错"extra arguments at
+    // positions #3, #4"的原因：合成的init只有phone/password两个参数，AuthRepository.swift
+    // 调用时传了4个）。显式声明后调用方仍可省略captchaId/captchaText（未开验证码时的登录）。
+    init(phone: String, password: String, captchaId: String? = nil, captchaText: String? = nil) {
+        self.phone = phone
+        self.password = password
+        self.captchaId = captchaId
+        self.captchaText = captchaText
+    }
 }
 
 /// GET /api/auth/captcha 响应：captchaId 提交登录时回传，svgDataUrl 直接当图片显示。
