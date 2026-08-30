@@ -1169,6 +1169,7 @@ export default function Profile({ isMobile = false }) {
   const { user, updateUser, logout, accounts, login, switchAccount } = useAuth();
   const [subPage, setSubPage] = useState(null);
   const [showQR, setShowQR] = useState(false);
+  const [updateKeyStatus, setUpdateKeyStatus] = useState(null);
 
   useEffect(() => {
     if (!showQR) return;
@@ -1176,6 +1177,13 @@ export default function Profile({ isMobile = false }) {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [showQR]);
+
+  // 更新公钥启动自检结果（仅桌面端）：管理员在「我的」页底部就能看到
+  // "更新验签已失效"，不必翻日志才发现更新静默不可用。
+  useEffect(() => {
+    if (!window.__ELECTRON_CONFIG__) return;
+    window.electronAPI?.getUpdateKeyStatus?.().then(setUpdateKeyStatus).catch(() => {});
+  }, []);
 
   /* ── 子页 ── */
   if (subPage === 'profile-detail') return <ProfileDetail user={user} updateUser={updateUser} onBack={() => setSubPage(null)} navigateTo={setSubPage} />;
@@ -1300,6 +1308,12 @@ export default function Profile({ isMobile = false }) {
       <div className="profile-version-footer">
         投聊 v{window.__ELECTRON_CONFIG__?.appVersion || __APP_VERSION__}
       </div>
+      {/* 更新验签启动自检：公钥缺失/非法时提示管理员，仅桌面端、仅异常时渲染 */}
+      {window.__ELECTRON_CONFIG__ && updateKeyStatus && !updateKeyStatus.valid && (
+        <div className="profile-version-footer" style={{ color: 'var(--color-danger, #F53F3F)' }}>
+          ⚠️ 更新验签公钥异常，本机已无法接收签名校验通过的更新（{updateKeyStatus.reason}）
+        </div>
+      )}
     </PageBg>
   );
 }

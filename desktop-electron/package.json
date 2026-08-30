@@ -11,10 +11,10 @@
   "scripts": {
     "dev": "electron .",
     "build:web": "cd ../web && npx vite build --mode desktop",
-    "build": "npm run build:web && electron-builder",
-    "build:win": "npm run build:web && electron-builder --win --x64",
-    "build:mac": "npm run build:web && electron-builder --mac --x64",
-    "build:linux": "npm run build:web && electron-builder --linux --x64",
+    "build": "npm run build:web && electron-builder && node scripts/sign-update.js dist",
+    "build:win": "npm run build:web && electron-builder --win --x64 && node scripts/sign-update.js dist latest.yml",
+    "build:mac": "npm run build:web && electron-builder --mac --x64 && node scripts/sign-update.js dist latest-mac.yml",
+    "build:linux": "npm run build:web && electron-builder --linux --x64 && node scripts/sign-update.js dist latest-linux.yml",
     "pack": "npm run build:web && electron-builder --dir",
     "postinstall": "electron-builder install-app-deps"
   },
@@ -36,6 +36,7 @@
         ]
       }
     ],
+    "afterPack": "scripts/afterPack.js",
     "win": {
       "target": [
         "nsis"
@@ -83,6 +84,7 @@
   },
   "devDependencies": {
     "electron": "^30.0.0",
-    "electron-builder": "^24.13.0"
+    "electron-builder": "^24.13.0",
+    "@electron/asar": "^3.4.1"
   }
 }

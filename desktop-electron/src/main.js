@@ -9,6 +9,7 @@ const https = require('https');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const Store = require('electron-store');
+const { validatePublicKeyPem } = require('../scripts/lib/validatePublicKeyPem');
 
 // ── Windows 渲染修复：硬件加速冲突导致的气泡/图片重叠残影 ──
 // 现象：Web 端正常，桌面端出现消息气泡、图片局部残影错乱（GPU 合成器驱动 bug 的典型症状）。
@@ -512,7 +513,9 @@ function createWindow() {
 // 通过，安装包完整性即被绑定。公钥随包内置（src/update-public-key.pem），私钥由
 // 发布方离线保管，发布时用 scripts/sign-update.js 生成 *.sig 上传至更新源。
 
-// 读取内置更新公钥；未配置(文件缺失/占位)返回 null → 跳过验签(回退 TLS)。
+// 读取内置更新公钥；未配置(文件缺失/占位)返回 null。
+// 安全策略（P2 强化，2026-08-30）：验签不再有"未配置公钥则跳过、回退仅信TLS"这条路径——
+// 公钥缺失本身就视为验签失败，一律阻止安装，不放行任何未经验签的更新包。
 function loadUpdatePublicKey() {
   try {
     const pem = fs.readFileSync(path.join(__dirname, 'update-public-key.pem'), 'utf8');
@@ -520,6 +523,34 @@ function loadUpdatePublicKey() {
     return crypto.createPublicKey(pem);
   } catch {
     return null;
+  }
+}
+
+// 启动自检结果：{ valid, reason }。渲染层「关于/设置」页通过 update:getKeyStatus
+// 查询并展示，避免验签失败但没人发现（管理员/运维要能一眼看出"这台客户端已经
+// 收不到更新了"，不是等真出了更新才在日志里偶然翻到）。
+let updateKeyStatus = { valid: false, reason: '尚未检查' };
+
+// 启动时校验 update-public-key.pem 是否存在且是合法 Ed25519 公钥。只写日志，
+// 不弹窗打扰用户——弹窗留给"真的有更新但验签失败"这个更紧急的场景（见
+// verifyUpdateSignature 的 update:error 提示），启动自检只是"提前预警"，不是阻断项。
+function checkUpdateKeyStatus() {
+  const pemPath = path.join(__dirname, 'update-public-key.pem');
+  let pem;
+  try {
+    pem = fs.readFileSync(pemPath, 'utf8');
+  } catch (e) {
+    updateKeyStatus = { valid: false, reason: `公钥文件缺失或不可读：${e.message}` };
+    log.error('更新公钥自检失败：', updateKeyStatus.reason);
+    return;
+  }
+  // 复用打包时(scripts/afterPack.js)同一份校验标准，避免"什么算合法公钥"两处定义漂移。
+  const result = validatePublicKeyPem(pem);
+  updateKeyStatus = result;
+  if (result.valid) {
+    log.info('更新公钥自检通过：合法 Ed25519 公钥');
+  } else {
+    log.error('更新公钥自检失败：', result.reason);
   }
 }
 
@@ -571,16 +602,17 @@ function fetchBuffer(url, { allowMissing = false } = {}) {
   });
 }
 
-// 验证更新元数据签名。返回：'ok' | 'skip'(未启用验签) | 'fail'(疑似篡改/校验失败)
-// 安全策略（P1 修复）：只有「公钥未配置」才允许回退仅 TLS（skip）——那是验签功能
-// 压根没启用。一旦公钥已配置，任何「拉取元数据失败 / .sig 缺失 / 网络异常」都视为
-// fail 并阻止下载：若回退 TLS，攻击者只需让 .sig 拉取失败即可降级到无签名校验，
-// 使整条 Ed25519 防线形同虚设。
+// 验证更新元数据签名。返回：'ok' | 'fail'(缺公钥/占位/篡改/网络异常均视为fail)
+// 安全策略（P2 强化，2026-08-30）：验签是强制项，不存在"跳过验签、仅信TLS继续安装"
+// 这条路径了。公钥缺失、仍是占位文本、元数据拉取失败、.sig缺失、签名不匹配——
+// 任何一种情况一律阻止安装。此前的"公钥未配置则回退TLS"分支等于给攻击者一条
+// 现成的降级路径（只要让 .sig 拉取失败/让公钥文件不可读，就能绕过整条Ed25519防线），
+// 已删除。
 async function verifyUpdateSignature() {
   const pub = loadUpdatePublicKey();
   if (!pub) {
-    log.warn('更新验签：未配置公钥，回退仅 TLS 信任');
-    return 'skip';
+    log.error('更新验签：公钥缺失或仍为占位文本，已阻止安装（验签为强制项，不再回退TLS）');
+    return 'fail';
   }
   const base = updateFeedBase();
   const ymlUrl = `${base}/${channelYmlName()}`;
@@ -592,24 +624,20 @@ async function verifyUpdateSignature() {
       fetchBuffer(sigUrl, { allowMissing: true }),
     ]);
   } catch (e) {
-    // 公钥已配置但元数据拉取失败：阻止下载（安全优先）。合法更新重试即可，
-    // 若持续失败说明更新源异常，不应降级到无签名校验。
-    log.error('更新验签：拉取元数据失败，已阻止下载（安全策略）：', e.message);
+    log.error('更新验签：拉取元数据失败，已阻止安装：', e.message);
     return 'fail';
   }
   if (!sigBuf) {
-    // 公钥已配置但 .sig 缺失：阻止下载。发布侧须确保 sign-update.js 已生成并
-    // 上传 .sig（发布流水线强校验），否则视为更新通道不完整。
-    log.error('更新验签：未找到 .sig 签名文件，已阻止下载（安全策略）');
+    log.error('更新验签：未找到 .sig 签名文件，已阻止安装');
     return 'fail';
   }
   try {
     const ok = crypto.verify(null, ymlBuf, pub, sigBuf);
     if (ok) { log.info('更新验签：元数据签名校验通过'); return 'ok'; }
-    log.error('更新验签：签名无效，疑似篡改，已阻止下载');
+    log.error('更新验签：签名无效，疑似篡改，已阻止安装');
     return 'fail';
   } catch (e) {
-    log.error('更新验签：校验异常，已阻止下载：', e.message);
+    log.error('更新验签：校验异常，已阻止安装：', e.message);
     return 'fail';
   }
 }
@@ -620,11 +648,11 @@ function setupAutoUpdater() {
     log.info('发现新版本:', info.version);
     mainWindow?.webContents.send('update:available', info);
     const verdict = await verifyUpdateSignature();
-    if (verdict === 'fail') {
-      mainWindow?.webContents.send('update:error', '更新校验失败，已阻止下载');
+    if (verdict !== 'ok') {
+      log.error('更新已阻止：版本', info.version, '未通过签名校验，不下载');
+      mainWindow?.webContents.send('update:error', '更新包校验失败，已阻止安装，请联系管理员');
       return;
     }
-    // 'ok' 或 'skip'(未启用/网络回退) 均放行下载；安装仍需用户确认。
     autoUpdater.downloadUpdate().catch((e) => log.error('下载更新失败:', e.message));
   });
 
@@ -1012,6 +1040,13 @@ function setupIPC() {
       mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
     });
   });
+
+  // 更新公钥启动自检结果查询：供「关于/设置」页展示，让管理员能发现
+  // "这台客户端已经无法接收更新"，不必等真出更新才在日志里偶然发现。
+  ipcMain.handle('update:getKeyStatus', (_e) => {
+    if (!isTrustedSender(_e)) return { valid: false, reason: '未授权查询' };
+    return updateKeyStatus;
+  });
 }
 
 // ── 全局快捷键（截图等）──────────────────────────────────
@@ -1095,6 +1130,7 @@ app.whenReady().then(async () => {
     // 否则 Chromium 已打开缓存文件句柄，Windows 上删除会失败/部分生效
     await clearRenderCaches();
 
+    checkUpdateKeyStatus();
     setupSecurity();
     setupIPC();
     createWindow();

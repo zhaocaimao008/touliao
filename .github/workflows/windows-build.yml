@@ -35,26 +35,54 @@ jobs:
         working-directory: desktop-electron
         run: npm ci
 
+      - name: 写入更新签名私钥（临时文件，用完即删）
+        shell: bash
+        run: echo "${{ secrets.UPDATE_PRIVATE_KEY }}" > "${{ runner.temp }}/update-private-key.pem"
+
       - name: Build Windows installer
         working-directory: desktop-electron
         # build:win 内部的 build:web 在 Windows cmd 里 cd 可能不生效；
         # web 已在上一步构建好，直接跑 electron-builder 即可。
+        # afterPack 钩子会用 UPDATE_PRIVATE_KEY 校验+校验打包产物里的公钥；
+        # 私钥缺失或不合法时这一步会直接失败，不会产出无签名的包。
+        env:
+          UPDATE_PRIVATE_KEY: ${{ runner.temp }}/update-private-key.pem
         run: npx electron-builder --win --x64
+
+      - name: 签名更新元数据 latest.yml
+        working-directory: desktop-electron
+        # 特意作为 electron-builder 进程退出后的独立步骤，不用 afterAllArtifactBuild 钩子——
+        # 2026-08-30 实测发现该钩子与 electron-builder 自身写 latest.yml 的内部任务之间
+        # 存在真实竞态（钩子触发时 yml 可能还没被最终内容覆盖完，事后又被重写导致签名失效）。
+        # 独立步骤保证 electron-builder 进程已完全退出、yml 已是最终内容才签名。
+        env:
+          UPDATE_PRIVATE_KEY: ${{ runner.temp }}/update-private-key.pem
+        run: node scripts/sign-update.js dist latest.yml
+
+      - name: 清理私钥临时文件
+        if: always()
+        shell: bash
+        run: rm -f "${{ runner.temp }}/update-private-key.pem"
 
       - name: Upload installer + update feed
         uses: actions/upload-artifact@v4
         with:
           name: touliao-windows-setup
-          # latest.yml / *.blockmap 是 electron-updater 自动更新所必需：必须与 .exe
-          # 一并上传到更新源 https://touliao.cc/downloads/updates，否则客户端拉不到更新。
+          # latest.yml / *.sig / *.blockmap 是 electron-updater 自动更新+Ed25519验签所必需：
+          # 必须与 .exe 一并上传到更新源 https://touliao.cc/downloads/updates，
+          # 否则客户端拉不到更新，或验签因缺 .sig 直接判 fail 被阻止安装。
           path: |
             desktop-electron/dist/*.exe
             desktop-electron/dist/latest.yml
+            desktop-electron/dist/latest.yml.sig
             desktop-electron/dist/*.blockmap
             desktop-electron/release/*.exe
             desktop-electron/release/latest.yml
+            desktop-electron/release/latest.yml.sig
             desktop-electron/release/*.blockmap
-          if-no-files-found: warn
+          # 改成 error（原为 warn）：afterPack 校验或签名步骤任何一步失败都应该让
+          # 整个 workflow 在这里明显报错，而不是"产物没生成，但只显示一条容易被忽略的警告"。
+          if-no-files-found: error
 
   deploy:
     name: 部署到香港服务器

@@ -47,26 +47,53 @@
 
 **Linux**——AppImage/deb 无系统级签名链，建议对发布产物附 GPG `.asc` 分发校验。
 
-### 纵深防御 —— latest.yml Ed25519 二次签名（已在代码层完成，待启用密钥）
+### 纵深防御 —— latest.yml Ed25519 二次签名（2026-08-30 已启用，验签为强制项）
 
-客户端 `src/main.js`（`verifyUpdateSignature()`）已实现：`update-available` 时关闭
+客户端 `src/main.js`（`verifyUpdateSignature()`）：`update-available` 时关闭
 `autoDownload`，先从更新源拉取 `latest*.yml` 与同名 `.sig`，用内置公钥
-`src/update-public-key.pem` 做 Ed25519 验签，通过后才 `downloadUpdate()`；签名无效
-判定为篡改并阻止下载。使更新真实性不单纯依赖 TLS + 服务器目录可信。
+`src/update-public-key.pem` 做 Ed25519 验签，通过后才 `downloadUpdate()`。
+**验签是强制项，不存在"公钥未配置则回退仅信TLS继续安装"这条路径**——公钥缺失/
+仍是占位文本/元数据拉取失败/`.sig`缺失/签名不匹配，任一情况都会阻止安装，并在
+「关于/设置」页展示明确提示（`update:getKeyStatus`，见启动自检）。
 
-**启用步骤（发布前一次性）：**
+真实密钥对已生成（2026-08-30），`src/update-public-key.pem` 已是真实公钥，私钥离线保管。
+签名流程已接入打包：`build.afterPack`（`scripts/afterPack.js`）在打包阶段校验私钥已配置、
+校验产物里真的装了合法公钥，不允许在未配置签名私钥时产出安装包；`electron-builder`
+进程**退出后**，`npm run build:win/mac/linux` 各自串联了一步
+`node scripts/sign-update.js dist latest*.yml` 自动对刚产出的 `latest*.yml` 签名。
 
-1. `node scripts/gen-update-keys.js` —— 生成 Ed25519 密钥对：
-   - `src/update-public-key.pem`（公钥，覆盖占位文件后**提交入库**，随客户端内置）；
-   - `update-private-key.pem`（私钥，已被 `.gitignore`，**离线/HSM/CI secret 保管，切勿提交外发**）。
-2. 每次发布：`electron-builder` 打包后运行
-   `node scripts/sign-update.js dist`，为 `dist/latest*.yml` 生成 `*.sig`。
-3. 把 `latest*.yml` 与对应 `*.sig` **一并**上传到更新源
-   （`https://dipsin.com/downloads/updates`）。
+> 签名故意不放在 `afterAllArtifactBuild` 钩子里（曾经这样做过）——2026-08-30 实测发现该
+> 钩子触发时机与 electron-builder 自身写 `latest*.yml` 的内部任务之间存在真实竞态，签的
+> 可能是半成品，之后 yml 又被重写导致签名失效，且不会在构建阶段报错。改成"进程退出后
+> 的独立步骤"彻底规避这个问题：`&&` 保证上一步进程已完全退出、yml 已是最终内容。
+> CI（`.github/workflows/windows-build.yml`）同理，独立一步显式调用 `sign-update.js`。
 
-> 公钥仍为 `PLACEHOLDER` 占位（或 `.sig` 缺失/网络失败）时，客户端自动跳过验签、
-> 回退仅 TLS 信任，不阻断合法更新；故可先发版、后启用密钥而不破坏在网客户端。
-> 私钥泄露 = 可伪造更新元数据，轮换公钥需加 `--force` 且会使旧客户端无法校验新签名。
+**CI 路径（Windows，`.github/workflows/windows-build.yml`）：**
+私钥存在仓库 Secret `UPDATE_PRIVATE_KEY` 里，workflow 运行时写入
+`${{ runner.temp }}/update-private-key.pem` 临时文件，构建完（无论成功失败）显式删除。
+
+**本地路径（Mac/Linux，`npm run build:mac` / `build:linux`，目前无 CI）：**
+
+1. 私钥文件放哪：你离线保管的任意位置（密码管理器导出/加密U盘/HSM），**不要**放进
+   `desktop-electron/` 项目目录（即使 `.gitignore` 已排除 `update-private-key.pem`，
+   放在项目目录里也容易被误 `rm -rf`/被其它脚本扫到，建议放在项目目录之外，比如
+   `~/secure/touliao-update-private-key.pem`）
+2. 设置环境变量（当次终端会话）：
+   ```bash
+   export UPDATE_PRIVATE_KEY=~/secure/touliao-update-private-key.pem
+   npm run build:mac      # 或 build:linux
+   ```
+3. 验证配置成功：`afterPack` 钩子会在构建过程中打印
+   `[afterPack] 更新公钥+签名私钥均校验通过（darwin/x64）`；构建全部完成后，
+   `dist/` 目录下应该同时出现 `latest-mac.yml`（或`latest-linux.yml`）和同名
+   `latest-mac.yml.sig`——**看到 `.sig` 文件生成，就是本地签名配置成功的证据**。
+   若 `UPDATE_PRIVATE_KEY` 没配或私钥不合法，构建会在 `afterPack` 阶段直接失败并
+   打印明确原因（"未配置 UPDATE_PRIVATE_KEY 环境变量，构建已终止"等），不会静默
+   产出无签名的包。
+
+> 轮换公钥需加 `gen-update-keys.js --force` 且会使旧客户端无法校验新私钥签名的更新，
+> 轮换前评估在网客户端的验签失败提示（"更新包校验失败，已阻止安装，请联系管理员"）
+> 是否可接受，或安排过渡期双签名。私钥泄露 = 可伪造更新元数据，按密钥泄露事件处理。
 
 - 更新目录所在主机最小权限，写入走单独的发布流水线，禁止人工直接覆盖。
 
