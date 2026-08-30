@@ -120,6 +120,21 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
                 name: .vxinOpenConversation, object: nil,
                 userInfo: ["conversationId": conversationId]
             )
+        } else if let callId = info["callId"] as? String, !callId.isEmpty {
+            // 2026-08-30 修复：来电通知本体被点击（不是"接听"/"拒绝"这两个 action 按钮，
+            // actionIdentifier 是系统默认的 UNNotificationDefaultActionIdentifier，走不到上面
+            // ANSWER/DECLINE 分支）——此前这里完全没处理，用户点进通知只是打开了 App，
+            // 没有任何来电界面/应答逻辑被触发，形成"锁屏有通知、点进去却不能接听"。
+            // 来电推送 payload 不带 conversationId（只有 from/callerName/callId/callType），
+            // 所以上面那个分支天然不会命中，需要单独判断。
+            // 只重建 incoming 状态、不自动 accept/reject——交给用户在 App 内的来电界面自己决定，
+            // 跟 ANSWER/DECLINE 分支的语义不同（那两个是已经做了选择，这里只是"打开来看看"）。
+            let from = info["from"] as? String ?? ""
+            let callType = info["callType"] as? String ?? "audio"
+            let callerName = info["callerName"] as? String ?? ""
+            Task { @MainActor in
+                CallManager.shared.incomingFromPush(from: from, callType: callType, callerName: callerName, callId: callId)
+            }
         }
         completionHandler()
     }
