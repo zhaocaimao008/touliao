@@ -38,6 +38,7 @@
     ],
     "afterPack": "scripts/afterPack.js",
     "win": {
+      "executableName": "touliao",
       "target": [
         "nsis"
       ],
