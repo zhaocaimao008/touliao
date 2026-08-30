@@ -59,9 +59,12 @@ final class AddFriendViewModel: ObservableObject {
             let token = rest.split(whereSeparator: { $0 == "?" || $0 == "/" }).first.map(String.init) ?? ""
             if !token.isEmpty { joinGroup(token); return }
         }
+        // 接受 "vxin-user"(旧) 和 "touliao-user"(新，计划中的后端改名) 两种 type 值，
+        // 保证后端切换 type 值时不需要和客户端版本严格同批发布（见 AUDIT.md 十五节）
+        let validQrTypes: Set<String> = ["vxin-user", "touliao-user"]
         guard let data = raw.data(using: .utf8),
               let payload = try? JSONDecoder().decode(QRPayload.self, from: data),
-              payload.type == "vxin-user", !payload.id.isEmpty else {
+              validQrTypes.contains(payload.type), !payload.id.isEmpty else {
             message = "无法识别的二维码"
             return
         }

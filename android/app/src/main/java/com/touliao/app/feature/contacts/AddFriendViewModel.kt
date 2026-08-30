@@ -52,7 +52,9 @@ class AddFriendViewModel @Inject constructor(
             if (token.isNotEmpty()) { joinGroup(token); return }
         }
         val payload = runCatching { json.decodeFromString<QrPayload>(raw) }.getOrNull()
-        if (payload == null || payload.type != "vxin-user" || payload.id.isBlank()) {
+        // 接受 "vxin-user"(旧) 和 "touliao-user"(新，计划中的后端改名) 两种 type 值，
+        // 保证后端切换 type 值时不需要和客户端版本严格同批发布（见 AUDIT.md 十五节）
+        if (payload == null || payload.type !in VALID_QR_TYPES || payload.id.isBlank()) {
             _uiState.update { it.copy(message = "无法识别的二维码") }
             return
         }
@@ -124,5 +126,9 @@ class AddFriendViewModel @Inject constructor(
                 }
                 .onFailure { e -> _uiState.update { it.copy(message = e.toUserMessage("发送失败")) } }
         }
+    }
+
+    private companion object {
+        val VALID_QR_TYPES = setOf("vxin-user", "touliao-user")
     }
 }
