@@ -85,6 +85,42 @@ curl -s -o /dev/null -w "%{http_code}\n" https://touliao.cc/
 放进 `/var/www/touliao-runtime-config/`，不要放回Web构建产物目录**，并在nginx里单独配一个
 `location` 指过去。
 
+## nginx 配置纳入版本控制
+
+> 2026-08-30 补充。此前 nginx 配置只存在于生产服务器本机，不受版本控制——服务器重装/
+> 迁移时没有权威依据能照着重建，也没有历史改动记录。现在在仓库里保留一份副本。
+
+**线上真实配置**：`/etc/nginx/conf.d/touliao-cc.conf`（这台服务器上唯一真正被nginx加载、
+在用的touliao配置文件；同目录下如果看到`*.bak-*`结尾的文件，那些是历史备份，不是在用的）。
+
+**仓库副本**：`deploy/nginx/touliao-cc.conf`。用途是**参考和灾难恢复**（服务器重装/换新
+服务器时，照这份文件在新机器上重建nginx配置），**不是**运行时直接依赖的文件——nginx
+读的是`/etc/nginx/conf.d/`下的真实文件，不会去读仓库里的这份副本。
+
+**⚠️ 这两份文件不会自动保持一致，靠人工纪律维持**：修改线上nginx配置后，必须手动把
+改动同步到仓库副本并提交，否则仓库里的版本会逐渐过期、失去"灾难恢复依据"这个价值。
+（技术上可以用符号链接让两者天然同步，评估过这个方案但暂未采用——`rm`线上配置文件、
+建符号链接这类系统级操作的自动化审批门槛较高，这次改为纯文档约定，之后如果需要
+升级成符号链接方案，再单独执行。）
+
+**改nginx配置的标准流程**：
+```bash
+# 1. 改线上真实配置
+vim /etc/nginx/conf.d/touliao-cc.conf
+
+# 2. 语法检查
+nginx -t
+
+# 3. 确认无误后 reload（不是restart，reload不中断现有连接）
+nginx -s reload
+
+# 4. 验证改动生效（按改了什么针对性验证，比如新增了一个location就curl测一下）
+
+# 5. 手动同步一份到仓库并提交——这一步最容易忘，务必执行
+cp /etc/nginx/conf.d/touliao-cc.conf /root/touliao/deploy/nginx/touliao-cc.conf
+cd /root/touliao && git add deploy/nginx/touliao-cc.conf && git commit -m "说明这次改了什么、为什么"
+```
+
 ## 关键环境变量（脚本自动写入，一般无需手改）
 
 | 变量 | 说明 | 默认/自动 |
