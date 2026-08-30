@@ -1,7 +1,7 @@
 'use strict';
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
-        globalShortcut, screen, Notification, shell, session, clipboard } = require('electron');
+        globalShortcut, screen, Notification, shell, session, clipboard, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -1026,6 +1026,20 @@ function setupShortcuts() {
   if (!ok) log.warn(`快捷键注册失败（可能被系统/其它 App 占用）: ${screenshotKey}`);
 }
 
+// ── 休眠唤醒重连（AUDIT.md 十二节🟡）──────────────────────
+// 渲染层 socket.io-client 只能靠 pingTimeout(20秒) 超时才判定断线，笔记本合盖唤醒后
+// 最坏要等 20 秒才开始重连。系统级 powerMonitor 能在唤醒瞬间就通知渲染层主动检查连接，
+// 把这个滞后从"最多20秒"降到"几乎瞬间"。只通知，不代主进程判断连接死活——
+// 连接是否真的需要重连、怎么重连，仍由渲染层 socket.io 自己的状态和逻辑决定。
+function setupPowerMonitor() {
+  powerMonitor.on('resume', () => {
+    log.info('[power] 系统从休眠唤醒，通知渲染层立即检查连接');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('power:resume');
+    }
+  });
+}
+
 // ── 应用生命周期 ───────────────────────────────────────────
 // 单实例锁：避免多实例导致托盘/配置竞争，第二次启动聚焦已有窗口
 if (!app.requestSingleInstanceLock()) {
@@ -1087,6 +1101,7 @@ app.whenReady().then(async () => {
     createTray();
     setupAutoUpdater();
     setupShortcuts();
+    setupPowerMonitor();
 
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

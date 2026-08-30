@@ -100,3 +100,9 @@ ipcRenderer.on('window:maximized-change', (_, isMaximized) => {
 ipcRenderer.on('shortcut:screenshot', () => {
   window.dispatchEvent(new CustomEvent('electron:shortcut-screenshot'));
 });
+
+// 系统休眠唤醒（主进程 powerMonitor 'resume'）→ 渲染层立即检查 socket 连接，
+// 不必等 pingTimeout(20秒) 才发现断线（见 AUDIT.md 十二节🟡）。
+ipcRenderer.on('power:resume', () => {
+  window.dispatchEvent(new CustomEvent('electron:resume'));
+});

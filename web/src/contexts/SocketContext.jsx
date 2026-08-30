@@ -82,14 +82,20 @@ export const SocketProvider = ({ children }) => {
 
     const onVisible = () => { if (document.visibilityState === 'visible' && !s.connected) s.connect(); };
     const onOnline  = () => { if (!s.connected) s.connect(); };
+    // Electron 专属：主进程 powerMonitor 监听到系统休眠唤醒后转发的事件（见 preload.js）。
+    // 没有它的话，休眠唤醒后要等 socket.io pingTimeout(20秒) 超时才会判定断线开始重连；
+    // 唤醒瞬间主动 connect() 能把这个滞后降到几乎瞬间（AUDIT.md 十二节🟡）。
+    const onElectronResume = () => { if (!s.connected) s.connect(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
+    window.addEventListener('electron:resume', onElectronResume);
 
     return () => {
       everConnectedRef.current = false;
       disconnectAtRef.current = 0;
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', onOnline);
+      window.removeEventListener('electron:resume', onElectronResume);
       s.disconnect();
       setSocket(null);
       setConnected(false);
