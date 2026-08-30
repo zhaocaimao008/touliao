@@ -50,7 +50,7 @@ export default function PrivateChatSettings({ conversation, onClose, onConvUpdat
   const exportChat = async () => {
     setSaving(true);
     try {
-      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/export`, { responseType: 'blob' });
+      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/export`, { responseType: 'blob', timeout: 120000 });
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;

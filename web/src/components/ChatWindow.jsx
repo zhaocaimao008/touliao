@@ -1516,7 +1516,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           fd.append('file', file);
           const { data } = await axios.post(
             `/api/messages/conversation/${conversation.id}/background-upload`,
-            fd, { headers: { 'Content-Type': 'multipart/form-data' } }
+            fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 }
           );
           url = data.url;
         }
@@ -1537,6 +1537,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     await axios.post(`/api/messages/${conversation.id}/upload`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => { if (e.total) onProgress?.(Math.round(e.loaded / e.total * 100)); },
+      // 直传路径没有大小上限（后端 MAX_UPLOAD_BYTES 默认 200MB），全局 20s 默认对大文件/慢网络
+      // 明显不够，给一个远大于正常场景的兜底值，而不是完全不设超时（那样又回到"可能永久挂起"）。
+      timeout: 600000, // 10 分钟
     });
   }, [conversation.id, replyTo]);
 
@@ -1563,7 +1566,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         try {
           const { data } = await axios.put(
             `/api/messages/${conversation.id}/upload-chunk/${init.uploadId}?offset=${received}`,
-            slice, { headers: { 'Content-Type': 'application/octet-stream' } }
+            slice, { headers: { 'Content-Type': 'application/octet-stream' }, timeout: 120000 }
           );
           received = data.received;
           break;

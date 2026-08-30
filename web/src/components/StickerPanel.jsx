@@ -68,7 +68,7 @@ export default function StickerPanel({ onSend }) {
     try {
       const form = new FormData();
       form.append('image', file);
-      await axios.post('/api/stickers/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await axios.post('/api/stickers/upload', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
       await load();
     } catch (err) {
       showToast(err.response?.data?.error || '添加失败', 'error');

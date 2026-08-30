@@ -68,6 +68,11 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   }
   // 跨域请求必须携带 Cookie，全局开启
   axios.defaults.withCredentials = true;
+  // 全局请求超时兜底：此前没有任何超时配置，一个"连接建立了但服务端/中间设备静默不回包"的
+  // 挂起请求会无限期悬挂（不 resolve 也不 reject，axiosInterceptor 的重试逻辑压根不会被触发，
+  // 见 AUDIT.md 十二节🟡）。20s 覆盖绝大多数普通 API 调用；大文件上传/下载单独按调用点覆盖
+  // 更宽松的超时（见 ChatWindow/Moments/GroupInfo/StickerPanel/Profile 里的 timeout 覆盖）。
+  axios.defaults.timeout = 20000;
 
   // Web 端 config 迟到时补设 baseURL（仅当首次未设置，避免覆盖手动切换）
   if (!isElectron && !isMobile && !manualUrl && !axios.defaults.baseURL) {

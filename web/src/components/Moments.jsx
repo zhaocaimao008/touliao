@@ -394,6 +394,7 @@ export default function Moments() {
           onUploadProgress: (e) => {
             if (e.total) setUploadPct(Math.min(99, Math.round((e.loaded / e.total) * 100)));
           },
+          timeout: 180000, // 最多9张图一起传，全局20s默认不够
         });
         setUploadPct(100);
         imageUrls = data.urls || [];

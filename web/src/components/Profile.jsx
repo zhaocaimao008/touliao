@@ -904,7 +904,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
     try {
       const fd = new FormData();
       fd.append('avatar', file);
-      const { data } = await axios.post('/api/users/avatar', fd);
+      const { data } = await axios.post('/api/users/avatar', fd, { timeout: 120000 });
       if (data?.avatar) {
         updateUser({ ...user, avatar: data.avatar });
       }

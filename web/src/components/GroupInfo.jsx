@@ -384,7 +384,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   const exportChat = async () => {
     try {
-      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/export`, { responseType: 'blob' });
+      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/export`, { responseType: 'blob', timeout: 120000 });
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;
@@ -418,7 +418,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       const { data } = await axios.put(
         `/api/messages/conversation/${conversation.id}/avatar`,
         fd,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 }
       );
       setInfo(i => ({ ...i, avatar: data.avatar }));
       onConvUpdate?.({ avatar: data.avatar });
