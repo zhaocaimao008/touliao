@@ -867,21 +867,21 @@ function getConversationFiles(convId, userId, { type = 'all', offset = 0, limit 
 }
 
 // ── @我的消息聚合（所有会话中 @自己 的消息）──────────────────────
-function getMentions(userId, { offset = 0, limit = 20 }) {
-  const safeLimit  = Math.min(Math.max(parseInt(limit)  || 20, 1), 50);
-  const safeOffset = Math.max(parseInt(offset) || 0, 0);
+// 分页方式：offset → (created_at, msgId) 复合游标（见 AUDIT.md 第九节"分页方式"🟡）。
+// 兼容策略：before/beforeId 都不传时走 offset 分支——首屏加载本来就不带任何分页参数，
+// 不受影响；未升级的旧客户端会一直只传 offset，这条分支永久保留，旧客户端不会被这次
+// 改动破坏，只是拿不到新分页方式修复的"翻页时插入/删除导致重复或漏读"这个问题，
+// 直到客户端升级为止。不需要强制四端同步发版。
+function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
+  const safeLimit = Math.min(Math.max(parseInt(limit) || 20, 1), 50);
 
   // 查当前用户昵称（@提及用 @username 形式存在 content 里）
   const me = db.prepare('SELECT username FROM users WHERE id=?').get(userId);
-  if (!me) return { items: [], total: 0 };
+  if (!me) return { items: [], total: 0, hasMore: false };
 
   const mention = '@' + me.username;
 
-  // 查所有会话内 @我的消息（instr 避免 LIKE 通配歧义）
-  const rows = db.prepare(`
-    SELECT m.id, m.conversation_id, m.content, m.created_at, m.sender_id,
-           u.username AS sender_name,
-           c.name AS conv_name, c.type AS conv_type
+  const baseFrom = `
     FROM messages m
     JOIN users u ON u.id = m.sender_id
     JOIN conversations c ON c.id = m.conversation_id
@@ -890,22 +890,64 @@ function getMentions(userId, { offset = 0, limit = 20 }) {
     WHERE m.deleted = 0
       AND m.sender_id != ?
       AND instr(m.content, ?) > 0
-    ORDER BY m.created_at DESC, m.rowid DESC
-    LIMIT ? OFFSET ?
-  `).all(userId, userId, mention, safeLimit, safeOffset);
+  `;
+  const baseParams = [userId, userId, mention];
 
-  const { cnt: total } = db.prepare(`
-    SELECT COUNT(*) AS cnt
-    FROM messages m
-    JOIN conversation_members cm
-         ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
-    WHERE m.deleted = 0
-      AND m.sender_id != ?
-      AND instr(m.content, ?) > 0
-  `).get(userId, userId, mention);
+  const beforeTs = Number(before);
+  const useCursor = before != null && before !== '' && Number.isFinite(beforeTs);
+
+  let rows;
+  if (useCursor) {
+    // 与 history() 同款复合游标：created_at 秒级精度，同一秒内多条 @我消息时
+    // 仅用 created_at<before 会漏掉与游标同秒、排在上一页之后的消息；客户端回传
+    // 上一页最后一条的 msgId 就能用 (created_at, rowid) 复合比较兜底，不丢不重。
+    // rowid 查找限定在"当前用户是成员的会话"范围内，避免变成任意消息id是否存在的探测点。
+    let beforeRowid = null;
+    if (beforeId) {
+      const r = db.prepare(`
+        SELECT m.rowid AS rid FROM messages m
+        JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
+        WHERE m.id = ?
+      `).get(userId, beforeId);
+      if (r) beforeRowid = r.rid;
+    }
+    let cursorClause, cursorParams;
+    if (beforeRowid != null) {
+      cursorClause = 'AND (m.created_at < ? OR (m.created_at = ? AND m.rowid < ?))';
+      cursorParams = [beforeTs, beforeTs, beforeRowid];
+    } else {
+      cursorClause = 'AND m.created_at < ?';
+      cursorParams = [beforeTs];
+    }
+    // 多取 1 条用来判断 hasMore，不用"返回条数==limit"这种有边界误差的启发式。
+    rows = db.prepare(`
+      SELECT m.id, m.conversation_id, m.content, m.created_at, m.sender_id,
+             u.username AS sender_name, c.name AS conv_name, c.type AS conv_type
+      ${baseFrom} ${cursorClause}
+      ORDER BY m.created_at DESC, m.rowid DESC
+      LIMIT ?
+    `).all(...baseParams, ...cursorParams, safeLimit + 1);
+  } else {
+    // 兼容分支：旧客户端 / 首屏加载（两者都不带 before）。
+    const safeOffset = Math.max(parseInt(offset) || 0, 0);
+    rows = db.prepare(`
+      SELECT m.id, m.conversation_id, m.content, m.created_at, m.sender_id,
+             u.username AS sender_name, c.name AS conv_name, c.type AS conv_type
+      ${baseFrom}
+      ORDER BY m.created_at DESC, m.rowid DESC
+      LIMIT ? OFFSET ?
+    `).all(...baseParams, safeLimit + 1, safeOffset);
+  }
+
+  const hasMore = rows.length > safeLimit;
+  const page = hasMore ? rows.slice(0, safeLimit) : rows;
+
+  // total 是旧客户端还在用的字段（Web端"共 X 条"标题），保留不删；游标翻页本身
+  // 不依赖它，只是为了不破坏现有响应结构里已经有的字段。
+  const { cnt: total } = db.prepare(`SELECT COUNT(*) AS cnt ${baseFrom}`).get(...baseParams);
 
   return {
-    items: rows.map(r => ({
+    items: page.map(r => ({
       msgId:      r.id,
       convId:     r.conversation_id,
       convName:   r.conv_name || '私聊',
@@ -915,6 +957,7 @@ function getMentions(userId, { offset = 0, limit = 20 }) {
       createdAt:  r.created_at,
     })),
     total,
+    hasMore,
   };
 }
 

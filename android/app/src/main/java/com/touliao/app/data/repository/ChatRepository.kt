@@ -206,9 +206,9 @@ class ChatRepository @Inject constructor(
 
     // ── 功能A2: @我消息聚合 ─────────────────────────────────────────────────
 
-    /** 获取 @我 消息分页列表 */
-    suspend fun mentionsMe(offset: Int = 0, limit: Int = 20): com.touliao.app.data.model.MentionsResponse =
-        api.mentionsMe(offset = offset, limit = limit)
+    /** 获取 @我 消息分页列表（游标分页，见 MessageApi.mentionsMe 注释） */
+    suspend fun mentionsMe(before: Long? = null, beforeId: String? = null, limit: Int = 20): com.touliao.app.data.model.MentionsResponse =
+        api.mentionsMe(before = before, beforeId = beforeId, limit = limit)
 
     // ── 功能A3: 聊天文件聚合视图 ─────────────────────────────────────────────
 

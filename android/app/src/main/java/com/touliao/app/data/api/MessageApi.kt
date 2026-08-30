@@ -186,10 +186,16 @@ interface MessageApi {
 
     // ── 功能A2: @我消息聚合 ─────────────────────────────────────────────────
 
-    /** @我消息聚合列表（分页：offset/limit） */
+    /**
+     * @我消息聚合列表。分页方式：offset → (createdAt, msgId) 复合游标，见 AUDIT.md 第九节
+     * "分页方式"🟡。before/beforeId 都不传 = 首屏（最新一页）；翻下一页时带上当前列表
+     * 最后一条的 createdAt+msgId。offset 参数仍保留但已不再使用——只是旧版本已编译的
+     * 客户端理论上还能用它兼容旧后端，实际当前 App 版本不会再发它。
+     */
     @GET("api/messages/mentions/me")
     suspend fun mentionsMe(
-        @Query("offset") offset: Int = 0,
+        @Query("before") before: Long? = null,
+        @Query("beforeId") beforeId: String? = null,
         @Query("limit") limit: Int = 20,
     ): com.touliao.app.data.model.MentionsResponse
 

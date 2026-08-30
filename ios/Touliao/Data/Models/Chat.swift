@@ -240,7 +240,17 @@ struct ScheduledMessage: Decodable, Identifiable {
     }
 }
 
-/// @我消息聚合（GET /api/messages/mentions/me 列表项；与 Android MentionItem 对齐）
+/// @我消息聚合（GET /api/messages/mentions/me 分页响应；与 Android MentionsResponse 对齐）。
+/// 此前这里声明的是裸数组 [MentionItem]，但后端实际返回的是 {items,total,hasMore} 对象——
+/// 解码类型对不上，之前每次调用都会 decode 失败进 catch 分支，这个功能在 iOS 上此前
+/// 从未真正加载成功过。这次改游标分页顺手把这个类型不匹配的问题一起修了。
+struct MentionsResponse: Decodable {
+    let items: [MentionItem]
+    let total: Int
+    let hasMore: Bool
+}
+
+/// @我消息聚合列表项（与 Android MentionItem 对齐）
 struct MentionItem: Decodable, Identifiable {
     var id: String = ""         // msgId
     var convId: String = ""

@@ -234,9 +234,16 @@ final class ChatRepository {
 
     // MARK: - @我消息聚合
 
-    /// 拉取@我消息（分页，offset+limit）
-    func mentionsMe(offset: Int = 0, limit: Int = 20) async throws -> [MentionItem] {
-        try await api.send("api/messages/mentions/me?offset=\(offset)&limit=\(limit)")
+    /// 拉取@我消息。分页方式：offset → (createdAt, msgId) 复合游标，见 AUDIT.md 第九节
+    /// "分页方式"🟡。before/beforeId 都为 nil = 首屏（最新一页）；翻下一页时带上当前
+    /// 列表最后一条的 createdAt+msgId。响应类型此前和后端实际返回的对象结构不匹配
+    /// （见 MentionsResponse 定义处说明），这次一并修正。
+    func mentionsMe(before: Double? = nil, beforeId: String? = nil, limit: Int = 20) async throws -> MentionsResponse {
+        var path = "api/messages/mentions/me?limit=\(limit)"
+        if let before, let beforeId {
+            path += "&before=\(before)&beforeId=\(beforeId)"
+        }
+        return try await api.send(path)
     }
 
     // MARK: - 聊天文件聚合视图

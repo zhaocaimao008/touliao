@@ -13,13 +13,16 @@ import { formatFull } from '../utils/time';
 export default function MentionList({ onClose, onJumpToMsg }) {
   const [items, setItems]   = useState([]);
   const [total, setTotal]   = useState(0);
-  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const LIMIT = 20;
   const abortRef = useRef(null);
 
-  const load = useCallback(async (from = 0) => {
+  // 分页方式：offset → (createdAt, msgId) 复合游标（见 AUDIT.md 第九节"分页方式"🟡）。
+  // 首屏加载不带 cursor（等价于 before=null）；"加载更多"时带上当前列表最后一条的
+  // createdAt+msgId 作为游标。offset 计数在翻页途中有新@我消息插入时会整体错位，
+  // 导致重复看到已经出现过的消息；游标锚定在具体某条消息上，不受这个影响。
+  const load = useCallback(async (cursor = null) => {
     if (loading) return;
     abortRef.current?.abort();
     const ac = new AbortController();
@@ -27,13 +30,15 @@ export default function MentionList({ onClose, onJumpToMsg }) {
     setLoading(true);
     try {
       const { data } = await axios.get('/api/messages/mentions/me', {
-        params: { offset: from, limit: LIMIT },
+        params: {
+          limit: LIMIT,
+          ...(cursor ? { before: cursor.createdAt, beforeId: cursor.msgId } : {}),
+        },
         signal: ac.signal,
       });
-      setItems(prev => from === 0 ? data.items : [...prev, ...data.items]);
+      setItems(prev => cursor === null ? data.items : [...prev, ...data.items]);
       setTotal(data.total);
-      setHasMore(from + data.items.length < data.total);
-      setOffset(from + data.items.length);
+      setHasMore(data.hasMore);
     } catch (err) {
       if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') {
         // 静默失败
@@ -46,9 +51,15 @@ export default function MentionList({ onClose, onJumpToMsg }) {
   useEffect(() => {
     // 挂载时首次拉取；load 内部的 setLoading 是刻意的加载态，非级联渲染问题
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load(0);
+    load(null);
     return () => { abortRef.current?.abort(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "加载更多"用当前已加载列表里最后一条（时间上最旧的一条）作为下一页游标
+  const loadMore = useCallback(() => {
+    const last = items[items.length - 1];
+    if (last) load({ createdAt: last.createdAt, msgId: last.msgId });
+  }, [items, load]);
 
   const handleClick = (item) => {
     onJumpToMsg?.({ convId: item.convId, msgId: item.msgId });
@@ -137,7 +148,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
         {hasMore && !loading && (
           <div style={{ textAlign: 'center', padding: '12px 0' }}>
             <button
-              onClick={() => load(offset)}
+              onClick={loadMore}
               style={{ background: 'none', border: '1px solid var(--border-default)',
                 borderRadius: 'var(--radius-tag)', padding: '6px 18px', cursor: 'pointer',
                 fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}

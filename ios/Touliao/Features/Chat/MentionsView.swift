@@ -2,6 +2,9 @@ import SwiftUI
 
 // MARK: - @我消息聚合 ViewModel
 
+// 分页方式：offset → (createdAt, msgId) 复合游标，见 AUDIT.md 第九节"分页方式"🟡。
+// offset 在翻页途中有新 @我消息插入时会把"第N条"的相对位置整体往后推，导致下一页
+// 重复看到上一页最后几条；游标锚定在具体某条消息上不受影响。
 @MainActor
 final class MentionsViewModel: ObservableObject {
     @Published var items: [MentionItem] = []
@@ -10,26 +13,24 @@ final class MentionsViewModel: ObservableObject {
     @Published var error: String?
 
     private let limit = 20
-    private var offset = 0
     private let repo = ChatRepository.shared
 
-    /// 首次加载（重置分页）
+    /// 首次加载（重置分页，不带游标）
     func loadFirst() async {
-        offset = 0; items = []; hasMore = true
+        items = []; hasMore = true
         await loadNext()
     }
 
-    /// 加载下一页
+    /// 加载下一页：用当前已加载列表最后一条（时间上最旧的一条）作为游标
     func loadNext() async {
         guard hasMore, !loading else { return }
         loading = true; error = nil
         defer { loading = false }
         do {
-            let page = try await repo.mentionsMe(offset: offset, limit: limit)
-            items += page
-            offset += page.count
-            // 返回条数 < limit 说明没有更多
-            hasMore = page.count == limit
+            let cursor = items.last
+            let page = try await repo.mentionsMe(before: cursor?.createdAt, beforeId: cursor?.id, limit: limit)
+            items += page.items
+            hasMore = page.hasMore
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? "加载失败"
         }

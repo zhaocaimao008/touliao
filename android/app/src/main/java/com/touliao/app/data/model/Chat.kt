@@ -206,6 +206,7 @@ data class MentionItem(
 data class MentionsResponse(
     val items: List<MentionItem> = emptyList(),
     val total: Int = 0,
+    val hasMore: Boolean = false,
 )
 
 // ── 功能A3: 聊天文件聚合视图 ─────────────────────────────────────────────────
