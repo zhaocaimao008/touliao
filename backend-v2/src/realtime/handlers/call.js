@@ -29,6 +29,8 @@ const CALL_COOLDOWN_MS = 5_000;
 const callRateMap = new Map();
 
 // 模块级共享（单进程 fork 实例）：key = `${callerId}>${calleeId}`
+// ⚠️ 纯内存 Map，没有 Redis/DB 镜像，进程重启会丢失全部进行中通话的状态——这次
+// （2026-08-30 多端广播修复）不处理，已记入 AUDIT.md 待办。
 const activeCalls = new Map();
 
 const nowSec = () => Math.floor(Date.now() / 1000);
@@ -144,6 +146,12 @@ module.exports = function registerCallHandler(io, socket) {
     // 服务端从 DB 取真实用户信息，不透传客户端 caller 字段（防视觉身份冒充）
     const callerInfo = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
     io.to(`user_${to}`).emit('call:incoming', { from: userId, type: t, callId: id, caller: { id: userId, name: callerInfo?.username, avatar: callerInfo?.avatar } });
+    // 2026-08-30 新增：呼叫方(userId)自己的其他在线设备此前完全不知道"我"正在用另一台
+    // 设备发起呼叫——比如用 Web 端拨号，手机端毫无感知。新增事件 call:outgoing（不复用
+    // call:incoming：那个语义是"有人叫我"，这个是"我的另一台设备正在叫别人"，四端目前都
+    // 没有对应监听，需要客户端新增处理，详见 AUDIT.md 改动清单）。用 socket.to()（不含
+    // 当前发起呼叫的这台设备自己）只通知同一用户的其他设备。
+    socket.to(`user_${userId}`).emit('call:outgoing', { to, type: t, callId: id });
     // 被叫不在线（App 未连 socket，如后台/熄屏）→ 发 data-only FCM 唤起来电界面；在线则 socket 已推 call:incoming
     if (!presence.isOnline(to)) {
       pushCallInvite({ toUserId: to, fromUserId: userId, callerName: callerInfo?.username || '', callType: t, callId: id })
@@ -191,7 +199,22 @@ module.exports = function registerCallHandler(io, socket) {
       }
     }
     // 只有活跃通话存在时才转发：防止任意用户伪造拒接信号
-    if (c) io.to(`user_${to}`).emit('call:response', { from: userId, accepted, busy, reason });
+    if (c) {
+      io.to(`user_${to}`).emit('call:response', { from: userId, accepted, busy, reason });
+      // 2026-08-30 修复（多端不同步）：接听/拒绝这个动作此前只广播给了对方(to)，操作者
+      // (userId)自己的其他在线设备完全不知道已经在别的设备上处理过——B在Web端拒绝，B的
+      // 手机端仍显示"通话中"的根因就是这里。复用已有的 call:end 事件而不是新增事件类型：
+      // 客户端处理"来电/通话中界面"的收起逻辑天然挂在 call:end 上（收到就收起，不区分是
+      // 谁发起的），四端理论上不需要新增监听，只需要确认 reason 文案覆盖了这两个新值
+      // （answered_elsewhere / rejected_elsewhere），详见 AUDIT.md 改动清单。用 socket.to()
+      // （不含当前操作的这台设备自己）只通知同一用户的其他设备，避免操作设备收到自己发出
+      // 的动作对应的回声通知后又重复处理一遍（比如拒绝后又触发一次拒绝逻辑）。
+      socket.to(`user_${userId}`).emit('call:end', {
+        from: userId,
+        reason: accepted ? 'answered_elsewhere' : 'rejected_elsewhere',
+        callId: c.id,
+      });
+    }
   });
 
   // call:offer/answer/ice：校验双方确实存在活跃通话，防止信令注入攻击
@@ -229,6 +252,11 @@ module.exports = function registerCallHandler(io, socket) {
       activeCalls.delete(k2);
       // 只有活跃通话存在时才转发：防止任意用户强制关闭他人通话界面（带 callId，P1-3）
       io.to(`user_${to}`).emit('call:end', { from: userId, reason, callId: c.id });
+      // 2026-08-30 修复（多端不同步，同一类问题）：挂断动作此前只广播给了对方(to)，挂断
+      // 发起者(userId)自己的其他在线设备完全不知道已经在别的设备上挂断了。事件/payload
+      // 跟发给对方那份完全一致，直接复用，不需要客户端新增监听。用 socket.to()（不含当前
+      // 挂断的这台设备自己）避免操作设备收到自己挂断动作的回声后又重复处理一遍。
+      socket.to(`user_${userId}`).emit('call:end', { from: userId, reason, callId: c.id });
       // 通话已结束 → 清除冷却，允许立即重拨（P1-1）
       callRateMap.delete(userId);
     }
