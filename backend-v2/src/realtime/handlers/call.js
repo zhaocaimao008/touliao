@@ -131,10 +131,16 @@ module.exports = function registerCallHandler(io, socket) {
           // 已接通的通话被新呼叫覆盖 → 标记 completed 并通知被叫结束（带 callId，P1-3）
           write("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?",
             [endNow, Math.max(0, endNow - old.answeredAt), old.id]);
-          io.to(`user_${to}`).emit('call:end', { from: userId, reason: 'replaced', callId: old.id });
         } else {
           write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [endNow, old.id]);
         }
+        // 2026-08-30 修复：未接听就被新呼叫覆盖时，此前只落库、没有通知被叫——被叫本地
+        // 还缓存着旧 callId，之后不管接听还是拒绝，服务端一看 callId 对不上就判定"过期操作"，
+        // 只回执操作者自己"你这个操作过期了"，呼叫方完全收不到任何消息，永久卡在"呼叫中"
+        // （复现：真实 socket 测试，A 重拨后 B 用旧 callId 拒绝，A 0 次收到通知，B 收到
+        // reason:'stale'）。改成两个分支都通知被叫，复用已有的 'replaced' 语义（客户端已经
+        // 需要处理这个 reason，不需要新增分支），不再区分"已接通/未接听"两种覆盖情况。
+        io.to(`user_${to}`).emit('call:end', { from: userId, reason: 'replaced', callId: old.id });
         // 旧通话被覆盖 → 清除冷却，允许立即重拨（P1-1）
         callRateMap.delete(userId);
       } catch {}
