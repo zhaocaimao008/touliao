@@ -100,14 +100,20 @@ final class SessionStore: ObservableObject {
 
     func switchAccount(_ id: String) {
         guard let token = AccountStore.shared.token(for: id) else { return }
-        SocketService.shared.disconnect()
-        AccountStore.shared.setActive(id)
-        KeychainStore.shared.token = token
-        MsgCacheStore.shared.clear()   // 切号缓存隔离：新账号不读旧账号离线消息
-        SocketService.shared.connect()
-        PushManager.shared.requestAuthorizationAndRegister()
-        refreshAccounts()   // active 变化 → 刷新「当前」标记
-        Task { await restoreSession() }
+        Task {
+            // 须在覆盖 KeychainStore.token 之前 await 完成，否则 unregister() 里的删除请求
+            // 可能用新账号的 token 认证，导致删的是新账号身份而不是旧账号的 push token，
+            // 旧账号 token 原样留在后端（见 AUDIT.md 十四节"串号推送"）
+            await PushManager.shared.unregister()
+            SocketService.shared.disconnect()
+            AccountStore.shared.setActive(id)
+            KeychainStore.shared.token = token
+            MsgCacheStore.shared.clear()   // 切号缓存隔离：新账号不读旧账号离线消息
+            SocketService.shared.connect()
+            PushManager.shared.requestAuthorizationAndRegister()
+            refreshAccounts()   // active 变化 → 刷新「当前」标记
+            await restoreSession()
+        }
     }
 
     func removeAccount(_ id: String) {

@@ -95,6 +95,7 @@ class SessionManager @Inject constructor(
     fun switchAccount(accountId: String) {
         val token = accountStore.tokenFor(accountId) ?: return
         scope.launch {
+            pushManager.unregisterCurrentToken()   // 须在覆盖 tokenStore.token 之前调用，否则会用新账号身份去删旧账号的 token（见 AUDIT.md 十四节"串号推送"）
             socketManager.disconnect()
             accountStore.setActive(accountId)
             tokenStore.token = token

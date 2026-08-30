@@ -1,5 +1,6 @@
 package com.touliao.app.core.push
 
+import android.content.Context
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessaging
 import com.touliao.app.core.di.AppScope
@@ -7,6 +8,7 @@ import com.touliao.app.core.storage.TokenStore
 import com.touliao.app.data.api.NotificationApi
 import com.touliao.app.data.model.DeleteTokenRequest
 import com.touliao.app.data.model.DeviceTokenRequest
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -24,6 +26,7 @@ class PushManager @Inject constructor(
     private val notificationApi: NotificationApi,
     private val tokenStore: TokenStore,
     @AppScope private val scope: CoroutineScope,
+    @ApplicationContext private val context: Context,
 ) {
     /** 登录/恢复会话后调用：取当前 FCM token 并注册 */
     fun registerCurrentToken() {
@@ -73,11 +76,21 @@ class PushManager @Inject constructor(
 
     @Volatile private var pendingGeTuiCid: String? = null
 
-    /** 登出时注销当前 token（best-effort，须在清 auth token 之前调用） */
+    /**
+     * 登出/切号时注销当前账号在本机的所有 push token（best-effort，须在清 auth token 之前调用）。
+     * FCM 和个推 CID 都要删——只删 FCM 会在无 GMS 的国产 ROM 设备上把个推 CID 原样留在后端，
+     * 导致切号/登出后旧账号的消息仍然按 device_tokens 里残留的这条记录推送到本机（见 AUDIT.md 十四节"串号推送"）。
+     */
     suspend fun unregisterCurrentToken() {
-        val fcm = fetchToken() ?: return
-        runCatching { notificationApi.deleteToken(DeleteTokenRequest(fcm)) }
+        fetchToken()?.let { fcm -> runCatching { notificationApi.deleteToken(DeleteTokenRequest(fcm)) } }
+        fetchGeTuiCid()?.let { cid -> runCatching { notificationApi.deleteToken(DeleteTokenRequest(cid)) } }
     }
+
+    /** 同步读取个推 SDK 当前缓存的 CID（未初始化/无 GMS 场景可能返回 null 或空串）。 */
+    private fun fetchGeTuiCid(): String? =
+        runCatching { com.igexin.sdk.PushManager.getInstance().getClientid(context) }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
 
     /**
      * 获取 FCM token，最多等待 5 秒。
