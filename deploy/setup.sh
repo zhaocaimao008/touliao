@@ -27,10 +27,27 @@ command -v pm2  >/dev/null || die "未安装 pm2（npm i -g pm2）"
 command -v nginx >/dev/null || die "未安装 nginx"
 
 # ── 1. 生成后端 .env（缺失才生成，自动强随机密钥）─────────────
+# 注：config/index.js 在 NODE_ENV=production 下，ADMIN_JWT_SECRET 缺失会在加载配置时
+# 直接 throw 中止启动；ADMIN_USERNAME/ADMIN_PASSWORD 缺失同样致命报错退出（长度<12也不行）。
+# 此前本脚本只生成了 JWT_SECRET，三个必填项全漏——照着本脚本走完三步部署，
+# pm2 起来的进程会立即崩溃退出（见 AUDIT.md 十六节）。这里补齐，风格与
+# deploy/setup-new-server.sh 已验证过的生成方式保持一致。
 ENV="$BE/.env"
 if [ ! -f "$ENV" ]; then
-  log "生成 $ENV（自动随机 JWT_SECRET）"
+  log "生成 $ENV（自动随机 JWT_SECRET / ADMIN_JWT_SECRET / 管理员账号）"
   JWT="$(openssl rand -hex 32 2>/dev/null || node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")"
+  AJWT="$(openssl rand -hex 32 2>/dev/null || node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")"
+  ADMIN_PW="$(openssl rand -base64 18 2>/dev/null | tr -d '/+=' | cut -c1-20 || node -e "console.log(require('crypto').randomBytes(18).toString('base64').replace(/[\/+=]/g,'').slice(0,20))")"
+
+  # 自动检测当前 SSH 客户端 IP 作为 admin 白名单（留空则后台不限制来源 IP，不阻断部署）
+  AUTO_IP=""
+  if [ -n "${SSH_CLIENT:-}" ]; then
+    AUTO_IP=$(echo "$SSH_CLIENT" | awk '{print $1}')
+  elif [ -n "${SSH_CONNECTION:-}" ]; then
+    AUTO_IP=$(echo "$SSH_CONNECTION" | awk '{print $1}')
+  fi
+  ADMIN_WL="${ADMIN_IP_WHITELIST:-${AUTO_IP:-}}"
+
   cat > "$ENV" <<EOF
 NODE_ENV=production
 PORT=$PORT
@@ -39,7 +56,20 @@ UPLOADS_ROOT=$BE/uploads
 APP_URL=https://$DOMAIN
 CORS_ORIGINS=https://$DOMAIN,http://$DOMAIN
 JWT_SECRET=$JWT
+ADMIN_JWT_SECRET=$AJWT
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=$ADMIN_PW
+ADMIN_IP_WHITELIST=$ADMIN_WL
 EOF
+
+  echo "$ADMIN_PW" > "$BE/ADMIN_PASSWORD.txt"
+  chmod 600 "$ENV" "$BE/ADMIN_PASSWORD.txt"
+  log "✅ admin 密码: $ADMIN_PW（已存 backend-v2/ADMIN_PASSWORD.txt，权限600）"
+  if [ -n "$ADMIN_WL" ]; then
+    log "ADMIN_IP_WHITELIST=$ADMIN_WL（自动检测到的当前 SSH IP）"
+  else
+    log "⚠ 未检测到 SSH IP，管理后台暂不限制来源 IP，建议部署后手动在 .env 设置 ADMIN_IP_WHITELIST"
+  fi
 else
   log ".env 已存在，保留现有配置与密钥（不覆盖）"
 fi
