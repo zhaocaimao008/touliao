@@ -7,11 +7,13 @@
  *     3. 下发层再兜底：/uploads 一律 nosniff、非图音视频以附件下发（见 app.js），杜绝存储型 XSS。
  *   图片文件（makeImageUploader，头像/表情/朋友圈）——严格 MIME 白名单 + 魔数二次校验。
  *   存储文件名一律 UUID + 安全派生的扩展名，绝不信任 originalname。
+ *   图片落盘后统一剥离 EXIF/GPS 元数据（见 stripImageMetadata），不影响画面内容。
  */
 const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
 const fileType = require('file-type');
+const sharp    = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 
 // 单文件上限：环境变量覆盖，默认 200 MB。
@@ -230,6 +232,40 @@ function makeUploadGuard(dest) {
   };
 }
 
+// 会被剥离 EXIF 的图片 MIME。不含 GIF——GIF 是多帧动画，sharp 重编码有丢帧/体积暴涨风险，
+// 且手机相机基本不会往 GIF 里写 GPS；jpeg/png/webp 才是头像/聊天照片/朋友圈图片的主力格式，
+// 也是相机 EXIF/GPS 最常见的载体（见 AUDIT.md 十节"上传文件校验"🟡）。
+const EXIF_STRIP_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+/**
+ * 剥离图片文件的 EXIF/GPS 元数据，原地重写，不改变可见画面内容。
+ * .rotate() 不带参数：先按 EXIF Orientation 把像素摆正（否则很多手机竖拍的照片是靠这个
+ * 元数据字段才显示方向正确的，直接清掉元数据不做这一步画面会转向），再原样编码回同一格式——
+ * sharp 默认输出不写回任何元数据（除非显式调用 withMetadata()），等价于"保留画面、清空元数据"。
+ * fail-open：这是隐私加固而非安全门禁，个别图片重编码失败不应该挡住用户正常上传，
+ * 失败时记警告、原图原样保留。
+ */
+async function stripImageMetadata(filePath, mimetype) {
+  if (!EXIF_STRIP_MIMES.has(mimetype)) return;
+  try {
+    const buf = await sharp(filePath).rotate().toBuffer();
+    await fs.promises.writeFile(filePath, buf);
+  } catch (err) {
+    console.warn('[upload] EXIF 剥离失败，保留原图:', err.message);
+  }
+}
+
+// 图片元数据剥离中间件：接在魔数校验之后，此时 file.mimetype 已是真实检测出的类型。
+function makeExifStripMiddleware() {
+  return async (req, res, next) => {
+    const files = req.files || (req.file ? [req.file] : []);
+    for (const file of files) {
+      await stripImageMetadata(file.path, file.mimetype);
+    }
+    next();
+  };
+}
+
 // 图片路径魔数中间件：危险扩展名黑名单 + 严格 MIME 白名单。
 function makeMagicBytesMiddleware(allowedMimes) {
   return async (req, res, next) => {
@@ -282,7 +318,7 @@ function makeChatUploader(dest) {
   }).single('file'));
   // P1-03：直传路径与分片路径同口径 —— 磁盘阈值 + 单用户并发上限，
   // 否则攻击者可绕过 upload-init 的分片限制走直传耗尽磁盘（审计 BACKEND-A005）。
-  return [makeUploadGuard(dest), multerMw, makeChatMagicMiddleware()];
+  return [makeUploadGuard(dest), multerMw, makeChatMagicMiddleware(), makeExifStripMiddleware()];
 }
 
 function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 * 1024 * 1024) {
@@ -302,7 +338,7 @@ function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 
     },
   });
   const middleware = maxCount === 1 ? m.single(fieldName) : m.array(fieldName, maxCount);
-  return [wrapUpload(middleware), makeMagicBytesMiddleware(ALLOWED_IMAGE_MIMES)];
+  return [wrapUpload(middleware), makeMagicBytesMiddleware(ALLOWED_IMAGE_MIMES), makeExifStripMiddleware()];
 }
 
 // 浏览器会内联渲染/执行的危险 MIME（html/xml/svg/js）。云直传对象的 Content-Type 由客户端
@@ -322,5 +358,5 @@ module.exports = {
   ALLOWED_CHAT_EXTS, ALLOWED_IMAGE_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS,
   MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES,
   sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader, makeUploadGuard,
-  verifyMagicBytes, verifyChatFile, isBrowserRenderableType,
+  verifyMagicBytes, verifyChatFile, isBrowserRenderableType, stripImageMetadata,
 };
