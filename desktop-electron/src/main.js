@@ -66,7 +66,14 @@ const store = new Store({
 });
 
 autoUpdater.logger = log;
-autoUpdater.logger.transports.file.level = app.isPackaged ? 'error' : 'info';
+// 排查用：设置 TOULIAO_LOG_LEVEL 环境变量可临时提升日志文件级别（生产包默认只
+// 写 error，更新验签等 info 级日志不落盘），不需要重新打包。合法值见下方数组；
+// 非法值/未设置时忽略，保持原有 "生产 error / 开发 info" 的默认行为不变。
+const LOG_LEVELS = ['error', 'warn', 'info', 'verbose', 'debug', 'silly'];
+const envLogLevel = process.env.TOULIAO_LOG_LEVEL;
+autoUpdater.logger.transports.file.level = LOG_LEVELS.includes(envLogLevel)
+  ? envLogLevel
+  : (app.isPackaged ? 'error' : 'info');
 
 // 彻底禁用 electron-updater 的发布者签名校验（publisherName 验证）。
 // 根因：electron-builder 打包时把 publisherName:"vxin" 嵌入 app-update.yml，
