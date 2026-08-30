@@ -128,6 +128,8 @@ module.exports = function setupRealtime(io, app) {
     // 逐事件复检（socket.use 在每事件 handler 前执行）：
     //  - jti 黑名单（logout 删会话 → 立即失效，不等断开重连）
     //  - 用户存在性 / banned（admin 硬删用户 → 立即失效）
+    //  - password_changed_at / exp（改密码 / token 自然过期 → 立即失效，与握手鉴权 :95-98
+    //    和 HTTP 中间件 middleware/auth.js 的检查对齐，见 AUDIT.md 七节两条🟡）
     socket.use(async ([event, ...args], next) => {
       try {
         if (socket.user?.jti && (await isBlacklisted(`jti:${socket.user.jti}`))) {
@@ -136,11 +138,23 @@ module.exports = function setupRealtime(io, app) {
           socket.disconnect(true);
           return next(new Error('会话已失效'));
         }
-        const u = readDb.prepare('SELECT banned FROM users WHERE id=?').get(socket.user.id);
+        if (socket.user?.exp && Math.floor(Date.now() / 1000) >= socket.user.exp) {
+          prodMetrics.recordConnResult(false);
+          socket.emit('session_expired', { reason: 'Token已过期，请重新登录' });
+          socket.disconnect(true);
+          return next(new Error('Token已过期'));
+        }
+        const u = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(socket.user.id);
         if (!u || u.banned) {
           prodMetrics.recordConnResult(false);
           socket.disconnect(true);
           return next(new Error('账号不可用'));
+        }
+        if (u.password_changed_at && socket.user.iat < u.password_changed_at) {
+          prodMetrics.recordConnResult(false);
+          socket.emit('session_expired', { reason: '密码已修改，请重新登录' });
+          socket.disconnect(true);
+          return next(new Error('密码已修改'));
         }
         next();
       } catch {
