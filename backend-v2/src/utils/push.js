@@ -575,19 +575,126 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
   });
 }
 
+// iOS 来电专属 APNs 直连推送。复用 sendIosPush() 同款 HTTP/2 直连（同一把 p8 密钥/
+// getApnsVoipToken()），不走 firebase-admin：pushCallInvite() 里给 'ios' 平台走的
+// firebaseAdmin.messaging().send() 分支和普通消息推送一样会撞上 FCM→APNs 转发的
+// third-party-auth-error（AppDelegate.swift:42-44 注释已确认的根因），来电推送因此
+// 从未真正送达过。'ios_apns' 平台的 token 直连不经过 FCM，绕开这条失败路径。
+// payload 顶层 from/callerName/callId/callType 字段名与 AppDelegate.swift:89-92
+// 读取 userInfo 的字段名一一对应（ANSWER/DECLINE 通知动作靠这几个字段重建来电状态）。
+function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, callType }) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    const authToken = getApnsVoipToken();   // 同一把 p8 密钥,复用 JWT 缓存
+    if (!authToken) {
+      console.warn('[call-push] APNs 未配置（缺 APNS_P8/APNS_KEY_ID/APNS_TEAM_ID）,跳过 iOS 来电直连');
+      finish({ ok: false, skipped: true });
+      return;
+    }
+    const isVideo = callType === 'video';
+    const payload = {
+      aps: {
+        alert: { title: callerName || '来电', body: isVideo ? '邀请你视频通话' : '邀请你语音通话' },
+        sound: 'default',
+        category: 'INCOMING_CALL',
+      },
+      from: String(from || ''),
+      callerName: String(callerName || ''),
+      callId: String(callId || ''),
+      callType: isVideo ? 'video' : 'audio',
+    };
+    let client;
+    try {
+      client = http2.connect(APNS_HOST);
+    } catch (e) {
+      console.warn('[call-push] APNs 来电直连连接失败:', e.message);
+      finish({ ok: false });
+      return;
+    }
+    client.on('error', (e) => {
+      console.warn('[call-push] APNs 来电 http2 连接异常:', e.message);
+      client.destroy();
+      finish({ ok: false });
+    });
+    client.setTimeout(10000, () => {
+      console.warn('[call-push] APNs 来电 http2 连接超时');
+      client.destroy();
+      finish({ ok: false, timeout: true });
+    });
+    const headers = {
+      ':method': 'POST',
+      ':path': `/3/device/${deviceToken}`,
+      'apns-push-type': 'alert',
+      'apns-priority': '10',
+      'apns-topic': APNS_TOPIC,
+      authorization: `bearer ${authToken}`,
+      'content-type': 'application/json',
+      // 同一对通话方复呼时收敛为一条系统通知，避免旧来电通知堆积可操作
+      'apns-collapse-id': `call_${from}_${toUserId}`.slice(0, 64),
+      // 立即过期：离线期间堆积的旧来电不应在设备恢复在线后被 APNs 补投
+      'apns-expiration': '0',
+    };
+    const req = client.request(headers);
+    req.setTimeout(10000, () => {
+      console.warn('[call-push] APNs 来电请求超时');
+      req.close();
+      client.destroy();
+      finish({ ok: false, timeout: true });
+    });
+    let status = 0;
+    let resBody = '';
+    req.setEncoding('utf8');
+    req.on('response', (headers) => { status = headers[':status']; });
+    req.on('data', (chunk) => { resBody += chunk; });
+    req.on('end', () => {
+      client.close();
+      if (status === 200) {
+        console.debug(`[call-push] iOS 来电 APNs 直连成功 token=${String(deviceToken).slice(0,12)}…`);
+        finish({ ok: true });
+        return;
+      }
+      let reason = '';
+      try { reason = JSON.parse(resBody || '{}').reason || ''; } catch {}
+      if (status === 401 || status === 403) {
+        console.warn(`[call-push] iOS 来电 APNs 凭据无效 status=${status} body=${resBody}`);
+      } else if (status === 410 || reason === 'BadDeviceToken' || reason === 'Unregistered') {
+        // 设备 token 已失效(卸载/重装/系统回收)→ 清理,避免反复无效推送
+        try { db.prepare('DELETE FROM device_tokens WHERE token=?').run(deviceToken); } catch {}
+        console.warn(`[call-push] iOS 来电 token 失效已清理 status=${status} reason=${reason}`);
+      } else {
+        console.warn(`[call-push] iOS 来电 APNs 推送失败 status=${status} reason=${reason}`);
+      }
+      finish({ ok: false, status });
+    });
+    req.on('error', (e) => {
+      console.warn('[call-push] iOS 来电 APNs 请求异常:', e.message);
+      req.close();
+      client.destroy();
+      finish({ ok: false });
+    });
+    req.end(JSON.stringify(payload));
+  });
+}
+
 // ── 来电推送 ────────────────────────────────────────────────────
 // 被叫离线时用。Android：发 data-only 高优先级 FCM，不带 notification 块，
 // 以保证 Android 端 onMessageReceived 一定被触发（去构建 fullScreenIntent 来电界面）；
 // 带 notification 块的推送在 App 后台会被系统托盘直接消费、拿不到 data。
-// iOS：本仓库未实现 PushKit/CallKit(VoIP push)，data-only 消息在 App 挂起/被杀时
-// 系统不会投递、也没有代码路径能建本地通知 —— App 被杀时来电完全不可达(NOTIFY-002 F1)。
-// 改走 APNs alert（category=INCOMING_CALL），锁屏/后台/被杀均由系统直接展示，
-// 且带上与消息内文案一致的 data 字段，供 AppDelegate 的 ANSWER/DECLINE 动作复用。
+// iOS：'ios_apns' 平台走上面 sendIosCallPush() 直连 APNs（绕开 FCM→APNs 转发失败问题，
+// 2026-08-30 修复，此前只有 'ios'/'ios_voip' 两种平台会被处理，'ios_apns' 的设备
+// token 完全没有被这条查询覆盖到，来电推送从未真正送达过，详见 AUDIT.md）。
+// 'ios' 平台仍走原 firebaseAdmin FCM 分支保留兼容（历史遗留，真实设备现在只会注册
+// 'ios_apns'，这个分支理论上不会再命中，但不在这次改动范围内清理）。
 async function pushCallInvite({ toUserId, fromUserId, callerName, callType, callId }) {
-  // 注意：ios_voip 走独立 APNs 直连通路（sendVoipPush），不依赖 firebaseAdmin；
-  // 因此这里不能用 if (!firebaseAdmin) return 整体短路，否则 APNs VoIP 被误拦。
+  // 注意：ios_voip / ios_apns 都走独立 APNs 直连通路（不依赖 firebaseAdmin）；
+  // 因此这里不能用 if (!firebaseAdmin) return 整体短路，否则这两条直连通路被误拦。
   const deviceTokens = db.prepare(
-    "SELECT * FROM device_tokens WHERE user_id=? AND platform IN ('android','ios','ios_voip')"
+    "SELECT * FROM device_tokens WHERE user_id=? AND platform IN ('android','ios','ios_apns','ios_voip')"
   ).all(toUserId);
   if (!deviceTokens.length) return;
   const isVideo = callType === 'video';
@@ -595,6 +702,10 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   for (const row of deviceTokens) {
     if (row.platform === 'ios_voip') {
       promises.push(sendVoipPush(row.token, { callId, from: fromUserId, callerName, callType: isVideo ? 'video' : 'audio' }));
+      continue;
+    }
+    if (row.platform === 'ios_apns') {
+      promises.push(sendIosCallPush(row.token, { callId, from: fromUserId, toUserId, callerName, callType: isVideo ? 'video' : 'audio' }));
       continue;
     }
     const message = {
