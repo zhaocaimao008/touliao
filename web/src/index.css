@@ -243,6 +243,14 @@ body.dark-mode * {
   background: var(--bg-app);
   transition: background var(--dur) var(--ease);
 }
+/* Electron：#main-content 已用 paddingTop:30 + border-box 让出标题栏高度
+   （见 App.jsx），实际内容区只有 100vh - 30px；.wc-app 若仍按 100vh（视口绝对
+   单位，无视父容器）渲染，会比父容器可用空间多出 30px，被 overflow:hidden 从
+   底部裁掉——侧边栏「我」按钮(margin-top:auto 推到底部)正好落在被裁的 30px
+   里。改成相对父容器的 100%，让 .wc-app 正确继承父容器已经扣掉标题栏高度后
+   的值。.electron-app 只在真正跑在 Electron 里时才会被加到 <html> 上（Web
+   端 ElectronTitlebar 根本不挂载），这条规则对 Web 端不生效。 */
+.electron-app .wc-app { height: 100%; }
 
 /* 响应式布局过渡（优化版） — 面板/消息区宽度随断点平滑变化 */
 .wc-main {
