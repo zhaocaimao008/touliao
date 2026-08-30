@@ -2,23 +2,30 @@
 /**
  * 生产监控指标采集（独立于 monitoring.js 的请求/DB/缓存指标）。
  *
- * 采集 10 项：
+ * 采集 11 项：
  *   1 在线人数  2 消息发送成功率  3 消息延迟  4 图片上传成功率  5 连接/重连成功率
- *   6 CPU  7 内存  8 事件循环延迟(ELD)  9 Worker 队列长度  10 SQLite 写入耗时
+ *   6 CPU  7 内存  8 事件循环延迟(ELD)  9 Worker 队列长度  10 SQLite 写入耗时  11 磁盘剩余空间
  *
- * 告警：周期采样，ELD>500ms / Worker队列>3000 / 内存>80% 时记录告警日志 + 环形缓冲。
+ * 告警：周期采样，ELD>500ms / Worker队列>3000 / 内存>80% / 磁盘剩余<500MB 时记录告警日志 +
+ * 环形缓冲 + 推送 Telegram（同一类型 15 分钟内只推一次，防止持续越限时刷屏，见 pushAlert）。
  *
- * 无外部依赖（仅 logger），避免与 writer/connection 形成 require 循环。
+ * 除 alerts.js（可选的 Telegram 推送，未配置 token 时静默跳过）外无其它外部依赖，
+ * 避免与 writer/connection 形成 require 循环。
  */
 const os = require('os');
+const fs = require('fs');
 const { monitorEventLoopDelay } = require('perf_hooks');
 const { logger } = require('./logger');
+const { sendTelegramAlert } = require('./alerts');
 
 // ── 阈值 ───────────────────────────────────────────────────────
-const TH = { eldMs: 500, workerQueue: 3000, memPercent: 80 };
+// diskFreeBytes 与 utils/upload.js 的 MIN_DISK_FREE_BYTES 同口径（500MB）——
+// 磁盘剩余低于这个值时，新上传本来就已经会被 uploadGuard 拒绝，告警应该在同一条线上。
+const TH = { eldMs: 500, workerQueue: 3000, memPercent: 80, diskFreeBytes: 500 * 1024 * 1024 };
 const SAMPLE_INTERVAL_MS = 5000;
 const HIST_CAP = 1000;       // 延迟样本滚动容量
 const ALERT_CAP = 200;       // 告警环形缓冲容量
+const ALERT_COOLDOWN_MS = 15 * 60 * 1000; // 同一类型告警 15 分钟内只推送一次
 
 // ── 计数器 ─────────────────────────────────────────────────────
 const counters = {
@@ -47,13 +54,23 @@ let _lastCpu = process.cpuUsage();
 let _lastCpuAt = Date.now();
 const NUM_CPUS = os.cpus().length || 1;
 
-// ── 告警环形缓冲 ───────────────────────────────────────────────
+// ── 告警环形缓冲 + 主动推送 ────────────────────────────────────
 const alerts = [];
+const lastPushedAt = {}; // type -> 上次成功推送 Telegram 的时间戳，做冷却
 function pushAlert(type, value, threshold, extra) {
   const a = { time: new Date().toISOString(), type, value, threshold, ...extra };
   alerts.push(a);
   if (alerts.length > ALERT_CAP) alerts.shift();
   logger.error('[ALERT] 生产指标越限', a);
+
+  const now = Date.now();
+  if (!lastPushedAt[type] || now - lastPushedAt[type] >= ALERT_COOLDOWN_MS) {
+    lastPushedAt[type] = now;
+    const unit = extra?.unit || '';
+    sendTelegramAlert(
+      `🔴 投聊生产告警 [${type}]\n当前值: ${value}${unit}\n阈值: ${threshold}${unit}\n时间: ${a.time}`
+    ).catch(() => {}); // sendTelegramAlert 内部已经兜底，这里只是防御万一
+  }
 }
 
 // ── 记录接口（埋点处调用）──────────────────────────────────────
@@ -102,6 +119,21 @@ function memorySnapshot() {
   };
 }
 
+function diskSnapshot() {
+  try {
+    const s = fs.statfsSync(process.cwd());
+    const freeBytes = s.bavail * s.bsize;
+    const totalBytes = s.blocks * s.bsize;
+    return {
+      freeMB: +(freeBytes / 1048576).toFixed(0),
+      totalMB: +(totalBytes / 1048576).toFixed(0),
+      usedPercent: totalBytes > 0 ? +(((totalBytes - freeBytes) / totalBytes) * 100).toFixed(1) : 0,
+    };
+  } catch {
+    return null; // statfsSync 在部分平台不可用
+  }
+}
+
 function eldSnapshot() {
   return {
     meanMs: +(eld.mean / 1e6).toFixed(2),
@@ -142,6 +174,7 @@ function snapshot(onlineUsersCount, onlineSocketsCount) {
     },
     cpu: cpuPercent(),
     memory: mem,
+    disk: diskSnapshot(),
     eventLoopDelay: eldS,
     worker: { queueDepth: q, queuePeak: workerQueuePeak },
     sqliteWriteMs: { p50: pct(sqliteWrite, .5), p95: pct(sqliteWrite, .95), p99: pct(sqliteWrite, .99), samples: sqliteWrite.length },
@@ -165,6 +198,16 @@ function startSampler(getOnline) {
       if (q > TH.workerQueue)     pushAlert('WORKER_QUEUE', q, TH.workerQueue, { unit: 'pending' });
       if (memPct > TH.memPercent) pushAlert('MEMORY', memPct, TH.memPercent, { unit: '%' });
 
+      // 磁盘剩余空间：此前全代码库没有任何检测逻辑（AUDIT.md 十七节"磁盘占用监控缺失"）。
+      // 查 process.cwd()（backend-v2/）所在分区——wechat.db/uploads 都在同一分区，单机部署下够用。
+      try {
+        const s = fs.statfsSync(process.cwd());
+        const freeBytes = s.bavail * s.bsize;
+        if (freeBytes < TH.diskFreeBytes) {
+          pushAlert('DISK_FREE', +(freeBytes / 1048576).toFixed(0), Math.floor(TH.diskFreeBytes / 1048576), { unit: 'MB' });
+        }
+      } catch { /* statfsSync 在部分平台不可用时静默跳过，不影响其它指标采样 */ }
+
       eld.reset(); // 重置窗口，下个周期反映近 5s 状况
     } catch (e) {
       logger.warn('[prodMetrics] 采样失败', { error: e.message });
@@ -176,5 +219,5 @@ function stopSampler() { if (_timer) { clearInterval(_timer); _timer = null; } }
 
 module.exports = {
   recordMsg, recordImageUpload, recordConnAttempt, recordConnResult, recordSqliteWrite,
-  setQueueDepthGetter, snapshot, startSampler, stopSampler, _alerts: alerts, TH,
+  setQueueDepthGetter, snapshot, startSampler, stopSampler, pushAlert, _alerts: alerts, TH,
 };

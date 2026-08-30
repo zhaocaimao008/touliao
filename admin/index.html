@@ -345,12 +345,15 @@ async function loadMetrics(){
       mxCard('Worker 队列',m.worker.queueDepth,`峰值 ${m.worker.queuePeak}`,m.worker.queueDepth>T.workerQueue),
       mxCard('SQLite 写入 p99',m.sqliteWriteMs.p99+'ms',`p50 ${m.sqliteWriteMs.p50} / p95 ${m.sqliteWriteMs.p95}ms`),
     ];
+    if(m.disk){
+      cards.push(mxCard('磁盘剩余',m.disk.freeMB+'MB',`共 ${(m.disk.totalMB/1024).toFixed(0)}GB · 已用 ${m.disk.usedPercent}%`,m.disk.freeMB*1048576<T.diskFreeBytes));
+    }
     $('mxgrid').innerHTML=cards.join('');
     const al=m.alerts.recent||[];
     $('mxalert').innerHTML=al.length
       ? `<div class="panel" style="border-left:4px solid #e5484d"><h3 style="margin:0 0 8px">⚠ 近期告警 (${m.alerts.count})</h3>`
         +al.slice(0,8).map(a=>`<div class="muted" style="font-size:13px;margin:3px 0">${esc(new Date(a.time).toLocaleString())} · <b style="color:#e5484d">${esc(a.type)}</b> = ${esc(a.value)}${esc(a.unit||'')} (阈值 ${esc(a.threshold)})</div>`).join('')+`</div>`
-      : `<div class="panel" style="border-left:4px solid #2ecc71;color:#16324f">✓ 当前无告警（阈值：ELD>${T.eldMs}ms / 队列>${T.workerQueue} / 内存>${T.memPercent}%）</div>`;
+      : `<div class="panel" style="border-left:4px solid #2ecc71;color:#16324f">✓ 当前无告警（阈值：ELD>${T.eldMs}ms / 队列>${T.workerQueue} / 内存>${T.memPercent}% / 磁盘剩余<${(T.diskFreeBytes/1048576).toFixed(0)}MB）</div>`;
   }catch(e){$('mxupdated').textContent='加载失败: '+e.message;}
 }
 
