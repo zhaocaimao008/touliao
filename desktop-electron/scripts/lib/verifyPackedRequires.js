@@ -9,10 +9,15 @@ const asar = require('@electron/asar');
 // 是"源码里存在、但打包范围没覆盖"的相对路径依赖）。
 const RELATIVE_REQUIRE_RE = /require\(\s*['"](\.\.?\/[^'"]+)['"]\s*\)/g;
 
-// 把 asar listPackage() 返回的路径（带前导 '/'）归一化成本文件里统一使用的
-// "不带前导斜杠"形式，跟 extractFile 的调用约定保持一致。
+// 把路径统一归一化成"正斜杠、不带前导斜杠"的形式。
+// 2026-08-30 实测踩坑：@electron/asar 的 listFiles() 内部用 Node 的
+// path.join() 拼路径——在 Windows CI runner 上 path.join 用的是 '\'，
+// 于是 listPackage() 在 Windows 上返回的是 '\src\main.js' 这种反斜杠路径，
+// 而本文件里用 path.posix 构造的候选路径全是正斜杠，导致 100% 匹配不上，
+// 把刚移好、明明存在的 src/main.js 都判成"缺失"（本地 Linux 环境用
+// path.join 天然是正斜杠，测不出这个问题，只有真正的 Windows CI 才会炸）。
 function normalize(p) {
-  return p.replace(/^\/+/, '');
+  return p.replace(/\\/g, '/').replace(/^\/+/, '');
 }
 
 // 简化版 Node 模块解析：精确路径 → 补 .js → 补 /index.js。
