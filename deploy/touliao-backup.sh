@@ -32,9 +32,25 @@ DATE=$(date +%Y%m%d_%H%M%S)
 # 1. 数据库备份
 log "备份 $DB → $BACKUP_DIR/touliao-$DATE.db"
 sqlite3 "$DB" ".backup $BACKUP_DIR/touliao-$DATE.db"
+SRC_USERS=$(sqlite3 "$DB" "SELECT COUNT(*) FROM users;")
 gzip "$BACKUP_DIR/touliao-$DATE.db"
 DB_SIZE=$(du -sh "$BACKUP_DIR/touliao-$DATE.db.gz" | cut -f1)
 log "✅ 数据库: touliao-$DATE.db.gz ($DB_SIZE)"
+
+# 1b. 恢复验证：只确认"文件生成了、大小不为0"不代表这份备份真的能被还原。
+#     解压到临时文件，跑 PRAGMA integrity_check + 关键表行数比对，任何一步不通过
+#     都视为本次备份失败（告警 + 非零退出），而不是静默留下一份实际不可用的备份。
+VERIFY_TMP=$(mktemp "${BACKUP_DIR}/.verify-${DATE}-XXXXXX.db")
+gunzip -c "$BACKUP_DIR/touliao-$DATE.db.gz" > "$VERIFY_TMP"
+INTEGRITY=$(sqlite3 "$VERIFY_TMP" "PRAGMA integrity_check;" | head -1)
+BAK_USERS=$(sqlite3 "$VERIFY_TMP" "SELECT COUNT(*) FROM users;")
+rm -f "$VERIFY_TMP"
+if [[ "$INTEGRITY" != "ok" || "$SRC_USERS" != "$BAK_USERS" ]]; then
+  MSG="🔴 投聊备份恢复验证失败 $DATE: integrity=$INTEGRITY users(源=$SRC_USERS,备份=$BAK_USERS)"
+  log "❌ $MSG"; tg "$MSG"
+  exit 1
+fi
+log "✅ 恢复验证通过: integrity_check=ok, users行数一致($SRC_USERS)"
 
 # 2. 用户上传文件备份
 if [[ -d "$UPLOADS_DIR" ]]; then
