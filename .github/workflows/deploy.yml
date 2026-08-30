@@ -151,7 +151,6 @@ jobs:
     name: 部署到生产服务器（45.77.131.33）
     needs: [test, backend-jest, web-gate, e2e-gate]
     runs-on: ubuntu-latest
-    continue-on-error: true   # SSH key 未配置时不阻断 CI Gate
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
     steps:
@@ -160,7 +159,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      # DEPLOY_SSH_KEY/DEPLOY_USER/DEPLOY_SERVER_HOST 这三个 secret 从未在本仓库配置过，
+      # 此前用 continue-on-error:true 吞掉必然失败的 SSH 连接，导致这个 job 长期显示
+      # 绿色"成功"，但实际从未真正部署过一次（见 AUDIT.md 十七节）。改为显式检测：
+      # 没配 secret 就直接跳过后面的部署步骤并打一条明确的 ::warning::，不再假装部署发生了；
+      # 一旦哪天真的配上了 secret，去掉 continue-on-error 后部署失败也会如实标红，不再被吞掉。
+      - name: 检查部署 secret 是否已配置
+        id: check-secrets
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SERVER_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+        run: |
+          if [[ -z "$DEPLOY_SSH_KEY" || -z "$DEPLOY_USER" || -z "$DEPLOY_SERVER_HOST" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::部署 secret（DEPLOY_SSH_KEY / DEPLOY_USER / DEPLOY_SERVER_HOST）未配置。这条流水线目前只承担 CI 门禁（冒烟检查 + Jest + Lint + E2E），实际生产部署是运维直接在服务器本机操作完成的，不经过这条流水线。本次运行会跳过后面的部署步骤——job 显示绿色只代表 CI 门禁通过，不代表发生了真实部署。"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 配置 SSH
+        if: steps.check-secrets.outputs.configured == 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
@@ -168,6 +187,7 @@ jobs:
           ssh-keyscan -H ${{ secrets.DEPLOY_SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: 部署应用
+        if: steps.check-secrets.outputs.configured == 'true'
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
@@ -261,15 +281,22 @@ jobs:
           DEPLOY_SCRIPT
 
       - name: 部署完成通知
-        if: success()
+        if: steps.check-secrets.outputs.configured == 'true' && success()
         run: |
           echo "✅ 部署成功！"
           echo "时间: $(date)"
           echo "版本: $(git rev-parse --short HEAD)"
 
       - name: 部署失败通知
-        if: failure()
+        if: steps.check-secrets.outputs.configured == 'true' && failure()
         run: |
           echo "❌ 部署失败！"
           echo "请检查服务器日志: pm2 logs touliao-backend --lines 50"
           exit 1
+
+      - name: 未配置 secret：本次运行未执行真实部署
+        if: steps.check-secrets.outputs.configured == 'false'
+        run: |
+          echo "⚠️ 本次运行没有连接生产服务器，也没有执行任何部署步骤。"
+          echo "如需真正启用这条自动部署流水线，请在仓库 Settings → Secrets and variables → Actions 里配置 DEPLOY_SSH_KEY / DEPLOY_USER / DEPLOY_SERVER_HOST。"
+          echo "在此之前，touliao 生产环境的变更走的是运维直接在服务器本机操作。"
