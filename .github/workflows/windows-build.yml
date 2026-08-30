@@ -89,6 +89,23 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # 2026-08-30 加固：此前没有 secret 检测，DEPLOY_SSH_KEY/DEPLOY_USER/DEPLOY_SERVER_HOST
+      # 缺失时"SCP 到服务器"这一步会直接因 ssh 连接失败而报错（exit code 255），历史上
+      # 已经实际发生过2次，构建本身成功但部署这一步标红——现状本身已经是"明确失败"，不是
+      # 假绿灯，这里补一道更早、更清晰的检测，把"缺 secret"和"SSH真的连不上/网络问题"
+      # 这两种不同原因的失败区分开，报错信息也更可操作。
+      - name: 检查部署 secret 是否已配置
+        run: |
+          missing=()
+          [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]     && missing+=("DEPLOY_SSH_KEY")
+          [ -z "${{ secrets.DEPLOY_USER }}" ]        && missing+=("DEPLOY_USER")
+          [ -z "${{ secrets.DEPLOY_SERVER_HOST }}" ] && missing+=("DEPLOY_SERVER_HOST")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::缺少部署所需的 secret：${missing[*]}。安装包已构建完成（见 build job 的 touliao-windows-setup Artifact，可手动下载），但无法自动部署到服务器——请到仓库 Settings → Secrets and variables → Actions 配置后重新触发本 workflow，或手动下载 Artifact 后按 deploy/README.md 的流程手动部署。"
+            exit 1
+          fi
+          echo "✅ 部署所需 secret 齐全"
+
       - name: 下载构建产物
         uses: actions/download-artifact@v4
         with:
