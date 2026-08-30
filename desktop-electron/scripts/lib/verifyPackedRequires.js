@@ -20,6 +20,17 @@ function normalize(p) {
   return p.replace(/\\/g, '/').replace(/^\/+/, '');
 }
 
+// @electron/asar 的 getNode()/searchNodeFromDirectory() 内部用 Node 内置
+// path.sep 去 split 目录部分——在 Windows 上 path.sep 是 '\'。传一个多层的
+// 正斜杠路径（如 'src/lib/x.js'）进 extractFile 时，其 path.dirname() 结果
+// 'src/lib' 依然是正斜杠，按 '\' split 整段切不开，被当成一个不存在的目录名
+// 查找，实际存在的文件也会被报"not found in this archive"（只有单层路径，
+// 如 'src/x.pem'，因为 dirname 只有一段，凑巧不受影响）。extractFile 调用前
+// 必须转换成当前系统原生分隔符，绕开这个库内部的跨平台 bug。
+function toNativeAsarPath(p) {
+  return p.split('/').join(path.sep);
+}
+
 // 简化版 Node 模块解析：精确路径 → 补 .js → 补 /index.js。
 // 足以覆盖这个仓库里实际出现的写法（都是显式相对路径 require 到具体文件）。
 function resolveInAsar(fromFile, requirePath, packedSet) {
@@ -64,7 +75,7 @@ function verifyPackedRequires(asarPath, entryFile) {
 
     let content;
     try {
-      content = asar.extractFile(asarPath, file).toString('utf8');
+      content = asar.extractFile(asarPath, toNativeAsarPath(file)).toString('utf8');
     } catch (e) {
       // 文件明明在 listPackage() 里出现却解不出来，说明 asar 本身有问题，
       // 而不是"依赖缺失"这类问题——如实记录，交给上层统一报错。

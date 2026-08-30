@@ -68,7 +68,12 @@ module.exports = async function afterPack(context) {
 
   let pemBuf;
   try {
-    pemBuf = asar.extractFile(asarPath, 'src/update-public-key.pem');
+    // path.join（非手写正斜杠字符串）：@electron/asar 的 extractFile 在 Windows
+    // 上按 path.sep 切分目录部分，传入的路径必须用原生分隔符，否则多层路径会被
+    // 误判为文件不存在（详见 scripts/lib/verifyPackedRequires.js 里的 toNativeAsarPath 注释，
+    // 2026-08-30 在 desktop-v8.1.1 真实 Windows 构建里踩到过一次）。这里是单层路径，
+    // 目前碰巧不受影响，但统一用 path.join 更不容易在文件挪到子目录后又踩同一个坑。
+    pemBuf = asar.extractFile(asarPath, path.join('src', 'update-public-key.pem'));
   } catch (e) {
     throw new Error(`[afterPack] 产物 app.asar 中找不到 src/update-public-key.pem：${e.message}`);
   }
