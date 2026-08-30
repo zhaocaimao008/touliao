@@ -122,6 +122,10 @@ jobs:
       - name: SCP 到服务器
         run: |
           EXE=$(find artifacts -name "*.exe" | head -1)
+          if [ -z "$EXE" ]; then
+            echo "::error::在下载的 Artifact 里找不到 .exe 安装包"
+            exit 1
+          fi
           echo "部署: $EXE"
           # 2026-08-29 修复：此前一直写到 /var/www/downloads/，但 nginx(touliao-cc.conf)
           # 的 /downloads/ location 实际 alias 到 /var/www/touliao-downloads/ ——
@@ -136,10 +140,47 @@ jobs:
           # 否则自动更新会 404（此前 updates/ 只有旧版 exe）。
           scp -i ~/.ssh/deploy_key "$EXE" \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/touliao-downloads/updates/$(basename "$EXE")"
-          # latest.yml/*.blockmap 可能在 artifacts/dist 或 artifacts/release 子目录 → 用 find 定位，
-          # 否则自动更新源不会更新（旧脚本只找顶层，导致 latest.yml 停在旧版）。
-          for f in $(find artifacts -name latest.yml -o -name '*.blockmap'); do
+          # 2026-08-30 修复：此前这里用 `find ... -name latest.yml -o -name '*.blockmap'`
+          # 显式枚举文件名，2026-08-30当天新增的 latest.yml.sig 没被同步进这个枚举列表，
+          # 直到今天 DEPLOY_SSH_KEY 第一次真正配好、这个 job 第一次真实跑通部署，
+          # 才第一次暴露——build job(Upload installer + update feed步骤)已经打包了
+          # latest.yml.sig，deploy job这边却没跟上，.sig 线上一直是404，自动更新一直
+          # 会被验签正确拒绝。改成"下载到的产物里，除了.exe，其余全部同步"，不再枚举
+          # 具体文件名——只要 build job 的 Upload 步骤 path 列表和这里保持"exe单独处理、
+          # 其余都同步"这个约定，以后任何新增的元数据文件类型都不会被再次遗漏。
+          # 去掉 `|| true`：任何一个文件同步失败都应该让这个 job 真实报红，不能被吞掉
+          # 显示成绿色却其实没同步全。
+          while IFS= read -r f; do
+            echo "同步: $f"
             scp -i ~/.ssh/deploy_key "$f" \
-              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/touliao-downloads/updates/" || true
-          done
+              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/touliao-downloads/updates/"
+          done < <(find artifacts -type f ! -name "*.exe")
+          echo "✅ SCP 全部完成"
+
+      - name: 部署后真实验证（curl 逐个确认线上真的能拿到，不只信上面的日志）
+        run: |
+          EXE=$(find artifacts -name "*.exe" | head -1)
+          EXE_NAME=$(basename "$EXE")
+          BASE="https://touliao.cc/downloads"
+          fail=0
+          check() {
+            local url="$1"
+            local code
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+            if [ "$code" = "200" ]; then
+              echo "✅ $url → HTTP $code"
+            else
+              echo "::error::$url → HTTP $code（期望200）"
+              fail=1
+            fi
+          }
+          check "$BASE/updates/latest.yml"
+          check "$BASE/updates/latest.yml.sig"
+          check "$BASE/updates/$EXE_NAME"           # electron-updater 真正会去拉的版本化安装包
+          check "$BASE/touliao-windows-latest.exe"  # 人工直接下载用的固定直链
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::部署后验证失败，至少一个文件线上不可访问，自动更新链路不完整"
+            exit 1
+          fi
+          echo "✅ 部署后验证全部通过：latest.yml / latest.yml.sig / 版本化安装包 / 直链安装包 均可正常访问"
           echo "✅ 已发布到 https://touliao.cc/downloads/touliao-windows-latest.exe"
