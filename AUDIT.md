@@ -2100,3 +2100,36 @@ COMMIT;
 4. ~~`deploy/README.md`应该补一节~~ → **已补**：`deploy/README.md`新增"已有生产环境的日常更新（手动，不走setup.sh）"一节，写清后端/Web各自的正确更新命令、`config.json`新位置、以及为什么不放在构建产物目录里
 
 **验证**：以上是真实发生的事故+真实的恢复过程记录，不是事后补写的"应该注意"清单。改用新alias后用`curl https://touliao.cc/config.json`完整比对过响应内容+响应头，与事故前md5一致（`9b15fc5d5b5768856bb7c6ea440b5efe`）。
+
+---
+
+## 二十二、事故记录：8.1.0 Windows启动崩溃（`Cannot find module`）+ 修复过程中连带发现两个`@electron/asar`跨平台路径分隔符bug（2026-08-30）
+
+**背景**：8.1.0在CI里"构建成功+自我验证签名通过"，真实用户在Windows上安装后启动即崩溃：
+```
+Error: Cannot find module '../scripts/lib/validatePublicKeyPem'
+Module path: resources/app.asar/src/main.js
+```
+
+**根因**：`validatePublicKeyPem.js`放在`desktop-electron/scripts/lib/`下，而`package.json`的`build.files`只打包`src/**/*`和`assets/**/*`，`scripts/`从未进入过`app.asar`。`main.js`用`require('../scripts/lib/validatePublicKeyPem')`引用它，产物一启动就`Cannot find module`。
+
+**为什么此前测试完全没发现**：`afterPack.js`自己也`require`同一个文件，但它是在构建机器上直接读源码（不受打包范围限制），永远能成功，给了假的信心；本环境此前也一直没有真正启动过打包后的GUI app去走`main.js`的运行时require路径——这是一个已知但直到这次才真正暴露代价的盲区。
+
+**修复（用户给出5点要求，逐条确认后实施，commit `24afce9`起）**：
+1. 模块移到`src/lib/validatePublicKeyPem.js`——`src/`是唯一会被打进产物的运行时代码边界，运行时依赖不放只在构建机器上跑一次的`scripts/`目录。
+2. 排查`main.js`全部相对require：确认只有这一处和`./screenshot`，均已在`src/`内部，无同类问题。
+3. `afterPack.js`反向require `src/lib/`下的文件是安全的方向（构建机器本机读源码），无需改动。
+4. 新增`scripts/lib/verifyPackedRequires.js`：从`src/main.js`出发递归解析本地相对`require()`依赖树，逐个确认真的打进了`app.asar`，缺失就让`afterPack`直接throw、终止构建。
+5. 版本号8.1.0→8.1.1，重新发版。
+
+**过程中连续暴露的两个`@electron/asar`真实Windows bug**（本地Linux环境完全测不出来，只有真Windows CI才会炸，desktop-v8.1.1标签因此连续failed了两次才成功，commit `9dedd7f`、`75e1d76`）：
+1. `listPackage()`在Windows上内部用`path.join()`拼路径，返回的是`\src\main.js`这种反斜杠路径，而检查工具里用`path.posix`构造的候选路径全是正斜杠，永远匹配不上——把刚移好、真实存在的文件全部误判成缺失。修复：路径比对前统一把反斜杠转正斜杠。
+2. 修完①后又暴露：`@electron/asar`的`extractFile()`内部`getNode()→searchNodeFromDirectory(path.dirname(p))`用Node内置`path.sep`对目录部分做split，Windows上`path.sep`是`\`；传入正斜杠多层路径（如`src/lib/x.js`）时`path.dirname()`返回的`src/lib`依然是正斜杠，按`\`split整段切不开，被当成一个不存在的目录名去查，实际存在的文件也报"not found in this archive"。只有单层路径（如`src/update-public-key.pem`）凑巧不受影响，这也是这个bug至今没被发现的原因。修复：`extractFile`调用前统一转换成当前系统原生分隔符（`toNativeAsarPath()`），`afterPack.js`原有的pubkey提取也顺手改成`path.join()`防止以后文件挪进子目录再踩一次。
+
+**验证**：
+- 本地用真实的两个asar分别验证：修复前遗留的`dist/linux-unpacked/app.asar`能精确复现原始报错；用当前`src/`重新打包出的asar结果为空。
+- 用`path.win32`直接模拟Windows路径语义，确认两个bug的复现机制和修复都成立（非猜测）。
+- desktop-v8.1.1第三次构建（`75e1d76`）真实Windows CI全绿，`afterPack`日志打出`[afterPack] 更新公钥+签名私钥+main.js 依赖闭包均校验通过（win32/1）`，证明新检查真的执行了而不只是构建没崩。
+- 部署后用公网curl独立验证（不信CI日志）：`updates/latest.yml`（内容`version: 8.1.1`）、`updates/latest.yml.sig`、版本化安装包、直链均HTTP 200；用`crypto.verify()`对新鲜下载的`latest.yml`+`latest.yml.sig`独立验签，`signature valid: true`。
+
+**仍未验证的部分（如实披露）**：这套新增的静态依赖闭包检查只能证明"模块解析路径正确"，无法证明"app真的能启动且无其它原因崩溃"——本环境依然没有真正的Windows/GUI设备去实机安装验证，需要等真实用户或有Windows机器的人确认8.1.1能正常启动。
