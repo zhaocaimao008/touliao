@@ -9,7 +9,7 @@ const https = require('https');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const Store = require('electron-store');
-const { validatePublicKeyPem } = require('../scripts/lib/validatePublicKeyPem');
+const { validatePublicKeyPem } = require('./lib/validatePublicKeyPem');
 
 // ── Windows 渲染修复：硬件加速冲突导致的气泡/图片重叠残影 ──
 // 现象：Web 端正常，桌面端出现消息气泡、图片局部残影错乱（GPU 合成器驱动 bug 的典型症状）。
