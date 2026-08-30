@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号 (如 1.0.1)'
-        required: false
-        default: '1.0.0'
+        description: '版本号 (如 8.1.0)，必填，不再有默认值兜底'
+        required: true
       submit_review:
         description: '上传后自动填测试信息并提交外部 Beta 审核'
         type: boolean
@@ -31,14 +30,24 @@ jobs:
 
       - name: 解析版本与发布参数（tag 或手动触发通用）
         run: |
-          # tag 触发：版本号取自 tag（ios-v1.0.11 → 1.0.11），并默认送外部 Beta 审核；
-          # 手动触发：版本号取 inputs.version（默认 1.0.0），是否送审取 inputs.submit_review。
+          # tag 触发：版本号取自 tag（ios-v8.1.0 → 8.1.0），并默认送外部 Beta 审核；
+          # 手动触发：版本号取 inputs.version，是否送审取 inputs.submit_review。
+          #
+          # 2026-08-30 修复：input 层面的 required:true（已去掉 default）能挡住"UI手动
+          # 触发时留空直接提交"，但 workflow_dispatch 也能走 REST API/gh CLI 触发，那条
+          # 路径不受 UI 的 required 校验约束，仍可能传入空字符串——这里补一道脚本级硬校验，
+          # 空值直接 fail，不再静默兜底成 1.0.0。此前没有这道校验时，连续5次手动触发全部
+          # 忘填 version，都误发成了 1.0.0（跟 project.yml 里从未生效的占位值一样，跟
+          # Android/Electron 的真实版本线完全脱节），详见 AUDIT.md。
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             VERSION="${GITHUB_REF_NAME#ios-v}"
             SUBMIT="true"
           else
             VERSION="${{ github.event.inputs.version }}"
-            [ -z "$VERSION" ] && VERSION="1.0.0"
+            if [ -z "$VERSION" ]; then
+              echo "::error::未指定版本号（version 输入为空）。手动触发本 workflow 必须显式填写 version（如 8.1.0），不再有默认值兜底。"
+              exit 1
+            fi
             SUBMIT="${{ github.event.inputs.submit_review }}"
             [ -z "$SUBMIT" ] && SUBMIT="true"
           fi

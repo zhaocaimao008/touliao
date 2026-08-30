@@ -35,7 +35,15 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.touliao.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: "8.0.0"
+        # 2026-08-30 说明：这两个值只在 CI 编译门禁(ios-build.yml 的模拟器构建，不覆盖
+        # 这两个字段)和本地 Xcode 开发构建里生效——真正发布到 TestFlight 的版本号/build号
+        # 由 ios-testflight.yml 在归档时用 MARKETING_VERSION="$APP_VERSION"/
+        # CURRENT_PROJECT_VERSION="$BUILD_NUMBER" 显式覆盖（版本号取自触发时的 tag 或
+        # workflow_dispatch 的 version 输入，build号取构建时刻的时间戳），不读这里的值。
+        # 改这里不会改变实际发布版本号；保留只是为了让 CI门禁/本地构建显示的版本号不要
+        # 跟真实发布版本线差太远，避免混淆——之前这里长期停在"8.0.0"没跟着真实版本走，
+        # 而实际发布过的版本号是分别在触发时传参决定的（见 AUDIT.md）。
+        MARKETING_VERSION: "8.1.0"
         CURRENT_PROJECT_VERSION: "33"
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "5.9"
