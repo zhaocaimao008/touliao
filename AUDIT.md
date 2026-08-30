@@ -2078,3 +2078,25 @@ COMMIT;
 ---
 
 以上是本轮收尾的完整交接记录。三个月后如果要继续这个项目，建议阅读顺序：本节 → 十六至十九节（私有化部署/部署配置/两个专项方案）→ 五节（产品侧待决策项）→ 其余章节按需查阅。
+
+---
+
+## 二十一、事故记录：手动部署Web时`rsync --delete`误删`config.json`（2026-08-30）
+
+**背景**：本轮修复代码全部合入main、CI（CI Gate/Android Build/E2E Web Tests/iOS Build/自动部署投聊后端内嵌门禁）全绿后，因`deploy.yml`缺`DEPLOY_SSH_KEY`等secret（见二十节"已修复项"表）不会自动部署，手动在生产服务器上执行部署：备份当前`/var/www/touliao-web` → `rsync -a --delete /root/touliao/web/dist/ /var/www/touliao-web/` → `nginx -s reload`。
+
+**事故**：`rsync --delete`把`/var/www/touliao-web/config.json`删掉了。这个文件**不是Vite构建产物**（`web/dist/`里没有它），是运维单独手动维护、部署在Web根目录下的运行时远程配置文件——四端（Web/Electron/Android/iOS）启动时都会去请求`https://touliao.cc/config.json`拉取当前后端地址（见`web/src/utils/config.js`"远程配置模块"，`desktop-electron/src/main.js`的`CONFIG_URLS`同理）。`rsync -a --delete`语义是"让目标目录内容与源目录完全一致，目标里多出来的一律删除"——`config.json`只存在于目标目录、源目录（`dist/`）里没有，天然会被当成"多余文件"清掉，这是`rsync --delete`的正常行为，不是bug，是**用这个命令部署一个"目标目录里混有非构建产物文件"的场景时的必然结果**。
+
+**发现与恢复**：`--delete`执行后立即检查`config.json`是否还在，发现已被删除；从刚做的备份`/var/www/touliao-web.bak-20260830-135323/config.json`原样恢复；用`diff`比对备份目录与当前目录的完整文件列表，确认**仅这一个文件受影响**，没有其它遗漏。恢复后用真实公网请求（`curl https://touliao.cc/config.json`）确认HTTP 200、内容正确。
+
+**影响范围**（2026-08-30事后用文件时间戳+nginx access log精确核实，更正了最初"约几分钟"的粗略估计）：真实缺失窗口是**13:53:23（备份创建，即将执行删除）到13:53:41（恢复完成），共18秒**。查了这18秒内nginx access log的全部请求（不限于`config.json`）：**0条记录**——这18秒内没有任何客户端访问过服务器，不是"侥幸躲过404"，是这个窗口内根本没有流量经过，真实影响为零。
+
+**根因**：`deploy/README.md`和`deploy.yml`里描述的"标准"部署流程都是**全新一键部署**（新服务器/全新构建），没有一份文档描述"已经在跑的生产环境，手动更新Web这一步该用什么命令"——这次是凭经验现场决定用`rsync -a --delete`，没有意识到`config.json`是运行时另外维护、不随构建走的文件。这是一个**文档空白**导致的操作事故，不是这次改动本身的代码问题。
+
+**给以后部署的人的建议**：
+1. 手动更新生产Web时，**不要用`rsync --delete`直接对着`/var/www/touliao-web`根目录做全量同步**——这个目录混有构建产物和运行时配置文件（至少`config.json`一个，未来可能更多），`--delete`语义和这种混合目录天然冲突
+2. 更安全的做法：`rsync -a`（不带`--delete`）只增量覆盖构建产物，让`config.json`这类运行时文件保持原样不受影响；或者显式排除：`rsync -a --delete --exclude=config.json ...`
+3. ~~更彻底的做法（建议，未执行）~~ → **已执行**（2026-08-30当天）：把`config.json`挪到独立目录`/var/www/touliao-runtime-config/`，nginx的`location = /config.json`改为`alias`指向新路径，公开URL不变。旧路径原文件`mv`成`/var/www/touliao-web/config.json.bak-20260830`保留24小时作兜底（不是`rm`，且这个文件名不会被任何请求匹配到，也不影响以后的`rsync --delete`——真删掉的话下次部署顺手就清了）。迁移后`/var/www/touliao-web/`目录**只剩纯构建产物**，跟`web/dist/`内容可以做到完全一致，`rsync -a --delete`从此对这个目录是安全的
+4. ~~`deploy/README.md`应该补一节~~ → **已补**：`deploy/README.md`新增"已有生产环境的日常更新（手动，不走setup.sh）"一节，写清后端/Web各自的正确更新命令、`config.json`新位置、以及为什么不放在构建产物目录里
+
+**验证**：以上是真实发生的事故+真实的恢复过程记录，不是事后补写的"应该注意"清单。改用新alias后用`curl https://touliao.cc/config.json`完整比对过响应内容+响应头，与事故前md5一致（`9b15fc5d5b5768856bb7c6ea440b5efe`）。

@@ -42,6 +42,49 @@ cd /root/touliao && git pull && ./deploy/setup.sh chat.example.com
 ```
 脚本幂等：已存在的 `.env` 和密钥会被保留，不会重置用户登录态。
 
+## 已有生产环境的日常更新（手动，不走 setup.sh）
+
+> 2026-08-30 补充。此前这份文档只写了"全新部署"和"重新跑 setup.sh"两种场景，没有覆盖
+> "生产环境已经在跑，只想手动更新后端或Web这一步该用什么命令"——这个空白导致过一次
+> 真实事故：手动用 `rsync -a --delete` 同步Web构建产物到线上目录时，把混放在同一目录下、
+> 不属于构建产物的运行时配置文件 `config.json` 误删了（详见 `AUDIT.md` 二十一节）。
+
+**后端**：
+```bash
+cd /root/touliao && git pull
+cd backend-v2 && npm install   # 只要 package.json/package-lock.json 有变化就跑一遍，无害
+pm2 restart touliao-backend --update-env
+pm2 logs touliao-backend --lines 50   # 确认无启动报错
+curl -s http://127.0.0.1:3003/health   # 确认 {"ok":true,...}
+```
+
+**Web**：
+```bash
+cd /root/touliao/web && npm run build
+
+# 先备份当前线上版本（延续既有惯例，命名 .bak-YYYYMMDD-HHMMSS）
+cp -r /var/www/touliao-web "/var/www/touliao-web.bak-$(date +%Y%m%d-%H%M%S)"
+
+# 同步构建产物——⚠️ 用 -a，不要加 --delete 直接对整个目录做全量同步，
+# 除非你已经确认目录里没有混放任何非构建产物的文件
+rsync -a /root/touliao/web/dist/ /var/www/touliao-web/
+
+nginx -t && nginx -s reload
+curl -s -o /dev/null -w "%{http_code}\n" https://touliao.cc/
+```
+
+**`config.json`（运行时远程配置，四端启动都会拉取）现在单独存放，不在Web构建产物目录里**：
+```
+物理路径：/var/www/touliao-runtime-config/config.json
+公开URL： https://touliao.cc/config.json（nginx alias 指到上面那个物理路径，URL本身没变）
+```
+**为什么不放在 `/var/www/touliao-web/` 里**：那个目录是 `web/dist/` 构建产物的镜像，理论上应该能被
+`rsync -a --delete` 安全地整体同步替换；`config.json` 是运维单独维护、不随每次构建变化的运行时文件，
+混在同一个目录里会让"构建产物目录"和"运行时配置目录"的边界不清晰，`--delete` 语义和这种混合目录
+天然冲突——这正是2026-08-30那次事故的根因。**以后如果要新增其它运行时配置文件（不是构建产物的），
+放进 `/var/www/touliao-runtime-config/`，不要放回Web构建产物目录**，并在nginx里单独配一个
+`location` 指过去。
+
 ## 关键环境变量（脚本自动写入，一般无需手改）
 
 | 变量 | 说明 | 默认/自动 |
