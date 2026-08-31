@@ -117,3 +117,6 @@ ui-screenshots/
 
 # TURN服务事故排查证据(含明文密钥，禁止入库) — 2026-08-29
 docs/incident-evidence-20260829/
+
+# Agent implementation worktrees
+.worktrees/
