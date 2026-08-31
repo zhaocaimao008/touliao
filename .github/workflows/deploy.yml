@@ -209,7 +209,7 @@ jobs:
           AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/zhaocaimao008/touliao.git"
           CLEAN_URL="https://github.com/zhaocaimao008/touliao.git"
 
-          echo "📋 V信后端自动部署 $(date)"
+          echo "📋 投聊后端自动部署 $(date)"
           echo "仓库根: $REPO_ROOT | 应用目录: $DEPLOY_PATH"
 
           # 首次部署：仓库根没有 .git 时，bootstrap 把 git 历史引导进现有目录
