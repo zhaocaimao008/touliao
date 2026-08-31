@@ -57,7 +57,10 @@ module.exports = function setupRealtime(io, app) {
   broadcaster.setIo(io); // 广播调度器绑定 io 实例（分片削峰派发）
   const callRegistry = createCallSessionRegistry({
     graceMs: config.calls.reconnectGraceMs,
-    onGraceExpired: info => registerCall.handleGraceExpired(io, callRegistry, info),
+    onGraceExpired: info => {
+      if (info.kind === 'group') registerGroupCall.handleGraceExpired(io, callRegistry, info);
+      else registerCall.handleGraceExpired(io, callRegistry, info);
+    },
   });
 
   // ── 握手鉴权（Cookie 优先，Electron 降级到 auth.token）──────

@@ -15,14 +15,20 @@
  *   group_call:offer  {callId, to, offer}            既有成员 → 新成员
  *   group_call:answer {callId, to, answer}           新成员 → 既有成员
  *   group_call:ice    {callId, to, candidate}        双向 ICE
- *   group_call:leave  {callId}                        离开 → 通知其余成员 group_call:peer_left；空了则结束
- *   （断线自动按 leave 处理）
+ *   group_call:leave  {callId}                        主动离开 → 立即释放，通知其余成员 group_call:peer_left；空了则结束
+ *   group_call:resume {callId}                        断线重连宽限期内恢复 → 取消宽限计时器；
+ *                                                      session 已不存在则回 group_call:ended{reason:'server_restarted'}
+ *
+ * 2026-08-31（Task 3）：全局忙线占用（含跟 1对1 通话互斥）交给 callSessionRegistry 统一管理
+ * （见 realtime/callSessionRegistry.js、realtime/index.js 的接线）。断线不再"仅当该账号所有
+ * socket 都断开才移除"这种立即判断，改成 registry 的重连宽限（默认15秒，CALL_RECONNECT_GRACE_MS
+ * 配置），到期后由 registry 回调本文件导出的 handleGraceExpired 才真正移除该成员——短暂断线
+ * 重连不会被踢出通话。
  */
 const { v4: uuidv4 } = require('uuid');
 const { readDb } = require('../../db/connection');
 const { write } = require('../../db/writer');
 const { isMember } = require('../../modules/messages/shared');
-const presence = require('../presence');
 const { guardPayload, guardId } = require('../guard');
 
 const MAX_PARTICIPANTS = 9;
@@ -38,31 +44,50 @@ function groupCallAllowed(type) {
 }
 
 // 模块级共享（单进程 fork）：callId -> { conversationId, type, startedBy, members:Set, peak, startedAt }
+// mesh 成员/峰值/落库这些"通话本体"元数据仍留在这里；全局忙线占用（谁在哪通电话里，
+// 私聊/群聊互斥）已经交给 callSessionRegistry 统一管理（2026-08-31 Task 3），
+// 原来这里自己维护的 userId -> callId 的 userCall Map 已移除，改用
+// registry.callForUser(userId)。
 const groupCalls = new Map();
-// userId -> callId：一个用户同一时刻只在一个群通话内，便于断线清理与忙线判断
-const userCall = new Map();
 
-function endCall(io, callId) {
+function endCall(io, registry, callId) {
   const call = groupCalls.get(callId);
   if (!call) return;
   if (call.timer) clearTimeout(call.timer);
-  for (const uid of call.members) if (userCall.get(uid) === callId) userCall.delete(uid);
   groupCalls.delete(callId);
+  registry.end(callId);
   write("UPDATE group_call_logs SET status='ended', ended_at=?, participant_count=? WHERE id=?",
     [nowSec(), call.peak, callId]);
 }
 
-function removeMember(io, callId, userId) {
+function removeMember(io, registry, callId, userId) {
   const call = groupCalls.get(callId);
   if (!call || !call.members.has(userId)) return;
   call.members.delete(userId);
-  if (userCall.get(userId) === callId) userCall.delete(userId);
+  registry.releaseUser(callId, userId);
   // 通知其余成员该 peer 离开（关闭对应 PeerConnection / 移除画面）
   for (const uid of call.members) io.to(`user_${uid}`).emit('group_call:peer_left', { callId, userId });
-  if (call.members.size === 0) endCall(io, callId);
+  if (call.members.size === 0) endCall(io, registry, callId);
 }
 
-module.exports = function registerGroupCallHandler(io, socket) {
+// 重连宽限到期后清理指定的群通话成员（registry 只触发回调，DB 与事件副作用仍归 handler）。
+// 跟 1对1 不同：宽限到期只移除这一个成员，不结束整通通话（除非移除后成员数归零，
+// removeMember 内部已有这条逻辑，复用不用重复）。
+function handleGraceExpired(io, registry, { callId, userId, kind }) {
+  if (kind !== 'group') return;
+  removeMember(io, registry, callId, userId);
+}
+
+// registry 返回的机器可读 code 映射成这个模块历来的 group_call:error { reason } 词汇表，
+// 不引入新的 payload 形状——四端目前只认 reason 字段，等 Task 6/7 做完客户端契约升级
+// 前不能悄悄换掉。
+function reasonForCode(code) {
+  if (code === 'CALL_BUSY') return 'busy';
+  if (code === 'CALL_NOT_FOUND') return 'not_found';
+  return 'not_found'; // CALL_ID_MISMATCH 等：从客户端视角等价于"这通电话对它已经不存在"
+}
+
+module.exports = function registerGroupCallHandler(io, socket, registry) {
   const userId = socket.user.id;
 
   socket.on('group_call:start', (payload) => {
@@ -80,7 +105,9 @@ module.exports = function registerGroupCallHandler(io, socket) {
     }
     const type = rawType == null ? 'audio' : rawType;
     if (!isMember(conversationId, userId)) return;
-    if (userCall.has(userId)) { socket.emit('group_call:error', { reason: 'busy' }); return; }
+    // 提前用 registry 查一次忙线（含私聊，跟群聊共用同一份 userSessions），省一次无谓的DB查询；
+    // 真正原子的忙线判定在下面 registry.createGroup() 内部，这里只是快速失败路径。
+    if (registry.callForUser(userId)) { socket.emit('group_call:error', { reason: 'busy' }); return; }
     const activeInConv = [...groupCalls.values()].find(c => c.conversationId === conversationId);
     if (activeInConv) { socket.emit('group_call:error', { reason: 'active_call' }); return; }
     const conv = readDb.prepare("SELECT type FROM conversations WHERE id=?").get(conversationId);
@@ -94,16 +121,17 @@ module.exports = function registerGroupCallHandler(io, socket) {
     }
 
     const callId = uuidv4();
+    const created = registry.createGroup({ callId, conversationId, startedBy: userId, socketId: socket.id, type: t });
+    if (!created.ok) { socket.emit('group_call:error', { reason: reasonForCode(created.code) }); return; }
     const call = { conversationId, type: t, startedBy: userId, members: new Set([userId]), peak: 1, startedAt: nowSec(), timer: null };
     call.timer = setTimeout(() => {
       const c = groupCalls.get(callId);
       if (!c) return;
       console.warn(`[groupCall] 通话 ${callId} 超过4小时，强制结束`);
       for (const uid of [...c.members]) io.to(`user_${uid}`).emit('group_call:ended', { callId, reason: 'timeout' });
-      endCall(io, callId);
+      endCall(io, registry, callId);
     }, MAX_CALL_DURATION_MS);
     groupCalls.set(callId, call);
-    userCall.set(userId, callId);
     write('INSERT INTO group_call_logs (id,conversation_id,started_by,type,participant_count) VALUES (?,?,?,?,1)',
       [callId, conversationId, userId, t]);
 
@@ -124,14 +152,20 @@ module.exports = function registerGroupCallHandler(io, socket) {
     const call = groupCalls.get(callId);
     if (!call) { socket.emit('group_call:error', { reason: 'not_found', callId }); return; }
     if (!isMember(call.conversationId, userId)) return;
-    if (call.members.has(userId)) return;                       // 幂等
-    if (call.members.size >= MAX_PARTICIPANTS) { socket.emit('group_call:error', { reason: 'full', callId }); return; }
-    if (userCall.has(userId)) { socket.emit('group_call:error', { reason: 'busy' }); return; }
+    const alreadyLocalMember = call.members.has(userId);
+    // full 只拦截真正的新加入者；已经是成员的重复 join（比如换了个设备）不该被人数上限挡住。
+    if (!alreadyLocalMember && call.members.size >= MAX_PARTICIPANTS) {
+      socket.emit('group_call:error', { reason: 'full', callId }); return;
+    }
+    // registry.occupy 内部已经处理了"已是成员→幂等绑定新 socket"和"忙线（含私聊）"两种情况，
+    // 不需要再单独查 userCall。
+    const joined = registry.occupy(callId, userId, socket.id);
+    if (!joined.ok) { socket.emit('group_call:error', { reason: reasonForCode(joined.code), callId }); return; }
+    if (joined.alreadyMember) return; // 幂等：不重复广播 peers/peer_joined
 
     const peers = [...call.members];                            // 既有成员（加入前）
     call.members.add(userId);
     call.peak = Math.max(call.peak, call.members.size);
-    userCall.set(userId, callId);
 
     // 回给加入者：当前已有成员列表（它将作为 answerer 等待这些人的 offer）
     socket.emit('group_call:peers', { callId, conversationId: call.conversationId, type: call.type, peers });
@@ -157,17 +191,34 @@ module.exports = function registerGroupCallHandler(io, socket) {
     if (!p) return;
     const callId = guardId(socket, 'group_call:leave', 'callId', p.callId);
     if (!callId) return;
-    removeMember(io, callId, userId);
+    removeMember(io, registry, callId, userId); // 主动 leave：立即释放，不走宽限
   });
 
-  // 断线：仅当该账号所有 socket 都断开时才移除通话（多端场景：一端断线不应踢出通话）
-  socket.on('disconnect', () => {
-    const callId = userCall.get(userId);
+  socket.on('group_call:resume', (payload) => {
+    const p = guardPayload(socket, 'group_call:resume', payload);
+    if (!p) return;
+    const callId = guardId(socket, 'group_call:resume', 'callId', p.callId);
     if (!callId) return;
-    // disconnect 触发时 presence 尚未调用 removeSocket，size 仍含本 socket，减 1 得剩余数
-    const remaining = (presence.onlineUsers.get(userId)?.size || 0) - 1;
-    if (remaining <= 0) removeMember(io, callId, userId);
+    const session = registry.get(callId);
+    if (!session) {
+      socket.emit('group_call:ended', { callId, reason: 'server_restarted' });
+      return;
+    }
+    if (session.kind !== 'group') {
+      socket.emit('group_call:error', { reason: 'not_found', callId });
+      return;
+    }
+    const resumed = registry.resume(callId, userId, socket.id);
+    if (!resumed.ok) socket.emit('group_call:error', { reason: reasonForCode(resumed.code), callId });
+  });
+
+  // 断线：只解绑当前这一条 Socket；该用户在这通群通话里的最后一条参与 Socket 断开后，
+  // registry 会启动重连宽限（跟 1对1 用同一份 CALL_RECONNECT_GRACE_MS 配置），到期后
+  // 由下方导出的 handleGraceExpired 调用 removeMember 真正移除该成员——不再是"断线立即踢出"。
+  socket.on('disconnect', () => {
+    registry.unbindSocket(userId, socket.id);
   });
 };
 
-module.exports._state = { groupCalls, userCall, MAX_PARTICIPANTS }; // 供测试/监控
+module.exports.handleGraceExpired = handleGraceExpired;
+module.exports._state = { groupCalls, MAX_PARTICIPANTS }; // 供测试/监控（userCall 已移除，改用 registry.callForUser）
