@@ -64,6 +64,8 @@ status
 
 未参与通话的另一台设备断线不会影响通话。1 对 1双方任一方宽限到期即结束整通电话；群通话只移除该成员。
 
+**2026-08-31 review 修正**：这条区分已经焊死在 `callSessionRegistry` 内部，不是约定俗成靠 handler 自觉遵守——`releaseUser(callId, userId)` 对 `kind==='private'` 的 session 会整段 `clearSession`（等价于调用 `end`），不会只移除调用方这一个参与者。原因：私聊只有两个参与者，"只释放一个人"在语义上就是让另一方的占用状态永远没有对端、永久孤儿化——这跟 2026-08-30 修的"`call:request` 重拨覆盖未接听旧通话时漏发通知，导致对方永久卡在占用中"是同一类 bug。Task 2 的 handler 侧因此**不需要**、也**不应该**自己判断"私聊该调 end 还是 releaseUser"——直接调 `releaseUser` 即可，registry 会按 `session.kind` 自动做对的事。测试见 `test/call-session-registry.test.js` 的 `'releaseUser on a private call ends the whole session, not just the departing participant'`。
+
 ### 全局忙线规则
 
 创建或加入通话前统一调用注册表：

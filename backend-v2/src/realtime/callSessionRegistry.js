@@ -90,6 +90,13 @@ function createRegistry({
   }
 
   function createPrivate({ callId, callerId, calleeId, socketId, type, conversationId } = {}) {
+    // 纵深防御：现有 call.js handler 已经在上游拦了"呼叫自己"（to === userId 直接
+    // return），这里理论上不可达；但这个模块自称是忙线状态的原子边界，不应该完全
+    // 依赖调用方纪律——万一未来接入点忘了做这层检查，不能让"参与者只有一个人"的
+    // 私聊 session 被创建出来。
+    if (!callerId || !calleeId || callerId === calleeId) {
+      return failure(CALL_ID_MISMATCH, { callId });
+    }
     const existing = sessions.get(callId);
     if (existing) {
       if (existing.kind !== 'private' || !existing.participants.has(callerId) || !existing.participants.has(calleeId)) {
@@ -198,6 +205,18 @@ function createRegistry({
     if (!session) return failure(CALL_NOT_FOUND, { callId });
     const participant = participantFor(session, userId);
     if (!participant || userSessions.get(userId) !== callId) return failure(CALL_ID_MISMATCH, { callId });
+
+    // 私聊只有两个参与者，"移除其中一个"在语义上就等于整通结束——不能像群聊那样只
+    // 释放这一个人、让另一方继续占用着一个再也不会有对端的 session。这里必须整段
+    // clearSession，否则调用方（未来 Task 2 的 handler）如果对私聊场景误用了这个函数
+    // （比如宽限到期时调 releaseUser 而不是 end），另一方会永久卡在"占用中"——跟
+    // 2026-08-30 修的"call:request 重拨覆盖未接听旧通话时漏发通知"是同一类孤儿状态
+    // bug。把这条正确性焊死在这个模块内部，不依赖调用方记住"私聊要用 end、群聊才用
+    // releaseUser"这条约定。
+    if (session.kind === 'private') {
+      clearSession(callId);
+      return ok({ callId, userId, released: true, ended: true });
+    }
 
     cancelGrace(participant);
     session.participants.delete(userId);

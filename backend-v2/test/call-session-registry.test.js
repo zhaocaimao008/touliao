@@ -77,6 +77,31 @@ test('releaseUser frees a group participant immediately without ending other mem
   expect(r.get('g1').participants.has('alice')).toBe(true);
 });
 
+// 2026-08-31 review 发现：私聊只有两个参与者，releaseUser 若像群聊那样只移除
+// "这一个人"，另一方会永久卡在占用中（跟 call:request 重拨覆盖未接听旧通话时漏发
+// 通知是同一类孤儿状态 bug）。releaseUser 对私聊 session 必须整段释放，不是半释放。
+test('releaseUser on a private call ends the whole session, not just the departing participant', () => {
+  const r = createRegistry();
+
+  r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'alice-web' });
+
+  expect(r.releaseUser('c1', 'alice')).toMatchObject({ ok: true, released: true, ended: true });
+  expect(r.callForUser('alice')).toBeUndefined();
+  expect(r.callForUser('bob')).toBeUndefined(); // 关键：对方也必须被一并释放，不能孤儿化
+  expect(r.get('c1')).toBeUndefined();
+});
+
+// 2026-08-31 review 发现：createPrivate 完全依赖调用方（call.js 现有的 to===userId
+// 拦截）阻止自己呼叫自己；这里补一层纵深防御，不完全信任调用方纪律。
+test('createPrivate rejects a caller and callee that are the same user', () => {
+  const r = createRegistry();
+
+  expect(r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'alice', socketId: 'alice-web' }))
+    .toMatchObject({ ok: false, code: 'CALL_ID_MISMATCH' });
+  expect(r.get('c1')).toBeUndefined();
+  expect(r.callForUser('alice')).toBeUndefined();
+});
+
 test('grace expiry reports the active user and call without releasing registry state itself', () => {
   const timers = createTimerHarness();
   const onGraceExpired = jest.fn();
