@@ -225,7 +225,7 @@ test('group participant can resume within disconnect grace', () => {
 - Consumes: database writer during server startup.
 - Produces: `reconcileInterruptedCalls(nowSec)` and UI text for `status === 'interrupted'`.
 
-- [ ] **Step 1: Write the failing reconciliation test**
+- [x] **Step 1: Write the failing reconciliation test** — see `backend-v2/test/call-reconciler.test.js` (3 tests, broader than the 1 sketched here: also covers already-terminal statuses being left alone and the `ended_at IS NULL` guard actually mattering).
 
 ```js
 test('startup closes one-to-one and group logs left active by restart', async () => {
@@ -237,43 +237,15 @@ test('startup closes one-to-one and group logs left active by restart', async ()
 });
 ```
 
-- [ ] **Step 2: Run reconciliation test and confirm RED**
+- [x] **Step 2: Run reconciliation test** — not independently re-verified RED-before-GREEN (same caveat as Tasks 2/3 Step 2).
 
-Run: `cd backend-v2 && npx jest test/call-reconciler.test.js --runInBand`
+- [x] **Step 3: Implement and invoke startup reconciliation** — exact SQL from this step, invoked in `server.js` right before `setupRealtime(io, app)`, with a caught/logged failure path.
 
-Expected: FAIL because reconciler does not exist.
+- [x] **Step 4: Add exact history labels on all clients** — added to Web/Android/iOS, no existing mapping touched.
 
-- [ ] **Step 3: Implement and invoke startup reconciliation**
+- [x] **Step 5: Run backend test and compile/lint affected clients** — `call-reconciler.test.js` + `call-logs.test.js`: 2 suites, 6/6 pass. Full backend suite: 68/68 suites, 578/579 (1 pre-existing skip), exit 0. Web lint: clean. Android `compileDebugKotlin --offline`: BUILD SUCCESSFUL (this worktree was missing gitignored `local.properties`; copied from the main checkout to unblock, not a code change). iOS: **not compiled** — no Xcode/macOS toolchain available; the change is a single switch-case addition visually matching the existing four cases, not build-verified. Recorded honestly rather than claimed as passing, per this same step's own iOS caveat pattern reused from Task 9 Step 5.
 
-Use parameterized constant SQL:
-
-```js
-await writeAsync("UPDATE call_logs SET status='interrupted', ended_at=? WHERE status='ongoing' AND ended_at IS NULL", [now]);
-await writeAsync("UPDATE group_call_logs SET status='ended', ended_at=? WHERE status='ongoing' AND ended_at IS NULL", [now]);
-```
-
-Invoke once after database initialization and before accepting Socket.IO connections.
-
-- [ ] **Step 4: Add exact history labels on all clients**
-
-Map `interrupted` to `服务重启，通话中断`; preserve all existing status mappings.
-
-- [ ] **Step 5: Run backend test and compile/lint affected clients**
-
-Run: `cd backend-v2 && npx jest test/call-reconciler.test.js test/call-logs.test.js --runInBand`
-
-Run: `cd web && npm run lint -- --quiet`
-
-Run: `cd android && ./gradlew :app:compileDebugKotlin`
-
-Run on macOS CI: `cd ios && xcodegen generate && xcodebuild -project Touliao.xcodeproj -scheme Touliao -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO`
-
-- [ ] **Step 6: Commit reconciliation**
-
-```bash
-git add backend-v2/src/realtime/callReconciler.js backend-v2/src/server.js backend-v2/test/call-reconciler.test.js web/src/components/CallHistory.jsx android/app/src/main/java/com/touliao/app/feature/callhistory/CallHistoryScreen.kt ios/Touliao/Features/Profile/CallHistoryView.swift
-git commit -m "fix: reconcile calls interrupted by backend restart"
-```
+- [x] **Step 6: Commit reconciliation** — commit `a97f345` on `fix/online-call-reliability` (not pushed).
 
 ### Task 5: Web callId state and stale-event filtering
 
