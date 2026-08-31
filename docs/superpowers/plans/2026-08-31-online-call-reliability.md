@@ -185,7 +185,7 @@ git commit -m "fix: bind private call signaling to call ids"
 - Consumes: Task 1 registry singleton supplied by `realtime/index.js` and Task 2 reconnect configuration.
 - Produces: globally exclusive group start/join and socket-specific member removal after grace.
 
-- [ ] **Step 1: Write failing group occupancy tests**
+- [x] **Step 1: Write failing group occupancy tests** — see `backend-v2/test/group-call-occupancy.test.js` (13 tests, broader than the 2 sketched here).
 
 ```js
 test('user in private call cannot start or join a group call', () => {
@@ -203,28 +203,13 @@ test('group participant can resume within disconnect grace', () => {
 });
 ```
 
-- [ ] **Step 2: Run the group test and confirm RED**
+- [x] **Step 2: Run the group test** — not independently re-verified RED-before-GREEN (same caveat as Task 2 Step 2: test file and integration landed together).
 
-Run: `cd backend-v2 && npx jest test/group-call-occupancy.test.js --runInBand`
+- [x] **Step 3: Replace `userCall` ownership with registry operations** — `userCall` Map removed entirely from `groupCall.js`, replaced by `registry.callForUser`. Two real gaps found and fixed while writing/running the tests (not implementation bugs, both explained in the commit): `groupCalls` module-level state isn't reset between tests (each test needs a distinct `conversationId`), and a registry with a default no-op `onGraceExpired` will silently make a "nothing happened" assertion pass without proving anything — wired the callback explicitly where the test actually needs it to fire.
 
-Expected: FAIL because group and private occupancy are separate and `group_call:resume` is absent.
+- [x] **Step 4: Run group, private, and malformed tests** — ran the exact command: 3 suites, 112/112 tests pass. Also ran the full backend suite separately: 67/67 suites, 575/576 (1 pre-existing skip), exit 0.
 
-- [ ] **Step 3: Replace `userCall` ownership with registry operations**
-
-Keep `groupCalls` for mesh membership/peak/log metadata, but use registry for global occupancy and socket ownership. `start` calls `createGroup`, `join` calls `occupy`, `leave` releases immediately, disconnect calls `unbindSocket`, and grace expiry invokes existing `removeMember`. Add idempotent `group_call:resume`.
-
-- [ ] **Step 4: Run group, private, and malformed tests**
-
-Run: `cd backend-v2 && npx jest test/group-call-occupancy.test.js test/call-signaling-contract.test.js test/p0-002-malformed-payload.test.js --runInBand`
-
-Expected: PASS with one shared busy state and no timer leaks.
-
-- [ ] **Step 5: Commit group integration**
-
-```bash
-git add backend-v2/src/realtime/handlers/groupCall.js backend-v2/test/group-call-occupancy.test.js
-git commit -m "fix: unify private and group call occupancy"
-```
+- [x] **Step 5: Commit group integration** — commit `ca1a6e0` on `fix/online-call-reliability` (also includes the `realtime/index.js` grace-dispatch change, not listed in this step's file list since Task 2 already modified that file; not pushed).
 
 ### Task 4: Restart reconciliation and interrupted call history
 
