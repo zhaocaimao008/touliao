@@ -294,17 +294,46 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     return () => vv.removeEventListener('resize', onResize);
   }, []);
 
-  // 发起通话（状态提升到 Home，通知父组件）
+  // 正在等待 call:request 的 ack/call:error 的标记（不是 callId 本身，只是"有一次
+  // 待决的发起"）——用来在收到 call:error 时判断这次报错是不是对应刚才这次
+  // startCall，而不是别的 call:* 事件的过期信令噪音（后端 call:error 没带 to/from，
+  // 无法按 id 精确对应，只能按"当前是否有待决请求"这个时序信号判断）。
+  const pendingCallRef = useRef(null);
+
+  // 发起通话（状态提升到 Home，通知父组件）。
+  // 2026-08-31（Task 5）：后端 call:request 现在通过 ack 回传 callId（见
+  // realtime/handlers/call.js），忙线/被拒绝时不会调用 ack，而是单独 emit
+  // call:error——所以这里必须两头都接：ack 拿到 callId 才真正打开通话界面
+  // （不再是发出请求就乐观打开）；call:error 到达时清掉待决状态、提示用户，
+  // 不会让呼叫方永远卡在"呼叫中"却其实后端早就拒绝了。
   const startCall = useCallback((type) => {
     if (conversation.type !== 'private') return;
     const remoteUser = { id: conversation.otherUser?.id, name: conversation.name, avatar: conversation.avatar };
+    const remoteId = conversation.otherUser?.id;
+    pendingCallRef.current = 'pending';
     socket?.emit('call:request', {
-      to: conversation.otherUser?.id,
+      to: remoteId,
       type,
       caller: { id: user.id, name: user.username, avatar: user.avatar },
+    }, (ack) => {
+      if (pendingCallRef.current !== 'pending') return; // 已经被 call:error 取消，忽略迟到的 ack
+      pendingCallRef.current = null;
+      if (!ack?.callId) return; // 旧后端/异常：没有 callId 就不开呼叫界面，防止无 callId 的通话流程
+      onStartCall?.({ type, direction: 'outgoing', remoteUser, remoteId, callId: ack.callId });
     });
-    onStartCall?.({ type, direction: 'outgoing', remoteUser, remoteId: conversation.otherUser?.id });
   }, [socket, conversation, user, onStartCall]);
+
+  // 发起失败（忙线/黑名单/非好友等）：后端不走 ack，单独 emit call:error。
+  useEffect(() => {
+    if (!socket) return;
+    const onCallError = (err) => {
+      if (pendingCallRef.current !== 'pending') return; // 跟当前这次发起无关，忽略
+      pendingCallRef.current = null;
+      showToast(err?.code === 'CALL_BUSY' ? '对方正忙，请稍后再试' : '呼叫失败，请重试', 'error');
+    };
+    socket.on('call:error', onCallError);
+    return () => socket.off('call:error', onCallError);
+  }, [socket]);
 
   // 发起群通话（群聊）
   const startGroupCall = useCallback((type) => {

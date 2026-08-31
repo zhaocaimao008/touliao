@@ -739,15 +739,35 @@ export default function Home() {
   }, [socket]);
 
   const [activeCall, setActiveCall] = useState(null);
+  // 2026-08-31（Task 5）：同账号另一台设备/标签页正在呼叫别人时（call:outgoing），
+  // 这个标签页记下对方的 callId——不采集媒体、不弹主叫UI（不复用 activeCall/
+  // CallModal 那一整套渲染路径，那套是真参与通话的设备才用的），只用来在这个
+  // 标签页自己收到新来电时正确判成"忙"，不会对着一通其实已经在别处进行的通话
+  // 又弹一次来电界面。call:end 命中同一个 callId 时清掉（对方已被接听/拒绝/挂断）。
+  const [busyElsewhereCallId, setBusyElsewhereCallId] = useState(null);
+
+  useEffect(() => {
+    if (!socket) return;
+    const onOutgoing = ({ callId }) => { if (callId) setBusyElsewhereCallId(callId); };
+    const onEnd = ({ callId }) => {
+      setBusyElsewhereCallId(prev => (prev && callId && prev === callId ? null : prev));
+    };
+    socket.on('call:outgoing', onOutgoing);
+    socket.on('call:end', onEnd);
+    return () => {
+      socket.off('call:outgoing', onOutgoing);
+      socket.off('call:end', onEnd);
+    };
+  }, [socket]);
 
   // 全局来电监听（不论哪个会话打开，都能收到来电）
   useEffect(() => {
     if (!socket) return;
-    const onIncoming = ({ from, type, caller }) => {
+    const onIncoming = ({ from, type, caller, callId }) => {
       setActiveCall(prev => {
-        // 通话中忽略新来电（busy）
-        if (prev) {
-          socket.emit('call:response', { to: from, accepted: false, busy: true });
+        // 通话中（自己接听/正在通话，或者同账号另一台设备正在呼叫别人）忽略新来电（busy）
+        if (prev || busyElsewhereCallId) {
+          socket.emit('call:response', { to: from, accepted: false, busy: true, callId });
           return prev;
         }
         // 桌面端：来电时若窗口在后台/最小化，拉到前台并闪烁 + 弹原生通知，
@@ -757,12 +777,12 @@ export default function Home() {
         }
         const callerName = caller?.name || '好友';
         showNotification(callerName, type === 'video' ? '邀请你视频通话' : '邀请你语音通话', caller?.avatar);
-        return { type, direction: 'incoming', remoteUser: { id: from, name: caller?.name, avatar: caller?.avatar }, remoteId: from };
+        return { type, direction: 'incoming', remoteUser: { id: from, name: caller?.name, avatar: caller?.avatar }, remoteId: from, callId };
       });
     };
     socket.on('call:incoming', onIncoming);
     return () => socket.off('call:incoming', onIncoming);
-  }, [socket, showNotification]);
+  }, [socket, showNotification, busyElsewhereCallId]);
 
   const handleTabChange = (t) => {
     setTab(t);

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { mediaUrl } from '../utils/url';
+import { matchesCall, withCallId } from '../utils/callSignaling';
 import './CallModal.css';
 
 const FALLBACK_ICE = {
@@ -145,8 +146,14 @@ function useFocusTrap(open) {
 
 /* ── 主组件 ── */
 export default function CallModal({ socket, call, onClose }) {
-  const { type, direction, remoteUser, remoteId } = call;
+  const { type, direction, remoteUser, remoteId, callId } = call;
   const isVideo = type === 'video';
+  // 除了发起本身（call:request，那次没有 callId 可用，靠 ack 拿到后才会渲染出这个
+  // 组件），后续所有信令都要带上这个 callId，且过滤收到的事件是否属于这一通
+  // （见 utils/callSignaling.js：同一对端但 callId 对不上 = 已被覆盖的旧通话，丢弃）。
+  // useMemo 而不是每次渲染新建对象字面量：下面的 useEffect 把它放进依赖数组，
+  // 新对象字面量会导致每次渲染都判定"变了"、反复重新订阅 socket 事件。
+  const activeCallInfo = useMemo(() => ({ remoteId, callId }), [remoteId, callId]);
 
   const [status, setStatus]       = useState(direction === 'incoming' ? 'incoming' : 'calling');
   const [muted, setMuted]         = useState(false);
@@ -312,12 +319,12 @@ export default function CallModal({ socket, call, onClose }) {
   }, []);
 
   const endCall = useCallback((notify, reason = '') => {
-    if (notify) socket?.emit('call:end', { to: remoteId, reason });
+    if (notify) socket?.emit('call:end', withCallId({ to: remoteId, reason }, callId));
     cleanup();
     if (reason) setEndReason(reason);
     setStatus('ended');
     endCallTimeoutRef.current = setTimeout(onClose, 1800);
-  }, [socket, remoteId, cleanup, onClose]);
+  }, [socket, remoteId, callId, cleanup, onClose]);
 
   const initPC = useCallback(async () => {
     const constraints = { audio: true, video: isVideo };
@@ -333,7 +340,7 @@ export default function CallModal({ socket, call, onClose }) {
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
     pc.onicecandidate = ({ candidate }) => {
-      if (candidate) socket?.emit('call:ice', { to: remoteId, candidate });
+      if (candidate) socket?.emit('call:ice', withCallId({ to: remoteId, candidate }, callId));
     };
     pc.ontrack = (e) => attachRemoteStream(e.streams[0]);
     pc.onconnectionstatechange = () => {
@@ -358,7 +365,7 @@ export default function CallModal({ socket, call, onClose }) {
       }
     };
     return pc;
-  }, [isVideo, socket, remoteId, endCall, attachRemoteStream]);
+  }, [isVideo, socket, remoteId, callId, endCall, attachRemoteStream]);
 
   const processOffer = useCallback(async (offer) => {
     const pc = pcRef.current;
@@ -371,33 +378,38 @@ export default function CallModal({ socket, call, onClose }) {
       }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      socket?.emit('call:answer', { to: remoteId, answer });
+      socket?.emit('call:answer', withCallId({ to: remoteId, answer }, callId));
       setStatus('connecting');
     } catch (err) {
       console.error('[call] processOffer 失败:', err);
       endCall(false, 'error');
     }
-  }, [socket, remoteId, endCall]);
+  }, [socket, remoteId, callId, endCall]);
 
   const accept = useCallback(async () => {
     setStatus('connecting');
     await initPC();
-    socket?.emit('call:response', { to: remoteId, accepted: true });
+    socket?.emit('call:response', withCallId({ to: remoteId, accepted: true }, callId));
     if (pendingOfferRef.current) {
       await processOffer(pendingOfferRef.current);
       pendingOfferRef.current = null;
     }
-  }, [socket, remoteId, initPC, processOffer]);
+  }, [socket, remoteId, callId, initPC, processOffer]);
 
   const reject = useCallback(() => {
-    socket?.emit('call:response', { to: remoteId, accepted: false, reason: 'rejected' });
+    socket?.emit('call:response', withCallId({ to: remoteId, accepted: false, reason: 'rejected' }, callId));
     onClose();
-  }, [socket, remoteId, onClose]);
+  }, [socket, remoteId, callId, onClose]);
 
   useEffect(() => {
     if (!socket) return;
-    const onResponse = async ({ from, accepted, reason, busy }) => {
-      if (from !== remoteId) return; // 防伪造拒接信号
+    // 2026-08-31（Task 5）：offer/answer/ice 此前完全没有校验事件是不是这一通
+    // 通话的（只靠后端 Socket.IO 房间定向送达"这个用户"，没有再校验"这一通"）；
+    // response/end 只查了 from，没查 callId。统一改用 matchesCall——callId
+    // 对不上（比如同一对用户被新的一通重拨覆盖后，旧通话的迟到信令）一律丢弃，
+    // 不再可能误伤当前正在进行的新通话。
+    const onResponse = async ({ from, accepted, reason, busy, callId: evtCallId }) => {
+      if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
       clearTimeout(timeoutRef.current);
       if (!accepted) {
         setEndReason(busy ? 'busy' : (reason || 'rejected'));
@@ -415,13 +427,15 @@ export default function CallModal({ socket, call, onClose }) {
       if (!pc) return;
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      socket.emit('call:offer', { to: remoteId, offer });
+      socket.emit('call:offer', withCallId({ to: remoteId, offer }, callId));
     };
-    const onOffer = async ({ offer }) => {
+    const onOffer = async ({ from, offer, callId: evtCallId }) => {
+      if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
       if (!pcRef.current) { pendingOfferRef.current = offer; return; }
       await processOffer(offer);
     };
-    const onAnswer = async ({ answer }) => {
+    const onAnswer = async ({ from, answer, callId: evtCallId }) => {
+      if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
       const pc = pcRef.current;
       if (!pc) return;
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
@@ -430,7 +444,8 @@ export default function CallModal({ socket, call, onClose }) {
         try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* stale */ }
       }
     };
-    const onIce = async ({ candidate }) => {
+    const onIce = async ({ from, candidate, callId: evtCallId }) => {
+      if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
       const pc = pcRef.current;
       if (!pc || !candidate) return;
       // 对齐 Android/iOS：remoteDescription 未就绪时，早到的候选必须入队而非丢弃，
@@ -443,8 +458,8 @@ export default function CallModal({ socket, call, onClose }) {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
       } catch { /* stale/duplicate ICE candidate; safe to ignore */ }
     };
-    const onEnd = ({ from, reason } = {}) => {
-      if (from !== remoteId) return; // 防任意用户强制关闭通话界面
+    const onEnd = ({ from, reason, callId: evtCallId } = {}) => {
+      if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
       if (reason) setEndReason(reason);
       setStatus('ended');
       cleanup();
@@ -462,7 +477,7 @@ export default function CallModal({ socket, call, onClose }) {
       socket.off('call:ice',      onIce);
       socket.off('call:end',      onEnd);
     };
-  }, [socket, remoteId, cleanup, onClose, processOffer, endCall]);
+  }, [socket, remoteId, callId, activeCallInfo, cleanup, onClose, processOffer, endCall]);
 
   // 挂载即发起/准备通话：initPC 建立 RTCPeerConnection、getUserMedia 等外部系统副作用，
   // 其内部 setState 属正当的取媒体流程，非可派生同步状态。
@@ -477,7 +492,7 @@ export default function CallModal({ socket, call, onClose }) {
     }
     const onUnload = () => {
       if (['calling', 'connecting', 'connected'].includes(statusRef.current))
-        socket?.emit('call:end', { to: remoteId });
+        socket?.emit('call:end', withCallId({ to: remoteId }, callId));
     };
     window.addEventListener('beforeunload', onUnload);
     return () => { window.removeEventListener('beforeunload', onUnload); cleanup(); };
