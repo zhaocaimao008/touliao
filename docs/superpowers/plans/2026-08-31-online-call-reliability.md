@@ -113,7 +113,7 @@ git commit -m "feat: share busy state across online calls"
 - Consumes: Task 1 registry and `config.calls.requireId`, `config.calls.reconnectGraceMs`.
 - Produces: callId-bearing `call:response/offer/answer/ice/end`, `call:resume`, strict or compatible call resolution, and socket-specific disconnect cleanup.
 
-- [ ] **Step 1: Write failing Socket handler regression tests**
+- [x] **Step 1: Write failing Socket handler regression tests** — see `backend-v2/test/call-signaling-contract.test.js` (17 tests, broader than the 3 sketched here).
 
 ```js
 test('disconnecting an unrelated socket does not emit call:end', () => {
@@ -139,13 +139,9 @@ test('private caller is rejected while occupying a group call', () => {
 });
 ```
 
-- [ ] **Step 2: Run focused handler tests and confirm RED**
+- [x] **Step 2: Run focused handler tests** — not independently re-verified RED-before-GREEN for this file specifically (only re-verified the final GREEN state, see Step 5); the test file and the integration landed together when this task was picked back up.
 
-Run: `cd backend-v2 && npx jest test/call-signaling-contract.test.js --runInBand`
-
-Expected: failures for unrelated disconnect, missing callId forwarding, and split busy state.
-
-- [ ] **Step 3: Add centralized call configuration**
+- [x] **Step 3: Add centralized call configuration**
 
 ```js
 calls: {
@@ -156,7 +152,7 @@ calls: {
 
 Add documented defaults to `.env.example` without changing production `.env`.
 
-- [ ] **Step 4: Integrate the registry into `call.js`**
+- [x] **Step 4: Integrate the registry into `call.js`**
 
 Replace pair-key-only authorization with a helper:
 
@@ -170,13 +166,9 @@ function resolveCall(p, to) {
 
 Register the initiating socket on request and accepting socket on response. Include `callId` in every forwarded response, SDP, ICE, and end event. Add `call:resume { callId }`; return `call:end { reason:'server_restarted', callId }` when the session is absent. Disconnect calls `registry.unbindSocket(userId, socket.id)` and only ends after the injected grace callback.
 
-- [ ] **Step 5: Run handler and malformed-payload tests**
+- [x] **Step 5: Run handler and malformed-payload tests** — 17/17 and 82/82 pass; also ran the full backend suite twice (66/66 suites, 562/563 tests, 1 pre-existing skip, exit 0). Found and fixed a real gap the original attempt left: `p0-002-malformed-payload.test.js` still called `registerCallHandler(io, socket)` with the old 2-arg signature (registry undefined) — didn't crash today only because every fixture in that file gets rejected before reaching a registry call, not because the path was actually exercised. Passed a real registry through instead.
 
-Run: `cd backend-v2 && npx jest test/call-signaling-contract.test.js test/p0-002-malformed-payload.test.js --runInBand`
-
-Expected: PASS; malformed `callId` cannot throw or forward signals.
-
-- [ ] **Step 6: Commit the one-to-one signaling change**
+- [x] **Step 6: Commit the one-to-one signaling change** — commit `7c3e0d0` on `fix/online-call-reliability` (includes the p0-002 registry-arg fix in the same commit; not pushed).
 
 ```bash
 git add backend-v2/src/realtime/handlers/call.js backend-v2/src/realtime/index.js backend-v2/src/config/index.js backend-v2/.env.example backend-v2/test/call-signaling-contract.test.js
