@@ -12,9 +12,10 @@
  *
  * 安全兜底：
  *   - CALL_TIMEOUT_MS=120s：未被应答的通话自动清理 activeCalls & 落库（fix: 防 map 泄漏）
- *   - socket.on('disconnect')：断线时彻底清理该用户涉及的全部通话（fix: 防网络闪断泄漏）
+ *   - socket.on('disconnect')：只解绑当前参与 Socket，重连宽限到期后再结束通话
  */
 const { v4: uuidv4 } = require('uuid');
+const config = require('../../config');
 const { readDb } = require('../../db/connection');
 const { write } = require('../../db/writer');
 const presence = require('../presence');
@@ -38,12 +39,13 @@ const nowSec = () => Math.floor(Date.now() / 1000);
 /**
  * 创建通话超时定时器：未被应答的通话在 CALL_TIMEOUT_MS 后自动清除
  */
-function scheduleCallTimeout(key, io) {
+function scheduleCallTimeout(key, io, registry) {
   return setTimeout(() => {
     const c = activeCalls.get(key);
     if (c && !c.answeredAt) {
       write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [nowSec(), c.id]);
       activeCalls.delete(key);
+      registry.end(c.id);
       // 通话已结束 → 清除冷却，允许立即重拨（P1-1）
       const [callerId] = key.split('>');
       callRateMap.delete(callerId);
@@ -56,36 +58,57 @@ function scheduleCallTimeout(key, io) {
 }
 
 /**
- * 清理指定用户涉及的全部通话记录（disconnect / 异常时调用）
+ * 重连宽限到期后清理指定的 1 对 1 通话。registry 只触发回调，DB 与事件副作用仍归 handler。
  */
-function cleanupUserCalls(io, userId) {
-  for (const [k, c] of activeCalls) {
-    const [a, b] = k.split('>');
-    if (a === userId || b === userId) {
-      if (c.timer) clearTimeout(c.timer);
-      const otherId = a === userId ? b : a;
-      try {
-        const end = nowSec();
-        if (c.answeredAt) {
-          // 已接通的通话 → completed（断线视为通话结束）
-          write("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?",
-            [end, Math.max(0, end - c.answeredAt), c.id]);
-        } else if (a === userId) {
-          // 主叫断线且未接通 → canceled（而非 missed，missed 是被叫未接的语义）
-          write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [end, c.id]);
-        }
-        // 被叫断线且未接通 → 保留 missed 状态
-        // 通知对方通话已因断线结束（带 callId，P1-3）+ 清除冷却允许秒重拨（P1-1）
-        io.to(`user_${otherId}`).emit('call:end', { from: userId, reason: 'disconnected', callId: c.id });
-        callRateMap.delete(a);
-      } catch (e) { console.warn('[call] disconnect 落库失败:', e.message); }
-      activeCalls.delete(k);
+function cleanupExpiredPrivateCall(io, registry, { callId, userId, kind }) {
+  if (kind !== 'private') return;
+  const entry = [...activeCalls].find(([, call]) => call.id === callId);
+  if (!entry) {
+    registry.end(callId);
+    return;
+  }
+
+  const [key, call] = entry;
+  const [callerId, calleeId] = key.split('>');
+  const otherId = callerId === userId ? calleeId : callerId;
+  if (call.timer) clearTimeout(call.timer);
+  try {
+    const end = nowSec();
+    if (call.answeredAt) {
+      write("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?",
+        [end, Math.max(0, end - call.answeredAt), call.id]);
+    } else if (callerId === userId) {
+      write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [end, call.id]);
     }
+    io.to(`user_${otherId}`).emit('call:end', { from: userId, reason: 'disconnected', callId: call.id });
+  } catch (e) {
+    console.warn('[call] disconnect 落库失败:', e.message);
+  } finally {
+    activeCalls.delete(key);
+    registry.end(callId);
+    callRateMap.delete(callerId);
   }
 }
 
-module.exports = function registerCallHandler(io, socket) {
+function registerCallHandler(io, socket, registry) {
   const userId = socket.user.id;
+
+  function resolveCall(payload, to, eventName) {
+    if (payload.callId != null && payload.callId !== '') {
+      const callId = guardId(socket, eventName, 'callId', payload.callId);
+      if (!callId) return null;
+      return registry.validatePrivate(callId, userId, to);
+    }
+    if (config.calls.requireId) {
+      socket.emit('call:error', { code: 'CALL_ID_REQUIRED', event: eventName });
+      return null;
+    }
+    return registry.resolvePrivateCall(userId, to);
+  }
+
+  function reportResolutionError(eventName, result) {
+    socket.emit('call:error', { code: result.code, event: eventName, callId: result.callId });
+  }
 
   socket.on('call:request', (payload, ack) => {
     // P0-002 强校验：负载必须是对象，to 必须是合法字符串 ID，type 必须是枚举
@@ -144,8 +167,21 @@ module.exports = function registerCallHandler(io, socket) {
         // 旧通话被覆盖 → 清除冷却，允许立即重拨（P1-1）
         callRateMap.delete(userId);
       } catch {}
+      activeCalls.delete(key);
+      registry.end(old.id);
     }
-    const timer = scheduleCallTimeout(key, io);
+    const created = registry.createPrivate({
+      callId: id,
+      callerId: userId,
+      calleeId: to,
+      socketId: socket.id,
+      type: t,
+    });
+    if (!created.ok) {
+      socket.emit('call:error', { code: created.code, callId: created.callId });
+      return;
+    }
+    const timer = scheduleCallTimeout(key, io, registry);
     activeCalls.set(key, { id, answeredAt: null, timer });
     write('INSERT INTO call_logs (id,caller_id,callee_id,type,status,started_at) VALUES (?,?,?,?,?,?)',
       [id, userId, to, t, 'missed', nowSec()]);
@@ -175,61 +211,76 @@ module.exports = function registerCallHandler(io, socket) {
     const to = guardId(socket, 'call:response', 'to', p.to);
     if (!to) return;
     const accepted = !!p.accepted, busy = !!p.busy, reason = p.reason;
-    const callId = typeof p.callId === 'string' && p.callId ? p.callId : null;
+    const resolved = resolveCall(p, to, 'call:response');
+    if (!resolved) return;
+    if (!resolved.ok) {
+      // 过期应答回执 call:end(stale)，否则被叫端 accept() 后无 offer 可等、永久卡 CONNECTING（P1-5）
+      const staleCallId = typeof p.callId === 'string' ? p.callId : undefined;
+      if (staleCallId) io.to(`user_${userId}`).emit('call:end', { from: to, reason: 'stale', callId: staleCallId });
+      else reportResolutionError('call:response', resolved);
+      return;
+    }
+    const callId = resolved.callId;
     // 被叫(userId)回应主叫(to)：key 方向为 主叫>被叫 = to>userId
     const key = `${to}>${userId}`;
     const c = activeCalls.get(key);
-    // callId 不匹配当前活跃通话（如：来电通知已过期/被同一对用户的新来电覆盖后才被点击）→
-    // 忽略，防止过期应答误伤新通话（NOTIFY-002 F3）。旧客户端不传 callId 时不做该校验，保持兼容。
-    if (c && callId && c.id !== callId) {
-      // 过期应答回执 call:end(stale)，否则被叫端 accept() 后无 offer 可等、永久卡 CONNECTING（P1-5）
+    if (!c || c.id !== callId) {
       io.to(`user_${userId}`).emit('call:end', { from: to, reason: 'stale', callId });
       return;
     }
-    if (!c && callId) {
-      // 活跃通话已不存在（120s 超时清除/断线清理后迟到的应答）→ 同样回 stale，防客户端卡死（P1-5）
-      io.to(`user_${userId}`).emit('call:end', { from: to, reason: 'stale', callId });
-      return;
-    }
-    if (c) {
-      if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 已应答不再超时清理）
-      if (accepted) {
-        // 重复 accepted 守卫（P2-4）：同账号双端先后接听同一通，第二次不得回拨 answeredAt
-        // （否则 duration 变短 + 向主叫二次转发 accepted → 重复 setRemoteDescription）
-        if (c.answeredAt) return;
-        c.answeredAt = nowSec();
-        write("UPDATE call_logs SET status='ongoing' WHERE id=?", [c.id]);
-      } else {
-        write("UPDATE call_logs SET status='rejected', ended_at=? WHERE id=?", [nowSec(), c.id]);
-        activeCalls.delete(key);
-      }
+    if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 已应答不再超时清理）
+    if (accepted) {
+      // 重复 accepted 守卫（P2-4）：同账号双端先后接听同一通，第二次不得回拨 answeredAt
+      if (c.answeredAt) return;
+      const bound = registry.bindSocket(callId, userId, socket.id);
+      if (!bound.ok) { reportResolutionError('call:response', bound); return; }
+      c.answeredAt = nowSec();
+      resolved.session.answeredAt = c.answeredAt;
+      write("UPDATE call_logs SET status='ongoing' WHERE id=?", [c.id]);
+    } else {
+      write("UPDATE call_logs SET status='rejected', ended_at=? WHERE id=?", [nowSec(), c.id]);
+      activeCalls.delete(key);
+      registry.end(callId);
     }
     // 只有活跃通话存在时才转发：防止任意用户伪造拒接信号
-    if (c) {
-      io.to(`user_${to}`).emit('call:response', { from: userId, accepted, busy, reason });
-      // 2026-08-30 修复（多端不同步）：接听/拒绝这个动作此前只广播给了对方(to)，操作者
-      // (userId)自己的其他在线设备完全不知道已经在别的设备上处理过——B在Web端拒绝，B的
-      // 手机端仍显示"通话中"的根因就是这里。复用已有的 call:end 事件而不是新增事件类型：
-      // 客户端处理"来电/通话中界面"的收起逻辑天然挂在 call:end 上（收到就收起，不区分是
-      // 谁发起的），四端理论上不需要新增监听，只需要确认 reason 文案覆盖了这两个新值
-      // （answered_elsewhere / rejected_elsewhere），详见 AUDIT.md 改动清单。用 socket.to()
-      // （不含当前操作的这台设备自己）只通知同一用户的其他设备，避免操作设备收到自己发出
-      // 的动作对应的回声通知后又重复处理一遍（比如拒绝后又触发一次拒绝逻辑）。
-      socket.to(`user_${userId}`).emit('call:end', {
-        from: userId,
-        reason: accepted ? 'answered_elsewhere' : 'rejected_elsewhere',
-        callId: c.id,
-      });
-    }
+    io.to(`user_${to}`).emit('call:response', { from: userId, accepted, busy, reason, callId });
+    // 2026-08-30 修复（多端不同步）：接听/拒绝这个动作此前只广播给了对方(to)，操作者
+    // (userId)自己的其他在线设备完全不知道已经在别的设备上处理过——B在Web端拒绝，B的
+    // 手机端仍显示"通话中"的根因就是这里。复用已有的 call:end 事件而不是新增事件类型：
+    // 客户端处理"来电/通话中界面"的收起逻辑天然挂在 call:end 上（收到就收起，不区分是
+    // 谁发起的），四端理论上不需要新增监听，只需要确认 reason 文案覆盖了这两个新值
+    // （answered_elsewhere / rejected_elsewhere），详见 AUDIT.md 改动清单。用 socket.to()
+    // （不含当前操作的这台设备自己）只通知同一用户的其他设备，避免操作设备收到自己发出
+    // 的动作对应的回声通知后又重复处理一遍（比如拒绝后又触发一次拒绝逻辑）。
+    socket.to(`user_${userId}`).emit('call:end', {
+      from: userId,
+      reason: accepted ? 'answered_elsewhere' : 'rejected_elsewhere',
+      callId: c.id,
+    });
   });
 
   // call:offer/answer/ice：校验双方确实存在活跃通话，防止信令注入攻击
-  function inActiveCall(toId) {
-    return activeCalls.has(`${userId}>${toId}`) || activeCalls.has(`${toId}>${userId}`);
+  function forwardSignal(eventName, fieldName, payload) {
+    const p = guardPayload(socket, eventName, payload);
+    if (!p) return;
+    const to = guardId(socket, eventName, 'to', p.to);
+    if (!to) return;
+    const resolved = resolveCall(p, to, eventName);
+    if (!resolved) return;
+    if (!resolved.ok) {
+      reportResolutionError(eventName, resolved);
+      console.log(`[${eventName}] DROP from=${userId} to=${to} code=${resolved.code}`);
+      return;
+    }
+    const detail = fieldName === 'candidate'
+      ? (p.candidate?.candidate || '').slice(0, 60)
+      : (p[fieldName]?.sdp || '').length;
+    console.log(`[${eventName}] fwd ${userId}→${to} detail=${detail}`);
+    io.to(`user_${to}`).emit(eventName, { from: userId, [fieldName]: p[fieldName], callId: resolved.callId });
   }
-  socket.on('call:offer',  (payload) => { const p = guardPayload(socket, 'call:offer', payload); if (!p) return; const to = guardId(socket, 'call:offer', 'to', p.to); if (!to || !inActiveCall(to)) { console.log(`[call:offer] DROP from=${userId} to=${to} noActiveCall`); return; } console.log(`[call:offer] fwd ${userId}→${to} sdpLen=${(p.offer?.sdp || '').length}`); io.to(`user_${to}`).emit('call:offer',  { from: userId, offer: p.offer }); });
-  socket.on('call:answer', (payload) => { const p = guardPayload(socket, 'call:answer', payload); if (!p) return; const to = guardId(socket, 'call:answer', 'to', p.to); if (!to || !inActiveCall(to)) { console.log(`[call:answer] DROP from=${userId} to=${to} noActiveCall`); return; } console.log(`[call:answer] fwd ${userId}→${to} sdpLen=${(p.answer?.sdp || '').length}`); io.to(`user_${to}`).emit('call:answer', { from: userId, answer: p.answer }); });
-  socket.on('call:ice',    (payload) => { const p = guardPayload(socket, 'call:ice', payload); if (!p) return; const to = guardId(socket, 'call:ice', 'to', p.to); if (!to || !inActiveCall(to)) { console.log(`[call:ice] DROP from=${userId} to=${to} noActiveCall`); return; } console.log(`[call:ice] fwd ${userId}→${to} cand=${(p.candidate?.candidate || '').slice(0, 60)}`); io.to(`user_${to}`).emit('call:ice',    { from: userId, candidate: p.candidate }); });
+  socket.on('call:offer', payload => forwardSignal('call:offer', 'offer', payload));
+  socket.on('call:answer', payload => forwardSignal('call:answer', 'answer', payload));
+  socket.on('call:ice', payload => forwardSignal('call:ice', 'candidate', payload));
 
   socket.on('call:end', (payload) => {
     // P0-002 强校验：负载必须是对象，to 必须是合法字符串 ID
@@ -238,14 +289,15 @@ module.exports = function registerCallHandler(io, socket) {
     const to = guardId(socket, 'call:end', 'to', p.to);
     if (!to) return;
     const reason = typeof p.reason === 'string' ? p.reason : undefined;
-    const callId = typeof p.callId === 'string' && p.callId ? p.callId : null;
+    const resolved = resolveCall(p, to, 'call:end');
+    if (!resolved) return;
+    if (!resolved.ok) { reportResolutionError('call:end', resolved); return; }
+    const callId = resolved.callId;
     // 挂断可能来自任一方，两个方向都查
     const k1 = `${userId}>${to}`;
     const k2 = `${to}>${userId}`;
     const c = activeCalls.get(k1) || activeCalls.get(k2);
-    // 同上：callId 不匹配当前活跃通话则忽略（过期挂断/拒绝不应打断同一对用户的新通话）
-    if (c && callId && c.id !== callId) return;
-    if (c) {
+    if (c && c.id === callId) {
       if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 主动挂断不再等待超时）
       const end = nowSec();
       if (c.answeredAt) {
@@ -256,6 +308,7 @@ module.exports = function registerCallHandler(io, socket) {
       }
       activeCalls.delete(k1);
       activeCalls.delete(k2);
+      registry.end(callId);
       // 只有活跃通话存在时才转发：防止任意用户强制关闭他人通话界面（带 callId，P1-3）
       io.to(`user_${to}`).emit('call:end', { from: userId, reason, callId: c.id });
       // 2026-08-30 修复（多端不同步，同一类问题）：挂断动作此前只广播给了对方(to)，挂断
@@ -268,8 +321,30 @@ module.exports = function registerCallHandler(io, socket) {
     }
   });
 
-  // ── 断线清理（fix: 网络闪断时不走 call:end，需主动释放所有资源）──
-  socket.on('disconnect', () => {
-    cleanupUserCalls(io, userId);
+  socket.on('call:resume', (payload) => {
+    const p = guardPayload(socket, 'call:resume', payload);
+    if (!p) return;
+    const callId = guardId(socket, 'call:resume', 'callId', p.callId);
+    if (!callId) return;
+    const session = registry.get(callId);
+    if (!session) {
+      socket.emit('call:end', { reason: 'server_restarted', callId });
+      return;
+    }
+    if (session.kind !== 'private') {
+      socket.emit('call:error', { code: 'CALL_ID_MISMATCH', event: 'call:resume', callId });
+      return;
+    }
+    const resumed = registry.resume(callId, userId, socket.id);
+    if (!resumed.ok) reportResolutionError('call:resume', resumed);
   });
-};
+
+  // 只解绑当前参与 Socket；最后一条参与连接断开后由 registry 启动重连宽限。
+  socket.on('disconnect', () => {
+    registry.unbindSocket(userId, socket.id);
+  });
+}
+
+registerCallHandler.handleGraceExpired = cleanupExpiredPrivateCall;
+
+module.exports = registerCallHandler;

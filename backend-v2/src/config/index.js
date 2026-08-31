@@ -88,6 +88,11 @@ const config = {
     unreadCap:      99,     // 未读早停上限
   },
 
+  calls: {
+    requireId: process.env.CALL_REQUIRE_ID === 'true',
+    reconnectGraceMs: Math.max(1_000, parseInt(process.env.CALL_RECONNECT_GRACE_MS, 10) || 15_000),
+  },
+
   vapid: {
     publicKey:  process.env.VAPID_PUBLIC_KEY,
     privateKey: process.env.VAPID_PRIVATE_KEY,

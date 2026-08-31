@@ -13,6 +13,7 @@ const registerCallHandler = require('../src/realtime/handlers/call');
 const registerTypingHandler = require('../src/realtime/handlers/typing');
 const registerGroupCallHandler = require('../src/realtime/handlers/groupCall');
 const registerNudgeHandler = require('../src/realtime/handlers/nudge');
+const createCallSessionRegistry = require('../src/realtime/callSessionRegistry');
 
 // 模拟 socket：捕获 emit/on 注册，支持 rooms、user、join
 function makeMockSocket(userId, rooms = new Set()) {
@@ -71,9 +72,18 @@ describe('P0-002 实时事件畸形负载加固', () => {
   const bob = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
   function registerAll(socket, io) {
+    // 2026-08-31：call.js 现在需要第三个 registry 参数（callSessionRegistry 实例）。
+    // 之前这里漏传，registry 是 undefined——本文件所有畸形负载测试恰好都在
+    // guardPayload/guardId 早期校验就被拦下，从没真正走到 registry.createPrivate()
+    // 那一步，所以一直没暴露；但"合法负载仍能走通"这条测试用的 alice/bob 在这个
+    // 隔离测试库里没有真实好友关系/会话，也会在 shareConv 检查那步提前 return，
+    // 同样测不到 registry 这条路径——不是这个测试真的验证过新集成能正常工作，只是
+    // 运气好没触发。补上真实 registry，避免以后新增的测试用例意外撞上
+    // "registry is undefined" 崩溃。
+    const registry = createCallSessionRegistry();
     registerTypingHandler(io, socket);
-    registerCallHandler(io, socket);
-    registerGroupCallHandler(io, socket);
+    registerCallHandler(io, socket, registry);
+    registerGroupCallHandler(io, socket, registry);
     registerNudgeHandler(io, socket);
   }
 
