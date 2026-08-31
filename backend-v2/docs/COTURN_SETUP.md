@@ -97,3 +97,7 @@ curl -s https://chat.91aigu.com/api/turn/credentials -H "Cookie: vxin_token=<你
 
 把返回的 `iceServers` 贴到 https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/
 选 `relay` 候选能出 `relay` 类型即 TURN 通了。
+
+部署脚本会在 coturn 配置刷新后自动执行 `deploy/check-turn-relay.sh`。该检查只通过继承环境变量把短期 REST 凭证交给 Node 探针，不在命令行或日志中打印 secret；只有收到认证 Allocate 成功响应并解析到 `XOR-RELAYED-ADDRESS` 才允许部署继续。`SKIP_COTURN=1` 仅表示明确跳过，不能视为在线通话验收通过。
+
+自动 allocation 成功不能替代真实网络验收。发布前仍需按下方物理 relay-only 记录，在两台不同外网设备上完成双向通话和网络切换验证。

@@ -44,9 +44,9 @@ if [[ -z "$SECRET" ]] && [[ -f "$TURN_CONF" ]]; then
 fi
 if [[ -z "$SECRET" ]]; then
   SECRET="$(openssl rand -hex 32)"
-  echo "  · 生成新 TURN_SECRET"
+  echo "  · 生成新的共享认证密钥"
 else
-  echo "  · 复用已有 TURN_SECRET"
+  echo "  · 复用已有共享认证密钥"
 fi
 
 # ── 2) 安装 coturn ──
@@ -162,6 +162,6 @@ echo "  secret    : (已写入 coturn 与 .env，未回显)"
 echo
 echo "👉 下一步(让后端读到新 env)："
 echo "   pm2 restart touliao-backend --update-env && pm2 save"
-echo "   然后 curl -s http://127.0.0.1:3002/api/turn/credentials -H 'Authorization: Bearer <token>'"
+echo "   然后用已认证请求检查后端返回的 TURN 服务列表"
 echo "   应能看到 iceServers 里出现 turn: 服务器。"
 echo "============================================================"
