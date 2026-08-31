@@ -5,7 +5,7 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
-const { writeAsync, writeBatch } = require('../../db/writer');
+const { writeAsync, writeBatch, SEQUENCE_PARAM } = require('../../db/writer');
 const config = require('../../config');
 const { badRequest, forbidden, notFound, conflict } = require('../../utils/http');
 const { collectionDedupKey } = require('../../utils/collections');
@@ -16,6 +16,7 @@ const broadcaster = require('../../realtime/broadcaster');
 // (收发双方/群全员)的会话列表缓存。conversations.service 只 require messages/shared，无循环依赖。
 const convSvc = require('../conversations/conversations.service');
 const { shareFileToConversation } = require('../../utils/fileRegistry');
+const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
 
 const MAX = config.limits.maxMsgLength;
 
@@ -216,10 +217,13 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   }
   const id = uuidv4();
   // P0-1：改走 worker 异步写，主线程不再同步抢 WAL 写锁；await 保证落库后再 buildMessage 读回
-  await writeAsync(
-    'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id) VALUES (?,?,?,?,?,?)',
-    [id, convId, userId, safeType, content, reply_to_id || null]
-  );
+  const sequenced = await appendConversationEvent({
+    conversationId: convId, eventType: 'message_created', messageId: id, actorId: userId,
+    ops: [{
+      sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,server_sequence) VALUES (?,?,?,?,?,?,?)',
+      params: [id, convId, userId, safeType, content, reply_to_id || null, SEQUENCE_PARAM],
+    }],
+  });
 
   // #4 尾延迟：缓存失效是非关键写，改后台异步执行，不阻塞响应
   cache.delPattern(`search:*${userId}*`).catch(() => {});
@@ -228,6 +232,7 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
+  emitSyncAvailable(io, convId, sequenced.server_sequence);
 
   // AI 助手：私聊发给 AI 账号 → 异步转 OpenClaw 生成回复（不阻塞主链路）
   const aiAssistant = require('../ai-assistant/assistant.service');
@@ -253,14 +258,18 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   // P0-1：worker 异步写，await 落库后再读回构建消息
   // file_mime/file_size：供前端渲染文件卡片(类型图标/大小)，来自上传时服务端已验证过的
   // 真实值(魔数校验后的mime、实际接收字节数)，不信任客户端可另外声称的值。
-  await writeAsync(
-    'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id,file_mime,file_size,duration) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    [id, convId, userId, type, content, fileUrl, reply_to_id || null, fileMime || null, fileSize || null, duration || 0]
-  );
+  const sequenced = await appendConversationEvent({
+    conversationId: convId, eventType: 'message_created', messageId: id, actorId: userId,
+    ops: [{
+      sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id,file_mime,file_size,duration,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      params: [id, convId, userId, type, content, fileUrl, reply_to_id || null, fileMime || null, fileSize || null, duration || 0, SEQUENCE_PARAM],
+    }],
+  });
   cache.delPattern(`search:*${userId}*`).catch(() => {});
   convSvc.invalidateConvCacheForConversation(convId);
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
+  emitSyncAvailable(io, convId, sequenced.server_sequence);
 
   // AI 助手：图片发到 AI 账号 → 视觉识别 + 大脑回复（与文本 send() 路径一致）
   if (type === 'image') {
@@ -271,7 +280,7 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
 }
 
 // ── 转发 ────────────────────────────────────────────────────────
-async function forward(io, userId, { msgId, msgIds, conversationIds }) {
+async function forward(io, userId, { msgId, msgIds, conversationIds, client_batch_id: requestedClientBatchId }) {
   // 兼容单条(msgId)与多条(msgIds)转发；统一去重、保序
   const rawIds = Array.isArray(msgIds) && msgIds.length ? msgIds : (msgId ? [msgId] : []);
   const ids = [...new Set(rawIds.filter(Boolean))];
@@ -280,19 +289,38 @@ async function forward(io, userId, { msgId, msgIds, conversationIds }) {
   if (ids.length > 30) throw badRequest('单次最多转发30条消息');
   const FORWARDABLE_TYPES = new Set(['text', 'image', 'voice', 'video', 'file', 'contact_card']);
 
-  // 逐条校验消息存在、类型可转发、且转发者是所在会话成员
+  const clientBatchId = typeof requestedClientBatchId === 'string' && requestedClientBatchId.trim()
+    ? requestedClientBatchId.trim().slice(0, 128) : uuidv4();
+  const existingBatch = db.prepare('SELECT * FROM message_forward_batches WHERE actor_id=? AND client_batch_id=?')
+    .get(userId, clientBatchId);
+  if (existingBatch) {
+    return {
+      batch_id: existingBatch.batch_id, client_batch_id: existingBatch.client_batch_id,
+      status: existingBatch.status, total: existingBatch.total,
+      success_count: existingBatch.success_count, failed_count: existingBatch.failed_count,
+      failed_message_ids: JSON.parse(existingBatch.failed_message_ids || '[]'),
+      retryable_message_ids: JSON.parse(existingBatch.retryable_message_ids || '[]'),
+      sent: existingBatch.success_count,
+    };
+  }
+  const batchId = uuidv4();
+  db.prepare(`INSERT INTO message_forward_batches
+    (batch_id,actor_id,client_batch_id,status,total) VALUES (?,?,?,'processing',?)`)
+    .run(batchId, userId, clientBatchId, ids.length);
+
+  // 逐条校验消息存在、类型可转发、且转发者是所在会话成员；失败保留在批次结果中，避免伪装成全成功。
   const msgs = [];
+  const failedMessageIds = [];
+  const failureReasons = new Map();
   for (const id of ids) {
     const m = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(id);
-    if (!m) throw notFound('消息不存在');
-    if (!FORWARDABLE_TYPES.has(m.type)) throw badRequest('该类型消息不支持转发');
-    requireMember(m.conversation_id, userId, '无权转发该消息');
+    if (!m || !FORWARDABLE_TYPES.has(m.type)) { failedMessageIds.push(id); failureReasons.set(id, '消息不存在或不支持转发'); continue; }
+    try { requireMember(m.conversation_id, userId, '无权转发该消息'); }
+    catch { failedMessageIds.push(id); failureReasons.set(id, '无权转发该消息'); continue; }
     msgs.push(m);
   }
 
-  const insertSql = 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration) VALUES (?,?,?,?,?,?,?)';
-  const ops = [];
-  const targets = [];   // { convId, id }
+  const targets = [];   // { convId, id, source }
   // 批量查询一次，避免 N+1
   const placeholders = conversationIds.map(() => '?').join(',');
   const memberConvIds = new Set(
@@ -318,8 +346,7 @@ async function forward(io, userId, { msgId, msgIds, conversationIds }) {
   msgs.forEach(msg => {
     allowedConvIds.forEach(convId => {
       const id = uuidv4();
-      ops.push({ sql: insertSql, params: [id, convId, userId, msg.type, msg.content, msg.file_url || '', msg.duration || 0] });
-      targets.push({ convId, id });
+      targets.push({ convId, id, source: msg });
       // 转发者此刻已通过上面的 requireMember(m.conversation_id,...) 与 allowedConvIds 过滤，
       // 即已合法持有该文件的原始访问权、且 convId 是转发者本人真实所在的会话——在此把
       // (file_url, convId) 登记进 file_registry_shares，供 /uploads 授权判断识别"转发到的
@@ -328,23 +355,60 @@ async function forward(io, userId, { msgId, msgIds, conversationIds }) {
     });
   });
 
-  // P0-1：原子批次走 worker（保持"多条转发要么全成功要么全失败"语义），await 落库后再读回广播
-  if (ops.length) await writeBatch(ops);
-  if (ops.length) {
+  // 每一条转发消息和其同步事件在同一事务提交；服务端为目标会话分配严格递增序列。
+  const successfulSourceIds = new Set();
+  const writeFailedSourceIds = new Set();
+  for (const target of targets) {
+    const { convId, id, source } = target;
+    try {
+      const sequenced = await appendConversationEvent({
+        conversationId: convId, eventType: 'message_created', messageId: id, actorId: userId,
+        batchId, clientBatchId,
+        payload: { batch_id: batchId, client_batch_id: clientBatchId, source_message_id: source.id },
+        ops: [{
+          sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,batch_id,client_batch_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?)',
+          params: [id, convId, userId, source.type, source.content, source.file_url || '', source.duration || 0, batchId, clientBatchId, SEQUENCE_PARAM],
+        }],
+      });
+      target.serverSequence = sequenced.server_sequence;
+      successfulSourceIds.add(source.id);
+    } catch (error) {
+      writeFailedSourceIds.add(source.id);
+      failureReasons.set(source.id, error.message || '转发写入失败');
+    }
+  }
+  if (!allowedConvIds.length) msgs.forEach(source => {
+    writeFailedSourceIds.add(source.id);
+    failureReasons.set(source.id, '没有可用的目标会话');
+  });
+  writeFailedSourceIds.forEach(id => { if (!successfulSourceIds.has(id)) failedMessageIds.push(id); });
+  const uniqueFailedIds = [...new Set(failedMessageIds)];
+  const successCount = ids.length - uniqueFailedIds.length;
+  const status = successCount === ids.length ? 'success' : successCount > 0 ? 'partial_success' : 'failed';
+  const retryableIds = uniqueFailedIds.filter(id => failureReasons.has(id));
+  db.prepare(`UPDATE message_forward_batches SET status=?, success_count=?, failed_count=?,
+    failed_message_ids=?, retryable_message_ids=?, updated_at=strftime('%s','now') WHERE batch_id=?`)
+    .run(status, successCount, uniqueFailedIds.length, JSON.stringify(uniqueFailedIds), JSON.stringify(retryableIds), batchId);
+  if (targets.length) {
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     // 失效每个目标会话所有成员的会话列表缓存（去重）
     for (const cid of new Set(targets.map(t => t.convId))) convSvc.invalidateConvCacheForConversation(cid);
   }
 
   const selectStmt = db.prepare('SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?');
-  targets.forEach(({ convId, id }) => {
+  targets.forEach(({ convId, id, serverSequence }) => {
     const newMsg = selectStmt.get(id);
     if (!newMsg) return;
     newMsg.reactions = [];
     broadcaster.broadcastMessage(convId, newMsg);
+    emitSyncAvailable(io, convId, serverSequence);
   });
-  // 返回目标会话去重数（前端按"发送给 N 个会话"提示，与单条转发语义一致）
-  return new Set(targets.map(t => t.convId)).size;
+  return {
+    batch_id: batchId, client_batch_id: clientBatchId, status,
+    total: ids.length, success_count: successCount, failed_count: uniqueFailedIds.length,
+    failed_message_ids: uniqueFailedIds, retryable_message_ids: retryableIds,
+    sent: new Set(targets.filter(t => t.serverSequence != null).map(t => t.convId)).size,
+  };
 }
 
 // ── 批量撤回 ────────────────────────────────────────────────────
@@ -356,7 +420,6 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
 
   const isAdmin = role === 'owner' || role === 'admin';
   const now = Math.floor(Date.now() / 1000);
-  const ops = [];
   const deleted = [];
   // 批量查询代替 N 次单独 SELECT
   const ph2 = msgIds.map(() => '?').join(',');
@@ -364,18 +427,24 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
   msgs.forEach(msg => {
     const isOwn = msg.sender_id === userId;
     if (isOwn || isAdmin) {
-      ops.push({ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msg.id] });
       deleted.push(msg.id);
     }
   });
-  // P0-1：原子批次走 worker，落库后再广播
-  if (ops.length) await writeBatch(ops);
-  if (ops.length) {
+  const sequences = [];
+  for (const id of deleted) {
+    const sequenced = await appendConversationEvent({
+      conversationId, eventType: 'message_recalled', messageId: id, actorId: userId,
+      ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [id] }],
+    });
+    sequences.push(sequenced.server_sequence);
+  }
+  if (deleted.length) {
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     convSvc.invalidateConvCacheForConversation(conversationId);
   }
   // 批量 emit（单次事件，减少前端重渲染次数）
   if (io && deleted.length > 0) io.to(conversationId).emit('messages_batch_deleted', { msgIds: deleted, conversationId });
+  if (sequences.length) emitSyncAvailable(io, conversationId, sequences[sequences.length - 1]);
   return deleted.length;
 }
 
@@ -390,10 +459,14 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
     if (!callerRole) throw forbidden('您已不在该会话中');
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (msg.sender_id !== userId && !isAdmin) throw forbidden('无权删除该消息');
-    await writeAsync("UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", [msgId]);
+    const sequenced = await appendConversationEvent({
+      conversationId: msg.conversation_id, eventType: 'message_vanished', messageId: msgId, actorId: userId,
+      ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] }],
+    });
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     convSvc.invalidateConvCacheForConversation(msg.conversation_id);
     if (io) io.to(msg.conversation_id).emit('message_vanished', { msgId, conversationId: msg.conversation_id });
+    emitSyncAvailable(io, msg.conversation_id, sequenced.server_sequence);
     return;
   }
 
@@ -402,10 +475,13 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
   if (forMe) {
     const callerRole = memberRole(msg.conversation_id, userId);
     if (!callerRole) throw forbidden('您已不在该会话中');
-    await writeAsync(
-      'INSERT OR IGNORE INTO user_message_deletions (message_id, user_id) VALUES (?, ?)',
-      [msgId, userId]
-    );
+    const existingDeletion = db.prepare('SELECT 1 FROM user_message_deletions WHERE message_id=? AND user_id=?').get(msgId, userId);
+    if (existingDeletion) return;
+    const sequenced = await appendConversationEvent({
+      conversationId: msg.conversation_id, eventType: 'message_deleted_for_me', messageId: msgId,
+      actorId: userId, targetUserId: userId,
+      ops: [{ sql: 'INSERT INTO user_message_deletions (message_id, user_id) VALUES (?, ?)', params: [msgId, userId] }],
+    });
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     convSvc.invalidateConvCacheForConversation(msg.conversation_id);
     if (io) {
@@ -416,6 +492,7 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
         timestamp: Math.floor(Date.now() / 1000),
       });
     }
+    emitSyncAvailable(io, msg.conversation_id, sequenced.server_sequence);
     return;
   }
 
@@ -427,7 +504,10 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
     if (msg.deleted === 2) return; // 幂等：已撤回的消息再次撤回直接成功返回，不报错不重复广播
     // 撤回不限时间：任意时长的消息本人（或群管理员）均可撤回
-    await writeAsync("UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", [msgId]);
+    const sequenced = await appendConversationEvent({
+      conversationId: msg.conversation_id, eventType: 'message_recalled', messageId: msgId, actorId: userId,
+      ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] }],
+    });
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     convSvc.invalidateConvCacheForConversation(msg.conversation_id);
     const now = Math.floor(Date.now() / 1000);
@@ -442,6 +522,7 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
       // message_deleted：保留旧协议兼容（Android/iOS 原生端仍监听此事件）
       io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });
     }
+    emitSyncAvailable(io, msg.conversation_id, sequenced.server_sequence);
   }
   // 仅自己隐藏：已由 forMe 分支持久化处理
 }
@@ -485,10 +566,15 @@ async function edit(io, userId, msgId, content) {
 
   const trimmed = content.trim();
   // P0-1：worker 异步写，await 落库后再广播
-  await writeAsync('UPDATE messages SET content=?, edited=1 WHERE id=?', [trimmed, msgId]);
+  const sequenced = await appendConversationEvent({
+    conversationId: msg.conversation_id, eventType: 'message_edited', messageId: msgId, actorId: userId,
+    payload: { content: trimmed },
+    ops: [{ sql: 'UPDATE messages SET content=?, edited=1 WHERE id=?', params: [trimmed, msgId] }],
+  });
   cache.delPattern(`search:*${userId}*`).catch(() => {});
   convSvc.invalidateConvCacheForConversation(msg.conversation_id);
   if (io) io.to(msg.conversation_id).emit('message_edited', { msgId, content: trimmed, conversationId: msg.conversation_id });
+  emitSyncAvailable(io, msg.conversation_id, sequenced.server_sequence);
   return trimmed;
 }
 

@@ -15,7 +15,8 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
-const { writeAsync } = require('../../db/writer');
+const { writeAsync, SEQUENCE_PARAM } = require('../../db/writer');
+const { appendConversationEvent, emitSyncAvailable } = require('../messages/sync.service');
 const config = require('../../config');
 const { buildMessage } = require('../messages/shared');
 const broadcaster = require('../../realtime/broadcaster');
@@ -345,13 +346,17 @@ async function doReply(io, convId, senderId, msg, bot, images = []) {
     ).catch(() => {});
 
     const id = uuidv4();
-    await writeAsync(
-      'INSERT INTO messages (id,conversation_id,sender_id,type,content) VALUES (?,?,?,?,?)',
-      [id, convId, bot.botId, 'text', replyText]
-    );
+    const sequenced = await appendConversationEvent({
+      conversationId: convId, eventType: 'message_created', messageId: id, actorId: bot.botId,
+      ops: [{ sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,server_sequence) VALUES (?,?,?,?,?,?)',
+        params: [id, convId, bot.botId, 'text', replyText, SEQUENCE_PARAM] }],
+    });
 
     const replyMsg = buildMessage(id);
-    if (replyMsg) broadcaster.broadcastMessage(convId, replyMsg);
+    if (replyMsg) {
+      broadcaster.broadcastMessage(convId, replyMsg);
+      emitSyncAvailable(io, convId, sequenced.server_sequence);
+    }
     return replyMsg;
   } catch (err) {
     // turn 失败（如大脑超时/返回错误文本）

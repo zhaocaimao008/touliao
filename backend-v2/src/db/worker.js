@@ -29,25 +29,51 @@ const stmt = sql => {
 let queue = [];
 let timer = null;
 
+const SEQUENCE_PARAM = '__TOULIAO_SERVER_SEQUENCE__';
+
 function runItem(item) {
+  if (item.type === 'writeSequencedEvent') {
+    const allocated = stmt(`
+      INSERT INTO conversation_sequences (conversation_id,last_sequence) VALUES (?,1)
+      ON CONFLICT(conversation_id) DO UPDATE SET last_sequence=last_sequence+1
+      RETURNING last_sequence
+    `).get(item.conversationId);
+    const sequence = allocated.last_sequence;
+    for (const op of item.ops || []) {
+      const params = (op.params || []).map(value => value === SEQUENCE_PARAM ? sequence : value);
+      stmt(op.sql).run(...params);
+    }
+    stmt(`INSERT INTO conversation_events
+      (id,conversation_id,server_sequence,event_type,message_id,actor_id,target_user_id,payload,created_at,batch_id,client_batch_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+      item.event.id, item.conversationId, sequence, item.event.eventType,
+      item.event.messageId, item.event.actorId, item.event.targetUserId || null,
+      item.event.payload || '{}', item.event.createdAt, item.event.batchId || null,
+      item.event.clientBatchId || null
+    );
+    return { server_sequence: sequence };
+  }
   if (item.ops) { for (const op of item.ops) stmt(op.sql).run(...op.params); }
   else stmt(item.sql).run(...item.params);
+  return null;
 }
 
 function flushBatch(batch) {
   try {
+    const results = new Map();
     db.transaction(() => {
-      for (const item of batch) runItem(item);
+      for (const item of batch) results.set(item.reqId, runItem(item));
     })();
     const acks = batch.filter(b => b.reqId != null);
-    if (acks.length) parentPort.postMessage({ type: 'ack', ids: acks.map(b => b.reqId) });
+    for (const item of acks) parentPort.postMessage({ type: 'ack', ids: [item.reqId], result: results.get(item.reqId) });
   } catch (e) {
     // 逐条重试：一条坏数据不阻塞整批（批次项各自包一层事务，保持原子性）
     for (const item of batch) {
       try {
-        if (item.ops) db.transaction(() => runItem(item))();
-        else runItem(item);
-        if (item.reqId != null) parentPort.postMessage({ type: 'ack', ids: [item.reqId] });
+        let result;
+        if (item.ops || item.type === 'writeSequencedEvent') result = db.transaction(() => runItem(item))();
+        else result = runItem(item);
+        if (item.reqId != null) parentPort.postMessage({ type: 'ack', ids: [item.reqId], result });
       } catch (itemErr) {
         console.error('[dbWorker] SQL 执行失败:', item.sql || '(batch)', itemErr.message);
         if (item.reqId != null) parentPort.postMessage({ type: 'ack', ids: [item.reqId], error: itemErr.message });
@@ -76,6 +102,7 @@ parentPort.on('message', msg => {
   switch (msg.type) {
     case 'write':
     case 'writeBatch':
+    case 'writeSequencedEvent':
       if (queue.length >= MAX_QUEUE) {
         // 队列积压保护：丢弃非关键写入（fire-and-forget 的 write 无 reqId，如送达记录）。
         // 注意：判据是 reqId==null 而非 msg.fireAndForget——writer.js 从不发送该字段，

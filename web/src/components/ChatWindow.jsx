@@ -15,7 +15,8 @@ import UploadProgressBar from './UploadProgressBar';
 import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
-import { loadCache, saveCache, clearCache, removeFromCache } from '../utils/msgCache';
+import { loadCache, saveCache, clearCache, removeFromCache, loadSyncCursor, saveSyncCursor } from '../utils/msgCache';
+import { applySyncEvents, catchUpConversation } from '../utils/messageSync';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
 // 聊天允许的「常见」文件扩展名（与后端 ALLOWED_CHAT_EXTS 保持一致）；冷门/危险格式不允许上传。
@@ -258,8 +259,36 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const streamRef = useRef(null);
   const textareaRef = useRef(null);
   const inputAreaRef = useRef(null);
-  const { socket, reconnectCount, disconnectAtRef, registerDelivered } = useSocket();
+  const { socket, reconnectCount, registerDelivered } = useSocket();
   const { user } = useAuth();
+  const syncInFlightRef = useRef(null);
+  const syncRequestedRef = useRef(false);
+
+  const catchUp = useCallback(() => {
+    if (!conversation.id || !user?.id) return Promise.resolve();
+    if (syncInFlightRef.current) {
+      syncRequestedRef.current = true;
+      return syncInFlightRef.current;
+    }
+    const task = (async () => {
+      do {
+        syncRequestedRef.current = false;
+        await catchUpConversation({
+          conversationId: conversation.id,
+          accountId: user.id,
+          loadCursor: loadSyncCursor,
+          saveCursor: saveSyncCursor,
+          requestPage: async (conversationId, cursor, limit) => {
+            const { data } = await axios.get(`/api/messages/${conversationId}/sync`, { params: { cursor, limit } });
+            return data;
+          },
+          applyPage: async events => setMessages(previous => applySyncEvents(previous, events)),
+        });
+      } while (syncRequestedRef.current);
+    })().finally(() => { if (syncInFlightRef.current === task) syncInFlightRef.current = null; });
+    syncInFlightRef.current = task;
+    return task;
+  }, [conversation.id, user?.id]);
 
   // ── 点击输入区外部关闭 emoji / more / 表情包 面板 ────────────────────
   useEffect(() => {
@@ -466,42 +495,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       .catch(() => setConversation(initialConv));
   }, [initialConv]);
 
-  // 断线重连后补拉当前会话缺失消息
+  // 断线重连以服务端序列游标补齐；首次历史加载会先初始化游标，避免把全量旧历史灌入窗口。
   useEffect(() => {
-    if (reconnectCount === 0) return; // 首次连接不触发
-    const after = disconnectAtRef.current;
-    if (!after) return;
-    // after-1: 覆盖同秒边界 — DB created_at 是秒精度，断线和消息落库可能同秒，
-    // 用 > after 会漏掉。-1s 扩大窗口，重复消息由下方 existingIds 去重。
-    axios.get(`/api/messages/${conversation.id}`, { params: { after: after - 1, limit: 100 } })
-      .then(({ data }) => {
-        if (!data.length) return;
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          // ⚠ 补拉回来的真实消息带 client_msg_id；若它对应本地某条乐观消息(其 id/_tempId
-          // 仍是发送时的 tempId)，必须按 client_msg_id 认领并「替换」该乐观消息——只按
-          // 服务器 id 去重会漏掉(tempId≠新id)，导致乐观消息与真实消息并存＝重复气泡。
-          // (与 onMsg/onMsgBatch 的重连去重逻辑保持一致；修复弱网重连偶发消息重复。)
-          let next = prev.slice();
-          let changed = false;
-          for (const m of data) {
-            if (existingIds.has(m.id)) continue;
-            if (m.client_msg_id) {
-              const idx = next.findIndex(x => x._tempId === m.client_msg_id || x.id === m.client_msg_id);
-              if (idx >= 0) { next[idx] = m; changed = true; continue; }
-            }
-            next.push(m); changed = true;
-          }
-          if (!changed) return prev;
-          setTimeout(() => {
-            const outer = listOuterRef.current;
-            if (outer) outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
-          }, 50);
-          return next;
-        });
-      })
-      .catch(() => {});
-  }, [reconnectCount, conversation.id, disconnectAtRef]);
+    if (reconnectCount === 0) return;
+    catchUp().catch(() => {});
+  }, [catchUp, reconnectCount]);
+
+  useEffect(() => {
+    const onResume = () => { if (document.visibilityState === 'visible') catchUp().catch(() => {}); };
+    document.addEventListener('visibilitychange', onResume);
+    return () => document.removeEventListener('visibilitychange', onResume);
+  }, [catchUp]);
 
   // 切换会话时清空所有会话内 UI 状态：render 期派生（存上一次 conversation.id），
   // 避免在 effect 内同步 setState 触发级联渲染。等价于按会话 id 重挂载。
@@ -575,6 +579,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           );
           return inflight.length ? [...merged, ...inflight] : merged;
         });
+        const maxSequence = data.reduce((max, message) => Math.max(max, Number(message.server_sequence) || 0), 0);
+        loadSyncCursor(user.id, conversation.id).then(cursor => {
+          if (cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence);
+        }).catch(() => {});
         scheduleBurn(data);
         setHasMore(data.length === 40);
         // 搜索结果跳转：如果有 scrollToId，则滚到该消息；否则滚到底部
@@ -633,7 +641,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       confirmedIds.clear();
       readerReadAtRef.current = {};
     };
-  }, [conversation.id, conversation.burn_after, fetchMessages, socket, conversation.type, conversation.scrollToId, scheduleBurn]);
+  }, [conversation.id, conversation.burn_after, fetchMessages, socket, conversation.type, conversation.scrollToId, scheduleBurn, user.id]);
 
   // 新消息到达且当前在底部时，自动标记已读（带最新消息 ID）
   // 阈值与自动滚底(<400)一致：处于 120~400px 区间时新消息会被自动拉到底，
@@ -1055,6 +1063,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
     socket.on('new_message_notify', onNotify);
+    const onSyncAvailable = ({ conversationId }) => {
+      if (conversationId === convIdRef.current) catchUp().catch(() => {});
+    };
+    socket.on('conversation_sync_available', onSyncAvailable);
     socket.on('mentioned', onAtMention);
     socket.on('typing', onTyping);
     socket.on('stop_typing', onStopTyping);
@@ -1089,6 +1101,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       socket.off('new_message', onMsg);
       socket.off('new_message_batch', onMsgBatch);
       socket.off('new_message_notify', onNotify);
+      socket.off('conversation_sync_available', onSyncAvailable);
       socket.off('typing', onTyping);
       socket.off('stop_typing', onStopTyping);
       clearTimeout(typingClearTimer.current);
@@ -1109,7 +1122,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       socket.off('message_pinned', onPinned);
       socket.off('message_unpinned', onUnpinned);
     };
-  }, [socket, conversation.id, user.id, onClose, registerDelivered, scheduleBurn]);
+  }, [socket, conversation.id, user.id, onClose, registerDelivered, scheduleBurn, catchUp]);
 
   // ── 重发失败消息（复用 pendingMsgsRef + ack 机制）─────────────
   const retryMessage = useCallback((failedMsg) => {

@@ -36,6 +36,7 @@ class ChatRepository @Inject constructor(
 
     /** 全局新消息流（各会话共用，UI 自行按 conversation_id 过滤） */
     val incomingMessages: SharedFlow<Message> = socketManager.incomingMessages
+    val syncAvailableEvents: SharedFlow<String> = socketManager.syncAvailableEvents
     val newMessageNotifyEvents: SharedFlow<NewMessageNotifyEvent> = socketManager.newMessageNotifyEvents
     val mentionedEvents: SharedFlow<MentionedEvent> = socketManager.mentionedEvents
 
@@ -79,6 +80,9 @@ class ChatRepository @Inject constructor(
 
     suspend fun loadHistory(conversationId: String, before: Long? = null, after: Long? = null): List<Message> =
         api.history(conversationId, before = before, after = after)
+
+    suspend fun sync(conversationId: String, cursor: Long, limit: Int = 500) =
+        api.sync(conversationId, cursor, limit)
 
     /** 会话内消息搜索（FTS5，倒序命中） */
     suspend fun searchInConversation(conversationId: String, q: String): List<Message> =

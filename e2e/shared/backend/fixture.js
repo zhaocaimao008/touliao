@@ -8,6 +8,23 @@ const fs = require('fs');
 const http = require('http');
 const env = require('../env');
 
+function buildBackendEnv(overrides = {}) {
+  return {
+    ...process.env,
+    DB_PATH: env.DB_PATH,
+    PORT_V2: String(env.BACKEND_PORT),
+    INVITE_CODE: env.INVITE_CODE,
+    JWT_SECRET: env.JWT_SECRET,
+    APP_URL: env.BACKEND_URL,
+    NODE_ENV: 'test',
+    TRACING_ENABLED: 'false', // no collector in the isolated E2E backend
+    DISABLE_RATE_LIMIT: '1',
+    DISABLE_CSRF: '1',
+    CORS_ORIGINS: env.WEB_URL,
+    ...overrides,
+  };
+}
+
 function ping(url) {
   return new Promise((resolve) => {
     const req = http.get(url + '/health', (res) => {
@@ -32,18 +49,7 @@ async function startBackend({ fresh = true } = {}) {
 
   const proc = spawn('node', ['src/server.js'], {
     cwd: env.BACKEND_DIR,
-    env: {
-      ...process.env,
-      DB_PATH: env.DB_PATH,
-      PORT_V2: String(env.BACKEND_PORT),
-      INVITE_CODE: env.INVITE_CODE,
-      JWT_SECRET: env.JWT_SECRET,
-      APP_URL: env.BACKEND_URL,
-      NODE_ENV: 'test',
-      DISABLE_RATE_LIMIT: '1',   // e2e:关限流,批量造号/发消息不被挡
-      DISABLE_CSRF: '1',         // e2e:跨端口前端读不到 csrf cookie,关双提交校验
-      CORS_ORIGINS: env.WEB_URL, // e2e:放行 web 静态服 origin(跨端口),否则浏览器 CORS 挡登录
-    },
+    env: buildBackendEnv(),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
@@ -69,4 +75,4 @@ async function startBackend({ fresh = true } = {}) {
   throw new Error(`backend 未在 20s 内就绪。日志:\n${log.slice(-2000)}`);
 }
 
-module.exports = { startBackend, ping };
+module.exports = { startBackend, ping, buildBackendEnv };

@@ -8,7 +8,8 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const { readDb } = require('../../db/connection');
-const { writeAsync } = require('../../db/writer');
+const { SEQUENCE_PARAM } = require('../../db/writer');
+const { appendConversationEvent, emitSyncAvailable } = require('../../modules/messages/sync.service');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const cache = require('../../utils/cache');
@@ -92,10 +93,11 @@ module.exports = function registerNudgeHandler(io, socket) {
       };
       const content = JSON.stringify(payload);
 
-      await writeAsync(
-        `INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?)`,
-                [id, conversationId, userId, 'nudge', content, null, created_at, null]
-      );
+      const sequenced = await appendConversationEvent({
+        conversationId, eventType: 'message_created', messageId: id, actorId: userId,
+        ops: [{ sql: `INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?)`,
+          params: [id, conversationId, userId, 'nudge', content, null, created_at, null, SEQUENCE_PARAM] }],
+      });
 
       const msg = {
         id, conversation_id: conversationId, sender_id: userId, type: 'nudge', content,
@@ -105,6 +107,7 @@ module.exports = function registerNudgeHandler(io, socket) {
       };
 
       broadcaster.broadcastMessage(conversationId, msg);
+      emitSyncAvailable(io, conversationId, sequenced.server_sequence);
       ack?.({ success: true, message: msg });
     } catch (err) {
       ack?.({ success: false, error: '服务器内部错误' });

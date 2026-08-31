@@ -1,5 +1,6 @@
 {
   "name": "touliao-web",
+  "type": "module",
   "version": "8.0.0",
   "description": "投聊 — 企业级安全即时通讯客户端",
   "homepage": "",

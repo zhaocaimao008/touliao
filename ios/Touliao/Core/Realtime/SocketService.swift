@@ -40,6 +40,7 @@ final class SocketService {
     /// socket 鉴权失败（token 失效/封禁等）→ 上层应提示重新登录。负载为服务端错误消息。
     let authFailure = PassthroughSubject<String, Never>()
     let incoming = PassthroughSubject<Message, Never>()
+    let syncAvailable = PassthroughSubject<String, Never>()
     /// @mention：(conversationId, msgId)
     let mentioned = PassthroughSubject<(convId: String, msgId: String), Never>()
     let typing = PassthroughSubject<TypingEvent, Never>()
@@ -155,6 +156,11 @@ final class SocketService {
 
         sock.on("new_message") { [weak self] data, _ in
             self?.handleMessage(data.first)
+        }
+        sock.on("conversation_sync_available") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty {
+                self?.syncAvailable.send(id)
+            }
         }
         sock.on("new_message_batch") { [weak self] data, _ in
             if let arr = data.first as? [[String: Any]] {

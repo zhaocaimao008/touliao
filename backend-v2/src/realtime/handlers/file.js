@@ -1,7 +1,7 @@
 'use strict';
 const { v4: uuidv4 } = require('uuid');
 const { readDb } = require('../../db/connection');
-const { writeAsync } = require('../../db/writer');
+const { SEQUENCE_PARAM } = require('../../db/writer');
 const { pushNewMessage } = require('../../utils/push');
 const { getPublicBase } = require('../../utils/cloudStorage');
 const presence = require('../presence');
@@ -9,6 +9,7 @@ const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
 const { privateSendGuard } = require('../../modules/messages/shared');
 const { lookupFile } = require('../../utils/fileRegistry');
+const { appendConversationEvent, emitSyncAvailable } = require('../../modules/messages/sync.service');
 
 const TYPE_FALLBACK = { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]' };
 
@@ -78,6 +79,8 @@ module.exports = function registerFileHandler(io, socket) {
           created_at: existing.created_at,
           senderName: existing.senderName || '',
           senderAvatar: existing.senderAvatar || '',
+          client_msg_id: existing.client_msg_id || null,
+          server_sequence: existing.server_sequence || 0,
           reactions: [], replyTo: null,
         };
         ack?.({ success: true, message: msg });
@@ -111,25 +114,34 @@ module.exports = function registerFileHandler(io, socket) {
     if (reply_to_id) {
       const parent = readDb.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, conversationId);
       if (!parent) { ack?.({ success: false, error: '被回复消息不存在' }); return; }
-      await writeAsync(
-        'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
-        [id, conversationId, userId, type, safeContent, file_url, duration, reply_to_id, created_at, clientMsgId || null]
-      );
+      const sequenced = await appendConversationEvent({
+        conversationId, eventType: 'message_created', messageId: id, actorId: userId,
+        ops: [{
+          sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+          params: [id, conversationId, userId, type, safeContent, file_url, duration, reply_to_id, created_at, clientMsgId || null, SEQUENCE_PARAM],
+        }],
+      });
+      msg.server_sequence = sequenced.server_sequence;
       msg.replyTo = readDb.prepare(`
         SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
         FROM messages m JOIN users u ON u.id = m.sender_id
         WHERE m.id = ? AND m.conversation_id = ?
       `).get(reply_to_id, conversationId) || null;
     } else {
-      await writeAsync(
-        'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?,?,?)',
-        [id, conversationId, userId, type, safeContent, file_url, duration, null, created_at, clientMsgId || null]
-      );
+      const sequenced = await appendConversationEvent({
+        conversationId, eventType: 'message_created', messageId: id, actorId: userId,
+        ops: [{
+          sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+          params: [id, conversationId, userId, type, safeContent, file_url, duration, null, created_at, clientMsgId || null, SEQUENCE_PARAM],
+        }],
+      });
+      msg.server_sequence = sequenced.server_sequence;
     }
 
     // 含发送者本人：文件/图片发送方没有乐观消息，需靠广播回显；onMsg 按 id 去重。
     // 批量合并派发。
     broadcaster.broadcastMessage(conversationId, msg);
+    emitSyncAvailable(io, conversationId, msg.server_sequence);
 
     // AI 助手：图片/文件发到 AI 账号 → 异步转视觉识别 + 大脑回复（与文本路径一致）
     if (type === 'image') {

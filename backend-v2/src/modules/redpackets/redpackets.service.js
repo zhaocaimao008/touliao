@@ -5,6 +5,7 @@ const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember, privateSendGuard } = require('../messages/shared');
 const wallet = require('../wallet/wallet.service');
 const broadcaster = require('../../realtime/broadcaster');
+const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sync.service');
 
 // ── 发红包（扣款 + 建红包 + 发一条 red_packet 类型消息，单事务原子）──
 // ⚠ 与 claim 同理：扣余额是「读余额→判断够不够→扣→写」的读-判-写闭环，
@@ -33,13 +34,17 @@ async function send(io, userId, { conversationId, totalAmount, totalCount, greet
   const msgContent = JSON.stringify({ packetId, greeting: greet, totalCount, totalAmount });
   const msgId = uuidv4();
 
+  let serverSequence;
   try {
     db.transaction(() => {
       wallet.applyDeltaTx(userId, -totalAmount, 'red_packet_send', packetId, '发红包');
       db.prepare('INSERT INTO red_packets (id,sender_id,conversation_id,total_amount,total_count,greeting) VALUES (?,?,?,?,?,?)')
         .run(packetId, userId, conversationId, totalAmount, totalCount, greet);
-      db.prepare('INSERT INTO messages (id,conversation_id,sender_id,type,content) VALUES (?,?,?,?,?)')
-        .run(msgId, conversationId, userId, 'red_packet', msgContent);
+      serverSequence = appendConversationEventTx({
+        conversationId, eventType: 'message_created', messageId: msgId, actorId: userId,
+        apply: sequence => db.prepare('INSERT INTO messages (id,conversation_id,sender_id,type,content,server_sequence) VALUES (?,?,?,?,?,?)')
+          .run(msgId, conversationId, userId, 'red_packet', msgContent, sequence),
+      });
     })();
   } catch (e) {
     if (e.status) throw e;       // ApiError（如余额不足）原样抛给前端
@@ -50,6 +55,7 @@ async function send(io, userId, { conversationId, totalAmount, totalCount, greet
   const msg = db.prepare('SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?').get(msgId);
   msg.reactions = [];
   broadcaster.broadcastMessage(conversationId, msg);
+  emitSyncAvailable(io, conversationId, serverSequence);
   return { packetId, message: msg };
 }
 

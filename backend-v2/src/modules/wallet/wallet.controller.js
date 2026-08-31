@@ -27,6 +27,6 @@ exports.transfer = asyncHandler(async (req, res) => {
     to_user_id,
     amount: parseInt(amount, 10),
     note,
-  });
+  }, req.app.get('io'));
   res.json(result);
 });

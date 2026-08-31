@@ -192,8 +192,14 @@ final class ChatViewModel: ObservableObject {
         repo.reconnectedPublisher
             .sink { [weak self] in Task { @MainActor in
                 guard let self else { return }
-                await self.loadHistory(announceHeal: true)   // 重连补拉 + 失败气泡自愈并安抚一次
+                await self.catchUp()
+                self.healFailedMessages(announce: true)
             }}
+            .store(in: &cancellables)
+
+        repo.syncAvailablePublisher
+            .filter { [conversationId] in $0 == conversationId }
+            .sink { [weak self] _ in Task { @MainActor in await self?.catchUp() } }
             .store(in: &cancellables)
 
         if isGroup {
@@ -221,7 +227,7 @@ final class ChatViewModel: ObservableObject {
 
         repo.joinConversation(conversationId)
         primeFromCache()                     // 首屏占位：先渲染离线缓存，随后 loadHistory 拉真相源覆盖
-        Task { await loadHistory() }
+        Task { await loadHistory(); await catchUp() }
         Task { await loadBackground() }
         if isGroup {
             Task { await loadPinned() }
@@ -778,6 +784,10 @@ final class ChatViewModel: ObservableObject {
                 OutboxStore.shared.remove(conversationId, done.id)
             }
             messages = (list + stillPending).sorted { $0.createdAt < $1.createdAt }
+            if SyncCursorStore.shared.load(accountId: myId, conversationId: conversationId) == 0,
+               let maximum = list.map(\.serverSequence).max(), maximum > 0 {
+                SyncCursorStore.shared.save(accountId: myId, conversationId: conversationId, sequence: maximum)
+            }
             reachedStart = list.count < 50
             // 离线缓存：server 覆盖旧缓存（含已编辑/已删同步），落盘最近 50。
             if burnAfter == 0 {
@@ -790,6 +800,48 @@ final class ChatViewModel: ObservableObject {
             try? await UNUserNotificationCenter.current().setBadgeCount(0)   // 打开会话即清零角标，避免残留
             healFailedMessages(announce: announceHeal)   // 连线且有失败气泡 → 进会话/重连自动重发
         } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载消息失败" }
+    }
+
+    private var syncRunning = false
+    private var syncRequested = false
+
+    func catchUp() async {
+        guard !conversationId.isEmpty, !myId.isEmpty else { return }
+        if syncRunning { syncRequested = true; return }
+        syncRunning = true
+        defer { syncRunning = false }
+        repeat {
+          syncRequested = false
+          var cursor = SyncCursorStore.shared.load(accountId: myId, conversationId: conversationId)
+          while true {
+            guard let page = try? await repo.sync(conversationId, cursor: cursor), page.nextCursor >= cursor else { return }
+            for event in page.messages.sorted(by: { $0.serverSequence < $1.serverSequence }) {
+                switch event.eventType {
+                case "message_created":
+                    if let message = event.message { claimOrAppend(message) }
+                case "message_edited":
+                    if let index = messages.firstIndex(where: { $0.id == event.messageId }) {
+                        messages[index].content = event.payload["content"] ?? messages[index].content
+                        messages[index].edited = 1
+                    }
+                case "message_recalled", "message_deleted_for_me", "message_vanished":
+                    messages.removeAll { $0.id == event.messageId }
+                default: break
+                }
+            }
+            messages.sort {
+                let lhsSequence = $0.serverSequence > 0 ? $0.serverSequence : Int64.max
+                let rhsSequence = $1.serverSequence > 0 ? $1.serverSequence : Int64.max
+                if lhsSequence != rhsSequence { return lhsSequence < rhsSequence }
+                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+                return $0.id < $1.id
+            }
+            SyncCursorStore.shared.save(accountId: myId, conversationId: conversationId, sequence: page.nextCursor)
+            if !page.hasMore || page.nextCursor == cursor { break }
+            cursor = page.nextCursor
+          }
+        } while syncRequested
+        persistCache()
     }
 
     /// 上滑加载更早消息

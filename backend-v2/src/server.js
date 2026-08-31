@@ -173,7 +173,7 @@ async function startServer() {
   // ── 定时消息调度器（每 30s 扫一次到期 pending 消息发出）─────────────
   //   启动即扫一次，实现服务重启后 pending 未到期消息的定时器自动恢复。
   const { startScheduler } = require('./modules/messages/scheduled.service');
-  startScheduler();
+  startScheduler(io);
   setInterval(() => {
     try {
       const now = Math.floor(Date.now() / 1000);

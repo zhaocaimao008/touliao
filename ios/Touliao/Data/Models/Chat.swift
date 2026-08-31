@@ -98,6 +98,9 @@ struct Message: Decodable, Identifiable, Equatable {
     // 2026-08-29新增：语音/视频时长(秒)。后端此前从不写这个字段，语音气泡只能显示固定文字；
     // 现在上传时可选传duration，服务端落库后这里能拿到真实值渲染时长气泡。
     var duration: Int = 0
+    var serverSequence: Int64 = 0
+    var batchId: String? = nil
+    var clientBatchId: String? = nil
     // 2026-08-29新增：后端history接口早就按 peerLastReadAt 算好了每条消息是否已被对方读过
     // (Web一直在用_read这个字段)，iOS/Android之前都只靠实时socket message_read事件更新
     // peerReadAt，重新打开会话后、对方在离线期间读过的消息全部会误显示成"未读"。这里补上
@@ -116,6 +119,9 @@ struct Message: Decodable, Identifiable, Equatable {
         case isScheduled = "is_scheduled"
         case fileMime = "file_mime"
         case fileSize = "file_size"
+        case serverSequence = "server_sequence"
+        case batchId = "batch_id"
+        case clientBatchId = "client_batch_id"
         case read = "_read"
     }
 
@@ -141,6 +147,9 @@ struct Message: Decodable, Identifiable, Equatable {
         fileMime = try? c.decode(String.self, forKey: .fileMime)
         fileSize = try? c.decode(Int64.self, forKey: .fileSize)
         duration = (try? c.decode(Int.self, forKey: .duration)) ?? 0
+        serverSequence = (try? c.decode(Int64.self, forKey: .serverSequence)) ?? 0
+        batchId = try? c.decode(String.self, forKey: .batchId)
+        clientBatchId = try? c.decode(String.self, forKey: .clientBatchId)
         read = (try? c.decode(Bool.self, forKey: .read)) ?? false
     }
 
@@ -165,6 +174,36 @@ struct Message: Decodable, Identifiable, Equatable {
         self.replyTo = replyTo
         self.localStatus = LocalMsgStatus.sending
         self.clientMsgId = clientMsgId
+    }
+}
+
+struct ConversationEvent: Decodable {
+    let serverSequence: Int64
+    let eventType: String
+    let messageId: String
+    let message: Message?
+    let payload: [String: String]
+    let batchId: String?
+    let clientBatchId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case serverSequence = "server_sequence"
+        case eventType = "event_type"
+        case messageId = "message_id"
+        case message, payload
+        case batchId = "batch_id"
+        case clientBatchId = "client_batch_id"
+    }
+}
+
+struct MessageSyncResponse: Decodable {
+    let nextCursor: Int64
+    let hasMore: Bool
+    let messages: [ConversationEvent]
+    enum CodingKeys: String, CodingKey {
+        case nextCursor = "next_cursor"
+        case hasMore = "has_more"
+        case messages
     }
 }
 

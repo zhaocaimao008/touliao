@@ -6,6 +6,7 @@
 
 const DB_NAME = 'touliao';
 const STORE = 'msgcache_v1';       // schema 版本前缀；破坏性变更时改此名弃用旧库
+const CURSOR_STORE = 'sync_cursors_v1';
 const MAX_PER_CONV = 30;           // 仅用于当前设备会话恢复，限制持久化范围
 
 let dbPromise = null;
@@ -15,12 +16,15 @@ function openDB() {
   dbPromise = new Promise((resolve) => {
     try {
       if (typeof indexedDB === 'undefined') { resolve(null); return; }
-      const req = indexedDB.open(DB_NAME, 1);
+      const req = indexedDB.open(DB_NAME, 2);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(STORE)) {
           // key = conversationId；value = { convId, msgs:[...] }
           db.createObjectStore(STORE, { keyPath: 'convId' });
+        }
+        if (!db.objectStoreNames.contains(CURSOR_STORE)) {
+          db.createObjectStore(CURSOR_STORE, { keyPath: 'key' });
         }
       };
       req.onsuccess = () => resolve(req.result);
@@ -30,6 +34,42 @@ function openDB() {
     }
   });
   return dbPromise;
+}
+
+function cursorKey(accountId, convId) {
+  return `${String(accountId)}:${String(convId)}`;
+}
+
+export async function loadSyncCursor(accountId, convId) {
+  if (!accountId || !convId) return 0;
+  const database = await openDB();
+  if (!database) return 0;
+  return new Promise((resolve) => {
+    try {
+      const req = database.transaction(CURSOR_STORE, 'readonly').objectStore(CURSOR_STORE).get(cursorKey(accountId, convId));
+      req.onsuccess = () => resolve(Number(req.result?.lastSyncedSequence) || 0);
+      req.onerror = () => resolve(0);
+    } catch { resolve(0); }
+  });
+}
+
+export async function saveSyncCursor(accountId, convId, sequence) {
+  if (!accountId || !convId || !Number.isSafeInteger(sequence) || sequence < 0) return;
+  const database = await openDB();
+  if (!database) return;
+  return new Promise((resolve) => {
+    try {
+      const store = database.transaction(CURSOR_STORE, 'readwrite').objectStore(CURSOR_STORE);
+      const key = cursorKey(accountId, convId);
+      const get = store.get(key);
+      get.onsuccess = () => {
+        const previous = Number(get.result?.lastSyncedSequence) || 0;
+        const req = store.put({ key, accountId: String(accountId), convId: String(convId), lastSyncedSequence: Math.max(previous, sequence) });
+        req.onsuccess = req.onerror = () => resolve();
+      };
+      get.onerror = () => resolve();
+    } catch { resolve(); }
+  });
 }
 
 function tx(db, mode) {
@@ -118,4 +158,4 @@ export async function clearCache(convId) {
   });
 }
 
-export const __TESTING__ = { normalize, MAX_PER_CONV, STORE, DB_NAME };
+export const __TESTING__ = { normalize, MAX_PER_CONV, STORE, CURSOR_STORE, DB_NAME, cursorKey };

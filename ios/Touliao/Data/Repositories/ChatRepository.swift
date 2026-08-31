@@ -17,6 +17,7 @@ final class ChatRepository {
 
     /// 全局新消息流（各会话共用，UI 自行按 conversationId 过滤）
     var incomingPublisher: AnyPublisher<Message, Never> { socket.incoming.eraseToAnyPublisher() }
+    var syncAvailablePublisher: AnyPublisher<String, Never> { socket.syncAvailable.eraseToAnyPublisher() }
 
     var typingPublisher: AnyPublisher<TypingEvent, Never> { socket.typing.eraseToAnyPublisher() }
     var readPublisher: AnyPublisher<ReadEvent, Never> { socket.read.eraseToAnyPublisher() }
@@ -64,6 +65,10 @@ final class ChatRepository {
         var path = "api/messages/\(conversationId)?limit=50"
         if let before { path += "&before=\(Int(before))" }
         return try await api.send(path)
+    }
+
+    func sync(_ conversationId: String, cursor: Int64, limit: Int = 500) async throws -> MessageSyncResponse {
+        try await api.send("api/messages/\(conversationId)/sync?cursor=\(cursor)&limit=\(limit)")
     }
 
     /// 会话内消息搜索（FTS5，倒序命中）

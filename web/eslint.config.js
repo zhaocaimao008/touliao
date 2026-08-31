@@ -4,7 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
 export default [
-  { ignores: ['dist/**', 'dist-electron/**', 'build/**', 'node_modules/**', 'android/**', 'ios/**', 'electron/**', '*.config.js', 'fix-css.py'] },
+  { ignores: ['dist/**', 'dist-electron/**', 'build/**', 'node_modules/**', 'android/**', 'ios/**', 'electron/**', 'public/sw.js', 'public/sw/**', 'scripts/check-capacitor-versions.mjs', '*.config.js', 'fix-css.py'] },
   js.configs.recommended,
   {
     files: ['src/**/*.{js,jsx}'],

@@ -31,6 +31,12 @@ import retrofit2.http.Query
 import retrofit2.http.Streaming
 
 interface MessageApi {
+    @GET("api/messages/{conversationId}/sync")
+    suspend fun sync(
+        @Path("conversationId") conversationId: String,
+        @Query("cursor") cursor: Long,
+        @Query("limit") limit: Int = 500,
+    ): com.touliao.app.data.model.MessageSyncResponse
 
     /** 会话列表（含最后一条消息、未读数等派生字段） */
     @GET("api/messages/conversations")

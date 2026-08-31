@@ -117,6 +117,7 @@ class ChatViewModel @Inject constructor(
     private val draftStore: com.touliao.app.core.storage.DraftStore,
     private val outboxStore: com.touliao.app.core.storage.OutboxStore,
     private val msgCacheStore: com.touliao.app.core.storage.MsgCacheStore,
+    private val syncCursorStore: com.touliao.app.core.storage.SyncCursorStore,
     private val configApi: com.touliao.app.data.api.ConfigApi,
     private val notificationHelper: NotificationHelper,
     sessionManager: SessionManager,
@@ -151,6 +152,7 @@ class ChatViewModel @Inject constructor(
         loadHistory()
         loadBackground()
         observeIncoming()
+        observeSyncAvailable()
         observeNotify()
         observeTyping()
         observeRead()
@@ -832,6 +834,12 @@ class ChatViewModel @Inject constructor(
                     pending.filterNot { it in stillPending }.forEach { outboxStore.remove(conversationId, it.id) }
                     val merged = (list + stillPending).sortedBy { it.created_at }
                     _uiState.update { it.copy(loading = false, messages = merged, reachedStart = list.size < HISTORY_PAGE) }
+                    if (syncCursorStore.load(myId, conversationId) == 0L) {
+                        list.maxOfOrNull { it.server_sequence }?.takeIf { it > 0 }?.let {
+                            syncCursorStore.save(myId, conversationId, it)
+                        }
+                    }
+                    catchUp()
                     // 离线缓存：server 覆盖旧缓存（含已编辑/已删同步），再落盘最近 50。
                     persistCache(com.touliao.app.core.storage.MsgCacheStore.mergeById(msgCacheStore.load(conversationId), list))
                     markReadLatest()   // 打开会话即标记已读
@@ -934,9 +942,59 @@ class ChatViewModel @Inject constructor(
             var wasConnected = chatRepository.socketStatus.value == com.touliao.app.core.realtime.SocketStatus.CONNECTED
             chatRepository.socketStatus.collect { status ->
                 val nowConnected = status == com.touliao.app.core.realtime.SocketStatus.CONNECTED
-                if (nowConnected && !wasConnected) healFailedMessages(announce = true)   // 从断开→连上：安抚一次
+                if (nowConnected && !wasConnected) {
+                    catchUp()
+                    healFailedMessages(announce = true)
+                }
                 wasConnected = nowConnected
             }
+        }
+    }
+
+    private fun observeSyncAvailable() {
+        viewModelScope.launch {
+            chatRepository.syncAvailableEvents.collect { if (it == conversationId) catchUp() }
+        }
+    }
+
+    private var syncRunning = false
+    private var syncRequested = false
+
+    private fun catchUp() {
+        if (conversationId.isBlank() || myId.isBlank()) return
+        if (syncRunning) { syncRequested = true; return }
+        syncRunning = true
+        viewModelScope.launch {
+            try {
+              do {
+                syncRequested = false
+                var cursor = syncCursorStore.load(myId, conversationId)
+                do {
+                  val page = runCatching { chatRepository.sync(conversationId, cursor) }.getOrNull() ?: break
+                  if (page.next_cursor < cursor) break
+                  _uiState.update { state ->
+                    val map = LinkedHashMap(state.messages.associateBy { it.id })
+                    page.messages.sortedBy { it.server_sequence }.forEach { event ->
+                        when (event.event_type) {
+                            "message_created" -> event.message?.let { map[it.id] = it }
+                            "message_edited" -> map[event.message_id]?.let { old ->
+                                map[event.message_id] = old.copy(content = event.payload["content"] ?: old.content, edited = 1)
+                            }
+                            "message_recalled", "message_deleted_for_me", "message_vanished" -> map.remove(event.message_id)
+                        }
+                    }
+                    state.copy(messages = map.values.sortedWith(compareBy(
+                        { if (it.server_sequence > 0) it.server_sequence else Long.MAX_VALUE },
+                        { it.created_at }, { it.id },
+                    )))
+                  }
+                  syncCursorStore.save(myId, conversationId, page.next_cursor)
+                  if (!page.has_more || page.next_cursor == cursor) break
+                  cursor = page.next_cursor
+                } while (true)
+              } while (syncRequested)
+              persistCache(_uiState.value.messages)
+            } finally { syncRunning = false }
         }
     }
 

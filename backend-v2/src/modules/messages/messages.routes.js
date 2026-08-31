@@ -316,6 +316,7 @@ router.post('/join/:token',                      auth, joinGroupLimiter, grp.joi
  *         description: List of missed messages
  */
 router.get ('/missed', auth, msg.missed);
+router.get ('/:conversationId/sync', auth, msg.sync);
 
 // ── 群管理 ──────────────────────────────────────────────────────
 

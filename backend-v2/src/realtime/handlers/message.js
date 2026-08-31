@@ -2,12 +2,13 @@
 const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');
 const { readDb } = require('../../db/connection');
-const { writeAsync } = require('../../db/writer');
+const { SEQUENCE_PARAM } = require('../../db/writer');
 const { pushNewMessage } = require('../../utils/push');
 const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
 const { privateSendGuard, memberRole } = require('../../modules/messages/shared');
+const { appendConversationEvent, emitSyncAvailable } = require('../../modules/messages/sync.service');
 
 // @所有人 的可识别 token（大小写不敏感）——仅群主/管理员使用时生效
 const MENTION_ALL_TOKENS = new Set(['所有人', '全体成员', 'all', 'everyone']);
@@ -106,6 +107,8 @@ module.exports = function registerMessageHandler(io, socket) {
           created_at: existing.created_at,
           senderName: existing.senderName || '',
           senderAvatar: existing.senderAvatar || '',
+          client_msg_id: existing.client_msg_id || null,
+          server_sequence: existing.server_sequence || 0,
           reactions: [], replyTo: null,
         };
         ack?.({ success: true, message: msg });
@@ -143,23 +146,32 @@ module.exports = function registerMessageHandler(io, socket) {
       // 否则拒绝，避免写入指向他会话或已不存在消息的悬空 reply_to_id。
       const parent = readDb.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, conversationId);
       if (!parent) { ack?.({ success: false, error: '被回复消息不存在' }); return; }
-      await writeAsync(
-        'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?)',
-        [id, conversationId, userId, type, content, reply_to_id, created_at, clientMsgId || null]
-      );
+      const sequenced = await appendConversationEvent({
+        conversationId, eventType: 'message_created', messageId: id, actorId: userId,
+        ops: [{
+          sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?)',
+          params: [id, conversationId, userId, type, content, reply_to_id, created_at, clientMsgId || null, SEQUENCE_PARAM],
+        }],
+      });
+      msg.server_sequence = sequenced.server_sequence;
       msg.replyTo = readDb.prepare(`
         SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
         FROM messages m JOIN users u ON u.id = m.sender_id
         WHERE m.id = ? AND m.conversation_id = ?
       `).get(reply_to_id, conversationId) || null;
     } else {
-      await writeAsync(
-        'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at,client_msg_id) VALUES (?,?,?,?,?,?,?,?)',
-        [id, conversationId, userId, type, content, null, created_at, clientMsgId || null]
-      );
+      const sequenced = await appendConversationEvent({
+        conversationId, eventType: 'message_created', messageId: id, actorId: userId,
+        ops: [{
+          sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?)',
+          params: [id, conversationId, userId, type, content, null, created_at, clientMsgId || null, SEQUENCE_PARAM],
+        }],
+      });
+      msg.server_sequence = sequenced.server_sequence;
     }
 
     broadcaster.broadcastMessage(conversationId, msg); // 批量合并派发（客户端按 id 去重，发送者收到自身消息会被忽略）
+    emitSyncAvailable(io, conversationId, msg.server_sequence);
 
     // AI 助手：私聊发给 AI 账号 → 异步转 OpenClaw/Hermes 生成回复（与 HTTP send() 路径一致）
     try {

@@ -19,7 +19,7 @@ export default function ForwardModal({ message, messages, onClose }) {
   const [search, setSearch] = useState('');
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
-  const [sentCount, setSentCount] = useState(0);
+  const [result, setResult] = useState(null);
 
   useEffect(() => {
     // 兜底成数组：接口异常/返回非数组时避免 filteredFriends/.filter 抛错导致弹窗白屏
@@ -123,11 +123,12 @@ export default function ForwardModal({ message, messages, onClose }) {
     setSending(true);
     try {
       // 多条走 msgIds，单条走 msgId（后端两者都兼容）
-      const payload = { conversationIds: [...selected] };
+      const clientBatchId = globalThis.crypto?.randomUUID?.() || `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const payload = { conversationIds: [...selected], client_batch_id: clientBatchId };
       if (msgList.length > 1) payload.msgIds = msgList.map(m => m.id);
       else payload.msgId = msgList[0].id;
       const { data } = await axios.post('/api/messages/forward', payload);
-      setSentCount(data.sent);
+      setResult(data);
       setDone(true);
       setTimeout(onClose, 3000);
     } catch (e) {
@@ -170,8 +171,13 @@ export default function ForwardModal({ message, messages, onClose }) {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
-            <div className="fwd-done-title">转发成功</div>
-            <div className="fwd-done-sub">已发送给 <strong>{sentCount}</strong> 个会话</div>
+            <div className="fwd-done-title">{result?.status === 'success' ? '转发成功' : result?.status === 'partial_success' ? '部分转发成功' : '转发失败'}</div>
+            <div className="fwd-done-sub">
+              成功 <strong>{result?.success_count || 0}</strong> 条，失败 <strong>{result?.failed_count || 0}</strong> 条
+            </div>
+            {result?.retryable_message_ids?.length > 0 && (
+              <div className="fwd-done-sub">失败消息可重新选择后重试</div>
+            )}
             <button className="fwd-done-close" onClick={onClose}>完成</button>
           </div>
         ) : (

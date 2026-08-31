@@ -7,6 +7,7 @@ const { isMember } = require('./shared');
 const { pushNewMessage } = require('../../utils/push');
 const { registerFile } = require('../../utils/fileRegistry');
 const svc = require('./messages.service');
+const syncSvc = require('./sync.service');
 
 const io = req => req.app.get('io');
 const chatUploader = makeChatUploader(path.join(config.uploadsRoot, 'files'));
@@ -21,6 +22,9 @@ const bgUploadGuard = makeUploadGuard(path.join(config.uploadsRoot, 'bg'));
 exports.history = asyncHandler(async (req, res) =>
   res.json(svc.history(req.params.conversationId, req.user.id, req.query)));
 
+exports.sync = asyncHandler(async (req, res) =>
+  res.json(syncSvc.syncConversation(req.params.conversationId, req.user.id, req.query)));
+
 exports.aroundMessage = asyncHandler(async (req, res) => {
   const result = svc.aroundMessage(req.params.convId, req.params.msgId, req.user.id);
   if (!result) return res.status(404).json({ error: '消息不存在' });
@@ -34,7 +38,7 @@ exports.send = asyncHandler(async (req, res) =>
   res.json(await svc.send(io(req), req.params.conversationId, req.user.id, req.body)));
 
 exports.forward = asyncHandler(async (req, res) =>
-  res.json({ success: true, sent: await svc.forward(io(req), req.user.id, req.body) }));
+  res.json({ success: true, ...await svc.forward(io(req), req.user.id, req.body) }));
 
 exports.batchDelete = asyncHandler(async (req, res) =>
   res.json({ success: true, deleted: await svc.batchDelete(io(req), req.user.id, req.body) }));

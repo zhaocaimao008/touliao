@@ -47,7 +47,7 @@ function createWorker() {
       for (const id of msg.ids) {
         _pendingOps.delete(id);
         const handler = _pending.get(id);
-        if (handler) { _pending.delete(id); handler(err); }
+        if (handler) { _pending.delete(id); handler(err, msg.result); }
       }
     } else if (msg.type === 'overload') {
       // Worker 端队列已饱和，标记过载状态以触发主线程背压
@@ -133,6 +133,32 @@ function writeBatch(ops) {
   });
 }
 
+const SEQUENCE_PARAM = '__TOULIAO_SERVER_SEQUENCE__';
+
+/**
+ * Atomically allocate a conversation sequence, apply domain writes and append
+ * one immutable synchronization event. `SEQUENCE_PARAM` values inside op
+ * params are replaced by the allocated integer in the worker transaction.
+ */
+function writeSequencedEvent({ conversationId, event, ops = [] }) {
+  updateOverload();
+  if (_pending.size >= MAX_QUEUE_SIZE) {
+    backpressure.rejected++;
+    return Promise.reject(new Error('WRITE_QUEUE_OVERLOAD'));
+  }
+  const id = ++_reqId;
+  const msg = { type: 'writeSequencedEvent', conversationId, event, ops, reqId: id };
+  _pendingOps.set(id, msg);
+  const t0 = performance.now();
+  return new Promise((resolve, reject) => {
+    _pending.set(id, (err, result) => {
+      prodMetrics.recordSqliteWrite(performance.now() - t0);
+      if (err) reject(err); else resolve(result);
+    });
+    postMsg(msg);
+  });
+}
+
 function shutdown() {
   postMsg({ type: 'shutdown' });
 }
@@ -140,4 +166,4 @@ function shutdown() {
 // 监控：未决写数量（writeAsync/writeBatch 尚未收到 worker ack）作为 Worker 队列深度代理
 prodMetrics.setQueueDepthGetter(() => _pending.size);
 
-module.exports = { write, writeAsync, writeBatch, shutdown, backpressure };
+module.exports = { write, writeAsync, writeBatch, writeSequencedEvent, SEQUENCE_PARAM, shutdown, backpressure };

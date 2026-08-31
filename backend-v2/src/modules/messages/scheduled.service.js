@@ -14,7 +14,8 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
-const { writeAsync } = require('../../db/writer');
+const { writeAsync, SEQUENCE_PARAM } = require('../../db/writer');
+const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
 const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { requireMember, buildMessage, privateSendGuard } = require('./shared');
@@ -72,19 +73,21 @@ function listScheduledMessages(userId, status = 'pending') {
 }
 
 // ── 发送一条到期定时消息（复用普通发消息落库+广播+推送逻辑）────────
-async function deliverOne(sched) {
+async function deliverOne(sched, io = null) {
   const msgId = uuidv4();
   // is_scheduled=1 标记来源，供前端渲染「定时」气泡
-  await writeAsync(
-    'INSERT INTO messages (id,conversation_id,sender_id,type,content,is_scheduled) VALUES (?,?,?,?,?,1)',
-    [msgId, sched.conversation_id, sched.sender_id, sched.type, sched.content]
-  );
+  const sequenced = await appendConversationEvent({
+    conversationId: sched.conversation_id, eventType: 'message_created', messageId: msgId, actorId: sched.sender_id,
+    ops: [{ sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,is_scheduled,server_sequence) VALUES (?,?,?,?,?,1,?)',
+      params: [msgId, sched.conversation_id, sched.sender_id, sched.type, sched.content, SEQUENCE_PARAM] }],
+  });
   cache.delPattern(`search:*${sched.sender_id}*`).catch(() => {});
   convSvc.invalidateConvCacheForConversation(sched.conversation_id);
 
   const msg = buildMessage(msgId);
   if (msg) {
     broadcaster.broadcastMessage(sched.conversation_id, msg);
+    emitSyncAvailable(io, sched.conversation_id, sequenced.server_sequence);
     const sender = db.prepare('SELECT username FROM users WHERE id=?').get(sched.sender_id);
     // 定时消息到点也走推送（勿扰时段由 push 层判断），送达离线成员
     pushNewMessage({
@@ -101,7 +104,7 @@ async function deliverOne(sched) {
 }
 
 // ── 扫描并发送所有到期的 pending 消息 ────────────────────────────
-async function sendDueMessages() {
+async function sendDueMessages(io = null) {
   const now = Math.floor(Date.now() / 1000);
   const dues = db.prepare(
     "SELECT * FROM scheduled_messages WHERE status='pending' AND send_at<=? ORDER BY send_at ASC LIMIT 50"
@@ -131,7 +134,7 @@ async function sendDueMessages() {
         db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=?").run(sched.id);
         continue;
       }
-      await deliverOne(sched);
+      await deliverOne(sched, io);
       db.prepare("UPDATE scheduled_messages SET status='sent' WHERE id=?").run(sched.id);
       sent += 1;
     } catch (e) {
@@ -145,11 +148,11 @@ async function sendDueMessages() {
 
 // ── 启动调度器（启动首扫 + 每 30s 定时，unref 不阻塞进程退出）──────
 let _timer = null;
-function startScheduler() {
+function startScheduler(io = null) {
   if (_timer) return _timer;
-  sendDueMessages().catch(e => console.error('[scheduled] 启动扫描失败:', e.message));
+  sendDueMessages(io).catch(e => console.error('[scheduled] 启动扫描失败:', e.message));
   _timer = setInterval(() => {
-    sendDueMessages().catch(e => console.error('[scheduled] 定时扫描失败:', e.message));
+    sendDueMessages(io).catch(e => console.error('[scheduled] 定时扫描失败:', e.message));
   }, 30 * 1000);
   _timer.unref?.();
   return _timer;

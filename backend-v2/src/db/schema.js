@@ -62,6 +62,7 @@ function applySchema(db) {
       reply_to_id TEXT DEFAULT NULL,
       deleted INTEGER DEFAULT 0,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      server_sequence INTEGER,
       FOREIGN KEY (conversation_id) REFERENCES conversations(id),
       FOREIGN KEY (sender_id) REFERENCES users(id)
     );
@@ -546,6 +547,66 @@ function applySchema(db) {
       PRIMARY KEY (path, conversation_id)
     )`,
     "CREATE INDEX IF NOT EXISTS idx_file_registry_shares_path ON file_registry_shares(path)",
+    // ── 统一设备同步游标：消息创建序号 + 追加式会话事件流 ──────────────
+    "ALTER TABLE messages ADD COLUMN server_sequence INTEGER DEFAULT NULL",
+    `CREATE TABLE IF NOT EXISTS conversation_sequences (
+      conversation_id TEXT PRIMARY KEY,
+      last_sequence INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS conversation_events (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      server_sequence INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      target_user_id TEXT DEFAULT NULL,
+      payload TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER DEFAULT (strftime('%s','now')),
+      UNIQUE(conversation_id, server_sequence),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+    )`,
+    `WITH ranked AS (
+       SELECT rowid AS rid,
+              ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY created_at, rowid) AS seq
+       FROM messages
+     )
+     UPDATE messages
+     SET server_sequence=(SELECT seq FROM ranked WHERE ranked.rid=messages.rowid)
+     WHERE server_sequence IS NULL`,
+    `INSERT INTO conversation_sequences (conversation_id,last_sequence)
+     SELECT conversation_id, COALESCE(MAX(server_sequence),0)
+     FROM messages GROUP BY conversation_id
+     ON CONFLICT(conversation_id) DO UPDATE SET last_sequence=MAX(last_sequence,excluded.last_sequence)`,
+    `INSERT OR IGNORE INTO conversation_events
+       (id,conversation_id,server_sequence,event_type,message_id,actor_id,payload,created_at)
+     SELECT 'backfill:'||id,conversation_id,server_sequence,'message_created',id,sender_id,'{}',created_at
+     FROM messages WHERE server_sequence IS NOT NULL`,
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_conversation_sequence ON messages(conversation_id,server_sequence) WHERE server_sequence IS NOT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_conversation_events_sync ON conversation_events(conversation_id,server_sequence)",
+    "CREATE INDEX IF NOT EXISTS idx_conversation_events_target ON conversation_events(conversation_id,target_user_id,server_sequence)",
+    // ── 批量转发结果与幂等键 ─────────────────────────────────────
+    "ALTER TABLE messages ADD COLUMN batch_id TEXT DEFAULT NULL",
+    "ALTER TABLE messages ADD COLUMN client_batch_id TEXT DEFAULT NULL",
+    `CREATE TABLE IF NOT EXISTS message_forward_batches (
+      batch_id TEXT PRIMARY KEY,
+      actor_id TEXT NOT NULL,
+      client_batch_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      total INTEGER NOT NULL DEFAULT 0,
+      success_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      failed_message_ids TEXT NOT NULL DEFAULT '[]',
+      retryable_message_ids TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER DEFAULT (strftime('%s','now')),
+      updated_at INTEGER DEFAULT (strftime('%s','now')),
+      UNIQUE(actor_id, client_batch_id)
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_forward_batches_actor ON message_forward_batches(actor_id, created_at DESC)",
+    "ALTER TABLE conversation_events ADD COLUMN batch_id TEXT DEFAULT NULL",
+    "ALTER TABLE conversation_events ADD COLUMN client_batch_id TEXT DEFAULT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_conversation_events_batch ON conversation_events(batch_id, server_sequence)",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

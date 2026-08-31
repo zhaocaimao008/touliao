@@ -11,11 +11,11 @@
   "scripts": {
     "dev": "electron .",
     "build:web": "cd ../web && npx vite build --mode desktop",
-    "build": "npm run build:web && electron-builder && node scripts/sign-update.js dist",
-    "build:win": "npm run build:web && electron-builder --win --x64 && node scripts/sign-update.js dist latest.yml",
-    "build:mac": "npm run build:web && electron-builder --mac --x64 && node scripts/sign-update.js dist latest-mac.yml",
-    "build:linux": "npm run build:web && electron-builder --linux --x64 && node scripts/sign-update.js dist latest-linux.yml",
-    "pack": "npm run build:web && electron-builder --dir",
+    "build": "npm run build:web && node scripts/run-electron-builder.js && node scripts/sign-update.js dist",
+    "build:win": "npm run build:web && node scripts/run-electron-builder.js --win --x64 && node scripts/sign-update.js dist latest.yml",
+    "build:mac": "npm run build:web && node scripts/run-electron-builder.js --mac --x64 && node scripts/sign-update.js dist latest-mac.yml",
+    "build:linux": "npm run build:web && node scripts/run-electron-builder.js --linux --x64 && node scripts/sign-update.js dist latest-linux.yml",
+    "pack": "npm run build:web && node scripts/run-electron-builder.js --dir",
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {

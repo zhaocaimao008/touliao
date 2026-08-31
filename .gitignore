@@ -110,6 +110,7 @@ backend-v2/test/.tmp-test-db.sqlite*
 backend-v2/test/.tmp-test-uploads/
 backups/
 android/app-release-signed.apk
+desktop-electron/.build-cache/
 
 # 测试截图/签名临时文件
 ui-screenshots/

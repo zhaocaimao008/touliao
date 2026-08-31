@@ -7,6 +7,9 @@
     "pw:install": "playwright install chromium",
     "build:web": "cd ../web && npm run build",
     "test:web": "playwright test --project=web",
+    "test:e2e": "playwright test --project=web",
+    "test:e2e:headed": "playwright test --project=web --headed",
+    "test:e2e:ci": "playwright test --project=web --retries=3",
     "test:electron": "npm run build:web && playwright test --project=electron",
     "test": "playwright test",
     "gen:anchors-py": "node shared/gen-anchors-py.js"

@@ -89,6 +89,8 @@ class SocketManager @Inject constructor(
 
     private val _incomingMessages = MutableSharedFlow<Message>(extraBufferCapacity = 128)
     val incomingMessages: SharedFlow<Message> = _incomingMessages.asSharedFlow()
+    private val _syncAvailable = MutableSharedFlow<String>(extraBufferCapacity = 64)
+    val syncAvailableEvents: SharedFlow<String> = _syncAvailable.asSharedFlow()
 
     private val _typingEvents = MutableSharedFlow<TypingEvent>(extraBufferCapacity = 64)
     val typingEvents: SharedFlow<TypingEvent> = _typingEvents.asSharedFlow()
@@ -244,6 +246,10 @@ class SocketManager @Inject constructor(
         }
 
         s.on("new_message") { args -> parseMessage(args.firstOrNull())?.let(_incomingMessages::tryEmit) }
+        s.on("conversation_sync_available") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("conversationId")
+                ?.takeIf { it.isNotEmpty() }?.let(_syncAvailable::tryEmit)
+        }
         s.on("new_message_batch") { args ->
             (args.firstOrNull() as? JSONArray)?.let { arr ->
                 for (i in 0 until arr.length()) parseMessage(arr.optJSONObject(i))?.let(_incomingMessages::tryEmit)

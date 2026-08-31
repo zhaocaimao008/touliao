@@ -10,6 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const { badRequest, notFound, forbidden } = require('../../utils/http');
 const broadcaster = require('../../realtime/broadcaster');
+const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sync.service');
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -65,7 +66,7 @@ function recharge(userId, amount) {
  * 好友转账：即时到账，双方各写一条流水，并在双方私聊会话发一条 type='transfer' 消息。
  * 金额单位：金币（整数），与红包一致，上限 20000。
  */
-async function transfer(senderId, { to_user_id, amount, note }) {
+async function transfer(senderId, { to_user_id, amount, note }, io = null) {
   if (!to_user_id) throw badRequest('请填写收款人');
   const amt = Number(amount);
   if (!Number.isInteger(amt) || amt <= 0 || amt > 20000)
@@ -91,6 +92,7 @@ async function transfer(senderId, { to_user_id, amount, note }) {
   const msgId  = uuidv4();
   const msgContent = JSON.stringify({ amount: amt, note: safeNote, refId });
 
+  let serverSequence;
   try {
     db.transaction(() => {
       // 扣款（sender）— balance 不足时 applyDeltaTx 抛 WALLET_INSUFFICIENT 自动回滚
@@ -98,8 +100,11 @@ async function transfer(senderId, { to_user_id, amount, note }) {
       // 入账（receiver）— 即时到账
       applyDeltaTx(to_user_id, +amt, 'transfer_in',  refId, `收到${fromUser.username}的转账`);
       // 消息入库
-      db.prepare('INSERT INTO messages (id,conversation_id,sender_id,type,content) VALUES (?,?,?,?,?)')
-        .run(msgId, conv.id, senderId, 'transfer', msgContent);
+      serverSequence = appendConversationEventTx({
+        conversationId: conv.id, eventType: 'message_created', messageId: msgId, actorId: senderId,
+        apply: sequence => db.prepare('INSERT INTO messages (id,conversation_id,sender_id,type,content,server_sequence) VALUES (?,?,?,?,?,?)')
+          .run(msgId, conv.id, senderId, 'transfer', msgContent, sequence),
+      });
     })();
   } catch (e) {
     if (e.status) throw e; // ApiError 原样抛（如余额不足）
@@ -112,7 +117,9 @@ async function transfer(senderId, { to_user_id, amount, note }) {
     'SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?'
   ).get(msgId);
   msg.reactions = [];
+  msg.server_sequence = serverSequence;
   broadcaster.broadcastMessage(conv.id, msg);
+  emitSyncAvailable(io, conv.id, serverSequence);
 
   return { success: true, balance: getBalance(senderId), message: msg };
 }
