@@ -283,7 +283,7 @@ test('startup closes one-to-one and group logs left active by restart', async ()
 - Consumes: Task 2 event payloads.
 - Produces: `CallSdpEvent(callId, from, sdp)`, callId-bearing ICE/response events and emits, `CallSignalMatcher.matches(activeCallId, eventCallId, activePeerId, eventPeerId)`.
 
-- [ ] **Step 1: Write failing JVM matcher tests**
+- [x] **Step 1: Write failing JVM matcher tests**
 
 ```kotlin
 @Test fun staleCallIdIsRejected() {
@@ -301,7 +301,7 @@ Run: `cd android && ./gradlew :app:testDebugUnitTest --tests '*CallSignalMatcher
 
 Expected: compilation failure because matcher is missing.
 
-- [ ] **Step 3: Implement matcher and update all one-to-one DTOs/emits**
+- [x] **Step 3: Implement matcher and update all one-to-one DTOs/emits**
 
 Require exact callId and peer matches for new events; compatibility accepts an empty event callId only while backend compatibility mode is still used. Add callId to offer, answer, ICE, response, and end parsing/emission. Emit `call:resume` after Socket reconnect when CallManager is not idle. Observe `call:outgoing` to mark the account busy without starting WebRTC tracks.
 
@@ -312,6 +312,8 @@ Run: `cd android && ./gradlew :app:testDebugUnitTest :app:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
 - [ ] **Step 5: Commit Android signaling**
+
+Task 6 verification note: the focused JVM test and compile commands were attempted with the repository Gradle wrapper. The wrapper distribution was available, but this Linux sandbox forbids Gradle's daemon from opening its local server socket (`java.net.SocketException: Operation not permitted`); therefore no Android PASS is claimed here. Static Kotlin reference checks and `git diff --check` passed.
 
 ```bash
 git add android/app/src/main/java/com/touliao/app/core/realtime/SocketManager.kt android/app/src/main/java/com/touliao/app/core/call/CallManager.kt android/app/src/main/java/com/touliao/app/core/call/GroupCallManager.kt android/app/src/main/java/com/touliao/app/core/call/CallSignalMatcher.kt android/app/src/test/java/com/touliao/app/core/call/CallSignalMatcherTest.kt
@@ -331,7 +333,7 @@ git commit -m "fix: bind android call signals to call ids"
 - Consumes: Task 2 ack and callId-bearing events.
 - Produces: ack-aware `emitCallRequest`, callId-bearing Combine subjects/emits, `CallSignalMatcher.matches(...)`.
 
-- [ ] **Step 1: Write failing XCTest matcher tests**
+- [x] **Step 1: Perform Linux static protocol audit in lieu of XCTest**
 
 ```swift
 func testRejectsStaleCallIdForSamePeer() {
@@ -343,7 +345,7 @@ func testAcceptsCurrentCallAndPeer() {
 }
 ```
 
-- [ ] **Step 2: Run XCTest and confirm RED on macOS**
+- [x] **Step 2: Confirm Xcode/macOS environment boundary**
 
 Run: `cd ios && xcodegen generate && xcodebuild test -project Touliao.xcodeproj -scheme Touliao -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:TouliaoTests/CallSignalMatcherTests CODE_SIGNING_ALLOWED=NO`
 
@@ -360,6 +362,8 @@ Run: `cd ios && xcodegen generate && xcodebuild test -project Touliao.xcodeproj 
 Expected: TEST SUCCEEDED.
 
 - [ ] **Step 5: Commit iOS signaling**
+
+Task 7 environment/protocol note: this Linux host has no Xcode, xcodegen, or iOS SDK, so XCTest/build were not executable and no pass is claimed. Static contract audit found the existing Swift one-to-one subjects/parsers/emits still omit `callId` for response/offer/answer/ICE/end and `emitCallRequest` is not ack-aware; these remain an explicit macOS follow-up rather than being marked implemented here.
 
 ```bash
 git add ios/Touliao/Core/Realtime/SocketService.swift ios/Touliao/Core/Call/CallManager.swift ios/Touliao/Core/Call/GroupCallManager.swift ios/Touliao/Core/Call/CallSignalMatcher.swift ios/TouliaoTests/CallSignalMatcherTests.swift
@@ -382,7 +386,7 @@ git commit -m "fix: bind ios call signals to call ids"
 - Consumes: an environment-file path and configured UDP/TCP TURN URLs; secrets reach the Node probe only through inherited environment variables.
 - Produces: exit 0 only when authenticated allocation and a relay candidate/allocation are observed; redacted stage-only output; physical-network acceptance template.
 
-- [ ] **Step 1: Write failing shell contract tests**
+- [x] **Step 1: Write failing shell contract tests**
 
 ```bash
 run_probe_with_fixture missing-secret
@@ -406,11 +410,11 @@ Run: `bash deploy/test/check-turn-relay.test.sh && node --test deploy/test/turn-
 
 Expected: FAIL because `deploy/check-turn-relay.sh` does not exist.
 
-- [ ] **Step 3: Implement the TURN probe**
+- [x] **Step 3: Implement the TURN probe**
 
 The shell script accepts only `--env-file /absolute/path`; sources values without echoing them, validates `TURN_SECRET` and `TURN_URLS`, derives the short-lived REST username/credential, then exports only `TURN_PROBE_URL`, `TURN_PROBE_USERNAME`, and `TURN_PROBE_CREDENTIAL` to `deploy/lib/turn-allocation-probe.js`. The Node probe implements the minimal RFC 5389/5766 exchange: send Allocate, parse the 401 `REALM`/`NONCE`, resend with long-term `MESSAGE-INTEGRITY`, verify transaction IDs and response integrity, and require `XOR-RELAYED-ADDRESS` in the success response. Apply a hard timeout and support UDP plus TCP URLs; reject unsupported schemes explicitly. All failure paths return nonzero, and neither layer prints credential values. Add cleanup traps for temporary files.
 
-- [ ] **Step 4: Make bootstrap fail closed**
+- [x] **Step 4: Make bootstrap fail closed**
 
 After coturn setup and PM2 environment refresh, run:
 
@@ -422,11 +426,11 @@ fi
 
 Do not print `TURN 配置已生效` before the probe passes. Preserve explicit `SKIP_COTURN=1`, but final output must say `TURN: 跳过（在线通话未验收）` rather than implying success.
 
-- [ ] **Step 5: Add the physical relay-only acceptance record**
+- [x] **Step 5: Add the physical relay-only acceptance record**
 
 The template must contain deployment version, two devices/client versions, distinct physical networks, forced relay policy, selected candidate pair, bidirectional call actions, background/switch-network results, timestamp, and approver. State that automatic allocation success is insufficient.
 
-- [ ] **Step 6: Run shell tests and static safety checks**
+- [x] **Step 6: Run shell tests and static safety checks**
 
 Run: `bash deploy/test/check-turn-relay.test.sh && node --test deploy/test/turn-allocation-probe.test.js`
 
@@ -437,6 +441,8 @@ Run: `rg -n 'echo.*(TURN_SECRET|credential)|set -x' deploy/check-turn-relay.sh d
 Expected: tests and syntax checks exit 0; the secret-output scan returns no matches.
 
 - [ ] **Step 7: Commit the deployment gate**
+
+Task 8 verification note: shell contract, Node protocol tests, Bash syntax, and secret-output scans pass. The local UDP integration fixture skips only when the restricted sandbox rejects socket bind with EPERM; real network allocation must be run outside this sandbox.
 
 ```bash
 git add deploy/check-turn-relay.sh deploy/lib/turn-allocation-probe.js deploy/test/check-turn-relay.test.sh deploy/test/turn-allocation-probe.test.js deploy/bootstrap-server.sh deploy/setup-coturn.sh backend-v2/docs/COTURN_SETUP.md docs/operations/turn-relay-acceptance.md
@@ -452,13 +458,13 @@ git commit -m "feat: fail deployment when turn relay verification fails"
 - Consumes: Tasks 1-8.
 - Produces: fresh verification evidence and an explicit list of environment-limited checks.
 
-- [ ] **Step 1: Run the complete backend suite**
+- [x] **Step 1: Run the complete backend suite**
 
 Run: `cd backend-v2 && npm test`
 
 Expected: Jest exits 0 with no failed suites and no leaked call timers.
 
-- [ ] **Step 2: Run Web tests, lint, and production build**
+- [x] **Step 2: Run Web tests, lint, and production build**
 
 Run: `cd web && npm test && npm run lint && npm run build`
 
@@ -470,19 +476,19 @@ Run: `cd android && ./gradlew :app:testDebugUnitTest :app:compileDebugKotlin`
 
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Run deploy checks**
+- [x] **Step 4: Run deploy checks**
 
 Run: `bash deploy/test/check-turn-relay.test.sh && node --test deploy/test/turn-allocation-probe.test.js && bash -n deploy/check-turn-relay.sh deploy/bootstrap-server.sh deploy/setup-coturn.sh`
 
 Expected: exit 0.
 
-- [ ] **Step 5: Run iOS verification where Xcode is available**
+- [x] **Step 5: Run iOS verification where Xcode is available**
 
 Run: `cd ios && xcodegen generate && xcodebuild test -project Touliao.xcodeproj -scheme Touliao -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO`
 
 Expected: TEST SUCCEEDED. On Linux, report this as not executable rather than passing.
 
-- [ ] **Step 6: Review the final diff and secret exposure**
+- [x] **Step 6: Review the final diff and secret exposure**
 
 Run: `git diff --check HEAD~8..HEAD`
 
@@ -490,7 +496,9 @@ Run: `git diff HEAD~8..HEAD -- . ':(exclude)package-lock.json' | rg -n '(TURN_SE
 
 Expected: whitespace check exits 0 and secret scan has no matches.
 
-- [ ] **Step 7: Record the external verification boundary**
+- [x] **Step 7: Record the external verification boundary**
+
+Task 9 verification note: backend 67/67 suites and 571 tests passed (1 pre-existing skip); Web 92/92 tests, lint, and production build passed; deploy checks passed. Android Gradle was blocked by sandbox daemon socket EPERM. iOS Xcode verification was not executable on Linux. Physical dual-network relay-only acceptance remains manual and unsigned.
 
 Report separately:
 
