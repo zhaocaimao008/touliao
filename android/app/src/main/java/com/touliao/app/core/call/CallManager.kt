@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.webrtc.AudioTrack
@@ -389,6 +390,26 @@ class CallManager @Inject constructor(
     // ── 信令处理 ───────────────────────────────────────────
     private fun observeSignaling() {
         scope.launch {
+            socketManager.status.filter { it == com.touliao.app.core.realtime.SocketStatus.CONNECTED }.collect {
+                val s = _state.value
+                if (s.callId.isNotEmpty() && s.stage != CallStage.IDLE && s.stage != CallStage.ENDED) {
+                    socketManager.emitCallResume(s.callId)
+                }
+            }
+        }
+        scope.launch {
+            socketManager.callOutgoingEvents.collect { e ->
+                if (_state.value.stage == CallStage.IDLE || _state.value.stage == CallStage.ENDED) {
+                    _state.value = CallState(
+                        stage = CallStage.OUTGOING,
+                        peerId = e.to,
+                        isVideo = e.type == "video",
+                        callId = e.callId,
+                    )
+                }
+            }
+        }
+        scope.launch {
             socketManager.callIncomingEvents.collect { e ->
                 // 已在展示同一 peer 的来电：仅当 callId 相同才是重复事件（同一通），直接忽略；
                 // callId 不同 = 主叫重拨的新一通 → 覆盖旧状态（callId/isVideo/callerName 一并更新，
@@ -424,7 +445,7 @@ class CallManager @Inject constructor(
             socketManager.callResponseEvents.collect { e ->
                 val s = _state.value
                 // stage 守卫（P2-5）：主叫挂断瞬间被叫恰好接听，迟到的 accepted 不得把 ENDED 重新唤醒回 CONNECTING
-                if (!s.isCaller || e.from != s.peerId || s.stage != CallStage.OUTGOING) return@collect
+                if (!s.isCaller || !CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from) || s.stage != CallStage.OUTGOING) return@collect
                 if (e.accepted) {
                     _state.update { it.copy(stage = CallStage.CONNECTING) }
                     createOfferAndSend()
@@ -435,7 +456,8 @@ class CallManager @Inject constructor(
         }
         scope.launch {
             socketManager.callOfferEvents.collect { e ->
-                if (e.from != _state.value.peerId) return@collect
+                val s = _state.value
+                if (!CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)) return@collect
                 val pc = peerConnection ?: return@collect
                 pc.setRemoteDescription(object : SimpleSdpObserver() {
                     override fun onSetSuccess() {
@@ -447,7 +469,8 @@ class CallManager @Inject constructor(
         }
         scope.launch {
             socketManager.callAnswerEvents.collect { e ->
-                if (e.from != _state.value.peerId) return@collect
+                val s = _state.value
+                if (!CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)) return@collect
                 val pc = peerConnection ?: return@collect
                 pc.setRemoteDescription(object : SimpleSdpObserver() {
                     override fun onSetSuccess() { drainIce() }   // 锁内置位 remoteDescSet 并排空
@@ -456,7 +479,8 @@ class CallManager @Inject constructor(
         }
         scope.launch {
             socketManager.callIceEvents.collect { e ->
-                if (e.from != _state.value.peerId) return@collect
+                val s = _state.value
+                if (!CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)) return@collect
                 val cand = IceCandidate(e.sdpMid, e.sdpMLineIndex, e.candidate)
                 // 锁内「判断 + 加入/直排」原子化：与 drainIce 的「置位 + 排空」互斥，杜绝候选丢失竞态。
                 synchronized(iceLock) {
@@ -468,8 +492,11 @@ class CallManager @Inject constructor(
             socketManager.callEndEvents.collect { e ->
                 // 按 callId 匹配（P1-3 客户端侧）：旧通话迟到的 call:end 不得误杀重拨后的新来电；
                 // 服务端旧版不带 callId 时兼容放行（callId 为空 → 仅按 peer 匹配，行为同旧版）
-                if (e.from == _state.value.peerId &&
-                    (e.callId.isEmpty() || e.callId == _state.value.callId)) {
+                val s = _state.value
+                val matchesPeerCall = CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)
+                val matchesOtherDeviceOutgoing = !s.isCaller && s.stage == CallStage.OUTGOING &&
+                    (e.callId.isEmpty() || e.callId == s.callId)
+                if (matchesPeerCall || matchesOtherDeviceOutgoing) {
                     cleanup(CallStage.ENDED)
                 }
             }
@@ -492,7 +519,7 @@ class CallManager @Inject constructor(
         pc.createOffer(object : SimpleSdpObserver() {
             override fun onCreateSuccess(desc: SessionDescription) {
                 pc.setLocalDescription(SimpleSdpObserver(), desc)
-                socketManager.emitCallOffer(_state.value.peerId, desc.description)
+                socketManager.emitCallOffer(_state.value.peerId, desc.description, _state.value.callId)
             }
         }, mediaConstraints())
     }
@@ -502,7 +529,7 @@ class CallManager @Inject constructor(
         pc.createAnswer(object : SimpleSdpObserver() {
             override fun onCreateSuccess(desc: SessionDescription) {
                 pc.setLocalDescription(SimpleSdpObserver(), desc)
-                socketManager.emitCallAnswer(_state.value.peerId, desc.description)
+                socketManager.emitCallAnswer(_state.value.peerId, desc.description, _state.value.callId)
             }
         }, mediaConstraints())
     }
@@ -521,7 +548,7 @@ class CallManager @Inject constructor(
         }
         peerConnection = f.createPeerConnection(config, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {
-                socketManager.emitCallIce(_state.value.peerId, candidate.sdp, candidate.sdpMid, candidate.sdpMLineIndex)
+                socketManager.emitCallIce(_state.value.peerId, candidate.sdp, candidate.sdpMid, candidate.sdpMLineIndex, _state.value.callId)
             }
             override fun onAddTrack(receiver: RtpReceiver, streams: Array<out MediaStream>?) {
                 (receiver.track() as? VideoTrack)?.let { vt ->

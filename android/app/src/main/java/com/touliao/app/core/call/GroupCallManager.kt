@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.webrtc.AudioSource
@@ -92,6 +93,7 @@ class GroupCallManager @Inject constructor(
         PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
     )
     @Volatile private var iceServers: List<PeerConnection.IceServer> = fallbackIceServers
+    @Volatile private var busyElsewhereCallId: String = ""
 
     init {
         ensureFactory()
@@ -128,6 +130,7 @@ class GroupCallManager @Inject constructor(
     // ── 对外动作 ───────────────────────────────────────────
     /** 发起群通话 */
     fun start(conversationId: String, video: Boolean) {
+        if (busyElsewhereCallId.isNotEmpty()) return
         if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) return
         _state.value = GroupCallState(GroupCallStage.CONNECTING, conversationId = conversationId, isVideo = video)
         scope.launch {
@@ -178,6 +181,20 @@ class GroupCallManager @Inject constructor(
     // ── 信令处理 ───────────────────────────────────────────
     private fun observeSignaling() {
         scope.launch {
+            socketManager.callOutgoingEvents.collect { busyElsewhereCallId = it.callId }
+        }
+        scope.launch {
+            socketManager.callEndEvents.collect { if (it.callId.isEmpty() || it.callId == busyElsewhereCallId) busyElsewhereCallId = "" }
+        }
+        scope.launch {
+            socketManager.status.filter { it == com.touliao.app.core.realtime.SocketStatus.CONNECTED }.collect {
+                val cid = _state.value.callId
+                if (cid.isNotEmpty() && _state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) {
+                    socketManager.emitGroupCallResume(cid)
+                }
+            }
+        }
+        scope.launch {
             socketManager.groupCallStartedEvents.collect { e ->
                 if (_state.value.stage == GroupCallStage.ENDED) return@collect
                 _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
@@ -226,6 +243,7 @@ class GroupCallManager @Inject constructor(
         }
         scope.launch {
             socketManager.groupCallAnswerEvents.collect { e ->
+                if (e.callId != _state.value.callId) return@collect
                 val peer = peers[e.from] ?: return@collect
                 peer.pc.setRemoteDescription(object : SimpleSdpObserver() {
                     override fun onSetSuccess() { drainIce(e.from) }   // 锁内置位 remoteDescSet 并排空
@@ -234,6 +252,7 @@ class GroupCallManager @Inject constructor(
         }
         scope.launch {
             socketManager.groupCallIceEvents.collect { e ->
+                if (e.callId != _state.value.callId) return@collect
                 val peer = peers[e.from] ?: return@collect
                 val cand = IceCandidate(e.sdpMid, e.sdpMLineIndex, e.candidate)
                 // 锁内「判断 + 加入/直排」原子化：与 drainIce 的「置位 + 排空」互斥，杜绝候选丢失竞态。
@@ -243,7 +262,9 @@ class GroupCallManager @Inject constructor(
             }
         }
         scope.launch {
-            socketManager.groupCallPeerLeftEvents.collect { e -> removePeer(e.userId) }
+            socketManager.groupCallPeerLeftEvents.collect { e ->
+                if (e.callId == _state.value.callId) removePeer(e.userId)
+            }
         }
         scope.launch {
             socketManager.groupCallErrorEvents.collect { e ->

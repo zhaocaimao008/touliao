@@ -50,9 +50,10 @@ data class MentionedEvent(
 
 // ── WebRTC 通话信令 ──
 data class CallIncomingEvent(val from: String, val type: String, val callerName: String, val callId: String = "")
-data class CallResponseEvent(val from: String, val accepted: Boolean)
-data class CallSdpEvent(val from: String, val sdp: String)            // offer / answer 的 sdp
-data class CallIceEvent(val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
+data class CallOutgoingEvent(val to: String, val type: String, val callId: String = "")
+data class CallResponseEvent(val callId: String, val from: String, val accepted: Boolean)
+data class CallSdpEvent(val callId: String, val from: String, val sdp: String)            // offer / answer 的 sdp
+data class CallIceEvent(val callId: String, val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
 data class CallEndEvent(val from: String, val callId: String = "")
 
 // ── 群通话(mesh) 信令事件 ──
@@ -179,6 +180,8 @@ class SocketManager @Inject constructor(
     // ── 通话信令流 ──
     private val _callIncoming = MutableSharedFlow<CallIncomingEvent>(extraBufferCapacity = 16)
     val callIncomingEvents: SharedFlow<CallIncomingEvent> = _callIncoming.asSharedFlow()
+    private val _callOutgoing = MutableSharedFlow<CallOutgoingEvent>(extraBufferCapacity = 16)
+    val callOutgoingEvents: SharedFlow<CallOutgoingEvent> = _callOutgoing.asSharedFlow()
     private val _callResponse = MutableSharedFlow<CallResponseEvent>(extraBufferCapacity = 16)
     val callResponseEvents: SharedFlow<CallResponseEvent> = _callResponse.asSharedFlow()
     private val _callOffer = MutableSharedFlow<CallSdpEvent>(extraBufferCapacity = 16)
@@ -415,21 +418,21 @@ class SocketManager @Inject constructor(
         s.on("call:response") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val from = o.optString("from")
-                if (from.isNotEmpty()) _callResponse.tryEmit(CallResponseEvent(from, o.optBoolean("accepted")))
+                if (from.isNotEmpty()) _callResponse.tryEmit(CallResponseEvent(o.optString("callId"), from, o.optBoolean("accepted")))
             }
         }
         s.on("call:offer") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val from = o.optString("from")
                 val sdp = o.optJSONObject("offer")?.optString("sdp").orEmpty()
-                if (from.isNotEmpty() && sdp.isNotEmpty()) _callOffer.tryEmit(CallSdpEvent(from, sdp))
+                if (from.isNotEmpty() && sdp.isNotEmpty()) _callOffer.tryEmit(CallSdpEvent(o.optString("callId"), from, sdp))
             }
         }
         s.on("call:answer") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val from = o.optString("from")
                 val sdp = o.optJSONObject("answer")?.optString("sdp").orEmpty()
-                if (from.isNotEmpty() && sdp.isNotEmpty()) _callAnswer.tryEmit(CallSdpEvent(from, sdp))
+                if (from.isNotEmpty() && sdp.isNotEmpty()) _callAnswer.tryEmit(CallSdpEvent(o.optString("callId"), from, sdp))
             }
         }
         s.on("call:ice") { args ->
@@ -439,6 +442,7 @@ class SocketManager @Inject constructor(
                 if (from.isNotEmpty() && cand != null) {
                     _callIce.tryEmit(
                         CallIceEvent(
+                            callId = o.optString("callId"),
                             from = from,
                             candidate = cand.optString("candidate"),
                             sdpMid = cand.optString("sdpMid").takeIf { it.isNotEmpty() },
@@ -452,6 +456,12 @@ class SocketManager @Inject constructor(
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val from = o.optString("from").takeIf { it.isNotEmpty() } ?: return@let
                 _callEnd.tryEmit(CallEndEvent(from, o.optString("callId")))
+            }
+        }
+        s.on("call:outgoing") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val to = o.optString("to")
+                if (to.isNotEmpty()) _callOutgoing.tryEmit(CallOutgoingEvent(to, o.optString("type", "audio"), o.optString("callId")))
             }
         }
 
@@ -622,29 +632,37 @@ class SocketManager @Inject constructor(
         socket?.emit("call:response", payload)
     }
 
-    fun emitCallOffer(to: String, sdp: String) {
-        socket?.emit("call:offer", JSONObject()
-            .put("to", to).put("offer", JSONObject().put("type", "offer").put("sdp", sdp)))
+    fun emitCallOffer(to: String, sdp: String, callId: String = "") {
+        val payload = JSONObject().put("to", to).put("offer", JSONObject().put("type", "offer").put("sdp", sdp))
+        if (callId.isNotEmpty()) payload.put("callId", callId)
+        socket?.emit("call:offer", payload)
     }
 
-    fun emitCallAnswer(to: String, sdp: String) {
-        socket?.emit("call:answer", JSONObject()
-            .put("to", to).put("answer", JSONObject().put("type", "answer").put("sdp", sdp)))
+    fun emitCallAnswer(to: String, sdp: String, callId: String = "") {
+        val payload = JSONObject().put("to", to).put("answer", JSONObject().put("type", "answer").put("sdp", sdp))
+        if (callId.isNotEmpty()) payload.put("callId", callId)
+        socket?.emit("call:answer", payload)
     }
 
-    fun emitCallIce(to: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int) {
-        socket?.emit("call:ice", JSONObject()
+    fun emitCallIce(to: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int, callId: String = "") {
+        val payload = JSONObject()
             .put("to", to)
             .put("candidate", JSONObject()
                 .put("candidate", candidate)
                 .put("sdpMid", sdpMid ?: JSONObject.NULL)
-                .put("sdpMLineIndex", sdpMLineIndex)))
+                .put("sdpMLineIndex", sdpMLineIndex))
+        if (callId.isNotEmpty()) payload.put("callId", callId)
+        socket?.emit("call:ice", payload)
     }
 
     fun emitCallEnd(to: String, callId: String = "") {
         val payload = JSONObject().put("to", to)
         if (callId.isNotEmpty()) payload.put("callId", callId)
         socket?.emit("call:end", payload)
+    }
+
+    fun emitCallResume(callId: String) {
+        if (callId.isNotEmpty()) socket?.emit("call:resume", JSONObject().put("callId", callId))
     }
 
     // ── 群通话信令发送 ──
@@ -671,6 +689,10 @@ class SocketManager @Inject constructor(
     }
     fun emitGroupCallLeave(callId: String) {
         socket?.emit("group_call:leave", JSONObject().put("callId", callId))
+    }
+
+    fun emitGroupCallResume(callId: String) {
+        if (callId.isNotEmpty()) socket?.emit("group_call:resume", JSONObject().put("callId", callId))
     }
 
     @Synchronized
