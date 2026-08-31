@@ -165,7 +165,7 @@ function isErrorContent(text) {
 
 /**
  * 调用指定机器人绑定的 AI 大脑（OpenClaw 或 Hermes）。
- * @returns {Promise<string>} 回复文本；失败时抛错由调用方降级
+ * @returns {Promise<{content: string, tokens: number}>} 回复文本 + token 用量；失败时抛错由调用方降级
  */
 async function askAI(bot, userContent, history = []) {
   const ai = config.ai || {};
@@ -211,7 +211,8 @@ async function askAI(bot, userContent, history = []) {
     if (isErrorContent(cleaned)) {
       throw new Error(`${provider} 返回错误文本: ${cleaned.slice(0, 100)}`);
     }
-    return cleaned;
+    const tokens = (data && data.usage && data.usage.total_tokens) || 0;
+    return { content: cleaned, tokens };
   } finally {
     clearTimeout(timer);
   }
@@ -293,48 +294,73 @@ async function processQueued(io, convId, triggerMsg, bot, images = []) {
 
 /** 单条（或图片+文字合并的）AI 回复逻辑（上下文 + 图片识别 + 调大脑 + 落库广播） */
 async function doReply(io, convId, senderId, msg, bot, images = []) {
-  // 取最近 10 条文字消息作为上下文（排除当前消息，当前消息单独作为 user 消息）
-  const history = db.prepare(
-    `SELECT sender_id, content FROM messages
-     WHERE conversation_id=? AND deleted=0 AND type='text' AND id!=?
-     ORDER BY rowid DESC LIMIT 10`
-  ).all(convId, msg.id).reverse();
+  // ── Turn 生命周期（Codex Thread/Turn/Item 模型）──
+  // 一次用户输入 → 一轮 AI 处理 = 一条 turn；started → completed / failed
+  const turnId = uuidv4();
+  const t0 = Date.now();
+  await writeAsync(
+    'INSERT INTO ai_turns (id, conversation_id, bot_id, status, input_preview) VALUES (?,?,?,?,?)',
+    [turnId, convId, bot.botId, 'started', (msg.content || '').slice(0, 200)]
+  ).catch(() => {});
 
-  // 图片消息：先用视觉模型识别，把图片描述转成文字再喂给大脑（大脑是纯文本模型）
-  let userContent = msg.content || '';
-  if (images.length > 0) {
-    // 合并场景：先发图后补文字 → 图片描述 + 用户文字，一次请求
-    const descParts = [];
-    for (const im of images.slice(0, 3)) {
-      const d = await describeImage(im.file_url || im.content).catch((e) => {
+  try {
+    // 取最近 10 条文字消息作为上下文（排除当前消息，当前消息单独作为 user 消息）
+    const history = db.prepare(
+      `SELECT sender_id, content FROM messages
+       WHERE conversation_id=? AND deleted=0 AND type='text' AND id!=?
+       ORDER BY rowid DESC LIMIT 10`
+    ).all(convId, msg.id).reverse();
+
+    // 图片消息：先用视觉模型识别，把图片描述转成文字再喂给大脑（大脑是纯文本模型）
+    let userContent = msg.content || '';
+    if (images.length > 0) {
+      // 合并场景：先发图后补文字 → 图片描述 + 用户文字，一次请求
+      const descParts = [];
+      for (const im of images.slice(0, 3)) {
+        const d = await describeImage(im.file_url || im.content).catch((e) => {
+          console.warn('[AI助手] 图片识别失败:', e.message);
+          return '[图片识别失败，请提醒用户图片无法查看]';
+        });
+        descParts.push(d);
+      }
+      userContent = `[用户发来${images.length > 1 ? images.length + ' 张' : '一张'}图片，以下是图片内容描述]\n${descParts.join('\n---\n')}`;
+      const caption = msg.type === 'text' ? (msg.content || '').trim() : '';
+      if (caption) userContent += `\n\n[用户接着说]\n${caption}`;
+    } else if (msg.type === 'image') {
+      // 兜底：图片未走合并缓冲时直接识别（正常流程图片都进 imgBuffer）
+      const desc = await describeImage(msg.file_url || msg.content).catch((e) => {
         console.warn('[AI助手] 图片识别失败:', e.message);
         return '[图片识别失败，请提醒用户图片无法查看]';
       });
-      descParts.push(d);
+      userContent = `[用户发来一张图片，以下是图片内容描述]\n${desc}`;
     }
-    userContent = `[用户发来${images.length > 1 ? images.length + ' 张' : '一张'}图片，以下是图片内容描述]\n${descParts.join('\n---\n')}`;
-    const caption = msg.type === 'text' ? (msg.content || '').trim() : '';
-    if (caption) userContent += `\n\n[用户接着说]\n${caption}`;
-  } else if (msg.type === 'image') {
-    // 兜底：图片未走合并缓冲时直接识别（正常流程图片都进 imgBuffer）
-    const desc = await describeImage(msg.file_url || msg.content).catch((e) => {
-      console.warn('[AI助手] 图片识别失败:', e.message);
-      return '[图片识别失败，请提醒用户图片无法查看]';
-    });
-    userContent = `[用户发来一张图片，以下是图片内容描述]\n${desc}`;
+
+    const aiResult = await askAI(bot, userContent, history);
+    const replyText = aiResult.content;
+
+    // turn 完成
+    await writeAsync(
+      'UPDATE ai_turns SET status=?, output_preview=?, token_usage=?, duration_ms=?, completed_at=? WHERE id=?',
+      ['completed', replyText.slice(0, 300), aiResult.tokens || 0, Date.now() - t0, Date.now(), turnId]
+    ).catch(() => {});
+
+    const id = uuidv4();
+    await writeAsync(
+      'INSERT INTO messages (id,conversation_id,sender_id,type,content) VALUES (?,?,?,?,?)',
+      [id, convId, bot.botId, 'text', replyText]
+    );
+
+    const replyMsg = buildMessage(id);
+    if (replyMsg) broadcaster.broadcastMessage(convId, replyMsg);
+    return replyMsg;
+  } catch (err) {
+    // turn 失败（如大脑超时/返回错误文本）
+    await writeAsync(
+      'UPDATE ai_turns SET status=?, error=?, duration_ms=?, completed_at=? WHERE id=?',
+      ['failed', String(err.message || err).slice(0, 300), Date.now() - t0, Date.now(), turnId]
+    ).catch(() => {});
+    throw err;
   }
-
-  const replyText = await askAI(bot, userContent, history);
-
-  const id = uuidv4();
-  await writeAsync(
-    'INSERT INTO messages (id,conversation_id,sender_id,type,content) VALUES (?,?,?,?,?)',
-    [id, convId, bot.botId, 'text', replyText]
-  );
-
-  const replyMsg = buildMessage(id);
-  if (replyMsg) broadcaster.broadcastMessage(convId, replyMsg);
-  return replyMsg;
 }
 
 module.exports = { maybeReply, shouldReply, askAI, get AI_BOT_ID() { return AI_BOT_ID; }, get HERMES_BOT_ID() { return HERMES_BOT_ID; } };

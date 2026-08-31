@@ -2133,3 +2133,57 @@ Module path: resources/app.asar/src/main.js
 - 部署后用公网curl独立验证（不信CI日志）：`updates/latest.yml`（内容`version: 8.1.1`）、`updates/latest.yml.sig`、版本化安装包、直链均HTTP 200；用`crypto.verify()`对新鲜下载的`latest.yml`+`latest.yml.sig`独立验签，`signature valid: true`。
 
 **仍未验证的部分（如实披露）**：这套新增的静态依赖闭包检查只能证明"模块解析路径正确"，无法证明"app真的能启动且无其它原因崩溃"——本环境依然没有真正的Windows/GUI设备去实机安装验证，需要等真实用户或有Windows机器的人确认8.1.1能正常启动。
+
+---
+
+## 二十三、修复：通话状态多端不同步 + iOS 来电推送从未真正送达
+
+**背景**：用户报告真实场景——A呼叫B，B在网页端点了拒绝，但B的移动端仍然显示"通话中"。同时排查发现 iOS 端锁屏收不到来电通知的独立问题。两个问题都用只读排查（fork并行调查）先定位根因，用户确认后才动代码。
+
+### 问题1：通话状态多端不同步
+
+**根因**（`backend-v2/src/realtime/handlers/call.js`）：每个 socket 连接都会 `socket.join('user_${userId}')`（`realtime/index.js:171`），同一用户的所有设备本来就在同一个 room 里，机制上具备"广播给自己其他设备"的能力，但 `call:response`（接听/拒绝）、`call:end`（挂断）、`call:request`（发起呼叫）三处 handler 都只把状态变更 `io.to('user_${对方}')` 广播给了对方，从没往操作者自己的 `user_${自己}` room 发过——B 在Web拒绝，B的手机端永远收不到通知。这是同一个模式的bug，在3个地方重复出现，不是3个独立原因。
+
+**修复**（三处都补，不只是拒绝那一处）：
+1. `call:response`（约203行后）：接听/拒绝后，用 `socket.to('user_${userId}')`（注意是 `socket.to` 不是 `io.to`，见下方"避免回声"说明）复用已有的 `call:end` 事件，通知操作者自己的其他设备收起来电/通话界面，`reason` 新增 `answered_elsewhere`/`rejected_elsewhere` 两个值。
+2. `call:end`（约259行）：挂断后同样用 `socket.to('user_${userId}')` 发一份跟发给对方完全一致的 `call:end`，通知挂断者自己的其他设备。
+3. `call:request`（约154行）：新增事件 `call:outgoing`（`{to, type, callId}`），用 `socket.to('user_${userId}')` 通知呼叫方自己的其他设备"我正在用另一台设备呼叫"——此前这个场景完全没有任何通知，是新增能力不是修复已有能力。
+
+**避免回声**：三处新增全部用 `socket.to()`（Socket.IO 语义：广播给 room 内除当前 socket 外的所有连接）而不是 `io.to()`（会包含当前 socket 自己）。这个机制差异不是凭经验判断的，写了一个真实的 socket.io server + 两个真实 client 连接做过对照实验（同一 room 两个连接，`socket.to()` 触发方0次收到/另一方1次收到；`io.to()` 对照组触发方1次收到），确认 `socket.to()` 确实排除发起者自己，避免操作设备收到自己动作的回声后重复处理（比如拒绝后又触发一次拒绝逻辑）。
+
+**四端客户端改动**：`call:end`/`call:response` 复用现有事件，四端理论上不需要新增监听（客户端处理"收起来电/通话界面"的逻辑天然挂在收到 `call:end` 就执行，不区分发起方），只需要确认 `reason` 文案覆盖新增的 `answered_elsewhere`/`rejected_elsewhere`（否则会退化成通用文案，功能不受影响，只是提示语不够精确）。`call:outgoing` 是全新事件，四端都需要新增监听（Android/iOS/Web/Electron），用于让呼叫方的其他设备进入"呼叫中"状态、避免重复拨号——这部分客户端改动这次没有一并做，只完成了后端广播这一侧。
+
+**已知遗留、这次不修**（按用户要求记入待办）：`activeCalls` 是纯内存 `Map`（`call.js:32`，无 Redis/DB 镜像），进程重启会丢失全部进行中通话的状态，没有任何恢复逻辑。这次的修复解决的是"状态变了、广播覆盖面不够"，不解决"状态存储本身是单点无持久化"这个更底层的问题——后续如果要做，方向是把 `activeCalls` 迁到 Redis（多进程/重启安全），或至少在进程重启时对"标记为ongoing但早已超时"的悬空 `call_logs` 记录做一次启动时扫描清理。
+
+### 问题2：iOS 来电推送从未真正送达
+
+**根因**（`backend-v2/src/utils/push.js`）：`pushCallInvite()` 查询设备 token 用的是 `platform IN ('android','ios','ios_voip')`，唯独漏了 `ios_apns`——而 iOS 客户端注册 token 时用的 platform 实际就是 `ios_apns`（真实64位APNs token，直连APNs用）。对照同文件里 `pushToUser()`（普通消息推送）早就优先查 `ios_apns` 并直连 `api.push.apple.com`（这正是之前"锁屏收不到消息通知"那次真实修复留下的模式，`AppDelegate.swift:42-44` 注释里写明原因是 FCM→APNs 会有 third-party-auth-error），但 `pushCallInvite()` 从没跟进这个修复，来电推送因此从未真正送达过 iOS 设备（不只是没弹CallKit界面，是连普通通知横幅都没有）。
+
+**修复**：
+1. `pushCallInvite()` 的查询加上 `ios_apns`。
+2. 新增 `sendIosCallPush()`，复用 `sendIosPush()` 同款 HTTP/2 直连 `api.push.apple.com` 的逻辑（同一把 `.p8` 密钥/`getApnsVoipToken()`），payload 用 `aps.category='INCOMING_CALL'` + 顶层 `from`/`callerName`/`callId`/`callType` 字段——字段名跟 `AppDelegate.swift:89-92` 读取 `userInfo` 的字段名逐一对应（早就写好在等这几个字段，此前从未真正收到过）。
+3. `ios_voip`/`sendVoipPush()`/`VoipCallManager.swift` 里从未被调用的 CallKit 死代码这次都没动，是另一件事。
+
+**待人工验证**（代码/CI无法完成）：生产服务器 `.env` 里 `APNS_P8`/`APNS_KEY_ID`/`APNS_TEAM_ID` 三个值是否真的配置且有效，已给出不打印密钥内容的检查命令（含用现有代码同款 `require('dotenv').config()` + `crypto.createPrivateKey()` 做结构性校验）。
+
+---
+
+## 二十四、新增：AI 助手 Turn 生命周期跟踪（Codex Thread/Turn/Item 模型落地）
+
+**背景**：AI 助手（`backend-v2/src/modules/ai-assistant/assistant.service.js`）此前调用大脑（OpenClaw/Hermes）出错时只在日志里 `console.warn`，没有任何持久化记录——出问题只能翻服务器日志，无法按会话/时间统计成功率、耗时、token 消耗，也查不出历史上某次失败的具体原因。这次给"一次用户输入 → 一轮 AI 处理"这个过程补上结构化的生命周期记录。
+
+**改动**：
+1. `backend-v2/src/db/schema.js` 新增 `ai_turns` 表：`id`/`conversation_id`/`bot_id`/`status`（`started`/`completed`/`failed`）/`input_preview`/`output_preview`（各截 200/300 字，避免整段对话内容膨胀表体积）/`token_usage`/`duration_ms`/`error`/`created_at`/`completed_at`，加 `(conversation_id, created_at)` 索引供按会话查历史。
+2. `askAI()` 返回值从纯文本 `string` 改成 `{content, tokens}`（`tokens` 取 `data.usage.total_tokens`，取不到则记 0），供上层记录 token 用量。
+3. `doReply()` 包一层 try/catch：处理开始前先插入 `status='started'` 的 turn 行；正常返回后 `UPDATE` 为 `completed` 并写入耗时/token/回复预览；抛错（大脑超时、返回错误文本等）则 `UPDATE` 为 `failed` 并写入截断后的错误信息，再重新抛出（不改变原有的降级行为，调用方该怎么处理错误还是怎么处理）。
+4. 所有 `ai_turns` 的写入都用 `.catch(() => {})` 静默吞掉——这张表是**观测用**的旁路记录，它自身写失败绝不能影响主流程（AI 回复本身能不能发出去）。
+
+**为什么现在做**：纯粹是可观测性补课，不改变 AI 回复的用户可见行为（`replyMsg`/广播逻辑完全没动），风险面很小；`ai_turns` 表是全新表，不影响任何现有查询。
+
+**已验证**：`node --check` 语法通过；全量测试 `npm test`（69 suites / 561 passed / 1 skipped）跑通，无回归。
+
+**待办（这次没做）**：
+- 没有任何地方读取/展示 `ai_turns` 数据——目前只写不读，价值要等后续接一个查询接口或统计脚本才能兑现。
+- 没有清理策略，`ai_turns` 会无限增长，量大后需要加 TTL 清理或归档（参考 `message_reactions` 等表目前也没有这类清理，是全仓一致的已知缺口，不是这次新引入的）。
+
+同批次还补了 6 个核心流程回归测试（`core-idor`/`core-friend-relation`/`core-moments-like`/`core-moments-post`/`core-register-login`/`core-send-message`，覆盖越权访问/好友关系/朋友圈点赞发布/注册登录/发消息）和 1 个 1000 并发 WebSocket 压测脚本（`test/ws-load-test.js`，独立子进程+专用SQLite文件+专用端口3099，全程不碰生产 `wechat.db`/生产端口），均已跑通，随本次一并提交。

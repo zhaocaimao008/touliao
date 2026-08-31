@@ -66,6 +66,23 @@ function applySchema(db) {
       FOREIGN KEY (sender_id) REFERENCES users(id)
     );
 
+    -- AI 助手 turn 生命周期（Codex Thread/Turn/Item 模型落地）
+    -- 一次用户输入 → 一轮 AI 处理 = 一条 turn；status: started/completed/failed
+    CREATE TABLE IF NOT EXISTS ai_turns (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      bot_id TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'started',
+      input_preview TEXT DEFAULT '',
+      output_preview TEXT DEFAULT '',
+      token_usage INTEGER DEFAULT 0,
+      duration_ms INTEGER DEFAULT 0,
+      error TEXT DEFAULT '',
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      completed_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_ai_turns_conv ON ai_turns(conversation_id, created_at);
+
     CREATE TABLE IF NOT EXISTS message_reactions (
       message_id TEXT NOT NULL,
       user_id TEXT NOT NULL,
