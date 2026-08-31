@@ -159,11 +159,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      # DEPLOY_SSH_KEY/DEPLOY_USER/DEPLOY_SERVER_HOST 这三个 secret 从未在本仓库配置过，
+      # DEPLOY_SSH_KEY/DEPLOY_USER/DEPLOY_SERVER_HOST 这三个 secret 长期未配置过，
       # 此前用 continue-on-error:true 吞掉必然失败的 SSH 连接，导致这个 job 长期显示
       # 绿色"成功"，但实际从未真正部署过一次（见 AUDIT.md 十七节）。改为显式检测：
       # 没配 secret 就直接跳过后面的部署步骤并打一条明确的 ::warning::，不再假装部署发生了；
-      # 一旦哪天真的配上了 secret，去掉 continue-on-error 后部署失败也会如实标红，不再被吞掉。
+      # 2026-08-30 14:52 UTC 三个 secret 已配置上，但 DEPLOY_PATH 当时写的是
+      # `/root/投聊/backend-v2`（中文路径），服务器上真实生产目录其实是 `/root/touliao`，
+      # 导致"首次部署"引导步骤在 `mv .git` 那步必然失败（目标父目录不存在）——
+      # 从配置secret那一刻起每次触发都是稳定的假红灯，从未真正碰过生产。
+      # 2026-08-31 修正 DEPLOY_PATH 对齐真实生产目录，并在 reset --hard 前加了
+      # stash 保护，避免这条流水线跑起来后冲掉运维直接在服务器本机做的手动改动
+      # （touliao 目前仍是"允许直改生产、事后补commit"的模式，见 AUDIT.md）。
       - name: 检查部署 secret 是否已配置
         id: check-secrets
         env:
@@ -191,7 +197,7 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          DEPLOY_PATH: /root/投聊/backend-v2
+          DEPLOY_PATH: /root/touliao/backend-v2
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # ⚠ 用单引号 heredoc 保持脚本字面量；把变量通过远端 bash -s 的命令行 env 传进去
@@ -199,7 +205,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key ${DEPLOY_USER}@${DEPLOY_HOST} \
             "DEPLOY_PATH='${DEPLOY_PATH}' GH_TOKEN='${GH_TOKEN}' bash -s" << 'DEPLOY_SCRIPT'
           set -e
-          REPO_ROOT="$(dirname "$DEPLOY_PATH")"   # git 仓库根 = backend-v2 的上一级（/root/投聊）
+          REPO_ROOT="$(dirname "$DEPLOY_PATH")"   # git 仓库根 = backend-v2 的上一级（/root/touliao）
           AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/zhaocaimao008/touliao.git"
           CLEAN_URL="https://github.com/zhaocaimao008/touliao.git"
 
@@ -220,6 +226,15 @@ jobs:
           # 记录部署前的 commit，供健康检查失败时自动回滚（生产自愈，避免坏版本长期在线）
           PREV_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo '')"
           echo "部署前版本: ${PREV_SHA:-<无（首次部署）>}"
+          # touliao 允许运维直接在服务器本机改代码、事后再补 commit——reset --hard 会
+          # 无声冲掉这类还没提交的直改。部署前先 stash（含未跟踪文件）保住这些改动，
+          # 而不是让它们静默消失；stash 不 pop（避免和新拉的代码冲突），只打印出来提醒人工处理。
+          if [ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]; then
+            echo "⚠️ 检测到服务器上有未提交的直改，先 stash 保护再部署："
+            git -C "$REPO_ROOT" status --porcelain
+            git -C "$REPO_ROOT" stash push -u -m "auto-deploy-protect-$(date -u +%Y%m%dT%H%M%SZ)"
+            echo "已 stash，部署完成后请手动 git stash list / git stash show -p 检查是否需要合并回来"
+          fi
           # 用带 token 的 URL 显式 fetch（token 不落盘到 remote 配置）
           git -C "$REPO_ROOT" fetch "$AUTH_URL" main
           git -C "$REPO_ROOT" reset --hard FETCH_HEAD
