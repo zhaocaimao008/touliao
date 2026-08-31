@@ -96,6 +96,9 @@ struct CallHistoryView: View {
         case "canceled": return "已取消"
         case "rejected": return "已拒绝"
         case "ongoing": return "通话中"
+        // 服务端进程重启时，重启前还没结束的通话记录会被启动时的收尾逻辑
+        // （backend-v2/src/realtime/callReconciler.js）统一标成这个状态。
+        case "interrupted": return "服务重启，通话中断"
         default: return "已接通"
         }
     }

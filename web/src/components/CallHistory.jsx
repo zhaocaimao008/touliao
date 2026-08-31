@@ -21,11 +21,15 @@ function fmtDuration(s) {
 
 // 状态 → 中文 + 颜色
 const STATUS = {
-  completed: { label: '已接通', color: 'var(--text-tertiary)' },
-  missed:    { label: '未接听', color: 'var(--color-badge)' },
-  canceled:  { label: '已取消', color: 'var(--color-badge)' },
-  rejected:  { label: '已拒绝', color: 'var(--color-badge)' },
-  ongoing:   { label: '通话中', color: 'var(--green)' },
+  completed:   { label: '已接通', color: 'var(--text-tertiary)' },
+  missed:      { label: '未接听', color: 'var(--color-badge)' },
+  canceled:    { label: '已取消', color: 'var(--color-badge)' },
+  rejected:    { label: '已拒绝', color: 'var(--color-badge)' },
+  ongoing:     { label: '通话中', color: 'var(--green)' },
+  // 服务端进程重启时，重启前还没结束的 1对1 通话记录会被启动时的收尾逻辑
+  // （callReconciler.js）统一标成这个状态——否则会永久停在 'ongoing'，
+  // 列表里显示"通话中"却其实早就断了，具有误导性。
+  interrupted: { label: '服务重启，通话中断', color: 'var(--color-badge)' },
 };
 
 export default function CallHistory({ onOpenChat }) {

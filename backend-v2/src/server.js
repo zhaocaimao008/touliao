@@ -24,6 +24,7 @@ async function startServer() {
   const setupRealtime = require('./realtime');
   const { shutdown: shutdownWriter } = require('./db/writer');
   const { db } = require('./db/connection');
+  const { reconcileInterruptedCalls } = require('./realtime/callReconciler');
 
   // 初始化 Redis 缓存
   const { redisCache } = require('./integrations/redisCache');
@@ -156,6 +157,12 @@ async function startServer() {
   // 让 HTTP 路由层能拿到 io 与在线用户集合
   app.set('io', io);
   app.set('onlineUsers', new Set());
+
+  // 重启收尾：数据库已初始化、Socket.IO 还没开始接受连接，此时把上次进程留下的
+  // 悬挂 'ongoing' 通话记录收尾成明确终态（见 callReconciler.js 顶部注释）。
+  await reconcileInterruptedCalls(Math.floor(Date.now() / 1000)).catch(err => {
+    console.warn('[callReconciler] 重启收尾失败，将降级运行（悬挂记录可能仍显示"通话中"）:', err.message);
+  });
 
   setupRealtime(io, app);
 
