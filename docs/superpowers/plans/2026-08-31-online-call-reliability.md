@@ -260,46 +260,15 @@ test('startup closes one-to-one and group logs left active by restart', async ()
 - Consumes: Task 2 call request ack and callId-bearing server events.
 - Produces: `matchesCall(event, activeCall)`, callId-bearing client emits, incoming/outgoing synchronized state.
 
-- [ ] **Step 1: Write failing pure Web signaling tests**
+- [x] **Step 1: Write failing pure Web signaling tests** — see `web/src/utils/callSignaling.test.js` (9 tests, broader than the 2 sketched here: also covers peer-mismatch, legacy no-callId compatibility on either/both sides, null-safety on `matchesCall`, and no-mutation on `withCallId`).
 
-```js
-import { matchesCall, withCallId } from './callSignaling';
+- [x] **Step 2: Run Web test** — not independently re-verified RED-before-GREEN (same caveat as Tasks 2/3/4 Step 2).
 
-it('rejects an event from the same peer with an old callId', () => {
-  expect(matchesCall({ from: 'bob', callId: 'old' }, { remoteId: 'bob', callId: 'new' })).toBe(false);
-});
+- [x] **Step 3: Implement pure helpers and update Web state flow** — `ChatWindow.startCall` passes an ack callback and only calls `onStartCall` with a callId once acked; also added a `call:error` listener (correlated via `pendingCallRef`) since the actual `call.js` handler does not call `ack` on failure, only emits a separate `call:error{code,callId}` — a real gap not implied by this step's own wording. `Home` stores the incoming callId on `activeCall` and tracks `busyElsewhereCallId` via `call:outgoing`/`call:end` so a call this tab just placed also counts toward the busy check. `CallModal` wraps all 7 outgoing emits (`call:end` x2, `call:ice`, `call:answer`, `call:response` x2, `call:offer`) with `withCallId`, and all 5 listeners (`onResponse`, `onOffer`, `onAnswer`, `onIce`, `onEnd`) now guard with `matchesCall` — closing a pre-existing gap where `onOffer`/`onAnswer`/`onIce` had no peer-identity check at all.
 
-it('adds callId to post-request payloads', () => {
-  expect(withCallId({ to: 'bob' }, 'c1')).toEqual({ to: 'bob', callId: 'c1' });
-});
-```
+- [x] **Step 4: Run Web unit tests, lint, and build** — `npx vitest run`: 10 files, 92/92 tests pass. `npm run lint`: 0 errors, 0 warnings (fixed one real `react-hooks/exhaustive-deps` warning via `useMemo` on `activeCallInfo`, not suppressed). `npm run build`: production build succeeds; `dist/` inspected then removed, not committed.
 
-- [ ] **Step 2: Run Web test and confirm RED**
-
-Run: `cd web && npx vitest run src/utils/callSignaling.test.js --config vitest.config.mjs`
-
-Expected: FAIL because helper does not exist.
-
-- [ ] **Step 3: Implement pure helpers and update Web state flow**
-
-`ChatWindow.startCall` supplies an ack callback and opens the modal only with a non-empty callId; ack error closes the pending state. `Home` preserves incoming callId and handles `call:outgoing` without acquiring media. `CallModal` includes callId on response/offer/answer/ice/end/resume and ignores events whose callId differs.
-
-- [ ] **Step 4: Run Web unit tests, lint, and build**
-
-Run: `cd web && npm test`
-
-Run: `cd web && npm run lint`
-
-Run: `cd web && npm run build`
-
-Expected: all exit 0; production bundle builds without changing generated `dist` in the commit.
-
-- [ ] **Step 5: Commit Web signaling**
-
-```bash
-git add web/src/utils/callSignaling.js web/src/utils/callSignaling.test.js web/src/components/ChatWindow.jsx web/src/pages/Home.jsx web/src/components/CallModal.jsx
-git commit -m "fix: bind web calls to server call ids"
-```
+- [x] **Step 5: Commit Web signaling** — commit `22d3ba3` on `fix/online-call-reliability` (not pushed).
 
 ### Task 6: Android callId contract
 
