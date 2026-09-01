@@ -2193,3 +2193,55 @@ Module path: resources/app.asar/src/main.js
 | 改动方案(先不做):Web `CallHistory.jsx` 监听 socket `call:end` 事件(或 Home 层在通话弹窗关闭时 bump `callsRefreshKey`)触发重新拉取;Android/iOS 在 CallManager 结束回调里刷新 ViewModel(可随移动端发版批次)。 |
 
 同批次还补了 6 个核心流程回归测试（`core-idor`/`core-friend-relation`/`core-moments-like`/`core-moments-post`/`core-register-login`/`core-send-message`，覆盖越权访问/好友关系/朋友圈点赞发布/注册登录/发消息）和 1 个 1000 并发 WebSocket 压测脚本（`test/ws-load-test.js`，独立子进程+专用SQLite文件+专用端口3099，全程不碰生产 `wechat.db`/生产端口），均已跑通，随本次一并提交。
+
+---
+
+## 二十五、通话模块完整收尾（2026-09-01）：E2E 测试 + 推送防护体系 + 破坏验证
+
+### 1. 本轮涉及的修复项汇总（含 commit）
+
+| 修复项 | 根因一句话 | commit |
+|---|---|---|
+| iOS 来电推送 platform 漏项 | `pushCallInvite` 查询 `IN ('android','ios','ios_voip')` 漏 `ios_apns`——而 iOS 客户端注册的 platform 实际就是 `ios_apns`，来电推送从未送达（锁屏连普通横幅都没有） | `4b71faa` |
+| 个推来电通道缺失 | `pushCallInvite` 只查 FCM/APNs，无 `getui` 分支——国产 ROM 无 GMS 锁屏收不到来电 | `2cb5212` |
+| 通话状态多端不同步 | `call:response`/`call:end`/`call:request` 三处都只广播给**对方**，从没往操作者自己的 `user_` room 发——B 在 Web 拒绝，B 的手机端永远不知道（同模式 bug 出现 3 处） | `23ad2b0` |
+| 四端铃声失效 | Web 无被叫铃声/autoplay 被拦；Android 回铃音走 `STREAM_VOICE_CALL` 未先切音频模式；iOS 播放受静音键影响。修复：Web `callTones` 三音合成 + 手势栈内 `prewarmAudio()`；Android 先 `MODE_IN_COMMUNICATION` 再回铃；iOS 播放前配 `.playAndRecord` | `1817c42`（Web）+ `e1e4ad7`（移动端，随 8.1.8 上线） |
+| 聊天窗口通话记录气泡 | 通话结束只落库不写消息，聊天窗口看不到通话记录。修复：落 `call_logs` 同时写系统消息（`b9fa8a2`），老客户端兼容——content 存人话文本、结构化 JSON 放 `file_url`（C 方案，`696ed3e`） | `b9fa8a2` + `696ed3e`（随 8.1.8 上线） |
+| 通话历史页刷新 | **未实施，仍挂待办**（`900e3e4` 只记不改）：Web/Android/iOS 历史页只在挂载/进入时拉取，停留在历史页时通话结束列表不自动刷新 | —（待办） |
+
+### 2. 新增防护：通话 E2E + 推送通道三层覆盖检查（`eee8cdd`）
+
+前两轮"platform 漏项"事故（漏 `ios_apns`、漏 `getui`）暴露：**没有测试能在编码阶段拦住查询漏项**。本轮新增 17 个测试用例：
+
+- **`test/call-e2e.test.js`（9 用例）**：真 socket 全链路（`app.listen(0)` + socket.io-client 双端连接）——呼叫→响铃→接听/拒绝→挂断→超时→断线重连→重拨覆盖，含多端双连接广播断言；`call_logs` 落库状态与消息文案逐条断言。
+- **`test/push-distribution.test.js`（8 用例）**：推送通道三层覆盖检查——①运行时断言每个 platform 的发送器都被调用（漏查=零调用=红）②`DB DISTINCT platform ⊆ KNOWN_PLATFORMS` 子集守卫（新 platform 进 DB 即红）③静态扫描 `push.js` 的 SQL platform 字面量 ⊆ 声明全集。
+- 测试确定性基建：`FORCE_SYNC_WRITES=1` 同步写模式（jest 下 worker flush 延迟不稳定已实证）+ `CALL_TIMEOUT_MS`/`CALL_COOLDOWN_MS`/`CALL_RECONNECT_GRACE_MS` 环境变量注入（生产默认 120s/5s/15s 不变）。
+
+### 3. 破坏验证结论（证明测试真能拦住 bug，全部实测）
+
+| 破坏操作 | 结果 | 拦截点 |
+|---|---|---|
+| 删 `pushCallInvite` 的 `'ios_apns'` | 🔴 5 failed / 3 passed | 运行时零发送断言 + 守卫2 + 守卫3 静态扫描 |
+| 删 `'getui'` | 🔴 4 failed / 4 passed | 兜底推送 + 未配置直连 + 守卫2/3 |
+| 插入 `platform='huawei'` token | 🔴 守卫1 红（提示「发现未声明的新 platform 值，请确认所有 pushXxx 已覆盖」） | DB 子集守卫 |
+| 全部恢复 | ✅ 17/17 全绿 + 全量 82 suites / 668 pass | — |
+
+**破坏验证抓到真实测试缺陷**：守卫1 原实现 `ALL_PLATFORMS = DB DISTINCT ∪ KNOWN`——新 platform 进 DB 会被**自动吸收进声明**，守卫恒绿、永远拦不住（`691fbb3` 修正为纯声明 + 断言 DB ⊆ KNOWN）。
+
+### 4. 仍挂待办
+
+| 待办 | 说明 |
+|---|---|
+| 群通话历史接入 | `group_call_logs` 已落库但四端历史页只查 `call_logs`，群通话记录永远不展示（方案见上，`6603058` 只记不改） |
+| `activeCalls` 纯内存无持久化 | 进程重启丢失全部进行中通话状态，无恢复逻辑；方向：迁 Redis 或启动时扫描清理悬空 `call_logs` |
+| 通话历史页刷新 | 停留在历史页时通话结束列表不自动刷新（`900e3e4`，方案已记录） |
+| Web 被叫无手势时铃声受 autoplay 限制 | 被叫无用户手势触发时 AudioContext 被浏览器暂停，来电铃可能不响；当前有手势栈预热兜底，冷启动纯被叫场景仍受限 |
+
+### 5. 测试规范：新增测试后必须做破坏验证
+
+> **新增/修改测试后，必须做一次故意破坏验证**：临时删除被测代码里一个关键分支（漏 platform、漏字段、短路逻辑），确认测试真的变红；恢复后确认全绿。没验证过"能变红"的测试等于没有测试——它可能恒绿（如守卫1 的并集吸收缺陷）、可能没连到被测代码、也可能断言方向反了。
+
+- 破坏对象：每个新增测试对应的**核心守卫/关键路径**至少一个。
+- 破坏方式：临时删改生产代码（git 可回退），不修改测试。
+- 验收：①破坏后测试必须红（不是恰好绿）②红的原因必须是**该守卫/断言本身**，不是环境故障 ③恢复后全绿。
+- 动机：守卫1 恒绿教训——`ALL_PLATFORMS` 从 DB 自动发现新值，DB 子集断言形同虚设，是破坏验证（注入 `huawei`）才暴露的。**恒绿的测试比没有测试更危险**（给虚假信心）。
