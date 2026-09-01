@@ -8,6 +8,8 @@ final class ContactsViewModel: ObservableObject {
     @Published var loading = false
     @Published var requestCount = 0
     @Published var error: String?
+    @Published var aiBots: [AiAssistant] = [] // AI 助手入口列表（/api/config）
+    @Published var showAiBots = false         // 通讯录「AI 助手」展开态
 
     private let repo = ContactRepository.shared
     private var cancellables = Set<AnyCancellable>()
@@ -35,6 +37,18 @@ final class ContactsViewModel: ObservableObject {
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载联系人失败" }
         loading = false
         requestCount = (try? await repo.receivedRequests().count) ?? requestCount
+        aiBots = (try? await repo.fetchAiAssistants()) ?? aiBots // 拉取失败静默保持旧值（隐藏分组）
+    }
+
+    /// 发起与 AI 助手的私聊，成功返回可用于导航的 Conversation
+    func startAiChat(_ bot: AiAssistant) async -> Conversation? {
+        do {
+            let id = try await repo.createPrivate(userId: bot.id)
+            return Conversation(id: id, type: "private", name: bot.name.isEmpty ? bot.username : bot.name)
+        } catch {
+            self.error = (error as? LocalizedError)?.errorDescription ?? "发起聊天失败"
+            return nil
+        }
     }
 
     /// 发起私聊，成功返回可用于导航的 Conversation

@@ -27,6 +27,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [handlingReq, setHandlingReq] = useState(null); // 正在处理的申请 id，防连点重复提交
   const [contactsLoaded, setContactsLoaded] = useState(false); // 首屏是否已拉过：未拉完显示骨架，避免闪「暂无联系人」
+  const [aiBots, setAiBots] = useState([]); // AI 助手入口列表（GET /api/config → features.aiAssistants）
   const listRef = useRef(null);
   const { socket } = useSocketCore();
 
@@ -44,10 +45,15 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     axios.get('/api/messages/my-groups').then(r => setGroups(Array.isArray(r.data) ? r.data : [])).catch(() => setGroups([])), []);
   const fetchLabels = useCallback(() =>
     axios.get('/api/friend-labels').then(r => setLabels(Array.isArray(r.data) ? r.data : [])).catch(() => setLabels([])), []);
+  // AI 助手入口列表：来自 /api/config（后端 .env botId 联动），拉取失败静默隐藏分组
+  const fetchAiBots = useCallback(() =>
+    axios.get('/api/config')
+      .then(r => setAiBots(Array.isArray(r.data?.features?.aiAssistants) ? r.data.features.aiAssistants : []))
+      .catch(() => setAiBots([])), []);
 
   useEffect(() => {
-    fetchContacts(); fetchRequests(); fetchSent(); fetchGroups(); fetchLabels();
-  }, [fetchContacts, fetchRequests, fetchSent, fetchGroups, fetchLabels]);
+    fetchContacts(); fetchRequests(); fetchSent(); fetchGroups(); fetchLabels(); fetchAiBots();
+  }, [fetchContacts, fetchRequests, fetchSent, fetchGroups, fetchLabels, fetchAiBots]);
 
   useEffect(() => {
     if (!socket) return;
@@ -202,6 +208,11 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               onClick={() => { fetchLabels(); setTab('labels'); }}
             />
             <EntryRow
+              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zm-12 3v-2h2v2H8zm2 4H8v-2h2v2zm2 0v-2h2v2h-2zm2-4v-2h2v2h-2zm2 4h-2v-2h2v2z"/></svg>}
+              color="var(--brand-500)" label="AI 助手" badge={aiBots.length}
+              onClick={() => setTab('ai')}
+            />
+            <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>}
               color="var(--icon-bg-filehelper)" label="文件传输助手" badge={0}
               onClick={async () => {
@@ -315,6 +326,45 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 ))}
               </>
             )}
+          </>
+        )}
+
+        {/* AI 助手 */}
+        {tab === 'ai' && (
+          <>
+            <SectionHeader title="AI 助手" onBack={() => setTab('contacts')} />
+            {aiBots.length === 0 && (
+              <div className="cl-empty" role="status">
+                <div className="cl-empty-text">暂无 AI 助手</div>
+              </div>
+            )}
+            {aiBots.map(b => (
+              <div key={b.id} className="wc-contact-item"
+                onClick={async () => {
+                  try {
+                    const { data } = await axios.post('/api/messages/conversation/private', { userId: b.id });
+                    onStartChat({ id: data.conversationId, type: 'private', name: b.name || b.username, avatar: b.avatar || '' });
+                  } catch { showToast('无法创建会话，请重试', 'error'); }
+                }}
+                role="button" tabIndex={0}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    axios.post('/api/messages/conversation/private', { userId: b.id })
+                      .then(({ data }) => onStartChat({ id: data.conversationId, type: 'private', name: b.name || b.username, avatar: b.avatar || '' }))
+                      .catch(() => showToast('无法创建会话，请重试', 'error'));
+                  }
+                }}>
+                <Avatar src={b.avatar || ''} name={b.name} size={40} className="cl-avatar-rounded" />
+                <div className="cl-contact-info">
+                  <div className="wc-contact-item-name">{b.name}</div>
+                  <div className="wc-contact-item-sub">{b.description || `投聊号: ${b.wechat_id}`}</div>
+                </div>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)">
+                  <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                </svg>
+              </div>
+            ))}
           </>
         )}
 

@@ -368,4 +368,23 @@ async function doReply(io, convId, senderId, msg, bot, images = []) {
   }
 }
 
-module.exports = { maybeReply, shouldReply, askAI, get AI_BOT_ID() { return AI_BOT_ID; }, get HERMES_BOT_ID() { return HERMES_BOT_ID; } };
+// ── Bot 列表导出（供 /api/config → 四端通讯录「AI 助手」入口）────
+// 从 BOTS 路由表 + users 表组装,与 .env botId 联动;将来加新 bot 只改后端。
+function getBotList() {
+  return BOTS.map((b) => {
+    const row = db.prepare('SELECT username, avatar, wechat_id FROM users WHERE id=?').get(b.botId);
+    return {
+      id: b.botId,
+      name: b.name,
+      username: row?.username || b.name,
+      wechat_id: row?.wechat_id || '',
+      avatar: row?.avatar || '',
+      provider: b.provider,
+      description: b.provider === 'hermes'
+        ? '由 Hermes 驱动,底层模型 DeepSeek'
+        : '由 OpenClaw 驱动,可写代码、跑任务、查资料',
+    };
+  });
+}
+
+module.exports = { maybeReply, shouldReply, askAI, getBotList, get AI_BOT_ID() { return AI_BOT_ID; }, get HERMES_BOT_ID() { return HERMES_BOT_ID; } };

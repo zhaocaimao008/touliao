@@ -39,6 +39,33 @@ struct BlockedUser: Decodable, Identifiable {
     }
 }
 
+/// AI 助手（天问/Hermes 等机器人账号，数据来自后端 GET /api/config → features.aiAssistants）
+struct AiAssistant: Decodable, Identifiable {
+    let id: String
+    var name: String = ""
+    var username: String = ""
+    var wechat_id: String = ""
+    var avatar: String = ""
+    var provider: String = ""
+    var description: String = ""
+    enum CodingKeys: String, CodingKey { case id, name, username, wechat_id, avatar, provider, description }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = (try? c.decode(String.self, forKey: .name)) ?? ""
+        username = (try? c.decode(String.self, forKey: .username)) ?? ""
+        wechat_id = (try? c.decode(String.self, forKey: .wechat_id)) ?? ""
+        avatar = (try? c.decode(String.self, forKey: .avatar)) ?? ""
+        provider = (try? c.decode(String.self, forKey: .provider)) ?? ""
+        description = (try? c.decode(String.self, forKey: .description)) ?? ""
+    }
+}
+
+private struct ConfigResponse: Decodable {
+    struct Features: Decodable { let aiAssistants: [AiAssistant]? }
+    let features: Features?
+}
+
 /// 联系人/好友/会话创建。与 Android ContactRepository 等价。
 final class ContactRepository {
     static let shared = ContactRepository()
@@ -80,9 +107,15 @@ final class ContactRepository {
     /// 创建/获取私聊会话，返回 conversationId
     func createPrivate(userId: String) async throws -> String {
         let res: CreateConversationResponse = try await api.send(
-            "api/messages/conversation/private", method: "POST", body: CreatePrivateBody(userId: userId)
-        )
+            "api/messages/conversation/private", method: "POST",
+            body: CreatePrivateBody(userId: userId))
         return res.conversationId
+    }
+
+    /// AI 助手入口列表（来自 /api/config，与后端 .env botId 联动）
+    func fetchAiAssistants() async throws -> [AiAssistant] {
+        let cfg: ConfigResponse = try await api.send("api/config")
+        return cfg.features?.aiAssistants ?? []
     }
 
     /// 创建群聊，返回 conversationId

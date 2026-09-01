@@ -1,7 +1,9 @@
 package com.touliao.app.data.repository
 
 import com.touliao.app.data.api.ContactApi
+import com.touliao.app.data.api.ConfigApi
 import com.touliao.app.data.api.MessageApi
+import com.touliao.app.data.model.AiAssistant
 import com.touliao.app.data.model.Contact
 import com.touliao.app.data.model.CreateGroupBody
 import com.touliao.app.data.model.CreatePrivateBody
@@ -17,6 +19,7 @@ import javax.inject.Singleton
 class ContactRepository @Inject constructor(
     private val contactApi: ContactApi,
     private val messageApi: MessageApi,
+    private val configApi: ConfigApi,
     socketManager: com.touliao.app.core.realtime.SocketManager,
 ) {
     /** 好友申请相关实时事件（新申请/被通过） */
@@ -55,6 +58,9 @@ class ContactRepository @Inject constructor(
     /** 创建/获取私聊会话，返回 conversationId */
     suspend fun createPrivate(userId: String): String =
         messageApi.createPrivate(CreatePrivateBody(userId)).conversationId
+
+    /** AI 助手入口列表（来自 /api/config，与后端 .env botId 联动） */
+    suspend fun fetchAiAssistants(): List<AiAssistant> = configApi.getConfig().features.aiAssistants
 
     /** 创建群聊，返回 conversationId */
     suspend fun createGroup(name: String, memberIds: List<String>): String =

@@ -356,7 +356,13 @@ function getFeatures() {
     groupVideoCall: get('feature_group_video_call') !== 'off',
     changePassword: get('feature_change_password') !== 'off',
     loginCaptcha: get('feature_login_captcha') === 'on',
+    // AI 助手入口列表（四端通讯录固定分组;数据来自 .env botId 绑定的机器人账号）
+    aiAssistants: getBotList(),
   };
+}
+function getBotList() {
+  const { getBotList: getAiBots } = require('../ai-assistant/assistant.service');
+  return getAiBots();
 }
 function setFeatures({ moments, collect, inviteRequired, groupVoiceCall, groupVideoCall, changePassword, loginCaptcha }) {
   const set = (k, on) => db.prepare(`

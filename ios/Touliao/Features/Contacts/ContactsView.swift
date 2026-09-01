@@ -54,6 +54,35 @@ struct ContactsView: View {
                         Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
                     }
                 }
+                Button(action: { vm.showAiBots.toggle() }) {
+                    HStack {
+                        Text(vm.showAiBots ? "AI 助手 (\\(vm.aiBots.count))" : "AI 助手").foregroundColor(.primary)
+                        Spacer()
+                        Image(systemName: vm.showAiBots ? "chevron.up" : "chevron.right")
+                            .foregroundColor(.vxinTextSecondary).font(.caption)
+                    }
+                }
+                if vm.showAiBots {
+                    if vm.aiBots.isEmpty {
+                        Text("暂无 AI 助手").font(.footnote).foregroundColor(.vxinTextSecondary)
+                    } else {
+                        ForEach(vm.aiBots) { bot in
+                            Button { Task { if let conv = await vm.startAiChat(bot) { onStartChat(conv) } } } label: {
+                                HStack(spacing: 12) {
+                                    InitialAvatar(name: bot.name.isEmpty ? "?" : bot.name, size: 40)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(bot.name.isEmpty ? bot.username : bot.name).foregroundColor(.primary)
+                                        if !bot.description.isEmpty {
+                                            Text(bot.description).font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Section("联系人") {

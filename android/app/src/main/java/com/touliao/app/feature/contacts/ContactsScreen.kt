@@ -132,6 +132,51 @@ fun ContactsScreen(
                     Text("›", color = VxinTextSecondary)
                 }
                 HorizontalDivider()
+                // AI 助手入口（固定分组；bot 列表来自后端 /api/config）
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = viewModel::toggleAiBots).padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        if (state.showAiBots) "AI 助手 (${state.aiBots.size})" else "AI 助手",
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(if (state.showAiBots) "˄" else "›", color = VxinTextSecondary)
+                }
+                HorizontalDivider()
+                if (state.showAiBots) {
+                    if (state.aiBots.isEmpty()) {
+                        Text("暂无 AI 助手", color = VxinTextSecondary, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+                    } else {
+                        state.aiBots.forEach { bot ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = { viewModel.startAiChat(bot) })
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                InitialAvatar(name = bot.name.ifBlank { "?" }, size = 40.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(bot.name.ifBlank { bot.username }, style = MaterialTheme.typography.bodyLarge)
+                                    if (bot.description.isNotBlank()) {
+                                        Text(
+                                            bot.description,
+                                            color = VxinTextSecondary,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                                Text("›", color = VxinTextSecondary)
+                            }
+                        }
+                    }
+                    HorizontalDivider()
+                }
 
                 when {
                     state.loading && state.contacts.isEmpty() ->

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.touliao.app.core.network.toUserMessage
 import com.touliao.app.core.util.MediaUrlResolver
+import com.touliao.app.data.model.AiAssistant
 import com.touliao.app.data.model.Contact
 import com.touliao.app.data.repository.ContactRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,6 +24,8 @@ data class ContactsUiState(
     val onlineIds: Set<String> = emptySet(),
     val requestCount: Int = 0,
     val error: String? = null,
+    val aiBots: List<AiAssistant> = emptyList(), // AI 助手入口列表（/api/config）
+    val showAiBots: Boolean = false,             // 通讯录「AI 助手」展开态
 )
 
 @HiltViewModel
@@ -62,6 +65,9 @@ class ContactsViewModel @Inject constructor(
                 .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载联系人失败")) } }
             runCatching { contactRepository.receivedRequests().size }
                 .onSuccess { n -> _uiState.update { it.copy(requestCount = n) } }
+            // AI 助手列表：拉取失败静默保持空（隐藏分组）
+            runCatching { contactRepository.fetchAiAssistants() }
+                .onSuccess { bots -> _uiState.update { it.copy(aiBots = bots) } }
         }
     }
 
@@ -69,6 +75,18 @@ class ContactsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { contactRepository.createPrivate(contact.id) }
                 .onSuccess { convId -> _openChat.value = ConversationTarget(convId, contact.displayName, contact.id) }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("发起聊天失败")) } }
+        }
+    }
+
+    /** 展开/收起 AI 助手列表 */
+    fun toggleAiBots() = _uiState.update { it.copy(showAiBots = !it.showAiBots) }
+
+    /** 点击 AI 助手卡片 → 打开与 bot 的私聊 */
+    fun startAiChat(bot: AiAssistant) {
+        viewModelScope.launch {
+            runCatching { contactRepository.createPrivate(bot.id) }
+                .onSuccess { convId -> _openChat.value = ConversationTarget(convId, bot.name.ifBlank { bot.username }, bot.id) }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("发起聊天失败")) } }
         }
     }
