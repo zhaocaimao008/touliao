@@ -25,22 +25,22 @@ describe('图形验证码', () => {
     expect(res.body.svgDataUrl).toMatch(/^data:image\/svg\+xml;base64,/);
   });
 
-  test('verify()：错误文本失败', () => {
-    const { captchaId } = captchaUtil.generate();
-    expect(captchaUtil.verify(captchaId, 'definitely-wrong')).toBe(false);
+  test('verify()：错误文本失败', async () => {
+    const { captchaId } = await captchaUtil.generate();
+    expect(await captchaUtil.verify(captchaId, 'definitely-wrong')).toBe(false);
   });
 
-  test('verify()：正确文本（不分大小写）第一次通过', () => {
-    const { captchaId } = captchaUtil.generate();
-    const text = captchaUtil._peekTextForTests(captchaId);
-    expect(captchaUtil.verify(captchaId, text.toUpperCase())).toBe(true);
+  test('verify()：正确文本（不分大小写）第一次通过', async () => {
+    const { captchaId } = await captchaUtil.generate();
+    const text = await captchaUtil._peekTextForTests(captchaId);
+    expect(await captchaUtil.verify(captchaId, text.toUpperCase())).toBe(true);
   });
 
-  test('verify()：一次性核销——验证过一次后，同一 captchaId 再验（即便文本正确）也失败', () => {
-    const { captchaId } = captchaUtil.generate();
-    const text = captchaUtil._peekTextForTests(captchaId);
-    expect(captchaUtil.verify(captchaId, text)).toBe(true);
-    expect(captchaUtil.verify(captchaId, text)).toBe(false);
+  test('verify()：一次性核销——验证过一次后，同一 captchaId 再验（即便文本正确）也失败', async () => {
+    const { captchaId } = await captchaUtil.generate();
+    const text = await captchaUtil._peekTextForTests(captchaId);
+    expect(await captchaUtil.verify(captchaId, text)).toBe(true);
+    expect(await captchaUtil.verify(captchaId, text)).toBe(false);
   });
 
   test('开关关闭（默认）：登录不带验证码字段也能成功', async () => {
@@ -62,7 +62,7 @@ describe('图形验证码', () => {
   test('开关开启：登录带错误验证码 → 400，即便密码正确也不放行', async () => {
     setLoginCaptchaRequired(true);
     const u = await makeUser({ username: 'cap_on_wrong' });
-    const { captchaId } = captchaUtil.generate();
+    const { captchaId } = await captchaUtil.generate();
     const res = await request(app).post('/api/auth/login')
       .send({ phone: u.phone, password: u.password, captchaId, captchaText: 'zzzzz' });
     expect(res.status).toBe(400);
@@ -72,8 +72,8 @@ describe('图形验证码', () => {
   test('开关开启：登录带正确验证码 → 成功；同一验证码不能被第二次登录尝试复用', async () => {
     setLoginCaptchaRequired(true);
     const u = await makeUser({ username: 'cap_on_correct' });
-    const { captchaId } = captchaUtil.generate();
-    const text = captchaUtil._peekTextForTests(captchaId);
+    const { captchaId } = await captchaUtil.generate();
+    const text = await captchaUtil._peekTextForTests(captchaId);
 
     const ok = await request(app).post('/api/auth/login')
       .send({ phone: u.phone, password: u.password, captchaId, captchaText: text });

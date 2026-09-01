@@ -27,8 +27,8 @@ function ensureWallet(req, res) {
   return walletId;
 }
 
-exports.captcha = (req, res) => {
-  res.json(captcha.generate());
+exports.captcha = async (req, res) => {
+  res.json(await captcha.generate());
 };
 
 exports.register = asyncHandler(async (req, res) => {

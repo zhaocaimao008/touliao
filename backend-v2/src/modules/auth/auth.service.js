@@ -152,7 +152,7 @@ async function login({ phone, password, captchaId, captchaText }, req) {
   if (!phone || !password) throw badRequest('请填写手机号和密码');
   // 图形验证码：开关开启时强制校验，且必须先于密码比对完成（不能等密码验证过了才发现验证码错，
   // 那样验证码就形同虚设，暴力破解者可以完全绕过它反复试密码）。
-  if (isLoginCaptchaRequired() && !captcha.verify(captchaId, captchaText)) {
+  if (isLoginCaptchaRequired() && !(await captcha.verify(captchaId, captchaText))) {
     throw badRequest('验证码错误或已过期，请重新获取');
   }
   const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,password,banned FROM users WHERE phone=?').get(phone);
