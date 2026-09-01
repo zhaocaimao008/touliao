@@ -38,15 +38,16 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
     );
   }
 
-  // 通话系统消息：居中灰字提示（微信行为对齐）。content 为 JSON:
-  // { callId, status: completed|canceled|rejected|missed, duration, callType, callerId, text }
-  // 主叫/被叫文案不同（callerId 判定）；text 为 fallback（解析失败时降级）。
+  // 通话系统消息：居中灰字提示（微信行为对齐）。
+  // content 为人话(老客户端兜底直接显示);结构化 JSON 在 file_url:
+  // { callId, status: completed|canceled|rejected|missed, duration, callType, callerId }
+  // 主叫/被叫文案不同（callerId 判定）;解析失败时显示 content 原文。
   if (msg.type === 'call') {
     let c;
-    try { c = JSON.parse(msg.content); } catch { c = {}; }
+    try { c = JSON.parse(msg.file_url); } catch { c = {}; }
     const isCaller = String(c.callerId) === String(userId);
     const kind = c.callType === 'video' ? '视频通话' : '语音通话';
-    let text = c.text || '通话结束';
+    let text = msg.content || '通话结束';
     if (c.status === 'completed' && typeof c.duration === 'number') {
       const d = Math.max(0, c.duration);
       text = `${kind} ${d >= 60 ? `${Math.floor(d / 60)}分${d % 60 ? ` ${d % 60}秒` : ''}` : `${d} 秒`}`;

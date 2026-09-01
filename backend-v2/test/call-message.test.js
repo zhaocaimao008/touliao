@@ -24,7 +24,7 @@ function lastCallMessages() {
 }
 
 function parseContent(row) {
-  try { return JSON.parse(row.content); } catch { return null; }
+  try { return JSON.parse(row.file_url); } catch { return null; }
 }
 
 describe('通话系统消息(type=call)', () => {
@@ -52,16 +52,16 @@ describe('通话系统消息(type=call)', () => {
     expect(rows.length).toBe(1);
     expect(rows[0].conversation_id).toBe(convId);
     expect(rows[0].sender_id).toBe(a.userId);       // 主叫发出 → 双方都看到
-    const c = parseContent(rows[0]);
+    expect(rows[0].content).toBe('语音通话 30 秒'); // content = 人话(老客户端兜底直接显示)
+    const c = parseContent(rows[0]);                // 结构化 JSON 在 file_url
     expect(c.callId).toBe('call-completed-1');
     expect(c.status).toBe('completed');
     expect(c.duration).toBe(30);
     expect(c.callType).toBe('audio');
     expect(c.callerId).toBe(a.userId);
-    expect(c.text).toBe('语音通话 30 秒');           // fallback 文案
   });
 
-  test('四种 status 的 text 文案正确', async () => {
+  test('四种 status 的 content 文案正确(file_url 结构化)', async () => {
     const cases = [
       ['completed', 90, '语音通话 1 分 30 秒'],
       ['canceled', 0, '已取消'],
@@ -76,8 +76,12 @@ describe('通话系统消息(type=call)', () => {
     }
     const rows = lastCallMessages();
     expect(rows.length).toBe(4);
-    const texts = rows.map(r => parseContent(r).text);
+    // content 是人话
+    const texts = rows.map(r => r.content);
     for (const t of cases) expect(texts).toContain(t[2]);
+    // file_url 是结构化 JSON(含 callId/status/callerId)
+    const metas = rows.map(r => parseContent(r));
+    expect(metas.every(m => m && m.callId && m.status && m.callerId)).toBe(true);
   });
 
   test('幂等:同一 callId 重复写只落一条', async () => {
@@ -110,6 +114,6 @@ describe('通话系统消息(type=call)', () => {
     expect(rows[0].conversation_id).toBe(convId);
     const c = parseContent(rows[0]);
     expect(c.participants).toBe(5);
-    expect(c.text).toBe('视频通话 2 分钟');
+    expect(rows[0].content).toBe('视频通话 2 分钟');
   });
 });

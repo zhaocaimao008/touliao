@@ -30,7 +30,7 @@ const _findPrivateConv = readDb.prepare(`
 `);
 
 const _alreadyWritten = readDb.prepare(
-  "SELECT 1 FROM messages WHERE type='call' AND conversation_id=? AND content LIKE ? LIMIT 1"
+  "SELECT 1 FROM messages WHERE type='call' AND conversation_id=? AND file_url LIKE ? LIMIT 1"
 );
 
 const STATUS_TEXT = {
@@ -67,14 +67,21 @@ async function writeCallMessage(opts, io) {
       convId = found.id;
     }
 
-    // 幂等：同一通话只写一条（call:end 可能重复触发：断线+主动挂断等）
+    // 幂等：同一通话只写一条（call:end 可能重复触发：断线+主动挂断等）。
+    // callId 在 file_url 的结构化 JSON 里(content 是人话,不含 callId)
     if (_alreadyWritten.get(convId, `%${callId}%`)) return;
 
+    // content 存人话文本(老客户端 else 兜底直接显示 content,不显示 JSON);
+    // 结构化 JSON 挪到 file_url 字段(通话消息无文件,空置字段复用,已全仓排查无风险:
+    // fileRegistry 按 /uploads/ 前缀过滤、转发 FORWARDABLE_TYPES 排除 call、AI 助手仅
+    // image 类型读 file_url、老客户端仅在 image/voice/video/file 分支触碰 file_url)。
+    // content 为主叫文案:completed=「语音通话 30 秒」/canceled=「已取消」/rejected=
+    // 「对方已拒绝」/missed=「对方无应答」;被叫文案(未接来电/已拒绝)由新端按 callerId 算。
     const text = STATUS_TEXT[status]
       ? STATUS_TEXT[status](duration, callType)
       : '通话结束';
-    const content = JSON.stringify({
-      callId, status, duration, callType, callerId, text,
+    const meta = JSON.stringify({
+      callId, status, duration, callType, callerId,
       ...(participants != null ? { participants } : {}),
     });
 
@@ -83,14 +90,14 @@ async function writeCallMessage(opts, io) {
     const sequenced = await appendConversationEvent({
       conversationId: convId, eventType: 'message_created', messageId: id, actorId: callerId,
       ops: [{
-        sql: `INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,created_at,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?)`,
-        params: [id, convId, callerId, 'call', content, null, created_at, null, SEQUENCE_PARAM],
+        sql: `INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id,created_at,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        params: [id, convId, callerId, 'call', text, meta, null, created_at, null, SEQUENCE_PARAM],
       }],
     });
 
     const msg = {
-      id, conversation_id: convId, sender_id: callerId, type: 'call', content,
-      file_url: '', reply_to_id: null, deleted: 0, edited: 0, created_at,
+      id, conversation_id: convId, sender_id: callerId, type: 'call', content: text,
+      file_url: meta, reply_to_id: null, deleted: 0, edited: 0, created_at,
       senderName: presence.getProfile(callerId)?.username || '',
       senderAvatar: presence.getProfile(callerId)?.avatar || '',
       reactions: [], replyTo: null,

@@ -422,9 +422,10 @@ class ChatViewModel @Inject constructor(
         return "$actorName 拍了拍 $targetName"
     }
 
-    /** 解析 call 消息为展示文案:主叫/被叫文案不同,status: completed|canceled|rejected|missed */
+    /** 解析 call 消息为展示文案:主叫/被叫文案不同,status: completed|canceled|rejected|missed。
+     *  结构化 JSON 在 file_url(content 是人话,老客户端兜底直接显示) */
     fun callText(msg: Message): String {
-        val o = runCatching { json.parseToJsonElement(msg.content) }.getOrNull()
+        val o = runCatching { json.parseToJsonElement(msg.file_url) }.getOrNull()
         val obj = (o as? kotlinx.serialization.json.JsonObject)
         fun str(k: String) = (obj?.get(k) as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
         val status = str("status")
@@ -444,7 +445,7 @@ class ChatViewModel @Inject constructor(
             "canceled" -> if (isCaller) "已取消" else "未接来电"
             "rejected" -> if (isCaller) "对方已拒绝" else "已拒绝"
             "missed"   -> if (isCaller) "对方无应答" else "未接来电"
-            else       -> str("text").ifEmpty { "通话结束" }
+            else       -> msg.content.ifEmpty { "通话结束" }   // 解析失败:显示 content 人话
         }
     }
 
