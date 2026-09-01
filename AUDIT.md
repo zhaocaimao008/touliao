@@ -2207,7 +2207,7 @@ Module path: resources/app.asar/src/main.js
 | 通话状态多端不同步 | `call:response`/`call:end`/`call:request` 三处都只广播给**对方**，从没往操作者自己的 `user_` room 发——B 在 Web 拒绝，B 的手机端永远不知道（同模式 bug 出现 3 处） | `23ad2b0` |
 | 四端铃声失效 | Web 无被叫铃声/autoplay 被拦；Android 回铃音走 `STREAM_VOICE_CALL` 未先切音频模式；iOS 播放受静音键影响。修复：Web `callTones` 三音合成 + 手势栈内 `prewarmAudio()`；Android 先 `MODE_IN_COMMUNICATION` 再回铃；iOS 播放前配 `.playAndRecord` | `1817c42`（Web）+ `e1e4ad7`（移动端，随 8.1.8 上线） |
 | 聊天窗口通话记录气泡 | 通话结束只落库不写消息，聊天窗口看不到通话记录。修复：落 `call_logs` 同时写系统消息（`b9fa8a2`），老客户端兼容——content 存人话文本、结构化 JSON 放 `file_url`（C 方案，`696ed3e`） | `b9fa8a2` + `696ed3e`（随 8.1.8 上线） |
-| 通话历史页刷新 | **未实施，仍挂待办**（`900e3e4` 只记不改）：Web/Android/iOS 历史页只在挂载/进入时拉取，停留在历史页时通话结束列表不自动刷新 | —（待办） |
+| 通话历史页刷新 | Web/Android/iOS 历史页只在挂载/进入时拉取,停留在历史页时通话结束列表不自动刷新。修复:Web Home 层 call:end → bump refreshKey 静默重拉;Android/iOS 监听 CallManager stage 回落触发静默 refresh(`1ffe8b5`,Web 部署即生效,移动端随下版本) | `1ffe8b5` |
 
 ### 2. 新增防护：通话 E2E + 推送通道三层覆盖检查（`eee8cdd`）
 
@@ -2234,8 +2234,9 @@ Module path: resources/app.asar/src/main.js
 |---|---|
 | 群通话历史接入 | `group_call_logs` 已落库但四端历史页只查 `call_logs`，群通话记录永远不展示（方案见上，`6603058` 只记不改） |
 | `activeCalls` 纯内存无持久化 | 进程重启丢失全部进行中通话状态，无恢复逻辑；方向：迁 Redis 或启动时扫描清理悬空 `call_logs` |
-| 通话历史页刷新 | 停留在历史页时通话结束列表不自动刷新（`900e3e4`，方案已记录） |
 | Web 被叫无手势时铃声受 autoplay 限制 | 被叫无用户手势触发时 AudioContext 被浏览器暂停，来电铃可能不响；当前有手势栈预热兜底，冷启动纯被叫场景仍受限 |
+
+> 通话历史页刷新已修复（`1ffe8b5`，见上文修复项表）。CALL_* env 注入超大值上限保护见 `353c777`。
 
 ### 5. 测试规范：新增测试后必须做破坏验证
 
