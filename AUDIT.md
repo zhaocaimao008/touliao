@@ -2189,4 +2189,7 @@ Module path: resources/app.asar/src/main.js
 | 群通话结束落库 `group_call_logs`(status=ended + participant_count,`realtime/handlers/groupCall.js` endCall),但历史列表(`users.service.js` `getCallLogs`)只查 `call_logs`(1 对 1),四端历史页(Web `CallHistory.jsx` / Android `CallHistoryScreen` / iOS `CallHistoryView`)也只调 `/api/users/me/call-logs` → **群通话记录永远不展示**。 |
 | 改动方案(先不做):① `getCallLogs` 用 `UNION ALL` 合并 `group_call_logs`(映射同字段集:type/status/started_at/ended_at/duration/participants),或新增独立接口;② 四端 UI 区分展示"1 对 1 / 群通话"两种条目(群通话无 peer_id,点击不回会话,展示参与人数);③ 注意 `group_call_logs` 的 status 只有 ongoing/ended 两值,与 `call_logs` 的 missed/canceled/rejected/completed/interrupted 语义不同,前端状态映射需新增分支。 |
 
+| 通话历史页缺少事件驱动刷新:Web `CallHistory.jsx` 只在组件挂载时拉取(无 socket `call:end` 监听),Android `CallHistoryViewModel`/iOS `CallHistoryView` 只在进入页面时加载——**停留在历史页时通话结束,列表不会自动出现新记录**(实测:通话中停留在"通话记录" tab,挂断后列表不刷新,需切换 tab 或刷新页面)。 |
+| 改动方案(先不做):Web `CallHistory.jsx` 监听 socket `call:end` 事件(或 Home 层在通话弹窗关闭时 bump `callsRefreshKey`)触发重新拉取;Android/iOS 在 CallManager 结束回调里刷新 ViewModel(可随移动端发版批次)。 |
+
 同批次还补了 6 个核心流程回归测试（`core-idor`/`core-friend-relation`/`core-moments-like`/`core-moments-post`/`core-register-login`/`core-send-message`，覆盖越权访问/好友关系/朋友圈点赞发布/注册登录/发消息）和 1 个 1000 并发 WebSocket 压测脚本（`test/ws-load-test.js`，独立子进程+专用SQLite文件+专用端口3099，全程不碰生产 `wechat.db`/生产端口），均已跑通，随本次一并提交。
