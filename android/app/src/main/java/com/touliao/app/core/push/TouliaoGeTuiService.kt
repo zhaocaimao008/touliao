@@ -39,14 +39,25 @@ class TouliaoGeTuiService : GTIntentService() {
             .onFailure { Log.e(TAG, "上报 CID 失败: ${it.message}") }
     }
 
-    /** 在线透传消息：弹本地通知（App 前台由 appForeground 判定去重） */
+    /** 在线透传消息：来电走全屏来电通知，其余弹普通消息通知（App 前台由 appForeground 判定去重） */
     override fun onReceiveMessageData(context: Context, msg: GTTransmitMessage?) {
         val payload = msg?.payload?.let { String(it) } ?: return
         Log.i(TAG, "个推透传: $payload")
         if (MessageNotificationBridge.appForeground) return   // 前台交给 socket UI
         runCatching {
-            // 透传约定为 JSON: {"title":"...","body":"...","conversationId":"..."}
+            // 透传约定为 JSON: {"title":"...","body":"...","type":"...","conversationId":"..."}
+            // 来电透传(type=call，后端 pushCallToCid)：复用 FCM 同款全屏来电通知
+            // （showCallNotification 的 fullScreenIntent + 接听/拒绝动作，字段键名与 FCM data-only 对齐）
             val json = org.json.JSONObject(payload)
+            if (json.optString("type") == "call") {
+                entry(context).notificationHelper().showCallNotification(
+                    callId = json.optString("callId"),
+                    from = json.optString("from"),
+                    callerName = json.optString("callerName"),
+                    callType = json.optString("callType", "audio"),
+                )
+                return
+            }
             entry(context).notificationHelper().showMessageNotification(
                 title = json.optString("title", "新消息"),
                 body = json.optString("body", "收到一条新消息"),

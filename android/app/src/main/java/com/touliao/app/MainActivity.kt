@@ -68,7 +68,10 @@ class MainActivity : ComponentActivity() {
         NotificationHelper.ACTION_CALL_SHOW,
         NotificationHelper.ACTION_CALL_ACCEPT,
         NotificationHelper.ACTION_CALL_DECLINE -> true
-        else -> false
+        // 个推厂商通道来电通知点击：action=MAIN 但带 callId extra（后端 pushCallToCid 的
+        // intent:  S.callId/S.callFrom/S.callerName/S.callType）→ 同样视为来电意图，
+        // 重建来电界面（App 被杀场景兜底）。无 callId 的普通消息点击不受影响。
+        else -> intent?.getStringExtra(NotificationHelper.EXTRA_CALL_ID) != null
     }
 
     /**
@@ -99,10 +102,12 @@ class MainActivity : ComponentActivity() {
      */
     private fun handleCallIntent(intent: Intent?) {
         val action = intent?.action ?: return
-        if (action != NotificationHelper.ACTION_CALL_SHOW &&
-            action != NotificationHelper.ACTION_CALL_ACCEPT &&
-            action != NotificationHelper.ACTION_CALL_DECLINE
-        ) return
+        val isCallAction = action == NotificationHelper.ACTION_CALL_SHOW ||
+            action == NotificationHelper.ACTION_CALL_ACCEPT ||
+            action == NotificationHelper.ACTION_CALL_DECLINE
+        // 厂商通道点击(action=MAIN + callId extra)同样放行,走 else 分支进入来电界面
+        val hasCallIdExtra = intent.getStringExtra(NotificationHelper.EXTRA_CALL_ID) != null
+        if (!isCallAction && !hasCallIdExtra) return
 
         val from = intent.getStringExtra(NotificationHelper.EXTRA_CALL_FROM).orEmpty()
         val callType = intent.getStringExtra(NotificationHelper.EXTRA_CALL_TYPE) ?: "audio"

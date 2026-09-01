@@ -693,13 +693,25 @@ function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, call
 async function pushCallInvite({ toUserId, fromUserId, callerName, callType, callId }) {
   // 注意：ios_voip / ios_apns 都走独立 APNs 直连通路（不依赖 firebaseAdmin）；
   // 因此这里不能用 if (!firebaseAdmin) return 整体短路，否则这两条直连通路被误拦。
+  // getui（国产 ROM 无 GMS 兜底）：走独立个推透传+厂商通道，同样不依赖 firebaseAdmin。
   const deviceTokens = db.prepare(
-    "SELECT * FROM device_tokens WHERE user_id=? AND platform IN ('android','ios','ios_apns','ios_voip')"
+    "SELECT * FROM device_tokens WHERE user_id=? AND platform IN ('android','ios','ios_apns','ios_voip','getui')"
   ).all(toUserId);
   if (!deviceTokens.length) return;
   const isVideo = callType === 'video';
   const promises = [];
+  // FCM 优先（防同设备双弹）：有 android(FCM) token 的 GMS 设备，全屏来电走 FCM——
+  // 被杀场景 FCM 仍能拉起进程弹 fullScreenIntent，能力最完整；个推仅兜底无 GMS 的设备。
+  // 同一台设备同时注册 android+getui 双 token（PushManager 逻辑），若两者都推会双弹来电。
+  const hasAndroidFcm = deviceTokens.some(r => r.platform === 'android');
   for (const row of deviceTokens) {
+    if (row.platform === 'getui') {
+      if (hasAndroidFcm) continue;   // FCM 已覆盖，个推不重复推（防双弹）
+      promises.push(getuiPush.pushCallToCid(row.token, {
+        callId, from: fromUserId, callerName, callType: isVideo ? 'video' : 'audio',
+      }).catch(err => console.warn(`[push] 个推来电失败 user=${toUserId}: ${err.message}`)));
+      continue;
+    }
     if (row.platform === 'ios_voip') {
       promises.push(sendVoipPush(row.token, { callId, from: fromUserId, callerName, callType: isVideo ? 'video' : 'audio' }));
       continue;

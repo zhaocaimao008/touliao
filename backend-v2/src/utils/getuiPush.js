@@ -122,4 +122,56 @@ async function pushToCid(cid, { title, body, payload }) {
   return { status, json, cid };
 }
 
-module.exports = { isEnabled, pushToCid, getToken };
+/**
+ * 来电推送（国产 ROM 无 GMS 兜底，pushCallInvite 复用）：
+ *  - 透传 transmission type='call'：App 进程活着（前台/后台）时 onReceiveMessageData 收到，
+ *    客户端据此弹 fullScreenIntent 全屏来电（与 FCM data-only type=call 同款界面）。
+ *  - 厂商通道 ups.notification：App 被杀时由厂商系统展示来电通知，点击 intent 带
+ *    callId/callFrom/callerName/callType（与 NotificationHelper.EXTRA_CALL_* 键名对齐），
+ *    MainActivity 识别后重建来电界面（被杀场景兜底，无法全屏但保证可见+可点接听）。
+ */
+async function pushCallToCid(cid, { callId, from, callerName, callType }) {
+  const token = await getToken();
+  const t = callType === 'video' ? 'video' : 'audio';
+  const title = callerName || '来电';
+  const body = t === 'video' ? '邀请你视频通话' : '邀请你语音通话';
+  // 透传字段与 FCM data-only 对齐（type/callId/from/callerName/callType），
+  // 客户端 TouliaoGeTuiService 按同一套键名解析，可复用 showCallNotification。
+  const transmissionPayload = JSON.stringify({
+    title, body,
+    type: 'call',
+    callId: String(callId || ''),
+    from: String(from || ''),
+    callerName: String(callerName || ''),
+    callType: t,
+  });
+  const message = {
+    request_id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    settings: { ttl: 3600000 },   // 离线保留 1h（与 pushToCid 一致）
+    audience: { cid: [cid] },
+    push_message: { transmission: transmissionPayload },
+    // App 被杀场景：厂商通道通知（需个推控制台配置各厂商 Key，同 pushToCid）
+    push_channel: {
+      android: {
+        ups: {
+          notification: {
+            title, body,
+            click_type: 'intent',
+            // 键名须与 NotificationHelper.EXTRA_CALL_ID/FROM/NAME/TYPE 一致：
+            // callId / callFrom / callerName / callType（注意 from 在 intent 里是 callFrom）
+            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;S.callId=${encodeURIComponent(callId || '')};S.callFrom=${encodeURIComponent(from || '')};S.callerName=${encodeURIComponent(callerName || '')};S.callType=${t};end`,
+          },
+          options: {
+            HW: { '/message/android/notification/importance': 'HIGH' },
+            XM: { '/extra.notify_effect': '1' },
+          },
+        },
+      },
+    },
+  };
+  const { status, json } = await httpJson('POST', '/push/single/cid',
+    { token }, message);
+  return { status, json, cid };
+}
+
+module.exports = { isEnabled, pushToCid, pushCallToCid, getToken };
