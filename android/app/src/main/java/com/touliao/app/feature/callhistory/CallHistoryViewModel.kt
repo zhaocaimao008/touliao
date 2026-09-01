@@ -2,6 +2,8 @@ package com.touliao.app.feature.callhistory
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.touliao.app.core.call.CallManager
+import com.touliao.app.core.call.CallStage
 import com.touliao.app.core.network.toUserMessage
 import com.touliao.app.core.util.MediaUrlResolver
 import com.touliao.app.data.model.CallLog
@@ -27,6 +29,7 @@ class CallHistoryViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val contactRepository: ContactRepository,
     private val mediaUrlResolver: MediaUrlResolver,
+    private val callManager: CallManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CallHistoryUiState())
@@ -40,7 +43,21 @@ class CallHistoryViewModel @Inject constructor(
     fun consumeError() = _uiState.update { it.copy(error = null) }
     fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
-    init { refresh() }
+    init {
+        refresh()
+        // 通话结束事件驱动刷新:CallManager stage 从通话中(非 IDLE/ENDED)回到
+        // IDLE/ENDED 时重新拉取——停留在历史页时挂断/拒绝/超时后列表自动出现新记录
+        viewModelScope.launch {
+            var prevStage: CallStage? = null
+            callManager.state.collect { s ->
+                val cur = s.stage
+                val wasInCall = prevStage != null && prevStage != CallStage.IDLE && prevStage != CallStage.ENDED
+                val nowIdle = cur == CallStage.IDLE || cur == CallStage.ENDED
+                if (wasInCall && nowIdle) refresh(silent = true)
+                prevStage = cur
+            }
+        }
+    }
 
     fun openPeerChat(log: CallLog) {
         if (log.peer_id.isBlank()) return
@@ -51,8 +68,8 @@ class CallHistoryViewModel @Inject constructor(
         }
     }
 
-    fun refresh() {
-        _uiState.update { it.copy(loading = true, error = null) }
+    fun refresh(silent: Boolean = false) {
+        if (!silent) _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             runCatching { profileRepository.callLogs() }
                 .onSuccess { list -> _uiState.update { it.copy(loading = false, items = list) } }

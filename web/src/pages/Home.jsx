@@ -739,6 +739,9 @@ export default function Home() {
   }, [socket]);
 
   const [activeCall, setActiveCall] = useState(null);
+  // 通话记录列表刷新键:任一通话结束(call:end 覆盖挂断/拒绝/超时/断线/重拨替换)
+  // 时 +1,传给 CallHistory 静默重新拉取——修"停留在历史页时通话结束列表不自动刷新"
+  const [callsRefreshKey, setCallsRefreshKey] = useState(0);
   // 2026-08-31（Task 5）：同账号另一台设备/标签页正在呼叫别人时（call:outgoing），
   // 这个标签页记下对方的 callId——不采集媒体、不弹主叫UI（不复用 activeCall/
   // CallModal 那一整套渲染路径，那套是真参与通话的设备才用的），只用来在这个
@@ -751,6 +754,7 @@ export default function Home() {
     const onOutgoing = ({ callId }) => { if (callId) setBusyElsewhereCallId(callId); };
     const onEnd = ({ callId }) => {
       setBusyElsewhereCallId(prev => (prev && callId && prev === callId ? null : prev));
+      setCallsRefreshKey(k => k + 1); // 通话结束 → 通话记录列表刷新
     };
     socket.on('call:outgoing', onOutgoing);
     socket.on('call:end', onEnd);
@@ -835,7 +839,7 @@ export default function Home() {
       case 'moments':
         return <PanelBoundary name="动态"><Suspense fallback={<PanelSkeleton />}><Moments /></Suspense></PanelBoundary>;
       case 'calls':
-        return <PanelBoundary name="通话记录"><Suspense fallback={<PanelSkeleton />}><CallHistory onOpenChat={isMobile ? handleMobileSelectConv : handleSelectConv} /></Suspense></PanelBoundary>;
+        return <PanelBoundary name="通话记录"><Suspense fallback={<PanelSkeleton />}><CallHistory onOpenChat={isMobile ? handleMobileSelectConv : handleSelectConv} refreshKey={callsRefreshKey} /></Suspense></PanelBoundary>;
       case 'favorites':
         return <PanelBoundary name="收藏"><Suspense fallback={<PanelSkeleton />}><Collections /></Suspense></PanelBoundary>;
       case 'profile':

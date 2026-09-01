@@ -32,7 +32,7 @@ const STATUS = {
   interrupted: { label: '服务重启，通话中断', color: 'var(--color-badge)' },
 };
 
-export default function CallHistory({ onOpenChat }) {
+export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -55,6 +55,17 @@ export default function CallHistory({ onOpenChat }) {
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
+
+  // 通话结束事件驱动刷新：Home 层在收到 call:end（挂断/拒绝/超时/断线）时 bump
+  // refreshKey——停留在历史页时列表也能自动出现新记录。静默刷新，不闪 loading。
+  useEffect(() => {
+    if (refreshKey === 0) return; // 首次挂载由上方 effect 拉取
+    let alive = true;
+    axios.get('/api/users/me/call-logs')
+      .then(r => { if (alive) { setList(r.data); setLoadError(false); } })
+      .catch(() => { if (alive) setLoadError(true); });
+    return () => { alive = false; };
+  }, [refreshKey]);
 
   // 点击通话记录 → 打开对方会话（回拨/继续聊天），对齐移动端
   const openPeer = async (c) => {

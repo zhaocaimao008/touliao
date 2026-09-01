@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 @MainActor
 final class CallHistoryViewModel: ObservableObject {
@@ -8,9 +9,29 @@ final class CallHistoryViewModel: ObservableObject {
 
     private let repo = ProfileRepository.shared
     private let contactRepo = ContactRepository.shared
+    private var cancellables = Set<AnyCancellable>()
+    private var prevStage: CallStage?
 
-    func refresh() async {
-        loading = true; error = nil
+    init() {
+        // 通话结束事件驱动刷新:CallManager stage 从通话中回到 idle/ended 时
+        // 重新拉取——停留在历史页时挂断/拒绝/超时后列表自动出现新记录
+        CallManager.shared.$state
+            .map(\.stage)
+            .removeDuplicates()
+            .sink { [weak self] stage in
+                guard let self else { return }
+                let wasInCall = prevStage != nil && prevStage != .idle && prevStage != .ended
+                let nowIdle = stage == .idle || stage == .ended
+                if wasInCall && nowIdle {
+                    Task { await self.refresh(silent: true) }
+                }
+                prevStage = stage
+            }
+            .store(in: &cancellables)
+    }
+
+    func refresh(silent: Bool = false) async {
+        if !silent { loading = true; error = nil }
         do { items = try await repo.callLogs() }
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载通话记录失败" }
         loading = false
