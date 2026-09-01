@@ -332,10 +332,11 @@ final class GroupCallManager: NSObject, ObservableObject {
         entry.pc.restartIce()
         entry.iceRestartRecoverTask?.cancel()
         entry.iceRestartRecoverTask = Task { @MainActor [weak self, weak entry] in
-            try? await Task.sleep(nanoseconds: ICE_RESTART_WINDOW_MS)
+            try? await Task.sleep(nanoseconds: self?.ICE_RESTART_WINDOW_MS ?? 15_000_000_000)
             guard let self, let entry, !Task.isCancelled else { return }
-            if let st = entry.pc.iceConnectionState,
-               st == .disconnected || st == .failed {
+            // entry.pc 非可选,iceConnectionState 非 Optional,直接比较
+            let st = entry.pc.iceConnectionState
+            if st == .disconnected || st == .failed {
                 self.tryPeerRestart(peerId, entry: entry)
             } else {
                 entry.iceRestartRecoverTask = nil
