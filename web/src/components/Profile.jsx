@@ -289,7 +289,6 @@ function Wallet({ onBack }) {
   const [balance, setBalance] = useState(null);
   const [txns, setTxns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   const fetchWallet = useCallback(async (isAlive = () => true) => {
     try {
@@ -322,7 +321,6 @@ function Wallet({ onBack }) {
           <div className="profile-card-subtitle">金币余额</div>
           <div className="profile-balance-amount">{loading ? '…' : (balance ?? '—')}</div>
         </Card>
-        {error && <div className="wc-edit-error" role="alert">{error}</div>}
       </div>
       <SLabel>交易记录</SLabel>
       <div className="wc-section-pad">
