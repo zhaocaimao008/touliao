@@ -32,8 +32,12 @@ function getOrCreatePrivate(myId, otherId, { internal = false, io = null } = {})
       'SELECT 1 FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?) LIMIT 1'
     ).get(myId, otherId, otherId, myId);
     if (blocked) throw forbidden('无法与该用户创建会话');
-    if (!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(myId, otherId))
-      throw forbidden('请先添加对方为好友');
+    if (!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(myId, otherId)) {
+      // AI 助手(bot)是服务账号:免好友直接建会话,与 bot「免验证/不屏蔽陌生人」设定一致
+      // (通讯录 AI 助手入口点卡片即进会话;bot 回复有独立限流与串行锁兜底)
+      const { isBotAccount } = require('../ai-assistant/assistant.service');
+      if (!isBotAccount(otherId)) throw forbidden('请先添加对方为好友');
+    }
   }
   const existing = _findPrivate.get(myId, otherId);
   if (existing) return { conversationId: existing.id };

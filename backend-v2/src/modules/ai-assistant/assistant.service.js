@@ -370,6 +370,9 @@ async function doReply(io, convId, senderId, msg, bot, images = []) {
 
 // ── Bot 列表导出（供 /api/config → 四端通讯录「AI 助手」入口）────
 // 从 BOTS 路由表 + users 表组装,与 .env botId 联动;将来加新 bot 只改后端。
+function isBotAccount(userId) {
+  return botMap.has(userId);
+}
 function getBotList() {
   return BOTS.map((b) => {
     const row = db.prepare('SELECT username, avatar, wechat_id FROM users WHERE id=?').get(b.botId);
@@ -387,4 +390,4 @@ function getBotList() {
   });
 }
 
-module.exports = { maybeReply, shouldReply, askAI, getBotList, get AI_BOT_ID() { return AI_BOT_ID; }, get HERMES_BOT_ID() { return HERMES_BOT_ID; } };
+module.exports = { maybeReply, shouldReply, askAI, getBotList, isBotAccount, get AI_BOT_ID() { return AI_BOT_ID; }, get HERMES_BOT_ID() { return HERMES_BOT_ID; } };
