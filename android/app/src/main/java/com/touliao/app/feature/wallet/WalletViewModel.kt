@@ -18,8 +18,6 @@ data class WalletUiState(
     val balance: Int = 0,
     val transactions: List<WalletTransaction> = emptyList(),
     val error: String? = null,
-    val recharging: Boolean = false,
-    val rechargeMessage: String? = null,
 )
 
 @HiltViewModel
@@ -46,26 +44,5 @@ class WalletViewModel @Inject constructor(
         }
     }
 
-    /** 充值：amount 金币（1-100000）。成功后刷新余额与流水。 */
-    fun recharge(amount: Int) {
-        if (amount < 1 || amount > 100000) {
-            _uiState.update { it.copy(rechargeMessage = "充值金额需为 1-100000 金币") }
-            return
-        }
-        _uiState.update { it.copy(recharging = true, rechargeMessage = null) }
-        viewModelScope.launch {
-            runCatching { walletRepository.recharge(amount) }
-                .onSuccess { res ->
-                    _uiState.update {
-                        it.copy(recharging = false, balance = res.balance, rechargeMessage = "充值成功，到账 ${res.recharged} 金币")
-                    }
-                    load()
-                }
-                .onFailure { e ->
-                    _uiState.update { it.copy(recharging = false, rechargeMessage = e.toUserMessage("充值失败")) }
-                }
-        }
-    }
-
-    fun clearRechargeMessage() = _uiState.update { it.copy(rechargeMessage = null) }
+    /** 充值已下线（无支付网关，见后端 ENABLE_FAKE_RECHARGE 门控），仅保留余额与流水查询。 */
 }

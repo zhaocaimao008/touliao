@@ -289,10 +289,7 @@ function Wallet({ onBack }) {
   const [balance, setBalance] = useState(null);
   const [txns, setTxns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [recharging, setRecharging] = useState(false);
   const [error, setError] = useState('');
-  const [rechargeInput, setRechargeInput] = useState('');
-  const [showRecharge, setShowRecharge] = useState(false);
 
   const fetchWallet = useCallback(async (isAlive = () => true) => {
     try {
@@ -306,8 +303,6 @@ function Wallet({ onBack }) {
     } catch { /* 静默：余额显示为 — */ }
     if (isAlive()) setLoading(false);
   }, []);
-  // 充值后刷新用（显示转圈）
-  const load = useCallback(() => { setLoading(true); fetchWallet(); }, [fetchWallet]);
   // 初次挂载：loading 初值已为 true，effect 内不做同步 setState（fetchWallet 内 setState 均在 await 之后）
   useEffect(() => {
     let alive = true;
@@ -316,49 +311,17 @@ function Wallet({ onBack }) {
     return () => { alive = false; };
   }, [fetchWallet]);
 
-  const recharge = async () => {
-    if (recharging) return; // 防连点：回车提交会绕过 disabled 按钮，避免重复充值
-    const amt = parseInt(rechargeInput, 10);
-    if (!Number.isInteger(amt) || amt < 1 || amt > 100000) { setError('请输入 1-100000 的整数'); return; }
-    setRecharging(true); setError('');
-    try {
-      const { data } = await axios.post('/api/wallet/recharge', { amount: amt });
-      setBalance(data?.balance ?? balance);
-      setRechargeInput('');
-      setShowRecharge(false);
-      load();
-    } catch (e) { setError(e.response?.data?.error || '充值失败'); }
-    setRecharging(false);
-  };
-
   const TYPE_LABEL = { recharge: '充值', red_packet: '发红包', red_packet_refund: '红包退回', red_packet_claim: '领红包' };
   const fmtTime = (s) => { try { return new Date(s * 1000).toLocaleString(); } catch { return ''; } };
 
   return (
     <PageBg>
-      <PageHeader title="我的钱包" onBack={onBack}
-        right={<button className="wc-save-btn" onClick={() => { setShowRecharge(v => !v); setError(''); }}>{showRecharge ? '取消' : '充值'}</button>} />
+      <PageHeader title="我的钱包" onBack={onBack} />
       <div className="wc-section-pad">
         <Card className="profile-balance-card">
           <div className="profile-card-subtitle">金币余额</div>
           <div className="profile-balance-amount">{loading ? '…' : (balance ?? '—')}</div>
         </Card>
-        {showRecharge && (
-          <Card className="profile-recharge-card">
-            <input
-              type="number" min="1" max="100000"
-              placeholder="充值金币数量（1-100000）"
-              aria-label="充值金币数量"
-              value={rechargeInput}
-              onChange={e => { setRechargeInput(e.target.value); setError(''); }}
-              className="wc-server-input profile-recharge-input"
-              onKeyDown={e => e.key === 'Enter' && recharge()}
-            />
-            <button className="wc-save-btn" onClick={recharge} disabled={recharging || !rechargeInput}>
-              {recharging ? '充值中' : '确认'}
-            </button>
-          </Card>
-        )}
         {error && <div className="wc-edit-error" role="alert">{error}</div>}
       </div>
       <SLabel>交易记录</SLabel>

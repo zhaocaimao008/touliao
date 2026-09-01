@@ -1,8 +1,6 @@
 package com.touliao.app.data.repository
 
 import com.touliao.app.data.api.WalletApi
-import com.touliao.app.data.model.RechargeResponse
-import com.touliao.app.data.model.RechargeRequest
 import com.touliao.app.data.model.TransferRequest
 import com.touliao.app.data.model.TransferResponse
 import com.touliao.app.data.model.WalletTransaction
@@ -17,9 +15,7 @@ class WalletRepository @Inject constructor(
     suspend fun transactions(limit: Int = 50, offset: Int = 0): List<WalletTransaction> =
         walletApi.transactions(limit, offset)
 
-    /** 充值 amount 金币（1-100000），返回最新余额与入账数。 */
-    suspend fun recharge(amount: Int): RechargeResponse =
-        walletApi.recharge(RechargeRequest(amount))
+    /** 充值已下线（无支付网关），不再提供 recharge 调用。 */
 
     /** 好友转账 amount 金币（1-20000）到 toUserId，note 为备注（可选）。 */
     suspend fun transfer(toUserId: String, amount: Int, note: String = ""): TransferResponse =
