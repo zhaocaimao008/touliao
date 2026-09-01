@@ -24,12 +24,33 @@ const { guardPayload, guardId } = require('../guard');
 const { writeCallMessage } = require('../callMessage');
 
 // 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）。
-// 可经环境变量注入(仅测试用短值;生产不设则保持 120s,行为不变)
-const CALL_TIMEOUT_MS = Number(process.env.CALL_TIMEOUT_MS) || 120_000;
+// 可经环境变量注入(仅测试用短值;生产不设则保持 120s,行为不变)。
+// 合法性保护：NaN/负数/小于 1s 的异常值一律回退默认并告警——防生产 .env 手滑
+// 或部署环境继承把通话超时设成 0/负值(会让所有来电创建即超时)。
+function resolveTimeoutMs(raw, fallback, min) {
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < min) {
+    console.warn(`[call] CALL_TIMEOUT_MS=${JSON.stringify(raw)} 非法或过小(<${min}ms),回退默认 ${fallback}ms`);
+    return fallback;
+  }
+  return n;
+}
+const CALL_TIMEOUT_MS = resolveTimeoutMs(process.env.CALL_TIMEOUT_MS, 120_000, 1_000);
 
 // 防骚扰：同一主叫每 5s 只能发起一次通话（不影响 activeCalls 逻辑，仅拦截高频重拨）。
-// 可经环境变量注入(测试设 0 关闭;生产不设则保持 5s,行为不变)
-const CALL_COOLDOWN_MS = process.env.CALL_COOLDOWN_MS !== undefined ? Number(process.env.CALL_COOLDOWN_MS) : 5_000;
+// 可经环境变量注入(测试设 0 关闭;生产不设则保持 5s,行为不变)。
+// 合法性保护：NaN/负数回退默认——防静默失效(冷却变 NaN 会让限流永久失效)。
+function resolveCooldownMs(raw, fallback) {
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    console.warn(`[call] CALL_COOLDOWN_MS=${JSON.stringify(raw)} 非法或为负,回退默认 ${fallback}ms`);
+    return fallback;
+  }
+  return n; // 0 合法(测试关闭冷却)
+}
+const CALL_COOLDOWN_MS = resolveCooldownMs(process.env.CALL_COOLDOWN_MS, 5_000);
 const callRateMap = new Map();
 
 // 模块级共享（单进程 fork 实例）：key = `${callerId}>${calleeId}`
@@ -388,5 +409,8 @@ function registerCallHandler(io, socket, registry) {
 }
 
 registerCallHandler.handleGraceExpired = cleanupExpiredPrivateCall;
+// 供测试直接断言 env 注入/异常回退逻辑(不改动正常 handler 行为)
+registerCallHandler.resolveTimeoutMs = resolveTimeoutMs;
+registerCallHandler.resolveCooldownMs = resolveCooldownMs;
 
 module.exports = registerCallHandler;

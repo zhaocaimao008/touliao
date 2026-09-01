@@ -17,7 +17,14 @@ const prodMetrics = require('../utils/prodMetrics');
 
 // 测试专用:FORCE_SYNC_WRITES=1 时 write() 走主线程同步落库(worker 在 jest 下
 // flush 延迟不稳定,测试断言需要确定性)。生产不设此变量,行为完全不变。
-const FORCE_SYNC = process.env.FORCE_SYNC_WRITES === '1';
+// ⚠️ 保护:仅在 NODE_ENV=test 时生效——防生产 .env 手滑/部署环境变量继承
+// (pm2 restart --update-env 会把 runner 环境一并带入)意外打开同步写,
+// 同步写会阻塞事件循环、拖垮生产吞吐。
+const FORCE_SYNC =
+  process.env.NODE_ENV === 'test' && process.env.FORCE_SYNC_WRITES === '1';
+if (process.env.FORCE_SYNC_WRITES === '1' && process.env.NODE_ENV !== 'test') {
+  console.warn('[writer] FORCE_SYNC_WRITES 在非 test 环境被设置,已忽略(仅 NODE_ENV=test 时生效)');
+}
 const syncDb = FORCE_SYNC ? require('../db/connection').db : null;
 
 const WORKER_SCRIPT = path.join(__dirname, 'worker.js');
