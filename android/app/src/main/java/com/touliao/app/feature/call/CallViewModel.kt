@@ -15,6 +15,8 @@ class CallViewModel @Inject constructor(
 ) : ViewModel() {
 
     val state: StateFlow<CallState> = callManager.state
+    /** 通话音量=0:回铃音无声时提示用户调高音量 */
+    val voiceCallVolumeZero: StateFlow<Boolean> = callManager.voiceCallVolumeZero
 
     val eglBaseContext: EglBase.Context get() = callManager.eglBase.eglBaseContext
     fun localTrack(): VideoTrack? = callManager.localVideoTrack

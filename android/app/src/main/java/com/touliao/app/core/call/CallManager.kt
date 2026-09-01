@@ -154,6 +154,7 @@ class CallManager @Inject constructor(
         if (btAvailable) {
             @Suppress("DEPRECATION")
             runCatching { audioManager.startBluetoothSco() }
+                .onFailure { e -> Log.w(TAG, "启动蓝牙 SCO 失败: ${e.message}") }
             audioManager.isBluetoothScoOn = true
         } else {
             audioManager.isSpeakerphoneOn = defaultSpeaker
@@ -164,12 +165,14 @@ class CallManager @Inject constructor(
     private fun releaseAudioFocusAndRoute() {
         @Suppress("DEPRECATION")
         runCatching { audioManager.abandonAudioFocus(audioFocusListener) }
+                .onFailure { e -> Log.w(TAG, "释放音频焦点失败: ${e.message}") }
         if (bluetoothScoReceiverRegistered) {
             runCatching { context.unregisterReceiver(bluetoothScoReceiver) }
             bluetoothScoReceiverRegistered = false
         }
         @Suppress("DEPRECATION")
         runCatching { audioManager.stopBluetoothSco() }
+                .onFailure { e -> Log.w(TAG, "停止蓝牙 SCO 失败: ${e.message}") }
         audioManager.isBluetoothScoOn = false
         audioManager.isSpeakerphoneOn = false
         audioManager.mode = android.media.AudioManager.MODE_NORMAL
@@ -232,6 +235,8 @@ class CallManager @Inject constructor(
     private var remoteDescSet = false
 
     private val _state = MutableStateFlow(CallState())
+    /** 通话音量=0(回铃音无声根因之一):CallScreen 据此提示用户调高音量 */
+    val voiceCallVolumeZero = MutableStateFlow(false)
     val state: StateFlow<CallState> = _state.asStateFlow()
 
     // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表
@@ -280,6 +285,10 @@ class CallManager @Inject constructor(
         if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) return
         val attempt = ++callAttempt          // 本次呼出序号，ack 回填时校验（P2）
         _state.value = CallState(CallStage.OUTGOING, peerId, peerName, isVideo = video, isCaller = true)
+        // 先切通话音频模式(MODE_IN_COMMUNICATION + 音频焦点)再播回铃音:
+        // ToneGenerator 走 STREAM_VOICE_CALL,未切模式/无焦点时部分 ROM 不发声
+        // (此前回铃音先播、acquireAudioFocusAndRoute 在建流时才执行——顺序反了)
+        acquireAudioFocusAndRoute()
         playRingbackTone()                  // 主叫拨出→接通前循环回铃音（接通/挂断时停）
         // 本地呼出超时:60s 内未接通(对方不接/断线,后端 timeout 不向主叫发事件)则自动挂断收尾,
         // 防止界面永远卡在"呼叫中"。接通(CONNECTED)或挂断时取消(见 cleanup / IceConnectionState)。
@@ -648,6 +657,7 @@ class CallManager @Inject constructor(
             videoSource = f.createVideoSource(false)
             capturer.initialize(surfaceHelper, context, videoSource!!.capturerObserver)
             runCatching { capturer.startCapture(1280, 720, 30) }
+                .onFailure { e -> Log.w(TAG, "视频采集启动失败: ${e.message}") }
             localVideoTrack = f.createVideoTrack("video0", videoSource).apply { setEnabled(true) }
             pc.addTrack(localVideoTrack, listOf(STREAM_ID))
         }
@@ -698,6 +708,8 @@ class CallManager @Inject constructor(
         if (toneGen == null) {
             toneGen = runCatching {
                 android.media.ToneGenerator(android.media.AudioManager.STREAM_VOICE_CALL, 70)
+            }.onFailure { e ->
+                android.util.Log.w(TAG, "ToneGenerator 创建失败(回铃音将无声): ${e.message}")
             }.getOrNull()
         }
         return toneGen
@@ -706,7 +718,17 @@ class CallManager @Inject constructor(
     /** 主叫呼出→接通前的循环回铃音（“嘟——嘟——”）。 */
     @Synchronized
     private fun playRingbackTone() {
-        runCatching { ensureToneGen()?.startTone(android.media.ToneGenerator.TONE_SUP_RINGTONE) }
+        if (toneGen == null && ensureToneGen() == null) {
+            android.util.Log.w(TAG, "回铃音未播放:ToneGenerator 不可用")
+            return
+        }
+        runCatching { toneGen?.startTone(android.media.ToneGenerator.TONE_SUP_RINGTONE) }
+            .onFailure { e -> android.util.Log.w(TAG, "回铃音播放失败: ${e.message}") }
+        // 通话音量=0 时 ToneGenerator 无声——对外暴露,供 CallScreen 提示用户
+        val vol = runCatching {
+            audioManager.getStreamVolume(android.media.AudioManager.STREAM_VOICE_CALL)
+        }.getOrDefault(1)
+        voiceCallVolumeZero.value = vol == 0
     }
 
     /** 首次接通：停回铃并播一声短促接通提示音。 */
@@ -715,14 +737,18 @@ class CallManager @Inject constructor(
         val gen = ensureToneGen() ?: return
         runCatching { gen.stopTone() }
         runCatching { gen.startTone(android.media.ToneGenerator.TONE_PROP_ACK, 200) }
+            .onFailure { e -> android.util.Log.w(TAG, "接通提示音播放失败: ${e.message}") }
     }
 
     /** 停止并释放 ToneGenerator（通话结束/清理时调用；幂等）。 */
     @Synchronized
     private fun releaseTone() {
         runCatching { toneGen?.stopTone() }
+            .onFailure { e -> android.util.Log.w(TAG, "stopTone 失败: ${e.message}") }
         runCatching { toneGen?.release() }
+            .onFailure { e -> android.util.Log.w(TAG, "ToneGenerator release 失败: ${e.message}") }
         toneGen = null
+        voiceCallVolumeZero.value = false
     }
 
     private companion object {

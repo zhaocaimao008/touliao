@@ -123,7 +123,7 @@ final class CallManager: NSObject, ObservableObject {
             try session.setMode(AVAudioSession.Mode.voiceChat)
             try session.setActive(true)
             // 默认听筒（语音通话习惯），视频通话默认扬声器更符合使用场景
-            if state.isVideo { try? session.overrideOutputAudioPort(.speaker) }
+            if state.isVideo { do { try session.overrideOutputAudioPort(.speaker) } catch { print("[Call] 扬声器路由失败: \(error.localizedDescription)") } }
         } catch {
             // 配置失败不阻断通话；WebRTC 兜底默认会话
         }
@@ -135,8 +135,8 @@ final class CallManager: NSObject, ObservableObject {
     private func deactivateAudioSession() {
         let session = RTCAudioSession.sharedInstance()
         session.lockForConfiguration()
-        try? session.overrideOutputAudioPort(.none)
-        try? session.setActive(false)
+        do { try session.overrideOutputAudioPort(.none) } catch { print("[Call] 恢复默认路由失败: \(error.localizedDescription)") }
+        do { try session.setActive(false) } catch { print("[Call] 会话停用失败: \(error.localizedDescription)") }
         session.unlockForConfiguration()
         state.speakerOn = false
     }
@@ -227,7 +227,7 @@ final class CallManager: NSObject, ObservableObject {
         let enabled = !state.speakerOn
         let session = RTCAudioSession.sharedInstance()
         session.lockForConfiguration()
-        try? session.overrideOutputAudioPort(enabled ? .speaker : .none)
+        do { try session.overrideOutputAudioPort(enabled ? .speaker : .none) } catch { print("[Call] 切换输出路由失败: \(error.localizedDescription)") }
         session.unlockForConfiguration()
         state.speakerOn = enabled
     }

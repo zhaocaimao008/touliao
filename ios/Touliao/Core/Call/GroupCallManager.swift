@@ -108,7 +108,7 @@ final class GroupCallManager: NSObject, ObservableObject {
     private func deactivateAudioSession() {
         let session = RTCAudioSession.sharedInstance()
         session.lockForConfiguration()
-        try? session.setActive(false)
+        do { try session.setActive(false) } catch { print("[GroupCall] 会话停用失败: \(error.localizedDescription)") }
         session.unlockForConfiguration()
     }
 

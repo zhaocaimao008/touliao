@@ -56,6 +56,12 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     if (state.stage == CallStage.IDLE) return
 
+    // 回铃音无声提示：通话音量=0 时 ToneGenerator 不发声，用户会以为 App 坏了。
+    // 只在主叫等待期(calling)显示；音量恢复或接通后自动消失。
+    val voiceVolumeZero by viewModel.voiceCallVolumeZero.collectAsStateWithLifecycle()
+    val showVolumeHint = voiceVolumeZero &&
+        (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING)
+
     // 结束态：短暂展示后自动关闭
     LaunchedEffect(state.stage) {
         if (state.stage == CallStage.ENDED) {
@@ -85,6 +91,20 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
     LaunchedEffect(Unit) { permLauncher.launch(perms) }
 
     Box(Modifier.fillMaxSize().background(Color(0xFF1A1A1A))) {
+        // 通话音量=0 提示:回铃音无声时用户会以为 App 坏了,主动引导调音量
+        if (showVolumeHint) {
+            Box(
+                Modifier.align(Alignment.TopCenter).systemBarsPadding().padding(top = 48.dp)
+                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.tag))
+                    .background(Color(0xFF8A6D00))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    "⚠️ 通话音量已静音,请按音量键调高",
+                    color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
+                )
+            }
+        }
         val showRemoteVideo = state.isVideo && state.remoteVideoActive &&
             (state.stage == CallStage.CONNECTED)
 
