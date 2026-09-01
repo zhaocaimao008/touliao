@@ -3,9 +3,10 @@
 const crypto = require('node:crypto');
 const dgram = require('node:dgram');
 const net = require('node:net');
+const tls = require('node:tls');
 
 const MAGIC_COOKIE = 0x2112A442;
-const ATTR = { USERNAME: 0x0006, MESSAGE_INTEGRITY: 0x0008, REALM: 0x0014, NONCE: 0x0015, REQUESTED_TRANSPORT: 0x0019, XOR_RELAYED_ADDRESS: 0x0016 };
+const ATTR = { USERNAME: 0x0006, MESSAGE_INTEGRITY: 0x0008, ERROR_CODE: 0x0009, REALM: 0x0014, NONCE: 0x0015, REQUESTED_TRANSPORT: 0x0019, XOR_RELAYED_ADDRESS: 0x0016 };
 
 function padded(value) {
   const body = Buffer.isBuffer(value) ? value : Buffer.from(value);
@@ -84,62 +85,139 @@ function parseMessage(packet, expectedTransactionId) {
   if (expectedTransactionId && !tx.equals(expectedTransactionId)) return { type: 'invalid' };
   const attrs = parseAttributes(packet);
   const type = packet.readUInt16BE(0);
-  if (type === 0x0113) return { type: 'error', code: attrs.get(0x0009)?.readUInt16BE(2) || 401, realm: attrs.get(ATTR.REALM)?.toString() || '', nonce: attrs.get(ATTR.NONCE)?.toString() || '' };
+  if (type === 0x0113) {
+    // ERROR-CODE attribute value: 2 reserved bytes, class byte, number byte -> code = class*100 + number.
+    const raw = attrs.get(ATTR.ERROR_CODE);
+    let code = 401;
+    if (raw && raw.length >= 4) code = raw[2] * 100 + raw[3];
+    return { type: 'error', code, realm: attrs.get(ATTR.REALM)?.toString() || '', nonce: attrs.get(ATTR.NONCE)?.toString() || '' };
+  }
   if (type === 0x0103) return { type: 'success', relayed: attrs.has(ATTR.XOR_RELAYED_ADDRESS) };
   if (type === 0x0003) return { type: 'request', username: attrs.get(ATTR.USERNAME)?.toString() || '' };
   return { type: 'other' };
 }
 
 function parseUrl(raw) {
-  const parsed = new URL(raw);
-  if (parsed.protocol !== 'turn:') throw new Error(`unsupported TURN scheme: ${parsed.protocol}`);
-  const transport = parsed.searchParams.get('transport') || 'udp';
+  // WHATWG URL treats non-special schemes (turn:/turns:) as opaque paths and
+  // leaves hostname empty, so parse the authority manually.
+  const qIndex = raw.indexOf('?');
+  const noQuery = qIndex === -1 ? raw : raw.slice(0, qIndex);
+  const match = noQuery.match(/^(turn|turns):(?:\/\/)?([^/]+)$/i);
+  if (!match) throw new Error(`unsupported TURN URL: ${raw}`);
+  const scheme = match[1].toLowerCase();
+  const authority = match[2];
+  const lastColon = authority.lastIndexOf(':');
+  const host = lastColon === -1 ? authority : authority.slice(0, lastColon);
+  const portStr = lastColon === -1 ? '' : authority.slice(lastColon + 1);
+  const isTls = scheme === 'turns';
+  const params = qIndex === -1 ? null : new URLSearchParams(raw.slice(qIndex + 1));
+  const transport = isTls ? 'tcp' : (params?.get('transport') || 'udp');
+  if (!host) throw new Error(`unsupported TURN URL (empty host): ${raw}`);
   if (transport !== 'udp' && transport !== 'tcp') throw new Error(`unsupported TURN transport: ${transport}`);
-  return { host: parsed.hostname, port: Number(parsed.port || 3478), transport };
+  const port = Number(portStr || (isTls ? 5349 : 3478));
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error(`invalid TURN port: ${portStr || '(default)'}`);
+  return { host, port, transport, isTls };
 }
 
-function exchangeUdp(target, first, timeoutMs) {
+// Runs the full allocate exchange (unauthenticated challenge -> authenticated retry)
+// over ONE socket/connection so the source port stays constant: coturn binds the
+// nonce to the 5-tuple, so a new socket per step yields 438 Stale Nonce.
+function runAllocate(target, username, credential, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const socket = dgram.createSocket('udp4');
-    const timer = setTimeout(() => { socket.close(); reject(new Error('TURN probe timeout')); }, timeoutMs);
-    socket.on('error', error => { clearTimeout(timer); socket.close(); reject(error); });
-    socket.on('message', message => { clearTimeout(timer); socket.close(); resolve(message); });
-    socket.send(first, target.port, target.host, error => { if (error) { clearTimeout(timer); socket.close(); reject(error); } });
+    let socket;
+    const timer = setTimeout(() => { try { socket && socket.destroy(); } catch {} reject(new Error('TURN probe timeout')); }, timeoutMs);
+
+    const finish = (value, error) => {
+      clearTimeout(timer);
+      try { socket && socket.destroy(); } catch {}
+      if (error) reject(error); else resolve(value);
+    };
+
+    const onTransportError = (error) => finish(undefined, error);
+
+    if (target.transport === 'udp') {
+      socket = dgram.createSocket('udp4');
+      socket.on('error', onTransportError);
+      const pending = [];
+      socket.on('message', message => { const next = pending.shift(); if (next) next(message); });
+      const sendStep = packet => new Promise((resolveStep, rejectStep) => {
+        pending.push(resolveStep);
+        socket.send(packet, target.port, target.host, error => { if (error) finish(undefined, error); });
+      });
+      exchangeOn(sendStep, username, credential, target, finish);
+    } else {
+      socket = target.isTls
+        ? tls.connect({ host: target.host, port: target.port, rejectUnauthorized: false })
+        : net.createConnection(target.port, target.host);
+      socket.on('error', onTransportError);
+      const pending = [];
+      const chunks = [];
+      let expected = 0;
+      socket.on('data', chunk => {
+        chunks.push(chunk);
+        const data = Buffer.concat(chunks);
+        if (expected === 0 && data.length >= 20) expected = 20 + data.readUInt16BE(2);
+        if (expected > 0 && data.length >= expected) {
+          const message = data.subarray(0, expected);
+          chunks.length = 0;
+          expected = 0;
+          const next = pending.shift();
+          if (next) next(message);
+        }
+      });
+      const sendStep = packet => new Promise((resolveStep, rejectStep) => {
+        pending.push(resolveStep);
+        socket.write(packet, error => { if (error) finish(undefined, error); });
+      });
+      socket.once('connect', () => exchangeOn(sendStep, username, credential, target, finish));
+    }
   });
 }
 
-function exchangeTcp(target, first, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const socket = net.createConnection(target.port, target.host);
-    const timer = setTimeout(() => { socket.destroy(); reject(new Error('TURN probe timeout')); }, timeoutMs);
-    const chunks = [];
-    socket.once('error', error => { clearTimeout(timer); reject(error); });
-    socket.on('data', chunk => {
-      chunks.push(chunk);
-      const data = Buffer.concat(chunks);
-      if (data.length >= 20 && data.length >= 20 + data.readUInt16BE(2)) { clearTimeout(timer); socket.destroy(); resolve(data); }
-    });
-    socket.once('connect', () => socket.write(first));
-  });
+// challenge -> authenticated retry (fresh transaction id) -> optional 438 re-challenge,
+// all on the same transport.
+async function exchangeOn(sendStep, username, credential, target, finish) {
+  try {
+    const initial = buildAllocateRequest({ authenticated: false });
+    const challengePacket = await sendStep(initial.packet);
+    const challenge = parseMessage(challengePacket, initial.transactionId);
+    if (challenge.type !== 'error' || challenge.code !== 401 || !challenge.realm || !challenge.nonce) return finish({ ok: false, relayed: false });
+
+    const attempt = async (realm, nonce) => {
+      const authed = buildAllocateRequest({ username, realm, nonce, password: credential, authenticated: true });
+      const resultPacket = await sendStep(authed.packet);
+      const result = parseMessage(resultPacket, authed.transactionId);
+      const key = crypto.createHash('md5').update(`${username}:${realm}:${credential}`).digest();
+      if (result.type === 'success' && result.relayed && verifyMessageIntegrity(resultPacket, key)) return { ok: true, relayed: true };
+      if (result.type === 'error' && result.code === 438 && result.nonce) {
+        // Stale nonce: retry once with the fresh nonce from the 438 response.
+        const retried = buildAllocateRequest({ username, realm: result.realm || realm, nonce: result.nonce, password: credential, authenticated: true });
+        const retryPacket = await sendStep(retried.packet);
+        const retryResult = parseMessage(retryPacket, retried.transactionId);
+        const retryKey = crypto.createHash('md5').update(`${username}:${result.realm || realm}:${credential}`).digest();
+        if (retryResult.type === 'success' && retryResult.relayed && verifyMessageIntegrity(retryPacket, retryKey)) return { ok: true, relayed: true };
+      }
+      return { ok: false, relayed: false };
+    };
+
+    finish(await attempt(challenge.realm, challenge.nonce));
+  } catch (error) {
+    finish(undefined, error);
+  }
 }
 
 async function probeTurn({ urls, username, credential, timeoutMs = 3000 }) {
+  let lastError = null;
   for (const rawUrl of urls) {
-    const target = parseUrl(rawUrl);
-    const initial = buildAllocateRequest({ authenticated: false });
-    const challengePacket = target.transport === 'udp'
-      ? await exchangeUdp(target, initial.packet, timeoutMs)
-      : await exchangeTcp(target, initial.packet, timeoutMs);
-    const challenge = parseMessage(challengePacket, initial.transactionId);
-    if (challenge.type !== 'error' || challenge.code !== 401 || !challenge.realm || !challenge.nonce) continue;
-    const authenticated = buildAllocateRequest({ username, realm: challenge.realm, nonce: challenge.nonce, password: credential, authenticated: true, transactionId: initial.transactionId });
-    const resultPacket = target.transport === 'udp'
-      ? await exchangeUdp(target, authenticated.packet, timeoutMs)
-      : await exchangeTcp(target, authenticated.packet, timeoutMs);
-    const result = parseMessage(resultPacket, authenticated.transactionId);
-    const key = crypto.createHash('md5').update(`${username}:${challenge.realm}:${credential}`).digest();
-    if (result.type === 'success' && result.relayed && verifyMessageIntegrity(resultPacket, key)) return { ok: true, relayed: true };
+    try {
+      const target = parseUrl(rawUrl);
+      const result = await runAllocate(target, username, credential, timeoutMs);
+      if (result.ok) return result;
+    } catch (error) {
+      lastError = error;
+    }
   }
+  if (lastError) throw lastError;
   return { ok: false, relayed: false };
 }
 
@@ -153,4 +231,4 @@ if (require.main === module) {
     .catch(() => { console.error('TURN relay allocation: FAIL'); process.exit(1); });
 }
 
-module.exports = { buildAllocateRequest, parseMessage, probeTurn, verifyMessageIntegrity };
+module.exports = { buildAllocateRequest, parseMessage, parseUrl, probeTurn, verifyMessageIntegrity };

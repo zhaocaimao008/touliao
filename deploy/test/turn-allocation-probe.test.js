@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const dgram = require('node:dgram');
 const crypto = require('node:crypto');
-const { buildAllocateRequest, parseMessage, probeTurn } = require('../lib/turn-allocation-probe');
+const { buildAllocateRequest, parseMessage, parseUrl, probeTurn } = require('../lib/turn-allocation-probe');
 
 const COOKIE = 0x2112A442;
 
@@ -51,6 +51,26 @@ test('parses a 401 challenge and requires XOR-RELAYED-ADDRESS on success', () =>
   assert.deepEqual(parseMessage(challenge, tx), { type: 'error', code: 401, realm: 'example.org', nonce: 'nonce' });
   const success = response(0x0103, tx, [attr(0x0016, Buffer.from([0, 1, 0x12, 0x34, 127, 0, 0, 1]))], crypto.createHash('md5').update('user:example.org:password').digest());
   assert.equal(parseMessage(success, tx).type, 'success');
+});
+
+test('decodes real coturn ERROR-CODE (class/number bytes) as 401 and 438', () => {
+  // ERROR-CODE attr value: 2 reserved bytes, class byte (4), number byte (1) -> 401.
+  const tx = crypto.randomBytes(12);
+  const fourOhOne = response(0x0113, tx, [
+    attr(0x0009, Buffer.from([0, 0, 4, 1, 85, 110, 97, 117, 116, 104, 111, 114, 105, 122, 101, 100])),
+    attr(0x0014, 'example.org'), attr(0x0015, 'nonce'),
+  ]);
+  assert.equal(parseMessage(fourOhOne, tx).code, 401);
+  const stale = response(0x0113, tx, [attr(0x0009, Buffer.from([0, 0, 4, 38, 83, 116, 97, 108, 101, 32, 78, 111, 110, 99, 101]))]);
+  assert.equal(parseMessage(stale, tx).code, 438);
+});
+
+test('parses turn: and turns: authorities that WHATWG URL would treat as opaque paths', () => {
+  assert.deepEqual(parseUrl('turn:45.77.131.33:3478?transport=udp'), { host: '45.77.131.33', port: 3478, transport: 'udp', isTls: false });
+  assert.deepEqual(parseUrl('turn:45.77.131.33:3478?transport=tcp'), { host: '45.77.131.33', port: 3478, transport: 'tcp', isTls: false });
+  assert.deepEqual(parseUrl('turns:vxinchat.com:5349'), { host: 'vxinchat.com', port: 5349, transport: 'tcp', isTls: true });
+  assert.deepEqual(parseUrl('turn:relay.example.com'), { host: 'relay.example.com', port: 3478, transport: 'udp', isTls: false });
+  assert.throws(() => parseUrl('stun:example.com:3478'), /unsupported TURN/);
 });
 
 test('completes a local UDP 401 then authenticated relay allocation exchange', async () => {
