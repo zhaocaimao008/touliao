@@ -59,6 +59,14 @@ final class CallManager: NSObject, ObservableObject {
     /// 主叫呼叫超时任务（未接听自动挂断）；接通/挂断时取消，避免泄漏。
     private var callTimeoutTask: Task<Void, Never>?
     private var disconnectGraceTask: Task<Void, Never>?
+    // ICE restart 自愈(网络切换 Wi-Fi↔4G):disconnected 3s 防抖 → restartIce → 15s 窗口 → 最多 3 次 → 挂断。
+    // 信令复用现有 call:offer/answer/ice(后端纯转发零改动),对端收到重协商 offer 走现有应答逻辑。
+    private var iceRestartCount = 0
+    private var iceRestartDebounceTask: Task<Void, Never>?
+    private var iceRestartRecoverTask: Task<Void, Never>?
+    private let ICE_RESTART_DEBOUNCE_MS: UInt64 = 3_000_000_000
+    private let ICE_RESTART_WINDOW_MS: UInt64 = 15_000_000_000
+    private let ICE_RESTART_MAX = 3
     private let callTimeoutSeconds: UInt64 = 45
 
     /// 通话提示音（回铃/接通），与 Android ToneGenerator 对齐。
@@ -439,6 +447,8 @@ final class CallManager: NSObject, ObservableObject {
 
     // MARK: - 清理
     private func cleanup(_ finalStage: CallStage) {
+        cancelIceRestart()                          // 清 ICE restart 定时器/计数
+        cancelDisconnectGrace()
         clearIncomingCallNotifications(from: state.peerId)  // 清掉该通话残留的来电通知，防止过期误触
         tonePlayer.stop()                   // 停回铃/接通音
         cancelCallTimeout()                 // 取消未接听超时，避免正常挂断被误判超时
@@ -491,6 +501,7 @@ extension CallManager: RTCPeerConnectionDelegate {
             case .connected, .completed:
                 self.cancelCallTimeout()        // 已接通，撤销未接听超时
                 self.cancelDisconnectGrace()    // 恢复连接则撤销断开宽限
+                self.cancelIceRestart()         // restart 后恢复:清定时器 + 计数清零(可反复自愈)
                 if self.state.stage != .ended {
                     if self.state.connectedAt == nil {
                         self.state.connectedAt = Date()
@@ -499,24 +510,25 @@ extension CallManager: RTCPeerConnectionDelegate {
                     self.state.stage = .connected
                 }
             case .disconnected:
-                // 锁屏/切后台/网络波动时 ICE 短暂 disconnected，数秒内会自动恢复。
-                // 宽限 15s，持续断开才结束通话并通知对方；期间恢复 connected 则撤销。
+                // 锁屏/切后台/网络波动时 ICE 短暂 disconnected,数秒内自动恢复。
+                // 3s 防抖 → restartIce() 自愈;15s 恢复窗口内未恢复则重试(最多 3 次)→ 挂断。
+                // 不再像旧逻辑直接等 15s 挂断——网络切换(Wi-Fi↔4G)媒体断但信令活时能自愈。
                 self.cancelDisconnectGrace()
-                self.disconnectGraceTask = Task { @MainActor [weak self] in
-                    try? await Task.sleep(nanoseconds: 15 * 1_000_000_000)
+                self.iceRestartDebounceTask?.cancel(); self.iceRestartDebounceTask = nil
+                self.iceRestartRecoverTask?.cancel(); self.iceRestartRecoverTask = nil
+                self.iceRestartDebounceTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: self?.ICE_RESTART_DEBOUNCE_MS ?? 3_000_000_000)
                     guard let self, !Task.isCancelled else { return }
-                    guard self.state.stage == .connected else { return }
-                    if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId, callId: self.state.callId) }
-                    self.state.networkEnded = true
-                    self.cleanup(.ended)
+                    self.tryIceRestart()
                 }
             case .failed:
-                // 连接彻底失败：结束通话并通知对方（不能静默挂断）
+                // 首次 failed:给一次 restart 机会(可能临时网络黑洞);已重启过且非窗口期 → 结束并通知对方
                 self.cancelDisconnectGrace()
-                if self.state.stage == .connected || self.state.stage == .connecting {
-                    if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId, callId: self.state.callId) }
-                    self.state.networkEnded = true
-                    self.cleanup(.ended)
+                if self.iceRestartCount == 0 && self.iceRestartRecoverTask == nil {
+                    self.tryIceRestart()
+                } else if self.iceRestartRecoverTask == nil,
+                          self.state.stage == .connected || self.state.stage == .connecting {
+                    self.endCallByNetwork()
                 }
             default: break
             }
@@ -527,6 +539,45 @@ extension CallManager: RTCPeerConnectionDelegate {
     private func cancelDisconnectGrace() {
         disconnectGraceTask?.cancel()
         disconnectGraceTask = nil
+    }
+
+    // MARK: - ICE restart 自愈(网络切换)
+    /// disconnected 3s 防抖后重启 ICE(重协商走现有 call:offer/answer,对端自动应答)
+    private func tryIceRestart() {
+        guard let pc else { return }
+        if iceRestartCount >= ICE_RESTART_MAX {
+            endCallByNetwork()
+            return
+        }
+        iceRestartCount += 1
+        pc.restartIce()
+        iceRestartRecoverTask?.cancel()
+        iceRestartRecoverTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: self?.ICE_RESTART_WINDOW_MS ?? 15_000_000_000)
+            guard let self, !Task.isCancelled else { return }
+            if let st = self.pc?.iceConnectionState,
+               st == .disconnected || st == .failed {
+                self.tryIceRestart()
+            } else {
+                self.iceRestartRecoverTask = nil
+            }
+        }
+    }
+
+    /// 网络不可恢复:通知对方 + 收尾(不能静默挂断)
+    private func endCallByNetwork() {
+        cancelIceRestart()
+        cancelDisconnectGrace()
+        if !state.peerId.isEmpty { socket.emitCallEnd(to: state.peerId, callId: state.callId) }
+        state.networkEnded = true
+        cleanup(.ended)
+    }
+
+    /// 全部撤销(恢复连接/收尾时);注意:仅恢复时清计数,防抖/窗口期间不清,保证重试上限生效
+    private func cancelIceRestart() {
+        iceRestartDebounceTask?.cancel(); iceRestartDebounceTask = nil
+        iceRestartRecoverTask?.cancel(); iceRestartRecoverTask = nil
+        iceRestartCount = 0
     }
 
     // 必需的其余回调（无操作）

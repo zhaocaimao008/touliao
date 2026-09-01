@@ -185,6 +185,14 @@ export default function CallModal({ socket, call, onClose }) {
   const iceTimeoutRef   = useRef(null);
   const disconnectRef   = useRef(null);
   const endCallTimeoutRef = useRef(null);
+  // ICE restart 自愈（网络切换 Wi-Fi↔4G 等）：
+  //   disconnected → 3s 防抖 → restartIce() → 15s 恢复窗口 → 未恢复重试,最多 3 次 → 挂断。
+  //   信令复用现有 call:offer/answer/ice(后端纯转发零改动);对端收到 offer 走现有应答逻辑。
+  const restartRecoverRef = useRef(null);   // restart 后等待 connected 的 15s 窗口
+  const iceRestartCountRef = useRef(0);     // 连续重启次数,恢复后清零
+  const ICE_RESTART_DEBOUNCE_MS = 3000;     // disconnected 防抖:短时探测间隙(<3s 通常自愈)
+  const ICE_RESTART_WINDOW_MS   = 15000;    // restart 后等待恢复的窗口
+  const ICE_RESTART_MAX         = 3;        // 最大重启次数,超限放弃(对称 NAT 无 TURN 再试无益)
   const audioCtxRef = useRef(null); // 通话提示音（WebAudio）
   const ringbackRef = useRef(null); // 回铃音循环句柄 { stop }
 
@@ -306,6 +314,7 @@ export default function CallModal({ socket, call, onClose }) {
     clearTimeout(timeoutRef.current);
     clearTimeout(iceTimeoutRef.current);
     clearTimeout(disconnectRef.current);
+    clearTimeout(restartRecoverRef.current);
     clearTimeout(endCallTimeoutRef.current);
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     if (pcRef.current) {
@@ -343,25 +352,53 @@ export default function CallModal({ socket, call, onClose }) {
       if (candidate) socket?.emit('call:ice', withCallId({ to: remoteId, candidate }, callId));
     };
     pc.ontrack = (e) => attachRemoteStream(e.streams[0]);
+    // ICE restart 状态机(网络切换自愈,2026-09-01):
+    //   disconnected → 3s 防抖 → tryIceRestart():restartIce() + 15s 恢复窗口,最多 3 次 → 挂断
+    //   failed → 未重启过先给 1 次 restart;窗口进行中交给窗口;否则挂断
+    //   connected(restart 后恢复) → 清定时器 + 计数清零,可反复自愈
+    // 信令复用现有 call:offer/answer/ice(后端纯转发零改动,对端走现有应答逻辑)。
+    const tryIceRestart = () => {
+      if (iceRestartCountRef.current >= ICE_RESTART_MAX) {
+        clearTimeout(restartRecoverRef.current);
+        endCall(true, 'network');
+        return;
+      }
+      iceRestartCountRef.current += 1;
+      pc.restartIce();
+      restartRecoverRef.current = setTimeout(() => {
+        const st = pcRef.current?.connectionState;
+        if (st === 'disconnected' || st === 'failed') tryIceRestart();
+      }, ICE_RESTART_WINDOW_MS);
+    };
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
-      if (s === 'connected' && statusRef.current === 'connecting') {
+      if (s === 'connected') {
+        // 首次接通 或 restart 后恢复:清定时器 + 计数清零(多次切换可反复自愈)
         clearTimeout(iceTimeoutRef.current);
         clearTimeout(disconnectRef.current);
-        setStatus('connected');
+        clearTimeout(restartRecoverRef.current);
+        iceRestartCountRef.current = 0;
+        if (statusRef.current === 'connecting') setStatus('connected');
       } else if (s === 'disconnected') {
-        // iOS 锁屏/切后台时 ICE 会短暂进入 disconnected(网络探测间隙)，
-        // 几秒内会自动恢复 connected。旧逻辑 5s 宽限太短 → iOS 长语音被误挂断。
-        // 延长到 15s 且允许 disconnected→connected 恢复路径(上面分支已 clearTimeout)。
-        // 只有持续 disconnected 超过宽限才挂断，且挂断必须通知对方(notify=true)。
+        // 短时探测间隙(<3s 通常自愈,如 iOS 锁屏/后台):防抖后再重启,避免无谓重协商
+        clearTimeout(disconnectRef.current);
         disconnectRef.current = setTimeout(() => {
-          if (pcRef.current?.connectionState === 'disconnected' && statusRef.current === 'connected')
-            endCall(true, 'network');
-        }, 15000);
+          clearTimeout(restartRecoverRef.current);
+          tryIceRestart();
+        }, ICE_RESTART_DEBOUNCE_MS);
       } else {
         clearTimeout(disconnectRef.current);
-        if (['failed', 'closed'].includes(s) && statusRef.current === 'connected')
+        if (s === 'failed') {
+          if (iceRestartCountRef.current === 0 && !restartRecoverRef.current && statusRef.current === 'connected') {
+            // 首次 failed:给一次 restart 机会(可能临时网络黑洞),不立即挂断
+            tryIceRestart();
+          } else if (statusRef.current === 'connected' && !restartRecoverRef.current) {
+            endCall(true, 'network');
+          }
+          // restart 窗口进行中:不动,交给窗口到期后的 tryIceRestart 判定
+        } else if (s === 'closed' && statusRef.current === 'connected') {
           endCall(true, 'network');
+        }
       }
     };
     return pc;

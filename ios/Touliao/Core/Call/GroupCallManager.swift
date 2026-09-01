@@ -45,7 +45,17 @@ final class GroupCallManager: NSObject, ObservableObject {
         let delegate: GCPeerDelegate
         var remoteDescSet = false
         var pendingIce: [RTCIceCandidate] = []
+        // ICE restart 自愈(网络切换):每 peer 独立计数与定时器,策略与 1:1 统一
+        var iceRestartCount = 0
+        var iceRestartDebounceTask: Task<Void, Never>?
+        var iceRestartRecoverTask: Task<Void, Never>?
         init(pc: RTCPeerConnection, delegate: GCPeerDelegate) { self.pc = pc; self.delegate = delegate }
+
+        func cancelIceRestart() {
+            iceRestartDebounceTask?.cancel(); iceRestartDebounceTask = nil
+            iceRestartRecoverTask?.cancel(); iceRestartRecoverTask = nil
+            iceRestartCount = 0
+        }
     }
     private var peers: [String: PeerEntry] = [:]
 
@@ -66,6 +76,11 @@ final class GroupCallManager: NSObject, ObservableObject {
         super.init()
         observeSignaling()
     }
+
+    // ICE restart 参数(与四端统一):防抖 3s / 恢复窗口 15s / 最大 3 次
+    private let ICE_RESTART_DEBOUNCE_MS: UInt64 = 3_000_000_000
+    private let ICE_RESTART_WINDOW_MS: UInt64 = 15_000_000_000
+    private let ICE_RESTART_MAX = 3
 
     func activate() {}
 
@@ -273,8 +288,58 @@ final class GroupCallManager: NSObject, ObservableObject {
         DispatchQueue.main.async { self.remoteTracks[peerId] = track }
     }
     func onIceState(_ peerId: String, _ newState: RTCIceConnectionState) {
-        if newState == .failed || newState == .closed {
-            DispatchQueue.main.async { self.removePeer(peerId) }
+        // WebRTC 回调线程 → 统一切主线程访问 peers(与 1:1 CallManager 一致)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            switch newState {
+            case .connected, .completed:
+                // restart 后恢复:清定时器 + 计数清零(可反复自愈)
+                self.peers[peerId]?.cancelIceRestart()
+            case .disconnected:
+                // 短时探测间隙:3s 防抖后再重启,避免无谓重协商
+                guard let entry = self.peers[peerId] else { return }
+                entry.iceRestartDebounceTask?.cancel(); entry.iceRestartDebounceTask = nil
+                entry.iceRestartRecoverTask?.cancel(); entry.iceRestartRecoverTask = nil
+                entry.iceRestartDebounceTask = Task { @MainActor [weak self, weak entry] in
+                    try? await Task.sleep(nanoseconds: self?.ICE_RESTART_DEBOUNCE_MS ?? 3_000_000_000)
+                    guard let self, let entry, !Task.isCancelled else { return }
+                    self.tryPeerRestart(peerId, entry: entry)
+                }
+            case .failed:
+                // 首次 failed:给一次 restart 机会;已重启过且非窗口期 → 移除
+                guard let entry = self.peers[peerId] else { return }
+                if entry.iceRestartCount == 0 && entry.iceRestartRecoverTask == nil {
+                    self.tryPeerRestart(peerId, entry: entry)
+                } else if entry.iceRestartRecoverTask == nil {
+                    self.removePeer(peerId)
+                }
+            case .closed:
+                self.removePeer(peerId)
+            default: break
+            }
+        }
+    }
+
+    // MARK: - ICE restart 自愈(网络切换,mesh 每 peer 独立)
+    /// disconnected 3s 防抖后重启该 peer 的 ICE;15s 恢复窗口内未恢复则重试(最多 3 次)→ 移除。
+    /// 信令复用现有 group_call:offer/answer/ice,对端收到重协商 offer 走现有应答逻辑,后端零改动。
+    private func tryPeerRestart(_ peerId: String, entry: PeerEntry) {
+        if entry.iceRestartCount >= ICE_RESTART_MAX {
+            removePeer(peerId)
+            return
+        }
+        entry.iceRestartCount += 1
+        entry.pc.restartIce()
+        entry.iceRestartRecoverTask?.cancel()
+        entry.iceRestartRecoverTask = Task { @MainActor [weak self, weak entry] in
+            try? await Task.sleep(nanoseconds: ICE_RESTART_WINDOW_MS)
+            guard let self, let entry, !Task.isCancelled else { return }
+            if let st = entry.pc.iceConnectionState,
+               st == .disconnected || st == .failed {
+                self.tryPeerRestart(peerId, entry: entry)
+            } else {
+                entry.iceRestartRecoverTask = nil
+            }
         }
     }
 
@@ -321,6 +386,7 @@ final class GroupCallManager: NSObject, ObservableObject {
     }
 
     private func removePeer(_ peerId: String) {
+        peers[peerId]?.cancelIceRestart()
         peers[peerId]?.pc.close()
         peers[peerId] = nil
         remoteTracks[peerId] = nil
@@ -336,6 +402,7 @@ final class GroupCallManager: NSObject, ObservableObject {
 
     private func cleanup() {
         cancelConnectTimeout()              // 取消连接超时，避免泄漏
+        peers.values.forEach { $0.cancelIceRestart() }
         peers.values.forEach { $0.pc.close() }
         peers.removeAll()
         remoteTracks.removeAll()

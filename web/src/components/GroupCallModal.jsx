@@ -91,6 +91,13 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const pendingIceRef = useRef(new Map());
   const callIdRef = useRef(session.callId || null);
   const closedRef = useRef(false);
+  // ICE restart 自愈(网络切换):peerId → 重启计数 / {debounce, recover} 定时器。
+  // 与 1:1 同策略:disconnected 3s 防抖 → restartIce → 15s 窗口 → 最多 3 次 → removePeer。
+  const peerRestartCountRef = useRef(new Map());
+  const peerRestartTimersRef = useRef(new Map());
+  const ICE_RESTART_DEBOUNCE_MS = 3000;
+  const ICE_RESTART_WINDOW_MS   = 15000;
+  const ICE_RESTART_MAX         = 3;
 
   const removePeer = useCallback((peerId) => {
     const pc = pcsRef.current.get(peerId);
@@ -124,8 +131,48 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       const stream = e.streams[0];
       setRemoteStreams(prev => (prev[peerId] === stream ? prev : { ...prev, [peerId]: stream }));
     };
+    // ICE restart 状态机(与 1:1 同策略):disconnected 3s 防抖 → restartIce → 15s 窗口
+    // → 最多 3 次 → removePeer。信令复用 group_call:offer/answer/ice,后端零改动。
+    const tryPeerRestart = () => {
+      const count = peerRestartCountRef.current.get(peerId) || 0;
+      if (count >= ICE_RESTART_MAX) { removePeer(peerId); return; }
+      peerRestartCountRef.current.set(peerId, count + 1);
+      pc.restartIce();
+      const timers = peerRestartTimersRef.current.get(peerId) || {};
+      clearTimeout(timers.recover);
+      timers.recover = setTimeout(() => {
+        const cur = pcsRef.current.get(peerId);
+        const st = cur?.connectionState;
+        if (st === 'disconnected' || st === 'failed') tryPeerRestart();
+        else peerRestartTimersRef.current.delete(peerId);
+      }, ICE_RESTART_WINDOW_MS);
+      peerRestartTimersRef.current.set(peerId, timers);
+    };
     pc.onconnectionstatechange = () => {
-      if (['failed', 'closed'].includes(pc.connectionState)) removePeer(peerId);
+      const s = pc.connectionState;
+      if (s === 'connected') {
+        // restart 后恢复:清定时器 + 计数清零(可反复自愈)
+        const timers = peerRestartTimersRef.current.get(peerId);
+        if (timers) { clearTimeout(timers.debounce); clearTimeout(timers.recover); peerRestartTimersRef.current.delete(peerId); }
+        peerRestartCountRef.current.delete(peerId);
+      } else if (s === 'disconnected') {
+        // 短时探测间隙:防抖后再重启,避免无谓重协商
+        const timers = peerRestartTimersRef.current.get(peerId) || {};
+        clearTimeout(timers.debounce);
+        timers.debounce = setTimeout(() => {
+          clearTimeout(peerRestartTimersRef.current.get(peerId)?.recover);
+          tryPeerRestart();
+        }, ICE_RESTART_DEBOUNCE_MS);
+        peerRestartTimersRef.current.set(peerId, timers);
+      } else if (s === 'failed') {
+        const timers = peerRestartTimersRef.current.get(peerId);
+        const count = peerRestartCountRef.current.get(peerId) || 0;
+        if (count === 0 && !timers?.recover) tryPeerRestart();   // 首次 failed:给一次 restart 机会
+        else if (!timers?.recover) removePeer(peerId);           // 已重启过且非窗口期 → 移除
+        // 窗口进行中:交给窗口到期后的 tryPeerRestart 判定
+      } else if (s === 'closed') {
+        removePeer(peerId);
+      }
     };
     return pc;
   }, [socket, removePeer]);
@@ -136,6 +183,9 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     if (callIdRef.current) socket?.emit('group_call:leave', { callId: callIdRef.current });
     pcsRef.current.forEach(pc => { try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch { /* 连接已关闭 */ } });
     pcsRef.current.clear();
+    peerRestartTimersRef.current.forEach(t => { clearTimeout(t.debounce); clearTimeout(t.recover); });
+    peerRestartTimersRef.current.clear();
+    peerRestartCountRef.current.clear();
     localStreamRef.current?.getTracks().forEach(t => t.stop());
   }, [socket]);
 

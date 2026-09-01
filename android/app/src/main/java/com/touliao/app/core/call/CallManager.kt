@@ -206,6 +206,11 @@ class CallManager @Inject constructor(
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var callTimeoutJob: Job? = null   // 主叫呼出超时:对方无应答/断线时自动收尾,防卡死"呼叫中"
+    // ICE restart 自愈(网络切换 Wi-Fi↔4G):disconnected 3s 防抖 → restartIce → 15s 窗口 → 最多 3 次 → 挂断。
+    // 信令复用现有 call:offer/answer/ice(后端纯转发零改动),对端收到 offer 走现有应答逻辑。
+    private var iceRestartDebounceJob: Job? = null   // disconnected 防抖(短时探测间隙自愈)
+    private var iceRestartRecoverJob: Job? = null    // restart 后等待 connected 的窗口
+    private var iceRestartCount = 0                  // 连续重启次数,恢复后清零
     @Volatile private var callAttempt = 0L   // 主叫呼出序号：ack 延迟时防止旧 callId 写入新一次呼出（P2-1 @Volatile 防跨线程撕裂）
     private var audioSource: org.webrtc.AudioSource? = null
     private var videoSource: VideoSource? = null
@@ -336,6 +341,34 @@ class CallManager @Inject constructor(
 
     /** 挂断（任一方） */
     fun hangup() {
+        val s = _state.value
+        if (s.peerId.isNotEmpty()) socketManager.emitCallEnd(s.peerId, s.callId)
+        cleanup(CallStage.ENDED)
+    }
+
+    // ── ICE restart 自愈(网络切换) ─────────────────────────────
+    // disconnected 3s 防抖 → restartIce() → 15s 恢复窗口 → 未恢复重试,最多 3 次 → 挂断。
+    // 信令复用现有 call:offer/answer/ice;对端收到重协商 offer 走现有应答逻辑,后端零改动。
+    private fun tryIceRestart() {
+        val pc = peerConnection ?: return
+        if (iceRestartCount >= ICE_RESTART_MAX) { endCallByNetwork(); return }
+        iceRestartCount++
+        pc.restartIce()
+        iceRestartRecoverJob?.cancel()
+        iceRestartRecoverJob = scope.launch {
+            delay(ICE_RESTART_WINDOW_MS)
+            val st = peerConnection?.iceConnectionState()
+            if (st == PeerConnection.IceConnectionState.DISCONNECTED ||
+                st == PeerConnection.IceConnectionState.FAILED
+            ) tryIceRestart()
+            else iceRestartRecoverJob = null
+        }
+    }
+
+    /** 网络不可恢复:通知对方 + 收尾(对齐 iOS failed 分支:不能静默挂断) */
+    private fun endCallByNetwork() {
+        iceRestartDebounceJob?.cancel(); iceRestartDebounceJob = null
+        iceRestartRecoverJob?.cancel(); iceRestartRecoverJob = null
         val s = _state.value
         if (s.peerId.isNotEmpty()) socketManager.emitCallEnd(s.peerId, s.callId)
         cleanup(CallStage.ENDED)
@@ -560,6 +593,10 @@ class CallManager @Inject constructor(
                 when (state) {
                     PeerConnection.IceConnectionState.CONNECTED,
                     PeerConnection.IceConnectionState.COMPLETED -> {
+                        // 首次接通 或 restart 后恢复:清定时器 + 计数清零(可反复自愈)
+                        iceRestartDebounceJob?.cancel(); iceRestartDebounceJob = null
+                        iceRestartRecoverJob?.cancel(); iceRestartRecoverJob = null
+                        iceRestartCount = 0
                         if (_state.value.connectedAt == 0L && _state.value.stage != CallStage.ENDED) playConnectedTone() // 首次接通→停回铃+接通音
                         _state.update {
                             if (it.stage != CallStage.ENDED)
@@ -567,8 +604,19 @@ class CallManager @Inject constructor(
                             else it
                         }
                     }
-                    PeerConnection.IceConnectionState.DISCONNECTED,
-                    PeerConnection.IceConnectionState.FAILED,
+                    PeerConnection.IceConnectionState.DISCONNECTED -> {
+                        // 短时探测间隙(<3s 通常自愈,锁屏/后台):防抖后再重启,避免无谓重协商
+                        iceRestartDebounceJob?.cancel()
+                        iceRestartDebounceJob = scope.launch {
+                            delay(ICE_RESTART_DEBOUNCE_MS)
+                            tryIceRestart()
+                        }
+                    }
+                    PeerConnection.IceConnectionState.FAILED -> {
+                        // 首次 failed:给一次 restart 机会(可能临时网络黑洞);已重启过且非窗口期 → 挂断
+                        if (iceRestartCount == 0 && iceRestartRecoverJob == null) tryIceRestart()
+                        else if (iceRestartRecoverJob == null) endCallByNetwork()
+                    }
                     PeerConnection.IceConnectionState.CLOSED -> { /* 由 call:end 或用户挂断收尾 */ }
                     else -> {}
                 }
@@ -618,6 +666,8 @@ class CallManager @Inject constructor(
         releaseTone()                                     // 停回铃/接通音并释放 ToneGenerator
         releaseAudioFocusAndRoute()                        // 恢复系统默认音频模式/释放焦点，防止占用
         callTimeoutJob?.cancel(); callTimeoutJob = null   // 接通/挂断/被拒 → 取消呼出超时
+        iceRestartDebounceJob?.cancel(); iceRestartDebounceJob = null
+        iceRestartRecoverJob?.cancel(); iceRestartRecoverJob = null
         CallForegroundService.stop(context)               // 停前台服务（未起过则 no-op）
         runCatching { videoCapturer?.stopCapture() }
         runCatching { videoCapturer?.dispose() }
@@ -678,6 +728,10 @@ class CallManager @Inject constructor(
     private companion object {
         const val STREAM_ID = "stream0"
         const val TAG = "CallManager"
+        // ICE restart 参数(与四端统一):防抖 3s / 恢复窗口 15s / 最大 3 次
+        const val ICE_RESTART_DEBOUNCE_MS = 3000L
+        const val ICE_RESTART_WINDOW_MS = 15000L
+        const val ICE_RESTART_MAX = 3
     }
 }
 

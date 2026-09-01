@@ -7,6 +7,8 @@ import com.touliao.app.core.di.AppScope
 import com.touliao.app.core.realtime.SocketManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,6 +80,10 @@ class GroupCallManager @Inject constructor(
         val pc: PeerConnection,
         var remoteDescSet: Boolean = false,
         val pendingIce: MutableList<IceCandidate> = mutableListOf(),
+        // ICE restart 自愈(网络切换):每 peer 独立计数与定时器,策略与 1:1 统一
+        var iceRestartCount: Int = 0,
+        var iceRestartDebounceJob: Job? = null,
+        var iceRestartRecoverJob: Job? = null,
         val iceLock: Any = Any(),
     )
     private val peers = LinkedHashMap<String, Peer>()
@@ -334,8 +340,31 @@ class GroupCallManager @Inject constructor(
                 }
             }
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
-                if (state == PeerConnection.IceConnectionState.FAILED ||
-                    state == PeerConnection.IceConnectionState.CLOSED) removePeer(peerId)
+                val peer = peers[peerId] ?: return
+                when (state) {
+                    PeerConnection.IceConnectionState.CONNECTED,
+                    PeerConnection.IceConnectionState.COMPLETED -> {
+                        // restart 后恢复:清定时器 + 计数清零(可反复自愈)
+                        peer.iceRestartDebounceJob?.cancel(); peer.iceRestartDebounceJob = null
+                        peer.iceRestartRecoverJob?.cancel(); peer.iceRestartRecoverJob = null
+                        peer.iceRestartCount = 0
+                    }
+                    PeerConnection.IceConnectionState.DISCONNECTED -> {
+                        // 短时探测间隙:3s 防抖后再重启,避免无谓重协商
+                        peer.iceRestartDebounceJob?.cancel()
+                        peer.iceRestartDebounceJob = scope.launch {
+                            delay(ICE_RESTART_DEBOUNCE_MS)
+                            tryPeerRestart(peerId)
+                        }
+                    }
+                    PeerConnection.IceConnectionState.FAILED -> {
+                        // 首次 failed:给一次 restart 机会;已重启过且非窗口期 → 移除
+                        if (peer.iceRestartCount == 0 && peer.iceRestartRecoverJob == null) tryPeerRestart(peerId)
+                        else if (peer.iceRestartRecoverJob == null) removePeer(peerId)
+                    }
+                    PeerConnection.IceConnectionState.CLOSED -> removePeer(peerId)
+                    else -> {}
+                }
             }
             override fun onSignalingChange(p0: PeerConnection.SignalingState?) {}
             override fun onIceConnectionReceivingChange(p0: Boolean) {}
@@ -354,9 +383,34 @@ class GroupCallManager @Inject constructor(
     }
 
     private fun removePeer(peerId: String) {
-        peers.remove(peerId)?.let { runCatching { it.pc.close(); it.pc.dispose() } }
+        val peer = peers.remove(peerId)
+        peer?.let {
+            it.iceRestartDebounceJob?.cancel(); it.iceRestartDebounceJob = null
+            it.iceRestartRecoverJob?.cancel(); it.iceRestartRecoverJob = null
+            runCatching { it.pc.close(); it.pc.dispose() }
+        }
         _remoteTracks.update { it - peerId }
         _state.update { it.copy(participants = peers.keys.toList()) }
+    }
+
+    // ── ICE restart 自愈(网络切换,mesh 每 peer 独立) ────────────────────
+    // disconnected 3s 防抖 → restartIce() → 15s 恢复窗口 → 未恢复重试,最多 3 次 → removePeer。
+    // 信令复用现有 group_call:offer/answer/ice;对端收到重协商 offer 走现有应答逻辑,后端零改动。
+    private fun tryPeerRestart(peerId: String) {
+        val peer = peers[peerId] ?: return
+        if (peer.iceRestartCount >= ICE_RESTART_MAX) { removePeer(peerId); return }
+        peer.iceRestartCount++
+        peer.pc.restartIce()
+        peer.iceRestartRecoverJob?.cancel()
+        peer.iceRestartRecoverJob = scope.launch {
+            delay(ICE_RESTART_WINDOW_MS)
+            val cur = peers[peerId]
+            val st = cur?.pc?.iceConnectionState()
+            if (st == PeerConnection.IceConnectionState.DISCONNECTED ||
+                st == PeerConnection.IceConnectionState.FAILED
+            ) tryPeerRestart(peerId)
+            else cur?.iceRestartRecoverJob = null
+        }
     }
 
     private fun mediaConstraints() = MediaConstraints().apply {
@@ -365,7 +419,11 @@ class GroupCallManager @Inject constructor(
     }
 
     private fun cleanup() {
-        peers.values.forEach { runCatching { it.pc.close(); it.pc.dispose() } }
+        peers.values.forEach {
+            it.iceRestartDebounceJob?.cancel(); it.iceRestartDebounceJob = null
+            it.iceRestartRecoverJob?.cancel(); it.iceRestartRecoverJob = null
+            runCatching { it.pc.close(); it.pc.dispose() }
+        }
         peers.clear()
         _remoteTracks.value = emptyMap()
         runCatching { videoCapturer?.stopCapture() }
@@ -381,5 +439,9 @@ class GroupCallManager @Inject constructor(
     private companion object {
         const val STREAM_ID = "g_stream"
         const val TAG = "GroupCallManager"
+        // ICE restart 参数(与四端统一):防抖 3s / 恢复窗口 15s / 最大 3 次
+        const val ICE_RESTART_DEBOUNCE_MS = 3000L
+        const val ICE_RESTART_WINDOW_MS = 15000L
+        const val ICE_RESTART_MAX = 3
     }
 }
