@@ -23,14 +23,18 @@ describe('CALL_TIMEOUT_MS / CALL_COOLDOWN_MS env 保护', () => {
     expect(resolveCooldownMs('0', 5_000)).toBe(0);
   });
 
-  test('异常值一律回退默认:负数 / NaN / 超时过小(0、500ms)', () => {
+  test('异常值一律回退默认:负数 / NaN / 超时过小(0、500ms) / 超大值', () => {
     expect(resolveTimeoutMs('-5', 120_000, 1_000)).toBe(120_000);
     expect(resolveTimeoutMs('abc', 120_000, 1_000)).toBe(120_000);
     expect(resolveTimeoutMs('0', 120_000, 1_000)).toBe(120_000);
     expect(resolveTimeoutMs('500', 120_000, 1_000)).toBe(120_000);
+    // 超大值:setTimeout 超 2^31-1ms 会溢出成 1ms,必须回退
+    expect(resolveTimeoutMs('1e15', 120_000, 1_000)).toBe(120_000);
+    expect(resolveTimeoutMs('99999999999', 120_000, 1_000)).toBe(120_000);
     expect(resolveCooldownMs('abc', 5_000)).toBe(5_000);
     expect(resolveCooldownMs('-5', 5_000)).toBe(5_000);
     expect(resolveCooldownMs('1e999', 5_000)).toBe(5_000); // Infinity
+    expect(resolveCooldownMs('99999999999', 5_000)).toBe(5_000); // 冷却锁死多年
   });
 });
 

@@ -25,13 +25,15 @@ const { writeCallMessage } = require('../callMessage');
 
 // 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）。
 // 可经环境变量注入(仅测试用短值;生产不设则保持 120s,行为不变)。
-// 合法性保护：NaN/负数/小于 1s 的异常值一律回退默认并告警——防生产 .env 手滑
-// 或部署环境继承把通话超时设成 0/负值(会让所有来电创建即超时)。
+// 合法性保护：NaN/负数/小于 1s/超大值(>1h)一律回退默认并告警——
+// 防生产 .env 手滑或部署环境继承把通话超时设成 0/负值(所有来电创建即超时)
+// 或超大值(Node setTimeout 超 2^31-1ms≈24.8天 会溢出成 1ms,同样灾难)。
+const MAX_TIMEOUT_MS = 3_600_000; // 1h,远低于 setTimeout 溢出阈值
 function resolveTimeoutMs(raw, fallback, min) {
   if (raw === undefined || raw === null || raw === '') return fallback;
   const n = Number(raw);
-  if (!Number.isFinite(n) || n < min) {
-    console.warn(`[call] CALL_TIMEOUT_MS=${JSON.stringify(raw)} 非法或过小(<${min}ms),回退默认 ${fallback}ms`);
+  if (!Number.isFinite(n) || n < min || n > MAX_TIMEOUT_MS) {
+    console.warn(`[call] CALL_TIMEOUT_MS=${JSON.stringify(raw)} 非法或越界([${min},${MAX_TIMEOUT_MS}]ms),回退默认 ${fallback}ms`);
     return fallback;
   }
   return n;
@@ -40,12 +42,14 @@ const CALL_TIMEOUT_MS = resolveTimeoutMs(process.env.CALL_TIMEOUT_MS, 120_000, 1
 
 // 防骚扰：同一主叫每 5s 只能发起一次通话（不影响 activeCalls 逻辑，仅拦截高频重拨）。
 // 可经环境变量注入(测试设 0 关闭;生产不设则保持 5s,行为不变)。
-// 合法性保护：NaN/负数回退默认——防静默失效(冷却变 NaN 会让限流永久失效)。
+// 合法性保护：NaN/负数/超大值回退默认——防静默失效(冷却变 NaN 会让限流
+// 永久失效;超大值会把冷却锁死成几年,用户再也无法拨打)。
+const MAX_COOLDOWN_MS = 3_600_000; // 1h 封顶
 function resolveCooldownMs(raw, fallback) {
   if (raw === undefined || raw === null || raw === '') return fallback;
   const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) {
-    console.warn(`[call] CALL_COOLDOWN_MS=${JSON.stringify(raw)} 非法或为负,回退默认 ${fallback}ms`);
+  if (!Number.isFinite(n) || n < 0 || n > MAX_COOLDOWN_MS) {
+    console.warn(`[call] CALL_COOLDOWN_MS=${JSON.stringify(raw)} 非法或越界([0,${MAX_COOLDOWN_MS}]ms),回退默认 ${fallback}ms`);
     return fallback;
   }
   return n; // 0 合法(测试关闭冷却)
