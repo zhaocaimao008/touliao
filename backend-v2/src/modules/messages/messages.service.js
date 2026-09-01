@@ -851,7 +851,7 @@ function exportConversation(convId, userId) {
   const typeLabel = {
     image: '[图片]', voice: '[语音]', video: '[视频]',
     file: '[文件]', sticker: '[表情包]',
-    contact_card: '[名片]', nudge: '[拍一拍]',
+    contact_card: '[名片]', nudge: '[拍一拍]', call: '[通话]',
   };
 
   // 转账/红包展开：content 是 JSON。转账展开金额+备注，红包展开祝福语。

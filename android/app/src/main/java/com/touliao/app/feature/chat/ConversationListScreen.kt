@@ -313,6 +313,7 @@ private fun previewText(conv: Conversation): String {
         "red_packet" -> "[红包]"
         "sticker" -> "[表情]"
         "nudge" -> "[拍一拍]"
+        "call" -> "[通话]"
         "contact_card", "contact" -> "[名片]"
         else -> conv.lastMessage ?: ""
     }

@@ -422,6 +422,32 @@ class ChatViewModel @Inject constructor(
         return "$actorName 拍了拍 $targetName"
     }
 
+    /** 解析 call 消息为展示文案:主叫/被叫文案不同,status: completed|canceled|rejected|missed */
+    fun callText(msg: Message): String {
+        val o = runCatching { json.parseToJsonElement(msg.content) }.getOrNull()
+        val obj = (o as? kotlinx.serialization.json.JsonObject)
+        fun str(k: String) = (obj?.get(k) as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+        val status = str("status")
+        val callerId = str("callerId")
+        val isCaller = callerId == myId
+        val duration = (obj?.get("duration") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0
+        val kind = if (str("callType") == "video") "视频通话" else "语音通话"
+        return when (status) {
+            "completed" -> {
+                val d = duration.coerceAtLeast(0)
+                val dur = if (d >= 60) {
+                    val m = d / 60; val s = d % 60
+                    if (s > 0) "${m}分 ${s}秒" else "${m}分钟"
+                } else "${d} 秒"
+                "$kind $dur"
+            }
+            "canceled" -> if (isCaller) "已取消" else "未接来电"
+            "rejected" -> if (isCaller) "对方已拒绝" else "已拒绝"
+            "missed"   -> if (isCaller) "对方无应答" else "未接来电"
+            else       -> str("text").ifEmpty { "通话结束" }
+        }
+    }
+
     // ── 聊天背景 ───────────────────────────────────────────
     private fun loadBackground() {
         viewModelScope.launch {

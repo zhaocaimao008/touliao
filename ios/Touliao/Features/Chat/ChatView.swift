@@ -378,6 +378,13 @@ struct ChatView: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 4)
                                 .id(msg.id)
+                        } else if msg.type == "call" {
+                            // 通话系统消息:居中灰字(微信行为对齐,主叫/被叫文案由 callText 区分)
+                            Text(vm.callText(msg))
+                                .font(.caption).foregroundColor(.vxinTextSecondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 4)
+                                .id(msg.id)
                         } else if vm.multiSelect {
                             // 多选模式：整行可点勾选，左侧圆形指示器
                             HStack(spacing: 8) {

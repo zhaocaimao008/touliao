@@ -30,6 +30,7 @@ const { readDb } = require('../../db/connection');
 const { write } = require('../../db/writer');
 const { isMember } = require('../../modules/messages/shared');
 const { guardPayload, guardId } = require('../guard');
+const { writeCallMessage } = require('../callMessage');
 
 const MAX_PARTICIPANTS = 9;
 const MAX_CALL_DURATION_MS = 4 * 60 * 60 * 1000; // 4小时强制结束，防单用户永久独占
@@ -56,8 +57,16 @@ function endCall(io, registry, callId) {
   if (call.timer) clearTimeout(call.timer);
   groupCalls.delete(callId);
   registry.end(callId);
+  const endedAt = nowSec();
   write("UPDATE group_call_logs SET status='ended', ended_at=?, participant_count=? WHERE id=?",
-    [nowSec(), call.peak, callId]);
+    [endedAt, call.peak, callId]);
+  // 群通话结束 → 群聊天窗口系统消息「群语音通话 X 分 X 秒」(全员同文案,由发起者发出)
+  writeCallMessage({
+    callId, status: 'completed',
+    duration: Math.max(0, endedAt - (call.startedAt || endedAt)),
+    callType: call.type, callerId: call.startedBy,
+    conversationId: call.conversationId, participants: call.peak,
+  }, io);
 }
 
 function removeMember(io, registry, callId, userId) {

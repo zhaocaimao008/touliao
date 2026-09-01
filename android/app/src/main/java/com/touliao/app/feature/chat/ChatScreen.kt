@@ -552,6 +552,13 @@ fun ChatScreen(
                             }
                             return@itemsIndexed
                         }
+                        if (msg.type == "call") {
+                            // 通话系统消息:居中灰字(微信行为对齐,主叫/被叫文案由 viewModel.callText 区分)
+                            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                                Text(viewModel.callText(msg), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
+                            }
+                            return@itemsIndexed
+                        }
                         val isMine = msg.sender_id == viewModel.myId
                         // 只在「最后一条自己发的消息」上显示已读状态(对齐微信,减少噪音)
                         val showReadStatus = isMine && msg.id == lastOwnMsgId

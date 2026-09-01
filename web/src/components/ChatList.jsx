@@ -94,6 +94,14 @@ function previewMsg(conv, user) {
       return `${a} 拍了拍 ${b}`;
     } catch { return '[拍一拍]'; }
   }
+  if (t === 'call') {
+    // 通话系统消息预览:直接显示文案(如「通话时长 30 秒」),解析失败兜底「[通话]」
+    try {
+      const c = JSON.parse(conv.lastMessage);
+      if (c && typeof c.text === 'string' && c.text) return c.text;
+    } catch { /* 解析失败走兜底 */ }
+    return '[通话]';
+  }
   if (!conv.lastMessage) return '';
   if (conv.type === 'group' && conv.lastSenderName && conv.lastSenderName !== user?.username)
     return `${conv.lastSenderName}: ${conv.lastMessage}`;

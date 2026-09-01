@@ -21,6 +21,7 @@ const { write } = require('../../db/writer');
 const presence = require('../presence');
 const { pushCallInvite } = require('../../utils/push');
 const { guardPayload, guardId } = require('../guard');
+const { writeCallMessage } = require('../callMessage');
 
 // 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）
 const CALL_TIMEOUT_MS = 120_000;
@@ -44,15 +45,19 @@ function scheduleCallTimeout(key, io, registry) {
     const c = activeCalls.get(key);
     if (c && !c.answeredAt) {
       write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [nowSec(), c.id]);
+      // 120s 未接超时 → 聊天窗口系统消息:主叫看「对方无应答」/ 被叫看「未接来电」(status=missed)
+      const [callerId, calleeId] = key.split('>');
+      writeCallMessage({
+        callId: c.id, status: 'missed', duration: 0, callType: c.type,
+        callerId, calleeId,
+      }, io);
       activeCalls.delete(key);
       registry.end(c.id);
       // 通话已结束 → 清除冷却，允许立即重拨（P1-1）
-      const [callerId] = key.split('>');
       callRateMap.delete(callerId);
       // 未接听超时也要补发 call:end，否则被叫端 UI/本地通知（未收到任何结束信号）会永久悬挂（NOTIFY-002 E3）
       // 带 callId：客户端 callEndEvents 按 callId 匹配，防跨事件流乱序误杀新来电（P1-3）
-      const [cId2, calleeId] = key.split('>');
-      io.to(`user_${calleeId}`).emit('call:end', { from: cId2, reason: 'timeout', callId: c.id });
+      io.to(`user_${calleeId}`).emit('call:end', { from: callerId, reason: 'timeout', callId: c.id });
     }
   }, CALL_TIMEOUT_MS);
 }
@@ -77,8 +82,18 @@ function cleanupExpiredPrivateCall(io, registry, { callId, userId, kind }) {
     if (call.answeredAt) {
       write("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?",
         [end, Math.max(0, end - call.answeredAt), call.id]);
+      // 断线收尾:已接通 → 聊天窗口系统消息「通话时长 X」(双方同文案)
+      writeCallMessage({
+        callId: call.id, status: 'completed', duration: Math.max(0, end - call.answeredAt),
+        callType: call.type, callerId, calleeId,
+      }, io);
     } else if (callerId === userId) {
       write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [end, call.id]);
+      // 主叫挂断未接 → 主叫「已取消」/ 被叫「未接来电」
+      writeCallMessage({
+        callId: call.id, status: 'canceled', duration: 0, callType: call.type,
+        callerId, calleeId,
+      }, io);
     }
     io.to(`user_${otherId}`).emit('call:end', { from: userId, reason: 'disconnected', callId: call.id });
   } catch (e) {
@@ -154,8 +169,17 @@ function registerCallHandler(io, socket, registry) {
           // 已接通的通话被新呼叫覆盖 → 标记 completed 并通知被叫结束（带 callId，P1-3）
           write("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?",
             [endNow, Math.max(0, endNow - old.answeredAt), old.id]);
+          // 重拨覆盖旧通话 → 聊天窗口系统消息(与挂断同语义)
+          writeCallMessage({
+            callId: old.id, status: 'completed', duration: Math.max(0, endNow - old.answeredAt),
+            callType: old.type, callerId: userId, calleeId: to,
+          }, io);
         } else {
           write("UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?", [endNow, old.id]);
+          writeCallMessage({
+            callId: old.id, status: 'canceled', duration: 0, callType: old.type,
+            callerId: userId, calleeId: to,
+          }, io);
         }
         // 2026-08-30 修复：未接听就被新呼叫覆盖时，此前只落库、没有通知被叫——被叫本地
         // 还缓存着旧 callId，之后不管接听还是拒绝，服务端一看 callId 对不上就判定"过期操作"，
@@ -182,7 +206,7 @@ function registerCallHandler(io, socket, registry) {
       return;
     }
     const timer = scheduleCallTimeout(key, io, registry);
-    activeCalls.set(key, { id, answeredAt: null, timer });
+    activeCalls.set(key, { id, answeredAt: null, timer, type: t });
     write('INSERT INTO call_logs (id,caller_id,callee_id,type,status,started_at) VALUES (?,?,?,?,?,?)',
       [id, userId, to, t, 'missed', nowSec()]);
     // 服务端从 DB 取真实用户信息，不透传客户端 caller 字段（防视觉身份冒充）
@@ -239,6 +263,12 @@ function registerCallHandler(io, socket, registry) {
       write("UPDATE call_logs SET status='ongoing' WHERE id=?", [c.id]);
     } else {
       write("UPDATE call_logs SET status='rejected', ended_at=? WHERE id=?", [nowSec(), c.id]);
+      // 被叫拒绝 → 主叫「对方已拒绝」/ 被叫「已拒绝」
+      const [callerId2, calleeId2] = key.split('>');
+      writeCallMessage({
+        callId: c.id, status: 'rejected', duration: 0, callType: c.type,
+        callerId: callerId2, calleeId: calleeId2,
+      }, io);
       activeCalls.delete(key);
       registry.end(callId);
     }
@@ -300,6 +330,16 @@ function registerCallHandler(io, socket, registry) {
     if (c && c.id === callId) {
       if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 主动挂断不再等待超时）
       const end = nowSec();
+      // 主动挂断(任一方) → 聊天窗口系统消息:接通过=「通话时长 X」;未接通=主叫「已取消」/被叫「未接来电」
+      // 真实主叫方向取 activeCalls 的 key（挂断发起者可能正是被叫，k1 方向不可靠）
+      const realKey = [...activeCalls].find(([, call]) => call.id === callId)?.[0] || k1;
+      const [callerId2, calleeId2] = realKey.split('>');
+      writeCallMessage({
+        callId: c.id,
+        status: c.answeredAt ? 'completed' : 'canceled',
+        duration: c.answeredAt ? Math.max(0, end - c.answeredAt) : 0,
+        callType: c.type, callerId: callerId2, calleeId: calleeId2,
+      }, io);
       if (c.answeredAt) {
         write("UPDATE call_logs SET status='completed', ended_at=?, duration=? WHERE id=?",
           [end, Math.max(0, end - c.answeredAt), c.id]);

@@ -38,6 +38,32 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
     );
   }
 
+  // 通话系统消息：居中灰字提示（微信行为对齐）。content 为 JSON:
+  // { callId, status: completed|canceled|rejected|missed, duration, callType, callerId, text }
+  // 主叫/被叫文案不同（callerId 判定）；text 为 fallback（解析失败时降级）。
+  if (msg.type === 'call') {
+    let c;
+    try { c = JSON.parse(msg.content); } catch { c = {}; }
+    const isCaller = String(c.callerId) === String(userId);
+    const kind = c.callType === 'video' ? '视频通话' : '语音通话';
+    let text = c.text || '通话结束';
+    if (c.status === 'completed' && typeof c.duration === 'number') {
+      const d = Math.max(0, c.duration);
+      text = `${kind} ${d >= 60 ? `${Math.floor(d / 60)}分${d % 60 ? ` ${d % 60}秒` : ''}` : `${d} 秒`}`;
+    } else if (c.status === 'canceled') {
+      text = isCaller ? '已取消' : '未接来电';
+    } else if (c.status === 'rejected') {
+      text = isCaller ? '对方已拒绝' : '已拒绝';
+    } else if (c.status === 'missed') {
+      text = isCaller ? '对方无应答' : '未接来电';
+    }
+    return (
+      <div className="wc-msg-time">
+        <span>{text}</span>
+      </div>
+    );
+  }
+
   const showRead      = isMine && msg._read      && convType === 'private';
   const showDelivered = isMine && msg._delivered && convType === 'private' && !msg._read;
   // 定时消息标记：由后端调度器发出的消息带 is_scheduled=1

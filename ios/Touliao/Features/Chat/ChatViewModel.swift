@@ -256,6 +256,32 @@ final class ChatViewModel: ObservableObject {
         repo.nudge(conversationId: conversationId, targetId: targetId)
     }
 
+    /// 解析 call 消息为展示文案:主叫/被叫文案不同,status: completed|canceled|rejected|missed
+    func callText(_ msg: Message) -> String {
+        guard let data = msg.content.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return "通话结束" }
+        let status = obj["status"] as? String ?? ""
+        let isCaller = (obj["callerId"] as? String) == myId
+        let duration = obj["duration"] as? Int ?? 0
+        let kind = (obj["callType"] as? String) == "video" ? "视频通话" : "语音通话"
+        switch status {
+        case "completed":
+            let d = max(0, duration)
+            let dur: String
+            if d >= 60 {
+                let m = d / 60, s = d % 60
+                dur = s > 0 ? "\(m)分 \(s)秒" : "\(m)分钟"
+            } else {
+                dur = "\(d) 秒"
+            }
+            return "\(kind) \(dur)"
+        case "canceled": return isCaller ? "已取消" : "未接来电"
+        case "rejected": return isCaller ? "对方已拒绝" : "已拒绝"
+        case "missed":   return isCaller ? "对方无应答" : "未接来电"
+        default:         return (obj["text"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "通话结束"
+        }
+    }
+
     /// 解析 nudge 消息为展示文案：「你/X 拍了拍 你/Y」
     func nudgeText(_ msg: Message) -> String {
         guard let data = msg.content.data(using: .utf8),
