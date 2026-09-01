@@ -606,7 +606,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           const inflight = prev.filter(
             m => m._tempId && !mergedIds.has(m.id) && !mergedClientIds.has(m._tempId)
           );
-          return inflight.length ? [...merged, ...inflight] : merged;
+          // ack 已确认送达(confirmedMsgIds)但补拉快照旧于落库时刻 → 快照里没有它。
+          // 若不保留会被 merged 整体覆盖而「已发送成功」的消息突然消失(OB-02 重发后气泡
+          // 丢失的根因:disconnect 即时标 error → 重连后自动重发成功 → 旧快照覆盖)。
+          // merged 里已存在的自然跳过,不会重复。
+          const confirmed = prev.filter(m => confirmedIds.has(m.id) && !mergedIds.has(m.id));
+          return (inflight.length || confirmed.length)
+            ? [...merged, ...inflight, ...confirmed]
+            : merged;
         });
         const maxSequence = data.reduce((max, message) => Math.max(max, Number(message.server_sequence) || 0), 0);
         loadSyncCursor(user.id, conversation.id).then(cursor => {
@@ -1124,8 +1131,24 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     socket.on('group_settings_updated', onGroupSettingsUpdated);
     socket.on('message_pinned', onPinned);
     socket.on('message_unpinned', onUnpinned);
+    // 网络断开 → 立即把「发送中」消息标为失败(不等 5s ack 超时)。
+    // 事件由网络栈驱动,比 JS 定时器可靠:CI 负载/主线程卡顿可能把 5s 定时器推迟十几秒,
+    // 失败态迟迟不出现(E2E outbox 连挂的根因);disconnect 一到就标 error,重连自愈照常。
+    const onDisconnect = () => {
+      const pending = pendingMsgsRef.current;
+      if (!pending.size) return;
+      const stale = new Set(pending.keys());
+      pending.forEach(timer => clearTimeout(timer));
+      pending.clear();
+      setMessages(prev => prev.map(m =>
+        (m._tempId && stale.has(m._tempId) && m._status === 'sending')
+          ? { ...m, _status: 'error' } : m
+      ));
+    };
+    socket.on('disconnect', onDisconnect);
     return () => {
       unsubDelivered?.(); // 取消订阅，防止已卸载的组件收到送达回执
+      socket.off('disconnect', onDisconnect);
       socket.off('mentioned', onAtMention);
       socket.off('new_message', onMsg);
       socket.off('new_message_batch', onMsgBatch);
@@ -1180,12 +1203,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (ack?.success && ack.message) {
         confirmedMsgIds.current.add(ack.message.id);
         setMessages(prev => prev.map(m => m._tempId === newTempId ? { ...ack.message } : m));
+        removeFromOutbox(conversation.id, failedMsg.id); // 重发成功即清待发件箱(幂等)
       } else {
         setMessages(prev => prev.map(m => m._tempId === newTempId ? { ...m, _status: 'error' } : m));
         if (ack?.error) showToast(ack.error, 'error');
       }
     });
-  }, [socket]);
+  }, [socket, conversation.id]);
 
   // ── 断线重连后：自动自愈「发送失败」的消息（弱网/电梯/地铁场景）─────────
   // 重连时补拉服务端消息(上面的 effect)可认领「已落库但 ack 丢失」的乐观消息；
@@ -1318,9 +1342,16 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     }, 5000);
     pendingMsgsRef.current.set(tempId, timer);
 
-    // 断线/无 socket:不静默丢消息——乐观气泡已渲染,让 5s timer 标记「发送失败」(❗可重发)。
-    // 用户在弱网/重连窗口点发送时能看到消息并得到失败反馈,重连后自动补发或手动重发。
+    // 未连接(断网/重连窗口):立即标失败,不等 5s ack 超时——失败态即时可见,不依赖定时器。
+    // 但【不 return,继续 emit】:socket.io 缓冲开启时(短暂离线),恢复后缓冲 flush 自动送达,
+    // ack 到达会把它替换为真实消息(最快自愈路径);彻底断开则 emit 丢弃,error+outbox
+    // 由断线重连自愈(healedOnReconnect)兜底。若此处直接 return,缓冲 flush 路径被掐断,
+    // 恢复网络后消息只能等下一次重连事件才重发(E2E OB-02 全量负载下偶发卡在失败态)。
     if (!socket) return;
+    if (!socket.connected) {
+      pendingMsgsRef.current.delete(tempId);
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
+    }
 
     // 3. 发送并等待 socket.io ack（后端已在 send_message handler 中调用 ack()）
     const msgClientId = `perf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -1339,6 +1370,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // 把真实 id 存入 confirmed，防止 new_message 广播重复添加
         confirmedMsgIds.current.add(ack.message.id);
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...ack.message } : m));
+        removeFromOutbox(conversation.id, tempId); // 成功送达即清待发件箱,避免残留
       } else {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
         if (ack?.error) showToast(ack.error, 'error');

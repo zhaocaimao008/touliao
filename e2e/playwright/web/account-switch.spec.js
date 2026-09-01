@@ -18,14 +18,18 @@ test.describe('账户切换 ACC', () => {
     await chat.waitReady();
     await webPage.waitForTimeout(1500); // 等 reload + 账号数据加载
     await expect(webPage.locator('[data-testid="login-phone-input"]')).toHaveCount(0);
-    // 打开账户面板,应能看到两个账号行(switcher 是 toggle,确保打开)
+    // 打开账户面板,应能看到两个账号行。
+    // 轮询里不盲目 toggle:先确保面板处于打开态(account-add-row 可见)再数行数,
+    // 避免「面板已开→再点=关闭」的自锁 toggle(全量负载下 reload/首帧慢时稳定 flake)。
     const switcher = webPage.locator('[data-testid="account-switcher"]');
-    await switcher.click();
     const rows = webPage.locator('[data-testid^="account-row-"]');
-    // 面板可能需 toggle 两次(若初始态不同),轮询到 2 行
+    const addRow = webPage.locator('[data-testid="account-add-row"]');
     await expect(async () => {
-      if (await rows.count() < 2) { await switcher.click(); await webPage.waitForTimeout(300); }
+      if (!(await addRow.isVisible().catch(() => false))) {
+        await switcher.click();
+        await webPage.waitForTimeout(300);
+      }
       expect(await rows.count()).toBe(2);
-    }).toPass({ timeout: 10000 });
+    }).toPass({ timeout: 15000 });
   });
 });

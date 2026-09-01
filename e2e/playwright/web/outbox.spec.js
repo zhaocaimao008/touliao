@@ -20,11 +20,15 @@ test.describe('待发件箱 OUTBOX', () => {
     await chat.waitSocketConnected();   // 先确认连上,才是「已连上后断线」被测路径
 
     await webPage.context().setOffline(true);
+    // 先确认 socket 真正断开再发消息:否则消息可能在离线切换生效前发出并 ack 成功,
+    // 不会产生失败态(历史 flake 根因之一)。
+    await chat.waitSocketDisconnected();
     const t = 'outbox-persist-' + Date.now();
     await chat.sendText(t);
-    // 5s ack 超时 → 失败态
+    // 5s ack 超时(或 disconnect/发送自检即时标记) → 失败态。
+    // 30s:CI 共享 runner 负载下 React 渲染队列被推迟,20s 窗口偶发不足(retries 3 全挂的历史 flake)
     await expect(webPage.locator('[data-testid="msg-send-failed"]').last())
-      .toBeVisible({ timeout: 20000 });
+      .toBeVisible({ timeout: 30000 });
 
     // 断网态下：失败消息已写入 localStorage 待发件箱（持久化的直接证据）
     const outboxRaw = await webPage.evaluate(
@@ -52,16 +56,18 @@ test.describe('待发件箱 OUTBOX', () => {
     await chat.waitSocketConnected();   // 先确认连上,才是「已连上后断线」被测路径
 
     await webPage.context().setOffline(true);
+    // 同 OB-01:确认断开后再发送,保证必然进入失败态(消除离线切换生效前的发送竞态)
+    await chat.waitSocketDisconnected();
     const t = 'outbox-heal-' + Date.now();
     await chat.sendText(t);
     await expect(webPage.locator('[data-testid="msg-send-failed"]').last())
-      .toBeVisible({ timeout: 20000 });
+      .toBeVisible({ timeout: 30000 });
 
     // 恢复网络 → socket 自动重连 → 失败消息自动重发
     await webPage.context().setOffline(false);
-    // 自愈完成后失败标记应消失（该条已成功送达）
+    // 自愈完成后失败标记应消失（该条已成功送达）;30s 吸收 CI 负载(同 OB-01)
     await expect(webPage.locator('[data-testid="msg-send-failed"]'))
-      .toHaveCount(0, { timeout: 20000 });
+      .toHaveCount(0, { timeout: 30000 });
     // 消息本身仍在
     await expect(webPage.locator('[data-testid^="msg-bubble-"]', { hasText: t }).last())
       .toBeVisible();

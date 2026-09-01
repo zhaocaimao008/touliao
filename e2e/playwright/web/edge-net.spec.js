@@ -17,7 +17,11 @@ async function loginCtx(makeCtx, baseURL, user, convId, grantMedia = false) {
   const login = new LoginPage(page), chat = new ChatPage(page);
   await login.gotoLogin(baseURL); await login.login(user.phone, user.password);
   await chat.waitReady();
-  if (convId) await chat.openConv(convId);
+  if (convId) {
+    await chat.openConv(convId);
+    // 呼叫/断网类用例依赖实时 socket 就绪(同 call.spec 修复,防 emit 进缓冲丢失)
+    await chat.waitSocketConnected();
+  }
   return { ctx, page, chat };
 }
 
@@ -52,6 +56,8 @@ test.describe('网络边界 EDGE-NET', () => {
     await a.chat.waitSocketConnected();
     const txt = 'idem-' + Date.now();
     await a.ctx.setOffline(true);
+    // 等 socket 真正断开再发消息:消除「消息在离线切换生效前发出并 ack 成功」竞态(同 OB-01/02 修复)
+    await a.chat.waitSocketDisconnected();
     await a.chat.sendText(txt);
     // 关键(承重步骤):先等消息进入失败态❗再恢复网络。
     // 真正 setOffline 的 context 下 socket.io 无法送达,5s ack 超时必然触发失败态,
@@ -59,7 +65,7 @@ test.describe('网络边界 EDGE-NET', () => {
     // 消息可能仍是 sending/未落 outbox,重连补拉历史会替换 messages 把它冲掉 → 丢失(0 条)。
     // (CI 负载下此竞态稳定复现;隔离跑因够快侥幸不触发。)
     await expect(a.page.locator('[data-testid="msg-send-failed"]').last())
-      .toBeVisible({ timeout: 20000 });
+      .toBeVisible({ timeout: 30000 });
     // 恢复网络：socket.io 重连后自动补发离线期间缓冲的 emit / outbox 自愈重发，
     // 后端据 clientMsgId 幂等去重。(不手动点❗重发——会与自动补发形成双触发竞态。)
     await a.ctx.setOffline(false);
@@ -78,7 +84,8 @@ test.describe('网络边界 EDGE-NET', () => {
     const { page, chat } = a;
     // 发起通话(对端不在线/不接)
     await chat.tid('chat-call-audio-btn').first().click();
-    await expect(page.locator('[data-testid="call-modal"]')).toBeVisible({ timeout: 10000 });
+    // call-modal 等 ack 打开(同 CALL-01 修复),20s 窗口吸收 CI 负载
+    await expect(page.locator('[data-testid="call-modal"]')).toBeVisible({ timeout: 20000 });
     // 等待一段(呼叫中),验证通话窗没崩,可手动挂断
     await page.waitForTimeout(3000);
     await chat.tid('call-hangup-btn').click();

@@ -31,19 +31,21 @@ test.describe('边界/异常/性能 EDGE', () => {
   test('EDGE-02 并发快速发送 5 条 → 全部到达且不重复', async ({ webPage, seeded, baseURL }) => {
     test.skip(!seeded.convAB, '无会话');
     const chat = await loginOpen(webPage, baseURL, seeded);
-    const before = await chat.bubbleCount();
     const tag = 'concurrent-' + Date.now();
     // 不等 ack 连发 5 条(模拟手快)
     for (let i = 0; i < 5; i++) {
       await chat.tid('chat-msg-input').fill(`${tag}-${i}`);
       await chat.tid('chat-send-btn').click();
     }
-    // 5 条都出现,且总数恰好 +5(不丢不重)
+    // 5 条都出现,且 tag 消息总数恰好 5(不丢不重)。
+    // 用 tag 精确计数替代 before+5 总数断言:before 在虚拟列表历史未加载完时取会失真,
+    // 造成「历史消息补渲染」被误判为重复(全量串行共享会话时的历史 flake 根因)。
     for (let i = 0; i < 5; i++) {
       await expect(webPage.locator('[data-testid^="msg-bubble-"]', { hasText: `${tag}-${i}` }))
         .toHaveCount(1, { timeout: 10000 });
     }
-    await expect.poll(() => chat.bubbleCount(), { timeout: 8000 }).toBe(before + 5);
+    await expect(webPage.locator('[data-testid^="msg-bubble-"]', { hasText: tag }))
+      .toHaveCount(5, { timeout: 10000 });
   });
 
   test('EDGE-03 超长消息(4000字) → 正常渲染不崩', async ({ webPage, seeded, baseURL }) => {

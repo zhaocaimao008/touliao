@@ -21,6 +21,14 @@ class ChatPage {
     await this.page.waitForFunction(() => (window.__touliaoSocket || window.__vxinSocket)?.connected === true, null, { timeout });
   }
 
+  /** 等 socket 真正断开(connected===false)。断网用例先等断开再发消息,消除「消息在断开前发出」竞态。 */
+  async waitSocketDisconnected(timeout = 15000) {
+    await this.page.waitForFunction(() => {
+      const s = window.__touliaoSocket || window.__vxinSocket;
+      return !s || s.connected === false;
+    }, null, { timeout });
+  }
+
   /** 按会话 id 打开;虚拟列表中不可见则先滚动 */
   async openConv(convId) {
     const item = this.tid(A.convItem(convId)).first();
@@ -156,7 +164,9 @@ class ChatPage {
   /** 发起语音/视频通话,等通话窗出现 */
   async startCall(type = 'audio') {
     await this.tid(type === 'video' ? A.chatCallVideoBtn : A.chatCallAudioBtn).first().click();
-    await this.tid(A.callModal).waitFor({ state: 'visible', timeout: 10000 });
+    // call-modal 非乐观渲染:8/31 起等后端 call:request ack(callId)才打开。
+    // CI 负载下 ack RTT 可超 10s,等待窗口放宽到 20s,消除负载 flake。
+    await this.tid(A.callModal).waitFor({ state: 'visible', timeout: 20000 });
   }
 
   async hangup() {

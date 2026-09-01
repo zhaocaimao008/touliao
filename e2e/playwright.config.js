@@ -12,7 +12,9 @@ const env = require('./shared/env');
 module.exports = defineConfig({
   testDir: './playwright',
   timeout: 60_000,
-  expect: { timeout: 10_000 },
+  // 12s:全量串行共享单后端的负载下,socket 事件驱动断言(撤回消失/失败态出现/消息到达)
+  // 的 RTT 偶发超 10s。10s→12s 给实时事件留余量,同时保持对真实回归的敏感度。
+  expect: { timeout: 12_000 },
   fullyParallel: false,        // 共享一个后端实例,串行避免数据互相干扰
   workers: 1,
   // CI 重试 3 次：outbox / edge-net / read 等用例依赖「断网 5s ack 超时 → 失败态」
