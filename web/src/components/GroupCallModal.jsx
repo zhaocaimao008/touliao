@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { showToast } from '../utils/toast';
+import { installPrewarm, startRingback as toneRingback, stopTone, playConnectedTone } from '../utils/callTones';
+
+installPrewarm();
 
 // 仅在拉取 /api/turn/credentials 失败时兜底
 const FALLBACK_ICE = { iceServers: [
@@ -311,14 +314,30 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
   const webrtc = useGroupCallWebRTC({ socket, user, session, nameOf, onClose });
   const cols = useResponsiveGrid(webrtc.tileCount);
   const containerRef = useFocusTrap(true);
+  const toneRef = useRef(null); // 回铃音循环句柄 { stop }
+  const { muted, cameraOff, remoteStreams, localStream, status, isVideo, peerIds, tileCount } = webrtc;
+
+  // 主叫等待期回铃音：status='calling'(发出 start 到有人加入/结束)循环；
+  // 其余状态停止。接通瞬间播一声提示音。
+  useEffect(() => {
+    if (status === 'calling' && !toneRef.current) {
+      stopTone();
+      toneRef.current = toneRingback();
+    } else if (status !== 'calling') {
+      toneRef.current?.stop();
+      toneRef.current = null;
+    }
+    if (status === 'connected') playConnectedTone();
+    return () => { toneRef.current?.stop(); toneRef.current = null; };
+  }, [status]);
 
   const handleHangup = () => {
+    toneRef.current?.stop();
+    toneRef.current = null;
     webrtc.hangup();
     webrtc.cleanup();
     onClose();
   };
-
-  const { muted, cameraOff, remoteStreams, localStream, status, isVideo, peerIds, tileCount } = webrtc;
 
   return (
     <div

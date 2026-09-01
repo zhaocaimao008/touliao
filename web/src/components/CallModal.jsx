@@ -3,7 +3,13 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { matchesCall, withCallId } from '../utils/callSignaling';
+import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingTone, playConnectedTone } from '../utils/callTones';
 import './CallModal.css';
+
+// 页面首次交互即预热 AudioContext(autoplay 政策:创建/resume 需在手势栈内,
+// 见 callTones.js 头部说明)。sticky activation 后创建即 running,回铃音/来电
+// 铃声无需再请求手势。
+installPrewarm();
 
 const FALLBACK_ICE = {
   iceServers: [
@@ -193,8 +199,7 @@ export default function CallModal({ socket, call, onClose }) {
   const ICE_RESTART_DEBOUNCE_MS = 3000;     // disconnected 防抖:短时探测间隙(<3s 通常自愈)
   const ICE_RESTART_WINDOW_MS   = 15000;    // restart 后等待恢复的窗口
   const ICE_RESTART_MAX         = 3;        // 最大重启次数,超限放弃(对称 NAT 无 TURN 再试无益)
-  const audioCtxRef = useRef(null); // 通话提示音（WebAudio）
-  const ringbackRef = useRef(null); // 回铃音循环句柄 { stop }
+  const toneRef = useRef(null); // 循环提示音句柄 { stop }(回铃/来电共用)
 
   const timer = useCallTimer(status === 'connected');
 
@@ -223,7 +228,7 @@ export default function CallModal({ socket, call, onClose }) {
   const onRemoteAudioMount = useCallback((el) => {
     remoteAudioRef.current = el;
     if (el && remoteStreamRef.current) el.srcObject = remoteStreamRef.current;
-    if (el && supportsSinkId && outputDeviceId) el.setSinkId(outputDeviceId).catch(() => {});
+    if (el && supportsSinkId && outputDeviceId) el.setSinkId(outputDeviceId).catch(() => console.warn('[call] setSinkId 失败:', outputDeviceId));
   }, [outputDeviceId, supportsSinkId]);
 
   // 输出设备枚举：需要先有过麦克风授权(标签才不是空字符串)，通话建立时机正合适。
@@ -252,63 +257,30 @@ export default function CallModal({ socket, call, onClose }) {
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
   }, []);
 
-  /* ── 通话提示音（WebAudio 生成，零音频文件依赖）────────────────
-     · 回铃音 ringback：主叫拨出等待期循环（中国制式「响1秒·停4秒」450Hz）
-     · 接通提示音 connected：接通瞬间短促上扬「叮」
+  /* ── 通话提示音（callTones.js:WebAudio 合成 + autoplay 预热）────────
+     · 回铃音：主叫拨出等待期循环（450Hz「响1秒·停4秒」）
+     · 来电铃声：被叫 incoming 循环（450+500Hz）
+     · 接通提示音：接通瞬间一声「叮」
+     AudioContext 由 prewarm 在用户手势栈内创建(见文件头注释),此处只播不建。
   */
-  const getCtx = useCallback(() => {
-    if (!audioCtxRef.current) {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC) audioCtxRef.current = new AC();
-    }
-    const ctx = audioCtxRef.current;
-    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
-    return ctx;
+  const startRingback = useCallback(() => {
+    if (toneRef.current) return;
+    stopTone();
+    toneRef.current = toneRingback();
   }, []);
 
-  const startRingback = useCallback(() => {
-    const ctx = getCtx();
-    if (!ctx || ringbackRef.current) return;
-    let stopped = false;
-    const beep = () => {
-      if (stopped) return;
-      const t = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 450;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.13, t + 0.05);
-      gain.gain.setValueAtTime(0.13, t + 0.9);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t); osc.stop(t + 1.0);
-    };
-    beep();
-    const iv = setInterval(beep, 5000); // 响1停4 → 周期5s
-    ringbackRef.current = { stop: () => { stopped = true; clearInterval(iv); } };
-  }, [getCtx]);
+  const startIncoming = useCallback(() => {
+    if (toneRef.current) return;
+    stopTone();
+    toneRef.current = startIncomingTone();
+  }, []);
 
   const stopRingback = useCallback(() => {
-    ringbackRef.current?.stop();
-    ringbackRef.current = null;
+    toneRef.current?.stop();
+    toneRef.current = null;
   }, []);
 
-  const playConnected = useCallback(() => {
-    const ctx = getCtx();
-    if (!ctx) return;
-    const t = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(660, t);
-    osc.frequency.exponentialRampToValueAtTime(880, t + 0.12);
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.18, t + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(t); osc.stop(t + 0.3);
-  }, [getCtx]);
+  const playConnected = useCallback(() => { playConnectedTone(); }, []);
 
   const cleanup = useCallback(() => {
     clearTimeout(timeoutRef.current);
@@ -535,17 +507,19 @@ export default function CallModal({ socket, call, onClose }) {
     return () => { window.removeEventListener('beforeunload', onUnload); cleanup(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 提示音生命周期：主叫拨出等待→回铃音循环；接通瞬间→提示音一声
+  // 提示音生命周期：主叫拨出等待→回铃音循环；被叫来电→来电铃声循环；
+  // 接通瞬间→提示音一声；其余状态停音
   useEffect(() => {
     if (status === 'calling') startRingback();
+    else if (status === 'incoming') startIncoming();
     else stopRingback();
     if (status === 'connected') playConnected();
-  }, [status, startRingback, stopRingback, playConnected]);
+  }, [status, startRingback, startIncoming, stopRingback, playConnected]);
 
-  // 卸载兜底：停回铃音 + 释放 AudioContext
+  // 卸载兜底：停提示音（AudioContext 为模块级共享实例，不 close，
+  // 由页面生命周期管理——close 会杀掉预热实例，下次通话又要重建）
   useEffect(() => () => {
     stopRingback();
-    try { audioCtxRef.current?.close?.(); } catch { /* already closed */ }
   }, [stopRingback]);
 
   const toggleMute = useCallback(() => {

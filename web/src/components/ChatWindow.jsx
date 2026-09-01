@@ -9,6 +9,7 @@ import VideoPreview from './VideoPreview';
 import FilePreview from './FilePreview';
 import VirtualMessageList from './VirtualMessageList';
 import ChatHeader from './ChatHeader';
+import { prewarmAudio, stopTone, startIncomingTone } from '../utils/callTones';
 import ConvSearchBar from './ConvSearchBar';
 import PinnedBanner from './PinnedBanner';
 import UploadProgressBar from './UploadProgressBar';
@@ -337,6 +338,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 不会让呼叫方永远卡在"呼叫中"却其实后端早就拒绝了。
   const startCall = useCallback((type) => {
     if (conversation.type !== 'private') return;
+    prewarmAudio(); // 手势栈内同步预热 AudioContext:回铃音播放的前提(autoplay 政策)
     const remoteUser = { id: conversation.otherUser?.id, name: conversation.name, avatar: conversation.avatar };
     const remoteId = conversation.otherUser?.id;
     pendingCallRef.current = 'pending';
@@ -382,6 +384,20 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     socket.on('group_call:invite', onInvite);
     return () => socket.off('group_call:invite', onInvite);
   }, [socket, conversation.id, groupCall]);
+
+  // 群通话被叫来电铃声：收到邀请条(未加入/未拒绝)期间循环;消失即停
+  const inviteToneRef = useRef(null);
+  useEffect(() => {
+    if (groupCallInvite && !groupCall) {
+      prewarmAudio();
+      stopTone();
+      inviteToneRef.current = startIncomingTone();
+    } else {
+      inviteToneRef.current?.stop();
+      inviteToneRef.current = null;
+    }
+    return () => { inviteToneRef.current?.stop(); inviteToneRef.current = null; };
+  }, [groupCallInvite, groupCall]);
 
   const joinGroupCall = useCallback(() => {
     if (!groupCallInvite) return;
