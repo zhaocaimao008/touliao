@@ -20,6 +20,7 @@ const registerTyping  = require('./handlers/typing');
 const registerNudge   = require('./handlers/nudge');
 const registerCall    = require('./handlers/call');
 const registerGroupCall = require('./handlers/groupCall');
+const createCallSessionRegistry = require('./callSessionRegistry');
 
 // P1-07 SOCKET-004：每用户并发 socket 上限，防连接洪泛 DoS。
 // 正常多端 ≤ 3~4 台，留余量到 5。超额连接在握手阶段直接拒绝（不进入 DB 查询链）。
@@ -54,6 +55,13 @@ function pruneIpHandshake() {
 
 module.exports = function setupRealtime(io, app) {
   broadcaster.setIo(io); // 广播调度器绑定 io 实例（分片削峰派发）
+  const callRegistry = createCallSessionRegistry({
+    graceMs: config.calls.reconnectGraceMs,
+    onGraceExpired: info => {
+      if (info.kind === 'group') registerGroupCall.handleGraceExpired(io, callRegistry, info);
+      else registerCall.handleGraceExpired(io, callRegistry, info);
+    },
+  });
 
   // ── 握手鉴权（Cookie 优先，Electron 降级到 auth.token）──────
   io.use(async (socket, next) => {
@@ -201,8 +209,8 @@ module.exports = function setupRealtime(io, app) {
     registerMessage(io, socket);
     registerFile(io, socket);
     const typing = registerTyping(io, socket);
-    registerCall(io, socket);
-    registerGroupCall(io, socket);
+    registerCall(io, socket, callRegistry);
+    registerGroupCall(io, socket, callRegistry);
     registerNudge(io, socket);
 
     // ── 断线 ──────────────────────────────────────────────────

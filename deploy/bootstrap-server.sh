@@ -116,23 +116,23 @@ fi
 # ── 5) coturn（TURN 中继，语音通话必需）─────────────────────────
 step "7/8 coturn（TURN 中继）"
 if [[ "${SKIP_COTURN:-0}" == "1" ]]; then
-  warn "SKIP_COTURN=1，跳过 TURN 部署（对称 NAT/4G 下语音可能连不上）"
+  warn "TURN: 跳过（在线通话未验收）"
 else
   if [[ -z "$PUBLIC_IP" ]]; then
     PUBLIC_IP="$(curl -s4 --max-time 8 ifconfig.me 2>/dev/null || curl -s4 --max-time 8 ip.sb 2>/dev/null || true)"
-    [[ -n "$PUBLIC_IP" ]] || warn "公网 IP 探测失败，请手动传入: bash $0 $APP_URL $EMAIL <PUBLIC_IP>"
+    [[ -n "$PUBLIC_IP" ]] || die "公网 IP 探测失败，请手动传入: bash $0 $APP_URL $EMAIL <PUBLIC_IP>"
   fi
-  if [[ -n "$PUBLIC_IP" ]]; then
-    if command -v turnserver >/dev/null 2>&1; then
-      ok "coturn 已安装，校验配置"
-      grep -qE '^static-auth-secret=' /etc/turnserver.conf && ok "TURN 已配置" \
-        || bash "$SCRIPT_DIR/setup-coturn.sh" "$PUBLIC_IP" "$HOST" "$ENV_FILE"
-    else
-      bash "$SCRIPT_DIR/setup-coturn.sh" "$PUBLIC_IP" "$HOST" "$ENV_FILE"
-    fi
-    # 让后端读到 TURN 配置
-    pm2 restart touliao-backend --update-env >/dev/null 2>&1 || true
-    ok "TURN 配置已生效（TURN_SECRET/TURN_URLS 写入 .env）"
+  if command -v turnserver >/dev/null 2>&1; then
+    ok "coturn 已安装，校验配置"
+    grep -qE '^static-auth-secret=' /etc/turnserver.conf && ok "TURN 已配置" \
+      || bash "$SCRIPT_DIR/setup-coturn.sh" "$PUBLIC_IP" "$HOST" "$ENV_FILE"
+  else
+    bash "$SCRIPT_DIR/setup-coturn.sh" "$PUBLIC_IP" "$HOST" "$ENV_FILE"
+  fi
+  # 让后端读到 TURN 配置
+  pm2 restart touliao-backend --update-env >/dev/null 2>&1 || true
+  if ! bash "$SCRIPT_DIR/check-turn-relay.sh" --env-file "$ENV_FILE"; then
+    die "TURN relay 验证失败；部署未完成"
   fi
 fi
 

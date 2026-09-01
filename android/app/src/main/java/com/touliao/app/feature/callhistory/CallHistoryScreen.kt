@@ -46,6 +46,9 @@ private fun statusLabel(status: String): String = when (status) {
     "canceled" -> "已取消"
     "rejected" -> "已拒绝"
     "ongoing" -> "通话中"
+    // 服务端进程重启时，重启前还没结束的通话记录会被启动时的收尾逻辑
+    // （backend-v2/src/realtime/callReconciler.js）统一标成这个状态。
+    "interrupted" -> "服务重启，通话中断"
     else -> "已接通"
 }
 
