@@ -23,11 +23,13 @@ const { pushCallInvite } = require('../../utils/push');
 const { guardPayload, guardId } = require('../guard');
 const { writeCallMessage } = require('../callMessage');
 
-// 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）
-const CALL_TIMEOUT_MS = 120_000;
+// 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）。
+// 可经环境变量注入(仅测试用短值;生产不设则保持 120s,行为不变)
+const CALL_TIMEOUT_MS = Number(process.env.CALL_TIMEOUT_MS) || 120_000;
 
-// 防骚扰：同一主叫每 5s 只能发起一次通话（不影响 activeCalls 逻辑，仅拦截高频重拨）
-const CALL_COOLDOWN_MS = 5_000;
+// 防骚扰：同一主叫每 5s 只能发起一次通话（不影响 activeCalls 逻辑，仅拦截高频重拨）。
+// 可经环境变量注入(测试设 0 关闭;生产不设则保持 5s,行为不变)
+const CALL_COOLDOWN_MS = process.env.CALL_COOLDOWN_MS !== undefined ? Number(process.env.CALL_COOLDOWN_MS) : 5_000;
 const callRateMap = new Map();
 
 // 模块级共享（单进程 fork 实例）：key = `${callerId}>${calleeId}`

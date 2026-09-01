@@ -15,6 +15,11 @@ const path = require('path');
 const config = require('../config');
 const prodMetrics = require('../utils/prodMetrics');
 
+// 测试专用:FORCE_SYNC_WRITES=1 时 write() 走主线程同步落库(worker 在 jest 下
+// flush 延迟不稳定,测试断言需要确定性)。生产不设此变量,行为完全不变。
+const FORCE_SYNC = process.env.FORCE_SYNC_WRITES === '1';
+const syncDb = FORCE_SYNC ? require('../db/connection').db : null;
+
 const WORKER_SCRIPT = path.join(__dirname, 'worker.js');
 // 极致优化：flushMs 降至 5ms + maxBatch 提升至 800，最大化批处理效率
 const WORKER_DATA   = { dbPath: config.dbPath, flushMs: 5, maxBatch: 800 };
@@ -91,6 +96,12 @@ function postMsg(msg) {
 }
 
 function write(sql, params = []) {
+  // 测试同步模式:立即落库,确定性可断言(见文件头 FORCE_SYNC 说明)
+  if (FORCE_SYNC) {
+    try { syncDb.prepare(sql).run(...params); }
+    catch (e) { console.error('[dbWriter][sync] 写入失败:', e.message); }
+    return;
+  }
   // fire-and-forget：过载时丢弃（非关键写，如送达记录），避免加剧堆积
   if (_overloaded) { backpressure.droppedWrites++; return; }
   postMsg({ type: 'write', sql, params });
