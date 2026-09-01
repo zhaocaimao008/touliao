@@ -49,14 +49,11 @@ const push = require('../src/utils/push');
 const getuiPush = require('../src/utils/getuiPush');
 const firebaseAdmin = require('firebase-admin');
 
-// ── 全 platform 集:DB 实际值域 + 已知值域并集(新值进 DB 由守卫1 强制发现)──
+// ── 全 platform 集:显式声明(硬编码),不自动吸收 DB 新值 ──
+// 守卫1 强制:DB 出现声明之外的新值 → 测试红,提示开发者补声明 + 覆盖。
+// (若 ALL_PLATFORMS 从 DB 自动发现,新值被吸收,守卫1 恒绿——失去拦截意义)
 const KNOWN_PLATFORMS = ['android', 'ios', 'ios_apns', 'ios_voip', 'getui'];
-const ALL_PLATFORMS = [
-  ...new Set([
-    ...db.prepare('SELECT DISTINCT platform FROM device_tokens').all().map(r => r.platform),
-    ...KNOWN_PLATFORMS,
-  ]),
-];
+const ALL_PLATFORMS = [...KNOWN_PLATFORMS];
 
 function insertToken(userId, platform, token) {
   db.prepare(
@@ -185,13 +182,13 @@ describe('推送分发(firebase 未配置:APNs/个推直连不误伤)', () => {
 });
 
 describe('E: 推送通道覆盖检查', () => {
-  test('守卫1:DB 的 DISTINCT platform ⊆ ALL_PLATFORMS(新 platform 强制发现)', () => {
+  test('守卫1:DB 的 DISTINCT platform ⊆ KNOWN_PLATFORMS(新 platform 强制发现)', () => {
     const dbValues = db.prepare('SELECT DISTINCT platform FROM device_tokens').all().map(r => r.platform);
-    const declared = new Set(ALL_PLATFORMS);
+    const declared = new Set(KNOWN_PLATFORMS);
     const unknown = dbValues.filter(p => !declared.has(p));
     expect(unknown).toEqual(
       [],
-      `发现未声明的新 platform 值: ${JSON.stringify(unknown)} —— 请确认所有 pushXxx 函数已覆盖该值后,再加入 ALL_PLATFORMS`
+      `发现未声明的新 platform 值: ${JSON.stringify(unknown)} —— 请确认所有 pushXxx 函数已覆盖该值后,再加入 ALL_PLATFORMS 声明`
     );
   });
 
