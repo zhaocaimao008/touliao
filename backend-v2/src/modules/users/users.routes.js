@@ -34,6 +34,31 @@ const uploadCover  = makeImageUploader(AVATARS_DIR, 'cover',  1, 10 * 1024 * 102
  */
 router.get ('/me/qrcode',   auth, u.qrcode);
 
+/**
+ * @swagger
+ * /users/qr/user:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Scan user QR payload (preview user card + relation status, no side effects)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               payload:
+ *                 type: string
+ *                 description: Raw QR content (JSON: {"type":"vxin-user","id":"...","vxinId":"..."})
+ *     responses:
+ *       200:
+ *         description: User info + relation status
+ */
+router.post('/qr/user',    auth, reactLimiter, u.scanQrUser);
+
 // 我的专属邀请码 + 邀请战绩（裂变统计）
 router.get ('/me/invite',   auth, u.getMyInvite);
 

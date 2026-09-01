@@ -107,7 +107,37 @@ function updateSettings(userId, body) {
 function qrPayload(userId) {
   const user = db.prepare('SELECT id,wechat_id FROM users WHERE id=?').get(userId);
   if (!user) throw notFound('用户不存在');
-  return JSON.stringify({ type: 'vxin-user', id: user.id, vxinId: user.wechat_id });
+  // v: 版本字段,为将来格式演进留口;id 是 users 主键,扫码端凭它识别用户
+  return JSON.stringify({ type: 'vxin-user', v: 1, id: user.id, vxinId: user.wechat_id });
+}
+
+// ── 扫码消费个人码（仿群码 join/:token/preview：只读预览,不产生副作用）────
+// 前端扫到 payload 后调这里拿用户资料+关系状态,展示预览卡;
+// 用户点「添加好友」再走既有 POST /users/friend-request,申请逻辑零重复。
+function scanQrUser(viewerId, payload) {
+  if (typeof payload !== 'string' || !payload.trim()) throw badRequest('参数缺失');
+  let parsed;
+  try { parsed = JSON.parse(payload); } catch { throw badRequest('无效的二维码'); }
+  if (parsed?.type !== 'vxin-user' || typeof parsed.id !== 'string' || !parsed.id)
+    throw badRequest('无效的二维码');
+  const target = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(parsed.id);
+  if (!target) throw notFound('用户不存在');
+  if (target.id === viewerId) throw badRequest('不能添加自己');
+
+  const isFriend = !!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, target.id);
+  const blockedByMe = !!db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(viewerId, target.id);
+  const blockedByThem = !!db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(target.id, viewerId);
+  const pendingSent = !!db.prepare("SELECT 1 FROM friend_requests WHERE from_id=? AND to_id=? AND status='pending'").get(viewerId, target.id);
+  const pendingReceived = !!db.prepare("SELECT 1 FROM friend_requests WHERE from_id=? AND to_id=? AND status='pending'").get(target.id, viewerId);
+
+  return {
+    user: target,
+    relation: {
+      isFriend, blockedByMe, blockedByThem, pendingSent, pendingReceived,
+      // pendingReceived 时仍可"添加"——后端 sendFriendRequest 检测到反向 pending 会自动互接
+      canAdd: !isFriend && !blockedByMe && !blockedByThem && !pendingSent,
+    },
+  };
 }
 
 // ── 搜索 ────────────────────────────────────────────────────────
@@ -342,7 +372,7 @@ async function changePhone(userId, { new_phone, password }) {
 
 module.exports = {
   ensureSettings, serializeSettings, getSettings, updateSettings,
-  qrPayload, search, updateProfile, setAvatar, setCover,
+  qrPayload, scanQrUser, search, updateProfile, setAvatar, setCover,
   getUserDetail, getCollections, addCollection, removeCollection, getCallLogs,
   searchCollections, getCollection, getMyInvite, changePhone,
 };
