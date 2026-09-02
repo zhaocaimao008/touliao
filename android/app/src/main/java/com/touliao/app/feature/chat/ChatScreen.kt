@@ -154,6 +154,9 @@ fun ChatScreen(
         pendingCallVideo = null
         if (v != null && res.values.all { it }) {
             if (viewModel.isGroup) viewModel.startGroupCall(v) else viewModel.startCall(v)
+        } else if (v != null) {
+            // 被拒绝后此前纯静默——点了通话按钮、权限框拒绝后界面毫无反应，像没反应过来一样。
+            android.widget.Toast.makeText(context, "需要麦克风/摄像头权限才能发起通话", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
     fun launchCall(video: Boolean) {
@@ -177,6 +180,9 @@ fun ChatScreen(
     }
     val recordPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) viewModel.startRecording()
+        // 被拒绝后此前纯静默——用户点了语音按钮、弹了系统权限框、拒绝后界面毫无反应，
+        // 像坏了一样。加一条提示至少让用户知道发生了什么（不做"去设置"引导，仅提示原因）。
+        else android.widget.Toast.makeText(context, "需要麦克风权限才能发送语音", android.widget.Toast.LENGTH_SHORT).show()
     }
     val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.setBackground(it) }

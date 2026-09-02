@@ -87,6 +87,7 @@ fun MomentsScreen(
     var commentText by remember { mutableStateOf("") }
     var replyTarget by remember { mutableStateOf<MomentComment?>(null) }  // 回复某条评论(null=普通评论)
     var deleteTarget by remember { mutableStateOf<Moment?>(null) }
+    var reportTarget by remember { mutableStateOf<Moment?>(null) }
     var deleteCommentTarget by remember { mutableStateOf<Pair<Moment, MomentComment>?>(null) }
     var gallery by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
 
@@ -128,7 +129,7 @@ fun MomentsScreen(
                             resolveUrl = viewModel::resolveUrl,
                             onLike = { viewModel.toggleLike(m) },
                             onComment = { commentingId = if (commentingId == m.id) null else m.id; commentText = ""; replyTarget = null },
-                            onLongPress = { if (m.user_id == viewModel.myId) deleteTarget = m },
+                            onLongPress = { if (m.user_id == viewModel.myId) deleteTarget = m else reportTarget = m },
                             commenting = commentingId == m.id,
                             commentText = commentText,
                             onCommentTextChange = { commentText = it },
@@ -167,6 +168,16 @@ fun MomentsScreen(
             text = { Text("确认删除这条朋友圈？") },
             confirmButton = { TextButton(onClick = { viewModel.delete(target); deleteTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } },
+        )
+    }
+
+    reportTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { reportTarget = null },
+            title = { Text("举报动态") },
+            text = { Text("举报这条动态？举报后将提交后台审核。") },
+            confirmButton = { TextButton(onClick = { viewModel.report(target); reportTarget = null }) { Text("举报", color = Color(0xFFFA5151)) } },
+            dismissButton = { TextButton(onClick = { reportTarget = null }) { Text("取消") } },
         )
     }
 

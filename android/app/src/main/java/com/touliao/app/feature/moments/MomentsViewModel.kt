@@ -177,6 +177,15 @@ class MomentsViewModel @Inject constructor(
         }
     }
 
+    /** 举报他人动态（对齐 web：非本人动态 → 举报入口）。成功后静默（与 delete/like 一致，
+     *  只有失败才提示——error 通道渲染成警示色，不适合借用来展示"举报成功"这类正向反馈）。 */
+    fun report(moment: Moment) {
+        viewModelScope.launch {
+            runCatching { momentRepository.report(moment.id) }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("举报失败")) } }
+        }
+    }
+
     /** 删除自己的评论(对齐 web：长按自己评论 → 删除) */
     fun deleteComment(moment: Moment, comment: MomentComment) {
         viewModelScope.launch {

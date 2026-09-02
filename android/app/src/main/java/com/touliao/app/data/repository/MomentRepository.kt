@@ -37,6 +37,8 @@ class MomentRepository @Inject constructor(
 
     suspend fun delete(id: String) = momentApi.delete(id)
 
+    suspend fun report(id: String) = momentApi.report(id)
+
     suspend fun deleteComment(commentId: String) = momentApi.deleteComment(commentId)
 
     suspend fun comments(id: String, limit: Int = 50, offset: Int = 0) =

@@ -64,7 +64,12 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
             if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
             else arrayOf(Manifest.permission.RECORD_AUDIO)
         }
-        val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
+        val groupCallContext = androidx.compose.ui.platform.LocalContext.current
+        val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+            if (!res.values.all { it }) {
+                android.widget.Toast.makeText(groupCallContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
         LaunchedEffect(Unit) { permLauncher.launch(perms) }
 
         Box(Modifier.fillMaxSize().background(Color(0xFF121212))) {

@@ -43,6 +43,9 @@ interface MomentApi {
     @DELETE("api/moments/{id}")
     suspend fun delete(@Path("id") id: String)
 
+    @POST("api/moments/{id}/report")
+    suspend fun report(@Path("id") id: String)
+
     @DELETE("api/moments/comments/{commentId}")
     suspend fun deleteComment(@Path("commentId") commentId: String)
 

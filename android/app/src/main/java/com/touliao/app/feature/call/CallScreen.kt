@@ -96,7 +96,14 @@ fun CallHost(
             base + Manifest.permission.BLUETOOTH_CONNECT
         } else base
     }
-    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
+    val callScreenContext = androidx.compose.ui.platform.LocalContext.current
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        // 此前结果被完全忽略——被拒绝后通话界面照常呈现，用户只会看到"听不到对方声音/
+        // 对方看不到自己"却毫无线索。这不拦断通话流程（对方可能仍在等接听），只提示原因。
+        if (!res.values.all { it }) {
+            android.widget.Toast.makeText(callScreenContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
     LaunchedEffect(Unit) { permLauncher.launch(perms) }
 
     Box(Modifier.fillMaxSize().background(Color(0xFF1A1A1A))) {
