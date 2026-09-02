@@ -1000,20 +1000,42 @@ class ChatViewModel @Inject constructor(
                   val page = runCatching { chatRepository.sync(conversationId, cursor) }.getOrNull() ?: break
                   if (page.next_cursor < cursor) break
                   _uiState.update { state ->
-                    val map = LinkedHashMap(state.messages.associateBy { it.id })
+                    // 2026-09-02 重写：不再全量重排（旧实现无 server_sequence 的 pending
+                    // 消息兜底 Long.MAX_VALUE 排末尾 → 失败消息被甩到最新位置）。
+                    // 改为「保持当前有序数组 + 事件按序插入」：pending 位置天然保持。
+                    val current = state.messages.toMutableList()
                     page.messages.sortedBy { it.server_sequence }.forEach { event ->
                         when (event.event_type) {
-                            "message_created" -> event.message?.let { map[it.id] = it }
-                            "message_edited" -> map[event.message_id]?.let { old ->
-                                map[event.message_id] = old.copy(content = event.payload["content"] ?: old.content, edited = 1)
+                            "message_created" -> {
+                                val msg = event.message ?: return@forEach
+                                // 乐观占位替换：client_msg_id 命中的本地消息删除（让位给真实消息）
+                                msg.clientMsgId?.let { cid ->
+                                    current.removeAll { it.clientMsgId == cid || it.id == cid }
+                                }
+                                val idx = current.indexOfFirst { it.id == msg.id }
+                                if (idx >= 0) current[idx] = msg   // 已有：就地更新（如重发确认）
+                                else {
+                                    // 新消息：按 server_sequence 二分插入（数组本按 sequence 有序）
+                                    val seq = msg.server_sequence
+                                    var lo = 0; var hi = current.size
+                                    while (lo < hi) {
+                                        val mid = (lo + hi) / 2
+                                        if (current[mid].server_sequence < seq) lo = mid + 1 else hi = mid
+                                    }
+                                    current.add(lo, msg)
+                                }
                             }
-                            "message_recalled", "message_deleted_for_me", "message_vanished" -> map.remove(event.message_id)
+                            "message_edited" -> current.indexOfFirst { it.id == event.message_id }
+                                .takeIf { it >= 0 }?.let { i ->
+                                    current[i] = current[i].copy(
+                                        content = event.payload["content"] ?: current[i].content, edited = 1
+                                    )
+                                }
+                            "message_recalled", "message_deleted_for_me", "message_vanished" ->
+                                current.removeAll { it.id == event.message_id }
                         }
                     }
-                    state.copy(messages = map.values.sortedWith(compareBy(
-                        { if (it.server_sequence > 0) it.server_sequence else Long.MAX_VALUE },
-                        { it.created_at }, { it.id },
-                    )))
+                    state.copy(messages = current)
                   }
                   syncCursorStore.save(myId, conversationId, page.next_cursor)
                   if (!page.has_more || page.next_cursor == cursor) break

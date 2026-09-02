@@ -856,13 +856,9 @@ final class ChatViewModel: ObservableObject {
                 default: break
                 }
             }
-            messages.sort {
-                let lhsSequence = $0.serverSequence > 0 ? $0.serverSequence : Int64.max
-                let rhsSequence = $1.serverSequence > 0 ? $1.serverSequence : Int64.max
-                if lhsSequence != rhsSequence { return lhsSequence < rhsSequence }
-                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
-                return $0.id < $1.id
-            }
+            // 2026-09-02：移除全量重排（旧实现无 server_sequence 的 pending 消息兜底
+            // Int64.max 排末尾 → 失败消息被甩到最新位置）。插入已由 claimOrAppend/
+            // insertBySequence 按序完成，pending 位置天然保持。
             SyncCursorStore.shared.save(accountId: myId, conversationId: conversationId, sequence: page.nextCursor)
             if !page.hasMore || page.nextCursor == cursor { break }
             cursor = page.nextCursor
@@ -904,7 +900,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// 广播消息落地：若它是本端某条乐观气泡的回声（按 client_msg_id 认领），就替换那条
-    /// 乐观气泡（并清出待发件箱），避免「乐观 + 广播」双显；否则按 id 去重后追加。
+    /// 乐观气泡（并清出待发件箱），避免「乐观 + 广播」双显；否则按 id 去重后按序插入。
     /// 关键：即便发送时 ack 丢失(乐观转 failed)，只要广播带回同一 client_msg_id 也能自愈为成功。
     private func claimOrAppend(_ msg: Message) {
         if let cid = msg.clientMsgId,
@@ -915,7 +911,22 @@ final class ChatViewModel: ObservableObject {
             if let i = messages.firstIndex(where: { $0.clientMsgId == cid || $0.id == cid }) { messages[i] = msg }
             return
         }
-        appendUnique(msg)
+        insertBySequence(msg)
+    }
+
+    /// 按 server_sequence 二分插入（保持数组有序）；无 sequence（本地乐观/待发消息）追加末尾。
+    /// 2026-09-02：替代原 appendUnique——sync 全量重排已移除（无 sequence 的 pending 会被
+    /// Int64.max 兜底甩到最新位置），插入必须显式有序，pending 位置才能天然保持。
+    private func insertBySequence(_ msg: Message) {
+        guard !messages.contains(where: { $0.id == msg.id }) else { return }
+        let seq = msg.serverSequence
+        if seq <= 0 { messages.append(msg); return }
+        var lo = 0, hi = messages.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if messages[mid].serverSequence < seq { lo = mid + 1 } else { hi = mid }
+        }
+        messages.insert(msg, at: lo)
     }
 
     private func onTyping(_ e: TypingEvent) {
@@ -1004,7 +1015,7 @@ final class ChatViewModel: ObservableObject {
                 // 用真实消息替换乐观气泡（保留位置）；若广播已先到则去重
                 messages.removeAll { $0.id == real.id }
                 if let idx = messages.firstIndex(where: { $0.id == optimistic.id }) { messages[idx] = real }
-                else { appendUnique(real) }
+                else { insertBySequence(real) }
             case .failure:
                 setLocalStatus(optimistic.id, LocalMsgStatus.failed)
                 var failed = optimistic
@@ -1161,11 +1172,6 @@ final class ChatViewModel: ObservableObject {
     }
 
     // MARK: - helpers
-    private func appendUnique(_ msg: Message) {
-        guard !messages.contains(where: { $0.id == msg.id }) else { return }
-        messages.append(msg)
-    }
-
     private func removePending(_ id: String) { pending.removeAll { $0.id == id } }
 
     private func markFailed(_ id: String) {

@@ -18,6 +18,7 @@ import MultiSelectBar from './MultiSelectBar';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
 import { loadCache, saveCache, clearCache, removeFromCache, loadSyncCursor, saveSyncCursor } from '../utils/msgCache';
 import { applySyncEvents, catchUpConversation } from '../utils/messageSync';
+import { ChatSkeleton } from './PanelSkeleton';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
 // 聊天允许的「常见」文件扩展名（与后端 ALLOWED_CHAT_EXTS 保持一致）；冷门/危险格式不允许上传。
@@ -155,6 +156,8 @@ function detectMention(val, caret) {
 export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall }) {
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
+  // 首屏加载态：消息为空且数据仍在途（无缓存/缓存为空）时显示骨架，避免纯空白
+  const [initialLoading, setInitialLoading] = useState(false);
   // 输入区（compose）状态收敛进 useReducer：input / voiceMode / editingMsg /
   // replyTo 四者有真实协同转换（开始编辑=载入文本+清回复；发送=清文本+清回复；
   // 切换会话=全清），改为原子 dispatch，杜绝散落 setState 的不一致。见
@@ -552,12 +555,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     return () => document.removeEventListener('visibilitychange', onResume);
   }, [catchUp]);
 
-  // 切换会话时清空所有会话内 UI 状态：render 期派生（存上一次 conversation.id），
+  // 切换会话时重置所有会话内 UI 状态：render 期派生（存上一次 conversation.id），
   // 避免在 effect 内同步 setState 触发级联渲染。等价于按会话 id 重挂载。
+  // 【不 setMessages([])】：保留旧会话消息渲染到新会话首帧数据到达（缓存/网络），
+  // 消除「打开消息多的会话先空白一下」——替换由下方 effect 的 firstArrival 逻辑保证，
+  // 旧消息最多残留几十 ms（IndexedDB 预热后缓存读取极快），期间界面有内容而非空白。
   const [prevConvId, setPrevConvId] = useState(conversation.id);
   if (conversation.id !== prevConvId) {
     setPrevConvId(conversation.id);
-    setMessages([]);
     // compose 全清 + 载入新会话草稿（replyTo/editingMsg/voiceMode/input 原子重置）
     dispatchCompose({ type: 'RESET', draft: localStorage.getItem(`draft_${conversation.id}`) || '' });
     setMention(null); // 清 @ 提及态,避免跨会话残留下拉
@@ -579,14 +584,21 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       .catch(() => {});
 
     // 离线缓存首屏：先渲染本地缓存历史（若有），服务端到达后合并覆盖。
-    // 只在当前 messages 尚为空时填充，避免覆盖已有乐观消息/已加载内容。
+    // 首个到达（缓存或网络）整体替换旧会话残留消息；后续到达走合并。
+    // 旧逻辑 setMessages(prev => prev.length ? prev : cached) 在「不清空」后无法
+    // 区分「旧会话残留」与「新会话在途消息」，统一用 firstArrival 标记。
+    let firstArrival = true;
+    setInitialLoading(true);
     const convIdForCache = conversation.id;
     const cachedMessages = (conversation.burn_after || 0) > 0
       ? clearCache(convIdForCache).then(() => [])
       : loadCache(convIdForCache);
     cachedMessages.then(cached => {
       if (ac.signal.aborted || !cached.length) return;
-      setMessages(prev => (prev.length ? prev : cached));
+      if (!firstArrival) return;   // 网络结果已到（更新更全），丢弃旧缓存
+      firstArrival = false;
+      setInitialLoading(false);
+      setMessages(cached);
     });
 
     fetchMessages(null, ac.signal)
@@ -617,6 +629,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // 会用 setMessages(merged) 覆盖掉刚发的消息,导致其静默消失(无失败态、无重发入口)。
         // 用函数式更新读当前 state,把服务端未包含的在途乐观消息补回队尾。
         setMessages(prev => {
+          if (firstArrival) {
+            firstArrival = false;
+            setInitialLoading(false);
+            // 本会话首个数据：整体替换（prev 可能是旧会话残留消息或空）
+            return merged;
+          }
           const mergedIds = new Set(merged.map(m => m.id));
           const mergedClientIds = new Set(merged.map(m => m.client_msg_id).filter(Boolean));
           const inflight = prev.filter(
@@ -1199,33 +1217,36 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // ── 重发失败消息（复用 pendingMsgsRef + ack 机制）─────────────
   const retryMessage = useCallback((failedMsg) => {
     if (!socket) return;
-    const newTempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // 2026-09-02：不再换新 _tempId——保持原 tempId 同时作 clientMsgId 幂等键。
+    // 旧实现换 newTempId 导致广播(client_msg_id=原tempId)先于 ack 到达时 onMsg
+    // 匹配不到本地乐观消息 → append 末尾 + 与 ack 替换的消息重复双显（现象二）。
+    const tempId = failedMsg._tempId || failedMsg.id;
     setMessages(prev =>
-      prev.map(m => m._tempId === failedMsg._tempId
-        ? { ...m, _status: 'sending', _tempId: newTempId }
+      prev.map(m => (m._tempId === tempId || m.id === tempId)
+        ? { ...m, _status: 'sending' }
         : m
       )
     );
     const timer = setTimeout(() => {
-      pendingMsgsRef.current.delete(newTempId);
-      setMessages(prev => prev.map(m => m._tempId === newTempId ? { ...m, _status: 'error' } : m));
+      pendingMsgsRef.current.delete(tempId);
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
     }, 5000);
-    pendingMsgsRef.current.set(newTempId, timer);
+    pendingMsgsRef.current.set(tempId, timer);
     socket.emit('send_message', {
       conversationId: failedMsg.conversation_id,
       content:        failedMsg.content,
       type:           failedMsg.type,
       reply_to_id:    failedMsg.reply_to_id || null,
-      clientMsgId:    failedMsg.id, // 复用首发的 tempId 作幂等键:重发若原消息已落库,后端去重不产生重复
+      clientMsgId:    tempId, // 幂等键:重发若原消息已落库,后端去重不产生重复
     }, (ack) => {
-      clearTimeout(pendingMsgsRef.current.get(newTempId));
-      pendingMsgsRef.current.delete(newTempId);
+      clearTimeout(pendingMsgsRef.current.get(tempId));
+      pendingMsgsRef.current.delete(tempId);
       if (ack?.success && ack.message) {
         confirmedMsgIds.current.add(ack.message.id);
-        setMessages(prev => prev.map(m => m._tempId === newTempId ? { ...ack.message } : m));
-        removeFromOutbox(conversation.id, failedMsg.id); // 重发成功即清待发件箱(幂等)
+        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...ack.message } : m));
+        removeFromOutbox(conversation.id, tempId); // 重发成功即清待发件箱(幂等)
       } else {
-        setMessages(prev => prev.map(m => m._tempId === newTempId ? { ...m, _status: 'error' } : m));
+        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
         if (ack?.error) showToast(ack.error, 'error');
       }
     });
@@ -2459,6 +2480,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             cbRef={callbacksRef}
             onHeightSettle={handleHeightSettle}
           />
+          {/* 首屏加载态：无消息且数据在途（无缓存/慢网络）→ 骨架屏，避免纯空白 */}
+          {!flatItems.length && initialLoading && <ChatSkeleton />}
           {typingName && (
             <div className="cw-typing" style={{ position: 'absolute', bottom: 4, left: 20, right: 20, pointerEvents: 'none', zIndex: 1 }}>
               <span></span><span></span><span></span> {typingName} 正在输入

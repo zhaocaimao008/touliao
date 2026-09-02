@@ -11,6 +11,12 @@ const MAX_PER_CONV = 30;           // 仅用于当前设备会话恢复，限制
 
 let dbPromise = null;
 
+// App 启动预热：提前打开 IndexedDB，切会话时 loadCache 不再有 openDB 冷启动延迟
+// （dbPromise 缓存复用，此调用与后续 loadCache/saveCache 共享同一连接）。
+export function warmupCacheDB() {
+  openDB();
+}
+
 function openDB() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve) => {

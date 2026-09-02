@@ -33,6 +33,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePushNotification } from '../hooks/usePushNotification';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { mediaUrl, goLogin } from '../utils/url';
+import { warmupCacheDB } from '../utils/msgCache';
 import { saveCred, removeCred } from '../utils/rememberedCreds';
 
 function WcEmpty() {
@@ -515,6 +516,9 @@ export default function Home() {
   const { socket, reconnectCount, registerUnreadCleared } = useSocket();
   const { user } = useAuth();
   usePushNotification(user);
+
+  // 启动预热 IndexedDB：切会话时消息缓存读取无 openDB 冷启动延迟（防「打开会话空白一下」）
+  useEffect(() => { warmupCacheDB(); }, []);
   const activeConvIdRef = useRef(null);
   const addBtnRef = useRef(null);
   useEffect(() => { activeConvIdRef.current = activeConv?.id ?? null; }, [activeConv?.id]);
