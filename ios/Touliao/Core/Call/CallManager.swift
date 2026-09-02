@@ -547,21 +547,25 @@ final class CallManager: NSObject, ObservableObject {
 
     private func sampleQuality() {
         guard let pc = pc else { return }
-        pc.stats { [weak self] report in
-            guard let self, let report else { return }
+        // stasel WebRTC (GoogleWebRTC 旧版 API)：stats(for:statsOutputLevel:) 回调 [RTCLegacyStatsReport]。
+        // 2026-09-02 修复：25c7ec7 按新版 RTCStatsReport(report.stats.values) 写的代码在旧版
+        // framework 下编译不过（main 破损，ios-build 全红）——改回旧版逐条 report 遍历。
+        pc.stats(for: nil, statsOutputLevel: .standard) { [weak self] reports in
+            guard let self else { return }
             var rtt: Double? = nil
             var lost: Int64 = 0, received: Int64 = 0
-            for s in report.stats.values where s.type == "candidate-pair" || s.type == "inbound-rtp" {
-                if s.type == "candidate-pair" {
-                    // 注意：RTCStats.values 是 [String: NSObject]，Bool 实际桥接为 NSNumber
-                    if let nominated = (s.values["nominated"] as? NSNumber)?.boolValue, nominated,
-                       let state = s.values["state"] as? String, state == "succeeded" {
-                        rtt = (s.values["currentRoundTripTime"] as? NSNumber)?.doubleValue.map { $0 * 1000 }
+            for report in reports where report.type == "candidate-pair" || report.type == "inbound-rtp" {
+                let values = (report.values as? [String: NSObject]) ?? [:]
+                if report.type == "candidate-pair" {
+                    // 注意：values 是 [String: NSObject]，Bool 实际桥接为 NSNumber
+                    if let nominated = (values["nominated"] as? NSNumber)?.boolValue, nominated,
+                       let state = values["state"] as? String, state == "succeeded" {
+                        rtt = (values["currentRoundTripTime"] as? NSNumber)?.doubleValue.map { $0 * 1000 }
                     }
-                } else if s.type == "inbound-rtp" {
-                    if (s.values["kind"] as? String) == "audio" {
-                        lost += (s.values["packetsLost"] as? NSNumber)?.int64Value ?? 0
-                        received += (s.values["packetsReceived"] as? NSNumber)?.int64Value ?? 0
+                } else if report.type == "inbound-rtp" {
+                    if (values["kind"] as? String) == "audio" {
+                        lost += (values["packetsLost"] as? NSNumber)?.int64Value ?? 0
+                        received += (values["packetsReceived"] as? NSNumber)?.int64Value ?? 0
                     }
                 }
             }
