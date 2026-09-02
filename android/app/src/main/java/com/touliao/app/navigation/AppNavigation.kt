@@ -118,7 +118,7 @@ class AppViewModel @Inject constructor(
 
 data class ChatTarget(val conversationId: String, val title: String, val type: String, val peerUserId: String)
 
-private object Routes {
+object Routes {
     const val LOGIN = "login"
     const val REGISTER = "register"
     const val FORGOT_PASSWORD = "forgotPassword"

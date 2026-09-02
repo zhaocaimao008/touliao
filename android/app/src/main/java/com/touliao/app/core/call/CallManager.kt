@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,8 @@ import org.webrtc.MediaStream
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.RtpReceiver
+import org.webrtc.RTCStatsCollectorCallback
+import org.webrtc.RTCStatsReport
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
@@ -427,7 +430,8 @@ class CallManager @Inject constructor(
         if (from.isEmpty()) return
         // 原子读-改-写（P2-3）：stage 判断与写入放同一临界区，防 Default 线程 socket collect 与
         // 主线程 push 处理 TOCTOU；已展示同 peer 来电时仅升级 callId（防过期通知带旧 id 应答被服务端丢弃）
-        val entered = _state.update { st ->
+        val wasIdle = _state.value.stage == CallStage.IDLE || _state.value.stage == CallStage.ENDED
+        _state.update { st ->
             if (st.stage == CallStage.IDLE || st.stage == CallStage.ENDED) {
                 CallState(
                     CallStage.INCOMING, from, callerName, isVideo = callType == "video", isCaller = false, callId = callId,
@@ -438,10 +442,8 @@ class CallManager @Inject constructor(
                 st  // 正在通话/展示其他来电 → 不覆盖
             }
         }
-        // 新进入 INCOMING（或升级 callId 的重复推送不算新来电）才播铃
-        if (entered.stage == CallStage.INCOMING && entered.peerId == from && entered.isCaller == false && entered.callId == callId) {
-            playIncomingTone()
-        }
+        // 从空闲新进入 INCOMING 才播铃（重复推送/升级 callId 不重播）
+        if (wasIdle) playIncomingTone()
     }
 
     // ── 信令处理 ───────────────────────────────────────────
@@ -732,7 +734,7 @@ class CallManager @Inject constructor(
                 var rtt: Double? = null
                 var lost = 0L; var received = 0L
                 for (s in report.statsMap.values) {
-                    val m = s.members()
+                    val m = s.members
                     if (s.type == "candidate-pair" && m["nominated"] == true && m["state"] == "succeeded") {
                         (m["currentRoundTripTime"] as? Double)?.let { rtt = it * 1000 }
                     }
@@ -742,9 +744,10 @@ class CallManager @Inject constructor(
                     }
                 }
                 val lossRate = if (received + lost > 0) lost.toDouble() / (received + lost) else 0.0
+                val r = rtt   // 局部快照：lambda 捕获的可变变量不能 smart cast
                 val q = when {
-                    rtt != null && rtt >= 500 -> "poor"
-                    rtt != null && rtt >= 200 -> "medium"
+                    r != null && r >= 500 -> "poor"
+                    r != null && r >= 200 -> "medium"
                     lossRate >= 0.08 -> "poor"
                     lossRate >= 0.02 -> "medium"
                     else -> "good"
@@ -916,9 +919,9 @@ class CallManager @Inject constructor(
             while (isActive) {
                 for ((tone, dur) in preset) {
                     if (!isActive) break
-                    runCatching { gen.startTone(tone, dur) }
+                    runCatching { gen.startTone(tone, dur.toInt()) }
                         .onFailure { e -> android.util.Log.w(TAG, "来电铃声播放失败: ${e.message}") }
-                    delay(dur + 320)
+                    delay(dur + 320L)
                 }
                 delay(1500)
             }

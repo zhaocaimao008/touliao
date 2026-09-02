@@ -553,7 +553,8 @@ final class CallManager: NSObject, ObservableObject {
             var lost: Int64 = 0, received: Int64 = 0
             for s in report.stats.values where s.type == "candidate-pair" || s.type == "inbound-rtp" {
                 if s.type == "candidate-pair" {
-                    if let nominated = s.values["nominated"] as? Bool, nominated,
+                    // 注意：RTCStats.values 是 [String: NSObject]，Bool 实际桥接为 NSNumber
+                    if let nominated = (s.values["nominated"] as? NSNumber)?.boolValue, nominated,
                        let state = s.values["state"] as? String, state == "succeeded" {
                         rtt = (s.values["currentRoundTripTime"] as? NSNumber)?.doubleValue.map { $0 * 1000 }
                     }
