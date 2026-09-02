@@ -9,6 +9,7 @@ const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
 const { privateSendGuard, memberRole } = require('../../modules/messages/shared');
 const { appendConversationEvent, emitSyncAvailable } = require('../../modules/messages/sync.service');
+const moderation = require('../../modules/moderation/moderation.service');
 
 // @所有人 的可识别 token（大小写不敏感）——仅群主/管理员使用时生效
 const MENTION_ALL_TOKENS = new Set(['所有人', '全体成员', 'all', 'everyone']);
@@ -91,6 +92,11 @@ module.exports = function registerMessageHandler(io, socket) {
     if (!presence.checkMsgRate(userId)) { ack?.({ success: false, error: '发送频率过高，请稍后再试' }); return; }
     if (content.length > MAX) {
       ack?.({ success: false, error: `消息内容不能超过 ${MAX} 个字符` }); return;
+    }
+    const hitWord = moderation.firstMatch(content);
+    if (hitWord) {
+      console.warn(`[moderation] 消息被拦截 userId=${userId} conversationId=${conversationId}`);
+      ack?.({ success: false, error: '内容包含违规信息，请修改后重试' }); return;
     }
 
     // ── 幂等性去重（fix: 防止弱网 ack 超时重发导致消息重复）──

@@ -12,6 +12,7 @@ const config = require('../../config');
 const { pushToUser } = require('../../utils/push');
 const { badRequest, forbidden, notFound, conflict, paginated } = require('../../utils/http');
 const { isConfigured, getPublicBase } = require('../../utils/cloudStorage');
+const moderation = require('../moderation/moderation.service');
 
 // ── 互动通知（MO2）：actor≠author 才记。删动态由 FK ON DELETE CASCADE 清理 ──
 function addInteractNotification({ recipientId, actorId, momentId, type, commentId = null }) {
@@ -186,6 +187,7 @@ function createMoment(io, userId, { content, images, visibility, visibleTo }) {
   });
   if (!text && imgs.length === 0) throw badRequest('内容不能为空');
   if (text.length > 5000) throw badRequest('内容过长');
+  moderation.assertClean(text);
   const vis = ['all', 'friends', 'private', 'include', 'exclude'].includes(visibility) ? visibility : 'all';
 
   // 分组可见：visible_to 仅保留确为好友的 id（防越权 / 脏数据）
@@ -394,6 +396,7 @@ function addComment(io, userId, momentId, { content, replyToUser }) {
   const text = (content || '').trim();
   if (!text) throw badRequest('评论不能为空');
   if (text.length > 500) throw badRequest('评论过长');
+  moderation.assertClean(text);
 
   // MO4：reply_to_user 必须是真实存在且参与过该动态（作者或评论者）的用户
   let replyTo = '';

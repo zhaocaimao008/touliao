@@ -17,6 +17,7 @@ const broadcaster = require('../../realtime/broadcaster');
 const convSvc = require('../conversations/conversations.service');
 const { shareFileToConversation } = require('../../utils/fileRegistry');
 const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
+const moderation = require('../moderation/moderation.service');
 
 const MAX = config.limits.maxMsgLength;
 
@@ -210,6 +211,7 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   const safeType = ALLOWED_HTTP_TYPES.has(type) ? type : 'text';
   if (!content || typeof content !== 'string') throw badRequest('消息内容格式错误');
   if (content.length > MAX) throw badRequest(`消息内容不能超过 ${MAX} 个字符`);
+  moderation.assertClean(content);
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
@@ -562,6 +564,7 @@ async function react(io, userId, msgId, emoji) {
 async function edit(io, userId, msgId, content) {
   if (!content?.trim()) throw badRequest('内容不能为空');
   if (content.trim().length > MAX) throw badRequest(`消息内容不能超过 ${MAX} 个字符`);
+  moderation.assertClean(content.trim());
   const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
   if (!msg) throw notFound('消息不存在');
   if (msg.sender_id !== userId) throw forbidden('只能编辑自己的消息');

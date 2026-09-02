@@ -441,4 +441,9 @@ router.get('/top-inviters', adminAuth, c.topInviters);
 router.get ('/reports',             adminAuth, c.listReports);
 router.post('/reports/:id/resolve', adminAuth, c.resolveReport);
 
+// ── 内容审核关键词黑名单（2026-09-02，P12 审核 mock 下线后的兜底机制）──────
+router.get   ('/blacklist',     adminAuth, c.listBlacklistWords);
+router.post  ('/blacklist',     adminAuth, c.addBlacklistWord);
+router.delete('/blacklist/:id', adminAuth, c.removeBlacklistWord);
+
 module.exports = router;

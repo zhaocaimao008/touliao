@@ -216,6 +216,15 @@
         <div style="margin-top:14px"><button class="btn" id="ftsave">保存功能开关</button></div>
       </div>
       <div class="panel">
+        <h3>内容审核关键词黑名单</h3>
+        <p>命中即拒绝发送/发布，覆盖单聊/群聊消息、消息编辑、朋友圈动态、朋友圈评论。子串匹配，大小写不敏感，不做同音字/变体规避对抗，仅作兜底。</p>
+        <div style="display:flex;gap:10px;margin-bottom:14px">
+          <input id="bl-word" class="inp" maxlength="50" placeholder="输入关键词" style="flex:1">
+          <button class="btn" id="bladd" style="white-space:nowrap">添加</button>
+        </div>
+        <table class="tbl"><caption class="sr-only">关键词黑名单</caption><thead><tr><th scope="col">关键词</th><th scope="col">添加时间</th><th scope="col">操作</th></tr></thead><tbody id="blbody"></tbody></table>
+      </div>
+      <div class="panel">
         <h3>邀请排行榜</h3>
         <p>按拉新人数排序的邀请裂变榜。<b id="inv-total">—</b></p>
         <div id="inv-rank" aria-live="polite">加载中…</div>
@@ -317,7 +326,7 @@ function switchTab(name){
   if(name==='groups')loadGroups();
   if(name==='reports')loadReports();
   if(name==='security')loadSecurity();
-  if(name==='settings'){loadInvite();loadFeatures();loadTopInviters();}
+  if(name==='settings'){loadInvite();loadFeatures();loadBlacklist();loadTopInviters();}
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
 
@@ -490,6 +499,19 @@ async function loadInvite(){try{const r=await api('/invite-code');$('invcode').v
 $('invsave').onclick=async()=>{const code=$('invcode').value.trim();try{await api('/invite-code',{method:'PUT',body:{inviteCode:code}});toast('邀请码已更新');}catch(e){toast(e.message,1);}};
 $('invgen').onclick=async()=>{try{const r=await api('/invite-code/generate',{method:'POST'});$('invcode').value=r.inviteCode;toast('已生成并保存：'+r.inviteCode);}catch(e){toast(e.message,1);}};
 async function loadFeatures(){try{const r=await api('/features');$('ft-moments').checked=!!r.moments;$('ft-collect').checked=!!r.collect;$('ft-invite').checked=r.inviteRequired!==false;$('ft-gvoice').checked=r.groupVoiceCall!==false;$('ft-gvideo').checked=r.groupVideoCall!==false;$('ft-captcha').checked=!!r.loginCaptcha;}catch(e){toast(e.message,1);}}
+async function loadBlacklist(){
+  try{
+    const words=await api('/blacklist');
+    $('blbody').innerHTML=words.map(w=>`<tr><td>${esc(w.word)}</td><td class="muted">${fmtDate(w.created_at)}</td><td><button class="mini danger" data-action="del-blacklist" data-id="${esc(w.id)}">删除</button></td></tr>`).join('')||`<tr><td colspan="3" class="muted" style="text-align:center;padding:24px">暂无关键词</td></tr>`;
+    $('blbody').querySelectorAll('[data-action="del-blacklist"]').forEach(b=>b.addEventListener('click',()=>delBlacklistWord(b.dataset.id)));
+  }catch(e){toast(e.message,1);}
+}
+async function delBlacklistWord(id){if(!confirm('删除该关键词？'))return;try{await api('/blacklist/'+id,{method:'DELETE'});toast('已删除');loadBlacklist();}catch(e){toast(e.message,1);}}
+$('bladd').onclick=async()=>{
+  const word=$('bl-word').value.trim();
+  if(!word){toast('请输入关键词',1);return;}
+  try{await api('/blacklist',{method:'POST',body:{word}});$('bl-word').value='';toast('已添加');loadBlacklist();}catch(e){toast(e.message,1);}
+};
 async function loadTopInviters(){try{const r=await api('/top-inviters?limit=20');$('inv-total').textContent='累计被邀请 '+r.totalInvited+' 人';$('inv-rank').innerHTML=r.inviters.length?('<table class="tbl"><caption class="sr-only">邀请排行榜</caption><thead><tr><th scope="col">#</th><th scope="col">用户</th><th scope="col">投聊号</th><th scope="col">拉新</th></tr></thead><tbody>'+r.inviters.map((u,i)=>`<tr><td>${i+1}</td><td>${esc(u.username)}${u.banned?' <span style="color:#FA5151">(封禁)</span>':''}</td><td>${esc(u.wechat_id)}</td><td><b>${u.invitedCount}</b></td></tr>`).join('')+'</tbody></table>'):'<div style="color:#888">暂无邀请记录</div>';}catch(e){$('inv-rank').textContent='加载失败：'+e.message;}}
 $('invrank-refresh').onclick=loadTopInviters;
 $('ftsave').onclick=async()=>{try{await api('/features',{method:'PUT',body:{moments:$('ft-moments').checked,collect:$('ft-collect').checked,inviteRequired:$('ft-invite').checked,groupVoiceCall:$('ft-gvoice').checked,groupVideoCall:$('ft-gvideo').checked,loginCaptcha:$('ft-captcha').checked}});toast('功能开关已保存');}catch(e){toast(e.message,1);}};

@@ -620,6 +620,13 @@ function applySchema(db) {
     "ALTER TABLE conversation_events ADD COLUMN batch_id TEXT DEFAULT NULL",
     "ALTER TABLE conversation_events ADD COLUMN client_batch_id TEXT DEFAULT NULL",
     "CREATE INDEX IF NOT EXISTS idx_conversation_events_batch ON conversation_events(batch_id, server_sequence)",
+    // ── 内容审核关键词黑名单兜底（2026-09-02，P12 审核 mock 下线后生产环境唯一的审核机制）──
+    `CREATE TABLE IF NOT EXISTS content_blacklist (
+      id TEXT PRIMARY KEY,
+      word TEXT NOT NULL UNIQUE,
+      created_by TEXT DEFAULT NULL,
+      created_at INTEGER DEFAULT (strftime('%s','now'))
+    )`,
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

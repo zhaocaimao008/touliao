@@ -11,6 +11,7 @@ const sec = require('./security.service');
 const prodMetrics = require('../../utils/prodMetrics');
 const presence = require('../../realtime/presence');
 const { logAuditEvent } = require('../../utils/auditLogger');
+const moderation = require('../moderation/moderation.service');
 
 const io = req => req.app.get('io');
 const DEVICE_COOKIE = 'vxin_admin_device';
@@ -234,11 +235,33 @@ exports.listMessages = asyncHandler(async (req, res) => {
 
 exports.listGroups  = asyncHandler(async (req, res) => res.json(svc.listGroups(req.query)));
 exports.groupDetail = asyncHandler(async (req, res) => res.json(svc.groupDetail(req.params.id)));
-exports.dismissGroup = asyncHandler(async (req, res) => { svc.dismissGroup(io(req), req.params.id); res.json({ success: true }); });
+exports.dismissGroup = asyncHandler(async (req, res) => {
+  svc.dismissGroup(io(req), req.params.id);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'GROUP_DISMISS',
+    resourceType: 'group',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    riskLevel: 'high',
+  });
+  res.json({ success: true });
+});
 
 exports.getFeatures = asyncHandler(async (req, res) => res.json(svc.getFeatures()));
 exports.setFeatures = asyncHandler(async (req, res) => {
   const features = svc.setFeatures(req.body);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'FEATURES_UPDATE',
+    resourceType: 'config',
+    details: features,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
   // 全局广播最新开关：在线客户端无需刷新即可实时显隐入口/按钮（如群语音/视频通话）
   const socketIo = io(req);
   if (socketIo) socketIo.emit('config:updated', { features });
@@ -248,7 +271,49 @@ exports.setFeatures = asyncHandler(async (req, res) => {
 exports.topInviters = asyncHandler(async (req, res) => res.json(svc.topInviters(req.query)));
 
 exports.listReports   = asyncHandler(async (req, res) => res.json(svc.listReports(req.query)));
-exports.resolveReport = asyncHandler(async (req, res) => res.json(svc.resolveReport(req.params.id, req.body?.action)));
+exports.resolveReport = asyncHandler(async (req, res) => {
+  const result = svc.resolveReport(req.params.id, req.body?.action);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: `REPORT_${(req.body?.action || 'resolve').toUpperCase()}`,
+    resourceType: 'report',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    riskLevel: req.body?.action === 'delete' ? 'high' : 'medium',
+  });
+  res.json(result);
+});
+
+exports.listBlacklistWords = asyncHandler(async (req, res) => res.json(moderation.listWords()));
+exports.addBlacklistWord = asyncHandler(async (req, res) => {
+  const result = moderation.addWord(req.body?.word, req.admin.username);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'BLACKLIST_ADD',
+    resourceType: 'content_blacklist',
+    resourceId: result.id,
+    details: { word: result.word },
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+  res.json(result);
+});
+exports.removeBlacklistWord = asyncHandler(async (req, res) => {
+  moderation.removeWord(req.params.id);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'BLACKLIST_REMOVE',
+    resourceType: 'content_blacklist',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+  res.json({ success: true });
+});
 
 exports.getInviteCode = asyncHandler(async (req, res) => res.json({ inviteCode: svc.getInviteCode() }));
 exports.setInviteCode = asyncHandler(async (req, res) => res.json({ inviteCode: svc.setInviteCode(req.body.inviteCode) }));
