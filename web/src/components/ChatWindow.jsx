@@ -1028,13 +1028,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const onRead = ({ userId: uid, conversationId, readAt }) => {
       if (conversationId !== convIdRef.current || uid === user.id) return;
       if (convTypeRef.current === 'private') {
-        setMessages(prev => {
-          const copy = [...prev];
-          for (let i = copy.length - 1; i >= 0; i--) {
-            if (copy[i].sender_id === user.id) { copy[i] = { ...copy[i], _read: true }; break; }
-          }
-          return copy;
-        });
+        // 对端已读到 readAt 时间点：该点之前自己发的消息全部变已读（对齐 WhatsApp 蓝双勾）
+        setMessages(prev => prev.map(m =>
+          m.sender_id === user.id && !m._read && m.created_at <= readAt ? { ...m, _read: true } : m
+        ));
       } else {
         const prevReadAt = readerReadAtRef.current[uid] || 0;
         if (readAt <= prevReadAt) return; // same or older read position — nothing new
@@ -1134,6 +1131,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     socket.on('message_edited', onEdited);
     socket.on('message_reaction', onReaction);
     socket.on('message_read', onRead);
+    // 精确已读回执（/api/reliability/ack/read 通路广播）：逐条标蓝双勾
+    socket.on('message:read', ({ messageId, conversationId }) => {
+      if (conversationId !== convIdRef.current) return;
+      setMessages(prev => prev.map(m =>
+        m.id === messageId && m.sender_id === user.id ? { ...m, _read: true } : m
+      ));
+    });
     // message_delivered 已通过 registerDelivered(onDelivered) 注册到 SocketContext，不重复注册
     // socket.on('red_packet_claimed', onRedPacketClaimed); // removed
     socket.on('group_updated', onGroupUpdated);

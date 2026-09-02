@@ -407,6 +407,16 @@ async function markRead(io, userId, convId, messageId) {
     io.to(convId).emit('message_read', { userId, conversationId: convId, readAt, lastReadMessageId: readMsgId });
     io.to(`user_${userId}`).emit('sync:unread_cleared', { conversationId: convId, lastReadMessageId: readMsgId });
   }
+
+  // 私聊：批量写消息级已读（三态展示的持久化最终态，Redis ackManager 仅实时缓存）
+  if (readMsgId) {
+    const convType = db.prepare('SELECT type FROM conversations WHERE id=?').get(convId)?.type;
+    if (convType === 'private') {
+      db.prepare(`INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at)
+        SELECT id, ?, ? FROM messages WHERE conversation_id=? AND id <= ? AND deleted=0`)
+        .run(userId, readAt, convId, readMsgId);
+    }
+  }
   return { readAt, lastReadMessageId: readMsgId };
 }
 

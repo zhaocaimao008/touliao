@@ -233,6 +233,16 @@ function applySchema(db) {
     )`,
     "CREATE INDEX IF NOT EXISTS idx_deliveries_msg ON message_deliveries(message_id)",
     "CREATE INDEX IF NOT EXISTS idx_deliveries_user ON message_deliveries(user_id)",
+    // 已读回执持久化（三态展示：已发送/已送达/已读；Redis ackManager 仅做实时缓存，
+    // 此处为最终态，TTL 过期/重启不丢）
+    `CREATE TABLE IF NOT EXISTS message_reads (
+      message_id TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      read_at    INTEGER DEFAULT (strftime('%s','now')),
+      PRIMARY KEY (message_id, user_id)
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_reads_msg ON message_reads(message_id)",
+    "CREATE INDEX IF NOT EXISTS idx_reads_user ON message_reads(user_id)",
     "ALTER TABLE conversation_members ADD COLUMN nickname TEXT DEFAULT NULL",
     // 后台封禁标记（禁止登录，可逆）
     "ALTER TABLE users ADD COLUMN banned INTEGER DEFAULT 0",

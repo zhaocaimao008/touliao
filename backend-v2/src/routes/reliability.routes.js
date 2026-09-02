@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const { badRequest, forbidden } = require('../utils/http');
+const { db } = require('../db/connection');
 
 /**
  * @swagger
@@ -80,6 +81,17 @@ router.post('/ack/read', auth, async (req, res, next) => {
 
     const ackManager = req.app.get('ackManager');
     await ackManager.recordRead(messageId, userId, timestamp || Date.now());
+
+    // 持久化到 SQLite（三态展示的最终态；Redis 仅实时缓存，TTL 过期不丢）
+    db.prepare('INSERT OR IGNORE INTO message_reads (message_id, user_id) VALUES (?, ?)').run(messageId, userId);
+
+    // 向发送者实时广播精确回执（消息气泡 蓝双勾 即时流转）
+    const msg = db.prepare('SELECT sender_id, conversation_id FROM messages WHERE id=?').get(messageId);
+    if (msg && msg.sender_id !== userId) {
+      req.app.get('io')?.to(`user_${msg.sender_id}`).emit('message:read', {
+        messageId, readBy: userId, conversationId: msg.conversation_id,
+      });
+    }
 
     res.json({ ok: true, message: '已读确认已记录' });
   } catch (err) {

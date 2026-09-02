@@ -76,6 +76,7 @@ function history(convId, userId, { before, after, limit, beforeId }) {
   }
 
   let deliverySet = new Set();
+  let readSet = new Set();
   let peerLastReadAt = 0;
   if (conv?.type === 'private' && messages.length > 0) {
     const ids = messages.map(m => m.id);
@@ -83,9 +84,14 @@ function history(convId, userId, { before, after, limit, beforeId }) {
     db.prepare(`SELECT message_id FROM message_deliveries WHERE message_id IN (${ph})`).all(...ids)
       .forEach(r => deliverySet.add(r.message_id));
     const peerRow = db.prepare(
-      'SELECT last_read_at FROM conversation_settings WHERE conversation_id=? AND user_id!=? LIMIT 1'
+      'SELECT user_id, last_read_at FROM conversation_settings WHERE conversation_id=? AND user_id!=? LIMIT 1'
     ).get(convId, userId);
     peerLastReadAt = peerRow?.last_read_at || 0;
+    // 消息级已读回执（message_reads 持久化；发送者据此显示蓝色双勾）
+    if (peerRow?.user_id) {
+      db.prepare(`SELECT message_id FROM message_reads WHERE user_id=? AND message_id IN (${ph})`).all(peerRow.user_id, ...ids)
+        .forEach(r => readSet.add(r.message_id));
+    }
   }
 
   // 批量 replyTo
@@ -118,7 +124,7 @@ function history(convId, userId, { before, after, limit, beforeId }) {
     msg.reactions = reactionsMap.get(msg.id) || [];
     if (conv?.type === 'private') {
       msg._delivered = deliverySet.has(msg.id);
-      if (msg.sender_id === userId && peerLastReadAt > 0) msg._read = msg.created_at <= peerLastReadAt;
+      msg._read = readSet.has(msg.id) || (msg.sender_id === userId && peerLastReadAt > 0 && msg.created_at <= peerLastReadAt);
     }
     if (memberReadTimes && conv?.type === 'group') {
       msg.readCount = memberReadTimes.filter(m => m.user_id !== msg.sender_id && m.last_read_at >= msg.created_at).length;
