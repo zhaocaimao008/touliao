@@ -26,6 +26,8 @@ data class ProfileUiState(
     val message: String? = null,     // 提示（成功/失败）
     val invite: com.touliao.app.data.model.InviteInfo? = null, // 我的专属邀请码+战绩
     val changingPhone: Boolean = false,  // 换绑手机号进行中
+    val changingPassword: Boolean = false,  // 修改密码进行中
+    val deletingAccount: Boolean = false,   // 注销账号进行中
 )
 
 @HiltViewModel
@@ -119,6 +121,31 @@ class ProfileViewModel @Inject constructor(
                     _uiState.update { it.copy(changingPhone = false, user = updated, message = "手机号已更新") }
                 }
                 .onFailure { e -> _uiState.update { it.copy(changingPhone = false, message = e.toUserMessage("换绑失败")) } }
+        }
+    }
+
+    /** 修改密码：原密码 + 新密码。后端改密后旧 token 立即失效，用响应里的新 token 覆盖本地。 */
+    fun changePassword(oldPassword: String, newPassword: String) {
+        if (_uiState.value.changingPassword) return
+        _uiState.update { it.copy(changingPassword = true, message = null) }
+        viewModelScope.launch {
+            runCatching { profileRepository.changePassword(oldPassword, newPassword) }
+                .onSuccess { token ->
+                    token?.let { sessionManager.applyNewToken(it) }
+                    _uiState.update { it.copy(changingPassword = false, message = "密码已修改") }
+                }
+                .onFailure { e -> _uiState.update { it.copy(changingPassword = false, message = e.toUserMessage("修改失败")) } }
+        }
+    }
+
+    /** 注销账号：需当前密码确认。成功后本地收尾回到登录页（与 logout 一致）。 */
+    fun deleteAccount(password: String) {
+        if (_uiState.value.deletingAccount) return
+        _uiState.update { it.copy(deletingAccount = true, message = null) }
+        viewModelScope.launch {
+            runCatching { profileRepository.deleteAccount(password) }
+                .onSuccess { sessionManager.deleteAccount() }
+                .onFailure { e -> _uiState.update { it.copy(deletingAccount = false, message = e.toUserMessage("注销失败")) } }
         }
     }
 }

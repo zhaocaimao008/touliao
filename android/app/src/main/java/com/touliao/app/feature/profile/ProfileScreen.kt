@@ -204,6 +204,8 @@ fun ProfileScreen(
     }
 
     var showChangePhoneDialog by remember { mutableStateOf(false) }
+    var showChangePasswordDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showSwitchAccount by remember { mutableStateOf(false) }
     var versionTaps by remember { mutableStateOf(0) }
@@ -291,6 +293,8 @@ fun ProfileScreen(
                     SettingsRow(TouliaoIcons.PhoneCall, "通话记录", onClick = onOpenCallHistory, modifier = Modifier.testTag("profile-call-history"))
                     RowDivider()
                     SettingsRow(TouliaoIcons.Devices, "登录设备管理", onClick = onOpenSessions, modifier = Modifier.testTag("profile-sessions"))
+                    RowDivider()
+                    SettingsRow(TouliaoIcons.Lock, "修改密码", onClick = { showChangePasswordDialog = true })
                 }
 
                 // ── 3. 设置（子项收拢进独立设置页）─────────────────────────
@@ -321,6 +325,21 @@ fun ProfileScreen(
                     ) {
                         Text("退出登录", color = Tok.Red, fontSize = 16.5.sp)
                     }
+                }
+
+                // ── 5b. 注销账号（刻意做得比退出登录更低调，与 Web 一致）──────
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = rememberRipple(bounded = true),
+                        ) { showDeleteAccountDialog = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("注销账号", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                        modifier = Modifier.padding(vertical = Tok.M))
                 }
 
                 // ── 6. 版本号（5 连点显示构建号）────────────────────────────
@@ -356,6 +375,24 @@ fun ProfileScreen(
             changing = state.changingPhone,
             onConfirm = { newPhone, password -> viewModel.changePhone(newPhone, password); showChangePhoneDialog = false },
             onDismiss = { showChangePhoneDialog = false },
+        )
+    }
+
+    if (showChangePasswordDialog) {
+        ChangePasswordDialog(
+            changing = state.changingPassword,
+            // 与 ChangePhoneDialog 同一套约定：确认即提交并关闭弹窗，不等待请求结果
+            // （这个页面目前没有消费 state.message 的 Snackbar/Toast 承载，换绑手机号也是同样处理）。
+            onConfirm = { old, new -> viewModel.changePassword(old, new); showChangePasswordDialog = false },
+            onDismiss = { showChangePasswordDialog = false },
+        )
+    }
+
+    if (showDeleteAccountDialog) {
+        DeleteAccountDialog(
+            deleting = state.deletingAccount,
+            onConfirm = { password -> viewModel.deleteAccount(password) },
+            onDismiss = { showDeleteAccountDialog = false },
         )
     }
 
@@ -515,5 +552,96 @@ fun ChangePhoneDialog(
             }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !changing) { Text("取消") } },
+    )
+}
+
+// ── 修改密码弹窗 ─────────────────────────────────────────────────────────
+@Composable
+fun ChangePasswordDialog(
+    changing: Boolean,
+    onConfirm: (String, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    val mismatch = confirmPassword.isNotEmpty() && newPassword != confirmPassword
+    val valid = oldPassword.isNotBlank() && newPassword.length >= 6 && newPassword == confirmPassword
+
+    AlertDialog(
+        onDismissRequest = { if (!changing) onDismiss() },
+        title = { Text("修改密码") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = oldPassword, onValueChange = { oldPassword = it },
+                    label = { Text("原密码") }, singleLine = true, enabled = !changing,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.size(Tok.S))
+                OutlinedTextField(
+                    value = newPassword, onValueChange = { newPassword = it },
+                    label = { Text("新密码（至少 6 位）") }, singleLine = true, enabled = !changing,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.size(Tok.S))
+                OutlinedTextField(
+                    value = confirmPassword, onValueChange = { confirmPassword = it },
+                    label = { Text("确认新密码") }, singleLine = true, enabled = !changing,
+                    isError = mismatch,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (mismatch) {
+                    Text("两次输入的新密码不一致", color = Tok.Red, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(oldPassword, newPassword) }, enabled = valid && !changing) {
+                if (changing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("确认修改", color = Tok.Green)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !changing) { Text("取消") } },
+    )
+}
+
+// ── 注销账号弹窗 ─────────────────────────────────────────────────────────
+@Composable
+fun DeleteAccountDialog(
+    deleting: Boolean,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = { if (!deleting) onDismiss() },
+        title = { Text("注销账号") },
+        text = {
+            Column {
+                Text(
+                    "注销后账号将无法登录，聊天记录/好友/群组/钱包余额等数据不可找回。请先确保钱包余额已清零。",
+                    color = Tok.Red, style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.size(Tok.S))
+                OutlinedTextField(
+                    value = password, onValueChange = { password = it },
+                    label = { Text("登录密码（用于验证身份）") }, singleLine = true, enabled = !deleting,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(password) }, enabled = password.isNotBlank() && !deleting) {
+                if (deleting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("确认注销", color = Tok.Red)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !deleting) { Text("取消") } },
     )
 }
