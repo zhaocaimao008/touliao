@@ -559,8 +559,9 @@ final class CallManager: NSObject, ObservableObject {
                 if report.type == "candidate-pair" {
                     // 注意：values 是 [String: NSObject]，Bool 实际桥接为 NSNumber
                     if let nominated = (values["nominated"] as? NSNumber)?.boolValue, nominated,
-                       let state = values["state"] as? String, state == "succeeded" {
-                        rtt = (values["currentRoundTripTime"] as? NSNumber)?.doubleValue.map { $0 * 1000 }
+                       let state = values["state"] as? String, state == "succeeded",
+                       let ctt = values["currentRoundTripTime"] as? NSNumber {
+                        rtt = ctt.doubleValue * 1000
                     }
                 } else if report.type == "inbound-rtp" {
                     if (values["kind"] as? String) == "audio" {
