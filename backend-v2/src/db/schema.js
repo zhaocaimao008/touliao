@@ -627,6 +627,18 @@ function applySchema(db) {
       created_by TEXT DEFAULT NULL,
       created_at INTEGER DEFAULT (strftime('%s','now'))
     )`,
+    // ── 多管理员（2026-09-02）：此前只有 .env 里硬编码的单一账号，无法区分谁做了什么。
+    // env 管理员路径永久保留、永不下线（见 admin.service.js verifyCredentials），这张表
+    // 只是"新增"而非"替代"——DB 挂了这张表出问题，env 账号依然能登录，后台入口不会被锁死。
+    `CREATE TABLE IF NOT EXISTS admin_users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'admin',
+      disabled INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT DEFAULT NULL,
+      created_at INTEGER DEFAULT (strftime('%s','now'))
+    )`,
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

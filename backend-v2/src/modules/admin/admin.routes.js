@@ -292,6 +292,7 @@ router.delete('/users/:id',            adminAuth, c.deleteUser);
  *         description: List of messages
  */
 router.get('/messages', adminAuth, c.listMessages);
+router.delete('/messages/:id', adminAuth, c.deleteMessage);
 
 // ── 群管理 ──────────────────────────────────────────────────────
 
@@ -346,6 +347,8 @@ router.get   ('/groups',     adminAuth, c.listGroups);
  */
 router.get   ('/groups/:id', adminAuth, c.groupDetail);
 router.delete('/groups/:id', adminAuth, c.dismissGroup);
+router.put   ('/groups/:id/mute', adminAuth, c.muteGroup);
+router.delete('/groups/:id/members/:userId', adminAuth, c.kickMember);
 
 // ── 邀请码 ──────────────────────────────────────────────────────
 
@@ -440,6 +443,12 @@ router.get('/top-inviters', adminAuth, c.topInviters);
 // ── 朋友圈举报队列（MO6）──────────────────────────────────────────
 router.get ('/reports',             adminAuth, c.listReports);
 router.post('/reports/:id/resolve', adminAuth, c.resolveReport);
+
+// ── 管理员账号管理（2026-09-02，仅 superadmin，见 controller 里的角色门控）─
+router.get   ('/admins',     adminAuth, c.listAdmins);
+router.post  ('/admins',     adminAuth, c.createAdmin);
+router.put   ('/admins/:id/disabled', adminAuth, c.setAdminDisabled);
+router.delete('/admins/:id', adminAuth, c.deleteAdmin);
 
 // ── 内容审核关键词黑名单（2026-09-02，P12 审核 mock 下线后的兜底机制）──────
 router.get   ('/blacklist',     adminAuth, c.listBlacklistWords);

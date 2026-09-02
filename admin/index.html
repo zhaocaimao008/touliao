@@ -132,7 +132,7 @@
     <!-- 消息 -->
     <div id="tab-messages" class="hidden" role="tabpanel" aria-label="消息监控">
       <div class="bar"><input class="search" id="mq" aria-label="搜索消息内容" placeholder="搜索消息内容" /><span id="mfilter"></span><span class="muted" id="mcount" role="status" aria-live="polite"></span></div>
-      <table class="tbl"><caption class="sr-only">消息列表</caption><thead><tr><th scope="col">发送者</th><th scope="col">内容</th><th scope="col">类型</th><th scope="col">会话</th><th scope="col">时间</th></tr></thead><tbody id="mbody"></tbody></table>
+      <table class="tbl"><caption class="sr-only">消息列表</caption><thead><tr><th scope="col">发送者</th><th scope="col">内容</th><th scope="col">类型</th><th scope="col">会话</th><th scope="col">时间</th><th scope="col">操作</th></tr></thead><tbody id="mbody"></tbody></table>
       <div class="page" id="mpage"></div>
     </div>
 
@@ -175,6 +175,20 @@
         <h3>可信设备 / IP</h3>
         <p>只有列表中的「设备 + IP」组合可免验证码登录；陌生组合登录需谷歌验证码。移除后该设备下次登录需重新验证。</p>
         <table class="tbl"><caption class="sr-only">可信设备与 IP 列表</caption><thead><tr><th scope="col">设备</th><th scope="col">IP</th><th scope="col">最近登录</th><th scope="col">操作</th></tr></thead><tbody id="trbody"></tbody></table>
+      </div>
+      <div class="panel">
+        <h3>管理员账号</h3>
+        <p>env-root 是 .env 里配置的根账号，不可禁用/删除。谷歌验证器/可信设备当前是全体管理员共用同一套（不是每人独立绑定），改动即时生效。</p>
+        <div id="admAddBox" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <input id="adm-u" class="inp" placeholder="用户名" style="flex:1;min-width:120px">
+          <input id="adm-p" class="inp" type="password" placeholder="密码（至少8位）" style="flex:1;min-width:140px">
+          <select id="adm-role" class="inp" style="flex:0 0 120px">
+            <option value="admin">普通管理员</option>
+            <option value="superadmin">超级管理员</option>
+          </select>
+          <button class="btn" id="admadd" style="white-space:nowrap">新增</button>
+        </div>
+        <table class="tbl"><caption class="sr-only">管理员账号列表</caption><thead><tr><th scope="col">用户名</th><th scope="col">角色</th><th scope="col">状态</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead><tbody id="admbody"></tbody></table>
       </div>
     </div>
 
@@ -272,7 +286,7 @@ async function doLogin(){
     const t=getCookie('csrf_token');if(t)headers['X-CSRF-Token']=t;
     const r2=await fetch('/api/vxin-admin-login',{method:'POST',headers,body:JSON.stringify(body),credentials:'include'});
     const r=await r2.json();if(!r2.ok)throw Object.assign(new Error(r.error||'登录失败'),{status:r2.status,data:r});
-    enterApp(r.username);
+    enterApp(r.username,r.role);
     if(r.needsTotpSetup){ toast('建议立即绑定谷歌验证器加固后台'); switchTab('security'); }
   }catch(e){
     if(e.data?.needCode){ $('codewrap').classList.remove('hidden'); $('lcode').focus(); $('lnote').textContent='陌生设备/IP，请输入谷歌验证码'; $('lnote').classList.remove('hidden'); }
@@ -283,7 +297,8 @@ $('lbtn').onclick=doLogin;
 ['lp','lcode'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();}));
 $('logout').onclick=async()=>{try{await api('/logout',{method:'POST'});}catch{}location.reload();};
 
-function enterApp(username){$('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent='管理员：'+username;loadStats();loadUsers();}
+let myRole='superadmin';
+function enterApp(username,role){myRole=role||'superadmin';$('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent='管理员：'+username;loadStats();loadUsers();}
 
 // ── 总览 ──
 async function loadStats(){
@@ -325,7 +340,7 @@ function switchTab(name){
   if(name==='metrics')startMetrics();else stopMetrics();
   if(name==='groups')loadGroups();
   if(name==='reports')loadReports();
-  if(name==='security')loadSecurity();
+  if(name==='security'){loadSecurity();loadAdmins();}
   if(name==='settings'){loadInvite();loadFeatures();loadBlacklist();loadTopInviters();}
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
@@ -418,10 +433,13 @@ async function loadMessages(){
       <td class="msgtxt">${m.type==='text'?esc(m.content):('['+(MTYPE[m.type]||m.type)+'] '+esc(m.content||''))}</td>
       <td><span class="tag gray">${MTYPE[m.type]||m.type}</span></td>
       <td class="muted">${m.convType==='group'?esc(m.convName||'群聊'):'私聊'}</td>
-      <td class="muted">${fmtTime(m.created_at)}</td></tr>`).join('')||`<tr><td colspan="5" class="muted" style="text-align:center;padding:30px">无数据</td></tr>`;
+      <td class="muted">${fmtTime(m.created_at)}</td>
+      <td><button class="mini danger" data-action="del-msg" data-id="${esc(m.id)}">撤回</button></td></tr>`).join('')||`<tr><td colspan="6" class="muted" style="text-align:center;padding:30px">无数据</td></tr>`;
+    $('mbody').querySelectorAll('[data-action="del-msg"]').forEach(b=>b.addEventListener('click',()=>delMessage(b.dataset.id)));
     renderPage('mpage',mState,r.total,loadMessages);
   }catch(e){if(/未登录|过期/.test(e.message))location.reload();else toast(e.message,1);}
 }
+async function delMessage(id){if(!confirm('撤回这条消息？对话双方/群内都会看到"已撤回"，不可恢复原内容。'))return;try{await api(`/messages/${id}`,{method:'DELETE'});toast('已撤回');loadMessages();}catch(e){toast(e.message,1);}}
 
 // ── 群组 ──
 let gTimer;$('gq').addEventListener('input',e=>{clearTimeout(gTimer);gTimer=setTimeout(()=>{gState.q=e.target.value.trim();gState.offset=0;loadGroups();},300);});
@@ -438,7 +456,21 @@ async function loadGroups(){
     renderPage('gpage',gState,r.total,loadGroups);
   }catch(e){if(/未登录|过期/.test(e.message))location.reload();else toast(e.message,1);}
 }
-async function viewGroup(id){try{const g=await api('/groups/'+id);const rows=g.members.map(m=>`<tr><td>${avatar(m)}${esc(m.username)}</td><td>${m.role==='owner'?'群主':m.role==='admin'?'管理员':'成员'}</td><td class="muted">${fmtDate(m.joined_at)}</td></tr>`).join('');showModal(`<h3>${esc(g.name||'(未命名)')} · ${g.members.length}人</h3><div class="muted" style="margin-bottom:14px">群号 ${esc(g.group_number)} · 公告：${esc(g.announcement||'无')}</div><table class="tbl"><caption class="sr-only">群成员列表</caption><thead><tr><th scope="col">成员</th><th scope="col">角色</th><th scope="col">加入</th></tr></thead><tbody>${rows}</tbody></table>`);}catch(e){toast(e.message,1);}}
+async function viewGroup(id){
+  try{
+    const g=await api('/groups/'+id);
+    const rows=g.members.map(m=>`<tr><td>${avatar(m)}${esc(m.username)}</td><td>${m.role==='owner'?'群主':m.role==='admin'?'管理员':'成员'}</td><td class="muted">${fmtDate(m.joined_at)}</td><td>${m.role==='owner'?'<span class="muted">—</span>':`<button class="mini danger" data-action="kick-member" data-uid="${esc(m.id)}">移除</button>`}</td></tr>`).join('');
+    const muted=!!g.mute_all;
+    showModal(`<h3>${esc(g.name||'(未命名)')} · ${g.members.length}人</h3><div class="muted" style="margin-bottom:10px">群号 ${esc(g.group_number)} · 公告：${esc(g.announcement||'无')}</div>
+      <div style="margin-bottom:14px"><button class="mini${muted?' danger':''}" data-action="toggle-mute">${muted?'解除全员禁言':'开启全员禁言'}</button></div>
+      <table class="tbl"><caption class="sr-only">群成员列表</caption><thead><tr><th scope="col">成员</th><th scope="col">角色</th><th scope="col">加入</th><th scope="col">操作</th></tr></thead><tbody>${rows}</tbody></table>`);
+    const modal=document.querySelector('#modal-root .modal');
+    modal.querySelector('[data-action="toggle-mute"]')?.addEventListener('click',()=>toggleMute(id,!muted));
+    modal.querySelectorAll('[data-action="kick-member"]').forEach(b=>b.addEventListener('click',()=>kickMember(id,b.dataset.uid)));
+  }catch(e){toast(e.message,1);}
+}
+async function toggleMute(groupId,nextMuted){try{await api(`/groups/${groupId}/mute`,{method:'PUT',body:{mute_all:nextMuted}});toast(nextMuted?'已开启全员禁言':'已解除全员禁言');viewGroup(groupId);}catch(e){toast(e.message,1);}}
+async function kickMember(groupId,userId){if(!confirm('移除该成员？'))return;try{await api(`/groups/${groupId}/members/${userId}`,{method:'DELETE'});toast('已移除');viewGroup(groupId);loadGroups();}catch(e){toast(e.message,1);}}
 async function dismiss(id,name){if(!confirm(`⚠ 解散群「${name}」？\n将移除所有成员并删除该群，不可恢复！`))return;try{await api('/groups/'+id,{method:'DELETE'});toast('已解散');loadGroups();loadStats();}catch(e){toast(e.message,1);}}
 
 // ── 举报 ──
@@ -494,6 +526,33 @@ async function setupTotp(){
 async function disableTotp(){const code=$('distotp').value.trim();if(!code){toast('请输入验证码',1);return;}try{await api('/security/totp/disable',{method:'POST',body:{code}});toast('谷歌验证已关闭');loadSecurity();}catch(e){toast(e.message,1);}}
 async function revoke(id){if(!confirm('移除该可信设备？下次从它登录需谷歌验证码。'))return;try{await api('/security/trusted/'+id,{method:'DELETE'});toast('已移除');loadSecurity();}catch(e){toast(e.message,1);}}
 
+// ── 管理员账号 ──
+async function loadAdmins(){
+  try{
+    const list=await api('/admins');
+    const canManage=myRole!=='admin';
+    $('admAddBox').style.display=canManage?'flex':'none';
+    $('admbody').innerHTML=list.map(a=>{
+      const roleLabel=a.role==='superadmin'?'超级管理员':'普通管理员';
+      let acts='<span class="muted">—</span>';
+      if(a.isEnvRoot){acts='<span class="muted">env 根账号</span>';}
+      else if(canManage){
+        acts=`<button class="mini" data-action="toggle-admin" data-id="${esc(a.id)}" data-disabled="${a.disabled?0:1}">${a.disabled?'启用':'禁用'}</button> <button class="mini danger" data-action="del-admin" data-id="${esc(a.id)}">删除</button>`;
+      }
+      return `<tr><td>${esc(a.username)}</td><td>${roleLabel}</td><td>${a.disabled?'<span class="tag gray">已禁用</span>':'<span class="tag ok">正常</span>'}</td><td class="muted">${a.created_at?fmtDate(a.created_at):'—'}</td><td>${acts}</td></tr>`;
+    }).join('')||`<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">暂无</td></tr>`;
+    $('admbody').querySelectorAll('[data-action="toggle-admin"]').forEach(b=>b.addEventListener('click',()=>toggleAdmin(b.dataset.id,b.dataset.disabled==='1')));
+    $('admbody').querySelectorAll('[data-action="del-admin"]').forEach(b=>b.addEventListener('click',()=>delAdmin(b.dataset.id)));
+  }catch(e){toast(e.message,1);}
+}
+async function toggleAdmin(id,disabled){try{await api(`/admins/${id}/disabled`,{method:'PUT',body:{disabled}});toast(disabled?'已禁用':'已启用');loadAdmins();}catch(e){toast(e.message,1);}}
+async function delAdmin(id){if(!confirm('删除该管理员账号？不可恢复。'))return;try{await api('/admins/'+id,{method:'DELETE'});toast('已删除');loadAdmins();}catch(e){toast(e.message,1);}}
+$('admadd').addEventListener('click',async()=>{
+  const username=$('adm-u').value.trim(),password=$('adm-p').value,role=$('adm-role').value;
+  if(!username||!password){toast('请填写用户名和密码',1);return;}
+  try{await api('/admins',{method:'POST',body:{username,password,role}});toast('已新增');$('adm-u').value='';$('adm-p').value='';loadAdmins();}catch(e){toast(e.message,1);}
+});
+
 // ── 设置 ──
 async function loadInvite(){try{const r=await api('/invite-code');$('invcode').value=r.inviteCode;}catch(e){toast(e.message,1);}}
 $('invsave').onclick=async()=>{const code=$('invcode').value.trim();try{await api('/invite-code',{method:'PUT',body:{inviteCode:code}});toast('邀请码已更新');}catch(e){toast(e.message,1);}};
@@ -524,7 +583,7 @@ function closeModal(){$('modal-root').innerHTML='';if(modalPrevFocus&&typeof mod
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('modal-root').firstChild)closeModal();});
 
 // 启动：检查登录态
-(async()=>{try{const r=await api('/me');enterApp(r.username);}catch{}})();
+(async()=>{try{const r=await api('/me');enterApp(r.username,r.role);}catch{}})();
 </script>
 </body>
 </html>

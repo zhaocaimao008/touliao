@@ -535,6 +535,31 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
   // 仅自己隐藏：已由 forMe 分支持久化处理
 }
 
+// ── 管理员撤回（内容审核，2026-09-02）───────────────────────────
+// 复用 remove() forEveryone 分支同一套 DB 语义(deleted=2/清内容/message_recall 广播)，
+// 跳过会话成员/角色校验——平台管理员权限高于群管理员，且管理员本就不在会话内。
+// 广播 operatorId 用消息原发送者 id（而非虚构一个"admin"用户），客户端渲染就是普通撤回，
+// 不需要为"谁撤回的"这个字段专门处理一个不存在的用户 id。
+async function adminRecall(io, msgId) {
+  const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
+  if (!msg) throw notFound('消息不存在');
+  if (msg.deleted === 2) return; // 幂等
+  const sequenced = await appendConversationEvent({
+    conversationId: msg.conversation_id, eventType: 'message_recalled', messageId: msgId, actorId: msg.sender_id,
+    ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] }],
+  });
+  cache.delPattern(`search:*${msg.sender_id}*`).catch(() => {});
+  convSvc.invalidateConvCacheForConversation(msg.conversation_id);
+  const now = Math.floor(Date.now() / 1000);
+  if (io) {
+    io.to(msg.conversation_id).emit('message_recall', {
+      msgId, conversationId: msg.conversation_id, operatorId: msg.sender_id, timestamp: now,
+    });
+    io.to(msg.conversation_id).emit('message_deleted', { msgId, conversationId: msg.conversation_id });
+  }
+  emitSyncAvailable(io, msg.conversation_id, sequenced.server_sequence);
+}
+
 // ── 表情回应（toggle）────────────────────────────────────────────
 async function react(io, userId, msgId, emoji) {
   if (!emoji) throw badRequest('参数缺失');
@@ -1211,5 +1236,5 @@ function deriveAudioName(fileUrl, content) {
 module.exports = {
   history, missed, send, saveUploadedFile, forward, batchDelete,
   remove, react, edit, collect, searchGlobal, searchInConversation, aroundMessage,
-  exportConversation, getConversationFiles, getMentions, transcribe,
+  exportConversation, getConversationFiles, getMentions, transcribe, adminRecall,
 };

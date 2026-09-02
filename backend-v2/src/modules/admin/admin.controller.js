@@ -16,11 +16,16 @@ const moderation = require('../moderation/moderation.service');
 const io = req => req.app.get('io');
 const DEVICE_COOKIE = 'vxin_admin_device';
 
-function setAdminCookie(req, res) {
+// identity = { username, role, adminId }，来自 verifyCredentials 的真实登录者身份
+// （2026-09-02 多管理员前，这里一直硬编码签 config.admin.username——即便以后加了别的
+// 管理员账号，cookie 里也永远写的是 env 账号，审计日志会把所有人的操作都记成同一个人）。
+function setAdminCookie(req, res, identity) {
   const csrf = uuidv4();
-  const token = jwt.sign({ admin: true, username: config.admin.username, csrf }, config.adminJwtSecret, {
-    expiresIn: `${config.admin.tokenMaxAge}s`,
-  });
+  const token = jwt.sign(
+    { admin: true, username: identity.username, role: identity.role, adminId: identity.adminId, csrf },
+    config.adminJwtSecret,
+    { expiresIn: `${config.admin.tokenMaxAge}s` }
+  );
   res.cookie(config.admin.cookieName, token, {
     ...authCookieOptions(req),
     maxAge: config.admin.tokenMaxAge * 1000,
@@ -42,9 +47,12 @@ function ensureDeviceId(req, res) {
 }
 
 // ── 登录（密码 → 设备/IP 白名单 → 陌生则需谷歌验证码）────────────
+// 谷歌验证器/可信设备目前是全局共享的一道闸门（不是每个管理员各自独立绑定一个验证器），
+// 谁的账号密码通过了都受同一套设备信任状态约束——多管理员场景下这是有意的简化，
+// 不是遗漏：真正做到"每人独立 2FA"是更大的改动，本次只做到"谁登录的、身份如实记录"。
 exports.login = asyncHandler(async (req, res) => {
   const { username, password, code } = req.body;
-  svc.verifyCredentials(username, password); // 密码错误抛 401
+  const identity = svc.verifyCredentials(username, password); // 密码错误抛 401
 
   const ip = sec.clientIp(req);
   const label = sec.deviceLabel(req.headers['user-agent']);
@@ -54,15 +62,15 @@ exports.login = asyncHandler(async (req, res) => {
   if (!sec.totpEnabled()) {
     deviceId = ensureDeviceId(req, res);
     sec.trust(deviceId, ip, label);
-    setAdminCookie(req, res);
-    return res.json({ success: true, username: config.admin.username, needsTotpSetup: true });
+    setAdminCookie(req, res, identity);
+    return res.json({ success: true, username: identity.username, role: identity.role, needsTotpSetup: true });
   }
 
   // 已启用：可信设备+IP 直接放行
   if (deviceId && sec.isTrusted(deviceId, ip)) {
     sec.touch(deviceId, ip);
-    setAdminCookie(req, res);
-    return res.json({ success: true, username: config.admin.username });
+    setAdminCookie(req, res, identity);
+    return res.json({ success: true, username: identity.username, role: identity.role });
   }
 
   // 陌生设备/IP：必须提供正确谷歌验证码
@@ -74,8 +82,8 @@ exports.login = asyncHandler(async (req, res) => {
   }
   deviceId = ensureDeviceId(req, res);
   sec.trust(deviceId, ip, label);
-  setAdminCookie(req, res);
-  res.json({ success: true, username: config.admin.username });
+  setAdminCookie(req, res, identity);
+  res.json({ success: true, username: identity.username, role: identity.role });
 });
 
 // ── 安全设置 ────────────────────────────────────────────────────
@@ -105,7 +113,7 @@ exports.logout = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
-exports.me = asyncHandler(async (req, res) => res.json({ username: req.admin.username }));
+exports.me = asyncHandler(async (req, res) => res.json({ username: req.admin.username, role: req.admin.role || 'superadmin' }));
 
 // ── 数据 ────────────────────────────────────────────────────────
 exports.stats = asyncHandler(async (req, res) =>
@@ -217,6 +225,21 @@ exports.deleteUser = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+exports.deleteMessage = asyncHandler(async (req, res) => {
+  await svc.deleteMessage(io(req), req.params.id);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'MESSAGE_DELETE',
+    resourceType: 'message',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    riskLevel: 'high',
+  });
+  res.json({ success: true });
+});
+
 exports.listMessages = asyncHandler(async (req, res) => {
   const result = svc.listMessages(req.query);
   // 全文检索所有用户私聊内容属高敏操作，此前完全没有审计记录
@@ -248,6 +271,36 @@ exports.dismissGroup = asyncHandler(async (req, res) => {
     riskLevel: 'high',
   });
   res.json({ success: true });
+});
+
+exports.muteGroup = asyncHandler(async (req, res) => {
+  const result = svc.muteGroup(io(req), req.params.id, !!req.body?.mute_all);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: req.body?.mute_all ? 'GROUP_MUTE' : 'GROUP_UNMUTE',
+    resourceType: 'group',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+  res.json(result);
+});
+
+exports.kickMember = asyncHandler(async (req, res) => {
+  const result = svc.kickMember(io(req), req.params.id, req.params.userId);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'GROUP_KICK_MEMBER',
+    resourceType: 'group',
+    resourceId: req.params.id,
+    details: { userId: req.params.userId },
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    riskLevel: 'high',
+  });
+  res.json(result);
 });
 
 exports.getFeatures = asyncHandler(async (req, res) => res.json(svc.getFeatures()));
@@ -282,6 +335,42 @@ exports.resolveReport = asyncHandler(async (req, res) => {
     ip: req.ip,
     userAgent: req.headers['user-agent'],
     riskLevel: req.body?.action === 'delete' ? 'high' : 'medium',
+  });
+  res.json(result);
+});
+
+// ── 管理员账号管理（仅 superadmin）──────────────────────────────
+// role 缺省(旧 token，本次上线前签发、尚未过期)按 superadmin 对待——迁移前系统只有
+// 一个全权限账号，不应该因为这次改动让当前已登录的管理员突然失去权限。
+exports.listAdmins = asyncHandler(async (req, res) => res.json(svc.listAdmins()));
+exports.createAdmin = asyncHandler(async (req, res) => {
+  if (req.admin.role === 'admin') return res.status(403).json({ error: '仅超级管理员可新增管理员账号' });
+  const result = await svc.createAdmin(req.body, req.admin.adminId || req.admin.username);
+  logAuditEvent({
+    adminId: req.admin.username, adminUsername: req.admin.username,
+    action: 'ADMIN_CREATE', resourceType: 'admin_user', resourceId: result.id,
+    details: { username: result.username, role: result.role },
+    ip: req.ip, userAgent: req.headers['user-agent'], riskLevel: 'high',
+  });
+  res.json(result);
+});
+exports.setAdminDisabled = asyncHandler(async (req, res) => {
+  if (req.admin.role === 'admin') return res.status(403).json({ error: '仅超级管理员可操作管理员账号' });
+  const result = svc.setAdminDisabled(req.params.id, !!req.body?.disabled, req.admin.adminId);
+  logAuditEvent({
+    adminId: req.admin.username, adminUsername: req.admin.username,
+    action: req.body?.disabled ? 'ADMIN_DISABLE' : 'ADMIN_ENABLE', resourceType: 'admin_user', resourceId: req.params.id,
+    ip: req.ip, userAgent: req.headers['user-agent'], riskLevel: 'high',
+  });
+  res.json(result);
+});
+exports.deleteAdmin = asyncHandler(async (req, res) => {
+  if (req.admin.role === 'admin') return res.status(403).json({ error: '仅超级管理员可删除管理员账号' });
+  const result = svc.deleteAdmin(req.params.id, req.admin.adminId);
+  logAuditEvent({
+    adminId: req.admin.username, adminUsername: req.admin.username,
+    action: 'ADMIN_DELETE', resourceType: 'admin_user', resourceId: req.params.id,
+    ip: req.ip, userAgent: req.headers['user-agent'], riskLevel: 'high',
   });
   res.json(result);
 });

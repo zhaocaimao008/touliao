@@ -1,10 +1,12 @@
 'use strict';
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');
 const { db } = require('../../db/connection');
 const { badRequest, notFound, unauthorized } = require('../../utils/http');
-const { purgeConversation } = require('../messages/shared');
+const { purgeConversation, invalidateConv } = require('../messages/shared');
+const messages = require('../messages/messages.service');
 const moments = require('../moments/moments.service');
 const wallet = require('../wallet/wallet.service');
 const { invalidateUser } = require('../../utils/userStatusCache');
@@ -18,14 +20,75 @@ function timingSafeEqual(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
+// 多管理员（2026-09-02）：两条独立校验路径，谁先命中用谁的身份。
+// 路径①env 根管理员——永久保留、永不下线，即便 admin_users 表或其查询出问题，
+//   这条路径完全不碰该表，后台入口不会被锁死。
+// 路径②DB admin_users 表——后台可增删的多管理员，每人独立用户名密码，role 区分权限。
+// 返回真实登录者身份 { username, role, adminId }，供 controller 签发 JWT 时使用
+// （此前这里只返回布尔值，controller 转头又硬编码 config.admin.username 签 token——
+// 即便将来真的加了别的管理员账号，登录成功后 cookie 里仍会写成 env 账号，是本次要修的核心问题）。
 function verifyCredentials(username, password) {
-  if (!config.admin.username || !config.admin.password) {
-    throw badRequest('后台未配置：请在 .env 设置 ADMIN_USERNAME / ADMIN_PASSWORD');
+  const hasEnvAdmin = !!(config.admin.username && config.admin.password);
+  if (hasEnvAdmin) {
+    const okUser = timingSafeEqual(username, config.admin.username);
+    const okPass = timingSafeEqual(password, config.admin.password);
+    if (okUser && okPass) return { username: config.admin.username, role: 'superadmin', adminId: 'env-root' };
   }
-  const okUser = timingSafeEqual(username, config.admin.username);
-  const okPass = timingSafeEqual(password, config.admin.password);
-  if (!okUser || !okPass) throw unauthorized('账号或密码错误');
-  return true;
+  const row = db.prepare('SELECT * FROM admin_users WHERE username=? AND disabled=0').get(username);
+  if (row && bcrypt.compareSync(password, row.password_hash)) {
+    return { username: row.username, role: row.role, adminId: row.id };
+  }
+  if (!hasEnvAdmin && db.prepare('SELECT COUNT(*) n FROM admin_users').get().n === 0) {
+    throw badRequest('后台未配置：请在 .env 设置 ADMIN_USERNAME / ADMIN_PASSWORD，或先用该账号登录后在"安全"页新增管理员');
+  }
+  throw unauthorized('账号或密码错误');
+}
+
+// ── 管理员账号管理（仅 superadmin 可操作，见 routes 里的角色门控）─
+function listAdmins() {
+  const rows = db.prepare('SELECT id, username, role, disabled, created_by, created_at FROM admin_users ORDER BY created_at DESC').all();
+  const envRow = config.admin.username
+    ? [{ id: 'env-root', username: config.admin.username, role: 'superadmin', disabled: 0, created_by: null, created_at: null, isEnvRoot: true }]
+    : [];
+  return [...envRow, ...rows];
+}
+
+async function createAdmin({ username, password, role }, createdBy) {
+  if (!username || typeof username !== 'string' || username.length < 2 || username.length > 30)
+    throw badRequest('用户名长度需为 2-30 字符');
+  if (!password || typeof password !== 'string' || password.length < 8)
+    throw badRequest('密码至少 8 位');
+  const r = role === 'superadmin' ? 'superadmin' : 'admin';
+  if (config.admin.username && timingSafeEqual(username, config.admin.username))
+    throw badRequest('该用户名已被占用');
+  const id = uuidv4();
+  const hash = await bcrypt.hash(password, 12);
+  try {
+    db.prepare('INSERT INTO admin_users (id, username, password_hash, role, created_by) VALUES (?,?,?,?,?)')
+      .run(id, username, hash, r, createdBy || null);
+  } catch (e) {
+    if (String(e.message).includes('UNIQUE')) throw badRequest('该用户名已存在');
+    throw e;
+  }
+  return { id, username, role: r };
+}
+
+function setAdminDisabled(id, disabled, actingAdminId) {
+  if (id === 'env-root') throw badRequest('env 根管理员不可禁用，如需下线请从 .env 移除 ADMIN_USERNAME/ADMIN_PASSWORD');
+  if (id === actingAdminId) throw badRequest('不能禁用自己');
+  const row = db.prepare('SELECT id FROM admin_users WHERE id=?').get(id);
+  if (!row) throw notFound('管理员不存在');
+  db.prepare('UPDATE admin_users SET disabled=? WHERE id=?').run(disabled ? 1 : 0, id);
+  return { success: true };
+}
+
+function deleteAdmin(id, actingAdminId) {
+  if (id === 'env-root') throw badRequest('env 根管理员不可删除，如需下线请从 .env 移除 ADMIN_USERNAME/ADMIN_PASSWORD');
+  if (id === actingAdminId) throw badRequest('不能删除自己');
+  const row = db.prepare('SELECT id FROM admin_users WHERE id=?').get(id);
+  if (!row) throw notFound('管理员不存在');
+  db.prepare('DELETE FROM admin_users WHERE id=?').run(id);
+  return { success: true };
 }
 
 // ── 数据总览 ────────────────────────────────────────────────────
@@ -278,6 +341,12 @@ function listMessages({ q, period, limit = 30, offset = 0 }) {
   return { total, limit: lim, offset: off, messages: rows };
 }
 
+// 管理员撤回一条消息（内容审核，2026-09-02）：复用普通撤回同一套 DB 语义与广播，
+// 跳过会话成员/角色校验，见 messages.service.js adminRecall 注释。
+function deleteMessage(io, msgId) {
+  return messages.adminRecall(io, msgId);
+}
+
 // ── 群列表 / 详情 / 解散 ────────────────────────────────────────
 function listGroups({ q, limit = 30, offset = 0 }) {
   const lim = Math.min(parseInt(limit) || 30, 100);
@@ -319,6 +388,36 @@ function dismissGroup(io, id) {
   if (!conv) throw notFound('群不存在');
   purgeConversation(id); // 完整级联清理，含消息（修复外键约束 500）
   if (io) io.to(id).emit('group_dismissed', { conversationId: id });
+}
+
+// ── 群管理中间态（2026-09-02）：此前只能"查看"或"强制解散"，没有更轻量的操作。
+// 两个函数都跳过 groups.service.js 里 memberRole 的群主/管理员校验——平台管理员
+// 本就不在群里，权限高于群内角色，直接对 conversations/conversation_members 表操作。
+
+// 全员禁言开关（不影响群主/管理员本身能否发言，与群内"全员禁言"语义一致——见 messages 发送路径的 mute_all 判断）
+function muteGroup(io, id, muteAll) {
+  const conv = db.prepare("SELECT id FROM conversations WHERE id=? AND type='group'").get(id);
+  if (!conv) throw notFound('群不存在');
+  db.prepare('UPDATE conversations SET mute_all=? WHERE id=?').run(muteAll ? 1 : 0, id);
+  if (io) io.to(id).emit('group_settings_updated', { id, mute_all: muteAll ? 1 : 0 });
+  return { id, mute_all: muteAll ? 1 : 0 };
+}
+
+// 移除单个成员：不允许移除群主（会留下"有群但无主"的孤儿群，需走 dismissGroup 整体解散）。
+function kickMember(io, id, userId) {
+  const conv = db.prepare("SELECT owner_id FROM conversations WHERE id=? AND type='group'").get(id);
+  if (!conv) throw notFound('群不存在');
+  if (conv.owner_id === userId) throw badRequest('不能移除群主，如需清退请解散该群');
+  const targetRole = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(id, userId);
+  if (!targetRole) throw notFound('成员不存在');
+  db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(id, userId);
+  invalidateConv(id); // isMember 缓存立即失效，防移除后短暂仍可访问群附件
+  if (io) {
+    io.in(`user_${userId}`).socketsLeave(id);
+    io.to(id).emit('group_updated', { id });
+    io.to(`user_${userId}`).emit('group_kicked', { conversationId: id });
+  }
+  return { success: true };
 }
 
 // ── 邀请码（运行时可改，存 admin_settings，回退 .env）────────────
@@ -439,7 +538,9 @@ function resolveReport(reportId, action) {
 module.exports = {
   verifyCredentials, stats, listUsers, userDetail, setBanned, resetPassword,
   setPrivilege,
-  grantCoins, deleteUser, listMessages, listGroups, groupDetail, dismissGroup,
+  listAdmins, createAdmin, setAdminDisabled, deleteAdmin,
+  grantCoins, deleteUser, listMessages, deleteMessage, listGroups, groupDetail, dismissGroup,
+  muteGroup, kickMember,
   getInviteCode, setInviteCode, generateInviteCode,
   getFeatures, setFeatures,
   topInviters,
