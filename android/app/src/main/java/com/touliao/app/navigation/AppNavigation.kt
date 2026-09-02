@@ -82,6 +82,9 @@ class AppViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { configApi.getConfig() }.onSuccess { _features.value = it.features }
         }
+        // 后台 config:updated 实时推送（管理员改开关立即生效，无需重启 App，
+        // 对齐 ChatViewModel 里群语音/视频开关的同一套机制）
+        viewModelScope.launch { chatRepository.configUpdatedEvents.collect { _features.value = it } }
         // 首次加载 + 实时事件驱动刷新未读总数
         refreshUnread()
         viewModelScope.launch { chatRepository.incomingMessages.collect { refreshUnread() } }
@@ -288,6 +291,8 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                     onOpenConversation = { conv -> navController.navigate(Routes.chat(conv.id, conv.name, conv.type, conv.otherUser?.id.orEmpty())) },
                     onOpenSearch = { navController.navigate(Routes.SEARCH) },
                     onOpenMentions = { navController.navigate(Routes.MENTIONS) },
+                    showMoments = features.moments,
+                    onOpenMoments = { navController.navigate(Routes.MOMENTS) },
                 )
             }
             composable(Routes.MENTIONS) {
@@ -371,7 +376,20 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                     onOpenChat = { target -> navController.navigate(Routes.chat(target.conversationId, target.title, "private", target.peerUserId)) },
                 )
             }
-            // 朋友圈 / 收藏 已按需移除（不再注册路由与入口）
+            // 收藏 仍按需移除；朋友圈改为「消息」页顶栏图标入口（方案A，2026-09-02），
+            // 受后台 features.moments 开关实时控制（不在底部导航常驻，符合新手引导简化的原始考量）。
+            composable(Routes.MOMENTS) {
+                com.touliao.app.feature.moments.MomentsScreen(
+                    onBack = { navController.popBackStack() },
+                    onCompose = { navController.navigate(Routes.MOMENT_COMPOSE) },
+                )
+            }
+            composable(Routes.MOMENT_COMPOSE) {
+                com.touliao.app.feature.moments.MomentComposeScreen(
+                    onBack = { navController.popBackStack() },
+                    onPublished = { navController.popBackStack() },
+                )
+            }
             composable(Routes.ADD_ACCOUNT) {
                 LoginScreen(
                     onNavigateRegister = { navController.navigate(Routes.REGISTER) },

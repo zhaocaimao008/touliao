@@ -66,6 +66,8 @@ fun ConversationListScreen(
     onOpenConversation: (Conversation) -> Unit,
     onOpenSearch: () -> Unit = {},
     onOpenMentions: () -> Unit = {},
+    showMoments: Boolean = true,
+    onOpenMoments: () -> Unit = {},
     viewModel: ConversationListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -116,6 +118,12 @@ fun ConversationListScreen(
                     }
                 },
                 actions = {
+                    // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
+                    if (showMoments) {
+                        IconButton(onClick = onOpenMoments) {
+                            Icon(TouliaoIcons.Moments, contentDescription = "朋友圈")
+                        }
+                    }
                     // @我的消息聚合入口
                     IconButton(onClick = onOpenMentions) {
                         Text("@", fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, color = VxinGreen)
