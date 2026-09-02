@@ -10,6 +10,10 @@
  *   - INVITE_CODE        → 固定测试邀请码，使注册可用（fresh 库无 admin_settings）
  *   - ENABLE_FAKE_RECHARGE→ 开自助充值（生产默认关，防任意用户自造余额）
  *   - JWT_SECRET 等      → 固定测试密钥（≥32 字符，满足生产级校验）
+ *   - ADMIN_USERNAME/PASSWORD → 固定测试账号（本机 .env 有真实值时会通过 dotenv 泄漏进
+ *     测试环境、掩盖"CI 无 .env 时这两个值为空"这个真实场景——这里显式给默认值，
+ *     使 admin-multi-admin.test.js 这类直接调 verifyCredentials() 的用例在本机/CI 表现一致
+ *     （2026-09-02：这个缺口在 GitHub CI 上真的炸过一次，本机因为读到真实 .env 而没暴露）
  * dotenv 默认不覆盖已存在的 env，故这些值优先于 .env，隔离得以保证。
  */
 const path = require('path');
@@ -26,5 +30,7 @@ process.env.INVITE_CODE       = process.env.TEST_INVITE_CODE || '123456';
 process.env.ENABLE_FAKE_RECHARGE = 'true';
 process.env.JWT_SECRET        = process.env.JWT_SECRET || 'test_jwt_secret_at_least_32_chars_long__x';
 process.env.ADMIN_JWT_SECRET  = process.env.ADMIN_JWT_SECRET || 'test_admin_jwt_secret_at_least_32_chars_x';
+process.env.ADMIN_USERNAME    = process.env.ADMIN_USERNAME || 'test_admin';
+process.env.ADMIN_PASSWORD    = process.env.ADMIN_PASSWORD || 'test_admin_password_123456';
 
 module.exports = { TEST_DB, TEST_UPLOADS, INVITE_CODE: process.env.INVITE_CODE };
