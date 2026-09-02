@@ -389,14 +389,24 @@ app.use('/api/web3',          stub501);   // P13 Web3 集成 (mock)
 const { getFeatures } = require('./modules/admin/admin.service');
 app.get('/api/config', (req, res) => res.json({ features: getFeatures() }));
 
-// 健康检查（含数据库探测）
+// 健康检查（含数据库探测 + schema drift 状态）
+// 注意：503 响应体禁止出现 "ok" 键/子串（deploy.yml 健康检查 grep '"ok":true' 精确匹配，
+// 键名 "ok" 会导致 grep 误命中放行 —— 2026-09-02 修复）。
 app.get('/health', (req, res) => {
+  if (global.__schemaDrift && global.__schemaDrift.length) {
+    const drift = global.__schemaDrift;
+    return res.status(503).json({
+      status: 'schema_drift', database: 'available',
+      drift: drift.map(d => `迁移#${d.idx} ${d.type} ${d.obj} 缺失`),
+      service: 'touliao-backend',
+    });
+  }
   try {
     const db = require('./db');
     db.prepare('SELECT 1').get();
     res.json({ ok: true, version: 2, db: 'ok', service: 'touliao-backend' });
   } catch (e) {
-    res.status(503).json({ ok: false, version: 2, db: 'error', error: e.message, service: 'touliao-backend' });
+    res.status(503).json({ status: 'error', version: 2, database: 'unavailable', error: e.message, service: 'touliao-backend' });
   }
 });
 

@@ -639,6 +639,7 @@ function applySchema(db) {
   const alreadyApplied = new Set(
     db.prepare('SELECT idx FROM schema_migrations').all().map(r => r.idx)
   );
+  migrationsSnapshot = migrations;   // 供 assertRequiredColumns 启动时全量核对（防 idx 漂移漏建）
   migrations.forEach((sql, idx) => {
     if (alreadyApplied.has(idx)) return; // 已成功执行过，跳过
     try {
@@ -714,11 +715,31 @@ function applyFts(db) {
 // ── Schema Drift 防回归断言（启动时执行）───────────────────────────
 // P0-PROD-SCHEMA-DRIFT 根因：schema_migrations 标记已 applied，但实际列缺失
 // （生产库初始化早于 76/77/78 序号内容变更，runner 按 idx 跳过不重放）。
-// 最小 guard：启动/部署时断言 production-required 列存在，缺失即抛错中止启动，
-// 避免「迁移元数据=applied、实际列=缺失」静默漂移到用户 500。
+// 2026-09-02 第二例（message_reads idx18 / user_settings.ringtone idx102）：
+// migrations 数组中部插入新迁移 → idx 撞上已记录旧 idx → 建表/加列被跳过。
+// 防回归策略（增强）：
+//   1) 人工关键清单 REQUIRED_COLUMNS（表存在 + 关键列）
+//   2) 启动时对【每条已 applied 的迁移】做结构断言（expectMigration 解析预期
+//      对象并核对真实结构）——缺任何对象即抛错中止启动，把漂移暴露在部署期
+//      而非用户 500（与 scripts/schema-audit.js 同逻辑，可独立人工巡检）。
 const REQUIRED_COLUMNS = {
   conversation_clears: ['user_id', 'conversation_id', 'cleared_at', 'cleared_rowid'],
+  message_reads: ['message_id', 'user_id', 'read_at'],
 };
+
+// applySchema 内的 migrations 数组快照（供 assertRequiredColumns 全量核对）。
+let migrationsSnapshot = null;
+
+// 解析迁移 SQL 的预期结构效果；数据修复类（UPDATE/INSERT/WITH…）返回 null 跳过。
+function expectMigration(sql) {
+  const one = s => s.replace(/["'`]/g, '');
+  let m;
+  if ((m = sql.match(/CREATE TABLE IF NOT EXISTS (\S+)/))) return { type: 'table', obj: one(m[1]) };
+  if ((m = sql.match(/CREATE (?:UNIQUE )?INDEX IF NOT EXISTS (\S+)/))) return { type: 'index', obj: one(m[1]) };
+  if ((m = sql.match(/ALTER TABLE (\S+) ADD COLUMN (\S+)/))) return { type: 'column', table: one(m[1]), obj: one(m[2]) };
+  if ((m = sql.match(/ALTER TABLE (\S+) ADD (\S+) (\S+)/))) return { type: 'column', table: one(m[1]), obj: one(m[2]) };
+  return null;
+}
 
 // 幂等修复：conversation_clears 缺 cleared_rowid 时补列（P0 HOTFIX 逻辑）。
 // 表 0 行时无 UPDATE 需要；有历史行时回填 0。返回是否实际执行了修复。
@@ -730,19 +751,47 @@ function ensureClearWatermarkColumn(db) {
   return true;
 }
 
-function assertRequiredColumns(db) {
+/**
+ * Schema drift 核对（2026-09-02 起）：返回缺失清单，不抛错。
+ * 调用方决定策略：deploy/CI 可 SCHEMA_DRIFT_ABORT=1 强中止；
+ * 默认降级 —— 打 error 日志 + /health 返回 503（deploy 健康检查拦住并自动回滚），
+ * 避免「非变更重启（手动 restart / crash 自愈）」时把可用服务直接打死。
+ * 返回 [{ idx, type, obj, sql }]，无漂移返回 []。
+ */
+function verifySchemaDrift(db) {
   const missing = [];
+  // 1) 人工关键清单：表存在 + 关键列存在
   for (const [table, cols] of Object.entries(REQUIRED_COLUMNS)) {
     const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?")
       .get(table);
-    if (!exists) { missing.push(`table:${table}`); continue; }
+    if (!exists) { missing.push({ idx: 'manual', type: 'table', obj: table, sql: '(REQUIRED_COLUMNS)' }); continue; }
     const actual = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name));
-    for (const col of cols) if (!actual.has(col)) missing.push(`${table}.${col}`);
+    for (const col of cols) if (!actual.has(col)) missing.push({ idx: 'manual', type: 'column', obj: `${table}.${col}`, sql: '(REQUIRED_COLUMNS)' });
   }
-  if (missing.length) {
-    throw new Error(`[db] Schema drift detected — 迁移标记已 applied 但列缺失: ${missing.join(', ')}。` +
-      `请检查迁移记录与实际 schema 一致性（勿直接伪造 applied 记录）。`);
+  // 2) 全量核对：每条【已 applied 的迁移】的预期对象（表/索引/列）必须真实存在。
+  //    2026-09-02 增强：此前只手工覆盖个别关键表，防不住所有「idx 撞车被跳过」的
+  //    漂移（message_reads idx18、user_settings.ringtone idx102 均因此漏建）。
+  if (migrationsSnapshot) {
+    const applied = new Set(db.prepare('SELECT idx FROM schema_migrations').all().map(r => r.idx));
+    migrationsSnapshot.forEach((sql, idx) => {
+      if (!applied.has(idx)) return;
+      const e = expectMigration(sql);
+      if (!e) return;   // 数据修复类语句（UPDATE/INSERT/WITH…）无法结构核对，跳过
+      let present;
+      if (e.type === 'table') {
+        present = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(e.obj);
+      } else if (e.type === 'index') {
+        present = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(e.obj);
+      } else {
+        const t = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(e.table);
+        if (!t) { missing.push({ idx, type: 'table', obj: e.table, sql: sql.replace(/\s+/g, ' ').slice(0, 120) }); return; }
+        const cols = new Set(db.prepare(`PRAGMA table_info(${e.table})`).all().map(c => c.name));
+        present = cols.has(e.obj);
+      }
+      if (!present) missing.push({ idx, type: e.type, obj: e.obj, sql: sql.replace(/\s+/g, ' ').slice(0, 120) });
+    });
   }
+  return missing;
 }
 
-module.exports = { applySchema, applyFts, ensureClearWatermarkColumn, assertRequiredColumns };
+module.exports = { applySchema, applyFts, ensureClearWatermarkColumn, verifySchemaDrift };

@@ -8,7 +8,7 @@
  */
 const Database = require('better-sqlite3');
 const config = require('../config');
-const { applySchema, applyFts, ensureClearWatermarkColumn, assertRequiredColumns } = require('./schema');
+const { applySchema, applyFts, ensureClearWatermarkColumn, verifySchemaDrift } = require('./schema');
 
 function tunePragmas(conn, { readonly = false } = {}) {
   conn.pragma('busy_timeout = 5000');   // 并发锁等待 5s，避免高并发下立即 SQLITE_BUSY
@@ -40,8 +40,22 @@ applySchema(db);
 applyFts(db);
 // P0-PROD-SCHEMA-DRIFT：幂等自愈补列（缺 cleared_rowid 时 ALTER，历史行回填 0）
 ensureClearWatermarkColumn(db);
-// 防回归：启动时断言 production-required 列存在，缺失即抛错中止启动（而非用户 500）
-assertRequiredColumns(db);
+// 防回归：启动时核对 production schema 漂移（迁移标记 applied 但对象缺失）。
+// 默认降级：打 error 日志 + /health 503（deploy 健康检查拦住并自动回滚），
+// 避免非变更重启把服务打死；SCHEMA_DRIFT_ABORT=1 时强中止（CI/测试用）。
+const schemaDrift = verifySchemaDrift(db);
+if (schemaDrift.length) {
+  const detail = schemaDrift.map(d => `#${d.idx} ${d.type} ${d.obj} | SQL: ${d.sql}`).join('\n  ');
+  console.error('[db] 🚨 SCHEMA DRIFT — 迁移标记已 applied 但结构缺失:\n  ' + detail +
+    '\n[db] 服务继续启动但 /health 将返回 503（deploy 健康检查会拦截并自动回滚）；' +
+    '修复生产库实际结构或运行: node scripts/schema-audit.js');
+  if (process.env.SCHEMA_DRIFT_ABORT === '1') {
+    throw new Error('[db] SCHEMA_DRIFT_ABORT=1 — 中止启动。缺失: ' + detail);
+  }
+  global.__schemaDrift = schemaDrift;
+} else {
+  delete global.__schemaDrift;
+}
 
 // ── ID 生成器 ───────────────────────────────────────────────────
 // 优化：先从 DB 计算当前已用数量，据此估算冲突概率。
