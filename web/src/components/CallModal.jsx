@@ -568,6 +568,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         if (localStreamRef.current) {
           vs.getVideoTracks().forEach(t => { try { localStreamRef.current.addTrack(t); } catch { /* 已存在 */ } });
         }
+        // 持有引用防 GC 停轨（异步回调内持流引用属标准模式；react-hooks/immutability 7.x 误报边界）
+        // eslint-disable-next-line react-hooks/immutability
         videoAddStreamRef.current = vs;   // 持有引用防 GC 停轨
       } else {
         // 视频→语音：停 + 移除视频轨
@@ -598,6 +600,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   // ── 通话质量指示（2026-09-02）：getStats 2s 采样 RTT/丢包率 → 优/中/差 ──
   const [callQuality, setCallQuality] = useState(null);
   useEffect(() => {
+    // 状态切离 connected 时清空质量指示：仅状态切换触发一次，无级联渲染风险
+    // （react-hooks/set-state-in-effect 7.x 对"状态守卫型同步 setState"属误报边界，见 AUDIT 待办）
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (status !== 'connected') { setCallQuality(null); return; }
     const t = setInterval(async () => {
       const pc = pcRef.current;

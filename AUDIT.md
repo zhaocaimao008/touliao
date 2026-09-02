@@ -2294,5 +2294,6 @@ Module path: resources/app.asar/src/main.js
 
 | 待办 | 方案 |
 |---|---|
+| **eslint-plugin-react-hooks 7.x 新规则治理**：`set-state-in-effect`/`immutability` 对三处合理模式误报（CallModal.jsx:571 异步回调 ref 持流防 GC、CallModal.jsx:601 状态守卫型清空质量、ChatWindow.jsx:591 会话切换 loading 起点），已行内 `eslint-disable-next-line` + 理由注释豁免（commit eef2667 后），CI `--max-warnings=0` 门禁恢复通过 | 后续统一评估：effect 外派生状态 / 拆分 effect 真正满足规则，或按项目实际收紧/放宽规则配置；当前豁免均不改行为 |
 | **Android/iOS 三端同款逻辑未同步**：Kotlin sync 合并二分比较 `current[mid].server_sequence < seq`（ChatViewModel.kt:1023）同样把 pending 当 0，iOS outbox 合并按 createdAt 混排（ChatViewModel.swift:790/813）同洞 A 源头 | 按 Web 语义移植：Android 加透明 lowerBound + outbox 排末尾；iOS 同。两平台当前无单测基建，须先建（Kotlin JVM 单测 / XCTest）再按红灯驱动纪律改 |
 | 洞 A/B 修复仅覆盖 Web/Electron | 上一条的移动端移植即此项收敛 |

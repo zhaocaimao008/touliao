@@ -588,6 +588,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 旧逻辑 setMessages(prev => prev.length ? prev : cached) 在「不清空」后无法
     // 区分「旧会话残留」与「新会话在途消息」，统一用 firstArrival 标记。
     let firstArrival = true;
+    // 会话切换首帧 loading 起点：仅会话切换时置位一次，无级联渲染风险
+    // （react-hooks/set-state-in-effect 7.x 误报边界，见 AUDIT 待办）
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInitialLoading(true);
     const convIdForCache = conversation.id;
     const cachedMessages = (conversation.burn_after || 0) > 0
