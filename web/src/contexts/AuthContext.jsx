@@ -161,6 +161,33 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // ── 修改密码：后端改密后旧 token 立即黑名单化，Bearer 客户端(Electron/Capacitor)
+  // 必须用响应里的新 token 覆盖本地，否则下一个请求就 401 被强制登出（对齐 change-server 的处理）。
+  const changePassword = async (oldPassword, newPassword) => {
+    const { data } = await axios.put('/api/auth/change-password', { oldPassword, newPassword });
+    setElectronToken(data.token || null);
+  };
+
+  // ── 注销账户（需当前密码确认）：账号已删，本地收尾同 logout 但不再调 /logout ──
+  const deleteAccount = async (password) => {
+    await axios.post('/api/auth/delete-account', { password });
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration('/');
+        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        if (sub) {
+          await axios.delete('/api/notifications/web-subscribe', { data: { endpoint: sub.endpoint } });
+          await sub.unsubscribe();
+        }
+      }
+    } catch { /* best-effort push cleanup; ignore */ }
+    if (userRef.current?.id) removeAccount(userRef.current.id);
+    clearCsrfCache();
+    clearCache();   // 隐私红线：账号已注销，清空离线消息缓存
+    setElectronToken(null);
+    setUser(null);
+  };
+
   // ── 切换服务器（无需重装客户端） ─────────────────────────────
   // 1. 保存新 URL 到 localStorage（Electron 运行时）和 electron-store（下次启动）
   // 2. 更新 axios baseURL
@@ -197,6 +224,8 @@ export const AuthProvider = ({ children }) => {
       user,
       login,
       logout,
+      changePassword,
+      deleteAccount,
       updateUser,
       changeServer,
       loading,

@@ -285,6 +285,131 @@ function ChangePhone({ user, updateUser, onBack }) {
   );
 }
 
+/* ── 修改密码 ── */
+function ChangePassword({ onBack }) {
+  const { changePassword } = useAuth();
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState('');
+
+  const save = async () => {
+    if (saving) return;
+    if (!oldPassword || !newPassword) { setError('请填写原密码和新密码'); return; }
+    if (newPassword.length < 6) { setError('新密码至少 6 位'); return; }
+    if (newPassword !== confirmPassword) { setError('两次输入的新密码不一致'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await changePassword(oldPassword, newPassword);
+      showToast('密码已修改', 'success');
+      onBack();
+    } catch (err) {
+      setError(err.response?.data?.error || '修改失败，请重试');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <PageBg>
+      <PageHeader title="修改密码" onBack={onBack}
+        right={
+          <button className="wc-save-btn" onClick={save} disabled={saving}>
+            {saving ? '保存中' : '保存'}
+          </button>
+        }
+      />
+      <div className="wc-edit-pad">
+        <Card>
+          <div className="profile-phone-body">
+            <div>
+              <label htmlFor="cpw-old" className="profile-field-label-block">原密码</label>
+              <input
+                id="cpw-old" type="password" value={oldPassword}
+                onChange={e => { setOldPassword(e.target.value); setError(''); }}
+                placeholder="请输入当前登录密码" aria-label="原密码" className="wc-edit-input" autoFocus
+              />
+            </div>
+            <div>
+              <label htmlFor="cpw-new" className="profile-field-label-block">新密码</label>
+              <input
+                id="cpw-new" type="password" value={newPassword}
+                onChange={e => { setNewPassword(e.target.value); setError(''); }}
+                placeholder="至少 6 位" aria-label="新密码" className="wc-edit-input"
+              />
+            </div>
+            <div>
+              <label htmlFor="cpw-confirm" className="profile-field-label-block">确认新密码</label>
+              <input
+                id="cpw-confirm" type="password" value={confirmPassword}
+                onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && save()}
+                placeholder="再次输入新密码" aria-label="确认新密码" className="wc-edit-input"
+              />
+            </div>
+          </div>
+        </Card>
+        {error && <div className="wc-edit-error" role="alert">{error}</div>}
+        <div className="wc-edit-hint">修改后其它已登录设备不受影响，本设备将使用新密码继续登录</div>
+      </div>
+    </PageBg>
+  );
+}
+
+/* ── 注销账号 ── */
+function DeleteAccountPage({ onBack }) {
+  const { deleteAccount } = useAuth();
+  const [password, setPassword] = useState('');
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState('');
+
+  const submit = async () => {
+    if (saving) return;
+    if (!password) { setError('请输入密码确认注销'); return; }
+    if (!(await showConfirm('注销账号后将无法恢复，确定继续？'))) return;
+    setSaving(true);
+    setError('');
+    try {
+      await deleteAccount(password);
+      // deleteAccount 成功后 user 已置 null，PrivateRoute 会自动跳转登录页，这里无需手动导航。
+    } catch (err) {
+      setError(err.response?.data?.error || '注销失败，请重试');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <PageBg>
+      <PageHeader title="注销账号" onBack={onBack} />
+      <div className="wc-edit-pad">
+        <Card>
+          <div className="profile-phone-body">
+            <div className="wc-edit-hint" style={{ color: 'var(--color-danger, #FA5151)' }}>
+              注销后账号将无法登录，聊天记录/好友/群组/钱包余额等数据不可找回。请先确保钱包余额已清零。
+            </div>
+            <div>
+              <label htmlFor="del-pass" className="profile-field-label-block">登录密码（用于验证身份）</label>
+              <input
+                id="del-pass" type="password" value={password}
+                onChange={e => { setPassword(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && submit()}
+                placeholder="请输入登录密码" aria-label="登录密码" className="wc-edit-input" autoFocus
+              />
+            </div>
+          </div>
+        </Card>
+        {error && <div className="wc-edit-error" role="alert">{error}</div>}
+        <div className="wc-logout-div">
+          <button className="wc-logout-btn" onClick={submit} disabled={saving}>
+            {saving ? '注销中…' : '确认注销账号'}
+          </button>
+        </div>
+      </div>
+    </PageBg>
+  );
+}
 
 function Wallet({ onBack }) {
   const [balance, setBalance] = useState(null);
@@ -1179,6 +1304,8 @@ export default function Profile({ isMobile = false }) {
   if (subPage === 'edit-name')     return <EditName user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
   if (subPage === 'edit-bio')      return <EditBio user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
   if (subPage === 'change-phone')  return <ChangePhone user={user} updateUser={updateUser} onBack={() => setSubPage(null)} />;
+  if (subPage === 'change-password') return <ChangePassword onBack={() => setSubPage(null)} />;
+  if (subPage === 'delete-account')  return <DeleteAccountPage onBack={() => setSubPage(null)} />;
   if (subPage === 'wallet')        return <Wallet onBack={() => setSubPage(null)} />;
   if (subPage === 'invite')        return <InviteFriends onBack={() => setSubPage(null)} />;
   if (subPage === 'devices')       return <DeviceList onBack={() => setSubPage(null)} />;
@@ -1240,6 +1367,7 @@ export default function Profile({ isMobile = false }) {
         <Card>
           <CRow icon={<IcoDesktop />} bg="var(--icon-bg-neutral)" label="设备管理" desc="查看同时登录的设备" onClick={() => setSubPage('devices')} />
           <CRow icon={<IcoShield />}  bg="var(--icon-bg-neutral)" label="隐私与安全" desc="添加方式和好友权限" onClick={() => setSubPage('privacy')} />
+          <CRow icon={<IcoShield />}  bg="var(--icon-bg-neutral)" label="修改密码" desc="定期更换密码更安全" onClick={() => setSubPage('change-password')} />
         </Card>
       </div>
 
@@ -1291,6 +1419,10 @@ export default function Profile({ isMobile = false }) {
       {/* ── 退出 ── */}
       <div className="wc-logout-div">
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>退出登录</button>
+      </div>
+      <div className="wc-logout-div">
+        <button className="wc-edit-hint" style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+          onClick={() => setSubPage('delete-account')}>注销账号</button>
       </div>
 
       {/* ── 版本号：桌面端显示应用版本，网页端显示 web 构建版本 ── */}
