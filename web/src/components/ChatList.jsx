@@ -6,6 +6,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from '../utils/time';
 import { showConfirm, showToast } from '../utils/toast';
+import { useI18n } from '../contexts/I18nContext';
 import { FixedSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 
@@ -17,6 +18,7 @@ const byPinnedThenTime = (a, b) =>
 
 // Stable module-level row component so react-window doesn't unmount on re-render
 const ConvRow = memo(function ConvRow({ index, style, data }) {
+  const { t } = useI18n();
   const { items, activeConvId, onSelectConv, onCtxMenu, previewMsg, user, drafts } = data;
   const conv = items[index];
   const count = conv._unread || 0;
@@ -51,7 +53,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         </div>
         <div className="wc-chat-item-info">
           <div className="wc-chat-item-row1">
-            <span className="wc-chat-item-name" data-testid="conv-item-name">{conv.name || '未知'}</span>
+            <span className="wc-chat-item-name" data-testid="conv-item-name">{conv.name || t('chatlist.unknown')}</span>
             <span className="wc-chat-item-time">{conv.lastTime ? format(conv.lastTime * 1000) : ''}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -62,8 +64,8 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
             )}
             <span className="wc-chat-item-preview">
               {draft
-                ? <><span className="wc-chat-item-draft" data-testid="conv-item-draft">[草稿]</span>{draft}</>
-                : <>{conv.hasMention && <span className="wc-chat-item-mention">[有人@我]</span>}{previewMsg(conv, user)}</>}
+                ? <><span className="wc-chat-item-draft" data-testid="conv-item-draft">{t('chatlist.draftTag')}</span>{draft}</>
+                : <>{conv.hasMention && <span className="wc-chat-item-mention">{t('chatlist.mentionTag')}</span>}{previewMsg(conv, user, t)}</>}
             </span>
           </div>
         </div>
@@ -77,26 +79,26 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
     && (prev.data.drafts?.[pi?.id] || '') === (next.data.drafts?.[ni?.id] || '');
 });
 
-function previewMsg(conv, user) {
-  const t = conv.lastMessageType;
-  if (t === 'image') return '[图片]';
-  if (t === 'voice') return '[语音]';
-  if (t === 'video') return '[视频]';
-  if (t === 'file') return '[文件]';
-  if (t === 'contact_card' || t === 'contact') return '[名片]';
-  if (t === 'red_packet') return '[红包]';
-  if (t === 'sticker') return '[表情]';
-  if (t === 'nudge') {
+function previewMsg(conv, user, t) {
+  const mt = conv.lastMessageType;
+  if (mt === 'image') return t('chatlist.previewImage');
+  if (mt === 'voice') return t('chatlist.previewVoice');
+  if (mt === 'video') return t('chatlist.previewVideo');
+  if (mt === 'file') return t('chatlist.previewFile');
+  if (mt === 'contact_card' || mt === 'contact') return t('chatlist.previewContact');
+  if (mt === 'red_packet') return t('chatlist.previewRedPacket');
+  if (mt === 'sticker') return t('chatlist.previewSticker');
+  if (mt === 'nudge') {
     try {
       const n = JSON.parse(conv.lastMessage);
-      const a = String(n.actor) === String(user?.id) ? '你' : (n.actorName || '某人');
-      const b = String(n.target) === String(user?.id) ? '你' : (n.targetName || '某人');
-      return `${a} 拍了拍 ${b}`;
-    } catch { return '[拍一拍]'; }
+      const a = String(n.actor) === String(user?.id) ? t('chatlist.you') : (n.actorName || t('chatlist.someone'));
+      const b = String(n.target) === String(user?.id) ? t('chatlist.you') : (n.targetName || t('chatlist.someone'));
+      return t('chatlist.nudgeTemplate').replace('{a}', a).replace('{b}', b);
+    } catch { return t('chatlist.previewNudge'); }
   }
-  if (t === 'call') {
+  if (mt === 'call') {
     // 通话系统消息预览:content 即人话(如「语音通话 30 秒」),直接显示
-    return conv.lastMessage || '[通话]';
+    return conv.lastMessage || t('chatlist.previewCall');
   }
   if (!conv.lastMessage) return '';
   if (conv.type === 'group' && conv.lastSenderName && conv.lastSenderName !== user?.username)
@@ -137,6 +139,7 @@ function ChatListSkeleton() {
 }
 
 export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions }) {
+  const { t } = useI18n();
   const [conversations, setConversations] = useState([]);
   const [loaded, setLoaded] = useState(false);   // 首屏是否已拉过一次：未拉完显示骨架，避免闪「暂无聊天」
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -308,7 +311,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned });
       setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, pinned: pinned ? 1 : 0 } : c)
         .sort(byPinnedThenTime));
-    } catch { showToast('操作失败，请重试', 'error'); }
+    } catch { showToast(t('common.actionFailed'), 'error'); }
   };
 
   const mute = async (conv, muted) => {
@@ -316,13 +319,13 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     try {
       await axios.post(`/api/messages/conversation/${conv.id}/mute`, { muted });
       setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, muted: muted ? 1 : 0 } : c));
-    } catch { showToast('操作失败，请重试', 'error'); }
+    } catch { showToast(t('common.actionFailed'), 'error'); }
   };
 
   const deleteConv = async (conv) => {
     setCtxMenu(null);
     if (conv.type === 'group') {
-      if (!(await showConfirm(`确认退出群聊「${conv.name}」？`))) return;
+      if (!(await showConfirm(t('chatlist.confirmLeaveGroupTemplate').replace('{name}', conv.name)))) return;
       await axios.post(`/api/messages/conversation/${conv.id}/leave`).catch(() => {});
     } else {
       await axios.delete(`/api/messages/conversation/${conv.id}/messages`).catch(() => {});
@@ -430,17 +433,17 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
             onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setCtxMenu(null); } }}
           >
             <button type="button" className="wc-ctx-item" role="menuitem" onClick={() => toggleMarkUnread(ctxMenu.conv)}>
-              {ctxMenu.conv.manually_unread ? '取消标记' : '标记为未读'}
+              {ctxMenu.conv.manually_unread ? t('chatlist.markRead') : t('chatlist.markUnread')}
             </button>
             <button type="button" className="wc-ctx-item" role="menuitem" onClick={() => pin(ctxMenu.conv, !ctxMenu.conv.pinned)}>
-              {ctxMenu.conv.pinned ? '取消置顶' : '置顶聊天'}
+              {ctxMenu.conv.pinned ? t('chatlist.unpinChat') : t('chatlist.pinChat')}
             </button>
             <button type="button" className="wc-ctx-item" role="menuitem" onClick={() => mute(ctxMenu.conv, !ctxMenu.conv.muted)}>
-              {ctxMenu.conv.muted ? '取消免打扰' : '消息免打扰'}
+              {ctxMenu.conv.muted ? t('chatlist.unmuteChat') : t('chatlist.muteChat')}
             </button>
             <div className="wc-ctx-divider" />
             <button type="button" className="wc-ctx-item danger" role="menuitem" onClick={() => deleteConv(ctxMenu.conv)}>
-              {ctxMenu.conv.type === 'group' ? '退出群聊' : '删除聊天'}
+              {ctxMenu.conv.type === 'group' ? t('chatlist.leaveGroup') : t('chatlist.deleteChat')}
             </button>
           </div>
         </>
