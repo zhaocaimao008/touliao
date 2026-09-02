@@ -51,6 +51,8 @@ data class CallState(
     val bluetoothOn: Boolean = false,       // 2026-08-29 补充：蓝牙SCO是否已路由
     val bluetoothAvailable: Boolean = false, // 通话期间是否检测到已连接的蓝牙耳机
     val remoteVideoActive: Boolean = false,
+    // 2026-09-02新增：通话质量指示（getStats 2s 采样）。""=未采样 / good=优 / medium=中 / poor=差
+    val callQuality: String = "",
     val connectedAt: Long = 0,        // 接通时刻(elapsedRealtime ms)，用于通话计时
     val endedAt: Long = 0,            // 结束时刻(elapsedRealtime ms)，用于结束页定格总时长
     // 2026-08-29新增：通话小窗(对齐iOS)。true时CallHost渲染悬浮小窗而非全屏通话界面，
@@ -658,6 +660,7 @@ class CallManager @Inject constructor(
                                 it.copy(stage = CallStage.CONNECTED, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt)
                             else it
                         }
+                        startQualitySampling()
                     }
                     PeerConnection.IceConnectionState.DISCONNECTED -> {
                         // 短时探测间隙(<3s 通常自愈,锁屏/后台):防抖后再重启,避免无谓重协商
@@ -707,6 +710,48 @@ class CallManager @Inject constructor(
             localVideoTrack = f.createVideoTrack("video0", videoSource).apply { setEnabled(true) }
             pc.addTrack(localVideoTrack, listOf(STREAM_ID))
         }
+    }
+
+    // ── 通话质量指示（2026-09-02）：getStats 2s 采样 RTT/丢包率 → 优/中/差 ──
+    private var qualityJob: Job? = null
+
+    private fun startQualitySampling() {
+        qualityJob?.cancel()
+        qualityJob = scope.launch {
+            while (isActive) {
+                sampleQuality()
+                delay(2000)
+            }
+        }
+    }
+
+    private fun sampleQuality() {
+        val pc = peerConnection ?: return
+        pc.getStats(object : RTCStatsCollectorCallback {
+            override fun onStatsDelivered(report: RTCStatsReport) {
+                var rtt: Double? = null
+                var lost = 0L; var received = 0L
+                for (s in report.statsMap.values) {
+                    val m = s.members()
+                    if (s.type == "candidate-pair" && m["nominated"] == true && m["state"] == "succeeded") {
+                        (m["currentRoundTripTime"] as? Double)?.let { rtt = it * 1000 }
+                    }
+                    if (s.type == "inbound-rtp" && m["kind"] == "audio") {
+                        lost += (m["packetsLost"] as? Long) ?: 0L
+                        received += (m["packetsReceived"] as? Long) ?: 0L
+                    }
+                }
+                val lossRate = if (received + lost > 0) lost.toDouble() / (received + lost) else 0.0
+                val q = when {
+                    rtt != null && rtt >= 500 -> "poor"
+                    rtt != null && rtt >= 200 -> "medium"
+                    lossRate >= 0.08 -> "poor"
+                    lossRate >= 0.02 -> "medium"
+                    else -> "good"
+                }
+                if (_state.value.callQuality != q) _state.update { it.copy(callQuality = q) }
+            }
+        })
     }
 
     private fun createCameraCapturer(): VideoCapturer? {
@@ -767,6 +812,7 @@ class CallManager @Inject constructor(
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage) {
         stopIncomingTone()                                // 停来电铃声（接听/拒接/挂断/清理）
+        qualityJob?.cancel(); qualityJob = null          // 停质量采样
         releaseTone()                                     // 停回铃/接通音并释放 ToneGenerator
         releaseAudioFocusAndRoute()                        // 恢复系统默认音频模式/释放焦点，防止占用
         callTimeoutJob?.cancel(); callTimeoutJob = null   // 接通/挂断/被拒 → 取消呼出超时

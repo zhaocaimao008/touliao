@@ -25,6 +25,8 @@ struct CallState {
     /// 2026-08-29新增：通话小窗——true时CallHostView渲染悬浮小窗而非全屏通话界面，
     /// 用户可退回App其它页面继续操作，媒体流不受影响(PeerConnection不因UI切换而重建)。
     var isMinimized: Bool = false
+    /// 2026-09-02新增：通话质量指示（getStats 2s 采样）。""=未采样 / good=优 / medium=中 / poor=差
+    var callQuality: String = ""
 }
 
 /// GET /api/turn/credentials 响应。
@@ -530,8 +532,54 @@ final class CallManager: NSObject, ObservableObject {
         capturer.startCapture(with: device, format: format, fps: Int(min(fps, 30)))
     }
 
+    // MARK: - 通话质量指示（2026-09-02）：getStats 2s 采样 RTT/丢包率 → 优/中/差
+    private var qualityTask: Task<Void, Never>?
+
+    private func startQualitySampling() {
+        qualityTask?.cancel()
+        qualityTask = Task { [weak self] in
+            while !Task.isCancelled {
+                self?.sampleQuality()
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+    }
+
+    private func sampleQuality() {
+        guard let pc = pc else { return }
+        pc.stats { [weak self] report in
+            guard let self, let report else { return }
+            var rtt: Double? = nil
+            var lost: Int64 = 0, received: Int64 = 0
+            for s in report.stats.values where s.type == "candidate-pair" || s.type == "inbound-rtp" {
+                if s.type == "candidate-pair" {
+                    if let nominated = s.values["nominated"] as? Bool, nominated,
+                       let state = s.values["state"] as? String, state == "succeeded" {
+                        rtt = (s.values["currentRoundTripTime"] as? NSNumber)?.doubleValue.map { $0 * 1000 }
+                    }
+                } else if s.type == "inbound-rtp" {
+                    if (s.values["kind"] as? String) == "audio" {
+                        lost += (s.values["packetsLost"] as? NSNumber)?.int64Value ?? 0
+                        received += (s.values["packetsReceived"] as? NSNumber)?.int64Value ?? 0
+                    }
+                }
+            }
+            let lossRate = received + lost > 0 ? Double(lost) / Double(received + lost) : 0
+            let q: String
+            if let rtt, rtt >= 500 { q = "poor" }
+            else if let rtt, rtt >= 200 { q = "medium" }
+            else if lossRate >= 0.08 { q = "poor" }
+            else if lossRate >= 0.02 { q = "medium" }
+            else { q = "good" }
+            DispatchQueue.main.async {
+                if self.state.callQuality != q { self.state.callQuality = q }
+            }
+        }
+    }
+
     // MARK: - 清理
     private func cleanup(_ finalStage: CallStage) {
+        qualityTask?.cancel(); qualityTask = nil          // 停质量采样
         cancelIceRestart()                          // 清 ICE restart 定时器/计数
         cancelDisconnectGrace()
         clearIncomingCallNotifications(from: state.peerId)  // 清掉该通话残留的来电通知，防止过期误触
@@ -594,6 +642,7 @@ extension CallManager: RTCPeerConnectionDelegate {
                     }
                     self.state.stage = .connected
                 }
+                self.startQualitySampling()
             case .disconnected:
                 // 锁屏/切后台/网络波动时 ICE 短暂 disconnected,数秒内自动恢复。
                 // 3s 防抖 → restartIce() 自愈;15s 恢复窗口内未恢复则重试(最多 3 次)→ 挂断。

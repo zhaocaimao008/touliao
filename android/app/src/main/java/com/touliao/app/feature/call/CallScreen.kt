@@ -152,6 +152,19 @@ fun CallHost(
                     callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),
                     color = Color(0xFFBBBBBB), fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
                 )
+                // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
+                if (state.stage == CallStage.CONNECTED && state.callQuality.isNotEmpty()) {
+                    val (qColor, qText) = when (state.callQuality) {
+                        "poor" -> Color(0xFFFA5151) to "网络较差"
+                        "medium" -> Color(0xFFF5A623) to "网络一般"
+                        else -> com.touliao.app.ui.theme.VxinSuccess to "网络良好"
+                    }
+                    Text(
+                        qText, color = qColor,
+                        fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         }
 

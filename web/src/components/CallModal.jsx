@@ -595,6 +595,47 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const inProgress  = ['calling', 'connecting', 'connected'].includes(status);
   const canMinimize = inProgress && status !== 'incoming';
 
+  // ── 通话质量指示（2026-09-02）：getStats 2s 采样 RTT/丢包率 → 优/中/差 ──
+  const [callQuality, setCallQuality] = useState(null);
+  useEffect(() => {
+    if (status !== 'connected') { setCallQuality(null); return; }
+    const t = setInterval(async () => {
+      const pc = pcRef.current;
+      if (!pc) return;
+      try {
+        const stats = await pc.getStats();
+        let rtt = null, lost = 0, received = 0;
+        stats.forEach(s => {
+          if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') rtt = (s.currentRoundTripTime || 0) * 1000;
+          if (s.type === 'inbound-rtp' && s.kind === 'audio') {
+            lost += s.packetsLost || 0;
+            received += s.packetsReceived || 0;
+          }
+        });
+        const lossRate = received + lost > 0 ? lost / (received + lost) : 0;
+        let q = 'good';
+        if (rtt !== null) {
+          if (rtt >= 500 || lossRate >= 0.08) q = 'poor';
+          else if (rtt >= 200 || lossRate >= 0.02) q = 'medium';
+        } else if (lossRate >= 0.08) q = 'poor';
+        else if (lossRate >= 0.02) q = 'medium';
+        setCallQuality(q);
+      } catch { /* stats 不可用静默 */ }
+    }, 2000);
+    return () => clearInterval(t);
+  }, [status]);
+  const QUALITY_UI = {
+    good:   { color: 'var(--color-success)', text: '网络良好' },
+    medium: { color: '#f5a623', text: '网络一般' },
+    poor:   { color: 'var(--color-danger)', text: '网络较差' },
+  };
+  const qualityBadge = callQuality && status === 'connected' ? (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginLeft: 8, fontSize: 12 }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: QUALITY_UI[callQuality].color, display: 'inline-block' }} />
+      <span style={{ color: QUALITY_UI[callQuality].color }}>{QUALITY_UI[callQuality].text}</span>
+    </span>
+  ) : null;
+
   /* ═══════════════════════════════════════════════════════════════
      缩小悬浮窗
   ═══════════════════════════════════════════════════════════════ */
@@ -730,6 +771,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
               <div className="cm-video-name-text">{remoteUser?.name}</div>
               <div className="cm-video-status">
                 {status === 'connected' ? timer : (status === 'calling' ? '等待对方接听…' : '连接中…')}
+                {qualityBadge}
               </div>
             </div>
           )}
@@ -836,6 +878,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
              status === 'calling'   ? '等待对方接听…' :
              status === 'ended'     ? (END_TEXT[endReason] || '通话已结束') :
              '连接中…'}
+            {qualityBadge}
           </div>
         </div>
 
