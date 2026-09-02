@@ -40,6 +40,25 @@ jobs:
         working-directory: web
         run: npm run lint -- --max-warnings=0
 
+  migration-gate:
+    # Schema 迁移「只允许尾部追加」门禁（2026-09-02）
+    # 背景：schema_migrations 按数组下标记录已执行迁移，中部插入/删除/重排/修改既有
+    # 元素会让存量库 idx 语义错位、新迁移被「已应用」跳过永不执行（message_reads
+    # idx18 / ringtone idx102 双雷，见 AUDIT.md）。此门禁对比本次改动（base 为 push
+    # 前 sha / PR base），只允许在 migrations 数组【末尾】追加新迁移。
+    name: Schema 迁移尾部追加门禁
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 检查 migrations 数组只允许尾部追加
+        run: node backend-v2/scripts/check-migration-append.js --base "${{ github.event.before || 'HEAD~1' }}"
+
   web-unit:
     name: Web Vitest 单测（含 msgCache 缓存基线）
     runs-on: ubuntu-latest
