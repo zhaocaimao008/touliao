@@ -429,11 +429,153 @@ struct PrivacySecurityView: View {
             Section("隐私") {
                 NavigationLink("黑名单管理") { BlockedView() }
             }
+            Section("账号安全") {
+                NavigationLink("修改密码") { ChangePasswordView() }
+                NavigationLink("注销账号") { DeleteAccountView() }
+            }
         }
         .navigationTitle("隐私与安全")
         .navigationBarTitleDisplayMode(.inline)
         .overlay { if vm.loading { ProgressView() } }
         .toast($vm.error)
         .task { await vm.load() }
+    }
+}
+
+// MARK: - 修改密码（PUT /api/auth/change-password，后端已就绪，此前 App 内无入口）
+
+@MainActor
+final class ChangePasswordViewModel: ObservableObject {
+    @Published var oldPassword = ""
+    @Published var newPassword = ""
+    @Published var confirmPassword = ""
+    @Published var changing = false
+    @Published var message: String?
+
+    private let repo = ProfileRepository.shared
+
+    var valid: Bool { !oldPassword.isEmpty && newPassword.count >= 6 && newPassword == confirmPassword }
+
+    /// 改密：token 可能为 nil（旧后端兼容），SessionStore.applyNewToken 对空串自行短路，调用方无需判空。
+    func submit(onSuccess: @escaping (String?) -> Void) {
+        guard !changing, valid else { return }
+        changing = true; message = nil
+        Task {
+            do {
+                let token = try await repo.changePassword(oldPassword: oldPassword, newPassword: newPassword)
+                message = "密码已修改"
+                onSuccess(token)
+            } catch {
+                message = (error as? LocalizedError)?.errorDescription ?? "修改失败"
+            }
+            changing = false
+        }
+    }
+}
+
+struct ChangePasswordView: View {
+    @StateObject private var vm = ChangePasswordViewModel()
+    @EnvironmentObject private var session: SessionStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Form {
+            Section("原密码") {
+                SecureField("请输入当前登录密码", text: $vm.oldPassword)
+                    .textContentType(.password)
+                    .accessibilityIdentifier("change-password-old")
+            }
+            Section("新密码") {
+                SecureField("至少 6 位", text: $vm.newPassword)
+                    .textContentType(.newPassword)
+                    .accessibilityIdentifier("change-password-new")
+                SecureField("再次输入新密码", text: $vm.confirmPassword)
+                    .textContentType(.newPassword)
+                    .accessibilityIdentifier("change-password-confirm")
+            }
+            Section(content: {
+                Button {
+                    vm.submit { token in
+                        session.applyNewToken(token ?? "")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { dismiss() }
+                    }
+                } label: {
+                    if vm.changing { ProgressView() } else { Text("提交").foregroundColor(.vxinGreen) }
+                }
+                .disabled(!vm.valid || vm.changing)
+                .accessibilityIdentifier("change-password-submit")
+            }, footer: {
+                Text("修改后本设备将使用新密码继续登录，其它已登录设备不受影响。")
+            })
+        }
+        .navigationTitle("修改密码")
+        .navigationBarTitleDisplayMode(.inline)
+        .toast($vm.message)
+    }
+}
+
+// MARK: - 注销账号（POST /api/auth/delete-account，后端已就绪，此前 App 内无入口）
+
+@MainActor
+final class DeleteAccountViewModel: ObservableObject {
+    @Published var password = ""
+    @Published var deleting = false
+    @Published var message: String?
+
+    private let repo = ProfileRepository.shared
+
+    func submit(onSuccess: @escaping () -> Void) {
+        guard !deleting, !password.isEmpty else { return }
+        deleting = true; message = nil
+        Task {
+            do {
+                try await repo.deleteAccount(password: password)
+                onSuccess()
+            } catch {
+                message = (error as? LocalizedError)?.errorDescription ?? "注销失败"
+                deleting = false
+            }
+        }
+    }
+}
+
+struct DeleteAccountView: View {
+    @StateObject private var vm = DeleteAccountViewModel()
+    @EnvironmentObject private var session: SessionStore
+    @State private var showConfirm = false
+
+    var body: some View {
+        Form {
+            Section {
+                Text("注销后账号将无法登录，聊天记录/好友/群组/钱包余额等数据不可找回。请先确保钱包余额已清零。")
+                    .foregroundColor(.red)
+                    .font(.footnote)
+            }
+            Section("验证密码") {
+                SecureField("登录密码", text: $vm.password)
+                    .textContentType(.password)
+                    .accessibilityIdentifier("delete-account-password")
+            }
+            Section {
+                Button(role: .destructive) {
+                    showConfirm = true
+                } label: {
+                    if vm.deleting { ProgressView() } else { Text("确认注销账号") }
+                }
+                .disabled(vm.password.isEmpty || vm.deleting)
+                .accessibilityIdentifier("delete-account-submit")
+            }
+        }
+        .navigationTitle("注销账号")
+        .navigationBarTitleDisplayMode(.inline)
+        .toast($vm.message)
+        .confirmationDialog("注销账号后将无法恢复，确定继续？", isPresented: $showConfirm, titleVisibility: .visible) {
+            Button("确认注销", role: .destructive) {
+                // 成功后走 session.deleteAccount() 收尾（清 token/socket/缓存 + state=.unauthenticated），
+                // 与 logout 同一套根视图切换机制，无需手动 dismiss——状态一变根视图自动换回登录页。
+                vm.submit { Task { await session.deleteAccount() } }
+            }
+            Button("取消", role: .cancel) {}
+        }
     }
 }
