@@ -133,6 +133,14 @@ final class MomentsViewModel: ObservableObject {
         }
     }
 
+    /// 举报他人动态（对齐 web/安卓：非本人动态 → 举报入口）。成功静默，同 delete 只在失败时提示。
+    func report(_ m: Moment) {
+        Task {
+            do { try await repo.report(m.id) }
+            catch { self.error = (error as? LocalizedError)?.errorDescription ?? "举报失败" }
+        }
+    }
+
     /// 删除自己的评论(对齐 web/安卓：长按自己评论 → 删除)
     func deleteComment(_ m: Moment, _ c: MomentComment) {
         Task {
@@ -154,6 +162,7 @@ struct MomentsView: View {
     @State private var commentText = ""
     @State private var replyTarget: MomentComment?   // 回复某条评论(nil=普通评论)
     @State private var deleteTarget: Moment?
+    @State private var reportTarget: Moment?
     @State private var deleteCommentTarget: (moment: Moment, comment: MomentComment)?
     @State private var showCompose = false
     @State private var showSettings = false
@@ -186,6 +195,7 @@ struct MomentsView: View {
                                 commentingId = nil; commentText = ""; replyTarget = nil
                             },
                             onDelete: { deleteTarget = m },
+                            onReport: { reportTarget = m },
                             onViewAllComments: { vm.loadAllComments(m) },
                             onImageTap: { idx in gallery = GalleryData(images: m.images.map { MediaUrlResolver.resolve($0) ?? "" }, start: idx) },
                             myId: vm.myId,
@@ -256,6 +266,12 @@ struct MomentsView: View {
         }
         .task { vm.myId = session.currentUser?.id ?? ""; await vm.refresh() }
         .toast($vm.error)
+        .alert("举报动态", isPresented: .constant(reportTarget != nil)) {
+            Button("取消", role: .cancel) { reportTarget = nil }
+            Button("举报") { if let m = reportTarget { vm.report(m) }; reportTarget = nil }
+        } message: {
+            Text("举报这条动态？举报后将提交后台审核。")
+        }
         .alert("删除动态", isPresented: .constant(deleteTarget != nil)) {
             Button("取消", role: .cancel) { deleteTarget = nil }
             Button("删除", role: .destructive) { if let m = deleteTarget { vm.delete(m) }; deleteTarget = nil }
@@ -280,6 +296,7 @@ private struct MomentCard: View {
     var onComment: () -> Void
     var onSubmitComment: () -> Void
     var onDelete: () -> Void
+    var onReport: () -> Void = {}
     var onViewAllComments: () -> Void = {}
     var onImageTap: (Int) -> Void = { _ in }
     var myId: String = ""
@@ -309,6 +326,7 @@ private struct MomentCard: View {
                     Label("评论", systemImage: "bubble.right")
                 }.buttonStyle(.borderless).foregroundColor(.vxinGreen)
                 if isMine { Button("删除", role: .destructive) { onDelete() }.buttonStyle(.borderless) }
+                else { Button("举报") { onReport() }.buttonStyle(.borderless).foregroundColor(.vxinTextSecondary) }
             }
             if !moment.likes.isEmpty {
                 Text("❤ " + moment.likes.map { $0.username.isEmpty ? "用户" : $0.username }.joined(separator: "，"))
