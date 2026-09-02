@@ -6,10 +6,12 @@ import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 import { useConvSettings } from '../hooks/useConvSettings';
 import { GroupAvatar } from './GroupAvatar';
+import { useI18n } from '../contexts/I18nContext';
 export { GroupAvatar } from './GroupAvatar'; // re-export 向后兼容
 
 /* ── 群头像上传（管理员 hover 显示相机图标） ── */
 function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, onChange }) {
+  const { t } = useI18n();
   const [hovered, setHovered] = useState(false);
   const [avErr, setAvErr] = useState(false);
   const [prevAvatar, setPrevAvatar] = useState(info.avatar);
@@ -20,12 +22,12 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
       className="gi-av-wrap" style={{ cursor: isAdmin ? 'pointer' : 'default' }}
       role={isAdmin ? 'button' : undefined}
       tabIndex={isAdmin ? 0 : undefined}
-      aria-label={isAdmin ? '更换群头像' : undefined}
+      aria-label={isAdmin ? t('groupInfo.changeAvatar') : undefined}
       onMouseEnter={() => isAdmin && setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onAvatarClick}
       onKeyDown={isAdmin ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAvatarClick?.(); } }) : undefined}
-      title={isAdmin ? '点击更换群头像' : undefined}
+      title={isAdmin ? t('groupInfo.clickToChangeAvatar') : undefined}
     >
       {info.avatar && !avErr
         ? <img src={mediaUrl(info.avatar)} alt="" loading="lazy" className="gi-av-img" onError={() => setAvErr(true)} style={{ borderRadius: r }} />
@@ -34,12 +36,12 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
       {isAdmin && (hovered || uploading) && (
         <div className="gi-av-overlay" style={{ borderRadius: r }}>
           {uploading
-            ? <span className="gi-av-uploading">上传中…</span>
+            ? <span className="gi-av-uploading">{t('groupInfo.uploading')}</span>
             : <>
                 <svg viewBox="0 0 24 24" className="gi-av-icon">
                   <path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8a3.2 3.2 0 0 1 3.2 3.2 3.2 3.2 0 0 1-3.2 3.2M20 4h-3.17L15 2H9L7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>
                 </svg>
-                <span className="gi-av-hint">更换头像</span>
+                <span className="gi-av-hint">{t('groupInfo.changeAvatarLabel')}</span>
               </>
           }
         </div>
@@ -72,13 +74,15 @@ function Toggle({ on, onChange, disabled, label }) {
 
 /* ── 角色标签 ── */
 function RoleBadge({ role }) {
-  if (role === 'owner') return <span className="gi-badge gi-badge-owner">群主</span>;
-  if (role === 'admin') return <span className="gi-badge gi-badge-admin">管理员</span>;
+  const { t } = useI18n();
+  if (role === 'owner') return <span className="gi-badge gi-badge-owner">{t('groupInfo.roleOwner')}</span>;
+  if (role === 'admin') return <span className="gi-badge gi-badge-admin">{t('groupInfo.roleAdmin')}</span>;
   return null;
 }
 
 /* ── 成员行（提升到组件外以保证 react-window 引用稳定）── */
 const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }) {
+  const { t } = useI18n();
   const { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, transferOwner, kickMember } = data;
   const m = filtered[index];
   const q = kickSearch.toLowerCase();
@@ -113,17 +117,17 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
           className="gi-btn-admin"
           style={{ color: m.role === 'admin' ? 'var(--text-tertiary)' : 'var(--green)', border: `1px solid ${m.role === 'admin' ? 'var(--border-default)' : 'var(--green)'}` }}
           onClick={() => toggleAdmin(m.id, m.role)}
-        >{m.role === 'admin' ? '撤销管理员' : '设为管理员'}</button>
+        >{m.role === 'admin' ? t('groupInfo.revokeAdmin') : t('groupInfo.makeAdmin')}</button>
       )}
       {isOwner && m.role !== 'owner' && (
         <button
           className="gi-btn-admin"
           style={{ color: 'var(--green)', border: '1px solid var(--green)' }}
           onClick={() => transferOwner(m.id)}
-        >转让群主</button>
+        >{t('groupInfo.transferOwnership')}</button>
       )}
       {isAdmin && m.id !== currentUserId && m.role === 'member' && (
-        <button className="gi-btn-kick" onClick={() => kickMember(m.id)}>移出</button>
+        <button className="gi-btn-kick" onClick={() => kickMember(m.id)}>{t('groupInfo.removeMember')}</button>
       )}
     </div>
   );
@@ -131,6 +135,7 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
 
 /* ── 主组件 ── */
 export default function GroupInfo({ conversation, currentUserId, onClose, onLeave, onConvUpdate, onPickBackground, onClearBackground, onCleared, onOpenChatFiles }) {
+  const { t } = useI18n();
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editName, setEditName] = useState(false);
@@ -213,7 +218,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       await axios.put(`/api/messages/conversation/${conversation.id}/nickname`, { nickname: nick });
       setMyNickname(nick);
       setEditNickname(false);
-    } catch (e) { showToast(e.response?.data?.error || '修改失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.saveNicknameFailed'), 'error'); }
   };
 
   /* 加载群二维码 */
@@ -229,14 +234,14 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   /* 修改群名 */
   const saveName = async () => {
     const name = nameVal.trim();
-    if (!name) { showToast('群名称不能为空', 'error'); return; }   // 此前静默返回,用户不知为何没保存
+    if (!name) { showToast(t('groupInfo.nameEmpty'), 'error'); return; }   // 此前静默返回,用户不知为何没保存
     if (name === (info?.name || '')) { setEditName(false); return; }  // 未改动:直接收起,不发无谓请求
     try {
       await axios.put(`/api/messages/conversation/${conversation.id}`, { name });
       setInfo(i => ({ ...i, name }));
       setEditName(false);
       onConvUpdate?.({ name });
-    } catch (e) { showToast(e.response?.data?.error || '修改群名失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.renameFailed'), 'error'); }
   };
 
   /* 修改群公告 */
@@ -246,7 +251,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       await axios.put(`/api/messages/conversation/${conversation.id}`, { announcement: annVal });
       setInfo(i => ({ ...i, announcement: annVal }));
       setEditAnn(false);
-    } catch (e) { showToast(e.response?.data?.error || '修改公告失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.announcementSaveFailed'), 'error'); }
   };
 
   /* 切换全群禁言 */
@@ -256,7 +261,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       const { data } = await axios.put(`/api/messages/conversation/${conversation.id}/manage`, { mute_all: val });
       setInfo(i => ({ ...i, mute_all: data.mute_all }));
       onConvUpdate?.({ mute_all: data.mute_all });
-    } catch (e) { showToast(e.response?.data?.error || '操作失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('common.actionFailed'), 'error'); }
     setTogglingMute(false);
   };
 
@@ -267,7 +272,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       const { data } = await axios.put(`/api/messages/conversation/${conversation.id}/manage`, { no_private_chat: val });
       setInfo(i => ({ ...i, no_private_chat: data.no_private_chat }));
       onConvUpdate?.({ no_private_chat: data.no_private_chat });
-    } catch (e) { showToast(e.response?.data?.error || '操作失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('common.actionFailed'), 'error'); }
     setTogglingNoPrivate(false);
   };
 
@@ -278,7 +283,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       const { data } = await axios.put(`/api/messages/conversation/${conversation.id}/manage`, { no_add_friend: val });
       setInfo(i => ({ ...i, no_add_friend: data.no_add_friend }));
       onConvUpdate?.({ no_add_friend: data.no_add_friend });
-    } catch (e) { showToast(e.response?.data?.error || '操作失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('common.actionFailed'), 'error'); }
     setTogglingNoAddFriend(false);
   };
 
@@ -288,26 +293,28 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     try {
       const { data } = await axios.put(`/api/messages/conversation/${conversation.id}/manage`, { member_can_invite: val });
       setInfo(i => ({ ...i, member_can_invite: data.member_can_invite }));
-    } catch (e) { showToast(e.response?.data?.error || '操作失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('common.actionFailed'), 'error'); }
     setTogglingMemberInvite(false);
   };
 
   /* 设置/取消管理员（仅群主） */
   const toggleAdmin = async (uid, currentRole) => {
     const newRole = currentRole === 'admin' ? 'member' : 'admin';
-    const name = info.members.find(m => m.id === uid)?.username || '未知用户';
-    const action = newRole === 'admin' ? `设置「${name}」为管理员` : `撤销「${name}」的管理员`;
-    if (!(await showConfirm(action + '？'))) return;
+    const name = info.members.find(m => m.id === uid)?.username || t('groupInfo.unknownUser');
+    const action = newRole === 'admin'
+      ? t('groupInfo.confirmSetAdminTemplate').replace('{name}', name)
+      : t('groupInfo.confirmRevokeAdminTemplate').replace('{name}', name);
+    if (!(await showConfirm(action))) return;
     try {
       await axios.put(`/api/messages/conversation/${conversation.id}/members/${uid}/role`, { role: newRole });
       setInfo(i => ({ ...i, members: i.members.map(m => m.id === uid ? { ...m, role: newRole } : m) }));
-    } catch (e) { showToast(e.response?.data?.error || '操作失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('common.actionFailed'), 'error'); }
   };
 
   /* 转让群主（仅群主） */
   const transferOwner = async (uid) => {
-    const name = info.members.find(m => m.id === uid)?.username || '未知用户';
-    if (!(await showConfirm(`确认将群主转让给「${name}」？转让后你将成为普通成员。`))) return;
+    const name = info.members.find(m => m.id === uid)?.username || t('groupInfo.unknownUser');
+    if (!(await showConfirm(t('groupInfo.confirmTransferOwnerTemplate').replace('{name}', name)))) return;
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/transfer-owner`, { userId: uid });
       setInfo(i => ({
@@ -318,17 +325,17 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           m.id === uid ? { ...m, role: 'owner' } : (m.role === 'owner' ? { ...m, role: 'member' } : m)
         ),
       }));
-    } catch (e) { showToast(e.response?.data?.error || '转让群主失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.transferOwnerFailed'), 'error'); }
   };
 
   /* 移出成员 */
   const kickMember = async (uid) => {
-    const name = info.members.find(m => m.id === uid)?.username || '未知用户';
-    if (!(await showConfirm(`确认移出成员「${name}」？`))) return;
+    const name = info.members.find(m => m.id === uid)?.username || t('groupInfo.unknownUser');
+    if (!(await showConfirm(t('groupInfo.confirmKickTemplate').replace('{name}', name)))) return;
     try {
       await axios.delete(`/api/messages/conversation/${conversation.id}/members/${uid}`);
       setInfo(i => ({ ...i, members: i.members.filter(m => m.id !== uid) }));
-    } catch (e) { showToast(e.response?.data?.error || '移出成员失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.kickFailed'), 'error'); }
   };
 
   /* 邀请成员 */
@@ -350,36 +357,37 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       const added = Number(data?.added) || 0;
       if (blocked > 0) {
         showToast(added > 0
-          ? `已邀请 ${added} 人；${blocked} 位好友开启了群邀请保护，未能直接拉入`
-          : `${blocked} 位好友开启了群邀请保护，请分享群二维码邀请其加入`, 'info');
+          ? t('groupInfo.inviteBlockedPartialTemplate').replace('{added}', added).replace('{blocked}', blocked)
+          : t('groupInfo.inviteBlockedAllTemplate').replace('{blocked}', blocked), 'info');
       }
-    } catch (e) { showToast(e.response?.data?.error || '邀请失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.inviteFailed'), 'error'); }
   };
 
   /* 退出群聊（非群主）*/
   const leaveGroup = async () => {
-    if (!(await showConfirm('确认退出群聊？'))) return;
+    if (!(await showConfirm(t('groupInfo.confirmLeaveGroup')))) return;
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/leave`);
       onLeave?.();
-    } catch (e) { showToast(e.response?.data?.error || '退出群聊失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.leaveGroupFailed'), 'error'); }
   };
 
   /* 解散群聊（仅群主）*/
   const dissolveGroup = async () => {
-    if (!(await showConfirm('解散群聊后所有成员将无法继续聊天，确认解散？'))) return;
+    if (!(await showConfirm(t('groupInfo.confirmDissolveGroup')))) return;
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/dissolve`);
       onLeave?.();
-    } catch (e) { showToast(e.response?.data?.error || '解散群聊失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.dissolveGroupFailed'), 'error'); }
   };
 
   const clearMessages = async () => {
-    if (!(await showConfirm(`确认双向删除「${info?.name || conversation.name || '该群聊'}」的全部聊天记录？所有群成员都将看不到这些记录。`))) return;
+    const name = info?.name || conversation.name || t('groupInfo.thisGroupFallback');
+    if (!(await showConfirm(t('groupInfo.confirmClearMessagesTemplate').replace('{name}', name)))) return;
     try {
       await axios.delete(`/api/messages/conversation/${conversation.id}/messages`);
       onCleared?.();
-    } catch (e) { showToast(e.response?.data?.error || '清空聊天记录失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.clearMessagesFailed'), 'error'); }
   };
 
   const exportChat = async () => {
@@ -393,7 +401,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-    } catch (e) { showToast(e.response?.data?.error || '导出失败', 'error'); }
+    } catch (e) { showToast(e.response?.data?.error || t('groupInfo.exportFailed'), 'error'); }
   };
 
   /* 修改群头像 */
@@ -402,12 +410,12 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     if (!file) return;
     const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!ALLOWED_TYPES.includes(file.type)) {
-      showToast('仅支持 JPG、PNG、GIF、WebP 格式', 'error');
+      showToast(t('groupInfo.avatarTypeError'), 'error');
       e.target.value = '';
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      showToast('图片大小不能超过 5MB', 'error');
+      showToast(t('groupInfo.avatarSizeError'), 'error');
       e.target.value = '';
       return;
     }
@@ -423,7 +431,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       setInfo(i => ({ ...i, avatar: data.avatar }));
       onConvUpdate?.({ avatar: data.avatar });
     } catch (err) {
-      showToast(err.response?.data?.error || '上传失败', 'error');
+      showToast(err.response?.data?.error || t('groupInfo.avatarUploadFailed'), 'error');
     }
     setUploadingAvatar(false);
     e.target.value = '';
@@ -433,7 +441,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     <div className="gi-panel gi-fcd gi-ccc">
       <div className="gi-fcd gi-fca gi-gap8">
         <div className="gi-spinner gi-spinner-green" />
-        <span role="status" className="gi-loading-txt">加载中…</span>
+        <span role="status" className="gi-loading-txt">{t('common.loading')}</span>
       </div>
     </div>
   );
@@ -443,11 +451,11 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     <div className="gi-panel">
       {/* 顶部栏 */}
       <div className="gi-header">
-        <span className="gi-title">群聊信息</span>
+        <span className="gi-title">{t('groupInfo.title')}</span>
         <button
           className="gi-close-btn"
           onClick={onClose}
-          aria-label="关闭群聊信息"
+          aria-label={t('groupInfo.closeAriaLabel')}
         >✕</button>
       </div>
 
@@ -468,20 +476,20 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               <div className="gi-fca gi-gap6">
                 <input value={nameVal} onChange={e => setNameVal(e.target.value)}
                   className="gi-name-edit" data-testid="group-rename-input" maxLength={30}
-                  aria-label="群名称" autoFocus
+                  aria-label={t('groupInfo.groupNameAriaLabel')} autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditName(false); }} />
-                <button className="gi-btn-edit" data-testid="group-rename-save" onClick={saveName}>保存</button>
-                <button className="gi-btn-xl" onClick={() => setEditName(false)}>取消</button>
+                <button className="gi-btn-edit" data-testid="group-rename-save" onClick={saveName}>{t('common.save')}</button>
+                <button className="gi-btn-xl" onClick={() => setEditName(false)}>{t('common.cancel')}</button>
               </div>
             ) : (
               <div className="gi-name-row">
                 <span className="gi-name">{info.name}</span>
-                {isAdmin && <button className="gi-btn-name" onClick={() => setEditName(true)} aria-label="修改群名称">✎</button>}
+                {isAdmin && <button className="gi-btn-name" onClick={() => setEditName(true)} aria-label={t('groupInfo.editNameAriaLabel')}>✎</button>}
               </div>
             )}
             <div className="gi-meta">
-              {info.members.length} 位成员
-              {info.group_number && <span className="gi-ml8">群号：{info.group_number}</span>}
+              {t('groupInfo.memberCountTemplate').replace('{count}', info.members.length)}
+              {info.group_number && <span className="gi-ml8">{t('groupInfo.groupNumberLabel')}{info.group_number}</span>}
             </div>
           </div>
         </div>
@@ -493,26 +501,26 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-warn">
                 <path d="M18 11v2H6v-2h12zm-6-7L6.35 7H4v10h2.35L12 20l5.65-3H20V7h-2.35L12 4zm4 13.02l-4 2.26-4-2.26V9h8v8.02z"/>
               </svg>
-              <span className="gi-sec-tit">群公告</span>
+              <span className="gi-sec-tit">{t('groupInfo.announcementTitle')}</span>
             </div>
             {isAdmin && !editAnn && (
-              <button className="gi-btn-edit" onClick={() => setEditAnn(true)}>编辑</button>
+              <button className="gi-btn-edit" onClick={() => setEditAnn(true)}>{t('chat.edit')}</button>
             )}
           </div>
           {editAnn ? (
             <>
               <textarea value={annVal} onChange={e => setAnnVal(e.target.value)}
                 className="gi-ann-textarea" maxLength={500}
-                autoFocus placeholder="填写群公告…" aria-label="群公告"
+                autoFocus placeholder={t('groupInfo.announcementPlaceholder')} aria-label={t('groupInfo.announcementAriaLabel')}
                 onKeyDown={e => { if (e.key === 'Escape') setEditAnn(false); }} />
               <div className="gi-ann-bar">
-                <button className="gi-btn-cancel" onClick={() => setEditAnn(false)}>取消</button>
-                <button className="gi-btn-save" onClick={saveAnn}>保存</button>
+                <button className="gi-btn-cancel" onClick={() => setEditAnn(false)}>{t('common.cancel')}</button>
+                <button className="gi-btn-save" onClick={saveAnn}>{t('common.save')}</button>
               </div>
             </>
           ) : (
             <div className={info.announcement ? 'gi-t13 gi-ann-preview' : 'gi-t13m gi-ann-preview'}>
-              {info.announcement || '暂无群公告，点击"编辑"添加'}
+              {info.announcement || t('groupInfo.noAnnouncementHint')}
             </div>
           )}
         </div>
@@ -524,7 +532,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               className="gi-row gi-mg-click"
               role="button"
               tabIndex={0}
-              aria-label="群管理"
+              aria-label={t('groupInfo.manageTitle')}
               aria-expanded={showManage}
               onClick={() => setShowManage(v => !v)}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowManage(v => !v); } }}
@@ -535,10 +543,10 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 </svg>
               </div>
               <div className="gi-f1">
-                <span className="gi-text14 gi-fw5">群管理</span>
+                <span className="gi-text14 gi-fw5">{t('groupInfo.manageTitle')}</span>
                 {(info.mute_all || info.no_private_chat || info.no_add_friend) && (
                   <div className="gi-mg-active">
-                    {[info.mute_all && '全员禁言', info.no_private_chat && '禁止私聊', info.no_add_friend && '禁止互加好友'].filter(Boolean).join(' · ')}
+                    {[info.mute_all && t('groupInfo.muteAllLabel'), info.no_private_chat && t('groupInfo.noPrivateChatLabel'), info.no_add_friend && t('groupInfo.noAddFriendPill')].filter(Boolean).join(' · ')}
                   </div>
                 )}
               </div>
@@ -555,10 +563,10 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-warn"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
                   </div>
                   <div className="gi-f1">
-                    <div className="gi-mg-label">全员禁言</div>
-                    <div className="gi-mg-desc">开启后，只有群主和管理员可以发消息</div>
+                    <div className="gi-mg-label">{t('groupInfo.muteAllLabel')}</div>
+                    <div className="gi-mg-desc">{t('groupInfo.muteAllDesc')}</div>
                   </div>
-                  <Toggle on={!!info.mute_all} onChange={toggleMuteAll} disabled={togglingMute} label="全员禁言" />
+                  <Toggle on={!!info.mute_all} onChange={toggleMuteAll} disabled={togglingMute} label={t('groupInfo.muteAllLabel')} />
                 </div>
 
                 {/* 禁止私聊 */}
@@ -567,10 +575,10 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-green"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
                   </div>
                   <div className="gi-f1">
-                    <div className="gi-mg-label">禁止私聊</div>
-                    <div className="gi-mg-desc">开启后，普通成员无法与群成员私信</div>
+                    <div className="gi-mg-label">{t('groupInfo.noPrivateChatLabel')}</div>
+                    <div className="gi-mg-desc">{t('groupInfo.noPrivateChatDesc')}</div>
                   </div>
-                  <Toggle on={!!info.no_private_chat} onChange={toggleNoPrivateChat} disabled={togglingNoPrivate} label="禁止私聊" />
+                  <Toggle on={!!info.no_private_chat} onChange={toggleNoPrivateChat} disabled={togglingNoPrivate} label={t('groupInfo.noPrivateChatLabel')} />
                 </div>
 
                 {/* 禁止群成员互相添加好友 */}
@@ -579,10 +587,10 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-red"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                   </div>
                   <div className="gi-f1">
-                    <div className="gi-mg-label">禁止群成员互相添加好友</div>
-                    <div className="gi-mg-desc">开启后，群成员不可通过本群互加好友</div>
+                    <div className="gi-mg-label">{t('groupInfo.noAddFriendLabel')}</div>
+                    <div className="gi-mg-desc">{t('groupInfo.noAddFriendDesc')}</div>
                   </div>
-                  <Toggle on={!!info.no_add_friend} onChange={toggleNoAddFriend} disabled={togglingNoAddFriend} label="禁止群成员互相添加好友" />
+                  <Toggle on={!!info.no_add_friend} onChange={toggleNoAddFriend} disabled={togglingNoAddFriend} label={t('groupInfo.noAddFriendLabel')} />
                 </div>
 
                 {/* 允许普通成员邀请 */}
@@ -591,10 +599,10 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-blue"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
                   </div>
                   <div className="gi-f1">
-                    <div className="gi-mg-label">允许普通成员邀请</div>
-                    <div className="gi-mg-desc">开启后，普通成员可以邀请好友进群</div>
+                    <div className="gi-mg-label">{t('groupInfo.memberInviteLabel')}</div>
+                    <div className="gi-mg-desc">{t('groupInfo.memberInviteDesc')}</div>
                   </div>
-                  <Toggle on={!!info.member_can_invite} onChange={toggleMemberInvite} disabled={togglingMemberInvite} label="允许普通成员邀请" />
+                  <Toggle on={!!info.member_can_invite} onChange={toggleMemberInvite} disabled={togglingMemberInvite} label={t('groupInfo.memberInviteLabel')} />
                 </div>
               </div>
             )}
@@ -607,19 +615,19 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             {info.mute_all && (
               <div className="gi-warn-row">
                 <svg viewBox="0 0 24 24" className="gi-s12 gi-warn-icon"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
-                全员禁言已开启，您当前无法发送消息
+                {t('groupInfo.muteAllWarning')}
               </div>
             )}
             {info.no_private_chat && (
               <div className="gi-warn-row">
                 <svg viewBox="0 0 24 24" className="gi-s12 gi-warn-icon"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm-1 5h2v6h-2zm0 8h2v2h-2z"/></svg>
-                禁止私聊已开启，您无法与群成员私信
+                {t('groupInfo.noPrivateChatWarning')}
               </div>
             )}
             {info.no_add_friend && (
               <div className="gi-warn-row">
                 <svg viewBox="0 0 24 24" className="gi-s12 gi-warn-icon"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm-1 5h2v6h-2zm0 8h2v2h-2z"/></svg>
-                禁止互加好友已开启，不可通过本群添加群成员为好友
+                {t('groupInfo.noAddFriendWarning')}
               </div>
             )}
           </div>
@@ -631,7 +639,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-ml-head">
             <div className="gi-fcsb gi-ml-last">
               <span className="gi-grp-tit">
-                群成员 ({info.members.length})
+                {t('groupInfo.memberListTitleTemplate').replace('{count}', info.members.length)}
               </span>
             </div>
             {/* 仅管理员显示搜索框（用于快速找人踢出） */}
@@ -643,12 +651,12 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 <input
                   value={kickSearch}
                   onChange={e => setKickSearch(e.target.value)}
-                  placeholder="搜索成员…"
-                  aria-label="搜索成员"
+                  placeholder={t('groupInfo.searchMembersPlaceholder')}
+                  aria-label={t('groupInfo.searchMembersPlaceholder')}
                   className="gi-ml-si"
                 />
                 {kickSearch && (
-                  <button className="gi-clear-search" onClick={() => setKickSearch('')} aria-label="清空搜索">✕</button>
+                  <button className="gi-clear-search" onClick={() => setKickSearch('')} aria-label={t('groupInfo.clearSearchAriaLabel')}>✕</button>
                 )}
               </div>
             )}
@@ -659,7 +667,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             {!kickSearch && (isAdmin || info.member_can_invite) && (
               <div className="gi-inv-row" role="button" tabIndex={0} onClick={openInvite} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInvite(); } }}>
                 <div className="gi-inv-box">+</div>
-                <span className="gi-inv-txt">邀请成员</span>
+                <span className="gi-inv-txt">{t('groupInfo.inviteMember')}</span>
               </div>
             )}
 
@@ -670,7 +678,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 ? info.members.filter(m => (m.username || '').toLowerCase().includes(q))
                 : info.members;
               if (kickSearch && filtered.length === 0) {
-                return <div className="gi-no-match">未找到匹配成员</div>;
+                return <div className="gi-no-match">{t('groupInfo.noMatchingMembers')}</div>;
               }
               const itemData = { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, transferOwner, kickMember };
               if (filtered.length > 50) {
@@ -696,41 +704,41 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         {/* 个人设置 */}
         <div className="gi-section">
           <div className="gi-row" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onOpenChatFiles?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenChatFiles?.(); } }}>
-            <span className="gi-label">聊天文件</span>
+            <span className="gi-label">{t('groupInfo.chatFiles')}</span>
             <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
           </div>
           <div className="gi-row">
-            <span className="gi-label">消息免打扰</span>
+            <span className="gi-label">{t('chatlist.muteChat')}</span>
             <Toggle
-              label="消息免打扰"
+              label={t('chatlist.muteChat')}
               on={myMuted}
               disabled={savingSetting}
               onChange={toggleMute}
             />
           </div>
           <div className="gi-row">
-            <span className="gi-label">置顶聊天</span>
+            <span className="gi-label">{t('chatlist.pinChat')}</span>
             <Toggle
-              label="置顶聊天"
+              label={t('chatlist.pinChat')}
               on={myPinned}
               disabled={savingSetting}
               onChange={togglePin}
             />
           </div>
           <div className={`gi-row${conversation.background ? '' : ' gi-row-noborder'}`} style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onPickBackground?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPickBackground?.(); } }}>
-            <span className="gi-label">设置聊天背景</span>
-            <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>{conversation.background ? '更换 ›' : '选择图片 ›'}</span>
+            <span className="gi-label">{t('groupInfo.setBackground')}</span>
+            <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>{conversation.background ? t('groupInfo.changeBackgroundCta') : t('groupInfo.chooseImageCta')}</span>
           </div>
           {conversation.background && (
             <div className="gi-row gi-row-noborder" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onClearBackground?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClearBackground?.(); } }}>
-              <span className="gi-label" style={{ color: 'var(--color-badge)' }}>清除聊天背景</span>
+              <span className="gi-label" style={{ color: 'var(--color-badge)' }}>{t('groupInfo.clearBackground')}</span>
             </div>
           )}
         </div>
 
         {/* 群昵称 */}
         <div className="gi-nk">
-          <div className="gi-nk-hd">我在本群的昵称</div>
+          <div className="gi-nk-hd">{t('groupInfo.myNicknameTitle')}</div>
           <div className="gi-nk-bd">
             {editNickname ? (
               <>
@@ -738,18 +746,18 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   autoFocus
                   value={nicknameVal}
                   onChange={e => setNicknameVal(e.target.value)}
-                  placeholder="设置群昵称（最多30字）"
+                  placeholder={t('groupInfo.nicknamePlaceholder')}
                   maxLength={30}
-                  aria-label="群昵称"
+                  aria-label={t('groupInfo.nicknameAriaLabel')}
                   className="gi-nick-input"
                   onKeyDown={e => { if (e.key === 'Enter') saveNickname(); if (e.key === 'Escape') setEditNickname(false); }}
                 />
-                <button className="gi-btn-save-sm" onClick={saveNickname}>保存</button>
-                <button className="gi-btn-xl-sm" onClick={() => setEditNickname(false)}>取消</button>
+                <button className="gi-btn-save-sm" onClick={saveNickname}>{t('common.save')}</button>
+                <button className="gi-btn-xl-sm" onClick={() => setEditNickname(false)}>{t('common.cancel')}</button>
               </>
             ) : (
               <div className="gi-f1 gi-fcsb gi-nk-cp" role="button" tabIndex={0} onClick={() => { setNicknameVal(myNickname || ''); setEditNickname(true); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNicknameVal(myNickname || ''); setEditNickname(true); } }}>
-                <span style={{ fontSize: 'var(--text-base)', color: myNickname ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{myNickname || '未设置'}</span>
+                <span style={{ fontSize: 'var(--text-base)', color: myNickname ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{myNickname || t('groupInfo.notSet')}</span>
                 <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
               </div>
             )}
@@ -759,7 +767,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         {/* 群二维码 */}
         <div className="gi-qr">
           <div className="gi-qr-row" role="button" tabIndex={0} onClick={loadQR} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadQR(); } }}>
-            <span className="gi-text14">群二维码</span>
+            <span className="gi-text14">{t('groupInfo.qrTitle')}</span>
             <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
           </div>
         </div>
@@ -767,7 +775,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         {/* 导出聊天记录 */}
         <div className="gi-qr">
           <div className="gi-qr-row" role="button" tabIndex={0} onClick={exportChat} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); exportChat(); } }}>
-            <span className="gi-text14">导出聊天记录</span>
+            <span className="gi-text14">{t('groupInfo.exportChat')}</span>
             <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
           </div>
         </div>
@@ -775,15 +783,15 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         {/* 操作按钮区 */}
         <div className="gi-actions">
           <button onClick={clearMessages} className="gi-btn-danger">
-            双向删除聊天记录
+            {t('groupInfo.clearMessagesBtn')}
           </button>
           {isOwner ? (
             <button onClick={dissolveGroup} data-testid="group-dissolve-btn" className="gi-btn-danger">
-              解散群聊
+              {t('groupInfo.dissolveGroupBtn')}
             </button>
           ) : (
             <button onClick={leaveGroup} data-testid="group-leave-btn" className="gi-btn-danger">
-              退出群聊
+              {t('chatlist.leaveGroup')}
             </button>
           )}
         </div>
@@ -792,17 +800,17 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       {/* 群二维码弹窗 */}
       {showQR && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowQR(false)}>
-          <div className="wc-modal gi-qr-panel" role="dialog" aria-modal="true" aria-label="群二维码">
+          <div className="wc-modal gi-qr-panel" role="dialog" aria-modal="true" aria-label={t('groupInfo.qrTitle')}>
             <div className="wc-modal-header">
-              <span className="wc-modal-title">群二维码</span>
-              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label="关闭二维码">✕</button>
+              <span className="wc-modal-title">{t('groupInfo.qrTitle')}</span>
+              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label={t('home.closeQr')}>✕</button>
             </div>
             <div className="gi-qr-wrap">
               {qrData ? (
                 <>
-                  <img loading="lazy" src={qrData.qrCode} alt="群二维码" className="gi-qr-img" />
-                  <div className="gi-qr-nm">扫码加入 {info?.name}</div>
-                  <div className="gi-qr-ex">7天内有效</div>
+                  <img loading="lazy" src={qrData.qrCode} alt={t('groupInfo.qrTitle')} className="gi-qr-img" />
+                  <div className="gi-qr-nm">{t('groupInfo.scanToJoinTemplate').replace('{name}', info?.name || '')}</div>
+                  <div className="gi-qr-ex">{t('groupInfo.qrValidityHint')}</div>
                   <button
                     className="gi-save-btn"
                     onClick={async () => {
@@ -820,10 +828,10 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                         window.open(qrData.qrCode, '_blank');
                       }
                     }}
-                  >保存图片</button>
+                  >{t('groupInfo.saveImage')}</button>
                 </>
               ) : (
-                <div className="gi-qr-load">加载中…</div>
+                <div className="gi-qr-load">{t('common.loading')}</div>
               )}
             </div>
           </div>
@@ -833,16 +841,16 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       {/* 邀请成员弹窗 */}
       {showInvite && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowInvite(false)}>
-          <div className="wc-modal wide" role="dialog" aria-modal="true" aria-label="邀请成员">
+          <div className="wc-modal wide" role="dialog" aria-modal="true" aria-label={t('groupInfo.inviteMember')}>
             <div className="wc-modal-header">
-              <span className="wc-modal-title">邀请成员</span>
-              <button className="wc-modal-close" onClick={() => setShowInvite(false)} aria-label="关闭邀请">✕</button>
+              <span className="wc-modal-title">{t('groupInfo.inviteMember')}</span>
+              <button className="wc-modal-close" onClick={() => setShowInvite(false)} aria-label={t('groupInfo.closeInviteAriaLabel')}>✕</button>
             </div>
             <div className="wc-modal-body">
-              <div className="gi-inv-hint">从通讯录选择（已选 {selectedInvite.size} 人）</div>
+              <div className="gi-inv-hint">{t('groupInfo.selectFromContactsTemplate').replace('{n}', selectedInvite.size)}</div>
               <div className="gi-inv-list">
                 {myContacts.length === 0
-                  ? <div className="gi-inv-empty">所有好友已在群内</div>
+                  ? <div className="gi-inv-empty">{t('groupInfo.allFriendsInGroup')}</div>
                   : myContacts.map(c => (
                     <div key={c.id} className="wc-group-member-item" role="checkbox" tabIndex={0} aria-checked={selectedInvite.has(c.id)} onClick={() => setSelectedInvite(prev => { const s = new Set(prev); s.has(c.id) ? s.delete(c.id) : s.add(c.id); return s; })} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedInvite(prev => { const s = new Set(prev); s.has(c.id) ? s.delete(c.id) : s.add(c.id); return s; })}>
                       <div className={`wc-group-check${selectedInvite.has(c.id) ? ' checked' : ''}`}>{selectedInvite.has(c.id) ? '✓' : ''}</div>
@@ -854,8 +862,8 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               </div>
             </div>
             <div className="wc-modal-footer">
-              <button className="wc-modal-btn secondary" onClick={() => setShowInvite(false)}>取消</button>
-              <button className="wc-modal-btn primary" onClick={doInvite} disabled={selectedInvite.size === 0}>邀请 ({selectedInvite.size})</button>
+              <button className="wc-modal-btn secondary" onClick={() => setShowInvite(false)}>{t('common.cancel')}</button>
+              <button className="wc-modal-btn primary" onClick={doInvite} disabled={selectedInvite.size === 0}>{t('groupInfo.inviteCountTemplate').replace('{n}', selectedInvite.size)}</button>
             </div>
           </div>
         </div>
