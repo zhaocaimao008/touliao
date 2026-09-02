@@ -533,6 +533,16 @@ class CallManager @Inject constructor(
                 }, SessionDescription(SessionDescription.Type.ANSWER, e.sdp))
             }
         }
+        // 对方切换语音↔视频：同步 UI（媒体流由对方重协商 offer 驱动）
+        scope.launch {
+            socketManager.callSwitchTypeEvents.collect { e ->
+                val s = _state.value
+                if (!CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)) return@collect
+                if (s.stage == CallStage.CONNECTED || s.stage == CallStage.CONNECTING) {
+                    _state.update { it.copy(isVideo = e.type == "video") }
+                }
+            }
+        }
         scope.launch {
             socketManager.callIceEvents.collect { e ->
                 val s = _state.value
@@ -705,6 +715,53 @@ class CallManager @Inject constructor(
         names.firstOrNull { enumerator.isFrontFacing(it) }?.let { return enumerator.createCapturer(it, null) }
         names.firstOrNull()?.let { return enumerator.createCapturer(it, null) }
         return null
+    }
+
+    /**
+     * 通话中切换语音↔视频（2026-09-02）：补/删视频轨 + 重协商 offer + call:switch-type 告知对方。
+     * 对方由重协商 offer 驱动媒体流变化，switch-type 仅用于同步 UI（isVideo）。
+     */
+    fun toggleVideo() {
+        val s = _state.value
+        val pc = peerConnection ?: return
+        if (s.stage != CallStage.CONNECTED) return
+        val nextVideo = !s.isVideo
+        scope.launch {
+            try {
+                if (nextVideo) {
+                    // 语音→视频：启动摄像头采集并加轨
+                    if (localVideoTrack == null) {
+                        val capturer = createCameraCapturer()
+                        if (capturer == null) { Log.w(TAG, "切换视频失败:无可用摄像头"); return@launch }
+                        val f = factory ?: return@launch
+                        videoCapturer = capturer
+                        surfaceHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
+                        videoSource = f.createVideoSource(false)
+                        capturer.initialize(surfaceHelper, context, videoSource!!.capturerObserver)
+                        runCatching { capturer.startCapture(1280, 720, 30) }
+                            .onFailure { e -> Log.w(TAG, "视频采集启动失败: ${e.message}") }
+                        localVideoTrack = f.createVideoTrack("video0", videoSource).apply { setEnabled(true) }
+                        pc.addTrack(localVideoTrack, listOf(STREAM_ID))
+                    } else {
+                        runCatching { pc.addTrack(localVideoTrack, listOf(STREAM_ID)) }   // 可能曾被 removeTrack
+                        runCatching { localVideoTrack?.setEnabled(true) }
+                        runCatching { videoCapturer?.startCapture(1280, 720, 30) }
+                    }
+                } else {
+                    // 视频→语音：停采集 + 移除视频轨（track 引用保留，切回可复用）
+                    pc.getSenders().filter { it.track()?.kind() == "video" }.forEach { sender ->
+                        runCatching { pc.removeTrack(sender) }
+                    }
+                    runCatching { videoCapturer?.stopCapture() }
+                    runCatching { localVideoTrack?.setEnabled(false) }
+                }
+                createOfferAndSend()   // 重协商（含 SDP 弱网调优）
+                socketManager.emitCallSwitchType(s.peerId, if (nextVideo) "video" else "audio", s.callId)
+                _state.update { it.copy(isVideo = nextVideo) }
+            } catch (e: Exception) {
+                Log.w(TAG, "切换通话类型失败: ${e.message}")
+            }
+        }
     }
 
     // ── 清理 ──────────────────────────────────────────────

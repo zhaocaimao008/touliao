@@ -183,6 +183,7 @@ private struct CallView: View {
             HStack(spacing: 28) {
                 circleButton(state.micEnabled ? "静音" : "取消静音", Color(white: 0.35)) { manager.toggleMic() }
                 circleButton(state.speakerOn ? "听筒" : "扬声器", Color(white: 0.35)) { manager.toggleSpeaker() }
+                circleButton(state.isVideo ? "切语音" : "切视频", Color(white: 0.35)) { manager.toggleVideo() }
                 circleButton("挂断", .red) { manager.hangup() }
                 if state.isVideo {
                     circleButton(state.cameraEnabled ? "关摄像头" : "开摄像头", Color(white: 0.35)) { manager.toggleCamera() }

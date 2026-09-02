@@ -339,6 +339,24 @@ function registerCallHandler(io, socket, registry) {
   socket.on('call:answer', payload => forwardSignal('call:answer', 'answer', payload));
   socket.on('call:ice', payload => forwardSignal('call:ice', 'candidate', payload));
 
+  // 通话中切换语音↔视频（2026-09-02）：复用活跃通话校验，向对方转发新类型；
+  // 同时同步 call_logs.type（历史记录显示最终类型）。
+  socket.on('call:switch-type', (payload) => {
+    const p = guardPayload(socket, 'call:switch-type', payload);
+    if (!p) return;
+    const to = guardId(socket, 'call:switch-type', 'to', p.to);
+    if (!to) return;
+    const resolved = resolveCall(p, to, 'call:switch-type');
+    if (!resolved) return;
+    if (!resolved.ok) { reportResolutionError('call:switch-type', resolved); return; }
+    const newType = p.type === 'video' ? 'video' : 'audio';
+    console.log(`[call:switch-type] fwd ${userId}→${to} type=${newType} callId=${resolved.callId}`);
+    io.to(`user_${to}`).emit('call:switch-type', { from: userId, type: newType, callId: resolved.callId });
+    if (resolved.callId) {
+      write("UPDATE call_logs SET type=? WHERE id=? AND status='ongoing'", [newType, resolved.callId]);
+    }
+  });
+
   socket.on('call:end', (payload) => {
     // P0-002 强校验：负载必须是对象，to 必须是合法字符串 ID
     const p = guardPayload(socket, 'call:end', payload);

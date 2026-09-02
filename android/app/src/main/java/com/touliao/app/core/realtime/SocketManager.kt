@@ -55,6 +55,7 @@ data class CallResponseEvent(val callId: String, val from: String, val accepted:
 data class CallSdpEvent(val callId: String, val from: String, val sdp: String)            // offer / answer 的 sdp
 data class CallIceEvent(val callId: String, val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
 data class CallEndEvent(val from: String, val callId: String = "")
+data class CallSwitchTypeEvent(val callId: String, val from: String, val type: String)    // 通话中切换语音↔视频
 
 // ── 群通话(mesh) 信令事件 ──
 data class GroupCallInviteEvent(val callId: String, val conversationId: String, val type: String, val from: String, val fromName: String, val fromAvatar: String = "")
@@ -194,6 +195,8 @@ class SocketManager @Inject constructor(
     val callIceEvents: SharedFlow<CallIceEvent> = _callIce.asSharedFlow()
     private val _callEnd = MutableSharedFlow<CallEndEvent>(extraBufferCapacity = 16)
     val callEndEvents: SharedFlow<CallEndEvent> = _callEnd.asSharedFlow()
+    private val _callSwitchType = MutableSharedFlow<CallSwitchTypeEvent>(extraBufferCapacity = 16)
+    val callSwitchTypeEvents: SharedFlow<CallSwitchTypeEvent> = _callSwitchType.asSharedFlow()
 
     // ── 群通话信令流 ──
     private val _gcInvite = MutableSharedFlow<GroupCallInviteEvent>(extraBufferCapacity = 16)
@@ -464,6 +467,12 @@ class SocketManager @Inject constructor(
                 _callEnd.tryEmit(CallEndEvent(from, o.optString("callId")))
             }
         }
+        s.on("call:switch-type") { args ->
+            (args.firstOrNull() as? JSONObject)?.let { o ->
+                val from = o.optString("from")
+                if (from.isNotEmpty()) _callSwitchType.tryEmit(CallSwitchTypeEvent(o.optString("callId"), from, o.optString("type", "audio")))
+            }
+        }
         s.on("call:outgoing") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val to = o.optString("to")
@@ -665,6 +674,13 @@ class SocketManager @Inject constructor(
         val payload = JSONObject().put("to", to)
         if (callId.isNotEmpty()) payload.put("callId", callId)
         socket?.emit("call:end", payload)
+    }
+
+    /** 通话中切换语音↔视频：告知对方新类型（媒体重协商由 call:offer/answer 驱动） */
+    fun emitCallSwitchType(to: String, type: String, callId: String = "") {
+        val payload = JSONObject().put("to", to).put("type", type)
+        if (callId.isNotEmpty()) payload.put("callId", callId)
+        socket?.emit("call:switch-type", payload)
     }
 
     fun emitCallResume(callId: String) {

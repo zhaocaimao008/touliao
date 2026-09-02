@@ -91,6 +91,7 @@ final class SocketService {
     let callAnswer = PassthroughSubject<(from: String, sdp: String), Never>()
     let callIce = PassthroughSubject<(from: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32), Never>()
     let callEnd = PassthroughSubject<String, Never>()
+    let callSwitchType = PassthroughSubject<(from: String, type: String, callId: String), Never>()
 
     // ── 群通话(mesh) 信令 ──
     let gcInvite = PassthroughSubject<(callId: String, conversationId: String, type: String, from: String, fromName: String), Never>()
@@ -321,6 +322,10 @@ final class SocketService {
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
             self?.callEnd.send(from)
         }
+        sock.on("call:switch-type") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
+            self?.callSwitchType.send((from, d["type"] as? String ?? "audio", d["callId"] as? String ?? ""))
+        }
 
         // ── 群通话信令接收 ──
         sock.on("group_call:invite") { [weak self] data, _ in
@@ -451,6 +456,11 @@ final class SocketService {
         var payload: [String: Any] = ["to": to]
         if !callId.isEmpty { payload["callId"] = callId }
         socket?.emit("call:end", payload)
+    }
+    func emitCallSwitchType(to: String, type: String, callId: String = "") {
+        var payload: [String: Any] = ["to": to, "type": type]
+        if !callId.isEmpty { payload["callId"] = callId }
+        socket?.emit("call:switch-type", payload)
     }
 
     // ── 群通话信令发送 ──

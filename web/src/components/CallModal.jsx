@@ -155,6 +155,8 @@ function useFocusTrap(open) {
 export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const { type, direction, remoteUser, remoteId, callId } = call;
   const isVideo = type === 'video';
+  // 通话中类型可切换（语音↔视频）：初始=发起类型，切换后驱动渲染与重协商
+  const [videoMode, setVideoMode] = useState(isVideo);
   // 除了发起本身（call:request，那次没有 callId 可用，靠 ack 拿到后才会渲染出这个
   // 组件），后续所有信令都要带上这个 callId，且过滤收到的事件是否属于这一通
   // （见 utils/callSignaling.js：同一对端但 callId 对不上 = 已被覆盖的旧通话，丢弃）。
@@ -290,6 +292,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     clearTimeout(restartRecoverRef.current);
     clearTimeout(endCallTimeoutRef.current);
     localStreamRef.current?.getTracks().forEach(t => t.stop());
+    videoAddStreamRef.current?.getTracks().forEach(t => t.stop());   // 切换语音→视频时新增的流
+    videoAddStreamRef.current = null;
     if (pcRef.current) {
       pcRef.current.onicecandidate          = null;
       pcRef.current.ontrack                 = null;
@@ -489,12 +493,19 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     socket.on('call:answer',   onAnswer);
     socket.on('call:ice',      onIce);
     socket.on('call:end',      onEnd);
+    // 对方切换语音↔视频：同步 UI（媒体流由重协商 offer/answer 驱动）
+    const onSwitchType = ({ from, type, callId: evtCallId }) => {
+      if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
+      setVideoMode(type === 'video');
+    };
+    socket.on('call:switch-type', onSwitchType);
     return () => {
       socket.off('call:response', onResponse);
       socket.off('call:offer',    onOffer);
       socket.off('call:answer',   onAnswer);
       socket.off('call:ice',      onIce);
       socket.off('call:end',      onEnd);
+      socket.off('call:switch-type', onSwitchType);
     };
   }, [socket, remoteId, callId, activeCallInfo, cleanup, onClose, processOffer, endCall]);
 
@@ -542,6 +553,44 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     if (t) { t.enabled = cameraOff; setCameraOff(c => !c); }
   }, [cameraOff]);
 
+  // 通话中切换语音↔视频（2026-09-02）：发起方补/删视频轨 + 重协商 offer，
+  // 同时发 call:switch-type 让对方同步 UI。复用 SDP 弱网调优。
+  const videoAddStreamRef = useRef(null);
+  const toggleVideo = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc || statusRef.current !== 'connected') return;
+    const next = !videoMode;
+    try {
+      if (next) {
+        // 语音→视频：补视频轨
+        const vs = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        vs.getVideoTracks().forEach(t => pc.addTrack(t, vs));
+        if (localStreamRef.current) {
+          vs.getVideoTracks().forEach(t => { try { localStreamRef.current.addTrack(t); } catch { /* 已存在 */ } });
+        }
+        videoAddStreamRef.current = vs;   // 持有引用防 GC 停轨
+      } else {
+        // 视频→语音：停 + 移除视频轨
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) {
+          try { sender.track?.stop(); } catch { /* 已停 */ }
+          try { pc.removeTrack(sender); } catch { /* 已移除 */ }
+        }
+      }
+      const offer = await pc.createOffer();
+      const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
+      await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+      socket.emit('call:offer', withCallId({ to: remoteId, offer: { type: offer.type, sdp: tunedOffer } }, callId));
+      socket.emit('call:switch-type', withCallId({ to: remoteId, type: next ? 'video' : 'audio' }, callId));
+      setVideoMode(next);
+      if (next && localVideoRef.current && localStreamRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+    } catch (e) {
+      console.error('[call] 切换类型失败:', e);
+    }
+  }, [videoMode, socket, remoteId, callId]);
+
   const END_TEXT = { rejected: '对方已拒绝', busy: '对方正忙', timeout: '无人接听', network: '网络已断开' };
   const inProgress  = ['calling', 'connecting', 'connected'].includes(status);
   const canMinimize = inProgress && status !== 'incoming';
@@ -565,7 +614,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         {/* 音频持续输出（ref callback 重挂时自动恢复 srcObject） */}
         <audio ref={onRemoteAudioMount} autoPlay hidden />
 
-        {isVideo ? (
+        {videoMode ? (
           <div className="cm-bubble-video">
             <video ref={onMiniVideoMount} autoPlay playsInline />
             <div className="cm-bubble-video-overlay">
@@ -633,7 +682,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       data-testid="call-modal"
       role="dialog"
       aria-modal="true"
-      aria-label={isVideo ? '视频通话' : '语音通话'}
+      aria-label={videoMode ? '视频通话' : '语音通话'}
       className="cm-dialog"
     >
       {/* 音频（ref callback 重挂恢复） */}
@@ -642,12 +691,12 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       {/* 麦克风/摄像头获取失败提示 */}
       {mediaError && (
         <div role="alert" className="cm-media-error">
-          无法访问{isVideo ? '摄像头/麦克风' : '麦克风'}，对方将听不到你，请检查浏览器权限或设备占用
+          无法访问{videoMode ? '摄像头/麦克风' : '麦克风'}，对方将听不到你，请检查浏览器权限或设备占用
         </div>
       )}
 
       {/* ── 视频通话 ── */}
-      {isVideo && <>
+      {videoMode && <>
         <video
           ref={onRemoteVideoMount}
           autoPlay playsInline
@@ -715,6 +764,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
               {supportsSinkId && outputDevices.length > 1 && (
                 <CircleBtn icon={<IcoOutput />} label="输出设备" onClick={cycleOutputDevice} />
               )}
+              <CircleBtn
+                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
+                label="切语音" onClick={toggleVideo} testid="call-switch-to-audio-btn"
+              />
               <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
               <CircleBtn icon={<IcoCam off={cameraOff} />} label={cameraOff ? '开摄像头' : '关摄像头'} active={cameraOff} onClick={toggleCamera} />
             </div>
@@ -723,7 +776,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       </>}
 
       {/* ── 语音通话 ── */}
-      {!isVideo && <>
+      {!videoMode && <>
         <div
           className="cm-voice-bg"
           style={voiceBg ? {
@@ -806,6 +859,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
               {supportsSinkId && outputDevices.length > 1 && (
                 <CircleBtn icon={<IcoOutput />} label="输出设备" onClick={cycleOutputDevice} />
               )}
+              <CircleBtn
+                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
+                label="切视频" onClick={toggleVideo} testid="call-switch-to-video-btn"
+              />
               <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
             </div>
           )}

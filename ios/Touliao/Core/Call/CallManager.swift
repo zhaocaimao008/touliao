@@ -330,6 +330,14 @@ final class CallManager: NSObject, ObservableObject {
             VoipCallManager.shared.endActiveCall()   // 对方挂断时同步收尾 CallKit
             self.cleanup(.ended)
         }.store(in: &cancellables)
+
+        // 对方切换语音↔视频：同步 UI（媒体流由对方重协商 offer 驱动）
+        socket.callSwitchType.receive(on: DispatchQueue.main).sink { [weak self] evt in
+            guard let self, evt.from == self.state.peerId, evt.callId == self.state.callId else { return }
+            if self.state.stage == .connected || self.state.stage == .connecting {
+                self.state.isVideo = (evt.type == "video")
+            }
+        }.store(in: &cancellables)
     }
 
     private func drainIce() {
@@ -400,6 +408,38 @@ final class CallManager: NSObject, ObservableObject {
             pc.setLocalDescription(tuned) { _ in }
             self.socket.emitCallOffer(to: self.state.peerId, sdp: tuned.sdp)
         }
+    }
+
+    /// 通话中切换语音↔视频（2026-09-02）：补/删视频轨 + 重协商 offer + call:switch-type 告知对方。
+    /// 对方由重协商 offer 驱动媒体流变化，switch-type 仅用于同步 UI。
+    func toggleVideo() {
+        guard let pc = pc, state.stage == .connected else { return }
+        let nextVideo = !state.isVideo
+        if nextVideo {
+            // 语音→视频：补视频轨（已存在则复用——可能曾被 removeTrack/stopCapture）
+            videoCapturer?.stopCapture()
+            if localVideoTrack == nil {
+                let videoSource = factory.videoSource()
+                videoCapturer = RTCCameraVideoCapturer(delegate: videoSource)
+                let track = factory.videoTrack(with: videoSource, trackId: "video0")
+                localVideoTrack = track
+                pc.add(track, streamIds: ["stream0"])
+            } else {
+                pc.add(localVideoTrack!, streamIds: ["stream0"])   // 可能曾被 removeTrack
+                localVideoTrack?.isEnabled = true
+            }
+            startCapture(position: .front)
+        } else {
+            // 视频→语音：停采集 + 移除视频轨（capturer/track 引用保留，切回可复用）
+            pc.senders.filter { $0.track?.kind == "video" }.forEach { sender in
+                pc.removeTrack(sender)
+            }
+            videoCapturer?.stopCapture()
+            localVideoTrack?.isEnabled = false
+        }
+        createOfferAndSend()   // 重协商（含 SDP 弱网调优）
+        socket.emitCallSwitchType(to: state.peerId, type: nextVideo ? "video" : "audio", callId: state.callId)
+        state.isVideo = nextVideo
     }
 
     private func createAnswerAndSend() {

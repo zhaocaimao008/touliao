@@ -184,6 +184,7 @@ fun CallHost(
                     if (state.bluetoothAvailable) {
                         RoundButton(if (state.bluetoothOn) "蓝牙开" else "蓝牙关", Color(0xFF555555)) { viewModel.toggleBluetooth() }
                     }
+                    RoundButton(if (state.isVideo) "切语音" else "切视频", Color(0xFF555555)) { viewModel.toggleVideo() }
                     RoundButton("挂断", CallRed) { viewModel.hangup() }
                     if (state.isVideo) {
                         RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", Color(0xFF555555)) { viewModel.toggleCamera() }
