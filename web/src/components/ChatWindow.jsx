@@ -619,9 +619,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             if (!stillPending.includes(p)) removeFromOutbox(conversation.id, p._tempId || p.id);
           }
           if (stillPending.length) {
-            merged = [...data, ...stillPending].sort(
+            // 2026-09-02 洞A：不再按 created_at 与服务端消息混排——pending 的 created_at 来自
+            // 客户端时钟(:1362)，与服务端时间偏差会把失败消息锚到数组中间，破坏 server_sequence
+            // 单调 → 后续二分插入错位。统一排数组末尾（「待发送」语义上即最新），
+            // 多条 pending 之间按 created_at 升序（同一客户端内自洽 = 原发送先后）。
+            merged = [...data, ...stillPending.slice().sort(
               (a, b) => (a.created_at || 0) - (b.created_at || 0)
-            );
+            )];
           }
         }
         // 保留初次加载在途时用户刚发出的乐观消息(_tempId,尚未落库):
