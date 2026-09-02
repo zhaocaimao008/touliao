@@ -382,7 +382,7 @@ final class ChatViewModel: ObservableObject {
 
     func sendSticker(_ sticker: Sticker) {
         Task {
-            do { let msg = try await StickerRepository.shared.send(conversationId: conversationId, stickerId: sticker.id); appendUnique(msg) }
+            do { let msg = try await StickerRepository.shared.send(conversationId: conversationId, stickerId: sticker.id); messages = ChatMessageMerge.insertBySeq(messages, msg) }
             catch { self.error = (error as? LocalizedError)?.errorDescription ?? "发送失败" }
         }
     }
@@ -614,7 +614,7 @@ final class ChatViewModel: ObservableObject {
                     conversationId: conversationId, totalAmount: totalAmount, totalCount: totalCount,
                     greeting: greeting.trimmingCharacters(in: .whitespaces)
                 )
-                if let msg = resp.message { appendUnique(msg) }   // socket 通常也会广播，appendUnique 去重
+                if let msg = resp.message { messages = ChatMessageMerge.insertBySeq(messages, msg) }   // socket 通常也会广播，insertBySeq 去重
                 Haptics.notify(.success)   // 发红包成功的满足感反馈
             } catch {
                 self.error = (error as? LocalizedError)?.errorDescription ?? "发送红包失败"
@@ -673,7 +673,7 @@ final class ChatViewModel: ObservableObject {
                 let resp = try await WalletRepository.shared.transfer(
                     toUserId: toUserId, amount: amount, note: note.trimmingCharacters(in: .whitespaces)
                 )
-                if let msg = resp.message { appendUnique(msg) }   // socket 通常也会广播，appendUnique 去重
+                if let msg = resp.message { messages = ChatMessageMerge.insertBySeq(messages, msg) }   // socket 通常也会广播，insertBySeq 去重
                 Haptics.notify(.success)   // 转账成功反馈
             } catch {
                 self.error = (error as? LocalizedError)?.errorDescription ?? "转账失败"
@@ -1064,7 +1064,7 @@ final class ChatViewModel: ObservableObject {
                     msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: item.name, mimeType: item.mimeType, duration: item.duration)
                 }
                 removePending(item.id)
-                appendUnique(msg)
+                messages = ChatMessageMerge.insertBySeq(messages, msg)
             } catch {
                 markFailed(item.id)
                 self.error = (error as? LocalizedError)?.errorDescription ?? "上传失败"
