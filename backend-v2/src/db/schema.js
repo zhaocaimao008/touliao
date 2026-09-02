@@ -639,7 +639,7 @@ function applySchema(db) {
   const alreadyApplied = new Set(
     db.prepare('SELECT idx FROM schema_migrations').all().map(r => r.idx)
   );
-  migrationsSnapshot = migrations;   // 供 assertRequiredColumns 启动时全量核对（防 idx 漂移漏建）
+  migrationsSnapshot = migrations;   // 供 verifySchemaDrift 启动时全量核对（防 idx 漂移漏建）
   migrations.forEach((sql, idx) => {
     if (alreadyApplied.has(idx)) return; // 已成功执行过，跳过
     try {
@@ -727,7 +727,7 @@ const REQUIRED_COLUMNS = {
   message_reads: ['message_id', 'user_id', 'read_at'],
 };
 
-// applySchema 内的 migrations 数组快照（供 assertRequiredColumns 全量核对）。
+// applySchema 内的 migrations 数组快照（供 verifySchemaDrift 全量核对）。
 let migrationsSnapshot = null;
 
 // 解析迁移 SQL 的预期结构效果；数据修复类（UPDATE/INSERT/WITH…）返回 null 跳过。

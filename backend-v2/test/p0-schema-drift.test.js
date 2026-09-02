@@ -10,14 +10,16 @@
  *   A. 旧 schema（仅 user_id/conversation_id/cleared_at）→ ensureClearWatermarkColumn 后 cleared_rowid 存在
  *   B. 已存在 cleared_rowid → 再次执行不报错、不重复添加
  *   C. 历史行存在 → hotfix 后 cleared_rowid = 0
- *   D. assertRequiredColumns：缺列时抛错（启动阶段 fail-fast）
- *   E. assertRequiredColumns：列齐全时不抛错（正常启动）
+ *   D. verifySchemaDrift：缺列时返回清单（2026-09-02 起不再 throw —— 降级为
+ *      打日志 + /health 503，由 deploy 健康检查拦截，避免非变更重启打死服务）
+ *   E. verifySchemaDrift：补齐后清单不再含该对象
+ *   F. verifySchemaDrift：完整 schema（applySchema 全量）→ 空清单（全量核对主路径）
  */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const Database = require('better-sqlite3');
-const { ensureClearWatermarkColumn, assertRequiredColumns } = require('../src/db/schema');
+const { applySchema, ensureClearWatermarkColumn, verifySchemaDrift } = require('../src/db/schema');
 
 function makeOldSchemaDb() {
   const file = path.join(os.tmpdir(), `p0-drift-test-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`);
@@ -84,18 +86,30 @@ describe('P0-PROD-SCHEMA-DRIFT migration drift 回归', () => {
     } finally { db.close(); fs.unlinkSync(file); }
   });
 
-  test('D. assertRequiredColumns：缺列时抛错（启动 fail-fast）', () => {
+  test('D. verifySchemaDrift：缺列时返回清单（不 throw；降级由调用方/health 503 决策）', () => {
     const { db, file } = makeOldSchemaDb();
     try {
-      expect(() => assertRequiredColumns(db)).toThrow(/Schema drift detected/);
+      const drift = verifySchemaDrift(db);
+      const hit = drift.some(d => d.type === 'column' && d.obj === 'conversation_clears.cleared_rowid');
+      expect(hit).toBe(true);   // 缺 cleared_rowid 必须被检出
     } finally { db.close(); fs.unlinkSync(file); }
   });
 
-  test('E. assertRequiredColumns：列齐全时不抛错（正常启动）', () => {
+  test('E. verifySchemaDrift：补齐后清单不再含 cleared_rowid', () => {
     const { db, file } = makeOldSchemaDb();
     try {
       ensureClearWatermarkColumn(db);
-      expect(() => assertRequiredColumns(db)).not.toThrow();
+      const drift = verifySchemaDrift(db);
+      expect(drift.some(d => d.obj === 'conversation_clears.cleared_rowid')).toBe(false);
+    } finally { db.close(); fs.unlinkSync(file); }
+  });
+
+  test('F. verifySchemaDrift：完整 schema（applySchema 全量 133 迁移）→ 空清单', () => {
+    const file = path.join(os.tmpdir(), `p0-drift-full-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`);
+    const db = new Database(file);
+    try {
+      applySchema(db);
+      expect(verifySchemaDrift(db)).toEqual([]);
     } finally { db.close(); fs.unlinkSync(file); }
   });
 });
