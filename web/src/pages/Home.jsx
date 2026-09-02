@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { showConfirm } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
+import { startCallVisualAlert, stopCallVisualAlert } from '../utils/callVisualAlert';
+import CallSoundGuide from '../components/CallSoundGuide';
 import './Home.css';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
@@ -739,6 +741,13 @@ export default function Home() {
   }, [socket]);
 
   const [activeCall, setActiveCall] = useState(null);
+
+  // 来电提醒清理兜底：activeCall 消失（挂断/拒绝/超时/对方取消）时恢复标题/favicon。
+  // 来电铃声由 CallModal 内部 stopTone 处理（铃声与通话生命周期绑定，无需在此干预）。
+  useEffect(() => {
+    if (!activeCall) stopCallVisualAlert();
+  }, [activeCall]);
+
   // 通话记录列表刷新键:任一通话结束(call:end 覆盖挂断/拒绝/超时/断线/重拨替换)
   // 时 +1,传给 CallHistory 静默重新拉取——修"停留在历史页时通话结束列表不自动刷新"
   const [callsRefreshKey, setCallsRefreshKey] = useState(0);
@@ -781,6 +790,11 @@ export default function Home() {
         }
         const callerName = caller?.name || '好友';
         showNotification(callerName, type === 'video' ? '邀请你视频通话' : '邀请你语音通话', caller?.avatar);
+        // 标题/favicon 闪烁——仅 Web/桌面端启用：
+        // 原生移动端（Capacitor）有原生推送铃声+提醒，且 WebView 无浏览器标签栏，视觉提醒无意义。
+        // （来电铃声由 CallModal 内部 startIncomingTone 播放，此处不重复。）
+        const isNativeMobile = !!(window.Capacitor && window.Capacitor.isNativePlatform());
+        if (!isNativeMobile) startCallVisualAlert(callerName);
         return { type, direction: 'incoming', remoteUser: { id: from, name: caller?.name, avatar: caller?.avatar }, remoteId: from, callId };
       });
     };
@@ -900,6 +914,7 @@ export default function Home() {
   const overlays = (
     <>
       <ReconnectingBanner />
+      <CallSoundGuide />
       {activeCall && (
         <Suspense fallback={null}>
           <CallModal
