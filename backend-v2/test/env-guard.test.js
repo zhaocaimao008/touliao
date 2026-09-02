@@ -47,7 +47,19 @@ describe('FORCE_SYNC_WRITES 门禁(仅 NODE_ENV=test 生效)', () => {
       cwd: root,
       encoding: 'utf8',
       timeout: 15000,
-      env: { ...process.env, NODE_ENV: 'production', FORCE_SYNC_WRITES: '1', DB_PATH: '/tmp/fs-guard-prod.sqlite' },
+      // 2026-09-02 修复：config/index.js 的 production 硬校验（:160-176：JWT_SECRET≥32 字符、
+      // ADMIN_JWT_SECRET≥32、ADMIN_USERNAME/ADMIN_PASSWORD≥12 必配）会让本用例 spawn 的
+      // production 子进程 exit 1。此前本用例靠本地 backend-v2/.env（gitignored，dotenv 自动加载）
+      // 隐式提供全部变量才通过——CI checkout 无 .env 必挂（9/1 起 CI 连续红的根因）。
+      // 显式注入使测试对本地 .env 零依赖，CI/本地行为一致。
+      env: {
+        ...process.env,
+        NODE_ENV: 'production', FORCE_SYNC_WRITES: '1',
+        JWT_SECRET: 'env-guard-test-jwt-secret-0123456789abcdef',
+        ADMIN_USERNAME: 'env-guard-admin',
+        ADMIN_PASSWORD: 'env-guard-admin-password-123456',
+        DB_PATH: '/tmp/fs-guard-prod.sqlite',
+      },
     });
     expect(r.status).toBe(0);
     expect(r.stderr + r.stdout).toContain('已忽略');   // 必须告警
