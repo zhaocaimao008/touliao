@@ -495,6 +495,9 @@ function applySchema(db) {
     "ALTER TABLE user_settings ADD COLUMN quiet_enabled INTEGER DEFAULT 0",
     "ALTER TABLE user_settings ADD COLUMN quiet_start TEXT DEFAULT '23:00'",
     "ALTER TABLE user_settings ADD COLUMN quiet_end TEXT DEFAULT '07:00'",
+    // ── 来电铃声：classic=经典双音(默认) / dual=交替双音 / triple=三连音 / soft=轻柔单音。
+    //    四端按 key 映射各自的 ToneGenerator/CallTonePlayer/WebAudio 合成参数 ──
+    "ALTER TABLE user_settings ADD COLUMN ringtone TEXT DEFAULT 'classic'",
     // ── 消息定时发送：pending 待发 / sent 已发 / cancelled 已取消。
     //    进程内定时器每 30s 扫描到期的 pending 消息并发出；服务重启后凭表中 pending 恢复 ──
     `CREATE TABLE IF NOT EXISTS scheduled_messages (

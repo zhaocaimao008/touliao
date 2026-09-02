@@ -68,10 +68,18 @@ class CallManager @Inject constructor(
     private val socketManager: SocketManager,
     private val sessionManager: SessionManager,
     private val turnApi: com.touliao.app.data.api.TurnApi,
+    private val userApi: com.touliao.app.data.api.UserApi,
     private val notificationHelper: com.touliao.app.core.push.NotificationHelper,
     @AppScope private val scope: CoroutineScope,
 ) {
     val eglBase: EglBase = EglBase.create()
+
+    init {
+        // 来电铃声：启动时同步 user_settings.ringtone（设置页更新后也写入本字段即时生效）
+        scope.launch {
+            runCatching { incomingRingtone = userApi.settings().ringtone }
+        }
+    }
 
     // ── 音频路由(2026-08-29语音通话审计新增)：此前无 AudioManager 相关代码，通话音频
     // 路由/焦点完全交给系统默认行为——没有扬声器切换、没有主动抢音频焦点、系统来电/
@@ -328,6 +336,7 @@ class CallManager @Inject constructor(
     fun accept() {
         val s = _state.value
         if (s.stage != CallStage.INCOMING) return
+        stopIncomingTone()
         _state.update { it.copy(stage = CallStage.CONNECTING) }
         scope.launch {
             refreshIceServers()
@@ -416,7 +425,7 @@ class CallManager @Inject constructor(
         if (from.isEmpty()) return
         // 原子读-改-写（P2-3）：stage 判断与写入放同一临界区，防 Default 线程 socket collect 与
         // 主线程 push 处理 TOCTOU；已展示同 peer 来电时仅升级 callId（防过期通知带旧 id 应答被服务端丢弃）
-        _state.update { st ->
+        val entered = _state.update { st ->
             if (st.stage == CallStage.IDLE || st.stage == CallStage.ENDED) {
                 CallState(
                     CallStage.INCOMING, from, callerName, isVideo = callType == "video", isCaller = false, callId = callId,
@@ -426,6 +435,10 @@ class CallManager @Inject constructor(
             } else {
                 st  // 正在通话/展示其他来电 → 不覆盖
             }
+        }
+        // 新进入 INCOMING（或升级 callId 的重复推送不算新来电）才播铃
+        if (entered.stage == CallStage.INCOMING && entered.peerId == from && entered.isCaller == false && entered.callId == callId) {
+            playIncomingTone()
         }
     }
 
@@ -470,6 +483,7 @@ class CallManager @Inject constructor(
                 _state.value = CallState(
                     CallStage.INCOMING, e.from, e.callerName, isVideo = e.type == "video", isCaller = false, callId = e.callId,
                 )
+                playIncomingTone()
                 // 2026-08-30 修复：此前这里只更新内存状态，没有弹系统通知——只有 FCM 推送
                 // （TouliaoMessagingService.onMessageReceived）才会调 showCallNotification()。
                 // 但后端只在 presence 判定被叫离线（socket 未连）时才发 FCM 推送；Android 后台
@@ -695,6 +709,7 @@ class CallManager @Inject constructor(
 
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage) {
+        stopIncomingTone()                                // 停来电铃声（接听/拒接/挂断/清理）
         releaseTone()                                     // 停回铃/接通音并释放 ToneGenerator
         releaseAudioFocusAndRoute()                        // 恢复系统默认音频模式/释放焦点，防止占用
         callTimeoutJob?.cancel(); callTimeoutJob = null   // 接通/挂断/被拒 → 取消呼出超时
@@ -771,6 +786,47 @@ class CallManager @Inject constructor(
             .onFailure { e -> android.util.Log.w(TAG, "ToneGenerator release 失败: ${e.message}") }
         toneGen = null
         voiceCallVolumeZero.value = false
+    }
+
+    // ── 来电铃声（2026-09-02：可自定义，key 来自 user_settings.ringtone）────
+    // ToneGenerator 预设映射：classic=标准铃声 / dual=急促双响 / triple=短促三连 / soft=低音量长音。
+    // 与 Web callTones / iOS CallTonePlayer 的四种 key 一一对应。
+    @Volatile
+    var incomingRingtone: String = "classic"
+
+    private var incomingToneJob: kotlinx.coroutines.Job? = null
+
+    private fun incomingTonePreset(key: String): List<Pair<Int, Long>> = when (key) {
+        "dual"   -> listOf(android.media.ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD to 800L, android.media.ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD to 800L)
+        "triple" -> listOf(android.media.ToneGenerator.TONE_PROP_BEEP to 250L, android.media.ToneGenerator.TONE_PROP_BEEP to 250L, android.media.ToneGenerator.TONE_PROP_BEEP to 250L)
+        "soft"   -> listOf(android.media.ToneGenerator.TONE_PROP_BEEP2 to 1500L)
+        else     -> listOf(android.media.ToneGenerator.TONE_SUP_RINGTONE to 1200L)
+    }
+
+    /** 来电循环铃声（进入 INCOMING 时调用；幂等）。 */
+    @Synchronized
+    private fun playIncomingTone() {
+        stopIncomingTone()
+        val gen = ensureToneGen() ?: return
+        val preset = incomingTonePreset(incomingRingtone)
+        incomingToneJob = scope.launch {
+            while (isActive) {
+                for ((tone, dur) in preset) {
+                    if (!isActive) break
+                    runCatching { gen.startTone(tone, dur) }
+                        .onFailure { e -> android.util.Log.w(TAG, "来电铃声播放失败: ${e.message}") }
+                    delay(dur + 320)
+                }
+                delay(1500)
+            }
+        }
+    }
+
+    /** 停止来电铃声（接听/拒接/清理时调用；幂等）。 */
+    @Synchronized
+    private fun stopIncomingTone() {
+        incomingToneJob?.cancel(); incomingToneJob = null
+        runCatching { toneGen?.stopTone() }
     }
 
     private companion object {

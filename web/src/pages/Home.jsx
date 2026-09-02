@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, laz
 import { showConfirm } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
 import { startCallVisualAlert, stopCallVisualAlert } from '../utils/callVisualAlert';
+import { setIncomingRingtone } from '../utils/callTones';
 import CallSoundGuide from '../components/CallSoundGuide';
 import './Home.css';
 import axios from 'axios';
@@ -750,6 +751,14 @@ export default function Home() {
   }, [socket]);
 
   const [activeCall, setActiveCall] = useState(null);
+
+  // 来电铃声：启动时从服务端同步 user_settings.ringtone（未进过设置页的用户也生效）
+  useEffect(() => {
+    axios.get('/api/users/me/settings').then(r => {
+      const key = r.data?.ringtone;
+      if (key) setIncomingRingtone(key);
+    }).catch(() => {});
+  }, []);
 
   // 来电提醒清理兜底：activeCall 消失（挂断/拒绝/超时/对方取消）时恢复标题/favicon。
   // 来电铃声由 CallModal 内部 stopTone 处理（铃声与通话生命周期绑定，无需在此干预）。

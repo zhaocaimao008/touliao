@@ -24,6 +24,8 @@ data class UserSettings(
     val quietStart: String = "22:00",       // 开始时间 HH:MM
     @kotlinx.serialization.SerialName("quiet_end")
     val quietEnd: String = "07:00",         // 结束时间 HH:MM（支持跨夜）
+    // 来电铃声: classic=经典双音(默认) / dual=交替双音 / triple=三连音 / soft=轻柔单音
+    val ringtone: String = "classic",
 )
 
 /** 更新设置（仅传需要改的字段，后端按 undefined 忽略） */
@@ -38,6 +40,7 @@ data class UpdateSettingsBody(
     val messageNotify: Boolean? = null,
     val detailPreview: Boolean? = null,
     val sound: Boolean? = null,
+    val ringtone: String? = null,
     val vibrate: Boolean? = null,
     // 勿扰时段
     @kotlinx.serialization.SerialName("quiet_enabled")

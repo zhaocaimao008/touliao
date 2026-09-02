@@ -2,6 +2,7 @@ package com.touliao.app.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.touliao.app.core.call.CallManager
 import com.touliao.app.core.network.toUserMessage
 import com.touliao.app.core.storage.ThemeMode
 import com.touliao.app.core.storage.ThemeStore
@@ -26,6 +27,7 @@ data class SettingsUiState(
 class SettingsViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val themeStore: ThemeStore,
+    private val callManager: CallManager,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -81,6 +83,12 @@ class SettingsViewModel @Inject constructor(
             { it.copy(quietStart = start, quietEnd = end) },
             UpdateSettingsBody(quietStart = start, quietEnd = end),
         )
+
+    // 来电铃声：classic/dual/triple/soft，切换即写入 CallManager 生效
+    fun setRingtone(key: String) {
+        callManager.incomingRingtone = key
+        patch({ it.copy(ringtone = key) }, UpdateSettingsBody(ringtone = key))
+    }
 
     fun clearError() = _uiState.update { it.copy(error = null) }
 }

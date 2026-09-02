@@ -34,6 +34,8 @@ const toBool = v => !!Number(v);
 const toIntBool = v => (v ? 1 : 0);
 // 朋友圈"最近 N 天可见"允许的取值：0=全部 / 1=今天 / 3=三天 / 30=半年
 const MOMENTS_DAY_OPTIONS = [0, 1, 3, 30];
+// 来电铃声选项（四端 callTones/ToneGenerator/CallTonePlayer 按 key 映射）
+const RINGTONE_OPTIONS = ['classic', 'dual', 'triple', 'soft'];
 
 function ensureSettings(userId) {
   db.prepare('INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)').run(userId);
@@ -52,6 +54,7 @@ function serializeSettings(row) {
     quietEnabled: toBool(s.quiet_enabled),
     quietStart: normalizeHHMM(s.quiet_start) || '23:00',
     quietEnd: normalizeHHMM(s.quiet_end) || '07:00',
+    ringtone: RINGTONE_OPTIONS.includes(s.ringtone) ? s.ringtone : 'classic',
   };
 }
 
@@ -84,6 +87,10 @@ function normalizeSettings(body) {
   if (body.quietEnd !== undefined) {
     const v = normalizeHHMM(body.quietEnd);
     if (v !== null) patch.quiet_end = v;
+  }
+  // 来电铃声（枚举白名单）
+  if (body.ringtone !== undefined && RINGTONE_OPTIONS.includes(body.ringtone)) {
+    patch.ringtone = body.ringtone;
   }
   return patch;
 }

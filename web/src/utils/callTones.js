@@ -51,11 +51,11 @@ function getCtx() {
   return _ctx || prewarmAudio();
 }
 
-/** 单次蜂鸣:durationMs 时长,freqs 多频叠加,尾端淡出防爆音。 */
-function beep(freqs, durationMs, volume = 0.13) {
+/** 单次蜂鸣：durationMs 时长,freqs 多频叠加,尾端淡出防爆音。delayMs 延迟(ms)用于多段音序。 */
+function beep(freqs, durationMs, volume = 0.13, delayMs = 0) {
   const ctx = getCtx();
   if (!ctx) return null;
-  const t = ctx.currentTime;
+  const t = ctx.currentTime + delayMs / 1000;
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.0001, t);
   gain.gain.exponentialRampToValueAtTime(volume, t + 0.05);
@@ -103,9 +103,30 @@ export function startRingback() {
   return startLoop(() => loop(5000, () => beep([450], 1000)));
 }
 
-/** 来电铃声:「响1.2秒·停3秒」450+500Hz 双音(被叫 incoming)。 */
+/** 来电铃声:预设按 ringtone key 映射(设置页可选,服务端 user_settings.ringtone)。 */
+const RINGTONE_PRESETS = {
+  // 经典:450+500Hz 双音「响1.2秒·停3秒」
+  classic: { loopMs: 4200, beeps: [[[450, 500], 1200, 0.15, 0]] },
+  // 交替双音:450Hz→500Hz 轮换,节奏更快
+  dual:    { loopMs: 2000, beeps: [[[450], 800, 0.14, 0], [[500], 800, 0.14, 1000]] },
+  // 三连音:450Hz 短促三响
+  triple:  { loopMs: 3000, beeps: [[[450], 250, 0.15, 0], [[450], 250, 0.15, 320], [[450], 250, 0.15, 640]] },
+  // 轻柔:400Hz 单音低音量
+  soft:    { loopMs: 5000, beeps: [[[400], 1500, 0.08, 0]] },
+};
+let _ringtone = 'classic';
+
+/** 设置当前来电铃声 key（设置页/启动时从服务端 user_settings 读取后调用）。 */
+export function setIncomingRingtone(key) {
+  if (RINGTONE_PRESETS[key]) _ringtone = key;
+}
+
+/** 来电铃声:按当前 ringtone key 播放循环音。 */
 export function startIncomingTone() {
-  return startLoop(() => loop(4200, () => beep([450, 500], 1200, 0.15)));
+  const preset = RINGTONE_PRESETS[_ringtone] || RINGTONE_PRESETS.classic;
+  return startLoop(() => loop(preset.loopMs, () => {
+    for (const [freqs, dur, vol, delay] of preset.beeps) beep(freqs, dur, vol, delay);
+  }));
 }
 
 /** 接通提示音:一声短促上扬「叮」1000Hz。 */

@@ -109,6 +109,8 @@ fun NotificationSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel 
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // 勿扰时段编辑弹窗状态
     var showQuietDialog by remember { mutableStateOf(false) }
+    // 来电铃声选择弹窗状态
+    var showRingtoneDialog by remember { mutableStateOf(false) }
 
     SettingsScaffold("通知", onBack) {
         if (state.loading) {
@@ -123,6 +125,53 @@ fun NotificationSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel 
         ToggleRow("声音", checked = s.sound) { viewModel.setSound(it) }
         HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp)
         ToggleRow("震动", checked = s.vibrate) { viewModel.setVibrate(it) }
+        HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp)
+
+        // ── 来电铃声（四款预置，切换即生效）──────────────────────────────────
+        val ringtoneLabels = mapOf(
+            "classic" to "经典双音", "dual" to "交替双音",
+            "triple" to "三连音", "soft" to "轻柔单音",
+        )
+        Row(
+            Modifier.fillMaxWidth().clickable { showRingtoneDialog = true }.padding(16.dp, 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column {
+                Text("来电铃声", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    ringtoneLabels[s.ringtone] ?: "经典双音",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Text("修改", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
+        }
+        if (showRingtoneDialog) {
+            AlertDialog(
+                onDismissRequest = { showRingtoneDialog = false },
+                title = { Text("来电铃声") },
+                text = {
+                    Column {
+                        ringtoneLabels.forEach { (key, label) ->
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clickable { viewModel.setRingtone(key); showRingtoneDialog = false }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(label, style = MaterialTheme.typography.bodyLarge)
+                                if (s.ringtone == key) {
+                                    Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+            )
+        }
 
         // ── 勿扰时段 ──────────────────────────────────────────────────────────
         SectionCaption("勿扰模式（仅抑制推送通知，聊天正常收消息）")

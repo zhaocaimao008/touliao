@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useI18n, SUPPORTED_LANGS } from '../contexts/I18nContext';
 import { goLogin } from '../utils/url';
+import { setIncomingRingtone } from '../utils/callTones';
 import { showConfirm, showToast } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
 import { timeoutSignal } from '../utils/config';
@@ -582,6 +583,7 @@ function NotificationSettings({ onBack }) {
   const [quietEnabled, setQuietEnabled]   = useState(false);
   const [quietStart, setQuietStart]       = useState('23:00');
   const [quietEnd, setQuietEnd]           = useState('07:00');
+  const [ringtone, setRingtone]           = useState('classic');
   const [saving, setSaving]               = useState(false);
   const [loaded, setLoaded]               = useState(false);
 
@@ -596,6 +598,7 @@ function NotificationSettings({ onBack }) {
       setQuietEnabled(s.quietEnabled === true);
       if (s.quietStart) setQuietStart(s.quietStart);
       if (s.quietEnd) setQuietEnd(s.quietEnd);
+      if (s.ringtone) { setRingtone(s.ringtone); setIncomingRingtone(s.ringtone); }
       // 同步 localStorage（向后兼容老版本）
       localStorage.setItem('wc_lock_screen', s.messageNotify !== false ? '1' : '0');
       localStorage.setItem('wc_notify_preview', s.detailPreview !== false ? '1' : '0');
@@ -658,6 +661,31 @@ function NotificationSettings({ onBack }) {
                   className="profile-time-input" />} />
             </>
           )}
+        </Card>
+      </div>
+
+      {/* 来电铃声：四款 WebAudio 合成预设，切换即生效（无需重启/重登） */}
+      <SLabel>来电铃声</SLabel>
+      <div className="wc-notif-pad">
+        <Card>
+          <CRow label="铃声"
+            right={<select
+              value={ringtone}
+              disabled={saving}
+              data-testid="ringtone-select"
+              onChange={e => {
+                const v = e.target.value;
+                setRingtone(v);
+                setIncomingRingtone(v);   // 本地立即生效
+                saveSettings('ringtone', v);
+              }}
+              className="profile-select"
+            >
+              <option value="classic">经典双音</option>
+              <option value="dual">交替双音</option>
+              <option value="triple">三连音</option>
+              <option value="soft">轻柔单音</option>
+            </select>} />
         </Card>
       </div>
     </PageBg>
