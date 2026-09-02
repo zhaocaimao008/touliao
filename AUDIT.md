@@ -2304,3 +2304,89 @@ Module path: resources/app.asar/src/main.js
 - **已执行**（等价 deploy job 步骤）：web `npm ci && vite build`（1.73s）→ backend-v2 `npm ci --omit=dev` → `pm2 restart touliao-backend`（↺107，/health `{"ok":true,"db":"ok"}`）→ 备份 `/var/www/touliao-web.bak-20260902-082343` → `rsync -a web/dist/ /var/www/touliao-web/`（不带 --delete，README 事故记录）→ touliao.cc 200，线上 index.html 与最新 dist 一致（index-98bdZjib.js）。
 - **commit 链**（本会话，全部已 push）：a750798 审计 → 2cb13d5 红灯测试 → f0bcbf4 纪律 → a05852b 洞 A → f292c72 洞 B → 09c276a 状态 → eef2667 tree-shake → 5a028a1 lint → 92c0b8a env-guard → 376926e OB-02 超时 30s。
 - **残余**：CI E2E 门禁在 runner 环境正常时应恢复（376926e 已加宽超时）；Android/iOS 同款修复未移植（见上表待办）。
+
+---
+
+# 2026-09-02 晚：schema drift 事故全链路 + 防护体系 + 8.1.9 发版收尾
+
+> 今日教训主线：**「失败/故障却无人知晓」今天出现六次**（CI 红无人知、E2E 五连败、deploy 假绿灯、schema drift 双雷 500、health grep 误放行、iOS 编译红窗无人拦）。系统性补防：启动全量核对 + health 503 降级拦截 + CI 扫描器 + 心跳 + 迁移纪律 + 保护机制破坏验证纪律。
+
+## 1. schema drift 事故：message_reads 缺失致消息历史 500（2026-09-02 晚）
+
+### 时间线（UTC）
+| 时间 | 事件 |
+|---|---|
+| 09-02 03:12 | `bab4d19` 入库：后端加 message_reads 已读回执——建表 SQL **插入 migrations 数组中部**（idx 18-20）+ history/markRead 查询代码 |
+| 08:41-08:48 | deploy `ec2959b` 首次成功（deploy.yml 真部署上线以来第一个绿）+ pm2 重启 → 新代码上线，但表未建 |
+| 08:48-12:44 | **潜伏**：所有含 message_reads 查询的接口必然 500，但无 history 请求所以日志未暴露 |
+| 12:44 | 第一个用户打开会话 → `GET /api/messages/{convId}` 与 `?before=` 分页 500（`SqliteError: no such table: message_reads`）→ 用户报告"服务器内部错误/查看更多加载不出来" |
+| 12:54 | 止血：备份 + 手动建表 + 2 索引 → 真实用户流量 3 秒后恢复 200 |
+
+### 根因：迁移 idx 撞车（机制）
+- `schema.js` 用 `schema_migrations` 表按**数组下标**记录已执行迁移，已记录的 idx 启动时直接跳过（`alreadyApplied.has(idx)`）。
+- migrations 数组**中部插入**新迁移 → 新迁移的 idx 撞上存量库已记录的旧 idx → 启动跳过 → 建表/加列**从未执行**，但元数据标记"已应用"。
+- 双雷同根因：
+  - **message_reads**（idx 18，`bab4d19` 插在 message_deliveries 后）→ history/markRead 查询 500
+  - **user_settings.ringtone**（idx 102）→ 用户改铃声 500（写路径；读路径 SELECT * → undefined → 默认 'classic' 不炸，故潜伏更深）
+- 全量核对（`scripts/schema-audit.js`）：133 条迁移中 1 条漂移（ringtone）；46 张声明表全在。**只有这两个雷**。
+
+### 影响面
+- 接口级故障，**与客户端版本无关**：任何端（iOS 8.1.8/8.1.9/Android/Web）打开会话拉历史均 500；sync/收发消息正常；markRead soft-degraded（双勾失效不致命）。
+- 472863a/b0908dd（消息合并洞修复）**纯客户端**，与本次事故无关——事故引入者是 bab4d19 的后端部分。
+
+### 修复链
+1. 止血：备份（better-sqlite3 backup API）→ 手动执行 schema.js:238-245 建表 SQL → 真实流量 200 验证
+2. 排雷：`scripts/schema-audit.js` 核对脚本发现 ringtone → 备份 + ALTER 补列
+3. 防再犯（commit `082c8c3`）：
+   - `assertRequiredColumns` → `verifySchemaDrift`：启动时对**每条已 applied 迁移**解析预期对象（表/列/索引）核对真实结构，返回清单不 throw
+   - **降级策略**（用户拍板）：默认打 error 日志 + `/health` 503 → deploy 健康检查拦截并自动回滚；`SCHEMA_DRIFT_ABORT=1` 强中止（CI/测试）——避免非变更重启把可用服务打死（abort 会把"局部 500"升级成"全线挂"）
+   - `REQUIRED_COLUMNS` 补 message_reads
+   - 验证链：真实库 ringtone 漂移被拦截 → 补列 → 0 漂移；副本库 DROP message_reads → 返回 4 条清单不 throw；副本实例 /health 503 + grep '"ok":true' 不匹配 → deploy 判定失败（拦截实证）
+4. 测试适配（commit `1f798c3`）：p0-schema-drift.test.js D/E 改清单断言 + F 全量核对主路径（6 用例全绿）。教训：**改导出名要搜 test/**（第一次 deploy 被 backend-jest 门禁拦下，`assertRequiredColumns is not a function`）
+5. 第二次部署全绿上线；重启后逐项验证通过（health 200 / 首屏 200 / 分页 200 / markRead success）
+
+## 2. /health grep "ok" bug —— deploy 自动回滚此前形同虚设（今日第六次"假绿灯"类问题）
+
+- **问题**：deploy.yml 健康检查 `curl /health | grep -q "ok"` 匹配的是**子串**。原 503 响应体 `{"ok": false, ...}` **含键名 "ok"** → grep 误命中 → 判定"健康" → **自动回滚机制从未真正触发过**（503 分支只要出现即被误放行）。
+- **修复**（`082c8c3`）：health 503 响应彻底移除 "ok" 键（status/database/drift 字段）；deploy.yml 两处健康检查改 `grep '"ok":true'` **精确匹配**。副本验证：503 body 不匹配 → 判定失败 ✓；200 body 匹配 → 放行 ✓。
+- **同族历史问题**（假绿灯系列）：deploy.yml 曾 `continue-on-error:true` 吞 SSH 失败显示绿但从未真部署；android-release 曾 secret 缺失静默跳过；E2E 门禁五连败期间 deploy 全红未部署（本次反而是"红得真实"）。**规则：任何"绿灯"都必须能被破坏验证证明它会红。**
+
+## 3. 三端消息合并洞 A/B 修复对齐（Web → Android → iOS 完成）
+
+- Web 已修（`a05852b` 洞 A / `f292c72` 洞 B，测试 6/6 绿）——见上方"二分插入排序改造"章节。
+- **Android 移植**（`d84fe59`）：ChatMessageMerge.kt 抽取纯函数 + 红灯驱动（ChatMessageMergeTest 对齐 Web 语义）；pending 透明 lowerBound + outbox 排末尾 + violatesOrder/relocate + BuildConfig.DEBUG 断言。
+- **iOS 移植**（`b0908dd`，第 2 轮）：ChatMessageMerge.swift 同款修复；ChatViewModel dispatchSend ack 落地（洞 B 第二条生产路径）补 relocate；`#if DEBUG` 断言；XCTest 4/4 红灯转绿（CI run 18/18 绿）。
+- 原待办表"Android/iOS 同款逻辑未同步"→ **已完成**（见下）。
+- 红灯纪律实证链：`2cb13d5`（2 绿 2 红入库）→ Web 绿 → Android 红灯驱动 → iOS 红灯驱动。
+
+## 4. main 的 iOS 编译红窗（2026-09-02 06:25 → 修复前）
+
+- **破坏提交**：`25c7ec7`（03:22，通话质量指示，CallManager.sampleQuality 新旧 WebRTC stats API 混用）与 `472863a`（03:41，聊天窗口修复把 appendUnique 定义删除但漏改 4 处调用点）——main 的 iOS 从此时起编译不过。
+- **红窗事实**：ios-build 在 main 上仅 1 次红 run（06:25 批 push）；**期间所有 iOS 改动（含 8.1.8 后 6 个功能提交）未经过编译验证**；无分支保护、无告警、无人知晓（见第 5 节）。
+- **修复**：fix/ios-message-merge 分支 5 commits（70d88ac 抽取+红灯 / 3c7e3e3 appendUnique 补调用 / ea0a783+5ee33f4 stats API 修复 / b0908dd 洞 A/B）→ ff 合并 main → main ios-build 转绿（run 33625664083 success）。
+- 8.1.8 发版健康确认：ios-v8.1.8 tag（b3a83ba，09-01 13:48）**早于破坏提交约 14 小时**，TestFlight 全 18 步 success——8.1.9 之前 6 个 iOS 提交未进任何包。
+
+## 5. CI 失败告警缺口 + 扫描器落地
+
+- **缺口**：全 9 个 workflow 零通知集成（无 webhook/TG/issue）；main 无分支保护（API 404）；GitHub Actions 失败通知只发给触发者且需个人开启（本仓库 actor 全为 zhaocaimao008，排除 bot 触发）；gmail 收件易沉 Updates 标签。
+- **落地**：Hermes cron `ci-red-scan`（每 12h 09:30/21:30 扫 main 近 24h 终态红 run，按 run id 去重 + 已自愈过滤，全绿静默，报 workflow/run 链接/commit/失败 job）；**心跳**：周一且距上次消息 ≥7 天发"运行正常"（红报即活证据，最长静默 ≤14 天）；gh 故障 → stderr + exit 1 → cron 自动 alert（24h 错误去重）。
+- 关联：本日另有 `iOS Beta 审核自动提交监控`（ios_beta_watch.py）处于暂停态。
+
+## 6. 新增纪律（2026-09-02）
+
+1. **migrations 数组只允许追加尾部，禁止中部插入/删除/重排**——idx 是位置的隐式标识，中部插入必然导致存量库 idx 撞车、新迁移被"已应用"跳过（message_reads/ringtone 双雷）。评估中：改按迁移 name 记录（下次 schema 重构时落地）；CI 检查（对比 git diff，新增迁移必须位于数组末尾）见方案待实施。
+2. **保护机制（健康检查/告警/测试/门禁）上线前必须验证它会红**——grep "ok" 子串误放行、恒绿测试、continue-on-error 吞失败、secret 缺失静默跳过，全是"看起来在保护、实际形同虚设"。验收标准：人为制造故障 → 机制必须变红 → 恢复后变绿（破坏验证，同 2250 节测试纪律）。
+
+## 7. 8.1.9 发版记录（2026-09-02 晚）
+
+- Android `android-v8.1.9`（commit 2bd46a5：versionCode 71 / versionName 8.1.9）：android-release run success → 下载站 version.json=71/8.1.9，APK sha256 与清单一致（51951fea...），公网 URL 实测生效。内容：洞 A/B 修复 d84fe59 + 通话质量指示/切音视频/弱网调优/铃声 4 款/聊天窗口两问题修复等 8 提交。
+- iOS `ios-v8.1.9`（同 commit）：ios-testflight run success（解析版本=8.1.9 显式传参未落默认值 → 归档 → 上传 TestFlight → 提交外部 Beta 审核全绿）。内容：11 提交（6 功能/问题 + 5 编译与洞 A/B 修复；质量指示/聊天窗口修复首次到达 iOS）。
+- 两端发版均包含当日 schema 修复之后的状态（8.1.9 的 TestFlight 构建与 schema 修复同源于 main，后端独立 deploy 已上线）。
+
+## 8. 遗留待办
+
+| 待办 | 方案 |
+|---|---|
+| migrations 按 name/哈希记录改造 | 显式 id（`2026-09-02_xxx`），存量 133 条一次性回填映射；择机随 schema 重构落地 |
+| migrations 中部插入 CI 检查 | 见本节上方"新增纪律 1"关联方案（git diff 定位数组新增元素位置，非末尾即 fail） |
+| 401 自测小坑备忘 | 手签 JWT 需带 `csrf` claim（auth 通过 verify 后设 CSRF cookie 时缺字段会抛错进 catch 返回 401"Token无效或已过期"）；真实用户 token 由登录接口签发无此问题 |
