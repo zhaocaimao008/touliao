@@ -1,68 +1,47 @@
 package com.touliao.app.feature.auth
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.material3.Icon
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.touliao.app.ui.VxinGradientButton
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.touliao.app.ui.TouliaoIcons
-import com.touliao.app.ui.theme.VxinBrand
-import com.touliao.app.ui.theme.VxinBrandLight
 import com.touliao.app.ui.theme.VxinBrandDark
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrandLight
 import com.touliao.app.ui.theme.VxinTextSecondary
 
+/**
+ * 找回密码：与 Web 对齐（P1-01）——原"手机号+6位邀请码"自助重置流程存在账号接管风险
+ * （邀请码空间小、易被枚举），后端 auth.service.js resetPassword() 已硬编码禁用，
+ * 无论提交什么参数一律返回"密码重置功能暂不可用"。三端此前不一致：Web 已改成纯提示页，
+ * Android/iOS 却还留着完整表单——用户填完提交必然收到统一拒绝错误，是死 UI。这里同步收紧。
+ */
 @Composable
-fun ForgotPasswordScreen(
-    onBack: () -> Unit,
-    viewModel: ForgotPasswordViewModel = hiltViewModel(),
-) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-
+fun ForgotPasswordScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding()
             .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        // 品牌 Logo 徽章（与登录/注册页一致）
         Box(
             modifier = Modifier
                 .size(64.dp)
@@ -75,77 +54,15 @@ fun ForgotPasswordScreen(
         Spacer(Modifier.height(14.dp))
         Text("忘记密码", fontSize = com.touliao.app.ui.theme.VxinTextSize.display, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(6.dp))
-        Text(
-            "使用注册时的手机号和邀请码重置密码",
-            fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
-            color = VxinTextSecondary,
-        )
+        Text("密码重置服务暂时不可用", fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, color = VxinTextSecondary)
         Spacer(Modifier.height(28.dp))
-
-        if (state.success) {
-            Text("密码已重置，请返回登录", color = VxinBrand, fontSize = com.touliao.app.ui.theme.VxinTextSize.md)
-            Spacer(Modifier.height(20.dp))
-            VxinGradientButton(text = "返回登录", onClick = onBack)
-            return@Column
-        }
-
-        OutlinedTextField(
-            value = state.phone,
-            onValueChange = viewModel::onPhoneChange,
-            label = { Text("手机号") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            modifier = Modifier.fillMaxWidth(),
+        Text(
+            "为保护账号安全，当前不支持在线重置密码。\n请联系管理员协助处理。",
+            fontSize = com.touliao.app.ui.theme.VxinTextSize.md,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
-        Spacer(Modifier.height(14.dp))
-        OutlinedTextField(
-            value = state.inviteCode,
-            onValueChange = viewModel::onInviteCodeChange,
-            label = { Text("邀请码（6位数字）") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(14.dp))
-        var pwdVisible by remember { mutableStateOf(false) }
-        OutlinedTextField(
-            value = state.newPassword,
-            onValueChange = viewModel::onNewPasswordChange,
-            label = { Text("新密码（至少8位，含字母和数字）") },
-            singleLine = true,
-            visualTransformation = if (pwdVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            trailingIcon = {
-                TextButton(onClick = { pwdVisible = !pwdVisible }) {
-                    Text(if (pwdVisible) "隐藏" else "显示", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(14.dp))
-        OutlinedTextField(
-            value = state.confirmPassword,
-            onValueChange = viewModel::onConfirmPasswordChange,
-            label = { Text("确认新密码") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        if (state.error != null) {
-            Spacer(Modifier.height(12.dp))
-            Text(state.error!!, color = MaterialTheme.colorScheme.error, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
-        }
-
         Spacer(Modifier.height(24.dp))
-        VxinGradientButton(
-            text = "重置密码",
-            onClick = viewModel::submit,
-            enabled = state.canSubmit,
-            loading = state.loading,
-        )
-        Spacer(Modifier.height(12.dp))
         TextButton(onClick = onBack) {
             Text("返回登录", color = VxinTextSecondary)
         }

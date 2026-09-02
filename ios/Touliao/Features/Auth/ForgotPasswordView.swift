@@ -1,15 +1,16 @@
 import SwiftUI
 
-/// 找回密码：手机号 + 邀请码 + 新密码。与 web ForgotPassword.jsx / Android ForgotPasswordScreen 对齐。
+/// 找回密码：与 Web/Android 对齐（P1-01）——原"手机号+6位邀请码"自助重置流程存在账号接管
+/// 风险（邀请码空间小、易被枚举），后端 auth.service.js resetPassword() 已硬编码禁用，无论提交
+/// 什么参数一律返回"密码重置功能暂不可用"。三端此前不一致：Web 已改成纯提示页，Android/iOS
+/// 却还留着完整表单——用户填完提交必然收到统一拒绝错误，是死 UI。这里同步收紧。
 struct ForgotPasswordView: View {
-    @StateObject private var vm = AuthViewModel()
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 16) {
             Spacer()
 
-            // 品牌 Logo 徽章（与登录/注册页一致）
             ZStack {
                 RoundedRectangle(cornerRadius: VxinRadius.lg, style: .continuous)
                     .fill(LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
@@ -20,44 +21,28 @@ struct ForgotPasswordView: View {
                     .font(.system(size: 26)).foregroundColor(.white)
             }
             .padding(.bottom, 4)
-            Text("找回密码")
+            Text("忘记密码")
                 .font(.title.bold())
                 .foregroundColor(.primary)
+            Text("密码重置服务暂时不可用")
+                .font(.subheadline)
+                .foregroundColor(.vxinTextSecondary)
                 .padding(.bottom, 16)
 
-            TextField("手机号", text: $vm.phone)
-                .keyboardType(.phonePad)
-                .textFieldStyle(.roundedBorder)
-            TextField("邀请码（6位数字）", text: $vm.inviteCode)
-                .keyboardType(.numberPad)
-                .textFieldStyle(.roundedBorder)
-            PasswordField(placeholder: "新密码（≥8位，含字母和数字）", text: $vm.resetNewPassword,
-                          textContentType: .newPassword)
+            Text("为保护账号安全，当前不支持在线重置密码。\n请联系管理员协助处理。")
+                .font(.body)
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.center)
 
-            if let error = vm.error {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundColor(.vxinError)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            if vm.resetDone {
-                Text("✓ 密码已重置，请用新密码登录")
-                    .font(.footnote)
-                    .foregroundColor(.vxinGreen)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            VxinGradientButton(title: "重置密码", loading: vm.loading, enabled: vm.canReset,
-                               action: vm.resetPassword)
-                .padding(.top, 8)
+            Button("返回登录") { dismiss() }
+                .font(.subheadline)
+                .foregroundColor(.vxinTextSecondary)
+                .padding(.top, 16)
 
             Spacer()
         }
         .padding(.horizontal, 32)
-        .navigationTitle("找回密码")
+        .navigationTitle("忘记密码")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: vm.resetDone) { done in
-            if done { DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { dismiss() } }
-        }
     }
 }
