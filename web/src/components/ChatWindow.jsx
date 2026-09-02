@@ -578,10 +578,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   useEffect(() => {
     // AbortController：会话切换时取消上一个会话的未完成请求，防止数据串堂
     const ac = new AbortController();
-    // 加载置顶消息
-    axios.get(`/api/messages/conversation/${conversation.id}/pinned-messages`, { signal: ac.signal })
-      .then(r => { if (!ac.signal.aborted) setPinnedMessages(r.data); })
-      .catch(() => {});
 
     // 离线缓存首屏：先渲染本地缓存历史（若有），服务端到达后合并覆盖。
     // 首个到达（缓存或网络）整体替换旧会话残留消息；后续到达走合并。
@@ -681,19 +677,32 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     socket?.emit('join_conversation', { conversationId: conversation.id });
 
-    if (conversation.type === 'group') {
-      // 获取群详情：成员列表、我的角色、管理设置
-      axios.get(`/api/messages/conversation/${conversation.id}/info`, { signal: ac.signal }).then(r => {
-        if (ac.signal.aborted) return;
-        setMembers(r.data.members || []);
-        setMyGroupRole(r.data.myRole || 'member');
-        setAnnouncement(r.data.announcement || '');
-        setGroupSettings({ mute_all: r.data.mute_all || 0, no_private_chat: r.data.no_private_chat || 0, no_add_friend: r.data.no_add_friend || 0 });
-      }).catch(() => {});
-    }
+    // 置顶消息/群详情/已读回执优先级低于消息历史本身：后端 better-sqlite3 同步单线程执行，
+    // 若与历史请求同时发出会在服务端排队、拖慢用户实际感知的"消息加载"完成时间。
+    // 延后一个宏任务发出，让历史请求先一步进入服务端处理队列；会话切换够快时（signal 已 abort）
+    // 直接跳过，省掉即将作废的请求。
+    const deferred = setTimeout(() => {
+      if (ac.signal.aborted) return;
 
-    // 打开会话时标记已读（不带 messageId，后端自动取最新消息）
-    axios.post(`/api/messages/conversation/${conversation.id}/read`, {}, { signal: ac.signal }).catch(() => {});
+      // 加载置顶消息
+      axios.get(`/api/messages/conversation/${conversation.id}/pinned-messages`, { signal: ac.signal })
+        .then(r => { if (!ac.signal.aborted) setPinnedMessages(r.data); })
+        .catch(() => {});
+
+      if (conversation.type === 'group') {
+        // 获取群详情：成员列表、我的角色、管理设置
+        axios.get(`/api/messages/conversation/${conversation.id}/info`, { signal: ac.signal }).then(r => {
+          if (ac.signal.aborted) return;
+          setMembers(r.data.members || []);
+          setMyGroupRole(r.data.myRole || 'member');
+          setAnnouncement(r.data.announcement || '');
+          setGroupSettings({ mute_all: r.data.mute_all || 0, no_private_chat: r.data.no_private_chat || 0, no_add_friend: r.data.no_add_friend || 0 });
+        }).catch(() => {});
+      }
+
+      // 打开会话时标记已读（不带 messageId，后端自动取最新消息）
+      axios.post(`/api/messages/conversation/${conversation.id}/read`, {}, { signal: ac.signal }).catch(() => {});
+    }, 0);
 
     // 快照 ref 指向的集合，避免 cleanup 运行时 ref.current 已被后续渲染替换
     const pendingMsgs = pendingMsgsRef.current;
@@ -701,6 +710,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const convIdAtSetup = conversation.id;
     return () => {
       ac.abort(); // 切换会话时取消未完成拉取
+      clearTimeout(deferred); // 延后的非关键请求若还没发出，直接取消
       // 清理所有待确认的发送 timer，避免旧会话 timer 污染新会话 UI。
       // 但被清掉的 timer 对应的乐观消息若仍是 'sending'(emit 丢失、ack 未回),
       // 直接清 timer 会让它永远停在 sending、既不成功也不失败→无失败态❗、outbox 不收录→
