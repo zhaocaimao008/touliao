@@ -48,6 +48,7 @@ const PrivateChatSettings = lazy(() => import('./PrivateChatSettings'));
 const ChatFiles           = lazy(() => import('./ChatFiles'));
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 import { mediaUrl } from '../utils/url';
 import { rememberAspect } from '../utils/imgDimCache';
 import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
@@ -154,6 +155,7 @@ function detectMention(val, caret) {
 }
 
 export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall }) {
+  const { t } = useI18n();
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
   // 首屏加载态：消息为空且数据仍在途（无缓存/缓存为空）时显示骨架，避免纯空白
@@ -2690,29 +2692,29 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <div className="wc-input-toolbar">
           <button
             className={`wc-tool-btn${showEmoji ? ' active' : ''}`}
-            title="表情" aria-label="表情" aria-expanded={showEmoji}
+            title={t('chat.emoji')} aria-label={t('chat.emoji')} aria-expanded={showEmoji}
             onClick={() => togglePanel('emoji')}
           ><IcoEmoji /></button>
 
           <button
             className={`wc-tool-btn${showStickers ? ' active' : ''}`}
-            title="表情包" aria-label="表情包" aria-expanded={showStickers}
+            title={t('chat.stickers')} aria-label={t('chat.stickers')} aria-expanded={showStickers}
             onClick={() => togglePanel('stickers')}
           ><svg viewBox="0 0 24 24" className="wc-tool-svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h10l6-6V5c0-1.1-.9-2-2-2zM9 11c-.83 0-1.5-.67-1.5-1.5S8.17 8 9 8s1.5.67 1.5 1.5S9.83 11 9 11zm3.5 5c-2.33 0-4.31-1.46-5.11-3.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5zM15 11c-.83 0-1.5-.67-1.5-1.5S14.17 8 15 8s1.5.67 1.5 1.5S15.83 11 15 11zm-1 9.5V15h5.5L14 20.5z"/></svg></button>
 
           <button
             className={`wc-tool-btn${voiceMode ? ' active' : ''}`}
-            title={voiceMode ? '切换文字' : '语音输入'}
-            aria-label={voiceMode ? '切换文字输入' : '语音输入'}
+            title={voiceMode ? t('chat.switchToText') : t('chat.voiceInput')}
+            aria-label={voiceMode ? t('chat.switchToTextInput') : t('chat.voiceInput')}
             onClick={() => dispatchCompose({ type: 'TOGGLE_VOICE' })}
           ><IcoMic /></button>
 
-          <label className="wc-tool-btn wc-tool-label" title="图片" aria-label="发送图片">
+          <label className="wc-tool-btn wc-tool-label" title={t('chat.image')} aria-label={t('chat.sendImage')}>
             <IcoImage />
             <input type="file" data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
           </label>
 
-          <label className="wc-tool-btn wc-tool-label" title="文件" aria-label="发送文件">
+          <label className="wc-tool-btn wc-tool-label" title={t('chat.file')} aria-label={t('chat.sendFile')}>
             <IcoFile />
             <input
               type="file"
@@ -2728,22 +2730,22 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           {window.__ELECTRON_CONFIG__ && (
             <button
               className="wc-tool-btn"
-              title="截图（快捷键可在 设置 → 快捷键 中自定义）"
-              aria-label="截图"
+              title={t('chat.screenshotHint')}
+              aria-label={t('chat.screenshot')}
               onClick={() => { captureAndSendScreenshot(); }}
             ><svg viewBox="0 0 24 24" className="wc-tool-svg"><path d="M3 5v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2zm16 0v14H5V5h14zm-2 4.5c0 .83-.67 1.5-1.5 1.5S14 10.33 14 9.5 14.67 8 15.5 8s1.5.67 1.5 1.5zM12 19l5-6H7l5 6z"/></svg></button>
           )}
 
           <button
             className="wc-tool-btn"
-            title="发红包"
-            aria-label="发红包"
+            title={t('chat.sendRedPacket')}
+            aria-label={t('chat.sendRedPacket')}
             onClick={() => { setShowRedPacket(true); closePanels(); }}
           ><svg viewBox="0 0 24 24" style={{ width: 22, height: 22, fill: 'currentColor' }}><path d="M19 6h-2V4c0-.9-.7-1.7-1.6-1.9.4-1.2 1.5-2 2.9-2 1.7 0 3 1.3 3 3 0 .5-.1 1-.3 1.4h.9c.6 0 1.2.4 1.2 1v2c0 .6-.5 1-1.2 1zm-2 4h4v8.5c0 1-.8 1.9-1.8 1.9H2.8C1.8 20.4 1 19.5 1 18.5V6c0-.5.3-1 .8-1.4L17 4v6zM4 14c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm10 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2z"/></svg></button>
 
           <button
             className={`wc-tool-btn${showMore ? ' active' : ''}`}
-            title="更多" aria-label="更多" aria-expanded={showMore}
+            title={t('chat.more')} aria-label={t('chat.more')} aria-expanded={showMore}
             onClick={() => togglePanel('more')}
           ><IcoMore /></button>
         </div>
@@ -2752,7 +2754,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         {showMore && (
           <div className="wc-more-panel">
             {[
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M12 15.2A3.2 3.2 0 008.8 12 3.2 3.2 0 0012 8.8 3.2 3.2 0 0115.2 12 3.2 3.2 0 0112 15.2M12 7a5 5 0 000 10A5 5 0 0012 7m0-5c0 0-8.02 0-9.5 1.5S1 7 1 12s0 8 1.5 9.5S7 23 12 23s8 0 9.5-1.5S23 17 23 12s0-8-1.5-9.5S17 1 12 1m0 20c-5 0-9-4-9-9s4-9 9-9 9 4 9 9-4 9-9 9z"/></svg>, label:'相机', action: async () => {
+              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M12 15.2A3.2 3.2 0 008.8 12 3.2 3.2 0 0012 8.8 3.2 3.2 0 0115.2 12 3.2 3.2 0 0112 15.2M12 7a5 5 0 000 10A5 5 0 0012 7m0-5c0 0-8.02 0-9.5 1.5S1 7 1 12s0 8 1.5 9.5S7 23 12 23s8 0 9.5-1.5S23 17 23 12s0-8-1.5-9.5S17 1 12 1m0 20c-5 0-9-4-9-9s4-9 9-9 9 4 9 9-4 9-9 9z"/></svg>, label:t('chat.camera'), action: async () => {
                 closePanels();
                 // Capacitor 移动端通过 window.__takePhoto__ 调用原生相机
                 // Web 端回退到文件选择
@@ -2769,14 +2771,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   document.querySelector('input[accept*="image"]')?.click();
                 }
               } },
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/></svg>, label:'文件', action:()=>fileInputRef.current?.click() },
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:'视频通话', testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
-              { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:'语音通话', testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:'名片', action: openCardPicker },
+              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/></svg>, label:t('chat.file'), action:()=>fileInputRef.current?.click() },
+              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:t('chat.videoCall'), testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
+              { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:t('chat.voiceCall'), testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
+              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:t('chat.contactCard'), action: openCardPicker },
               // 定时发送：把输入框当前文本设为定时消息，到点自动发出
-              { bg:'var(--color-primary)', testid:'chat-schedule-btn', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>, label:'定时发送', action: () => { closePanels(); openScheduleModal(); } },
+              { bg:'var(--color-primary)', testid:'chat-schedule-btn', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>, label:t('chat.scheduleSend'), action: () => { closePanels(); openScheduleModal(); } },
               ...(conversation.type === 'private' ? [
-                { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>, label:'转账', action: () => { setShowTransfer(true); closePanels(); } },
+                { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>, label:t('chat.transfer'), action: () => { setShowTransfer(true); closePanels(); } },
               ] : []),
             ].map(item => (
               <div key={item.label} data-testid={item.testid} className="wc-more-item" role="button" tabIndex={0} onClick={item.action} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.action(); } }}>
@@ -2804,13 +2806,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   onTouchStart={() => { lastTouchRef.current = Date.now(); startRecording(); }}
                   onTouchEnd={() => { lastTouchRef.current = Date.now(); stopRecording(); }}
                 >
-                  {recording ? '● 松开发送' : '按住说话'}
+                  {recording ? t('chat.releaseToSend') : t('chat.holdToTalk')}
                 </button>
               </div>
             ) : (
               <div className="wc-input-box wc-input-box-relative">
                 {atList && atCandidates.length > 0 && (
-                  <div className="wc-at-list" role="listbox" aria-label="@提及成员">
+                  <div className="wc-at-list" role="listbox" aria-label={t('chat.mentionAriaLabel')}>
                     {atCandidates.map((m, i) => (
                       <div
                         key={m.id}
@@ -2827,7 +2829,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   ref={textareaRef}
                   data-testid="chat-msg-input"
                   className="wc-textarea"
-                  aria-label="输入消息"
+                  aria-label={t('chat.inputAriaLabel')}
                   maxLength={2000}   /* 与后端 config.limits.maxMsgLength 一致，避免超长发送后才被静默拒绝 */
                   value={input}
                   onChange={e => {
@@ -2852,7 +2854,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   }}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="发消息…"
+                  placeholder={t('chat.placeholder')}
                   rows={3}
                 />
               </div>
@@ -2895,40 +2897,40 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           {(ctxMenu.msg.type === 'text' ||
             ((ctxMenu.msg.type === 'image' || ctxMenu.msg.type === 'sticker') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted)) && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-copy" onClick={() => ctxAction('copy')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('copy'); } }}>
-              {ctxMenu.msg.type === 'text' ? '复制' : '复制图片'}
+              {ctxMenu.msg.type === 'text' ? t('chat.copy') : t('chat.copyImage')}
             </div>
           )}
-          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('reply'); } }}>回复</div>
+          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('reply'); } }}>{t('chat.reply')}</div>
           {/* 转发：所有类型消息都可转发 */}
-          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>转发</div>
+          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>{t('chat.forward')}</div>
           {/* 收藏：文字/图片/视频/文件消息可收藏到「我的收藏」 */}
           {!ctxMenu.msg.deleted && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>收藏</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>{t('chat.collect')}</div>
           )}
           {/* 编辑：仅限自己的文字消息，不限时间 */}
           {ctxMenu.msg.sender_id === user.id &&
            ctxMenu.msg.type === 'text' &&
            !ctxMenu.msg.deleted && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}>编辑</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}>{t('chat.edit')}</div>
           )}
           {/* 下载视频/文件：视频和文件消息显示下载按钮 */}
           {(ctxMenu.msg.type === 'video' || ctxMenu.msg.type === 'file') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-download" onClick={() => ctxAction('download')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('download'); } }}>
-              {ctxMenu.msg.type === 'video' ? '下载视频' : '下载文件'}
+              {ctxMenu.msg.type === 'video' ? t('chat.downloadVideo') : t('chat.downloadFile')}
             </div>
           )}
           {/* 分享到第三方：图片/视频/文件/文档/文本，走系统分享面板（不支持则回退下载） */}
           {!ctxMenu.msg.deleted && canShare() && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (ctxMenu.msg.type === 'text' || ctxMenu.msg.file_url) && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-share" onClick={() => ctxAction('share')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('share'); } }}>分享到…</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-share" onClick={() => ctxAction('share')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('share'); } }}>{t('chat.shareTo')}</div>
           )}
           {/* 置顶：仅群聊可用（对齐 Android/iOS canPin=isGroup） */}
           {conversation.type === 'group' && (
           <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('pin'); } }}>
-            {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? '取消置顶' : '置顶消息'}
+            {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? t('chat.unpinMessage') : t('chat.pinMessage')}
           </div>
           )}
           {ctxMenu.msg.type === 'image' && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('addSticker'); } }}>添加到表情</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('addSticker'); } }}>{t('chat.addToSticker')}</div>
           )}
           <div className="wc-ctx-divider" />
           {/* 撤回：自己发送的消息，或群主/管理员撤回群内他人消息（对全员生效，服务端 deleted=2，UI 无痕） */}
@@ -2936,10 +2938,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             ctxMenu.msg.sender_id === user.id ||
             (conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin'))
           ) && (
-            <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}>撤回</div>
+            <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}>{t('chat.recall')}</div>
           )}
           {/* 删除：所有消息均可删除，仅对当前账号生效（per-user tombstone，UI 无痕，不影响对方） */}
-          <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-me" onClick={() => ctxAction('deleteForMe')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('deleteForMe'); } }}>删除</div>
+          <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-me" onClick={() => ctxAction('deleteForMe')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('deleteForMe'); } }}>{t('chat.delete')}</div>
         </CtxMenuPortal>,
         document.body
       )}
