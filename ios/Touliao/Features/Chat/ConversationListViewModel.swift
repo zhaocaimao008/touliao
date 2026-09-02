@@ -8,6 +8,7 @@ final class ConversationListViewModel: ObservableObject {
     @Published var loading = false
     @Published var error: String?
     @Published var socketStatus: SocketStatus = .disconnected
+    @Published var momentsEnabled = true   // 后台 features.moments 开关，控制「消息」顶栏朋友圈图标显隐
 
     private let repo = ChatRepository.shared
     private let myId: String
@@ -55,7 +56,23 @@ final class ConversationListViewModel: ObservableObject {
             .sink { [weak self] _ in Task { @MainActor in await self?.refresh() } }
             .store(in: &cancellables)
 
+        // 后台开关实时广播（管理员随时可关/开朋友圈图标，无需等下次启动重新拉配置）
+        repo.configUpdatedPublisher
+            .sink { [weak self] (_, _, moments) in Task { @MainActor in self?.momentsEnabled = moments } }
+            .store(in: &cancellables)
+
         Task { await refresh() }
+        Task { await loadFeatures() }
+    }
+
+    /// 拉取后台功能开关（GET /api/config），首屏同步朋友圈图标显隐。失败保持默认开启，不误伤。
+    private func loadFeatures() async {
+        struct Config: Decodable {
+            struct Features: Decodable { let moments: Bool? }
+            let features: Features?
+        }
+        guard let cfg: Config = try? await APIClient.shared.send("api/config", authorized: false) else { return }
+        momentsEnabled = cfg.features?.moments ?? true
     }
 
     // ── 会话操作：置顶/免打扰/清空 ──

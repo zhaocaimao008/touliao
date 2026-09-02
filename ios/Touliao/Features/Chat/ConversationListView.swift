@@ -5,6 +5,7 @@ struct ConversationListView: View {
     @State private var path = NavigationPath()
     @State private var clearTarget: Conversation?
     @State private var showMentions = false          // @我消息聚合全屏弹窗
+    @State private var showMoments = false           // 朋友圈全屏弹窗（方案A：顶栏图标，非底部 tab）
     private let myId: String
 
     init(myId: String) {
@@ -27,6 +28,14 @@ struct ConversationListView: View {
                             Text(statusLabel)
                                 .font(.caption2)
                                 .foregroundColor(vm.socketStatus == .connected ? .vxinGreen : .vxinTextSecondary)
+                        }
+                    }
+                    // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
+                    if vm.momentsEnabled {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button { showMoments = true } label: { Image(systemName: "photo.on.rectangle") }
+                                .accessibilityLabel("朋友圈")
+                                .accessibilityIdentifier("conv-list-moments-btn")
                         }
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -87,6 +96,18 @@ struct ConversationListView: View {
                             path = NavigationPath()
                             path.append(conv)
                         }
+                    }
+                }
+                // 朋友圈（全屏）：MomentsView 本身不带 NavigationStack/关闭按钮（设计上预期被嵌入已有导航栈），
+                // 这里用 fullScreenCover 独立弹出时补一层 NavigationStack + 关闭按钮。
+                .fullScreenCover(isPresented: $showMoments) {
+                    NavigationStack {
+                        MomentsView()
+                            .toolbar {
+                                ToolbarItem(placement: .navigationBarLeading) {
+                                    Button("关闭") { showMoments = false }
+                                }
+                            }
                     }
                 }
         }

@@ -218,7 +218,7 @@ final class ChatViewModel: ObservableObject {
                 .store(in: &cancellables)
             // 后台开关实时广播 → 即时显隐群通话按钮，无需刷新
             repo.configUpdatedPublisher
-                .sink { [weak self] (voice, video) in Task { @MainActor in
+                .sink { [weak self] (voice, video, _) in Task { @MainActor in
                     self?.groupVoiceCallEnabled = voice
                     self?.groupVideoCallEnabled = video
                 }}
