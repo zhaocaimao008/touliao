@@ -3,12 +3,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 import { timeoutSignal } from '../utils/config';
 import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
 export default function Login() {
+  const { t } = useI18n();
   // 仅记住用户名，密码始终由用户输入。
   const initialPhone = lastRememberedPhone();
   const [phone, setPhone] = useState(initialPhone);
@@ -65,19 +67,19 @@ export default function Login() {
 
   const testServer = async () => {
     const url = serverInput.trim().replace(/\/$/, '');
-    if (!url.startsWith('http')) { setServerTest({ ok: false, msg: '请以 http:// 或 https:// 开头' }); return; }
+    if (!url.startsWith('http')) { setServerTest({ ok: false, msg: t('auth.serverProtocolHint') }); return; }
     setServerBusy(true); setServerTest(null);
     try {
       await fetch(`${url}/health`, { signal: timeoutSignal(6000) });
-      setServerTest({ ok: true, msg: '连接成功 ✓' });
+      setServerTest({ ok: true, msg: t('auth.connectSuccess') });
     } catch {
-      setServerTest({ ok: false, msg: '无法连接到该服务器，请检查地址' });
+      setServerTest({ ok: false, msg: t('auth.connectFail') });
     } finally { setServerBusy(false); }
   };
 
   const saveServer = () => {
     const url = serverInput.trim().replace(/\/$/, '');
-    if (!url.startsWith('http')) { setServerTest({ ok: false, msg: '请以 http:// 或 https:// 开头' }); return; }
+    if (!url.startsWith('http')) { setServerTest({ ok: false, msg: t('auth.serverProtocolHint') }); return; }
     localStorage.setItem('touliao_server_url', url);
     axios.defaults.baseURL = url;
     window.location.reload();
@@ -98,7 +100,7 @@ export default function Login() {
       login(data.user, data.token);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.error || '登录失败');
+      setError(err.response?.data?.error || t('auth.loginFailed'));
       // 验证码一次核销即失效（不管猜对猜错），报错后旧图必然已经作废，直接换一张，
       // 不然用户会对着同一张失效的图片再试一次，永远拿到同一个错误。
       if (captchaRequired && /验证码/.test(err.response?.data?.error || '')) loadCaptcha();
@@ -122,14 +124,14 @@ export default function Login() {
             </picture>
           </div>
           <h1 className="auth-brand-name auth-brand-name--brand">投聊</h1>
-          <p className="auth-brand-desc">安全 · 私密 · 畅聊</p>
+          <p className="auth-brand-desc">{t('auth.slogan')}</p>
         </div>
 
         {/* 最近登录：点击仅回填手机号。 */}
         {accounts.length > 0 && (
           <div className="auth-accounts">
             <div className="auth-accounts-header">
-              <span className="auth-accounts-title">最近登录</span>
+              <span className="auth-accounts-title">{t('auth.recentLogins')}</span>
               <span className="auth-accounts-count">{accounts.length}/{maxAccounts}</span>
             </div>
             {accounts.map(account => (
@@ -138,22 +140,22 @@ export default function Login() {
                   type="button"
                   className="auth-account-btn"
                   onClick={() => fillAccount(account)}
-                  title="填入手机号"
+                  title={t('auth.fillPhone')}
                 >
                   <div className="auth-account-avatar">
                     {(account.user?.username || '?')[0].toUpperCase()}
                   </div>
                   <div className="auth-account-info">
-                    <span className="auth-account-name">{account.user?.username || '未命名'}</span>
-                    <span className="auth-account-id">投聊ID {account.user?.wechat_id || account.user?.phone}</span>
+                    <span className="auth-account-name">{account.user?.username || t('auth.unnamed')}</span>
+                    <span className="auth-account-id">{t('auth.touliaoId')} {account.user?.wechat_id || account.user?.phone}</span>
                   </div>
                 </button>
                 <button
                   type="button"
                   className="auth-account-remove"
                   onClick={() => { removeCred(account.user?.phone || ''); removeAccount(account.id); }}
-                  title="移除记录"
-                  aria-label="移除记录"
+                  title={t('auth.removeRecord')}
+                  aria-label={t('auth.removeRecord')}
                 >✕</button>
               </div>
             ))}
@@ -163,7 +165,7 @@ export default function Login() {
         {/* 登录表单 */}
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className={`auth-field ${focusedField === 'phone' ? 'focused' : ''} ${phone ? 'has-value' : ''}`}>
-            <label className="auth-field-label" htmlFor="login-phone">手机号</label>
+            <label className="auth-field-label" htmlFor="login-phone">{t('auth.phone')}</label>
             <div className="auth-field-input-wrap">
               <svg className="auth-field-icon" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                 <rect x="3" y="1" width="14" height="18" rx="3"/>
@@ -176,7 +178,7 @@ export default function Login() {
                 type="tel"
                 inputMode="tel"
                 autoComplete="username"
-                placeholder="请输入手机号"
+                placeholder={t('auth.phonePlaceholder')}
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
                 onFocus={() => setFocusedField('phone')}
@@ -187,7 +189,7 @@ export default function Login() {
           </div>
 
           <div className={`auth-field ${focusedField === 'password' ? 'focused' : ''} ${password ? 'has-value' : ''}`}>
-            <label className="auth-field-label" htmlFor="login-password">密码</label>
+            <label className="auth-field-label" htmlFor="login-password">{t('auth.password')}</label>
             <div className="auth-field-input-wrap">
               <svg className="auth-field-icon" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                 <rect x="3" y="9" width="14" height="10" rx="2"/>
@@ -199,14 +201,14 @@ export default function Login() {
                 className="auth-field-input"
                 type={showPwd ? 'text' : 'password'}
                 autoComplete="current-password"
-                placeholder="请输入密码"
+                placeholder={t('auth.passwordPlaceholder')}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 onFocus={() => setFocusedField('password')}
                 onBlur={() => setFocusedField(null)}
                 required
               />
-              <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? '隐藏密码' : '显示密码'}>
+              <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? t('auth.hidePassword') : t('auth.showPassword')}>
                 {showPwd ? (
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
@@ -225,7 +227,7 @@ export default function Login() {
 
           {captchaRequired && (
             <div className="auth-field">
-              <label className="auth-field-label" htmlFor="login-captcha">图形验证码</label>
+              <label className="auth-field-label" htmlFor="login-captcha">{t('auth.captchaLabel')}</label>
               <div className="auth-captcha-row">
                 <input
                   id="login-captcha"
@@ -235,7 +237,7 @@ export default function Login() {
                   autoComplete="off"
                   autoCapitalize="none"
                   spellCheck={false}
-                  placeholder="请输入图中字符"
+                  placeholder={t('auth.captchaPlaceholder')}
                   value={captchaText}
                   onChange={e => setCaptchaText(e.target.value)}
                   required
@@ -244,12 +246,12 @@ export default function Login() {
                   type="button"
                   className="auth-captcha-img-btn"
                   onClick={loadCaptcha}
-                  title="看不清？点击换一张"
+                  title={t('auth.captchaRefreshTitle')}
                   data-testid="login-captcha-refresh"
                 >
                   {captchaSvg
-                    ? <img src={captchaSvg} alt="验证码，点击换一张" className="auth-captcha-img" />
-                    : <span className="auth-captcha-loading">加载中…</span>}
+                    ? <img src={captchaSvg} alt={t('auth.captchaAlt')} className="auth-captcha-img" />
+                    : <span className="auth-captcha-loading">{t('common.loading')}</span>}
                 </button>
               </div>
             </div>
@@ -273,40 +275,40 @@ export default function Login() {
                 checked={remember}
                 onChange={e => setRemember(e.target.checked)}
               />
-              记住用户名
+              {t('auth.rememberUsername')}
             </label>
-            <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>忘记密码？</Link>
+            <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>{t('auth.forgotPasswordLink')}</Link>
           </div>
 
           <button type="submit" className="auth-submit" data-testid="login-submit-btn" disabled={loading || !phone || !password || (captchaRequired && !captchaText)}>
             {loading ? (
               <span className="auth-spinner" />
             ) : (
-              '登录'
+              t('auth.loginBtn')
             )}
           </button>
         </form>
 
         <p className="auth-footer">
-          还没有账号？<Link to="/register" className="auth-link">注册新账号</Link>
+          {t('auth.noAccountYet')}<Link to="/register" className="auth-link">{t('auth.registerNew')}</Link>
         </p>
 
         {/* 下载客户端 — 仅网页端显示 */}
         {!isElectron && (
           <div className="auth-download">
-            <p className="auth-download-label">下载客户端</p>
+            <p className="auth-download-label">{t('auth.downloadClient')}</p>
             <div className="auth-download-row">
               <a href="/downloads/touliao-windows-latest-setup.exe" download className="auth-download-btn">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
                   <path d="M3 5.48l7.2-.98v6.96H3V5.48zm0 13.04l7.2.98v-6.86H3v5.88zm8.04 1.09L21 21V12.6h-9.96v6.0zM11.04 3L21 3.6V11.4h-9.96V3z"/>
                 </svg>
-                Windows 版
+                {t('auth.windowsVersion')}
               </a>
               <a href="/downloads/touliao-android-latest.apk" download className="auth-download-btn">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
                   <path d="M17.6 9.48l1.84-3.18a.39.39 0 00-.14-.53.39.39 0 00-.53.14l-1.86 3.22a11.46 11.46 0 00-9.82 0L5.23 5.91a.39.39 0 00-.53-.14.39.39 0 00-.14.53L6.4 9.48A10.78 10.78 0 001 18h22a10.78 10.78 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"/>
                 </svg>
-                Android 版
+                {t('auth.androidVersion')}
               </a>
             </div>
           </div>
@@ -320,17 +322,17 @@ export default function Login() {
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style={{ marginRight: 5, verticalAlign: '-2px' }}>
                   <path d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm2-5a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>
                 </svg>
-                当前服务器：{currentServer.replace(/^https?:\/\//, '')} · 切换
+                {t('auth.currentServerLabel')}{currentServer.replace(/^https?:\/\//, '')} · {t('auth.switchServer')}
               </button>
             ) : (
               <div className="auth-server-panel">
-                <div className="auth-server-title">服务器地址（IP 或域名）</div>
+                <div className="auth-server-title">{t('auth.serverAddressLabel')}</div>
                 <input
                   className="auth-server-input"
-                  aria-label="服务器地址"
+                  aria-label={t('auth.serverAddressLabel')}
                   value={serverInput}
                   onChange={e => { setServerInput(e.target.value); setServerTest(null); }}
-                  placeholder="https://example.com"
+                  placeholder={t('auth.serverPlaceholder')}
                   autoCapitalize="none"
                   spellCheck={false}
                 />
@@ -341,11 +343,11 @@ export default function Login() {
                 )}
                 <div className="auth-server-btns">
                   <button type="button" onClick={testServer} disabled={serverBusy} className="auth-server-btn ghost">
-                    {serverBusy ? '检测中…' : '测试连接'}
+                    {serverBusy ? t('auth.testing') : t('auth.testConnection')}
                   </button>
-                  <button type="button" onClick={saveServer} className="auth-server-btn primary">保存并切换</button>
+                  <button type="button" onClick={saveServer} className="auth-server-btn primary">{t('auth.saveAndSwitch')}</button>
                 </div>
-                <button type="button" className="auth-server-cancel" onClick={() => { setShowServer(false); setServerInput(currentServer); setServerTest(null); }}>取消</button>
+                <button type="button" className="auth-server-cancel" onClick={() => { setShowServer(false); setServerInput(currentServer); setServerTest(null); }}>{t('common.cancel')}</button>
               </div>
             )}
           </div>

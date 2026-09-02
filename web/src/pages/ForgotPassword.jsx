@@ -1,6 +1,7 @@
 import './auth.css';
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useI18n } from '../contexts/I18nContext';
 
 /**
  * P1-01：公开密码重置通道已禁用。
@@ -8,6 +9,7 @@ import { Link } from 'react-router-dom';
  * 重置密码请通过管理员线下处理（admin 后台 /users/:id/reset-password）。
  */
 export default function ForgotPassword() {
+  const { t } = useI18n();
   return (
     <div className="auth-page">
       <div className="auth-bg-circle auth-bg-circle-1" />
@@ -22,17 +24,17 @@ export default function ForgotPassword() {
               <path d="M17 15a3 3 0 013-3h11a3 3 0 013 3v10a3 3 0 01-3 3h-3v4l-5-4h-3a3 3 0 01-3-3V15z" fill="white"/>
             </svg>
           </div>
-          <h1 className="auth-brand-name">忘记密码</h1>
-          <p className="auth-brand-desc">密码重置服务暂时不可用</p>
+          <h1 className="auth-brand-name">{t('auth.forgotTitle')}</h1>
+          <p className="auth-brand-desc">{t('auth.forgotUnavailable')}</p>
         </div>
 
         <div className="auth-note" style={{ marginBottom: 20, lineHeight: 1.7 }}>
-          为保护账号安全，当前不支持在线重置密码。<br />
-          请联系管理员协助处理。
+          {t('auth.forgotBody1')}<br />
+          {t('auth.forgotBody2')}
         </div>
 
         <p className="auth-footer">
-          <Link to="/login" className="auth-link">返回登录</Link>
+          <Link to="/login" className="auth-link">{t('auth.backToLogin')}</Link>
         </p>
       </div>
     </div>

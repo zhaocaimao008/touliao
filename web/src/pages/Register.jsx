@@ -3,8 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useI18n } from '../contexts/I18nContext';
 
 export default function Register() {
+  const { t } = useI18n();
   // 从邀请链接 /register?invite=123456 预填邀请码（好友分享链接一点即注册）——
   // 惰性初始化，避免 effect 内 setState 造成的额外渲染
   const [form, setForm] = useState(() => {
@@ -37,16 +39,16 @@ export default function Register() {
 
     // 前端基础校验
     if (!form.username || form.username.trim().length < 2 || form.username.trim().length > 20) {
-      setError('昵称需在 2~20 个字符之间'); setLoading(false); return;
+      setError(t('auth.nicknameLenError')); setLoading(false); return;
     }
     if (!/^\d{11}$/.test(form.phone)) {
-      setError('请输入 11 位手机号'); setLoading(false); return;
+      setError(t('auth.phoneFormatError')); setLoading(false); return;
     }
     if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(form.password)) {
-      setError('密码至少8位且需包含字母和数字'); setLoading(false); return;
+      setError(t('auth.passwordFormatError')); setLoading(false); return;
     }
     if (inviteRequired && (!form.inviteCode || !/^\d{6}$/.test(form.inviteCode))) {
-      setError('邀请码必须是6位数字'); setLoading(false); return;
+      setError(t('auth.inviteCodeFormatError')); setLoading(false); return;
     }
 
     try {
@@ -54,29 +56,29 @@ export default function Register() {
       login(data.user, data.token);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.error || '注册失败');
+      setError(err.response?.data?.error || t('auth.registerFailed'));
     } finally { setLoading(false); }
   };
 
   const fields = [
-    { key: 'username', label: '昵称', type: 'text', autocomplete: 'nickname', placeholder: '请输入昵称', maxLength: 20, icon: (
+    { key: 'username', label: t('auth.nickname'), type: 'text', autocomplete: 'nickname', placeholder: t('auth.nicknamePlaceholder'), maxLength: 20, icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M10 11a4 4 0 100-8 4 4 0 000 8zM3 18c0-3.3 3.1-6 7-6s7 2.7 7 6"/>
       </svg>
     )},
-    { key: 'phone', label: '手机号', type: 'tel', inputMode: 'tel', autocomplete: 'username', placeholder: '请输入手机号', maxLength: 11, icon: (
+    { key: 'phone', label: t('auth.phone'), type: 'tel', inputMode: 'tel', autocomplete: 'username', placeholder: t('auth.phonePlaceholder'), maxLength: 11, icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <rect x="3" y="1" width="14" height="18" rx="3"/>
         <line x1="8" y1="15" x2="12" y2="15"/>
       </svg>
     )},
-    { key: 'password', label: '密码', type: 'password', autocomplete: 'new-password', placeholder: '请设置密码（至少8位，字母+数字）', icon: (
+    { key: 'password', label: t('auth.password'), type: 'password', autocomplete: 'new-password', placeholder: t('auth.setPasswordPlaceholder'), icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <rect x="3" y="9" width="14" height="10" rx="2"/>
         <path d="M6 9V6a4 4 0 018 0v3"/>
       </svg>
     )},
-    ...(inviteRequired ? [{ key: 'inviteCode', label: '邀请码', type: 'text', inputMode: 'numeric', autocomplete: 'off', placeholder: '请输入6位邀请码', maxLength: 6, icon: (
+    ...(inviteRequired ? [{ key: 'inviteCode', label: t('auth.inviteCode'), type: 'text', inputMode: 'numeric', autocomplete: 'off', placeholder: t('auth.inviteCodePlaceholder'), maxLength: 6, icon: (
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
         <path d="M10 2l2.4 4.8 5.3.8-3.85 3.75.9 5.3L10 14.1l-4.75 2.55.9-5.3L2.3 7.6l5.3-.8z"/>
       </svg>
@@ -97,14 +99,14 @@ export default function Register() {
               <path d="M17 15a3 3 0 013-3h11a3 3 0 013 3v10a3 3 0 01-3 3h-3v4l-5-4h-3a3 3 0 01-3-3V15z" fill="white"/>
             </svg>
           </div>
-          <h1 className="auth-brand-name">创建账号</h1>
-          <p className="auth-brand-desc">注册 投聊，开始畅聊</p>
+          <h1 className="auth-brand-name">{t('auth.createAccount')}</h1>
+          <p className="auth-brand-desc">{t('auth.registerSlogan')}</p>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {inviteRequired && (
             <div className="auth-note">
-              💡 需要邀请码？请向已有账号的用户询问，或联系管理员获取
+              {t('auth.inviteCodeHint')}
             </div>
           )}
 
@@ -129,7 +131,7 @@ export default function Register() {
                   required
                 />
                 {f.key === 'password' && (
-                  <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? '隐藏密码' : '显示密码'}>
+                  <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? t('auth.hidePassword') : t('auth.showPassword')}>
                     {showPwd ? (
                       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
                         <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
@@ -158,12 +160,12 @@ export default function Register() {
           )}
 
           <button type="submit" data-testid="register-submit-btn" className="auth-submit" disabled={loading || !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
-            {loading ? <span className="auth-spinner" /> : '注册'}
+            {loading ? <span className="auth-spinner" /> : t('auth.registerBtn')}
           </button>
         </form>
 
         <p className="auth-footer">
-          已有账号？<Link to="/login" className="auth-link">登录</Link>
+          {t('auth.haveAccount')}<Link to="/login" className="auth-link">{t('auth.loginLink')}</Link>
         </p>
       </div>
     </div>
