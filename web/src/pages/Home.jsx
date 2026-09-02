@@ -35,6 +35,7 @@ import useFocusTrap from '../hooks/useFocusTrap';
 import { mediaUrl, goLogin } from '../utils/url';
 import { warmupCacheDB } from '../utils/msgCache';
 import { saveCred, removeCred } from '../utils/rememberedCreds';
+import { useI18n } from '../contexts/I18nContext';
 
 function WcEmpty() {
   // 对齐微信 PC：未选会话时近乎纯净留白，仅一枚极淡的单色图标，无文字、无彩色
@@ -52,13 +53,15 @@ function WcEmpty() {
 
 /* SVG 图标统一迁入 components/Icons.jsx（2026-08 体系级重构） */
 
+// label 由 i18n key 驱动（labelKey），而非字面量——TABS 是模块级常量，渲染前拿不到 t()，
+// 具体文案在使用处用 t(labelKey) 取（见 Home() 内 visibleTabs 消费处 / mLabel）。
 const TABS = [
-  { key: 'chats',     Icon: IcoChat,     label: '消息' },
-  { key: 'contacts',  Icon: IcoContacts, label: '通讯录' },
-  { key: 'moments',   Icon: IcoMoments,  label: '朋友圈', feature: 'moments' },
-  { key: 'calls',     Icon: IcoCall,     label: '通话' },
-  { key: 'favorites', Icon: IcoStar,     label: '收藏',   feature: 'collect' },
-  { key: 'me',        Icon: IcoMe,       label: '我' },
+  { key: 'chats',     Icon: IcoChat,     labelKey: 'home.tab.chats' },
+  { key: 'contacts',  Icon: IcoContacts, labelKey: 'home.tab.contacts' },
+  { key: 'moments',   Icon: IcoMoments,  labelKey: 'home.tab.moments', feature: 'moments' },
+  { key: 'calls',     Icon: IcoCall,     labelKey: 'home.tab.calls' },
+  { key: 'favorites', Icon: IcoStar,     labelKey: 'home.tab.favorites', feature: 'collect' },
+  { key: 'me',        Icon: IcoMe,       labelKey: 'home.tab.me' },
 ];
 
 // 前端硬隐藏的 tab（此集合为空时全部由后端 features 开关控制）。
@@ -70,6 +73,7 @@ const visibleTabs = (features) =>
 
 /* ── 左上角头像 — 点击展开账号切换/添加下拉面板 ── */
 function AccountSwitcher() {
+  const { t } = useI18n();
   const { user, accounts, login, switchAccount, removeAccount, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -130,13 +134,13 @@ function AccountSwitcher() {
   const doRemove = async (e, id) => {
     e.stopPropagation();
     const acct = accounts.find(a => a.id === id);
-    const name = acct?.user?.username || '该账号';
+    const name = acct?.user?.username || t('home.unnamedAccount');
     if (id === user?.id) {
-      if (!(await showConfirm(`退出当前账号「${name}」？`))) return;
+      if (!(await showConfirm(t('home.logoutConfirmTemplate').replace('{name}', name)))) return;
       await logout();                 // 清会话+CSRF+从钱包移除当前账号
       goLogin();
     } else {
-      if (!(await showConfirm(`从本设备删除账号「${name}」？删除后切换需重新输密码。`))) return;
+      if (!(await showConfirm(t('home.removeAccountConfirmTemplate').replace('{name}', name)))) return;
       removeCred(acct?.user?.phone || '');
       removeAccount(id);              // 移除最近登录记录 + 钱包凭证
     }
@@ -145,7 +149,7 @@ function AccountSwitcher() {
   const doAdd = async (e) => {
     e.preventDefault();
     if (submitting) return; // 防连点/回车重复提交
-    if (!form.phone || !form.password) { setErr('请填写手机号和密码'); return; }
+    if (!form.phone || !form.password) { setErr(t('home.fillPhonePassword')); return; }
     setErr(''); setSubmitting(true);
     try {
       const { data } = await axios.post('/api/auth/login', form);
@@ -154,7 +158,7 @@ function AccountSwitcher() {
       login(data.user, data.token); // 必须传 token:Bearer端(Electron/移动)漏传会清掉鉴权头→reload后被登出
       window.location.reload();
     } catch (ex) {
-      setErr(ex.response?.data?.error || '手机号或密码错误');
+      setErr(ex.response?.data?.error || t('home.wrongPhonePassword'));
       setSubmitting(false);
     }
   };
@@ -171,7 +175,7 @@ function AccountSwitcher() {
   return (
     <div ref={containerRef} className="as-container">
       {/* 头像按钮 */}
-      <div className="as-avatar-btn" data-testid="account-switcher" role="button" tabIndex={0} aria-label="账号切换" aria-expanded={open} onClick={() => setOpen(v => !v)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}>
+      <div className="as-avatar-btn" data-testid="account-switcher" role="button" tabIndex={0} aria-label={t('home.accountSwitch')} aria-expanded={open} onClick={() => setOpen(v => !v)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}>
         <div className={`as-avatar-inner${open ? ' as-avatar-inner-open' : ''}`}>
           {user?.avatar && !avatarErr
             ? <img src={mediaUrl(user.avatar)} alt="" loading="lazy" className="as-avatar-img" onError={() => setAvatarErr(true)} />
@@ -203,18 +207,18 @@ function AccountSwitcher() {
                 </div>
                 <div className="as-name-wrap">
                   <div className={`as-name${active ? ' active' : ''}`}>
-                    {a.user?.username || '未命名'}
+                    {a.user?.username || t('auth.unnamed')}
                   </div>
                   {a.user?.phone && <div className="as-phone">{a.user.phone}</div>}
                 </div>
                 {active
-                  ? <span className="as-current-badge">当前</span>
-                  : <span className="as-switch-text">切换</span>
+                  ? <span className="as-current-badge">{t('home.currentBadge')}</span>
+                  : <span className="as-switch-text">{t('home.switchText')}</span>
                 }
                 {/* 删除/退出账号 */}
                 <button
                   onClick={(e) => doRemove(e, a.id)}
-                  title={active ? '退出登录' : '从本设备删除'}
+                  title={active ? t('settings.logout') : t('home.removeFromDevice')}
                   data-testid={active ? 'account-logout-btn' : undefined}
                   className="as-remove-btn">
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -231,7 +235,7 @@ function AccountSwitcher() {
             <svg className="as-profile-icon" viewBox="0 0 24 24">
               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
             </svg>
-            <span className="as-profile-label">个人资料</span>
+            <span className="as-profile-label">{t('home.profile')}</span>
             <svg viewBox="0 0 24 24" className={`as-profile-arrow${showProfile ? ' open' : ''}`}>
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
             </svg>
@@ -243,23 +247,23 @@ function AccountSwitcher() {
               {/* 投聊号 */}
               {user?.wechat_id && (
                 <div className="as-profile-item">
-                  <span className="as-profile-label-text">投聊号</span>
+                  <span className="as-profile-label-text">{t('home.wechatIdLabel')}</span>
                   <span className="as-profile-value">{user.wechat_id}</span>
                 </div>
               )}
               {/* 手机号 */}
               {user?.phone && (
                 <div className="as-profile-item">
-                  <span className="as-profile-label-text">手机号</span>
+                  <span className="as-profile-label-text">{t('auth.phone')}</span>
                   <span className="as-profile-value">{user.phone}</span>
                 </div>
               )}
               {/* 二维码 */}
               {user?.id && (
                 <div className="as-qr-section">
-                  <div className="as-qr-label">二维码</div>
+                  <div className="as-qr-label">{t('home.qrCode')}</div>
                   <div className="as-qr-content">
-                    <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="as-qr-img" />
+                    <AuthImage src="/api/users/me/qrcode" alt={t('home.myQrCode')} className="as-qr-img" />
                   </div>
                 </div>
               )}
@@ -277,7 +281,7 @@ function AccountSwitcher() {
                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
               </svg>
             </div>
-            <span className={`wc-add-label${showForm ? ' open' : ''}`}>添加账户</span>
+            <span className={`wc-add-label${showForm ? ' open' : ''}`}>{t('home.addAccount')}</span>
             <svg viewBox="0 0 24 24" className={`wc-add-chevron${showForm ? ' open' : ''}`}>
               <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
             </svg>
@@ -289,25 +293,25 @@ function AccountSwitcher() {
               <div className="wc-add-info">
                 <span className="wc-add-info-text">
                   {switchTarget
-                    ? `切换到「${switchTarget.username || '该账号'}」，请输入密码`
-                    : '添加后旧账号不会退出，可随时切换'}
+                    ? t('home.switchToAccountTemplate').replace('{name}', switchTarget.username || t('home.unnamedAccount'))
+                    : t('home.addAccountHint')}
                 </span>
               </div>
               <form onSubmit={doAdd} className="wc-add-form-inner">
-                <input ref={phoneRef} type="tel" placeholder="手机号" value={form.phone}
+                <input ref={phoneRef} type="tel" placeholder={t('auth.phone')} value={form.phone}
                   readOnly={!!switchTarget}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   className="wc-add-form-input"
-                  aria-label="手机号" data-testid="account-add-phone"
+                  aria-label={t('auth.phone')} data-testid="account-add-phone"
                 />
-                <input ref={passwordRef} type="password" placeholder="密码" value={form.password}
+                <input ref={passwordRef} type="password" placeholder={t('auth.password')} value={form.password}
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   className="wc-add-form-input"
-                  aria-label="密码" data-testid="account-add-password" />
+                  aria-label={t('auth.password')} data-testid="account-add-password" />
                 {err && <div className="wc-add-form-error" role="alert">{err}</div>}
                 <button type="submit" disabled={submitting}
                   className="wc-add-form-submit" data-testid="account-add-submit">
-                  {submitting ? '登录中…' : (switchTarget ? '登录并切换' : '登录并添加')}
+                  {submitting ? t('home.loggingIn') : (switchTarget ? t('home.loginAndSwitch') : t('home.loginAndAdd'))}
                 </button>
               </form>
             </div>
@@ -340,6 +344,7 @@ function CgMemberRow({ contact: c, checked, onToggle }) {
 
 /* ── Create Group Modal ── */
 function CreateGroupModal({ onClose, onCreated }) {
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [contacts, setContacts] = useState([]);
   const [contactSearch, setContactSearch] = useState('');
@@ -369,14 +374,14 @@ function CreateGroupModal({ onClose, onCreated }) {
 
   const create = async () => {
     if (loading) return; // 防连点重复建群
-    if (!name.trim()) { setError('请输入群名称'); return; }
-    if (selected.size === 0) { setError('请至少选择一位成员'); return; }
+    if (!name.trim()) { setError(t('home.groupNamePlaceholder')); return; }
+    if (selected.size === 0) { setError(t('home.selectAtLeastOne')); return; }
     setLoading(true); setError('');
     try {
       const { data } = await axios.post('/api/messages/conversation/group', { name: name.trim(), memberIds: [...selected] });
       onCreated({ id: data.conversationId, type: 'group', name: name.trim(), avatar: '', members: [] });
     } catch (err) {
-      setError(err.response?.data?.error || '创建失败，请重试');
+      setError(err.response?.data?.error || t('home.createGroupFailed'));
       setLoading(false);
     }
   };
@@ -403,8 +408,8 @@ function CreateGroupModal({ onClose, onCreated }) {
 
         {/* 标题栏 */}
         <div className="cgm-header">
-          <span className="cgm-title">发起群聊</span>
-          <button onClick={onClose} className="cgm-close" aria-label="关闭">
+          <span className="cgm-title">{t('home.createGroupTitle')}</span>
+          <button onClick={onClose} className="cgm-close" aria-label={t('common.close')}>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
@@ -413,13 +418,13 @@ function CreateGroupModal({ onClose, onCreated }) {
 
         {/* 群名称输入 */}
         <div className="cgm-name-section">
-          <div className="cgm-name-label">群名称</div>
+          <div className="cgm-name-label">{t('home.groupNameLabel')}</div>
           <input
             ref={nameRef}
             value={name}
             onChange={e => { setName(e.target.value); setError(''); }}
-            placeholder="请输入群名称"
-            aria-label="群名称"
+            placeholder={t('home.groupNamePlaceholder')}
+            aria-label={t('home.groupNameLabel')}
             data-testid="group-name-input"
             maxLength={30}
             className="cgm-name-input"
@@ -430,7 +435,7 @@ function CreateGroupModal({ onClose, onCreated }) {
         {selectedContacts.length > 0 && (
           <div className="cgm-chips">
             {selectedContacts.map(c => (
-              <div key={c.id} role="button" tabIndex={0} aria-label={`移除 ${c.remark || c.username}`} onClick={() => toggle(c.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(c.id); } }}
+              <div key={c.id} role="button" tabIndex={0} aria-label={t('home.removeMemberTemplate').replace('{name}', c.remark || c.username)} onClick={() => toggle(c.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(c.id); } }}
                 className="cgm-chip">
                 <Avatar src={c.avatar} name={c.remark || c.username} size={20} className="as-avatar-img" />
                 <span className="cgm-chip-text">{c.remark || c.username}</span>
@@ -448,20 +453,20 @@ function CreateGroupModal({ onClose, onCreated }) {
           <input
             value={contactSearch}
             onChange={e => setContactSearch(e.target.value)}
-            placeholder="搜索联系人"
-            aria-label="搜索联系人"
+            placeholder={t('home.searchContacts')}
+            aria-label={t('home.searchContacts')}
             className="cgm-search-input"
           />
         </div>
 
         {/* 联系人列表 */}
         <div className="cgm-member-count">
-          选择成员（已选 {selected.size} 人）
+          {t('home.selectMembersTemplate').replace('{n}', selected.size)}
         </div>
         <div className="cgm-contact-list">
           {filtered.length === 0 && (
             <div className="cgm-empty">
-              {contacts.length === 0 ? '暂无联系人' : '未找到相关联系人'}
+              {contacts.length === 0 ? t('home.noContacts') : t('home.noContactsFound')}
             </div>
           )}
           {filtered.map(c => {
@@ -482,12 +487,12 @@ function CreateGroupModal({ onClose, onCreated }) {
           <div className="cgm-btn-row">
             <button onClick={onClose}
               className="cgm-cancel">
-              取消
+              {t('common.cancel')}
             </button>
             <button onClick={create} disabled={loading || selected.size === 0}
               data-testid="group-create-btn"
               className="cgm-create">
-              {loading ? '创建中…' : `创建群聊${selected.size > 0 ? `（${selected.size}人）` : ''}`}
+              {loading ? t('home.creating') : `${t('home.createGroupBtn')}${selected.size > 0 ? t('home.peopleCountSuffix').replace('{n}', selected.size) : ''}`}
             </button>
           </div>
         </div>
@@ -497,6 +502,7 @@ function CreateGroupModal({ onClose, onCreated }) {
 }
 
 export default function Home() {
+  const { t } = useI18n();
   const [tab, setTab] = useState('chats');
   const [features, setFeatures] = useState({ moments: true, collect: true });
   const [netSearchQ, setNetSearchQ] = useState(null); // null=关闭；字符串=带词打开网络搜索
@@ -951,14 +957,14 @@ export default function Home() {
       {showQR && (
         <div className="wc-modal-overlay" role="button" tabIndex={0} onClick={() => setShowQR(false)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowQR(false); } }}>
-          <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label="我的二维码" onClick={e => e.stopPropagation()}>
+          <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label={t('home.myQrCode')} onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
-              <span className="wc-modal-title">我的二维码</span>
-              <button className="wc-modal-close" aria-label="关闭二维码" onClick={() => setShowQR(false)}>✕</button>
+              <span className="wc-modal-title">{t('home.myQrCode')}</span>
+              <button className="wc-modal-close" aria-label={t('home.closeQr')} onClick={() => setShowQR(false)}>✕</button>
             </div>
             <div className="wc-modal-body home-qr-body">
-              <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="home-qr-img" />
-              <p className="home-qr-text">扫描二维码添加我为好友</p>
+              <AuthImage src="/api/users/me/qrcode" alt={t('home.myQrCode')} className="home-qr-img" />
+              <p className="home-qr-text">{t('home.scanToAddFriend')}</p>
             </div>
           </div>
         </div>
@@ -969,13 +975,13 @@ export default function Home() {
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeAddMenu(); } }} />
           <div className="home-add-dropdown" style={{ top: addMenuPos.top, right: addMenuPos.right }}>
             <AddDropItem testid="create-group-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
-              label="发起群聊" onClick={handleCreateGroup} />
+              label={t('home.createGroupTitle')} onClick={handleCreateGroup} />
             <div className="home-add-divider" />
             <AddDropItem icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
-              label="添加朋友" onClick={handleAddFriend} />
+              label={t('home.addFriendMenuLabel')} onClick={handleAddFriend} />
             <div className="home-add-divider" />
             <AddDropItem testid="scan-qr-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 0h3v3h-2v-1h-1v-2zm5 5h3v3h-3v-3zm-5 0h3v3h-3v-3z"/></svg>}
-              label="扫一扫" onClick={handleScan} />
+              label={t('home.scanMenuLabel')} onClick={handleScan} />
           </div>
         </>
       )}
@@ -990,7 +996,7 @@ export default function Home() {
         <div className="wc-modal-overlay" role="button" tabIndex={0}
           onClick={e => e.target === e.currentTarget && setShowMentions(false)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowMentions(false); } }}>
-          <div role="dialog" aria-modal="true" aria-label="@我的消息"
+          <div role="dialog" aria-modal="true" aria-label={t('home.mentionsAriaLabel')}
             style={{ width: 'min(440px, 92vw)', height: 'min(70vh, 640px)', background: 'var(--bg-panel)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,.28)' }}
             onClick={e => e.stopPropagation()}>
             <Suspense fallback={null}>
@@ -1012,7 +1018,7 @@ export default function Home() {
     // 底部栏与桌面侧边栏同源（visibleTabs）：tab 集合与文案保持一致，
     // 含「收藏」，moments 统一显示「朋友圈」（不再用 M_LABEL 覆盖成「发现」）。
     const mobileTabs = visibleTabs(features);
-    const mLabel = (k) => TABS.find(t => t.key === k)?.label || '';
+    const mLabel = (k) => { const found = TABS.find(tb => tb.key === k); return found ? t(found.labelKey) : ''; };
 
     return (
       <div className="m-shell">
@@ -1032,16 +1038,16 @@ export default function Home() {
                   <div className="m-topbar">
                     <span className="m-title">{mLabel(tab)}</span>
                     {tab === 'chats' && (
-                      <button ref={addBtnRef} className="m-topbar-add" data-testid="add-menu-btn" onClick={toggleAddMenu} aria-label="发起">
+                      <button ref={addBtnRef} className="m-topbar-add" data-testid="add-menu-btn" onClick={toggleAddMenu} aria-label={t('home.launch')}>
                         <IcoAdd className="ico-md" />
                       </button>
                     )}
                   </div>
                   <div className="m-search">
                     <span className="m-search-icon"><IcoSearch className="ico-sm" /></span>
-                    <input placeholder="搜索" aria-label="搜索" value={search}
+                    <input placeholder={t('common.search')} aria-label={t('common.search')} value={search}
                       onChange={e => setSearch(e.target.value)} />
-                    {search && <button className="m-search-clear" aria-label="清除" onClick={() => setSearch('')}>✕</button>}
+                    {search && <button className="m-search-clear" aria-label={t('common.clear')} onClick={() => setSearch('')}>✕</button>}
                   </div>
                 </>
               ) : (
@@ -1062,9 +1068,10 @@ export default function Home() {
               </div>
             </div>
 
-            <nav className="m-tabbar" aria-label="主导航">
-              {mobileTabs.map(({ key, Icon, label }) => {
+            <nav className="m-tabbar" aria-label={t('home.mainNav')}>
+              {mobileTabs.map(({ key, Icon, labelKey }) => {
                 const count = badges[key] || 0;
+                const label = t(labelKey);
                 return (
                   <button key={key} data-testid={`nav-tab-${key}`} className={`m-tab${tab === key ? ' active' : ''}`}
                     role="tab" aria-selected={tab === key} aria-label={label}
@@ -1090,9 +1097,10 @@ export default function Home() {
       <div className="wc-sidebar">
         <AccountSwitcher />
         {/* Tab 按钮紧跟头像，不用 spacer 下推，防止小屏被裁切 */}
-        <div className="wc-sidebar-btns" role="tablist" aria-label="主导航">
-          {visibleTabs(features).map(({ key, Icon, label }) => {
+        <div className="wc-sidebar-btns" role="tablist" aria-label={t('home.mainNav')}>
+          {visibleTabs(features).map(({ key, Icon, labelKey }) => {
             const count = badges[key] || 0;
+            const label = t(labelKey);
             return (
               <div key={key}
                 data-testid={`nav-tab-${key}`}
@@ -1123,20 +1131,20 @@ export default function Home() {
               <div className="wc-search">
                 <span className="wc-search-icon"><IcoSearch className="ico-sm" /></span>
                 <input
-                  placeholder="搜索"
-                  aria-label="搜索"
+                  placeholder={t('common.search')}
+                  aria-label={t('common.search')}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && tab === 'contacts') { e.preventDefault(); setAddFriendRequest(n => n + 1); } }}
                 />
                 {search && (
-                  <button className="home-search-clear" aria-label="清除搜索"
+                  <button className="home-search-clear" aria-label={t('common.clear')}
                     onClick={() => setSearch('')}>✕</button>
                 )}
               </div>
 
               {/* 添加按钮 */}
-              <button ref={addBtnRef} className="wc-icon-btn" data-testid="add-menu-btn" title="发起" aria-label="发起" aria-expanded={showAddMenu} onClick={toggleAddMenu}>
+              <button ref={addBtnRef} className="wc-icon-btn" data-testid="add-menu-btn" title={t('home.launch')} aria-label={t('home.launch')} aria-expanded={showAddMenu} onClick={toggleAddMenu}>
                 <IcoAdd className="ico-md" />
               </button>
             </div>
