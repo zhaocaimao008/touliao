@@ -2297,3 +2297,10 @@ Module path: resources/app.asar/src/main.js
 | **eslint-plugin-react-hooks 7.x 新规则治理**：`set-state-in-effect`/`immutability` 对三处合理模式误报（CallModal.jsx:571 异步回调 ref 持流防 GC、CallModal.jsx:601 状态守卫型清空质量、ChatWindow.jsx:591 会话切换 loading 起点），已行内 `eslint-disable-next-line` + 理由注释豁免（commit eef2667 后），CI `--max-warnings=0` 门禁恢复通过 | 后续统一评估：effect 外派生状态 / 拆分 effect 真正满足规则，或按项目实际收紧/放宽规则配置；当前豁免均不改行为 |
 | **Android/iOS 三端同款逻辑未同步**：Kotlin sync 合并二分比较 `current[mid].server_sequence < seq`（ChatViewModel.kt:1023）同样把 pending 当 0，iOS outbox 合并按 createdAt 混排（ChatViewModel.swift:790/813）同洞 A 源头 | 按 Web 语义移植：Android 加透明 lowerBound + outbox 排末尾；iOS 同。两平台当前无单测基建，须先建（Kotlin JVM 单测 / XCTest）再按红灯驱动纪律改 |
 | 洞 A/B 修复仅覆盖 Web/Electron | 上一条的移动端移植即此项收敛 |
+
+## 2026-09-02 部署记录（洞 A/B 修复上线）
+
+- **部署方式**：本地直连生产（45.77.131.33 = 本机）。CI deploy.yml 五次被 E2E 门禁阻塞——GitHub runner 当日环境持续恶化（E2E 总时长 5m33→5m54→7m26→11m6 递增），断网模拟类用例（OB-02/EDGE-06）失败态计时器全被拖爆。产品代码本地全量 E2E 39/39 绿 + 单跑 4.5s 过 + DBG 日志证明 ack 替换/消息链路正确，判定环境性 flake，用户授权本机直部署。
+- **已执行**（等价 deploy job 步骤）：web `npm ci && vite build`（1.73s）→ backend-v2 `npm ci --omit=dev` → `pm2 restart touliao-backend`（↺107，/health `{"ok":true,"db":"ok"}`）→ 备份 `/var/www/touliao-web.bak-20260902-082343` → `rsync -a web/dist/ /var/www/touliao-web/`（不带 --delete，README 事故记录）→ touliao.cc 200，线上 index.html 与最新 dist 一致（index-98bdZjib.js）。
+- **commit 链**（本会话，全部已 push）：a750798 审计 → 2cb13d5 红灯测试 → f0bcbf4 纪律 → a05852b 洞 A → f292c72 洞 B → 09c276a 状态 → eef2667 tree-shake → 5a028a1 lint → 92c0b8a env-guard → 376926e OB-02 超时 30s。
+- **残余**：CI E2E 门禁在 runner 环境正常时应恢复（376926e 已加宽超时）；Android/iOS 同款修复未移植（见上表待办）。
