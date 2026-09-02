@@ -10,9 +10,11 @@ const AddFriendModal = lazy(() => import('./AddFriendModal'));
 import { showToast, showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
 import { formatLastOnline } from '../utils/time';
+import { useI18n } from '../contexts/I18nContext';
 
 /* ── 主组件 ── */
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed, openFriendRequests = 0, onOpenFriendRequestsConsumed }) {
+  const { t } = useI18n();
   const [contacts, setContacts] = useState([]);
   const [requests, setRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
@@ -131,7 +133,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       setRequests(prev => prev.filter(r => r.id !== id));
       if (action === 'accepted') fetchContacts();
     } catch (err) {
-      showToast(err.response?.data?.error || '操作失败，请重试', 'error');
+      showToast(err.response?.data?.error || t('common.actionFailed'), 'error');
     }
     setHandlingReq(null);
   };
@@ -141,7 +143,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       await axios.delete(`/api/users/block/${userId}`);
       setBlockedUsers(prev => prev.filter(u => u.id !== userId));
     } catch (e) {
-      showToast(e.response?.data?.error || '解除拉黑失败，请重试', 'error');
+      showToast(e.response?.data?.error || t('common.actionFailed'), 'error');
     }
   };
 
@@ -184,41 +186,41 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             {/* 功能入口 */}
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
-              color="var(--icon-bg-newfriend)" label="新的朋友" badge={requests.length}
+              color="var(--icon-bg-newfriend)" label={t('contacts.newFriends')} badge={requests.length}
               onClick={() => setTab('requests')} testid="cl-new-friends-entry"
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
-              color="var(--icon-bg-group)" label="群聊" badge={0}
+              color="var(--icon-bg-group)" label={t('contacts.groupChats')} badge={0}
               onClick={() => setTab('groups')}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
-              color="var(--brand-500)" label="添加好友" badge={0}
+              color="var(--brand-500)" label={t('contacts.addFriend')} badge={0}
               onClick={() => setShowAddFriend(true)}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>}
-              color="var(--icon-bg-neutral)" label="黑名单" badge={0}
+              color="var(--icon-bg-neutral)" label={t('contacts.blacklist')} badge={0}
               onClick={() => { fetchBlocked(); setTab('blocked'); }}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>}
-              color="var(--icon-bg-label)" label="好友标签" badge={0}
+              color="var(--icon-bg-label)" label={t('contacts.friendLabels')} badge={0}
               onClick={() => { fetchLabels(); setTab('labels'); }}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zm-12 3v-2h2v2H8zm2 4H8v-2h2v2zm2 0v-2h2v2h-2zm2-4v-2h2v2h-2zm2 4h-2v-2h2v2z"/></svg>}
-              color="var(--brand-500)" label="AI 助手" badge={aiBots.length}
+              color="var(--brand-500)" label={t('contacts.aiAssistant')} badge={aiBots.length}
               onClick={() => setTab('ai')}
             />
             <EntryRow
               icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>}
-              color="var(--icon-bg-filehelper)" label="文件传输助手" badge={0}
+              color="var(--icon-bg-filehelper)" label={t('contacts.fileHelper')} badge={0}
               onClick={async () => {
                 try {
                   const { data } = await axios.get('/api/messages/file-helper');
-                  onStartChat({ id: data.conversationId, type: 'filehelper', name: '文件传输助手', avatar: '' });
+                  onStartChat({ id: data.conversationId, type: 'filehelper', name: t('contacts.fileHelper'), avatar: '' });
                 } catch { /* file-helper open failed; ignore */ }
               }}
             />
@@ -251,14 +253,14 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   <circle cx="24" cy="20" r="10" fill="#E8ECF0"/>
                   <path d="M8 40c0-8.84 7.16-16 16-16s16 7.16 16 16" stroke="#D0D7E3" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                <div className="cl-empty-text">暂无联系人</div>
-                <div className="cl-empty-sub">通过搜索添加好友</div>
-                <button className="cl-add-btn" onClick={() => setShowAddFriend(true)}>+ 添加好友</button>
+                <div className="cl-empty-text">{t('contacts.noContacts')}</div>
+                <div className="cl-empty-sub">{t('contacts.searchToAddFriend')}</div>
+                <button className="cl-add-btn" onClick={() => setShowAddFriend(true)}>{t('contacts.addFriendCta')}</button>
               </div>
             )}
             {searchQuery && filtered.length === 0 && (
               <div className="cl-empty" role="status">
-                <div className="cl-empty-text">未找到「{searchQuery}」</div>
+                <div className="cl-empty-text">{t('contacts.notFoundTemplate').replace('{query}', searchQuery)}</div>
               </div>
             )}
           </>
