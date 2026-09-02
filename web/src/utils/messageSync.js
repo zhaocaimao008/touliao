@@ -33,6 +33,13 @@ export function applySyncEvents(currentMessages, events) {
       const at = index.get(key);
       if (at !== undefined) {
         result[at] = { ...result[at], ...event.message };   // 已有：就地更新（如重发确认）
+        // 洞B(2026-09-02)：更新后相邻 seq 校验——若该消息因历史错位(洞A时期/旧 outbox
+        // pending 重发成功)卡在错误槽位，此处自愈：取出后按新 seq 重插（见 AUDIT.md）。
+        if (violatesOrder(result, at)) {
+          const moved = result.splice(at, 1)[0];
+          insertBySeq(result, moved);
+        }
+        index = buildIndex();
       } else {
         // 新消息：按 server_sequence 有序插入（忽略 pending，洞A）
         insertBySeq(result, event.message);
@@ -74,7 +81,44 @@ function lowerBoundSeq(arr, target) {
 export function insertBySeq(arr, msg) {
   const seq = seqOf(msg);
   if (seq == null) { arr.push(msg); return; } // 防御：事件消息理论必有 seq
+  assertSortedOrRepair(arr); // dev only：插入前有序断言（生产跳过）
   arr.splice(lowerBoundSeq(arr, seq), 0, msg);
+}
+
+// 洞B：相邻序校验（忽略 pending）。arr[i] 与最近的真实邻居逆序 → true。O(1)（pending 数极少）。
+// 正确性依据：server_sequence 在 (conversation_id, server_sequence) 上 UNIQUE（schema.js:580），
+// 任何全局错位必存在相邻逆序对 → 只查最近邻居即可检出，无需整段扫描。
+export function violatesOrder(arr, i) {
+  const seq = seqOf(arr[i]);
+  if (seq == null) return false;
+  let l = i - 1; while (l >= 0 && seqOf(arr[l]) == null) l--;
+  if (l >= 0 && seqOf(arr[l]) > seq) return true;
+  let r = i + 1; while (r < arr.length && seqOf(arr[r]) == null) r++;
+  if (r < arr.length && seqOf(arr[r]) < seq) return true;
+  return false;
+}
+
+// dev 有序性断言（2026-09-02）：插入前校验数组真实消息 seq 单调；违序 → console.error +
+// 降级全量排序（真实按 seq、pending 排末尾）。生产构建跳过（DEV=false），零开销。
+const isDev = typeof import.meta !== 'undefined' && !!import.meta.env
+  && (!!import.meta.env.DEV || import.meta.env.MODE === 'test');
+function assertSortedOrRepair(arr) {
+  if (!isDev) return;
+  let prev = -1;
+  for (const m of arr) {
+    const s = seqOf(m);
+    if (s == null) continue;
+    if (s < prev) {
+      console.error('[messageSync] 数组未按 server_sequence 有序(忽略 pending),降级全量排序',
+        arr.map(m => ({ id: m?.id, seq: seqOf(m) })));
+      const pendings = arr.filter(m => seqOf(m) == null);
+      const reals = arr.filter(m => seqOf(m) != null).sort((a, b) => seqOf(a) - seqOf(b));
+      arr.length = 0;
+      arr.push(...reals, ...pendings);
+      return;
+    }
+    prev = s;
+  }
 }
 
 export async function catchUpConversation({ conversationId, accountId, requestPage, loadCursor, saveCursor, applyPage, limit = 500 }) {

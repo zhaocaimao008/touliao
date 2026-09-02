@@ -17,7 +17,7 @@ import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
 import { loadCache, saveCache, clearCache, removeFromCache, loadSyncCursor, saveSyncCursor } from '../utils/msgCache';
-import { applySyncEvents, catchUpConversation } from '../utils/messageSync';
+import { applySyncEvents, catchUpConversation, insertBySeq, violatesOrder } from '../utils/messageSync';
 import { ChatSkeleton } from './PanelSkeleton';
 
 // ── 模块级常量，避免每次渲染重建 Set ────────────────────────────
@@ -1247,7 +1247,19 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       pendingMsgsRef.current.delete(tempId);
       if (ack?.success && ack.message) {
         confirmedMsgIds.current.add(ack.message.id);
-        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...ack.message } : m));
+        // 洞B(2026-09-02)：ack 落地不再裸 map 就地替换——pending 若曾被锚在中间(旧 outbox),
+        // 确认消息带新 seq 停在错槽位。替换后做相邻 seq 校验,违序则取出按新 seq 重定位。
+        setMessages(prev => {
+          const idx = prev.findIndex(m => m._tempId === tempId);
+          if (idx < 0) return prev;
+          const next = prev.slice();
+          next[idx] = { ...ack.message };
+          if (violatesOrder(next, idx)) {
+            const [moved] = next.splice(idx, 1);
+            insertBySeq(next, moved);
+          }
+          return next;
+        });
         removeFromOutbox(conversation.id, tempId); // 重发成功即清待发件箱(幂等)
       } else {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
@@ -1414,7 +1426,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         window.__touliaoPerf?.ack(msgClientId, user.id);
         // 把真实 id 存入 confirmed，防止 new_message 广播重复添加
         confirmedMsgIds.current.add(ack.message.id);
-        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...ack.message } : m));
+        // 洞B：同 retryMessage ack——替换后相邻 seq 校验,违序重定位(见 :1246 注释)
+        setMessages(prev => {
+          const idx = prev.findIndex(m => m._tempId === tempId);
+          if (idx < 0) return prev;
+          const next = prev.slice();
+          next[idx] = { ...ack.message };
+          if (violatesOrder(next, idx)) {
+            const [moved] = next.splice(idx, 1);
+            insertBySeq(next, moved);
+          }
+          return next;
+        });
         removeFromOutbox(conversation.id, tempId); // 成功送达即清待发件箱,避免残留
       } else {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
@@ -1478,7 +1501,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       pendingMsgsRef.current.delete(tempId);
       if (ack?.success && ack.message) {
         confirmedMsgIds.current.add(ack.message.id);
-        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...ack.message } : m));
+        // 洞B：同 retryMessage ack——替换后相邻 seq 校验,违序重定位(见 :1246 注释)
+        setMessages(prev => {
+          const idx = prev.findIndex(m => m._tempId === tempId);
+          if (idx < 0) return prev;
+          const next = prev.slice();
+          next[idx] = { ...ack.message };
+          if (violatesOrder(next, idx)) {
+            const [moved] = next.splice(idx, 1);
+            insertBySeq(next, moved);
+          }
+          return next;
+        });
       } else {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
         if (ack?.error) showToast(ack.error, 'error');
