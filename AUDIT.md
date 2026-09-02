@@ -2283,11 +2283,16 @@ Module path: resources/app.asar/src/main.js
 - firstArrival 是会话切换 effect 内的局部变量（:590，deps :714 含 conversation.id）→ **每会话独立，非全局**；同实例内 conversation 原地变化（scrollToId 跳转等）时 effect 重跑、firstArrival 重置。
 - 残余风险仅视觉级：卸载前最后微任务窗口内旧 fetch 已 setState 的瞬时帧，被新会话首次到达整体替换覆盖，不残留。
 
+## 修复状态（2026-09-02 已修，测试 6/6 绿）
+
+- **洞 A 已修**（`a05852b`）：messageSync 插入比较忽略 pending（透明锚点，`lowerBoundSeq`），ChatWindow outbox 合并不再按 created_at 与服务端消息混排，pending 统一排末尾、多条间按 created_at 升序。洞 A 用例转绿。
+- **洞 B 已修**（`f292c72`）：同 id 就地更新与 3 处 ack 落地后做相邻 seq 校验（`violatesOrder`，忽略 pending、O(1)——依赖 seq 每会话 UNIQUE，全局乱序必含相邻逆序对），违序则取出按新 seq 重插（`insertBySeq`）。洞 B 用例转绿。
+- **dev 有序断言已加**（`f292c72`）：`insertBySeq` 插入前校验真实消息 seq 单调，违序 console.error + 降级全量排序；`import.meta.env.DEV || MODE==='test'` 判定，生产构建零开销。
+- 红灯用例入库 `2cb13d5`（2 绿 2 红）→ 现全部转绿，验证了「先写会红 → 修完转绿」纪律。
+
 ## 待办（先不做，方案如下）
 
 | 待办 | 方案 |
 |---|---|
-| messageSync 单测与提交说明不符：称 4 场景实际只有 2 用例（messageSync.test.js），pending 保持位置/乐观占位替换/pending 混排二分错位 零覆盖 | 补 3 用例：①尾部 pending + 新事件插入后 pending 位置不变 ②client_msg_id 乐观占位被替换不双显 ③构造 [M1,P,M2] 中间 pending 插入 seq 落在区间的错位断言（先写会红的，再决定修不修） |
-| 洞 A：outbox created_at 混排用客户端时钟 | pending 合并时不用 created_at 参与排序：直接保持 outbox 原序插到数组尾部（或改为按服务端最新 seq 边界后插入），杜绝中间 pending |
-| 洞 B：ack 就地替换不校验 seq 单调 | 替换后做一次相邻序校验：若新 seq 与上下邻居冲突则触发一次按 seq 的有序重插（或整表 (created_at,rowid) 排序兜底，Web 已有同构 sort 可复用） |
-| 无 dev 有序断言 | dev 环境在 applySyncEvents 出入口断言「忽略 pending 后数组 server_sequence 非降」，乱序即 console.error + 触发整表重排 |
+| **Android/iOS 三端同款逻辑未同步**：Kotlin sync 合并二分比较 `current[mid].server_sequence < seq`（ChatViewModel.kt:1023）同样把 pending 当 0，iOS outbox 合并按 createdAt 混排（ChatViewModel.swift:790/813）同洞 A 源头 | 按 Web 语义移植：Android 加透明 lowerBound + outbox 排末尾；iOS 同。两平台当前无单测基建，须先建（Kotlin JVM 单测 / XCTest）再按红灯驱动纪律改 |
+| 洞 A/B 修复仅覆盖 Web/Electron | 上一条的移动端移植即此项收敛 |
