@@ -524,6 +524,15 @@ export default function Home() {
     setTab('chats');
   }, []);
 
+  // 拒接来电后回复消息：取/建与该用户的私聊会话并打开（来电必已有共同会话，正常命中已存在）
+  const handleReplyFromCall = useCallback(async (peerId) => {
+    try {
+      const { data } = await axios.post('/api/messages/conversation/private', { userId: peerId });
+      const conv = data?.conversation || data;
+      if (conv) handleSelectConv(conv);
+    } catch { /* 会话打开失败静默（用户仍可手动进入会话） */ }
+  }, [handleSelectConv]);
+
   // @我的消息：点某条 → 拉取会话信息并打开、滚动定位到该消息
   const handleJumpToMention = useCallback(async ({ convId, msgId }) => {
     if (!convId) return;
@@ -922,6 +931,7 @@ export default function Home() {
             user={user}
             call={activeCall}
             onClose={() => setActiveCall(null)}
+            onReplyMessage={handleReplyFromCall}
           />
         </Suspense>
       )}

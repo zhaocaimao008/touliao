@@ -560,8 +560,9 @@ class CallManager @Inject constructor(
         val pc = peerConnection ?: return
         pc.createOffer(object : SimpleSdpObserver() {
             override fun onCreateSuccess(desc: SessionDescription) {
-                pc.setLocalDescription(SimpleSdpObserver(), desc)
-                socketManager.emitCallOffer(_state.value.peerId, desc.description, _state.value.callId)
+                val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
+                pc.setLocalDescription(SimpleSdpObserver(), tuned)
+                socketManager.emitCallOffer(_state.value.peerId, tuned.description, _state.value.callId)
             }
         }, mediaConstraints())
     }
@@ -570,10 +571,31 @@ class CallManager @Inject constructor(
         val pc = peerConnection ?: return
         pc.createAnswer(object : SimpleSdpObserver() {
             override fun onCreateSuccess(desc: SessionDescription) {
-                pc.setLocalDescription(SimpleSdpObserver(), desc)
-                socketManager.emitCallAnswer(_state.value.peerId, desc.description, _state.value.callId)
+                val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
+                pc.setLocalDescription(SimpleSdpObserver(), tuned)
+                socketManager.emitCallAnswer(_state.value.peerId, tuned.description, _state.value.callId)
             }
         }, mediaConstraints())
+    }
+
+    /** 弱网调优（2026-09-02）：Opus inband FEC + 码率上限 64kbps + 单声道。 */
+    private fun tuneSdpForWeakNetwork(sdp: String): String {
+        val m = Regex("a=rtpmap:(\\d+) opus/48000/2").find(sdp) ?: return sdp
+        val pt = m.groupValues[1]
+        val params = "useinbandfec=1;maxaveragebitrate=64000;stereo=0"
+        val fmtpRe = Regex("a=fmtp:$pt[^\\r\\n]*")
+        val existingFmtp = fmtpRe.find(sdp) ?: return sdp.replace(
+            Regex("(a=rtpmap:$pt opus/48000/2\\r?\\n)"),
+            "$1a=fmtp:$pt $params\r\n"
+        )
+        val existing = existingFmtp.value.replace(Regex("^a=fmtp:$pt\\s*"), "")
+        val out = mutableListOf<String>()
+        val seen = mutableSetOf<String>()
+        for (p in (existing.split(';').map { it.trim() }.filter { it.isNotEmpty() } + params.split(';'))) {
+            val key = p.substringBefore('=')
+            if (seen.add(key)) out.add(p)
+        }
+        return sdp.replace(existingFmtp.value, "a=fmtp:$pt ${out.joinToString(";")}")
     }
 
     private fun mediaConstraints() = MediaConstraints().apply {

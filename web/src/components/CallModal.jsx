@@ -4,6 +4,7 @@ import Avatar from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { matchesCall, withCallId } from '../utils/callSignaling';
 import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingTone, playConnectedTone } from '../utils/callTones';
+import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 import './CallModal.css';
 
 // 页面首次交互即预热 AudioContext(autoplay 政策:创建/resume 需在手势栈内,
@@ -151,7 +152,7 @@ function useFocusTrap(open) {
 }
 
 /* ── 主组件 ── */
-export default function CallModal({ socket, call, onClose }) {
+export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const { type, direction, remoteUser, remoteId, callId } = call;
   const isVideo = type === 'video';
   // 除了发起本身（call:request，那次没有 callId 可用，靠 ack 拿到后才会渲染出这个
@@ -386,8 +387,9 @@ export default function CallModal({ socket, call, onClose }) {
         try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* stale */ }
       }
       const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket?.emit('call:answer', withCallId({ to: remoteId, answer }, callId));
+      const tunedAnswer = tuneSdpForWeakNetwork(answer.sdp);
+      await pc.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: tunedAnswer }));
+      socket?.emit('call:answer', withCallId({ to: remoteId, answer: { type: answer.type, sdp: tunedAnswer } }, callId));
       setStatus('connecting');
     } catch (err) {
       console.error('[call] processOffer 失败:', err);
@@ -409,6 +411,13 @@ export default function CallModal({ socket, call, onClose }) {
     socket?.emit('call:response', withCallId({ to: remoteId, accepted: false, reason: 'rejected' }, callId));
     onClose();
   }, [socket, remoteId, callId, onClose]);
+
+  // 拒接后回复消息：拒接 + 关闭来电界面 + 回调父层打开与该用户的会话
+  const replyInstead = useCallback(() => {
+    socket?.emit('call:response', withCallId({ to: remoteId, accepted: false, reason: 'rejected' }, callId));
+    onClose();
+    onReplyMessage?.(remoteId);
+  }, [socket, remoteId, callId, onClose, onReplyMessage]);
 
   useEffect(() => {
     if (!socket) return;
@@ -435,8 +444,9 @@ export default function CallModal({ socket, call, onClose }) {
       const pc = pcRef.current;
       if (!pc) return;
       const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit('call:offer', withCallId({ to: remoteId, offer }, callId));
+      const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
+      await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+      socket.emit('call:offer', withCallId({ to: remoteId, offer: { type: offer.type, sdp: tunedOffer } }, callId));
     };
     const onOffer = async ({ from, offer, callId: evtCallId }) => {
       if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
@@ -691,6 +701,10 @@ export default function CallModal({ socket, call, onClose }) {
             <div className="cm-btn-row">
               <CircleBtn icon={<IcoHangup />} label="拒绝" color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
               <CircleBtn
+                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 12H9v-2h2v2zm0-4H9V6h2v4zm4 4h-2v-2h2v2zm0-4h-2V6h2v4z"/></svg>}
+                label="回复消息" size={56} onClick={replyInstead} testid="call-reply-btn"
+              />
+              <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
                 label="接听" color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
               />
@@ -776,6 +790,10 @@ export default function CallModal({ socket, call, onClose }) {
           {status === 'incoming' && (
             <div className="cm-btn-row">
               <CircleBtn icon={<IcoHangup />} label="拒绝" color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
+              <CircleBtn
+                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 12H9v-2h2v2zm0-4H9V6h2v4zm4 4h-2v-2h2v2zm0-4h-2V6h2v4z"/></svg>}
+                label="回复消息" size={56} onClick={replyInstead} testid="call-reply-btn"
+              />
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>}
                 label="接听" color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"

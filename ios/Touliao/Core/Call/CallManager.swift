@@ -203,6 +203,25 @@ final class CallManager: NSObject, ObservableObject {
         cleanup(.ended)
     }
 
+    /// 拒接来电并打开与该用户的私聊会话（WhatsApp 式「拒接后回复」）
+    func rejectAndReply() {
+        guard state.stage == .incoming else { return }
+        let peerId = state.peerId
+        reject()
+        guard !peerId.isEmpty else { return }
+        Task {
+            do {
+                let conversationId = try await ContactRepository.shared.createPrivate(userId: peerId)
+                NotificationCenter.default.post(
+                    name: .vxinOpenConversation, object: nil,
+                    userInfo: ["conversationId": conversationId]
+                )
+            } catch {
+                // 会话打开失败静默（用户仍可手动进入会话）
+            }
+        }
+    }
+
     func hangup() {
         if !state.peerId.isEmpty { socket.emitCallEnd(to: state.peerId, callId: state.callId) }
         VoipCallManager.shared.endActiveCall()   // 同步收尾 CallKit 通话界面
@@ -377,8 +396,9 @@ final class CallManager: NSObject, ObservableObject {
         guard let pc = pc else { return }
         pc.offer(for: mediaConstraints()) { [weak self] desc, err in
             guard let self, let desc, err == nil else { return }
-            pc.setLocalDescription(desc) { _ in }
-            self.socket.emitCallOffer(to: self.state.peerId, sdp: desc.sdp)
+            let tuned = RTCSessionDescription(type: desc.type, sdp: Self.tuneSdpForWeakNetwork(desc.sdp))
+            pc.setLocalDescription(tuned) { _ in }
+            self.socket.emitCallOffer(to: self.state.peerId, sdp: tuned.sdp)
         }
     }
 
@@ -386,9 +406,34 @@ final class CallManager: NSObject, ObservableObject {
         guard let pc = pc else { return }
         pc.answer(for: mediaConstraints()) { [weak self] desc, err in
             guard let self, let desc, err == nil else { return }
-            pc.setLocalDescription(desc) { _ in }
-            self.socket.emitCallAnswer(to: self.state.peerId, sdp: desc.sdp)
+            let tuned = RTCSessionDescription(type: desc.type, sdp: Self.tuneSdpForWeakNetwork(desc.sdp))
+            pc.setLocalDescription(tuned) { _ in }
+            self.socket.emitCallAnswer(to: self.state.peerId, sdp: tuned.sdp)
         }
+    }
+
+    /// 弱网调优（2026-09-02）：Opus inband FEC + 码率上限 64kbps + 单声道。
+    private static func tuneSdpForWeakNetwork(_ sdp: String) -> String {
+        guard let range = sdp.range(of: #"a=rtpmap:(\d+) opus/48000/2"#, options: .regularExpression) else { return sdp }
+        let pt = sdp[range].split(separator: " ").first!.split(separator: ":").last!
+        let params = "useinbandfec=1;maxaveragebitrate=64000;stereo=0"
+        let fmtpPattern = "a=fmtp:\(pt)[^\r\n]*"
+        if let fmtpRange = sdp.range(of: fmtpPattern, options: .regularExpression) {
+            let existing = sdp[fmtpRange].replacingOccurrences(of: "^a=fmtp:\(pt)\\s*", with: "", options: .regularExpression)
+            var out: [String] = []
+            var seen = Set<String>()
+            let parts = (existing.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } + params.split(separator: ";").map(String.init))
+            for p in parts {
+                let key = p.split(separator: "=").first.map(String.init) ?? p
+                if seen.insert(key).inserted { out.append(p) }
+            }
+            return sdp.replacingCharacters(in: fmtpRange, with: "a=fmtp:\(pt) \(out.joined(separator: ";"))")
+        }
+        // 无 fmtp 行（罕见）：在 rtpmap 后补一行
+        if let lineRange = sdp.range(of: #"a=rtpmap:\d+ opus/48000/2\r?\n"#, options: .regularExpression) {
+            return sdp.replacingCharacters(in: lineRange, with: sdp[lineRange] + "a=fmtp:\(pt) \(params)\r\n")
+        }
+        return sdp
     }
 
     private func mediaConstraints() -> RTCMediaConstraints {

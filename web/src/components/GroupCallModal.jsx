@@ -3,6 +3,7 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import { showToast } from '../utils/toast';
 import { installPrewarm, startRingback as toneRingback, stopTone, playConnectedTone } from '../utils/callTones';
+import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 
 installPrewarm();
 
@@ -239,16 +240,18 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     const onPeerJoined = async ({ userId: pid }) => {
       const pc = createPC(pid);
       const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit('group_call:offer', { callId: callIdRef.current, to: pid, offer });
+      const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
+      await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+      socket.emit('group_call:offer', { callId: callIdRef.current, to: pid, offer: { type: offer.type, sdp: tunedOffer } });
     };
     const onOffer = async ({ from, offer }) => {
       const pc = createPC(from);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       remoteSetRef.current.add(from); drainIce(from);
       const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit('group_call:answer', { callId: callIdRef.current, to: from, answer });
+      const tunedAnswer = tuneSdpForWeakNetwork(answer.sdp);
+      await pc.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: tunedAnswer }));
+      socket.emit('group_call:answer', { callId: callIdRef.current, to: from, answer: { type: answer.type, sdp: tunedAnswer } });
     };
     const onAnswer = async ({ from, answer }) => {
       const pc = pcsRef.current.get(from);

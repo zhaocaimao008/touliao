@@ -223,8 +223,9 @@ class GroupCallManager @Inject constructor(
                 // 既有成员向新 peer 发 offer
                 peer.pc.createOffer(object : SimpleSdpObserver() {
                     override fun onCreateSuccess(desc: SessionDescription) {
-                        peer.pc.setLocalDescription(SimpleSdpObserver(), desc)
-                        socketManager.emitGroupCallOffer(_state.value.callId, e.userId, desc.description)
+                        val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
+                        peer.pc.setLocalDescription(SimpleSdpObserver(), tuned)
+                        socketManager.emitGroupCallOffer(_state.value.callId, e.userId, tuned.description)
                     }
                 }, mediaConstraints())
             }
@@ -239,8 +240,9 @@ class GroupCallManager @Inject constructor(
                         drainIce(e.from)   // 锁内置位 remoteDescSet 并排空缓存候选
                         peer.pc.createAnswer(object : SimpleSdpObserver() {
                             override fun onCreateSuccess(desc: SessionDescription) {
-                                peer.pc.setLocalDescription(SimpleSdpObserver(), desc)
-                                socketManager.emitGroupCallAnswer(_state.value.callId, e.from, desc.description)
+                                val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
+                                peer.pc.setLocalDescription(SimpleSdpObserver(), tuned)
+                                socketManager.emitGroupCallAnswer(_state.value.callId, e.from, tuned.description)
                             }
                         }, mediaConstraints())
                     }
@@ -416,6 +418,26 @@ class GroupCallManager @Inject constructor(
     private fun mediaConstraints() = MediaConstraints().apply {
         mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
         mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", if (_state.value.isVideo) "true" else "false"))
+    }
+
+    /** 弱网调优（2026-09-02）：Opus inband FEC + 码率上限 64kbps + 单声道（与 CallManager 一致）。 */
+    private fun tuneSdpForWeakNetwork(sdp: String): String {
+        val m = Regex("a=rtpmap:(\\d+) opus/48000/2").find(sdp) ?: return sdp
+        val pt = m.groupValues[1]
+        val params = "useinbandfec=1;maxaveragebitrate=64000;stereo=0"
+        val fmtpRe = Regex("a=fmtp:$pt[^\\r\\n]*")
+        val existingFmtp = fmtpRe.find(sdp) ?: return sdp.replace(
+            Regex("(a=rtpmap:$pt opus/48000/2\\r?\\n)"),
+            "$1a=fmtp:$pt $params\r\n"
+        )
+        val existing = existingFmtp.value.replace(Regex("^a=fmtp:$pt\\s*"), "")
+        val out = mutableListOf<String>()
+        val seen = mutableSetOf<String>()
+        for (p in (existing.split(';').map { it.trim() }.filter { it.isNotEmpty() } + params.split(';'))) {
+            val key = p.substringBefore('=')
+            if (seen.add(key)) out.add(p)
+        }
+        return sdp.replace(existingFmtp.value, "a=fmtp:$pt ${out.joinToString(";")}")
     }
 
     private fun cleanup() {

@@ -224,8 +224,9 @@ final class GroupCallManager: NSObject, ObservableObject {
             self.state.participants = Array(self.peers.keys)
             entry.pc.offer(for: self.mediaConstraints()) { [weak self] desc, err in
                 guard let self, let desc, err == nil else { return }
-                entry.pc.setLocalDescription(desc) { _ in }
-                self.socket.emitGroupCallOffer(callId: self.state.callId, to: userId, sdp: desc.sdp)
+                let tuned = RTCSessionDescription(type: desc.type, sdp: Self.tuneSdpForWeakNetwork(desc.sdp))
+                entry.pc.setLocalDescription(tuned) { _ in }
+                self.socket.emitGroupCallOffer(callId: self.state.callId, to: userId, sdp: tuned.sdp)
             }
         }.store(in: &cancellables)
 
@@ -237,8 +238,9 @@ final class GroupCallManager: NSObject, ObservableObject {
                 entry.remoteDescSet = true; self.drainIce(from)
                 entry.pc.answer(for: self.mediaConstraints()) { [weak self] desc, err in
                     guard let self, let desc, err == nil else { return }
-                    entry.pc.setLocalDescription(desc) { _ in }
-                    self.socket.emitGroupCallAnswer(callId: self.state.callId, to: from, sdp: desc.sdp)
+                    let tuned = RTCSessionDescription(type: desc.type, sdp: Self.tuneSdpForWeakNetwork(desc.sdp))
+                    entry.pc.setLocalDescription(tuned) { _ in }
+                    self.socket.emitGroupCallAnswer(callId: self.state.callId, to: from, sdp: tuned.sdp)
                 }
             }
         }.store(in: &cancellables)
@@ -399,6 +401,29 @@ final class GroupCallManager: NSObject, ObservableObject {
             mandatoryConstraints: ["OfferToReceiveAudio": "true", "OfferToReceiveVideo": state.isVideo ? "true" : "false"],
             optionalConstraints: nil
         )
+    }
+
+    /// 弱网调优（2026-09-02）：Opus inband FEC + 码率上限 64kbps + 单声道（与 CallManager 一致）。
+    private static func tuneSdpForWeakNetwork(_ sdp: String) -> String {
+        guard let range = sdp.range(of: #"a=rtpmap:(\d+) opus/48000/2"#, options: .regularExpression) else { return sdp }
+        let pt = sdp[range].split(separator: " ").first!.split(separator: ":").last!
+        let params = "useinbandfec=1;maxaveragebitrate=64000;stereo=0"
+        let fmtpPattern = "a=fmtp:\(pt)[^\r\n]*"
+        if let fmtpRange = sdp.range(of: fmtpPattern, options: .regularExpression) {
+            let existing = sdp[fmtpRange].replacingOccurrences(of: "^a=fmtp:\(pt)\\s*", with: "", options: .regularExpression)
+            var out: [String] = []
+            var seen = Set<String>()
+            let parts = (existing.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } + params.split(separator: ";").map(String.init))
+            for p in parts {
+                let key = p.split(separator: "=").first.map(String.init) ?? p
+                if seen.insert(key).inserted { out.append(p) }
+            }
+            return sdp.replacingCharacters(in: fmtpRange, with: "a=fmtp:\(pt) \(out.joined(separator: ";"))")
+        }
+        if let lineRange = sdp.range(of: #"a=rtpmap:\d+ opus/48000/2\r?\n"#, options: .regularExpression) {
+            return sdp.replacingCharacters(in: lineRange, with: sdp[lineRange] + "a=fmtp:\(pt) \(params)\r\n")
+        }
+        return sdp
     }
 
     private func cleanup() {

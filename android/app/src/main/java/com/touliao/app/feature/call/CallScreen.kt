@@ -52,8 +52,17 @@ private val CallRed = Color(0xFFFA5151)
 
 /** 全局通话浮层：通话激活时覆盖在主界面之上 */
 @Composable
-fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
+fun CallHost(
+    navController: androidx.navigation.NavHostController? = null,
+    viewModel: CallViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // 拒接后回复消息：取/建私聊会话成功 → 导航打开
+    LaunchedEffect(Unit) {
+        viewModel.replyNavigation.collect { (conversationId, peerUserId, title) ->
+            navController?.navigate(com.touliao.app.navigation.Routes.chat(conversationId, title, "private", peerUserId))
+        }
+    }
     if (state.stage == CallStage.IDLE) return
 
     // 回铃音无声提示：通话音量=0 时 ToneGenerator 不发声，用户会以为 App 坏了。
@@ -163,8 +172,9 @@ fun CallHost(viewModel: CallViewModel = hiltViewModel()) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (state.stage == CallStage.INCOMING) {
-                Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     RoundButton("接听", CallGreen) { viewModel.accept() }
+                    RoundButton("回复消息", Color(0xFF555555)) { viewModel.rejectAndReply() }
                     RoundButton("拒绝", CallRed) { viewModel.reject() }
                 }
             } else {

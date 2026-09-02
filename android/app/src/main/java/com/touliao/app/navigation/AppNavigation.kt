@@ -453,7 +453,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
         }
         }
     }
-        CallHost()
+        CallHost(navController = navController)
         com.touliao.app.feature.call.GroupCallHost()
     }
 }
