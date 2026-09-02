@@ -1,13 +1,14 @@
 import XCTest
 @testable import Touliao
 
-/// ChatMessageMerge 纯函数红灯用例 —— 对齐 Android ChatMessageMergeTest / Web messageSync.test.js。
+/// ChatMessageMerge 纯函数用例 —— 对齐 Android ChatMessageMergeTest / Web messageSync.test.js。
 ///
-/// 第 1 轮（纯抽取）预期：2 绿 2 红
+/// 第 1 轮（纯抽取）红灯锁定：2 绿 2 红
 ///   绿1 尾部 pending 保持位置（真实消息序不被破坏）
 ///   绿2 乐观占位替换不双显（claimOrAppend 认领后单条真实消息）
 ///   红1 洞 A：中间 pending 使二分中位探测右跳 → 新消息插错位置（真实序乱）
 ///   红2 洞 B：claimOrAppend 保留位置替换 → 确认消息带新 seq 停在错槽位（真实序乱）
+/// 第 2 轮（洞 A/B 修复，对齐 Web/Android 已验证方案）后 4 用例全绿。
 final class ChatMessageMergeTests: XCTestCase {
 
     // ── 构造辅助 ──────────────────────────────────────────────
@@ -67,7 +68,7 @@ final class ChatMessageMergeTests: XCTestCase {
         assertRealSeqAscending(result)
     }
 
-    /// 洞 A：中间 pending（createdAt 混排产物）使二分中位探测右跳，新消息插到错误位置
+    /// 洞 A（已修）：中间 pending 不应影响插入——lowerBoundSeq 跳过 pending（透明锚点）
     func testMidPendingBreaksBinaryInsert() {
         // p(seq0) 卡在 m2 与 m3 之间（mergeServerWithPending 按 createdAt 混排的典型结果）
         let m1 = m(1, seq: 1)
@@ -78,11 +79,12 @@ final class ChatMessageMergeTests: XCTestCase {
 
         let result = ChatMessageMerge.insertBySeq([m1, m2, p, m3], new2)
 
-        // 红（现状）：二分 mid 先探到 p(0<2) → lo 右跳 → new2 插到 m2 后 → 真实序 [1,3,2,4]
+        // 红（第 1 轮）：二分 mid 先探到 p(0<2) → lo 右跳 → new2 插到 m2 后 → 真实序 [1,3,2,4]
+        // 绿（第 2 轮）：pending 透明 → 插到 m2 前 → 真实序 [1,2,3,4]
         assertRealSeqAscending(result)
     }
 
-    /// 洞 B：回声/确认保留位置替换（claimOrAppend），确认消息带新 seq 停在错槽位
+    /// 洞 B（已修）：回声/确认保留位置替换后做相邻 seq 校验，错位即重插
     func testEchoReplacesPendingInPlaceWithoutRelocation() {
         // m2(seq3) 为对端消息先显示；本地失败消息 p 停尾部；服务端其实先落库了 p 的确认
         // （seq2，应插 m1 与 m2 之间），echo 到达时按 client_msg_id 认领替换但保留尾部位置。
@@ -93,7 +95,8 @@ final class ChatMessageMergeTests: XCTestCase {
 
         let result = ChatMessageMerge.claimOrAppend([m1, m2, p], echo)
 
-        // 红（现状）：替换后 [m1(1), m2(3), r(2)] —— 真实序 [1,3,2] 永续乱序（catchUp 同 id 就地更新也不修）
+        // 红（第 1 轮）：替换后 [m1(1), m2(3), r(2)] —— 真实序 [1,3,2] 永续乱序
+        // 绿（第 2 轮）：violatesOrder 检出 → 取出按 seq2 重插 → [m1, r, m2] 自愈
         assertRealSeqAscending(result)
     }
 }

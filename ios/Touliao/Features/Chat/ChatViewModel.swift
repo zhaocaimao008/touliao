@@ -851,7 +851,7 @@ final class ChatViewModel: ObservableObject {
             }
             messages = ChatMessageMerge.applySyncEvents(messages, page.messages)
             // 2026-09-02：合并逻辑已抽入 ChatMessageMerge（纯函数）。插入由 claimOrAppend/
-            // insertBySeq 按序完成，pending 位置天然保持（含洞 A/B 现状，红灯锁定后第 2 轮修复）。
+            // insertBySeq 按序完成，pending 透明不参与比较，真实消息恒有序（第 2 轮洞 A/B 已修）。
             SyncCursorStore.shared.save(accountId: myId, conversationId: conversationId, sequence: page.nextCursor)
             if !page.hasMore || page.nextCursor == cursor { break }
             cursor = page.nextCursor
@@ -990,8 +990,13 @@ final class ChatViewModel: ObservableObject {
                 // 用真实消息替换乐观气泡（保留位置）；若广播已先到则去重后按序插入
                 // 2026-09-02：插入走纯函数（原 insertBySequence 已并入 ChatMessageMerge.insertBySeq）
                 messages.removeAll { $0.id == real.id }
-                if let idx = messages.firstIndex(where: { $0.id == optimistic.id }) { messages[idx] = real }
-                else { messages = ChatMessageMerge.insertBySeq(messages, real) }
+                if let idx = messages.firstIndex(where: { $0.id == optimistic.id }) {
+                    messages[idx] = real
+                    // 洞 B(2026-09-02)：替换后相邻 seq 校验——旧 outbox pending 若曾卡在错槽
+                    // （洞 A 时期/重启前产物），确认消息带新 seq 停在错槽位则取出重插自愈
+                    // （对齐 Web ChatWindow.jsx ack 替换 + Android applySyncEvents 就地更新）。
+                    messages = ChatMessageMerge.relocate(messages, at: idx)
+                } else { messages = ChatMessageMerge.insertBySeq(messages, real) }
             case .failure:
                 setLocalStatus(optimistic.id, LocalMsgStatus.failed)
                 var failed = optimistic
