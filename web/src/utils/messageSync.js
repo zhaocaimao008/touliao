@@ -81,7 +81,9 @@ function lowerBoundSeq(arr, target) {
 export function insertBySeq(arr, msg) {
   const seq = seqOf(msg);
   if (seq == null) { arr.push(msg); return; } // 防御：事件消息理论必有 seq
-  assertSortedOrRepair(arr); // dev only：插入前有序断言（生产跳过）
+  // dev only：插入前有序断言。条件【直接内联】——vite 把 import.meta.env.MODE 替换为字面量后
+  // esbuild 在语法层折叠 if(false) 整块消除，生产/Electron 零残留（勿改经变量中转，见下注）。
+  if (import.meta.env.MODE === 'development' || import.meta.env.MODE === 'test') assertSortedOrRepair(arr);
   arr.splice(lowerBoundSeq(arr, seq), 0, msg);
 }
 
@@ -99,11 +101,16 @@ export function violatesOrder(arr, i) {
 }
 
 // dev 有序性断言（2026-09-02）：插入前校验数组真实消息 seq 单调；违序 → console.error +
-// 降级全量排序（真实按 seq、pending 排末尾）。生产构建跳过（DEV=false），零开销。
-const isDev = typeof import.meta !== 'undefined' && !!import.meta.env
-  && (!!import.meta.env.DEV || import.meta.env.MODE === 'test');
+// 降级全量排序（真实按 seq、pending 排末尾）。
+//
+// ⚠️ 生效条件必须【直接内联在 if 里，不能经变量中转】：vite 构建时把 import.meta.env.MODE
+// 替换为字面量（production → "production"；Electron build:web 用 --mode desktop → "desktop"），
+// esbuild 随即把 `"production"==="development"` 在语法层折叠为 false → if(false) 整块消除 →
+// assertSortedOrRepair 无引用被删除，生产/Electron 产物零残留（实测验证过产物 grep）。
+// 若写成 `const isDev = ...; if (isDev) ...`：esbuild 不做变量常量传播，产物里会残留
+// `var isDev=!1` + 完整断言函数 + console.error 字符串（2026-09-02 实测踩坑，见 AUDIT）。
+// 也不能用 import.meta.env.DEV：Vite 语义 DEV = mode!=='production'，--mode desktop 会误命中。
 function assertSortedOrRepair(arr) {
-  if (!isDev) return;
   let prev = -1;
   for (const m of arr) {
     const s = seqOf(m);

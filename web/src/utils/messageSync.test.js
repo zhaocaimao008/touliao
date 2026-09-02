@@ -95,4 +95,24 @@ describe('applySyncEvents pending 有序性（审计用例）', () => {
     // 正确行为：同 id 再确认应把 m3 放回 seq 序正确位置
     expect(result.map(m => m.id)).toEqual(['m1', 'm2', 'm3']);
   });
+
+  it('dev 断言：插入前数组真实消息乱序 → 降级全量排序修复（证明断言在 test 模式真实启用）', () => {
+    // 本用例在 vitest(MODE=test) 下：insertBySeq 前内联条件为真 → assertSortedOrRepair 检测
+    // 乱序(m3 在 m2 前) → console.error + 降级排序 → 新消息按序插入。
+    // 若断言被误判关闭(如条件折叠错误/误用 DEV),m4 会 push 到乱序数组末尾 → 本用例变红。
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const current = [
+      { id: 'm1', server_sequence: 1 },
+      { id: 'm3', server_sequence: 3 }, // 乱序
+      { id: 'm2', server_sequence: 2 },
+    ];
+    const events = [{
+      server_sequence: 4, event_type: 'message_created', message_id: 'm4',
+      message: { id: 'm4', server_sequence: 4 },
+    }];
+    const result = applySyncEvents(current, events);
+    expect(spy).toHaveBeenCalled(); // 断言必须真的触发过(而非静默跳过)
+    spy.mockRestore();
+    expect(result.map(m => m.id)).toEqual(['m1', 'm2', 'm3', 'm4']);
+  });
 });
