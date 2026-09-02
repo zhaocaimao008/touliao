@@ -2246,3 +2246,40 @@ Module path: resources/app.asar/src/main.js
 - 破坏方式：临时删改生产代码（git 可回退），不修改测试。
 - 验收：①破坏后测试必须红（不是恰好绿）②红的原因必须是**该守卫/断言本身**，不是环境故障 ③恢复后全绿。
 - 动机：守卫1 恒绿教训——`ALL_PLATFORMS` 从 DB 自动发现新值，DB 子集断言形同虚设，是破坏验证（注入 `huawei`）才暴露的。**恒绿的测试比没有测试更危险**（给虚假信心）。
+
+---
+
+# 2026-09-02 二分插入排序改造（commit 472863a）部署前审计
+
+- 背景：`applySyncEvents`/三端 sync 合并改为「按 server_sequence 二分插入，删除全量重排」。用户部署前要求确认三条核心风险。本审计只读代码，未改任何实现。
+- 结论：Q1/Q3 风险可控（有结构性保障）；**Q2 存在两个可达的排序破坏路径，无任何断言/自愈**，且提交说明声称的「单测 4 场景」实际只提交了 2 个用例，Q2 核心场景零覆盖。
+
+## Q1 有序性前提
+
+| 场景 | 结论 | 证据 |
+|---|---|---|
+| 首次加载/分页是否按 server_sequence 有序 | 实质有序，但不是按 seq 排的：服务端按 `(created_at, rowid)` 升序返回，`server_sequence` 在写 worker 单线程事务内与消息 INSERT 同序分配（rowid 序==seq 序），旧数据按 rowid 回填 —— 两序等价依赖该不变式，客户端无显式验证 | messages.service.js:65/69、worker.js:36-54、schema.js:589 |
+| 上翻历史插头部还是二分 | 插头部，不走二分：`setMessages(prev => [...data, ...prev])`，前提是 data 全部早于数组头（服务端复合游标保证） | ChatWindow.jsx:843 |
+| 撤回/编辑就地处理后有序性 | 安全：按 id 就地改字段 / splice 移除，不移动其他元素 | messageSync.js:42-47 |
+| 服务端乱序 | sync 事件表 `ORDER BY e.server_sequence ASC`；历史按 (created_at,rowid)。**真正的破序源不在服务端，在客户端 pending 混排（见 Q2）**。dev 无有序断言、无自愈 | sync.service.js:79 |
+
+## Q2 pending 消息（核心风险 —— 有两个可达洞）
+
+1. **二分比较遇 pending**：`(result[mid]?.server_sequence || 0) < seq` —— pending 视为 seq 0，恒小于真实 seq，搜索越过它向右；尾部 pending 场景（当场发送失败）插入位置正确。Android 同（Long 默认 0，无 NPE）。证据：messageSync.js:33-38、ChatViewModel.kt:1023。
+2. **洞 A —— outbox created_at 混排把 pending 锚到数组中部/头部**：重开会话时 `merged = [...data, ...stillPending].sort(created_at)`（ChatWindow.jsx:622-624），pending 的 created_at 是**客户端时钟**（:1362），与服务端时钟混排。旧 outbox（几天前失败）/时钟偏差 → pending 落数组中间。一旦中间有 pending，数组 seq 不再单调，二分中位探测可能跳过正确落点 → 新事件插错位（例：`[M1(1),M2(2),P(0),M3(3)]` 插 seq1.5 会落到 P 之后而非 M1/M2 之间），且永不自动纠正。实际触发面窄（catchUp 事件 seq 通常都大于数组已有最大值，ChatWindow.jsx:652-654 游标从 maxSequence 起），但代码层无保证。iOS 同样按 createdAt 混排（ChatViewModel.swift:790/813）。
+3. **洞 B —— 旧 pending 重发成功后真实消息带最新 seq 却留在原位**：ack 是就地替换（Web ChatWindow.jsx:1246、iOS :1015-1021 同），pending 若因洞 A 停在中间/头部，重发成功消息（seq 最新）就卡在比它旧的上下文中，顺序颠倒、三端均有、直到重开会话才被服务端快照纠正。**自动重发路径（重连 healedOnReconnect :1265-1277、进会话 healedOnMount :1285-1297）会主动触发**。
+
+## Q3 切会话
+
+- ChatWindow 以 `key={activeConv.id}` 渲染（Home.jsx:1023/1163）→ 切会话=整组件重挂载：A 实例卸载时 state 随实例销毁、in-flight 请求被 cleanup `ac.abort()`（ChatWindow.jsx:695-696）+ `.then` 内 `ac.signal.aborted` 检查（:606）丢弃 → **A 的晚到数据结构性不可能写进 B/C 的新实例**。
+- firstArrival 是会话切换 effect 内的局部变量（:590，deps :714 含 conversation.id）→ **每会话独立，非全局**；同实例内 conversation 原地变化（scrollToId 跳转等）时 effect 重跑、firstArrival 重置。
+- 残余风险仅视觉级：卸载前最后微任务窗口内旧 fetch 已 setState 的瞬时帧，被新会话首次到达整体替换覆盖，不残留。
+
+## 待办（先不做，方案如下）
+
+| 待办 | 方案 |
+|---|---|
+| messageSync 单测与提交说明不符：称 4 场景实际只有 2 用例（messageSync.test.js），pending 保持位置/乐观占位替换/pending 混排二分错位 零覆盖 | 补 3 用例：①尾部 pending + 新事件插入后 pending 位置不变 ②client_msg_id 乐观占位被替换不双显 ③构造 [M1,P,M2] 中间 pending 插入 seq 落在区间的错位断言（先写会红的，再决定修不修） |
+| 洞 A：outbox created_at 混排用客户端时钟 | pending 合并时不用 created_at 参与排序：直接保持 outbox 原序插到数组尾部（或改为按服务端最新 seq 边界后插入），杜绝中间 pending |
+| 洞 B：ack 就地替换不校验 seq 单调 | 替换后做一次相邻序校验：若新 seq 与上下邻居冲突则触发一次按 seq 的有序重插（或整表 (created_at,rowid) 排序兜底，Web 已有同构 sort 可复用） |
+| 无 dev 有序断言 | dev 环境在 applySyncEvents 出入口断言「忽略 pending 后数组 server_sequence 非降」，乱序即 console.error + 触发整表重排 |
