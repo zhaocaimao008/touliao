@@ -832,7 +832,7 @@ class ChatViewModel @Inject constructor(
         val cached = msgCacheStore.load(conversationId)
         if (cached.isEmpty()) return
         val pending = outboxStore.load(conversationId)
-        val merged = (cached + pending).sortedBy { it.created_at }
+        val merged = mergeServerWithPending(cached, pending)
         _uiState.update {
             // 已被 loadHistory 抢先填充则不覆盖（竞态保护）
             if (it.messages.isNotEmpty()) it else it.copy(messages = merged)
@@ -859,7 +859,7 @@ class ChatViewModel @Inject constructor(
                     val pending = outboxStore.load(conversationId)
                     val stillPending = pending.filter { it.id !in serverIds }
                     pending.filterNot { it in stillPending }.forEach { outboxStore.remove(conversationId, it.id) }
-                    val merged = (list + stillPending).sortedBy { it.created_at }
+                    val merged = mergeServerWithPending(list, stillPending)
                     _uiState.update { it.copy(loading = false, messages = merged, reachedStart = list.size < HISTORY_PAGE) }
                     if (syncCursorStore.load(myId, conversationId) == 0L) {
                         list.maxOfOrNull { it.server_sequence }?.takeIf { it > 0 }?.let {
@@ -931,7 +931,13 @@ class ChatViewModel @Inject constructor(
                                 val existing = st.messages.map { it.id }.toSet()
                                 val new = inc.filterNot { it.id in existing }
                                 if (new.isEmpty()) st
-                                else st.copy(messages = (st.messages + new).sortedBy { it.created_at })
+                                else {
+                                    // 洞 A 修复：增量是带真实 seq 的服务端消息，按 seq 有序归位
+                                    // （不再 created_at 全量重排——会把 pending 混进中间/破坏 seq 序）
+                                    var merged = st.messages
+                                    new.forEach { merged = insertBySeq(merged, it) }
+                                    st.copy(messages = merged)
+                                }
                             }
                             persistCache(_uiState.value.messages)
                             if (atBottom) markReadLatest()
@@ -948,18 +954,13 @@ class ChatViewModel @Inject constructor(
      */
     private fun claimOrAppend(msg: Message) {
         val cid = msg.clientMsgId
+        // outbox 清理是副作用，保留在 VM 侧；合并语义（认领替换/去重/追加）在纯函数
+        if (cid != null && (_uiState.value.messages.any { it.clientMsgId == cid || it.id == cid })) {
+            val hit = _uiState.value.messages.first { it.clientMsgId == cid || it.id == cid }
+            outboxStore.remove(conversationId, hit.id)
+        }
         _uiState.update { state ->
-            if (cid != null) {
-                val idx = state.messages.indexOfFirst { it.clientMsgId == cid || it.id == cid }
-                if (idx >= 0) {
-                    outboxStore.remove(conversationId, state.messages[idx].id)
-                    // 若真实消息已因其它路径存在，避免重复
-                    val deduped = state.messages.filterIndexed { i, m -> i == idx || m.id != msg.id }
-                    return@update state.copy(messages = deduped.map { if (it.clientMsgId == cid || it.id == cid) msg else it })
-                }
-            }
-            if (state.messages.any { it.id == msg.id }) state
-            else state.copy(messages = state.messages + msg)
+            state.copy(messages = com.touliao.app.feature.chat.claimOrAppend(state.messages, msg))
         }
     }
 
@@ -1000,42 +1001,10 @@ class ChatViewModel @Inject constructor(
                   val page = runCatching { chatRepository.sync(conversationId, cursor) }.getOrNull() ?: break
                   if (page.next_cursor < cursor) break
                   _uiState.update { state ->
-                    // 2026-09-02 重写：不再全量重排（旧实现无 server_sequence 的 pending
-                    // 消息兜底 Long.MAX_VALUE 排末尾 → 失败消息被甩到最新位置）。
-                    // 改为「保持当前有序数组 + 事件按序插入」：pending 位置天然保持。
-                    val current = state.messages.toMutableList()
-                    page.messages.sortedBy { it.server_sequence }.forEach { event ->
-                        when (event.event_type) {
-                            "message_created" -> {
-                                val msg = event.message ?: return@forEach
-                                // 乐观占位替换：client_msg_id 命中的本地消息删除（让位给真实消息）
-                                msg.clientMsgId?.let { cid ->
-                                    current.removeAll { it.clientMsgId == cid || it.id == cid }
-                                }
-                                val idx = current.indexOfFirst { it.id == msg.id }
-                                if (idx >= 0) current[idx] = msg   // 已有：就地更新（如重发确认）
-                                else {
-                                    // 新消息：按 server_sequence 二分插入（数组本按 sequence 有序）
-                                    val seq = msg.server_sequence
-                                    var lo = 0; var hi = current.size
-                                    while (lo < hi) {
-                                        val mid = (lo + hi) / 2
-                                        if (current[mid].server_sequence < seq) lo = mid + 1 else hi = mid
-                                    }
-                                    current.add(lo, msg)
-                                }
-                            }
-                            "message_edited" -> current.indexOfFirst { it.id == event.message_id }
-                                .takeIf { it >= 0 }?.let { i ->
-                                    current[i] = current[i].copy(
-                                        content = event.payload["content"] ?: current[i].content, edited = 1
-                                    )
-                                }
-                            "message_recalled", "message_deleted_for_me", "message_vanished" ->
-                                current.removeAll { it.id == event.message_id }
-                        }
-                    }
-                    state.copy(messages = current)
+                    // 2026-09-02 抽取：合并逻辑移入 ChatMessageMerge.applySyncEvents（纯函数）。
+                    // 保持「当前有序数组 + 事件按序插入」语义与抽取前完全一致（含洞 A/B，
+                    // 由 ChatMessageMergeTest 红灯锁定后第 2 步修复）。
+                    state.copy(messages = applySyncEvents(state.messages, page.messages))
                   }
                   syncCursorStore.save(myId, conversationId, page.next_cursor)
                   if (!page.has_more || page.next_cursor == cursor) break
