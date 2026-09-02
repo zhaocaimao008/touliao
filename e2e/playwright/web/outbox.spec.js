@@ -68,8 +68,9 @@ test.describe('待发件箱 OUTBOX', () => {
     // 自愈完成后失败标记应消失（该条已成功送达）;30s 吸收 CI 负载(同 OB-01)
     await expect(webPage.locator('[data-testid="msg-send-failed"]'))
       .toHaveCount(0, { timeout: 30000 });
-    // 消息本身仍在
+    // 消息本身仍在。2026-09-02:12s→30s——CI runner 比本地慢约一倍(35用例 5m33s vs 本地 2.7m),
+    // ack 替换渲染在 CI 全量串行负载下可能 >12s(与上方 failed 断言同源,实测 ×8 连挂后本地全量 39/39 绿)
     await expect(webPage.locator('[data-testid^="msg-bubble-"]', { hasText: t }).last())
-      .toBeVisible();
+      .toBeVisible({ timeout: 30000 });
   });
 });
