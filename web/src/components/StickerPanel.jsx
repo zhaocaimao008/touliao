@@ -5,56 +5,23 @@ import { showToast, showConfirm } from '../utils/toast';
 import './StickerPanel.css';
 
 const MAX_STICKER_MB = 5;   // 表情图上限，超出前端就拦，省去无谓上传等待
-const PAGE_SIZE = 20;       // 每页加载数，减少首屏请求量
 
 // 我的表情包：点一下直接发送；可上传新增、长按/✕ 删除。
+// 后端 user_stickers 有硬上限 200 个/人(stickers.controller.js MAX_STICKERS)，一次性拉全量
+// 响应体不到 30KB，图片本身走 <img loading="lazy"> 原生懒加载——不需要额外做请求级分页，
+// 之前"加载更多"是从全量结果里 slice 的假分页，徒增状态复杂度，直接去掉。
 export default function StickerPanel({ onSend }) {
   const [stickers, setStickers] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingPage, setLoadingPage] = useState(false);
   const fileRef = useRef(null);
-  const sentinelRef = useRef(null);
-  const allStickersRef = useRef([]);
 
   const load = useCallback(() => axios.get('/api/stickers')
-    .then(r => {
-      const data = r.data || [];
-      allStickersRef.current = data;
-      setStickers(data.slice(0, PAGE_SIZE));
-      setHasMore(data.length > PAGE_SIZE);
-      setPage(1);
-    })
+    .then(r => setStickers(r.data || []))
     .catch(() => {})
     .finally(() => setLoaded(true)), []);
 
   useEffect(() => { load(); }, [load]);
-
-  const loadMore = useCallback(() => {
-    if (loadingPage || !hasMore) return;
-    setLoadingPage(true);
-    // 模拟加载下一页（从全量中截取，避免额外请求）
-    const nextPage = page + 1;
-    const all = allStickersRef.current;
-    const nextBatch = all.slice(0, nextPage * PAGE_SIZE);
-    setStickers(nextBatch);
-    setHasMore(nextBatch.length < all.length);
-    setPage(nextPage);
-    setLoadingPage(false);
-  }, [page, hasMore, loadingPage]);
-
-  // IntersectionObserver 在滚动到尾部时触发加载更多
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) loadMore();
-    }, { rootMargin: '100px' });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [loadMore]);
 
   const onPick = async (e) => {
     const file = e.target.files[0];
@@ -83,7 +50,6 @@ export default function StickerPanel({ onSend }) {
     try {
       await axios.delete(`/api/stickers/${id}`);
       setStickers(s => s.filter(x => x.id !== id));
-      allStickersRef.current = allStickersRef.current.filter(x => x.id !== id);
     } catch { showToast('删除表情失败，请重试', 'error'); }
   };
 
@@ -112,8 +78,6 @@ export default function StickerPanel({ onSend }) {
             <button className="sticker-del" onClick={(e) => del(e, s.id)} title="删除" aria-label="删除表情">✕</button>
           </div>
         ))}
-        {/* 底部哨兵元素：滚动到此处自动加载更多 */}
-        {hasMore && <div ref={sentinelRef} className="sticker-sentinel">{loadingPage ? '加载中…' : ''}</div>}
       </div>
     </div>
   );
