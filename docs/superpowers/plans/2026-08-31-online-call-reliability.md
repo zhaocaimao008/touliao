@@ -351,22 +351,28 @@ Run: `cd ios && xcodegen generate && xcodebuild test -project Touliao.xcodeproj 
 
 Expected: build failure because matcher is missing.
 
-- [ ] **Step 3: Implement matcher and upgrade SocketService/CallManager**
+- [x] **Step 3: Implement matcher and upgrade SocketService/CallManager** (2026-09-02, still on Linux, still no Xcode)
 
-Change `emitCallRequest` to accept a completion closure receiving `callId` from Socket.IO ack. Carry callId through response, SDP, ICE, and end subjects. Filter all events with `CallSignalMatcher`; send `call:resume` on reconnect; observe `call:outgoing` without creating audio/video tracks.
+Implemented, source-only, unverified by compile:
+- `CallSignalMatcher.swift` created (`activePeerId != eventPeerId → false`; else `eventCallId.isEmpty || eventCallId == activeCallId`), ported 1:1 from the Android matcher including its edge-case semantics (empty `activeCallId` does not accept a non-empty `eventCallId`).
+- `SocketService.emitCallRequest` changed from fire-and-forget to `async -> String?` using `emitWithAck(...).timingOut(after: 10)`, mirroring the existing `sendMessage` ack pattern in the same file and Android's 10s ack timeout. Returns `nil` on disconnect/timeout/malformed ack; callers must not treat `nil` as fatal (legacy fallback still applies server-side while `CALL_REQUIRE_ID=false`).
+- `callResponse`/`callOffer`/`callAnswer`/`callIce` Combine subjects widened to carry `callId`; `callEnd` widened from bare `String` to `(from, callId)`. All five listener closures in `SocketService.swift` now parse `d["callId"] as? String ?? ""`.
+- `emitCallOffer`/`emitCallAnswer`/`emitCallIce` gained an optional `callId: String = ""` parameter, included in the payload only when non-empty (same convention as the pre-existing `emitCallResponse`/`emitCallEnd`).
+- `CallManager.startCall` now awaits the ack, and only writes the returned `callId` into `state.callId` if the call is still the active outgoing call by the time it resolves (stage + peerId guard, no `callAttempt` counter added — kept the diff scoped to closing the callId gap, not porting Android's full ack-timeout-cleanup behavior).
+- All five `observeSignaling` listeners (`callResponse`/`callOffer`/`callAnswer`/`callIce`/`callEnd`) now gate on `CallSignalMatcher.matches(...)` instead of a bare `from == state.peerId` check.
+- `createOfferAndSend`/`createAnswerAndSend`/the ICE-gathering `RTCPeerConnectionDelegate` callback now pass `callId: state.callId` on every emit.
+- `call:resume` on reconnect and the `call:outgoing` busy-without-tracks observation mentioned in this step's original wording were already present pre-existing in `CallManager`/`SocketService` before this session — not touched.
 
 - [ ] **Step 4: Run iOS tests and build on macOS**
 
-Run: `cd ios && xcodegen generate && xcodebuild test -project Touliao.xcodeproj -scheme Touliao -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO`
-
-Expected: TEST SUCCEEDED.
+Not executable in this environment (still no Xcode/macOS toolchain on this Linux host — same boundary as Step 2). `CallSignalMatcherTests.swift` (5 cases, 1:1 port of the Android test file) was added under `TouliaoTests/`, which `project.yml`'s `TouliaoTests` target source-globs automatically (no `.xcodeproj`/`project.yml` edit needed). Brace/paren balance was checked mechanically on all 4 changed/added files; the diff was manually cross-checked line-by-line against the already-shipped, already-compiling Android implementation and the backend wire contract (`backend-v2/src/realtime/handlers/call.js`) for payload-shape and event-name parity. No PASS is claimed — this needs a real macOS/Xcode run before shipping.
 
 - [ ] **Step 5: Commit iOS signaling**
 
-Task 7 environment/protocol note: this Linux host has no Xcode, xcodegen, or iOS SDK, so XCTest/build were not executable and no pass is claimed. Static contract audit found the existing Swift one-to-one subjects/parsers/emits still omit `callId` for response/offer/answer/ICE/end and `emitCallRequest` is not ack-aware; these remain an explicit macOS follow-up rather than being marked implemented here.
+Not committed by this session — left as uncommitted working-tree changes pending the user's decision on when to compile/test/commit/deploy (per this repo's git-safety norms: only commit on explicit request, and a change that cannot be compiled here should not be presented as verified).
 
 ```bash
-git add ios/Touliao/Core/Realtime/SocketService.swift ios/Touliao/Core/Call/CallManager.swift ios/Touliao/Core/Call/GroupCallManager.swift ios/Touliao/Core/Call/CallSignalMatcher.swift ios/TouliaoTests/CallSignalMatcherTests.swift
+git add ios/Touliao/Core/Realtime/SocketService.swift ios/Touliao/Core/Call/CallManager.swift ios/Touliao/Core/Call/CallSignalMatcher.swift ios/TouliaoTests/CallSignalMatcherTests.swift
 git commit -m "fix: bind ios call signals to call ids"
 ```
 

@@ -176,7 +176,12 @@ final class CallManager: NSObject, ObservableObject {
             tonePlayer.playRingback()           // 会话就绪后→主叫回铃音（接通/挂断时停）
             createPeerConnection()
             createLocalTracks(video: video)
-            socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
+            let callId = await socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
+            // ack 超时/未连接返回 nil：不强行挂断——callId 缺失时后端按兼容模式放行，仅丢失
+            // 过期应答/串话保护。仅在仍是同一通呼出时才回填（防重拨/挂断后污染新状态）。
+            if let callId, state.stage == .outgoing, state.peerId == peerId {
+                state.callId = callId
+            }
         }
     }
 
@@ -294,14 +299,19 @@ final class CallManager: NSObject, ObservableObject {
             }
         }.store(in: &cancellables)
 
-        socket.callResponse.receive(on: DispatchQueue.main).sink { [weak self] (from, accepted) in
-            guard let self, self.state.isCaller, from == self.state.peerId else { return }
+        socket.callResponse.receive(on: DispatchQueue.main).sink { [weak self] (from, accepted, callId) in
+            guard let self, self.state.isCaller,
+                  CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
+            else { return }
             if accepted { self.state.stage = .connecting; self.createOfferAndSend() }
             else { self.cleanup(.ended) }
         }.store(in: &cancellables)
 
-        socket.callOffer.receive(on: DispatchQueue.main).sink { [weak self] (from, sdp) in
-            guard let self, from == self.state.peerId, let pc = self.pc else { return }
+        socket.callOffer.receive(on: DispatchQueue.main).sink { [weak self] (from, sdp, callId) in
+            guard let self,
+                  CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from),
+                  let pc = self.pc
+            else { return }
             let desc = RTCSessionDescription(type: .offer, sdp: sdp)
             pc.setRemoteDescription(desc) { [weak self] err in
                 guard let self, err == nil else { return }
@@ -311,8 +321,11 @@ final class CallManager: NSObject, ObservableObject {
             }
         }.store(in: &cancellables)
 
-        socket.callAnswer.receive(on: DispatchQueue.main).sink { [weak self] (from, sdp) in
-            guard let self, from == self.state.peerId, let pc = self.pc else { return }
+        socket.callAnswer.receive(on: DispatchQueue.main).sink { [weak self] (from, sdp, callId) in
+            guard let self,
+                  CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from),
+                  let pc = self.pc
+            else { return }
             let desc = RTCSessionDescription(type: .answer, sdp: sdp)
             pc.setRemoteDescription(desc) { [weak self] err in
                 guard let self, err == nil else { return }
@@ -321,14 +334,18 @@ final class CallManager: NSObject, ObservableObject {
             }
         }.store(in: &cancellables)
 
-        socket.callIce.receive(on: DispatchQueue.main).sink { [weak self] (from, candidate, sdpMid, idx) in
-            guard let self, from == self.state.peerId else { return }
+        socket.callIce.receive(on: DispatchQueue.main).sink { [weak self] (from, candidate, sdpMid, idx, callId) in
+            guard let self,
+                  CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
+            else { return }
             let cand = RTCIceCandidate(sdp: candidate, sdpMLineIndex: idx, sdpMid: sdpMid)
             if self.remoteDescSet { self.pc?.add(cand) } else { self.pendingIce.append(cand) }
         }.store(in: &cancellables)
 
-        socket.callEnd.receive(on: DispatchQueue.main).sink { [weak self] from in
-            guard let self, from == self.state.peerId else { return }
+        socket.callEnd.receive(on: DispatchQueue.main).sink { [weak self] (from, callId) in
+            guard let self,
+                  CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
+            else { return }
             VoipCallManager.shared.endActiveCall()   // 对方挂断时同步收尾 CallKit
             self.cleanup(.ended)
         }.store(in: &cancellables)
@@ -408,7 +425,7 @@ final class CallManager: NSObject, ObservableObject {
             guard let self, let desc, err == nil else { return }
             let tuned = RTCSessionDescription(type: desc.type, sdp: Self.tuneSdpForWeakNetwork(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
-            self.socket.emitCallOffer(to: self.state.peerId, sdp: tuned.sdp)
+            self.socket.emitCallOffer(to: self.state.peerId, sdp: tuned.sdp, callId: self.state.callId)
         }
     }
 
@@ -450,7 +467,7 @@ final class CallManager: NSObject, ObservableObject {
             guard let self, let desc, err == nil else { return }
             let tuned = RTCSessionDescription(type: desc.type, sdp: Self.tuneSdpForWeakNetwork(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
-            self.socket.emitCallAnswer(to: self.state.peerId, sdp: tuned.sdp)
+            self.socket.emitCallAnswer(to: self.state.peerId, sdp: tuned.sdp, callId: self.state.callId)
         }
     }
 
@@ -622,7 +639,7 @@ final class CallManager: NSObject, ObservableObject {
 extension CallManager: RTCPeerConnectionDelegate {
     func peerConnection(_ peerConnection: RTCPeerConnection, didGenerate candidate: RTCIceCandidate) {
         let peer = state.peerId
-        socket.emitCallIce(to: peer, candidate: candidate.sdp, sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex)
+        socket.emitCallIce(to: peer, candidate: candidate.sdp, sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex, callId: state.callId)
     }
 
     func peerConnection(_ peerConnection: RTCPeerConnection, didAdd rtpReceiver: RTCRtpReceiver, streams mediaStreams: [RTCMediaStream]) {

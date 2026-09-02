@@ -86,11 +86,11 @@ final class SocketService {
 
     // ── WebRTC 通话信令 ──
     let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String, callId: String), Never>()
-    let callResponse = PassthroughSubject<(from: String, accepted: Bool), Never>()
-    let callOffer = PassthroughSubject<(from: String, sdp: String), Never>()
-    let callAnswer = PassthroughSubject<(from: String, sdp: String), Never>()
-    let callIce = PassthroughSubject<(from: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32), Never>()
-    let callEnd = PassthroughSubject<String, Never>()
+    let callResponse = PassthroughSubject<(from: String, accepted: Bool, callId: String), Never>()
+    let callOffer = PassthroughSubject<(from: String, sdp: String, callId: String), Never>()
+    let callAnswer = PassthroughSubject<(from: String, sdp: String, callId: String), Never>()
+    let callIce = PassthroughSubject<(from: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32, callId: String), Never>()
+    let callEnd = PassthroughSubject<(from: String, callId: String), Never>()
     let callSwitchType = PassthroughSubject<(from: String, type: String, callId: String), Never>()
 
     // ── 群通话(mesh) 信令 ──
@@ -299,28 +299,28 @@ final class SocketService {
         }
         sock.on("call:response") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
-            self?.callResponse.send((from, (d["accepted"] as? Bool) ?? false))
+            self?.callResponse.send((from, (d["accepted"] as? Bool) ?? false, d["callId"] as? String ?? ""))
         }
         sock.on("call:offer") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String,
                   let sdp = (d["offer"] as? [String: Any])?["sdp"] as? String, !sdp.isEmpty else { return }
-            self?.callOffer.send((from, sdp))
+            self?.callOffer.send((from, sdp, d["callId"] as? String ?? ""))
         }
         sock.on("call:answer") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String,
                   let sdp = (d["answer"] as? [String: Any])?["sdp"] as? String, !sdp.isEmpty else { return }
-            self?.callAnswer.send((from, sdp))
+            self?.callAnswer.send((from, sdp, d["callId"] as? String ?? ""))
         }
         sock.on("call:ice") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String,
                   let cand = d["candidate"] as? [String: Any], let c = cand["candidate"] as? String else { return }
             let sdpMid = cand["sdpMid"] as? String
             let idx = (cand["sdpMLineIndex"] as? NSNumber)?.int32Value ?? 0
-            self?.callIce.send((from, c, sdpMid, idx))
+            self?.callIce.send((from, c, sdpMid, idx, d["callId"] as? String ?? ""))
         }
         sock.on("call:end") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
-            self?.callEnd.send(from)
+            self?.callEnd.send((from, d["callId"] as? String ?? ""))
         }
         sock.on("call:switch-type") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
@@ -433,24 +433,44 @@ final class SocketService {
     }
 
     // ── 通话信令发送 ──
-    func emitCallRequest(to: String, type: String, callerName: String) {
-        socket?.emit("call:request", ["to": to, "type": type, "caller": ["name": callerName]])
+    /// 主叫发起：ack 携带服务端生成的 callId（随后随 accept/reject/hangup 回传，供服务端
+    /// 做过期应答校验，对齐 Android）。连接已断或 ack 超时(10s)则返回 nil，不阻断通话
+    /// 主流程——callId 缺失时服务端跳过校验，保持兼容（对齐 backend CALL_REQUIRE_ID=false 默认）。
+    func emitCallRequest(to: String, type: String, callerName: String) async -> String? {
+        guard let sock = socket, sock.status == .connected else { return nil }
+        let payload: [String: Any] = ["to": to, "type": type, "caller": ["name": callerName]]
+        return await withCheckedContinuation { continuation in
+            sock.emitWithAck("call:request", payload)
+                .timingOut(after: 10) { ackData in
+                    guard let dict = ackData.first as? [String: Any],
+                          let callId = dict["callId"] as? String, !callId.isEmpty else {
+                        continuation.resume(returning: nil); return
+                    }
+                    continuation.resume(returning: callId)
+                }
+        }
     }
     func emitCallResponse(to: String, accepted: Bool, callId: String = "") {
         var payload: [String: Any] = ["to": to, "accepted": accepted]
         if !callId.isEmpty { payload["callId"] = callId }
         socket?.emit("call:response", payload)
     }
-    func emitCallOffer(to: String, sdp: String) {
-        socket?.emit("call:offer", ["to": to, "offer": ["type": "offer", "sdp": sdp]])
+    func emitCallOffer(to: String, sdp: String, callId: String = "") {
+        var payload: [String: Any] = ["to": to, "offer": ["type": "offer", "sdp": sdp]]
+        if !callId.isEmpty { payload["callId"] = callId }
+        socket?.emit("call:offer", payload)
     }
-    func emitCallAnswer(to: String, sdp: String) {
-        socket?.emit("call:answer", ["to": to, "answer": ["type": "answer", "sdp": sdp]])
+    func emitCallAnswer(to: String, sdp: String, callId: String = "") {
+        var payload: [String: Any] = ["to": to, "answer": ["type": "answer", "sdp": sdp]]
+        if !callId.isEmpty { payload["callId"] = callId }
+        socket?.emit("call:answer", payload)
     }
-    func emitCallIce(to: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32) {
+    func emitCallIce(to: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32, callId: String = "") {
         var cand: [String: Any] = ["candidate": candidate, "sdpMLineIndex": sdpMLineIndex]
         if let sdpMid { cand["sdpMid"] = sdpMid }
-        socket?.emit("call:ice", ["to": to, "candidate": cand])
+        var payload: [String: Any] = ["to": to, "candidate": cand]
+        if !callId.isEmpty { payload["callId"] = callId }
+        socket?.emit("call:ice", payload)
     }
     func emitCallEnd(to: String, callId: String = "") {
         var payload: [String: Any] = ["to": to]
