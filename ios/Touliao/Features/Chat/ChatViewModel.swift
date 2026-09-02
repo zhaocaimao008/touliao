@@ -787,7 +787,7 @@ final class ChatViewModel: ObservableObject {
         let cached = MsgCacheStore.shared.load(conversationId)
         guard !cached.isEmpty, messages.isEmpty else { return }   // 已被 loadHistory 抢先则不覆盖
         let pending = OutboxStore.shared.load(conversationId)
-        messages = (cached + pending).sorted { $0.createdAt < $1.createdAt }
+        messages = ChatMessageMerge.mergeServerWithPending(server: cached, pending: pending)
     }
 
     /// 将当前「已确认历史消息」落盘（内部 normalize：去乐观/待发、去重、截断 50）。
@@ -810,7 +810,7 @@ final class ChatViewModel: ObservableObject {
             for done in pending where !stillPending.contains(where: { $0.id == done.id }) {
                 OutboxStore.shared.remove(conversationId, done.id)
             }
-            messages = (list + stillPending).sorted { $0.createdAt < $1.createdAt }
+            messages = ChatMessageMerge.mergeServerWithPending(server: list, pending: stillPending)
             if SyncCursorStore.shared.load(accountId: myId, conversationId: conversationId) == 0,
                let maximum = list.map(\.serverSequence).max(), maximum > 0 {
                 SyncCursorStore.shared.save(accountId: myId, conversationId: conversationId, sequence: maximum)
@@ -842,23 +842,16 @@ final class ChatViewModel: ObservableObject {
           var cursor = SyncCursorStore.shared.load(accountId: myId, conversationId: conversationId)
           while true {
             guard let page = try? await repo.sync(conversationId, cursor: cursor), page.nextCursor >= cursor else { return }
-            for event in page.messages.sorted(by: { $0.serverSequence < $1.serverSequence }) {
-                switch event.eventType {
-                case "message_created":
-                    if let message = event.message { claimOrAppend(message) }
-                case "message_edited":
-                    if let index = messages.firstIndex(where: { $0.id == event.messageId }) {
-                        messages[index].content = event.payload["content"] ?? messages[index].content
-                        messages[index].edited = 1
-                    }
-                case "message_recalled", "message_deleted_for_me", "message_vanished":
-                    messages.removeAll { $0.id == event.messageId }
-                default: break
+            // outbox 清理副作用（原 claimOrAppend 内联）：created 事件命中本地乐观占位 → 清待发件箱
+            for event in page.messages where event.eventType == "message_created" {
+                if let m = event.message, let cid = m.clientMsgId,
+                   let hit = messages.first(where: { $0.clientMsgId == cid || $0.id == cid }) {
+                    OutboxStore.shared.remove(conversationId, hit.id)
                 }
             }
-            // 2026-09-02：移除全量重排（旧实现无 server_sequence 的 pending 消息兜底
-            // Int64.max 排末尾 → 失败消息被甩到最新位置）。插入已由 claimOrAppend/
-            // insertBySequence 按序完成，pending 位置天然保持。
+            messages = ChatMessageMerge.applySyncEvents(messages, page.messages)
+            // 2026-09-02：合并逻辑已抽入 ChatMessageMerge（纯函数）。插入由 claimOrAppend/
+            // insertBySeq 按序完成，pending 位置天然保持（含洞 A/B 现状，红灯锁定后第 2 轮修复）。
             SyncCursorStore.shared.save(accountId: myId, conversationId: conversationId, sequence: page.nextCursor)
             if !page.hasMore || page.nextCursor == cursor { break }
             cursor = page.nextCursor
@@ -902,31 +895,13 @@ final class ChatViewModel: ObservableObject {
     /// 广播消息落地：若它是本端某条乐观气泡的回声（按 client_msg_id 认领），就替换那条
     /// 乐观气泡（并清出待发件箱），避免「乐观 + 广播」双显；否则按 id 去重后按序插入。
     /// 关键：即便发送时 ack 丢失(乐观转 failed)，只要广播带回同一 client_msg_id 也能自愈为成功。
+    /// 2026-09-02：合并语义抽入 ChatMessageMerge.claimOrAppend（纯函数），本方法只留 outbox 副作用。
     private func claimOrAppend(_ msg: Message) {
         if let cid = msg.clientMsgId,
-           let idx = messages.firstIndex(where: { $0.clientMsgId == cid || $0.id == cid }) {
-            OutboxStore.shared.remove(conversationId, messages[idx].id)
-            // 若真实消息已因其它路径存在，先去重再替换
-            messages.removeAll { $0.id == msg.id && $0.clientMsgId != cid }
-            if let i = messages.firstIndex(where: { $0.clientMsgId == cid || $0.id == cid }) { messages[i] = msg }
-            return
+           let hit = messages.first(where: { $0.clientMsgId == cid || $0.id == cid }) {
+            OutboxStore.shared.remove(conversationId, hit.id)
         }
-        insertBySequence(msg)
-    }
-
-    /// 按 server_sequence 二分插入（保持数组有序）；无 sequence（本地乐观/待发消息）追加末尾。
-    /// 2026-09-02：替代原 appendUnique——sync 全量重排已移除（无 sequence 的 pending 会被
-    /// Int64.max 兜底甩到最新位置），插入必须显式有序，pending 位置才能天然保持。
-    private func insertBySequence(_ msg: Message) {
-        guard !messages.contains(where: { $0.id == msg.id }) else { return }
-        let seq = msg.serverSequence
-        if seq <= 0 { messages.append(msg); return }
-        var lo = 0, hi = messages.count
-        while lo < hi {
-            let mid = (lo + hi) / 2
-            if messages[mid].serverSequence < seq { lo = mid + 1 } else { hi = mid }
-        }
-        messages.insert(msg, at: lo)
+        messages = ChatMessageMerge.claimOrAppend(messages, msg)
     }
 
     private func onTyping(_ e: TypingEvent) {
@@ -1012,10 +987,11 @@ final class ChatViewModel: ObservableObject {
             switch result {
             case .success(let real):
                 OutboxStore.shared.remove(conversationId, optimistic.id)
-                // 用真实消息替换乐观气泡（保留位置）；若广播已先到则去重
+                // 用真实消息替换乐观气泡（保留位置）；若广播已先到则去重后按序插入
+                // 2026-09-02：插入走纯函数（原 insertBySequence 已并入 ChatMessageMerge.insertBySeq）
                 messages.removeAll { $0.id == real.id }
                 if let idx = messages.firstIndex(where: { $0.id == optimistic.id }) { messages[idx] = real }
-                else { insertBySequence(real) }
+                else { messages = ChatMessageMerge.insertBySeq(messages, real) }
             case .failure:
                 setLocalStatus(optimistic.id, LocalMsgStatus.failed)
                 var failed = optimistic
