@@ -154,6 +154,43 @@ function detectMention(val, caret) {
   return null;
 }
 
+// 客户端生成聊天图片缩略图（画布压缩，长边不超过 maxDim，webp 编码）。
+// 配合 /api/upload/credential 返回的 thumbUploadUrl（云直传路径服务器不经手字节，
+// 无法像本地上传那样自己用 sharp 生成缩略图，见 backend-v2 3bcd4e8）。
+// best-effort：任何失败都返回 null，不抛异常——渲染侧 getThumbUrl+onError 已经能在
+// 缩略图缺失时自动回退原图，一次画布/编码失败不该拖累任何调用方的正常流程。
+// imageOrientation:'from-image' 让 createImageBitmap 按 EXIF Orientation 自动摆正
+// 像素方向再解码，否则手机竖拍照片画出来的缩略图可能是横的/倒的。
+async function makeThumbnailBlob(file, maxDim = 480, quality = 0.78) {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close?.();
+    return await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality));
+  } catch (e) {
+    console.warn('[chat] 客户端缩略图生成失败(不影响消息发送):', e?.message || e);
+    return null;
+  }
+}
+
+// 缩略图上传：best-effort，不重试、不上报用户可见错误——失败时消息本身已经正常
+// 发出去了，只是没有缩略图，渲染侧会自动回退原图，用户感知不到任何异常。
+async function uploadThumb(thumbUploadUrl, blob) {
+  if (!thumbUploadUrl || !blob) return;
+  try {
+    await fetch(thumbUploadUrl, { method: 'PUT', headers: { 'Content-Type': 'image/webp' }, body: blob });
+  } catch (e) {
+    console.warn('[chat] 缩略图上传失败(不影响消息发送):', e?.message || e);
+  }
+}
+
 export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall, onStartGroupCall }) {
   const { t } = useI18n();
   const [conversation, setConversation] = useState(initialConv);
@@ -554,8 +591,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 区分「旧会话残留」与「新会话在途消息」，统一用 firstArrival 标记。
     let firstArrival = true;
     // 会话切换首帧 loading 起点：仅会话切换时置位一次，无级联渲染风险
-    // （react-hooks/set-state-in-effect 7.x 误报边界，见 AUDIT 待办）
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInitialLoading(true);
     const convIdForCache = conversation.id;
     const cachedMessages = (conversation.burn_after || 0) > 0
@@ -1603,13 +1638,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       filename, contentType, conversationId: conversation.id,
       fileSize: fileOrBlob?.size,   // 后端据此校验上限（1GB）；不传则不校验
     });
-    return new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) onProgress?.(Math.round(e.loaded / e.total * 100));
       });
       xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve(data.publicUrl);
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
         else reject(new Error(t('chat.uploadFailedCorsTemplate').replace('{status}', xhr.status)));
       });
       xhr.addEventListener('error', () => reject(new Error(t('chat.uploadNetworkError'))));
@@ -1618,6 +1653,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       xhr.setRequestHeader('Content-Type', contentType);
       xhr.send(fileOrBlob);
     });
+    // thumbUploadUrl 仅图片扩展名(jpg/jpeg/png/webp)才有：云直传路径服务器不经手字节，
+    // 无法像本地上传那样自己用 sharp 生成缩略图，由调用方在图片场景下画布生成后传上去。
+    return { publicUrl: data.publicUrl, thumbUploadUrl: data.thumbUploadUrl };
   }, [conversation.id, t]);
 
   // ── 聊天专属背景：设置/清除（按会话）──────────────────────────
@@ -1644,7 +1682,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // 优先尝试云存储直传；云存储未配置(503)或网络失败时降级到本地上传
         let url;
         try {
-          url = await uploadToCloud(file, file.type, file.name);
+          ({ publicUrl: url } = await uploadToCloud(file, file.type, file.name));
         } catch {
           // 503 = 云存储未配置；其他（网络错误/CORS等）均降级本地
           const fd = new FormData();
@@ -1772,8 +1810,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                  : 'file';
       try {
         let publicUrl;
+        let thumbUploadUrl;
         try {
-          publicUrl = await uploadToCloud(file, file.type, file.name, onProg);
+          ({ publicUrl, thumbUploadUrl } = await uploadToCloud(file, file.type, file.name, onProg));
         } catch (cloudErr) {
           // 云直传失败 → 一律回退本地上传(后端自己入库+广播,无需再 emit)。
           // 不止 503(云存储未配置)：Electron CSP 拦截云域名 / CORS / 云不可达 都会
@@ -1812,6 +1851,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           reply_to_id: replyTo?.id || null,
           clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
         }, (res) => { if (!res?.success) showToast(res?.error || t('chat.fileSendFailed'), 'error'); });
+        // 缩略图：仅图片且后端确实发了 thumbUploadUrl(jpg/jpeg/png/webp)才生成上传；
+        // 不 await——不能拖慢/阻塞消息发送，消息已经用原图 URL 正常发出去了。
+        if (type === 'image' && thumbUploadUrl) {
+          makeThumbnailBlob(file).then(blob => uploadThumb(thumbUploadUrl, blob));
+        }
         dispatchCompose({ type: 'CLEAR_REPLY' });
         setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
       } catch (err) {
@@ -1927,7 +1971,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         try {
           let publicUrl;
           try {
-            publicUrl = await uploadToCloud(blob, 'audio/webm', 'voice.webm', onProg);
+            ({ publicUrl } = await uploadToCloud(blob, 'audio/webm', 'voice.webm', onProg));
           } catch (cloudErr) {
             // 与图片/文件一致:云直传失败(非400/403)回退本地上传(走后端/upload,CSP必放行)。
             // 修复"未配置云存储/Electron CSP拦截时语音消息100%失败"。
