@@ -215,10 +215,4 @@ interface MessageApi {
         @Query("offset") offset: Int = 0,
         @Query("limit") limit: Int = 30,
     ): com.touliao.app.data.model.ConversationFilesResponse
-
-    // ── 功能A3: 语音转文字 ──────────────────────────────────────────────────
-
-    /** 语音转文字（幂等：已转写直接返回缓存；ASR 不可用返回 503） */
-    @POST("api/messages/{msgId}/transcribe")
-    suspend fun transcribe(@Path("msgId") msgId: String): com.touliao.app.data.model.TranscribeResponse
 }

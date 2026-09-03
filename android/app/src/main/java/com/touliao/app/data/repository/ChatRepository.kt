@@ -224,10 +224,4 @@ class ChatRepository @Inject constructor(
         limit: Int = 30,
     ): com.touliao.app.data.model.ConversationFilesResponse =
         api.conversationFiles(conversationId, type = type, offset = offset, limit = limit)
-
-    // ── 功能A3: 语音转文字 ──────────────────────────────────────────────────
-
-    /** 语音转文字（幂等由后端管理；ASR 不可用后端返回 503） */
-    suspend fun transcribe(msgId: String): com.touliao.app.data.model.TranscribeResponse =
-        api.transcribe(msgId)
 }

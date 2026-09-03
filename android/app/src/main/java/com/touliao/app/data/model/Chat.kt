@@ -87,9 +87,6 @@ data class Message(
     // 定时消息标记：1=此消息由定时任务触发发送（已到点后才出现在会话中）
     @kotlinx.serialization.SerialName("is_scheduled")
     val isScheduled: Int = 0,
-    // 功能A3: 语音转文字结果（后端消息查询已返回该列；非空=已转写，直接显示，不再显示「转文字」按钮）
-    @kotlinx.serialization.SerialName("transcript")
-    val transcript: String? = null,
     // 2026-08-29 统一附件系统：真实 mime/size（服务端魔数校验后落库），供文件卡片显示
     // 类型/大小、判断能否 App 内预览（PDF/Word/Excel/PPT）。旧消息可能为 null。
     val file_mime: String? = null,
@@ -248,13 +245,4 @@ data class ConversationFile(
 data class ConversationFilesResponse(
     val items: List<ConversationFile> = emptyList(),
     val total: Int = 0,
-)
-
-// ── 功能A3: 语音转文字 ───────────────────────────────────────────────────────
-
-/** 语音转文字响应（POST /api/messages/:msgId/transcribe）；cached=true 表示命中后端缓存 */
-@Serializable
-data class TranscribeResponse(
-    val text: String = "",
-    val cached: Boolean = false,
 )

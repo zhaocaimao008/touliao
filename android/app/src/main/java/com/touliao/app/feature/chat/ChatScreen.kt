@@ -675,8 +675,6 @@ fun ChatScreen(
                             onReplyClick = { targetId -> jumpToMessage(targetId) },
                             onMultiSelect = { viewModel.enterMultiSelect(msg) },
                             onRetry = { viewModel.retryMessage(msg.id) },
-                            transcribing = state.transcribingIds.contains(msg.id),
-                            onTranscribe = { viewModel.transcribeVoice(msg) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -1086,8 +1084,6 @@ private fun MessageBubble(
     onMultiSelect: () -> Unit = {},
     selectionMode: Boolean = false,
     onRetry: () -> Unit = {},
-    transcribing: Boolean = false,      // 功能A3: 该语音消息正在转写
-    onTranscribe: () -> Unit = {},      // 功能A3: 点击语音气泡「转文字」
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
@@ -1188,7 +1184,7 @@ private fun MessageBubble(
                         .graphicsLayer { scaleX = bubbleScale; scaleY = bubbleScale }
                         .combinedClickable(onClick = {}, onLongClick = { if (!selectionMode) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true } }),
                 ) {
-                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick, transcribing, onTranscribe)
+                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick)
                 }
                 // (highlight via Row background above)
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -1278,8 +1274,6 @@ private fun MessageContent(
     onPlayVoice: () -> Unit,
     onOpenFile: () -> Unit,
     onImageClick: () -> Unit = {},
-    transcribing: Boolean = false,      // 功能A3: 该语音正在转写中
-    onTranscribe: () -> Unit = {},      // 功能A3: 点击「转文字」
 ) {
     Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             when (msg.type) {
@@ -1322,38 +1316,6 @@ private fun MessageContent(
                                 textAlign = if (isMine) TextAlign.End else TextAlign.Start,
                             )
                             if (isMine) Text("▶", color = bubbleTextColor(isMine), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
-                        }
-                    }
-                    // 功能A3: 转文字。已转写→直接显示文本(无按钮)；未转写→「转文字」小按钮；转写中→「转写中…」
-                    when {
-                        !msg.transcript.isNullOrBlank() -> {
-                            Spacer(Modifier.size(3.dp))
-                            Box(
-                                Modifier
-                                    .widthIn(max = 240.dp)
-                                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb))
-                                    .background(Color(0x11000000))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                            ) {
-                                Text(msg.transcript, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, color = VxinTextSecondary)
-                            }
-                        }
-                        transcribing -> {
-                            Spacer(Modifier.size(3.dp))
-                            Text("转写中…", fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary, modifier = Modifier.padding(horizontal = 2.dp))
-                        }
-                        else -> {
-                            Spacer(Modifier.size(3.dp))
-                            Text(
-                                "转文字",
-                                fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
-                                color = VxinGreen,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
-                                    .clickable(onClick = onTranscribe)
-                                    .testTag("voice-transcribe-${msg.id}")
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                            )
                         }
                     }
                 }
