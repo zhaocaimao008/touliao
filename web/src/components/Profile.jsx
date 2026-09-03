@@ -418,19 +418,20 @@ function DeleteAccountPage({ onBack }) {
 }
 
 function Wallet({ onBack }) {
+  const { t } = useI18n();
   const [balance, setBalance] = useState(null);
   const [txns, setTxns] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchWallet = useCallback(async (isAlive = () => true) => {
     try {
-      const [b, t] = await Promise.all([
+      const [b, txRes] = await Promise.all([
         axios.get('/api/wallet'),
         axios.get('/api/wallet/transactions', { params: { limit: 50 } }),
       ]);
       if (!isAlive()) return;
       setBalance(b.data?.balance ?? 0);
-      setTxns(Array.isArray(t.data) ? t.data : []);
+      setTxns(Array.isArray(txRes.data) ? txRes.data : []);
     } catch { /* 静默：余额显示为 — */ }
     if (isAlive()) setLoading(false);
   }, []);
@@ -442,31 +443,31 @@ function Wallet({ onBack }) {
     return () => { alive = false; };
   }, [fetchWallet]);
 
-  const TYPE_LABEL = { recharge: '充值', red_packet: '发红包', red_packet_refund: '红包退回', red_packet_claim: '领红包' };
+  const TYPE_LABEL = { recharge: t('profile.txnRecharge'), red_packet: t('profile.txnSendRedPacket'), red_packet_refund: t('profile.txnRedPacketRefund'), red_packet_claim: t('profile.txnClaimRedPacket') };
   const fmtTime = (s) => { try { return new Date(s * 1000).toLocaleString(); } catch { return ''; } };
 
   return (
     <PageBg>
-      <PageHeader title="我的钱包" onBack={onBack} />
+      <PageHeader title={t('profile.myWallet')} onBack={onBack} />
       <div className="wc-section-pad">
         <Card className="profile-balance-card">
-          <div className="profile-card-subtitle">金币余额</div>
+          <div className="profile-card-subtitle">{t('profile.coinBalance')}</div>
           <div className="profile-balance-amount">{loading ? '…' : (balance ?? '—')}</div>
         </Card>
       </div>
-      <SLabel>交易记录</SLabel>
+      <SLabel>{t('profile.transactionHistory')}</SLabel>
       <div className="wc-section-pad">
         <Card>
           {loading ? (
-            <CRow label="加载中…" />
+            <CRow label={t('common.loading')} />
           ) : txns.length === 0 ? (
-            <CRow label="暂无交易记录" />
-          ) : txns.map(t => (
-            <CRow key={t.id}
-              label={TYPE_LABEL[t.type] || t.memo || t.type}
-              desc={fmtTime(t.created_at)}
-              right={<span className="profile-txn-amount" style={{ color: t.amount >= 0 ? 'var(--green)' : 'var(--text-primary)' }}>
-                {t.amount >= 0 ? '+' : ''}{t.amount}
+            <CRow label={t('profile.noTransactions')} />
+          ) : txns.map(tx => (
+            <CRow key={tx.id}
+              label={TYPE_LABEL[tx.type] || tx.memo || tx.type}
+              desc={fmtTime(tx.created_at)}
+              right={<span className="profile-txn-amount" style={{ color: tx.amount >= 0 ? 'var(--green)' : 'var(--text-primary)' }}>
+                {tx.amount >= 0 ? '+' : ''}{tx.amount}
               </span>} />
           ))}
         </Card>
@@ -477,6 +478,7 @@ function Wallet({ onBack }) {
 
 /* ── 邀请好友（专属邀请码 + 裂变战绩）── */
 function InviteFriends({ onBack }) {
+  const { t } = useI18n();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState('');   // '' | 'code' | 'link'
@@ -500,7 +502,7 @@ function InviteFriends({ onBack }) {
       setCopied(which);
       setTimeout(() => setCopied(''), 1500);
     } else {
-      showToast('复制失败，请长按手动复制', 'error');
+      showToast(t('profile.copyFailedManual'), 'error');
     }
   };
 
@@ -508,48 +510,48 @@ function InviteFriends({ onBack }) {
 
   return (
     <PageBg>
-      <PageHeader title="邀请好友" onBack={onBack} />
+      <PageHeader title={t('profile.inviteFriendsTitle')} onBack={onBack} />
       <div className="wc-section-pad">
         <Card className="profile-invite-code-card">
-          <div className="profile-card-subtitle">我的专属邀请码</div>
+          <div className="profile-card-subtitle">{t('profile.myInviteCode')}</div>
           <div className="profile-invite-code-value">
             {loading ? '……' : (data?.code || '—')}
           </div>
           <div className="profile-invite-actions">
             <button className="wc-save-btn" onClick={() => copyText(data?.code, 'code')} disabled={!data?.code}>
-              {copied === 'code' ? '已复制' : '复制邀请码'}
+              {copied === 'code' ? t('profile.copied') : t('profile.copyInviteCode')}
             </button>
             {inviteLink && (
               <button className="wc-save-btn" onClick={() => copyText(inviteLink, 'link')}>
-                {copied === 'link' ? '已复制' : '复制邀请链接'}
+                {copied === 'link' ? t('profile.copied') : t('profile.copyInviteLink')}
               </button>
             )}
           </div>
           <div className="profile-invite-hint">
-            把邀请码或链接发给好友，Ta 注册后即成为你邀请的用户
+            {t('profile.inviteHint')}
           </div>
         </Card>
       </div>
 
       <div className="wc-section-pad">
         <Card className="profile-invited-card">
-          <div className="profile-card-subtitle">已成功邀请</div>
-          <div className="profile-invited-count">{loading ? '…' : (data?.invitedCount ?? 0)} 人</div>
+          <div className="profile-card-subtitle">{t('profile.successfullyInvited')}</div>
+          <div className="profile-invited-count">{loading ? '…' : (data?.invitedCount ?? 0)} {t('profile.peopleCountSuffix')}</div>
         </Card>
       </div>
 
-      <SLabel>邀请记录</SLabel>
+      <SLabel>{t('profile.inviteRecords')}</SLabel>
       <div className="wc-section-pad">
         <Card>
           {loading ? (
-            <CRow label="加载中…" />
+            <CRow label={t('common.loading')} />
           ) : (data?.invitees?.length ? data.invitees.map(u => (
             <CRow key={u.id}
               icon={<Avatar src={u.avatar} name={u.username} size={28} />} bg="transparent"
               label={u.username}
-              desc={u.wechat_id ? `投聊号：${u.wechat_id}` : ''}
+              desc={u.wechat_id ? t('profile.touliaoIdColonTemplate').replace('{id}', u.wechat_id) : ''}
               right={<span className="profile-meta-sm">{fmtTime(u.created_at)}</span>} />
-          )) : <CRow label="还没有邀请记录，快去分享你的邀请码吧" />)}
+          )) : <CRow label={t('profile.noInvitesYet')} />)}
         </Card>
       </div>
     </PageBg>
@@ -558,6 +560,7 @@ function InviteFriends({ onBack }) {
 
 /* ── 设备列表 ── */
 function DeviceList({ onBack }) {
+  const { t } = useI18n();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -574,17 +577,17 @@ function DeviceList({ onBack }) {
       await axios.delete(`/api/auth/sessions/${id}`);
       setSessions(s => s.filter(x => x.id !== id));
     } catch (e) {
-      showToast(e.response?.data?.error || '退出该设备失败，请重试', 'error');
+      showToast(e.response?.data?.error || t('profile.exitDeviceFailed'), 'error');
     }
   };
 
   const removeAllSessions = async () => {
-    if (!(await showConfirm('确定将此账号从其他所有设备退出？'))) return;
+    if (!(await showConfirm(t('profile.confirmExitAllDevices')))) return;
     try {
       await axios.delete('/api/auth/sessions');
       setSessions(s => s.filter(x => x.current));
     } catch (e) {
-      showToast(e.response?.data?.error || '操作失败，请重试', 'error');
+      showToast(e.response?.data?.error || t('common.actionFailed'), 'error');
     }
   };
 
@@ -598,37 +601,37 @@ function DeviceList({ onBack }) {
 
   return (
     <PageBg>
-      <PageHeader title="设备管理" onBack={onBack} />
+      <PageHeader title={t('profile.deviceManagement')} onBack={onBack} />
       <div className="wc-device-pad">
         {loading ? (
-          <div role="status" className="wc-loading">加载中…</div>
+          <div role="status" className="wc-loading">{t('common.loading')}</div>
         ) : (
           <Card>
             {sessions.length === 0
-              ? <div role="status" className="wc-empty">暂无设备记录</div>
+              ? <div role="status" className="wc-empty">{t('profile.noDeviceRecords')}</div>
               : sessions.map((s) => (
                 <div key={s.id} className="wc-device-item">
                   <span className="wc-device-icon">{icon(s.platform)}</span>
                   <div className="wc-crow-body">
-                    <div className="wc-device-name">{s.device || '未知设备'}</div>
+                    <div className="wc-device-name">{s.device || t('profile.unknownDevice')}</div>
                     <div className="wc-device-info">
                       {s.ip ? `${s.ip} · ` : ''}
-                      {s.current ? '当前设备' : `最近活跃 ${new Date(s.last_seen * 1000).toLocaleDateString('zh-CN')}`}
+                      {s.current ? t('profile.currentDevice') : t('profile.lastActiveTemplate').replace('{date}', new Date(s.last_seen * 1000).toLocaleDateString())}
                     </div>
                   </div>
                   {s.current
-                    ? <span className="wc-badge-current">当前</span>
-                    : <button className="wc-btn-exit" onClick={() => removeSession(s.id)}>退出</button>
+                    ? <span className="wc-badge-current">{t('profile.currentBadge')}</span>
+                    : <button className="wc-btn-exit" onClick={() => removeSession(s.id)}>{t('profile.exitDevice')}</button>
                   }
                 </div>
               ))
             }
           </Card>
         )}
-        <div className="wc-device-hint">点击&quot;退出&quot;可远程下线该设备</div>
+        <div className="wc-device-hint">{t('profile.exitDeviceHint')}</div>
         {sessions.some(s => !s.current) && (
           <div className="wc-section-pad profile-mt-8">
-            <button className="wc-btn-exit-all" onClick={removeAllSessions}>一键退出其他全部设备</button>
+            <button className="wc-btn-exit-all" onClick={removeAllSessions}>{t('profile.exitAllOtherDevices')}</button>
           </div>
         )}
       </div>
