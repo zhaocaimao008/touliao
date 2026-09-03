@@ -14,6 +14,16 @@ on:
       - '.github/workflows/deploy.yml'
   workflow_dispatch:  # 允许手动触发
 
+# 排队而非并发（2026-09-03）：连续快速 push 会让多次运行的部署步骤在同一台服务器的
+# 同一个目录里同时跑 npm ci，实测两次真实炸过——backend-v2/node_modules/better-sqlite3
+# 原生编译踩了对方的中间产物（node-gyp 报 "opening dependency file ... No such file"），
+# web/node_modules 也被并发安装破坏过（vitest/node_modules 损坏）。cancel-in-progress
+# 故意设 false：不能把正在跑到一半、已经在服务器上执行部署脚本的运行直接杀掉（可能把
+# 服务器晾在"依赖装了一半"的状态），只让新的运行排队等前一个跑完，不并发。
+concurrency:
+  group: deploy-touliao-backend
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
