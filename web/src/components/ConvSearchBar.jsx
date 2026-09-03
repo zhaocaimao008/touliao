@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { format } from '../utils/time';
+import { useI18n } from '../contexts/I18nContext';
 
 /**
  * 会话内消息搜索栏
@@ -10,6 +11,7 @@ import { format } from '../utils/time';
  *   onClose     — 关闭搜索栏
  */
 export default function ConvSearchBar({ convId, onJump, onClose }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -62,10 +64,10 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
 
   const previewOf = (msg) => {
     switch (msg.type) {
-      case 'image': return '[图片]';
-      case 'voice': return '[语音]';
-      case 'video': return '[视频]';
-      case 'file':  return '[文件] ' + (msg.content || '').slice(0, 40);
+      case 'image': return t('chatlist.previewImage');
+      case 'voice': return t('chatlist.previewVoice');
+      case 'video': return t('chatlist.previewVideo');
+      case 'file':  return t('chatlist.previewFile') + ' ' + (msg.content || '').slice(0, 40);
       default:      return (msg.content || '').slice(0, 80);
     }
   };
@@ -103,18 +105,18 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
           ref={inputRef}
           value={query}
           onChange={handleChange}
-          placeholder="搜索聊天记录…"
+          placeholder={t('convSearch.searchPlaceholder')}
           style={{
             flex: 1, border: 'none', outline: 'none', background: 'transparent',
             fontSize: 'var(--text-base)', color: 'var(--text-primary)',
           }}
         />
         {loading && (
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>搜索中…</span>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{t('convSearch.searching')}</span>
         )}
         <button
           onClick={onClose}
-          aria-label="关闭搜索"
+          aria-label={t('convSearch.closeSearch')}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
             padding: 4, color: 'var(--text-tertiary)', lineHeight: 0,
@@ -138,7 +140,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
               padding: '16px 16px',
               fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', textAlign: 'center',
             }}>
-              未找到相关消息
+              {t('convSearch.noResults')}
             </div>
           )}
           {results.map(msg => (
@@ -159,7 +161,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  {msg.senderName || '未知'}
+                  {msg.senderName || t('chatlist.unknown')}
                 </span>
                 <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                   {format((msg.created_at || 0) * 1000)}
