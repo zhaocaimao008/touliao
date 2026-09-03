@@ -63,6 +63,13 @@ async function pushToUser(userId, payload) {
   const promises = [];
 
   const webSubs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id=?').all(userId);
+  // 一次查出该用户全部 device_tokens，按 platform 在内存里分组——此前这里分 4 次
+  // （android/ios_apns/ios/getui）各查一遍同一张表，pushNewMessage 对群内每个非发送者
+  // 成员都调一次 pushToUser，500 人群一条消息就是 2000 次同步 better-sqlite3 查询堵
+  // 事件循环。三行外的 push_subscriptions 早就是单次查询，唯独 device_tokens 这 4 次
+  // 一直没跟上，属同一处遗漏。
+  const deviceTokens = db.prepare('SELECT * FROM device_tokens WHERE user_id=?').all(userId);
+  const tokensOf = (platform) => deviceTokens.filter(r => r.platform === platform);
   for (const row of webSubs) {
     try {
       const sub = JSON.parse(row.subscription);
@@ -89,9 +96,7 @@ async function pushToUser(userId, payload) {
     // 性能提升：减少 70-90% 的 API 调用
 
     // 检查是否有 Android 设备
-    const androidTokens = db.prepare(
-      "SELECT * FROM device_tokens WHERE user_id=? AND platform='android'"
-    ).all(userId);
+    const androidTokens = tokensOf('android');
 
     if (androidTokens.length > 0) {
       // 使用优化的批量发送
@@ -112,12 +117,8 @@ async function pushToUser(userId, payload) {
 
     // iOS 单独处理：优先直连 APNs(platform='ios_apns', 原始 64 位 hex token)，
     // 兼容旧版只上报 FCM token 的设备(platform='ios', 走 FCM 兜底)。
-    const iosApnsTokens = db.prepare(
-      "SELECT * FROM device_tokens WHERE user_id=? AND platform='ios_apns'"
-    ).all(userId);
-    const iosTokens = db.prepare(
-      "SELECT * FROM device_tokens WHERE user_id=? AND platform='ios'"
-    ).all(userId);
+    const iosApnsTokens = tokensOf('ios_apns');
+    const iosTokens = tokensOf('ios');
 
     for (const row of iosApnsTokens) {
       // APNs 直连(HTTP/2 + Provider Token)：不依赖 Firebase 控制台 APNs 密钥配置。
@@ -220,7 +221,7 @@ async function pushToUser(userId, payload) {
 
   // ── 个推（国产 ROM 覆盖，与 FCM 并行互不干扰）──────────────
   if (getuiPush.isEnabled()) {
-    const getuiTokens = db.prepare("SELECT * FROM device_tokens WHERE user_id=? AND platform='getui'").all(userId);
+    const getuiTokens = tokensOf('getui');
     for (const row of getuiTokens) {
       getuiPush.pushToCid(row.token, {
         title: payload.senderName || '新消息',
