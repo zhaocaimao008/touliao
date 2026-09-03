@@ -7,8 +7,10 @@ import { showToast, showConfirm } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { formatLastOnline } from '../utils/time';
+import { useI18n } from '../contexts/I18nContext';
 
 export default function UserProfile({ userId, onClose, onStartChat, onFriendAdded, onFriendDeleted, onNudge }) {
+  const { t } = useI18n();
   const { user: currentUser } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +57,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
     setSending(true);
     setErrMsg('');
     try {
-      const { data } = await axios.post('/api/users/friend-request', { toId: userId, message: verifyMsg.trim() || '我是 ' + (user?.username || '') });
+      const { data } = await axios.post('/api/users/friend-request', { toId: userId, message: verifyMsg.trim() || t('up.iAmTemplate').replace('{name}', user?.username || '') });
       if (data.autoAccepted) {
         // 对方免验证，直接成为好友
         setUser(u => ({ ...u, isFriend: true }));
@@ -65,7 +67,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         onFriendAdded?.();
       }
     } catch (err) {
-      const msg = err.response?.data?.error || '发送失败，请重试';
+      const msg = err.response?.data?.error || t('up.sendFailedDefault');
       setErrMsg(msg);
       // 若服务端说已是好友或请求已存在，同步本地状态
       if (msg === '已是好友') {
@@ -87,13 +89,13 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
       window.dispatchEvent(new CustomEvent('touliao:remark-changed', { detail: { userId, remark: next } }));
       onFriendAdded?.();
     } catch (err) {
-      setErrMsg(err.response?.data?.error || '保存失败');
+      setErrMsg(err.response?.data?.error || t('up.saveFailed'));
     }
     setRemarkSaving(false);
   };
 
   const deleteFriend = async () => {
-    if (!(await showConfirm(`确认删除好友「${user.remark || user.username}」？`))) return;
+    if (!(await showConfirm(t('up.confirmDeleteFriendTemplate').replace('{name}', user.remark || user.username)))) return;
     try {
       await axios.delete(`/api/users/contacts/${userId}`);
       onFriendAdded?.();
@@ -101,7 +103,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
       onClose();
     } catch (e) {
       // 删除失败时不关闭弹窗，提示用户以免误以为已删除
-      showToast(e.response?.data?.error || '删除失败，请重试', 'error');
+      showToast(e.response?.data?.error || t('contacts.deleteFailed'), 'error');
     }
   };
 
@@ -111,12 +113,12 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         await axios.delete(`/api/users/block/${userId}`);
         setBlocked(false);
       } else {
-        if (!(await showConfirm(`确认将「${user.remark || user.username}」加入黑名单？`))) return;
+        if (!(await showConfirm(t('up.confirmBlacklistTemplate').replace('{name}', user.remark || user.username)))) return;
         await axios.post(`/api/users/block/${userId}`);
         setBlocked(true);
       }
     } catch (e) {
-      showToast(e.response?.data?.error || '操作失败，请重试', 'error');
+      showToast(e.response?.data?.error || t('common.actionFailed'), 'error');
     }
   };
 
@@ -126,13 +128,13 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
       onStartChat?.({ id: data.conversationId, type: 'private', name: user.remark || user.username, avatar: user.avatar, otherUser: user });
       onClose();
     } catch (e) {
-      showToast(e.response?.data?.error || '打开会话失败，请重试', 'error');
+      showToast(e.response?.data?.error || t('up.openChatFailed'), 'error');
     }
   };
 
   if (loading) return (
     <div className="up-overlay" onClick={onClose}>
-      <div className="up-card" role="dialog" aria-modal="true" aria-label="联系人资料" onClick={e => e.stopPropagation()} style={{ alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+      <div className="up-card" role="dialog" aria-modal="true" aria-label={t('up.contactProfile')} onClick={e => e.stopPropagation()} style={{ alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
         <div className="up-loading-dot" />
       </div>
     </div>
@@ -143,7 +145,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
 
   return (
     <div className="up-overlay" ref={trapRef} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="up-card" role="dialog" aria-modal="true" aria-label="联系人资料" onClick={e => e.stopPropagation()}>
+      <div className="up-card" role="dialog" aria-modal="true" aria-label={t('up.contactProfile')} onClick={e => e.stopPropagation()}>
 
         {/* 顶部封面区 */}
         <div className="up-header">
@@ -152,7 +154,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
                    onError={e => { e.currentTarget.onerror = null; e.currentTarget.className = 'up-cover-default'; e.currentTarget.removeAttribute('src'); }} />
             : <div className="up-cover-default" />
           }
-          <button className="up-close-btn" onClick={onClose} aria-label="关闭">
+          <button className="up-close-btn" onClick={onClose} aria-label={t('common.close')}>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
@@ -165,22 +167,22 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {/* 名字 + ID */}
         <div className="up-identity">
           <div className="up-name">{displayName}</div>
-          {user.remark && <div className="up-sub">昵称：{user.username}</div>}
+          {user.remark && <div className="up-sub">{t('gs.nicknameLabel')}{user.username}</div>}
           {user.wechat_id && (
             <button
               type="button"
               className="up-sub up-copyable"
-              title="点击复制 投聊号"
-              aria-label={`投聊号 ${user.wechat_id}，点击复制`}
-              onClick={async () => { const ok = await copyToClipboard(user.wechat_id); showToast(ok ? '已复制 投聊号' : '复制失败，请长按手动复制', ok ? 'success' : 'error'); }}
-            >投聊号：{user.wechat_id}</button>
+              title={t('profile.clickToCopyTouliaoId')}
+              aria-label={`${t('home.wechatIdLabel')} ${user.wechat_id}，${t('profile.clickToCopyTouliaoId')}`}
+              onClick={async () => { const ok = await copyToClipboard(user.wechat_id); showToast(ok ? t('profile.copiedTouliaoId') : t('profile.copyFailedManual'), ok ? 'success' : 'error'); }}
+            >{t('profile.touliaoIdColonTemplate').replace('{id}', user.wechat_id)}</button>
           )}
           {user.bio && <div className="up-bio">{user.bio}</div>}
           {/* 特权账户：精确最后在线时间 */}
           {user.last_online_at !== undefined && (() => {
             const label = formatLastOnline(user.last_online_at, user.status === 'online');
             return label ? (
-              <div className="up-last-online" title="最后在线时间（特权可见）">
+              <div className="up-last-online" title={t('up.lastOnlineTitle')}>
                 🟢 {label}
               </div>
             ) : null;
@@ -191,13 +193,13 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {user.isFriend && (
           <div className="up-rows">
             <button type="button" className="up-row" onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }}>
-              <span className="up-row-label">备注名</span>
-              <span className="up-row-value">{user.remark || <span style={{ color: 'var(--text-tertiary)' }}>未设置</span>}</span>
+              <span className="up-row-label">{t('up.remarkNameLabel')}</span>
+              <span className="up-row-value">{user.remark || <span style={{ color: 'var(--text-tertiary)' }}>{t('up.notSet')}</span>}</span>
               <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
             </button>
             {user.phone && (
               <div className="up-row">
-                <span className="up-row-label">手机号</span>
+                <span className="up-row-label">{t('profile.phoneLabel')}</span>
                 <span className="up-row-value">{user.phone}</span>
               </div>
             )}
@@ -207,19 +209,19 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {/* 备注编辑内嵌 */}
         {showRemarkEdit && (
           <div className="up-remark-box">
-            <div className="up-remark-label">设置备注（仅自己可见）</div>
+            <div className="up-remark-label">{t('up.setRemarkLabel')}</div>
             <input
               className="up-remark-input"
-              placeholder="输入备注名"
+              placeholder={t('up.remarkPlaceholder')}
               value={remark}
               onChange={e => setRemark(e.target.value)}
               autoFocus
               maxLength={20}
             />
             <div className="up-remark-actions">
-              <button className="up-btn-ghost" onClick={() => setShowRemarkEdit(false)}>取消</button>
+              <button className="up-btn-ghost" onClick={() => setShowRemarkEdit(false)}>{t('common.cancel')}</button>
               <button className="up-btn-primary" onClick={saveRemark} disabled={remarkSaving}>
-                {remarkSaving ? '保存中…' : '确认'}
+                {remarkSaving ? t('up.saving') : t('common.confirm')}
               </button>
             </div>
           </div>
@@ -233,15 +235,15 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style={{ marginRight: 6 }}>
                   <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
-                申请添加好友
+                {t('up.applyAddFriend')}
               </button>
             )}
             {addStep === 'composing' && (
               <div className="up-verify-box">
-                <div className="up-verify-label">验证消息</div>
+                <div className="up-verify-label">{t('up.verifyMessageLabel')}</div>
                 <textarea
                   className="up-verify-input"
-                  placeholder={`我是 ${user.username}`}
+                  placeholder={t('up.iAmTemplate').replace('{name}', user.username)}
                   value={verifyMsg}
                   onChange={e => setVerifyMsg(e.target.value)}
                   maxLength={100}
@@ -250,9 +252,9 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
                 />
                 {errMsg && <div className="up-err">{errMsg}</div>}
                 <div className="up-verify-actions">
-                  <button className="up-btn-ghost" onClick={() => { setAddStep('idle'); setErrMsg(''); }}>取消</button>
+                  <button className="up-btn-ghost" onClick={() => { setAddStep('idle'); setErrMsg(''); }}>{t('common.cancel')}</button>
                   <button className="up-btn-primary" onClick={sendRequest} disabled={sending}>
-                    {sending ? '发送中…' : '发送申请'}
+                    {sending ? t('fwd.sending') : t('up.sendApplication')}
                   </button>
                 </div>
               </div>
@@ -262,7 +264,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--green)" style={{ flexShrink: 0 }}>
                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                 </svg>
-                申请已发送，等待对方确认
+                {t('up.applicationSentTip')}
               </div>
             )}
           </div>
@@ -275,27 +277,27 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
               </svg>
-              <span>发消息</span>
+              <span>{t('up.sendMessage')}</span>
             </button>
             {onNudge && userId !== currentUser?.id && (
-              <button className="up-action-btn up-action-grey" onClick={() => { onNudge(userId); showToast('已发送拍一拍'); onClose?.(); }}>
+              <button className="up-action-btn up-action-grey" onClick={() => { onNudge(userId); showToast(t('up.nudgeSentToast')); onClose?.(); }}>
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                   <path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74c1.21-.81 2-2.18 2-3.74a4 4 0 1 0-8 0c0 1.56.79 2.93 2 3.74zM18.84 15.87l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6a1.5 1.5 0 0 0-3 0v10.74l-3.43-.72a1 1 0 0 0-.99 1.65l3.6 3.44c.28.28.66.44 1.06.44h6.4a2 2 0 0 0 1.98-1.72l.63-4.46c.13-.9-.34-1.79-1.14-2.15z"/>
                 </svg>
-                <span>拍一拍</span>
+                <span>{t('up.nudge')}</span>
               </button>
             )}
             <button className={`up-action-btn ${blocked ? 'up-action-warn' : 'up-action-grey'}`} onClick={toggleBlock}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 014 12zm8 8c-1.85 0-3.55-.63-4.9-1.69l11.21-11.21C19.37 8.45 20 10.15 20 12c0 4.42-3.58 8-8 8z"/>
               </svg>
-              <span>{blocked ? '已拉黑' : '拉黑'}</span>
+              <span>{blocked ? t('up.blacklistedVerb') : t('up.blacklistVerb')}</span>
             </button>
             <button className="up-action-btn up-action-danger" onClick={deleteFriend}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
               </svg>
-              <span>删除</span>
+              <span>{t('chat.delete')}</span>
             </button>
           </div>
         )}
