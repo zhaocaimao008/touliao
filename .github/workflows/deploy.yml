@@ -207,6 +207,20 @@ jobs:
           npm run build
           echo "✅ Web 构建完成（dist/ 已更新）"
 
+          echo "📤 步骤 2a-发布: 同步构建产物到 nginx 实际服务的目录"
+          # ⚠ 2026-09-03 补上的关键一步：这条自动部署流水线此前只构建了 dist/，从未真正
+          # 同步到 nginx 服务的 /var/www/touliao-web/——每次运行都显示"部署成功"，但网页
+          # 用户看到的其实是上一次人工手动同步时的旧版本，新代码永远上不了线（此前只有
+          # deploy/README.md 写了这步"人工"操作，脚本本身漏掉了，这条 gap 一直没被发现，
+          # 直到今天线上仍是9-2的旧包，当天早上修的多端通话同步 bug 一直没真正生效）。
+          # 用 -a 不加 --delete：/var/www/touliao-web/ 只放构建产物，config.json 已单独
+          # 存在 /var/www/touliao-runtime-config/，理论上可以 --delete，但沿用 README
+          # 里"确认目录纯净前不要 --delete"的保守约定。
+          mkdir -p /var/www/touliao-web
+          cp -r /var/www/touliao-web "/var/www/touliao-web.bak-$(date -u +%Y%m%dT%H%M%SZ)" 2>/dev/null || true
+          rsync -a "$REPO_ROOT/web/dist/" /var/www/touliao-web/
+          echo "✅ Web 已发布到 /var/www/touliao-web/"
+
           echo "📦 步骤 2b: 安装后端生产依赖"
           cd "$DEPLOY_PATH"
           npm ci --omit=dev
@@ -235,7 +249,12 @@ jobs:
             if [ -n "$PREV_SHA" ]; then
               echo "↩️  自动回滚到部署前版本 $PREV_SHA"
               git -C "$REPO_ROOT" reset --hard "$PREV_SHA"
-              cd "$REPO_ROOT/web" && npm ci && npm run build || echo "⚠ 回滚 web 构建失败（前端可能保留新版 dist）"
+              if cd "$REPO_ROOT/web" && npm ci && npm run build; then
+                rsync -a "$REPO_ROOT/web/dist/" /var/www/touliao-web/
+                echo "✅ 回滚后 Web 已重新发布"
+              else
+                echo "⚠ 回滚 web 构建失败，/var/www/touliao-web/ 保留新版产物未回退"
+              fi
               cd "$DEPLOY_PATH" && npm ci --omit=dev
               pm2 restart touliao-backend --update-env || PORT=3003 pm2 start src/server.js --name touliao-backend
               pm2 save || true
