@@ -218,6 +218,8 @@ jobs:
           # 里"确认目录纯净前不要 --delete"的保守约定。
           mkdir -p /var/www/touliao-web
           cp -r /var/www/touliao-web "/var/www/touliao-web.bak-$(date -u +%Y%m%dT%H%M%SZ)" 2>/dev/null || true
+          # 每次部署都建一份备份，之前没有清理——留最近 10 份，多的删掉（按目录名时间戳排序）
+          ls -1dt /var/www/touliao-web.bak-* 2>/dev/null | tail -n +11 | xargs -r rm -rf
           rsync -a "$REPO_ROOT/web/dist/" /var/www/touliao-web/
           echo "✅ Web 已发布到 /var/www/touliao-web/"
 
