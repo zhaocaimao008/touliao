@@ -650,7 +650,7 @@ export default function Home() {
         return { ...prev, [conversationId]: (prev[conversationId] || 0) + 1 };
       });
       if (!isActiveConv || document.hidden) {
-        showNotification(senderName || '新消息', preview || '发来了一条消息');
+        showNotification(senderName || t('home.newMessage'), preview || t('home.sentAMessage'));
         if (senderName) playMessageTone(); // 大群通知不携带 sender_id，仅在明确有发送者时响铃
       }
       setConvRefreshKey(k => k + 1); // 刷新会话列表（置顶 + lastMessage 摘要）
@@ -664,12 +664,12 @@ export default function Home() {
       // 不在当前会话 或 窗口不可见时，推送浏览器通知
       if (!isActiveConv || document.hidden) {
         const bodyText =
-          msg.type === 'image' ? '[图片]' :
-          msg.type === 'voice' ? '[语音消息]' :
-          msg.type === 'file'  ? '[文件]' :
-          msg.type === 'video' ? '[视频]' :
-          (msg.content || '').slice(0, 80) || '发来了一条消息';
-        showNotification(msg.senderName || '新消息', bodyText, msg.senderAvatar);
+          msg.type === 'image' ? t('messageItem.replyPreviewImage') :
+          msg.type === 'voice' ? t('home.previewVoiceMessage') :
+          msg.type === 'file'  ? t('messageItem.replyPreviewFile') :
+          msg.type === 'video' ? t('messageItem.replyPreviewVideo') :
+          (msg.content || '').slice(0, 80) || t('home.sentAMessage');
+        showNotification(msg.senderName || t('home.newMessage'), bodyText, msg.senderAvatar);
         if (msg.sender_id !== myId) playMessageTone(); // 提示音，独立于通知权限
       }
       // 桌面端：他人来消息 → 请求任务栏闪烁。是否真闪由主进程 isFocused() 最终判定。
@@ -681,7 +681,7 @@ export default function Home() {
     };
     const onFriendReq = (data) => {
       setFriendReqCount(prev => prev + 1);
-      const name = data?.from?.username || data?.username || '有人';
+      const name = data?.from?.username || data?.username || t('home.someone');
       const avatar = data?.from?.avatar || data?.avatar || '';
       const message = data?.message || data?.from?.message || '';
       // 2026-08-29 提醒优化：App 前台时用轻量内嵌卡片(不打断当前操作)；
@@ -689,13 +689,13 @@ export default function Home() {
       if (!document.hidden) {
         showFriendRequestCard({ avatar, name, message, onView: () => openFriendRequestsPage() });
       } else {
-        showNotification('新的好友申请', `${name} 请求添加您为好友`);
+        showNotification(t('home.newFriendRequestTitle'), t('home.friendRequestBodyTemplate').replace('{name}', name));
       }
     };
     const onFriendAccepted = (data) => {
       // accepter 存在 = 我是请求方，对方通过了我的申请；newFriend 存在 = 我是接受方，仅触发刷新
       if (data?.accepter?.username) {
-        showNotification('好友申请已通过', `${data.accepter.username} 已通过你的好友申请`);
+        showNotification(t('home.friendRequestAcceptedTitle'), t('home.friendRequestAcceptedBodyTemplate').replace('{name}', data.accepter.username));
       }
       // 刷新会话列表（新好友会话自动置顶）
       setConvRefreshKey(k => k + 1);
@@ -720,12 +720,12 @@ export default function Home() {
       for (const msg of latestByConv.values()) {
         if (msg.conversation_id !== activeConvIdRef.current || document.hidden) {
           const bodyText =
-            msg.type === 'image' ? '[图片]' :
-            msg.type === 'voice' ? '[语音消息]' :
-            msg.type === 'file'  ? '[文件]' :
-            msg.type === 'video' ? '[视频]' :
-            (msg.content || '').slice(0, 80) || '发来了一条消息';
-          showNotification(msg.senderName || '新消息', bodyText, msg.senderAvatar);
+            msg.type === 'image' ? t('messageItem.replyPreviewImage') :
+            msg.type === 'voice' ? t('home.previewVoiceMessage') :
+            msg.type === 'file'  ? t('messageItem.replyPreviewFile') :
+            msg.type === 'video' ? t('messageItem.replyPreviewVideo') :
+            (msg.content || '').slice(0, 80) || t('home.sentAMessage');
+          showNotification(msg.senderName || t('home.newMessage'), bodyText, msg.senderAvatar);
           if (msg.sender_id !== myId) playMessageTone();
         }
       }
@@ -816,8 +816,8 @@ export default function Home() {
         if (window.__ELECTRON_CONFIG__ && (document.hidden || !document.hasFocus())) {
           try { window.electronAPI?.focusForCall?.(); } catch { /* 非桌面端忽略 */ }
         }
-        const callerName = caller?.name || '好友';
-        showNotification(callerName, type === 'video' ? '邀请你视频通话' : '邀请你语音通话', caller?.avatar);
+        const callerName = caller?.name || t('home.defaultFriendName');
+        showNotification(callerName, type === 'video' ? t('home.videoCallInvite') : t('home.voiceCallInvite'), caller?.avatar);
         // 标题/favicon 闪烁——仅 Web/桌面端启用：
         // 原生移动端（Capacitor）有原生推送铃声+提醒，且 WebView 无浏览器标签栏，视觉提醒无意义。
         // （来电铃声由 CallModal 内部 startIncomingTone 播放，此处不重复。）
@@ -844,7 +844,7 @@ export default function Home() {
   // N>99 记作 99+；为 0 时恢复纯「投聊」；组件卸载时复位，避免残留角标。
   // 桌面端(Electron)同步把未读总数反映到 Dock/任务栏角标。
   useEffect(() => {
-    const base = '投聊';
+    const base = t('common.appName');
     document.title = totalUnread > 0 ? `(${totalUnread > 99 ? '99+' : totalUnread}) ${base}` : base;
     try { window.electronAPI?.setBadge?.(totalUnread); } catch { /* 非桌面端忽略 */ }
     return () => {
@@ -879,11 +879,11 @@ export default function Home() {
       case 'contacts':
         return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} onAddFriendConsumed={handleAddFriendConsumed} openFriendRequests={openFriendRequests} onOpenFriendRequestsConsumed={handleOpenFriendRequestsConsumed} />;
       case 'moments':
-        return <PanelBoundary name="动态"><Suspense fallback={<PanelSkeleton />}><Moments /></Suspense></PanelBoundary>;
+        return <PanelBoundary name={t('home.momentsPanelName')}><Suspense fallback={<PanelSkeleton />}><Moments /></Suspense></PanelBoundary>;
       case 'calls':
-        return <PanelBoundary name="通话记录"><Suspense fallback={<PanelSkeleton />}><CallHistory onOpenChat={isMobile ? handleMobileSelectConv : handleSelectConv} refreshKey={callsRefreshKey} /></Suspense></PanelBoundary>;
+        return <PanelBoundary name={t('home.callHistoryPanelName')}><Suspense fallback={<PanelSkeleton />}><CallHistory onOpenChat={isMobile ? handleMobileSelectConv : handleSelectConv} refreshKey={callsRefreshKey} /></Suspense></PanelBoundary>;
       case 'favorites':
-        return <PanelBoundary name="收藏"><Suspense fallback={<PanelSkeleton />}><Collections /></Suspense></PanelBoundary>;
+        return <PanelBoundary name={t('home.collectionsPanelName')}><Suspense fallback={<PanelSkeleton />}><Collections /></Suspense></PanelBoundary>;
       case 'profile':
       case 'me':
         return <Profile isMobile={isMobile} />;

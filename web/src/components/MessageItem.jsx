@@ -31,11 +31,11 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   if (msg.type === 'nudge') {
     let n;
     try { n = JSON.parse(msg.content); } catch { n = {}; }
-    const actorName = String(n.actor) === String(userId) ? '你' : (n.actorName || '某人');
-    const targetName = String(n.target) === String(userId) ? '你' : (n.targetName || '某人');
+    const actorName = String(n.actor) === String(userId) ? t('messageItem.you') : (n.actorName || t('messageItem.someone'));
+    const targetName = String(n.target) === String(userId) ? t('messageItem.you') : (n.targetName || t('messageItem.someone'));
     return (
       <div className="wc-msg-time">
-        <span>{actorName} 拍了拍 {targetName}</span>
+        <span>{t('messageItem.pattedTemplate').replace('{actor}', actorName).replace('{target}', targetName)}</span>
       </div>
     );
   }
@@ -48,17 +48,21 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
     let c;
     try { c = JSON.parse(msg.file_url); } catch { c = {}; }
     const isCaller = String(c.callerId) === String(userId);
-    const kind = c.callType === 'video' ? '视频通话' : '语音通话';
-    let text = msg.content || '通话结束';
+    const kind = c.callType === 'video' ? t('chat.videoCall') : t('chat.voiceCall');
+    let text = msg.content || t('messageItem.callEnded');
     if (c.status === 'completed' && typeof c.duration === 'number') {
       const d = Math.max(0, c.duration);
-      text = `${kind} ${d >= 60 ? `${Math.floor(d / 60)}分${d % 60 ? ` ${d % 60}秒` : ''}` : `${d} 秒`}`;
+      const mins = Math.floor(d / 60), secs = d % 60;
+      const durationText = d >= 60
+        ? (secs ? t('messageItem.durationMinSecTemplate').replace('{min}', mins).replace('{sec}', secs) : t('messageItem.durationMinOnlyTemplate').replace('{min}', mins))
+        : t('messageItem.durationSecOnlyTemplate').replace('{sec}', d);
+      text = `${kind} ${durationText}`;
     } else if (c.status === 'canceled') {
-      text = isCaller ? '已取消' : '未接来电';
+      text = isCaller ? t('messageItem.callCanceled') : t('messageItem.callMissed');
     } else if (c.status === 'rejected') {
-      text = isCaller ? '对方已拒绝' : '已拒绝';
+      text = isCaller ? t('messageItem.callRejectedByOther') : t('messageItem.callRejectedByMe');
     } else if (c.status === 'missed') {
-      text = isCaller ? '对方无应答' : '未接来电';
+      text = isCaller ? t('messageItem.callNoAnswer') : t('messageItem.callMissed');
     }
     return (
       <div className="wc-msg-time">
@@ -84,7 +88,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   //   拍一拍(nudge) 改由资料卡内的「拍一拍」按钮触发，避免与看资料手势冲突、也更易发现。
   // 计时器句柄挂在事件的 currentTarget(DOM 节点)上，避免在 memo 组件里加 hook 破坏 hook 顺序。
   const doAvatarProfile = () => {
-    if (!canClickAvatar) { showToast('群主已开启禁止私聊'); return; }
+    if (!canClickAvatar) { showToast(t('messageItem.privateChatDisabledByOwner')); return; }
     if (!isMine) cbs.setShowUserProfile(msg.sender_id);
   };
   const handleAvatarClick = (e) => {
@@ -126,7 +130,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
         role={!multiSelect && !isMine ? 'button' : undefined}
         tabIndex={!multiSelect && !isMine ? 0 : undefined}
         onKeyDown={!multiSelect && !isMine ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doAvatarProfile(); } }) : undefined}
-        title={!isMine ? '点击查看资料' : undefined}
+        title={!isMine ? t('chat.clickToViewProfile') : undefined}
         style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}
       >
         <Avatar src={msg.senderAvatar} name={msg.senderName} size={36} />
@@ -140,7 +144,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
             tabIndex={!multiSelect && canClickAvatar ? 0 : undefined}
             onKeyDown={!multiSelect && canClickAvatar ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doAvatarProfile(); } }) : undefined}
             style={!multiSelect && canClickAvatar ? { cursor: 'pointer' } : undefined}
-            title={canClickAvatar ? '点击查看资料' : undefined}
+            title={canClickAvatar ? t('chat.clickToViewProfile') : undefined}
           >{msg.senderName}</div>
         )}
         <div className="wc-msg-bubble-wrap">
@@ -158,10 +162,10 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               >❗</div>
             ) : isLastMine && convType === 'private' ? (
               showRead
-                ? <div className="wc-msg-read wc-msg-status-read" data-testid="msg-read-status">✓✓ 已读</div>
+                ? <div className="wc-msg-read wc-msg-status-read" data-testid="msg-read-status">✓✓ {t('messageItem.read')}</div>
                 : showDelivered
-                  ? <div className="wc-msg-read wc-msg-status-delivered">✓✓ 已送达</div>
-                  : <div className="wc-msg-read wc-msg-status-sent">✓ 已发送</div>
+                  ? <div className="wc-msg-read wc-msg-status-delivered">✓✓ {t('messageItem.delivered')}</div>
+                  : <div className="wc-msg-read wc-msg-status-sent">✓ {t('messageItem.sent')}</div>
             ) : null
           )}
           {/* 定时消息标记：气泡左上角「定时」角标 */}
@@ -201,7 +205,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   </div>
                 ) : (
                   <div className="wc-msg-reply-text">
-                    {msg.replyTo.type === 'image' ? '[图片]' : msg.replyTo.type === 'voice' ? '[语音]' : msg.replyTo.type === 'video' ? '[视频]' : msg.replyTo.type === 'red_packet' ? '[红包]' : msg.replyTo.type === 'file' ? '[文件]' : msg.replyTo.type === 'sticker' ? '[表情]' : (msg.replyTo.type === 'contact_card' || msg.replyTo.type === 'contact') ? '[名片]' : msg.replyTo.content}
+                    {msg.replyTo.type === 'image' ? t('messageItem.replyPreviewImage') : msg.replyTo.type === 'voice' ? t('messageItem.replyPreviewVoice') : msg.replyTo.type === 'video' ? t('messageItem.replyPreviewVideo') : msg.replyTo.type === 'red_packet' ? t('messageItem.replyPreviewRedPacket') : msg.replyTo.type === 'file' ? t('messageItem.replyPreviewFile') : msg.replyTo.type === 'sticker' ? t('messageItem.replyPreviewSticker') : (msg.replyTo.type === 'contact_card' || msg.replyTo.type === 'contact') ? t('messageItem.replyPreviewContactCard') : msg.replyTo.content}
                   </div>
                 )}
               </div>
@@ -310,7 +314,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   </div>
                   <div>
                     <div className="wc-msg-file-name">{msg.content}</div>
-                    <div className="wc-msg-file-size">{sizeText ? `${sizeText} · 点击预览` : '点击预览'}</div>
+                    <div className="wc-msg-file-size">{sizeText ? `${sizeText} · ${t('messageItem.clickToPreview')}` : t('messageItem.clickToPreview')}</div>
                   </div>
                 </a>
               );
@@ -326,13 +330,13 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   onClick={() => card.uid && cbs.setShowUserProfile(card.uid)}
                   className="wc-contact-card"
                   role="button" tabIndex={0}
-                  aria-label={`查看${card.username || '用户'}的名片`}
+                  aria-label={t('messageItem.viewCardAriaLabelTemplate').replace('{name}', card.username || t('messageItem.defaultUsername'))}
                   onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && card.uid) { e.preventDefault(); cbs.setShowUserProfile(card.uid); } }}
                 >
                   <div className="wc-contact-card-body">
                     <Avatar src={card.avatar} name={card.username} size={40} style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
                     <div className="wc-contact-card-info">
-                      <div className="wc-contact-card-name">{card.username || '用户'}</div>
+                      <div className="wc-contact-card-name">{card.username || t('messageItem.defaultUsername')}</div>
                       {card.wechat_id && <div className="wc-contact-card-wechat">{t('messageItem.touliaoIdTemplate').replace('{id}', card.wechat_id)}</div>}
                     </div>
                   </div>
@@ -355,7 +359,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                     <div className="wc-redpacket-icon">🧧</div>
                     <div className="wc-redpacket-info">
                       <div className="wc-redpacket-greeting">
-                        {rp.greeting || '恭喜发财，大吉大利'}
+                        {rp.greeting || t('messageItem.redPacketFallbackGreeting')}
                       </div>
                       <div className="wc-redpacket-hint">{t('messageItem.clickToClaimRedPacket')}</div>
                     </div>
@@ -370,16 +374,16 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               // 转账即到账，无需收款按钮，直接显示已收钱状态
               const isReceiver = !isMine;
               return (
-                <div className="wc-transfer-card" aria-label={`转账 ${tf.amount} 金币`}>
+                <div className="wc-transfer-card" aria-label={t('messageItem.transferAriaLabelTemplate').replace('{amount}', tf.amount)}>
                   <div className="wc-transfer-body">
                     <div className="wc-transfer-icon">💸</div>
                     <div className="wc-transfer-info">
-                      <div className="wc-transfer-amount">¥ {tf.amount} 金币</div>
+                      <div className="wc-transfer-amount">¥ {tf.amount} {t('chat.coinUnit')}</div>
                       {tf.note ? <div className="wc-transfer-note">{tf.note}</div> : null}
                     </div>
                   </div>
                   <div className="wc-transfer-footer">
-                    {isReceiver ? '已收钱' : '转账成功'}
+                    {isReceiver ? t('messageItem.transferReceived') : t('messageItem.transferSuccess')}
                   </div>
                 </div>
               );
@@ -387,7 +391,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
           </div>
         </div>
         {convType === 'group' && isMine && msg.readCount > 0 && (
-          <div className="wc-group-read-count">{msg.readCount}人已读</div>
+          <div className="wc-group-read-count">{t('messageItem.groupReadCountTemplate').replace('{count}', msg.readCount)}</div>
         )}
         {msg.reactions?.length > 0 && (
           <div className="wc-reactions">
@@ -401,7 +405,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 className={`wc-reaction-pill${mine ? ' mine' : ''}`}
                 onClick={() => cbs.toggleReaction(msg.id, r.emoji)}
                 role="button" tabIndex={0}
-                aria-label={`${r.emoji} ${r.count > 1 ? r.count + '人' : ''}${mine ? '，已回应' : '，点击回应'}`}
+                aria-label={`${r.emoji} ${r.count > 1 ? t('messageItem.reactionCountPersonTemplate').replace('{count}', r.count) : ''}${mine ? t('messageItem.reactionRespondedSuffix') : t('messageItem.reactionClickToRespondSuffix')}`}
                 aria-pressed={mine}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.toggleReaction(msg.id, r.emoji); } }}
               >
