@@ -891,6 +891,7 @@ function PrivacySettings({ user, onBack }) {
 
 /* ── 账号切换栏（多账号） ── */
 function AccountSwitcher({ user, accounts, login, switchAccount }) {
+  const { t } = useI18n();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]         = useState({ phone: '', password: '' });
   const [error, setError]       = useState('');
@@ -904,14 +905,14 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
 
   const doAdd = async (e) => {
     e.preventDefault();
-    if (!form.phone || !form.password) { setError('请填写手机号和密码'); return; }
+    if (!form.phone || !form.password) { setError(t('profile.fillPhoneAndPassword')); return; }
     setError(''); setLoading(true);
     try {
       const { data } = await axios.post('/api/auth/login', form);
       login(data.user, data.token); // 必须传 token:Bearer端(Electron/移动)漏传会清掉鉴权头→reload后被登出
       window.location.reload();
     } catch (err) {
-      setError(err.response?.data?.error || '手机号或密码错误');
+      setError(err.response?.data?.error || t('profile.phoneOrPasswordWrong'));
       setLoading(false);
     }
   };
@@ -934,10 +935,10 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
               <Avatar src={a.user?.avatar} name={a.user?.username} size={40} />
             </div>
             <div className="wc-crow-body">
-              <div className="wc-add-name">{a.user?.username || '未命名'}</div>
+              <div className="wc-add-name">{a.user?.username || t('profile.unnamed')}</div>
               {a.user?.phone && <div className="wc-add-phone">{a.user.phone}</div>}
             </div>
-            <span className="wc-add-switch">切换</span>
+            <span className="wc-add-switch">{t('profile.switchAccount')}</span>
           </div>
       ))}
 
@@ -947,7 +948,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
             <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
           </svg>
         </div>
-        <span className="wc-add-label" style={{ color: showForm ? 'var(--green)' : undefined }}>添加账户</span>
+        <span className="wc-add-label" style={{ color: showForm ? 'var(--green)' : undefined }}>{t('profile.addAccount')}</span>
         <svg className="wc-add-chevron" style={{ transform: showForm ? 'rotate(90deg)' : undefined }} viewBox="0 0 24 24">
           <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
         </svg>
@@ -956,18 +957,18 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
       {showForm && (
         <div className="wc-add-form">
           <div className="wc-add-info">
-            <span className="wc-add-info-text">添加后旧账号不会退出，可随时切换</span>
+            <span className="wc-add-info-text">{t('profile.addAccountHint')}</span>
           </div>
           <form onSubmit={doAdd} className="wc-add-form-inner">
-            <input ref={phoneRef} type="tel" placeholder="手机号" aria-label="手机号" value={form.phone}
+            <input ref={phoneRef} type="tel" placeholder={t('profile.phoneLabel')} aria-label={t('profile.phoneLabel')} value={form.phone}
               onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
               className="wc-add-form-input" />
-            <input type="password" placeholder="密码" aria-label="密码" value={form.password}
+            <input type="password" placeholder={t('profile.passwordLabel')} aria-label={t('profile.passwordLabel')} value={form.password}
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
               className="wc-add-form-input" />
             {error && <div className="wc-add-form-error" role="alert">{error}</div>}
             <button type="submit" disabled={loading} className="wc-add-form-submit">
-              {loading ? '登录中…' : '登录并切换'}
+              {loading ? t('profile.loggingIn') : t('profile.loginAndSwitch')}
             </button>
           </form>
         </div>
