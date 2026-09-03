@@ -829,6 +829,7 @@ function NotificationSettings({ onBack }) {
 
 /* ── 隐私与安全 ── */
 function PrivacySettings({ user, onBack }) {
+  const { t } = useI18n();
   const [page, setPage] = useState('main');
   const [settings, setSettings] = useState({
     // 仅保留后端 serializeSettings 真实支持的开关（对齐 Android/iOS）
@@ -855,13 +856,13 @@ function PrivacySettings({ user, onBack }) {
 
   if (page === 'add-methods') return (
     <PageBg>
-      <PageHeader title="添加我的方式" onBack={() => setPage('main')} />
+      <PageHeader title={t('profile.addMethodsTitle')} onBack={() => setPage('main')} />
       <div className="wc-privacy-outer">
-        <div className="wc-privacy-desc">允许他人通过以下方式添加我</div>
+        <div className="wc-privacy-desc">{t('profile.addMethodsDesc')}</div>
         <Card>
-          <CRow label="ID号" desc={user?.wechat_id ? `投聊号: ${user.wechat_id}` : '未分配'}
+          <CRow label={t('profile.addByIdLabel')} desc={user?.wechat_id ? `${t('profile.touliaoIdLabel')}: ${user.wechat_id}` : t('profile.notAssigned')}
             right={<Toggle checked={settings.addByVxinId} onChange={v => setFlag('addByVxinId', v)} />} />
-          <CRow label="手机号" desc={user?.phone || ''}
+          <CRow label={t('profile.addByPhoneLabel')} desc={user?.phone || ''}
             right={<Toggle checked={settings.addByPhone} onChange={v => setFlag('addByPhone', v)} />} />
         </Card>
       </div>
@@ -870,17 +871,17 @@ function PrivacySettings({ user, onBack }) {
 
   return (
     <PageBg>
-      <PageHeader title="隐私与安全" onBack={onBack} />
+      <PageHeader title={t('settings.privacy')} onBack={onBack} />
       <div className="wc-privacy-outer">
         <Card className="wc-privacy-card-mt">
-          <CRow label="添加我的方式" desc="ID号、手机号" onClick={() => setPage('add-methods')} />
-          <CRow label="需要验证才能添加好友" desc="关闭后对方可直接添加你"
+          <CRow label={t('profile.addMethodsEntry')} desc={t('profile.addMethodsEntryDesc')} onClick={() => setPage('add-methods')} />
+          <CRow label={t('profile.requireVerifyLabel')} desc={t('profile.requireVerifyDesc')}
             right={<Toggle checked={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
-          <CRow label="不允许好友直接邀请我进群" desc="开启后好友无法把你直接拉进群，需你扫码/点链接自行加入"
+          <CRow label={t('profile.noDirectGroupInviteLabel')} desc={t('profile.noDirectGroupInviteDesc')}
             right={<Toggle checked={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
-          <CRow label="向陌生人展示个人信息" desc="关闭后非好友无法查看你的签名等资料"
+          <CRow label={t('profile.profileVisibleLabel')} desc={t('profile.profileVisibleDesc')}
             right={<Toggle checked={settings.profileVisible} onChange={v => setFlag('profileVisible', v)} />} />
-          <CRow label="屏蔽陌生人消息" desc="开启后仅好友可以给你发消息"
+          <CRow label={t('profile.blockUnknownLabel')} desc={t('profile.blockUnknownDesc')}
             right={<Toggle checked={settings.blockUnknownMessages} onChange={v => setFlag('blockUnknownMessages', v)} />} />
         </Card>
       </div>
