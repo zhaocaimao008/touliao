@@ -300,9 +300,19 @@ final class CallManager: NSObject, ObservableObject {
         }.store(in: &cancellables)
 
         socket.callResponse.receive(on: DispatchQueue.main).sink { [weak self] (from, accepted, callId) in
-            guard let self, self.state.isCaller,
-                  CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
-            else { return }
+            guard let self, self.state.isCaller, self.state.peerId == from else { return }
+            // 紧急修复（2026-09-03）：主叫的 state.callId 要等 call:request 的 ack 异步回填
+            // （startCall 里先 refreshIceServers()/建流再 emit，ack 往返还得再走一轮），被叫
+            // 秒接/秒拒时这个应答完全可能在 ack 回来之前就先到——那一刻 state.callId 还是
+            // ""，CallSignalMatcher 要求 eventCallId==activeCallId，非空 eventCallId 对上空
+            // activeCallId 必判不匹配，于是这条应答被直接丢弃：接听方已经翻到"连接中"干等一个
+            // 永远不会来的 offer，界面上等同于"点了接听却像被拒了"。
+            // 只在 state.callId 还没回填这一小段窗口内放宽成"只认 peerId"（服务端 registry 早已
+            // 校验过这确实是我方通话的应答，这里不是在重新开权限口子，只是本地缓存还没跟上）；
+            // callId 一旦回填，后续 offer/answer/ice/end 仍走 CallSignalMatcher 的完整校验，不放宽。
+            let idOk = self.state.callId.isEmpty
+                || CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
+            guard idOk else { return }
             if accepted { self.state.stage = .connecting; self.createOfferAndSend() }
             else { self.cleanup(.ended) }
         }.store(in: &cancellables)

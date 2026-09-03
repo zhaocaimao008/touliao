@@ -505,7 +505,18 @@ class CallManager @Inject constructor(
             socketManager.callResponseEvents.collect { e ->
                 val s = _state.value
                 // stage 守卫（P2-5）：主叫挂断瞬间被叫恰好接听，迟到的 accepted 不得把 ENDED 重新唤醒回 CONNECTING
-                if (!s.isCaller || !CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from) || s.stage != CallStage.OUTGOING) return@collect
+                if (!s.isCaller || s.stage != CallStage.OUTGOING || s.peerId != e.from) return@collect
+                // 紧急修复（2026-09-03，对齐 iOS 同一处修复）：主叫的 s.callId 要等 call:request
+                // 的 ack 异步回填（startCall 里先 refreshIceServers()/建流再 emit，ack 往返还得
+                // 再走一轮），被叫秒接/秒拒时这个应答完全可能在 ack 回来之前就先到——那一刻
+                // s.callId 还是 ""，CallSignalMatcher 要求 eventCallId==activeCallId，非空
+                // eventCallId 对上空 activeCallId 必判不匹配，于是这条应答被直接丢弃：接听方已经
+                // 翻到"连接中"干等一个永远不会来的 offer。只在 s.callId 还没回填这一小段窗口内放宽成
+                // "只认 peerId"（服务端 registry 早已校验过这确实是我方通话的应答，这里不是在重新
+                // 开权限口子，只是本地缓存还没跟上）；callId 一旦回填，后续信令仍走 CallSignalMatcher
+                // 的完整校验，不放宽。
+                val idOk = s.callId.isEmpty() || CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)
+                if (!idOk) return@collect
                 if (e.accepted) {
                     _state.update { it.copy(stage = CallStage.CONNECTING) }
                     createOfferAndSend()
