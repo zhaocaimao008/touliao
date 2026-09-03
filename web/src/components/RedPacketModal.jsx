@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import useFocusTrap from '../hooks/useFocusTrap';
+import { useI18n } from '../contexts/I18nContext';
 
 export default function RedPacketModal({ conversation, onClose, onSent }) {
+  const { t } = useI18n();
   const trapRef = useFocusTrap();
   const [amount, setAmount] = useState('');
   const [count, setCount] = useState('');
-  const [greeting, setGreeting] = useState('恭喜发财，大吉大利！');
+  const [greeting, setGreeting] = useState(t('redPacket.defaultGreeting'));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
@@ -40,61 +42,61 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
       onSent?.(data.message);
       onClose();
     } catch (e) {
-      setError(e.response?.data?.error || '发送失败');
+      setError(e.response?.data?.error || t('chat.sendFailed'));
     }
     setSending(false);
   };
 
   return (
     <div className="rpm-overlay" ref={trapRef} onClick={() => { if (!sending) onClose(); }}>
-      <div className="rpm-card" role="dialog" aria-modal="true" aria-label="发红包" onClick={e => e.stopPropagation()}>
-        <div className="rpm-title">发红包</div>
+      <div className="rpm-card" role="dialog" aria-modal="true" aria-label={t('redPacket.title')} onClick={e => e.stopPropagation()}>
+        <div className="rpm-title">{t('redPacket.title')}</div>
 
         {error && <div className="rpm-error" role="alert">{error}</div>}
 
         <div className="rpm-field">
-          <label className="rpm-label" htmlFor="rpm-amount">红包金币总额 (1-20000)</label>
+          <label className="rpm-label" htmlFor="rpm-amount">{t('redPacket.totalAmountLabel')}</label>
           <input id="rpm-amount" type="text" inputMode="numeric" value={amount}
             onChange={e => setAmount(e.target.value.replace(/\D/g, '').slice(0, 5))}
-            placeholder="输入金币数" className="rpm-input" aria-label="红包金币总额，1 到 20000" />
+            placeholder={t('redPacket.amountPlaceholder')} className="rpm-input" aria-label={t('redPacket.amountAriaLabel')} />
         </div>
 
         {isGroup && (
           <div className="rpm-field">
-            <label className="rpm-label" htmlFor="rpm-count">红包个数 (1-100)</label>
+            <label className="rpm-label" htmlFor="rpm-count">{t('redPacket.countLabel')}</label>
             <input id="rpm-count" type="text" inputMode="numeric" value={count}
               onChange={e => setCount(e.target.value.replace(/\D/g, '').slice(0, 3))}
-              placeholder="输入红包个数" className="rpm-input" aria-label="红包个数，1 到 100" />
+              placeholder={t('redPacket.countPlaceholder')} className="rpm-input" aria-label={t('redPacket.countAriaLabel')} />
           </div>
         )}
         {!isGroup && (
           <div className="rpm-field">
             <div className="rpm-label" style={{ fontWeight: 'normal', color: 'var(--text-secondary)' }}>
-              红包个数：私聊固定 1 个
+              {t('redPacket.privateFixedCount')}
             </div>
           </div>
         )}
 
         {isGroup && countNum > 0 && amountNum > 0 && (
           <div className="rpm-preview">
-            <div className="rpm-preview-label">平均每个</div>
-            <div className="rpm-preview-amount">{perPerson} 金币</div>
-            {amountNum < countNum && <div className="rpm-preview-warn">⚠ 总金币不能少于红包个数</div>}
+            <div className="rpm-preview-label">{t('redPacket.avgPerPerson')}</div>
+            <div className="rpm-preview-amount">{perPerson} {t('chat.coinUnit')}</div>
+            {amountNum < countNum && <div className="rpm-preview-warn">⚠ {t('redPacket.totalLessThanCountWarn')}</div>}
           </div>
         )}
 
         <div className="rpm-field">
-          <label className="rpm-label">祝福语 (可选)</label>
+          <label className="rpm-label">{t('redPacket.greetingLabel')}</label>
           <textarea value={greeting} onChange={e => setGreeting(e.target.value)} maxLength={100}
-            placeholder="例如：恭喜发财，大吉大利！" className="rpm-textarea" />
+            placeholder={t('redPacket.greetingPlaceholderTemplate').replace('{greeting}', t('redPacket.defaultGreeting'))} className="rpm-textarea" />
           <div className="rpm-counter">{greeting.length}/100</div>
         </div>
 
         <div className="rpm-actions">
-          <button onClick={onClose} className="rpm-btn-cancel" disabled={sending}>取消</button>
+          <button onClick={onClose} className="rpm-btn-cancel" disabled={sending}>{t('common.cancel')}</button>
           <button onClick={send} disabled={!canSend || sending} className="rpm-btn-send"
             style={{ background: canSend && !sending ? 'var(--rp-orange)' : 'rgba(244,81,30,.4)', cursor: canSend && !sending ? 'pointer' : 'not-allowed' }}>
-            {sending ? '发送中…' : '确认发送'}
+            {sending ? t('redPacket.sending') : t('redPacket.confirmSend')}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useI18n } from '../contexts/I18nContext';
 
 /**
  * Windows/桌面端更新条。
@@ -6,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
  * 无更新时不渲染任何内容。
  */
 export default function UpdateBanner() {
+  const { t } = useI18n();
   const [state, setState] = useState('idle'); // idle|checking|available|downloading|ready|error
   const [version, setVersion] = useState('');
   const [progress, setProgress] = useState(0);
@@ -17,7 +19,7 @@ export default function UpdateBanner() {
     const onAvailable  = (e) => { setVersion(e.detail?.version || ''); setState('available'); };
     const onProgress   = (e) => { setProgress(e.detail ?? 0); setState('downloading'); };
     const onDownloaded = ()  => setState('ready');
-    const onError      = (e) => { setErrMsg(e.detail || '更新失败'); setState('error'); };
+    const onError      = (e) => { setErrMsg(e.detail || t('update.updateFailed')); setState('error'); };
 
     window.addEventListener('electron:update-available',  onAvailable);
     window.addEventListener('electron:update-progress',   onProgress);
@@ -51,8 +53,8 @@ export default function UpdateBanner() {
       <button
         className="wc-update-check-btn"
         onClick={handleCheck}
-        title="检查更新"
-        aria-label="检查更新"
+        title={t('update.checkForUpdates')}
+        aria-label={t('update.checkForUpdates')}
       >↑</button>
     );
   }
@@ -62,44 +64,44 @@ export default function UpdateBanner() {
       {state === 'checking' && (
         <>
           <span className="wc-update-icon wc-spin">↻</span>
-          <span className="wc-update-text">正在检查更新…</span>
-          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label="关闭">✕</button>
+          <span className="wc-update-text">{t('update.checking')}</span>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}>✕</button>
         </>
       )}
       {state === 'available' && (
         <>
           <span className="wc-update-icon">🎉</span>
-          <span className="wc-update-text">发现新版本 {version}，正在下载…</span>
+          <span className="wc-update-text">{t('update.newVersionDownloadingTemplate').replace('{version}', version)}</span>
           <div className="wc-update-progress-wrap">
             <div className="wc-update-progress-bar" style={{ width: `${progress}%` }} />
           </div>
-          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label="关闭">✕</button>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}>✕</button>
         </>
       )}
       {state === 'downloading' && (
         <>
           <span className="wc-update-icon">⬇</span>
-          <span className="wc-update-text">下载中 {Math.round(progress)}%</span>
+          <span className="wc-update-text">{t('update.downloadingTemplate').replace('{percent}', Math.round(progress))}</span>
           <div className="wc-update-progress-wrap">
             <div className="wc-update-progress-bar" style={{ width: `${progress}%` }} />
           </div>
-          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label="后台下载">✕</button>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('update.downloadInBackground')}>✕</button>
         </>
       )}
       {state === 'ready' && (
         <>
           <span className="wc-update-icon">✅</span>
-          <span className="wc-update-text">新版本已就绪，重启后自动安装</span>
-          <button className="wc-update-install-btn" onClick={handleInstall}>立即重启安装</button>
-          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label="稍后">稍后</button>
+          <span className="wc-update-text">{t('update.readyToInstall')}</span>
+          <button className="wc-update-install-btn" onClick={handleInstall}>{t('update.restartAndInstall')}</button>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('update.later')}>{t('update.later')}</button>
         </>
       )}
       {state === 'error' && (
         <>
           <span className="wc-update-icon">⚠️</span>
-          <span className="wc-update-text">{errMsg || '更新检查失败'}</span>
-          <button className="wc-update-install-btn" onClick={handleCheck}>重试</button>
-          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label="关闭">✕</button>
+          <span className="wc-update-text">{errMsg || t('update.checkFailed')}</span>
+          <button className="wc-update-install-btn" onClick={handleCheck}>{t('common.retry')}</button>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}>✕</button>
         </>
       )}
     </div>

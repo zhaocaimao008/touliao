@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import useFocusTrap from '../hooks/useFocusTrap';
+import { useI18n } from '../contexts/I18nContext';
 
 /**
  * 好友转账弹窗：输入金币数 + 备注，确认后调 POST /api/wallet/transfer。
  * 设计：转账即到账，不搞 24h 未领退回的复杂度；收款方收到消息气泡即已入账。
  */
 export default function TransferModal({ conversation, onClose, onSent }) {
+  const { t } = useI18n();
   const trapRef = useFocusTrap();
   const [amount, setAmount]   = useState('');
   const [note,   setNote]     = useState('');
@@ -39,53 +41,53 @@ export default function TransferModal({ conversation, onClose, onSent }) {
       onSent?.(data.message);
       onClose();
     } catch (e) {
-      setError(e.response?.data?.error || '转账失败，请重试');
+      setError(e.response?.data?.error || t('transfer.failedRetry'));
     }
     setSending(false);
   };
 
   return (
     <div className="rpm-overlay" ref={trapRef} onClick={() => { if (!sending) onClose(); }}>
-      <div className="rpm-card" role="dialog" aria-modal="true" aria-label="转账" onClick={e => e.stopPropagation()}>
-        <div className="rpm-title">转账</div>
+      <div className="rpm-card" role="dialog" aria-modal="true" aria-label={t('transfer.title')} onClick={e => e.stopPropagation()}>
+        <div className="rpm-title">{t('transfer.title')}</div>
         {otherUser?.username && (
           <div style={{ textAlign: 'center', fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', marginBottom: 8 }}>
-            收款方：{otherUser.username}
+            {t('transfer.recipientTemplate').replace('{name}', otherUser.username)}
           </div>
         )}
 
         {error && <div className="rpm-error" role="alert">{error}</div>}
 
         <div className="rpm-field">
-          <label className="rpm-label" htmlFor="tf-amount">转账金额（金币，1-20000）</label>
+          <label className="rpm-label" htmlFor="tf-amount">{t('transfer.amountLabel')}</label>
           <input
             id="tf-amount"
             type="text"
             inputMode="numeric"
             value={amount}
             onChange={e => { setAmount(e.target.value.replace(/\D/g, '').slice(0, 5)); setError(''); }}
-            placeholder="输入金币数"
+            placeholder={t('redPacket.amountPlaceholder')}
             className="rpm-input"
-            aria-label="转账金额，1 到 20000 金币"
+            aria-label={t('transfer.amountAriaLabel')}
             autoFocus
           />
         </div>
 
         <div className="rpm-field">
-          <label className="rpm-label" htmlFor="tf-note">备注（可选，最多 50 字）</label>
+          <label className="rpm-label" htmlFor="tf-note">{t('transfer.noteLabel')}</label>
           <input
             id="tf-note"
             type="text"
             value={note}
             onChange={e => setNote(e.target.value.slice(0, 50))}
-            placeholder="转账说明"
+            placeholder={t('transfer.notePlaceholder')}
             className="rpm-input"
-            aria-label="转账备注"
+            aria-label={t('transfer.noteAriaLabel')}
           />
         </div>
 
         <div className="rpm-actions">
-          <button onClick={onClose} className="rpm-btn-cancel" disabled={sending}>取消</button>
+          <button onClick={onClose} className="rpm-btn-cancel" disabled={sending}>{t('common.cancel')}</button>
           <button
             onClick={send}
             disabled={!canSend || sending}
@@ -95,7 +97,7 @@ export default function TransferModal({ conversation, onClose, onSent }) {
               cursor:     canSend && !sending ? 'pointer'     : 'not-allowed',
             }}
           >
-            {sending ? '转账中…' : '确认转账'}
+            {sending ? t('transfer.sending') : t('transfer.confirmSend')}
           </button>
         </div>
       </div>

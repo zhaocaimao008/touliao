@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { useI18n } from '../contexts/I18nContext';
 
 /* ── ChatWindow 顶栏 ─────────────────────────────────────────────────
    memo 化：父组件高频 setState 时顶栏不重渲染。 */
@@ -21,12 +22,13 @@ function ChatHeader({
   onToggleGroupInfo,
   onToggleSearch,
 }) {
+  const { t } = useI18n();
   const isPrivate = conversation.type === 'private';
   const isGroup   = conversation.type === 'group';
 
   return (
     <div className="wc-chat-header">
-      <button className="wc-chat-header-back wc-back-btn" onClick={onClose} title="返回" aria-label="返回">
+      <button className="wc-chat-header-back wc-back-btn" onClick={onClose} title={t('common.back')} aria-label={t('common.back')}>
         <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
       </button>
 
@@ -36,37 +38,37 @@ function ChatHeader({
             className="wc-chat-header-name wc-chat-header-name-clickable"
             data-testid="chat-title"
             role="button" tabIndex={0}
-            title="点击查看资料"
+            title={t('chat.clickToViewProfile')}
             onClick={() => onOpenUserProfile(conversation.otherUser.id)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenUserProfile(conversation.otherUser.id); } }}
           >
-            {conversation.name || '聊天'}
+            {conversation.name || t('chat.defaultChatName')}
           </div>
         ) : (
           <div className="wc-chat-header-name" data-testid="chat-title">
-            {conversation.name || '聊天'}
+            {conversation.name || t('chat.defaultChatName')}
             {memberCount ? <span className="wc-header-member-count">({memberCount})</span> : null}
           </div>
         )}
         {isPrivate && conversation.otherUser?.status === 'online' && (
-          <div className="wc-chat-header-sub">在线</div>
+          <div className="wc-chat-header-sub">{t('contacts.online')}</div>
         )}
       </div>
 
       <div className="wc-chat-header-right">
         {isPrivate && <>
-          <button className="wc-chat-header-btn" data-testid="chat-call-audio-btn" title="语音通话" aria-label="语音通话" onClick={() => onStartCall('audio')}><IcoVoiceCall /></button>
-          <button className="wc-chat-header-btn" data-testid="chat-call-video-btn" title="视频通话" aria-label="视频通话" onClick={() => onStartCall('video')}><IcoVideoCall /></button>
+          <button className="wc-chat-header-btn" data-testid="chat-call-audio-btn" title={t('chat.voiceCall')} aria-label={t('chat.voiceCall')} onClick={() => onStartCall('audio')}><IcoVoiceCall /></button>
+          <button className="wc-chat-header-btn" data-testid="chat-call-video-btn" title={t('chat.videoCall')} aria-label={t('chat.videoCall')} onClick={() => onStartCall('video')}><IcoVideoCall /></button>
         </>}
         {isGroup && <>
-          {features.groupVoiceCall !== false && <button className="wc-chat-header-btn" title="群语音通话" aria-label="群语音通话" onClick={() => onStartGroupCall('audio')}><IcoVoiceCall /></button>}
-          {features.groupVideoCall !== false && <button className="wc-chat-header-btn" title="群视频通话" aria-label="群视频通话" onClick={() => onStartGroupCall('video')}><IcoVideoCall /></button>}
+          {features.groupVoiceCall !== false && <button className="wc-chat-header-btn" title={t('chat.groupVoiceCall')} aria-label={t('chat.groupVoiceCall')} onClick={() => onStartGroupCall('audio')}><IcoVoiceCall /></button>}
+          {features.groupVideoCall !== false && <button className="wc-chat-header-btn" title={t('chat.groupVideoCall')} aria-label={t('chat.groupVideoCall')} onClick={() => onStartGroupCall('video')}><IcoVideoCall /></button>}
         </>}
         {/* 搜索聊天记录 */}
         <button
           className={`wc-chat-header-btn${showSearch ? ' active' : ''}`}
-          title="搜索聊天记录"
-          aria-label="搜索聊天记录"
+          title={t('chat.searchChatHistory')}
+          aria-label={t('chat.searchChatHistory')}
           aria-pressed={showSearch}
           data-testid="chat-search-btn"
           onClick={onToggleSearch}
@@ -74,8 +76,8 @@ function ChatHeader({
         {/* 群聊信息 / 聊天信息 */}
         <button
           className={`wc-chat-header-btn${showGroupInfo ? ' active' : ''}`}
-          title={isGroup ? '群聊信息' : '聊天信息'}
-          aria-label={isGroup ? '群聊信息' : '聊天信息'}
+          title={isGroup ? t('chat.groupInfo') : t('chat.chatInfo')}
+          aria-label={isGroup ? t('chat.groupInfo') : t('chat.chatInfo')}
           aria-pressed={showGroupInfo}
           data-testid="chat-group-info-btn"
           onClick={onToggleGroupInfo}
