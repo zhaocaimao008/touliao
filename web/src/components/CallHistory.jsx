@@ -2,37 +2,41 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { Skeleton } from './StateViews';
+import { useI18n } from '../contexts/I18nContext';
 
-function ago(sec) {
+function ago(sec, t) {
   // 钳到 0：时钟偏差/服务器时间超前时避免出现「-3分钟前」
   const d = Math.max(0, Date.now() / 1000 - sec);
-  if (d < 60) return '刚刚';
-  if (d < 3600) return Math.floor(d / 60) + '分钟前';
-  if (d < 86400) return Math.floor(d / 3600) + '小时前';
+  if (d < 60) return t('callHistory.justNow');
+  if (d < 3600) return t('callHistory.minutesAgoTemplate').replace('{n}', Math.floor(d / 60));
+  if (d < 86400) return t('callHistory.hoursAgoTemplate').replace('{n}', Math.floor(d / 3600));
   const dt = new Date(sec * 1000);
-  return `${dt.getMonth() + 1}月${dt.getDate()}日`;
+  return t('callHistory.monthDayTemplate').replace('{month}', dt.getMonth() + 1).replace('{day}', dt.getDate());
 }
 
-function fmtDuration(s) {
+function fmtDuration(s, t) {
   if (!s) return '';
   const m = Math.floor(s / 60), sec = s % 60;
-  return m > 0 ? `${m}分${sec}秒` : `${sec}秒`;
+  return m > 0
+    ? t('callHistory.durationMinSecTemplate').replace('{min}', m).replace('{sec}', sec)
+    : t('callHistory.durationSecOnlyTemplate').replace('{sec}', sec);
 }
 
-// 状态 → 中文 + 颜色
+// 状态 → key + 颜色
 const STATUS = {
-  completed:   { label: '已接通', color: 'var(--text-tertiary)' },
-  missed:      { label: '未接听', color: 'var(--color-badge)' },
-  canceled:    { label: '已取消', color: 'var(--color-badge)' },
-  rejected:    { label: '已拒绝', color: 'var(--color-badge)' },
-  ongoing:     { label: '通话中', color: 'var(--green)' },
+  completed:   { key: 'completed',   color: 'var(--text-tertiary)' },
+  missed:      { key: 'missed',      color: 'var(--color-badge)' },
+  canceled:    { key: 'canceled',    color: 'var(--color-badge)' },
+  rejected:    { key: 'rejected',    color: 'var(--color-badge)' },
+  ongoing:     { key: 'ongoing',     color: 'var(--green)' },
   // 服务端进程重启时，重启前还没结束的 1对1 通话记录会被启动时的收尾逻辑
   // （callReconciler.js）统一标成这个状态——否则会永久停在 'ongoing'，
   // 列表里显示"通话中"却其实早就断了，具有误导性。
-  interrupted: { label: '服务重启，通话中断', color: 'var(--color-badge)' },
+  interrupted: { key: 'interrupted', color: 'var(--color-badge)' },
 };
 
 export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
+  const { t } = useI18n();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -82,13 +86,14 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
         <Skeleton rows={6} avatar />
       ) : loadError && list.length === 0 ? (
         <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
-          加载失败，<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>点击重试</button>
+          {t('callHistory.loadFailed')}<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{t('callHistory.clickToRetry')}</button>
         </div>
       ) : list.length === 0 ? (
-        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>暂无通话记录</div>
+        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>{t('callHistory.noCallHistory')}</div>
       ) : (
         list.map(c => {
-          const st = STATUS[c.status] || STATUS.completed;
+          const stRaw = STATUS[c.status] || STATUS.completed;
+          const st = { ...stRaw, label: t(`callHistory.status.${stRaw.key}`) };
           const isMissed = c.direction === 'in' && (c.status === 'missed' || c.status === 'canceled');
           return (
             <div key={c.id} data-testid="call-log-item" onClick={() => openPeer(c)}
@@ -97,14 +102,14 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: onOpenChat ? 'pointer' : 'default' }}>
               <Avatar src={c.peer_avatar} name={c.peer_name} size={40} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || '用户'}</div>
+                <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || t('messageItem.defaultUsername')}</div>
                 <div style={{ fontSize: 'var(--text-sm)', color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span aria-hidden="true" style={{ transform: c.direction === 'out' ? 'none' : 'scaleX(-1)' }}>{c.direction === 'out' ? '↗' : '↙'}</span>
-                  {c.direction === 'out' ? '去电' : '来电'} · {c.type === 'video' ? '视频通话' : '语音通话'} · {st.label}
-                  {c.duration > 0 && ` · ${fmtDuration(c.duration)}`}
+                  {c.direction === 'out' ? t('callHistory.outgoing') : t('callHistory.incoming')} · {c.type === 'video' ? t('chat.videoCall') : t('chat.voiceCall')} · {st.label}
+                  {c.duration > 0 && ` · ${fmtDuration(c.duration, t)}`}
                 </div>
               </div>
-              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)', flexShrink: 0 }}>{ago(c.created_at)}</span>
+              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)', flexShrink: 0 }}>{ago(c.created_at, t)}</span>
             </div>
           );
         })
