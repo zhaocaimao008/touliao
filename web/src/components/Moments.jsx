@@ -5,6 +5,7 @@ import ImagePreview from './ImagePreview';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast, showConfirm } from '../utils/toast';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
+import { getThumbUrl } from '../utils/url';
 import { linkify } from '../utils/linkify';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -94,15 +95,21 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
             // 单图：不强制正方形裁剪，按原图宽高比展示(封顶)，更接近微信；用缓存宽高比预留高度防抖动
             (() => {
               const single = m.images[0];
+              const thumbSingle = getThumbUrl(single);
               const aspect = getAspect(single);
               return (
                 <div className="wc-moment-images single">
-                  <img loading="lazy" src={single} alt={t('chat.image')}
+                  <img loading="lazy" src={thumbSingle} alt={t('chat.image')}
                     className="wc-moment-single-img"
                     style={aspect ? { aspectRatio: String(aspect) } : undefined}
                     role="button" tabIndex={0} aria-label={t('moments.viewLargeImage')}
                     onLoad={e => { rememberAspect(single, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight); e.currentTarget.classList.add('loaded'); }}
-                    onError={e => { e.currentTarget.classList.add('loaded'); e.currentTarget.style.display = 'none'; }}
+                    onError={e => {
+                      const el = e.currentTarget;
+                      // 缩略图失败（旧动态无缩略图）先回退原图，原图也失败才隐藏
+                      if (thumbSingle !== single && el.src !== single) { el.src = single; return; }
+                      el.classList.add('loaded'); el.style.display = 'none';
+                    }}
                     onClick={() => setLightbox({ urls: m.images, idx: 0 })}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLightbox({ urls: m.images, idx: 0 }); } }} />
                 </div>
@@ -111,10 +118,15 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
           ) : (
             <div className="wc-moment-images" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
               {m.images.map((src, i) => (
-                <img loading="lazy" key={src || i} src={src} alt={t('moments.imageAltTemplate').replace('{n}', i + 1)} className="moments-zoom-cursor"
+                <img loading="lazy" key={src || i} src={getThumbUrl(src)} alt={t('moments.imageAltTemplate').replace('{n}', i + 1)} className="moments-zoom-cursor"
                   role="button" tabIndex={0} aria-label={t('moments.viewLargeImageTemplate').replace('{n}', i + 1)}
                   onLoad={e => e.currentTarget.classList.add('loaded')}
-                  onError={e => { e.currentTarget.classList.add('loaded'); e.currentTarget.style.display = 'none'; }}
+                  onError={e => {
+                    const el = e.currentTarget;
+                    const thumb = getThumbUrl(src);
+                    if (thumb !== src && el.src !== src) { el.src = src; return; }
+                    el.classList.add('loaded'); el.style.display = 'none';
+                  }}
                   onClick={() => setLightbox({ urls: m.images, idx: i })}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLightbox({ urls: m.images, idx: i }); } }} />
               ))}

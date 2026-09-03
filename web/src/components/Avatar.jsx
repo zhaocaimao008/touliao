@@ -1,5 +1,5 @@
 import React, { memo, useState } from 'react';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, getThumbUrl } from '../utils/url';
 
 // 无头像时的字母头像配色：AURORA 极光系多彩，按名字 hash 稳定取色，去掉"整页灰"
 const COLORS = [
@@ -35,6 +35,8 @@ export default memo(function Avatar({ src, name = '', size = 40, style = {}, onl
     setErrored(false);
   }
   const showImg = src && !errored;
+  const thumbUrl = mediaUrl(getThumbUrl(src));
+  const originalUrl = mediaUrl(src);
 
   return (
     <div
@@ -48,7 +50,19 @@ export default memo(function Avatar({ src, name = '', size = 40, style = {}, onl
         ? <>
             {/* 字母垫底：图片加载出来前透出彩色字母而非空白，加载完被图覆盖（无 opacity 切换，规避缓存图不触发 onLoad 的失效） */}
             <div aria-hidden="true" style={{ ...baseStyle, position: 'absolute', inset: 0, background: getColor(name), color: 'var(--text-inverse)', fontSize: size * 0.42, fontWeight: 600 }}>{letter}</div>
-            <img src={mediaUrl(src)} alt={name} loading="lazy" crossOrigin="anonymous" onError={() => setErrored(true)} style={{ ...baseStyle, objectFit: 'cover', position: 'relative', zIndex: 1 }} />
+            <img
+              src={thumbUrl}
+              alt={name}
+              loading="lazy"
+              crossOrigin="anonymous"
+              onError={e => {
+                // 缩略图失败（旧头像无缩略图/生成失败）先回退原图，原图也失败才落到字母头像
+                const el = e.currentTarget;
+                if (thumbUrl !== originalUrl && el.src !== originalUrl) { el.src = originalUrl; return; }
+                setErrored(true);
+              }}
+              style={{ ...baseStyle, objectFit: 'cover', position: 'relative', zIndex: 1 }}
+            />
           </>
         : <div style={{ ...baseStyle, background: getColor(name), color: 'var(--text-inverse)', fontSize: size * 0.42, fontWeight: 600, transition: 'opacity .15s' }}>{letter}</div>
       }

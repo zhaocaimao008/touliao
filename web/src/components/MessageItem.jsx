@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import Avatar from './Avatar';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, getThumbUrl } from '../utils/url';
 import { formatFull } from '../utils/time';
 import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
@@ -199,9 +199,14 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                     {/* width/height 显式声明：缩略图未解码前就按 34×34 预留盒子，
                         使本行首帧高度即等于 estimateHeight 的预留值，杜绝图片解码后
                         撑高本行、下一行事后回落造成的重叠/抖动。 */}
-                    <img loading="lazy" width={34} height={34} src={mediaUrl(msg.replyTo.file_url)} alt="" className="wc-msg-reply-thumb"
+                    <img loading="lazy" width={34} height={34} src={mediaUrl(getThumbUrl(msg.replyTo.file_url))} alt="" className="wc-msg-reply-thumb"
                       onLoad={() => measure?.()}
-                      onError={e => { e.currentTarget.style.display = 'none'; measure?.(); }} />
+                      onError={e => {
+                        const el = e.currentTarget;
+                        const original = mediaUrl(msg.replyTo.file_url);
+                        if (el.src !== original) { el.src = original; return; }
+                        el.style.display = 'none'; measure?.();
+                      }} />
                   </div>
                 ) : (
                   <div className="wc-msg-reply-text">

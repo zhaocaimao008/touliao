@@ -41,27 +41,6 @@ function checkImageSupport(dataUrl) {
   });
 }
 
-// 生成优化后的图片 URL（根据格式和尺寸）
-export function getOptimizedImageUrl(originalUrl, options = {}) {
-  if (!originalUrl || originalUrl.startsWith('data:')) return originalUrl;
-  
-  const { width, quality = 85, format } = options;
-  const url = new URL(originalUrl, window.location.origin);
-  
-  // 如果后端支持图片处理，添加参数
-  if (format && format !== 'jpg') {
-    url.searchParams.set('format', format);
-  }
-  if (width) {
-    url.searchParams.set('w', width);
-  }
-  if (quality !== 85) {
-    url.searchParams.set('q', quality);
-  }
-  
-  return url.toString();
-}
-
 // 模糊占位符生成（使用 Canvas 缩放）
 export function generateBlurPlaceholder(img, _blurAmount = 10) {
   const canvas = document.createElement('canvas');

@@ -1,11 +1,13 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { getThumbUrl } from '../utils/url';
 
 /**
  * ImgOptimized — 聊天图片增强组件
  * - IntersectionObserver 懒加载（react-window 虚拟列表内图片提前加载）
  * - decoding="async" 不阻塞主线程
  * - 加载期间 skeleton 占位，消除布局抖动
- * - 失败时显示破损占位图
+ * - 缩略图优先：先请求 getThumbUrl(src)（体积小得多），失败（旧图无缩略图）回退原图 src
+ * - 两者都失败才显示破损占位图
  */
 
 const IMG_BROKEN = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
@@ -14,30 +16,6 @@ const IMG_BROKEN = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
     <path d="M21 15l-5-5L5 21"/>
   </svg>`
 );
-
-// 全局 WebP 支持检测（只检测一次）
-let webpSupported = null;
-function checkWebP() {
-  if (webpSupported !== null) return Promise.resolve(webpSupported);
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = img.onerror = () => { webpSupported = img.width === 1; resolve(webpSupported); };
-    img.src = 'data:image/webp;base64,UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAkA4JZACdAEO/gHOAAA=';
-  });
-}
-
-// 如果 URL 是本站上传的图片，尝试追加 ?fmt=webp 参数（后端需支持；不支持时原图返回）
-function toWebPUrl(src) {
-  if (!src || src.startsWith('data:')) return src;
-  try {
-    const u = new URL(src, location.origin);
-    if (u.pathname.startsWith('/uploads/') || u.pathname.startsWith('/api/')) {
-      u.searchParams.set('fmt', 'webp');
-      return u.toString();
-    }
-  } catch { /* 外部 URL 不转换 */ }
-  return src;
-}
 
 export default function ImgOptimized({
   src, alt = '', className = '', style,
@@ -50,7 +28,7 @@ export default function ImgOptimized({
   const ref    = useRef(null);
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded]   = useState(false);
-  const [webpSrc, setWebpSrc] = useState(null);
+  const thumbSrc = useMemo(() => getThumbUrl(src), [src]);
 
   // IntersectionObserver 探测入视
   useEffect(() => {
@@ -64,12 +42,6 @@ export default function ImgOptimized({
     return () => io.disconnect();
   }, [threshold]);
 
-  // 入视后检测 WebP，选最优 src
-  useEffect(() => {
-    if (!visible) return;
-    checkWebP().then(ok => setWebpSrc(ok ? toWebPUrl(src) : src));
-  }, [visible, src]);
-
   const handleLoad = useCallback(e => {
     setLoaded(true);
     e.currentTarget.classList.add('loaded');
@@ -78,8 +50,8 @@ export default function ImgOptimized({
 
   const handleError = useCallback(e => {
     const el = e.currentTarget;
-    // WebP 失败时回退原图
-    if (webpSrc && webpSrc !== src && el.src !== src) {
+    // 缩略图加载失败（旧图无缩略图/生成失败）时回退原图
+    if (thumbSrc && thumbSrc !== src && el.src !== src) {
       el.src = src;
       return;
     }
@@ -92,7 +64,7 @@ export default function ImgOptimized({
     setLoaded(true);
     el.classList.add('loaded');
     onErrorProp?.(e);
-  }, [webpSrc, src, onErrorProp]);
+  }, [thumbSrc, src, onErrorProp]);
 
   const containerStyle = {
     display: 'inline-block',
@@ -104,9 +76,9 @@ export default function ImgOptimized({
 
   return (
     <span ref={ref} style={containerStyle} className={loaded ? '' : 'img-skeleton'}>
-      {visible && webpSrc && (
+      {visible && src && (
         <img
-          src={webpSrc}
+          src={thumbSrc}
           alt={alt}
           className={className}
           width={width}

@@ -71,6 +71,19 @@ export function mediaUrl(u) {
   return abs;
 }
 
+// 由原图 URL 推导缩略图 URL：/uploads/<category>/<uuid>.<ext> → 同目录下的
+// <uuid>_thumb.webp（后端命名约定，见 backend-v2/src/utils/upload.js generateThumbnail）。
+// 纯字符串变换，不发请求、不查后端——旧图（此功能上线前上传的）没有对应缩略图文件，
+// 请求会 404，调用方必须在 <img onError> 里回退到原图 URL，绝不能假设缩略图一定存在。
+export function getThumbUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (!/^\/uploads\//.test(url)) return url; // 只有本站已上传文件路径才可能有缩略图
+  if (/_thumb\.webp$/.test(url)) return url; // 已经是缩略图 URL，原样返回（防重复推导）
+  const m = url.match(/^(.*\/)([^/.]+)\.[a-zA-Z0-9]+$/);
+  if (!m) return url;
+  return `${m[1]}${m[2]}_thumb.webp`;
+}
+
 // 跳转到登录页。Electron 跑在 file:// 下，不能用绝对路径 '/login'
 // （会跳到 file:///login 白屏），必须用 HashRouter 的 hash 路由。
 export function goLogin() {
