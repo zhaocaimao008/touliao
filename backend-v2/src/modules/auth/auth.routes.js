@@ -1,7 +1,7 @@
 'use strict';
 const router = require('express').Router();
 const auth = require('../../middleware/auth');
-const { loginLimiter, registerLimiter, switchLimiter, forgetLimiter, resetPasswordLimiter, captchaLimiter } = require('../../middleware/rateLimiters');
+const { loginLimiter, registerLimiter, switchLimiter, forgetLimiter, logoutLimiter, resetPasswordLimiter, captchaLimiter } = require('../../middleware/rateLimiters');
 const c = require('./auth.controller');
 
 // 图形验证码取图：登录前调用，无需鉴权（见 AUDIT.md 十节"登录限流/验证码"🟡）。
@@ -123,7 +123,7 @@ router.post('/refresh',         auth,            c.refresh);
  *       200:
  *         description: Logout successful
  */
-router.post('/logout',                           c.logout);
+router.post('/logout',              logoutLimiter, c.logout);
 
 /**
  * @swagger

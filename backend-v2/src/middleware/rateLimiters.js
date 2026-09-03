@@ -108,6 +108,15 @@ const forgetLimiter = rateLimit({
   message: json('操作过于频繁，请稍后再试'),
 });
 
+// logout：路由本身故意不挂 auth 中间件（手动解码 token 以兼容 cookie/Bearer 两种客户端），
+// 是全部 auth 路由里唯一没有限流的一个——未授权的伪造 token 灌 /logout 每次都要走
+// jwt.verify + 黑名单写入，成本不算大但也没理由不限。单 IP 每分钟 20 次，宽于 forget。
+const logoutLimiter = rateLimit({
+  ...base, windowMs: 60 * 1000, max: 20,
+  store: makeStore('logout'),
+  message: json('操作过于频繁，请稍后再试'),
+});
+
 // 朋友圈图片上传：单用户 10 分钟 30 次
 const momentImageLimiter = rateLimit({
   ...base, windowMs: 10 * 60 * 1000, max: 30,
@@ -242,7 +251,7 @@ const captchaLimiter = rateLimit({
 });
 
 // 测试模式:DISABLE_RATE_LIMIT=1 时所有限流变 no-op
-const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter, pushSubscribeLimiter, turnCredentialLimiter, joinGroupLimiter, captchaLimiter };
+const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, logoutLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter, pushSubscribeLimiter, turnCredentialLimiter, joinGroupLimiter, captchaLimiter };
 if (process.env.DISABLE_RATE_LIMIT === '1') {
   const noop = (req, res, next) => next();
   for (const k of Object.keys(limiters)) limiters[k] = noop;
