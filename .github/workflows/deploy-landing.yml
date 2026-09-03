@@ -1,8 +1,18 @@
 name: 部署落地页 (landing → touliao.cc/welcome)
 
 # 落地页是 Next.js 静态导出（output: 'export'，basePath /welcome），
-# 产物 landing/out/ 由生产机 Nginx 直接托管（root /root/投聊/landing/out）。
+# 产物 landing/out/ 由生产机 Nginx 直接托管（alias /var/www/touliao-landing/，
+# 见 /etc/nginx/conf.d/touliao-cc.conf 的 location /welcome/）。
 # 主 deploy.yml 只管 backend-v2 + web，不含 landing，故单列此 workflow。
+#
+# 2026-09-03 修复：此前 LANDING_PATH 写的是 /root/投聊/landing/out——目录名用了旧的
+# 中文路径（跟 deploy.yml 的 DEPLOY_PATH 曾经犯过的同一种错，那边 2026-08-31 修过，
+# 这边一直没同步），且 /root 目录权限 700，nginx worker(www-data) 根本 stat 不到
+# 里面的文件，即使路径名对了也还是 403/404。改用跟 touliao-web/touliao-downloads
+# 一致的 /var/www 前缀，避免同样的权限墙。这条流水线此前连续4次运行全部失败（Next.js
+# build 本身也在超时，见同批修的 Header/Hero/Security.tsx 缺 'use client' 的问题），
+# nginx 又没有 /welcome/ 的 location（已在同批补上），线上落地页因此"看起来能访问"（回落到
+# 主 Web 应用返回200）实则从未真正部署过，此前无人发现。
 on:
   push:
     branches: [main]
@@ -53,8 +63,8 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          # Nginx root（见 /etc/nginx/sites-enabled/touliao-touliao.conf）
-          LANDING_PATH: /root/投聊/landing/out
+          # Nginx root（见 /etc/nginx/conf.d/touliao-cc.conf 的 location /welcome/）
+          LANDING_PATH: /var/www/touliao-landing
         run: |
           # --delete 保证生产目录与构建产物一致（清理已删除的旧资源）
           rsync -az --delete \
@@ -65,7 +75,7 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          LANDING_PATH: /root/投聊/landing/out
+          LANDING_PATH: /var/www/touliao-landing
         run: |
           # 在生产机上核对产物已落盘
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \

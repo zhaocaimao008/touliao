@@ -1,3 +1,5 @@
+'use client';
+
 import { Container } from '../ui/Container';
 import { Button } from '../ui/Button';
 import { Reveal } from '../ui/Reveal';

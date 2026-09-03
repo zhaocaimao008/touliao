@@ -1,3 +1,5 @@
+'use client';
+
 import { Section, SectionHeading } from '../ui/Section';
 import { Reveal } from '../ui/Reveal';
 import { security } from '@/lib/content';
