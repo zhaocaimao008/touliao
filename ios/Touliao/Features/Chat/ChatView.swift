@@ -853,6 +853,7 @@ private struct MessageBubble: View {
     @State private var shareItems: [Any]?     // 非空 → 弹系统分享面板
     @State private var showShare = false
     @State private var preparingShare = false
+    @State private var showRecallConfirm = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
@@ -904,7 +905,7 @@ private struct MessageBubble: View {
                         }
                         // 撤回：自己消息，或群主/管理员撤回群内他人消息（对全员生效）
                         if isMine || (vm.isGroup && vm.canManageGroup) {
-                            Button("撤回", role: .destructive) { vm.recall(msg) }
+                            Button("撤回", role: .destructive) { showRecallConfirm = true }
                         }
                         // 删除：所有消息均可（自己/对方），仅对当前账号生效（per-user tombstone，不影响对方）
                         Button("删除", role: .destructive) { vm.deleteForMe(msg) }
@@ -913,6 +914,12 @@ private struct MessageBubble: View {
                     }
                     .sheet(isPresented: $showShare) {
                         if let items = shareItems { ShareSheet(items: items) }
+                    }
+                    .alert("撤回消息", isPresented: $showRecallConfirm) {
+                        Button("取消", role: .cancel) {}
+                        Button("撤回", role: .destructive) { vm.recall(msg) }
+                    } message: {
+                        Text("撤回这条消息？对方会看到\"消息已撤回\"")
                     }
                 if !msg.reactions.isEmpty {
                     HStack(spacing: 4) {

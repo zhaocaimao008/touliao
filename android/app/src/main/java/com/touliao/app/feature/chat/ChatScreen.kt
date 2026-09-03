@@ -1086,6 +1086,7 @@ private fun MessageBubble(
     onRetry: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var showRecallConfirm by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val highlightBg = if (highlighted) com.touliao.app.ui.theme.VxinBrand.copy(alpha = 0.20f) else Color.Transparent
 
@@ -1218,7 +1219,7 @@ private fun MessageBubble(
                     }
                     // 撤回：自己消息，或群主/管理员撤回群内他人消息（对全员生效）
                     if (isMine || canManage) {
-                        DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { onRecall(); menuOpen = false })
+                        DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { showRecallConfirm = true; menuOpen = false })
                     }
                     // 删除：所有消息均可（自己/对方），仅对当前账号生效（per-user tombstone，不影响对方）
                     DropdownMenuItem(text = { Text("删除", color = Color(0xFFFA5151)) }, onClick = { onDeleteForMe(); menuOpen = false })
@@ -1247,6 +1248,15 @@ private fun MessageBubble(
             }
         }
         if (isMine) Spacer(Modifier.size(6.dp))
+    }
+    if (showRecallConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRecallConfirm = false },
+            title = { Text("撤回消息") },
+            text = { Text("撤回这条消息？对方会看到\"消息已撤回\"") },
+            confirmButton = { TextButton(onClick = { onRecall(); showRecallConfirm = false }) { Text("撤回", color = Color(0xFFFA5151)) } },
+            dismissButton = { TextButton(onClick = { showRecallConfirm = false }) { Text("取消") } },
+        )
     }
 }
 

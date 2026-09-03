@@ -1045,8 +1045,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }).filter(Boolean));
       if (conversationId) removeFromCache(conversationId, msgId).catch(() => {});
     };
-    const onVanished = ({ msgId }) => {
+    const onVanished = ({ msgId, conversationId }) => {
       setMessages(prev => prev.filter(m => m.id !== msgId));
+      if (conversationId) removeFromCache(conversationId, msgId).catch(() => {});
     };
     const onBatchDeleted = ({ msgIds: ids }) => {
       if (!ids?.length) return;
@@ -2151,6 +2152,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         const isGroupAdmin = conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin');
         if (!isOwn && !isGroupAdmin) { showToast(t('chat.canOnlyRecallOwnMsg')); return; }
         if (msg.deleted) return;
+        if (!(await showConfirm(t('chat.confirmRecall')))) return;
         // 乐观移除：先隐藏，失败则恢复
         const prevMsgs = messagesRef.current;
         setMessages(prev => prev.filter(m => m.id !== msg.id));
@@ -2927,8 +2929,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('addSticker'); } }}>{t('chat.addToSticker')}</div>
           )}
           <div className="wc-ctx-divider" />
-          {/* 撤回：自己发送的消息，或群主/管理员撤回群内他人消息（对全员生效，服务端 deleted=2，UI 无痕） */}
-          {!ctxMenu.msg.deleted && (
+          {/* 撤回：自己发送的消息，或群主/管理员撤回群内他人消息（对全员生效，服务端 deleted=2，UI 无痕）。
+              发送中(_tempId，尚无服务端id)的消息排除——撤回请求必 404，见 AUDIT 优化项。 */}
+          {!ctxMenu.msg.deleted && !ctxMenu.msg._tempId && (
             ctxMenu.msg.sender_id === user.id ||
             (conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin'))
           ) && (
