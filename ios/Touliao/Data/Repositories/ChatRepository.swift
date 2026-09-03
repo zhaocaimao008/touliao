@@ -257,7 +257,6 @@ final class ChatRepository {
     func conversationFiles(_ conversationId: String, type: String = "all", offset: Int = 0, limit: Int = 30) async throws -> ConversationFilesResponse {
         try await api.send("api/messages/conversation/\(conversationId)/files?type=\(type)&offset=\(offset)&limit=\(limit)")
     }
-
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }

@@ -89,8 +89,6 @@ struct Message: Decodable, Identifiable, Equatable {
     var clientMsgId: String? = nil
     /// 由定时任务发送的消息（is_scheduled=1），气泡右下角显示「定时」角标
     var isScheduled: Int = 0
-    /// 语音转文字结果（后端消息查询已返回该列；非空=已转写，直接显示，不再显示「转文字」按钮）
-    var transcript: String? = nil
     // 2026-08-29 统一附件系统：真实 mime/size（服务端魔数校验后落库），供文件卡片显示
     // 类型/大小、判断能否 App 内预览（PDF/Word/Excel/PPT）。旧消息可能为 nil。
     var fileMime: String? = nil
