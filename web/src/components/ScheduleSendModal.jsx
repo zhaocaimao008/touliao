@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { useI18n } from '../contexts/I18nContext';
 
 /**
  * 定时发送弹窗：选择发送时间后创建定时消息，到点由后端调度器自动发出。
@@ -18,6 +19,7 @@ function toLocalInput(d) {
 }
 
 export default function ScheduleSendModal({ convId, defaultContent = '', onClose, onScheduled }) {
+  const { t } = useI18n();
   const [content, setContent] = useState(defaultContent);
   const [sendAtLocal, setSendAtLocal] = useState('');
   const [minDateTime, setMinDateTime] = useState('');
@@ -39,11 +41,11 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!content.trim()) { setError('请输入发送内容'); return; }
+    if (!content.trim()) { setError(t('ss.errEmptyContent')); return; }
     const sendAt = Math.floor(new Date(sendAtLocal).getTime() / 1000);
     const now = Math.floor(Date.now() / 1000);
-    if (sendAt - now < 14 * 60) { setError('发送时间至少需在 15 分钟后'); return; }
-    if (sendAt - now > 30 * 24 * 3600) { setError('发送时间最多 30 天内'); return; }
+    if (sendAt - now < 14 * 60) { setError(t('ss.errTooSoon')); return; }
+    if (sendAt - now > 30 * 24 * 3600) { setError(t('ss.errTooFar')); return; }
 
     setSaving(true);
     try {
@@ -55,7 +57,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
       });
       onScheduled?.(content.trim());
     } catch (err) {
-      setError(err.response?.data?.error || '创建定时消息失败，请重试');
+      setError(err.response?.data?.error || t('ss.createFailed'));
     } finally {
       setSaving(false);
     }
@@ -64,7 +66,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
   return (
     <div
       role="dialog"
-      aria-label="定时发送"
+      aria-label={t('ss.title')}
       style={{
         position: 'fixed', inset: 0, zIndex: 500,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -89,19 +91,19 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
           padding: 24,
         }}
       >
-        <h3 style={{ margin: '0 0 16px', fontSize: 'var(--text-lg)', fontWeight: 600 }}>定时发送</h3>
+        <h3 style={{ margin: '0 0 16px', fontSize: 'var(--text-lg)', fontWeight: 600 }}>{t('ss.title')}</h3>
 
         {/* 内容 */}
         <label style={{ display: 'block', marginBottom: 12 }}>
           <span style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-            消息内容
+            {t('ss.contentLabel')}
           </span>
           <textarea
             ref={inputRef}
             value={content}
             onChange={e => setContent(e.target.value)}
             rows={3}
-            placeholder="输入要定时发送的消息…"
+            placeholder={t('ss.contentPlaceholder')}
             style={{
               width: '100%', boxSizing: 'border-box',
               padding: '8px 10px', borderRadius: 'var(--radius-sm)',
@@ -115,7 +117,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
         {/* 时间选择 */}
         <label style={{ display: 'block', marginBottom: 16 }}>
           <span style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-            发送时间（15 分钟~30 天后）
+            {t('ss.timeLabel')}
           </span>
           <input
             type="datetime-local"
@@ -152,7 +154,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
               background: 'var(--bg-card)', color: 'var(--text-secondary)',
               cursor: 'pointer', fontSize: 'var(--text-base)',
             }}
-          >取消</button>
+          >{t('common.cancel')}</button>
           <button
             type="submit"
             disabled={saving || !content.trim()}
@@ -162,7 +164,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
               color: 'var(--text-on-brand)', cursor: 'pointer', fontSize: 'var(--text-base)',
               opacity: (saving || !content.trim()) ? 0.6 : 1,
             }}
-          >{saving ? '设置中…' : '确认定时发送'}</button>
+          >{saving ? t('ss.saving') : t('ss.confirmSend')}</button>
         </div>
       </form>
     </div>
