@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { isVoicePlayed, markVoicePlayed } from '../utils/playedVoice';
 import { transcribeVoice } from '../utils/transcribe';
 import { showToast } from '../utils/toast';
+import { useI18n } from '../contexts/I18nContext';
 
 const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = false, transcript = null }) {
+  const { t } = useI18n();
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -23,13 +25,13 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
     setTranscribing(true);
     try {
       const { text: result } = await transcribeVoice(msgId);
-      setText(result || '（未识别到语音内容）');
+      setText(result || t('voice.noSpeechDetected'));
     } catch (e) {
-      showToast(e.message || '转写失败', 'error');
+      showToast(e.message || t('voice.transcribeFailed'), 'error');
     } finally {
       setTranscribing(false);
     }
-  }, [msgId, transcribing]);
+  }, [msgId, transcribing, t]);
 
   const fmt = (s) => {
     // 某些服务端流式语音会上报 duration=Infinity/NaN,直接算会渲染成「Infinity:NaN」
@@ -102,7 +104,7 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
   return (
    <div className="wc-voice-wrap" onClick={e => e.stopPropagation()}>
     <div className="wc-msg-voice-player wc-voice-player">
-      <button onClick={togglePlay} className="wc-voice-play-btn" aria-label={playing ? '暂停' : '播放'}>
+      <button onClick={togglePlay} className="wc-voice-play-btn" aria-label={playing ? t('voice.pause') : t('voice.play')}>
         {playing ? (
           <svg viewBox="0 0 24 24" className="wc-voice-play-icon">
             <rect x="6" y="4" width="4" height="16" rx="1"/>
@@ -119,11 +121,11 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
         className="wc-voice-progress-track"
         role="slider"
         tabIndex={0}
-        aria-label="播放进度"
+        aria-label={t('voice.playbackProgress')}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(progress)}
-        aria-valuetext={loaded ? `${fmt(currentTime)} / ${fmt(duration)}` : '未加载'}
+        aria-valuetext={loaded ? `${fmt(currentTime)} / ${fmt(duration)}` : t('voice.notLoaded')}
         onKeyDown={handleKeyDown}
       >
         <div className="wc-voice-progress-fill" style={{ width: `${progress}%` }} />
@@ -131,7 +133,7 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
       <span className="wc-voice-duration">
         {timeLabel}
       </span>
-      {unplayed && <span className="wc-voice-unplayed-dot" aria-label="未播放" title="未播放" />}
+      {unplayed && <span className="wc-voice-unplayed-dot" aria-label={t('voice.unplayed')} title={t('voice.unplayed')} />}
     </div>
 
     {/* 转文字：已有文本则直接展示；否则给一个「转文字」按钮，点击调 ASR。 */}
@@ -143,9 +145,9 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
         className="wc-voice-transcribe-btn"
         onClick={handleTranscribe}
         disabled={transcribing || !msgId}
-        aria-label="语音转文字"
+        aria-label={t('voice.transcribeToTextAriaLabel')}
       >
-        {transcribing ? '转写中…' : '转文字'}
+        {transcribing ? t('voice.transcribing') : t('voice.transcribeToText')}
       </button>
     )}
    </div>
