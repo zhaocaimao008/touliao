@@ -4,6 +4,7 @@ import Avatar from './Avatar';
 import { showToast } from '../utils/toast';
 import { installPrewarm, startRingback as toneRingback, stopTone, playConnectedTone } from '../utils/callTones';
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
+import { useI18n } from '../contexts/I18nContext';
 
 installPrewarm();
 
@@ -78,6 +79,7 @@ function useFocusTrap(open) {
 
 // ── Hook: WebRTC 群通话信令与连接管理 ──────────────────────────
 function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onClose }) {
+  const { t } = useI18n();
   const { mode, conversationId, type } = session;
   const isVideo = type === 'video';
 
@@ -271,13 +273,20 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     };
     const onPeerLeft = ({ userId: pid }) => removePeer(pid);
     const onError = ({ reason }) => {
-      const msg = { busy: '你正在通话中', not_group: '仅群聊支持多人通话', not_found: '通话已结束', full: '通话人数已满', voice_disabled: '群语音通话已被管理员关闭', video_disabled: '群视频通话已被管理员关闭' }[reason] || '通话出错';
+      const msg = {
+        busy: t('groupCall.errorBusy'),
+        not_group: t('groupCall.errorNotGroup'),
+        not_found: t('call.callEnded'),
+        full: t('groupCall.errorFull'),
+        voice_disabled: t('groupCall.errorVoiceDisabled'),
+        video_disabled: t('groupCall.errorVideoDisabled'),
+      }[reason] || t('groupCall.errorGeneric');
       showToast(msg, 'error');
       hangup();
     };
     // 服务端强制结束（如超过时长上限）：提示并关闭界面
     const onEnded = ({ reason }) => {
-      showToast(reason === 'timeout' ? '通话已达时长上限，已结束' : '通话已结束', 'info');
+      showToast(reason === 'timeout' ? t('groupCall.endedTimeout') : t('call.callEnded'), 'info');
       hangup();
       onClose?.();
     };
@@ -301,7 +310,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       socket.off('group_call:error', onError);
       socket.off('group_call:ended', onEnded);
     };
-  }, [socket, createPC, drainIce, removePeer, hangup, onClose]);
+  }, [socket, createPC, drainIce, removePeer, hangup, onClose, t]);
 
   return {
     callId, muted, cameraOff, remoteStreams, localStream, status,
@@ -314,6 +323,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
 //  主组件
 // ════════════════════════════════════════════════════════════════
 export default function GroupCallModal({ socket, user, session, nameOf, onClose }) {
+  const { t } = useI18n();
   const webrtc = useGroupCallWebRTC({ socket, user, session, nameOf, onClose });
   const cols = useResponsiveGrid(webrtc.tileCount);
   const containerRef = useFocusTrap(true);
@@ -346,7 +356,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
     <div
       ref={containerRef}
       role="dialog"
-      aria-label="群通话"
+      aria-label={t('groupCall.title')}
       aria-modal="true"
       style={{
         position: 'fixed', inset: 0, zIndex: "var(--z-call)",
@@ -361,12 +371,14 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
         fontSize: isMobileWidth() ? 13 : 15,
         color: 'rgba(255,255,255,.85)',
       }}>
-        群{isVideo ? '视频' : '语音'}通话 · {tileCount} 人
+        {t('groupCall.headerTemplate')
+          .replace('{type}', isVideo ? t('groupCall.videoCallLabel') : t('groupCall.voiceCallLabel'))
+          .replace('{count}', tileCount)}
         <span style={{
           fontSize: isMobileWidth() ? 11 : 12,
           color: 'rgba(255,255,255,.45)', marginLeft: 8,
         }}>
-          {status === 'connected' ? '通话中' : (webrtc.callId ? '等待他人加入…' : '加入中…')}
+          {status === 'connected' ? t('groupCall.statusConnected') : (webrtc.callId ? t('groupCall.statusWaitingOthers') : t('groupCall.statusJoining'))}
         </span>
       </header>
 
@@ -383,7 +395,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
           stream={localStream}
           muted
           isVideo={isVideo && !cameraOff}
-          info={{ name: '我', avatar: user?.avatar }}
+          info={{ name: t('home.tab.me'), avatar: user?.avatar }}
           self
         />
         {peerIds.map(pid => (
@@ -391,20 +403,20 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
             key={pid}
             streamForRef={remoteStreams[pid]}
             isVideo={isVideo}
-            info={nameOf?.(pid) || { name: '成员' }}
+            info={nameOf?.(pid) || { name: t('groupCall.member') }}
           />
         ))}
       </div>
 
       {/* 控制区 — 响应式 */}
-      <nav aria-label="通话控制" style={{
+      <nav aria-label={t('groupCall.controls')} style={{
         display: 'flex', justifyContent: 'center', gap: isMobileWidth() ? 20 : 28,
         padding: isMobileWidth() ? '14px 0 24px' : '18px 0 34px',
       }}>
         {isVideo && (
           <CtrlBtn
             icon={cameraOff ? '📷' : '📹'}
-            label={cameraOff ? '开摄像头' : '关摄像头'}
+            label={cameraOff ? t('call.turnCameraOn') : t('call.turnCameraOff')}
             bg={cameraOff ? '#555' : 'rgba(255,255,255,.18)'}
             size={isMobileWidth() ? 44 : 52}
             onClick={webrtc.toggleCamera}
@@ -412,14 +424,14 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
         )}
         <CtrlBtn
           icon={muted ? '🔇' : '🎙️'}
-          label={muted ? '取消静音' : '静音'}
+          label={muted ? t('call.unmute') : t('call.mute')}
           bg="rgba(255,255,255,.18)"
           size={isMobileWidth() ? 44 : 52}
           onClick={webrtc.toggleMute}
         />
         <CtrlBtn
           icon="📵"
-          label="挂断"
+          label={t('call.hangup')}
           bg="var(--color-badge)"
           size={isMobileWidth() ? 54 : 64}
           onClick={handleHangup}
@@ -438,12 +450,14 @@ function isMobileWidth() {
 
 // ── 单路画面 ─────────────────────────────────────────────────
 function Tile({ stream, streamForRef, muted, isVideo, info, self }) {
+  const { t } = useI18n();
   const ref = useRef(null);
   const s = stream || streamForRef;
   useEffect(() => { if (ref.current && s) ref.current.srcObject = s; }, [s]);
+  const displayName = info?.name || t('groupCall.member');
   return (
     <div
-      aria-label={`${info?.name || '成员'} 的画面`}
+      aria-label={t('groupCall.participantVideoAltTemplate').replace('{name}', displayName)}
       style={{
         position: 'relative', background: '#000', borderRadius: 'var(--radius-md)',
         overflow: 'hidden', minHeight: isMobileWidth() ? 100 : 140,
@@ -468,7 +482,7 @@ function Tile({ stream, streamForRef, muted, isVideo, info, self }) {
         color: 'var(--text-inverse)',
         textShadow: '0 1px 3px rgba(0,0,0,.6)',
       }}>
-        {info?.name}
+        {displayName}
       </div>
     </div>
   );
