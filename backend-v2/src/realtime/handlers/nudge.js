@@ -42,6 +42,12 @@ module.exports = function registerNudgeHandler(io, socket) {
     try {
       if (!conversationId) { ack?.({ success: false, error: '参数缺失' }); return; }
 
+      // 后台开关拦截：关闭「拍一拍」后，任何客户端（含绕过 UI 的直连）都被拒绝。
+      // 直接读 admin_settings，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
+      if (readDb.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_nudge')?.value === 'off') {
+        ack?.({ success: false, error: '管理员已关闭拍一拍功能' }); return;
+      }
+
       // 冷却（cache 跨进程共享，防 PM2 cluster 模式绕过）
       // 先抢占写入冷却 key，消除 get→validate→set 的 TOCTOU 竞态
       const cdKey = `nudge:cd:${userId}`;

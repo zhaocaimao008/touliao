@@ -23,6 +23,14 @@ const { pushCallInvite } = require('../../utils/push');
 const { guardPayload, guardId } = require('../guard');
 const { writeCallMessage } = require('../callMessage');
 
+// 后台功能开关：单聊语音 / 视频是否允许发起（默认开启，缺省或非 'off' 即开）。
+// 直接读 admin_settings 表，避免引入 admin.service 造成循环依赖；每次发起时读，实时生效。
+function privateCallAllowed(type) {
+  const key = type === 'video' ? 'feature_video_call' : 'feature_voice_call';
+  const v = readDb.prepare('SELECT value FROM admin_settings WHERE key=?').get(key)?.value;
+  return v !== 'off';
+}
+
 // 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）。
 // 可经环境变量注入(仅测试用短值;生产不设则保持 120s,行为不变)。
 // 合法性保护：NaN/负数/小于 1s/超大值(>1h)一律回退默认并告警——
@@ -183,8 +191,13 @@ function registerCallHandler(io, socket, registry) {
       socket.emit('call:response', { from: to, accepted: false }); // 给主叫一个"被拒"信号，避免界面一直转
       return;
     }
-    const id = uuidv4();
     const t = type === 'video' ? 'video' : 'audio';
+    // 后台开关拦截：被关闭的通话类型直接拒绝发起（实时生效，无需重启/重连）
+    if (!privateCallAllowed(t)) {
+      socket.emit('call:error', { code: t === 'video' ? 'VIDEO_CALL_DISABLED' : 'VOICE_CALL_DISABLED', event: 'call:request' });
+      return;
+    }
+    const id = uuidv4();
     const key = `${userId}>${to}`;
     // 重复拨号时更新旧记录状态，防止留下永久 missed 孤儿行
     const old = activeCalls.get(key);

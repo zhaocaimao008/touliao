@@ -11,6 +11,11 @@ const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sy
 // ⚠ 与 claim 同理：扣余额是「读余额→判断够不够→扣→写」的读-判-写闭环，
 //   必须与建红包在同一同步事务内完成（不可拆 worker），否则可能扣了钱没建包、或余额穿透。
 async function send(io, userId, { conversationId, totalAmount, totalCount, greeting }) {
+  // 后台开关拦截：关闭「红包」后，任何客户端（含绕过 UI 的直连）都被拒绝发红包。
+  // 直接读 db，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
+  if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_red_packet')?.value === 'off') {
+    throw forbidden('管理员已关闭红包功能');
+  }
   if (!conversationId || !totalAmount || !totalCount) throw badRequest('参数缺失');
   if (!Number.isInteger(totalAmount) || !Number.isInteger(totalCount)) throw badRequest('金额和个数必须为整数');
   if (totalAmount < 1 || totalAmount > 20000) throw badRequest('金额范围 1-20000 金币');
