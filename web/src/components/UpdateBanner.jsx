@@ -31,7 +31,7 @@ export default function UpdateBanner() {
       window.removeEventListener('electron:update-downloaded', onDownloaded);
       window.removeEventListener('electron:update-error',      onError);
     };
-  }, []);
+  }, [t]);
 
   const handleCheck = useCallback(() => {
     setState('checking');

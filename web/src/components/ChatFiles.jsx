@@ -14,10 +14,10 @@ import { useI18n } from '../contexts/I18nContext';
  */
 
 const TABS = [
-  { key: 'all',   label: '全部' },
-  { key: 'image', label: '图片' },
-  { key: 'video', label: '视频' },
-  { key: 'file',  label: '文件' },
+  { key: 'all',   labelKey: 'chatFiles.tabAll' },
+  { key: 'image', labelKey: 'chatFiles.tabImage' },
+  { key: 'video', labelKey: 'chatFiles.tabVideo' },
+  { key: 'file',  labelKey: 'chatFiles.tabFile' },
 ];
 
 const IcoFile = () => (
@@ -127,18 +127,18 @@ export default function ChatFiles({ convId, onClose }) {
           </button>
           <span className="chatfiles-title">{t('chatFiles.title')}</span>
           <span className="chatfiles-count">
-            共 {total} 项
+            {t('chatFiles.countTemplate').replace('{count}', total)}
           </span>
         </div>
 
         {/* Tab 栏 */}
         <div className="chatfiles-tabs">
-          {TABS.map(t => {
-            const active = tab === t.key;
+          {TABS.map(tabItem => {
+            const active = tab === tabItem.key;
             return (
               <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
+                key={tabItem.key}
+                onClick={() => setTab(tabItem.key)}
                 aria-selected={active}
                 className="chatfiles-tab-btn"
                 style={{
@@ -146,7 +146,7 @@ export default function ChatFiles({ convId, onClose }) {
                   color: active ? 'var(--green)' : 'var(--text-tertiary)',
                 }}
               >
-                {t.label}
+                {t(tabItem.labelKey)}
                 {active && (
                   <span className="chatfiles-tab-indicator" />
                 )}
@@ -162,7 +162,7 @@ export default function ChatFiles({ convId, onClose }) {
               <svg viewBox="0 0 24 24" className="chatfiles-empty-icon">
                 <path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/>
               </svg>
-              暂无文件
+              {t('chatFiles.noFiles')}
             </div>
           )}
 
@@ -171,7 +171,7 @@ export default function ChatFiles({ convId, onClose }) {
               key={item.id}
               role="button"
               tabIndex={0}
-              aria-label={`打开 ${item.file_name || item.caption || '文件'}`}
+              aria-label={t('chatFiles.openFileAriaLabelTemplate').replace('{name}', item.file_name || item.caption || t('chatFiles.tabFile'))}
               onClick={() => handleClick(item)}
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleClick(item)}
               className="chatfiles-item"
@@ -200,7 +200,7 @@ export default function ChatFiles({ convId, onClose }) {
               {/* 信息 */}
               <div className="chatfiles-info">
                 <div className="chatfiles-info-name">
-                  {item.fileName || (item.type === 'image' ? '图片' : item.type === 'video' ? '视频' : '文件')}
+                  {item.fileName || (item.type === 'image' ? t('chatFiles.tabImage') : item.type === 'video' ? t('chatFiles.tabVideo') : t('chatFiles.tabFile'))}
                 </div>
                 <div className="chatfiles-info-meta">
                   <Avatar src={item.senderAvatar} name={item.senderName} size={13}
@@ -216,7 +216,7 @@ export default function ChatFiles({ convId, onClose }) {
           <div ref={loaderRef} className="chatfiles-loader-sentinel" />
           {loading && (
             <div className="chatfiles-loading-more">
-              加载中…
+              {t('common.loading')}
             </div>
           )}
         </div>

@@ -747,7 +747,7 @@ export default function Home() {
       socket.off('new_friend_request', onFriendReq);
       socket.off('friend_request_accepted', onFriendAccepted);
     };
-  }, [socket, showNotification, myId, openFriendRequestsPage]);
+  }, [socket, showNotification, myId, openFriendRequestsPage, t]);
 
   // 被踢出群时：清除当前活跃会话 + 清零未读（ChatWindow 可能未挂载，需在此兜底）
   useEffect(() => {
@@ -828,7 +828,7 @@ export default function Home() {
     };
     socket.on('call:incoming', onIncoming);
     return () => socket.off('call:incoming', onIncoming);
-  }, [socket, showNotification, busyElsewhereCallId]);
+  }, [socket, showNotification, busyElsewhereCallId, t]);
 
   const handleTabChange = (t) => {
     setTab(t);
@@ -851,7 +851,7 @@ export default function Home() {
       document.title = base;
       try { window.electronAPI?.setBadge?.(0); } catch { /* noop */ }
     };
-  }, [totalUnread]);
+  }, [totalUnread, t]);
 
   const handleStartCall = useCallback((callData) => {
     setActiveCall(callData);

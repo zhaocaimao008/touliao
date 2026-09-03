@@ -370,7 +370,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     };
     socket.on('call:error', onCallError);
     return () => socket.off('call:error', onCallError);
-  }, [socket]);
+  }, [socket, t]);
 
   // 发起群通话（群聊）
   const startGroupCall = useCallback((type) => {
@@ -1232,7 +1232,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       socket.off('message_pinned', onPinned);
       socket.off('message_unpinned', onUnpinned);
     };
-  }, [socket, conversation.id, user.id, onClose, registerDelivered, scheduleBurn, catchUp]);
+  }, [socket, conversation.id, user.id, onClose, registerDelivered, scheduleBurn, catchUp, t]);
 
   // ── 重发失败消息（复用 pendingMsgsRef + ack 机制）─────────────
   const retryMessage = useCallback((failedMsg) => {
@@ -1306,7 +1306,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         if (cur && cur._status === 'error') retryMessage(cur);
       }, i * 120);
     });
-  }, [reconnectCount, socket, retryMessage]);
+  }, [reconnectCount, socket, retryMessage, t]);
 
   // ── 进入会话时：若连接正常且存在从 outbox 恢复的失败消息，静默自动重发一次 ──
   // 场景：上次在此会话发失败 → 切走 → 网络已恢复 → 再切回来，无需等下一次断连事件。
@@ -1356,7 +1356,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     } finally {
       setClaiming(false);
     }
-  }, [user.id]); // claiming 经 claimingRef 读取，仅 user.id 需纳入依赖
+  }, [user.id, t]); // claiming 经 claimingRef 读取，仅 user.id 需纳入依赖
 
   const sendMessage = async () => {
     // 复制多行文本粘贴进来时，把换行折叠成空格——消息始终保持单行高度（对齐需求）。
@@ -1652,14 +1652,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       xhr.setRequestHeader('Content-Type', contentType);
       xhr.send(fileOrBlob);
     });
-  }, [conversation.id]);
+  }, [conversation.id, t]);
 
   // ── 聊天专属背景：设置/清除（按会话）──────────────────────────
   const setChatBackground = useCallback((url) => {
     return axios.put(`/api/messages/conversation/${conversation.id}/background`, { background: url })
       .then(() => setConversation(prev => ({ ...prev, background: url })))
       .catch(() => { showToast(t('chat.setFailed'), 'error'); });
-  }, [conversation.id]);
+  }, [conversation.id, t]);
 
   const pickBackground = useCallback(() => {
     const inp = document.createElement('input');
@@ -1696,7 +1696,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
     };
     inp.click();
-  }, [uploadToCloud, setChatBackground, conversation.id]);
+  }, [uploadToCloud, setChatBackground, conversation.id, t]);
 
   // ── 本地上传回退：云存储未配置(503)时，直传后端 /upload（入库+广播由后端完成）──
   const uploadLocal = useCallback(async (file, onProgress) => {
@@ -1855,7 +1855,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
     };
     await doUpload();
-  }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, listOuterRef]);
+  }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, listOuterRef, t]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -1908,7 +1908,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     axios.post('/api/stickers/send', { conversationId: conversation.id, stickerId })
       .then(() => setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 80))
       .catch(err => showToast(err.response?.data?.error || t('chat.sendFailed'), 'error'));
-  }, [conversation.id, listOuterRef]);
+  }, [conversation.id, listOuterRef, t]);
 
   // 拖拽上传
   const handleDragEnter = (e) => {
@@ -2198,12 +2198,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (valid.length === 1) setForwardMsg(valid[0]);
     else setForwardMsgs(valid);
     exitMultiSelect();
-  }, [messages, selectedMsgs, exitMultiSelect]);
+  }, [messages, selectedMsgs, exitMultiSelect, t]);
   const multiDelete = useCallback(async () => {
     if (!await showConfirm(t('chat.confirmBatchRecallDeleteTemplate').replace('{count}', selectedMsgs.size))) return;
     await axios.post('/api/messages/batch-delete', { msgIds: [...selectedMsgs], conversationId: conversation.id }).catch(e => showToast(e.response?.data?.error || t('chat.operationFailed'), 'error'));
     exitMultiSelect();
-  }, [selectedMsgs, conversation.id, exitMultiSelect]);
+  }, [selectedMsgs, conversation.id, exitMultiSelect, t]);
 
   // Precompute the last mine message id to avoid O(n) per message in flatItems
   const lastMineId = useMemo(() => {
