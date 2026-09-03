@@ -154,6 +154,7 @@ function EditName({ user, updateUser, onBack }) {
 
 /* ── 修改个性签名 ── */
 function EditBio({ user, updateUser, onBack }) {
+  const { t } = useI18n();
   const [bio, setBio] = useState(user?.bio || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -162,7 +163,7 @@ function EditBio({ user, updateUser, onBack }) {
   const save = async () => {
     if (saving) return; // 防连点：回车提交会绕过 disabled 按钮
     const trimmed = bio.trim();
-    if (trimmed.length > MAX) { setError(`签名最多 ${MAX} 个字符`); return; }
+    if (trimmed.length > MAX) { setError(t('profile.bioMaxTemplate').replace('{n}', MAX)); return; }
     setSaving(true);
     setError('');
     try {
@@ -170,7 +171,7 @@ function EditBio({ user, updateUser, onBack }) {
       updateUser(data);
       onBack();
     } catch (err) {
-      setError(err.response?.data?.error || '保存失败，请重试');
+      setError(err.response?.data?.error || t('common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -178,10 +179,10 @@ function EditBio({ user, updateUser, onBack }) {
 
   return (
     <PageBg>
-      <PageHeader title="修改个性签名" onBack={onBack}
+      <PageHeader title={t('profile.editBio')} onBack={onBack}
         right={
           <button className="wc-save-btn" onClick={save} disabled={saving}>
-            {saving ? '保存中' : '保存'}
+            {saving ? t('profile.savingShort') : t('common.save')}
           </button>
         }
       />
@@ -193,8 +194,8 @@ function EditBio({ user, updateUser, onBack }) {
               onChange={e => { setBio(e.target.value); setError(''); }}
               maxLength={MAX}
               autoFocus
-              placeholder="请输入个性签名"
-              aria-label="修改个性签名"
+              placeholder={t('profile.bioPlaceholder')}
+              aria-label={t('profile.editBio')}
               className="wc-edit-input wc-edit-textarea"
               rows={3}
             />
@@ -202,7 +203,7 @@ function EditBio({ user, updateUser, onBack }) {
           </div>
         </Card>
         {error && <div className="wc-edit-error" role="alert">{error}</div>}
-        <div className="wc-edit-hint">个性签名会在好友资料中显示</div>
+        <div className="wc-edit-hint">{t('profile.bioHint')}</div>
       </div>
     </PageBg>
   );
@@ -210,6 +211,7 @@ function EditBio({ user, updateUser, onBack }) {
 
 /* ── 换绑手机号 ── */
 function ChangePhone({ user, updateUser, onBack }) {
+  const { t } = useI18n();
   const [newPhone, setNewPhone]   = useState('');
   const [password, setPassword]   = useState('');
   const [saving, setSaving]       = useState(false);
@@ -217,7 +219,7 @@ function ChangePhone({ user, updateUser, onBack }) {
 
   const save = async () => {
     if (saving) return;
-    if (!newPhone.trim() || !password) { setError('请填写新手机号和密码'); return; }
+    if (!newPhone.trim() || !password) { setError(t('profile.fillNewPhoneAndPassword')); return; }
     setSaving(true);
     setError('');
     try {
@@ -227,10 +229,10 @@ function ChangePhone({ user, updateUser, onBack }) {
       });
       // 更新本地用户信息中的手机号
       updateUser({ ...user, phone: data.phone });
-      showToast('手机号已换绑成功', 'success');
+      showToast(t('profile.phoneChangedSuccess'), 'success');
       onBack();
     } catch (err) {
-      setError(err.response?.data?.error || '换绑失败，请重试');
+      setError(err.response?.data?.error || t('profile.phoneChangeFailed'));
     } finally {
       setSaving(false);
     }
@@ -238,10 +240,10 @@ function ChangePhone({ user, updateUser, onBack }) {
 
   return (
     <PageBg>
-      <PageHeader title="换绑手机号" onBack={onBack}
+      <PageHeader title={t('profile.changePhoneTitle')} onBack={onBack}
         right={
           <button className="wc-save-btn" onClick={save} disabled={saving}>
-            {saving ? '保存中' : '保存'}
+            {saving ? t('profile.savingShort') : t('common.save')}
           </button>
         }
       />
@@ -249,39 +251,39 @@ function ChangePhone({ user, updateUser, onBack }) {
         <Card>
           <div className="profile-phone-body">
             <div>
-              <div className="profile-field-label">当前手机号</div>
-              <div className="profile-field-value">{user?.phone || '未绑定'}</div>
+              <div className="profile-field-label">{t('profile.currentPhone')}</div>
+              <div className="profile-field-value">{user?.phone || t('profile.notBound')}</div>
             </div>
             <div>
-              <label htmlFor="cp-phone" className="profile-field-label-block">新手机号</label>
+              <label htmlFor="cp-phone" className="profile-field-label-block">{t('profile.newPhone')}</label>
               <input
                 id="cp-phone"
                 type="tel"
                 value={newPhone}
                 onChange={e => { setNewPhone(e.target.value); setError(''); }}
-                placeholder="请输入新手机号"
-                aria-label="新手机号"
+                placeholder={t('profile.newPhonePlaceholder')}
+                aria-label={t('profile.newPhone')}
                 className="wc-edit-input"
                 autoFocus
               />
             </div>
             <div>
-              <label htmlFor="cp-pass" className="profile-field-label-block">登录密码（用于验证身份）</label>
+              <label htmlFor="cp-pass" className="profile-field-label-block">{t('profile.loginPasswordVerify')}</label>
               <input
                 id="cp-pass"
                 type="password"
                 value={password}
                 onChange={e => { setPassword(e.target.value); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && save()}
-                placeholder="请输入登录密码"
-                aria-label="登录密码"
+                placeholder={t('profile.loginPasswordPlaceholder')}
+                aria-label={t('profile.loginPasswordVerify')}
                 className="wc-edit-input"
               />
             </div>
           </div>
         </Card>
         {error && <div className="wc-edit-error" role="alert">{error}</div>}
-        <div className="wc-edit-hint">换绑后请使用新手机号登录</div>
+        <div className="wc-edit-hint">{t('profile.phoneChangeHint')}</div>
       </div>
     </PageBg>
   );
@@ -289,6 +291,7 @@ function ChangePhone({ user, updateUser, onBack }) {
 
 /* ── 修改密码 ── */
 function ChangePassword({ onBack }) {
+  const { t } = useI18n();
   const { changePassword } = useAuth();
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -298,17 +301,17 @@ function ChangePassword({ onBack }) {
 
   const save = async () => {
     if (saving) return;
-    if (!oldPassword || !newPassword) { setError('请填写原密码和新密码'); return; }
-    if (newPassword.length < 6) { setError('新密码至少 6 位'); return; }
-    if (newPassword !== confirmPassword) { setError('两次输入的新密码不一致'); return; }
+    if (!oldPassword || !newPassword) { setError(t('profile.fillOldAndNewPassword')); return; }
+    if (newPassword.length < 6) { setError(t('profile.newPasswordMinLength')); return; }
+    if (newPassword !== confirmPassword) { setError(t('profile.passwordMismatch')); return; }
     setSaving(true);
     setError('');
     try {
       await changePassword(oldPassword, newPassword);
-      showToast('密码已修改', 'success');
+      showToast(t('profile.passwordChanged'), 'success');
       onBack();
     } catch (err) {
-      setError(err.response?.data?.error || '修改失败，请重试');
+      setError(err.response?.data?.error || t('profile.passwordChangeFailed'));
     } finally {
       setSaving(false);
     }
@@ -316,10 +319,10 @@ function ChangePassword({ onBack }) {
 
   return (
     <PageBg>
-      <PageHeader title="修改密码" onBack={onBack}
+      <PageHeader title={t('profile.changePasswordTitle')} onBack={onBack}
         right={
           <button className="wc-save-btn" onClick={save} disabled={saving}>
-            {saving ? '保存中' : '保存'}
+            {saving ? t('profile.savingShort') : t('common.save')}
           </button>
         }
       />
@@ -327,34 +330,34 @@ function ChangePassword({ onBack }) {
         <Card>
           <div className="profile-phone-body">
             <div>
-              <label htmlFor="cpw-old" className="profile-field-label-block">原密码</label>
+              <label htmlFor="cpw-old" className="profile-field-label-block">{t('profile.oldPassword')}</label>
               <input
                 id="cpw-old" type="password" value={oldPassword}
                 onChange={e => { setOldPassword(e.target.value); setError(''); }}
-                placeholder="请输入当前登录密码" aria-label="原密码" className="wc-edit-input" autoFocus
+                placeholder={t('profile.oldPasswordPlaceholder')} aria-label={t('profile.oldPassword')} className="wc-edit-input" autoFocus
               />
             </div>
             <div>
-              <label htmlFor="cpw-new" className="profile-field-label-block">新密码</label>
+              <label htmlFor="cpw-new" className="profile-field-label-block">{t('profile.newPassword')}</label>
               <input
                 id="cpw-new" type="password" value={newPassword}
                 onChange={e => { setNewPassword(e.target.value); setError(''); }}
-                placeholder="至少 6 位" aria-label="新密码" className="wc-edit-input"
+                placeholder={t('profile.newPasswordPlaceholder')} aria-label={t('profile.newPassword')} className="wc-edit-input"
               />
             </div>
             <div>
-              <label htmlFor="cpw-confirm" className="profile-field-label-block">确认新密码</label>
+              <label htmlFor="cpw-confirm" className="profile-field-label-block">{t('profile.confirmNewPassword')}</label>
               <input
                 id="cpw-confirm" type="password" value={confirmPassword}
                 onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && save()}
-                placeholder="再次输入新密码" aria-label="确认新密码" className="wc-edit-input"
+                placeholder={t('profile.confirmNewPasswordPlaceholder')} aria-label={t('profile.confirmNewPassword')} className="wc-edit-input"
               />
             </div>
           </div>
         </Card>
         {error && <div className="wc-edit-error" role="alert">{error}</div>}
-        <div className="wc-edit-hint">修改后其它已登录设备不受影响，本设备将使用新密码继续登录</div>
+        <div className="wc-edit-hint">{t('profile.passwordChangeHint')}</div>
       </div>
     </PageBg>
   );
@@ -362,6 +365,7 @@ function ChangePassword({ onBack }) {
 
 /* ── 注销账号 ── */
 function DeleteAccountPage({ onBack }) {
+  const { t } = useI18n();
   const { deleteAccount } = useAuth();
   const [password, setPassword] = useState('');
   const [saving, setSaving]     = useState(false);
@@ -369,35 +373,35 @@ function DeleteAccountPage({ onBack }) {
 
   const submit = async () => {
     if (saving) return;
-    if (!password) { setError('请输入密码确认注销'); return; }
-    if (!(await showConfirm('注销账号后将无法恢复，确定继续？'))) return;
+    if (!password) { setError(t('profile.deletePasswordPrompt')); return; }
+    if (!(await showConfirm(t('profile.deleteConfirm')))) return;
     setSaving(true);
     setError('');
     try {
       await deleteAccount(password);
       // deleteAccount 成功后 user 已置 null，PrivateRoute 会自动跳转登录页，这里无需手动导航。
     } catch (err) {
-      setError(err.response?.data?.error || '注销失败，请重试');
+      setError(err.response?.data?.error || t('profile.deleteFailed'));
       setSaving(false);
     }
   };
 
   return (
     <PageBg>
-      <PageHeader title="注销账号" onBack={onBack} />
+      <PageHeader title={t('profile.deleteAccountTitle')} onBack={onBack} />
       <div className="wc-edit-pad">
         <Card>
           <div className="profile-phone-body">
             <div className="wc-edit-hint" style={{ color: 'var(--color-danger, #FA5151)' }}>
-              注销后账号将无法登录，聊天记录/好友/群组/钱包余额等数据不可找回。请先确保钱包余额已清零。
+              {t('profile.deleteWarning')}
             </div>
             <div>
-              <label htmlFor="del-pass" className="profile-field-label-block">登录密码（用于验证身份）</label>
+              <label htmlFor="del-pass" className="profile-field-label-block">{t('profile.loginPasswordVerify')}</label>
               <input
                 id="del-pass" type="password" value={password}
                 onChange={e => { setPassword(e.target.value); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && submit()}
-                placeholder="请输入登录密码" aria-label="登录密码" className="wc-edit-input" autoFocus
+                placeholder={t('profile.loginPasswordPlaceholder')} aria-label={t('profile.loginPasswordVerify')} className="wc-edit-input" autoFocus
               />
             </div>
           </div>
@@ -405,7 +409,7 @@ function DeleteAccountPage({ onBack }) {
         {error && <div className="wc-edit-error" role="alert">{error}</div>}
         <div className="wc-logout-div">
           <button className="wc-logout-btn" onClick={submit} disabled={saving}>
-            {saving ? '注销中…' : '确认注销账号'}
+            {saving ? t('profile.deleting') : t('profile.confirmDeleteAccount')}
           </button>
         </div>
       </div>
