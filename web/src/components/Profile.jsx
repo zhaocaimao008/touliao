@@ -1112,6 +1112,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
 
 /* ── 设置总览页（二级） ── */
 function ServerSettings({ onBack }) {
+  const { t } = useI18n();
   const { changeServer } = useAuth();
   const currentUrl = localStorage.getItem('touliao_server_url') || axios.defaults.baseURL || '';
   const [input, setInput] = useState(currentUrl);
@@ -1121,13 +1122,13 @@ function ServerSettings({ onBack }) {
 
   const testConn = async () => {
     const url = input.trim().replace(/\/$/, '');
-    if (!url.startsWith('http')) { setTestResult({ ok: false, msg: '格式错误，请以 http:// 或 https:// 开头' }); return; }
+    if (!url.startsWith('http')) { setTestResult({ ok: false, msg: t('profile.serverFormatError') }); return; }
     setTesting(true); setTestResult(null);
     try {
       await fetch(`${url}/health`, { signal: timeoutSignal(6000) });
-      setTestResult({ ok: true, msg: '连接成功 ✓' });
+      setTestResult({ ok: true, msg: t('profile.serverConnectSuccess') });
     } catch {
-      setTestResult({ ok: false, msg: '无法连接到该服务器，请检查地址' });
+      setTestResult({ ok: false, msg: t('profile.serverConnectFail') });
     } finally { setTesting(false); }
   };
 
@@ -1141,14 +1142,14 @@ function ServerSettings({ onBack }) {
 
   return (
     <PageBg>
-      <PageHeader title="服务器地址" onBack={onBack} />
+      <PageHeader title={t('profile.serverAddressTitle')} onBack={onBack} />
       <div className="wc-server-pad">
-        <div className="wc-server-label">服务器地址（支持 IP 或域名）</div>
+        <div className="wc-server-label">{t('profile.serverAddressLabel')}</div>
         <input
           value={input}
           onChange={e => { setInput(e.target.value); setTestResult(null); }}
           placeholder="https://example.com"
-          aria-label="服务器地址"
+          aria-label={t('profile.serverAddressTitle')}
           className="wc-server-input"
         />
         {testResult && (
@@ -1159,15 +1160,15 @@ function ServerSettings({ onBack }) {
       </div>
       <div className="wc-server-btn-row">
         <button onClick={testConn} disabled={testing} className="wc-btn-test">
-          {testing ? '检测中…' : '测试连接'}
+          {testing ? t('profile.testing') : t('profile.testConnection')}
         </button>
         <button onClick={handleSave} disabled={saving || !input.trim().startsWith('http')} className="wc-btn-save">
-          {saving ? '切换中…' : '保存并切换'}
+          {saving ? t('profile.switching') : t('profile.saveAndSwitch')}
         </button>
       </div>
       <div className="wc-server-hint">
         <div className="wc-server-hint-box">
-          切换服务器后当前账号会自动退出，用新服务器的账号重新登录即可，无需重装客户端。
+          {t('profile.serverSwitchHint')}
         </div>
       </div>
     </PageBg>
@@ -1176,9 +1177,10 @@ function ServerSettings({ onBack }) {
 
 /* ── 快捷键设置（仅桌面端） ── */
 function ShortcutSettings({ onBack }) {
+  const { t } = useI18n();
   // 快捷键定义：key = store 里的键名，label = 显示名，desc = 功能说明
   const SHORTCUT_DEFS = [
-    { key: 'screenshot', label: '截图', desc: '截取全屏并发送到当前会话' },
+    { key: 'screenshot', label: t('profile.shortcutScreenshotLabel'), desc: t('profile.shortcutScreenshotDesc') },
   ];
 
   const [shortcuts, setShortcuts] = useState({});
@@ -1193,12 +1195,12 @@ function ShortcutSettings({ onBack }) {
     const ok = await window.electronAPI?.setShortcut?.(key, accel);
     if (ok) {
       setShortcuts(prev => ({ ...prev, [key]: accel }));
-      setStatus(prev => ({ ...prev, [key]: { ok: true, msg: '已保存 ✓' } }));
+      setStatus(prev => ({ ...prev, [key]: { ok: true, msg: t('profile.shortcutSaved') } }));
     } else {
-      setStatus(prev => ({ ...prev, [key]: { ok: false, msg: '快捷键无效或被系统占用' } }));
+      setStatus(prev => ({ ...prev, [key]: { ok: false, msg: t('profile.shortcutInvalid') } }));
     }
     setTimeout(() => setStatus(prev => ({ ...prev, [key]: null })), 2500);
-  }, []);
+  }, [t]);
 
   // 监听键盘录制
   const handleKeyDown = useCallback((e) => {
@@ -1230,7 +1232,7 @@ function ShortcutSettings({ onBack }) {
     await window.electronAPI?.resetShortcuts?.(key);
     const fresh = await window.electronAPI?.getShortcuts?.();
     setShortcuts(fresh || {});
-    setStatus(prev => ({ ...prev, [key]: { ok: true, msg: '已恢复默认 ✓' } }));
+    setStatus(prev => ({ ...prev, [key]: { ok: true, msg: t('profile.shortcutReset') } }));
     setTimeout(() => setStatus(prev => ({ ...prev, [key]: null })), 2500);
   };
 
@@ -1240,10 +1242,10 @@ function ShortcutSettings({ onBack }) {
 
   return (
     <PageBg>
-      <PageHeader title="快捷键设置" onBack={onBack} />
+      <PageHeader title={t('profile.shortcutSettingsTitle')} onBack={onBack} />
       <div className="wc-server-pad">
         <div className="wc-server-label">
-          点击「录制」后按下目标组合键即可绑定（需含至少一个修饰键：Ctrl / Alt / Shift）
+          {t('profile.shortcutHint')}
         </div>
       </div>
       {SHORTCUT_DEFS.map(({ key, label, desc }) => {
@@ -1259,17 +1261,17 @@ function ShortcutSettings({ onBack }) {
               </div>
               <div className="profile-shortcut-actions">
                 <kbd className={`wc-shortcut-kbd${isRec ? ' wc-shortcut-kbd--recording' : ''}`}
-                  aria-label={isRec ? '正在录制…' : `当前快捷键：${displayAccel(current)}`}>
-                  {isRec ? '请按键…' : (displayAccel(current) || '未设置')}
+                  aria-label={isRec ? t('profile.recording') : t('profile.currentShortcutTemplate').replace('{accel}', displayAccel(current))}>
+                  {isRec ? t('profile.pressKey') : (displayAccel(current) || t('profile.notSet'))}
                 </kbd>
                 <button
                   className={`wc-btn-test profile-btn-compact${isRec ? ' wc-shortcut-rec-active' : ''}`}
                   onClick={() => setRecording(isRec ? null : key)}
                   aria-pressed={isRec}>
-                  {isRec ? '取消' : '录制'}
+                  {isRec ? t('common.cancel') : t('profile.startRecording')}
                 </button>
-                <button className="wc-btn-link" onClick={() => resetOne(key)} title="恢复默认">
-                  重置
+                <button className="wc-btn-link" onClick={() => resetOne(key)} title={t('profile.resetDefault')}>
+                  {t('profile.resetShort')}
                 </button>
               </div>
             </div>
@@ -1283,8 +1285,7 @@ function ShortcutSettings({ onBack }) {
       })}
       <div className="wc-server-hint">
         <div className="wc-server-hint-box">
-          快捷键在全局生效（即使 投聊 窗口不在前台）。若保存后提示「被占用」，
-          请先在系统或其它应用中解除该组合键的绑定后重试。
+          {t('profile.shortcutGlobalHint')}
         </div>
       </div>
     </PageBg>
