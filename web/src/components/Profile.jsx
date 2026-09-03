@@ -642,22 +642,22 @@ function DeviceList({ onBack }) {
 /* ── 外观 ── */
 function AppearanceSettings({ onBack }) {
   const { themeMode, setThemeMode, fontSize, setFontSize } = useSettings();
-  const { lang, setLang } = useI18n();
+  const { t, lang, setLang } = useI18n();
   const FONT_OPTIONS = [
-    { key: 'small',  label: '小',   size: 12 },
-    { key: 'normal', label: '标准', size: 14 },
-    { key: 'large',  label: '大',   size: 16 },
-    { key: 'xlarge', label: '特大', size: 18 },
+    { key: 'small',  label: t('profile.fontSmall'),  size: 12 },
+    { key: 'normal', label: t('profile.fontNormal'), size: 14 },
+    { key: 'large',  label: t('profile.fontLarge'),  size: 16 },
+    { key: 'xlarge', label: t('profile.fontXLarge'), size: 18 },
   ];
   return (
     <PageBg>
-      <PageHeader title="外观" onBack={onBack} />
+      <PageHeader title={t('settings.appearance')} onBack={onBack} />
       <div className="wc-appearance-pad">
         <div className="wc-appearance-row">
           {[
-            { label: '日间模式', mode: 'light', emoji: '☀️', bg: '#FFFFFF', border: '#E5E5EA', textColor: '#333' },
-            { label: '夜间模式', mode: 'dark',  emoji: '🌙', bg: '#1C1C1E', border: '#48484A', textColor: '#EBEBF5' },
-            { label: '跟随系统', mode: 'auto',  emoji: '🌗', bg: 'linear-gradient(105deg,#FFFFFF 50%,#1C1C1E 50%)', border: '#B0B4BC', textColor: '#888' },
+            { label: t('profile.lightMode'), mode: 'light', emoji: '☀️', bg: '#FFFFFF', border: '#E5E5EA', textColor: '#333' },
+            { label: t('profile.darkMode'),  mode: 'dark',  emoji: '🌙', bg: '#1C1C1E', border: '#48484A', textColor: '#EBEBF5' },
+            { label: t('profile.followSystem'), mode: 'auto',  emoji: '🌗', bg: 'linear-gradient(105deg,#FFFFFF 50%,#1C1C1E 50%)', border: '#B0B4BC', textColor: '#888' },
           ].map(({ label, mode, emoji, bg, border, textColor }) => (
             <button key={mode} type="button"
               className="wc-appearance-btn"
@@ -674,7 +674,7 @@ function AppearanceSettings({ onBack }) {
           ))}
         </div>
       </div>
-      <SLabel>字体大小</SLabel>
+      <SLabel>{t('profile.fontSizeTitle')}</SLabel>
       <div className="wc-section-pad">
         <Card>
           <div className="wc-font-size-row">
@@ -689,11 +689,11 @@ function AppearanceSettings({ onBack }) {
             ))}
           </div>
           <div className="wc-font-demo">
-            <span className="profile-font-demo-text">消息示例：今天天气真好！</span>
+            <span className="profile-font-demo-text">{t('profile.fontDemoText')}</span>
           </div>
         </Card>
       </div>
-      <SLabel>语言</SLabel>
+      <SLabel>{t('settings.language')}</SLabel>
       <div className="wc-section-pad">
         <Card>
           {SUPPORTED_LANGS.map(({ code, name }) => (
@@ -709,6 +709,7 @@ function AppearanceSettings({ onBack }) {
 
 /* ── 通知 ── */
 function NotificationSettings({ onBack }) {
+  const { t } = useI18n();
   const { notifySound, setNotifySound } = useSettings();
   const [messageNotify, setMessageNotify] = useState(true);
   const [preview, setPreview]             = useState(true);
@@ -756,39 +757,39 @@ function NotificationSettings({ onBack }) {
     setSaving(false);
   };
 
-  if (!loaded) return <PageBg><PageHeader title="通知设置" onBack={onBack} /></PageBg>;
+  if (!loaded) return <PageBg><PageHeader title={t('profile.notificationSettingsTitle')} onBack={onBack} /></PageBg>;
 
   return (
     <PageBg>
-      <PageHeader title="通知设置" onBack={onBack} />
-      <SLabel>消息通知</SLabel>
+      <PageHeader title={t('profile.notificationSettingsTitle')} onBack={onBack} />
+      <SLabel>{t('profile.messageNotifications')}</SLabel>
       <div className="wc-notif-pad">
         <Card>
-          <CRow label="锁屏通知" desc="关闭后不会收到消息推送"
+          <CRow label={t('profile.lockScreenNotify')} desc={t('profile.lockScreenNotifyDesc')}
             right={<Toggle checked={messageNotify} onChange={v => { setMessageNotify(v); saveSettings('messageNotify', v); }} disabled={saving} />} />
-          <CRow label="消息详情预览" desc={'关闭后通知只显示"收到新消息"'}
+          <CRow label={t('profile.detailPreview')} desc={t('profile.detailPreviewDesc')}
             right={<Toggle checked={preview} onChange={v => { setPreview(v); saveSettings('detailPreview', v); }} disabled={saving} />} />
-          <CRow label="通知声音"
+          <CRow label={t('profile.notifySound')}
             right={<Toggle checked={notifySound} onChange={setNotifySound} />} />
-          <CRow label="通知震动"
+          <CRow label={t('profile.notifyVibrate')}
             right={<Toggle checked={vibrate} onChange={v => { setVibrate(v); saveSettings('vibrate', v); }} disabled={saving} />} />
         </Card>
       </div>
 
       {/* 勿扰时段（夜间免打扰）：时段内消息照常送达，仅抑制推送通知 */}
-      <SLabel>勿扰时段</SLabel>
+      <SLabel>{t('profile.quietHoursTitle')}</SLabel>
       <div className="wc-notif-pad">
         <Card>
-          <CRow label="夜间免打扰" desc="开启后，设定时段内不推送通知（消息照常送达）"
+          <CRow label={t('profile.quietHoursToggle')} desc={t('profile.quietHoursDesc')}
             right={<Toggle checked={quietEnabled} onChange={v => { setQuietEnabled(v); saveSettings('quietEnabled', v); }} disabled={saving} />} />
           {quietEnabled && (
             <>
-              <CRow label="开始时间"
+              <CRow label={t('profile.quietStartTime')}
                 right={<input type="time" value={quietStart} disabled={saving}
                   data-testid="quiet-start-input"
                   onChange={e => { setQuietStart(e.target.value); saveSettings('quietStart', e.target.value); }}
                   className="profile-time-input" />} />
-              <CRow label="结束时间"
+              <CRow label={t('profile.quietEndTime')}
                 right={<input type="time" value={quietEnd} disabled={saving}
                   data-testid="quiet-end-input"
                   onChange={e => { setQuietEnd(e.target.value); saveSettings('quietEnd', e.target.value); }}
@@ -799,10 +800,10 @@ function NotificationSettings({ onBack }) {
       </div>
 
       {/* 来电铃声：四款 WebAudio 合成预设，切换即生效（无需重启/重登） */}
-      <SLabel>来电铃声</SLabel>
+      <SLabel>{t('profile.ringtoneTitle')}</SLabel>
       <div className="wc-notif-pad">
         <Card>
-          <CRow label="铃声"
+          <CRow label={t('profile.ringtoneLabel')}
             right={<select
               value={ringtone}
               disabled={saving}
@@ -815,10 +816,10 @@ function NotificationSettings({ onBack }) {
               }}
               className="profile-select"
             >
-              <option value="classic">经典双音</option>
-              <option value="dual">交替双音</option>
-              <option value="triple">三连音</option>
-              <option value="soft">轻柔单音</option>
+              <option value="classic">{t('profile.ringtoneClassic')}</option>
+              <option value="dual">{t('profile.ringtoneDual')}</option>
+              <option value="triple">{t('profile.ringtoneTriple')}</option>
+              <option value="soft">{t('profile.ringtoneSoft')}</option>
             </select>} />
         </Card>
       </div>
