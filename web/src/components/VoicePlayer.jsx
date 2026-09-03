@@ -1,10 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { isVoicePlayed, markVoicePlayed } from '../utils/playedVoice';
-import { transcribeVoice } from '../utils/transcribe';
-import { showToast } from '../utils/toast';
 import { useI18n } from '../contexts/I18nContext';
 
-const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = false, transcript = null }) {
+const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = false }) {
   const { t } = useI18n();
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -12,26 +10,7 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
   const [loaded, setLoaded] = useState(false);
   // 「未播放」红点：仅收到的语音(非自己发)且从未播放过才显示(对齐微信)
   const [unplayed, setUnplayed] = useState(() => !isMine && !!msgId && !isVoicePlayed(msgId));
-  // 转文字：text 初始取后端缓存(msg.transcript)，刷新后仍展示；loading 控制转写中态
-  const [text, setText] = useState(transcript || '');
-  const [transcribing, setTranscribing] = useState(false);
   const audioRef = useRef(null);
-
-  // 后端缓存的 transcript 变化(如历史消息重载)时同步到本地展示
-  useEffect(() => { setText(transcript || ''); }, [transcript]);
-
-  const handleTranscribe = useCallback(async () => {
-    if (!msgId || transcribing) return;
-    setTranscribing(true);
-    try {
-      const { text: result } = await transcribeVoice(msgId);
-      setText(result || t('voice.noSpeechDetected'));
-    } catch (e) {
-      showToast(e.message || t('voice.transcribeFailed'), 'error');
-    } finally {
-      setTranscribing(false);
-    }
-  }, [msgId, transcribing, t]);
 
   const fmt = (s) => {
     // 某些服务端流式语音会上报 duration=Infinity/NaN,直接算会渲染成「Infinity:NaN」
@@ -135,21 +114,6 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
       </span>
       {unplayed && <span className="wc-voice-unplayed-dot" aria-label={t('voice.unplayed')} title={t('voice.unplayed')} />}
     </div>
-
-    {/* 转文字：已有文本则直接展示；否则给一个「转文字」按钮，点击调 ASR。 */}
-    {text ? (
-      <div className="wc-voice-transcript" data-testid="voice-transcript">{text}</div>
-    ) : (
-      <button
-        type="button"
-        className="wc-voice-transcribe-btn"
-        onClick={handleTranscribe}
-        disabled={transcribing || !msgId}
-        aria-label={t('voice.transcribeToTextAriaLabel')}
-      >
-        {transcribing ? t('voice.transcribing') : t('voice.transcribeToText')}
-      </button>
-    )}
    </div>
   );
 });

@@ -250,7 +250,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               );
             })()}
             {msg.type === 'voice' && (
-              <VoicePlayer url={mediaUrl(msg.file_url)} msgId={msg.id} isMine={isMine} transcript={msg.transcript} />
+              <VoicePlayer url={mediaUrl(msg.file_url)} msgId={msg.id} isMine={isMine} />
             )}
             {msg.type === 'video' && (() => {
               const vidSrc = mediaUrl(msg.file_url);
