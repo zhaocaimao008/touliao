@@ -1294,6 +1294,7 @@ function ShortcutSettings({ onBack }) {
 
 /* ── 主页面 ── */
 export default function Profile({ isMobile = false }) {
+  const { t } = useI18n();
   const { user, updateUser, logout, accounts, login, switchAccount } = useAuth();
   const [subPage, setSubPage] = useState(null);
   const [showQR, setShowQR] = useState(false);
@@ -1337,12 +1338,12 @@ export default function Profile({ isMobile = false }) {
           <Avatar src={user?.avatar} name={user?.username} size={64} />
         </div>
         <div className="wc-me-info">
-          <div className="wc-me-name">{user?.username || '未设置昵称'}</div>
-          {user?.wechat_id && <div className="wc-me-vid">投聊号：{user.wechat_id}</div>}
+          <div className="wc-me-name">{user?.username || t('profile.noNickname')}</div>
+          {user?.wechat_id && <div className="wc-me-vid">{t('profile.touliaoIdColonTemplate').replace('{id}', user.wechat_id)}</div>}
           {user?.bio && <div className="wc-me-bio">{user.bio}</div>}
         </div>
         <div className="wc-me-actions">
-          <button className="wc-me-qr-btn" onClick={e => { e.stopPropagation(); setShowQR(true); }} title="我的二维码" aria-label="我的二维码">
+          <button className="wc-me-qr-btn" onClick={e => { e.stopPropagation(); setShowQR(true); }} title={t('profile.myQrCode')} aria-label={t('profile.myQrCode')}>
             <IcoQR />
           </button>
           <ChevronRight />
@@ -1352,14 +1353,14 @@ export default function Profile({ isMobile = false }) {
       {/* ── 二维码弹窗 ── */}
       {showQR && (
         <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
-          <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label="我的二维码" onClick={e => e.stopPropagation()}>
+          <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label={t('profile.myQrCode')} onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
-              <span className="wc-modal-title">我的二维码</span>
-              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label="关闭">✕</button>
+              <span className="wc-modal-title">{t('profile.myQrCode')}</span>
+              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label={t('common.close')}>✕</button>
             </div>
             <div className="wc-modal-body home-qr-body">
-              <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="home-qr-img" />
-              <p className="home-qr-text">扫描二维码添加我为好友</p>
+              <AuthImage src="/api/users/me/qrcode" alt={t('profile.myQrCode')} className="home-qr-img" />
+              <p className="home-qr-text">{t('profile.scanToAddFriend')}</p>
             </div>
           </div>
         </div>
@@ -1369,39 +1370,39 @@ export default function Profile({ isMobile = false }) {
       <div className="wc-section-pad">
         <Card>
           <CRow icon={<Ico d="M21 7H3a1 1 0 00-1 1v9a2 2 0 002 2h14a2 2 0 002-2v-2h-7a2 2 0 010-4h7V8a1 1 0 00-1-1zm-4 6h5v2h-5a1 1 0 010-2zM3 5h13a1 1 0 010 2H3a1 1 0 010-2z" />}
-            bg="var(--icon-bg-wallet)" label="钱包" desc="金币余额与交易记录" onClick={() => setSubPage('wallet')} />
+            bg="var(--icon-bg-wallet)" label={t('profile.walletMenuLabel')} desc={t('profile.walletMenuDesc')} onClick={() => setSubPage('wallet')} />
           <CRow icon={<Ico d="M16 11a4 4 0 10-4-4 4 4 0 004 4zm0 2c-3 0-8 1.5-8 4.5V20h12v-1a5.8 5.8 0 00-.3-1.8M6 8V5M4.5 6.5h3" />}
-            bg="var(--icon-bg-invite)" label="邀请好友" desc="我的专属邀请码与邀请战绩" onClick={() => setSubPage('invite')} />
+            bg="var(--icon-bg-invite)" label={t('profile.inviteMenuLabel')} desc={t('profile.inviteMenuDesc')} onClick={() => setSubPage('invite')} />
         </Card>
       </div>
 
       {/* ── 设备与安全 ── */}
-      <SLabel>设备与安全</SLabel>
+      <SLabel>{t('profile.deviceSecurity')}</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<IcoDesktop />} bg="var(--icon-bg-neutral)" label="设备管理" desc="查看同时登录的设备" onClick={() => setSubPage('devices')} />
-          <CRow icon={<IcoShield />}  bg="var(--icon-bg-neutral)" label="隐私与安全" desc="添加方式和好友权限" onClick={() => setSubPage('privacy')} />
-          <CRow icon={<IcoShield />}  bg="var(--icon-bg-neutral)" label="修改密码" desc="定期更换密码更安全" onClick={() => setSubPage('change-password')} />
+          <CRow icon={<IcoDesktop />} bg="var(--icon-bg-neutral)" label={t('profile.deviceManagement')} desc={t('profile.deviceMenuDesc')} onClick={() => setSubPage('devices')} />
+          <CRow icon={<IcoShield />}  bg="var(--icon-bg-neutral)" label={t('settings.privacy')} desc={t('profile.privacyMenuDesc')} onClick={() => setSubPage('privacy')} />
+          <CRow icon={<IcoShield />}  bg="var(--icon-bg-neutral)" label={t('profile.changePasswordTitle')} desc={t('profile.changePasswordDesc')} onClick={() => setSubPage('change-password')} />
         </Card>
       </div>
 
       {/* ── 偏好设置 ── */}
-      <SLabel>偏好设置</SLabel>
+      <SLabel>{t('profile.preferences')}</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<IcoMoon />} bg="var(--icon-bg-neutral)" label="外观"  desc="日间和夜间模式"   onClick={() => setSubPage('appearance')} />
-          <CRow icon={<IcoBell />} bg="var(--icon-bg-neutral)" label="通知"  desc="锁屏通知和声音"   onClick={() => setSubPage('notifications')} />
+          <CRow icon={<IcoMoon />} bg="var(--icon-bg-neutral)" label={t('settings.appearance')}  desc={t('profile.appearanceMenuDesc')}   onClick={() => setSubPage('appearance')} />
+          <CRow icon={<IcoBell />} bg="var(--icon-bg-neutral)" label={t('settings.notifications')}  desc={t('profile.notificationsMenuDesc')}   onClick={() => setSubPage('notifications')} />
         </Card>
       </div>
 
       {/* ── 服务器（仅桌面端） ── */}
       {window.__ELECTRON_CONFIG__ && (
         <>
-          <SLabel>连接</SLabel>
+          <SLabel>{t('profile.connection')}</SLabel>
           <div className="wc-section-pad">
             <Card>
-              <CRow icon={<IcoServer />} bg="var(--icon-bg-neutral)" label="服务器地址"
-                desc={(localStorage.getItem('touliao_server_url') || '').replace(/^https?:\/\//, '') || '远程配置'}
+              <CRow icon={<IcoServer />} bg="var(--icon-bg-neutral)" label={t('profile.serverAddressTitle')}
+                desc={(localStorage.getItem('touliao_server_url') || '').replace(/^https?:\/\//, '') || t('profile.remoteConfig')}
                 onClick={() => setSubPage('server')} />
             </Card>
           </div>
@@ -1411,11 +1412,11 @@ export default function Profile({ isMobile = false }) {
       {/* ── 快捷键（仅桌面端） ── */}
       {window.__ELECTRON_CONFIG__ && (
         <>
-          <SLabel>快捷键</SLabel>
+          <SLabel>{t('profile.shortcutsMenuLabel')}</SLabel>
           <div className="wc-section-pad">
             <Card>
-              <CRow icon={<IcoKeyboard />} bg="var(--icon-bg-neutral)" label="快捷键设置"
-                desc="自定义截图等快捷键"
+              <CRow icon={<IcoKeyboard />} bg="var(--icon-bg-neutral)" label={t('profile.shortcutSettingsTitle')}
+                desc={t('profile.shortcutsMenuDesc')}
                 onClick={() => setSubPage('shortcuts')} />
             </Card>
           </div>
@@ -1423,7 +1424,7 @@ export default function Profile({ isMobile = false }) {
       )}
       {isMobile && (
         <>
-          <SLabel>账号</SLabel>
+          <SLabel>{t('profile.accountLabel')}</SLabel>
           <div className="wc-section-pad">
             <AccountSwitcher user={user} accounts={accounts} login={login} switchAccount={switchAccount} />
           </div>
@@ -1432,21 +1433,21 @@ export default function Profile({ isMobile = false }) {
 
       {/* ── 退出 ── */}
       <div className="wc-logout-div">
-        <button className="wc-logout-btn" onClick={() => doLogout(logout)}>退出登录</button>
+        <button className="wc-logout-btn" onClick={() => doLogout(logout)}>{t('settings.logout')}</button>
       </div>
       <div className="wc-logout-div">
         <button className="wc-edit-hint" style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
-          onClick={() => setSubPage('delete-account')}>注销账号</button>
+          onClick={() => setSubPage('delete-account')}>{t('profile.deleteAccountTitle')}</button>
       </div>
 
       {/* ── 版本号：桌面端显示应用版本，网页端显示 web 构建版本 ── */}
       <div className="profile-version-footer">
-        投聊 v{window.__ELECTRON_CONFIG__?.appVersion || __APP_VERSION__}
+        {t('profile.versionTemplate').replace('{version}', window.__ELECTRON_CONFIG__?.appVersion || __APP_VERSION__)}
       </div>
       {/* 更新验签启动自检：公钥缺失/非法时提示管理员，仅桌面端、仅异常时渲染 */}
       {window.__ELECTRON_CONFIG__ && updateKeyStatus && !updateKeyStatus.valid && (
         <div className="profile-version-footer" style={{ color: 'var(--color-danger, #F53F3F)' }}>
-          ⚠️ 更新验签公钥异常，本机已无法接收签名校验通过的更新（{updateKeyStatus.reason}）
+          {t('profile.updateKeyWarningTemplate').replace('{reason}', updateKeyStatus.reason)}
         </div>
       )}
     </PageBg>
