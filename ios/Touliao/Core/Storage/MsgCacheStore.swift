@@ -48,8 +48,6 @@ final class MsgCacheStore {
         let senderAvatar: String
         let edited: Int
         let deleted: Int
-        // 语音转文字结果（随消息落盘，下次进入直接显示）；旧缓存无此键 → 解码为 nil
-        let transcript: String?
     }
 
     // MARK: - Public（签名对齐 msgCache.js load/save/remove/clear）
@@ -153,7 +151,7 @@ private extension MsgCacheStore.Cached {
                   type: m.type, content: m.content, fileUrl: m.fileUrl,
                   replyToId: m.replyToId, createdAt: m.createdAt,
                   senderName: m.senderName, senderAvatar: m.senderAvatar,
-                  edited: m.edited, deleted: m.deleted, transcript: m.transcript)
+                  edited: m.edited, deleted: m.deleted)
     }
 
     func toMessage() -> Message {
@@ -167,7 +165,6 @@ private extension MsgCacheStore.Cached {
         m.senderAvatar = senderAvatar
         m.edited = edited
         m.deleted = deleted
-        m.transcript = transcript   // 语音转写结果随缓存复现，下次进入直接显示
         return m   // localStatus/clientMsgId 保持 nil：缓存皆已确认历史
     }
 }

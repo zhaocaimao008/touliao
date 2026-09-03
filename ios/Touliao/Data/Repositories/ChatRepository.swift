@@ -258,12 +258,6 @@ final class ChatRepository {
         try await api.send("api/messages/conversation/\(conversationId)/files?type=\(type)&offset=\(offset)&limit=\(limit)")
     }
 
-    // MARK: - 语音转文字
-
-    /// 语音转文字（幂等：已转写返回缓存；ASR 不可用后端返回 503）
-    func transcribe(_ msgId: String) async throws -> TranscribeResponse {
-        try await api.send("api/messages/\(msgId)/transcribe", method: "POST")
-    }
 }
 
 private struct MarkReadBody: Encodable { let messageId: String? }

@@ -108,7 +108,7 @@ struct Message: Decodable, Identifiable, Equatable {
     var read: Bool = false
 
     enum CodingKeys: String, CodingKey {
-        case id, type, content, reactions, replyTo, edited, deleted, transcript, duration
+        case id, type, content, reactions, replyTo, edited, deleted, duration
         case conversationId = "conversation_id"
         case senderId = "sender_id"
         case fileUrl = "file_url"
@@ -143,7 +143,6 @@ struct Message: Decodable, Identifiable, Equatable {
         replyTo = try? c.decode(ReplyPreview.self, forKey: .replyTo)
         clientMsgId = try? c.decode(String.self, forKey: .clientMsgId)
         isScheduled = (try? c.decode(Int.self, forKey: .isScheduled)) ?? 0
-        transcript = try? c.decode(String.self, forKey: .transcript)
         fileMime = try? c.decode(String.self, forKey: .fileMime)
         fileSize = try? c.decode(Int64.self, forKey: .fileSize)
         duration = (try? c.decode(Int.self, forKey: .duration)) ?? 0
@@ -361,19 +360,6 @@ struct ConversationFilesResponse: Decodable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         items = (try? c.decode([ConversationFile].self, forKey: .items)) ?? []
         total = (try? c.decode(Int.self, forKey: .total)) ?? 0
-    }
-}
-
-/// 语音转文字响应（POST /api/messages/:msgId/transcribe）；cached=true 表示命中后端缓存
-struct TranscribeResponse: Decodable {
-    var text: String = ""
-    var cached: Bool = false
-
-    enum CodingKeys: String, CodingKey { case text, cached }
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        text = (try? c.decode(String.self, forKey: .text)) ?? ""
-        cached = (try? c.decode(Bool.self, forKey: .cached)) ?? false
     }
 }
 

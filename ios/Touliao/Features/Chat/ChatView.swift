@@ -1049,7 +1049,6 @@ private struct MessageBubble: View {
                     .frame(width: voiceBubbleWidth(msg.duration))
                 }
                 .onTapGesture { vm.playVoice(msg) }
-                voiceTranscript
             }
         case "file":
             card {
@@ -1081,31 +1080,6 @@ private struct MessageBubble: View {
             card { Text("👤 \(contactCardTitle)") }
         default:
             card { Text(mentionHighlighted(msg.content, mine: isMine)) }
-        }
-    }
-
-    /// 语音转文字三态（对齐 Android）：
-    /// 1) 已转写(transcript 非空) → 直接显示灰底文本，无按钮
-    /// 2) 转写中 → 「转写中…」
-    /// 3) 未转写 → 绿色「转文字」小按钮，点击发起转写
-    @ViewBuilder private var voiceTranscript: some View {
-        if let text = msg.transcript, !text.isEmpty {
-            Text(text)
-                .font(.footnote).foregroundColor(.vxinTextSecondary)
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .frame(maxWidth: 240, alignment: .leading)
-                .background(Color.gray.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.thumb))
-        } else if vm.isTranscribing(msg.id) {
-            Text("转写中…").font(.caption).foregroundColor(.vxinTextSecondary)
-                .padding(.horizontal, 2)
-        } else {
-            Button { vm.transcribeVoice(msg) } label: {
-                Text("转文字").font(.caption).foregroundColor(.vxinGreen)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("voice-transcribe-\(msg.id)")
         }
     }
 
