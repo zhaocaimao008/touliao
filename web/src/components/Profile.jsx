@@ -990,6 +990,7 @@ async function doLogout(logout) {
 
 /* ── 个人资料详情页（AURORA 重设计：渐变 Hero + 卡片信息） ── */
 function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
+  const { t } = useI18n();
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -1009,7 +1010,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
   const copyVid = async () => {
     if (!user?.wechat_id) return;
     const ok = await copyToClipboard(user.wechat_id);
-    showToast(ok ? '已复制 投聊号' : '复制失败', ok ? 'success' : 'error');
+    showToast(ok ? t('profile.copiedTouliaoId') : t('profile.copyFailed'), ok ? 'success' : 'error');
   };
 
   const handleFileChange = async (e) => {
@@ -1017,12 +1018,12 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
     if (!file) return;
     const ALLOWED = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!ALLOWED.includes(file.type)) {
-      showToast('仅支持 JPG、PNG、GIF、WebP 格式', 'error');
+      showToast(t('profile.imageFormatError'), 'error');
       e.target.value = '';
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      showToast('图片大小不能超过 5MB', 'error');
+      showToast(t('profile.imageSizeError'), 'error');
       e.target.value = '';
       return;
     }
@@ -1035,7 +1036,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
         updateUser({ ...user, avatar: data.avatar });
       }
     } catch (err) {
-      showToast(err.response?.data?.error || '头像上传失败，请重试', 'error');
+      showToast(err.response?.data?.error || t('profile.avatarUploadFailed'), 'error');
     } finally {
       e.target.value = ''; // 允许再次选择同一文件重试
     }
@@ -1044,30 +1045,30 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
 
   return (
     <PageBg>
-      <PageHeader title="个人资料" onBack={onBack} />
+      <PageHeader title={t('profile.myProfileTitle')} onBack={onBack} />
       <input ref={fileRef} type="file" accept="image/*" className="profile-hidden-input" onChange={handleFileChange} />
 
       {/* ── 渐变 Hero ── */}
       <div className="pf-hero">
         <div className="pf-hero-bg" aria-hidden="true" />
-        <button className="pf-hero-qr" onClick={() => setShowQR(true)} title="我的二维码" aria-label="我的二维码">
+        <button className="pf-hero-qr" onClick={() => setShowQR(true)} title={t('profile.myQrCode')} aria-label={t('profile.myQrCode')}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm11-2h2v2h-2v-2zm3 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3 0h2v5h-5v-2h3v-3zm-3 3h2v2h-2v-2z"/></svg>
         </button>
         <div className="pf-hero-inner">
           <div className="pf-avatar-wrap" role="button" tabIndex={0}
             onClick={handleAvatarClick} onKeyDown={e => activateOnKey(handleAvatarClick)(e)}
-            aria-label="更换头像">
+            aria-label={t('profile.changeAvatar')}>
             <Avatar src={user?.avatar} name={user?.username} size={92} />
             <span className="pf-avatar-edit" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
             </span>
-            {uploading && <div className="pf-avatar-uploading">上传中…</div>}
+            {uploading && <div className="pf-avatar-uploading">{t('profile.uploading')}</div>}
           </div>
-          <div className="pf-hero-name">{user?.username || '未设置昵称'}</div>
-          <div className="pf-hero-bio">{user?.bio || '这个人很酷，还没有签名'}</div>
+          <div className="pf-hero-name">{user?.username || t('profile.noNickname')}</div>
+          <div className="pf-hero-bio">{user?.bio || t('profile.noSignatureYet')}</div>
           {user?.wechat_id && (
-            <button className="pf-vid-chip" onClick={copyVid} title="点击复制 投聊号">
-              <span className="pf-vid-label">投聊号</span>
+            <button className="pf-vid-chip" onClick={copyVid} title={t('profile.clickToCopyTouliaoId')}>
+              <span className="pf-vid-label">{t('profile.touliaoIdLabel')}</span>
               <span className="pf-vid-value">{user.wechat_id}</span>
               <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
             </button>
@@ -1078,29 +1079,29 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
       {/* ── 可编辑资料 ── */}
       <div className="wc-section-pad">
         <Card>
-          <CRow label="昵称" value={user?.username || ''} onClick={() => navigateTo?.('edit-name')} />
-          <CRow label="个性签名" value={user?.bio || '未设置'} onClick={() => navigateTo?.('edit-bio')} />
+          <CRow label={t('profile.nicknameLabel')} value={user?.username || ''} onClick={() => navigateTo?.('edit-name')} />
+          <CRow label={t('profile.signatureLabel')} value={user?.bio || t('profile.notSet')} onClick={() => navigateTo?.('edit-bio')} />
         </Card>
       </div>
-      <SLabel>账号信息</SLabel>
+      <SLabel>{t('profile.accountInfo')}</SLabel>
       <div className="wc-section-pad">
         <Card>
-          <CRow label="投聊号" value={user?.wechat_id || ''} onClick={user?.wechat_id ? copyVid : undefined} />
-          <CRow label="手机号" value={user?.phone || ''} onClick={() => navigateTo?.('change-phone')} />
+          <CRow label={t('profile.touliaoIdLabel')} value={user?.wechat_id || ''} onClick={user?.wechat_id ? copyVid : undefined} />
+          <CRow label={t('profile.phoneLabel')} value={user?.phone || ''} onClick={() => navigateTo?.('change-phone')} />
         </Card>
       </div>
 
       {/* ── 二维码弹窗 ── */}
       {showQR && (
         <div className="wc-modal-overlay" onClick={() => setShowQR(false)}>
-          <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label="我的二维码" onClick={e => e.stopPropagation()}>
+          <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label={t('profile.myQrCode')} onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
-              <span className="wc-modal-title">我的二维码</span>
-              <button className="wc-modal-close" aria-label="关闭二维码" onClick={() => setShowQR(false)}>✕</button>
+              <span className="wc-modal-title">{t('profile.myQrCode')}</span>
+              <button className="wc-modal-close" aria-label={t('profile.closeQrCode')} onClick={() => setShowQR(false)}>✕</button>
             </div>
             <div className="wc-modal-body home-qr-body">
-              <AuthImage src="/api/users/me/qrcode" alt="我的二维码" className="home-qr-img" />
-              <p className="home-qr-text">扫描二维码添加我为好友</p>
+              <AuthImage src="/api/users/me/qrcode" alt={t('profile.myQrCode')} className="home-qr-img" />
+              <p className="home-qr-text">{t('profile.scanToAddFriend')}</p>
             </div>
           </div>
         </div>
