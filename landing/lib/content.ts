@@ -22,7 +22,7 @@ export const site = {
     android: `${BASE}/downloads/touliao-android-latest.apk`,
     windows: `${BASE}/downloads/touliao-windows-latest-setup.exe`,
     // iOS 走 TestFlight 公开外部测试链接（审核已通过，公开链接已启用）
-    ios: 'https://testflight.apple.com/join/JQw5bjEz',
+    ios: 'https://testflight.apple.com/join/JR7seuh6',
     email: 'admin@touliao.cc',
   },
 } as const;
