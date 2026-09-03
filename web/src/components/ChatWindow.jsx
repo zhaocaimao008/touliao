@@ -66,6 +66,7 @@ import { computeCtxPos } from '../utils/ctxPos';
  *    viewport（顶部避 Safe Area、底部避输入框/TabBar），永不越界
  */
 function CtxMenuPortal({ anchor, onClose, children }) {
+  const { t } = useI18n();
   const menuRef = useRef(null);
   const [pos, setPos] = useState(null);
 
@@ -98,7 +99,7 @@ function CtxMenuPortal({ anchor, onClose, children }) {
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
         role="button"
         tabIndex={0}
-        aria-label="关闭菜单"
+        aria-label={t('chat.closeMenu')}
       />
       {/* Menu：实测尺寸 + clamp 定位 */}
       <div
@@ -365,7 +366,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const onCallError = (err) => {
       if (pendingCallRef.current !== 'pending') return; // 跟当前这次发起无关，忽略
       pendingCallRef.current = null;
-      showToast(err?.code === 'CALL_BUSY' ? '对方正忙，请稍后再试' : '呼叫失败，请重试', 'error');
+      showToast(err?.code === 'CALL_BUSY' ? t('chat.callBusy') : t('chat.callFailedRetry'), 'error');
     };
     socket.on('call:error', onCallError);
     return () => socket.off('call:error', onCallError);
@@ -1021,7 +1022,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (conversationId !== convIdRef.current || userId === user.id) return;
       const name = membersRef.current.find(m => m.id === userId)?.username
         || messagesRef.current.find(m => m.sender_id === userId)?.senderName
-        || '对方';
+        || t('chat.otherPartyDefault');
       setTypingName(name);
       // 兜底：对方停顿后若 stop_typing 丢包，最迟 6s 自动收起（发送侧每 2s 会续发 typing）
       clearTimeout(typingClearTimer.current);
@@ -1114,7 +1115,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (conversationId === convIdRef.current) onClose?.();
     };
     const onGroupDismissed = ({ conversationId }) => {
-      if (conversationId === convIdRef.current) { showToast('群聊已解散'); onClose?.(); }
+      if (conversationId === convIdRef.current) { showToast(t('chat.groupDissolved')); onClose?.(); }
     };
     // 送达回执：发送方收到，标记私聊消息为"已送达"
     const onDelivered = ({ messageId, messages: items }) => {
@@ -1133,11 +1134,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const onAtMention = ({ fromUserName, groupName, messagePreview }) => {
       if (!('Notification' in window) || Notification.permission === 'denied') return;
       if (Notification.permission === 'granted') {
-        new Notification(`@${fromUserName} 在 ${groupName} 中提到了你`, { body: messagePreview });
+        new Notification(t('chat.mentionNotifTemplate').replace('{from}', fromUserName).replace('{group}', groupName), { body: messagePreview });
       } else {
         Notification.requestPermission().then(perm => {
           if (perm === 'granted') {
-            new Notification(`@${fromUserName} 在 ${groupName} 中提到了你`, { body: messagePreview });
+            new Notification(t('chat.mentionNotifTemplate').replace('{from}', fromUserName).replace('{group}', groupName), { body: messagePreview });
           }
         });
       }
@@ -1296,7 +1297,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const failed = messagesRef.current.filter(m => m._status === 'error' && m._tempId);
     if (!failed.length) return;
     // 轻量安抚：告知用户失败消息正在自动重发（不打扰，仅一次）
-    showToast(`网络已恢复，正在重发 ${failed.length} 条消息`);
+    showToast(t('chat.networkRecoveredResendTemplate').replace('{count}', failed.length));
     failed.forEach((m, i) => {
       // 错峰重发：每条间隔 120ms，避免重连瞬间 N 条消息同时打满连接
       setTimeout(() => {
@@ -1351,7 +1352,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
       setRedPacketDetail({ ...detail, justClaimed });
     } catch (e) {
-      showToast(e.response?.data?.error || '红包打开失败', 'error');
+      showToast(e.response?.data?.error || t('chat.redPacketOpenFailed'), 'error');
     } finally {
       setClaiming(false);
     }
@@ -1372,7 +1373,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       try {
         await axios.put(`/api/messages/${editingMsg.id}/edit`, { content: text });
         cancelEdit();
-      } catch (e) { showToast(e.response?.data?.error || '编辑失败', 'error'); }
+      } catch (e) { showToast(e.response?.data?.error || t('chat.editFailed'), 'error'); }
       return;
     }
 
@@ -1643,10 +1644,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       });
       xhr.addEventListener('load', () => {
         if (xhr.status >= 200 && xhr.status < 300) resolve(data.publicUrl);
-        else reject(new Error(`上传失败 (HTTP ${xhr.status})，请检查 Bucket CORS 配置`));
+        else reject(new Error(t('chat.uploadFailedCorsTemplate').replace('{status}', xhr.status)));
       });
-      xhr.addEventListener('error', () => reject(new Error('网络错误，上传失败')));
-      xhr.addEventListener('abort', () => reject(new Error('上传已取消')));
+      xhr.addEventListener('error', () => reject(new Error(t('chat.uploadNetworkError'))));
+      xhr.addEventListener('abort', () => reject(new Error(t('chat.uploadCancelled'))));
       xhr.open('PUT', data.uploadUrl);
       xhr.setRequestHeader('Content-Type', contentType);
       xhr.send(fileOrBlob);
@@ -1657,7 +1658,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const setChatBackground = useCallback((url) => {
     return axios.put(`/api/messages/conversation/${conversation.id}/background`, { background: url })
       .then(() => setConversation(prev => ({ ...prev, background: url })))
-      .catch(() => { showToast('设置失败', 'error'); });
+      .catch(() => { showToast(t('chat.setFailed'), 'error'); });
   }, [conversation.id]);
 
   const pickBackground = useCallback(() => {
@@ -1670,9 +1671,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       // 双重校验：MIME类型 + 扩展名黑名单（防改名伪装）
       const DANGEROUS_EXT = /\.(exe|bat|cmd|sh|ps1|msi|dll|vbs|js|jar|php|py|rb|pl)$/i;
       if (!file.type.startsWith('image/') || DANGEROUS_EXT.test(file.name)) {
-        showToast('请选择图片文件', 'error'); return;
+        showToast(t('chat.selectImageFile'), 'error'); return;
       }
-      if (file.size > 10 * 1024 * 1024) { showToast('图片不能超过 10MB', 'error'); return; }
+      if (file.size > 10 * 1024 * 1024) { showToast(t('chat.imageSizeLimit10MB'), 'error'); return; }
       try {
         // 优先尝试云存储直传；云存储未配置(503)或网络失败时降级到本地上传
         let url;
@@ -1689,9 +1690,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           url = data.url;
         }
         await setChatBackground(url);
-        showToast('已设置聊天背景');
+        showToast(t('chat.chatBackgroundSet'));
       } catch (e) {
-        showToast(e.response?.data?.error || e.message || '设置失败', 'error');
+        showToast(e.response?.data?.error || e.message || t('chat.setFailed'), 'error');
       }
     };
     inp.click();
@@ -1760,7 +1761,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       setUploadState(s => ({
         ...(s || { name: file.name, progress: 0 }),
         status: 'error',
-        errorMsg: `请等待"${isUploadingRef.current}"上传完成后再发送`,
+        errorMsg: t('chat.uploadWaitTemplate').replace('{name}', isUploadingRef.current),
       }));
       return;
     }
@@ -1772,19 +1773,19 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 仅放行常见格式（主流图片/音视频/文档/压缩包）；冷门/危险格式前端即拦，服务端再兜底。
     const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
     if (!CHAT_ALLOWED_EXTS.has(ext)) {
-      showErr(`不支持的文件格式（${ext ? '.' + ext : '无扩展名'}），仅支持常见图片/音视频/文档/压缩包`);
+      showErr(t('chat.unsupportedFileFormatTemplate').replace('{ext}', ext ? '.' + ext : t('chat.noExtension')));
       return;
     }
     // 0 字节文件（拖入文件夹兜底 / 真空文件）：上传无意义，直接拦并提示
     if (file.size === 0) {
-      showErr('无法发送空文件（0 字节）');
+      showErr(t('chat.emptyFileNotAllowed'));
       return;
     }
     // 安全兜底上限 1GB：足够传大视频/文档，又防止超大文件占爆服务器磁盘。
     // 大文件(>8MB)走分片流式上传(每片 4MB 边读边传，hash 仅 ≤50MB 计算)，不撑爆浏览器内存。
     const MAX_UPLOAD = 1 * 1024 * 1024 * 1024; // 1GB，与后端 MAX_UPLOAD_BYTES / nginx 保持一致
     if (file.size > MAX_UPLOAD) {
-      showErr(`文件超过 1GB 上限（当前 ${(file.size / 1024 / 1024 / 1024).toFixed(2)} GB）`);
+      showErr(t('chat.fileSizeExceedTemplate').replace('{size}', (file.size / 1024 / 1024 / 1024).toFixed(2)));
       return;
     }
 
@@ -1838,18 +1839,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // 气泡按真实比例预留高度,消除"图片撑高溢出压到下一条文字"的重叠。
         const aspect = await aspectPromise;
         if (aspect && publicUrl) rememberAspect(mediaUrl(publicUrl), aspect.w, aspect.h);
-        if (!socket) { showToast('连接已断开，请重连后重试', 'error'); return; }
+        if (!socket) { showToast(t('chat.connectionLostRetry'), 'error'); return; }
         socket.emit('send_file_message', {
           conversationId: conversation.id, type,
           file_url: publicUrl, content: file.name,
           reply_to_id: replyTo?.id || null,
           clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
-        }, (res) => { if (!res?.success) showToast(res?.error || '文件消息发送失败', 'error'); });
+        }, (res) => { if (!res?.success) showToast(res?.error || t('chat.fileSendFailed'), 'error'); });
         dispatchCompose({ type: 'CLEAR_REPLY' });
         setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
       } catch (err) {
         isUploadingRef.current = false;
-        const errorMsg = err.response?.data?.error || err.message || '上传失败';
+        const errorMsg = err.response?.data?.error || err.message || t('chat.uploadFailed');
         setUploadState({ name: file.name, progress: 0, status: 'error', errorMsg, retryFn: doUpload });
       }
     };
@@ -1906,7 +1907,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setActivePanel(null);
     axios.post('/api/stickers/send', { conversationId: conversation.id, stickerId })
       .then(() => setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 80))
-      .catch(err => showToast(err.response?.data?.error || '发送失败', 'error'));
+      .catch(err => showToast(err.response?.data?.error || t('chat.sendFailed'), 'error'));
   }, [conversation.id, listOuterRef]);
 
   // 拖拽上传
@@ -1931,14 +1932,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (items && items[0]?.webkitGetAsEntry) {
       const entry = items[0].webkitGetAsEntry();
       if (entry && entry.isDirectory) {
-        showToast('暂不支持发送文件夹，请压缩后再拖入', 'error');
+        showToast(t('chat.folderNotSupported'), 'error');
         return;
       }
     }
     const files = e.dataTransfer.files;
     const file = files[0];
     if (!file) return;
-    if (files.length > 1) showToast('一次只能发送一个文件，已选择第一个', 'info');
+    if (files.length > 1) showToast(t('chat.onlyOneFileAtATime'), 'info');
     handleFileSelect(file);
   };
 
@@ -1955,7 +1956,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       recorder.onstop = async () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
         if (blob.size < 1000) { stream.getTracks().forEach(t => t.stop()); return; } // too short
-        setUploadState({ name: '语音', progress: 0, status: 'uploading' });
+        setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'uploading' });
         const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
         try {
           let publicUrl;
@@ -1982,9 +1983,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             file_url: publicUrl,
             content:  'voice.webm',
             clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
-          }, (res) => { if (!res?.success) showToast(res?.error || '语音发送失败', 'error'); });
+          }, (res) => { if (!res?.success) showToast(res?.error || t('chat.voiceSendFailed'), 'error'); });
           setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
-        } catch { setUploadState({ name: '语音', progress: 0, status: 'error', errorMsg: '发送失败' }); }
+        } catch { setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'error', errorMsg: t('chat.sendFailed') }); }
         stream.getTracks().forEach(t => t.stop());
       };
       try {
@@ -1995,7 +1996,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
       recorderRef.current = recorder;
       setRecording(true);
-    } catch { showToast('无法访问麦克风', 'error'); recordingLockRef.current = false; }
+    } catch { showToast(t('chat.micAccessDenied'), 'error'); recordingLockRef.current = false; }
   };
 
   const stopRecording = () => {
@@ -2052,8 +2053,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       case 'addSticker':
         try {
           await axios.post('/api/stickers/collect', { url: msg.file_url });
-          showToast('已添加到我的表情', 'success');
-        } catch (e) { showToast(e.response?.data?.error || '添加失败', 'error'); }
+          showToast(t('chat.addedToMyStickers'), 'success');
+        } catch (e) { showToast(e.response?.data?.error || t('chat.addFailed'), 'error'); }
         break;
 
       case 'copy':
@@ -2062,17 +2063,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         } else if ((msg.type === 'image' || msg.type === 'sticker') && msg.file_url) {
           // 图片/表情：抓原图 → 写入系统剪贴板（可直接粘贴到微信/文档等）。
           // Web 同源直接 fetch；Electron 走主进程原生剪贴板（渲染进程 file:// 跨源受限）。
-          showToast('正在复制图片…');
+          showToast(t('chat.copyingImage'));
           const ok = await copyImageToClipboard(mediaUrl(msg.file_url));
-          showToast(ok ? '图片已复制' : '复制失败，可长按图片另存', ok ? 'success' : 'error');
+          showToast(ok ? t('chat.imageCopied') : t('chat.copyFailedLongPress'), ok ? 'success' : 'error');
         } else {
-          showToast('该消息类型不支持复制');
+          showToast(t('chat.msgTypeNotSupportCopy'));
         }
         break;
 
       case 'edit':
-        if (msg.sender_id !== user.id) { showToast('只能编辑自己的消息'); return; }
-        if (msg.type !== 'text') { showToast('只能编辑文字消息'); return; }
+        if (msg.sender_id !== user.id) { showToast(t('chat.canOnlyEditOwnMsg')); return; }
+        if (msg.type !== 'text') { showToast(t('chat.canOnlyEditTextMsg')); return; }
         startEdit(msg);
         break;
 
@@ -2091,7 +2092,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // 分享到第三方软件（微信/QQ/邮件/AirDrop 等）：
         // 图片/视频/文件走文件级分享，文本走文案分享；不支持则回退下载/复制。
         if (msg.type === 'text') {
-          await shareMessage({ text: msg.content, title: '分享消息' });
+          await shareMessage({ text: msg.content, title: t('chat.shareMessageTitle') });
         } else if (msg.file_url) {
           const fname = msg.content || (
             msg.type === 'video' ? `video_${msg.id}.mp4`
@@ -2099,7 +2100,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                 : `file_${msg.id}`);
           await shareMessage({ fileUrl: msg.file_url, filename: fname, title: fname });
         } else {
-          showToast('该消息类型不支持分享');
+          showToast(t('chat.msgTypeNotSupportShare'));
         }
         break;
 
@@ -2111,9 +2112,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       case 'pin': {
         const already = pinnedMessages.some(p => p.msgId === msg.id);
         if (already) {
-          await axios.delete(`/api/messages/conversation/${conversation.id}/pin-message/${msg.id}`).catch(e => showToast(e.response?.data?.error || '操作失败', 'error'));
+          await axios.delete(`/api/messages/conversation/${conversation.id}/pin-message/${msg.id}`).catch(e => showToast(e.response?.data?.error || t('chat.operationFailed'), 'error'));
         } else {
-          await axios.post(`/api/messages/conversation/${conversation.id}/pin-message`, { msgId: msg.id }).catch(e => showToast(e.response?.data?.error || '操作失败', 'error'));
+          await axios.post(`/api/messages/conversation/${conversation.id}/pin-message`, { msgId: msg.id }).catch(e => showToast(e.response?.data?.error || t('chat.operationFailed'), 'error'));
         }
         break;
       }
@@ -2122,14 +2123,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         const isOwn = msg.sender_id === user.id;
         const isAdmin = myGroupRole === 'owner' || myGroupRole === 'admin';
         if (!isOwn && !isAdmin) break;
-        if (!(await showConfirm('彻底删除这条消息？对方也不会看到任何提示，且无法恢复。'))) break;
+        if (!(await showConfirm(t('chat.confirmDeleteMsgForever')))) break;
         // 先确认服务器删除成功再移除；失败则保留消息并提示，
         // 避免"发送方本地没了、对方还在、刷新又冒出来"的假删除
         try {
           await axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } });
           setMessages(prev => prev.filter(m => m.id !== msg.id));
           removeFromCache(conversation.id, msg.id).catch(() => {});
-        } catch (e) { showToast(e.response?.data?.error || '删除失败', 'error'); }
+        } catch (e) { showToast(e.response?.data?.error || t('chat.deleteFailed'), 'error'); }
         break;
       }
 
@@ -2138,7 +2139,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       case 'recall': {
         const isOwn = msg.sender_id === user.id;
         const isGroupAdmin = conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin');
-        if (!isOwn && !isGroupAdmin) { showToast('只能撤回自己发送的消息'); return; }
+        if (!isOwn && !isGroupAdmin) { showToast(t('chat.canOnlyRecallOwnMsg')); return; }
         if (msg.deleted) return;
         // 乐观移除：先隐藏，失败则恢复
         const prevMsgs = messagesRef.current;
@@ -2148,7 +2149,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           removeFromCache(conversation.id, msg.id).catch(() => {});
         } catch (e) {
           setMessages(prevMsgs);
-          showToast(e.response?.data?.error || '撤回失败，请重试', 'error');
+          showToast(e.response?.data?.error || t('chat.recallFailedRetry'), 'error');
         }
         break;
       }
@@ -2164,7 +2165,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           removeFromCache(conversation.id, msg.id).catch(() => {});
         } catch (e) {
           setMessages(prevMsgs);
-          showToast(e.response?.data?.error || '删除失败，请重试', 'error');
+          showToast(e.response?.data?.error || t('chat.deleteFailedRetry'), 'error');
         }
         break;
       }
@@ -2175,8 +2176,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           const extra = { source_conv_id: conversation.id, source_msg_id: msg.id };
           if (msg.file_url) extra.file_url = msg.file_url;
           await axios.post('/api/users/me/collections', { type: msg.type === 'text' ? 'text' : msg.type === 'image' ? 'image' : msg.type === 'video' ? 'video' : 'file', content: msg.content || msg.file_url || '', extra })
-            .then(() => showToast('已收藏', 'success'))
-            .catch(e => showToast(e.response?.data?.error || '收藏失败', 'error'));
+            .then(() => showToast(t('chat.collected'), 'success'))
+            .catch(e => showToast(e.response?.data?.error || t('chat.collectFailed'), 'error'));
         } else if (action.startsWith('react:')) {
           callbacksRef.current.toggleReaction(msg.id, action.replace('react:', ''));
         }
@@ -2192,15 +2193,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 仅可转发类型（红包/名片以外的富媒体均可）；过滤后为空则提示
     const FORWARDABLE = new Set(['text', 'image', 'voice', 'video', 'file', 'contact_card']);
     const valid = msgs.filter(m => FORWARDABLE.has(m.type));
-    if (valid.length === 0) { showToast('所选消息不支持转发'); return; }
-    if (valid.length < msgs.length) showToast(`已跳过 ${msgs.length - valid.length} 条不可转发的消息`, 'info');
+    if (valid.length === 0) { showToast(t('chat.selectedNotForwardable')); return; }
+    if (valid.length < msgs.length) showToast(t('chat.skippedNonForwardableTemplate').replace('{count}', msgs.length - valid.length), 'info');
     if (valid.length === 1) setForwardMsg(valid[0]);
     else setForwardMsgs(valid);
     exitMultiSelect();
   }, [messages, selectedMsgs, exitMultiSelect]);
   const multiDelete = useCallback(async () => {
-    if (!await showConfirm(`确认撤回/删除选中的 ${selectedMsgs.size} 条消息？`)) return;
-    await axios.post('/api/messages/batch-delete', { msgIds: [...selectedMsgs], conversationId: conversation.id }).catch(e => showToast(e.response?.data?.error || '操作失败', 'error'));
+    if (!await showConfirm(t('chat.confirmBatchRecallDeleteTemplate').replace('{count}', selectedMsgs.size))) return;
+    await axios.post('/api/messages/batch-delete', { msgIds: [...selectedMsgs], conversationId: conversation.id }).catch(e => showToast(e.response?.data?.error || t('chat.operationFailed'), 'error'));
     exitMultiSelect();
   }, [selectedMsgs, conversation.id, exitMultiSelect]);
 
@@ -2350,7 +2351,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (inflight.has(k)) return; // 防止 click+keydown 双触发或快速连点造成来回抖动
     inflight.add(k);
     axios.post(`/api/messages/${msgId}/react`, { emoji })
-      .catch(() => showToast('操作失败，请重试'))
+      .catch(() => showToast(t('common.actionFailed')))
       .finally(() => inflight.delete(k));
   };
   // 拍一拍：双击对方头像，服务端落库并广播系统消息
@@ -2377,12 +2378,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     try {
       const { data } = await axios.get(`/api/messages/${snapConvId}/around/${msgId}`);
       if (conversation.id !== snapConvId) return; // 用户已切换对话
-      if (!data?.messages?.length) { showToast('无法定位该消息', 'info'); return; }
+      if (!data?.messages?.length) { showToast(t('chat.cannotLocateMessage'), 'info'); return; }
       setMessages(data.messages);
       setHasMore(data.hasMore);
       setPendingScrollId(msgId);
     } catch {
-      showToast('无法定位该消息', 'info');
+      showToast(t('chat.cannotLocateMessage'), 'info');
     }
   };
 
@@ -2409,7 +2410,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {isDragOver && (
         <div className="wc-drag-overlay">
           <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-          <span>拖放文件到此处上传</span>
+          <span>{t('chat.dropFileHint')}</span>
         </div>
       )}
       {/* ── 图片灯箱（画廊模式） ── */}
@@ -2450,10 +2451,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {groupCallInvite && !groupCall && (
         <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: "calc(var(--z-call) + 100)", background: 'var(--bg-ctx-menu)', color: 'var(--text-inverse)', borderRadius: 'var(--radius-lg)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 28px rgba(0,0,0,.4)' }}>
           <span style={{ fontSize: 'var(--text-base)' }}>
-            {groupCallInvite.fromName || '群成员'} 发起了群{groupCallInvite.type === 'video' ? '视频' : '语音'}通话
+            {t('chat.groupCallInviteTemplate').replace('{name}', groupCallInvite.fromName || t('chat.groupMemberDefault')).replace('{type}', groupCallInvite.type === 'video' ? t('chat.callTypeVideo') : t('chat.callTypeVoice'))}
           </span>
-          <button onClick={joinGroupCall} style={{ background: 'var(--color-primary,#6D5AE6)', color: 'var(--text-inverse)', border: 0, borderRadius: 'var(--radius-input)', padding: '6px 14px', cursor: 'pointer' }}>加入</button>
-          <button onClick={() => setGroupCallInvite(null)} style={{ background: 'transparent', color: 'rgba(255,255,255,.6)', border: 0, cursor: 'pointer' }}>忽略</button>
+          <button onClick={joinGroupCall} style={{ background: 'var(--color-primary,#6D5AE6)', color: 'var(--text-inverse)', border: 0, borderRadius: 'var(--radius-input)', padding: '6px 14px', cursor: 'pointer' }}>{t('chat.join')}</button>
+          <button onClick={() => setGroupCallInvite(null)} style={{ background: 'transparent', color: 'rgba(255,255,255,.6)', border: 0, cursor: 'pointer' }}>{t('chat.ignore')}</button>
         </div>
       )}
       {/* ── Header ── */}
@@ -2488,10 +2489,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {conversation.type === 'group' && announcement && (
         <>
           <div className="wc-announce-banner"
-            role="button" tabIndex={0} aria-expanded={showAnnounceDetail} aria-label="群公告"
+            role="button" tabIndex={0} aria-expanded={showAnnounceDetail} aria-label={t('chat.groupAnnouncement')}
             onClick={() => setShowAnnounceDetail(v => !v)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowAnnounceDetail(v => !v); } }}>
-            <span className="wc-announce-badge">📢 群公告</span>
+            <span className="wc-announce-badge">📢 {t('chat.groupAnnouncement')}</span>
             <div className="wc-announce-marquee">
               <span className="wc-announce-text">{announcement.replace(/\n/g, '   ')}</span>
             </div>
@@ -2524,7 +2525,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           } : undefined}
         >
           {loadingMore && (
-            <div className="wc-search-status" role="status" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, background: 'rgba(245,245,245,.92)', textAlign: 'center', padding: '6px 0', fontSize: 'var(--text-sm)' }}>加载中…</div>
+            <div className="wc-search-status" role="status" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, background: 'rgba(245,245,245,.92)', textAlign: 'center', padding: '6px 0', fontSize: 'var(--text-sm)' }}>{t('common.loading')}</div>
           )}
           <VirtualMessageList
             ref={virtListRef}
@@ -2537,7 +2538,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           {!flatItems.length && initialLoading && <ChatSkeleton />}
           {typingName && (
             <div className="cw-typing" style={{ position: 'absolute', bottom: 4, left: 20, right: 20, pointerEvents: 'none', zIndex: 1 }}>
-              <span></span><span></span><span></span> {typingName} 正在输入
+              <span></span><span></span><span></span> {t('chat.typingTemplate').replace('{name}', typingName)}
             </div>
           )}
           {showScrollBtn && (
@@ -2545,10 +2546,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               data-testid="chat-scroll-bottom"
               className={`cw-scroll-bottom${newMsgCount > 0 ? ' has-new' : ''}`}
               onClick={() => { virtListRef.current?.scrollToBottom('smooth'); setNewMsgCount(0); }}
-              aria-label={newMsgCount > 0 ? `${newMsgCount} 条新消息，回到底部` : '滚动到底部'}
+              aria-label={newMsgCount > 0 ? t('chat.newMessagesBackToBottomTemplate').replace('{count}', newMsgCount) : t('chat.scrollToBottom')}
             >
               {newMsgCount > 0 && (
-                <span className="cw-scroll-bottom-badge" data-testid="chat-new-msg-badge">{newMsgCount > 99 ? '99+' : newMsgCount} 条新消息</span>
+                <span className="cw-scroll-bottom-badge" data-testid="chat-new-msg-badge">{t('chat.newMessagesCountTemplate').replace('{count}', newMsgCount > 99 ? '99+' : newMsgCount)}</span>
               )}
             </button>
           )}
@@ -2621,12 +2622,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         >
           <div className="wc-card-picker">
             <div className="wc-card-picker-header">
-              <span className="wc-card-picker-title">选择要分享的名片</span>
-              <button className="wc-card-picker-close" onClick={() => setShowCardPicker(false)} aria-label="关闭名片选择">✕</button>
+              <span className="wc-card-picker-title">{t('chat.selectCardToShare')}</span>
+              <button className="wc-card-picker-close" onClick={() => setShowCardPicker(false)} aria-label={t('chat.closeCardPicker')}>✕</button>
             </div>
             <div className="wc-card-picker-list">
               {cardContacts.length === 0 && (
-                <div className="wc-card-picker-empty">暂无联系人</div>
+                <div className="wc-card-picker-empty">{t('contacts.noContacts')}</div>
               )}
               {cardContacts.map(c => (
                 <div key={c.id} onClick={() => sendContactCard(c)}
@@ -2636,7 +2637,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   <Avatar src={c.avatar} name={c.remark || c.username} size={40} style={{ borderRadius: 'var(--radius-sm)' }} />
                   <div className="wc-card-picker-item-info">
                     <div className="wc-card-picker-item-name">{c.remark || c.username}</div>
-                    {c.wechat_id && <div className="wc-card-picker-item-wechat">投聊号：{c.wechat_id}</div>}
+                    {c.wechat_id && <div className="wc-card-picker-item-wechat">{t('contacts.touliaoIdTemplate').replace('{id}', c.wechat_id)}</div>}
                   </div>
                 </div>
               ))}
@@ -2683,7 +2684,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {/* ── 全群禁言提示（普通成员被禁言时替换输入区） ── */}
       {!multiSelect && conversation.type === 'group' && groupSettings.mute_all && myGroupRole === 'member' ? (
         <div className="wc-mute-notice">
-          <span>🔇 全员禁言已开启，只有群主和管理员可以发送消息</span>
+          <span>🔇 {t('chat.muteAllBanner')}</span>
         </div>
       ) : (
       /* ── Input area ── */
@@ -2873,7 +2874,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   className={`wc-send-btn${input.trim() ? ' active' : ''}`}
                   onClick={sendMessage}
                   disabled={!input.trim()}
-                >发送</button>
+                >{t('chat.send')}</button>
               </div>
             )}
           </>
@@ -2973,7 +2974,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           defaultContent={input}
           onClose={() => setShowScheduleSend(false)}
           onScheduled={(_content) => {
-            showToast('定时消息已设置，到点自动发出 ✓', 'success');
+            showToast(t('chat.scheduleSetSuccess'), 'success');
             dispatchCompose({ type: 'SET_INPUT', value: '' });
             setShowScheduleSend(false);
           }}
@@ -2994,35 +2995,35 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           >
             <div className="wc-rp-detail-header">
               <div className="wc-rp-detail-icon">🧧</div>
-              <div className="wc-rp-detail-sender">{redPacketDetail.senderName} 的红包</div>
+              <div className="wc-rp-detail-sender">{t('chat.redPacketFromTemplate').replace('{name}', redPacketDetail.senderName)}</div>
               <div className="wc-rp-detail-greeting">{redPacketDetail.greeting}</div>
             </div>
             <div className="wc-rp-detail-body">
               {redPacketDetail.myClaim ? (
                 <div className="wc-rp-center">
-                  {redPacketDetail.justClaimed && <div className="wc-rp-claimed-label">领取成功</div>}
+                  {redPacketDetail.justClaimed && <div className="wc-rp-claimed-label">{t('chat.redPacketClaimedSuccess')}</div>}
                   <span className="wc-rp-amount">{redPacketDetail.myClaim.amount}</span>
-                  <span className="wc-rp-unit">金币</span>
+                  <span className="wc-rp-unit">{t('chat.coinUnit')}</span>
                 </div>
               ) : String(redPacketDetail.sender_id) === String(user.id) ? (
                 <div className="wc-rp-center">
-                  <div className="wc-rp-claimed-label">你发出的红包</div>
+                  <div className="wc-rp-claimed-label">{t('chat.yourSentRedPacket')}</div>
                   <span className="wc-rp-amount">{redPacketDetail.total_amount}</span>
-                  <span className="wc-rp-unit">金币</span>
+                  <span className="wc-rp-unit">{t('chat.coinUnit')}</span>
                 </div>
               ) : (
                 <div className="wc-rp-expired">
-                  {redPacketDetail.claimed_count >= redPacketDetail.total_count ? '手慢了，红包派完了' : '红包已过期'}
+                  {redPacketDetail.claimed_count >= redPacketDetail.total_count ? t('chat.redPacketAllClaimed') : t('chat.redPacketExpired')}
                 </div>
               )}
               <div className="wc-rp-stats">
-                已领取 {redPacketDetail.claimed_count}/{redPacketDetail.total_count} 个
+                {t('chat.redPacketClaimedCountTemplate').replace('{claimed}', redPacketDetail.claimed_count).replace('{total}', redPacketDetail.total_count)}
               </div>
               <div className="wc-rp-claims-list">
                 {(redPacketDetail.claims || []).map(c => (
                   <div key={c.id || c.user_id} className="wc-rp-claim-item">
-                    <span className="wc-rp-claim-name">{c.username}{c.user_id === user.id ? '（我）' : ''}</span>
-                    <span className="wc-rp-claim-amount">{c.amount} 金币</span>
+                    <span className="wc-rp-claim-name">{c.username}{c.user_id === user.id ? t('chat.meLabel') : ''}</span>
+                    <span className="wc-rp-claim-amount">{c.amount} {t('chat.coinUnit')}</span>
                   </div>
                 ))}
               </div>
@@ -3033,7 +3034,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               onClick={() => setRedPacketDetail(null)}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRedPacketDetail(null); } }}
               className="wc-rp-close-btn"
-            >关闭</div>
+            >{t('common.close')}</div>
           </div>
         </div>
       )}

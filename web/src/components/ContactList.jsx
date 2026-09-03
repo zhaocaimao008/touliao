@@ -269,7 +269,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {/* 新的朋友 */}
         {tab === 'requests' && (
           <>
-            <SectionHeader title="新的朋友" onBack={() => setTab('contacts')} />
+            <SectionHeader title={t('contacts.newFriends')} onBack={() => setTab('contacts')} />
             <div className="cl-subtabs">
               <button className={`cl-subtab${requestsSubTab === 'received' ? ' active' : ''}`}
                 onClick={() => setRequestsSubTab('received')}>
@@ -288,7 +288,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                     <svg viewBox="0 0 24 24" width="40" height="40" fill="#D0D7E3" className="cl-empty-icon">
                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
                     </svg>
-                    <div className="cl-empty-text">暂无新申请</div>
+                    <div className="cl-empty-text">{t('contacts.noNewRequests')}</div>
                   </div>
                 )}
                 {requests.map(r => (
@@ -299,8 +299,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                       <div className="req-msg">{r.message || '请求添加您为好友'}</div>
                     </div>
                     <div className="req-btns">
-                      <button className="req-accept" data-testid="friend-request-accept" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'accepted')}>接受</button>
-                      <button className="req-reject" data-testid="friend-request-reject" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'rejected')}>拒绝</button>
+                      <button className="req-accept" data-testid="friend-request-accept" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'accepted')}>{t('contacts.accept')}</button>
+                      <button className="req-reject" data-testid="friend-request-reject" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'rejected')}>{t('contacts.reject')}</button>
                     </div>
                   </div>
                 ))}
@@ -311,7 +311,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               <>
                 {sentRequests.length === 0 && (
                   <div className="cl-empty" role="status">
-                    <div className="cl-empty-text">暂无已发送申请</div>
+                    <div className="cl-empty-text">{t('contacts.noSentRequests')}</div>
                   </div>
                 )}
                 {sentRequests.map(r => (
@@ -337,7 +337,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             <SectionHeader title="AI 助手" onBack={() => setTab('contacts')} />
             {aiBots.length === 0 && (
               <div className="cl-empty" role="status">
-                <div className="cl-empty-text">暂无 AI 助手</div>
+                <div className="cl-empty-text">{t('contacts.noAiAssistants')}</div>
               </div>
             )}
             {aiBots.map(b => (
@@ -373,10 +373,10 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {/* 黑名单 */}
         {tab === 'blocked' && (
           <>
-            <SectionHeader title="黑名单" onBack={() => setTab('contacts')} />
+            <SectionHeader title={t('contacts.blacklist')} onBack={() => setTab('contacts')} />
             {blockedUsers.length === 0 && (
               <div className="cl-empty" role="status">
-                <div className="cl-empty-text">黑名单为空</div>
+                <div className="cl-empty-text">{t('contacts.blacklistEmpty')}</div>
               </div>
             )}
             {blockedUsers.map(u => (
@@ -385,7 +385,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 <div className="req-info">
                   <div className="req-name">{u.username}</div>
                 </div>
-                <button className="req-reject" onClick={() => unblock(u.id)}>移除</button>
+                <button className="req-reject" onClick={() => unblock(u.id)}>{t('contacts.remove')}</button>
               </div>
             ))}
           </>
@@ -422,7 +422,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             ))}
             {groups.length === 0 && (
               <div className="cl-empty" role="status">
-                <div className="cl-empty-groups">还没有群聊</div>
+                <div className="cl-empty-groups">{t('contacts.noGroups')}</div>
               </div>
             )}
           </>
@@ -463,6 +463,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
 
 /* ── 好友标签 Tab ── */
 function LabelsTab({ labels, contacts, onBack, onUpdate }) {
+  const { t } = useI18n();
   const [editLabel, setEditLabel] = useState(null); // null | 'new' | labelObject
   const [nameInput, setNameInput] = useState('');
   const [colorInput, setColorInput] = useState('#6D5AE6');
@@ -531,13 +532,13 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
           <input
             value={nameInput}
             onChange={e => setNameInput(e.target.value)}
-            placeholder="标签名称"
+            placeholder={t('contacts.labelName')}
             maxLength={20}
-            aria-label="标签名称"
+            aria-label={t('contacts.labelName')}
             className="lt-edit-input"
           />
-          <div className="lt-edit-label">颜色</div>
-          <div role="radiogroup" aria-label="标签颜色" className="lt-color-grid">
+          <div className="lt-edit-label">{t('contacts.color')}</div>
+          <div role="radiogroup" aria-label={t('contacts.labelColorAriaLabel')} className="lt-color-grid">
             {COLORS.map(c => (
               <div key={c} role="radio" tabIndex={0} aria-checked={colorInput === c} aria-label={`颜色 ${c}`}
                 onClick={() => setColorInput(c)}
@@ -579,7 +580,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
               </div>
             );
           })}
-          {contacts.length === 0 && <div className="cl-empty"><div className="cl-empty-text">暂无联系人</div></div>}
+          {contacts.length === 0 && <div className="cl-empty"><div className="cl-empty-text">{t('contacts.noContacts')}</div></div>}
         </div>
       </>
     );
@@ -587,7 +588,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
 
   return (
     <>
-      <SectionHeader title="好友标签" onBack={onBack} />
+      <SectionHeader title={t('contacts.friendLabels')} onBack={onBack} />
       <div className="lt-list-header">
         <button onClick={startCreate}
           className="lt-create-btn">
@@ -595,7 +596,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
         </button>
       </div>
       {labels.length === 0 && (
-        <div className="cl-empty"><div className="cl-empty-text">还没有标签</div><div className="cl-empty-sub">可以给好友分组打标签</div></div>
+        <div className="cl-empty"><div className="cl-empty-text">{t('contacts.noLabels')}</div><div className="cl-empty-sub">{t('contacts.noLabelsSub')}</div></div>
       )}
       {labels.map(label => (
         <div key={label.id} className="wc-contact-item">
@@ -604,11 +605,11 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
           </div>
           <div className="cl-contact-info">
             <div className="wc-contact-item-name">{label.name}</div>
-            <div className="wc-contact-item-sub">{(label.members || []).length} 人</div>
+            <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', (label.members || []).length)}</div>
           </div>
-          <button onClick={() => setShowMembers(label.id)} className="lt-action-btn" style={{ marginRight: 8 }}>成员</button>
-          <button onClick={() => startEdit(label)} className="lt-action-btn" style={{ marginRight: 4 }}>编辑</button>
-          <button onClick={() => deleteLabel(label.id)} className="lt-delete-btn">删除</button>
+          <button onClick={() => setShowMembers(label.id)} className="lt-action-btn" style={{ marginRight: 8 }}>{t('contacts.members')}</button>
+          <button onClick={() => startEdit(label)} className="lt-action-btn" style={{ marginRight: 4 }}>{t('contacts.edit')}</button>
+          <button onClick={() => deleteLabel(label.id)} className="lt-delete-btn">{t('contacts.delete')}</button>
         </div>
       ))}
     </>
@@ -620,6 +621,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
 // memo 后仅「在线态真正翻转」或「资料变化」的行会重渲染，其余跳过 DOM diff。
 // onOpen 由父层 useCallback 固定引用（否则每次新函数会击穿 memo）。
 const ContactRow = memo(function ContactRow({ contact: c, online, onOpen }) {
+  const { t } = useI18n();
   const lastOnlineLabel = (c.last_online_at !== undefined && !online)
     ? formatLastOnline(c.last_online_at, false) : '';
   return (
@@ -638,7 +640,7 @@ const ContactRow = memo(function ContactRow({ contact: c, online, onOpen }) {
         {lastOnlineLabel && <div className="cl-last-online">{lastOnlineLabel}</div>}
       </div>
       {online && (
-        <span className="cl-online-tag">在线</span>
+        <span className="cl-online-tag">{t('contacts.online')}</span>
       )}
     </div>
   );
