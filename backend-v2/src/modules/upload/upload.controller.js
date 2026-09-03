@@ -65,6 +65,10 @@ exports.credential = asyncHandler(async (req, res) => {
         const thumbKey = `uploads/files/${uuid}_thumb.webp`;
         const { uploadUrl: thumbUploadUrl } = await getPresignedPutUrl(thumbKey, 'image/webp');
         resp.thumbUploadUrl = thumbUploadUrl;
+        // 缩略图与原图各自独立登记（/uploads 访问鉴权只信 file_registry 精确路径匹配，
+        // 见 app.js resolveUploadAccess）——否则客户端就算把缩略图传上去了，
+        // 请求缩略图 URL 时也会被 404（未登记 = 视为不存在）。
+        registerFile({ path: `/uploads/files/${uuid}_thumb.webp`, ownerId: req.user.id, conversationId, kind: 'files' });
       } catch (e) {
         // 缩略图凭证是锦上添花，生成失败不该搭上整个上传请求——原图凭证已经拿到手了。
         console.warn('[upload/credential] 缩略图预签名 URL 生成失败，跳过:', e.message);

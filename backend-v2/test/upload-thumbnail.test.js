@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const sharp = require('sharp');
-const { generateThumbnail } = require('../src/utils/upload');
+const { generateThumbnail, thumbUrlIfExists } = require('../src/utils/upload');
 
 function tmpPath(name) {
   return path.join(os.tmpdir(), `${name}-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -108,5 +108,38 @@ describe('图片上传缩略图生成', () => {
     } finally {
       fs.unlinkSync(p);
     }
+  });
+});
+
+describe('thumbUrlIfExists（登记缩略图前的存在性判断）', () => {
+  test('缩略图确实生成时，返回按命名约定推导的公开 URL', async () => {
+    const p = await makeJpeg(1200, 800);
+    const thumb = thumbPathFor(p);
+    const originalUrl = `/uploads/files/${path.basename(p)}`;
+    try {
+      await generateThumbnail(p, 'image/jpeg', 400);
+      const url = thumbUrlIfExists(p, originalUrl);
+      expect(url).toBe(`/uploads/files/${path.basename(p, path.extname(p))}_thumb.webp`);
+    } finally {
+      fs.unlinkSync(p);
+      if (fs.existsSync(thumb)) fs.unlinkSync(thumb);
+    }
+  });
+
+  test('未生成缩略图（如 GIF）时返回 null', async () => {
+    const gifBuf = await sharp({ create: { width: 50, height: 50, channels: 3, background: 'green' } }).gif().toBuffer();
+    const p = tmpPath('thumburl-gif') + '.gif';
+    fs.writeFileSync(p, gifBuf);
+    try {
+      const url = thumbUrlIfExists(p, `/uploads/files/${path.basename(p)}`);
+      expect(url).toBeNull();
+    } finally {
+      fs.unlinkSync(p);
+    }
+  });
+
+  test('原图磁盘路径不存在（异常输入）时不抛异常，返回 null', () => {
+    const url = thumbUrlIfExists('/nonexistent/dir/whatever.jpg', '/uploads/files/whatever.jpg');
+    expect(url).toBeNull();
   });
 });

@@ -286,6 +286,29 @@ async function generateThumbnail(filePath, mimetype, maxDim) {
   }
 }
 
+/**
+ * 若 generateThumbnail 确实在原图旁生成了缩略图文件，返回其公开访问 URL；否则 null。
+ * 调用方据此决定要不要把缩略图路径也登记进 file_registry——/uploads 访问鉴权对
+ * files/moments 类别只信 file_registry 的精确路径匹配（见 app.js resolveUploadAccess），
+ * 未登记的路径一律当"不存在"处理返回 404，即使磁盘上文件真实存在。
+ * originalDiskPath：原图在磁盘上的绝对路径（如 req.file.path）；
+ * originalUrl：原图的公开访问 URL（如 /uploads/files/<uuid>.jpg），两者须为同一份文件。
+ */
+function thumbUrlIfExists(originalDiskPath, originalUrl) {
+  try {
+    const dir = path.dirname(originalDiskPath);
+    const base = path.basename(originalDiskPath, path.extname(originalDiskPath));
+    const thumbDiskPath = path.join(dir, `${base}_thumb.webp`);
+    if (!fs.existsSync(thumbDiskPath)) return null;
+    const slash = originalUrl.lastIndexOf('/');
+    const urlDir = originalUrl.slice(0, slash + 1);
+    const urlBase = path.basename(originalUrl, path.extname(originalUrl));
+    return `${urlDir}${urlBase}_thumb.webp`;
+  } catch {
+    return null;
+  }
+}
+
 // 图片元数据剥离 + 缩略图生成中间件：接在魔数校验之后，此时 file.mimetype 已是真实检测出的类型。
 // maxDim：缩略图长边上限，聊天图片（makeChatUploader）显示尺寸更大，用 480；
 // 头像/朋友圈/群头像等（makeImageUploader）用默认 400。
@@ -394,5 +417,5 @@ module.exports = {
   MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES,
   sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader, makeUploadGuard,
   verifyMagicBytes, verifyChatFile, isBrowserRenderableType, stripImageMetadata,
-  generateThumbnail, THUMBNAIL_MIMES, THUMBNAIL_EXTS,
+  generateThumbnail, thumbUrlIfExists, THUMBNAIL_MIMES, THUMBNAIL_EXTS,
 };

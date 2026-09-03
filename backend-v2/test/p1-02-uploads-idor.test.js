@@ -11,6 +11,7 @@ require('./testEnv');
 const fs = require('fs');
 const path = require('path');
 const request = require('supertest');
+const sharp = require('sharp');
 const config = require('../src/config');
 const { app, makeUser, befriend, privateConversation } = require('./helpers');
 const { db } = require('../src/db/connection');
@@ -168,6 +169,77 @@ describe('P1-02 /uploads 越权访问（IDOR）', () => {
     expect(mom.status).toBe(200);
 
     const res = await request(app).get(fileUrl).set('Authorization', `Bearer ${c.token}`);
+    expect([403, 404]).toContain(res.status);
+  });
+
+  // ── 缩略图访问鉴权（2026-09-03 加，见 app.js resolveUploadAccess baseIdOf）──
+  // 缩略图与原图各自在 file_registry 独立登记同一路径精确匹配；但 messages.file_url /
+  // moments.images 这类"引用行内容"检查只存原图文件名，缩略图请求得按 uuid 折算，
+  // 这里验证：折算不会削弱第一道 file_registry 归属检查，攻击者仍拿不到缩略图。
+  //
+  // 注意：不复用上面的 PNG_1x1——它是手写的最小合法 PNG，libvips 的 PNG 解码器读它会报
+  // "vipspng: libpng read error"（generateThumbnail fail-open 静默跳过，不生成缩略图），
+  // 这里用 sharp 现生成一张真正可解码的 PNG，确保缩略图确实落盘，测试的是鉴权逻辑本身。
+  let thumbFileUrl, thumbFilePath, thumbMomentUrl;
+
+  function thumbUrlFor(originalUrl) {
+    const slash = originalUrl.lastIndexOf('/');
+    const dir = originalUrl.slice(0, slash + 1);
+    const base = originalUrl.slice(slash + 1).replace(/\.[a-zA-Z0-9]+$/, '');
+    return `${dir}${base}_thumb.webp`;
+  }
+
+  beforeAll(async () => {
+    const validPng = await sharp({ create: { width: 20, height: 20, channels: 3, background: 'red' } }).png().toBuffer();
+    const up = await request(app)
+      .post(`/api/messages/${convId}/upload`)
+      .set('Authorization', `Bearer ${a.token}`)
+      .attach('file', validPng, { filename: 'thumbable.png', contentType: 'image/png' });
+    expect(up.status).toBe(200);
+    thumbFileUrl = up.body.file_url;
+
+    const mom = await request(app)
+      .post('/api/moments')
+      .set('Authorization', `Bearer ${a.token}`)
+      .send({ content: '私密动态2', images: [thumbFileUrl], visibility: 'private' });
+    expect(mom.status).toBe(200);
+    thumbMomentUrl = thumbFileUrl;
+  });
+
+  afterAll(() => {
+    try { fs.unlinkSync(thumbFilePath); } catch { /* 忽略 */ }
+    try { fs.unlinkSync(path.join(config.uploadsRoot, thumbFileUrl.replace(/^\/uploads\//, ''))); } catch { /* 忽略 */ }
+  });
+
+  test('私聊附件缩略图：会话成员可读，非成员仍被拒绝', async () => {
+    const thumbUrl = thumbUrlFor(thumbFileUrl);
+    thumbFilePath = path.join(config.uploadsRoot, thumbUrl.replace(/^\/uploads\//, ''));
+    expect(fs.existsSync(thumbFilePath)).toBe(true); // 确认缩略图确实生成，鉴权测试才有意义
+
+    const asOwner = await request(app).get(thumbUrl).set('Authorization', `Bearer ${a.token}`);
+    expect(asOwner.status).toBe(200);
+    const asMember = await request(app).get(thumbUrl).set('Authorization', `Bearer ${b.token}`);
+    expect(asMember.status).toBe(200);
+    const asOutsider = await request(app).get(thumbUrl).set('Authorization', `Bearer ${c.token}`);
+    expect([403, 404]).toContain(asOutsider.status);
+  });
+
+  test('私密朋友圈图片缩略图：作者可看、非好友不可看（moments 门控对缩略图同样生效）', async () => {
+    const thumbUrl = thumbUrlFor(thumbMomentUrl);
+    const asAuthor = await request(app).get(thumbUrl).set('Authorization', `Bearer ${a.token}`);
+    expect(asAuthor.status).toBe(200);
+    const asOutsider = await request(app).get(thumbUrl).set('Authorization', `Bearer ${c.token}`);
+    expect([403, 404]).toContain(asOutsider.status);
+  });
+
+  test('PLANTED-ROW 对缩略图同样无效：攻击者植入引用受害者缩略图路径的消息行仍无法读取', async () => {
+    const thumbUrl = thumbUrlFor(thumbFileUrl);
+    const plantedConv = await privateConversation(a, c);
+    db.prepare(
+      "INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,deleted,created_at) VALUES (?,?,?,?,?,?,0,?)"
+    ).run('planted-thumb-' + Date.now(), plantedConv, c.userId, 'file', 'secret.png', thumbUrl, Math.floor(Date.now() / 1000));
+
+    const res = await request(app).get(thumbUrl).set('Authorization', `Bearer ${c.token}`);
     expect([403, 404]).toContain(res.status);
   });
 

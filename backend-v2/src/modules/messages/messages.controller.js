@@ -2,7 +2,7 @@
 const path = require('path');
 const config = require('../../config');
 const { asyncHandler, badRequest } = require('../../utils/http');
-const { makeChatUploader, makeImageUploader, makeUploadGuard, sanitizeFilename, decodeMultipartName } = require('../../utils/upload');
+const { makeChatUploader, makeImageUploader, makeUploadGuard, sanitizeFilename, decodeMultipartName, thumbUrlIfExists } = require('../../utils/upload');
 const { isMember } = require('./shared');
 const { pushNewMessage } = require('../../utils/push');
 const { registerFile } = require('../../utils/fileRegistry');
@@ -123,6 +123,12 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
   const safeOriginalName = sanitizeFilename(decodeMultipartName(req.file.originalname));
   const url = `/uploads/files/${req.file.filename}`;
   registerFile({ path: url, ownerId: req.user.id, conversationId, kind: 'files' });
+  // 图片：generateThumbnail 已在 uploadMiddlewares 里跑过（makeChatUploader 内置），
+  // 若确实生成了缩略图，一并登记——否则 /uploads 访问鉴权会把缩略图当"未登记"404。
+  if (type === 'image') {
+    const thumbUrl = thumbUrlIfExists(req.file.path, url);
+    if (thumbUrl) registerFile({ path: thumbUrl, ownerId: req.user.id, conversationId, kind: 'files' });
+  }
 
   // 2026-08-29 好友申请/视频语音修复配套：可选 duration 字段(秒，客户端传整数字符串)。
   // 语音/视频消息此前完全没有时长——聊天气泡只能显示固定"🎙 语音"文字而非真实时长。

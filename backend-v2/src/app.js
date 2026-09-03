@@ -103,6 +103,16 @@ const cloudStorage = require('./utils/cloudStorage');
 // P1-02 v2：moments 可见性门控查询需要 db（resolveUploadAccess 内使用）
 const db = require('./db');
 
+// 缩略图请求(<uuid>_thumb.webp)与原图请求(<uuid>.<ext>)统一折算回 uuid：
+// messages.file_url / moments.images 这些「引用行内容」只存原图文件名，从不存
+// 缩略图文件名（消息/朋友圈负载本身没有为缩略图新增字段，见 3bcd4e8），所以下面
+// 两处第二道内容匹配检查必须按 uuid 比对，而不是按请求路径的精确文件名比对，
+// 否则缩略图请求会在这道检查上被误判为"不存在"。不影响第一道 file_registry
+// 归属检查（那一步仍是精确路径匹配，缩略图与原图各自独立登记，见各 registerFile 调用点）。
+function baseIdOf(file) {
+  return String(file || '').replace(/_thumb\.webp$/, '').replace(/\.[a-zA-Z0-9]+$/, '');
+}
+
 // 解析 /uploads/<category>/<file>，校验当前用户是否可访问该资源。
 // 返回 { ok: true } 放行；{ ok: false, status } 拒绝；null 表示资源不存在/未知类别。
 function resolveUploadAccess(userId, reqPath) {
@@ -150,16 +160,19 @@ function resolveUploadAccess(userId, reqPath) {
     ).get(path, userId);
     if (!isOriginalMember && !isSharedMember) return { ok: false, status: 403 };
 
-    const stillLive = db.prepare('SELECT 1 FROM messages WHERE file_url = ? AND deleted != 2 LIMIT 1').get(path);
+    // 缩略图与原图共用同一条消息引用（消息负载没有单独的缩略图字段），
+    // 故按 uuid 而非精确文件名比对，见上面 baseIdOf 注释。
+    const stillLive = db.prepare('SELECT 1 FROM messages WHERE file_url LIKE ? AND deleted != 2 LIMIT 1').get(`/uploads/files/${baseIdOf(file)}.%`);
     if (!stillLive) return { ok: false, status: 403 };
     return { ok: true };
   }
   if (category === 'moments') {
     // 朋友圈图片：文件必须属于某条动态，且满足 moments 可见性门控
     // （好友/私密/分组/拉黑/时间窗）——引用行是伪造的也拿不到 registry 归属。
+    // 按 uuid 而非精确文件名比对（images 数组只存原图文件名，见 baseIdOf 注释）。
     const row = db.prepare(
       'SELECT id, user_id, visibility, visible_to, created_at FROM moments WHERE user_id=? AND images LIKE ? LIMIT 1'
-    ).get(reg.owner_id, `%${file}%`);
+    ).get(reg.owner_id, `%${baseIdOf(file)}%`);
     if (!row) return null;
     try {
       assertVisible(userId, row);

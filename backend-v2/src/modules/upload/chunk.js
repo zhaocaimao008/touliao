@@ -12,7 +12,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const config = require('../../config');
 const { isMember } = require('../messages/shared');
-const { verifyChatFile, ALLOWED_CHAT_EXTS, sanitizeFilename, MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES, stripImageMetadata, generateThumbnail } = require('../../utils/upload');
+const { verifyChatFile, ALLOWED_CHAT_EXTS, sanitizeFilename, MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES, stripImageMetadata, generateThumbnail, thumbUrlIfExists } = require('../../utils/upload');
 const { registerFile } = require('../../utils/fileRegistry');
 
 const MAX_FILE = MAX_UPLOAD_BYTES; // 单文件上限（默认 200MB，可配 MAX_UPLOAD_BYTES）
@@ -153,6 +153,12 @@ async function finish(req, res) {
   const type = mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'voice' : mime.startsWith('video/') ? 'video' : 'file';
   const fileUrl = `/uploads/files/${finalName}`;
   registerFile({ path: fileUrl, ownerId: req.user.id, conversationId, kind: 'files' });
+  // 若确实生成了缩略图，一并登记——否则 /uploads 访问鉴权会把缩略图当"未登记"404
+  // （见 app.js resolveUploadAccess，files 类别只信 file_registry 精确路径匹配）。
+  if (type === 'image') {
+    const thumbUrl = thumbUrlIfExists(finalPath, fileUrl);
+    if (thumbUrl) registerFile({ path: thumbUrl, ownerId: req.user.id, conversationId, kind: 'files' });
+  }
 
   const svc = require('../messages/messages.service');
   const io = req.app.get('io');
