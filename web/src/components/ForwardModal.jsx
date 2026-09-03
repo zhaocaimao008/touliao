@@ -4,9 +4,11 @@ import Avatar from './Avatar';
 import { GroupAvatar } from './GroupAvatar';
 import { showToast } from '../utils/toast';
 import useFocusTrap from '../hooks/useFocusTrap';
+import { useI18n } from '../contexts/I18nContext';
 import './ForwardModal.css';
 
 export default function ForwardModal({ message, messages, onClose }) {
+  const { t } = useI18n();
   // 支持单条(message)与多条(messages)转发；统一成数组处理
   const msgList = Array.isArray(messages) && messages.length ? messages : (message ? [message] : []);
   const primaryMsg = msgList[0] || null;
@@ -65,7 +67,7 @@ export default function ForwardModal({ message, messages, onClose }) {
       setFriendConvMap(prev => ({ ...prev, [friend.id]: convId }));
       setSelected(prev => { const s = new Set(prev); s.add(convId); return s; });
     } catch (e) {
-      showToast(e.response?.data?.error || '无法选择该好友，请重试', 'error');
+      showToast(e.response?.data?.error || t('fwd.selectFriendFailed'), 'error');
     }
   };
 
@@ -90,7 +92,7 @@ export default function ForwardModal({ message, messages, onClose }) {
             });
           }
         } catch (e) {
-          showToast(e.response?.data?.error || '批量选择好友失败', 'error');
+          showToast(e.response?.data?.error || t('fwd.batchSelectFailed'), 'error');
           return;
         }
       }
@@ -132,22 +134,22 @@ export default function ForwardModal({ message, messages, onClose }) {
       setDone(true);
       setTimeout(onClose, 3000);
     } catch (e) {
-      showToast(e.response?.data?.error || '转发失败', 'error');
+      showToast(e.response?.data?.error || t('fwd.forwardFailed'), 'error');
     }
     setSending(false);
   };
 
   const typePreview = (m) => {
     if (!m) return '';
-    if (m.type === 'image') return '[图片]';
-    if (m.type === 'file') return `[文件] ${m.content}`;
-    if (m.type === 'voice') return '[语音]';
-    if (m.type === 'video') return '[视频]';
-    if (m.type === 'red_packet') return '[红包]';
+    if (m.type === 'image') return t('chatlist.previewImage');
+    if (m.type === 'file') return `${t('chatlist.previewFile')} ${m.content}`;
+    if (m.type === 'voice') return t('chatlist.previewVoice');
+    if (m.type === 'video') return t('chatlist.previewVideo');
+    if (m.type === 'red_packet') return t('fwd.previewRedPacket');
     return (m.content?.slice(0, 50) || '') + (m.content?.length > 50 ? '…' : '');
   };
   const msgPreview = () => {
-    if (msgList.length > 1) return `[逐条转发] 共 ${msgList.length} 条消息`;
+    if (msgList.length > 1) return t('fwd.forwardOneByOneTemplate').replace('{count}', msgList.length);
     return typePreview(primaryMsg);
   };
 
@@ -156,12 +158,12 @@ export default function ForwardModal({ message, messages, onClose }) {
 
   return (
     <div className="wc-modal-overlay" ref={trapRef} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="fwd-panel" role="dialog" aria-modal="true" aria-label="转发消息">
+      <div className="fwd-panel" role="dialog" aria-modal="true" aria-label={t('fwd.title')}>
 
         {/* 标题栏 */}
         <div className="fwd-hd">
-          <span className="fwd-hd-title">转发消息</span>
-          <button className="fwd-hd-close" onClick={onClose} aria-label="关闭">✕</button>
+          <span className="fwd-hd-title">{t('fwd.title')}</span>
+          <button className="fwd-hd-close" onClick={onClose} aria-label={t('common.close')}>✕</button>
         </div>
 
         {done ? (
@@ -171,14 +173,14 @@ export default function ForwardModal({ message, messages, onClose }) {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
-            <div className="fwd-done-title">{result?.status === 'success' ? '转发成功' : result?.status === 'partial_success' ? '部分转发成功' : '转发失败'}</div>
+            <div className="fwd-done-title">{result?.status === 'success' ? t('fwd.success') : result?.status === 'partial_success' ? t('fwd.partialSuccess') : t('fwd.forwardFailed')}</div>
             <div className="fwd-done-sub">
-              成功 <strong>{result?.success_count || 0}</strong> 条，失败 <strong>{result?.failed_count || 0}</strong> 条
+              {t('fwd.resultSummaryTemplate').replace('{success}', result?.success_count || 0).replace('{failed}', result?.failed_count || 0)}
             </div>
             {result?.retryable_message_ids?.length > 0 && (
-              <div className="fwd-done-sub">失败消息可重新选择后重试</div>
+              <div className="fwd-done-sub">{t('fwd.retryableHint')}</div>
             )}
-            <button className="fwd-done-close" onClick={onClose}>完成</button>
+            <button className="fwd-done-close" onClick={onClose}>{t('fwd.done')}</button>
           </div>
         ) : (
           <>
@@ -186,7 +188,7 @@ export default function ForwardModal({ message, messages, onClose }) {
             <div className="fwd-preview">
               <div className="fwd-preview-bar" />
               <div className="fwd-preview-body">
-                <div className="fwd-preview-label">转发内容：</div>
+                <div className="fwd-preview-label">{t('fwd.contentLabel')}</div>
                 <div className="fwd-preview-text">{msgPreview()}</div>
               </div>
             </div>
@@ -199,10 +201,10 @@ export default function ForwardModal({ message, messages, onClose }) {
                     <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
                   </svg>
                 </span>
-                <input className="fwd-search-inp" placeholder="搜索" value={search} autoFocus onChange={e => setSearch(e.target.value)}
-                  aria-label="搜索联系人" />
+                <input className="fwd-search-inp" placeholder={t('common.search')} value={search} autoFocus onChange={e => setSearch(e.target.value)}
+                  aria-label={t('fwd.searchAriaLabel')} />
                 {search && (
-                  <button type="button" className="fwd-search-clr" aria-label="清除搜索" title="清除"
+                  <button type="button" className="fwd-search-clr" aria-label={t('fwd.clearSearchAriaLabel')} title={t('common.clear')}
                     onClick={() => setSearch('')}>✕</button>
                 )}
               </div>
@@ -210,7 +212,7 @@ export default function ForwardModal({ message, messages, onClose }) {
 
             {/* Tab 切换 */}
             <div className="fwd-tabs" role="tablist">
-              {[['friends','好友'], ['groups','群聊']].map(([key, label]) => (
+              {[['friends', t('fwd.friendsTab')], ['groups', t('fwd.groupsTab')]].map(([key, label]) => (
                 <button key={key} role="tab" aria-selected={tab === key} className={`fwd-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
                   {label}
                   <span className="fwd-tab-cnt">{key === 'friends' ? filteredFriends.length : filteredGroups.length}</span>
@@ -230,7 +232,7 @@ export default function ForwardModal({ message, messages, onClose }) {
                       </svg>
                     </span>
                   </div>
-                  <span className="fwd-sel-all-txt">全选好友（<em>{filteredFriends.length}</em>人）</span>
+                  <span className="fwd-sel-all-txt">{t('fwd.selectAllFriendsPrefix')}<em>{filteredFriends.length}</em>{t('fwd.selectAllFriendsSuffix')}</span>
                 </button>
               )}
               {tab === 'groups' && filteredGroups.length > 0 && (
@@ -242,7 +244,7 @@ export default function ForwardModal({ message, messages, onClose }) {
                       </svg>
                     </span>
                   </div>
-                  <span className="fwd-sel-all-txt">全选群聊（<em>{filteredGroups.length}</em>个）</span>
+                  <span className="fwd-sel-all-txt">{t('fwd.selectAllGroupsPrefix')}<em>{filteredGroups.length}</em>{t('fwd.selectAllGroupsSuffix')}</span>
                 </button>
               )}
 
@@ -263,7 +265,7 @@ export default function ForwardModal({ message, messages, onClose }) {
                 </button>
               ))}
               {tab === 'friends' && filteredFriends.length === 0 && (
-                <div role="status" className="fwd-empty">暂无好友</div>
+                <div role="status" className="fwd-empty">{t('moments.noFriends')}</div>
               )}
 
               {/* 群聊列表 */}
@@ -279,26 +281,26 @@ export default function ForwardModal({ message, messages, onClose }) {
                   <GroupAvatar members={g.members || []} avatar={g.avatar || g.groupAvatar} size={36} />
                   <div className="fwd-item-info">
                     <div className="fwd-item-name">{g.name}</div>
-                    <div className="fwd-item-sub">{g.memberCount}人</div>
+                    <div className="fwd-item-sub">{t('fwd.memberCountTemplate').replace('{count}', g.memberCount)}</div>
                   </div>
                 </button>
               ))}
               {tab === 'groups' && filteredGroups.length === 0 && (
-                <div role="status" className="fwd-empty">暂无群聊</div>
+                <div role="status" className="fwd-empty">{t('fwd.noGroups')}</div>
               )}
             </div>
 
             {/* 底部确认栏 */}
             <div className="fwd-footer">
-              <span className="fwd-footer-count">已选 <strong>{selected.size}</strong> 个</span>
+              <span className="fwd-footer-count">{t('fwd.selectedCountPrefix')}<strong>{selected.size}</strong>{t('fwd.selectedCountSuffix')}</span>
               <div className="fwd-footer-btns">
-                <button className="fwd-btn fwd-btn-cancel" onClick={onClose}>取消</button>
+                <button className="fwd-btn fwd-btn-cancel" onClick={onClose}>{t('common.cancel')}</button>
                 <button
                   className="fwd-btn fwd-btn-send"
                   onClick={forward}
                   disabled={selected.size === 0 || sending}
                 >
-                  {sending ? '发送中…' : `发送${selected.size > 0 ? `（${selected.size}）` : ''}`}
+                  {sending ? t('fwd.sending') : (selected.size > 0 ? t('fwd.sendCountTemplate').replace('{count}', selected.size) : t('fwd.send'))}
                 </button>
               </div>
             </div>
