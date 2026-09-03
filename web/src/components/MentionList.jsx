@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { formatFull } from '../utils/time';
+import { useI18n } from '../contexts/I18nContext';
 
 /**
  * @我消息聚合入口：展示所有会话中 @当前用户 的消息。
@@ -11,6 +12,7 @@ import { formatFull } from '../utils/time';
  *   onJumpToMsg — ({ convId, msgId }) 跳转回调，由父级 (Home/App) 处理
  */
 export default function MentionList({ onClose, onJumpToMsg }) {
+  const { t } = useI18n();
   const [items, setItems]   = useState([]);
   const [total, setTotal]   = useState(0);
   const [loading, setLoading] = useState(false);
@@ -78,7 +80,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
       }}>
         <button
           onClick={onClose}
-          aria-label="返回"
+          aria-label={t('common.back')}
           style={{ background: 'none', border: 'none', cursor: 'pointer',
             padding: 4, color: 'var(--text-secondary)' }}
         >
@@ -86,10 +88,10 @@ export default function MentionList({ onClose, onJumpToMsg }) {
             <path d="M20 11H7.83l4.88-4.88c.39-.39.39-1.03 0-1.42-.39-.39-1.02-.39-1.41 0l-6.59 6.59c-.39.39-.39 1.02 0 1.41l6.59 6.59c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L7.83 13H20c.55 0 1-.45 1-1s-.45-1-1-1z"/>
           </svg>
         </button>
-        <span style={{ fontWeight: 600, fontSize: 'var(--text-md)' }}>@我的消息</span>
+        <span style={{ fontWeight: 600, fontSize: 'var(--text-md)' }}>{t('mentionList.title')}</span>
         {total > 0 && (
           <span style={{ marginLeft: 'auto', fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>
-            共 {total} 条
+            {t('mentionList.countTemplate').replace('{count}', total)}
           </span>
         )}
       </div>
@@ -105,7 +107,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
             <svg viewBox="0 0 24 24" style={{ width: 48, height: 48, fill: 'currentColor', opacity: .3, marginBottom: 8 }}>
               <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
             </svg>
-            暂无 @我 的消息
+            {t('mentionList.empty')}
           </div>
         )}
 
@@ -153,14 +155,14 @@ export default function MentionList({ onClose, onJumpToMsg }) {
                 borderRadius: 'var(--radius-tag)', padding: '6px 18px', cursor: 'pointer',
                 fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)' }}
             >
-              加载更多
+              {t('common.loadMore')}
             </button>
           </div>
         )}
         {loading && (
           <div style={{ textAlign: 'center', padding: '16px 0',
             color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
-            加载中…
+            {t('common.loading')}
           </div>
         )}
       </div>

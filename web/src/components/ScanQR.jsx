@@ -4,6 +4,7 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { showToast } from '../utils/toast';
+import { useI18n } from '../contexts/I18nContext';
 
 /**
  * 「扫一扫」：登录后扫群二维码或用户个人码。
@@ -15,6 +16,7 @@ import { showToast } from '../utils/toast';
  *   onClose(convId?) — 关闭；带 convId 时表示已入群，父级据此打开会话
  */
 export default function ScanQR({ onClose }) {
+  const { t } = useI18n();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -57,7 +59,7 @@ export default function ScanQR({ onClose }) {
         setUserInfo(data);
         setPhase('userPreview');
       } catch (e) {
-        setError(e.response?.data?.error || '无法识别该二维码');
+        setError(e.response?.data?.error || t('scanQR.unrecognizedQR'));
         setPhase('error');
       }
       return;
@@ -66,7 +68,7 @@ export default function ScanQR({ onClose }) {
     // 2) 群码：/join/{token}
     const token = extractToken(text);
     if (!token) {
-      setError('无法识别该二维码');
+      setError(t('scanQR.unrecognizedQR'));
       setPhase('error');
       return;
     }
@@ -75,10 +77,10 @@ export default function ScanQR({ onClose }) {
       setInfo({ ...data, token });
       setPhase('preview');
     } catch (e) {
-      setError(e.response?.data?.error || '邀请无效或已过期');
+      setError(e.response?.data?.error || t('scanQR.invalidOrExpiredInvite'));
       setPhase('error');
     }
-  }, [stopCamera]);
+  }, [stopCamera, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,23 +118,23 @@ export default function ScanQR({ onClose }) {
         rafRef.current = requestAnimationFrame(tick);
       } catch {
         if (!cancelled) {
-          setError('无法访问摄像头，请检查权限');
+          setError(t('scanQR.cameraAccessError'));
           setPhase('error');
         }
       }
     })();
     return () => { cancelled = true; stopCamera(); };
-  }, [handleDecoded, stopCamera]);
+  }, [handleDecoded, stopCamera, t]);
 
   const confirmJoin = async () => {
     if (phase === 'joining' || !info) return;
     setPhase('joining');
     try {
       const { data } = await axios.post(`/api/messages/join/${info.token}`);
-      showToast(data.alreadyMember ? '你已在群里' : '已加入群聊', 'success');
+      showToast(data.alreadyMember ? t('scanQR.alreadyInGroup') : t('scanQR.joinedGroup'), 'success');
       onClose(data.conversationId);
     } catch (e) {
-      setError(e.response?.data?.error || '加入失败，请重试');
+      setError(e.response?.data?.error || t('scanQR.joinFailed'));
       setPhase('error');
     }
   };
@@ -142,10 +144,10 @@ export default function ScanQR({ onClose }) {
     setPhase('adding');
     try {
       const { data } = await axios.post('/api/users/friend-request', { toId: userInfo.user.id });
-      showToast(data.autoAccepted ? '已添加好友' : '好友申请已发送', 'success');
+      showToast(data.autoAccepted ? t('scanQR.friendAdded') : t('scanQR.friendRequestSent'), 'success');
       onClose();
     } catch (e) {
-      setError(e.response?.data?.error || '发送失败，请重试');
+      setError(e.response?.data?.error || t('scanQR.sendFailed'));
       setPhase('userPreview');
     }
   };
@@ -153,13 +155,13 @@ export default function ScanQR({ onClose }) {
   // 个人码按钮状态文案
   const userBtnLabel = () => {
     const r = userInfo?.relation;
-    if (!r) return '添加好友';
-    if (r.isFriend) return '已是好友';
-    if (r.pendingSent) return '已发送申请';
-    if (r.blockedByThem) return '对方已将你拉黑';
-    if (r.blockedByMe) return '你已拉黑对方';
-    if (r.pendingReceived) return '接受对方请求';
-    return '添加好友';
+    if (!r) return t('scanQR.addFriend');
+    if (r.isFriend) return t('scanQR.alreadyFriend');
+    if (r.pendingSent) return t('scanQR.requestSent');
+    if (r.blockedByThem) return t('scanQR.blockedByThem');
+    if (r.blockedByMe) return t('scanQR.blockedByMe');
+    if (r.pendingReceived) return t('scanQR.acceptRequest');
+    return t('scanQR.addFriend');
   };
   const userBtnDisabled = () => {
     const r = userInfo?.relation;
@@ -169,12 +171,12 @@ export default function ScanQR({ onClose }) {
 
   return (
     <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label="扫一扫"
+      <div role="dialog" aria-modal="true" aria-label={t('scanQR.title')}
         style={{ width: 'min(400px, 92vw)', background: 'var(--bg-panel, #fff)', borderRadius: 'var(--radius-lg, 16px)', overflow: 'hidden' }}
         onClick={e => e.stopPropagation()}>
         <div className="wc-modal-header">
-          <span className="wc-modal-title">扫一扫</span>
-          <button className="wc-modal-close" onClick={() => onClose()} aria-label="关闭">✕</button>
+          <span className="wc-modal-title">{t('scanQR.title')}</span>
+          <button className="wc-modal-close" onClick={() => onClose()} aria-label={t('common.close')}>✕</button>
         </div>
 
         {phase === 'scanning' && (
@@ -188,7 +190,7 @@ export default function ScanQR({ onClose }) {
               <div style={{ width: '62%', aspectRatio: '1', border: '2px solid rgba(255,255,255,.85)', borderRadius: 12 }} />
             </div>
             <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', color: 'rgba(255,255,255,.9)', fontSize: 'var(--text-sm2, 14px)', pointerEvents: 'none' }}>
-              将二维码放入框内
+              {t('scanQR.frameHint')}
             </div>
           </div>
         )}
@@ -196,9 +198,9 @@ export default function ScanQR({ onClose }) {
         {(phase === 'preview' || phase === 'joining') && info && (
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
             <Avatar src={info.avatar ? mediaUrl(info.avatar) : ''} name={info.name} size={64} style={{ borderRadius: 'var(--radius-lg, 16px)' }} />
-            <div style={{ fontSize: 'var(--text-lg, 18px)', fontWeight: 600, color: 'var(--text-primary, #191919)' }}>{info.name || '群聊'}</div>
+            <div style={{ fontSize: 'var(--text-lg, 18px)', fontWeight: 600, color: 'var(--text-primary, #191919)' }}>{info.name || t('scanQR.defaultGroupName')}</div>
             <div style={{ fontSize: 'var(--text-sm2, 14px)', color: 'var(--text-tertiary, #999)' }}>
-              {info.memberCount ? `${info.memberCount} 位成员` : '群聊邀请'}
+              {info.memberCount ? t('scanQR.memberCountTemplate').replace('{count}', info.memberCount) : t('scanQR.groupInvite')}
             </div>
             <button
               onClick={confirmJoin}
@@ -208,7 +210,7 @@ export default function ScanQR({ onClose }) {
                 background: 'var(--green, #6D5AE6)', color: '#fff', fontSize: 'var(--text-base, 15px)',
                 cursor: phase === 'joining' ? 'default' : 'pointer', opacity: phase === 'joining' ? 0.7 : 1,
               }}
-            >{phase === 'joining' ? '加入中…' : (info.alreadyMember ? '进入群聊' : '加入群聊')}</button>
+            >{phase === 'joining' ? t('scanQR.joining') : (info.alreadyMember ? t('scanQR.enterGroup') : t('scanQR.joinGroup'))}</button>
           </div>
         )}
 
@@ -220,10 +222,10 @@ export default function ScanQR({ onClose }) {
               style={{ borderRadius: 'var(--radius-lg, 16px)' }}
             />
             <div style={{ fontSize: 'var(--text-lg, 18px)', fontWeight: 600, color: 'var(--text-primary, #191919)' }}>
-              {userInfo.user.username || '用户'}
+              {userInfo.user.username || t('moments.defaultUser')}
             </div>
             <div style={{ fontSize: 'var(--text-sm2, 14px)', color: 'var(--text-tertiary, #999)' }}>
-              投聊号: {userInfo.user.wechat_id}
+              {t('contacts.touliaoIdTemplate').replace('{id}', userInfo.user.wechat_id)}
             </div>
             <button
               onClick={sendFriend}
@@ -235,7 +237,7 @@ export default function ScanQR({ onClose }) {
                 fontSize: 'var(--text-base, 15px)', cursor: userBtnDisabled() ? 'default' : 'pointer',
                 opacity: phase === 'adding' ? 0.7 : 1,
               }}
-            >{phase === 'adding' ? '发送中…' : userBtnLabel()}</button>
+            >{phase === 'adding' ? t('scanQR.sending') : userBtnLabel()}</button>
           </div>
         )}
 
@@ -248,7 +250,7 @@ export default function ScanQR({ onClose }) {
                 padding: '8px 24px', border: 'none', borderRadius: 'var(--radius-2xl, 20px)',
                 background: 'var(--green, #6D5AE6)', color: '#fff', fontSize: 'var(--text-base, 15px)', cursor: 'pointer',
               }}
-            >关闭</button>
+            >{t('common.close')}</button>
           </div>
         )}
 

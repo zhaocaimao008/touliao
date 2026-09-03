@@ -8,6 +8,7 @@ import { humanFileSize } from '../utils/fileSize';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
 import ImgOptimized from './ImgOptimized';
 import { linkify } from '../utils/linkify';
+import { useI18n } from '../contexts/I18nContext';
 
 // Time divider rendered as a list item
 export const TimeDivider = memo(function TimeDivider({ time }) {
@@ -19,6 +20,7 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
 });
 
 const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
+  const { t } = useI18n();
   const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
     convType, userId, groupSettings, myGroupRole, members,
     consecutive } = item;
@@ -149,8 +151,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               <div
                 className="wc-msg-read wc-msg-status-error-icon"
                 data-testid="msg-send-failed"
-                title="发送失败，点击重发"
-                role="button" tabIndex={0} aria-label="发送失败，点击重发"
+                title={t('messageItem.sendFailedRetry')}
+                role="button" tabIndex={0} aria-label={t('messageItem.sendFailedRetry')}
                 onClick={() => cbs.retryMessage(msg)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.retryMessage(msg); } }}
               >❗</div>
@@ -166,14 +168,14 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
           {isScheduled && (
             <span
               data-testid="msg-scheduled-badge"
-              title="定时发送的消息"
+              title={t('messageItem.scheduledMessageTitle')}
               style={{
                 position: 'absolute', top: 2, left: isMine ? 'auto' : 2, right: isMine ? 2 : 'auto',
                 fontSize: 'var(--text-2xs)', padding: '1px 5px', borderRadius: 'var(--radius-badge)',
                 background: 'rgba(109,90,230,.85)', color: '#fff',
                 pointerEvents: 'none', zIndex: 1,
               }}
-            >定时</span>
+            >{t('messageItem.scheduled')}</span>
           )}
           <div
             data-testid={`msg-bubble-${msg.id}`}
@@ -184,7 +186,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
             {/* 引用块：被引用消息已撤回/删除时整块移除，UI 无痕（不显示"消息已撤回"） */}
             {msg.replyTo && !msg.replyTo.deleted && (
               <div className={`wc-msg-reply gi-cp${(msg.type === 'image' || msg.type === 'video' || msg.type === 'sticker') ? ' wc-msg-reply--on-media' : ''}`} role="button" tabIndex={0} data-testid="msg-reply-preview"
-                aria-label="跳转到被引用的消息"
+                aria-label={t('messageItem.jumpToQuotedAriaLabel')}
                 onClick={e => { e.stopPropagation(); cbs.scrollToMsg(msg.replyTo.id); }}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); cbs.scrollToMsg(msg.replyTo.id); } }}>
                 <div className="wc-msg-reply-name">{msg.replyTo.senderName}</div>
@@ -207,7 +209,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
             {msg.type === 'text' && (
               <span>
                 {linkify(msg.content)}
-                {msg.edited ? <span className="wc-msg-edited" data-testid="msg-edited-flag" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>已编辑</span> : null}
+                {msg.edited ? <span className="wc-msg-edited" data-testid="msg-edited-flag" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>{t('messageItem.edited')}</span> : null}
               </span>
             )}
             {msg.type === 'image' && (() => {
@@ -223,10 +225,10 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 <ImgOptimized
                   data-testid="msg-image"
                   src={imgSrc}
-                  alt="消息图片"
+                  alt={t('messageItem.messageImageAlt')}
                   className="wc-msg-img"
                   aspectStyle={aspectStyle}
-                  role="button" tabIndex={0} aria-label="查看大图"
+                  role="button" tabIndex={0} aria-label={t('moments.viewLargeImage')}
                   onClick={() => cbs.setLightboxUrl(imgSrc)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.setLightboxUrl(imgSrc); } }}
                   onLoad={e => {
@@ -252,7 +254,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               return (
                 <div
                   className="wc-msg-video-wrap"
-                  role="button" tabIndex={0} aria-label="播放视频"
+                  role="button" tabIndex={0} aria-label={t('messageItem.playVideo')}
                   onClick={openPreview}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPreview(); } }}
                   style={{
@@ -331,10 +333,10 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                     <Avatar src={card.avatar} name={card.username} size={40} style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
                     <div className="wc-contact-card-info">
                       <div className="wc-contact-card-name">{card.username || '用户'}</div>
-                      {card.wechat_id && <div className="wc-contact-card-wechat">投聊号：{card.wechat_id}</div>}
+                      {card.wechat_id && <div className="wc-contact-card-wechat">{t('messageItem.touliaoIdTemplate').replace('{id}', card.wechat_id)}</div>}
                     </div>
                   </div>
-                  <div className="wc-contact-card-footer">个人名片</div>
+                  <div className="wc-contact-card-footer">{t('messageItem.personalCard')}</div>
                 </div>
               );
             })()}
@@ -346,7 +348,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   onClick={() => cbs.openRedPacket(rp.packetId)}
                   className="wc-redpacket-card"
                   role="button" tabIndex={0}
-                  aria-label="打开红包"
+                  aria-label={t('messageItem.openRedPacket')}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.openRedPacket(rp.packetId); } }}
                 >
                   <div className="wc-redpacket-body">
@@ -355,10 +357,10 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                       <div className="wc-redpacket-greeting">
                         {rp.greeting || '恭喜发财，大吉大利'}
                       </div>
-                      <div className="wc-redpacket-hint">点击领取红包</div>
+                      <div className="wc-redpacket-hint">{t('messageItem.clickToClaimRedPacket')}</div>
                     </div>
                   </div>
-                  <div className="wc-redpacket-footer">投聊红包</div>
+                  <div className="wc-redpacket-footer">{t('messageItem.touliaoRedPacket')}</div>
                 </div>
               );
             })()}

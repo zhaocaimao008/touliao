@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
+import { useI18n } from '../contexts/I18nContext';
 
 // 从(可能带 ?token= 的)图片地址里抽一个像样的下载文件名
 function filenameFromUrl(u) {
@@ -12,6 +13,7 @@ function filenameFromUrl(u) {
 }
 
 export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose }) {
+  const { t } = useI18n();
   // Gallery mode: urls array + current index; single mode: just url
   const gallery = urls && urls.length > 1;
   const [idx, setIdx] = useState(initialIdx);
@@ -129,7 +131,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   return (
     <div
       data-testid="lightbox"
-      role="dialog" aria-modal="true" aria-label="图片预览"
+      role="dialog" aria-modal="true" aria-label={t('imagePreview.title')}
       style={{
         position: 'fixed', inset: 0, zIndex: "var(--z-top)",
         background: 'rgba(0,0,0,.92)',
@@ -162,7 +164,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         data-testid="lightbox-image"
         key={currentUrl}
         src={currentUrl}
-        alt={gallery ? `图片 ${idx + 1} / ${urls.length}` : '图片预览'}
+        alt={gallery ? t('imagePreview.imageAltTemplate').replace('{n}', idx + 1).replace('{total}', urls.length) : t('imagePreview.title')}
         loading="lazy"
         draggable={false}
         onLoad={() => setLoaded(true)}
@@ -190,8 +192,8 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
       {/* Gallery navigation arrows */}
       {gallery && (
         <>
-          <button data-testid="lightbox-prev" onClick={(e) => { e.stopPropagation(); prev(); }} style={arrowStyle('left')} aria-label="上一张">‹</button>
-          <button data-testid="lightbox-next" onClick={(e) => { e.stopPropagation(); next(); }} style={arrowStyle('right')} aria-label="下一张">›</button>
+          <button data-testid="lightbox-prev" onClick={(e) => { e.stopPropagation(); prev(); }} style={arrowStyle('left')} aria-label={t('imagePreview.prev')}>‹</button>
+          <button data-testid="lightbox-next" onClick={(e) => { e.stopPropagation(); next(); }} style={arrowStyle('right')} aria-label={t('imagePreview.next')}>›</button>
           <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
             color: 'rgba(255,255,255,.7)', fontSize: 'var(--text-sm2)', zIndex: 10, pointerEvents: 'none' }}>
             {idx + 1} / {urls.length}
@@ -210,7 +212,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
       >
         <button
           onClick={(e) => { e.stopPropagation(); downloadFile(currentUrl, filenameFromUrl(currentUrl)); }}
-          aria-label="下载图片"
+          aria-label={t('imagePreview.download')}
           style={{
             border: 'none', cursor: 'pointer',
             color: 'var(--text-inverse)', fontSize: 'var(--text-sm2)',
@@ -228,8 +230,8 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         </button>
         {canShare() && (
           <button
-            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: currentUrl, filename: filenameFromUrl(currentUrl), title: '分享图片' }); }}
-            aria-label="分享图片"
+            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: currentUrl, filename: filenameFromUrl(currentUrl), title: t('imagePreview.share') }); }}
+            aria-label={t('imagePreview.share')}
             data-testid="lightbox-share"
             style={{
               border: 'none', cursor: 'pointer',
@@ -261,7 +263,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           border: 'none', cursor: 'pointer', zIndex: 10,
           backdropFilter: 'blur(10px)',
         }}
-        aria-label="关闭"
+        aria-label={t('common.close')}
       >
         ✕
       </button>

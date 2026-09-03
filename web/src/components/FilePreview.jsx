@@ -4,10 +4,12 @@ import { startDownload, subscribe, cancelDownload, retryDownload } from '../util
 import { shareMessage, canShare } from '../utils/share';
 import { humanFileSize as humanSize } from '../utils/fileSize';
 import { classify, extOf } from '../utils/attachmentType';
+import { useI18n } from '../contexts/I18nContext';
 
 // ── 各格式子渲染器 ──────────────────────────────────────────────
 
 function PdfRenderer({ url, onLoaded, onError }) {
+  const { t } = useI18n();
   const containerRef = useRef(null);
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1);
@@ -27,7 +29,7 @@ function PdfRenderer({ url, onLoaded, onError }) {
         setNumPages(doc.numPages);
         onLoaded?.();
       } catch (e) {
-        if (!cancelled) onError?.(e?.message || 'PDF 解析失败');
+        if (!cancelled) onError?.(e?.message || t('filePreview.pdfParseFailed'));
       }
     })();
     return () => { cancelled = true; };
@@ -76,6 +78,7 @@ function PdfRenderer({ url, onLoaded, onError }) {
 const zoomBtnStyle = { border: 'none', background: 'transparent', color: '#fff', fontSize: 18, cursor: 'pointer', width: 24 };
 
 function DocxRenderer({ url, onLoaded, onError }) {
+  const { t } = useI18n();
   const containerRef = useRef(null);
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +97,7 @@ function DocxRenderer({ url, onLoaded, onError }) {
         }
         onLoaded?.();
       } catch (e) {
-        if (!cancelled) onError?.(e?.message || 'Word 文档解析失败');
+        if (!cancelled) onError?.(e?.message || t('filePreview.wordParseFailed'));
       }
     })();
     return () => { cancelled = true; };
@@ -104,6 +107,7 @@ function DocxRenderer({ url, onLoaded, onError }) {
 }
 
 function XlsxRenderer({ url, onLoaded, onError }) {
+  const { t } = useI18n();
   const [sheets, setSheets] = useState(null);
   const [activeSheet, setActiveSheet] = useState(0);
   useEffect(() => {
@@ -123,7 +127,7 @@ function XlsxRenderer({ url, onLoaded, onError }) {
         setSheets(parsed);
         onLoaded?.();
       } catch (e) {
-        if (!cancelled) onError?.(e?.message || 'Excel 文档解析失败');
+        if (!cancelled) onError?.(e?.message || t('filePreview.excelParseFailed'));
       }
     })();
     return () => { cancelled = true; };
@@ -155,6 +159,7 @@ function XlsxRenderer({ url, onLoaded, onError }) {
 }
 
 function TextRenderer({ url, filename, onLoaded, onError }) {
+  const { t } = useI18n();
   const [text, setText] = useState('');
   const isMd = extOf(filename) === 'md' || extOf(filename) === 'markdown';
   const isCsv = extOf(filename) === 'csv';
@@ -167,7 +172,7 @@ function TextRenderer({ url, filename, onLoaded, onError }) {
         const t = await resp.text();
         if (!cancelled) { setText(t); onLoaded?.(); }
       } catch (e) {
-        if (!cancelled) onError?.(e?.message || '文件读取失败');
+        if (!cancelled) onError?.(e?.message || t('filePreview.fileReadFailed'));
       }
     })();
     return () => { cancelled = true; };
@@ -204,6 +209,7 @@ function TextRenderer({ url, filename, onLoaded, onError }) {
 // 文本节点，不还原版式/图片，但至少能在 App 内看到每页写了什么，比完全不能预览、
 // 只能下载好。明确告知用户这是简化预览。
 function PptxRenderer({ url, onLoaded, onError }) {
+  const { t } = useI18n();
   const [slides, setSlides] = useState(null);
   useEffect(() => {
     let cancelled = false;
@@ -232,7 +238,7 @@ function PptxRenderer({ url, onLoaded, onError }) {
         }
         if (!cancelled) { setSlides(out); onLoaded?.(); }
       } catch (e) {
-        if (!cancelled) onError?.(e?.message || 'PPT 解析失败');
+        if (!cancelled) onError?.(e?.message || t('filePreview.pptParseFailed'));
       }
     })();
     return () => { cancelled = true; };
@@ -246,16 +252,16 @@ function PptxRenderer({ url, onLoaded, onError }) {
         background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 8,
         padding: '8px 12px', fontSize: 12, color: '#8a6d00', marginBottom: 16,
       }}>
-        简化预览：仅展示每页文字内容，不还原排版/图片/动画。如需完整效果请下载后用 Office/WPS 打开。
+        {t('filePreview.pptxSimplifiedNotice')}
       </div>
       {slides.map((texts, i) => (
         <div key={i} style={{
           border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 12,
           aspectRatio: '16/9', display: 'flex', flexDirection: 'column', justifyContent: 'center',
         }}>
-          <div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>第 {i + 1} 页</div>
+          <div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>{t('filePreview.pageTemplate').replace('{n}', i + 1)}</div>
           {texts.length ? texts.map((t, j) => <div key={j} style={{ fontSize: 15, marginBottom: 4 }}>{t}</div>)
-            : <div style={{ color: '#bbb', fontSize: 13 }}>（此页无文字内容）</div>}
+            : <div style={{ color: '#bbb', fontSize: 13 }}>{t('filePreview.pptxNoTextContent')}</div>}
         </div>
       ))}
     </div>
@@ -278,6 +284,7 @@ function iconFor(kind) {
  * 与 ImagePreview/VideoPreview 对齐的全屏遮罩交互：Esc 关闭、底部操作条。
  */
 export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onClose }) {
+  const { t } = useI18n();
   const url = mediaUrl(fileUrl);
   const kind = classify(mimeType, filename);
   const [loadState, setLoadState] = useState('loading'); // loading | ready | error
@@ -311,7 +318,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
 
   return (
     <div
-      role="dialog" aria-modal="true" aria-label="文件预览" data-testid="file-preview"
+      role="dialog" aria-modal="true" aria-label={t('filePreview.title')} data-testid="file-preview"
       style={{
         position: 'fixed', inset: 0, zIndex: 'var(--z-top)', background: 'rgba(0,0,0,.85)',
         display: 'flex', flexDirection: 'column', animation: 'fadeIn .18s ease-out',
@@ -322,7 +329,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
         display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
         background: 'rgba(0,0,0,.5)', color: '#fff', flexShrink: 0,
       }}>
-        <button onClick={onClose} aria-label="返回" data-testid="file-preview-close"
+        <button onClick={onClose} aria-label={t('common.back')} data-testid="file-preview-close"
           style={{ border: 'none', background: 'transparent', color: '#fff', fontSize: 20, cursor: 'pointer', padding: 4 }}>
           ‹
         </button>
@@ -331,9 +338,9 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
           {fileSize ? <div style={{ fontSize: 12, opacity: .7 }}>{humanSize(fileSize)}</div> : null}
         </div>
         {canShare() && (
-          <button onClick={() => shareMessage({ fileUrl: url, filename, title: filename })} aria-label="分享"
+          <button onClick={() => shareMessage({ fileUrl: url, filename, title: filename })} aria-label={t('filePreview.share')}
             style={{ border: 'none', background: 'transparent', color: '#fff', fontSize: 14, cursor: 'pointer', padding: 4 }}>
-            分享
+            {t('filePreview.share')}
           </button>
         )}
       </div>
@@ -347,8 +354,8 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
         )}
         {loadState === 'error' && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-            <div>无法预览：{errorMsg}</div>
-            <button onClick={startSave} style={{ ...actionBtnStyle }}>下载后用其他应用打开</button>
+            <div>{t('filePreview.cannotPreviewTemplate').replace('{error}', errorMsg)}</div>
+            <button onClick={startSave} style={{ ...actionBtnStyle }}>{t('filePreview.downloadThenOpenElsewhere')}</button>
           </div>
         )}
         <div style={{ display: loadState === 'ready' ? 'block' : 'none', width: '100%', height: '100%' }}>
@@ -392,17 +399,17 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
               <div style={{ width: `${dl.progress || 0}%`, height: '100%', background: 'var(--brand-primary, #07C160)', transition: 'width .2s' }} />
             </div>
             <span>{dl.indeterminate ? '下载中…' : `${dl.progress || 0}%`}</span>
-            <button onClick={() => cancelDownload(dlIdRef.current)} style={linkBtnStyle}>取消</button>
+            <button onClick={() => cancelDownload(dlIdRef.current)} style={linkBtnStyle}>{t('common.cancel')}</button>
           </div>
         )}
-        {dl && dl.status === 'completed' && <div style={{ color: '#fff', fontSize: 13 }}>已保存 ✓</div>}
+        {dl && dl.status === 'completed' && <div style={{ color: '#fff', fontSize: 13 }}>{t('filePreview.saved')}</div>}
         {dl && dl.status === 'cancelled' && (
-          <button onClick={startSave} style={actionBtnStyle}>已取消，重新下载</button>
+          <button onClick={startSave} style={actionBtnStyle}>{t('filePreview.cancelledRedownload')}</button>
         )}
         {dl && dl.status === 'failed' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#fff', fontSize: 13 }}>
-            <span>下载失败</span>
-            <button onClick={() => retryDownload(dlIdRef.current)} style={linkBtnStyle}>重试</button>
+            <span>{t('filePreview.downloadFailed')}</span>
+            <button onClick={() => retryDownload(dlIdRef.current)} style={linkBtnStyle}>{t('filePreview.retry')}</button>
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@ import { format } from '../utils/time';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import VideoPreview from './VideoPreview';
+import { useI18n } from '../contexts/I18nContext';
 
 /**
  * 聊天文件聚合视图（抽屉面板）
@@ -31,6 +32,7 @@ const IcoVideo = () => (
 );
 
 export default function ChatFiles({ convId, onClose }) {
+  const { t } = useI18n();
   const [tab, setTab] = useState('all');
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -97,7 +99,7 @@ export default function ChatFiles({ convId, onClose }) {
   return (
     <div
       role="dialog"
-      aria-label="聊天文件"
+      aria-label={t('chatFiles.title')}
       className="chatfiles-overlay-root"
     >
       {/* 遮罩 */}
@@ -114,7 +116,7 @@ export default function ChatFiles({ convId, onClose }) {
         <div className="chatfiles-header">
           <button
             onClick={onClose}
-            aria-label="关闭聊天文件"
+            aria-label={t('chatFiles.closeAriaLabel')}
             className="chatfiles-close-btn"
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
@@ -123,7 +125,7 @@ export default function ChatFiles({ convId, onClose }) {
               <path d="M19 11H7.83l4.88-4.88c.39-.39.39-1.03 0-1.42-.39-.39-1.02-.39-1.41 0l-6.59 6.59c-.39.39-.39 1.02 0 1.41l6.59 6.59c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L7.83 13H19c.55 0 1-.45 1-1s-.45-1-1-1z"/>
             </svg>
           </button>
-          <span className="chatfiles-title">聊天文件</span>
+          <span className="chatfiles-title">{t('chatFiles.title')}</span>
           <span className="chatfiles-count">
             共 {total} 项
           </span>
