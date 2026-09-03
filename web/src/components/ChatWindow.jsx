@@ -5,11 +5,11 @@ import { showToast, showConfirm } from '../utils/toast';
 import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
+import { prewarmAudio } from '../utils/callTones';
 import VideoPreview from './VideoPreview';
 import FilePreview from './FilePreview';
 import VirtualMessageList from './VirtualMessageList';
 import ChatHeader from './ChatHeader';
-import { prewarmAudio, stopTone, startIncomingTone } from '../utils/callTones';
 import ConvSearchBar from './ConvSearchBar';
 import PinnedBanner from './PinnedBanner';
 import UploadProgressBar from './UploadProgressBar';
@@ -42,7 +42,6 @@ const UserProfile         = lazy(() => import('./UserProfile'));
 const RedPacketModal      = lazy(() => import('./RedPacketModal'));
 const TransferModal       = lazy(() => import('./TransferModal'));
 const ForwardModal        = lazy(() => import('./ForwardModal'));
-import GroupCallModal from './GroupCallModal'; // 保持 eager：处理来电需立即挂载
 const ScheduleSendModal   = lazy(() => import('./ScheduleSendModal'));
 const PrivateChatSettings = lazy(() => import('./PrivateChatSettings'));
 const ChatFiles           = lazy(() => import('./ChatFiles'));
@@ -155,7 +154,7 @@ function detectMention(val, caret) {
   return null;
 }
 
-export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall }) {
+export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall, onStartGroupCall }) {
   const { t } = useI18n();
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
@@ -215,8 +214,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   // 通话状态
-  const [groupCall, setGroupCall] = useState(null);        // 进行中的群通话 session
-  const [groupCallInvite, setGroupCallInvite] = useState(null); // 收到的群通话邀请
   // 文件上传进度：null | { name, progress:0-100, status:'uploading'|'error', retryFn? }
   const [uploadState, setUploadState] = useState(null);
   // 跳转到指定消息（供撤回定位、引用点击等）——非搜索，保留
@@ -372,44 +369,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     return () => socket.off('call:error', onCallError);
   }, [socket, t]);
 
-  // 发起群通话（群聊）
+  // 发起群通话（群聊）——session 生命周期提到 Home 顶层全局挂载（2026-09-03），
+  // 这里只负责触发，不再自己持有 groupCall/groupCallInvite 状态。
   const startGroupCall = useCallback((type) => {
-    if (conversation.type !== 'group' || groupCall) return;
-    setGroupCallInvite(null);
-    setGroupCall({ mode: 'start', conversationId: conversation.id, type });
-  }, [conversation.type, conversation.id, groupCall]);
-
-  // 监听本群的群通话邀请（仅当前打开的群，避免与 1:1 来电逻辑冲突）
-  useEffect(() => {
-    if (!socket) return;
-    const onInvite = (inv) => {
-      if (inv.conversationId !== conversation.id) return;     // 只提示当前群
-      if (groupCall) return;                                  // 已在通话中
-      setGroupCallInvite(inv);
-    };
-    socket.on('group_call:invite', onInvite);
-    return () => socket.off('group_call:invite', onInvite);
-  }, [socket, conversation.id, groupCall]);
-
-  // 群通话被叫来电铃声：收到邀请条(未加入/未拒绝)期间循环;消失即停
-  const inviteToneRef = useRef(null);
-  useEffect(() => {
-    if (groupCallInvite && !groupCall) {
-      prewarmAudio();
-      stopTone();
-      inviteToneRef.current = startIncomingTone();
-    } else {
-      inviteToneRef.current?.stop();
-      inviteToneRef.current = null;
-    }
-    return () => { inviteToneRef.current?.stop(); inviteToneRef.current = null; };
-  }, [groupCallInvite, groupCall]);
-
-  const joinGroupCall = useCallback(() => {
-    if (!groupCallInvite) return;
-    setGroupCall({ mode: 'join', callId: groupCallInvite.callId, conversationId: groupCallInvite.conversationId, type: groupCallInvite.type });
-    setGroupCallInvite(null);
-  }, [groupCallInvite]);
+    if (conversation.type !== 'group') return;
+    prewarmAudio(); // 手势栈内同步预热，回铃音在 Home 顶层的 GroupCallModal 里播放
+    onStartGroupCall?.(conversation.id, type);
+  }, [conversation.type, conversation.id, onStartGroupCall]);
 
   // 阅后即焚：Map msgId → setTimeout handle，切换会话时统一取消
   const burnTimersRef = useRef(new Map());
@@ -2439,23 +2405,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           fileSize={filePreview.fileSize}
           onClose={() => setFilePreview(null)}
         />
-      )}
-      {groupCall && (
-        <GroupCallModal
-          socket={socket}
-          user={user}
-          session={groupCall}
-          onClose={() => setGroupCall(null)}
-        />
-      )}
-      {groupCallInvite && !groupCall && (
-        <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: "calc(var(--z-call) + 100)", background: 'var(--bg-ctx-menu)', color: 'var(--text-inverse)', borderRadius: 'var(--radius-lg)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 28px rgba(0,0,0,.4)' }}>
-          <span style={{ fontSize: 'var(--text-base)' }}>
-            {t('chat.groupCallInviteTemplate').replace('{name}', groupCallInvite.fromName || t('chat.groupMemberDefault')).replace('{type}', groupCallInvite.type === 'video' ? t('chat.callTypeVideo') : t('chat.callTypeVoice'))}
-          </span>
-          <button onClick={joinGroupCall} style={{ background: 'var(--color-primary,#6D5AE6)', color: 'var(--text-inverse)', border: 0, borderRadius: 'var(--radius-input)', padding: '6px 14px', cursor: 'pointer' }}>{t('chat.join')}</button>
-          <button onClick={() => setGroupCallInvite(null)} style={{ background: 'transparent', color: 'rgba(255,255,255,.6)', border: 0, cursor: 'pointer' }}>{t('chat.ignore')}</button>
-        </div>
       )}
       {/* ── Header ── */}
       <ChatHeader

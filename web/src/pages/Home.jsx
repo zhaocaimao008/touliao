@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, laz
 import { showConfirm } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
 import { startCallVisualAlert, stopCallVisualAlert } from '../utils/callVisualAlert';
-import { setIncomingRingtone } from '../utils/callTones';
+import { setIncomingRingtone, prewarmAudio, stopTone, startIncomingTone } from '../utils/callTones';
 import CallSoundGuide from '../components/CallSoundGuide';
 import './Home.css';
 import axios from 'axios';
@@ -21,6 +21,7 @@ const ChatWindow    = lazy(() => import('../components/ChatWindow'));
 const Moments       = lazy(() => import('../components/Moments'));
 const CallHistory   = lazy(() => import('../components/CallHistory'));
 const CallModal     = lazy(() => import('../components/CallModal'));
+const GroupCallModal = lazy(() => import('../components/GroupCallModal'));
 const Collections   = lazy(() => import('../components/Collections'));
 const AddFriendModal = lazy(() => import('../components/AddFriendModal'));
 const MentionList   = lazy(() => import('../components/MentionList'));
@@ -830,6 +831,50 @@ export default function Home() {
     return () => socket.off('call:incoming', onIncoming);
   }, [socket, showNotification, busyElsewhereCallId, t]);
 
+  // 群通话（进行中 session / 收到的邀请）——提到 Home 顶层是因为 socket 在连接时
+  // 就 join 了用户所有会话的房间（backend-v2/src/realtime/index.js），邀请广播不
+  // 分你当前打开的是哪个会话；此前监听器挂在 ChatWindow 内部，只有邀请所属的那个
+  // 群聊恰好正打开时才收得到，别的会话/标签页收不到任何提醒（真实断点，2026-09-03 修）。
+  const [groupCall, setGroupCall] = useState(null);
+  const [groupCallInvite, setGroupCallInvite] = useState(null);
+
+  useEffect(() => {
+    if (!socket) return;
+    const onInvite = (inv) => {
+      if (groupCall || activeCall) return; // 已在通话中（1:1 或群）——忽略，加入时后端 registry 会再兜底判忙
+      setGroupCallInvite(inv);
+    };
+    socket.on('group_call:invite', onInvite);
+    return () => socket.off('group_call:invite', onInvite);
+  }, [socket, groupCall, activeCall]);
+
+  // 群通话被叫来电铃声：收到邀请条(未加入/未拒绝)期间循环;消失即停
+  const groupInviteToneRef = useRef(null);
+  useEffect(() => {
+    if (groupCallInvite && !groupCall) {
+      prewarmAudio();
+      stopTone();
+      groupInviteToneRef.current = startIncomingTone();
+    } else {
+      groupInviteToneRef.current?.stop();
+      groupInviteToneRef.current = null;
+    }
+    return () => { groupInviteToneRef.current?.stop(); groupInviteToneRef.current = null; };
+  }, [groupCallInvite, groupCall]);
+
+  const joinGroupCall = useCallback(() => {
+    if (!groupCallInvite) return;
+    setGroupCall({ mode: 'join', callId: groupCallInvite.callId, conversationId: groupCallInvite.conversationId, type: groupCallInvite.type });
+    setGroupCallInvite(null);
+  }, [groupCallInvite]);
+
+  // 从 ChatWindow 发起群通话（仅当前打开的群聊会调用）——session 全局挂载，
+  // 与是否切走会话/关闭聊天窗口无关，行为对齐 1:1 通话的 handleStartCall。
+  const handleStartGroupCall = useCallback((conversationId, type) => {
+    setGroupCallInvite(null);
+    setGroupCall({ mode: 'start', conversationId, type });
+  }, []);
+
   const handleTabChange = (t) => {
     setTab(t);
     setSearch('');
@@ -954,6 +999,25 @@ export default function Home() {
           />
         </Suspense>
       )}
+      {groupCall && (
+        <Suspense fallback={null}>
+          <GroupCallModal
+            socket={socket}
+            user={user}
+            session={groupCall}
+            onClose={() => setGroupCall(null)}
+          />
+        </Suspense>
+      )}
+      {groupCallInvite && !groupCall && (
+        <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: "calc(var(--z-call) + 100)", background: 'var(--bg-ctx-menu)', color: 'var(--text-inverse)', borderRadius: 'var(--radius-lg)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 28px rgba(0,0,0,.4)' }}>
+          <span style={{ fontSize: 'var(--text-base)' }}>
+            {t('chat.groupCallInviteTemplate').replace('{name}', groupCallInvite.fromName || t('chat.groupMemberDefault')).replace('{type}', groupCallInvite.type === 'video' ? t('chat.callTypeVideo') : t('chat.callTypeVoice'))}
+          </span>
+          <button onClick={joinGroupCall} style={{ background: 'var(--color-primary,#6D5AE6)', color: 'var(--text-inverse)', border: 0, borderRadius: 'var(--radius-input)', padding: '6px 14px', cursor: 'pointer' }}>{t('chat.join')}</button>
+          <button onClick={() => setGroupCallInvite(null)} style={{ background: 'transparent', color: 'rgba(255,255,255,.6)', border: 0, cursor: 'pointer' }}>{t('chat.ignore')}</button>
+        </div>
+      )}
       {showQR && (
         <div className="wc-modal-overlay" role="button" tabIndex={0} onClick={() => setShowQR(false)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowQR(false); } }}>
@@ -1026,7 +1090,7 @@ export default function Home() {
           <div className="m-chat-page">
             <ChatWindowBoundary convId={activeConv.id}>
               <Suspense fallback={<ChatSkeleton />}>
-                <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={handleMobileBack} onStartCall={handleStartCall} />
+                <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={handleMobileBack} onStartCall={handleStartCall} onStartGroupCall={handleStartGroupCall} />
               </Suspense>
             </ChatWindowBoundary>
           </div>
@@ -1168,7 +1232,7 @@ export default function Home() {
               ? (
                 <ChatWindowBoundary convId={activeConv.id}>
                   <Suspense fallback={<div className="wc-lazy-pane" />}>
-                    <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} />
+                    <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} onStartGroupCall={handleStartGroupCall} />
                   </Suspense>
                 </ChatWindowBoundary>
               )
