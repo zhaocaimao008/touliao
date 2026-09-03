@@ -710,6 +710,7 @@ extension CallManager: RTCPeerConnectionDelegate {
         }
         iceRestartCount += 1
         pc.restartIce()
+        createOfferAndSend()   // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通
         iceRestartRecoverTask?.cancel()
         iceRestartRecoverTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: self?.ICE_RESTART_WINDOW_MS ?? 15_000_000_000)

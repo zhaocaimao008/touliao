@@ -377,6 +377,7 @@ class CallManager @Inject constructor(
         if (iceRestartCount >= ICE_RESTART_MAX) { endCallByNetwork(); return }
         iceRestartCount++
         pc.restartIce()
+        createOfferAndSend()   // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通
         iceRestartRecoverJob?.cancel()
         iceRestartRecoverJob = scope.launch {
             delay(ICE_RESTART_WINDOW_MS)

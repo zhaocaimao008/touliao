@@ -336,7 +336,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     //   failed → 未重启过先给 1 次 restart;窗口进行中交给窗口;否则挂断
     //   connected(restart 后恢复) → 清定时器 + 计数清零,可反复自愈
     // 信令复用现有 call:offer/answer/ice(后端纯转发零改动,对端走现有应答逻辑)。
-    const tryIceRestart = () => {
+    const tryIceRestart = async () => {
       if (iceRestartCountRef.current >= ICE_RESTART_MAX) {
         clearTimeout(restartRecoverRef.current);
         endCall(true, 'network');
@@ -344,6 +344,15 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       }
       iceRestartCountRef.current += 1;
       pc.restartIce();
+      // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通（对齐 iOS/Android 修复）
+      try {
+        const offer = await pc.createOffer();
+        const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
+        await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+        socket?.emit('call:offer', withCallId({ to: remoteId, offer: { type: offer.type, sdp: tunedOffer } }, callId));
+      } catch (err) {
+        console.error('[call] ICE restart 重协商失败:', err);
+      }
       restartRecoverRef.current = setTimeout(() => {
         const st = pcRef.current?.connectionState;
         if (st === 'disconnected' || st === 'failed') tryIceRestart();

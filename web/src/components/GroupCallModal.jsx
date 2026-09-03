@@ -139,11 +139,20 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     };
     // ICE restart 状态机(与 1:1 同策略):disconnected 3s 防抖 → restartIce → 15s 窗口
     // → 最多 3 次 → removePeer。信令复用 group_call:offer/answer/ice,后端零改动。
-    const tryPeerRestart = () => {
+    const tryPeerRestart = async () => {
       const count = peerRestartCountRef.current.get(peerId) || 0;
       if (count >= ICE_RESTART_MAX) { removePeer(peerId); return; }
       peerRestartCountRef.current.set(peerId, count + 1);
       pc.restartIce();
+      // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通（对齐 1:1/iOS/Android 修复）
+      try {
+        const offer = await pc.createOffer();
+        const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
+        await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+        socket?.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type: offer.type, sdp: tunedOffer } });
+      } catch (err) {
+        console.error('[groupCall] ICE restart 重协商失败:', err);
+      }
       const timers = peerRestartTimersRef.current.get(peerId) || {};
       clearTimeout(timers.recover);
       timers.recover = setTimeout(() => {

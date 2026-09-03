@@ -222,12 +222,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         socket.gcPeerJoined.receive(on: DispatchQueue.main).sink { [weak self] (callId, userId) in
             guard let self, callId == self.state.callId, let entry = self.peerFor(userId) else { return }
             self.state.participants = Array(self.peers.keys)
-            entry.pc.offer(for: self.mediaConstraints()) { [weak self] desc, err in
-                guard let self, let desc, err == nil else { return }
-                let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
-                entry.pc.setLocalDescription(tuned) { _ in }
-                self.socket.emitGroupCallOffer(callId: self.state.callId, to: userId, sdp: tuned.sdp)
-            }
+            self.sendOffer(to: userId, entry: entry)
         }.store(in: &cancellables)
 
         socket.gcOffer.receive(on: DispatchQueue.main).sink { [weak self] (callId, from, sdp) in
@@ -274,6 +269,16 @@ final class GroupCallManager: NSObject, ObservableObject {
             guard self.state.stage != .idle, callId.isEmpty || callId == self.state.callId else { return }
             self.cleanup()
         }.store(in: &cancellables)
+    }
+
+    /// 建 offer(含弱网 SDP 调优)并通过信令发给指定 peer；新成员加入和 ICE restart 重协商共用。
+    private func sendOffer(to peerId: String, entry: PeerEntry) {
+        entry.pc.offer(for: mediaConstraints()) { [weak self] desc, err in
+            guard let self, let desc, err == nil else { return }
+            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
+            entry.pc.setLocalDescription(tuned) { _ in }
+            self.socket.emitGroupCallOffer(callId: self.state.callId, to: peerId, sdp: tuned.sdp)
+        }
     }
 
     private func drainIce(_ peerId: String) {
@@ -332,6 +337,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         }
         entry.iceRestartCount += 1
         entry.pc.restartIce()
+        sendOffer(to: peerId, entry: entry)   // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通
         entry.iceRestartRecoverTask?.cancel()
         entry.iceRestartRecoverTask = Task { @MainActor [weak self, weak entry] in
             try? await Task.sleep(nanoseconds: self?.ICE_RESTART_WINDOW_MS ?? 15_000_000_000)

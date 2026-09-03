@@ -221,13 +221,7 @@ class GroupCallManager @Inject constructor(
                 val peer = peerFor(e.userId)
                 _state.update { it.copy(participants = peers.keys.toList()) }
                 // 既有成员向新 peer 发 offer
-                peer.pc.createOffer(object : SimpleSdpObserver() {
-                    override fun onCreateSuccess(desc: SessionDescription) {
-                        val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
-                        peer.pc.setLocalDescription(SimpleSdpObserver(), tuned)
-                        socketManager.emitGroupCallOffer(_state.value.callId, e.userId, tuned.description)
-                    }
-                }, mediaConstraints())
+                sendOffer(e.userId, peer)
             }
         }
         scope.launch {
@@ -395,6 +389,17 @@ class GroupCallManager @Inject constructor(
         _state.update { it.copy(participants = peers.keys.toList()) }
     }
 
+    /** 建 offer(含弱网调优)并通过信令发给指定 peer；新成员加入和 ICE restart 重协商共用。 */
+    private fun sendOffer(peerId: String, peer: Peer) {
+        peer.pc.createOffer(object : SimpleSdpObserver() {
+            override fun onCreateSuccess(desc: SessionDescription) {
+                val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
+                peer.pc.setLocalDescription(SimpleSdpObserver(), tuned)
+                socketManager.emitGroupCallOffer(_state.value.callId, peerId, tuned.description)
+            }
+        }, mediaConstraints())
+    }
+
     // ── ICE restart 自愈(网络切换,mesh 每 peer 独立) ────────────────────
     // disconnected 3s 防抖 → restartIce() → 15s 恢复窗口 → 未恢复重试,最多 3 次 → removePeer。
     // 信令复用现有 group_call:offer/answer/ice;对端收到重协商 offer 走现有应答逻辑,后端零改动。
@@ -403,6 +408,7 @@ class GroupCallManager @Inject constructor(
         if (peer.iceRestartCount >= ICE_RESTART_MAX) { removePeer(peerId); return }
         peer.iceRestartCount++
         peer.pc.restartIce()
+        sendOffer(peerId, peer)   // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通
         peer.iceRestartRecoverJob?.cancel()
         peer.iceRestartRecoverJob = scope.launch {
             delay(ICE_RESTART_WINDOW_MS)
