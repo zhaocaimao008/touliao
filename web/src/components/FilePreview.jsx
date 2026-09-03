@@ -103,7 +103,7 @@ function DocxRenderer({ url, onLoaded, onError }) {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- onLoaded/onError 是父组件每次渲染新建的内联回调，只应在 url 变化时重新执行
   }, [url]);
-  return <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'auto', background: '#fff', padding: '20px 0' }} />;
+  return <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'auto', background: 'var(--bg-card)', padding: '20px 0' }} />;
 }
 
 function XlsxRenderer({ url, onLoaded, onError }) {
@@ -139,15 +139,15 @@ function XlsxRenderer({ url, onLoaded, onError }) {
 
   if (!sheets) return null;
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-card)' }}>
       {sheets.length > 1 && (
-        <div style={{ display: 'flex', gap: 4, padding: '8px 12px', overflowX: 'auto', borderBottom: '1px solid #eee', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 4, padding: '8px 12px', overflowX: 'auto', borderBottom: '1px solid var(--border-medium)', flexShrink: 0 }}>
           {sheets.map((s, i) => (
             <button key={s.name} onClick={() => setActiveSheet(i)}
               style={{
                 border: 'none', padding: '4px 12px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap',
-                background: i === activeSheet ? 'var(--brand-primary, #07C160)' : '#f0f0f0',
-                color: i === activeSheet ? '#fff' : '#333', fontSize: 13,
+                background: i === activeSheet ? 'var(--brand-primary, #07C160)' : 'var(--bg-card-hover)',
+                color: i === activeSheet ? '#fff' : 'var(--text-primary)', fontSize: 13,
               }}>{s.name}</button>
           ))}
         </div>
@@ -185,12 +185,12 @@ function TextRenderer({ url, filename, onLoaded, onError }) {
   if (isCsv) {
     const rows = text.split(/\r?\n/).filter(r => r.length).map(r => r.split(','));
     return (
-      <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#fff', padding: 16 }}>
+      <div style={{ width: '100%', height: '100%', overflow: 'auto', background: 'var(--bg-card)', padding: 16 }}>
         <table style={{ borderCollapse: 'collapse', width: '100%' }}>
           <tbody>
             {rows.map((r, i) => (
               <tr key={i}>{r.map((c, j) => (
-                <td key={j} style={{ border: '1px solid #e5e5e5', padding: '4px 8px', fontSize: 13 }}>{c}</td>
+                <td key={j} style={{ border: '1px solid var(--border-medium)', padding: '4px 8px', fontSize: 13, color: 'var(--text-primary)' }}>{c}</td>
               ))}</tr>
             ))}
           </tbody>
@@ -200,9 +200,9 @@ function TextRenderer({ url, filename, onLoaded, onError }) {
   }
   return (
     <pre style={{
-      width: '100%', height: '100%', overflow: 'auto', background: '#fff', margin: 0,
+      width: '100%', height: '100%', overflow: 'auto', background: 'var(--bg-card)', margin: 0,
       padding: 20, boxSizing: 'border-box', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap',
-      wordBreak: 'break-word', fontFamily: isMd ? 'inherit' : 'ui-monospace, monospace', color: '#222',
+      wordBreak: 'break-word', fontFamily: isMd ? 'inherit' : 'ui-monospace, monospace', color: 'var(--text-primary)',
     }}>{text}</pre>
   );
 }
@@ -250,21 +250,21 @@ function PptxRenderer({ url, onLoaded, onError }) {
 
   if (!slides) return null;
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#fff', padding: 16 }}>
+    <div style={{ width: '100%', height: '100%', overflow: 'auto', background: 'var(--bg-card)', padding: 16, color: 'var(--text-primary)' }}>
       <div style={{
-        background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 8,
-        padding: '8px 12px', fontSize: 12, color: '#8a6d00', marginBottom: 16,
+        background: 'var(--color-warning-light)', border: '1px solid var(--color-warning)', borderRadius: 8,
+        padding: '8px 12px', fontSize: 12, color: 'var(--color-warning)', marginBottom: 16,
       }}>
         {t('filePreview.pptxSimplifiedNotice')}
       </div>
       {slides.map((texts, i) => (
         <div key={i} style={{
-          border: '1px solid #e5e5e5', borderRadius: 8, padding: 16, marginBottom: 12,
+          border: '1px solid var(--border-medium)', borderRadius: 8, padding: 16, marginBottom: 12,
           aspectRatio: '16/9', display: 'flex', flexDirection: 'column', justifyContent: 'center',
         }}>
-          <div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>{t('filePreview.pageTemplate').replace('{n}', i + 1)}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{t('filePreview.pageTemplate').replace('{n}', i + 1)}</div>
           {texts.length ? texts.map((t, j) => <div key={j} style={{ fontSize: 15, marginBottom: 4 }}>{t}</div>)
-            : <div style={{ color: '#bbb', fontSize: 13 }}>{t('filePreview.pptxNoTextContent')}</div>}
+            : <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('filePreview.pptxNoTextContent')}</div>}
         </div>
       ))}
     </div>
