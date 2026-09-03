@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { useI18n } from '../contexts/I18nContext';
 
 /* ── 文件上传进度 / 失败重试条（从 ChatWindow 抽离）─────────────────
    纯展示子组件：由 uploadState 驱动（null | { name, progress, status,
@@ -6,6 +7,7 @@ import React, { memo } from 'react';
    memo 化后，父组件因打字/来消息等重渲染时，只要 uploadState / onCancel
    未变，进度条不重渲染。 */
 function UploadProgressBar({ uploadState, onCancel }) {
+  const { t } = useI18n();
   if (!uploadState) return null;
   const isError = uploadState.status === 'error';
 
@@ -31,17 +33,17 @@ function UploadProgressBar({ uploadState, onCancel }) {
         <>
           <span className="wc-upload-icon wc-upload-icon-fail">❌</span>
           <div className="wc-upload-error-text">
-            {uploadState.errorMsg || '上传失败'}
+            {uploadState.errorMsg || t('chat.uploadFailed')}
           </div>
           {uploadState.retryFn && (
             <button className="wc-retry-btn" onClick={uploadState.retryFn}>
-              重试
+              {t('common.retry')}
             </button>
           )}
           <button
             className="wc-cancel-upload-btn"
             onClick={onCancel}
-            aria-label="取消上传"
+            aria-label={t('uploadProgress.cancelUpload')}
           >✕</button>
         </>
       )}

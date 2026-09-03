@@ -1,9 +1,11 @@
 import React from 'react';
+import { getI18n } from '../contexts/I18nContext';
 
 /**
  * PanelBoundary — 面板级轻量错误边界
  * 捕获 Moments / Collections / CallHistory 等懒加载面板的渲染异常，
  * 仅让当前面板降级，不影响聊天主区和侧边栏。
+ * class 组件无 Hook，翻译走模块级 getI18n() 快照（与 ChatWindowBoundary 同类问题）。
  */
 export default class PanelBoundary extends React.Component {
   state = { err: null };
@@ -27,6 +29,7 @@ export default class PanelBoundary extends React.Component {
 
   render() {
     if (!this.state.err) return this.props.children;
+    const t = getI18n();
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -34,7 +37,7 @@ export default class PanelBoundary extends React.Component {
         color: 'var(--text-secondary)', fontSize: 'var(--text-sm)',
       }}>
         <span style={{ fontSize: 32 }}>⚠️</span>
-        <span>{this.props.name || '面板'}加载出错</span>
+        <span>{t('panelBoundary.loadErrorTemplate').replace('{panel}', this.props.name || t('panelBoundary.defaultPanelName'))}</span>
         <button
           onClick={() => this.setState({ err: null })}
           style={{
@@ -43,7 +46,7 @@ export default class PanelBoundary extends React.Component {
             color: 'var(--text-primary)', cursor: 'pointer',
             fontSize: 'var(--text-sm)',
           }}
-        >重试</button>
+        >{t('common.retry')}</button>
       </div>
     );
   }

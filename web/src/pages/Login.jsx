@@ -120,10 +120,10 @@ export default function Login() {
           <div className="auth-brand-icon" style={{background:'none',boxShadow:'none',padding:0,overflow:'hidden'}}>
             <picture>
               <source srcSet="/icon.webp" type="image/webp" />
-              <img src="/icon.png" alt="投聊" width="68" height="68" style={{borderRadius:'var(--radius-2xl)',display:'block',objectFit:'cover'}} />
+              <img src="/icon.png" alt={t('common.appName')} width="68" height="68" style={{borderRadius:'var(--radius-2xl)',display:'block',objectFit:'cover'}} />
             </picture>
           </div>
-          <h1 className="auth-brand-name auth-brand-name--brand">投聊</h1>
+          <h1 className="auth-brand-name auth-brand-name--brand">{t('common.appName')}</h1>
           <p className="auth-brand-desc">{t('auth.slogan')}</p>
         </div>
 

@@ -388,14 +388,14 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, fill: 'currentColor', flexShrink: 0 }}>
             <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
           </svg>
-          @我的消息
+          {t('home.mentionsAriaLabel')}
         </button>
       )}
       <div className="wc-list" style={{ flex: 1 }}>
         {!loaded && conversations.length === 0 ? (
           <ChatListSkeleton />
         ) : filtered.length === 0 ? (
-          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm2)' }}>暂无聊天</div>
+          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm2)' }}>{t('chatlist.empty')}</div>
         ) : (
           <AutoSizer>
             {({ height, width }) => (

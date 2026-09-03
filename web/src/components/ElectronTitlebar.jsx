@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useI18n } from '../contexts/I18nContext';
 
 function WinBtn({ onClick, isClose, children, title }) {
   const [hov, setHov] = useState(false);
@@ -23,6 +24,7 @@ function WinBtn({ onClick, isClose, children, title }) {
 }
 
 export default function ElectronTitlebar() {
+  const { t } = useI18n();
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -66,20 +68,20 @@ export default function ElectronTitlebar() {
       <span style={{
         flex: 1, paddingLeft: 56, fontSize: 'var(--text-sm)',
         color: 'var(--titlebar-title)', letterSpacing: 1,
-      }}>投聊</span>
+      }}>{t('common.appName')}</span>
 
       <div style={{
         display: 'flex', height: '100%',
         WebkitAppRegion: 'no-drag',
         position: 'relative', zIndex: "var(--z-native)",
       }}>
-        <WinBtn onClick={handleMin} title="最小化">
+        <WinBtn onClick={handleMin} title={t('titlebar.minimize')}>
           <svg width="12" height="12" viewBox="0 0 12 12">
             <rect x="1" y="5.5" width="10" height="1" fill="currentColor" rx="0.5"/>
           </svg>
         </WinBtn>
 
-        <WinBtn onClick={handleMax} title={isMaximized ? '还原' : '最大化'}>
+        <WinBtn onClick={handleMax} title={isMaximized ? t('titlebar.restore') : t('titlebar.maximize')}>
           {isMaximized ? (
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">
               <rect x="3" y="1" width="8" height="8" rx="1"/>
@@ -92,7 +94,7 @@ export default function ElectronTitlebar() {
           )}
         </WinBtn>
 
-        <WinBtn isClose onClick={handleClose} title="关闭">
+        <WinBtn isClose onClick={handleClose} title={t('common.close')}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
             <line x1="2" y1="2" x2="10" y2="10"/>
             <line x1="10" y1="2" x2="2" y2="10"/>

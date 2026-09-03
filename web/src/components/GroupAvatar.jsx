@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Avatar, { getColor } from './Avatar';
 import { mediaUrl } from '../utils/url';
+import { useI18n } from '../contexts/I18nContext';
 
 /** 宫格单元：头像失败回退首字母 */
 function GroupGridCell({ member = {}, cellSize }) {
@@ -18,6 +19,7 @@ function GroupGridCell({ member = {}, cellSize }) {
 
 /** 群头像拼图（微信风格 N宫格，支持自定义头像） */
 export function GroupAvatar({ members = [], size = 48, avatar = '' }) {
+  const { t } = useI18n();
   const [avatarErr, setAvatarErr] = useState(false);
   const [prevAvatar, setPrevAvatar] = useState(avatar);
   if (avatar !== prevAvatar) { setPrevAvatar(avatar); setAvatarErr(false); }
@@ -25,7 +27,7 @@ export function GroupAvatar({ members = [], size = 48, avatar = '' }) {
     return <img src={mediaUrl(avatar)} alt="" loading="lazy" onError={() => setAvatarErr(true)} style={{ width: size, height: size, borderRadius: Math.max(3, Math.round(size * 0.13)), objectFit: 'cover', flexShrink: 0 }} />;
   }
   const n = Math.min(members.length, 9);
-  if (n === 0) return <Avatar name="群" size={size} />;
+  if (n === 0) return <Avatar name={t('groupAvatar.fallbackName')} size={size} />;
   if (n === 1) return <Avatar src={members[0].avatar} name={members[0].username} size={size} />;
   const grid = n <= 4 ? 2 : 3;
   const cellSize = Math.floor((size - (grid + 1) * 2) / grid);

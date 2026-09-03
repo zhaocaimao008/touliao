@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback } from 'react';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
+import { useI18n } from '../contexts/I18nContext';
 
 // 从(可能带 ?token= / #t= 的)视频地址里抽一个像样的下载文件名
 function filenameFromUrl(u) {
@@ -16,6 +17,7 @@ function filenameFromUrl(u) {
  * 与 ImagePreview 对齐的全屏遮罩交互：Esc 关闭、点遮罩关闭、底部下载按钮。
  */
 export default function VideoPreview({ url, name, onClose }) {
+  const { t } = useI18n();
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') onClose();
   }, [onClose]);
@@ -32,7 +34,7 @@ export default function VideoPreview({ url, name, onClose }) {
   return (
     <div
       data-testid="video-lightbox"
-      role="dialog" aria-modal="true" aria-label="视频预览"
+      role="dialog" aria-modal="true" aria-label={t('videoPreview.title')}
       style={{
         position: 'fixed', inset: 0, zIndex: 'var(--z-top)',
         background: 'rgba(0,0,0,.92)',
@@ -67,7 +69,7 @@ export default function VideoPreview({ url, name, onClose }) {
       >
         <button
           onClick={(e) => { e.stopPropagation(); downloadFile(url, name || filenameFromUrl(url)); }}
-          aria-label="下载视频"
+          aria-label={t('videoPreview.download')}
           style={{
             border: 'none', cursor: 'pointer',
             color: 'var(--text-inverse)', fontSize: 'var(--text-sm2)',
@@ -80,12 +82,12 @@ export default function VideoPreview({ url, name, onClose }) {
           <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
             <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
           </svg>
-          下载
+          {t('videoPreview.downloadShort')}
         </button>
         {canShare() && (
           <button
-            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: url, filename: name || filenameFromUrl(url), title: name || '分享视频' }); }}
-            aria-label="分享视频"
+            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: url, filename: name || filenameFromUrl(url), title: name || t('videoPreview.share') }); }}
+            aria-label={t('videoPreview.share')}
             data-testid="video-lightbox-share"
             style={{
               border: 'none', cursor: 'pointer',
@@ -99,7 +101,7 @@ export default function VideoPreview({ url, name, onClose }) {
             <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
               <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
             </svg>
-            分享
+            {t('videoPreview.shareShort')}
           </button>
         )}
       </div>
@@ -117,7 +119,7 @@ export default function VideoPreview({ url, name, onClose }) {
           border: 'none', cursor: 'pointer', zIndex: 10,
           backdropFilter: 'blur(10px)',
         }}
-        aria-label="关闭"
+        aria-label={t('common.close')}
       >
         ✕
       </button>

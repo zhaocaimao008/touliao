@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import Avatar from './Avatar';
+import { getI18n } from '../contexts/I18nContext';
+
+// 独立挂载在 <I18nProvider> 树外的单例 portal（见下方 createRoot），拿不到
+// useI18n() 的 Context，取词走 getI18n() 快照（与错误边界同类问题）。
 
 /**
  * 2026-08-29 好友申请提醒优化新增：App 内轻量提醒卡片（非系统通知、非大弹窗）。
@@ -34,6 +38,7 @@ function FriendRequestCardRoot() {
   }, []);
 
   if (!item) return null;
+  const t = getI18n();
 
   return (
     <div
@@ -46,17 +51,17 @@ function FriendRequestCardRoot() {
       <Avatar src={item.avatar} name={item.name} size={40} className="cl-avatar-rounded" />
       <div className="frc-body">
         <div className="frc-title">{item.name}</div>
-        <div className="frc-sub">请求添加你为好友</div>
+        <div className="frc-sub">{t('friendRequestCard.subtitle')}</div>
         {item.message ? <div className="frc-msg">{item.message}</div> : null}
       </div>
       <button
         className="frc-view"
         data-testid="friend-request-card-view"
         onClick={(e) => { e.stopPropagation(); item.onView?.(); dismiss(); }}
-      >查看</button>
+      >{t('friendRequestCard.view')}</button>
       <button
         className="frc-close"
-        aria-label="关闭"
+        aria-label={t('common.close')}
         onClick={(e) => { e.stopPropagation(); dismiss(); }}
       >×</button>
     </div>
@@ -70,5 +75,5 @@ ReactDOM.createRoot(container).render(<FriendRequestCardRoot />);
 
 /** 显示一条好友申请轻量提醒卡片。onView 由调用方传入（通常是跳转到"新的朋友"）。 */
 export function showFriendRequestCard({ avatar, name, message, onView }) {
-  _push?.({ avatar, name: name || '有人', message, onView });
+  _push?.({ avatar, name: name || getI18n()('home.someone'), message, onView });
 }

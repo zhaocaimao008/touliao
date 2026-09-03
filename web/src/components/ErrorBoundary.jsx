@@ -1,4 +1,5 @@
 import React from 'react';
+import { getI18n } from '../contexts/I18nContext';
 
 /**
  * 全局错误边界：捕获子树渲染期/生命周期抛出的 JS 异常，
@@ -66,27 +67,26 @@ export default class ErrorBoundary extends React.Component {
 
   render() {
     if (!this.state.hasError) return this.props.children;
+    const t = getI18n();
 
     return (
       <div style={styles.page}>
         <div style={styles.card}>
           <div style={styles.icon}>😵</div>
-          <h1 style={styles.title}>页面出了点小问题</h1>
-          <p style={styles.desc}>
-            抱歉，刚才的操作触发了一个异常。你可以重试，或返回首页继续使用。
-          </p>
+          <h1 style={styles.title}>{t('errorBoundary.title')}</h1>
+          <p style={styles.desc}>{t('errorBoundary.desc')}</p>
           {this.state.error?.message && (
             <pre style={styles.errBox}>{String(this.state.error.message)}</pre>
           )}
           <div style={styles.btnRow}>
             <button style={{ ...styles.btn, ...styles.btnPrimary }} onClick={this.handleReload}>
-              重试
+              {t('common.retry')}
             </button>
             <button style={{ ...styles.btn, ...styles.btnGhost }} onClick={this.handleHome}>
-              返回首页
+              {t('errorBoundary.backHome')}
             </button>
           </div>
-          <p style={styles.hint}>若反复出现，请截图反馈给我们（错误已自动记录）。</p>
+          <p style={styles.hint}>{t('errorBoundary.hint')}</p>
         </div>
       </div>
     );

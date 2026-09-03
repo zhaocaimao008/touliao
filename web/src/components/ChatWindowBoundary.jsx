@@ -1,4 +1,5 @@
 import React from 'react';
+import { getI18n } from '../contexts/I18nContext';
 
 /**
  * ChatWindow 专属错误边界。
@@ -46,12 +47,13 @@ export default class ChatWindowBoundary extends React.Component {
 
   render() {
     if (!this.state.hasError) return this.props.children;
+    const t = getI18n();
 
     return (
       <div style={styles.wrap}>
         <div style={styles.inner}>
           <div style={styles.icon}>⚠️</div>
-          <p style={styles.msg}>消息加载出错</p>
+          <p style={styles.msg}>{t('chatWindowBoundary.loadError')}</p>
           {this.state.error?.message && (
             <pre style={styles.detail}>{String(this.state.error.message)}</pre>
           )}
@@ -59,7 +61,7 @@ export default class ChatWindowBoundary extends React.Component {
             style={styles.btn}
             onClick={() => this.setState({ hasError: false, error: null })}
           >
-            重试
+            {t('common.retry')}
           </button>
         </div>
       </div>
