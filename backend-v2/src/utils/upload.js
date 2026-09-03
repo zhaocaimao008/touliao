@@ -255,12 +255,46 @@ async function stripImageMetadata(filePath, mimetype) {
   }
 }
 
-// 图片元数据剥离中间件：接在魔数校验之后，此时 file.mimetype 已是真实检测出的类型。
-function makeExifStripMiddleware() {
+// 会被生成缩略图的图片 MIME，与 EXIF_STRIP_MIMES 同口径（同样的原因跳过 GIF：
+// 多帧动画，sharp 缩放会丢帧/体积暴涨）。
+const THUMBNAIL_MIMES = EXIF_STRIP_MIMES;
+
+// 与 THUMBNAIL_MIMES 同口径的扩展名集合：云直传路径（credential）服务器不经手字节、
+// 无法做魔数检测，只能按扩展名判断要不要给客户端多发一个缩略图预签名 URL。
+const THUMBNAIL_EXTS = new Set(['jpg', 'jpeg', 'jpe', 'png', 'webp']);
+
+/**
+ * 原图旁生成一份 WebP 缩略图，命名约定：<dir>/<uuid>_thumb.webp（原扩展名去掉，
+ * 换成 _thumb.webp）。前端按同一约定从原图 URL 纯字符串推导缩略图 URL，
+ * 请求失败（旧图无缩略图/非图片类型）时 onError 回退原图——因此这里不需要、
+ * 也不该往数据库/消息负载里加任何新字段，是纯 best-effort 的旁路产物。
+ * fail-open：与 stripImageMetadata 同一哲学，缩略图生成失败绝不能挡住上传本身。
+ */
+async function generateThumbnail(filePath, mimetype, maxDim) {
+  if (!THUMBNAIL_MIMES.has(mimetype)) return;
+  try {
+    const dir = path.dirname(filePath);
+    const base = path.basename(filePath, path.extname(filePath));
+    const thumbPath = path.join(dir, `${base}_thumb.webp`);
+    await sharp(filePath)
+      .rotate() // 与 stripImageMetadata 一致：缩放前先按 EXIF Orientation 摆正像素
+      .resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 78 })
+      .toFile(thumbPath);
+  } catch (err) {
+    console.warn('[upload] 缩略图生成失败，跳过（不影响原图）:', err.message);
+  }
+}
+
+// 图片元数据剥离 + 缩略图生成中间件：接在魔数校验之后，此时 file.mimetype 已是真实检测出的类型。
+// maxDim：缩略图长边上限，聊天图片（makeChatUploader）显示尺寸更大，用 480；
+// 头像/朋友圈/群头像等（makeImageUploader）用默认 400。
+function makeExifStripMiddleware(maxDim = 400) {
   return async (req, res, next) => {
     const files = req.files || (req.file ? [req.file] : []);
     for (const file of files) {
       await stripImageMetadata(file.path, file.mimetype);
+      await generateThumbnail(file.path, file.mimetype, maxDim);
     }
     next();
   };
@@ -318,7 +352,8 @@ function makeChatUploader(dest) {
   }).single('file'));
   // P1-03：直传路径与分片路径同口径 —— 磁盘阈值 + 单用户并发上限，
   // 否则攻击者可绕过 upload-init 的分片限制走直传耗尽磁盘（审计 BACKEND-A005）。
-  return [makeUploadGuard(dest), multerMw, makeChatMagicMiddleware(), makeExifStripMiddleware()];
+  // 聊天图片显示尺寸比头像/朋友圈大，缩略图 maxDim 用 480（见 makeExifStripMiddleware 注释）。
+  return [makeUploadGuard(dest), multerMw, makeChatMagicMiddleware(), makeExifStripMiddleware(480)];
 }
 
 function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 * 1024 * 1024) {
@@ -359,4 +394,5 @@ module.exports = {
   MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES,
   sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader, makeUploadGuard,
   verifyMagicBytes, verifyChatFile, isBrowserRenderableType, stripImageMetadata,
+  generateThumbnail, THUMBNAIL_MIMES, THUMBNAIL_EXTS,
 };

@@ -12,7 +12,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const config = require('../../config');
 const { isMember } = require('../messages/shared');
-const { verifyChatFile, ALLOWED_CHAT_EXTS, sanitizeFilename, MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES, stripImageMetadata } = require('../../utils/upload');
+const { verifyChatFile, ALLOWED_CHAT_EXTS, sanitizeFilename, MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES, stripImageMetadata, generateThumbnail } = require('../../utils/upload');
 const { registerFile } = require('../../utils/fileRegistry');
 
 const MAX_FILE = MAX_UPLOAD_BYTES; // 单文件上限（默认 200MB，可配 MAX_UPLOAD_BYTES）
@@ -148,6 +148,8 @@ async function finish(req, res) {
   // 分片上传拼出来的大图（走这条路径的一般是大文件，但不排除大图）同样剥离 EXIF/GPS，
   // 与直传路径（makeImageUploader/makeChatUploader）同口径，见 utils/upload.js。
   await stripImageMetadata(finalPath, mime);
+  // 缩略图同口径：与直传聊天图片一致用 480（见 utils/upload.js makeExifStripMiddleware 注释）。
+  await generateThumbnail(finalPath, mime, 480);
   const type = mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'voice' : mime.startsWith('video/') ? 'video' : 'file';
   const fileUrl = `/uploads/files/${finalName}`;
   registerFile({ path: fileUrl, ownerId: req.user.id, conversationId, kind: 'files' });

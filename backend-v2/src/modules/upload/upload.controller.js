@@ -4,7 +4,7 @@ const { asyncHandler, badRequest, forbidden } = require('../../utils/http');
 const { isConfigured, getPresignedPutUrl } = require('../../utils/cloudStorage');
 const { registerFile } = require('../../utils/fileRegistry');
 const path = require('path');
-const { safeExt, ALLOWED_CHAT_EXTS, isBrowserRenderableType, MAX_UPLOAD_BYTES } = require('../../utils/upload');
+const { safeExt, ALLOWED_CHAT_EXTS, isBrowserRenderableType, MAX_UPLOAD_BYTES, THUMBNAIL_EXTS } = require('../../utils/upload');
 const { isMember } = require('../messages/shared');
 
 /**
@@ -46,7 +46,8 @@ exports.credential = asyncHandler(async (req, res) => {
   const ext = safeExt(filename, contentType);
   // R2 key 与本站访问路径一一对应（去前导斜杠），保证 /uploads 下载侧可直接映射；
   // file_url 保持本站路径格式（前端零改动），下载时经 file_registry 权限校验后 302 到短时 presigned GET。
-  const fileName = `${uuidv4()}${ext}`;
+  const uuid = uuidv4();
+  const fileName = `${uuid}${ext}`;
   const key = `uploads/files/${fileName}`;
   const publicUrl = `/uploads/files/${fileName}`;
   try {
@@ -54,7 +55,22 @@ exports.credential = asyncHandler(async (req, res) => {
     // 上传即登记归属（owner + conversation），供下载侧 file_registry 权限校验（P1-02 体系）。
     // 生成 URL 成功后才登记，避免失败时留下无对象残留。
     registerFile({ path: publicUrl, ownerId: req.user.id, conversationId, kind: 'files' });
-    res.json({ uploadUrl, publicUrl, key, expiresIn: 600 });
+
+    const resp = { uploadUrl, publicUrl, key, expiresIn: 600 };
+    // 云直传服务器不经手字节，无法像本地路径那样自己生成缩略图；命名约定与本地一致
+    // （同一 uuid + _thumb.webp，见 utils/upload.js generateThumbnail），客户端自行用
+    // Canvas 生成缩略图后拿这个凭证再传一次。非图片扩展名不发，前端据此判断要不要传缩略图。
+    if (THUMBNAIL_EXTS.has(rawExt)) {
+      try {
+        const thumbKey = `uploads/files/${uuid}_thumb.webp`;
+        const { uploadUrl: thumbUploadUrl } = await getPresignedPutUrl(thumbKey, 'image/webp');
+        resp.thumbUploadUrl = thumbUploadUrl;
+      } catch (e) {
+        // 缩略图凭证是锦上添花，生成失败不该搭上整个上传请求——原图凭证已经拿到手了。
+        console.warn('[upload/credential] 缩略图预签名 URL 生成失败，跳过:', e.message);
+      }
+    }
+    res.json(resp);
   } catch (e) {
     console.error('[upload/credential] 生成预签名 URL 失败:', e.message);
     res.status(500).json({ error: '生成上传凭证失败，请稍后重试' });
