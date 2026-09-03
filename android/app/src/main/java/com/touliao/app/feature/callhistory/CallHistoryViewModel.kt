@@ -60,10 +60,16 @@ class CallHistoryViewModel @Inject constructor(
     }
 
     fun openPeerChat(log: CallLog) {
-        if (log.peer_id.isBlank()) return
+        if (log.kind == "group") {
+            val convId = log.conversation_id ?: return
+            _openChat.value = ConversationTarget(convId, log.peer_name.ifBlank { "群聊" })
+            return
+        }
+        val peerId = log.peer_id
+        if (peerId.isNullOrBlank()) return
         viewModelScope.launch {
-            runCatching { contactRepository.createPrivate(log.peer_id) }
-                .onSuccess { convId -> _openChat.value = ConversationTarget(convId, log.peer_name.ifBlank { "聊天" }, log.peer_id) }
+            runCatching { contactRepository.createPrivate(peerId) }
+                .onSuccess { convId -> _openChat.value = ConversationTarget(convId, log.peer_name.ifBlank { "聊天" }, peerId) }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("打开聊天失败")) } }
         }
     }

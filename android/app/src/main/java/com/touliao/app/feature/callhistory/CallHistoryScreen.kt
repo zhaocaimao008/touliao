@@ -106,11 +106,12 @@ private fun CallLogRow(c: CallLog, resolveUrl: (String?) -> String?, onClick: ()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = c.peer_name.ifBlank { "?" }, size = 42.dp, avatarUrl = resolveUrl(c.peer_avatar))
+        val isGroup = c.kind == "group"
+        InitialAvatar(name = c.peer_name.ifBlank { if (isGroup) "群" else "?" }, size = 42.dp, avatarUrl = resolveUrl(c.peer_avatar))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                c.peer_name.ifBlank { "用户" },
+                c.peer_name.ifBlank { if (isGroup) "群聊" else "用户" },
                 fontSize = com.touliao.app.ui.theme.VxinTextSize.md, fontWeight = FontWeight.Medium,
                 color = if (missed) ERR else MaterialTheme.colorScheme.onSurface,
             )
@@ -119,9 +120,12 @@ private fun CallLogRow(c: CallLog, resolveUrl: (String?) -> String?, onClick: ()
                 // 方向箭头：拨出 ↗ / 来电 ↙
                 Text(if (c.direction == "out") "↗" else "↙", color = if (missed) ERR else VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 Spacer(Modifier.width(4.dp))
-                val kind = if (c.type == "video") "视频通话" else "语音通话"
+                val kind = if (isGroup) {
+                    if (c.type == "video") "群视频通话" else "群语音通话"
+                } else if (c.type == "video") "视频通话" else "语音通话"
                 val dur = fmtDuration(c.duration)
-                val text = "$kind · ${statusLabel(c.status)}" + if (dur.isNotBlank()) " · $dur" else ""
+                val participants = c.participant_count?.takeIf { isGroup && it > 0 }?.let { " · ${it}人参与" } ?: ""
+                val text = "$kind · ${statusLabel(c.status)}" + (if (dur.isNotBlank()) " · $dur" else "") + participants
                 Text(text, color = if (missed) ERR else VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
             }
         }

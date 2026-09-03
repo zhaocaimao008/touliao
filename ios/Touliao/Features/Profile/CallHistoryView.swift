@@ -37,8 +37,12 @@ final class CallHistoryViewModel: ObservableObject {
         loading = false
     }
 
-    /// 点击通话记录 → 打开对方会话(回拨/继续聊天)
+    /// 点击通话记录 → 打开对方会话(回拨/继续聊天)或群聊(群通话记录)
     func openPeerChat(_ c: CallLog) async -> Conversation? {
+        if c.kind == "group" {
+            guard let convId = c.conversationId, !convId.isEmpty else { return nil }
+            return Conversation(id: convId, type: "group", name: c.peerName.isEmpty ? "群聊" : c.peerName)
+        }
         guard !c.peerId.isEmpty else { return nil }
         do {
             let id = try await contactRepo.createPrivate(userId: c.peerId)
@@ -85,10 +89,11 @@ struct CallHistoryView: View {
 
     @ViewBuilder private func row(_ c: CallLog) -> some View {
         let missed = c.direction == "in" && (c.status == "missed" || c.status == "canceled")
+        let isGroup = c.kind == "group"
         HStack(spacing: 12) {
-            InitialAvatar(name: c.peerName.isEmpty ? "?" : c.peerName, size: 42)
+            InitialAvatar(name: c.peerName.isEmpty ? (isGroup ? "群" : "?") : c.peerName, size: 42)
             VStack(alignment: .leading, spacing: 3) {
-                Text(c.peerName.isEmpty ? "用户" : c.peerName)
+                Text(c.peerName.isEmpty ? (isGroup ? "群聊" : "用户") : c.peerName)
                     .font(.subheadline).fontWeight(.medium)
                     .foregroundColor(missed ? .vxinError : .primary)
                 HStack(spacing: 4) {
@@ -105,10 +110,14 @@ struct CallHistoryView: View {
     }
 
     private func subtitle(_ c: CallLog) -> String {
-        let kind = c.type == "video" ? "视频通话" : "语音通话"
+        let isGroup = c.kind == "group"
+        let kind = isGroup
+            ? (c.type == "video" ? "群视频通话" : "群语音通话")
+            : (c.type == "video" ? "视频通话" : "语音通话")
         let status = statusLabel(c.status)
         let dur = fmtDuration(c.duration)
-        return "\(kind) · \(status)" + (dur.isEmpty ? "" : " · \(dur)")
+        let participants = (isGroup ? c.participantCount : nil).flatMap { $0 > 0 ? " · \($0)人参与" : nil } ?? ""
+        return "\(kind) · \(status)" + (dur.isEmpty ? "" : " · \(dur)") + participants
     }
 
     private func statusLabel(_ s: String) -> String {

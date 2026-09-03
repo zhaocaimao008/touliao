@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
+import { GroupAvatar } from './GroupAvatar';
 import { Skeleton } from './StateViews';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -71,9 +72,15 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
     return () => { alive = false; };
   }, [refreshKey]);
 
-  // 点击通话记录 → 打开对方会话（回拨/继续聊天），对齐移动端
+  // 点击通话记录 → 打开对方会话（回拨/继续聊天）或群聊（群通话记录），对齐移动端
   const openPeer = async (c) => {
-    if (!c.peer_id || !onOpenChat) return;
+    if (!onOpenChat) return;
+    if (c.kind === 'group') {
+      if (!c.conversation_id) return;
+      onOpenChat({ id: c.conversation_id, type: 'group', name: c.peer_name, avatar: c.peer_avatar });
+      return;
+    }
+    if (!c.peer_id) return;
     try {
       const { data } = await axios.post('/api/messages/conversation/private', { userId: c.peer_id });
       onOpenChat({ id: data.conversationId, type: 'private', name: c.peer_name, avatar: c.peer_avatar, otherUser: { id: c.peer_id, username: c.peer_name, avatar: c.peer_avatar } });
@@ -100,13 +107,18 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
               role={onOpenChat ? 'button' : undefined} tabIndex={onOpenChat ? 0 : undefined}
               onKeyDown={e => { if (onOpenChat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPeer(c); } }}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: onOpenChat ? 'pointer' : 'default' }}>
-              <Avatar src={c.peer_avatar} name={c.peer_name} size={40} />
+              {c.kind === 'group'
+                ? <GroupAvatar avatar={c.peer_avatar} size={40} />
+                : <Avatar src={c.peer_avatar} name={c.peer_name} size={40} />}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || t('messageItem.defaultUsername')}</div>
                 <div style={{ fontSize: 'var(--text-sm)', color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span aria-hidden="true" style={{ transform: c.direction === 'out' ? 'none' : 'scaleX(-1)' }}>{c.direction === 'out' ? '↗' : '↙'}</span>
-                  {c.direction === 'out' ? t('callHistory.outgoing') : t('callHistory.incoming')} · {c.type === 'video' ? t('chat.videoCall') : t('chat.voiceCall')} · {st.label}
+                  {c.direction === 'out' ? t('callHistory.outgoing') : t('callHistory.incoming')} · {c.kind === 'group'
+                    ? (c.type === 'video' ? t('chat.groupVideoCall') : t('chat.groupVoiceCall'))
+                    : (c.type === 'video' ? t('chat.videoCall') : t('chat.voiceCall'))} · {st.label}
                   {c.duration > 0 && ` · ${fmtDuration(c.duration, t)}`}
+                  {c.kind === 'group' && c.participant_count > 0 && ` · ${t('callHistory.participantsTemplate').replace('{n}', c.participant_count)}`}
                 </div>
               </div>
               <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)', flexShrink: 0 }}>{ago(c.created_at, t)}</span>

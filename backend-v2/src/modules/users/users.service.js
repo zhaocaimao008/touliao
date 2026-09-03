@@ -314,20 +314,42 @@ function removeCollection(userId, collectionId) {
   return { success: true };
 }
 
-// 通话历史（自己作为主叫或被叫的记录，含对方资料 + 方向）
+// 通话历史（自己作为主叫/被叫的 1对1 记录 + 自己所在群的群通话记录，合并按时间倒序）。
+// kind 区分 'private'/'group'：群通话没有固定"对方"，peer_name/peer_avatar 复用为群名/群头像，
+// peer_id 为 null，conversation_id/participant_count 只在 kind='group' 时有值。
 function getCallLogs(userId, limit = 50) {
   const n = Math.min(Number(limit) || 50, 200);
   return db.prepare(`
-    SELECT cl.id, cl.type, cl.status, cl.started_at, cl.ended_at, cl.duration, cl.created_at,
-           CASE WHEN cl.caller_id=? THEN 'out' ELSE 'in' END AS direction,
-           CASE WHEN cl.caller_id=? THEN cl.callee_id ELSE cl.caller_id END AS peer_id,
-           pu.username AS peer_name, pu.avatar AS peer_avatar
-    FROM call_logs cl
-    JOIN users pu ON pu.id = (CASE WHEN cl.caller_id=? THEN cl.callee_id ELSE cl.caller_id END)
-    WHERE cl.caller_id=? OR cl.callee_id=?
-    ORDER BY cl.created_at DESC
+    SELECT * FROM (
+      SELECT cl.id, cl.type, cl.status, cl.started_at, cl.ended_at, cl.duration, cl.created_at,
+             'private' AS kind,
+             CASE WHEN cl.caller_id=? THEN 'out' ELSE 'in' END AS direction,
+             CASE WHEN cl.caller_id=? THEN cl.callee_id ELSE cl.caller_id END AS peer_id,
+             pu.username AS peer_name, pu.avatar AS peer_avatar,
+             NULL AS conversation_id, NULL AS participant_count
+      FROM call_logs cl
+      JOIN users pu ON pu.id = (CASE WHEN cl.caller_id=? THEN cl.callee_id ELSE cl.caller_id END)
+      WHERE cl.caller_id=? OR cl.callee_id=?
+
+      UNION ALL
+
+      SELECT gcl.id, gcl.type,
+             CASE WHEN gcl.status='ongoing' THEN 'ongoing' ELSE 'completed' END AS status,
+             gcl.started_at, gcl.ended_at,
+             CASE WHEN gcl.ended_at IS NOT NULL THEN MAX(0, gcl.ended_at - gcl.started_at) ELSE 0 END AS duration,
+             gcl.started_at AS created_at,
+             'group' AS kind,
+             CASE WHEN gcl.started_by=? THEN 'out' ELSE 'in' END AS direction,
+             NULL AS peer_id,
+             c.name AS peer_name, c.avatar AS peer_avatar,
+             gcl.conversation_id, gcl.participant_count
+      FROM group_call_logs gcl
+      JOIN conversation_members cm ON cm.conversation_id = gcl.conversation_id AND cm.user_id = ?
+      JOIN conversations c ON c.id = gcl.conversation_id
+    )
+    ORDER BY created_at DESC
     LIMIT ?
-  `).all(userId, userId, userId, userId, userId, n);
+  `).all(userId, userId, userId, userId, userId, userId, userId, n);
 }
 
 // ── 我的邀请码 + 邀请战绩（裂变）─────────────────────────────────
