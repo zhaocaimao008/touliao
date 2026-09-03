@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { GroupAvatar } from './GroupAvatar';
+import { useI18n } from '../contexts/I18nContext';
 
 const gsHlCls = 'gs-highlight';
 
@@ -25,6 +26,7 @@ function highlight(text, q) {
 }
 
 export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
+  const { t } = useI18n();
   const [contacts, setContacts] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -54,12 +56,12 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       })
       .catch(err => {
         const errorMsg = err.response?.status === 401
-          ? '认证失败，请重新登录'
+          ? t('gs.authFailedRelogin')
           : err.response?.data?.error || err.message;
         // [GlobalSearch] Failed to load conversations — suppressed
         setConvError(errorMsg);
       });
-  }, [query]);
+  }, [query, t]);
 
   const q = query.trim().toLowerCase();
 
@@ -82,7 +84,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     });
 
     // 如果搜索词匹配"文件传输助手"但列表中没有，添加虚拟的 filehelper
-    const fileHelperName = '文件传输助手';
+    const fileHelperName = t('contacts.fileHelper');
     const hasFileHelper = conversations.some(c => c.type === 'filehelper');
     if (!hasFileHelper && fileHelperName.toLowerCase().includes(q)) {
       results = [...results, {
@@ -93,7 +95,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       }];
     }
     return results;
-  }, [conversations, q]);
+  }, [conversations, q, t]);
 
   // 搜历史消息(防抖 300ms，减少请求次数)
   useEffect(() => {
@@ -160,7 +162,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       {/* 联系人 */}
       {matchedContacts.length > 0 && (
         <>
-          <div className="gs-cat">联系人</div>
+          <div className="gs-cat">{t('gs.contactsCategory')}</div>
           {matchedContacts.map(c => (
             <div key={c.id} className="gs-row" onClick={() => openContact(c)}
               role="button" tabIndex={0}
@@ -169,10 +171,10 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
               <div className="gs-info">
                 <div className="gs-name">{highlight(c.remark || c.username, q)}</div>
                 {c.remark && c.username && c.username.toLowerCase().includes(q) && (
-                  <div className="gs-sub">昵称：{highlight(c.username, q)}</div>
+                  <div className="gs-sub">{t('gs.nicknameLabel')}{highlight(c.username, q)}</div>
                 )}
                 {c.wechat_id && c.wechat_id.toLowerCase().includes(q) && (
-                  <div className="gs-sub">投聊号：{highlight(c.wechat_id, q)}</div>
+                  <div className="gs-sub">{t('gs.touliaoIdLabel')}{highlight(c.wechat_id, q)}</div>
                 )}
               </div>
             </div>
@@ -184,9 +186,9 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       {matchedConversations.length > 0 && (
         <>
           <div className="gs-cat">
-            {matchedConversations.every(c => c.type === 'filehelper') ? '文件传输助手'
-              : matchedConversations.every(c => c.type === 'group') ? '群聊'
-              : '会话'}
+            {matchedConversations.every(c => c.type === 'filehelper') ? t('contacts.fileHelper')
+              : matchedConversations.every(c => c.type === 'group') ? t('gs.groupsCategory')
+              : t('gs.conversationsCategory')}
           </div>
           {matchedConversations.map(g => (
             <div key={g.id} className="gs-row" onClick={() => openConversation(g)}
@@ -201,7 +203,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
               )}
               <div className="gs-info">
                 <div className="gs-name">{highlight(g.name, q)}</div>
-                {g.group_number && <div className="gs-sub">群号 {g.group_number}</div>}
+                {g.group_number && <div className="gs-sub">{t('gs.groupNumberTemplate').replace('{number}', g.group_number)}</div>}
               </div>
             </div>
           ))}
@@ -211,7 +213,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       {/* 历史消息 */}
       {msgResults.length > 0 && (
         <>
-          <div className="gs-cat">聊天记录 ({msgResults.length})</div>
+          <div className="gs-cat">{t('gs.chatHistoryCategoryTemplate').replace('{count}', msgResults.length)}</div>
           {msgResults.map(m => (
             <div key={m.id} className="gs-row" onClick={() => openMessageLocation(m)}
               role="button" tabIndex={0}
@@ -219,7 +221,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
               <Avatar src={m.senderAvatar} name={m.senderName} size={40} />
               <div className="gs-info">
                 <div className="gs-msg-meta">
-                  {m.senderName} {m.convType === 'group' ? `在「${m.convName}」` : ''}
+                  {m.senderName} {m.convType === 'group' ? t('gs.inGroupTemplate').replace('{name}', m.convName) : ''}
                 </div>
                 <div className="gs-msg-text">
                   {highlight(m.preview || m.content, q)}
@@ -231,7 +233,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       )}
 
       {actualSearching && (
-        <div role="status" className="gs-searching">搜索中…</div>
+        <div role="status" className="gs-searching">{t('convSearch.searching')}</div>
       )}
 
       {/* 降级兜底：仅在有实际查询词时展示,避免清空输入时闪出「去网络搜索『』」空串 */}
@@ -242,7 +244,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
           role="button" tabIndex={0}
           onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onNetworkSearch(query))}>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--green)" className="gs-network-icon"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-          <span>未找到相关本地结果，去网络搜索添加<span className="gs-highlight">「{query}」</span></span>
+          <span>{t('gs.noLocalResultsPrefix')}<span className="gs-highlight">「{query}」</span></span>
         </div>
       )}
     </div>
