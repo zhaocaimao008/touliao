@@ -4,11 +4,13 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import UserProfile from './UserProfile';
 import useFocusTrap from '../hooks/useFocusTrap';
+import { useI18n } from '../contexts/I18nContext';
 import './AddFriendModal.css';
 
 const GREEN = 'var(--green)';
 
 function AfResultItem({ user: u, onClick }) {
+  const { t } = useI18n();
   return (
     <div className="afm-result-item" role="button" tabIndex={0} onClick={onClick} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
       <Avatar src={u.avatar} name={u.username} size={48}
@@ -17,7 +19,9 @@ function AfResultItem({ user: u, onClick }) {
         <div className="afm-result-name">{u.username}</div>
         {(u.wechat_id || u.phone) && (
           <div className="afm-result-sub">
-            {u.wechat_id ? `投聊号：${u.wechat_id}` : `手机：${u.phone.slice(0, 3)}****${u.phone.slice(-4)}`}
+            {u.wechat_id
+              ? t('profile.touliaoIdColonTemplate').replace('{id}', u.wechat_id)
+              : t('addFriend.phoneColonTemplate').replace('{phone}', `${u.phone.slice(0, 3)}****${u.phone.slice(-4)}`)}
           </div>
         )}
       </div>
@@ -29,6 +33,7 @@ function AfResultItem({ user: u, onClick }) {
 }
 
 export default function AddFriendModal({ onClose, initialQuery = '' }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -97,12 +102,12 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
     <>
       {!viewId && (
       <div className="afm-overlay" ref={trapRef} onClick={e => e.target === e.currentTarget && onClose()}>
-        <div className="afm-card" role="dialog" aria-modal="true" aria-label="添加好友" onClick={e => e.stopPropagation()}>
+        <div className="afm-card" role="dialog" aria-modal="true" aria-label={t('contacts.addFriend')} onClick={e => e.stopPropagation()}>
 
           {/* 标题栏 */}
           <div className="afm-header">
-            <span className="afm-header-title">添加好友</span>
-            <button onClick={onClose} aria-label="关闭"
+            <span className="afm-header-title">{t('contacts.addFriend')}</span>
+            <button onClick={onClose} aria-label={t('common.close')}
               className="afm-close-btn">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -121,8 +126,8 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
               </svg>
               <input
                 ref={inputRef}
-                placeholder="搜索 投聊号、手机号或昵称"
-                aria-label="搜索好友"
+                placeholder={t('addFriend.searchPlaceholder')}
+                aria-label={t('addFriend.searchAriaLabel')}
                 value={query}
                 onChange={onChange}
                 onFocus={() => setFocused(true)}
@@ -131,7 +136,7 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
                 className="afm-search-input"
               />
               {query && (
-                <button onClick={clearSearch} aria-label="清空"
+                <button onClick={clearSearch} aria-label={t('common.clear')}
                   className="afm-clear-btn">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                     <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
@@ -148,14 +153,14 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
             {isIdle && (
               <div className="afm-idle">
                 <div className="afm-idle-title">
-                  输入账号查找朋友
+                  {t('addFriend.idleTitle')}
                 </div>
                 <div className="afm-idle-desc">
-                  支持通过 投聊号、手机号或昵称<br />精准定位你想添加的联系人
+                  {t('addFriend.idleDescPart1')}<br />{t('addFriend.idleDescPart2')}
                 </div>
                 <div className="afm-idle-tags">
-                  {['投聊号', '手机号', '昵称'].map(t => (
-                    <span key={t} className="afm-idle-tag">{t}</span>
+                  {[t('addFriend.tagAccountId'), t('addFriend.tagPhone'), t('addFriend.tagNickname')].map(tag => (
+                    <span key={tag} className="afm-idle-tag">{tag}</span>
                   ))}
                 </div>
               </div>
@@ -174,11 +179,11 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
                   <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 <span className="afm-search-text">
-                  搜索：<span className="afm-search-hl">{query}</span>
+                  {t('addFriend.searchColon')}<span className="afm-search-hl">{query}</span>
                 </span>
                 {searching
-                  ? <span className="afm-search-hint">搜索中…</span>
-                  : <span className="afm-search-hint">回车 ↵</span>}
+                  ? <span className="afm-search-hint">{t('convSearch.searching')}</span>
+                  : <span className="afm-search-hint">{t('addFriend.pressEnter')}</span>}
               </div>
             )}
 
@@ -190,11 +195,11 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
             {/* 搜索失败（网络等）：与"查无此人"区分，给重试入口 */}
             {!searching && searchError && query && (
               <div className="afm-not-found">
-                <div className="afm-not-found-title">搜索失败，请检查网络</div>
+                <div className="afm-not-found-title">{t('addFriend.searchFailedTitle')}</div>
                 <div className="afm-not-found-sub">
                   <button onClick={() => doSearch(query)}
                     style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 'inherit' }}>
-                    点击重试
+                    {t('addFriend.retry')}
                   </button>
                 </div>
               </div>
@@ -203,8 +208,8 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
             {/* 未找到 */}
             {!searching && searched && !searchError && query && results.length === 0 && (
               <div className="afm-not-found">
-                <div className="afm-not-found-title">未找到「{query}」相关用户</div>
-                <div className="afm-not-found-sub">换个 投聊号或手机号试试</div>
+                <div className="afm-not-found-title">{t('addFriend.notFoundTemplate').replace('{query}', query)}</div>
+                <div className="afm-not-found-sub">{t('addFriend.notFoundHint')}</div>
               </div>
             )}
           </div>
