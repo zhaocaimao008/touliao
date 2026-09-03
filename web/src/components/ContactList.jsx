@@ -273,11 +273,11 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             <div className="cl-subtabs">
               <button className={`cl-subtab${requestsSubTab === 'received' ? ' active' : ''}`}
                 onClick={() => setRequestsSubTab('received')}>
-                收到{requests.length > 0 ? ` (${requests.length})` : ''}
+                {t('contacts.received')}{requests.length > 0 ? ` (${requests.length})` : ''}
               </button>
               <button className={`cl-subtab${requestsSubTab === 'sent' ? ' active' : ''}`}
                 onClick={() => { setRequestsSubTab('sent'); fetchSent(); }}>
-                已发送
+                {t('contacts.sent')}
               </button>
             </div>
 
@@ -296,7 +296,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                     <Avatar src={r.avatar || r.from?.avatar} name={r.username || r.from?.username} size={48} className="cl-avatar-rounded" />
                     <div className="req-info">
                       <div className="req-name">{r.username || r.from?.username}</div>
-                      <div className="req-msg">{r.message || '请求添加您为好友'}</div>
+                      <div className="req-msg">{r.message || t('contacts.defaultFriendRequestMsg')}</div>
                     </div>
                     <div className="req-btns">
                       <button className="req-accept" data-testid="friend-request-accept" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'accepted')}>{t('contacts.accept')}</button>
@@ -319,10 +319,10 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                     <Avatar src={r.avatar} name={r.username} size={48} className="cl-avatar-rounded" />
                     <div className="req-info">
                       <div className="req-name">{r.username}</div>
-                      <div className="req-msg">{r.message || '请求添加对方为好友'}</div>
+                      <div className="req-msg">{r.message || t('contacts.defaultSentRequestMsg')}</div>
                     </div>
                     <span className={`req-status req-status-${r.status}`}>
-                      {r.status === 'pending' ? '等待验证' : r.status === 'accepted' ? '已添加' : '已拒绝'}
+                      {r.status === 'pending' ? t('contacts.statusPending') : r.status === 'accepted' ? t('contacts.statusAccepted') : t('contacts.statusRejected')}
                     </span>
                   </div>
                 ))}
@@ -334,7 +334,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {/* AI 助手 */}
         {tab === 'ai' && (
           <>
-            <SectionHeader title="AI 助手" onBack={() => setTab('contacts')} />
+            <SectionHeader title={t('contacts.aiAssistant')} onBack={() => setTab('contacts')} />
             {aiBots.length === 0 && (
               <div className="cl-empty" role="status">
                 <div className="cl-empty-text">{t('contacts.noAiAssistants')}</div>
@@ -346,7 +346,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   try {
                     const { data } = await axios.post('/api/messages/conversation/private', { userId: b.id });
                     onStartChat({ id: data.conversationId, type: 'private', name: b.name || b.username, avatar: b.avatar || '' });
-                  } catch { showToast('无法创建会话，请重试', 'error'); }
+                  } catch { showToast(t('contacts.cannotCreateConvRetry'), 'error'); }
                 }}
                 role="button" tabIndex={0}
                 onKeyDown={e => {
@@ -354,13 +354,13 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                     e.preventDefault();
                     axios.post('/api/messages/conversation/private', { userId: b.id })
                       .then(({ data }) => onStartChat({ id: data.conversationId, type: 'private', name: b.name || b.username, avatar: b.avatar || '' }))
-                      .catch(() => showToast('无法创建会话，请重试', 'error'));
+                      .catch(() => showToast(t('contacts.cannotCreateConvRetry'), 'error'));
                   }
                 }}>
                 <Avatar src={b.avatar || ''} name={b.name} size={40} className="cl-avatar-rounded" />
                 <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{b.name}</div>
-                  <div className="wc-contact-item-sub">{b.description || `投聊号: ${b.wechat_id}`}</div>
+                  <div className="wc-contact-item-sub">{b.description || t('contacts.aiBotIdTemplate').replace('{id}', b.wechat_id)}</div>
                 </div>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)">
                   <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
@@ -404,7 +404,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {/* 群聊列表 */}
         {tab === 'groups' && (
           <>
-            <SectionHeader title={`群聊 (${groups.length})`} onBack={() => setTab('contacts')} />
+            <SectionHeader title={t('contacts.groupsCountTemplate').replace('{count}', groups.length)} onBack={() => setTab('contacts')} />
             {groups.map(g => (
               <div key={g.id} className="wc-contact-item"
                 onClick={() => onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] })}
@@ -413,7 +413,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 <GroupAvatar members={g.members || []} avatar={g.avatar} size={40} />
                   <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{g.name}</div>
-                  <div className="wc-contact-item-sub">{g.memberCount} 人</div>
+                  <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', g.memberCount)}</div>
                 </div>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)">
                   <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
@@ -433,7 +433,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       {tab === 'contacts' && letters.length > 0 && (
         <div className="wc-alpha-index">
           {letters.map(l => (
-            <span key={l} className="wc-alpha-char" aria-label={`跳转到 ${l}`}
+            <span key={l} className="wc-alpha-char" aria-label={t('contacts.jumpToLetterTemplate').replace('{letter}', l)}
               onClick={() => { scrollToLetter(l); setActiveChar(l); setTimeout(() => setActiveChar(null), 800); }}
               role="button" tabIndex={0}
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), scrollToLetter(l), setActiveChar(l), setTimeout(() => setActiveChar(null), 800))}>
@@ -496,18 +496,18 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       onUpdate();
       setEditLabel(null);
     } catch (e) {
-      showToast(e.response?.data?.error || '保存失败，请重试', 'error');
+      showToast(e.response?.data?.error || t('common.saveFailed'), 'error');
     }
     setSaving(false);
   };
 
   const deleteLabel = async (id) => {
-    if (!await showConfirm('确认删除此标签？')) return;
+    if (!await showConfirm(t('contacts.confirmDeleteLabel'))) return;
     try {
       await axios.delete(`/api/friend-labels/${id}`);
       onUpdate();
     } catch (e) {
-      showToast(e.response?.data?.error || '删除失败，请重试', 'error');
+      showToast(e.response?.data?.error || t('chat.deleteFailedRetry'), 'error');
     }
   };
 
@@ -520,14 +520,14 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       }
       onUpdate();
     } catch (e) {
-      showToast(e.response?.data?.error || '操作失败，请重试', 'error');
+      showToast(e.response?.data?.error || t('common.actionFailed'), 'error');
     }
   };
 
   if (editLabel) {
     return (
       <>
-        <SectionHeader title={editLabel === 'new' ? '新建标签' : '编辑标签'} onBack={() => setEditLabel(null)} />
+        <SectionHeader title={editLabel === 'new' ? t('contacts.newLabel') : t('contacts.editLabel')} onBack={() => setEditLabel(null)} />
         <div className="lt-edit-pad">
           <input
             value={nameInput}
@@ -540,7 +540,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
           <div className="lt-edit-label">{t('contacts.color')}</div>
           <div role="radiogroup" aria-label={t('contacts.labelColorAriaLabel')} className="lt-color-grid">
             {COLORS.map(c => (
-              <div key={c} role="radio" tabIndex={0} aria-checked={colorInput === c} aria-label={`颜色 ${c}`}
+              <div key={c} role="radio" tabIndex={0} aria-checked={colorInput === c} aria-label={t('contacts.colorAriaLabelTemplate').replace('{color}', c)}
                 onClick={() => setColorInput(c)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setColorInput(c); } }}
                 className={`lt-color-swatch${colorInput === c ? ' lt-color-selected' : ''}`}
@@ -549,7 +549,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
           </div>
           <button onClick={saveLabel} disabled={saving || !nameInput.trim()}
             className="lt-save-btn">
-            {saving ? '保存中…' : '保存'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </>
@@ -562,7 +562,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
     const memberIds = new Set((label.members || []).map(m => m.id));
     return (
       <>
-        <SectionHeader title={`${label.name} — 成员管理`} onBack={() => setShowMembers(null)} />
+        <SectionHeader title={t('contacts.labelMembersTitleTemplate').replace('{name}', label.name)} onBack={() => setShowMembers(null)} />
         <div className="lt-members-pad">
           {contacts.map(c => {
             const inLabel = memberIds.has(c.id);
@@ -592,7 +592,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       <div className="lt-list-header">
         <button onClick={startCreate}
           className="lt-create-btn">
-          + 新建标签
+          + {t('contacts.newLabel')}
         </button>
       </div>
       {labels.length === 0 && (
@@ -670,11 +670,12 @@ function EntryRow({ icon, color, label, badge, onClick, testid }) {
 }
 
 function SectionHeader({ title, onBack }) {
+  const { t } = useI18n();
   return (
     <div className="cl-section-header">
       <button onClick={onBack} className="cl-section-back">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg>
-        返回
+        {t('common.back')}
       </button>
       <span className="cl-section-title">{title}</span>
     </div>
