@@ -5,6 +5,7 @@ import { mediaUrl } from '../utils/url';
 import { matchesCall, withCallId } from '../utils/callSignaling';
 import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingTone, playConnectedTone } from '../utils/callTones';
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
+import { useI18n } from '../contexts/I18nContext';
 import './CallModal.css';
 
 // 页面首次交互即预热 AudioContext(autoplay 政策:创建/resume 需在手势栈内,
@@ -153,6 +154,7 @@ function useFocusTrap(open) {
 
 /* ── 主组件 ── */
 export default function CallModal({ socket, call, onClose, onReplyMessage }) {
+  const { t } = useI18n();
   const { type, direction, remoteUser, remoteId, callId } = call;
   const isVideo = type === 'video';
   // 通话中类型可切换（语音↔视频）：初始=发起类型，切换后驱动渲染与重协商
@@ -593,7 +595,12 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     }
   }, [videoMode, socket, remoteId, callId]);
 
-  const END_TEXT = { rejected: '对方已拒绝', busy: '对方正忙', timeout: '无人接听', network: '网络已断开' };
+  const END_TEXT = {
+    rejected: t('call.endReasonRejected'),
+    busy: t('call.endReasonBusy'),
+    timeout: t('call.endReasonTimeout'),
+    network: t('call.endReasonNetwork'),
+  };
   const inProgress  = ['calling', 'connecting', 'connected'].includes(status);
   const canMinimize = inProgress && status !== 'incoming';
 
@@ -604,7 +611,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     // （react-hooks/set-state-in-effect 7.x 对"状态守卫型同步 setState"属误报边界，见 AUDIT 待办）
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (status !== 'connected') { setCallQuality(null); return; }
-    const t = setInterval(async () => {
+    const intervalId = setInterval(async () => {
       const pc = pcRef.current;
       if (!pc) return;
       try {
@@ -627,12 +634,12 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         setCallQuality(q);
       } catch { /* stats 不可用静默 */ }
     }, 2000);
-    return () => clearInterval(t);
+    return () => clearInterval(intervalId);
   }, [status]);
   const QUALITY_UI = {
-    good:   { color: 'var(--color-success)', text: '网络良好' },
-    medium: { color: '#f5a623', text: '网络一般' },
-    poor:   { color: 'var(--color-danger)', text: '网络较差' },
+    good:   { color: 'var(--color-success)', text: t('call.networkGood') },
+    medium: { color: '#f5a623', text: t('call.networkMedium') },
+    poor:   { color: 'var(--color-danger)', text: t('call.networkPoor') },
   };
   const qualityBadge = callQuality && status === 'connected' ? (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginLeft: 8, fontSize: 12 }}>
@@ -665,14 +672,14 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             <video ref={onMiniVideoMount} autoPlay playsInline />
             <div className="cm-bubble-video-overlay">
               <span className="cm-bubble-timer">
-                {isConnected ? timer : '连接中…'}
+                {isConnected ? timer : t('call.connecting')}
               </span>
             </div>
             <button
               type="button"
               className="cm-mini-hangup"
-              aria-label="挂断"
-              title="挂断"
+              aria-label={t('call.hangup')}
+              title={t('call.hangup')}
               onPointerDown={e => e.stopPropagation()}
               onClick={e => { e.stopPropagation(); endCall(true); }}
             >
@@ -698,8 +705,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
               <button
                 type="button"
                 className="cm-mini-hangup"
-                aria-label="挂断"
-                title="挂断"
+                aria-label={t('call.hangup')}
+                title={t('call.hangup')}
                 style={{ width: 26, height: 26, bottom: -4, right: -4 }}
                 onPointerDown={e => e.stopPropagation()}
                 onClick={e => { e.stopPropagation(); endCall(true); }}
@@ -708,7 +715,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
               </button>
             </div>
             <div className="cm-bubble-audio-label">
-              {isConnected ? timer : (status === 'calling' ? '等待接听…' : '连接中…')}
+              {isConnected ? timer : (status === 'calling' ? t('call.waitingAnswerShort') : t('call.connecting'))}
             </div>
           </div>
         )}
@@ -737,7 +744,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       {/* 麦克风/摄像头获取失败提示 */}
       {mediaError && (
         <div role="alert" className="cm-media-error">
-          无法访问{videoMode ? '摄像头/麦克风' : '麦克风'}，对方将听不到你，请检查浏览器权限或设备占用
+          {t('call.micAccessErrorTemplate').replace('{device}', videoMode ? t('call.cameraMicShort') : t('call.micShort'))}
         </div>
       )}
 
@@ -767,7 +774,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         {/* 顶部：缩小 + 名字/计时 */}
         <div className="cm-video-top">
           {canMinimize && (
-            <button type="button" onClick={() => setMinimized(true)} className="cm-minimize-btn" title="缩小" aria-label="缩小">
+            <button type="button" onClick={() => setMinimized(true)} className="cm-minimize-btn" title={t('call.minimize')} aria-label={t('call.minimize')}>
               <IcoMinimize />
             </button>
           )}
@@ -775,7 +782,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             <div className="cm-video-name" style={{ marginRight: canMinimize ? 36 : 0 }}>
               <div className="cm-video-name-text">{remoteUser?.name}</div>
               <div className="cm-video-status">
-                {status === 'connected' ? timer : (status === 'calling' ? '等待对方接听…' : '连接中…')}
+                {status === 'connected' ? timer : (status === 'calling' ? t('call.waitingAnswer') : t('call.connecting'))}
                 {qualityBadge}
               </div>
             </div>
@@ -787,7 +794,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
           <div className="cm-incoming-center">
             <Avatar src={remoteUser?.avatar} name={remoteUser?.name || '?'} size={88} style={{ borderRadius: '50%', boxShadow: '0 4px 20px rgba(0,0,0,.4)' }} />
             <div className="cm-incoming-name">{remoteUser?.name}</div>
-            <div className="cm-incoming-desc">邀请你进行视频通话</div>
+            <div className="cm-incoming-desc">{t('call.invitingVideoCall')}</div>
           </div>
         )}
 
@@ -795,28 +802,28 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         <div className="cm-controls-bottom">
           {status === 'incoming' ? (
             <div className="cm-btn-row">
-              <CircleBtn icon={<IcoHangup />} label="拒绝" color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
+              <CircleBtn icon={<IcoHangup />} label={t('call.reject')} color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 12H9v-2h2v2zm0-4H9V6h2v4zm4 4h-2v-2h2v2zm0-4h-2V6h2v4z"/></svg>}
-                label="回复消息" size={56} onClick={replyInstead} testid="call-reply-btn"
+                label={t('call.replyMessage')} size={56} onClick={replyInstead} testid="call-reply-btn"
               />
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
-                label="接听" color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
+                label={t('call.accept')} color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
               />
             </div>
           ) : (
             <div className="cm-btn-row">
-              <CircleBtn icon={<IcoMute on={muted} />} label={muted ? '取消静音' : '静音'} active={muted} onClick={toggleMute} />
+              <CircleBtn icon={<IcoMute on={muted} />} label={muted ? t('call.unmute') : t('call.mute')} active={muted} onClick={toggleMute} />
               {supportsSinkId && outputDevices.length > 1 && (
-                <CircleBtn icon={<IcoOutput />} label="输出设备" onClick={cycleOutputDevice} />
+                <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
-                label="切语音" onClick={toggleVideo} testid="call-switch-to-audio-btn"
+                label={t('call.switchToVoice')} onClick={toggleVideo} testid="call-switch-to-audio-btn"
               />
-              <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
-              <CircleBtn icon={<IcoCam off={cameraOff} />} label={cameraOff ? '开摄像头' : '关摄像头'} active={cameraOff} onClick={toggleCamera} />
+              <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
+              <CircleBtn icon={<IcoCam off={cameraOff} />} label={cameraOff ? t('call.turnCameraOn') : t('call.turnCameraOff')} active={cameraOff} onClick={toggleCamera} />
             </div>
           )}
         </div>
@@ -842,8 +849,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             onClick={() => setMinimized(true)}
             className="cm-minimize-btn"
             style={{ position: 'absolute', top: 20, left: 20, zIndex: 4 }}
-            title="缩小"
-            aria-label="缩小"
+            title={t('call.minimize')}
+            aria-label={t('call.minimize')}
           >
             <IcoMinimize />
           </button>
@@ -880,9 +887,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
           <div className="cm-voice-status">
             {status === 'connected' ? <span style={{ color: 'var(--color-success)' }}>{timer}</span> :
              status === 'incoming'  ? '语音通话' :
-             status === 'calling'   ? '等待对方接听…' :
+             status === 'calling'   ? t('call.waitingAnswer') :
              status === 'ended'     ? (END_TEXT[endReason] || '通话已结束') :
-             '连接中…'}
+             t('call.connecting')}
             {qualityBadge}
           </div>
         </div>
@@ -890,28 +897,28 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         <div className="cm-voice-bottom">
           {status === 'incoming' && (
             <div className="cm-btn-row">
-              <CircleBtn icon={<IcoHangup />} label="拒绝" color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
+              <CircleBtn icon={<IcoHangup />} label={t('call.reject')} color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 12H9v-2h2v2zm0-4H9V6h2v4zm4 4h-2v-2h2v2zm0-4h-2V6h2v4z"/></svg>}
-                label="回复消息" size={56} onClick={replyInstead} testid="call-reply-btn"
+                label={t('call.replyMessage')} size={56} onClick={replyInstead} testid="call-reply-btn"
               />
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>}
-                label="接听" color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
+                label={t('call.accept')} color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
               />
             </div>
           )}
           {inProgress && status !== 'incoming' && (
             <div className="cm-btn-row">
-              <CircleBtn icon={<IcoMute on={muted} />} label={muted ? '取消静音' : '静音'} active={muted} onClick={toggleMute} />
+              <CircleBtn icon={<IcoMute on={muted} />} label={muted ? t('call.unmute') : t('call.mute')} active={muted} onClick={toggleMute} />
               {supportsSinkId && outputDevices.length > 1 && (
-                <CircleBtn icon={<IcoOutput />} label="输出设备" onClick={cycleOutputDevice} />
+                <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
               <CircleBtn
                 icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
-                label="切视频" onClick={toggleVideo} testid="call-switch-to-video-btn"
+                label={t('call.switchToVideo')} onClick={toggleVideo} testid="call-switch-to-video-btn"
               />
-              <CircleBtn icon={<IcoHangup />} label="挂断" color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
+              <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
             </div>
           )}
         </div>
