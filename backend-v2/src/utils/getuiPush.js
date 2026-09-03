@@ -171,6 +171,14 @@ async function pushCallToCid(cid, { callId, from, callerName, callType }) {
   };
   const { status, json } = await httpJson('POST', '/push/single/cid',
     { token }, message);
+  // 此前只要 HTTP 请求本身没抛异常就当成功返回——个推 API 常见的是 HTTP 200 但
+  // json.code!==0 的业务失败（cid 过期/未配置厂商 Key/离线保留超限等），调用方
+  // （push.js 的 pushCallInvite）只在 promise reject 时才 console.warn，这种"响应体
+  // 里的失败"被完全吞掉，永远不会出现在日志里——排查"来电推送不到"时无从下手。
+  // 加这道校验后，业务失败会 throw，push.js 现有的 .catch 会把 json 原样打进日志。
+  if (status !== 200 || json.code !== 0) {
+    throw new Error(`个推来电推送失败 status=${status} ${JSON.stringify(json)}`);
+  }
   return { status, json, cid };
 }
 
