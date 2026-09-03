@@ -54,9 +54,10 @@ function PageBg({ children }) {
 }
 
 function PageHeader({ title, onBack, right }) {
+  const { t } = useI18n();
   return (
     <div className="wc-page-header">
-      <button className="wc-page-header-back" onClick={onBack}>‹ 返回</button>
+      <button className="wc-page-header-back" onClick={onBack}>‹ {t('common.back')}</button>
       <span className="wc-page-header-title">{title}</span>
       <div className="wc-page-header-right">{right}</div>
     </div>
@@ -95,6 +96,7 @@ function CRow({ icon, bg, label, value, desc, onClick, right, danger }) {
 
 /* ── 修改昵称 ── */
 function EditName({ user, updateUser, onBack }) {
+  const { t } = useI18n();
   const [username, setUsername] = useState(user?.username || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -103,8 +105,8 @@ function EditName({ user, updateUser, onBack }) {
   const save = async () => {
     if (saving) return; // 防连点：回车提交会绕过 disabled 按钮
     const trimmed = username.trim();
-    if (!trimmed) { setError('昵称不能为空'); return; }
-    if (trimmed.length > MAX) { setError(`昵称最多 ${MAX} 个字符`); return; }
+    if (!trimmed) { setError(t('profile.nicknameEmpty')); return; }
+    if (trimmed.length > MAX) { setError(t('profile.nicknameMaxTemplate').replace('{n}', MAX)); return; }
     setSaving(true);
     setError('');
     try {
@@ -112,7 +114,7 @@ function EditName({ user, updateUser, onBack }) {
       updateUser(data);
       onBack();
     } catch (err) {
-      setError(err.response?.data?.error || '保存失败，请重试');
+      setError(err.response?.data?.error || t('common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -120,10 +122,10 @@ function EditName({ user, updateUser, onBack }) {
 
   return (
     <PageBg>
-      <PageHeader title="修改昵称" onBack={onBack}
+      <PageHeader title={t('profile.editNickname')} onBack={onBack}
         right={
           <button className="wc-save-btn" onClick={save} disabled={saving}>
-            {saving ? '保存中' : '保存'}
+            {saving ? t('profile.savingShort') : t('common.save')}
           </button>
         }
       />
@@ -136,15 +138,15 @@ function EditName({ user, updateUser, onBack }) {
               onKeyDown={e => e.key === 'Enter' && save()}
               maxLength={MAX}
               autoFocus
-              placeholder="请输入昵称"
-              aria-label="修改昵称"
+              placeholder={t('profile.nicknamePlaceholder')}
+              aria-label={t('profile.editNickname')}
               className="wc-edit-input"
             />
             <span className="wc-edit-counter">{username.length}/{MAX}</span>
           </div>
         </Card>
         {error && <div className="wc-edit-error" role="alert">{error}</div>}
-        <div className="wc-edit-hint">昵称会对所有联系人显示</div>
+        <div className="wc-edit-hint">{t('profile.nicknameHint')}</div>
       </div>
     </PageBg>
   );
