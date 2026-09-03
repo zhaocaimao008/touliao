@@ -614,6 +614,11 @@ async function edit(io, userId, msgId, content) {
 
 // ── 收藏 ────────────────────────────────────────────────────────
 async function collect(userId, msgId) {
+  // 后台开关拦截：关闭「收藏」后，任何客户端（含绕过 UI 的直连）都被拒绝。
+  // 直接读 admin_settings，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
+  if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_collect')?.value === 'off') {
+    throw forbidden('管理员已关闭收藏功能');
+  }
   const msg = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(msgId);
   if (!msg) throw notFound('消息不存在或已删除');
   requireMember(msg.conversation_id, userId, '无权操作');

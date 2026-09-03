@@ -174,6 +174,11 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
 
 // ── 发布 ────────────────────────────────────────────────────────
 function createMoment(io, userId, { content, images, visibility, visibleTo }) {
+  // 后台开关拦截：关闭「朋友圈」后，任何客户端（含绕过 UI 的直连）都被拒绝发布。
+  // 直接读 admin_settings，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
+  if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_moments')?.value === 'off') {
+    throw forbidden('管理员已关闭朋友圈功能');
+  }
   const text = (content || '').trim();
   const rawImgs = Array.isArray(images) ? images.slice(0, 9) : [];
   // URL 白名单：只允许本服务器 uploads 目录或已配置的云存储域名
