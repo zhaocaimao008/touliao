@@ -118,11 +118,14 @@ function XlsxRenderer({ url, onLoaded, onError }) {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const buf = await resp.arrayBuffer();
         if (cancelled) return;
-        const XLSX = await import('xlsx');
+        const [XLSX, { default: DOMPurify }] = await Promise.all([import('xlsx'), import('dompurify')]);
         const wb = XLSX.read(buf, { type: 'array' });
+        // sheet_to_html 把单元格内容原样拼进 HTML：恶意 .xlsx（任意联系人发的文件都会走这条预览）
+        // 能在单元格里塞 <script>/onerror 之类的标签，不清洗就直接喂进 dangerouslySetInnerHTML
+        // 等于在预览者的已登录会话里执行任意脚本（存储型 XSS）。
         const parsed = wb.SheetNames.map(name => ({
           name,
-          html: XLSX.utils.sheet_to_html(wb.Sheets[name], { editable: false }),
+          html: DOMPurify.sanitize(XLSX.utils.sheet_to_html(wb.Sheets[name], { editable: false })),
         }));
         setSheets(parsed);
         onLoaded?.();
