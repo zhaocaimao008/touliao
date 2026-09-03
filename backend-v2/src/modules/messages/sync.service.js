@@ -67,7 +67,7 @@ function syncConversation(conversationId, userId, query = {}) {
            m.file_url AS m_file_url, m.reply_to_id AS m_reply_to_id,
            m.deleted AS m_deleted, m.created_at AS m_created_at, m.edited AS m_edited,
            m.duration AS m_duration, m.client_msg_id AS m_client_msg_id,
-           m.is_scheduled AS m_is_scheduled, m.transcript AS m_transcript,
+           m.is_scheduled AS m_is_scheduled,
            m.file_mime AS m_file_mime, m.file_size AS m_file_size,
            m.server_sequence AS m_server_sequence,
            u.username AS senderName, u.avatar AS senderAvatar
@@ -92,7 +92,7 @@ function syncConversation(conversationId, userId, query = {}) {
         type: row.m_type, content: row.m_content, file_url: row.m_file_url || '',
         reply_to_id: row.m_reply_to_id || null, deleted: row.m_deleted, created_at: row.m_created_at,
         edited: row.m_edited, duration: row.m_duration, client_msg_id: row.m_client_msg_id,
-        is_scheduled: row.m_is_scheduled, transcript: row.m_transcript,
+        is_scheduled: row.m_is_scheduled,
         file_mime: row.m_file_mime, file_size: row.m_file_size,
         server_sequence: row.m_server_sequence, senderName: row.senderName || '',
         senderAvatar: row.senderAvatar || '', reactions: [], replyTo: null,

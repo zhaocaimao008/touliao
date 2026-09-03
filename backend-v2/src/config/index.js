@@ -139,16 +139,6 @@ const config = {
     pushOnInteract: process.env.MOMENTS_PUSH_ON_INTERACT !== 'false',
   },
 
-  // ── 语音转文字 ASR ──────────────────────────────────────────────
-  // 独立部署的 faster-whisper HTTP 服务（见仓库 /asr）。Node 同机调用，默认本地环回。
-  // 服务不可用时 transcribe 接口返回 503，前端提示「转写服务暂不可用」，绝不降级假数据。
-  asr: {
-    // ASR 服务基础地址；换机/换端口只改这里或环境变量
-    baseUrl: process.env.ASR_URL || 'http://127.0.0.1:18790',
-    // 单次转写请求超时（毫秒），任务书要求 30s
-    timeoutMs: parseInt(process.env.ASR_TIMEOUT_MS, 10) || 30000,
-  },
-
   // ── 错误监控 Sentry ─────────────────────────────────────────────
   // 获取 DSN: https://sentry.io → 新建 Node.js 项目 → Project Settings → Client Keys
   sentry: {
