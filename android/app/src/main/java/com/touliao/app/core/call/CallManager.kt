@@ -574,7 +574,22 @@ class CallManager @Inject constructor(
                 // 按 callId 匹配（P1-3 客户端侧）：旧通话迟到的 call:end 不得误杀重拨后的新来电；
                 // 服务端旧版不带 callId 时兼容放行（callId 为空 → 仅按 peer 匹配，行为同旧版）
                 val s = _state.value
-                val matchesPeerCall = CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)
+                // 紧急修复（2026-09-03）：同账号多端在线时，我方在另一台设备上接听/拒绝了这通
+                // 来电，后端用 reason=answered_elsewhere/rejected_elsewhere 通知本设备收起来电
+                // 界面——但这条通知的 from 字段是"我自己的 userId"（哪台设备做的动作），不是对方
+                // 的 peerId，CallSignalMatcher 按 peerId 比对必然对不上号，导致这条通知被直接
+                // 丢弃：手机上已经拒接了，另一台设备/Web 的来电界面却永远收不到通知，一直挂在
+                // 那响。这类事件只会送进"我自己"的 socket 房间（服务端 socket.to(user_$userId)），
+                // 能收到就已经代表"和我当前这通通话相关"，不需要也不能按 peerId 校验；只在双方
+                // 都带了 callId 时才用 callId 兜底防串话。
+                val isSelfDeviceSync = e.reason == "answered_elsewhere" || e.reason == "rejected_elsewhere"
+                val matchesPeerCall = if (isSelfDeviceSync) {
+                    val hasActiveCall = s.stage != CallStage.IDLE && s.stage != CallStage.ENDED
+                    val idOk = e.callId.isEmpty() || s.callId.isEmpty() || e.callId == s.callId
+                    hasActiveCall && idOk
+                } else {
+                    CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)
+                }
                 val matchesOtherDeviceOutgoing = !s.isCaller && s.stage == CallStage.OUTGOING &&
                     (e.callId.isEmpty() || e.callId == s.callId)
                 if (matchesPeerCall || matchesOtherDeviceOutgoing) {

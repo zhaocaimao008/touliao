@@ -352,11 +352,27 @@ final class CallManager: NSObject, ObservableObject {
             if self.remoteDescSet { self.pc?.add(cand) } else { self.pendingIce.append(cand) }
         }.store(in: &cancellables)
 
-        socket.callEnd.receive(on: DispatchQueue.main).sink { [weak self] (from, callId) in
-            guard let self,
-                  CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
-            else { return }
-            VoipCallManager.shared.endActiveCall()   // 对方挂断时同步收尾 CallKit
+        socket.callEnd.receive(on: DispatchQueue.main).sink { [weak self] (from, callId, reason) in
+            guard let self else { return }
+            // 紧急修复（2026-09-03）：同账号多端在线时，我方在另一台设备上接听/拒绝了这通来电，
+            // 后端会用 reason=answered_elsewhere/rejected_elsewhere 通知本设备收起来电界面——
+            // 但这条通知的 from 字段是"我自己的 userId"（哪台设备做的动作），不是对方的 peerId，
+            // 用 CallSignalMatcher 按 peerId 比对必然对不上号，导致这条通知被直接丢弃：手机上
+            // 已经拒接了，Web/另一台设备的来电界面却永远收不到通知，一直挂在那响。
+            // 这类事件只会送进"我自己"的 socket 房间（服务端 socket.to(user_${userId})），能收到
+            // 就已经代表"和我当前这通通话相关"，不需要也不能按 peerId 校验；只在双方都带了
+            // callId 时才用 callId 兜底防串话。
+            let isSelfDeviceSync = reason == "answered_elsewhere" || reason == "rejected_elsewhere"
+            let matched: Bool
+            if isSelfDeviceSync {
+                let hasActiveCall = self.state.stage != .idle && self.state.stage != .ended
+                let idOk = callId.isEmpty || self.state.callId.isEmpty || callId == self.state.callId
+                matched = hasActiveCall && idOk
+            } else {
+                matched = CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
+            }
+            guard matched else { return }
+            VoipCallManager.shared.endActiveCall()   // 对方挂断/被其它设备处理时同步收尾 CallKit
             self.cleanup(.ended)
         }.store(in: &cancellables)
 

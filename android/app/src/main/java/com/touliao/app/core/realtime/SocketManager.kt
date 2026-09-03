@@ -54,7 +54,7 @@ data class CallOutgoingEvent(val to: String, val type: String, val callId: Strin
 data class CallResponseEvent(val callId: String, val from: String, val accepted: Boolean)
 data class CallSdpEvent(val callId: String, val from: String, val sdp: String)            // offer / answer 的 sdp
 data class CallIceEvent(val callId: String, val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
-data class CallEndEvent(val from: String, val callId: String = "")
+data class CallEndEvent(val from: String, val callId: String = "", val reason: String = "")
 data class CallSwitchTypeEvent(val callId: String, val from: String, val type: String)    // 通话中切换语音↔视频
 
 // ── 群通话(mesh) 信令事件 ──
@@ -464,7 +464,7 @@ class SocketManager @Inject constructor(
         s.on("call:end") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val from = o.optString("from").takeIf { it.isNotEmpty() } ?: return@let
-                _callEnd.tryEmit(CallEndEvent(from, o.optString("callId")))
+                _callEnd.tryEmit(CallEndEvent(from, o.optString("callId"), o.optString("reason")))
             }
         }
         s.on("call:switch-type") { args ->

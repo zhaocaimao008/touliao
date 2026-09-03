@@ -90,7 +90,7 @@ final class SocketService {
     let callOffer = PassthroughSubject<(from: String, sdp: String, callId: String), Never>()
     let callAnswer = PassthroughSubject<(from: String, sdp: String, callId: String), Never>()
     let callIce = PassthroughSubject<(from: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32, callId: String), Never>()
-    let callEnd = PassthroughSubject<(from: String, callId: String), Never>()
+    let callEnd = PassthroughSubject<(from: String, callId: String, reason: String), Never>()
     let callSwitchType = PassthroughSubject<(from: String, type: String, callId: String), Never>()
 
     // ── 群通话(mesh) 信令 ──
@@ -321,7 +321,7 @@ final class SocketService {
         }
         sock.on("call:end") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
-            self?.callEnd.send((from, d["callId"] as? String ?? ""))
+            self?.callEnd.send((from, d["callId"] as? String ?? "", d["reason"] as? String ?? ""))
         }
         sock.on("call:switch-type") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }

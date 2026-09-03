@@ -484,7 +484,18 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       } catch { /* stale/duplicate ICE candidate; safe to ignore */ }
     };
     const onEnd = ({ from, reason, callId: evtCallId } = {}) => {
-      if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
+      // 紧急修复（2026-09-03）：同账号多端在线时，我方在另一台设备（如手机）上接听/拒绝了
+      // 这通来电，后端用 reason=answered_elsewhere/rejected_elsewhere 通知本设备收起来电
+      // 界面——但这条通知的 from 是"我自己的 userId"（哪台设备做的动作），不是对方的
+      // remoteId，matchesCall 按 remoteId 比对必然对不上号，导致这条通知被直接丢弃：手机上
+      // 已经拒接了，Web 的来电界面却永远收不到通知，一直挂在那响。这类事件只会送进"我自己"
+      // 的 socket 房间（服务端 socket.to(user_${userId})），能收到就已经代表"和我当前这通
+      // 通话相关"，不需要也不能按 remoteId 校验；只在双方都带了 callId 时才用 callId 兜底。
+      const isSelfDeviceSync = reason === 'answered_elsewhere' || reason === 'rejected_elsewhere';
+      const matched = isSelfDeviceSync
+        ? !evtCallId || !callId || evtCallId === callId
+        : matchesCall({ from, callId: evtCallId }, activeCallInfo);
+      if (!matched) return;
       if (reason) setEndReason(reason);
       setStatus('ended');
       cleanup();
