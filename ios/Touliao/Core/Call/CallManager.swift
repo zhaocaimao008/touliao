@@ -449,7 +449,7 @@ final class CallManager: NSObject, ObservableObject {
         guard let pc = pc else { return }
         pc.offer(for: mediaConstraints()) { [weak self] desc, err in
             guard let self, let desc, err == nil else { return }
-            let tuned = RTCSessionDescription(type: desc.type, sdp: Self.tuneSdpForWeakNetwork(desc.sdp))
+            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
             self.socket.emitCallOffer(to: self.state.peerId, sdp: tuned.sdp, callId: self.state.callId)
         }
@@ -491,34 +491,10 @@ final class CallManager: NSObject, ObservableObject {
         guard let pc = pc else { return }
         pc.answer(for: mediaConstraints()) { [weak self] desc, err in
             guard let self, let desc, err == nil else { return }
-            let tuned = RTCSessionDescription(type: desc.type, sdp: Self.tuneSdpForWeakNetwork(desc.sdp))
+            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
             self.socket.emitCallAnswer(to: self.state.peerId, sdp: tuned.sdp, callId: self.state.callId)
         }
-    }
-
-    /// 弱网调优（2026-09-02）：Opus inband FEC + 码率上限 64kbps + 单声道。
-    private static func tuneSdpForWeakNetwork(_ sdp: String) -> String {
-        guard let range = sdp.range(of: #"a=rtpmap:(\d+) opus/48000/2"#, options: .regularExpression) else { return sdp }
-        let pt = sdp[range].split(separator: " ").first!.split(separator: ":").last!
-        let params = "useinbandfec=1;maxaveragebitrate=64000;stereo=0"
-        let fmtpPattern = "a=fmtp:\(pt)[^\r\n]*"
-        if let fmtpRange = sdp.range(of: fmtpPattern, options: .regularExpression) {
-            let existing = sdp[fmtpRange].replacingOccurrences(of: "^a=fmtp:\(pt)\\s*", with: "", options: .regularExpression)
-            var out: [String] = []
-            var seen = Set<String>()
-            let parts = (existing.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } + params.split(separator: ";").map(String.init))
-            for p in parts {
-                let key = p.split(separator: "=").first.map(String.init) ?? p
-                if seen.insert(key).inserted { out.append(p) }
-            }
-            return sdp.replacingCharacters(in: fmtpRange, with: "a=fmtp:\(pt) \(out.joined(separator: ";"))")
-        }
-        // 无 fmtp 行（罕见）：在 rtpmap 后补一行
-        if let lineRange = sdp.range(of: #"a=rtpmap:\d+ opus/48000/2\r?\n"#, options: .regularExpression) {
-            return sdp.replacingCharacters(in: lineRange, with: sdp[lineRange] + "a=fmtp:\(pt) \(params)\r\n")
-        }
-        return sdp
     }
 
     private func mediaConstraints() -> RTCMediaConstraints {

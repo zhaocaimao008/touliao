@@ -12,8 +12,28 @@ import android.widget.Toast
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import com.touliao.app.core.di.DownloadHttpClient
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+
+/**
+ * 顶层函数拿不到 Hilt 构造函数注入，走 EntryPoint 取共享的下载专用 OkHttpClient
+ * （见 AppModule.provideDownloadOkHttpClient 上的注释：为什么不能直接用主 client）。
+ */
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface DownloadClientEntryPoint {
+    @DownloadHttpClient fun downloadHttpClient(): OkHttpClient
+}
+
+internal fun downloadHttpClient(context: Context): OkHttpClient =
+    EntryPointAccessors.fromApplication(context.applicationContext, DownloadClientEntryPoint::class.java)
+        .downloadHttpClient()
 
 /**
  * 文件/视频：用系统 DownloadManager 后台下载到「下载」目录，完成后通知栏可直接点开对应应用。
@@ -127,7 +147,7 @@ suspend fun saveVideoToGallery(context: Context, url: String?, filename: String?
             val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
                 ?: throw IllegalStateException("无法创建相册文件")
 
-            val client = okhttp3.OkHttpClient()
+            val client = downloadHttpClient(context)
             val req = okhttp3.Request.Builder().url(url).build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) throw IllegalStateException("下载失败 HTTP ${resp.code}")
@@ -250,7 +270,7 @@ suspend fun shareFile(context: Context, url: String?, filename: String?, mime: S
                 }
             } else {
                 // 视频/文件/文档：OkHttp 流式下载（url 已带鉴权 token）
-                val client = okhttp3.OkHttpClient()
+                val client = downloadHttpClient(context)
                 val req = okhttp3.Request.Builder().url(url).build()
                 client.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) throw IllegalStateException("下载失败 HTTP ${resp.code}")

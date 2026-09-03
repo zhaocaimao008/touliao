@@ -633,25 +633,6 @@ class CallManager @Inject constructor(
     }
 
     /** 弱网调优（2026-09-02）：Opus inband FEC + 码率上限 64kbps + 单声道。 */
-    private fun tuneSdpForWeakNetwork(sdp: String): String {
-        val m = Regex("a=rtpmap:(\\d+) opus/48000/2").find(sdp) ?: return sdp
-        val pt = m.groupValues[1]
-        val params = "useinbandfec=1;maxaveragebitrate=64000;stereo=0"
-        val fmtpRe = Regex("a=fmtp:$pt[^\\r\\n]*")
-        val existingFmtp = fmtpRe.find(sdp) ?: return sdp.replace(
-            Regex("(a=rtpmap:$pt opus/48000/2\\r?\\n)"),
-            "$1a=fmtp:$pt $params\r\n"
-        )
-        val existing = existingFmtp.value.replace(Regex("^a=fmtp:$pt\\s*"), "")
-        val out = mutableListOf<String>()
-        val seen = mutableSetOf<String>()
-        for (p in (existing.split(';').map { it.trim() }.filter { it.isNotEmpty() } + params.split(';'))) {
-            val key = p.substringBefore('=')
-            if (seen.add(key)) out.add(p)
-        }
-        return sdp.replace(existingFmtp.value, "a=fmtp:$pt ${out.joinToString(";")}")
-    }
-
     private fun mediaConstraints() = MediaConstraints().apply {
         mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
         mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", if (_state.value.isVideo) "true" else "false"))

@@ -23,6 +23,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.MediaItem
+import com.touliao.app.core.util.downloadHttpClient
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.touliao.app.core.util.saveVideoToGallery
@@ -116,7 +117,7 @@ fun PdfViewerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
             runCatching {
                 val dir = File(context.cacheDir, "pdf_preview").apply { mkdirs() }
                 val file = File(dir, "preview_${System.currentTimeMillis()}.pdf")
-                val client = okhttp3.OkHttpClient()
+                val client = downloadHttpClient(context)
                 val req = okhttp3.Request.Builder().url(url).build()
                 client.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")

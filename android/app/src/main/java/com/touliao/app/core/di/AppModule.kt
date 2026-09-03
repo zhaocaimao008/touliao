@@ -32,6 +32,17 @@ import javax.inject.Singleton
 @Retention(AnnotationRetention.BINARY)
 annotation class AppScope
 
+/**
+ * 与 provideOkHttpClient 超时一致，但不挂 hostSelectionInterceptor / authInterceptor：
+ * 供直接下载完整 URL 的场景用（PDF 预览、保存视频到相册等，见 FileDownloader.kt /
+ * MediaPreviewOverlays.kt）。这些 URL 已带鉴权 token 或指向云存储域名——若混进主
+ * client，hostSelectionInterceptor 会无条件把请求 host 强改成当前配置的 API 服务器，
+ * 云存储直链会被错误地重写成打到 API 服务器，下载必然失败。
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DownloadHttpClient
+
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -71,6 +82,21 @@ object AppModule {
             .addInterceptor(hostSelectionInterceptor)
             .addInterceptor(authInterceptor)
             .addInterceptor(logging)
+            .build()
+    }
+
+    // 三处此前各自 new 一个裸 OkHttpClient()，默认 10s 超时，弱网/大文件(PDF/视频)必触发
+    // SocketTimeout——同 provideOkHttpClient 一样拉长到 20s/60s/60s，但不挂那两个 API
+    // 专用拦截器（见 DownloadHttpClient 上的注释）。
+    @Provides
+    @Singleton
+    @DownloadHttpClient
+    fun provideDownloadOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS)
             .build()
     }
 
