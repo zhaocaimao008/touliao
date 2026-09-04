@@ -203,6 +203,10 @@ async function startServer() {
     console.log(`[server] 收到 ${sig}，优雅退出中…`);
     try {
       shutdownWriter();
+      // 必须在 redisCache.disconnect() **之前**停掉队列轮询：否则轮询会对着一个
+      // 已 quit 的客户端继续 rpop，每 5 秒抛一次 "Connection is closed." 并以 error
+      // 级别写进日志/Sentry（生产实测 57 条全产生在这个关停窗口里）。
+      notificationQueue.stop();
       await redisCache.disconnect();
       await tracing.shutdown();
     } catch {}

@@ -16,7 +16,19 @@ class NotificationQueue {
   constructor(options = {}) {
     this.maxRetries = options.maxRetries || 3;
     this.retryDelayMs = options.retryDelayMs || 5000;
+    // 队列为空时的轮询间隔（与失败重试间隔分开：空队列是正常状态，失败不是）
+    this.idlePollMs = options.idlePollMs || 1000;
     this.processing = false;
+    this.stopped = false;
+    // 连续失败计数：Redis 客户端不可用时不该一直空转刷 error 日志，见 startProcessing
+    this._consecutiveErrors = 0;
+  }
+
+  /** 停止轮询。优雅退出时必须调用，否则见 startProcessing 里的说明。 */
+  stop() {
+    this.stopped = true;
+    this.processing = false;
+    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
   }
 
   /**
@@ -45,17 +57,32 @@ class NotificationQueue {
   /**
    * 开始处理队列
    */
+  // ⚠ 这个轮询此前没有任何停止手段，也没有失败上限：
+  //   · graceful() 里 await redisCache.disconnect() 之后，本轮询还在跑，
+  //     每 5 秒对着一个已 quit 的客户端 rpop 一次，抛 "Connection is closed."
+  //     并以 **error** 级别写进 error.log / Sentry。生产日志实测 57 条全是这个，
+  //     且全部产生在关停窗口里（该服务重启过 163 次）。
+  //   · Redis 真的挂掉时同样会无休止刷下去，把真事故淹掉。
+  // 现在：可 stop()（server.js 的 graceful 里调用），且连续失败到上限就停并只留一行 warn。
   async startProcessing() {
-    if (this.processing) return;
+    if (this.processing || this.stopped) return;
     this.processing = true;
 
     // 注意：避免用 'process' 命名，防止遮蔽 Node.js 全局 process 对象
+    const MAX_CONSECUTIVE_ERRORS = 5;
     const processNext = async () => {
+      if (this.stopped) return;
       try {
+        if (!redis) {   // 生产环境无可用客户端时 getRedisClient() 返回 null
+          this.processing = false;
+          logger.warn('[notificationQueue] 无可用 Redis 客户端，队列轮询未启动');
+          return;
+        }
         const item = await redis.rpop(NOTIFICATION_QUEUE);
+        this._consecutiveErrors = 0;
         if (!item) {
           // 队列为空，1秒后重试
-          setTimeout(processNext, 1000);
+          this._timer = setTimeout(processNext, this.idlePollMs);
           return;
         }
 
@@ -65,8 +92,18 @@ class NotificationQueue {
         // 继续处理下一条
         setImmediate(processNext);
       } catch (error) {
-        logger.error(`Queue processing error: ${error.message}`);
-        setTimeout(processNext, 5000);
+        this._consecutiveErrors += 1;
+        if (this._consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          // 连续失败到上限：停掉轮询，只留一行 warn。继续空转除了刷日志没有任何作用，
+          // 而 error 级别的重复噪音会把真正的事故淹掉。
+          this.processing = false;
+          logger.warn(`[notificationQueue] 连续 ${MAX_CONSECUTIVE_ERRORS} 次失败，停止轮询: ${error.message}`);
+          return;
+        }
+        logger.warn(`[notificationQueue] 处理失败(${this._consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}): ${error.message}`);
+        // 用构造器传入的 retryDelayMs，而不是写死 5000——这个选项本来就存在
+        // （server.js 传的就是 5000），却被轮询忽略了。
+        this._timer = setTimeout(processNext, this.retryDelayMs);
       }
     };
 
