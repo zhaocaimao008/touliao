@@ -191,7 +191,7 @@ async function uploadThumb(thumbUploadUrl, blob) {
   }
 }
 
-export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall, onStartGroupCall }) {
+export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall, onStartGroupCall, onStartChat }) {
   const { t } = useI18n();
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
@@ -2599,7 +2599,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <UserProfile
           userId={showUserProfile}
           onClose={() => setShowUserProfile(null)}
-          onStartChat={() => setShowUserProfile(null)}
+          onStartChat={(conv) => { setShowUserProfile(null); onStartChat?.(conv); }}
           onFriendDeleted={() => { setShowUserProfile(null); onClose?.(); }}
           onNudge={(id) => { callbacksRef.current.onNudge?.(id); }}
         />

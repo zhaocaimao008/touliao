@@ -445,7 +445,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       {activeChar && <div className="wc-alpha-bubble">{activeChar}</div>}
 
       {/* 添加好友弹窗 */}
-      {showAddFriend && <Suspense fallback={null}><AddFriendModal onClose={() => setShowAddFriend(false)} /></Suspense>}
+      {showAddFriend && <Suspense fallback={null}><AddFriendModal onClose={() => setShowAddFriend(false)} onStartChat={onStartChat} /></Suspense>}
 
       {/* 查看联系人资料 */}
       {viewProfile && (

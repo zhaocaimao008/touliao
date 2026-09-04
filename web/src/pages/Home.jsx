@@ -1054,7 +1054,7 @@ export default function Home() {
           onCreated={(conv) => { setShowCreateGroup(false); handleSelectConv(conv); }} />
       )}
       {netSearchQ !== null && (
-        <Suspense fallback={null}><AddFriendModal initialQuery={netSearchQ} onClose={() => setNetSearchQ(null)} /></Suspense>
+        <Suspense fallback={null}><AddFriendModal initialQuery={netSearchQ} onClose={() => setNetSearchQ(null)} onStartChat={(conv) => { setNetSearchQ(null); handleSelectConv(conv); }} /></Suspense>
       )}
       {showMentions && (
         <div className="wc-modal-overlay" role="button" tabIndex={0}
@@ -1090,7 +1090,7 @@ export default function Home() {
           <div className="m-chat-page">
             <ChatWindowBoundary convId={activeConv.id}>
               <Suspense fallback={<ChatSkeleton />}>
-                <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={handleMobileBack} onStartCall={handleStartCall} onStartGroupCall={handleStartGroupCall} />
+                <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={handleMobileBack} onStartCall={handleStartCall} onStartGroupCall={handleStartGroupCall} onStartChat={handleMobileSelectConv} />
               </Suspense>
             </ChatWindowBoundary>
           </div>
@@ -1232,7 +1232,7 @@ export default function Home() {
               ? (
                 <ChatWindowBoundary convId={activeConv.id}>
                   <Suspense fallback={<div className="wc-lazy-pane" />}>
-                    <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} onStartGroupCall={handleStartGroupCall} />
+                    <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} onStartGroupCall={handleStartGroupCall} onStartChat={handleSelectConv} />
                   </Suspense>
                 </ChatWindowBoundary>
               )

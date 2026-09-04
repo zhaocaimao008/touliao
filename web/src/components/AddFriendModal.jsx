@@ -32,7 +32,7 @@ function AfResultItem({ user: u, onClick }) {
   );
 }
 
-export default function AddFriendModal({ onClose, initialQuery = '' }) {
+export default function AddFriendModal({ onClose, initialQuery = '', onStartChat }) {
   const { t } = useI18n();
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState([]);
@@ -221,7 +221,7 @@ export default function AddFriendModal({ onClose, initialQuery = '' }) {
         <UserProfile
           userId={viewId}
           onClose={() => setViewId(null)}
-          onStartChat={() => { setViewId(null); onClose(); }}
+          onStartChat={(conv) => { setViewId(null); onClose(); onStartChat?.(conv); }}
           onFriendAdded={() => {}}
         />
       )}
