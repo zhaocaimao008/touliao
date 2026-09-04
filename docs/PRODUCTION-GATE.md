@@ -61,3 +61,17 @@ P1 数量 = 0（P1、P1-b 均已修复并通过真实浏览器/后端全量套�
 ```
 
 **REAL DEVICE = NOT TESTED**（移动端真机，长期环境限制，非本次可解决项）——如果你的上线标准要求真机验证，这一项仍需额外的真机/云真机资源，不在本次判定范围内。
+
+---
+
+## 证据归档位置更新（2026-09-04）
+
+本报告表格中引用的 `load-test/output/...` 路径原位于 `git worktree` 隔离环境
+`/root/touliao/.worktrees/audit2`。该 worktree 与 `audit2-branch` 已于 2026-09-04 清理
+（其提交已全量合并进 `main`，无独有提交）。证据已完整归档至：
+
+    /root/touliao/backups/audit2-evidence-20260904/
+
+对应关系：报告中的 `load-test/output/<X>` → 归档目录下的 `output/<X>`。
+含明文测试账号凭据的 `accounts.json` 与本地自签测试私钥 `web/.certs/key.pem`
+**刻意未归档**，随 worktree 一同销毁。详见归档目录内 `README-归档说明.md`。

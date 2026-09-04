@@ -179,3 +179,6 @@ Socket.IO 鉴权（`backend-v2/src/realtime/index.js` 的 `io.use`）**仅在握
 > **后续更新（2026-09-04）**：上述 `AddFriendModal.jsx` 资料卡"发消息"死链已在提交 `5df07fb`
 > 中修复（AddFriendModal/ChatWindow 内嵌 UserProfile 的 `onStartChat` 未转发会话对象），
 > 本节"未做修复"的描述已过期，保留原文仅作事故记录。
+
+> **证据归档（2026-09-04）**：本文引用的 `load-test-output/voice-call/...` 已随 audit2
+> worktree 清理归档至 `/root/touliao/backups/audit2-evidence-20260904/load-test-output/`。

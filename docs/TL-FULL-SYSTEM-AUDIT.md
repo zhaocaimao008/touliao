@@ -362,7 +362,7 @@
 **✅ READY FOR PRODUCTION（核心功能与安全门槛全部满足）——但请注意下方仍标注为 NOT TESTED 的项目，这些不属于本次门禁判定范围，是否需要在这些项目上补测由你决定。**
 
 建议：
-1. P1-b 修复已提交到 `audit2-branch`（未提交/未 push，见下方"待办"），建议按你现有的其余修复合并流程一并 review 后 push 到 `main` 并部署
+1. ~~P1-b 修复已提交到 `audit2-branch`（未提交/未 push）~~ **【2026-09-04 已完成】** P1-b 修复（提交 `8bb9ae4`）已合并进 `main` 并部署；`audit2-branch` 与其 worktree 已清理，证据归档至 `backups/audit2-evidence-20260904/`（报告内 `load-test/output/<X>` → 归档 `output/<X>`）
 2. 其余全部专项（性能/并发/多浏览器/多分辨率/移动端模拟/CI-CD）已完整验证通过，不是本次的阻塞项
 3. REAL DEVICE 仍然是 NOT TESTED（本机长期限制），如果你的上线标准要求真机验证，这一项仍需要额外的真机/云真机资源
 
