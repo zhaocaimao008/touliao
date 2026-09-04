@@ -292,6 +292,7 @@ function transferOwner(io, convId, ownerId, newOwnerId) {
     db.prepare("UPDATE conversation_members SET role='owner' WHERE conversation_id=? AND user_id=?").run(convId, newOwnerId);
     db.prepare("UPDATE conversation_members SET role='member' WHERE conversation_id=? AND user_id=?").run(convId, ownerId);
   })();
+  invalidateConv(convId); // 两个人的角色都变了，isMember/memberRole 5s 缓存必须立即失效，否则新群主短时间内仍被当成普通成员拒绝管理操作
 
   if (io) {
     io.to(convId).emit('group_updated', { id: convId, owner_id: newOwnerId });
@@ -311,6 +312,7 @@ function setRole(io, convId, ownerId, uid, role) {
   if (target.role === 'owner') throw badRequest('不能修改群主角色');
 
   db.prepare('UPDATE conversation_members SET role=? WHERE conversation_id=? AND user_id=?').run(role, convId, uid);
+  invalidateConv(convId); // memberRole 5s 缓存必须立即失效，否则新管理员短时间内仍被当成普通成员拒绝管理操作
   if (io) {
     io.to(convId).emit('group_updated', { id: convId });
     io.to(`user_${uid}`).emit('role_changed', { conversationId: convId, role });
