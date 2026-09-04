@@ -129,14 +129,23 @@ export function setupAxiosInterceptors(axios) {
           !originalRequest.url?.includes('/auth/refresh')) {
         
         originalRequest._retry = true;
-        
+
         try {
           await refreshToken(axios);
           // 重试原请求
           return axios(originalRequest);
         } catch {
-          // 刷新失败，由各组件处理跳转登录
-          return Promise.reject(error);
+          // 多标签页竞态：本标签页的 refresh 可能因为另一个标签页并发 refresh 抢先
+          // 一步而失败（服务端对 refresh 做"旧 token 用后即拉黑"，见 auth.controller.js
+          // 的 refresh），但 cookie 是同源共享的——另一个标签页那次成功的 refresh 早
+          // 已把新 cookie 写回浏览器。这里刷新失败不代表账号真的掉线，重试一次原始
+          // 请求：大概率会带上那个新 cookie 直接成功，避免把这个标签页错误地登出。
+          try {
+            return await axios(originalRequest);
+          } catch (retryErr) {
+            // 重试也失败 → 才是真的没有可用会话了，交给各组件/全局拦截器处理登出
+            return Promise.reject(retryErr);
+          }
         }
       }
       

@@ -77,11 +77,23 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => { userRef.current = user; }, [user]);
 
   // ── 401 自动踢出 ───────────────────────────────────────────────
+  // 多标签页 refresh 竞态修复：同一账号两个标签页的 access token 同时临近过期时，
+  // 各自独立触发 /api/auth/refresh（见 utils/axiosInterceptor.js），服务端对 refresh
+  // 做"旧 token 用后即黑名单"（auth.controller.js），两个并发请求用的是同一个旧
+  // token——先到的那个成功换发新 cookie 并拉黑旧 token，慢一步的那个此时旧 token
+  // 已被拉黑，refresh 本身就会收到 401。这个 401 之前会被本拦截器当成"会话失效"
+  // 直接强制登出+跳转登录，但实际上账号会话完全正常，只是这个标签页这一次没抢到
+  // refresh——错误地把用户从一个好端端的会话里踢出去。
+  // 修复：refresh/login 接口自身返回的 401 不算数（已经有各自的失败处理，见
+  // axiosInterceptor.js 的 refreshToken()），只有其它接口在"刷新+重试"都失败后仍
+  // 收到 401，才是会话真的失效，才应该强制登出。
   useEffect(() => {
     const id = axios.interceptors.response.use(
       res => res,
       err => {
-        if (err.response?.status === 401 && userRef.current) {
+        const url = err.config?.url || '';
+        const isAuthBootstrap = url.includes('/auth/refresh') || url.includes('/auth/login');
+        if (err.response?.status === 401 && userRef.current && !isAuthBootstrap) {
           setUser(null);
           setElectronToken(null);
           if (window.__ELECTRON_CONFIG__) window.location.hash = '#/login';
