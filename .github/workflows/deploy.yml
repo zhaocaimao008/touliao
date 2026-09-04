@@ -239,6 +239,17 @@ jobs:
           rsync -a "$REPO_ROOT/web/dist/" /var/www/touliao-web/
           echo "✅ Web 已发布到 /var/www/touliao-web/"
 
+          # 2026-09-04：上面 rsync 不带 --delete，旧哈希 chunk 只增不减（实测已累积
+          # 650 个文件 / 11.3M，而当前构建只需 113 个）。不能简单改成 --delete：Web 是
+          # Vite 懒加载分包，用户浏览器里已打开的上一版页面仍会去取旧 chunk，立即删除会
+          # 让它们点开对应功能 404 白屏。改为发布后跑清理脚本，只删「当前构建引用闭环之外
+          # 且 mtime 超过 24h 宽限期」的文件，删前 tar 备份到 backups/。清理失败不阻断
+          # 部署——它不影响本次发布的正确性。
+          if [ -x "$REPO_ROOT/ops/prune-web-assets.sh" ]; then
+            WEB_ROOT=/var/www/touliao-web "$REPO_ROOT/ops/prune-web-assets.sh" --apply \
+              || echo "⚠ 资产清理失败（不阻断部署）"
+          fi
+
           echo "📦 步骤 2b: 安装后端生产依赖"
           cd "$DEPLOY_PATH"
           npm ci --omit=dev
