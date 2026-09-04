@@ -24,11 +24,26 @@ class DistributedTracing {
    */
   async initialize(config = {}) {
     const serviceName = config.serviceName || process.env.SERVICE_NAME || 'touliao-backend';
-    const exporterEndpoint = config.exporterEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4317';
+    const configuredEndpoint = config.exporterEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT || null;
+    const exporterEndpoint = configuredEndpoint || 'localhost:4317';
     const enabled = config.enabled !== false && process.env.TRACING_ENABLED !== 'false';
 
     if (!enabled) {
       console.log('[Tracing] Disabled by configuration');
+      return this;
+    }
+
+    // 没有显式配置 collector 端点就不启动。
+    // 此前默认值是 'localhost:4317' 且开关是「不等于 'false' 即开」——两个默认叠在一起
+    // 等于「默认开 + 默认往一个多半不存在的地址导出」。生产靠 ecosystem.config.js 里的
+    // TRACING_ENABLED='false' 躲过了，但任何绕开该文件启动的进程（npm start、CI、
+    // 新建的 git worktree）都会掉进去：BatchSpanProcessor 与 PeriodicExportingMetricReader
+    // 会持续重试一个 ECONNREFUSED 的地址，白烧 CPU 并刷爆日志——审计用的 worktree
+    // 实测一轮就刷了 2.2MB 错误日志。
+    // 改为：要开追踪，必须显式给出 OTEL_EXPORTER_OTLP_ENDPOINT。行为对生产零变化
+    // （生产本来就是关的），只是把「忘了配就静默空转」变成「没配就干脆不开」。
+    if (!configuredEndpoint) {
+      console.log('[Tracing] 未配置 OTEL_EXPORTER_OTLP_ENDPOINT，跳过初始化（避免向不存在的 collector 空转重试）');
       return this;
     }
 
