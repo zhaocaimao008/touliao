@@ -157,4 +157,4 @@ function purgeConversation(id) {
   })();
 }
 
-module.exports = { isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendGuard, invalidateConv };
+module.exports = { isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendGuard, invalidateConv, invalidateBlocked };

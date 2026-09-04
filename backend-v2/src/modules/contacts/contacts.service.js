@@ -5,6 +5,7 @@ const { badRequest, forbidden, notFound } = require('../../utils/http');
 const usersSvc = require('../users/users.service');
 const { getOrCreatePrivate } = require('../conversations/conversations.service');
 const { pushToUser } = require('../../utils/push');
+const { invalidateBlocked } = require('../messages/shared');
 
 // ── 联系人 ──────────────────────────────────────────────────────
 function listContacts(userId) {
@@ -214,10 +215,12 @@ function block(userId, targetId) {
   } catch (e) {
     if (!e.message?.includes('UNIQUE')) { console.error('[block] 操作失败:', e.message); throw new Error('操作失败，请重试'); }
   }
+  invalidateBlocked(userId, targetId); // 立即失效 privateSendGuard 的 5s 黑名单缓存，防拉黑后仍可发消息
 }
 
 function unblock(userId, targetId) {
   db.prepare('DELETE FROM blocked_users WHERE user_id=? AND blocked_id=?').run(userId, targetId);
+  invalidateBlocked(userId, targetId); // 立即失效缓存，解除拉黑后无需等 5s 缓存过期即可互发消息
 }
 
 function listBlocked(userId) {
