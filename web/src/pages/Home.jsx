@@ -560,7 +560,7 @@ export default function Home() {
   // 「非法ID被拒绝 field=conversationId type=undefined」），用户看到的是一个能打字
   // 但发不出、也收不到任何东西的死会话。这里改为取 conversationId，并优先用会话列表
   // 里的那一条（带备注名/头像/免打扰等完整字段），取不到再用最小可用对象兜底。
-  const handleReplyFromCall = useCallback(async (peerId) => {
+  const handleReplyFromCall = useCallback(async (peerId, peerUser) => {
     try {
       const { data } = await axios.post('/api/messages/conversation/private', { userId: peerId });
       const conversationId = data?.conversationId;
@@ -569,7 +569,14 @@ export default function Home() {
         .then(r => (Array.isArray(r.data) ? r.data : []))
         .catch(() => []);
       const known = list.find(c => c.id === conversationId);
-      handleSelectConv(known || { id: conversationId, type: 'private', name: '', avatar: '' });
+      // 兜底对象用来电方的昵称头像（CallModal 传出），而不是空串——
+      // 列表拉取失败或该私聊尚未出现在列表里时，至少标题栏是对的。
+      handleSelectConv(known || {
+        id: conversationId,
+        type: 'private',
+        name: peerUser?.name || '',
+        avatar: peerUser?.avatar || '',
+      });
     } catch { /* 会话打开失败静默（用户仍可手动进入会话） */ }
   }, [handleSelectConv]);
 

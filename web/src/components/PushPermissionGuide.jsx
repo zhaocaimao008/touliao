@@ -17,7 +17,10 @@ const LS_KEY = 'touliao_push_guide_dismissed';
  *  - Electron 桌面端（走原生通知）/ 移动原生端（走 FCM·APNs 设备令牌）
  *  - 浏览器不支持 Notification
  *  - 已授权（granted）：无需再问；已拒绝（denied）：问也没用，不骚扰
- *  - 用户点过「暂不」（localStorage 标记）
+ *  - 用户点过「暂不」，或在系统框里明确点了「拒绝」（localStorage 标记）
+ *
+ * 注意「关掉系统框」与「拒绝」的区别：前者 requestPermission 返回 'default'，权限没变、
+ * 以后还能再问，此时**不得**写 localStorage，否则用户随手关一个弹框就永久失去入口。
  */
 export default function PushPermissionGuide({ permission, onEnable }) {
   const { t } = useI18n();
@@ -32,14 +35,25 @@ export default function PushPermissionGuide({ permission, onEnable }) {
   if (permission !== 'default') return null;
 
   const enable = async () => {
-    // 不 await 就先收起：requestPermission 必须直接挂在这次点击上，
-    // 中间不能插入会让出主线程的操作，否则 Safari 判定手势已失效。
+    // onEnable 内部第一件事就是 Notification.requestPermission()，前面不插任何 await——
+    // 手势上下文必须完整传导过去，否则 Safari 判定手势已失效直接拒绝。
     const result = await onEnable?.();
-    // 用户在系统框里点了拒绝 → 不再重复打扰
-    if (result !== 'granted') {
-      try { localStorage.setItem(LS_KEY, '1'); } catch { /* 隐私模式忽略 */ }
+
+    if (result === 'granted') {
+      setDismissed(true);                       // 成功，收起（不必写 localStorage，permission 已变）
+      return;
     }
-    setDismissed(true);
+    if (result === 'denied') {
+      // 用户在系统框里明确点了拒绝：浏览器此后永久不再弹框，问也没用 → 记下不再打扰
+      try { localStorage.setItem(LS_KEY, '1'); } catch { /* 隐私模式忽略 */ }
+      setDismissed(true);
+      return;
+    }
+    // result === 'default'（用户直接关掉/按 Esc 略过了系统框，并没有拒绝），
+    // 或 hook 的 effect 尚未就绪返回的兜底值。
+    // 这两种情况都**不能**写 localStorage：一旦写了，用户只是随手关掉一个弹框，
+    // 就永久失去了应用内唯一的开启入口，而权限其实还停在 default、本可以再问。
+    // 保持横幅显示，让他可以再点一次。
   };
 
   const later = () => {
