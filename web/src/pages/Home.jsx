@@ -536,12 +536,25 @@ export default function Home() {
     setTab('chats');
   }, []);
 
-  // 拒接来电后回复消息：取/建与该用户的私聊会话并打开（来电必已有共同会话，正常命中已存在）
+  // 拒接来电后回复消息：取/建与该用户的私聊会话并打开（来电必已有共同会话，正常命中已存在）。
+  // ⚠ 这个接口的返回体是 `{ conversationId }`，既没有 `conversation` 也没有 `id`
+  // （见 backend-v2 conversations.service.js getOrCreatePrivate）。此前写成
+  // `data?.conversation || data` 直接把整个响应体当会话对象塞给 ChatWindow，
+  // conversation.id 恒为 undefined → 会话头像/昵称空白、历史拉 /conversation/undefined、
+  // join_conversation 与 typing 全部被服务端的 guardId 拒掉（生产日志里可见连续的
+  // 「非法ID被拒绝 field=conversationId type=undefined」），用户看到的是一个能打字
+  // 但发不出、也收不到任何东西的死会话。这里改为取 conversationId，并优先用会话列表
+  // 里的那一条（带备注名/头像/免打扰等完整字段），取不到再用最小可用对象兜底。
   const handleReplyFromCall = useCallback(async (peerId) => {
     try {
       const { data } = await axios.post('/api/messages/conversation/private', { userId: peerId });
-      const conv = data?.conversation || data;
-      if (conv) handleSelectConv(conv);
+      const conversationId = data?.conversationId;
+      if (!conversationId) return;
+      const list = await axios.get('/api/messages/conversations')
+        .then(r => (Array.isArray(r.data) ? r.data : []))
+        .catch(() => []);
+      const known = list.find(c => c.id === conversationId);
+      handleSelectConv(known || { id: conversationId, type: 'private', name: '', avatar: '' });
     } catch { /* 会话打开失败静默（用户仍可手动进入会话） */ }
   }, [handleSelectConv]);
 
