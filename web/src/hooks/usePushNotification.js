@@ -161,12 +161,19 @@ export function usePushNotification(user) {
     } catch { /* unsubscribe failed; ref already cleared */ }
   }
 
-  // 稳定引用：供引导条的 onClick 直接调用。effect 尚未跑完时返回 'default' 不做事，
-  // 引导条会继续显示，用户可再点一次。
+  // 稳定引用：供引导条的 onClick 直接调用。
+  // ref 为空有两种情况，必须区分开，否则引导条会变成一个永远点不动的死按钮：
+  //   · 环境根本不支持（Electron / 原生壳 / 无 serviceWorker 或 PushManager，
+  //     如 Firefox 关掉 dom.push.enabled）——effect 在赋值前就 return 了，
+  //     再点多少次也不会有反应 → 返回 'unsupported'，引导条据此收起。
+  //   · effect 还没跑完（极短暂）——返回 'default'，横幅留着让用户再点一次。
   const enablePush = useCallback(async () => {
     const fn = enablePushRef.current;
-    if (!fn) return 'default';
-    return fn();
+    if (fn) return fn();
+    const supported = typeof navigator !== 'undefined'
+      && 'serviceWorker' in navigator && typeof PushManager !== 'undefined'
+      && !window.__ELECTRON_CONFIG__ && !window.Capacitor?.isNativePlatform?.();
+    return supported ? 'default' : 'unsupported';
   }, []);
 
   return { unsubscribe, permission, enablePush };

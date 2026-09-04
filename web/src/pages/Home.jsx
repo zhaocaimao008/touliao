@@ -532,10 +532,15 @@ export default function Home() {
   // （user_settings.lang，见 backend-v2/src/utils/pushI18n.js）——不上报的话，
   // 英文用户锁屏收到的推送依然是简体中文。登录后同步一次 + 之后每次切换语言再同步，
   // 失败静默（推送文案回落 zh-CN，不影响任何其他功能）。
+  // key 必须带 user.id：只记语言的话，同一次页面加载里 A 退出、B 登录，
+  // ref 里还留着 A 的语言，B 的同步会被跳过——B 的 user_settings.lang 一直是 zh-CN，
+  // 界面是英文却收中文推送。
   const syncedLangRef = useRef(null);
   useEffect(() => {
-    if (!user || syncedLangRef.current === lang) return;
-    syncedLangRef.current = lang;
+    if (!user) return;
+    const key = `${user.id}:${lang}`;
+    if (syncedLangRef.current === key) return;
+    syncedLangRef.current = key;
     axios.put('/api/users/me/settings', { lang }).catch(() => { syncedLangRef.current = null; });
   }, [user, lang]);
 
@@ -569,13 +574,20 @@ export default function Home() {
         .then(r => (Array.isArray(r.data) ? r.data : []))
         .catch(() => []);
       const known = list.find(c => c.id === conversationId);
-      // 兜底对象用来电方的昵称头像（CallModal 传出），而不是空串——
-      // 列表拉取失败或该私聊尚未出现在列表里时，至少标题栏是对的。
+      // 兜底对象必须带 otherUser：ChatWindow.startCall 用的是
+      // conversation.otherUser?.id 当 remoteId，缺了它在这个会话里点通话会
+      // emit call:request { to: undefined } 被服务端 guardId 拒掉——正是生产日志里
+      // 「非法ID被拒绝 event=call:request field=to type=undefined」那条。
+      // 而这条兜底路径并不罕见：getOrCreatePrivate 可能刚建了新会话，
+      // 而 GET /api/messages/conversations 带 Cache-Control: private, max-age=10
+      // （conversations.controller.js），浏览器很可能直接给缓存 → known 命中不到。
+      // 昵称头像同样取自来电方（CallModal 传出），避免标题栏空白。
       handleSelectConv(known || {
         id: conversationId,
         type: 'private',
         name: peerUser?.name || '',
         avatar: peerUser?.avatar || '',
+        otherUser: { id: peerId, name: peerUser?.name || '', avatar: peerUser?.avatar || '' },
       });
     } catch { /* 会话打开失败静默（用户仍可手动进入会话） */ }
   }, [handleSelectConv]);

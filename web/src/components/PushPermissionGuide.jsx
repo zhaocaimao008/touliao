@@ -43,6 +43,13 @@ export default function PushPermissionGuide({ permission, onEnable }) {
       setDismissed(true);                       // 成功，收起（不必写 localStorage，permission 已变）
       return;
     }
+    if (result === 'unsupported') {
+      // 这个浏览器/外壳压根没有 Web Push（如 Firefox 关掉 dom.push.enabled：
+      // Notification 存在但 PushManager 不存在）。再留着横幅就是个点不动的死按钮。
+      try { localStorage.setItem(LS_KEY, '1'); } catch { /* 隐私模式忽略 */ }
+      setDismissed(true);
+      return;
+    }
     if (result === 'denied') {
       // 用户在系统框里明确点了拒绝：浏览器此后永久不再弹框，问也没用 → 记下不再打扰
       try { localStorage.setItem(LS_KEY, '1'); } catch { /* 隐私模式忽略 */ }
@@ -61,13 +68,16 @@ export default function PushPermissionGuide({ permission, onEnable }) {
     setDismissed(true);
   };
 
-  // 定位与 CallSoundGuide 一致：让开固定顶栏 + 安全区，避免盖住返回键/会话名
+  // 定位：让开固定顶栏 + 安全区（避免盖住返回键/会话名），并且**必须错开
+  // CallSoundGuide 一行**。两者对首次访问的网页用户是同时满足条件的（铃声引导没点过、
+  // 通知权限还是 default），如果坐标完全相同，z-index 低的那个不是"叠在下面"，
+  // 而是被整个盖住——看不见也点不到。故这里下移一整条横幅的高度（约 40px）。
   const style = {
     position: 'fixed',
-    top: 'calc(var(--header-h, 54px) + env(safe-area-inset-top, 0px) + 8px)',
+    top: 'calc(var(--header-h, 54px) + env(safe-area-inset-top, 0px) + 8px + 44px)',
     left: '50%',
     transform: 'translateX(-50%)',
-    zIndex: 9998,   // 比 CallSoundGuide(9999) 低一层，两条同时出现时来电引导在上
+    zIndex: 9998,   // 与 CallSoundGuide(9999) 无重叠，这里只是保持一个确定的先后
     display: 'flex',
     alignItems: 'center',
     gap: 10,

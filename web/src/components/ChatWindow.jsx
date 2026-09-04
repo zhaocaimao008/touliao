@@ -1134,16 +1134,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     // @mention 通知
     const onAtMention = ({ fromUserName, groupName, messagePreview }) => {
-      if (!('Notification' in window) || Notification.permission === 'denied') return;
-      if (Notification.permission === 'granted') {
-        new Notification(t('chat.mentionNotifTemplate').replace('{from}', fromUserName).replace('{group}', groupName), { body: messagePreview });
-      } else {
-        Notification.requestPermission().then(perm => {
-          if (perm === 'granted') {
-            new Notification(t('chat.mentionNotifTemplate').replace('{from}', fromUserName).replace('{group}', groupName), { body: messagePreview });
-          }
-        });
-      }
+      // 只在**已授权**时弹通知。此处绝不调 Notification.requestPermission()——
+      // 这是个 socket 事件回调，完全没有用户手势，且时机随机（别人 @ 你的那一刻）：
+      //   · Chrome 会弹出一个毫无上下文的系统权限框，用户反射性拒绝后**永久**无法再申请，
+      //     该用户的 Web 推送就此彻底失效；
+      //   · Safari / iOS PWA 要求必须由用户手势触发，无手势直接被拒。
+      // 权限申请统一走 PushPermissionGuide 的「开启」按钮（真实手势），
+      // 见 hooks/usePushNotification.js 的 enablePush。
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      new Notification(
+        t('chat.mentionNotifTemplate').replace('{from}', fromUserName).replace('{group}', groupName),
+        { body: messagePreview }
+      );
     };
 
     // 注册送达回调到 SocketContext，保存取消订阅函数
