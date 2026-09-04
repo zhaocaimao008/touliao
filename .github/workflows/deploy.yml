@@ -164,8 +164,24 @@ jobs:
         run: |
           # ⚠ 用单引号 heredoc 保持脚本字面量；把变量通过远端 bash -s 的命令行 env 传进去
           #   （原脚本把 env 设在 runner 上，heredoc 里 $DEPLOY_PATH 在服务器端是空的 → cd 到家目录 → git 找不到仓库）
-          ssh -i ~/.ssh/deploy_key ${DEPLOY_USER}@${DEPLOY_HOST} \
-            "DEPLOY_PATH='${DEPLOY_PATH}' GH_TOKEN='${GH_TOKEN}' bash -s" << 'DEPLOY_SCRIPT'
+          #
+          # 2026-09-04 排查：一次部署在 web `npm ci` 执行到一半时以 "Broken pipe"
+          # (exit 255) 中断——git pull 已完成但 web 构建/后端重启/健康检查全没跑到，
+          # 且服务器 sshd 日志里这条会话从未出现 "session closed"，只是静默断线。
+          # 排除了本机 OOM(dmesg 无记录)和本机 netfilter conntrack(established 超时
+          # 配的是 5 天，远大于几分钟)。指向 GitHub Actions runner 与本服务器之间路径上
+          # 某个中间网络设备(NAT/防火墙)的空闲连接超时——npm ci 安装依赖时可能有几十秒
+          # 到几分钟的低输出区间，被判定"空闲"提前掐断。整套部署是单个长连接 SSH 会话
+          # (git pull + 两次 npm 安装 + 构建 + 重启 + 健康检查轮询)，任一环节网络抖动
+          # 都会让远端脚本连同它自己的失败自动回滚逻辑一起被杀死，无法自愈。
+          # 修复：① ServerAlive* 让 ssh 协议层每 15s 发一次探活包，绝大多数 NAT/防火墙
+          # 只要连接上有小流量就不会判定空闲，能穿过大多数几分钟量级的空闲超时；
+          # ② 外层重试一次——脚本本身幂等(git reset --hard/npm ci/pm2 restart 都可安全
+          # 重跑)，一次网络抖动不应该需要人工重新触发整条流水线。
+          for attempt in 1 2; do
+            if ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -o ConnectTimeout=30 \
+                -o TCPKeepAlive=yes -i ~/.ssh/deploy_key ${DEPLOY_USER}@${DEPLOY_HOST} \
+                "DEPLOY_PATH='${DEPLOY_PATH}' GH_TOKEN='${GH_TOKEN}' bash -s" << 'DEPLOY_SCRIPT'
           set -e
           REPO_ROOT="$(dirname "$DEPLOY_PATH")"   # git 仓库根 = backend-v2 的上一级（/root/touliao）
           AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/zhaocaimao008/touliao.git"
@@ -277,6 +293,18 @@ jobs:
           echo "🎉 部署完成 $(date)"
 
           DEPLOY_SCRIPT
+            then
+              exit 0   # 这次 SSH 会话完整跑完并成功，不再重试
+            fi
+            echo "⚠️ 第 $attempt 次部署 SSH 会话异常中断（可能是网络抖动），"
+            if [ "$attempt" -lt 2 ]; then
+              echo "等待 10s 后重试一次（脚本本身幂等，安全重跑）..."
+              sleep 10
+            else
+              echo "🚨 重试后仍失败，判定本次部署失败"
+              exit 1
+            fi
+          done
 
       - name: 部署完成通知
         if: steps.check-secrets.outputs.configured == 'true' && success()
