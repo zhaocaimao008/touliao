@@ -378,7 +378,8 @@ final class SocketService {
         manager = mgr
         socket = sock
         status.send(.connecting)
-        sock.connect(withPayload: ["token": token])
+        // platform 供服务端按平台维度判定在线（来电推送兜底不因同账号 Web 在线而被压制）
+        sock.connect(withPayload: ["token": token, "platform": "ios"])
     }
 
     /// 通过 socket 发送文本消息；ack 返回服务端落库后的 Message（消息收发阶段调用）。

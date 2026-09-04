@@ -258,8 +258,16 @@ function registerCallHandler(io, socket, registry) {
     // 没有对应监听，需要客户端新增处理，详见 AUDIT.md 改动清单）。用 socket.to()（不含
     // 当前发起呼叫的这台设备自己）只通知同一用户的其他设备。
     socket.to(`user_${userId}`).emit('call:outgoing', { to, type: t, callId: id });
-    // 被叫不在线（App 未连 socket，如后台/熄屏）→ 发 data-only FCM 唤起来电界面；在线则 socket 已推 call:incoming
-    if (!presence.isOnline(to)) {
+    // 2026-09-04 修复：账号级 isOnline 会被 Web/桌面端连着的 socket 掩盖——iOS 打
+    // Android 时，被叫账号在 Web 端同时在线，isOnline(to) 恒为 true，Android 自己
+    // 的 socket 未连（后台/熄屏）也不会触发 FCM/个推兜底，导致 Android 完全收不到
+    // 来电提醒（Web 有 call:incoming 能收到，Android 两条通路都没有）。
+    // 来电推送本质是给"移动端"补的兜底通路（Web/桌面端走 call:incoming 已足够），
+    // 因此改为按平台维度判定：只要 android/ios 任一移动平台没有活跳 socket，就发
+    // 推送去唤起该移动设备，不因同账号 Web/桌面在线而被压制。
+    const platforms = presence.onlinePlatforms(to);
+    const mobileConnected = platforms.has('android') || platforms.has('ios');
+    if (!mobileConnected) {
       pushCallInvite({ toUserId: to, fromUserId: userId, callerName: callerInfo?.username || '', callType: t, callId: id })
         .catch(e => console.warn('[call] 来电推送失败:', e.message));
     }

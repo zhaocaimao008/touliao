@@ -921,6 +921,10 @@ class CallManager @Inject constructor(
     @Synchronized
     private fun playIncomingTone() {
         stopIncomingTone()
+        // 主叫侧回铃音在此前就有同样的坑（见 :303-305 注释）：部分 ROM 上 ToneGenerator
+        // （STREAM_VOICE_CALL）不先拿音频焦点 + 切 MODE_IN_COMMUNICATION 就完全不出声。
+        // 被叫侧来电铃声此前一直缺这一步，属同一根因、之前只是没被发现。
+        acquireAudioFocusAndRoute()
         val gen = ensureToneGen() ?: return
         val preset = incomingTonePreset(incomingRingtone)
         incomingToneJob = scope.launch {

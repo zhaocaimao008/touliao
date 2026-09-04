@@ -172,7 +172,13 @@ module.exports = function setupRealtime(io, app) {
       }
     });
 
-    presence.addSocket(userId, socket.id);
+    // 客户端握手 auth.platform 上报设备类型（'web'|'desktop'|'android'|'ios'），
+    // 用于来电推送兜底按平台维度判定在线（见 presence.onlinePlatforms + call.js）。
+    // 旧客户端未上报时归为 'unknown'，不影响既有账号级 isOnline 语义。
+    const platform = typeof socket.handshake?.auth?.platform === 'string'
+      ? socket.handshake.auth.platform.slice(0, 20)
+      : 'unknown';
+    presence.addSocket(userId, socket.id, platform);
     if (app) app.set('onlineUsers', presence.onlineUserIdSet());
 
     // 立即入 user 房间，会话房间延迟到下一 tick

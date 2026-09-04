@@ -8,14 +8,20 @@ const { readDb } = require('../db/connection');
 const { write } = require('../db/writer');
 
 const onlineUsers  = new Map(); // userId → Set<socketId>
+const socketPlatform = new Map(); // socketId → platform（握手上报，未上报则 'unknown'）
 const userProfiles = new Map(); // userId → { username, avatar }
 
 // ── 在线集合 ────────────────────────────────────────────────────
-function addSocket(userId, socketId) {
+// platform 由客户端握手时上报（'web'|'desktop'|'android'|'ios'，未上报则 'unknown'）。
+// 账号级 isOnline 语义不变（消息在线投递等既有调用方继续用账号维度）；
+// 来电推送兜底需要平台维度判定（见 onlinePlatforms），故额外记录每个 socket 的平台。
+function addSocket(userId, socketId, platform) {
   if (!onlineUsers.has(userId)) onlineUsers.set(userId, new Set());
   onlineUsers.get(userId).add(socketId);
+  socketPlatform.set(socketId, platform || 'unknown');
 }
 function removeSocket(userId, socketId) {
+  socketPlatform.delete(socketId);
   const s = onlineUsers.get(userId);
   if (!s) return true;
   s.delete(socketId);
@@ -24,6 +30,15 @@ function removeSocket(userId, socketId) {
 }
 function isOnline(uid)     { return (onlineUsers.get(uid)?.size || 0) > 0; }
 function onlineUserIdSet() { return new Set(onlineUsers.keys()); }
+// 该用户当前有活跳 socket 的平台集合，如 {'web','android'}。
+// 用于来电推送兜底按平台维度判定（同账号 Web 在线不应压制 Android 的来电推送/响铃）。
+function onlinePlatforms(uid) {
+  const set = new Set();
+  const socketIds = onlineUsers.get(uid);
+  if (!socketIds) return set;
+  for (const sid of socketIds) set.add(socketPlatform.get(sid) || 'unknown');
+  return set;
+}
 // 监控：在线用户数 + 总连接数（多端聚合）
 function stats() {
   let sockets = 0;
@@ -68,6 +83,6 @@ function recordDeliveries(messageId, userIds) {
 }
 
 module.exports = {
-  onlineUsers, addSocket, removeSocket, isOnline, onlineUserIdSet, stats,
+  onlineUsers, addSocket, removeSocket, isOnline, onlinePlatforms, onlineUserIdSet, stats,
   cacheProfile, getProfile, dropProfile, cleanupUser, checkMsgRate, recordDeliveries,
 };

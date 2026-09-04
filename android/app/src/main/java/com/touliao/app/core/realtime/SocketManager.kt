@@ -233,7 +233,8 @@ class SocketManager @Inject constructor(
             reconnection = true
             reconnectionDelay = 1000
             reconnectionDelayMax = 10_000
-            auth = mapOf("token" to token)             // Bearer 握手鉴权
+            // platform 供服务端按平台维度判定在线（来电推送兜底不因同账号 Web 在线而被压制）
+            auth = mapOf("token" to token, "platform" to "android")
         }
 
         val s = try {

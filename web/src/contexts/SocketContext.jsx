@@ -42,14 +42,15 @@ export const SocketProvider = ({ children }) => {
     const cfg = isConfigLoaded() ? getConfig() : null;
     const serverUrl = manualUrl || cfg?.socket || import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_BASE || '/';
 
-    const electronToken = (window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.())
-      ? localStorage.getItem('touliao_electron_token')
-      : null;
+    const isDesktop = !!(window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.());
+    const electronToken = isDesktop ? localStorage.getItem('touliao_electron_token') : null;
 
+    // platform 供服务端按平台维度判定在线（来电推送兜底不因同账号 Web 在线而被压制，
+    // 见 backend-v2/src/realtime/presence.js onlinePlatforms）
     const s = io(serverUrl, {
       transports: ['websocket'],
       withCredentials: true,
-      ...(electronToken ? { auth: { token: electronToken } } : {}),
+      auth: { platform: isDesktop ? 'desktop' : 'web', ...(electronToken ? { token: electronToken } : {}) },
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,

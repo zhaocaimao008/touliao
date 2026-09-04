@@ -17,6 +17,7 @@ jest.mock('../src/db/writer', () => ({ write: jest.fn() }));
 jest.mock('../src/realtime/presence', () => ({
   onlineUsers: new Map(),
   isOnline: jest.fn(() => true),
+  onlinePlatforms: jest.fn(() => new Set(['android'])),
   addSocket: jest.fn(),
   removeSocket: jest.fn(() => true),
   cacheProfile: jest.fn(),
@@ -310,6 +311,7 @@ describe('private call signaling contract', () => {
       const isolatedPresence = {
         onlineUsers: new Map(),
         isOnline: jest.fn(() => false),
+        onlinePlatforms: jest.fn(() => new Set()),
         addSocket: jest.fn(),
         removeSocket: jest.fn(() => true),
         cacheProfile: jest.fn(),
