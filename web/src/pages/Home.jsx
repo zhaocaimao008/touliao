@@ -4,6 +4,7 @@ import { playMessageTone } from '../utils/notifySound';
 import { startCallVisualAlert, stopCallVisualAlert } from '../utils/callVisualAlert';
 import { setIncomingRingtone, prewarmAudio, stopTone, startIncomingTone } from '../utils/callTones';
 import CallSoundGuide from '../components/CallSoundGuide';
+import PushPermissionGuide from '../components/PushPermissionGuide';
 import './Home.css';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
@@ -503,7 +504,7 @@ function CreateGroupModal({ onClose, onCreated }) {
 }
 
 export default function Home() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [tab, setTab] = useState('chats');
   const [features, setFeatures] = useState({ moments: true, collect: true });
   const [netSearchQ, setNetSearchQ] = useState(null); // null=关闭；字符串=带词打开网络搜索
@@ -522,7 +523,21 @@ export default function Home() {
   const [convRefreshKey, setConvRefreshKey] = useState(0);
   const { socket, reconnectCount, registerUnreadCleared } = useSocket();
   const { user } = useAuth();
-  usePushNotification(user);
+  // 通知权限不再自动申请：permission==='default' 时由 PushPermissionGuide 出软引导，
+  // 用户点「开启」（真实手势）才调 enablePush() 走系统权限框。详见 usePushNotification.js。
+  const { permission: pushPermission, enablePush } = usePushNotification(user);
+
+  // 上报界面语言，供服务端渲染离线推送文案。
+  // 推送是异步发出的，服务端那时没有请求上下文可协商语言，只能靠持久化的用户偏好
+  // （user_settings.lang，见 backend-v2/src/utils/pushI18n.js）——不上报的话，
+  // 英文用户锁屏收到的推送依然是简体中文。登录后同步一次 + 之后每次切换语言再同步，
+  // 失败静默（推送文案回落 zh-CN，不影响任何其他功能）。
+  const syncedLangRef = useRef(null);
+  useEffect(() => {
+    if (!user || syncedLangRef.current === lang) return;
+    syncedLangRef.current = lang;
+    axios.put('/api/users/me/settings', { lang }).catch(() => { syncedLangRef.current = null; });
+  }, [user, lang]);
 
   // 启动预热 IndexedDB：切会话时消息缓存读取无 openDB 冷启动延迟（防「打开会话空白一下」）
   useEffect(() => { warmupCacheDB(); }, []);
@@ -630,7 +645,8 @@ export default function Home() {
     });
   }, [registerUnreadCleared]);
 
-  // 通知权限由 usePushNotification 统一申请，此处无需重复请求
+  // 通知权限统一由 PushPermissionGuide 在用户手势下申请（见 usePushNotification.js），
+  // 此处只消费结果：未授权就不弹桌面通知，绝不在这里补一次 requestPermission。
 
   const showNotification = useCallback((title, body, icon) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
@@ -657,14 +673,31 @@ export default function Home() {
     if (!socket) return;
     // 超大户群降级通知：>500 在线 socket 的房间不推全量消息，只推轻量通知。
     // 会话列表侧：未读数 +1、触发浏览器通知/提示音、并刷新会话列表（置顶/最新消息摘要）。
-    const onNotify = ({ conversationId, senderName, preview }) => {
+    // 超大户群降级通知的预览文案：优先用服务端新增的结构化 previewType 自行本地化
+    // （同一条广播全房间共用一份 payload，服务端没法按各人语言渲染，见 broadcaster.js），
+    // 拿不到 previewType 时才回落服务端渲染好的 preview（旧服务端兼容）。
+    const localizedPreview = ({ previewType, previewText, preview }) => {
+      const key = {
+        image: 'chatlist.previewImage', voice: 'chatlist.previewVoice',
+        video: 'chatlist.previewVideo', file: 'chatlist.previewFile',
+        sticker: 'chatlist.previewSticker', red_packet: 'chatlist.previewRedPacket',
+        contact_card: 'chatlist.previewContact',
+      }[previewType];
+      if (key) return t(key);
+      if (previewType) return previewText || '';
+      return preview || '';
+    };
+    const onNotify = ({ conversationId, senderName, preview, previewType, previewText }) => {
       const isActiveConv = conversationId === activeConvIdRef.current;
       setUnread(prev => {
         if (isActiveConv) return prev;
         return { ...prev, [conversationId]: (prev[conversationId] || 0) + 1 };
       });
       if (!isActiveConv || document.hidden) {
-        showNotification(senderName || t('home.newMessage'), preview || t('home.sentAMessage'));
+        showNotification(
+          senderName || t('home.newMessage'),
+          localizedPreview({ previewType, previewText, preview }) || t('home.sentAMessage')
+        );
         if (senderName) playMessageTone(); // 大群通知不携带 sender_id，仅在明确有发送者时响铃
       }
       setConvRefreshKey(k => k + 1); // 刷新会话列表（置顶 + lastMessage 摘要）
@@ -1001,6 +1034,7 @@ export default function Home() {
     <>
       <ReconnectingBanner />
       <CallSoundGuide />
+      <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
       {activeCall && (
         <Suspense fallback={null}>
           <CallModal

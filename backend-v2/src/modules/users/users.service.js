@@ -5,6 +5,7 @@ const cache = require('../../utils/cache');
 const { v4: uuidv4 } = require('uuid');
 const { collectionDedupKey } = require('../../utils/collections');
 const presence = require('../../realtime/presence');
+const pushI18n = require('../../utils/pushI18n');
 
 // 安全解析收藏 extra JSON：单条脏数据不应让整个收藏列表 500。
 function parseExtra(raw) {
@@ -19,6 +20,9 @@ const settingDefaults = {
   chat_background: null, moments_visible_days: 0, no_direct_group_invite: 0,
   // 勿扰时段（夜间免打扰）：开关 + HH:MM 起止时间，命中时段抑制离线推送
   quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00',
+  // 推送文案语言（客户端切换语言时上报）。服务端异步发推送时没有 Accept-Language
+  // 可协商，只能靠这一列。见 utils/pushI18n.js。
+  lang: pushI18n.DEFAULT_LANG,
 };
 
 // 校验 HH:MM 格式（00:00~23:59），非法返回 null
@@ -55,6 +59,7 @@ function serializeSettings(row) {
     quietStart: normalizeHHMM(s.quiet_start) || '23:00',
     quietEnd: normalizeHHMM(s.quiet_end) || '07:00',
     ringtone: RINGTONE_OPTIONS.includes(s.ringtone) ? s.ringtone : 'classic',
+    lang: pushI18n.normalizeLang(s.lang),
   };
 }
 
@@ -91,6 +96,10 @@ function normalizeSettings(body) {
   // 来电铃声（枚举白名单）
   if (body.ringtone !== undefined && RINGTONE_OPTIONS.includes(body.ringtone)) {
     patch.ringtone = body.ringtone;
+  }
+  // 推送语言（枚举白名单：不认识的直接忽略，绝不写入库，避免推送时取词落空）
+  if (body.lang !== undefined && pushI18n.SUPPORTED_LANGS.includes(body.lang)) {
+    patch.lang = body.lang;
   }
   return patch;
 }
