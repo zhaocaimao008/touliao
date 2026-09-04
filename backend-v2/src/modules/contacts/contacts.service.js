@@ -54,7 +54,10 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   const safeMessage = typeof message === 'string' ? message.trim() : '';
   if (safeMessage.length > 100) throw badRequest('验证消息最长 100 个字符');
   if (toId === fromId) throw badRequest('不能添加自己');
-  if (!db.prepare('SELECT id FROM users WHERE id=?').get(toId)) throw notFound('用户不存在');
+  // 已封禁账号：与"不存在"同样处理。此前 banned 只拦被封者自己的 token，
+  // 别人照样能给他发好友申请、加成好友——审核动作只做了一半。
+  const target = db.prepare('SELECT id, banned FROM users WHERE id=?').get(toId);
+  if (!target || target.banned) throw notFound('用户不存在');
   if (db.prepare('SELECT id FROM contacts WHERE user_id=? AND contact_id=?').get(fromId, toId)) throw badRequest('已是好友');
   if (db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(toId, fromId)) throw forbidden('对方已将你加入黑名单');
   if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) throw badRequest('请求已发送');

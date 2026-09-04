@@ -136,8 +136,10 @@ function scanQrUser(viewerId, payload) {
   try { parsed = JSON.parse(payload); } catch { throw badRequest('无效的二维码'); }
   if (parsed?.type !== 'vxin-user' || typeof parsed.id !== 'string' || !parsed.id)
     throw badRequest('无效的二维码');
-  const target = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(parsed.id);
+  const target = db.prepare('SELECT id,username,avatar,wechat_id,banned FROM users WHERE id=?').get(parsed.id);
   if (!target) throw notFound('用户不存在');
+  // 已封禁账号：与"不存在"同样处理，不泄露账号是否存在，也不给出可添加的入口
+  if (target.banned) throw notFound('用户不存在');
   if (target.id === viewerId) throw badRequest('不能添加自己');
 
   const isFriend = !!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, target.id);
@@ -169,6 +171,10 @@ function search(userId, q) {
     FROM users u
     LEFT JOIN user_settings s ON s.user_id = u.id
     WHERE u.id != ?
+      -- 已封禁账号不出现在搜索结果里。此前 banned=1 只在 middleware/auth.js 拦被封者
+      -- **自己**的 token，对其他人完全不可见——被封账号照样能被搜到、被加好友、被发消息。
+      -- 封了骚扰者，别人还能照常找到他并当正常用户加上，审核动作等于只做了一半。
+      AND u.banned = 0
       AND (
         u.username LIKE ? ESCAPE '\\'
         OR (u.wechat_id = ? AND COALESCE(s.add_by_vxin_id, 1) = 1)

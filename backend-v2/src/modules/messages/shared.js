@@ -82,7 +82,16 @@ function privateSendGuard(convId, senderId, conv = null) {
       : '消息已发出，但被对方拒收';
   }
 
-  // 2) 屏蔽陌生人：对方开启该设置且发送者不在其联系人中则拒收。
+  // 2) 对方账号已被封禁：拒绝发送。
+  //    此前 banned=1 只在 middleware/auth.js 拦被封者**自己**的 token，对其他人完全不可见——
+  //    被封账号照样能被搜到、被加好友、被发消息，消息进库后永远不会有人看到。
+  //    对一个带审核功能的 IM 来说这是个实打实的洞：封了骚扰者，别人还当他是正常用户在聊。
+  //    （现实触发场景：AI 助手下线后，两个 bot 账号退化成普通用户留在 4 个人的通讯录里，
+  //      对方永不回话——正是这类"发进黑洞"的消息。）
+  const otherBanned = readDb.prepare('SELECT banned FROM users WHERE id=?').get(otherId);
+  if (otherBanned?.banned) return '该账号已停用，无法发送消息';
+
+  // 3) 屏蔽陌生人：对方开启该设置且发送者不在其联系人中则拒收。
   //    场景：双方曾是好友(会话已建)，对方删好友后开启屏蔽——旧会话仍在，
   //    须覆盖文件/图片等所有路径，否则陌生人可绕过文本拦截继续骚扰。
   const setting = readDb.prepare('SELECT block_unknown_messages FROM user_settings WHERE user_id=?').get(otherId);
