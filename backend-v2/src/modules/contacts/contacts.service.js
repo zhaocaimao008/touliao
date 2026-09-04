@@ -4,7 +4,8 @@ const { db } = require('../../db/connection');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const usersSvc = require('../users/users.service');
 const { getOrCreatePrivate } = require('../conversations/conversations.service');
-const { pushToUser } = require('../../utils/push');
+const { pushToUser, langOf } = require('../../utils/push');
+const pushI18n = require('../../utils/pushI18n');
 const { invalidateBlocked } = require('../messages/shared');
 
 // ── 联系人 ──────────────────────────────────────────────────────
@@ -108,11 +109,15 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   if (io) io.to(`user_${toId}`).emit('new_friend_request', { id, from: sender, message: safeMessage });
   // 离线推送 best-effort，不阻塞、不抛错（同 moments 互动通知的处理方式）：
   // 好友请求不是"新消息"，不受 message_notify/muted 影响 —— 那两项按既有约定仅约束会话内消息。
-  const senderName = sender?.username || '有人';
+  // 文案按【收件人】语言渲染（此前 '请求添加你为好友' 写死简中）。见 utils/pushI18n.js。
+  const reqLang = langOf(toId);
+  const senderName = sender?.username || pushI18n.t(reqLang, 'friend.someone');
   pushToUser(toId, {
     title: senderName,
     senderName,
-    body: safeMessage || '请求添加你为好友',
+    // 申请人自己写的附言原样透出（那是用户内容，不该翻译）；没写附言才用本地化默认文案
+    body: safeMessage || pushI18n.t(reqLang, 'friend.request'),
+    lang: reqLang,
     type: 'friend_request',
     senderId: fromId,
   }).catch(() => {});

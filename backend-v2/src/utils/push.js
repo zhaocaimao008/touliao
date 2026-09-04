@@ -60,7 +60,21 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && proc
   console.debug('[Push] Firebase 未配置，FCM/APNs 推送不可用');
 }
 
+// 单个收件人的推送语言。pushNewMessage 走批量查询一次取回所有人的 lang；
+// 而好友申请/朋友圈互动/来电这些是「推给某一个人」的路径，用这个按需取。
+// 取不到（用户不存在/未建 settings 行）一律回落 zh-CN，与改动前行为一致。
+function langOf(userId) {
+  try {
+    const row = db.prepare('SELECT lang FROM user_settings WHERE user_id=?').get(userId);
+    return pushI18n.normalizeLang(row?.lang);
+  } catch {
+    return pushI18n.DEFAULT_LANG;
+  }
+}
+
 async function pushToUser(userId, payload) {
+  // 调用方没显式给 lang 时按收件人解析一次，保证下面个推的兜底文案也是对的语言
+  if (!payload.lang) payload = { ...payload, lang: langOf(userId) };
   const promises = [];
 
   const webSubs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id=?').all(userId);
@@ -581,7 +595,7 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
 // 从未真正送达过。'ios_apns' 平台的 token 直连不经过 FCM，绕开这条失败路径。
 // payload 顶层 from/callerName/callId/callType 字段名与 AppDelegate.swift:89-92
 // 读取 userInfo 的字段名一一对应（ANSWER/DECLINE 通知动作靠这几个字段重建来电状态）。
-function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, callType }) {
+function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, callType, lang }) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (result) => {
@@ -598,7 +612,7 @@ function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, call
     const isVideo = callType === 'video';
     const payload = {
       aps: {
-        alert: { title: callerName || '来电', body: isVideo ? '邀请你视频通话' : '邀请你语音通话' },
+        alert: { title: callerName || pushI18n.t(lang, 'call.title'), body: pushI18n.t(lang, isVideo ? 'call.video' : 'call.audio') },
         sound: 'default',
         category: 'INCOMING_CALL',
       },
@@ -698,6 +712,8 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   ).all(toUserId);
   if (!deviceTokens.length) return;
   const isVideo = callType === 'video';
+  // 来电通知文案按【被叫方】语言渲染（此前 '来电'/'邀请你视频通话' 是写死的简中）
+  const lang = langOf(toUserId);
   const promises = [];
   // FCM 优先（防同设备双弹）：有 android(FCM) token 的 GMS 设备，全屏来电走 FCM——
   // 被杀场景 FCM 仍能拉起进程弹 fullScreenIntent，能力最完整；个推仅兜底无 GMS 的设备。
@@ -707,7 +723,7 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
     if (row.platform === 'getui') {
       if (hasAndroidFcm) continue;   // FCM 已覆盖，个推不重复推（防双弹）
       promises.push(getuiPush.pushCallToCid(row.token, {
-        callId, from: fromUserId, callerName, callType: isVideo ? 'video' : 'audio',
+        callId, from: fromUserId, callerName, callType: isVideo ? 'video' : 'audio', lang,
       }).catch(err => console.warn(`[push] 个推来电失败 user=${toUserId}: ${err.message}`)));
       continue;
     }
@@ -716,7 +732,7 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
       continue;
     }
     if (row.platform === 'ios_apns') {
-      promises.push(sendIosCallPush(row.token, { callId, from: fromUserId, toUserId, callerName, callType: isVideo ? 'video' : 'audio' }));
+      promises.push(sendIosCallPush(row.token, { callId, from: fromUserId, toUserId, callerName, callType: isVideo ? 'video' : 'audio', lang }));
       continue;
     }
     const message = {
@@ -742,7 +758,7 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
         },
         payload: {
           aps: {
-            alert: { title: callerName || '来电', body: isVideo ? '邀请你视频通话' : '邀请你语音通话' },
+            alert: { title: callerName || pushI18n.t(lang, 'call.title'), body: pushI18n.t(lang, isVideo ? 'call.video' : 'call.audio') },
             sound: 'default',
             category: 'INCOMING_CALL',
           },
@@ -760,4 +776,4 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   await Promise.allSettled(promises);
 }
 
-module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours };
+module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours, langOf };

@@ -10,6 +10,7 @@
  * 客户端注册的个推 CID 存到 device_tokens 表，platform='getui'。
  */
 const https = require('https');
+const pushI18n = require('./pushI18n');
 
 const APP_ID = process.env.GETUI_APP_ID || '';
 const APP_KEY = process.env.GETUI_APP_KEY || '';
@@ -174,11 +175,13 @@ async function pushToCid(cid, { title, body, payload }) {
  *    callId/callFrom/callerName/callType（与 NotificationHelper.EXTRA_CALL_* 键名对齐），
  *    MainActivity 识别后重建来电界面（被杀场景兜底，无法全屏但保证可见+可点接听）。
  */
-async function pushCallToCid(cid, { callId, from, callerName, callType }) {
+async function pushCallToCid(cid, { callId, from, callerName, callType, lang }) {
   const token = await getToken();
   const t = callType === 'video' ? 'video' : 'audio';
-  const title = callerName || '来电';
-  const body = t === 'video' ? '邀请你视频通话' : '邀请你语音通话';
+  // 文案按【被叫方】语言渲染（lang 由 push.js 的 pushCallInvite 解析后传入）。
+  // 此前写死简中，英文用户的国产 ROM 上收到的来电通知一直是中文。
+  const title = callerName || pushI18n.t(lang, 'call.title');
+  const body = pushI18n.t(lang, t === 'video' ? 'call.video' : 'call.audio');
   // 透传字段与 FCM data-only 对齐（type/callId/from/callerName/callType），
   // 客户端 TouliaoGeTuiService 按同一套键名解析，可复用 showCallNotification。
   const transmissionPayload = JSON.stringify({

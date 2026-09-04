@@ -27,6 +27,17 @@ const dict = {
     'type.location':     '[位置]',
     'type.redPacket':    '[红包] 恭喜发财',
     'type.contactCard':  '[名片]',
+    // 来电
+    'call.title':        '来电',
+    'call.video':        '邀请你视频通话',
+    'call.audio':        '邀请你语音通话',
+    // 好友申请
+    'friend.request':    '请求添加你为好友',
+    'friend.someone':    '有人',
+    // 朋友圈互动
+    'moment.title':      '朋友圈',
+    'moment.liked':      '{name} 赞了你的朋友圈',
+    'moment.commented':  '{name} 评论了你的朋友圈',
   },
   en: {
     'push.newMessage':   'New message',
@@ -38,6 +49,14 @@ const dict = {
     'type.location':     '[Location]',
     'type.redPacket':    '[Red packet] Best wishes',
     'type.contactCard':  '[Contact]',
+    'call.title':        'Incoming call',
+    'call.video':        'is inviting you to a video call',
+    'call.audio':        'is inviting you to a voice call',
+    'friend.request':    'wants to add you as a friend',
+    'friend.someone':    'Someone',
+    'moment.title':      'Moments',
+    'moment.liked':      '{name} liked your moment',
+    'moment.commented':  '{name} commented on your moment',
   },
   'zh-TW': {
     'push.newMessage':   '新訊息',
@@ -49,6 +68,14 @@ const dict = {
     'type.location':     '[位置]',
     'type.redPacket':    '[紅包] 恭喜發財',
     'type.contactCard':  '[名片]',
+    'call.title':        '來電',
+    'call.video':        '邀請你視訊通話',
+    'call.audio':        '邀請你語音通話',
+    'friend.request':    '請求加你為好友',
+    'friend.someone':    '有人',
+    'moment.title':      '朋友圈',
+    'moment.liked':      '{name} 讚了你的朋友圈',
+    'moment.commented':  '{name} 評論了你的朋友圈',
   },
 };
 
@@ -82,4 +109,12 @@ function bodyForMessage(lang, type, content) {
   }
 }
 
-module.exports = { t, bodyForMessage, normalizeLang, SUPPORTED_LANGS, DEFAULT_LANG };
+/** 取词并替换 {name} 之类的占位符 */
+function tf(lang, key, vars = {}) {
+  return Object.entries(vars).reduce(
+    (acc, [k, v]) => acc.split(`{${k}}`).join(String(v)),
+    t(lang, key)
+  );
+}
+
+module.exports = { t, tf, bodyForMessage, normalizeLang, SUPPORTED_LANGS, DEFAULT_LANG };

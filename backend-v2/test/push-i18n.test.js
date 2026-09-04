@@ -49,6 +49,48 @@ describe('pushI18n 取词', () => {
   });
 });
 
+describe('非「新消息」路径的推送文案也按语言渲染', () => {
+  // 这几条路径（来电/好友申请/朋友圈互动）不走 pushNewMessage 的批量查询，
+  // 而是各自 langOf(收件人) 取语言。第一版只改了新消息，审查时发现漏了这些。
+  test('来电标题/正文三语各不相同', () => {
+    expect(pushI18n.t('zh-CN', 'call.title')).toBe('来电');
+    expect(pushI18n.t('en', 'call.title')).toBe('Incoming call');
+    expect(pushI18n.t('zh-TW', 'call.title')).toBe('來電');
+    const videos = ['zh-CN', 'en', 'zh-TW'].map(l => pushI18n.t(l, 'call.video'));
+    expect(new Set(videos).size).toBe(3);
+    const audios = ['zh-CN', 'en', 'zh-TW'].map(l => pushI18n.t(l, 'call.audio'));
+    expect(new Set(audios).size).toBe(3);
+    // 视频/语音两条文案本身也必须不同，否则用户分不清来的是哪种通话
+    expect(videos).not.toEqual(audios);
+  });
+
+  test('好友申请默认文案三语各不相同', () => {
+    const all = ['zh-CN', 'en', 'zh-TW'].map(l => pushI18n.t(l, 'friend.request'));
+    expect(new Set(all).size).toBe(3);
+    expect(all.every(Boolean)).toBe(true);
+  });
+
+  test('朋友圈互动文案：占位符被真实替换，且赞/评论可区分', () => {
+    for (const lang of ['zh-CN', 'en', 'zh-TW']) {
+      const liked = pushI18n.tf(lang, 'moment.liked', { name: 'Alice' });
+      const commented = pushI18n.tf(lang, 'moment.commented', { name: 'Alice' });
+      expect(liked).toContain('Alice');
+      expect(commented).toContain('Alice');
+      expect(liked).not.toContain('{name}');      // 占位符必须被替换掉
+      expect(commented).not.toContain('{name}');
+      expect(liked).not.toBe(commented);
+    }
+  });
+
+  test('tf 未知语言回落 zh-CN，占位符照样替换', () => {
+    expect(pushI18n.tf('ja', 'moment.liked', { name: 'Bob' })).toBe('Bob 赞了你的朋友圈');
+  });
+
+  test('tf 缺变量时不残留占位符炸给用户……有变量才替换，没传就原样保留供排查', () => {
+    expect(pushI18n.tf('en', 'moment.liked', {})).toContain('{name}');
+  });
+});
+
 describe('user_settings.lang HTTP 往返', () => {
   let u;
   beforeAll(async () => { u = await makeUser(); });
