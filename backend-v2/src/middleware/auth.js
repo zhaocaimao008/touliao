@@ -25,7 +25,14 @@ module.exports = async function auth(req, res, next) {
     // 异步检查 token 是否在黑名单中（logout 后）
     const blacklisted = await isBlacklisted(token);
     if (blacklisted) {
-      res.clearCookie(config.cookieName, { path: '/' });
+      // P1-b 修复：这里命中"黑名单"不一定是真的被盗/主动登出——并发刷新场景下，
+      // 输给兄弟请求的 token 也会落在这个分支（赢家刷新成功后把这把旧 token 拉黑）。
+      // 此时浏览器 cookie 存储里很可能已经是赢家刚种下的新 token，如果无条件 clearCookie，
+      // 这条清空指令一旦晚于赢家的 Set-Cookie 到达，就会把刚刷新出来的合法新会话也清掉，
+      // 造成账号被误踢下线（100% 可复现，见 docs/TL-FULL-SYSTEM-AUDIT.md P1-b）。
+      // 真正需要清 cookie 的场景（登出/封号/改密/删会话）在各自的处理器里已经显式
+      // clearCookie 过一次（见 auth.controller.js logout/deleteAccount/changePassword），
+      // 不依赖这里兜底；这里只需要正确返回 401 拒绝即可，不必再清一次可能是别人刚种下的新 cookie。
       return res.status(401).json({ error: '无效的Token，请重新登录' });
     }
 
