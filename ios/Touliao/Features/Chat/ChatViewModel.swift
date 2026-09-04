@@ -201,6 +201,13 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] _ in Task { @MainActor in await self?.catchUp() } }
             .store(in: &cancellables)
 
+        // 超大户群降级通知：正停留在此会话 → 走与 syncAvailable 完全相同的 catchUp()
+        // 按游标补齐增量（幂等、可重入，比按时间戳拉更稳）。非本会话由会话列表 VM 处理。
+        repo.newMessageNotifyPublisher
+            .filter { [conversationId] in $0.conversationId == conversationId }
+            .sink { [weak self] _ in Task { @MainActor in await self?.catchUp() } }
+            .store(in: &cancellables)
+
         if isGroup {
             repo.pinChangedPublisher
                 .sink { [weak self] convId in Task { @MainActor in if convId == self?.conversationId { await self?.loadPinned() } } }
