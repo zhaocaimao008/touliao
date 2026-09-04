@@ -34,7 +34,9 @@ export default function CallSoundGuide() {
 
   const style = {
     position: 'fixed',
-    top: 12,
+    // 顶栏（聊天页/列表页）固定高度 --header-h + 安全区，横幅需在其下方，
+    // 否则移动端窄屏下会盖住聊天页返回键/联系人名（2026-09-04 UI 审计发现）。
+    top: 'calc(var(--header-h, 54px) + env(safe-area-inset-top, 0px) + 8px)',
     left: '50%',
     transform: 'translateX(-50%)',
     zIndex: 9999,

@@ -175,3 +175,7 @@ Socket.IO 鉴权（`backend-v2/src/realtime/index.js` 的 `io.use`）**仅在握
 ## 附：发现但未处理的次要问题（超出本次授权范围）
 
 `web/src/components/AddFriendModal.jsx` 中通过资料卡内嵌"发消息"触发的 `onStartChat` 回调是一个死胡同——仅关闭弹窗，未真正跳转到会话页面。这是一个真实、可复现的 bug，但与本次语音通话故障无关，按指令"不要顺手修改无关功能"要求，本次未做修复，仅记录在此供后续单独处理。
+
+> **后续更新（2026-09-04）**：上述 `AddFriendModal.jsx` 资料卡"发消息"死链已在提交 `5df07fb`
+> 中修复（AddFriendModal/ChatWindow 内嵌 UserProfile 的 `onStartChat` 未转发会话对象），
+> 本节"未做修复"的描述已过期，保留原文仅作事故记录。
