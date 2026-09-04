@@ -73,6 +73,29 @@ nginx -t && nginx -s reload
 curl -s -o /dev/null -w "%{http_code}\n" https://touliao.cc/
 ```
 
+### 旧哈希资产的清理（2026-09-04 补充）
+
+上面那条 `rsync -a`（不带 `--delete`）只增不减：每次构建产生新的哈希文件名，旧的永远留在
+`/var/www/touliao-web/assets/` 里。2026-09-04 实测已累积 650 个文件 13M，而当前构建只需 113 个。
+
+不要因此就改用 `--delete`——除了上面那次 `config.json` 事故，还有第二个原因：Web 是 Vite
+懒加载分包，用户浏览器里已经打开的上一版页面仍会按旧 `index.html` 去取旧 chunk。`assets` 的
+`Cache-Control` 是 `public, immutable` 一年，`index.html` 是 `no-store`，但已经渲染出来的页面
+不会重新取 HTML。立刻删掉旧 chunk，那些页面点开对应功能就会 404 白屏。
+
+改用 `ops/prune-web-assets.sh`，它按「当前构建引用闭环 + 宽限期」清理：
+
+```bash
+/root/touliao/ops/prune-web-assets.sh              # dry-run，只报告（默认）
+/root/touliao/ops/prune-web-assets.sh --apply      # 真删，删前自动 tar 备份到 backups/
+GRACE_HOURS=48 /root/touliao/ops/prune-web-assets.sh --apply   # 放宽宽限期
+```
+
+从 `index.html` / `privacy.html` 出发递归解析 chunk 互引，得到当前构建真正可达的资产（含各自
+`.gz`）全部保留；闭环外但 mtime 在宽限期（默认 24h）内的也保留；其余删除。解析不出任何引用、
+或闭环内文件在磁盘上缺失时直接报错退出，不会误删。`deploy.yml` 的发布步骤已在 rsync 之后自动
+调用它（失败不阻断部署）；上面的手动流程只在不走 CI 时才需要自己跑。
+
 **`config.json`（运行时远程配置，四端启动都会拉取）现在单独存放，不在Web构建产物目录里**：
 ```
 物理路径：/var/www/touliao-runtime-config/config.json
