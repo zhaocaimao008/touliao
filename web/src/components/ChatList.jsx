@@ -53,7 +53,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         </div>
         <div className="wc-chat-item-info">
           <div className="wc-chat-item-row1">
-            <span className="wc-chat-item-name" data-testid="conv-item-name">{conv.name || t('chatlist.unknown')}</span>
+            <span className="wc-chat-item-name" data-testid="conv-item-name">{conv.name || (conv.type === 'private' ? t('chatlist.deletedUser') : t('chatlist.unknown'))}</span>
             <span className="wc-chat-item-time">{conv.lastTime ? format(conv.lastTime * 1000) : ''}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
