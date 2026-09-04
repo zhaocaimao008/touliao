@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { prewarmAudio } from '../utils/callTones';
+import { useI18n } from '../contexts/I18nContext';
 
 const LS_KEY = 'touliao_call_sound_ready';
 
@@ -13,6 +14,7 @@ const LS_KEY = 'touliao_call_sound_ready';
  * 全局首次手势静默预热已由 callTones.installPrewarm 承担（CallModal 安装），本组件只做引导。
  */
 export default function CallSoundGuide() {
+  const { t } = useI18n();
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
   });
@@ -53,7 +55,7 @@ export default function CallSoundGuide() {
 
   return (
     <div style={style} role="status">
-      <span>🔔 点击开启来电铃声提醒</span>
+      <span>🔔 {t('callSound.text')}</span>
       <button
         onClick={enable}
         style={{
@@ -61,7 +63,7 @@ export default function CallSoundGuide() {
           background: '#07C160', color: '#fff', fontSize: 13, cursor: 'pointer',
         }}
       >
-        开启
+        {t('callSound.enable')}
       </button>
       <button
         onClick={later}
@@ -70,7 +72,7 @@ export default function CallSoundGuide() {
           background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 12, cursor: 'pointer',
         }}
       >
-        暂不
+        {t('callSound.later')}
       </button>
     </div>
   );
