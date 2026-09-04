@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
+import { getI18n } from '../contexts/I18nContext';
 
 let _setToast = null;
 let _setConfirm = null;
 
 function ToastRoot() {
+  // ToastRoot 挂在独立的 ReactDOM root 上（在 I18nProvider 之外），拿不到 useI18n()。
+  // 用 getI18n() 的快照式取词：每次渲染重取，弹窗都是即时打开的，够用。
+  // 修复此前「取消/确认/点击关闭」三处硬编码简中——英文/繁中用户在每个确认弹窗
+  // 都会看到简体中文按钮。
+  const t = getI18n();
   const [toast, setToast] = useState(null);
   const [confirmState, setConfirm] = useState(null);
   const timerRef = React.useRef(null);
@@ -33,7 +39,7 @@ function ToastRoot() {
           aria-atomic="true"
           className={`wc-toast${toast.type === 'error' ? ' error' : toast.type === 'success' ? ' success' : ''}`}
           onClick={() => { clearTimeout(timerRef.current); setToast(null); }}
-          title="点击关闭"
+          title={t('common.close')}
           style={{
             animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
@@ -51,7 +57,7 @@ function ToastRoot() {
             className="wc-confirm-box"
             role="dialog"
             aria-modal="true"
-            aria-label="确认"
+            aria-label={t('common.confirm')}
             style={{
               animation: 'scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
@@ -63,13 +69,13 @@ function ToastRoot() {
                 data-testid="confirm-cancel"
                 onClick={() => { confirmState.resolve(false); setConfirm(null); }}
                 style={{ transition: 'all 0.15s ease' }}
-              >取消</button>
+              >{t('common.cancel')}</button>
               <button
                 className="wc-confirm-ok"
                 data-testid="confirm-ok"
                 onClick={() => { confirmState.resolve(true); setConfirm(null); }}
                 style={{ transition: 'all 0.15s ease' }}
-              >确认</button>
+              >{t('common.confirm')}</button>
             </div>
           </div>
         </div>

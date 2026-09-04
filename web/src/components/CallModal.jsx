@@ -431,8 +431,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const replyInstead = useCallback(() => {
     socket?.emit('call:response', withCallId({ to: remoteId, accepted: false, reason: 'rejected' }, callId));
     onClose();
-    onReplyMessage?.(remoteId);
-  }, [socket, remoteId, callId, onClose, onReplyMessage]);
+    // 一并把来电方资料传出去：会话列表里查不到这条私聊时（新建/列表未同步），
+    // Home 的兜底对象至少还有昵称头像可用，不会打开一个标题空白的会话。
+    onReplyMessage?.(remoteId, remoteUser);
+  }, [socket, remoteId, remoteUser, callId, onClose, onReplyMessage]);
 
   useEffect(() => {
     if (!socket) return;

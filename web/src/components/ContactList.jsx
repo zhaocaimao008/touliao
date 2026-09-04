@@ -13,6 +13,27 @@ import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 
 /* ── 主组件 ── */
+// AI 助手会话对象。
+// ⚠ 现状：AI 助手已下线（后端 .env 的 botId 为空 → /api/config 的 aiAssistants 返回 []），
+//   aiBots 恒为空数组，下面这个入口当前渲染不出来。保留并修正是因为重新配上 botId
+//   就会复活，缺 otherUser 的问题会立刻显形。
+// 必须带 otherUser，字段名与服务端 /api/messages/conversations
+// 返回的私聊会话一致（{ id, username, avatar }）——ChatWindow.startCall 用的是
+// conversation.otherUser?.id 当 remoteId，会话内「刷新对方资料」的 effect 同样依赖它。
+// 缺了它，从这个入口进来的会话点语音/视频通话会 emit call:request { to: undefined }，
+// 被服务端 guardId 拒掉并回 call:error，用户看到的是「通话打不通且报错」。
+// （同一类问题在 Home.handleReplyFromCall 的兜底对象上也出现过，一并修了。
+//  GlobalSearch / UserProfile / CallHistory 三处本来就带，这里是漏网的。）
+function aiBotConv(conversationId, bot) {
+  return {
+    id: conversationId,
+    type: 'private',
+    name: bot.name || bot.username,
+    avatar: bot.avatar || '',
+    otherUser: { id: bot.id, username: bot.name || bot.username, avatar: bot.avatar || '' },
+  };
+}
+
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed, openFriendRequests = 0, onOpenFriendRequestsConsumed }) {
   const { t } = useI18n();
   const [contacts, setContacts] = useState([]);
@@ -345,7 +366,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 onClick={async () => {
                   try {
                     const { data } = await axios.post('/api/messages/conversation/private', { userId: b.id });
-                    onStartChat({ id: data.conversationId, type: 'private', name: b.name || b.username, avatar: b.avatar || '' });
+                    onStartChat(aiBotConv(data.conversationId, b));
                   } catch { showToast(t('contacts.cannotCreateConvRetry'), 'error'); }
                 }}
                 role="button" tabIndex={0}
@@ -353,7 +374,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     axios.post('/api/messages/conversation/private', { userId: b.id })
-                      .then(({ data }) => onStartChat({ id: data.conversationId, type: 'private', name: b.name || b.username, avatar: b.avatar || '' }))
+                      .then(({ data }) => onStartChat(aiBotConv(data.conversationId, b)))
                       .catch(() => showToast(t('contacts.cannotCreateConvRetry'), 'error'));
                   }
                 }}>

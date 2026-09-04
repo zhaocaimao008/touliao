@@ -4,6 +4,7 @@ import { playMessageTone } from '../utils/notifySound';
 import { startCallVisualAlert, stopCallVisualAlert } from '../utils/callVisualAlert';
 import { setIncomingRingtone, prewarmAudio, stopTone, startIncomingTone } from '../utils/callTones';
 import CallSoundGuide from '../components/CallSoundGuide';
+import PushPermissionGuide from '../components/PushPermissionGuide';
 import './Home.css';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
@@ -503,7 +504,7 @@ function CreateGroupModal({ onClose, onCreated }) {
 }
 
 export default function Home() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [tab, setTab] = useState('chats');
   const [features, setFeatures] = useState({ moments: true, collect: true });
   const [netSearchQ, setNetSearchQ] = useState(null); // null=关闭；字符串=带词打开网络搜索
@@ -522,7 +523,26 @@ export default function Home() {
   const [convRefreshKey, setConvRefreshKey] = useState(0);
   const { socket, reconnectCount, registerUnreadCleared } = useSocket();
   const { user } = useAuth();
-  usePushNotification(user);
+  // 通知权限不再自动申请：permission==='default' 时由 PushPermissionGuide 出软引导，
+  // 用户点「开启」（真实手势）才调 enablePush() 走系统权限框。详见 usePushNotification.js。
+  const { permission: pushPermission, enablePush } = usePushNotification(user);
+
+  // 上报界面语言，供服务端渲染离线推送文案。
+  // 推送是异步发出的，服务端那时没有请求上下文可协商语言，只能靠持久化的用户偏好
+  // （user_settings.lang，见 backend-v2/src/utils/pushI18n.js）——不上报的话，
+  // 英文用户锁屏收到的推送依然是简体中文。登录后同步一次 + 之后每次切换语言再同步，
+  // 失败静默（推送文案回落 zh-CN，不影响任何其他功能）。
+  // key 必须带 user.id：只记语言的话，同一次页面加载里 A 退出、B 登录，
+  // ref 里还留着 A 的语言，B 的同步会被跳过——B 的 user_settings.lang 一直是 zh-CN，
+  // 界面是英文却收中文推送。
+  const syncedLangRef = useRef(null);
+  useEffect(() => {
+    if (!user) return;
+    const key = `${user.id}:${lang}`;
+    if (syncedLangRef.current === key) return;
+    syncedLangRef.current = key;
+    axios.put('/api/users/me/settings', { lang }).catch(() => { syncedLangRef.current = null; });
+  }, [user, lang]);
 
   // 启动预热 IndexedDB：切会话时消息缓存读取无 openDB 冷启动延迟（防「打开会话空白一下」）
   useEffect(() => { warmupCacheDB(); }, []);
@@ -536,12 +556,39 @@ export default function Home() {
     setTab('chats');
   }, []);
 
-  // 拒接来电后回复消息：取/建与该用户的私聊会话并打开（来电必已有共同会话，正常命中已存在）
-  const handleReplyFromCall = useCallback(async (peerId) => {
+  // 拒接来电后回复消息：取/建与该用户的私聊会话并打开（来电必已有共同会话，正常命中已存在）。
+  // ⚠ 这个接口的返回体是 `{ conversationId }`，既没有 `conversation` 也没有 `id`
+  // （见 backend-v2 conversations.service.js getOrCreatePrivate）。此前写成
+  // `data?.conversation || data` 直接把整个响应体当会话对象塞给 ChatWindow，
+  // conversation.id 恒为 undefined → 会话头像/昵称空白、历史拉 /conversation/undefined、
+  // join_conversation 与 typing 全部被服务端的 guardId 拒掉（生产日志里可见连续的
+  // 「非法ID被拒绝 field=conversationId type=undefined」），用户看到的是一个能打字
+  // 但发不出、也收不到任何东西的死会话。这里改为取 conversationId，并优先用会话列表
+  // 里的那一条（带备注名/头像/免打扰等完整字段），取不到再用最小可用对象兜底。
+  const handleReplyFromCall = useCallback(async (peerId, peerUser) => {
     try {
       const { data } = await axios.post('/api/messages/conversation/private', { userId: peerId });
-      const conv = data?.conversation || data;
-      if (conv) handleSelectConv(conv);
+      const conversationId = data?.conversationId;
+      if (!conversationId) return;
+      const list = await axios.get('/api/messages/conversations')
+        .then(r => (Array.isArray(r.data) ? r.data : []))
+        .catch(() => []);
+      const known = list.find(c => c.id === conversationId);
+      // 兜底对象必须带 otherUser：ChatWindow.startCall 用的是
+      // conversation.otherUser?.id 当 remoteId，缺了它在这个会话里点通话会
+      // emit call:request { to: undefined } 被服务端 guardId 拒掉——正是生产日志里
+      // 「非法ID被拒绝 event=call:request field=to type=undefined」那条。
+      // 而这条兜底路径并不罕见：getOrCreatePrivate 可能刚建了新会话，
+      // 而 GET /api/messages/conversations 带 Cache-Control: private, max-age=10
+      // （conversations.controller.js），浏览器很可能直接给缓存 → known 命中不到。
+      // 昵称头像同样取自来电方（CallModal 传出），避免标题栏空白。
+      handleSelectConv(known || {
+        id: conversationId,
+        type: 'private',
+        name: peerUser?.name || '',
+        avatar: peerUser?.avatar || '',
+        otherUser: { id: peerId, name: peerUser?.name || '', avatar: peerUser?.avatar || '' },
+      });
     } catch { /* 会话打开失败静默（用户仍可手动进入会话） */ }
   }, [handleSelectConv]);
 
@@ -617,7 +664,8 @@ export default function Home() {
     });
   }, [registerUnreadCleared]);
 
-  // 通知权限由 usePushNotification 统一申请，此处无需重复请求
+  // 通知权限统一由 PushPermissionGuide 在用户手势下申请（见 usePushNotification.js），
+  // 此处只消费结果：未授权就不弹桌面通知，绝不在这里补一次 requestPermission。
 
   const showNotification = useCallback((title, body, icon) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
@@ -644,14 +692,31 @@ export default function Home() {
     if (!socket) return;
     // 超大户群降级通知：>500 在线 socket 的房间不推全量消息，只推轻量通知。
     // 会话列表侧：未读数 +1、触发浏览器通知/提示音、并刷新会话列表（置顶/最新消息摘要）。
-    const onNotify = ({ conversationId, senderName, preview }) => {
+    // 超大户群降级通知的预览文案：优先用服务端新增的结构化 previewType 自行本地化
+    // （同一条广播全房间共用一份 payload，服务端没法按各人语言渲染，见 broadcaster.js），
+    // 拿不到 previewType 时才回落服务端渲染好的 preview（旧服务端兼容）。
+    const localizedPreview = ({ previewType, previewText, preview }) => {
+      const key = {
+        image: 'chatlist.previewImage', voice: 'chatlist.previewVoice',
+        video: 'chatlist.previewVideo', file: 'chatlist.previewFile',
+        sticker: 'chatlist.previewSticker', red_packet: 'chatlist.previewRedPacket',
+        contact_card: 'chatlist.previewContact',
+      }[previewType];
+      if (key) return t(key);
+      if (previewType) return previewText || '';
+      return preview || '';
+    };
+    const onNotify = ({ conversationId, senderName, preview, previewType, previewText }) => {
       const isActiveConv = conversationId === activeConvIdRef.current;
       setUnread(prev => {
         if (isActiveConv) return prev;
         return { ...prev, [conversationId]: (prev[conversationId] || 0) + 1 };
       });
       if (!isActiveConv || document.hidden) {
-        showNotification(senderName || t('home.newMessage'), preview || t('home.sentAMessage'));
+        showNotification(
+          senderName || t('home.newMessage'),
+          localizedPreview({ previewType, previewText, preview }) || t('home.sentAMessage')
+        );
         if (senderName) playMessageTone(); // 大群通知不携带 sender_id，仅在明确有发送者时响铃
       }
       setConvRefreshKey(k => k + 1); // 刷新会话列表（置顶 + lastMessage 摘要）
@@ -988,6 +1053,7 @@ export default function Home() {
     <>
       <ReconnectingBanner />
       <CallSoundGuide />
+      <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
       {activeCall && (
         <Suspense fallback={null}>
           <CallModal

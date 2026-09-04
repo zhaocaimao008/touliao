@@ -639,6 +639,13 @@ function applySchema(db) {
       created_by TEXT DEFAULT NULL,
       created_at INTEGER DEFAULT (strftime('%s','now'))
     )`,
+    // ── 推送文案多语言（2026-09-04）：此前推送文案在服务端写死简体中文
+    // （'新消息'/'收到一条新消息'/'[图片]'…），而前端有 zh-CN/en/zh-TW 三套完整词典。
+    // 推送是用户在 App 之外唯一看得到的文案，英文用户锁屏收到的却是简中，
+    // 整套前端 i18n 到这一步全丢。服务端异步发推送时没有请求上下文可协商语言，
+    // 只能持久化用户偏好——客户端切语言时上报，写到这一列。
+    // 缺省 zh-CN 与既有行为一致，老用户不受影响。
+    "ALTER TABLE user_settings ADD COLUMN lang TEXT DEFAULT 'zh-CN'",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

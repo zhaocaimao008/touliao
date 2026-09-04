@@ -87,12 +87,18 @@ function redactQuery(query) {
 }
 
 // API 请求日志中间件
+// 健康探针路径：pm2/nginx/外部 uptime 每 30 秒打一次，成功时没有任何信息量，
+// 只会稀释日志（真出事时要在成千上万行 200 里翻）。失败（>=400）仍照常记录，
+// 因为那才是探针唯一值得看的时刻。
+const HEALTH_PROBE_PATHS = new Set(['/health', '/healthz', '/api/health', '/ping']);
+
 function requestLogger(req, res, next) {
   const start = Date.now();
 
   // 监听 response finish 事件
   res.on('finish', () => {
     const duration = Date.now() - start;
+    if (res.statusCode < 400 && HEALTH_PROBE_PATHS.has(req.path)) return;
     const logLevel = res.statusCode >= 400 ? 'warn' : 'info';
 
     logger[logLevel]('HTTP Request', {

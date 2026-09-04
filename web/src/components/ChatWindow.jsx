@@ -381,6 +381,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     prewarmAudio(); // 手势栈内同步预热 AudioContext:回铃音播放的前提(autoplay 政策)
     const remoteUser = { id: conversation.otherUser?.id, name: conversation.name, avatar: conversation.avatar };
     const remoteId = conversation.otherUser?.id;
+    // 兜底：对端已注销 / 会话对象不完整时直接给出可读提示，不往服务端发
+    // call:request { to: undefined }（会被 guardId 拒掉，用户只看到一个莫名的错误）。
+    if (!remoteId) { showToast(t('chat.peerUnavailable'), 'error'); return; }
     pendingCallRef.current = 'pending';
     socket?.emit('call:request', {
       to: remoteId,
@@ -392,7 +395,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (!ack?.callId) return; // 旧后端/异常：没有 callId 就不开呼叫界面，防止无 callId 的通话流程
       onStartCall?.({ type, direction: 'outgoing', remoteUser, remoteId, callId: ack.callId });
     });
-  }, [socket, conversation, user, onStartCall]);
+  }, [socket, conversation, user, onStartCall, t]);
 
   // 发起失败（忙线/黑名单/非好友等）：后端不走 ack，单独 emit call:error。
   useEffect(() => {
@@ -1134,16 +1137,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     // @mention 通知
     const onAtMention = ({ fromUserName, groupName, messagePreview }) => {
-      if (!('Notification' in window) || Notification.permission === 'denied') return;
-      if (Notification.permission === 'granted') {
-        new Notification(t('chat.mentionNotifTemplate').replace('{from}', fromUserName).replace('{group}', groupName), { body: messagePreview });
-      } else {
-        Notification.requestPermission().then(perm => {
-          if (perm === 'granted') {
-            new Notification(t('chat.mentionNotifTemplate').replace('{from}', fromUserName).replace('{group}', groupName), { body: messagePreview });
-          }
-        });
-      }
+      // 只在**已授权**时弹通知。此处绝不调 Notification.requestPermission()——
+      // 这是个 socket 事件回调，完全没有用户手势，且时机随机（别人 @ 你的那一刻）：
+      //   · Chrome 会弹出一个毫无上下文的系统权限框，用户反射性拒绝后**永久**无法再申请，
+      //     该用户的 Web 推送就此彻底失效；
+      //   · Safari / iOS PWA 要求必须由用户手势触发，无手势直接被拒。
+      // 权限申请统一走 PushPermissionGuide 的「开启」按钮（真实手势），
+      // 见 hooks/usePushNotification.js 的 enablePush。
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      new Notification(
+        t('chat.mentionNotifTemplate').replace('{from}', fromUserName).replace('{group}', groupName),
+        { body: messagePreview }
+      );
     };
 
     // 注册送达回调到 SocketContext，保存取消订阅函数
@@ -2773,7 +2778,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:t('chat.contactCard'), action: openCardPicker },
               // 定时发送：把输入框当前文本设为定时消息，到点自动发出
               { bg:'var(--color-primary)', testid:'chat-schedule-btn', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>, label:t('chat.scheduleSend'), action: () => { closePanels(); openScheduleModal(); } },
-              ...(conversation.type === 'private' ? [
+              // 对端账号已注销（管理员删号后，服务端 listConversations 返回 otherUser: null）
+              // 时不给通话入口：startCall 用的是 conversation.otherUser?.id 当 remoteId，
+              // 点了必然 emit call:request { to: undefined }，被服务端 guardId 拒掉并回
+              // call:error——用户看到的是「通话报错」而不是「对方已注销」。会话本身仍可打开、
+              // 历史仍可读，只是不再提供打不通的入口。
+              ...(conversation.type === 'private' && conversation.otherUser?.id ? [
                 { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>, label:t('chat.transfer'), action: () => { setShowTransfer(true); closePanels(); } },
               ] : []),
             ].map(item => (

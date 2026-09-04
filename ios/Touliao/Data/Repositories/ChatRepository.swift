@@ -18,6 +18,8 @@ final class ChatRepository {
     /// 全局新消息流（各会话共用，UI 自行按 conversationId 过滤）
     var incomingPublisher: AnyPublisher<Message, Never> { socket.incoming.eraseToAnyPublisher() }
     var syncAvailablePublisher: AnyPublisher<String, Never> { socket.syncAvailable.eraseToAnyPublisher() }
+    /// 超大户群降级通知（>500 在线 socket 的房间只推轻量通知，需客户端自行拉增量）
+    var newMessageNotifyPublisher: AnyPublisher<NewMessageNotifyEvent, Never> { socket.newMessageNotify.eraseToAnyPublisher() }
 
     var typingPublisher: AnyPublisher<TypingEvent, Never> { socket.typing.eraseToAnyPublisher() }
     var readPublisher: AnyPublisher<ReadEvent, Never> { socket.read.eraseToAnyPublisher() }

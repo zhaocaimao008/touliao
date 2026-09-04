@@ -41,6 +41,14 @@ function getOrCreatePrivate(myId, otherId, { internal = false, io = null } = {})
   }
   const existing = _findPrivate.get(myId, otherId);
   if (existing) return { conversationId: existing.id };
+  // 走到这里 = 要新建会话。已封禁账号不允许再建立新的私聊。
+  // 刻意放在 existing 查询【之后】：已经存在的会话必须还能打开（否则历史消息就
+  // 直接失联了），只是往里发消息会被 privateSendGuard 挡住并给出明确提示。
+  // 上面那些 guard 在 existing 之前，对既有会话也会生效，所以不能把这条并进去。
+  if (!internal) {
+    const target = db.prepare('SELECT banned FROM users WHERE id=?').get(otherId);
+    if (target?.banned) throw forbidden('该账号已停用');
+  }
   const id = uuidv4();
   try {
     _createPrivate(myId, otherId, id);

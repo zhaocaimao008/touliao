@@ -10,6 +10,7 @@
  * 客户端注册的个推 CID 存到 device_tokens 表，platform='getui'。
  */
 const https = require('https');
+const pushI18n = require('./pushI18n');
 
 const APP_ID = process.env.GETUI_APP_ID || '';
 const APP_KEY = process.env.GETUI_APP_KEY || '';
@@ -71,6 +72,51 @@ async function getToken() {
 }
 
 /**
+ * 推送发送的瞬时失败重试。
+ *
+ * 背景：此前 push/single/cid 一旦超时或网络抖动就直接失败，调用方 utils/push.js
+ * 只 `.catch(e => console.warn('[push] 个推异常: ...'))` 静默丢弃——用户那一条通知
+ * 就此没了，没有任何重试。生产日志实测 2026-09-03 14:05~14:26 有 8 次
+ * `个推异常: getui timeout`，即 8 条安卓通知无声丢失。
+ *
+ * 为什么重试是安全的：个推以 message.request_id 做幂等去重。这里刻意复用**同一个**
+ * message 对象（request_id 在构造时生成一次、重试不重新生成），所以「首次请求其实
+ * 已经到达个推、只是响应超时」这种情况重试也不会重复推送给用户。
+ *
+ * 只重试瞬时失败（超时/连接错误/5xx）。业务层拒绝（4xx、code!=0，如 CID 失效）
+ * 是确定性结果，重试没有意义，直接返回给调用方按原逻辑处理。
+ * 只重试 1 次、退避 800ms：通知的时效性本身有限（来电尤其），拖太久还不如不推。
+ */
+const PUSH_MAX_ATTEMPTS = 2;
+const PUSH_RETRY_DELAY_MS = 800;
+
+function isTransient(err, res) {
+  if (err) return true;                       // 超时 / ECONNRESET / DNS 等
+  return res && res.status >= 500;            // 个推侧 5xx
+}
+
+// send / delayMs 可注入纯粹为了可测（默认即真实实现）：这段逻辑要钉死的两条不变量
+// ——「瞬时失败才重试」与「重试复用同一 request_id」——不该为了验证它们去 mock https。
+async function sendPushWithRetry(path, token, message, { send = httpJson, delayMs = PUSH_RETRY_DELAY_MS } = {}) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= PUSH_MAX_ATTEMPTS; attempt += 1) {
+    let res = null, err = null;
+    try {
+      res = await send('POST', path, { token }, message);
+    } catch (e) {
+      err = e;
+    }
+    if (!isTransient(err, res)) return res;
+    lastErr = err || new Error(`getui http ${res.status}`);
+    if (attempt < PUSH_MAX_ATTEMPTS) {
+      console.warn(`[getui] 瞬时失败，${delayMs}ms 后重试(${attempt}/${PUSH_MAX_ATTEMPTS - 1}): ${lastErr.message}`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
+/**
  * 单个 CID 推送透传+通知。
  * @param cid  客户端上报的个推 CID
  * @param title/body  通知标题/正文
@@ -117,8 +163,7 @@ async function pushToCid(cid, { title, body, payload }) {
       },
     },
   };
-  const { status, json } = await httpJson('POST', '/push/single/cid',
-    { token }, message);
+  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message);
   return { status, json, cid };
 }
 
@@ -130,11 +175,13 @@ async function pushToCid(cid, { title, body, payload }) {
  *    callId/callFrom/callerName/callType（与 NotificationHelper.EXTRA_CALL_* 键名对齐），
  *    MainActivity 识别后重建来电界面（被杀场景兜底，无法全屏但保证可见+可点接听）。
  */
-async function pushCallToCid(cid, { callId, from, callerName, callType }) {
+async function pushCallToCid(cid, { callId, from, callerName, callType, lang }) {
   const token = await getToken();
   const t = callType === 'video' ? 'video' : 'audio';
-  const title = callerName || '来电';
-  const body = t === 'video' ? '邀请你视频通话' : '邀请你语音通话';
+  // 文案按【被叫方】语言渲染（lang 由 push.js 的 pushCallInvite 解析后传入）。
+  // 此前写死简中，英文用户的国产 ROM 上收到的来电通知一直是中文。
+  const title = callerName || pushI18n.t(lang, 'call.title');
+  const body = pushI18n.t(lang, t === 'video' ? 'call.video' : 'call.audio');
   // 透传字段与 FCM data-only 对齐（type/callId/from/callerName/callType），
   // 客户端 TouliaoGeTuiService 按同一套键名解析，可复用 showCallNotification。
   const transmissionPayload = JSON.stringify({
@@ -169,8 +216,9 @@ async function pushCallToCid(cid, { callId, from, callerName, callType }) {
       },
     },
   };
-  const { status, json } = await httpJson('POST', '/push/single/cid',
-    { token }, message);
+  // 来电推送同样走瞬时失败重试（复用同一 request_id，个推按它幂等去重，不会重复响铃）。
+  // 来电时效性最强，退避仍是 800ms、只重试 1 次——见 sendPushWithRetry 注释。
+  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message);
   // 此前只要 HTTP 请求本身没抛异常就当成功返回——个推 API 常见的是 HTTP 200 但
   // json.code!==0 的业务失败（cid 过期/未配置厂商 Key/离线保留超限等），调用方
   // （push.js 的 pushCallInvite）只在 promise reject 时才 console.warn，这种"响应体
@@ -182,4 +230,4 @@ async function pushCallToCid(cid, { callId, from, callerName, callType }) {
   return { status, json, cid };
 }
 
-module.exports = { isEnabled, pushToCid, pushCallToCid, getToken };
+module.exports = { isEnabled, pushToCid, pushCallToCid, getToken, sendPushWithRetry, PUSH_MAX_ATTEMPTS };

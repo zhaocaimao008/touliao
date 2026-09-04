@@ -62,11 +62,24 @@ app.use(helmet({
   },
 }));
 
+// CORS 被拒是「客户端送来的 Origin 不在白名单」，属于客户端条件，不是服务端故障。
+// 此前这里 throw 的是裸 Error（无 status），一路落到 error.js 的兜底分支：
+//   · 响应 500「服务器内部错误」——语义错了，应是 403
+//   · 以 error 级别 + 10 行堆栈写进 error.log / Sentry
+//   · 而且**没有记下被拒的 Origin 是什么**，真出现 CORS 配错时根本无从排查
+//   · 任何扫描器随便发个 Origin 就能刷满错误日志，把真事故淹掉
+//     （生产日志实测 172 条，全是这一条）
+// 现在：带上 status=403 走 error.js 的「带 status 的普通 Error」分支（不打堆栈、
+// 不进 error 级别），并在拒绝点单独记一条 warn，把 Origin 显式写进去。
 app.use(cors({
   origin: (origin, cb) => {
     // 默认兼容 Electron file:// 的 "null"；严格模式仅允许显式白名单。
     if (!origin || (!config.corsOriginsOnly && origin === 'null') || config.allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
+    warn('[cors] Origin 不在白名单，已拒绝', { origin });
+    const err = new Error('Not allowed by CORS');
+    err.status = 403;
+    err.code = 'CORS_FORBIDDEN';
+    cb(err);
   },
   credentials: true,
 }));

@@ -277,18 +277,33 @@ async function processQueued(io, convId, triggerMsg, bot, images = []) {
   }
   convLocks.set(convId, true);
   try {
-    await doReply(io, convId, senderId, triggerMsg, bot, images);
+    // ⚠ 现状：AI 助手已下线——.env 的 AI_BOT_ID / HERMES_BOT_ID 均为空值，
+    //   BOTS = [...].filter(b => b.botId) 因此为空，botMap 空，maybeReply 里
+    //   botMap.get(otherId) 恒 undefined，这个函数当前根本不会被执行
+    //   （/api/config 的 aiAssistants 实测返回 []）。
+    //   下面修的是一个真实存在但**当前休眠**的缺陷，重新配上 botId 就会复活，
+    //   不是正在发生的线上故障。日志里那条「[AI助手] 回复失败: This operation was
+    //   aborted」（180s 超时）是 2026-09-03 下线之前留下的。
+    //
+    // 每条各自 try：此前任意一条失败（大脑超时最常见）会直接跳出，
+    // 导致两个问题：
+    //   1) convPending.delete(convId) 被跳过（它原来在 try 里，finally 只清了锁）
+    //      → 积压的消息永久留在队列里；等用户下次再发一条，新消息处理完后
+    //      while 循环会把**上一轮失败时积压的旧消息**补发给大脑，用户看到 AI
+    //      答非所问、回的是几分钟前那条。
+    //   2) 队列里其余消息一条都不再尝试。
+    // 现在：单条失败只丢那一条，后续继续；队列清理移到 finally，保证任何路径都不残留。
+    await doReply(io, convId, senderId, triggerMsg, bot, images)
+      .catch(err => console.warn('[AI助手] 回复失败:', err.message));
     // 当前消息处理完后，依次补发排队中的消息
     while (convPending.has(convId) && convPending.get(convId).length > 0) {
       const next = convPending.get(convId).shift();
-      await doReply(io, convId, next.senderId, next.msg, bot, next.images);
+      await doReply(io, convId, next.senderId, next.msg, bot, next.images)
+        .catch(err => console.warn('[AI助手] 队列补发失败:', err.message));
     }
-    convPending.delete(convId);
-    return null;
-  } catch (err) {
-    console.warn('[AI助手] 回复失败:', err.message);
     return null;
   } finally {
+    convPending.delete(convId);
     convLocks.delete(convId);
   }
 }

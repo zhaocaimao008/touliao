@@ -19,6 +19,18 @@ struct ReadEvent {
     let lastReadMessageId: String?
 }
 
+/// 超大户群降级通知（对齐 Android NewMessageNotifyEvent）：房间在线 socket 数超过
+/// 服务端 NOTIFY_THRESHOLD(500) 时，broadcaster 不再推全量消息体，只推这条轻量通知，
+/// 由客户端自行拉取增量。见 backend-v2/src/realtime/broadcaster.js。
+struct NewMessageNotifyEvent {
+    let conversationId: String
+    let lastMsgId: String?
+    let senderName: String
+    let preview: String
+    let count: Int
+    let ts: Double
+}
+
 /// Socket.IO 实时通道（封装 Socket.IO-Client-Swift）。职责等同 Android 的 SocketManager。
 ///
 /// - 鉴权：connect(withPayload:) 把 {token} 作为 CONNECT auth 负载发送，
@@ -41,6 +53,8 @@ final class SocketService {
     let authFailure = PassthroughSubject<String, Never>()
     let incoming = PassthroughSubject<Message, Never>()
     let syncAvailable = PassthroughSubject<String, Never>()
+    /// 超大户群降级通知 → 会话内补拉增量、会话列表刷新摘要/未读
+    let newMessageNotify = PassthroughSubject<NewMessageNotifyEvent, Never>()
     /// @mention：(conversationId, msgId)
     let mentioned = PassthroughSubject<(convId: String, msgId: String), Never>()
     let typing = PassthroughSubject<TypingEvent, Never>()
@@ -167,6 +181,24 @@ final class SocketService {
             if let arr = data.first as? [[String: Any]] {
                 arr.forEach { self?.handleMessage($0) }
             }
+        }
+        // 超大户群降级：>500 在线 socket 的房间不推全量消息，只推轻量通知 → UI 拉取增量。
+        // 此前 iOS 完全没有监听这个事件（Web/Android 均已消费），导致 iOS 用户在任何
+        // 超过阈值的大群里实时消息完全断流——既收不到消息体，也不会触发补拉，只能等
+        // 下次重新进入会话才整表重拉。见 docs/TOULIAO-CODEX-4PLATFORM-GAP.md 第 2 条。
+        sock.on("new_message_notify") { [weak self] data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let convId = dict["conversationId"] as? String, !convId.isEmpty else { return }
+            // 服务端在取不到 id 时下发的是空串而非缺字段，统一折成 nil（对齐 Android 的 ifEmpty { null }）
+            let lastMsgId = (dict["lastMsgId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            self?.newMessageNotify.send(NewMessageNotifyEvent(
+                conversationId: convId,
+                lastMsgId: lastMsgId,
+                senderName: dict["senderName"] as? String ?? "",
+                preview: dict["preview"] as? String ?? "",
+                count: (dict["count"] as? NSNumber)?.intValue ?? 0,
+                ts: (dict["ts"] as? NSNumber)?.doubleValue ?? 0
+            ))
         }
         sock.on("typing") { [weak self] data, _ in self?.handleTyping(data.first, isTyping: true) }
         sock.on("stop_typing") { [weak self] data, _ in self?.handleTyping(data.first, isTyping: false) }

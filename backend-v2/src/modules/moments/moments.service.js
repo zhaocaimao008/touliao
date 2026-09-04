@@ -9,7 +9,8 @@
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const config = require('../../config');
-const { pushToUser } = require('../../utils/push');
+const { pushToUser, langOf } = require('../../utils/push');
+const pushI18n = require('../../utils/pushI18n');
 const { badRequest, forbidden, notFound, conflict, paginated } = require('../../utils/http');
 const { isConfigured, getPublicBase } = require('../../utils/cloudStorage');
 const moderation = require('../moderation/moderation.service');
@@ -21,10 +22,14 @@ function addInteractNotification({ recipientId, actorId, momentId, type, comment
     .run(uuidv4(), recipientId, actorId, momentId, type, commentId);
   if (!config.moments.pushOnInteract) return;
   const actor = db.prepare('SELECT username FROM users WHERE id=?').get(actorId);
-  const name = actor?.username || '有人';
-  const body = type === 'like' ? `${name} 赞了你的朋友圈` : `${name} 评论了你的朋友圈`;
+  // 文案按【收件人】语言渲染（此前 '朋友圈'/'X 赞了你的朋友圈' 写死简中，
+  // 英文用户锁屏收到的一直是中文）。见 utils/pushI18n.js。
+  const lang = langOf(recipientId);
+  const name = actor?.username || pushI18n.t(lang, 'friend.someone');
+  const body = pushI18n.tf(lang, type === 'like' ? 'moment.liked' : 'moment.commented', { name });
+  const title = pushI18n.t(lang, 'moment.title');
   // 离线推送 best-effort，不阻塞、不抛错
-  pushToUser(recipientId, { title: '朋友圈', senderName: '朋友圈', body, type: 'moment', momentId }).catch(() => {});
+  pushToUser(recipientId, { title, senderName: title, body, lang, type: 'moment', momentId }).catch(() => {});
 }
 
 // 安全解析动态图片 JSON：脏数据/历史坏行不应让整条时间线 500。

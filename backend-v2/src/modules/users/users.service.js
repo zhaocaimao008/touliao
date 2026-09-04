@@ -5,6 +5,7 @@ const cache = require('../../utils/cache');
 const { v4: uuidv4 } = require('uuid');
 const { collectionDedupKey } = require('../../utils/collections');
 const presence = require('../../realtime/presence');
+const pushI18n = require('../../utils/pushI18n');
 
 // 安全解析收藏 extra JSON：单条脏数据不应让整个收藏列表 500。
 function parseExtra(raw) {
@@ -19,6 +20,9 @@ const settingDefaults = {
   chat_background: null, moments_visible_days: 0, no_direct_group_invite: 0,
   // 勿扰时段（夜间免打扰）：开关 + HH:MM 起止时间，命中时段抑制离线推送
   quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00',
+  // 推送文案语言（客户端切换语言时上报）。服务端异步发推送时没有 Accept-Language
+  // 可协商，只能靠这一列。见 utils/pushI18n.js。
+  lang: pushI18n.DEFAULT_LANG,
 };
 
 // 校验 HH:MM 格式（00:00~23:59），非法返回 null
@@ -55,6 +59,7 @@ function serializeSettings(row) {
     quietStart: normalizeHHMM(s.quiet_start) || '23:00',
     quietEnd: normalizeHHMM(s.quiet_end) || '07:00',
     ringtone: RINGTONE_OPTIONS.includes(s.ringtone) ? s.ringtone : 'classic',
+    lang: pushI18n.normalizeLang(s.lang),
   };
 }
 
@@ -92,6 +97,10 @@ function normalizeSettings(body) {
   if (body.ringtone !== undefined && RINGTONE_OPTIONS.includes(body.ringtone)) {
     patch.ringtone = body.ringtone;
   }
+  // 推送语言（枚举白名单：不认识的直接忽略，绝不写入库，避免推送时取词落空）
+  if (body.lang !== undefined && pushI18n.SUPPORTED_LANGS.includes(body.lang)) {
+    patch.lang = body.lang;
+  }
   return patch;
 }
 
@@ -127,8 +136,10 @@ function scanQrUser(viewerId, payload) {
   try { parsed = JSON.parse(payload); } catch { throw badRequest('无效的二维码'); }
   if (parsed?.type !== 'vxin-user' || typeof parsed.id !== 'string' || !parsed.id)
     throw badRequest('无效的二维码');
-  const target = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(parsed.id);
+  const target = db.prepare('SELECT id,username,avatar,wechat_id,banned FROM users WHERE id=?').get(parsed.id);
   if (!target) throw notFound('用户不存在');
+  // 已封禁账号：与"不存在"同样处理，不泄露账号是否存在，也不给出可添加的入口
+  if (target.banned) throw notFound('用户不存在');
   if (target.id === viewerId) throw badRequest('不能添加自己');
 
   const isFriend = !!db.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, target.id);
@@ -160,6 +171,10 @@ function search(userId, q) {
     FROM users u
     LEFT JOIN user_settings s ON s.user_id = u.id
     WHERE u.id != ?
+      -- 已封禁账号不出现在搜索结果里。此前 banned=1 只在 middleware/auth.js 拦被封者
+      -- **自己**的 token，对其他人完全不可见——被封账号照样能被搜到、被加好友、被发消息。
+      -- 封了骚扰者，别人还能照常找到他并当正常用户加上，审核动作等于只做了一半。
+      AND u.banned = 0
       AND (
         u.username LIKE ? ESCAPE '\\'
         OR (u.wechat_id = ? AND COALESCE(s.add_by_vxin_id, 1) = 1)

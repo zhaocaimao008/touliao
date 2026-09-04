@@ -4,7 +4,8 @@ const { db } = require('../../db/connection');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const usersSvc = require('../users/users.service');
 const { getOrCreatePrivate } = require('../conversations/conversations.service');
-const { pushToUser } = require('../../utils/push');
+const { pushToUser, langOf } = require('../../utils/push');
+const pushI18n = require('../../utils/pushI18n');
 const { invalidateBlocked } = require('../messages/shared');
 
 // ── 联系人 ──────────────────────────────────────────────────────
@@ -53,7 +54,10 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   const safeMessage = typeof message === 'string' ? message.trim() : '';
   if (safeMessage.length > 100) throw badRequest('验证消息最长 100 个字符');
   if (toId === fromId) throw badRequest('不能添加自己');
-  if (!db.prepare('SELECT id FROM users WHERE id=?').get(toId)) throw notFound('用户不存在');
+  // 已封禁账号：与"不存在"同样处理。此前 banned 只拦被封者自己的 token，
+  // 别人照样能给他发好友申请、加成好友——审核动作只做了一半。
+  const target = db.prepare('SELECT id, banned FROM users WHERE id=?').get(toId);
+  if (!target || target.banned) throw notFound('用户不存在');
   if (db.prepare('SELECT id FROM contacts WHERE user_id=? AND contact_id=?').get(fromId, toId)) throw badRequest('已是好友');
   if (db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(toId, fromId)) throw forbidden('对方已将你加入黑名单');
   if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) throw badRequest('请求已发送');
@@ -108,11 +112,15 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   if (io) io.to(`user_${toId}`).emit('new_friend_request', { id, from: sender, message: safeMessage });
   // 离线推送 best-effort，不阻塞、不抛错（同 moments 互动通知的处理方式）：
   // 好友请求不是"新消息"，不受 message_notify/muted 影响 —— 那两项按既有约定仅约束会话内消息。
-  const senderName = sender?.username || '有人';
+  // 文案按【收件人】语言渲染（此前 '请求添加你为好友' 写死简中）。见 utils/pushI18n.js。
+  const reqLang = langOf(toId);
+  const senderName = sender?.username || pushI18n.t(reqLang, 'friend.someone');
   pushToUser(toId, {
     title: senderName,
     senderName,
-    body: safeMessage || '请求添加你为好友',
+    // 申请人自己写的附言原样透出（那是用户内容，不该翻译）；没写附言才用本地化默认文案
+    body: safeMessage || pushI18n.t(reqLang, 'friend.request'),
+    lang: reqLang,
     type: 'friend_request',
     senderId: fromId,
   }).catch(() => {});

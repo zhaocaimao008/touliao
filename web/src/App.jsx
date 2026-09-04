@@ -2,7 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
-import { I18nProvider } from './contexts/I18nContext';
+import { I18nProvider, useI18n } from './contexts/I18nContext';
 import { SocketProvider } from './contexts/SocketContext';
 import ElectronTitlebar from './components/ElectronTitlebar';
 import UpdateBanner from './components/UpdateBanner';
@@ -18,15 +18,33 @@ const Home           = lazy(() => import('./pages/Home'));
 // Electron 使用 HashRouter（file:// 不支持 pushState）；Web 用 BrowserRouter
 const Router = window.__ELECTRON_CONFIG__ ? HashRouter : BrowserRouter;
 
-// 懒加载页面切换时的加载态（与 PrivateRoute 的 loading 视觉一致）
-const RouteFallback = () => (
-  <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh' }}>加载中…</div>
-);
+// 懒加载页面切换时的加载态（与 PrivateRoute 的 loading 视觉一致）。
+// 文案走 i18n：这三处（两个「加载中…」+ skip-link）此前硬编码简中，
+// 英文/繁中用户在冷启动的第一屏就会看到简体中文。
+const CenteredLoading = () => {
+  const { t } = useI18n();
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh' }}>{t('common.loading')}</div>
+  );
+};
+const RouteFallback = () => <CenteredLoading />;
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh' }}>加载中…</div>;
+  if (loading) return <CenteredLoading />;
   return user ? children : <Navigate to="/login" />;
+};
+
+// skip-link 需要在 I18nProvider 内部取词，故单独拆成组件
+const SkipLink = () => {
+  const { t } = useI18n();
+  return (
+    <a href="#main-content" className="skip-link" style={{
+      position: 'absolute', left: '-9999px', zIndex: 9999,
+      padding: '8px 16px', background: 'var(--color-primary, #6D5AE6)', color: '#fff',
+      fontSize: 'var(--text-base)', textDecoration: 'none', borderRadius: '0 0 4px 0',
+    }}>{t('common.skipToContent')}</a>
+  );
 };
 
 export default function App() {
@@ -38,11 +56,7 @@ export default function App() {
     <SettingsProvider>
     <AuthProvider>
       {/* ── Skip-link：无障碍跳过导航 ── */}
-      <a href="#main-content" className="skip-link" style={{
-        position: 'absolute', left: '-9999px', zIndex: 9999,
-        padding: '8px 16px', background: 'var(--color-primary, #6D5AE6)', color: '#fff',
-        fontSize: 'var(--text-base)', textDecoration: 'none', borderRadius: '0 0 4px 0',
-      }}>跳过导航，直达内容</a>
+      <SkipLink />
       {isElectron && <ElectronTitlebar />}
       {isElectron && <UpdateBanner />}
       <div id="main-content" role="main" style={isElectron ? { paddingTop: 30, height: '100vh', boxSizing: 'border-box', overflow: 'hidden' } : {}}>

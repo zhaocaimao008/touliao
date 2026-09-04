@@ -24,7 +24,7 @@ touliao/
 │   ├── public/
 │   │   ├── manifest.json         # PWA 配置
 │   │   ├── icons/                # 应用图标
-│   │   └── sw/service-worker.js  # 服务工作线程
+│   │   └── sw.js                 # Service Worker（离线回退 + Web Push；唯一被注册的那个）
 │   ├── index.html
 │   └── vite.config.js
 │

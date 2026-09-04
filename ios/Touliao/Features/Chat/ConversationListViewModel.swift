@@ -56,6 +56,12 @@ final class ConversationListViewModel: ObservableObject {
             .sink { [weak self] _ in Task { @MainActor in await self?.refresh() } }
             .store(in: &cancellables)
 
+        // 超大户群降级通知 → 整表刷新（含未读计数/摘要/置顶）。与 Android
+        // ConversationListViewModel.observeNotify 同策略：大群触发频率低，全量刷新最稳妥。
+        repo.newMessageNotifyPublisher
+            .sink { [weak self] _ in Task { @MainActor in await self?.refresh() } }
+            .store(in: &cancellables)
+
         // 后台开关实时广播（管理员随时可关/开朋友圈图标，无需等下次启动重新拉配置）
         repo.configUpdatedPublisher
             .sink { [weak self] (_, _, moments) in Task { @MainActor in self?.momentsEnabled = moments } }

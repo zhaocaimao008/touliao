@@ -11,6 +11,7 @@ const webpush = require('web-push');
 const config = require('../config');
 const { db } = require('../db/connection');
 const getuiPush = require('./getuiPush');
+const pushI18n = require('./pushI18n');
 const fcmOptimized = require('./fcmOptimized');  // 新增：Android FCM 优化模块
 
 // Web Push endpoint 只可能来自浏览器推送服务(FCM/Mozilla/Apple/WNS)。限制到已知服务域名，
@@ -59,7 +60,21 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && proc
   console.debug('[Push] Firebase 未配置，FCM/APNs 推送不可用');
 }
 
+// 单个收件人的推送语言。pushNewMessage 走批量查询一次取回所有人的 lang；
+// 而好友申请/朋友圈互动/来电这些是「推给某一个人」的路径，用这个按需取。
+// 取不到（用户不存在/未建 settings 行）一律回落 zh-CN，与改动前行为一致。
+function langOf(userId) {
+  try {
+    const row = db.prepare('SELECT lang FROM user_settings WHERE user_id=?').get(userId);
+    return pushI18n.normalizeLang(row?.lang);
+  } catch {
+    return pushI18n.DEFAULT_LANG;
+  }
+}
+
 async function pushToUser(userId, payload) {
+  // 调用方没显式给 lang 时按收件人解析一次，保证下面个推的兜底文案也是对的语言
+  if (!payload.lang) payload = { ...payload, lang: langOf(userId) };
   const promises = [];
 
   const webSubs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id=?').all(userId);
@@ -224,8 +239,8 @@ async function pushToUser(userId, payload) {
     const getuiTokens = tokensOf('getui');
     for (const row of getuiTokens) {
       getuiPush.pushToCid(row.token, {
-        title: payload.senderName || '新消息',
-        body: payload.body || '收到一条新消息',
+        title: payload.senderName || pushI18n.t(payload.lang, 'push.newMessage'),
+        body: payload.body || pushI18n.t(payload.lang, 'push.oneNewMessage'),
         payload: { type: payload.type || 'message', conversationId: payload.conversationId || '', senderId: payload.senderId || '' },
       }).then(({ json }) => {
         if (json.code !== 0) {
@@ -263,23 +278,15 @@ function isInQuietHours(quietStart, quietEnd, now = new Date()) {
     : (cur >= start || cur < end);          // 跨夜区间，如 23:00~07:00
 }
 
-function buildBody(type, content) {
-  switch (type) {
-    case 'image':        return '[图片]';
-    case 'voice':        return '[语音]';
-    case 'file':         return `[文件] ${(content || '').slice(0, 50)}`;
-    case 'location':     return '[位置]';
-    case 'red_packet':   return '[红包] 恭喜发财';
-    case 'contact_card': return '[名片]';
-    default:             return content?.slice(0, 100) || '';
-  }
+// 正文按【收件人】语言生成——同一条消息推给不同语言的成员，文案各不相同，
+// 所以不能像以前那样在循环外算一次全局 body。见 utils/pushI18n.js。
+function buildBody(type, content, lang) {
+  return pushI18n.bodyForMessage(lang, type, content);
 }
 
 async function pushNewMessage({ conversationId, senderId, senderName, content, type, timestamp, onlineUserIds, members: cachedMembers }) {
   const members = cachedMembers ||
     db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(conversationId);
-
-  const body = buildBody(type, content);
 
   // 「幽灵在线」修复：不再因 socket 在线就跳过推送。
   // 锁屏/后台但进程存活、socket 仍连着时，服务端会误判用户在线 → 不发 FCM/APNs
@@ -304,14 +311,15 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
       COALESCE(us.vibrate, 0) AS vibrate,
       COALESCE(us.quiet_enabled, 0) AS quiet_enabled,
       COALESCE(us.quiet_start, '23:00') AS quiet_start,
-      COALESCE(us.quiet_end, '07:00') AS quiet_end
+      COALESCE(us.quiet_end, '07:00') AS quiet_end,
+      COALESCE(us.lang, 'zh-CN') AS lang
     FROM users u
     LEFT JOIN user_settings us ON us.user_id = u.id
     LEFT JOIN conversation_settings cs ON cs.user_id = u.id AND cs.conversation_id = ?
     WHERE u.id IN (${ph})
   `).all(conversationId, ...targetUids);
   const settingsMap = new Map(settingsRows.map(r => [r.user_id, r]));
-  const defaultSettings = { last_read_at: 0, muted: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0, quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00' };
+  const defaultSettings = { last_read_at: 0, muted: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0, quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00', lang: pushI18n.DEFAULT_LANG };
 
   // 批量未读数（优化 N+1）：一次查询取回所有目标用户的未读数，替代循环内逐用户 COUNT。
   // 大群（500 人）一条消息原为 500 次同步 SQLite 查询阻塞事件循环，现为 1 次。
@@ -338,9 +346,13 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
     // 勿扰时段检查：开启且当前时刻落在时段内 → 抑制推送（消息本身照常入库送达）
     if (Number(settings.quiet_enabled) && isInQuietHours(settings.quiet_start, settings.quiet_end)) return null;
     const unread = unreadMap.get(uid) || 1;
+    const lang = pushI18n.normalizeLang(settings.lang);
     return pushToUser(uid, {
       title:   senderName,
-      body:    Number(settings.detail_preview) ? body : '收到一条新消息',
+      body:    Number(settings.detail_preview)
+        ? buildBody(type, content, lang)
+        : pushI18n.t(lang, 'push.oneNewMessage'),
+      lang,
       senderName, senderId, conversationId, type, timestamp,
       badge:   unread,
       sound:   !!Number(settings.sound),
@@ -583,7 +595,7 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
 // 从未真正送达过。'ios_apns' 平台的 token 直连不经过 FCM，绕开这条失败路径。
 // payload 顶层 from/callerName/callId/callType 字段名与 AppDelegate.swift:89-92
 // 读取 userInfo 的字段名一一对应（ANSWER/DECLINE 通知动作靠这几个字段重建来电状态）。
-function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, callType }) {
+function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, callType, lang }) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (result) => {
@@ -600,7 +612,7 @@ function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, call
     const isVideo = callType === 'video';
     const payload = {
       aps: {
-        alert: { title: callerName || '来电', body: isVideo ? '邀请你视频通话' : '邀请你语音通话' },
+        alert: { title: callerName || pushI18n.t(lang, 'call.title'), body: pushI18n.t(lang, isVideo ? 'call.video' : 'call.audio') },
         sound: 'default',
         category: 'INCOMING_CALL',
       },
@@ -700,6 +712,8 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   ).all(toUserId);
   if (!deviceTokens.length) return;
   const isVideo = callType === 'video';
+  // 来电通知文案按【被叫方】语言渲染（此前 '来电'/'邀请你视频通话' 是写死的简中）
+  const lang = langOf(toUserId);
   const promises = [];
   // FCM 优先（防同设备双弹）：有 android(FCM) token 的 GMS 设备，全屏来电走 FCM——
   // 被杀场景 FCM 仍能拉起进程弹 fullScreenIntent，能力最完整；个推仅兜底无 GMS 的设备。
@@ -709,7 +723,7 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
     if (row.platform === 'getui') {
       if (hasAndroidFcm) continue;   // FCM 已覆盖，个推不重复推（防双弹）
       promises.push(getuiPush.pushCallToCid(row.token, {
-        callId, from: fromUserId, callerName, callType: isVideo ? 'video' : 'audio',
+        callId, from: fromUserId, callerName, callType: isVideo ? 'video' : 'audio', lang,
       }).catch(err => console.warn(`[push] 个推来电失败 user=${toUserId}: ${err.message}`)));
       continue;
     }
@@ -718,7 +732,7 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
       continue;
     }
     if (row.platform === 'ios_apns') {
-      promises.push(sendIosCallPush(row.token, { callId, from: fromUserId, toUserId, callerName, callType: isVideo ? 'video' : 'audio' }));
+      promises.push(sendIosCallPush(row.token, { callId, from: fromUserId, toUserId, callerName, callType: isVideo ? 'video' : 'audio', lang }));
       continue;
     }
     const message = {
@@ -744,7 +758,7 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
         },
         payload: {
           aps: {
-            alert: { title: callerName || '来电', body: isVideo ? '邀请你视频通话' : '邀请你语音通话' },
+            alert: { title: callerName || pushI18n.t(lang, 'call.title'), body: pushI18n.t(lang, isVideo ? 'call.video' : 'call.audio') },
             sound: 'default',
             category: 'INCOMING_CALL',
           },
@@ -762,4 +776,4 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   await Promise.allSettled(promises);
 }
 
-module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours };
+module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours, langOf };

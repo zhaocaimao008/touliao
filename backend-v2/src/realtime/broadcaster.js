@@ -64,6 +64,10 @@ function flushRoom(room, slot) {
   const roomSockets = _io.sockets.adapter.rooms.get(room);
   if (roomSockets && roomSockets.size > NOTIFY_THRESHOLD) {
     const latest = msgs[msgs.length - 1];
+    // 这条通知是整个房间共用的一份 payload，服务端无法按收件人语言分别渲染
+    // （不像离线推送能逐人取 user_settings.lang，见 utils/pushI18n.js）。
+    // 所以这里带上原始 previewType，由各端用自己的词典渲染「[图片]/[语音]…」；
+    // preview 仍保留服务端渲染的简中占位符，纯粹是给尚未升级、只认 preview 的旧客户端兜底。
     const preview = latest?.type === 'image' ? '[图片]'
       : latest?.type === 'voice' ? '[语音]'
       : latest?.type === 'file' ? '[文件]'
@@ -74,6 +78,8 @@ function flushRoom(room, slot) {
       lastMsgId: latest?.id || null,
       senderName: latest?.senderName || '',
       preview,
+      previewType: latest?.type || 'text',
+      previewText: String(latest?.content || '').slice(0, 60),
       count: msgs.length,
       ts: latest?.created_at || Math.floor(Date.now() / 1000),
     });
