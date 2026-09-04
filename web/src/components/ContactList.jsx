@@ -13,7 +13,11 @@ import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 
 /* ── 主组件 ── */
-// AI 助手会话对象。必须带 otherUser，字段名与服务端 /api/messages/conversations
+// AI 助手会话对象。
+// ⚠ 现状：AI 助手已下线（后端 .env 的 botId 为空 → /api/config 的 aiAssistants 返回 []），
+//   aiBots 恒为空数组，下面这个入口当前渲染不出来。保留并修正是因为重新配上 botId
+//   就会复活，缺 otherUser 的问题会立刻显形。
+// 必须带 otherUser，字段名与服务端 /api/messages/conversations
 // 返回的私聊会话一致（{ id, username, avatar }）——ChatWindow.startCall 用的是
 // conversation.otherUser?.id 当 remoteId，会话内「刷新对方资料」的 effect 同样依赖它。
 // 缺了它，从这个入口进来的会话点语音/视频通话会 emit call:request { to: undefined }，
