@@ -2390,3 +2390,35 @@ Module path: resources/app.asar/src/main.js
 | migrations 按 name/哈希记录改造 | 显式 id（`2026-09-02_xxx`），存量 133 条一次性回填映射；择机随 schema 重构落地 |
 | migrations 中部插入 CI 检查 | 见本节上方"新增纪律 1"关联方案（git diff 定位数组新增元素位置，非末尾即 fail） |
 | 401 自测小坑备忘 | 手签 JWT 需带 `csrf` claim（auth 通过 verify 后设 CSRF cookie 时缺字段会抛错进 catch 返回 401"Token无效或已过期"）；真实用户 token 由登录接口签发无此问题 |
+
+---
+
+# 四端 UI 与功能一致性审计（2026-09-05, zcode GLM-5.2 只读 + Hermes 抽验）
+
+- 范围：web / android / ios / desktop-electron（壳复用 web dist），以 Web 为基准
+- 方法：zcode 静态审计（全程只读，git 工作树保持干净），关键结论 Hermes 独立 grep 抽验通过
+- 已核实**一致**（无需处理）：撤回/删除双删 vanish 语义三端+后端已对齐（a638c7c）；8.1.14 竞态广播修复已闭环（410868d，purgeQueuedMessage 覆盖三路径，测试在库）；`DeleteMessageBody.forMe` 无 UI 调用方与提交说明相符；删除确认弹窗文案三端逐字一致；钱包"充值已下线"三端一致；主色 #6D5AE6/成功色/气泡紫/暗色提亮档三端一致，#576B95 零残留；桌面 preload 能力与浏览器版无入口打架
+
+## 待办（先不做，附方案）
+
+| 级别 | 待办 | 证据 | 方案 |
+|---|---|---|---|
+| **P0** | **Android 收藏列表不可达（半残）**：长按「收藏」能存入，但 `Routes.FAVORITES`（AppNavigation.kt:134）从未注册进 NavHost，`FavoritesScreen.kt` 全库无引用；Web 是一级 tab、iOS 在「我」页 | AppNavigation.kt:134 vs composable 列表；FavoritesScreen.kt:51 | NavHost 补 favorites 路由 + 「我」页加入口；收藏空态文案（FavoritesScreen.kt:97）随入口修复 |
+| **P1** | 撤回弹窗文案失真（三端一致 bug）：承诺「对方会看到"消息已撤回"」，实际接收方对 recall/deleted/vanished 均**无痕移除**，无任何占位 | I18nContext.jsx:166 / ChatScreen.kt:1255 / ChatView.swift:923；无痕实现 ChatWindow.jsx:1043-1054、ChatMessageMerge.kt:103-104、ChatMessageMerge.swift:84-85 | 三端文案改为与删除一致：「对方不会再看到这条消息」 |
+| **P1** | Web 多选批量删除是死代码：`ctxAction('multiselect')`（ChatWindow.jsx:2123-2126）无任何 UI 触发，MultiSelectBar/multiDelete 全死路径；Android/iOS 长按菜单有「多选」入口 | ChatWindow.jsx:2123,2190-2207,2658-2664 vs ChatScreen.kt:1226、ChatView.swift:914 | Web 长按菜单补「多选」项（对齐原生端）或删死代码 |
+| **P1** | `--brand-primary` 变量从未定义（全 css 0 定义），4 处兜底微信绿 #07C160 **实际渲染**：文件消息图标、文件预览 tab/进度/链接 | MessageItem.jsx:316；FilePreview.jsx:149,402,427 | 改 `var(--color-primary)` |
+| **P1** | 裸写微信绿按钮 ×2 | CallSoundGuide.jsx:63；PushPermissionGuide.jsx:100 `background:'#07C160'` | 改 `var(--color-primary)` |
+| **P1** | 版本号三线分裂：8.1.14 只 bump Android（build.gradle.kts code76）/iOS（project.yml），桌面 8.1.7、Web 8.0.0 掉队，「我的-版本」四端三个数字 | desktop-electron/package.json:3；web/package.json:4 | 出包脚本统一从单一 VERSION 源 bump 四端 |
+| P2 | Android 壳层背景 VxinBg=#F7F7F7 微信灰，Web 对应紫调 #E7E4F0/#F3F1FA | Color.kt:14 vs design-tokens.css:139,152 | Android 换 0xFFF3F1FA 系 |
+| P2 | 危险色不统一：Web --color-danger #F53F3F vs Android/iOS #FA5151（=web badge 红） | design-tokens.css:73 vs Color.kt:17、Theme.swift:16 | 统一为 #F53F3F 或明确 badge/danger 两档语义 |
+| P2 | 微信绿字面量残留（非支付语义）：文件传输助手图标、标签默认色（三端+后端 schema.js:468）、下载页 CSS、截图通知底色；钱包橙 Android FA9D3B vs Web F4511E | ChatScreen.kt:1343-1345；FriendLabel.kt:10、FriendLabelRepository.swift:12、schema.js:468、download/index.js:77、ScreenCaptureService.kt:95；WalletScreen.kt:63 | 非支付位换品牌色；标签默认色四端统一（支付绿 #07C160 三端 token 是有意保留） |
+| P2 | iOS 无「检查更新」入口（SettingsHomeView.swift 仅「关于」显示版本）；Web 浏览器版无入口属正常 | iOS SettingsHomeView.swift:53-57 | iOS 按 TestFlight 策略决定是否需入口（走 TF 自动更新可豁免） |
+| P2 | Web/桌面无「清除缓存」入口（Android/iOS 有） | web Profile.jsx 全文无 clearCache | 浏览器无法清本地缓存则豁免；桌面 Electron 可加（session.clearCache） |
+| P2 | 转发/收藏排除规则三端不同：Web 转发全类型、收藏限 text/image/video/file；Android 仅排除红包；iOS 排除红包+转账 | ChatWindow.jsx:2895-2899 vs ChatScreen.kt:1198,1211 vs ChatView.swift:886 | 以后端可转发类型为准统一（转账应为资金凭证不可转发/收藏） |
+| P2 | 封面图 coverPhoto 仅 Web 可编辑，Android 无字段、iOS 模型有字段无入口 | ProfileEditScreen.kt 无 cover；ios User.swift:11 vs ProfileEditView.swift | 原生端补封面编辑或后端裁剪该能力（产品决策） |
+| P2 | 通话记录入口：Web 独立 tab，Android/iOS 藏在「我」页 | Home.jsx:993-994 vs ProfileScreen.kt:293、ProfileView.swift:157-159 | 移动端消息页顶栏加通话入口（产品决策） |
+| P2 | 撤回不限时（无 2 分钟限制），Android 编辑消息 API 注释过时「2 分钟内」 | MessageApi.kt:126 vs messages.service.js:614 | 删过时注释 |
+| P2 | 后端 vanish 分支缺 `msg.deleted===2` 幂等短路（forEveryone 分支有 :519） | messages.service.js:464 | vanish 分支补幂等 return |
+| P2 | desktop-electron/src/package.json:3 version=2.0.58 残留（:16 注释自称已不保留版本） | src/package.json:3 | 删残留字段 |
+| P2 | downloadManager.js:95 引用 window.touliaoAPI?.downloadFile（全库无定义，死兼容） | desktop-electron/src/lib 内 | 删死引用 |
+| P2 | 桌面关闭=最小化到托盘（main.js:496-504），与浏览器关闭即退出不同，首次关闭无提示 | main.js:60,496-504 | 首次关闭 toast 提示 |
