@@ -43,7 +43,7 @@ targets:
         # 改这里不会改变实际发布版本号；保留只是为了让 CI门禁/本地构建显示的版本号不要
         # 跟真实发布版本线差太远，避免混淆——之前这里长期停在"8.0.0"没跟着真实版本走，
         # 而实际发布过的版本号是分别在触发时传参决定的（见 AUDIT.md）。
-        MARKETING_VERSION: "8.1.0"
+        MARKETING_VERSION: "8.1.14"
         CURRENT_PROJECT_VERSION: "33"
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "5.9"
