@@ -1241,6 +1241,39 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     };
   }, [socket, conversation.id, user.id, onClose, registerDelivered, scheduleBurn, catchUp, t]);
 
+  // ── 限流自动退避重发 ─────────────────────────────────────────────
+  // 服务端 send_message 命中逐用户限流(config.limits.msgRateLimit，当前 3 条/秒)时返回
+  // { success:false, code:'RATE_LIMITED', retryAfterMs }。此前客户端把它当普通失败：
+  // 直接标 error + 弹红色 toast + 等用户手点重发。
+  // 2026-09-05 审计实测后果：断线重连自愈按 120ms 间隔重发(≈8.3 条/秒)，
+  // 8 条排队消息只有 3 条发得出去，其余 5 条当场被判失败——而 toast 还在告诉用户
+  // 「正在重发 8 条」。用户要反复切走再切回会话，每轮只能再抢救 3 条。
+  // 现在：命中限流的消息保持「发送中」，按服务端给的 retryAfterMs 自动重试，用户无感；
+  // 只有超过重试上限才退回失败态，交还手动重发入口。
+  // 刻意用服务端下发的 retryAfterMs 而非客户端写死间隔——阈值是服务端配置项，
+  // 两边各写一份迟早又对不上，那正是本 bug 的根因。
+  const RATE_RETRY_MAX = 6;
+  const rateRetryRef = useRef(new Map());   // tempId → { timer, attempts }
+  const retryMessageRef = useRef(null);
+  const scheduleRateLimitedRetry = useCallback((tempId, retryAfterMs) => {
+    const st = rateRetryRef.current.get(tempId) || { attempts: 0, timer: null };
+    if (st.attempts >= RATE_RETRY_MAX) { rateRetryRef.current.delete(tempId); return false; }
+    st.attempts += 1;
+    // 抖动 0~250ms：多条消息同时被限流时错开，避免下一个窗口又整批撞上
+    const delay = Math.max(50, Number(retryAfterMs) || 400) + Math.floor(Math.random() * 250);
+    st.timer = setTimeout(() => {
+      const cur = messagesRef.current.find(x => x._tempId === tempId);
+      // retryMessage 原样带回 failedMsg.type，名片(contact_card)等非文本消息同样安全
+      if (cur) retryMessageRef.current?.(cur);
+    }, delay);
+    rateRetryRef.current.set(tempId, st);
+    return true;
+  }, []);
+  // 切会话/卸载时清掉未触发的定时器，防止指向已失效会话
+  useEffect(() => {
+    const map = rateRetryRef.current;
+    return () => { for (const st of map.values()) clearTimeout(st.timer); map.clear(); };
+  }, [conversation.id]);
   // ── 重发失败消息（复用 pendingMsgsRef + ack 机制）─────────────
   const retryMessage = useCallback((failedMsg) => {
     if (!socket) return;
@@ -1284,12 +1317,19 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           return next;
         });
         removeFromOutbox(conversation.id, tempId); // 重发成功即清待发件箱(幂等)
+      } else if (ack?.code === 'RATE_LIMITED' && scheduleRateLimitedRetry(tempId, ack.retryAfterMs)) {
+        // 保持「发送中」：不标失败、不弹提示、不进 outbox —— 由定时器按服务端给的
+        // 时间自动重发（clientMsgId 不变，后端幂等去重，不会产生重复消息）。
       } else {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
         if (ack?.error) showToast(ack.error, 'error');
       }
     });
-  }, [socket, conversation.id]);
+  }, [socket, conversation.id, scheduleRateLimitedRetry]);
+
+  // 退避调度器回调 retryMessage，两者互相引用，用 ref 打破循环（放在 retryMessage 之后赋值）
+  retryMessageRef.current = retryMessage;
+
 
   // ── 断线重连后：自动自愈「发送失败」的消息（弱网/电梯/地铁场景）─────────
   // 重连时补拉服务端消息(上面的 effect)可认领「已落库但 ack 丢失」的乐观消息；
@@ -1462,6 +1502,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           return next;
         });
         removeFromOutbox(conversation.id, tempId); // 成功送达即清待发件箱,避免残留
+      } else if (ack?.code === 'RATE_LIMITED' && scheduleRateLimitedRetry(tempId, ack.retryAfterMs)) {
+        // 保持「发送中」：不标失败、不弹提示、不进 outbox —— 由定时器按服务端给的
+        // 时间自动重发（clientMsgId 不变，后端幂等去重，不会产生重复消息）。
       } else {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
         if (ack?.error) showToast(ack.error, 'error');
@@ -1536,6 +1579,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           }
           return next;
         });
+      } else if (ack?.code === 'RATE_LIMITED' && scheduleRateLimitedRetry(tempId, ack.retryAfterMs)) {
+        // 保持「发送中」：不标失败、不弹提示、不进 outbox —— 由定时器按服务端给的
+        // 时间自动重发（clientMsgId 不变，后端幂等去重，不会产生重复消息）。
       } else {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
         if (ack?.error) showToast(ack.error, 'error');
