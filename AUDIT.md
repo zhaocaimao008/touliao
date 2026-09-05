@@ -2395,6 +2395,8 @@ Module path: resources/app.asar/src/main.js
 
 # 四端 UI 与功能一致性审计（2026-09-05, zcode GLM-5.2 只读 + Hermes 抽验）
 
+> **状态（2026-09-05）：本节待办已由 Claude Code 修复并推送** — commit `cc463d4`（zcode 审计 → claude 修 → Hermes 独立验证：web vite build/eslint、Android compileReleaseKotlin、后端 node --check 全过）。P0 收藏路由、撤回文案(含 i18n 英繁)、品牌绿残留、Web 多选入口、版本对齐(web/desktop→8.1.14)均已落地。**表外待产品拍板**：通话记录移动端入口位置、iOS 检查更新入口、封面图原生端编辑、危险色两档统一、转发/收藏排除规则统一、桌面托盘 toast；**Android 收藏原注释「仍按需移除」暗示可能曾有意下架，已改为「我」页入口，若系有意请还原**。
+
 - 范围：web / android / ios / desktop-electron（壳复用 web dist），以 Web 为基准
 - 方法：zcode 静态审计（全程只读，git 工作树保持干净），关键结论 Hermes 独立 grep 抽验通过
 - 已核实**一致**（无需处理）：撤回/删除双删 vanish 语义三端+后端已对齐（a638c7c）；8.1.14 竞态广播修复已闭环（410868d，purgeQueuedMessage 覆盖三路径，测试在库）；`DeleteMessageBody.forMe` 无 UI 调用方与提交说明相符；删除确认弹窗文案三端逐字一致；钱包"充值已下线"三端一致；主色 #6D5AE6/成功色/气泡紫/暗色提亮档三端一致，#576B95 零残留；桌面 preload 能力与浏览器版无入口打架
