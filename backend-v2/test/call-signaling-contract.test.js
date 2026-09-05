@@ -168,6 +168,27 @@ describe('private call signaling contract', () => {
       .toContain('phone-response');
   });
 
+  test('late rejection cannot terminate an already accepted call', () => {
+    const io = createIoHarness();
+    const registry = createRegistry();
+    const alice = createSocket('alice-late-reject', 'web-late-reject', io);
+    const bob = createSocket('bob-late-reject', 'phone-late-reject', io);
+    registerCallHandler(io, alice, registry);
+    registerCallHandler(io, bob, registry);
+    const ack = jest.fn();
+    alice.handlers['call:request']({ to: 'bob-late-reject', type: 'audio' }, ack);
+    const callId = ack.mock.calls[0][0].callId;
+
+    bob.handlers['call:response']({ to: 'alice-late-reject', callId, accepted: true });
+    bob.handlers['call:response']({ to: 'alice-late-reject', callId, accepted: false });
+
+    expect(registry.get(callId)).toBeDefined();
+    expect(write).not.toHaveBeenCalledWith(
+      "UPDATE call_logs SET status='rejected', ended_at=? WHERE id=?",
+      expect.any(Array),
+    );
+  });
+
   test.each([
     ['call:answer', 'answer', { type: 'answer', sdp: 'v=0 answer' }],
     ['call:ice', 'candidate', { candidate: 'candidate:1' }],
