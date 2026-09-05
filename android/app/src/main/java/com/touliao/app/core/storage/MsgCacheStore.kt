@@ -40,6 +40,14 @@ class MsgCacheStore @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val listSerializer = ListSerializer(Message.serializer())
 
+    // ── IV-1（P1 主线程 IO 阻塞修复）──────────────────────────────
+    // save/remove/clear 在 ChatViewModel 主线程协程里被高频调用，EncryptedSharedPreferences
+    // (AES-256-GCM) 同步加解密整表会卡主线程。这里把三者的落盘逻辑整体挪到单线程 executor 执行；
+    // 单线程 executor 天然按提交(调用)顺序串行执行，调用方无需感知、也不需要额外加锁。
+    // load() 保持同步（首屏 prime 需要返回值）。
+    private val io = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private fun offload(block: () -> Unit) { io.execute { runCatching { block() } } }
+
     init {
         // v1 使用明文 SharedPreferences；切换到加密存储后立即清除旧缓存。
         context.deleteSharedPreferences("vxin_msgcache_v1")
@@ -55,27 +63,39 @@ class MsgCacheStore @Inject constructor(
     /** 覆写会话缓存（内部 normalize：去乐观/焚毁、按 id 去重、升序、截断最近 50）。异常静默。 */
     fun save(conversationId: String, msgs: List<Message>) {
         if (conversationId.isBlank()) return
+        offload { saveInternal(conversationId, msgs) }
+    }
+
+    /**
+     * save() 的实际落盘逻辑，供 remove() 内联复用。
+     * 之所以不让 remove() 直接调用 save()：save() 已经是一个 offload{} 任务，若 remove() 的
+     * offload{} 任务体内再调用 save() 会产生嵌套 offload{ offload{} } —— 外层任务在执行期间才
+     * 把内层任务提交进队尾，若此刻已有其它独立调用（比如另一个会话的 save）排在队列中，内层
+     * save 就会被挤到那次调用之后执行，打乱「调用发生顺序 == 落盘顺序」的语义。remove() 不依赖
+     * save() 的返回值，直接内联同一段逻辑即可保持单次提交、天然串行。
+     */
+    private fun saveInternal(conversationId: String, msgs: List<Message>) {
         val clean = normalize(msgs)
-        runCatching {
-            prefs.edit().apply {
-                // 空数组等价删除该会话键（与 Web saveCache 一致）。
-                if (clean.isEmpty()) remove(conversationId)
-                else putString(conversationId, json.encodeToString(listSerializer, clean))
-            }.apply()
-        }
+        prefs.edit().apply {
+            // 空数组等价删除该会话键（与 Web saveCache 一致）。
+            if (clean.isEmpty()) remove(conversationId)
+            else putString(conversationId, json.encodeToString(listSerializer, clean))
+        }.apply()
     }
 
     /** 删除单条（撤回/删除）。 */
     fun remove(conversationId: String, msgId: String) {
         if (conversationId.isBlank()) return
-        val cur = load(conversationId)
-        val next = cur.filterNot { it.id == msgId }
-        if (next.size != cur.size) save(conversationId, next)
+        offload {
+            val cur = load(conversationId)
+            val next = cur.filterNot { it.id == msgId }
+            if (next.size != cur.size) saveInternal(conversationId, next)
+        }
     }
 
     /** 清理：有 convId=清该会话；无参=清全部（登出/切账号，隐私红线）。 */
     fun clear(conversationId: String? = null) {
-        runCatching {
+        offload {
             prefs.edit().apply {
                 if (conversationId != null) remove(conversationId) else clear()
             }.apply()

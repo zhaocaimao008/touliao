@@ -474,6 +474,7 @@ final class CallManager: NSObject, ObservableObject {
                 localVideoTrack?.isEnabled = true
             }
             startCapture(position: .front)
+            capVideoBitrate(pc)   // 2026-09-05:语音→视频补轨后叠加发送码率上限
         } else {
             // 视频→语音：停采集 + 移除视频轨（capturer/track 引用保留，切回可复用）
             pc.senders.filter { $0.track?.kind == "video" }.forEach { sender in
@@ -541,14 +542,36 @@ final class CallManager: NSObject, ObservableObject {
         let devices = RTCCameraVideoCapturer.captureDevices()
         guard let device = devices.first(where: { $0.position == position }) ?? devices.first else { return }
         let formats = RTCCameraVideoCapturer.supportedFormats(for: device)
-        let format = formats.sorted {
+        // 2026-09-05 修复:视频模糊根因之一——原逻辑只挑 >=640(约 480p)里最小的一个。
+        // 优先挑 >=1280(约 720p)里最小的一个;没有 720p 及以上格式的设备再退回旧逻辑。
+        let sortedFormats = formats.sorted {
             let d1 = CMVideoFormatDescriptionGetDimensions($0.formatDescription)
             let d2 = CMVideoFormatDescriptionGetDimensions($1.formatDescription)
             return d1.width * d1.height < d2.width * d2.height
-        }.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 640 }) ?? formats.last
+        }
+        let format = sortedFormats.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 1280 })
+            ?? sortedFormats.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 640 })
+            ?? formats.last
         guard let format else { return }
         let fps = format.videoSupportedFrameRateRanges.map { $0.maxFrameRate }.max() ?? 30
         capturer.startCapture(with: device, format: format, fps: Int(min(fps, 30)))
+    }
+
+    /// 2026-09-05 发送码率上限:采集分辨率提到 720p 后叠加码率上限,避免弱网下码率过高导致更卡。
+    /// API 依据:官方 WebRTC sdk/objc/api/peerconnection/RTCRtpSender.h(与本项目 project.yml 锁定的
+    /// stasel/WebRTC 125.0.0 一致,该包为官方 WebRTC 源码无改动编译产物)—— `parameters` 是
+    /// `@property(nonatomic, copy) RTCRtpParameters *`(get/set 属性,不是独立的 setParameters: 方法),
+    /// 因此这里用属性赋值回写,不使用 responds(to:)/#selector(setParameters(_:)) (那样在 Swift 里
+    /// 无法编译,因为该 API 并不存在独立的 setParameters(_:) 方法)。`pc.senders` / `track?.kind` 用法
+    /// 与本文件既有代码(toggleVideo 里 `pc.senders.filter { $0.track?.kind == "video" }`)一致。
+    private func capVideoBitrate(_ pc: RTCPeerConnection) {
+        for sender in pc.senders where sender.track?.kind == "video" {
+            let p = sender.parameters
+            if let enc = p.encodings.first {
+                enc.maxBitrateBps = NSNumber(value: 2_500_000)
+                sender.parameters = p
+            }
+        }
     }
 
     // MARK: - 通话质量指示（2026-09-02）：getStats 2s 采样 RTT/丢包率 → 优/中/差
@@ -668,6 +691,7 @@ extension CallManager: RTCPeerConnectionDelegate {
                     self.state.stage = .connected
                 }
                 self.startQualitySampling()
+                self.capVideoBitrate(peerConnection)   // 2026-09-05:接通(含 ICE restart 后重新 connected)时叠加发送码率上限
             case .disconnected:
                 // 锁屏/切后台/网络波动时 ICE 短暂 disconnected,数秒内自动恢复。
                 // 3s 防抖 → restartIce() 自愈;15s 恢复窗口内未恢复则重试(最多 3 次)→ 挂断。

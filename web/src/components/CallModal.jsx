@@ -5,6 +5,7 @@ import { mediaUrl } from '../utils/url';
 import { matchesCall, withCallId } from '../utils/callSignaling';
 import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingTone, playConnectedTone } from '../utils/callTones';
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
+import { videoConstraints, capVideoBitrate } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
 import './CallModal.css';
 
@@ -315,7 +316,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   }, [socket, remoteId, callId, cleanup, onClose]);
 
   const initPC = useCallback(async () => {
-    const constraints = { audio: true, video: isVideo };
+    const constraints = { audio: true, video: videoConstraints(isVideo) };
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia(constraints); setMediaError(false); }
     catch { stream = new MediaStream(); setMediaError(true); } // 权限拒绝/设备占用：仍建连但提示用户
@@ -366,6 +367,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         clearTimeout(disconnectRef.current);
         clearTimeout(restartRecoverRef.current);
         iceRestartCountRef.current = 0;
+        capVideoBitrate(pc);
         if (statusRef.current === 'connecting') setStatus('connected');
       } else if (s === 'disconnected') {
         // 短时探测间隙(<3s 通常自愈,如 iOS 锁屏/后台):防抖后再重启,避免无谓重协商
@@ -587,7 +589,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     try {
       if (next) {
         // 语音→视频：补视频轨
-        const vs = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const vs = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true), audio: false });
         vs.getVideoTracks().forEach(t => pc.addTrack(t, vs));
         if (localStreamRef.current) {
           vs.getVideoTracks().forEach(t => { try { localStreamRef.current.addTrack(t); } catch { /* 已存在 */ } });
@@ -595,6 +597,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         // 持有引用防 GC 停轨（异步回调内持流引用属标准模式；react-hooks/immutability 7.x 误报边界）
         // eslint-disable-next-line react-hooks/immutability
         videoAddStreamRef.current = vs;   // 持有引用防 GC 停轨
+        capVideoBitrate(pc);   // 幂等：确保新补的视频轨也受发送码率上限约束
       } else {
         // 视频→语音：停 + 移除视频轨
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');

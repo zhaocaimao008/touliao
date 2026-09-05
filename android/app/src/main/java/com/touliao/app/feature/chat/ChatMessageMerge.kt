@@ -85,7 +85,9 @@ fun applySyncEvents(messages: List<Message>, events: List<ConversationEvent>): L
                     // 重发成功)卡在错误槽位的消息此处自愈：取出后按新 seq 重插。
                     if (violatesOrder(current, idx)) {
                         val moved = current.removeAt(idx)
-                        current.add(lowerBoundSeq(current, seqOf(moved)!!), moved)
+                        val movedSeq = seqOf(moved)
+                        if (movedSeq == null) current.add(moved)   // 防御：与相邻分支一致，null 时保持追加而非崩溃
+                        else current.add(lowerBoundSeq(current, movedSeq), moved)
                     }
                 } else {
                     // 新消息：按 server_sequence 有序插入（洞 A：lowerBound 跳过 pending）

@@ -35,6 +35,9 @@ const CHAT_ALLOWED_EXTS = new Set([
   'zip','rar','7z','gz','tar','bz2','xz','tgz',
 ]);
 const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
+// 媒体消息类型(图片/视频/文件/语音/名片/红包/表情)：flatItems 逐条判断是否参与"连续消息"压缩，
+// 原为循环体内每条消息都 new Set 一次，提到模块级避免重复分配。
+const MEDIA_TYPES = new Set(['image', 'video', 'file', 'voice', 'contact_card', 'red_packet', 'sticker']);
 const EmojiPicker         = lazy(() => import('./EmojiPicker'));
 const StickerPanel        = lazy(() => import('./StickerPanel'));
 const GroupInfo           = lazy(() => import('./GroupInfo'));
@@ -440,10 +443,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const convTypeRef = useRef(conversation.type);
   const messagesRef = useRef([]);
   const membersRef  = useRef([]);
+  // 组件是否仍挂载：断线重连错峰重发的 setTimeout 回调触发时用它守护，
+  // 避免卸载后仍向已失效的 state 写入 / 向已切走的会话补发消息
+  const mountedRef  = useRef(true);
   useEffect(() => { convIdRef.current   = conversation.id;   }, [conversation.id]);
   useEffect(() => { convTypeRef.current = conversation.type; }, [conversation.type]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { membersRef.current  = members;  }, [members]);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   // ── 待发件箱同步：以本地 messages 为准，实时反写 localStorage ────────
   // 任何走到 _status:'error' 的「文本」乐观消息 → 写入 outbox（切会话/刷新不丢）；
@@ -1046,21 +1053,33 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         if (m.replyTo && m.replyTo.id === msgId) return { ...m, replyTo: { ...m.replyTo, deleted: 1 } }; // 引用块摘除
         return m;
       }).filter(Boolean));
+      // 消息被移除后同步清掉多选态里的失效 id，避免残留导致批量操作误伤
+      setSelectedMsgs(prev => (prev.has(msgId) ? (() => { const n = new Set(prev); n.delete(msgId); return n; })() : prev));
       if (conversationId) removeFromCache(conversationId, msgId).catch(() => {});
     };
     const onVanished = ({ msgId, conversationId }) => {
       setMessages(prev => prev.filter(m => m.id !== msgId));
+      setSelectedMsgs(prev => (prev.has(msgId) ? (() => { const n = new Set(prev); n.delete(msgId); return n; })() : prev));
       if (conversationId) removeFromCache(conversationId, msgId).catch(() => {});
     };
     const onBatchDeleted = ({ msgIds: ids }) => {
       if (!ids?.length) return;
       const idSet = new Set(ids);
       setMessages(prev => prev.filter(m => !idSet.has(m.id)));
+      // 同步过滤多选态里被批量删除的 id
+      setSelectedMsgs(prev => {
+        let changed = false;
+        const n = new Set(prev);
+        idSet.forEach(id => { if (n.delete(id)) changed = true; });
+        return changed ? n : prev;
+      });
     };
     const onCleared = ({ conversationId }) => {
       if (conversationId !== convIdRef.current) return;
       setMessages([]);
       setPinnedMessages([]);
+      // 会话被清空：多选态里的所有 id 均已失效
+      setSelectedMsgs(prev => (prev.size ? new Set() : prev));
     };
     const onEdited = ({ msgId, content }) => {
       setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content, edited: 1 } : m));
@@ -1177,12 +1196,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     socket.on('message_reaction', onReaction);
     socket.on('message_read', onRead);
     // 精确已读回执（/api/reliability/ack/read 通路广播）：逐条标蓝双勾
-    socket.on('message:read', ({ messageId, conversationId }) => {
+    const onExactRead = ({ messageId, conversationId }) => {
       if (conversationId !== convIdRef.current) return;
       setMessages(prev => prev.map(m =>
         m.id === messageId && m.sender_id === user.id ? { ...m, _read: true } : m
       ));
-    });
+    };
+    socket.on('message:read', onExactRead);
     // message_delivered 已通过 registerDelivered(onDelivered) 注册到 SocketContext，不重复注册
     // socket.on('red_packet_claimed', onRedPacketClaimed); // removed
     socket.on('group_updated', onGroupUpdated);
@@ -1231,6 +1251,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       socket.off('message_edited', onEdited);
       socket.off('message_reaction', onReaction);
       socket.off('message_read', onRead);
+      socket.off('message:read', onExactRead);
       socket.off('group_updated', onGroupUpdated);
       socket.off('role_changed', onRoleChanged);
       socket.off('group_kicked', onGroupKicked);
@@ -1297,6 +1318,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 这里在重连后自动对它们重发一次——clientMsgId 复用原 tempId，后端幂等去重，
   // 即使个别消息其实已落库也不会产生重复。小间隔错峰，避免瞬时突发。
   const healedOnReconnectRef = useRef(0);
+  const reconnectResendTimersRef = useRef([]); // 收集本轮错峰重发的 setTimeout 句柄，供 cleanup 统一清理
   useEffect(() => {
     if (reconnectCount === 0 || reconnectCount === healedOnReconnectRef.current) return;
     if (!socket?.connected) return;
@@ -1307,12 +1329,19 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     showToast(t('chat.networkRecoveredResendTemplate').replace('{count}', failed.length));
     failed.forEach((m, i) => {
       // 错峰重发：每条间隔 120ms，避免重连瞬间 N 条消息同时打满连接
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        // 组件已切换会话/卸载：不再向失效的 state 补发
+        if (!mountedRef.current) return;
         // 二次确认仍处于失败态（用户可能已手动重发或它已被认领）
         const cur = messagesRef.current.find(x => x._tempId === m._tempId);
         if (cur && cur._status === 'error') retryMessage(cur);
       }, i * 120);
+      reconnectResendTimersRef.current.push(timer);
     });
+    return () => {
+      reconnectResendTimersRef.current.forEach(clearTimeout);
+      reconnectResendTimersRef.current = [];
+    };
   }, [reconnectCount, socket, retryMessage, t]);
 
   // ── 进入会话时：若连接正常且存在从 outbox 恢复的失败消息，静默自动重发一次 ──
@@ -2241,7 +2270,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       // ⚠ 媒体消息(图片/视频/文件/语音/名片/红包/表情)不参与连续压缩：
       //   它们自带卡片高度，若按 consecutive 收紧到 3px，图片/文字会"粘贴在一起"。
       //   企业微信/微信行为：媒体消息之间永远保留正常 13px 间距。
-      const MEDIA_TYPES = new Set(['image', 'video', 'file', 'voice', 'contact_card', 'red_packet', 'sticker']);
       const isMedia = MEDIA_TYPES.has(msg.type);
       const consecutive = !dividerInserted && prevSenderId === msg.sender_id
         && !isMedia && !prevIsMedia;

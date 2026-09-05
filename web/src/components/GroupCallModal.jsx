@@ -4,6 +4,7 @@ import Avatar from './Avatar';
 import { showToast } from '../utils/toast';
 import { installPrewarm, startRingback as toneRingback, stopTone, playConnectedTone } from '../utils/callTones';
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
+import { videoConstraints, capVideoBitrate } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
 
 installPrewarm();
@@ -170,6 +171,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
         const timers = peerRestartTimersRef.current.get(peerId);
         if (timers) { clearTimeout(timers.debounce); clearTimeout(timers.recover); peerRestartTimersRef.current.delete(peerId); }
         peerRestartCountRef.current.delete(peerId);
+        capVideoBitrate(pc);   // mesh：每条 pc 各自在其 connected 时被限速，覆盖全部 peer
       } else if (s === 'disconnected') {
         // 短时探测间隙:防抖后再重启,避免无谓重协商
         const timers = peerRestartTimersRef.current.get(peerId) || {};
@@ -226,7 +228,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     let cancelled = false;
     (async () => {
       let stream;
-      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isVideo }); }
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints(isVideo) }); }
       catch { /* 权限拒绝/设备占用，用空流保底 */ stream = new MediaStream(); }
       if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
       localStreamRef.current = stream;

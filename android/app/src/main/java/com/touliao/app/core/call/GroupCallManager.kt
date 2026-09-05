@@ -319,6 +319,17 @@ class GroupCallManager @Inject constructor(
         return null
     }
 
+    /** N1：视频发送码率上限 2.5Mbps（全端一致），仅影响 video sender；异常静默不影响通话。 */
+    private fun capVideoBitrate(pc: PeerConnection) {
+        runCatching {
+            pc.getSenders().filter { it.track()?.kind() == "video" }.forEach { sender ->
+                val params = sender.parameters
+                params.encodings?.firstOrNull()?.maxBitrateBps = 2_500_000
+                sender.parameters = params
+            }
+        }
+    }
+
     // 为某 peer 建立 PeerConnection（含本地轨）。幂等。
     private fun peerFor(peerId: String): Peer {
         peers[peerId]?.let { return it }
@@ -344,6 +355,8 @@ class GroupCallManager @Inject constructor(
                         peer.iceRestartDebounceJob?.cancel(); peer.iceRestartDebounceJob = null
                         peer.iceRestartRecoverJob?.cancel(); peer.iceRestartRecoverJob = null
                         peer.iceRestartCount = 0
+                        // N1：mesh 每个 peer 独立施加视频发送码率上限(2.5Mbps)，覆盖所有 peer 而非仅第一个。
+                        capVideoBitrate(peer.pc)
                     }
                     PeerConnection.IceConnectionState.DISCONNECTED -> {
                         // 短时探测间隙:3s 防抖后再重启,避免无谓重协商

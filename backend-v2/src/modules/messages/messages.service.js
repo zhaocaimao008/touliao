@@ -440,6 +440,7 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
   });
   const sequences = [];
   for (const id of deleted) {
+    broadcaster.purgeQueuedMessage(conversationId, id); // 同步摘除合并队列快照,防撤回后原文复活(与单条口径一致)
     const sequenced = await appendConversationEvent({
       conversationId, eventType: 'message_recalled', messageId: id, actorId: userId,
       ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [id] }],

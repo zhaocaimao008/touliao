@@ -671,6 +671,8 @@ class CallManager @Inject constructor(
                             else it
                         }
                         startQualitySampling()
+                        // N1：接通/恢复即对视频 sender 施加发送码率上限(2.5Mbps)，防止全端无约束导致模糊。
+                        peerConnection?.let { capVideoBitrate(it) }
                     }
                     PeerConnection.IceConnectionState.DISCONNECTED -> {
                         // 短时探测间隙(<3s 通常自愈,锁屏/后台):防抖后再重启,避免无谓重协商
@@ -698,6 +700,17 @@ class CallManager @Inject constructor(
             override fun onDataChannel(p0: org.webrtc.DataChannel?) {}
             override fun onRenegotiationNeeded() {}
         })
+    }
+
+    /** N1：视频发送码率上限 2.5Mbps（全端一致），仅影响 video sender；异常静默不影响通话。 */
+    private fun capVideoBitrate(pc: PeerConnection) {
+        runCatching {
+            pc.getSenders().filter { it.track()?.kind() == "video" }.forEach { sender ->
+                val params = sender.parameters
+                params.encodings?.firstOrNull()?.maxBitrateBps = 2_500_000
+                sender.parameters = params
+            }
+        }
     }
 
     private fun createLocalTracks(video: Boolean) {
@@ -803,6 +816,7 @@ class CallManager @Inject constructor(
                         runCatching { localVideoTrack?.setEnabled(true) }
                         runCatching { videoCapturer?.startCapture(1280, 720, 30) }
                     }
+                    capVideoBitrate(pc)   // N1：补轨成功后立即施加发送码率上限
                 } else {
                     // 视频→语音：停采集 + 移除视频轨（track 引用保留，切回可复用）
                     pc.getSenders().filter { it.track()?.kind() == "video" }.forEach { sender ->

@@ -302,6 +302,9 @@ final class GroupCallManager: NSObject, ObservableObject {
             case .connected, .completed:
                 // restart 后恢复:清定时器 + 计数清零(可反复自愈)
                 self.peers[peerId]?.cancelIceRestart()
+                // 2026-09-05:该 peer 接通(含 ICE restart 后重新 connected)时叠加发送码率上限——
+                // 按 peerId 取对应 entry.pc,逐个 peer 各自触发,不会只作用于第一个 peer。
+                if let pc = self.peers[peerId]?.pc { self.capVideoBitrate(pc) }
             case .disconnected:
                 // 短时探测间隙:3s 防抖后再重启,避免无谓重协商
                 guard let entry = self.peers[peerId] else { return }
@@ -369,14 +372,31 @@ final class GroupCallManager: NSObject, ObservableObject {
         let devices = RTCCameraVideoCapturer.captureDevices()
         guard let device = devices.first(where: { $0.position == position }) ?? devices.first else { return }
         let formats = RTCCameraVideoCapturer.supportedFormats(for: device)
-        let format = formats.sorted {
+        // 2026-09-05 修复:视频模糊根因之一——原逻辑只挑 >=640(约 480p)里最小的一个。
+        // 优先挑 >=1280(约 720p)里最小的一个;没有 720p 及以上格式的设备再退回旧逻辑。
+        let sortedFormats = formats.sorted {
             let d1 = CMVideoFormatDescriptionGetDimensions($0.formatDescription)
             let d2 = CMVideoFormatDescriptionGetDimensions($1.formatDescription)
             return d1.width * d1.height < d2.width * d2.height
-        }.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 640 }) ?? formats.last
+        }
+        let format = sortedFormats.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 1280 })
+            ?? sortedFormats.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 640 })
+            ?? formats.last
         guard let format else { return }
         let fps = format.videoSupportedFrameRateRanges.map { $0.maxFrameRate }.max() ?? 30
         capturer.startCapture(with: device, format: format, fps: Int(min(fps, 30)))
+    }
+
+    /// 2026-09-05 发送码率上限:与 CallManager.capVideoBitrate 同理,详见该文件注释里对
+    /// RTCRtpSender.parameters(get/set 属性,非独立 setParameters: 方法)的 API 依据说明。
+    private func capVideoBitrate(_ pc: RTCPeerConnection) {
+        for sender in pc.senders where sender.track?.kind == "video" {
+            let p = sender.parameters
+            if let enc = p.encodings.first {
+                enc.maxBitrateBps = NSNumber(value: 2_500_000)
+                sender.parameters = p
+            }
+        }
     }
 
     private func peerFor(_ peerId: String) -> PeerEntry? {
