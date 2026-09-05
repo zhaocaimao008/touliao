@@ -467,6 +467,12 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
     if (!callerRole) throw forbidden('您已不在该会话中');
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (msg.sender_id !== userId && !isAdmin) throw forbidden('无权删除该消息');
+    // 真实事故：发送后「立刻」彻底删除——message_vanished 立即单发，但如果这条消息
+    // 刚发出、还卡在 new_message 的批量合并窗口里（BATCH_WINDOW_MS），批处理稍后会把
+    // 发送时刻的原始快照当 new_message 发出去，对方就看得见"已彻底删除"的消息。
+    // 必须在下面的 await 之前、尽可能早地同步摘除——appendConversationEvent 内部落库
+    // 一 await 出去，事件循环就可能先跑到批处理的 setTimeout，摘晚了就来不及了。
+    broadcaster.purgeQueuedMessage(msg.conversation_id, msgId);
     const sequenced = await appendConversationEvent({
       conversationId: msg.conversation_id, eventType: 'message_vanished', messageId: msgId, actorId: userId,
       ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] }],
@@ -511,6 +517,14 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
     if (msg.deleted === 2) return; // 幂等：已撤回的消息再次撤回直接成功返回，不报错不重复广播
+    // 真实事故（用户反馈：发送方撤回/删除了，接收方还是能看到消息）：撤回是立即单发，
+    // 但如果这条消息刚发出、还没被 new_message 的批量合并窗口(BATCH_WINDOW_MS)冲刷出去，
+    // 接收方会先收到"已撤回"（此时消息还没进本地列表，等于空操作），几毫秒后批处理才把
+    // 发送时刻的原始内容当 new_message 发出去——对方就看着"已撤回"的消息带原文冒出来，
+    // 且此后再无事件把它移除。必须在下面的 await 之前、尽可能早地同步摘除——
+    // appendConversationEvent 内部落库一 await 出去，事件循环就可能先跑到批处理的
+    // setTimeout，摘晚了就来不及了。
+    broadcaster.purgeQueuedMessage(msg.conversation_id, msgId);
     // 撤回不限时间：任意时长的消息本人（或群管理员）均可撤回
     const sequenced = await appendConversationEvent({
       conversationId: msg.conversation_id, eventType: 'message_recalled', messageId: msgId, actorId: userId,
@@ -544,6 +558,7 @@ async function adminRecall(io, msgId) {
   const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
   if (!msg) throw notFound('消息不存在');
   if (msg.deleted === 2) return; // 幂等
+  broadcaster.purgeQueuedMessage(msg.conversation_id, msgId); // 同 remove() forEveryone：见上方注释，须在 await 之前同步摘除
   const sequenced = await appendConversationEvent({
     conversationId: msg.conversation_id, eventType: 'message_recalled', messageId: msgId, actorId: msg.sender_id,
     ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] }],
