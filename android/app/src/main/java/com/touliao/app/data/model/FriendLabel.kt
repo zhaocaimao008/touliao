@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 data class FriendLabel(
     val id: String = "",
     val name: String = "",
-    val color: String = "#07C160",
+    val color: String = "#6D5AE6",
     val members: List<LabelMember> = emptyList(),
 )
 

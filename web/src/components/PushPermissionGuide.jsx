@@ -97,7 +97,7 @@ export default function PushPermissionGuide({ permission, onEnable }) {
         onClick={enable}
         style={{
           border: 'none', borderRadius: 999, padding: '4px 14px',
-          background: '#07C160', color: '#fff', fontSize: 13, cursor: 'pointer',
+          background: 'var(--color-primary)', color: '#fff', fontSize: 13, cursor: 'pointer',
         }}
       >
         {t('pushGuide.enable')}

@@ -920,7 +920,7 @@ private struct MessageBubble: View {
                         Button("取消", role: .cancel) {}
                         Button("撤回", role: .destructive) { vm.recall(msg) }
                     } message: {
-                        Text("撤回这条消息？对方会看到\"消息已撤回\"")
+                        Text("撤回这条消息？对方不会再看到这条消息")
                     }
                     .alert("删除消息", isPresented: $showVanishConfirm) {
                         Button("取消", role: .cancel) {}

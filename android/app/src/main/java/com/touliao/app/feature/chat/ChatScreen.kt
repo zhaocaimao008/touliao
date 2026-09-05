@@ -1252,7 +1252,7 @@ private fun MessageBubble(
         AlertDialog(
             onDismissRequest = { showRecallConfirm = false },
             title = { Text("撤回消息") },
-            text = { Text("撤回这条消息？对方会看到\"消息已撤回\"") },
+            text = { Text("撤回这条消息？对方不会再看到这条消息") },
             confirmButton = { TextButton(onClick = { onRecall(); showRecallConfirm = false }) { Text("撤回", color = Color(0xFFFA5151)) } },
             dismissButton = { TextButton(onClick = { showRecallConfirm = false }) { Text("取消") } },
         )
@@ -1340,9 +1340,9 @@ private fun MessageContent(
                 "file" -> MediaCard(isMine, onClick = onOpenFile) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
-                            Modifier.size(28.dp).background(Color(0x1A07C160), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)),
+                            Modifier.size(28.dp).background(VxinGreen.copy(alpha = 0.1f), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)),
                             contentAlignment = Alignment.Center,
-                        ) { Text("F", color = Color(0xFF07C160), fontSize = VxinTextSize.sm2) }
+                        ) { Text("F", color = VxinGreen, fontSize = VxinTextSize.sm2) }
                         Spacer(Modifier.size(8.dp))
                         Column {
                             Text(msg.content.ifBlank { "文件" }, color = bubbleTextColor(isMine), maxLines = 2, overflow = TextOverflow.Ellipsis)

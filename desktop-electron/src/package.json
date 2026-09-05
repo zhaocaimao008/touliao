@@ -1,6 +1,5 @@
 {
   "name": "touliao-desktop",
-  "version": "2.0.58",
   "description": "投聊 桌面客户端",
   "main": "src/main.js",
   "scripts": {

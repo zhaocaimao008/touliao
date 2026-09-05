@@ -467,6 +467,7 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
     if (!callerRole) throw forbidden('您已不在该会话中');
     const isAdmin = callerRole === 'owner' || callerRole === 'admin';
     if (msg.sender_id !== userId && !isAdmin) throw forbidden('无权删除该消息');
+    if (msg.deleted === 2) return; // 幂等：已彻底删除的消息再次删除直接成功返回，不报错不重复广播
     // 真实事故：发送后「立刻」彻底删除——message_vanished 立即单发，但如果这条消息
     // 刚发出、还卡在 new_message 的批量合并窗口里（BATCH_WINDOW_MS），批处理稍后会把
     // 发送时刻的原始快照当 new_message 发出去，对方就看得见"已彻底删除"的消息。

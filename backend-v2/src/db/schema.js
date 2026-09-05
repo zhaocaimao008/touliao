@@ -465,7 +465,7 @@ function applySchema(db) {
       id         TEXT PRIMARY KEY,
       user_id    TEXT NOT NULL,
       name       TEXT NOT NULL,
-      color      TEXT DEFAULT '#07C160',
+      color      TEXT DEFAULT '#6D5AE6',
       created_at INTEGER DEFAULT (strftime('%s','now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,

@@ -123,7 +123,7 @@ interface MessageApi {
     @POST("api/messages/{msgId}/collect")
     suspend fun collectMessage(@Path("msgId") msgId: String)
 
-    /** 编辑消息（本人文本，2 分钟内） */
+    /** 编辑消息（本人文本） */
     @PUT("api/messages/{msgId}/edit")
     suspend fun editMessage(@Path("msgId") msgId: String, @Body body: com.touliao.app.data.model.EditMessageBody)
 

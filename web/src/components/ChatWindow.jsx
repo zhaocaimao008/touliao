@@ -2893,6 +2893,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('reply'); } }}>{t('chat.reply')}</div>
           {/* 转发：所有类型消息都可转发 */}
           <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>{t('chat.forward')}</div>
+          {/* 多选：进入批量选择模式（MultiSelectBar），非发送中消息均可作为起点 */}
+          {!ctxMenu.msg._tempId && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-multiselect" onClick={() => ctxAction('multiselect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('multiselect'); } }}>{t('chat.multiSelect')}</div>
+          )}
           {/* 收藏：文字/图片/视频/文件消息可收藏到「我的收藏」 */}
           {!ctxMenu.msg.deleted && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>{t('chat.collect')}</div>
