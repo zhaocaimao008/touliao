@@ -625,7 +625,6 @@ fun ChatScreen(
                             onReply = { viewModel.startReply(msg) },
                             onRecall = { viewModel.recall(msg) },
                             onVanish = { viewModel.vanish(msg) },
-                            onDeleteForMe = { viewModel.deleteForMe(msg) },
                             canManage = state.canManageGroup,
                             onReact = { emoji -> viewModel.react(msg, emoji) },
                             onCollectSticker = { viewModel.collectSticker(msg.file_url) },
@@ -1079,7 +1078,6 @@ private fun MessageBubble(
     highlighted: Boolean = false,
     onReplyClick: (String) -> Unit = {},
     onVanish: () -> Unit = {},
-    onDeleteForMe: () -> Unit = {},
     canManage: Boolean = false,        // 群主/管理员：可撤回群内他人消息
     onMultiSelect: () -> Unit = {},
     selectionMode: Boolean = false,
@@ -1087,6 +1085,7 @@ private fun MessageBubble(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var showRecallConfirm by remember { mutableStateOf(false) }
+    var showVanishConfirm by remember { mutableStateOf(false) }
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     val highlightBg = if (highlighted) com.touliao.app.ui.theme.VxinBrand.copy(alpha = 0.20f) else Color.Transparent
 
@@ -1218,11 +1217,11 @@ private fun MessageBubble(
                         DropdownMenuItem(text = { Text("保存图片") }, onClick = { onSaveImage(); menuOpen = false })
                     }
                     // 撤回：自己消息，或群主/管理员撤回群内他人消息（对全员生效）
+                    // 删除：彻底删除，双方都不可见（原「仅自己删除」语义已改为复用 vanish，与撤回同权限）
                     if (isMine || canManage) {
                         DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { showRecallConfirm = true; menuOpen = false })
+                        DropdownMenuItem(text = { Text("删除", color = Color(0xFFFA5151)) }, onClick = { showVanishConfirm = true; menuOpen = false })
                     }
-                    // 删除：所有消息均可（自己/对方），仅对当前账号生效（per-user tombstone，不影响对方）
-                    DropdownMenuItem(text = { Text("删除", color = Color(0xFFFA5151)) }, onClick = { onDeleteForMe(); menuOpen = false })
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("多选") }, onClick = { onMultiSelect(); menuOpen = false })
                 }
@@ -1256,6 +1255,15 @@ private fun MessageBubble(
             text = { Text("撤回这条消息？对方会看到\"消息已撤回\"") },
             confirmButton = { TextButton(onClick = { onRecall(); showRecallConfirm = false }) { Text("撤回", color = Color(0xFFFA5151)) } },
             dismissButton = { TextButton(onClick = { showRecallConfirm = false }) { Text("取消") } },
+        )
+    }
+    if (showVanishConfirm) {
+        AlertDialog(
+            onDismissRequest = { showVanishConfirm = false },
+            title = { Text("删除消息") },
+            text = { Text("彻底删除这条消息？对方也不会看到任何提示，且无法恢复。") },
+            confirmButton = { TextButton(onClick = { onVanish(); showVanishConfirm = false }) { Text("删除", color = Color(0xFFFA5151)) } },
+            dismissButton = { TextButton(onClick = { showVanishConfirm = false }) { Text("取消") } },
         )
     }
 }

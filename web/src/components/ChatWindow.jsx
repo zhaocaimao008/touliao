@@ -2171,22 +2171,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         break;
       }
 
-      // 删除：所有消息均可，仅对当前账号生效（per-user tombstone，不影响对方；
-      // 会话列表 preview 由 ChatList 监听 message_deleted_for_me 广播自动刷新）
-      case 'deleteForMe': {
-        // 乐观移除：先隐藏，失败则恢复
-        const prevMsgs = messagesRef.current;
-        setMessages(prev => prev.filter(m => m.id !== msg.id));
-        try {
-          await axios.delete(`/api/messages/${msg.id}`, { data: { forMe: true } });
-          removeFromCache(conversation.id, msg.id).catch(() => {});
-        } catch (e) {
-          setMessages(prevMsgs);
-          showToast(e.response?.data?.error || t('chat.deleteFailedRetry'), 'error');
-        }
-        break;
-      }
-
       default:
         if (action === 'collect') {
           // 带上来源会话/消息 id，收藏列表可「跳转到原消息」
@@ -2945,10 +2929,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             ctxMenu.msg.sender_id === user.id ||
             (conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin'))
           ) && (
-            <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}>{t('chat.recall')}</div>
+            <>
+              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}>{t('chat.recall')}</div>
+              {/* 删除：彻底删除，双方都不可见（原「仅自己删除」语义已改为复用 vanish，与撤回同权限） */}
+              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-everyone" onClick={() => ctxAction('vanish')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('vanish'); } }}>{t('chat.delete')}</div>
+            </>
           )}
-          {/* 删除：所有消息均可删除，仅对当前账号生效（per-user tombstone，UI 无痕，不影响对方） */}
-          <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-me" onClick={() => ctxAction('deleteForMe')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('deleteForMe'); } }}>{t('chat.delete')}</div>
         </CtxMenuPortal>,
         document.body
       )}
