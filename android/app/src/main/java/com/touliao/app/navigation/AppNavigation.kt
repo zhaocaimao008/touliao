@@ -329,7 +329,6 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                     onOpenMyQr = { navController.navigate(Routes.MY_QRCODE) },
                     onOpenCallHistory = { navController.navigate(Routes.CALL_HISTORY) },
                     onOpenWallet = { navController.navigate(Routes.WALLET) },
-                    onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
                     onOpenSessions = { navController.navigate(Routes.SESSIONS) },
                     onOpenInviteFriend = { navController.navigate(Routes.INVITE_FRIEND) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS_HOME) },
@@ -377,14 +376,8 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                     onOpenChat = { target -> navController.navigate(Routes.chat(target.conversationId, target.title, "private", target.peerUserId)) },
                 )
             }
-            // 收藏 不常驻底部导航，改为「我」页入口进入（对齐 iOS ProfileView）；
-            // 朋友圈改为「消息」页顶栏图标入口（方案A，2026-09-02），
+            // 收藏 仍按需移除；朋友圈改为「消息」页顶栏图标入口（方案A，2026-09-02），
             // 受后台 features.moments 开关实时控制（不在底部导航常驻，符合新手引导简化的原始考量）。
-            composable(Routes.FAVORITES) {
-                com.touliao.app.feature.favorites.FavoritesScreen(
-                    onBack = { navController.popBackStack() },
-                )
-            }
             composable(Routes.MOMENTS) {
                 com.touliao.app.feature.moments.MomentsScreen(
                     onBack = { navController.popBackStack() },

@@ -176,7 +176,6 @@ fun ProfileScreen(
     onOpenMyQr: () -> Unit = {},
     onOpenCallHistory: () -> Unit = {},
     onOpenWallet: () -> Unit = {},
-    onOpenFavorites: () -> Unit = {},
     onOpenSessions: () -> Unit = {},
     onOpenInviteFriend: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
@@ -290,8 +289,6 @@ fun ProfileScreen(
                     SettingsRow(TouliaoIcons.Phone, "手机号", trailing = maskedPhone(user?.phone), onClick = { showChangePhoneDialog = true })
                     RowDivider()
                     SettingsRow(TouliaoIcons.Wallet, "我的钱包", onClick = onOpenWallet, modifier = Modifier.testTag("profile-wallet"))
-                    RowDivider()
-                    SettingsRow(TouliaoIcons.Star, "我的收藏", onClick = onOpenFavorites, modifier = Modifier.testTag("profile-favorites"))
                     RowDivider()
                     SettingsRow(TouliaoIcons.PhoneCall, "通话记录", onClick = onOpenCallHistory, modifier = Modifier.testTag("profile-call-history"))
                     RowDivider()
