@@ -97,14 +97,6 @@ final class ChatRepository {
         )
     }
 
-    /// 个人删除（per-user tombstone，仅当前账号生效，对方不受影响）
-    func deleteForMeMessage(_ msgId: String) async -> Bool {
-        let resp: EmptyResponse? = try? await api.send(
-            "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: false, vanish: nil, forMe: true)
-        )
-        return resp != nil
-    }
-
     /// 表情回应(切换)
     func react(_ msgId: String, emoji: String) async -> [MessageReaction] {
         let resp: ReactResponse? = try? await api.send(

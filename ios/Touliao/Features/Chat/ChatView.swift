@@ -854,6 +854,7 @@ private struct MessageBubble: View {
     @State private var showShare = false
     @State private var preparingShare = false
     @State private var showRecallConfirm = false
+    @State private var showVanishConfirm = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
@@ -904,11 +905,11 @@ private struct MessageBubble: View {
                             Button("保存图片") { saveImage(msg.fileUrl) }
                         }
                         // 撤回：自己消息，或群主/管理员撤回群内他人消息（对全员生效）
+                        // 删除：彻底删除，双方都不可见（原「仅自己删除」语义已改为复用 vanish，与撤回同权限）
                         if isMine || (vm.isGroup && vm.canManageGroup) {
                             Button("撤回", role: .destructive) { showRecallConfirm = true }
+                            Button("删除", role: .destructive) { showVanishConfirm = true }
                         }
-                        // 删除：所有消息均可（自己/对方），仅对当前账号生效（per-user tombstone，不影响对方）
-                        Button("删除", role: .destructive) { vm.deleteForMe(msg) }
                         Divider()
                         Button("多选") { vm.enterMultiSelect(msg) }
                     }
@@ -920,6 +921,12 @@ private struct MessageBubble: View {
                         Button("撤回", role: .destructive) { vm.recall(msg) }
                     } message: {
                         Text("撤回这条消息？对方会看到\"消息已撤回\"")
+                    }
+                    .alert("删除消息", isPresented: $showVanishConfirm) {
+                        Button("取消", role: .cancel) {}
+                        Button("删除", role: .destructive) { vm.vanish(msg) }
+                    } message: {
+                        Text("彻底删除这条消息？对方也不会看到任何提示，且无法恢复。")
                     }
                 if !msg.reactions.isEmpty {
                     HStack(spacing: 4) {

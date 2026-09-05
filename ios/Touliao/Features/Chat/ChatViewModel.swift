@@ -521,22 +521,6 @@ final class ChatViewModel: ObservableObject {
         Task { await repo.vanishMessage(msg.id) }   // 实时事件 message_vanished 移除，无痕
     }
 
-    /// 个人删除（per-user tombstone，仅当前账号）：乐观移除 + 失败恢复，
-    /// 多设备经 message_deleted_for_me 同步
-    func deleteForMe(_ msg: Message) {
-        let prev = messages
-        removeMessage(msg.id)
-        Task {
-            let ok = await repo.deleteForMeMessage(msg.id)
-            if ok {
-                MsgCacheStore.shared.remove(conversationId, msg.id)
-            } else {
-                messages = prev   // 失败恢复
-                error = "删除失败，请重试"
-            }
-        }
-    }
-
     /// 移除目标消息 + 引用它的消息引用块无痕摘除(replyTo.deleted=1 →
     /// 消息视图见 deleted 不渲染引用条)。幂等：目标不存在时仅摘除引用。
     private func removeMessage(_ msgId: String) {

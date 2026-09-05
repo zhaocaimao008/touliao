@@ -137,10 +137,6 @@ class ChatRepository @Inject constructor(
     suspend fun vanishMessage(msgId: String) =
         runCatching { api.deleteMessage(msgId, DeleteMessageBody(vanish = true)) }
 
-    /** 个人删除（per-user tombstone，仅当前账号生效，对方不受影响） */
-    suspend fun deleteForMeMessage(msgId: String) =
-        runCatching { api.deleteMessage(msgId, DeleteMessageBody(forMe = true)) }
-
     /** 表情回应(切换) */
     suspend fun react(msgId: String, emoji: String) =
         runCatching { api.react(msgId, ReactBody(emoji)) }

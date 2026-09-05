@@ -586,20 +586,6 @@ class ChatViewModel @Inject constructor(
         // 实时事件 message_vanished 驱动列表更新
     }
 
-    /** 个人删除：仅当前账号生效（乐观移除 + 失败恢复 + 多设备经 message_deleted_for_me 同步） */
-    fun deleteForMe(msg: Message) {
-        val prev = _uiState.value.messages
-        _uiState.update { it.copy(messages = removeMessageAndDetachReplies(it.messages, msg.id)) }
-        viewModelScope.launch {
-            chatRepository.deleteForMeMessage(msg.id)
-                .onSuccess { msgCacheStore.remove(conversationId, msg.id) }
-                .onFailure { e ->
-                    _uiState.update { s -> s.copy(messages = prev) }   // 失败恢复
-                    _uiState.update { s -> s.copy(error = e.toUserMessage("删除失败，请重试")) }
-                }
-        }
-    }
-
     fun react(msg: Message, emoji: String) {
         viewModelScope.launch {
             chatRepository.react(msg.id, emoji)
