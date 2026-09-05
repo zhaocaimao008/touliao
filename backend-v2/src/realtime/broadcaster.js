@@ -156,6 +156,22 @@ function emit(room, event, payload) {
   if (_io) { stats.totalEmits++; emitToRoom(room, event, payload); }
 }
 
+/**
+ * 从批量合并队列里摘除某条待发消息（真实事故：发送后「立刻」撤回/删除——
+ * message_recall/message_deleted 是立即单发、不走这个队列的；而 new_message 走
+ * BATCH_WINDOW_MS(5ms) 合并窗口，队列里存的是发送那一刻的快照(content 还是原文、
+ * deleted=0)。不摘除的话，接收方先收到"撤回"（此时消息还没进本地列表，等于空操作），
+ * 几毫秒后批处理窗口才把发送时刻的原始内容当 new_message 发出去——对方就眼睁睁看着
+ * "已撤回"的消息带着原文冒出来，且此后再无事件把它移除。撤回/删除路径在广播前调用本函数，
+ * 把还没来得及发出去的快照原地摘掉，从源头掐断这条消息，就不会有迟到的 new_message。
+ */
+function purgeQueuedMessage(room, msgId) {
+  const slot = pending.get(room);
+  if (!slot) return;
+  const idx = slot.msgs.findIndex(m => m.id === msgId);
+  if (idx !== -1) slot.msgs.splice(idx, 1);
+}
+
 // 进程退出时同步清空 pending，防止 SIGTERM 时积压消息丢失
 function flushAllSync() {
   if (timer) { clearTimeout(timer); timer = null; }
@@ -165,4 +181,4 @@ function flushAllSync() {
 process.on('SIGTERM', flushAllSync);
 process.on('SIGINT',  flushAllSync);
 
-module.exports = { setIo, broadcastMessage, emit, flushAllSync, stats };
+module.exports = { setIo, broadcastMessage, emit, purgeQueuedMessage, flushAllSync, stats };
