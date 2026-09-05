@@ -1,6 +1,6 @@
 {
-  "appId": "com.vxin.app",
-  "appName": "vxin",
+  "appId": "com.touliao.app",
+  "appName": "投聊",
   "webDir": "dist",
   "server": {
     "androidScheme": "https",
