@@ -64,16 +64,25 @@ function cleanupUser(userId) { userProfiles.delete(userId); msgRateLimiter.delet
 
 // ── 逐用户消息限流：每秒 N 条 ──────────────────────────────────
 const msgRateLimiter = new Map();
+// 返回 { ok:true } 或 { ok:false, retryAfterMs }。
+// 带上 retryAfterMs 是关键：客户端据此**自动退避重发**，而不是把消息标成终态失败。
+// 背景（2026-09-05 审计实测）：客户端断线重连自愈以 120ms 间隔重发失败消息
+// （ChatWindow.jsx，≈8.3 条/秒），而这里是 3 条/秒——8 条排队消息只有 3 条能发出去，
+// 其余 5 条被拒后退回失败态，用户却看到「正在重发 8 条」的提示。
+// 光靠调客户端间隔治标：限流阈值是配置项，两边一旦不同步就又对不上。
+// 正确做法是让服务端把「什么时候可以再试」告诉客户端，由客户端照着退避。
 function checkMsgRate(userId) {
   const now = Date.now();
   const r = msgRateLimiter.get(userId);
   if (!r || now >= r.reset) {
     msgRateLimiter.set(userId, { count: 1, reset: now + config.limits.msgRateWindow });
-    return true;
+    return { ok: true };
   }
-  if (r.count >= config.limits.msgRateLimit) return false;
+  if (r.count >= config.limits.msgRateLimit) {
+    return { ok: false, retryAfterMs: Math.max(1, r.reset - now) };
+  }
   r.count++;
-  return true;
+  return { ok: true };
 }
 
 // ── 送达记录（worker 异步写）────────────────────────────────────
