@@ -2424,3 +2424,49 @@ Module path: resources/app.asar/src/main.js
 | P2 | desktop-electron/src/package.json:3 version=2.0.58 残留（:16 注释自称已不保留版本） | src/package.json:3 | 删残留字段 |
 | P2 | downloadManager.js:95 引用 window.touliaoAPI?.downloadFile（全库无定义，死兼容） | desktop-electron/src/lib 内 | 删死引用 |
 | P2 | 桌面关闭=最小化到托盘（main.js:496-504），与浏览器关闭即退出不同，首次关闭无提示 | main.js:60,496-504 | 首次关闭 toast 提示 |
+
+
+---
+
+# 第二轮全项目体检(2026-09-05): 视频质量 + 4 路子代理只读审计(backend/web/android/ios+desktop)
+
+- 方法: 4 个并行只读子代理分平台扫 bug/性能(证据均 file:行号)+ 视频模糊专项根因定位。全程未改码。
+- **视频模糊根因(用户主诉)**: 全端视频采集无分辨率约束、无发送码率上限,跑 WebRTC 默认 ~640×480 低码率再放大显示 → 模糊。Web `getUserMedia({video:true/布尔})`(CallModal.jsx:318,:590 / GroupCallModal.jsx:229);iOS startCapture 取「≥640 最小」≈480p(CallManager.swift:543-549,GroupCallManager.swift 同款);Android 720p30 但无码率上限(CallManager.kt:718);全库 SDP 调优仅音频(sdpTune.js)。唯一正确端=Android 采集。**方案**: 采集约束 1280×720 ideal + 视频 sender maxBitrate 2.5Mbps(Web setParameters;iOS/Android 原生)。
+- **本轮已修(commit 见 AUDIT 尾注)**: 视频四端 + 后端 batchDelete 漏 purgeQueuedMessage(P1,撤回复活竞态,对照单条 remove 已修口径 messages.service.js:423-457) + Web 'message:read' 监听器泄漏(ChatWindow.jsx:1180 无 off)/重连错峰 timer 不清理(:1300-1315)/selectedMsgs 失效 id 残留/MEDIA_TYPES 循环内重建 + Android MsgCacheStore 主线程加密 IO(P1)/ChatMessageMerge.kt:88 `!!` 崩溃点/MomentsViewModel 评论无限循环上限。
+
+## 待办(先不做,附方案;证据在括号)
+
+| 域 | 级别 | 发现 | 方案 |
+|---|---|---|---|
+| 后端 | P1 | markRead 每次已读 io.to(convId) 全房间广播且绕过 broadcaster 分片(conversations.service.js:389-417)——大群 O(N×R) 风暴 | 群已读改拉取/节流/走分片;只保私聊实时回执 |
+| 后端 | P1 | 每条群消息对每个在线成员 INSERT message_deliveries,history 只在私聊读该表=群纯开销+无保留期膨胀(message.js:192-199) | 群跳过 recordDeliveries 或改私聊专用+批量 multi-INSERT |
+| 后端 | P1 | 每消息全成员失效会话列表缓存→活跃大群缓存永不命中,反复跑 500 行巨型 SQL(conversations.service.js:170-173,203-270) | 会话级增量缓存(只更新命中会话条目)或列表拆两层 |
+| 后端 | P1 | 连接期 join 房间 LIMIT 500 无排序:第 501+ 会话=在线无 socket 又排除推送→静默漏消息(realtime/index.js:186-198) | 会话房间按需 join(send/进入时加入),去掉 500 上限盲区 |
+| 后端 | P2 | uncaughtException 记录后继续→better-sqlite3 事务残留污染(server.js:223-228) | 记录后 process.exit(1) 交 PM2 拉起 |
+| 后端 | P2 | conversation_events 只增不删无保留期(schema.js:570-585) | 定期归档删除>N 天,与客户端 highWater 游标兼容约定 |
+| 后端 | P2 | worker 崩溃重放已提交未 ack 事件→消息 INSERT 冲突返回失败但已入库;HTTP send 无幂等键(writer.js:73-93) | 重放前按 id 查重回成功 ack;send 加 client_msg_id 复用唯一索引 |
+| 后端 | P2 | 转发 20 会话×30 条逐 target 串行 await(最坏数百 ms)(messages.service.js:369-387) | 跨会话 Promise.all 并发(worker 串行天然保序) |
+| 后端 | P2 | socket.use 每入站事件 Redis jti 查询+users SELECT banned+prepare 不缓存(realtime/index.js:141-173) | 秒级本地缓存;高频只读 statement 模块级缓存 |
+| 后端 | P2 | 每消息发送 7 处 delPattern search:* 全库 SCAN(messages.service.js 多处) | 搜索缓存键改精确结构,发送只 del 相关会话键 |
+| 后端 | P2 | history() 群 readCount 每条消息×全成员 filter 计数+整群 memberReadTimes(messages.service.js:76,130-132) | 只查本页消息 sender 集合,预聚合 Map |
+| 后端 | P2 | reaction/edit/remove 即时广播全部 io.to 直发全房间不区分规模(messages.service.js:483,539,601,623) | 高频小事件走 broadcaster 分片或大群降级拉取 |
+| 后端 | P2 | 通话信令每 ICE/offer/answer 打 console.log 刷屏(call.js:354,360,378) | 降 debug 级/每通话首尾各一条 |
+| Web | P2 | messages 数组无上限+每事件全量 O(n) map(ChatWindow.jsx:871,1181) | 历史加载做窗口截断(如 2000)+定点替换 |
+| Web | P2 | Home 任意消息 convRefreshKey++ 且 ChatWindow 无 memo→3000 行子树重执行(Home.jsx:722,767;ChatWindow.jsx:194) | ChatWindow 包 memo + 父传稳定引用,或刷新语义解耦 |
+| Web | P2 | scroll 监听器随 messages 变反复卸载重挂(ChatWindow.jsx:880) | effect 挂载一次,读 handleScrollRef 最新值 |
+| Android | P1 | PDF 预览全页 2x Bitmap 一次性常驻无上限→多页 OOM(MediaPreviewOverlays.kt:116-163) | 按需渲染可见页+LRU;下载前 Content-Length 上限 |
+| Android | P1 | SocketManager replay=0+tryEmit(128 缓冲溢出即静默丢,无补偿)(SocketManager.kt:92-93,255) | 带溢出计数的缓冲/Channel,溢出置脏触发该会话 catchUp |
+| Android | P2 | 相机 videoSource!! 多处硬解包,切换/重开竞态可能 NPE(CallManager.kt:717,796;GroupCallManager.kt:308+) | 判空 let{} 再取 observer |
+| Android | P2 | 通话页每秒 while(true)+delay 驱动顶层 state→整屏重组(CallScreen.kt:240,GroupCallScreen.kt:206) | 计时 state 收敛到局部 Text 组件 |
+| Android | P2 | GeTui/FCM/socket 三通道去重仅靠前台标志,多通道同发可能重复(TouliaoGeTuiService.kt:46) | 按 conversationId+msgId 幂等去重+前台补当前会话判断 |
+| iOS | P1 | ChatViewModel 47×@Published+每消息整数组 insertBySeq 替换→ChatView 全树重算高活跃卡顿(ChatViewModel.swift:25-80,391,989,1062) | 拆独立数据源/行级观察,或高低频字段分离 |
+| iOS | P2 | MsgCacheStore 同步整文件 IO 被 MainActor 直调,撤回=主线程读全量+写全量(MsgCacheStore.swift:62-74,131-145) | 串行后台队列/actor+写去抖 |
+| iOS | P2 | socket 消息 JSONSerialization→JSONDecoder 双重解码+主队列(SocketService.swift:564-567) | 原始 data 直接 decode;handleQueue 指定非主线程 |
+| iOS | P2 | 每个 ChatViewModel 订阅全局 5 个 publisher,任一消息唤醒所有 VM 跳主线程再过滤(ChatViewModel.swift:115-141) | 仓库层按 conversationId 路由或 sink 先判会话 |
+| iOS | P2 | loadEarlier 整数组 contains O(n) 过滤(ChatViewModel.swift:861-863) | 维护 Set 已加载 id |
+| iOS | P2 | CallKit 收尾恒报 .remoteEnded,本端挂断语义错误(VoipCallManager.swift:106-118) | endActiveCall 加 reason 参数 |
+| Desktop | P2 | macOS verifyUpdateCodeSignature 恒 null,更新安全全押自定义 Ed25519 链,链路故障=静默停更(main.js:85,618-650) | 有签名/公证则保留原生校验;否则写文档+定期演练 |
+| Desktop | P2 | CSP 含 'unsafe-eval',哈希失败回退 'unsafe-inline'(main.js:298-303) | GUI 验证后移除 unsafe-eval;失败改拒绝加载 |
+| Desktop | P2 | 6 个 IPC 通道漏 isTrustedSender(minimize/close/config:getServerUrl 等)(main.js:776-782,997,1034) | 统一 registerIpc 包装器强制校验 |
+| Desktop | P2 | 托盘创建失败无重试+minimizeToTray hide 成孤儿(main.js:689-706,500-503) | 失败禁用 minimizeToTray 或延迟重试 |
+| Desktop | P2 | update:install 无已下载状态前置校验;error 原文透传(main.js:1037-1041,682-685) | 状态位守卫+错误脱敏 |
