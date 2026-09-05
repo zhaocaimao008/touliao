@@ -38,7 +38,10 @@ export function usePushNotification(user) {
           }
           if (perm.receive !== 'granted' || cancelled) return;
           const regL = await PushNotifications.addListener('registration', (token) => {
-            const platform = window.Capacitor.getPlatform?.() === 'ios' ? 'ios' : 'android';
+            // Capacitor's iOS registration callback returns the raw APNs device
+            // token, not an FCM registration token. Keep the platform explicit
+            // so the backend uses its direct APNs provider path.
+            const platform = window.Capacitor.getPlatform?.() === 'ios' ? 'ios_apns' : 'android';
             axios.post('/api/notifications/device-token', { token: token.value, platform }).catch(() => {});
           });
           const errL = await PushNotifications.addListener('registrationError', () => {});

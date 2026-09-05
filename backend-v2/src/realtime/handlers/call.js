@@ -300,6 +300,10 @@ function registerCallHandler(io, socket, registry) {
       io.to(`user_${userId}`).emit('call:end', { from: to, reason: 'stale', callId });
       return;
     }
+    // A second device may send a stale reject after another device already
+    // accepted the call. The accepted session is authoritative and must not
+    // be rewritten to rejected by a late response.
+    if (!accepted && c.answeredAt) return;
     if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 已应答不再超时清理）
     if (accepted) {
       // 重复 accepted 守卫（P2-4）：同账号双端先后接听同一通，第二次不得回拨 answeredAt

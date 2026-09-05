@@ -192,24 +192,24 @@ class NotificationCenter {
    */
   async _sendViaAppPush(userId, notification) {
     const tokens = db.prepare(
-      'SELECT token, platform FROM device_tokens WHERE user_id=?'
+      'SELECT token FROM device_tokens WHERE user_id=?'
     ).all(userId);
-    
     if (tokens.length === 0) return { status: 'no_tokens' };
-    
-    const pushService = require('../../services/push');
-    
-    setImmediate(() => {
-      tokens.forEach(token => {
-        pushService.send(token.platform, token.token, {
-          title: notification.title,
-          body: notification.content,
-          data: notification.data,
-        }).catch(err => logger.error(`Push send failed: ${err.message}`));
-      });
+
+    // Reuse the canonical multi-platform service so FCM/APNs/Web Push/Getui
+    // behavior, token cleanup and payload limits stay consistent.
+    const { pushToUser } = require('../../utils/push');
+    const data = notification.data || {};
+    await pushToUser(userId, {
+      ...data,
+      senderName: notification.title,
+      body: notification.content,
+      type: notification.type,
+      conversationId: data.conversationId || data.conversation_id,
+      senderId: data.senderId || data.sender_id,
     });
-    
-    return { status: 'queued', channel: 'app_push', count: tokens.length };
+
+    return { status: 'sent', channel: 'app_push', count: tokens.length };
   }
 
   /**
@@ -219,7 +219,14 @@ class NotificationCenter {
     const channels = [];
     
     if (priority === PRIORITY.CRITICAL) {
-      channels.push(CHANNELS.WEBSOCKET, CHANNELS.APP_PUSH, CHANNELS.EMAIL, CHANNELS.SMS);
+      channels.push(
+        CHANNELS.WEBSOCKET,
+        CHANNELS.APP_PUSH,
+        CHANNELS.EMAIL,
+        CHANNELS.SMS,
+        CHANNELS.DINGTALK,
+        CHANNELS.WECHAT_WORK,
+      );
     } else if (priority === PRIORITY.HIGH) {
       channels.push(CHANNELS.WEBSOCKET, CHANNELS.APP_PUSH);
       if (userPrefs.emailEnabled) channels.push(CHANNELS.EMAIL);
@@ -230,7 +237,17 @@ class NotificationCenter {
       if (userPrefs.emailEnabled) channels.push(CHANNELS.EMAIL);
     }
     
-    return channels.filter(ch => userPrefs[`${ch}Enabled`] !== false);
+    const preferenceKey = {
+      [CHANNELS.EMAIL]: 'emailEnabled',
+      [CHANNELS.SMS]: 'smsEnabled',
+      [CHANNELS.DINGTALK]: 'dingtalkEnabled',
+      [CHANNELS.WECHAT_WORK]: 'wechatWorkEnabled',
+      [CHANNELS.APP_PUSH]: 'appPushEnabled',
+    };
+    return channels.filter(ch => {
+      const key = preferenceKey[ch];
+      return !key || userPrefs[key] !== false;
+    });
   }
 
   /**
@@ -253,13 +270,13 @@ class NotificationCenter {
    */
   _getUserPreferences(userId) {
     const prefs = db.prepare('SELECT * FROM user_notification_preferences WHERE user_id=?').get(userId) || {};
-    
+    const enabled = (value, fallback) => value == null ? fallback : Boolean(value);
     return {
-      emailEnabled: prefs.email_enabled !== false,
-      smsEnabled: prefs.sms_enabled !== false,
-      dingtalkEnabled: prefs.dingtalk_enabled !== false,
-      wechatWorkEnabled: prefs.wechat_work_enabled !== false,
-      appPushEnabled: prefs.app_push_enabled !== false,
+      emailEnabled: enabled(prefs.email_enabled, true),
+      smsEnabled: enabled(prefs.sms_enabled, false),
+      dingtalkEnabled: enabled(prefs.dingtalk_enabled, false),
+      wechatWorkEnabled: enabled(prefs.wechat_work_enabled, false),
+      appPushEnabled: enabled(prefs.app_push_enabled, true),
     };
   }
 
