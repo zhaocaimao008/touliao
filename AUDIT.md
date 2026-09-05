@@ -2470,3 +2470,6 @@ Module path: resources/app.asar/src/main.js
 | Desktop | P2 | 6 个 IPC 通道漏 isTrustedSender(minimize/close/config:getServerUrl 等)(main.js:776-782,997,1034) | 统一 registerIpc 包装器强制校验 |
 | Desktop | P2 | 托盘创建失败无重试+minimizeToTray hide 成孤儿(main.js:689-706,500-503) | 失败禁用 minimizeToTray 或延迟重试 |
 | Desktop | P2 | update:install 无已下载状态前置校验;error 原文透传(main.js:1037-1041,682-685) | 状态位守卫+错误脱敏 |
+
+---
+> **尾注(2026-09-05 发版闭环)**: 本节"本轮已修"对应 commit `4f1429b`(修复批)+`03f3241`(bump 8.1.15,code77/build34);Android 收藏还原正式入 main(`70d667f` 后的 revert commit,悬空 commit 修正)。**8.1.15 已全端发布并验证**: web/后端经 deploy.yml 自动上线(/health ok,assets 已换新);Android APK code77 sha `af35e28c…` 下载站 200;iOS 已传 TestFlight(日志含送审 VALID/REVIEW ✅🎉);桌面 8.1.15 wine 打包已签名并部署 updates/(latest.yml 8.1.15+sig64B+alias sha 匹配)。CI Gate/iOS Build/Android Build/自动部署/android-release/ios-testflight **6/6 绿**。视频修复=采集 1280×720 ideal + sender maxBitrate 2.5M(web setParameters/原生 RtpParameters;iOS 采集格式 ≥720p)。
