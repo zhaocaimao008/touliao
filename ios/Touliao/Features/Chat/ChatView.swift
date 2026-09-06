@@ -468,14 +468,14 @@ struct ChatView: View {
                             HStack(spacing: 8) {
                                 Image(systemName: vm.selectedIds.contains(msg.id) ? "checkmark.circle.fill" : "circle")
                                     .foregroundColor(vm.selectedIds.contains(msg.id) ? .vxinGreen : .secondary)
-                                MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm)
+                                MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm, readStatusTarget: $readStatusTarget)
                                     .allowsHitTesting(false)
                             }
                             .contentShape(Rectangle())
                             .onTapGesture { vm.toggleSelect(msg) }
                             .id(msg.id)
                         } else {
-                            MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm)
+                            MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm, readStatusTarget: $readStatusTarget)
                                 .id(msg.id)
                                 .accessibilityIdentifier("msg-bubble-\(msg.id)")
                         }
@@ -939,6 +939,7 @@ private struct MessageBubble: View {
     let msg: Message
     let isMine: Bool
     let vm: ChatViewModel
+    @Binding var readStatusTarget: Message?
 
     @State private var shareItems: [Any]?     // 非空 → 弹系统分享面板
     @State private var showShare = false
