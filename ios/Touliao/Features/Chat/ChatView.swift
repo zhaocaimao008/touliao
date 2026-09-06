@@ -944,7 +944,7 @@ private struct MessageBubble: View {
     @State private var showShare = false
     @State private var preparingShare = false
     @State private var showRecallConfirm = false
-    @State private var showVanishConfirm = false
+
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
@@ -1004,7 +1004,7 @@ private struct MessageBubble: View {
                         // 删除：彻底删除，双方都不可见（原「仅自己删除」语义已改为复用 vanish，与撤回同权限）
                         if isMine || (vm.isGroup && vm.canManageGroup) {
                             Button("撤回", role: .destructive) { showRecallConfirm = true }
-                            Button("删除", role: .destructive) { showVanishConfirm = true }
+
                         }
                         Divider()
                         Button("多选") { vm.enterMultiSelect(msg) }
@@ -1018,12 +1018,7 @@ private struct MessageBubble: View {
                     } message: {
                         Text("撤回这条消息？对方不会再看到这条消息")
                     }
-                    .alert("删除消息", isPresented: $showVanishConfirm) {
-                        Button("取消", role: .cancel) {}
-                        Button("删除", role: .destructive) { vm.vanish(msg) }
-                    } message: {
-                        Text("彻底删除这条消息？对方也不会看到任何提示，且无法恢复。")
-                    }
+
                 if !msg.reactions.isEmpty {
                     HStack(spacing: 4) {
                         ForEach(msg.reactions, id: \.emoji) { r in

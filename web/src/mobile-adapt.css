@@ -44,6 +44,19 @@ html.capacitor-app {
 
 /* ── 移动端通用 (max-width: 768px) ──────────────────────────── */
 @media (max-width: 768px) {
+  /* Keep mobile chat controls easy to hit without changing their visual scale. */
+  .wc-tool-btn,
+  .wc-icon-btn,
+  .wc-send-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .wc-ctx-item {
+    min-height: 44px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
   /* 全屏布局 */
   body, #root {
     overflow: hidden;
