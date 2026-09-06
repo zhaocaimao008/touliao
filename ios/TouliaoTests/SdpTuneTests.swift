@@ -35,14 +35,14 @@ final class SdpTuneTests: XCTestCase {
 
     func testH264PayloadsMoveToFrontOfMLine() {
         let out = preferH264VideoCodec(sample)
-        let mLine = lines(out).first { $0.hasPrefix("m=video ") }
+        let mLine = self.lines(out).first { $0.hasPrefix("m=video ") }
         // H264(99/100) 在最前，非 H264 保持原相对顺序（96 97 98 101）
         XCTAssertEqual("m=video 9 UDP/TLS/RTP/SAVPF 99 100 96 97 98 101", mLine)
     }
 
     func testH264AttributeLinesGroupedRightAfterMLine() {
         let out = preferH264VideoCodec(sample)
-        let ls = lines(out)
+        let ls = self.lines(out)
         let mIdx = ls.firstIndex { $0.hasPrefix("m=video ") }!
         // m= 行之后紧跟 5 条 H264 属性行（rtpmap/fb/fmtp/rtpmap/fmtp，段内原相对顺序）
         XCTAssertEqual("a=rtpmap:99 H264/90000", ls[mIdx + 1])
@@ -57,12 +57,12 @@ final class SdpTuneTests: XCTestCase {
         XCTAssertEqual(lines(sample).count, lines(out).count)   // 只重排不增删行
         // payload 集合一致（m= 行）
         let ptsOf: (String) -> Set<String> = { s in
-            Set(lines(s).first { $0.hasPrefix("m=video ") }!.components(separatedBy: " ").dropFirst(3))
+            Set(self.lines(s).first { $0.hasPrefix("m=video ") }!.components(separatedBy: " ").dropFirst(3))
         }
         XCTAssertEqual(ptsOf(sample), ptsOf(out))
         // 属性行集合一致（顺序无关；m= 行内容本身会变，排除在外）
         let attrsOf: (String) -> Set<String> = { s in
-            Set(lines(s).filter { !$0.hasPrefix("m=") })
+            Set(self.lines(s).filter { !$0.hasPrefix("m=") })
         }
         XCTAssertEqual(attrsOf(sample), attrsOf(out))
     }
