@@ -34,6 +34,12 @@ struct ChatView: View {
     @State private var showPinnedList = false
     @State private var showAnnouncement = false
     @State private var forwardSelected = Set<String>()
+    // 多选转发（F5 合并转发）：sheet 开关 + 目标会话选择 + 模式（逐条/合并）
+    @State private var showMultiForwardSheet = false
+    @State private var multiForwardSelected = Set<String>()
+    @State private var multiForwardMerged = true
+    // 消息已读状态详情（F5）
+    @State private var readStatusTarget: Message?
     @State private var showMentionPicker = false
     @State private var atBottom = true          // 用户是否在底部附近(决定新消息是否自动滚底)
     @State private var newMsgCount = 0          // 看历史期间累计的新消息数(悬浮提示)
@@ -307,6 +313,77 @@ struct ChatView: View {
                 }
             }
         }
+        // 多选转发（F5 合并转发）：模式切换（合并/逐条，对齐 Web ForwardModal）+ 目标会话多选
+        .sheet(isPresented: $showMultiForwardSheet, onDismiss: { multiForwardSelected = [] }) {
+            NavigationStack {
+                VStack(spacing: 0) {
+                    List(vm.forwardTargets) { conv in
+                        Button {
+                            if multiForwardSelected.contains(conv.id) { multiForwardSelected.remove(conv.id) } else { multiForwardSelected.insert(conv.id) }
+                        } label: {
+                            HStack {
+                                Image(systemName: multiForwardSelected.contains(conv.id) ? "checkmark.circle.fill" : "circle").foregroundColor(.vxinGreen)
+                                InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32)
+                                Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.primary).lineLimit(1)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    // 转发模式（对齐 Web fwd-mode：合并=一条卡片消息；逐条=按序复制每条）
+                    Picker("转发方式", selection: $multiForwardMerged) {
+                        Text("合并转发").tag(true)
+                        Text("逐条转发").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 12).padding(.top, 8)
+                    // 30 条上限提示（对齐 Web：标题显示封顶后的条数；超 30 时明确只合并前 30 条）
+                    Text(multiForwardCountHint)
+                        .font(.caption).foregroundColor(.vxinTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.bottom, 8)
+                }
+                .navigationTitle("转发到").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { showMultiForwardSheet = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("转发") {
+                            guard let msgs = vm.forwardableSelection() else { return }
+                            vm.forwardSelected(msgs, conversationIds: Array(multiForwardSelected), merged: multiForwardMerged)
+                            showMultiForwardSheet = false
+                        }.disabled(multiForwardSelected.isEmpty)
+                    }
+                }
+            }
+        }
+        // 消息已读状态详情（F5）：私聊已读/未读，群聊已读 N/M + 展开成员
+        .sheet(isPresented: Binding(get: { readStatusTarget != nil }, set: { if !$0 { readStatusTarget = nil } })) {
+            if let msg = readStatusTarget {
+                ReadStatusDetailSheet(
+                    message: msg,
+                    isGroup: vm.isGroup,
+                    conversationTitle: vm.title,
+                    members: vm.groupMembers,
+                    currentUserId: vm.myId,
+                    peerId: vm.peerIdForReadStatus()
+                )
+            }
+        }
+    }
+
+    /// 多选转发的条数提示（对齐 Web fwd.messageCountTitleTemplate「N条消息」，
+    /// 合并模式按 30 上限封顶显示；超限明确告知只合并前 30 条）
+    private var multiForwardCountHint: String {
+        let count = vm.selectedMessages().filter(isForwardableMessage).count
+        guard count > 0 else { return "" }
+        if multiForwardMerged {
+            let capped = min(count, mergedForwardMaxItems)
+            return count > mergedForwardMaxItems
+                ? "合并转发最多 \(mergedForwardMaxItems) 条，将只合并前 \(capped) 条"
+                : "共 \(capped) 条消息"
+        }
+        return "共 \(count) 条消息"
     }
 
     private var announcementBanner: some View {
@@ -343,6 +420,7 @@ struct ChatView: View {
         case "image": return "[图片]"; case "voice": return "[语音]"; case "video": return "[视频]"
         case "file": return "[文件]"; case "red_packet": return "[红包]"; case "transfer": return "[转账]"
         case "sticker": return "[表情]"; case "contact_card", "contact": return "[名片]"
+        case "merged": return "[聊天记录]"
         default: return p.content
         }
     }
@@ -452,12 +530,23 @@ struct ChatView: View {
 
     private let bottomAnchor = "BOTTOM_ANCHOR"
 
-    // MARK: - 多选底栏（批量撤回/删除，对齐 web）
+    // MARK: - 多选底栏（批量撤回/删除/转发，对齐 web）
     private var multiSelectBar: some View {
         HStack {
             Text("已选 \(vm.selectedIds.count) 条").font(.subheadline).foregroundColor(.vxinTextSecondary)
             Spacer()
             Button("取消") { vm.exitMultiSelect() }
+            // F5 合并转发：弹目标选择 sheet（sheet 内可切换合并/逐条模式）
+            Button("转发") {
+                guard vm.forwardableSelection() != nil else {
+                    vm.error = "所选消息均不可转发"
+                    return
+                }
+                vm.loadForwardTargets()
+                multiForwardSelected = []
+                showMultiForwardSheet = true
+            }
+            .disabled(vm.selectedIds.isEmpty)
             Button(role: .destructive) { vm.batchDeleteSelected() } label: { Text("删除") }
                 .disabled(vm.selectedIds.isEmpty)
         }
@@ -708,6 +797,7 @@ struct ChatView: View {
         case "video": return "[视频]"; case "file": return "[文件]"
         case "red_packet": return "[红包]"; case "transfer": return "[转账]"; case "sticker": return "[表情]"
         case "contact_card", "contact": return "[名片]"
+        case "merged": return "[聊天记录]"
         default: return msg.content
         }
     }
@@ -886,6 +976,12 @@ private struct MessageBubble: View {
                         if msg.type != "red_packet" && msg.type != "transfer" {
                             Button("转发") { vm.loadForwardTargets(); vm.forwardTarget = msg }
                             Button("收藏") { vm.collectMessage(msg) }
+                        }
+                        // F5 已读状态：自己发送的文本/图片/文件（非发送中）可查看已读明细
+                        if canViewReadStatus(msg, currentUserId: vm.myId) {
+                            Button { readStatusTarget = msg } label: {
+                                Label("已读状态", systemImage: "checkmark.circle")
+                            }
                         }
                         // 分享到第三方软件：文本 + 图片/视频/文件/文档
                         if msg.type == "text" || (["image", "video", "file"].contains(msg.type) && !(msg.fileUrl ?? "").isEmpty) {
@@ -1092,6 +1188,9 @@ private struct MessageBubble: View {
             transferCard
         case "contact_card", "contact":
             card { Text("👤 \(contactCardTitle)") }
+        case "merged":
+            // 合并转发卡片（F5）：标题+摘要+查看 N 条 → 点击弹只读详情
+            MergedMessageCard(content: msg.content, isMine: isMine)
         default:
             card { Text(mentionHighlighted(msg.content, mine: isMine)) }
         }
@@ -1180,6 +1279,7 @@ private struct MessageBubble: View {
         case "video": return "[视频]"; case "file": return "[文件]"
         case "red_packet": return "[红包]"; case "transfer": return "[转账]"; case "sticker": return "[表情]"
         case "contact_card", "contact": return "[名片]"
+        case "merged": return "[聊天记录]"
         default: return rt.content
         }
     }
@@ -1691,6 +1791,7 @@ private struct MessageSearchSheet: View {
         case "red_packet": return "[红包]"
         case "transfer": return "[转账]"
         case "sticker": return "[表情]"
+        case "merged": return "[聊天记录]"
         default: return m.content.isEmpty ? "[消息]" : m.content
         }
     }

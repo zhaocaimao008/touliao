@@ -126,6 +126,15 @@ const momentImageLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
+// 朋友圈视频上传：单文件体积大，单用户 10 分钟 10 次
+const momentVideoLimiter = rateLimit({
+  ...base, windowMs: 10 * 60 * 1000, max: 10,
+  store: makeStore('momentVideo'),
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  handler: (req, res) => res.status(429).json(json('视频上传过于频繁，请稍后再试')),
+  validate: { xForwardedForHeader: false },
+});
+
 // 重置密码：单手机号 1 小时最多 3 次
 const resetPasswordLimiter = rateLimit({
   ...base, windowMs: 60 * 60 * 1000, max: 3,
@@ -251,7 +260,7 @@ const captchaLimiter = rateLimit({
 });
 
 // 测试模式:DISABLE_RATE_LIMIT=1 时所有限流变 no-op
-const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, logoutLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter, pushSubscribeLimiter, turnCredentialLimiter, joinGroupLimiter, captchaLimiter };
+const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, logoutLimiter, momentImageLimiter, momentVideoLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter, pushSubscribeLimiter, turnCredentialLimiter, joinGroupLimiter, captchaLimiter };
 if (process.env.DISABLE_RATE_LIMIT === '1') {
   const noop = (req, res, next) => next();
   for (const k of Object.keys(limiters)) limiters[k] = noop;

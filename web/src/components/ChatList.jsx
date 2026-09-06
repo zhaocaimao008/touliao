@@ -9,6 +9,7 @@ import { showConfirm, showToast } from '../utils/toast';
 import { useI18n } from '../contexts/I18nContext';
 import { FixedSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
+import { archiveUnreadTotal, splitArchivedConversations } from '../utils/archiveConversations';
 
 const ITEM_HEIGHT = 64;
 
@@ -100,6 +101,7 @@ function previewMsg(conv, user, t) {
     // 通话系统消息预览:content 即人话(如「语音通话 30 秒」),直接显示
     return conv.lastMessage || t('chatlist.previewCall');
   }
+  if (mt === 'merged') return t('chatlist.previewMerged');
   if (!conv.lastMessage) return '';
   if (conv.type === 'group' && conv.lastSenderName && conv.lastSenderName !== user?.username)
     return `${conv.lastSenderName}: ${conv.lastMessage}`;
@@ -143,6 +145,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   const [conversations, setConversations] = useState([]);
   const [loaded, setLoaded] = useState(false);   // 首屏是否已拉过一次：未拉完显示骨架，避免闪「暂无聊天」
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [drafts, setDrafts] = useState(readAllDrafts);
   const { socket, reconnectCount } = useSocket();
   const { user } = useAuth();
@@ -180,8 +183,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
   const fetchConvs = useCallback(async () => {
     try {
-      const { data } = await axios.get('/api/messages/conversations');
-      setConversations(data);
+      const { data } = await axios.get('/api/messages/conversations', { params: { includeArchived: 1 } });
+      setConversations(Array.isArray(data) ? data : []);
     } finally {
       setLoaded(true);   // 无论成功失败都结束骨架态，不卡在加载
     }
@@ -322,6 +325,27 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     } catch { showToast(t('common.actionFailed'), 'error'); }
   };
 
+  const archive = async (conv, archived) => {
+    setCtxMenu(null);
+    try {
+      await axios.post(`/api/messages/conversation/${conv.id}/archive`, { archived });
+      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, archived: archived ? 1 : 0 } : c));
+    } catch (error) {
+      showToast(error.response?.data?.error || t('chatlist.archiveFailed'), 'error');
+    }
+  };
+
+  const clearArchive = async () => {
+    const archived = conversations.filter(c => c.archived);
+    if (!archived.length || !(await showConfirm(t('chatlist.clearArchiveConfirm')))) return;
+    const results = await Promise.allSettled(archived.map(conv =>
+      axios.post(`/api/messages/conversation/${conv.id}/archive`, { archived: false })
+    ));
+    const restored = new Set(archived.filter((_, index) => results[index].status === 'fulfilled').map(c => c.id));
+    setConversations(prev => prev.map(c => restored.has(c.id) ? { ...c, archived: 0 } : c));
+    if (restored.size !== archived.length) showToast(t('chatlist.clearArchivePartial'), 'error');
+  };
+
   const deleteConv = async (conv) => {
     setCtxMenu(null);
     if (conv.type === 'group') {
@@ -349,13 +373,17 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   // Merge unread counts into conversation objects so ConvRow gets them via item reference
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    return conversations
+    const groups = splitArchivedConversations(conversations);
+    return (showArchived ? groups.archived : groups.active)
       .filter(c => (c.name || '').toLowerCase().includes(q))
       .map(c => {
-        const u = unread[c.id] || 0;
+        const u = Object.prototype.hasOwnProperty.call(unread, c.id) ? unread[c.id] : (c.unreadCount || 0);
         return c._unread === u ? c : { ...c, _unread: u };
       });
-  }, [conversations, searchQuery, unread]);
+  }, [conversations, searchQuery, unread, showArchived]);
+
+  const archivedConversations = useMemo(() => splitArchivedConversations(conversations).archived, [conversations]);
+  const archivedUnread = useMemo(() => archiveUnreadTotal(archivedConversations, unread), [archivedConversations, unread]);
 
   // Stable itemData - only changes when filtered or callbacks change
   const listData = useMemo(() => ({
@@ -370,8 +398,23 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)' }}>
-      {/* @我消息快捷入口（仅无搜索时显示） */}
-      {!searchQuery && (
+      {!searchQuery && !showArchived && (
+        <button type="button" className="wc-archive-entry" onClick={() => setShowArchived(true)}>
+          <span className="wc-archive-icon" aria-hidden="true">▣</span>
+          <span>{t('chatlist.archive')}</span>
+          {archivedUnread > 0 && <span className="wc-archive-badge">{archivedUnread > 99 ? '99+' : archivedUnread}</span>}
+          <span className="wc-archive-count">{archivedConversations.length}</span>
+        </button>
+      )}
+      {showArchived && (
+        <div className="wc-archive-header">
+          <button type="button" onClick={() => setShowArchived(false)} aria-label={t('common.back')}>‹</button>
+          <strong>{t('chatlist.archivedChats')}</strong>
+          <button type="button" onClick={clearArchive} disabled={archivedConversations.length === 0}>{t('chatlist.clearArchive')}</button>
+        </div>
+      )}
+      {/* @我消息快捷入口（仅无搜索且主列表时显示） */}
+      {!searchQuery && !showArchived && (
         <button
           onClick={onOpenMentions}
           data-testid="mention-list-btn"
@@ -395,7 +438,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         {!loaded && conversations.length === 0 ? (
           <ChatListSkeleton />
         ) : filtered.length === 0 ? (
-          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm2)' }}>{t('chatlist.empty')}</div>
+          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm2)' }}>{showArchived ? t('chatlist.archiveEmpty') : t('chatlist.empty')}</div>
         ) : (
           <AutoSizer>
             {({ height, width }) => (
@@ -440,6 +483,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
             </button>
             <button type="button" className="wc-ctx-item" role="menuitem" onClick={() => mute(ctxMenu.conv, !ctxMenu.conv.muted)}>
               {ctxMenu.conv.muted ? t('chatlist.unmuteChat') : t('chatlist.muteChat')}
+            </button>
+            <button type="button" className="wc-ctx-item" role="menuitem" onClick={() => archive(ctxMenu.conv, !ctxMenu.conv.archived)}>
+              {ctxMenu.conv.archived ? t('chatlist.unarchive') : t('chatlist.archiveChat')}
             </button>
             <div className="wc-ctx-divider" />
             <button type="button" className="wc-ctx-item danger" role="menuitem" onClick={() => deleteConv(ctxMenu.conv)}>

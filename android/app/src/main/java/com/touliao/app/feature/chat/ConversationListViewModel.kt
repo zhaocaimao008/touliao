@@ -122,6 +122,18 @@ class ConversationListViewModel @Inject constructor(
         }
     }
 
+    /** 归档/取消归档：本地只翻转 archived 标记（主列表/归档列表按标记分流），失败回滚并提示 */
+    fun toggleArchive(conv: Conversation) {
+        val archived = conv.archived != 1
+        viewModelScope.launch {
+            runCatching { chatRepository.setConversationArchived(conv.id, archived) }
+                .onSuccess {
+                    _uiState.update { s -> s.copy(conversations = s.conversations.map { if (it.id == conv.id) it.copy(archived = if (archived) 1 else 0) else it }) }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("操作失败")) } }
+        }
+    }
+
     /** 打开「文件传输助手」会话：获取或创建后回调其 conversationId 供导航打开。 */
     fun openFileHelper(onReady: (String) -> Unit) {
         viewModelScope.launch {
@@ -153,7 +165,8 @@ class ConversationListViewModel @Inject constructor(
     fun refresh() {
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            runCatching { chatRepository.loadConversations() }
+            // 拉全量（含归档）：主列表/归档列表本地分流，归档入口角标无需额外请求（对齐 Web）
+            runCatching { chatRepository.loadConversations(includeArchived = true) }
                 .onSuccess { list -> _uiState.update { it.copy(loading = false, conversations = list) }; refreshDrafts() }
                 .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载会话失败")) } }
         }
@@ -167,7 +180,9 @@ class ConversationListViewModel @Inject constructor(
         _uiState.update { it.copy(drafts = drafts) }
     }
 
-    /** 新消息到达：就地更新对应会话的最后消息/时间/未读，并置顶 */
+    /** 新消息到达：就地更新对应会话的最后消息/时间/未读，并置顶。
+     *  归档会话只原地刷新 summary/unread（保留 archived 标记），不移回主列表也不置顶——
+     *  主列表/归档列表始终按 archived 标记分流，对齐 Web archiveConversations 语义。 */
     private fun observeIncoming() {
         viewModelScope.launch {
             chatRepository.incomingMessages.collect { msg ->
@@ -182,7 +197,7 @@ class ConversationListViewModel @Inject constructor(
                         lastTime = msg.created_at,
                         unreadCount = if (msg.sender_id != myId) old.unreadCount + 1 else old.unreadCount,
                     )
-                    list.add(0, updated)
+                    if (updated.archived == 1) list.add(idx, updated) else list.add(0, updated)
                     state.copy(conversations = list)
                 }
             }

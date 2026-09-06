@@ -90,6 +90,8 @@ fun MomentsScreen(
     var reportTarget by remember { mutableStateOf<Moment?>(null) }
     var deleteCommentTarget by remember { mutableStateOf<Pair<Moment, MomentComment>?>(null) }
     var gallery by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
+    // F4a 视频动态：点击封面全屏播放（url to 播放器显示名）
+    var videoPlayer by remember { mutableStateOf<Pair<String, String?>?>(null) }
 
     // 回到该页刷新（发布后）
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -139,6 +141,7 @@ fun MomentsScreen(
                             },
                             onViewAllComments = { viewModel.loadAllComments(m) },
                             onImageClick = { idx -> gallery = m.images to idx },
+                            onVideoClick = { videoPlayer = m.video to null },
                             myId = viewModel.myId,
                             onLongPressComment = { c -> if (c.user_id == viewModel.myId) deleteCommentTarget = m to c },
                             replyTargetName = if (commentingId == m.id) replyTarget?.username.orEmpty() else "",
@@ -193,6 +196,14 @@ fun MomentsScreen(
 
     gallery?.let { (imgs, start) ->
         ImageGallery(images = imgs.map { viewModel.resolveUrl(it) ?: it }, startIndex = start, onDismiss = { gallery = null })
+    }
+
+    videoPlayer?.let { (url, name) ->
+        com.touliao.app.feature.chat.VideoPlayerOverlay(
+            url = viewModel.resolveUrl(url) ?: url,
+            filename = name,
+            onDismiss = { videoPlayer = null },
+        )
     }
 
     if (state.showNotif) {
@@ -275,6 +286,7 @@ private fun MomentCard(
     onSubmitComment: () -> Unit,
     onViewAllComments: () -> Unit = {},
     onImageClick: (Int) -> Unit = {},
+    onVideoClick: () -> Unit = {},
     myId: String = "",
     onLongPressComment: (MomentComment) -> Unit = {},
     replyTargetName: String = "",
@@ -299,6 +311,30 @@ private fun MomentCard(
         if (moment.images.isNotEmpty()) {
             Spacer(Modifier.size(8.dp))
             ImageGrid(moment.images, resolveUrl, onImageClick)
+        }
+        // 视频动态（F4a）：封面（服务端有则显示，无则深色占位）+ 播放按钮，点击全屏播放
+        if (moment.video.isNotBlank()) {
+            Spacer(Modifier.size(8.dp))
+            Box(
+                Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
+                    .background(Color(0xFF1A1A1A))
+                    .clickable { onVideoClick() },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (moment.cover.isNotBlank()) {
+                    AsyncImage(
+                        model = resolveUrl(moment.cover),
+                        contentDescription = "视频封面",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                Box(
+                    Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0x88000000)),
+                    contentAlignment = Alignment.Center,
+                ) { Text("▶", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
+            }
         }
         Spacer(Modifier.size(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

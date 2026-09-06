@@ -9,6 +9,7 @@ import { getAspect, rememberAspect } from '../utils/imgDimCache';
 import ImgOptimized from './ImgOptimized';
 import { linkify } from '../utils/linkify';
 import { useI18n } from '../contexts/I18nContext';
+import MergedMessageCard from './MergedMessageCard';
 
 // Time divider rendered as a list item
 export const TimeDivider = memo(function TimeDivider({ time }) {
@@ -221,6 +222,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 {msg.edited ? <span className="wc-msg-edited" data-testid="msg-edited-flag" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>{t('messageItem.edited')}</span> : null}
               </span>
             )}
+            {msg.type === 'merged' && <MergedMessageCard content={msg.content} />}
             {msg.type === 'image' && (() => {
               const imgSrc = mediaUrl(msg.file_url);
               // 已知宽高比 → 预留正确高度，消除加载时的布局抖动(滚回历史不再跳)

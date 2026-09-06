@@ -106,6 +106,7 @@ import com.touliao.app.ui.theme.VxinBubbleMineText
 import com.touliao.app.ui.theme.VxinBubbleText
 import com.touliao.app.ui.theme.VxinBubbleOtherDark
 import com.touliao.app.ui.theme.VxinBubbleTextDark
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinBrandLight
 import com.touliao.app.ui.theme.VxinBrandDark
 import com.touliao.app.ui.theme.VxinTeal
@@ -136,6 +137,8 @@ fun ChatScreen(
     var showAnnouncement by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Message?>(null) }
     var forwardTarget by remember { mutableStateOf<Message?>(null) }
+    var showMergedForward by remember { mutableStateOf(false) }   // F4a 多选→合并转发目标选择
+    var mergedDetail by remember { mutableStateOf<Message?>(null) }   // F4a merged 气泡点开详情
     var galleryImages by remember { mutableStateOf<List<String>?>(null) }
     var galleryStart by remember { mutableStateOf(0) }
     // 2026-08-29 统一附件系统：视频/PDF/其他文件 App 内预览态（三者互斥，同时只开一个）
@@ -379,7 +382,7 @@ fun ChatScreen(
             var showFuncPanel by remember { mutableStateOf(false) }
             LaunchedEffect(showEmojiPanel) { if (showEmojiPanel) viewModel.loadStickers() }
             if (state.multiSelect) {
-                // 多选底栏：删除选中 / 取消（对齐 web）
+                // 多选底栏：合并转发 / 删除选中 / 取消（对齐 web）
                 Row(
                     Modifier.fillMaxWidth().navigationBarsPadding()
                         .background(MaterialTheme.colorScheme.surface)
@@ -388,6 +391,11 @@ fun ChatScreen(
                 ) {
                     Text("已选 ${state.selectedIds.size} 条", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
                     Spacer(Modifier.weight(1f))
+                    // F4a 合并转发：≥2 条才可合并（单条走消息长按「转发」）
+                    TextButton(
+                        onClick = { showMergedForward = true; viewModel.loadForwardTargets() },
+                        enabled = state.selectedIds.size > 1,
+                    ) { Text("合并转发", color = if (state.selectedIds.size > 1) VxinGreen else VxinTextSecondary) }
                     TextButton(onClick = { viewModel.exitMultiSelect() }) { Text("取消") }
                     Spacer(Modifier.width(8.dp))
                     TextButton(
@@ -598,6 +606,7 @@ fun ChatScreen(
                                         highlighted = false, onImageClick = {}, onReplyClick = {},
                                         selectionMode = true,
                                         transfer = viewModel.parseTransfer(msg),
+                                        onOpenMerged = {},
                                     )
                                 }
                             }
@@ -674,6 +683,8 @@ fun ChatScreen(
                             onReplyClick = { targetId -> jumpToMessage(targetId) },
                             onMultiSelect = { viewModel.enterMultiSelect(msg) },
                             onRetry = { viewModel.retryMessage(msg.id) },
+                            onOpenMerged = { mergedDetail = msg },
+                            onReadStatus = { viewModel.openReadStatus(msg) },
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -865,6 +876,98 @@ fun ChatScreen(
         )
     }
 
+    // F4a 合并转发：目标会话多选（复用 forwardTargets 列表），确认后发 type=merged 消息
+    if (showMergedForward) {
+        var selected by remember { mutableStateOf(setOf<String>()) }
+        AlertDialog(
+            onDismissRequest = { showMergedForward = false },
+            title = { Text("合并转发到") },
+            text = {
+                Column {
+                    Text(
+                        "将 ${state.selectedIds.size} 条选中消息合并为一条聊天记录转发",
+                        fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary,
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                        items(state.forwardTargets, key = { it.id }) { conv ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    selected = if (conv.id in selected) selected - conv.id else selected + conv.id
+                                }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(if (conv.id in selected) "☑" else "☐", Modifier.padding(end = 8.dp))
+                                InitialAvatar(name = conv.name.ifBlank { "?" }, size = 32.dp, avatarUrl = viewModel.resolveMediaUrl(conv.avatar))
+                                Spacer(Modifier.size(8.dp))
+                                Text(conv.name.ifBlank { "未命名会话" }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.forwardMergedSelected(selected.toList()); showMergedForward = false },
+                    enabled = selected.isNotEmpty(),
+                ) { Text("发送", color = VxinGreen) }
+            },
+            dismissButton = { TextButton(onClick = { showMergedForward = false }) { Text("取消") } },
+        )
+    }
+
+    // F4a merged 聊天记录详情：列出发送者+摘要+时间（不做条目跳转，对齐 Web）
+    mergedDetail?.let { target ->
+        val merged = com.touliao.app.data.model.parseMergedContent(target.content)
+        AlertDialog(
+            onDismissRequest = { mergedDetail = null },
+            title = { Text(merged.title.ifBlank { "聊天记录" }, fontSize = MaterialTheme.typography.titleMedium.fontSize) },
+            text = {
+                if (merged.items.isEmpty()) {
+                    Text("记录为空或已损坏", color = VxinTextSecondary)
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                        items(merged.items, key = { it.mid }) { item ->
+                            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        item.senderName.ifBlank { "成员" },
+                                        color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                                        modifier = Modifier.weight(1f, fill = false),
+                                    )
+                                    Spacer(Modifier.weight(1f))
+                                    Text(
+                                        formatChatTime(item.ts),
+                                        color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
+                                    )
+                                }
+                                Text(
+                                    item.snippet.ifBlank { mergedTypeLabel(item.type) },
+                                    fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            HorizontalDivider(thickness = 0.5.dp)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { mergedDetail = null }) { Text("关闭") } },
+        )
+    }
+
+    // F4b 已读状态详情弹窗：数据由 viewModel.openReadStatus 拉取（read-states 接口）
+    state.readStatusDetail?.let { detail ->
+        ReadStatusDialog(
+            detail = detail,
+            model = viewModel.readStatusModel(detail),
+            avatarUrl = viewModel::resolveMediaUrl,
+            onRetry = viewModel::retryReadStatus,
+            onClose = viewModel::dismissReadStatus,
+        )
+    }
+
     galleryImages?.let { imgs ->
         if (imgs.isNotEmpty()) ChatImageGallery(images = imgs, startIndex = galleryStart, onDismiss = { galleryImages = null })
     }
@@ -1006,7 +1109,7 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
 
 private fun pinnedPreview(p: com.touliao.app.data.model.PinnedMessage): String = when (p.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"; "red_packet" -> "[红包]"
-    "transfer" -> "[转账]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
+    "transfer" -> "[转账]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"; "merged" -> "[聊天记录]"
     else -> p.content
 }
 
@@ -1082,6 +1185,8 @@ private fun MessageBubble(
     onMultiSelect: () -> Unit = {},
     selectionMode: Boolean = false,
     onRetry: () -> Unit = {},
+    onOpenMerged: () -> Unit = {},     // F4a：merged 聊天记录卡片点击查看详情
+    onReadStatus: () -> Unit = {},     // F4b：自己消息长按「已读状态」（入口可见性由 canViewReadStatus 决定）
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var showRecallConfirm by remember { mutableStateOf(false) }
@@ -1184,7 +1289,7 @@ private fun MessageBubble(
                         .graphicsLayer { scaleX = bubbleScale; scaleY = bubbleScale }
                         .combinedClickable(onClick = {}, onLongClick = { if (!selectionMode) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true } }),
                 ) {
-                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick)
+                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick, onOpenMerged)
                 }
                 // (highlight via Row background above)
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -1221,6 +1326,9 @@ private fun MessageBubble(
                     if (isMine || canManage) {
                         DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { showRecallConfirm = true; menuOpen = false })
                         DropdownMenuItem(text = { Text("删除", color = Color(0xFFFA5151)) }, onClick = { showVanishConfirm = true; menuOpen = false })
+                    }
+                    if (canViewReadStatus(msg, myId)) {
+                        DropdownMenuItem(text = { Text("已读状态") }, onClick = { onReadStatus(); menuOpen = false })
                     }
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("多选") }, onClick = { onMultiSelect(); menuOpen = false })
@@ -1271,13 +1379,22 @@ private fun MessageBubble(
 private fun replyPreviewText(rt: com.touliao.app.data.model.ReplyPreview): String = if (rt.deleted == 1) "消息已撤回" else when (rt.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
     "red_packet" -> "[红包]"; "transfer" -> "[转账]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
+    "merged" -> "[聊天记录]"
     else -> rt.content
 }
 
 private fun replyPreviewOf(msg: Message): String = when (msg.type) {
     "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
     "red_packet" -> "[红包]"; "transfer" -> "[转账]"; "sticker" -> "[表情]"; "contact_card", "contact" -> "[名片]"
+    "merged" -> "[聊天记录]"
     else -> msg.content
+}
+
+/** merged 详情列表条目无摘要时的兜底类型标签 */
+private fun mergedTypeLabel(type: String): String = when (type) {
+    "image" -> "[图片]"; "voice" -> "[语音]"; "video" -> "[视频]"; "file" -> "[文件]"
+    "contact_card", "contact" -> "[名片]"; "merged" -> "[聊天记录]"
+    else -> "[消息]"
 }
 
 private val contactCardJson = Json { ignoreUnknownKeys = true }
@@ -1292,6 +1409,7 @@ private fun MessageContent(
     onPlayVoice: () -> Unit,
     onOpenFile: () -> Unit,
     onImageClick: () -> Unit = {},
+    onOpenMerged: () -> Unit = {},
 ) {
     Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             when (msg.type) {
@@ -1353,6 +1471,44 @@ private fun MessageContent(
                     }
                 }
                 "video" -> MediaCard(isMine, onClick = onOpenFile) { Text("▶ 视频", color = bubbleTextColor(isMine)) }
+                // F4a 合并转发：聊天记录卡片（标题 + 前两条摘要 + 查看N条），点击弹详情
+                "merged" -> {
+                    val merged = com.touliao.app.data.model.parseMergedContent(msg.content)
+                    Column(
+                        Modifier
+                            .widthIn(max = 260.dp)
+                            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
+                            .background(bubbleBrush(isMine))
+                            .clickable { onOpenMerged() }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            merged.title.ifBlank { "聊天记录" },
+                            color = bubbleTextColor(isMine),
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        merged.items.take(2).forEach { item ->
+                            Spacer(Modifier.size(4.dp))
+                            Text(
+                                "${item.senderName.ifBlank { "成员" }}: ${item.snippet}",
+                                color = bubbleTextColor(isMine).copy(alpha = 0.75f),
+                                fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (merged.items.size > 2) {
+                            Spacer(Modifier.size(2.dp))
+                            Text("…", color = bubbleTextColor(isMine).copy(alpha = 0.5f), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
+                        }
+                        Spacer(Modifier.size(6.dp))
+                        Text(
+                            "查看 ${merged.items.size} 条消息",
+                            color = if (isMine) VxinBubbleMineText else VxinBrand,
+                            fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
+                        )
+                    }
+                }
                 "contact_card", "contact" -> {
                     val card = parseContactCard(msg.content)
                     MediaCard(isMine, onClick = {}) {
@@ -2096,5 +2252,6 @@ private fun searchPreview(msg: Message): String = when (msg.type) {
     "file" -> "[文件] ${msg.content}"
     "red_packet" -> "[红包]"
     "sticker" -> "[表情]"
+    "merged" -> "[聊天记录]"
     else -> msg.content.ifBlank { "[消息]" }
 }

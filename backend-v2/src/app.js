@@ -180,12 +180,12 @@ function resolveUploadAccess(userId, reqPath) {
     return { ok: true };
   }
   if (category === 'moments') {
-    // 朋友圈图片：文件必须属于某条动态，且满足 moments 可见性门控
+    // 朋友圈图片/视频/封面：文件必须属于某条动态，且满足 moments 可见性门控
     // （好友/私密/分组/拉黑/时间窗）——引用行是伪造的也拿不到 registry 归属。
     // 按 uuid 而非精确文件名比对（images 数组只存原图文件名，见 baseIdOf 注释）。
     const row = db.prepare(
-      'SELECT id, user_id, visibility, visible_to, created_at FROM moments WHERE user_id=? AND images LIKE ? LIMIT 1'
-    ).get(reg.owner_id, `%${baseIdOf(file)}%`);
+      'SELECT id, user_id, visibility, visible_to, created_at FROM moments WHERE user_id=? AND (images LIKE ? OR video LIKE ? OR cover LIKE ?) LIMIT 1'
+    ).get(reg.owner_id, `%${baseIdOf(file)}%`, `%${baseIdOf(file)}%`, `%${baseIdOf(file)}%`);
     if (!row) return null;
     try {
       assertVisible(userId, row);

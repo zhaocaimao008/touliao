@@ -61,7 +61,13 @@ exports.collect = asyncHandler(async (req, res) => {
 
 exports.searchGlobal = asyncHandler(async (req, res) => res.json(await svc.searchGlobal(req.user.id, req.query)));
 exports.searchInConv = asyncHandler(async (req, res) =>
-  res.json(await svc.searchInConversation(req.params.convId, req.user.id, req.query.q)));
+  res.json(await svc.searchInConversation(req.params.convId, req.user.id, req.query.q, {
+    type: req.query.type, from: req.query.from, to: req.query.to, senderId: req.query.senderId,
+  })));
+
+// 会话内批量已读状态：GET /api/messages/conversation/:convId/read-states?msgIds=a,b,c
+exports.readStates = asyncHandler(async (req, res) =>
+  res.json(svc.getReadStates(req.params.convId, req.user.id, req.query.msgIds)));
 
 // 聊天记录导出：GET /api/messages/conversation/:convId/export
 exports.exportConversation = asyncHandler(async (req, res) => {

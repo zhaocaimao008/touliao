@@ -59,8 +59,8 @@ final class ChatRepository {
         )
     }
 
-    func loadConversations() async throws -> [Conversation] {
-        try await api.send("api/messages/conversations")
+    func loadConversations(includeArchived: Bool = false) async throws -> [Conversation] {
+        try await api.send(includeArchived ? "api/messages/conversations?includeArchived=1" : "api/messages/conversations")
     }
 
     func loadHistory(_ conversationId: String, before: Double? = nil) async throws -> [Message] {
@@ -155,6 +155,28 @@ final class ChatRepository {
         )
     }
 
+    /// 会话归档/取消归档（仅本人维度，不影响其他成员；F5）
+    func setConversationArchived(_ conversationId: String, archived: Bool) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/archive", method: "POST", body: ArchiveConvBody(archived: archived)
+        )
+    }
+
+    /// 按会话批量拉取消息已读状态（F5）：返回 { msgId: [已读 userId...] }，已读者不含发送者本人
+    func readStates(_ conversationId: String, msgIds: [String]) async throws -> [String: [String]] {
+        guard !msgIds.isEmpty else { return [:] }
+        let joined = msgIds.joined(separator: ",").addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? msgIds.joined(separator: ",")
+        let resp: ReadStatesResponse = try await api.send("api/messages/conversation/\(conversationId)/read-states?msgIds=\(joined)")
+        return resp.readStates
+    }
+
+    /// 发送合并转发消息（F5）：POST /api/messages/:convId，type=merged，content 为 {title,items} JSON
+    /// （服务端透传不解析；对齐 Web ForwardModal 合并转发路径）。服务端会同时经 Socket 广播。
+    @discardableResult
+    func sendMergedForward(conversationId: String, json content: String) async throws -> Message {
+        try await api.send("api/messages/\(conversationId)", method: "POST", body: SendTypedBody(type: "merged", content: content))
+    }
+
     func clearMessages(_ conversationId: String) async throws {
         let _: EmptyResponse = try await api.send(
             "api/messages/conversation/\(conversationId)/messages", method: "DELETE"
@@ -189,7 +211,14 @@ final class ChatRepository {
 
     func forward(msgId: String, conversationIds: [String]) async throws {
         let _: EmptyResponse = try await api.send(
-            "api/messages/forward", method: "POST", body: ForwardBody(msgId: msgId, conversationIds: conversationIds)
+            "api/messages/forward", method: "POST", body: ForwardBody(msgId: msgId, msgIds: nil, conversationIds: conversationIds)
+        )
+    }
+
+    /// 多条逐条转发（F5）：后端 /forward 支持 msgIds 数组（单次≤30），按选择顺序逐条复制到每个目标会话
+    func forwardMessages(msgIds: [String], conversationIds: [String]) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/forward", method: "POST", body: ForwardBody(msgId: nil, msgIds: msgIds, conversationIds: conversationIds)
         )
     }
 
@@ -258,10 +287,13 @@ private struct BackgroundBody: Encodable { let background: String }
 private struct PinMessageBody: Encodable { let msgId: String }
 private struct PinConvBody: Encodable { let pinned: Int }
 private struct MuteConvBody: Encodable { let muted: Int }
+private struct ArchiveConvBody: Encodable { let archived: Bool }
+private struct SendTypedBody: Encodable { let type: String; let content: String }
+private struct ReadStatesResponse: Decodable { let readStates: [String: [String]] }
 private struct BurnAfterBody: Encodable { let seconds: Int }
 private struct FileHelperResponse: Decodable { let conversationId: String }
 private struct EditBody: Encodable { let content: String }
-private struct ForwardBody: Encodable { let msgId: String; let conversationIds: [String] }
+private struct ForwardBody: Encodable { let msgId: String?; let msgIds: [String]?; let conversationIds: [String] }
 private struct DeleteMessageBody: Encodable { let forEveryone: Bool; let vanish: Bool?; let forMe: Bool? }
 private struct BatchDeleteBody: Encodable { let msgIds: [String]; let conversationId: String }
 private struct BatchDeleteResponse: Decodable { let success: Bool?; let deleted: Int? }

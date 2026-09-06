@@ -4,7 +4,7 @@ import Avatar from './Avatar';
 import { showToast } from '../utils/toast';
 import { installPrewarm, startRingback as toneRingback, stopTone, playConnectedTone } from '../utils/callTones';
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
-import { videoConstraints, capVideoBitrate } from '../utils/callMedia';
+import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
 
 installPrewarm();
@@ -21,6 +21,17 @@ async function fetchIceConfig() {
     if (data && Array.isArray(data.iceServers) && data.iceServers.length) return { iceServers: data.iceServers };
   } catch { /* 兜底 */ }
   return FALLBACK_ICE;
+}
+
+// A-3（2026-09-05）：mesh 群通话每条 pc 的发送码率上限按当前人数降档——N 路同时编码
+// 共享同一份 CPU，人越多每路预算必须越低，否则全员互相拖垮：
+//   ≤2 人 2.5M（与 1v1 默认一致）/ 3 人 1.6M / 4 人 1.2M / ≥5 人 1.0M；
+//   ≥4 人另叠加 scaleResolutionDownBy=2（见 capVideoBitrate 的 degrade 参数）降编码负载。
+function capForPeerCount(n) {
+  if (n <= 2) return 2_500_000;
+  if (n === 3) return 1_600_000;
+  if (n === 4) return 1_200_000;
+  return 1_000_000;
 }
 
 // ── Hook: 响应式宫格列数 ──────────────────────────────────────
@@ -87,11 +98,20 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const [callId, setCallId] = useState(session.callId || null);
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
+  // B-1：本端当前是否真的持有视频轨。语音会话初始 false（升级后置 true）；视频会话
+  // gUM 失败（空流保底）时也为 false——此时"开摄像头"按钮成为重试入口。
+  const [selfHasVideo, setSelfHasVideo] = useState(isVideo);
+  // B-1：远端成员是否送来过视频轨（peerId → true）。语音会话里对端升级后靠 ontrack
+  // 自然置位，Tile 据此切视频布局，无需额外信令。
+  const [remoteVideo, setRemoteVideo] = useState({});
   const [remoteStreams, setRemoteStreams] = useState({});
   const [localStream, setLocalStream] = useState(null);
   const [status, setStatus] = useState(mode === 'start' ? 'calling' : 'joining');
 
   const localStreamRef = useRef(null);
+  const selfHasVideoRef = useRef(isVideo);
+  const upgradingRef = useRef(false);        // 防升级按钮连点重复 gUM/重协商
+  const upgradeStreamRef = useRef(null);     // 升级取到的视频流引用，防 GC 停轨（对齐 1v1 videoAddStreamRef）
   const iceCfgRef = useRef(FALLBACK_ICE);
   const pcsRef = useRef(new Map());
   const remoteSetRef = useRef(new Set());
@@ -106,6 +126,19 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const ICE_RESTART_WINDOW_MS   = 15000;
   const ICE_RESTART_MAX         = 3;
 
+  // A-3：按当前已连接 peer 数对全部已连接 pc 重放码率/降档。人数与施加对象都只算
+  // 已连接的——未协商完的 sender 上 setParameters 在部分浏览器会抛错（静默即可，但
+  // 没必要），且连上才真正占编码资源。触发点：新 peer connected / peer 离开（removePeer）。
+  const reapplyCaps = useCallback(() => {
+    let n = 0;
+    pcsRef.current.forEach(pc => { if (pc.connectionState === 'connected') n += 1; });
+    const maxBps = capForPeerCount(n);
+    const degrade = n >= 4;
+    pcsRef.current.forEach(pc => {
+      if (pc.connectionState === 'connected') capVideoBitrate(pc, maxBps, degrade);
+    });
+  }, []);
+
   const removePeer = useCallback((peerId) => {
     const pc = pcsRef.current.get(peerId);
     if (pc) { try { pc.close(); } catch { /* 连接已关闭 */ } pcsRef.current.delete(peerId); }
@@ -115,7 +148,12 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       if (!(peerId in prev)) return prev;
       const n = { ...prev }; delete n[peerId]; return n;
     });
-  }, []);
+    setRemoteVideo(prev => {
+      if (!(peerId in prev)) return prev;
+      const n = { ...prev }; delete n[peerId]; return n;
+    });
+    reapplyCaps();   // A-3：人数减少 → 剩余 peer 的码率/降档按新人数重放（撤销降档也靠它）
+  }, [reapplyCaps]);
 
   const drainIce = useCallback((peerId) => {
     const pc = pcsRef.current.get(peerId);
@@ -137,6 +175,8 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     pc.ontrack = (e) => {
       const stream = e.streams[0];
       setRemoteStreams(prev => (prev[peerId] === stream ? prev : { ...prev, [peerId]: stream }));
+      // B-1：远端语音→视频升级后新到的视频轨——置位让 Tile 切视频布局（WebRTC 轨自然触发）
+      if (e.track.kind === 'video') setRemoteVideo(prev => (prev[peerId] ? prev : { ...prev, [peerId]: true }));
     };
     // ICE restart 状态机(与 1:1 同策略):disconnected 3s 防抖 → restartIce → 15s 窗口
     // → 最多 3 次 → removePeer。信令复用 group_call:offer/answer/ice,后端零改动。
@@ -171,7 +211,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
         const timers = peerRestartTimersRef.current.get(peerId);
         if (timers) { clearTimeout(timers.debounce); clearTimeout(timers.recover); peerRestartTimersRef.current.delete(peerId); }
         peerRestartCountRef.current.delete(peerId);
-        capVideoBitrate(pc);   // mesh：每条 pc 各自在其 connected 时被限速，覆盖全部 peer
+        reapplyCaps();   // A-3：本 pc 刚转 connected，按最新人数对全部已连接 pc（含本条）重放码率/降档
       } else if (s === 'disconnected') {
         // 短时探测间隙:防抖后再重启,避免无谓重协商
         const timers = peerRestartTimersRef.current.get(peerId) || {};
@@ -192,7 +232,21 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       }
     };
     return pc;
-  }, [socket, removePeer]);
+  }, [socket, removePeer, reapplyCaps]);
+
+  // 对单个 peer 建 offer 并发送（含 H264 偏好 + 弱网调优）。onPeerJoined（新成员入会）
+  // 与 B-1 语音→视频升级的逐 peer 重协商共用；mesh 无集中媒体单元，每 peer 独立一份
+  // offer/answer。signalingState 非 stable（如撞上 ICE restart 重协商窗口）时跳过——
+  // 轨已 addTrack，该 peer 下一次协商自然带上。
+  const sendOfferToPeer = useCallback(async (peerId) => {
+    const pc = pcsRef.current.get(peerId);
+    if (!pc || pc.signalingState !== 'stable') return;
+    await preferH264(pc);   // A-2：addTrack 后、createOffer 前设 H264 优先（setCodecPreferences 须先于协商）
+    const offer = await pc.createOffer();
+    const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
+    await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+    socket?.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type: offer.type, sdp: tunedOffer } });
+  }, [socket]);
 
   const cleanup = useCallback(() => {
     if (closedRef.current) return;
@@ -220,6 +274,41 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     return off;
   }, [cameraOff]);
 
+  // B-1：语音加入者升级视频——gUM 取视频轨并入 localStream（此后新 peer 的 createPC
+  // 会自动 addTrack），再对 pcsRef 里每条已建立 pc addTrack 并逐个独立重协商（mesh 每
+  // peer 一份 offer/answer，走群既有发 offer 路径 sendOfferToPeer）。reapplyCaps 使
+  // 人数降档上限对新视频 sender 生效（capVideoBitrate 支持任意 pc）。失败（权限拒绝/
+  // 设备占用）提示并保持语音。反向（升级后关摄像头）走上面现有 toggleCamera，不改。
+  const upgradeToVideo = useCallback(async () => {
+    if (selfHasVideoRef.current || upgradingRef.current) return;
+    upgradingRef.current = true;
+    try {
+      const vs = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true), audio: false });
+      const track = vs.getVideoTracks()[0];
+      if (!track) return;
+      upgradeStreamRef.current = vs;   // 持有引用防 GC 停轨
+      const ls = localStreamRef.current;
+      if (!ls) {
+        localStreamRef.current = vs; setLocalStream(vs);
+      } else {
+        try { ls.addTrack(track); } catch { /* 已存在 */ }
+      }
+      selfHasVideoRef.current = true;
+      setSelfHasVideo(true);
+      setCameraOff(false);
+      for (const [pid, pc] of pcsRef.current) {
+        try { pc.addTrack(track, localStreamRef.current); } catch { /* 该 pc 已带此轨 */ }
+        await sendOfferToPeer(pid);
+      }
+      reapplyCaps();
+    } catch (e) {
+      console.error('[groupCall] 升级视频失败:', e);
+      showToast(t('call.cameraOpenFailed'), 'error');
+    } finally {
+      upgradingRef.current = false;
+    }
+  }, [sendOfferToPeer, reapplyCaps, t]);
+
   const peerIds = Object.keys(remoteStreams);
   const tileCount = peerIds.length + 1;
 
@@ -233,6 +322,9 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
       localStreamRef.current = stream;
       setLocalStream(stream);
+      // B-1：以"实际拿到视频轨"为准（视频会话 gUM 失败/空流保底 → false，升级按钮变重试入口）
+      selfHasVideoRef.current = stream.getVideoTracks().length > 0;
+      setSelfHasVideo(selfHasVideoRef.current);
       iceCfgRef.current = await fetchIceConfig();
       if (cancelled) return;
       if (mode === 'start') socket?.emit('group_call:start', { conversationId, type });
@@ -251,16 +343,14 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       peers.forEach(pid => createPC(pid));
     };
     const onPeerJoined = async ({ userId: pid }) => {
-      const pc = createPC(pid);
-      const offer = await pc.createOffer();
-      const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
-      await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
-      socket.emit('group_call:offer', { callId: callIdRef.current, to: pid, offer: { type: offer.type, sdp: tunedOffer } });
+      createPC(pid);
+      await sendOfferToPeer(pid);   // B-1：与新成员建连 / 升级重协商共用的发 offer 路径
     };
     const onOffer = async ({ from, offer }) => {
       const pc = createPC(from);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       remoteSetRef.current.add(from); drainIce(from);
+      await preferH264(pc);   // A-2：被叫路径——setRemoteDescription 后、createAnswer 前（远端 offer 可能新建视频 transceiver）
       const answer = await pc.createAnswer();
       const tunedAnswer = tuneSdpForWeakNetwork(answer.sdp);
       await pc.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: tunedAnswer }));
@@ -321,12 +411,12 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       socket.off('group_call:error', onError);
       socket.off('group_call:ended', onEnded);
     };
-  }, [socket, createPC, drainIce, removePeer, hangup, onClose, t]);
+  }, [socket, createPC, drainIce, removePeer, hangup, onClose, sendOfferToPeer, t]);
 
   return {
-    callId, muted, cameraOff, remoteStreams, localStream, status,
+    callId, muted, cameraOff, selfHasVideo, remoteVideo, remoteStreams, localStream, status,
     peerIds, tileCount, localStreamRef, isVideo,
-    toggleMute, toggleCamera, hangup, cleanup,
+    toggleMute, toggleCamera, upgradeToVideo, hangup, cleanup,
   };
 }
 
@@ -339,7 +429,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
   const cols = useResponsiveGrid(webrtc.tileCount);
   const containerRef = useFocusTrap(true);
   const toneRef = useRef(null); // 回铃音循环句柄 { stop }
-  const { muted, cameraOff, remoteStreams, localStream, status, isVideo, peerIds, tileCount } = webrtc;
+  const { muted, cameraOff, remoteStreams, remoteVideo, localStream, status, isVideo, selfHasVideo, peerIds, tileCount } = webrtc;
 
   // 主叫等待期回铃音：status='calling'(发出 start 到有人加入/结束)循环；
   // 其余状态停止。接通瞬间播一声提示音。
@@ -405,7 +495,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
         <Tile
           stream={localStream}
           muted
-          isVideo={isVideo && !cameraOff}
+          isVideo={selfHasVideo && !cameraOff}
           info={{ name: t('home.tab.me'), avatar: user?.avatar }}
           self
         />
@@ -413,7 +503,7 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
           <Tile
             key={pid}
             streamForRef={remoteStreams[pid]}
-            isVideo={isVideo}
+            isVideo={isVideo || !!remoteVideo[pid]}
             info={nameOf?.(pid) || { name: t('groupCall.member') }}
           />
         ))}
@@ -424,13 +514,22 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
         display: 'flex', justifyContent: 'center', gap: isMobileWidth() ? 20 : 28,
         padding: isMobileWidth() ? '14px 0 24px' : '18px 0 34px',
       }}>
-        {isVideo && (
+        {webrtc.selfHasVideo ? (
           <CtrlBtn
             icon={cameraOff ? '📷' : '📹'}
             label={cameraOff ? t('call.turnCameraOn') : t('call.turnCameraOff')}
             bg={cameraOff ? '#555' : 'rgba(255,255,255,.18)'}
             size={isMobileWidth() ? 44 : 52}
             onClick={webrtc.toggleCamera}
+          />
+        ) : (
+          /* B-1：语音模式/取流失败时也显示摄像头按钮——点击即升级视频（补轨+重协商） */
+          <CtrlBtn
+            icon="📷"
+            label={t('call.turnCameraOn')}
+            bg="#555"
+            size={isMobileWidth() ? 44 : 52}
+            onClick={webrtc.upgradeToVideo}
           />
         )}
         <CtrlBtn
@@ -464,7 +563,29 @@ function Tile({ stream, streamForRef, muted, isVideo, info, self }) {
   const { t } = useI18n();
   const ref = useRef(null);
   const s = stream || streamForRef;
-  useEffect(() => { if (ref.current && s) ref.current.srcObject = s; }, [s]);
+  // B-4（2026-09-05）：srcObject 挂上后显式 play() 兜底，被 autoplay 手势策略拦下时在
+  // 画面上出"点击恢复声音"提示，任意点击/按键自动重试。自己（muted）不会被拦。
+  const [playBlocked, setPlayBlocked] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState(false);
+  useEffect(() => {
+    if (!ref.current || !s) return;
+    ref.current.srcObject = s;
+    try { ref.current.play().catch(() => setPlayBlocked(true)); }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 老浏览器同步抛错的兜底路径,与上方异步 catch 置同一状态(7.x 误报边界)
+    catch { setPlayBlocked(true); }
+  }, [s]);
+  useEffect(() => {
+    if (!playBlocked) return;
+    const retry = () => {
+      ref.current?.play().then(() => setPlayBlocked(false)).catch(() => {});
+    };
+    window.addEventListener('pointerdown', retry);
+    window.addEventListener('keydown', retry);
+    return () => {
+      window.removeEventListener('pointerdown', retry);
+      window.removeEventListener('keydown', retry);
+    };
+  }, [playBlocked]);
   const displayName = info?.name || t('groupCall.member');
   return (
     <div
@@ -495,6 +616,29 @@ function Tile({ stream, streamForRef, muted, isVideo, info, self }) {
       }}>
         {displayName}
       </div>
+
+      {/* B-4：autoplay 被拦——点击/按键任意处即恢复，✕ 只关提示 */}
+      {playBlocked && !hintDismissed && !self && (
+        <div
+          role="status"
+          style={{
+            position: 'absolute', top: 6, left: 6, right: 6, zIndex: 2,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+            padding: '4px 8px', borderRadius: 8, background: 'rgba(0,0,0,.72)',
+            color: '#fff', fontSize: 11, whiteSpace: 'nowrap',
+          }}
+        >
+          <span>🔇 {t('call.tapToRestoreAudio')}</span>
+          <button
+            type="button"
+            aria-label={t('common.close')}
+            onClick={() => setHintDismissed(true)}
+            style={{ border: 0, background: 'transparent', color: 'rgba(255,255,255,.75)', cursor: 'pointer', fontSize: 11, padding: '0 2px', lineHeight: 1 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

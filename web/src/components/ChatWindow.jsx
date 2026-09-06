@@ -37,7 +37,7 @@ const CHAT_ALLOWED_EXTS = new Set([
 const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
 // 媒体消息类型(图片/视频/文件/语音/名片/红包/表情)：flatItems 逐条判断是否参与"连续消息"压缩，
 // 原为循环体内每条消息都 new Set 一次，提到模块级避免重复分配。
-const MEDIA_TYPES = new Set(['image', 'video', 'file', 'voice', 'contact_card', 'red_packet', 'sticker']);
+const MEDIA_TYPES = new Set(['image', 'video', 'file', 'voice', 'contact_card', 'red_packet', 'sticker', 'merged']);
 const EmojiPicker         = lazy(() => import('./EmojiPicker'));
 const StickerPanel        = lazy(() => import('./StickerPanel'));
 const GroupInfo           = lazy(() => import('./GroupInfo'));
@@ -48,6 +48,7 @@ const ForwardModal        = lazy(() => import('./ForwardModal'));
 const ScheduleSendModal   = lazy(() => import('./ScheduleSendModal'));
 const PrivateChatSettings = lazy(() => import('./PrivateChatSettings'));
 const ChatFiles           = lazy(() => import('./ChatFiles'));
+const ReadStatusModal     = lazy(() => import('./ReadStatusModal'));
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
@@ -56,6 +57,8 @@ import { rememberAspect } from '../utils/imgDimCache';
 import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
+import { isForwardableMessage } from '../utils/mergedForward';
+import { canViewReadStatus, readUserIdsForMessage } from '../utils/readStatus';
 import './ChatWindow.css';
 import { IcoEmoji, IcoMic, IcoImage, IcoFile, IcoMore } from './Icons';
 
@@ -232,6 +235,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [showTransfer,  setShowTransfer]  = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [readStatus, setReadStatus] = useState(null);
   // 多选模式
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedMsgs, setSelectedMsgs] = useState(new Set());
@@ -2072,6 +2076,24 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   const closeCtx = () => setCtxMenu(null);
 
+  const loadReadStatus = async (msg) => {
+    if (!canViewReadStatus(msg, user.id)) return;
+    const messageId = String(msg.id);
+    setReadStatus({ message: msg, readUserIds: [], loading: true, error: false });
+    try {
+      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/read-states`, {
+        params: { msgIds: messageId },
+      });
+      setReadStatus(current => current && String(current.message.id) === messageId
+        ? { ...current, readUserIds: readUserIdsForMessage(data, messageId), loading: false }
+        : current);
+    } catch {
+      setReadStatus(current => current && String(current.message.id) === messageId
+        ? { ...current, loading: false, error: true }
+        : current);
+    }
+  };
+
   // 🔥 点击外部关闭菜单
   useEffect(() => {
     if (!ctxMenu) return;
@@ -2154,6 +2176,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         setSelectedMsgs(new Set([msg.id]));
         break;
 
+      case 'readStatus':
+        await loadReadStatus(msg);
+        break;
+
       case 'pin': {
         const already = pinnedMessages.some(p => p.msgId === msg.id);
         if (already) {
@@ -2221,8 +2247,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const msgs = messages.filter(m => selectedMsgs.has(m.id));
     if (msgs.length === 0) return;
     // 仅可转发类型（红包/名片以外的富媒体均可）；过滤后为空则提示
-    const FORWARDABLE = new Set(['text', 'image', 'voice', 'video', 'file', 'contact_card']);
-    const valid = msgs.filter(m => FORWARDABLE.has(m.type));
+    const valid = msgs.filter(isForwardableMessage);
     if (valid.length === 0) { showToast(t('chat.selectedNotForwardable')); return; }
     if (valid.length < msgs.length) showToast(t('chat.skippedNonForwardableTemplate').replace('{count}', msgs.length - valid.length), 'info');
     if (valid.length === 1) setForwardMsg(valid[0]);
@@ -2673,13 +2698,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {/* ── 转发弹窗（单条）── */}
       {forwardMsg && (
         <Suspense fallback={null}>
-        <ForwardModal message={forwardMsg} onClose={() => setForwardMsg(null)} />
+        <ForwardModal message={forwardMsg} sourceConversationName={conversation.name} onClose={() => setForwardMsg(null)} />
         </Suspense>
       )}
       {/* ── 转发弹窗（多条逐条转发）── */}
       {forwardMsgs && (
         <Suspense fallback={null}>
-        <ForwardModal messages={forwardMsgs} onClose={() => setForwardMsgs(null)} />
+        <ForwardModal messages={forwardMsgs} sourceConversationName={conversation.name} onClose={() => setForwardMsgs(null)} />
         </Suspense>
       )}
 
@@ -2919,11 +2944,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             </div>
           )}
           <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('reply'); } }}>{t('chat.reply')}</div>
-          {/* 转发：所有类型消息都可转发 */}
-          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>{t('chat.forward')}</div>
+          {isForwardableMessage(ctxMenu.msg) && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>{t('chat.forward')}</div>
+          )}
           {/* 多选：进入批量选择模式（MultiSelectBar），非发送中消息均可作为起点 */}
           {!ctxMenu.msg._tempId && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-multiselect" onClick={() => ctxAction('multiselect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('multiselect'); } }}>{t('chat.multiSelect')}</div>
+          )}
+          {canViewReadStatus(ctxMenu.msg, user.id) && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-read-status" onClick={() => ctxAction('readStatus')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('readStatus'); } }}>{t('readStatus.menuItem')}</div>
           )}
           {/* 收藏：文字/图片/视频/文件消息可收藏到「我的收藏」 */}
           {!ctxMenu.msg.deleted && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (
@@ -2987,6 +3016,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           onClose={() => setShowTransfer(false)}
           onSent={() => {}}
         />
+        </Suspense>
+      )}
+      {readStatus && (
+        <Suspense fallback={null}>
+          <ReadStatusModal
+            state={readStatus}
+            conversation={conversation}
+            members={members}
+            currentUserId={user.id}
+            onClose={() => setReadStatus(null)}
+            onRetry={loadReadStatus}
+          />
         </Suspense>
       )}
 

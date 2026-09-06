@@ -24,11 +24,16 @@ class MomentRepository @Inject constructor(
         images: List<String>,
         visibility: String,
         visibleTo: List<String> = emptyList(),
+        video: String = "",
     ): Moment =
-        momentApi.create(CreateMomentBody(content, images, visibility, visibleTo))
+        momentApi.create(CreateMomentBody(content, images, video = video, visibility = visibility, visibleTo = visibleTo))
 
     suspend fun uploadImages(parts: List<MultipartBody.Part>): List<String> =
         momentApi.uploadImages(parts).urls
+
+    /** 朋友圈视频上传（F4a）：单段，返回 /uploads/moments/xxx 相对 URL */
+    suspend fun uploadVideo(part: MultipartBody.Part): String =
+        momentApi.uploadVideo(part).url
 
     suspend fun like(id: String) = momentApi.like(id)
 

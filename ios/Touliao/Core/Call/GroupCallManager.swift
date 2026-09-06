@@ -187,6 +187,29 @@ final class GroupCallManager: NSObject, ObservableObject {
         localVideoTrack?.isEnabled = on
         state.cameraEnabled = on
     }
+    /// B-1（2026-09-05）：语音加入者升级视频（镜像 Web GroupCallModal.upgradeToVideo）。
+    /// 补视频轨（已存在则复用，建轨/采集与 1v1 CallManager.toggleVideo 同款）后对每条已建立
+    /// pc add 轨并逐个重协商 offer（mesh 每 peer 一份 offer，走群既有 sendOffer 路径）。
+    /// 对端 answer 侧无需改动：unified plan 下 setRemoteDescription 按 remote offer 自动
+    /// 创建 video transceiver，createAnswer 必须应答（recvonly），onRemoteVideo 自然出画。
+    /// 反向（升级后关摄像头）走 toggleCamera 原开关逻辑，不改。
+    func upgradeToVideo() {
+        guard !state.isVideo, state.stage == .connected || state.stage == .connecting else { return }
+        if localVideoTrack == nil {
+            let videoSource = factory.videoSource()
+            videoCapturer = RTCCameraVideoCapturer(delegate: videoSource)
+            localVideoTrack = factory.videoTrack(with: videoSource, trackId: "g_video")
+        }
+        startCapture(position: .front)
+        // 先置 isVideo：mediaConstraints() 按 it 决定 OfferToReceiveVideo，UI 视频格也按它渲染
+        state.isVideo = true
+        state.cameraEnabled = true
+        for (pid, entry) in peers {
+            entry.pc.add(localVideoTrack!, streamIds: ["g_stream"])
+            sendOffer(to: pid, entry: entry)
+        }
+        reapplyGroupCaps()   // 升级新增 video sender，对已连接 pc 立即按人数施加码率上限
+    }
     func switchCamera() {
         guard let capturer = videoCapturer else { return }
         let current = capturer.captureSession.inputs.compactMap { ($0 as? AVCaptureDeviceInput)?.device.position }.first ?? .front
@@ -233,7 +256,8 @@ final class GroupCallManager: NSObject, ObservableObject {
                 entry.remoteDescSet = true; self.drainIce(from)
                 entry.pc.answer(for: self.mediaConstraints()) { [weak self] desc, err in
                     guard let self, let desc, err == nil else { return }
-                    let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
+                    // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+                    let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
                     entry.pc.setLocalDescription(tuned) { _ in }
                     self.socket.emitGroupCallAnswer(callId: self.state.callId, to: from, sdp: tuned.sdp)
                 }
@@ -271,11 +295,11 @@ final class GroupCallManager: NSObject, ObservableObject {
         }.store(in: &cancellables)
     }
 
-    /// 建 offer(含弱网 SDP 调优)并通过信令发给指定 peer；新成员加入和 ICE restart 重协商共用。
+    /// 建 offer(含弱网 SDP 调优 + A-2 H264 优先)并通过信令发给指定 peer；新成员加入和 ICE restart 重协商共用。
     private func sendOffer(to peerId: String, entry: PeerEntry) {
         entry.pc.offer(for: mediaConstraints()) { [weak self] desc, err in
             guard let self, let desc, err == nil else { return }
-            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
+            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
             entry.pc.setLocalDescription(tuned) { _ in }
             self.socket.emitGroupCallOffer(callId: self.state.callId, to: peerId, sdp: tuned.sdp)
         }
@@ -302,9 +326,8 @@ final class GroupCallManager: NSObject, ObservableObject {
             case .connected, .completed:
                 // restart 后恢复:清定时器 + 计数清零(可反复自愈)
                 self.peers[peerId]?.cancelIceRestart()
-                // 2026-09-05:该 peer 接通(含 ICE restart 后重新 connected)时叠加发送码率上限——
-                // 按 peerId 取对应 entry.pc,逐个 peer 各自触发,不会只作用于第一个 peer。
-                if let pc = self.peers[peerId]?.pc { self.capVideoBitrate(pc) }
+                // A-3：本 pc 刚转 connected → 按最新已连接人数对全部已连接 pc（含本条）重放码率/降档
+                self.reapplyGroupCaps()
             case .disconnected:
                 // 短时探测间隙:3s 防抖后再重启,避免无谓重协商
                 guard let entry = self.peers[peerId] else { return }
@@ -387,15 +410,45 @@ final class GroupCallManager: NSObject, ObservableObject {
         capturer.startCapture(with: device, format: format, fps: Int(min(fps, 30)))
     }
 
-    /// 2026-09-05 发送码率上限:与 CallManager.capVideoBitrate 同理,详见该文件注释里对
-    /// RTCRtpSender.parameters(get/set 属性,非独立 setParameters: 方法)的 API 依据说明。
-    private func capVideoBitrate(_ pc: RTCPeerConnection) {
+    /// N1+A-3：视频发送参数。maxBps=发送码率上限（群 mesh 按已连接人数传入，见
+    /// [reapplyGroupCaps]）；degrade=true 时对 encodings[0] 叠加 2 倍降分辨率压 CPU/带宽，
+    /// false 时显式清掉该字段（人数回落恢复全分辨率）。仅影响 video sender。
+    /// （1v1 CallManager 的 capVideoBitrate 固定 2.5M 不降档，与此互不影响。）
+    /// API 依据与 CallManager.capVideoBitrate 同：RTCRtpSender.parameters 为 get/set 属性，
+    /// scaleResolutionDownBy 与 maxBitrateBps 同为 nullable NSNumber（RTCRtpEncodingParameters）。
+    private func capVideoBitrate(_ pc: RTCPeerConnection, maxBps: Int = 2_500_000, degrade: Bool = false) {
         for sender in pc.senders where sender.track?.kind == "video" {
             let p = sender.parameters
             if let enc = p.encodings.first {
-                enc.maxBitrateBps = NSNumber(value: 2_500_000)
+                enc.maxBitrateBps = NSNumber(value: maxBps)
+                enc.scaleResolutionDownBy = degrade ? NSNumber(value: 2) : nil
                 sender.parameters = p
             }
+        }
+    }
+
+    // A-3（2026-09-05）：mesh 群通话按当前已连接 peer 数 n 对全部已连接 pc 重放视频码率/
+    // 降档——N 路同时编码共享同一份 CPU/上行带宽，人越多每路预算必须越低：
+    //   ≤2（与 1v1 默认一致）2.5M / 3 人 1.6M / 4 人 1.2M / ≥5 人 1.0M；
+    //   n≥4 叠加 scaleResolutionDownBy=2 降编码负载，人数回落靠 degrade=false 清掉恢复。
+    // 触发点：任一 peer ICE connected / removePeer / 语音→视频升级。只对已连接的 pc 施加
+    // ——未协商完的 sender 上设参数可能失败，且连上才真正占编码资源。
+    private func reapplyGroupCaps() {
+        func connected(_ entry: PeerEntry) -> Bool {
+            let st = entry.pc.iceConnectionState
+            return st == .connected || st == .completed
+        }
+        let n = peers.values.filter(connected).count
+        let maxBps: Int
+        switch n {
+        case ...2: maxBps = 2_500_000
+        case 3: maxBps = 1_600_000
+        case 4: maxBps = 1_200_000
+        default: maxBps = 1_000_000
+        }
+        let degrade = n >= 4
+        for entry in peers.values where connected(entry) {
+            capVideoBitrate(entry.pc, maxBps: maxBps, degrade: degrade)
         }
     }
 
@@ -420,6 +473,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         peers[peerId] = nil
         remoteTracks[peerId] = nil
         state.participants = Array(peers.keys)
+        reapplyGroupCaps()   // A-3：人数减少 → 剩余 peer 按新人数重放码率/降档（撤销降档也靠它）
     }
 
     private func mediaConstraints() -> RTCMediaConstraints {

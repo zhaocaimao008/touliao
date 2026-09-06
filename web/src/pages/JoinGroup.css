@@ -1,0 +1,34 @@
+.join-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-5);
+  background: var(--bg-messages);
+}
+
+.join-card {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: var(--elev-dialog);
+  text-align: center;
+}
+
+.join-card h1 { margin: 0; color: var(--text-title); font-size: var(--text-xl); }
+.join-card p, .join-status { margin: 0; color: var(--text-secondary); font-size: var(--text-sm2); }
+.join-error { color: var(--color-danger, #d93025); font-size: var(--text-sm2); }
+.join-card button {
+  min-height: 40px;
+  padding: 0 var(--sp-5);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--green);
+  color: var(--text-inverse);
+  cursor: pointer;
+}

@@ -50,6 +50,7 @@ describe('群角色变更立即失效 memberRole 缓存', () => {
 
     transferOwner(null, conv, owner, member);
     expect(memberRole(conv, member)).toBe('owner');
-    expect(memberRole(conv, owner)).toBe('member');
+    // F1 #7：转让后原群主降为 admin（保留管理权限），不再是 member
+    expect(memberRole(conv, owner)).toBe('admin');
   });
 });

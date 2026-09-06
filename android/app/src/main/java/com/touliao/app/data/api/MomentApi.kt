@@ -31,6 +31,11 @@ interface MomentApi {
     @POST("api/moments/images")
     suspend fun uploadImages(@Part images: List<MultipartBody.Part>): MomentImagesResponse
 
+    /** 朋友圈视频上传（F1 #1）：单段视频，字段名 video；只存文件返回 URL，发布时随 video 字段引用 */
+    @Multipart
+    @POST("api/moments/video")
+    suspend fun uploadVideo(@Part video: MultipartBody.Part): com.touliao.app.data.model.MomentVideoResponse
+
     @POST("api/moments/{id}/like")
     suspend fun like(@Path("id") id: String): MomentLikeResponse
 

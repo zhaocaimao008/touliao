@@ -15,6 +15,7 @@ const moderation = require('../../modules/moderation/moderation.service');
 const MENTION_ALL_TOKENS = new Set(['所有人', '全体成员', 'all', 'everyone']);
 
 const MAX = config.limits.maxMsgLength;
+const MAX_MERGED = config.limits.maxMergedLength;
 
 // @提及检测：解析 content 中的 @用户名（含 @所有人），向群内相关成员推送 mentioned 事件
 function handleMentions(io, userId, conversationId, content, msgId) {
@@ -82,16 +83,18 @@ module.exports = function registerMessageHandler(io, socket) {
     ack = (resp) => { prodMetrics.recordMsg(!!resp?.success, resp?.success ? Date.now() - _t0 : undefined); _ack?.(resp); };
     try {
     const { conversationId, content, reply_to_id, clientMsgId } = data;
-    // 允许文本与名片(contact_card)；名片的 content 是被分享用户的 JSON 快照
-    const type = ['text', 'contact_card'].includes(data.type) ? data.type : 'text';
+    // 允许文本/名片(contact_card)/合并转发(merged)；名片的 content 是被分享用户的 JSON 快照，
+    // merged 的 content 是服务端透传的 JSON（{title,items:[...]}），服务端不解析理解其内容。
+    const type = ['text', 'contact_card', 'merged'].includes(data.type) ? data.type : 'text';
+    const maxLen = type === 'merged' ? MAX_MERGED : MAX;
 
     if (!conversationId || !content) { ack?.({ success: false, error: '参数不完整' }); return; }
     // 与 HTTP 发送路径(messages.service.send)口径一致：content 必须是字符串，
     // 否则非 string（如对象）会绕过下方长度校验后原样入库。命中即 ack 失败拒绝。
     if (typeof content !== 'string') { ack?.({ success: false, error: '消息内容格式错误' }); return; }
     if (!presence.checkMsgRate(userId)) { ack?.({ success: false, error: '发送频率过高，请稍后再试' }); return; }
-    if (content.length > MAX) {
-      ack?.({ success: false, error: `消息内容不能超过 ${MAX} 个字符` }); return;
+    if (content.length > maxLen) {
+      ack?.({ success: false, error: `消息内容不能超过 ${maxLen} 个字符` }); return;
     }
     const hitWord = moderation.firstMatch(content);
     if (hitWord) {

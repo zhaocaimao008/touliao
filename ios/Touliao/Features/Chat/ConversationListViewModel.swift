@@ -81,7 +81,7 @@ final class ConversationListViewModel: ObservableObject {
         momentsEnabled = cfg.features?.moments ?? true
     }
 
-    // ── 会话操作：置顶/免打扰/清空 ──
+    // ── 会话操作：置顶/免打扰/清空/归档 ──
     func togglePin(_ conv: Conversation) {
         let pinned = conv.pinned != 1
         Task {
@@ -131,6 +131,49 @@ final class ConversationListViewModel: ObservableObject {
         }
     }
 
+    // ── 会话归档（F5，对齐 Web/Android：列表一次性拉全量含归档，UI 按 archived 标记本地分流；
+    // socket 新消息只更新该会话 summary/unread 并保留标记，归档会话不会因新消息回到主列表）──
+
+    /// 主列表会话（未归档）
+    var activeConversations: [Conversation] { conversations.filter { $0.archived == 0 } }
+
+    /// 归档列表会话
+    var archivedConversations: [Conversation] { conversations.filter { $0.archived == 1 } }
+
+    /// 归档会话聚合未读数（归档入口行角标，>99 由 UI 显示 99+）
+    var archiveUnreadTotal: Int { archivedConversations.reduce(0) { $0 + max(0, $1.unreadCount) } }
+
+    /// 归档/取消归档：仅本人维度，就地翻转标记（后端成功才改本地，失败提示）
+    func setArchived(_ conv: Conversation, archived: Bool) {
+        Task {
+            do {
+                try await repo.setConversationArchived(conv.id, archived: archived)
+                if let idx = conversations.firstIndex(where: { $0.id == conv.id }) {
+                    conversations[idx].archived = archived ? 1 : 0
+                }
+            } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "操作失败" }
+        }
+    }
+
+    /// 一键取消全部归档（对齐 Web clearArchive：逐个请求，失败的留在归档列表）
+    func clearArchive() {
+        let archived = archivedConversations
+        guard !archived.isEmpty else { return }
+        Task {
+            var restoredIds = Set<String>()
+            for conv in archived {
+                do { try await repo.setConversationArchived(conv.id, archived: false); restoredIds.insert(conv.id) }
+                catch { /* 单个失败不中断，最后统一提示 */ }
+            }
+            for id in restoredIds {
+                if let idx = conversations.firstIndex(where: { $0.id == id }) { conversations[idx].archived = 0 }
+            }
+            if restoredIds.count != archived.count {
+                self.error = "部分会话取消归档失败，请重试"
+            }
+        }
+    }
+
     /// 打开「文件传输助手」会话：获取或创建后回调其 id 供导航打开。
     func openFileHelper(_ onReady: @escaping (Conversation) -> Void) {
         Task {
@@ -151,7 +194,8 @@ final class ConversationListViewModel: ObservableObject {
         loading = true
         error = nil
         do {
-            conversations = try await repo.loadConversations()
+            // F5 归档：一次性拉全量（includeArchived=1），主/归档列表按 archived 标记本地分流
+            conversations = try await repo.loadConversations(includeArchived: true)
             refreshDrafts()
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? "加载会话失败"

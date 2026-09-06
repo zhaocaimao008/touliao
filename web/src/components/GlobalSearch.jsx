@@ -3,6 +3,12 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
+import {
+  buildMessageSearchParams,
+  formatSearchMessageSummary,
+  messageSearchTypeIcon,
+  MESSAGE_SEARCH_TYPES,
+} from '../utils/messageSearchFilters';
 
 const gsHlCls = 'gs-highlight';
 
@@ -32,6 +38,10 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   const [messages, setMessages] = useState([]);
   const [searchingMsg, setSearchingMsg] = useState(false);
   const [convError, setConvError] = useState(null);
+  const [typeFilter, setTypeFilter] = useState('');
+  const [timeRange, setTimeRange] = useState('');
+  const [senderId, setSenderId] = useState('');
+  const [senderOptions, setSenderOptions] = useState([]);
   // 懒加载守卫：联系人 + 会话仅在用户首次输入时拉取一次，之后走本地过滤。
   // （原先在组件挂载即预拉，未输入也产生两个请求；改为按需拉取，省掉无谓请求，
   //   且只拉一次，后续按键不重复请求、无每键网络延迟。）
@@ -106,20 +116,28 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     const ac = new AbortController();
     const timer = setTimeout(() => {
       setSearchingMsg(true);
-      axios.get(`/api/messages/search?q=${encodeURIComponent(q)}&limit=20`, { signal: ac.signal })
+      const params = buildMessageSearchParams({ query: q, type: typeFilter, timeRange, senderId });
+      axios.get('/api/messages/search', { params, signal: ac.signal })
         .then(r => {
-          const msgs = (r.data.results || []).map(m => ({
-            ...m,
-            preview: m.content,
-            msgType: m.type,
-          }));
+          const msgs = Array.isArray(r.data?.results) ? r.data.results : [];
           setMessages(msgs);
+          setSenderOptions(previous => {
+            const byId = new Map(previous.map(sender => [String(sender.id), sender]));
+            msgs.forEach(message => {
+              if (!message.sender_id) return;
+              byId.set(String(message.sender_id), {
+                id: String(message.sender_id),
+                name: message.senderName || '',
+              });
+            });
+            return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+          });
         })
         .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setMessages([]); })
         .finally(() => { if (!ac.signal.aborted) setSearchingMsg(false); });
     }, 300);
     return () => { clearTimeout(timer); ac.abort(); };
-  }, [q]);
+  }, [q, typeFilter, timeRange, senderId]);
 
   const openContact = async (c) => {
     try {
@@ -211,6 +229,38 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       )}
 
       {/* 历史消息 */}
+      {hasQuery && (
+        <div className="gs-filters" role="group" aria-label={t('gs.filters')}>
+          <label className="gs-type-filter">
+            <span>{t('gs.typeFilter')}</span>
+            <select value={typeFilter} onChange={event => setTypeFilter(event.target.value)}>
+              {MESSAGE_SEARCH_TYPES.map(option => (
+                <option key={option.value || 'all'} value={option.value}>{t(option.labelKey)}</option>
+              ))}
+            </select>
+          </label>
+          <div className="gs-time-filter" role="group" aria-label={t('gs.timeFilter')}>
+            {[
+              ['', 'gs.timeAny'],
+              ['today', 'gs.timeToday'],
+              ['7d', 'gs.time7Days'],
+              ['30d', 'gs.time30Days'],
+            ].map(([value, key]) => (
+              <button key={value || 'any'} type="button" className={timeRange === value ? 'active' : ''}
+                aria-pressed={timeRange === value} onClick={() => setTimeRange(value)}>{t(key)}</button>
+            ))}
+          </div>
+          {senderOptions.length > 0 && (
+            <label className="gs-sender-filter">
+              <span>{t('gs.senderFilter')}</span>
+              <select value={senderId} onChange={event => setSenderId(event.target.value)}>
+                <option value="">{t('gs.allSenders')}</option>
+                {senderOptions.map(sender => <option key={sender.id} value={sender.id}>{sender.name || t('chatlist.unknown')}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
       {msgResults.length > 0 && (
         <>
           <div className="gs-cat">{t('gs.chatHistoryCategoryTemplate').replace('{count}', msgResults.length)}</div>
@@ -224,7 +274,8 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
                   {m.senderName} {m.convType === 'group' ? t('gs.inGroupTemplate').replace('{name}', m.convName) : ''}
                 </div>
                 <div className="gs-msg-text">
-                  {highlight(m.preview || m.content, q)}
+                  <span className="gs-msg-type-icon" aria-hidden="true">{messageSearchTypeIcon(m.type)}</span>
+                  {highlight(formatSearchMessageSummary(m, t), q)}
                 </div>
               </div>
             </div>

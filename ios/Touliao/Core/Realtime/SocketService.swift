@@ -484,9 +484,12 @@ final class SocketService {
                 }
         }
     }
-    func emitCallResponse(to: String, accepted: Bool, callId: String = "") {
+    func emitCallResponse(to: String, accepted: Bool, callId: String = "", busy: Bool = false) {
         var payload: [String: Any] = ["to": to, "accepted": accepted]
         if !callId.isEmpty { payload["callId"] = callId }
+        // B-3：忙线拒接时带 busy=true（对齐 Web Home.jsx 语义；后端 call.js 原样转发，
+        // 主叫据此区分"对方忙线中"与普通拒接）
+        if busy { payload["busy"] = true }
         socket?.emit("call:response", payload)
     }
     func emitCallOffer(to: String, sdp: String, callId: String = "") {

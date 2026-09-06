@@ -19,8 +19,10 @@ exports.fileHelper    = asyncHandler(async (req, res) => res.json(svc.getOrCreat
 exports.createGroup   = asyncHandler(async (req, res) => res.json(svc.createGroup(io(req), req.user.id, req.body)));
 exports.list          = asyncHandler(async (req, res) => {
   // 会话列表变化频率高，短时缓存 10s 防重连风暴批量请求；stale-while-revalidate 保证实时感
+  // includeArchived=1 时含已归档会话（默认排除，向后兼容）
+  const includeArchived = req.query.includeArchived === '1' || req.query.includeArchived === 'true';
   res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=30');
-  res.json(await svc.listConversations(req.user.id));
+  res.json(await svc.listConversations(req.user.id, { includeArchived }));
 });
 exports.members       = asyncHandler(async (req, res) => res.json(svc.listMembers(req.params.conversationId, req.user.id)));
 exports.unreadCounts  = asyncHandler(async (req, res) => res.json(svc.unreadCounts(req.user.id)));
@@ -28,6 +30,8 @@ exports.myGroups      = asyncHandler(async (req, res) => res.json(svc.myGroups(r
 
 exports.pin  = asyncHandler(async (req, res) => { await svc.setPinned(req.user.id, req.params.convId, req.body.pinned); res.json({ success: true }); });
 exports.mute = asyncHandler(async (req, res) => { await svc.setMuted(req.user.id, req.params.convId, req.body.muted); res.json({ success: true }); });
+// 会话归档/取消归档：仅本人自己的会话维度，不影响其他成员
+exports.archive = asyncHandler(async (req, res) => { await svc.setArchived(req.user.id, req.params.convId, req.body.archived); res.json({ success: true }); });
 exports.background = asyncHandler(async (req, res) => { const r = await svc.setBackground(req.user.id, req.params.convId, req.body.background); res.json({ success: true, ...r }); });
 
 exports.read = asyncHandler(async (req, res) => {

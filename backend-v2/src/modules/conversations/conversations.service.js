@@ -177,12 +177,15 @@ function invalidateConvCacheForUser(userId) {
   convCache.delete(userId);
 }
 
-async function listConversations(uid) {
-  // 检查内存缓存（过期时主动删除，防止无限累积）
-  const cached = convCache.get(uid);
-  if (cached) {
-    if (Date.now() - cached.ts < CONV_CACHE_TTL) return cached.data;
-    convCache.delete(uid);
+async function listConversations(uid, { includeArchived = false } = {}) {
+  // 归档视图不进内存缓存（低频查询，实现简单优先；主列表缓存 key 仍只按 uid，
+  // 不因 includeArchived 分裂缓存维度，避免主列表缓存被归档视图挤占/污染）。
+  if (!includeArchived) {
+    const cached = convCache.get(uid);
+    if (cached) {
+      if (Date.now() - cached.ts < CONV_CACHE_TTL) return cached.data;
+      convCache.delete(uid);
+    }
   }
   // 确保用户有 filehelper 会话（自动创建）
   // 不经此 service，无法可靠失效(大群逐成员失效又太贵)。Redis 启用后若缓存会导致
@@ -214,6 +217,7 @@ async function listConversations(uid) {
       COALESCE(cs.last_read_message_id, '') AS last_read_message_id,
       COALESCE(cs.manually_unread, 0)       AS manually_unread,
       COALESCE(cs.burn_after, 0)            AS burn_after,
+      COALESCE(cs.archived, 0)              AS archived,
       (SELECT COUNT(*) FROM (
         SELECT 1 FROM messages mu
         WHERE  mu.conversation_id = c.id
@@ -265,6 +269,7 @@ async function listConversations(uid) {
               )
     LEFT JOIN users ou ON ou.id = cm_o.user_id
     LEFT JOIN contacts ct ON ct.user_id = ? AND ct.contact_id = ou.id
+    ${includeArchived ? '' : 'WHERE COALESCE(cs.archived, 0) = 0'}
     ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC
     LIMIT 500
   `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid);
@@ -289,6 +294,9 @@ async function listConversations(uid) {
 
   // 2. 从数据库查询并转换数据
   const conversations = rows.map(({ ou_id, ou_username, ou_avatar, ou_status, ou_remark, hasMention, ...conv }) => {
+    // F1 #2：合并转发消息 content 是透传 JSON，列表预览统一用类型占位符
+    // （与推送 bodyForMessage 同口径），避免老客户端在会话列表看到一坨 JSON 原文
+    if (conv.lastMessageType === 'merged') conv.lastMessage = '[聊天记录]';
     // 转成真正的 JSON 布尔：iOS Codable 无法把数字 0/1 解成 Bool
     const hasMentionBool = !!hasMention;
     if (conv.type === 'private') {
@@ -300,8 +308,8 @@ async function listConversations(uid) {
     return { ...conv, members: memberMap.get(conv.id) || [], hasMention: hasMentionBool };
   });
 
-  // 写回内存缓存（超出上限时跳过写入，等下次清理后恢复）
-  if (convCache.size < CONV_CACHE_MAX) {
+  // 写回内存缓存（超出上限时跳过写入，等下次清理后恢复）；归档视图不写入主列表缓存
+  if (!includeArchived && convCache.size < CONV_CACHE_MAX) {
     convCache.set(uid, { data: conversations, ts: Date.now() });
   }
   return conversations;
@@ -332,7 +340,7 @@ function unreadCounts(userId) {
     FROM conversation_members cm
     LEFT JOIN conversation_settings cs
            ON cs.user_id = cm.user_id AND cs.conversation_id = cm.conversation_id
-    WHERE cm.user_id = ?
+    WHERE cm.user_id = ? AND COALESCE(cs.archived, 0) = 0
   `).all(userId, userId);
   const result = {};
   rows.forEach(r => { if (r.unread_count > 0) result[r.conversation_id] = r.unread_count; });
@@ -370,6 +378,16 @@ async function setMuted(userId, convId, muted) {
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET muted=excluded.muted
   `, [userId, convId, muted ? 1 : 0]);
   // P2 优化：删除缓存，下次查询重新加载
+  invalidateConvCacheForUser(userId);
+}
+
+// ── 会话归档（按用户按会话；仅本人可见，不影响对方/群内其他成员）──
+async function setArchived(userId, convId, archived) {
+  requireMember(convId, userId, '无权操作');
+  await writeAsync(`
+    INSERT INTO conversation_settings (user_id, conversation_id, archived) VALUES (?, ?, ?)
+    ON CONFLICT(user_id, conversation_id) DO UPDATE SET archived=excluded.archived
+  `, [userId, convId, archived ? 1 : 0]);
   invalidateConvCacheForUser(userId);
 }
 
@@ -570,6 +588,6 @@ function batchGetOrCreatePrivate(myId, userIds, { io = null } = {}) {
 module.exports = {
   getOrCreatePrivate, batchGetOrCreatePrivate, getOrCreateFileHelper, createGroup, listConversations, listMembers,
   unreadCounts, myGroups, setPinned, setMuted, setBackground, markRead, markUnread, setBurnAfter,
-  clearConversation, clearAllConversations, media,
+  setArchived, clearConversation, clearAllConversations, media,
   invalidateConvCacheForConversation, invalidateConvCacheForUser,
 };

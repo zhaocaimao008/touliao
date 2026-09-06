@@ -15,7 +15,11 @@ struct SentRequest: Decodable, Identifiable {
     var message: String = ""
     var username: String = ""
     var avatar: String = ""
-    enum CodingKeys: String, CodingKey { case id, status, message, username, avatar }
+    var createdAt: Double = 0   // 申请时间（F5 补齐展示）；后端 listSentRequests 原样返回 created_at 列（无驼峰别名）
+    enum CodingKeys: String, CodingKey {
+        case id, status, message, username, avatar
+        case createdAt = "created_at"
+    }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
@@ -23,6 +27,7 @@ struct SentRequest: Decodable, Identifiable {
         message = (try? c.decode(String.self, forKey: .message)) ?? ""
         username = (try? c.decode(String.self, forKey: .username)) ?? ""
         avatar = (try? c.decode(String.self, forKey: .avatar)) ?? ""
+        createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
     }
 }
 

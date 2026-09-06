@@ -60,6 +60,9 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   if (!target || target.banned) throw notFound('用户不存在');
   if (db.prepare('SELECT id FROM contacts WHERE user_id=? AND contact_id=?').get(fromId, toId)) throw badRequest('已是好友');
   if (db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(toId, fromId)) throw forbidden('对方已将你加入黑名单');
+  // 双向拉黑（F1 #6）：自己拉黑了对方同样拒绝——免验证直加路径若放行会绕过拉黑意图
+  // （接受侧 handleRequest 本就是双向复查，此处补齐 send 侧口径）
+  if (db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(fromId, toId)) throw forbidden('你已将对方加入黑名单，移出后才能添加');
   if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) throw badRequest('请求已发送');
   // no_add_friend 检查必须在反向请求处理之前，防止绕过群限制
   const restricted = db.prepare(`
@@ -151,11 +154,16 @@ function listSentRequests(userId) {
 function handleRequest(io, userId, requestId, action) {
   // 兼容移动端历史写法 accept/reject(安卓 ContactRepository.kt、iOS ContactRepository.swift
   // 发的是 accept/reject)，归一化为 DB 状态值 accepted/rejected，使存量 App 无需重发版即可加好友。
+  // F1 #3 规格用词 accept/decline，一并归一。
   if (action === 'accept') action = 'accepted';
-  else if (action === 'reject') action = 'rejected';
+  else if (action === 'reject' || action === 'decline') action = 'rejected';
   if (!['accepted', 'rejected'].includes(action)) throw badRequest('无效操作');
-  const request = db.prepare("SELECT * FROM friend_requests WHERE id=? AND to_id=? AND status='pending'").get(requestId, userId);
+  // 幂等查询不限定 status（F1 #6）：重复提交同一操作（多设备/双击/重试）返回成功而非 404
+  const request = db.prepare('SELECT * FROM friend_requests WHERE id=? AND to_id=?').get(requestId, userId);
   if (!request) throw notFound('请求不存在');
+  if (request.status === 'accepted' && action === 'accepted') return { success: true, alreadyHandled: true };
+  if (request.status === 'rejected' && action === 'rejected') return { success: true, alreadyHandled: true };
+  if (request.status !== 'pending') throw notFound('请求不存在');
   // 接受侧门控复查（与 sendFriendRequest 判定口径对齐）：请求从发出到被接受之间存在时间窗，
   // 期间任一方可能拉黑对方、或来源群开启"禁止群成员互加"。此时不应再建立好友关系。
   // 仅在 action='accepted' 时复查（拒绝请求无需门控）。

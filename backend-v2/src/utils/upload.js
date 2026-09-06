@@ -379,6 +379,63 @@ function makeChatUploader(dest) {
   return [makeUploadGuard(dest), multerMw, makeChatMagicMiddleware(), makeExifStripMiddleware(480)];
 }
 
+// 朋友圈视频允许的扩展名（ALLOWED_CHAT_EXTS 的 video 子集，与消息视频同一份允许列表）
+const ALLOWED_VIDEO_EXTS = new Set([
+  'mp4', 'm4v', 'mov', 'webm', 'mkv', 'avi', 'wmv', 'flv', 'mpg', 'mpeg', '3gp', '3g2', 'ogv',
+]);
+
+// 视频路径魔数中间件：扩展名必须在视频白名单内；能识别出魔数时真实类型必须也是视频
+// 或至少不是已知危险类型（防把可执行文件改名 .mp4）；个别容器格式 file-type 识别不出
+// 时凭扩展名放行——与聊天文件路径 verifyChatFile 的宽松度一致。
+function makeVideoMagicMiddleware() {
+  return async (req, res, next) => {
+    const files = req.files || (req.file ? [req.file] : []);
+    if (!files.length) return next();
+    for (const file of files) {
+      const ext = path.extname(file.originalname || '').toLowerCase().replace(/^\./, '');
+      if (!ALLOWED_VIDEO_EXTS.has(ext)) {
+        fs.unlink(file.path, () => {});
+        return res.status(400).json({ error: `400 Invalid File Type: 不支持的视频格式（${ext ? '.' + ext : '无扩展名'}），仅支持常见视频格式` });
+      }
+      const detected = await readMagic(file.path);
+      if (!detected) {
+        // 声明为视频却识别不出魔数 → 拒绝（常见视频容器 file-type 均可识别；
+        // 纯文本改扩展名伪装 .mp4 会走到这里）。与图片路径 verifyMagicBytes 同口径。
+        if (/^video\//.test(file.mimetype || '')) {
+          fs.unlink(file.path, () => {});
+          return res.status(400).json({ error: `400 Invalid File Type: 声明为 ${file.mimetype} 但文件内容无法识别为视频` });
+        }
+      } else {
+        if (DANGEROUS_DETECTED_MIMES.has(detected.mime)) {
+          fs.unlink(file.path, () => {});
+          return res.status(400).json({ error: `400 Invalid File Type: 文件真实内容为可执行/危险类型（${detected.mime}）` });
+        }
+        if (!detected.mime.startsWith('video/')) {
+          fs.unlink(file.path, () => {});
+          return res.status(400).json({ error: `400 Invalid File Type: 文件真实类型为 ${detected.mime}，不是视频` });
+        }
+        file.mimetype = detected.mime;
+      }
+    }
+    next();
+  };
+}
+
+// 单视频上传器（朋友圈视频）：磁盘守卫 + 大小上限 + 扩展名/魔数双重校验。
+// 不做 EXIF 剥离/缩略图（sharp 只处理图片，视频跳过）。
+function makeVideoUploader(dest, fieldName = 'video', maxSize = MAX_UPLOAD_BYTES) {
+  fs.mkdirSync(dest, { recursive: true });
+  const storage = multer.diskStorage({
+    destination: dest,
+    filename: (req, file, cb) => cb(null, uuidv4() + safeExt(file.originalname, file.mimetype)),
+  });
+  const multerMw = wrapUpload(multer({
+    storage,
+    limits: { fileSize: maxSize },
+  }).single(fieldName));
+  return [makeUploadGuard(dest), multerMw, makeVideoMagicMiddleware()];
+}
+
 function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 * 1024 * 1024) {
   fs.mkdirSync(dest, { recursive: true });
   const storage = multer.diskStorage({
@@ -413,9 +470,9 @@ function isBrowserRenderableType(contentType) {
 }
 
 module.exports = {
-  ALLOWED_CHAT_EXTS, ALLOWED_IMAGE_MIMES, MIME_TO_EXT, BLOCKED_EXTENSIONS,
+  ALLOWED_CHAT_EXTS, ALLOWED_IMAGE_MIMES, ALLOWED_VIDEO_EXTS, MIME_TO_EXT, BLOCKED_EXTENSIONS,
   MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES,
-  sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader, makeUploadGuard,
+  sanitizeFilename, decodeMultipartName, safeExt, makeChatUploader, makeImageUploader, makeVideoUploader, makeUploadGuard,
   verifyMagicBytes, verifyChatFile, isBrowserRenderableType, stripImageMetadata,
   generateThumbnail, thumbUrlIfExists, THUMBNAIL_MIMES, THUMBNAIL_EXTS,
 };

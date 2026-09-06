@@ -105,6 +105,10 @@ describe('estimateHeight — 引用预览必须并入首帧高度', () => {
     expect(estimateHeight(mk({ type: 'sticker' }))).toBe(146); // 140 + 6 媒体行底部留白
   });
 
+  it('合并转发卡片预留标题、摘要与底部操作区域', () => {
+    expect(estimateHeight(mk({ type: 'merged', content: '{"title":"聊天记录","items":[]}' }))).toBe(132);
+  });
+
   // 回归防护(2026-08 Windows 气泡挤压)：引用图片的行 = 图片基线 + 媒体引用高度，
   // 媒体引用估算必须覆盖 名字+缩略图+padding+margin 的真实高度(≈70)，否则下一行压进引用区。
   it('媒体引用高度 ≥ 70(实测引用块真实高度,防下一行挤压)', () => {

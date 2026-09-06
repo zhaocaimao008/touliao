@@ -168,6 +168,8 @@ struct MomentsView: View {
     @State private var showSettings = false
     @State private var showNotif = false
     @State private var gallery: GalleryData?
+    /// 视频动态全屏播放（F5）：非空 = 已解析的视频完整 URL
+    @State private var playingVideoURL: String?
 
     init() {
         // myId 在 onAppear 用 session 不便于 init；用占位，body 内对比 author/userId
@@ -198,6 +200,7 @@ struct MomentsView: View {
                             onReport: { reportTarget = m },
                             onViewAllComments: { vm.loadAllComments(m) },
                             onImageTap: { idx in gallery = GalleryData(images: m.images.map { MediaUrlResolver.resolve($0) ?? "" }, start: idx) },
+                            onVideoTap: { playingVideoURL = MediaUrlResolver.resolve(m.video) },
                             myId: vm.myId,
                             onDeleteComment: { c in deleteCommentTarget = (m, c) },
                             replyTargetName: commentingId == m.id ? (replyTarget?.username ?? "") : "",
@@ -264,6 +267,12 @@ struct MomentsView: View {
         .fullScreenCover(item: $gallery) { g in
             MomentGalleryView(images: g.images, start: g.start) { gallery = nil }
         }
+        // 视频动态全屏播放（F5）：复用聊天视频播放器（自带播放/暂停/进度/保存）
+        .fullScreenCover(isPresented: Binding(get: { playingVideoURL != nil }, set: { if !$0 { playingVideoURL = nil } })) {
+            if let url = playingVideoURL {
+                VideoPlayerOverlay(url: url, filename: nil) { playingVideoURL = nil }
+            }
+        }
         .task { vm.myId = session.currentUser?.id ?? ""; await vm.refresh() }
         .toast($vm.error)
         .alert("举报动态", isPresented: .constant(reportTarget != nil)) {
@@ -299,6 +308,8 @@ private struct MomentCard: View {
     var onReport: () -> Void = {}
     var onViewAllComments: () -> Void = {}
     var onImageTap: (Int) -> Void = { _ in }
+    /// 视频动态（F5）：点击视频卡片全屏播放
+    var onVideoTap: () -> Void = {}
     var myId: String = ""
     var onDeleteComment: (MomentComment) -> Void = { _ in }
     var replyTargetName: String = ""
@@ -314,6 +325,8 @@ private struct MomentCard: View {
             }
             if !moment.content.isEmpty { Text(moment.content) }
             if !moment.images.isEmpty { imageGrid }
+            // 视频动态（F5）：与图片互斥，轻量缩略图卡片 + 点击全屏播放（不自动播）
+            if !moment.video.isEmpty { MomentVideoCard(rawURL: moment.video, cover: moment.cover, onTap: onVideoTap) }
             HStack {
                 Text(formatChatTime(moment.createdAt)).font(.caption2).foregroundColor(.vxinTextSecondary)
                 Spacer()
@@ -415,6 +428,43 @@ struct GalleryData: Identifiable {
     let id = UUID()
     let images: [String]
     let start: Int
+}
+
+/// 朋友圈视频条目卡片（F5，对齐 Web wc-moment-video-card）：封面优先（服务端 cover 字段），
+/// 无封面则异步取视频首帧；居中播放按钮，点击全屏播放（autoplay 关，符合需求）。
+private struct MomentVideoCard: View {
+    let rawURL: String
+    let cover: String
+    var onTap: () -> Void = {}
+    @State private var firstFrame: UIImage?
+
+    var body: some View {
+        Button(action: onTap) {
+            ZStack {
+                if !cover.isEmpty {
+                    KFImage(source: MediaUrlResolver.kfSource(raw: cover))
+                        .resizable().scaledToFill()
+                } else if let firstFrame {
+                    Image(uiImage: firstFrame).resizable().scaledToFill()
+                } else {
+                    Color.black.opacity(0.08)
+                }
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.4), radius: 4)
+            }
+            .frame(width: 200, height: 150)
+            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("播放视频")
+        .task(id: rawURL) {
+            // 无封面时取视频首帧做预览（VideoThumbnailLoader 自带内存缓存，滚动复用不重复生成）
+            guard cover.isEmpty, let resolved = MediaUrlResolver.resolve(rawURL) else { return }
+            firstFrame = await VideoThumbnailLoader.thumbnail(for: resolved)
+        }
+    }
 }
 
 /// 朋友圈多图全屏查看：左右滑 + 双指缩放。

@@ -27,6 +27,7 @@ const dict = {
     'type.location':     '[位置]',
     'type.redPacket':    '[红包] 恭喜发财',
     'type.contactCard':  '[名片]',
+    'type.merged':       '[聊天记录]',
     // 来电
     'call.title':        '来电',
     'call.video':        '邀请你视频通话',
@@ -49,6 +50,7 @@ const dict = {
     'type.location':     '[Location]',
     'type.redPacket':    '[Red packet] Best wishes',
     'type.contactCard':  '[Contact]',
+    'type.merged':       '[Chat history]',
     'call.title':        'Incoming call',
     'call.video':        'is inviting you to a video call',
     'call.audio':        'is inviting you to a voice call',
@@ -68,6 +70,7 @@ const dict = {
     'type.location':     '[位置]',
     'type.redPacket':    '[紅包] 恭喜發財',
     'type.contactCard':  '[名片]',
+    'type.merged':       '[聊天記錄]',
     'call.title':        '來電',
     'call.video':        '邀請你視訊通話',
     'call.audio':        '邀請你語音通話',
@@ -105,6 +108,8 @@ function bodyForMessage(lang, type, content) {
     case 'location':     return t(lang, 'type.location');
     case 'red_packet':   return t(lang, 'type.redPacket');
     case 'contact_card': return t(lang, 'type.contactCard');
+    // 合并转发：content 是透传 JSON，不能原文推出送（锁屏会显示一串乱码），用类型占位符
+    case 'merged':       return t(lang, 'type.merged');
     default:             return content?.slice(0, 100) || '';
   }
 }

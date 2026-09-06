@@ -38,6 +38,7 @@ import { mediaUrl, goLogin } from '../utils/url';
 import { warmupCacheDB } from '../utils/msgCache';
 import { saveCred, removeCred } from '../utils/rememberedCreds';
 import { useI18n } from '../contexts/I18nContext';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 function WcEmpty() {
   // 对齐微信 PC：未选会话时近乎纯净留白，仅一枚极淡的单色图标，无文字、无彩色
@@ -523,6 +524,8 @@ export default function Home() {
   const [convRefreshKey, setConvRefreshKey] = useState(0);
   const { socket, reconnectCount, registerUnreadCleared } = useSocket();
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   // 通知权限不再自动申请：permission==='default' 时由 PushPermissionGuide 出软引导，
   // 用户点「开启」（真实手势）才调 enablePush() 走系统权限框。详见 usePushNotification.js。
   const { permission: pushPermission, enablePush } = usePushNotification(user);
@@ -555,6 +558,17 @@ export default function Home() {
     setUnread(prev => ({ ...prev, [conv.id]: 0 }));
     setTab('chats');
   }, []);
+
+  useEffect(() => {
+    const conversation = location.state?.openConversation;
+    if (!conversation?.id) return undefined;
+    const timer = setTimeout(() => {
+      handleSelectConv(conversation);
+      setConvRefreshKey(key => key + 1);
+      navigate('/', { replace: true, state: null });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [location.state, handleSelectConv, navigate]);
 
   // 拒接来电后回复消息：取/建与该用户的私聊会话并打开（来电必已有共同会话，正常命中已存在）。
   // ⚠ 这个接口的返回体是 `{ conversationId }`，既没有 `conversation` 也没有 `id`

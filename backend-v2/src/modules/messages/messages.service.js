@@ -207,10 +207,12 @@ function missed(io, userId, after) {
 
 // ── HTTP 发送（fallback）────────────────────────────────────────
 async function send(io, convId, userId, { content, type, reply_to_id }) {
-  const ALLOWED_HTTP_TYPES = new Set(['text', 'contact_card']);
+  // merged：合并转发，content 为服务端透传的 JSON（{title,items:[...]}），服务端不解析理解
+  const ALLOWED_HTTP_TYPES = new Set(['text', 'contact_card', 'merged']);
   const safeType = ALLOWED_HTTP_TYPES.has(type) ? type : 'text';
+  const maxLen = safeType === 'merged' ? config.limits.maxMergedLength : MAX;
   if (!content || typeof content !== 'string') throw badRequest('消息内容格式错误');
-  if (content.length > MAX) throw badRequest(`消息内容不能超过 ${MAX} 个字符`);
+  if (content.length > maxLen) throw badRequest(`消息内容不能超过 ${maxLen} 个字符`);
   moderation.assertClean(content);
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
@@ -295,7 +297,8 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
   if (!ids.length || !conversationIds?.length) throw badRequest('参数缺失');
   if (conversationIds.length > 20) throw badRequest('单次转发最多20个会话');
   if (ids.length > 30) throw badRequest('单次最多转发30条消息');
-  const FORWARDABLE_TYPES = new Set(['text', 'image', 'voice', 'video', 'file', 'contact_card']);
+  // merged（合并转发）本身也是一条消息，允许被再次转发（content 为透传 JSON，原样复制）
+  const FORWARDABLE_TYPES = new Set(['text', 'image', 'voice', 'video', 'file', 'contact_card', 'merged']);
 
   const clientBatchId = typeof requestedClientBatchId === 'string' && requestedClientBatchId.trim()
     ? requestedClientBatchId.trim().slice(0, 128) : uuidv4();
@@ -657,12 +660,78 @@ async function collect(userId, msgId) {
 }
 
 // ── 全局搜索（FTS5 trigram 全文索引 + 成员范围限定）──────────────
-async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
-  if (!q || !q.trim()) return { results: [], total: 0 };
-  if (q.length > 100) throw badRequest('搜索词过长');
+// type/from/to/senderId 均可选、向后兼容：不传时行为与原实现完全一致（含缓存）。
+// 传入任一过滤参数则走统一 LIKE + 条件拼接路径（原因同 searchInConversation 顶部注释：
+// messages_fts 只索引文本消息，按类型过滤媒体消息必须绕开 FTS 直查 messages 表）。
+async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to, senderId }) {
+  const hasFilters = !!(type || from || to || senderId);
+  if ((!q || !q.trim()) && !hasFilters) return { results: [], total: 0 };
+  if (q && q.length > 100) throw badRequest('搜索词过长');
 
   const safeLimit = Math.min(parseInt(limit) || 20, 50);
   const safeOffset = Math.min(Math.max(parseInt(offset) || 0, 0), 10000);
+
+  if (hasFilters) {
+    const typeList = type ? String(type).split(',').map(s => s.trim()).filter(Boolean).slice(0, 10) : null;
+    const fromTs = from != null && from !== '' ? parseInt(from, 10) : null;
+    const toTs   = to   != null && to   !== '' ? parseInt(to, 10)   : null;
+
+    const joins = `
+      FROM messages m
+      JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
+      JOIN users u ON u.id = m.sender_id
+      JOIN conversations c ON c.id = m.conversation_id
+      LEFT JOIN conversation_members cm_o
+             ON cm_o.conversation_id = m.conversation_id AND c.type = 'private'
+            AND cm_o.user_id = (
+                  SELECT user_id FROM conversation_members
+                  WHERE conversation_id = m.conversation_id AND user_id != ?
+                  ORDER BY user_id LIMIT 1
+                )
+      LEFT JOIN users ou ON ou.id = cm_o.user_id
+    `;
+    const joinParams = [userId, userId];
+
+    const conds = [
+      'm.deleted = 0',
+      'NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)',
+      'm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)',
+    ];
+    const condParams = [userId, userId];
+    if (q && q.trim()) {
+      conds.push("m.content LIKE ? ESCAPE '\\'");
+      condParams.push('%' + q.trim().replace(/[\\%_]/g, c => '\\' + c) + '%');
+    }
+    if (typeList && typeList.length) {
+      conds.push(`m.type IN (${typeList.map(() => '?').join(',')})`);
+      condParams.push(...typeList);
+    }
+    if (Number.isFinite(fromTs)) { conds.push('m.created_at >= ?'); condParams.push(fromTs); }
+    if (Number.isFinite(toTs))   { conds.push('m.created_at <= ?'); condParams.push(toTs); }
+    if (senderId) { conds.push('m.sender_id = ?'); condParams.push(senderId); }
+    const whereSql = conds.join(' AND ');
+
+    const total = db.prepare(`SELECT COUNT(*) AS cnt ${joins} WHERE ${whereSql}`)
+      .get(...joinParams, ...condParams)?.cnt || 0;
+    const rows = db.prepare(`
+      SELECT m.id, m.conversation_id, m.sender_id, m.content, m.type, m.created_at,
+             u.username AS senderName, u.avatar AS senderAvatar,
+             c.name AS convName, c.type AS convType,
+             ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
+      ${joins}
+      WHERE ${whereSql}
+      ORDER BY m.created_at DESC LIMIT ? OFFSET ?
+    `).all(...joinParams, ...condParams, safeLimit, safeOffset);
+
+    const results = rows.map(({ ou_id, ou_username, ou_avatar, ou_status, ...msg }) => {
+      if (msg.convType === 'private') {
+        msg.convName = ou_username || '私聊';
+        msg.otherUser = ou_id ? { id: ou_id, username: ou_username, avatar: ou_avatar, status: ou_status } : null;
+      }
+      return msg;
+    });
+    return { results, total, limit: safeLimit, offset: safeOffset };
+  }
 
   const cacheKey = `search:${userId}:${q}:${safeLimit}:${safeOffset}`;
   const cachedResult = await cache.get(cacheKey);
@@ -764,10 +833,48 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0 }) {
 }
 
 // ── 会话内搜索 ──────────────────────────────────────────────────
-async function searchInConversation(convId, userId, q) {
-  if (!q || !q.trim()) return [];
-  if (q.length > 100) throw badRequest('搜索词过长');
+// filters：{ type, from, to, senderId } 均可选，向后兼容——不传时走原 FTS/LIKE 逻辑（含缓存）。
+// 一旦传入任一过滤参数，改走统一 LIKE + 条件拼接路径（不查缓存）：
+//   messages_fts 触发器只索引 type='text' 的消息（见 schema.js），
+//   若仍走 FTS 则 type=image 等媒体类型过滤永远空结果，故这里换用直查 messages 表按 content LIKE，
+//   可覆盖任意消息类型（文件类消息 content 即原始文件名）。
+async function searchInConversation(convId, userId, q, filters = {}) {
+  const { type, from, to, senderId } = filters;
+  const hasFilters = !!(type || from || to || senderId);
+  if ((!q || !q.trim()) && !hasFilters) return [];
+  if (q && q.length > 100) throw badRequest('搜索词过长');
   requireMember(convId, userId);
+
+  if (hasFilters) {
+    const typeList = type ? String(type).split(',').map(s => s.trim()).filter(Boolean).slice(0, 10) : null;
+    const fromTs = from != null && from !== '' ? parseInt(from, 10) : null;
+    const toTs   = to   != null && to   !== '' ? parseInt(to, 10)   : null;
+
+    const conds = [
+      'm.conversation_id = ?', 'm.deleted = 0',
+      'NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)',
+      'm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)',
+    ];
+    const params = [convId, userId, userId];
+    if (q && q.trim()) {
+      conds.push("m.content LIKE ? ESCAPE '\\'");
+      params.push('%' + q.trim().replace(/[\\%_]/g, c => '\\' + c) + '%');
+    }
+    if (typeList && typeList.length) {
+      conds.push(`m.type IN (${typeList.map(() => '?').join(',')})`);
+      params.push(...typeList);
+    }
+    if (Number.isFinite(fromTs)) { conds.push('m.created_at >= ?'); params.push(fromTs); }
+    if (Number.isFinite(toTs))   { conds.push('m.created_at <= ?'); params.push(toTs); }
+    if (senderId) { conds.push('m.sender_id = ?'); params.push(senderId); }
+
+    return db.prepare(`
+      SELECT m.*, u.username AS senderName, u.avatar AS senderAvatar
+      FROM messages m JOIN users u ON u.id = m.sender_id
+      WHERE ${conds.join(' AND ')}
+      ORDER BY m.created_at DESC LIMIT 50
+    `).all(...params);
+  }
 
   // P2 优化：尝试从缓存获取搜索结果（TTL: 10 分钟）
   const cacheKey = `search:${convId}:${userId}:${q}`;
@@ -908,6 +1015,7 @@ function exportConversation(convId, userId) {
     image: '[图片]', voice: '[语音]', video: '[视频]',
     file: '[文件]', sticker: '[表情包]',
     contact_card: '[名片]', nudge: '[拍一拍]', call: '[通话]',
+    merged: '[聊天记录]',
   };
 
   // 转账/红包展开：content 是 JSON。转账展开金额+备注，红包展开祝福语。
@@ -960,6 +1068,65 @@ function exportConversation(convId, userId) {
   }
 
   return lines.join('\n');
+}
+
+// ── 按会话批量拉取消息已读状态（F1 #4；群/私聊通用）──────────────
+// 返回 { readStates: { msgId: [userId,...] } }：已读者不含发送者本人。
+//   私聊：message_reads 持久化行为准（markRead 逐条落库），并用对方 last_read_at 兜底
+//         （与 history() 的 _read 判定同口径，覆盖 message_reads 缺行的老消息）；
+//   群聊：message_reads 不落群消息（markRead 仅私聊写），按 conversation_settings.last_read_at
+//         >= msg.created_at 判定（与 history() 的 readCount 完全同口径）。
+function getReadStates(convId, userId, msgIdsParam) {
+  requireMember(convId, userId);
+  const ids = String(msgIdsParam || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 100);
+  if (!ids.length) throw badRequest('缺少 msgIds 参数');
+  const ph = ids.map(() => '?').join(',');
+  // 只认在该会话内、当前用户可见（未被个人删除）的消息，防止跨会话越权探测已读名单
+  const rows = db.prepare(`
+    SELECT id, sender_id, created_at FROM messages WHERE conversation_id=? AND id IN (${ph})
+      AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=messages.id AND d.user_id=?)
+  `).all(convId, ...ids, userId);
+  const msgMap = new Map(rows.map(r => [r.id, r]));
+  const readStates = {};
+  for (const id of ids) if (msgMap.has(id)) readStates[id] = [];
+
+  const conv = db.prepare('SELECT type FROM conversations WHERE id=?').get(convId);
+  if (conv?.type === 'private') {
+    // 对方身份取 conversation_members（成员关系是同步强一致写入）；
+    // conversation_settings.last_read_at 由 markRead 异步落库（worker 写），
+    // 只作为 message_reads 缺行时的兜底，行不存在时不影响 message_reads 主判定。
+    const peerId = db.prepare(
+      'SELECT user_id FROM conversation_members WHERE conversation_id=? AND user_id!=? LIMIT 1'
+    ).get(convId, userId)?.user_id;
+    if (peerId) {
+      const readSet = new Set(
+        db.prepare(`SELECT message_id FROM message_reads WHERE user_id=? AND message_id IN (${ph})`)
+          .all(peerId, ...ids).map(r => r.message_id)
+      );
+      const peerLastReadAt = db.prepare(
+        'SELECT last_read_at FROM conversation_settings WHERE conversation_id=? AND user_id=?'
+      ).get(convId, peerId)?.last_read_at || 0;
+      for (const id of ids) {
+        if (!msgMap.has(id)) continue;
+        const m = msgMap.get(id);
+        const read = readSet.has(id) || (peerLastReadAt > 0 && m.created_at <= peerLastReadAt);
+        if (read) readStates[id].push(peerId);
+      }
+    }
+  } else if (conv?.type === 'group' && rows.length) {
+    // 群：一次取全部成员的会话级已读水位，再按各消息 created_at 过滤（含发送者排除）
+    const members = db.prepare('SELECT user_id, last_read_at FROM conversation_settings WHERE conversation_id=?')
+      .all(convId);
+    for (const id of ids) {
+      if (!msgMap.has(id)) continue;
+      const m = msgMap.get(id);
+      for (const mem of members) {
+        if (mem.user_id === m.sender_id) continue;
+        if (mem.last_read_at > 0 && mem.last_read_at >= m.created_at) readStates[id].push(mem.user_id);
+      }
+    }
+  }
+  return { readStates };
 }
 
 // ── 聊天文件聚合视图（会话内图片/视频/文件按类型列表）──────────────
@@ -1106,5 +1273,5 @@ function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
 module.exports = {
   history, missed, send, saveUploadedFile, forward, batchDelete,
   remove, react, edit, collect, searchGlobal, searchInConversation, aroundMessage,
-  exportConversation, getConversationFiles, getMentions, adminRecall,
+  exportConversation, getConversationFiles, getMentions, adminRecall, getReadStates,
 };

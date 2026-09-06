@@ -255,6 +255,10 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    /// 已读状态弹窗（F5）用：私聊对端 userId。可能为空（历史会话未带 otherUser），
+    /// 空时弹窗退化为「有任何人已读」判定。
+    func peerIdForReadStatus() -> String { peerUserId ?? "" }
+
     // MARK: - 拍一拍
     /// 拍一拍某人（双击头像）。系统会广播 type='nudge' 消息，经 incomingPublisher 回流入列表。
     func nudge(_ targetId: String) {
@@ -452,12 +456,54 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    // ── 多选（批量撤回/删除）──
+    // ── 多选（批量撤回/删除/转发）──
     func enterMultiSelect(_ first: Message) { multiSelect = true; selectedIds = [first.id] }
     func exitMultiSelect() { multiSelect = false; selectedIds = [] }
     func toggleSelect(_ msg: Message) {
         if selectedIds.contains(msg.id) { selectedIds.remove(msg.id) } else { selectedIds.insert(msg.id) }
     }
+
+    /// 多选当前选中的消息（按时间序），供批量删除/转发用
+    func selectedMessages() -> [Message] {
+        messages.filter { selectedIds.contains($0.id) }
+    }
+
+    /// 多选转发预检（对齐 Web：过滤红包/转账/系统消息等不可转发类型）：
+    /// 返回 nil = 全部不可转发；否则返回可转发子集（调用方按需提示跳过了几条）。
+    func forwardableSelection() -> [Message]? {
+        let selected = selectedMessages()
+        let valid = selected.filter(isForwardableMessage)
+        return valid.isEmpty ? nil : valid
+    }
+
+    /// 合并转发标题（对齐 Web：「XX的聊天记录」/「N条聊天记录」）
+    func mergedForwardTitle(count: Int) -> String {
+        title.isEmpty ? "\(count)条聊天记录" : "\(title)的聊天记录"
+    }
+
+    /// 多选转发：merged=true 发一条合并转发消息到每个目标会话；false 逐条转发。
+    /// 逐条走 /forward(msgIds:)（服务端逐条复制）；合并对每个目标 POST type=merged。
+    func forwardSelected(_ msgs: [Message], conversationIds: [String], merged: Bool) {
+        guard !msgs.isEmpty, !conversationIds.isEmpty else { return }
+        Task {
+            do {
+                if merged {
+                    let payload = buildMergedPayload(msgs, title: mergedForwardTitle(count: min(msgs.count, mergedForwardMaxItems)))
+                    let json = encodeMergedContent(payload)
+                    for convId in conversationIds {
+                        _ = try await repo.sendMergedForward(conversationId: convId, json: json)
+                    }
+                } else {
+                    try await repo.forwardMessages(msgIds: msgs.map { $0.id }, conversationIds: conversationIds)
+                }
+                error = merged ? "已合并转发" : "已转发"
+                multiSelect = false; selectedIds = []
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "转发失败"
+            }
+        }
+    }
+
     func batchDeleteSelected() {
         let ids = Array(selectedIds)
         guard !ids.isEmpty else { return }
@@ -568,7 +614,8 @@ final class ChatViewModel: ObservableObject {
     }
 
     func loadForwardTargets() {
-        Task { forwardTargets = (try? await repo.loadConversations()) ?? forwardTargets }
+        // 目标列表排除当前会话（对齐 Android ChatViewModel.loadForwardTargets 的 filterNot）
+        Task { forwardTargets = (try? await repo.loadConversations())?.filter { $0.id != conversationId } ?? forwardTargets }
     }
 
     func forward(_ msg: Message, conversationIds: [String]) {

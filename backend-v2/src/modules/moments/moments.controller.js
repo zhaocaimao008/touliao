@@ -37,3 +37,16 @@ exports.uploadImages = asyncHandler(async (req, res) => {
   }
   res.json({ urls });
 });
+
+// 朋友圈视频上传（F1 #1）：只存文件返回 URL，不建动态；发布时随 video/cover 字段引用。
+// 与聊天文件路径同口径：拒绝 0 字节文件（历史上 iOS 流式拼装 bug 产生过 0 字节附件）。
+exports.uploadVideo = asyncHandler(async (req, res) => {
+  if (!req.file) throw badRequest('请选择视频');
+  if (req.file.size === 0) {
+    require('fs').unlink(req.file.path, () => {});
+    throw badRequest('文件为空，请重新选择');
+  }
+  const url = `/uploads/moments/${req.file.filename}`;
+  registerFile({ path: url, ownerId: req.user.id, kind: 'moments' });
+  res.json({ url });
+});

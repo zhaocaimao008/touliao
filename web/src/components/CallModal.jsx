@@ -5,7 +5,7 @@ import { mediaUrl } from '../utils/url';
 import { matchesCall, withCallId } from '../utils/callSignaling';
 import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingTone, playConnectedTone } from '../utils/callTones';
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
-import { videoConstraints, capVideoBitrate } from '../utils/callMedia';
+import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
 import './CallModal.css';
 
@@ -212,6 +212,33 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const bubble = useDraggable({ x: window.innerWidth - 110, y: 80 });
   const pip    = useDraggable({ x: window.innerWidth - 130, y: 24 });
 
+  // B-4（2026-09-05）：远端 autoplay 被浏览器手势策略拦下时（play() reject），出一条可
+  // 关闭的"点击恢复声音"提示，首次点击/按键任意处自动重试 play()。audioBlocked 只反映
+  // "仍被拦"（驱动重试监听），showAudioHint 单独控制提示条可见性（✕ 关闭只藏提示不断重试）。
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const [showAudioHint, setShowAudioHint] = useState(false);
+  const markPlayBlocked = useCallback(() => { setAudioBlocked(true); setShowAudioHint(true); }, []);
+  const tryPlayRemote = useCallback((el) => {
+    if (!el) return;
+    try { el.play().catch(markPlayBlocked); }
+    catch { markPlayBlocked(); }
+  }, [markPlayBlocked]);
+  useEffect(() => {
+    if (!audioBlocked) return;
+    const retry = () => {
+      [remoteAudioRef.current, remoteVideoRef.current, miniVideoRef.current].forEach(el => {
+        // 任一路媒体真正播起来即恢复（各元素挂的是同一路远端流）
+        if (el) el.play().then(() => { setAudioBlocked(false); setShowAudioHint(false); }).catch(() => {});
+      });
+    };
+    window.addEventListener('pointerdown', retry);
+    window.addEventListener('keydown', retry);
+    return () => {
+      window.removeEventListener('pointerdown', retry);
+      window.removeEventListener('keydown', retry);
+    };
+  }, [audioBlocked]);
+
   /* ── Ref 回调：元素挂载/重挂时自动恢复 srcObject ────────────
      切换 minimized 状态时 <audio>/<video> 会重新挂载，
      React ref callback 在每次挂载时都会执行，确保流不丢失。
@@ -223,19 +250,19 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
 
   const onRemoteVideoMount = useCallback((el) => {
     remoteVideoRef.current = el;
-    if (el && remoteStreamRef.current) el.srcObject = remoteStreamRef.current;
-  }, []);
+    if (el && remoteStreamRef.current) { el.srcObject = remoteStreamRef.current; tryPlayRemote(el); }
+  }, [tryPlayRemote]);
 
   const onMiniVideoMount = useCallback((el) => {
     miniVideoRef.current = el;
-    if (el && remoteStreamRef.current) el.srcObject = remoteStreamRef.current;
-  }, []);
+    if (el && remoteStreamRef.current) { el.srcObject = remoteStreamRef.current; tryPlayRemote(el); }
+  }, [tryPlayRemote]);
 
   const onRemoteAudioMount = useCallback((el) => {
     remoteAudioRef.current = el;
-    if (el && remoteStreamRef.current) el.srcObject = remoteStreamRef.current;
+    if (el && remoteStreamRef.current) { el.srcObject = remoteStreamRef.current; tryPlayRemote(el); }
     if (el && supportsSinkId && outputDeviceId) el.setSinkId(outputDeviceId).catch(() => console.warn('[call] setSinkId 失败:', outputDeviceId));
-  }, [outputDeviceId, supportsSinkId]);
+  }, [outputDeviceId, supportsSinkId, tryPlayRemote]);
 
   // 输出设备枚举：需要先有过麦克风授权(标签才不是空字符串)，通话建立时机正合适。
   useEffect(() => {
@@ -258,10 +285,12 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
 
   const attachRemoteStream = useCallback((stream) => {
     remoteStreamRef.current = stream;
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
-    if (miniVideoRef.current)   miniVideoRef.current.srcObject   = stream;
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
-  }, []);
+    // 流晚于元素挂载到达（ontrack 时元素多已挂好）：srcObject 换流后必须显式 play() 兜底，
+    // autoplay 属性不保证换流后自动起播
+    if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; tryPlayRemote(remoteVideoRef.current); }
+    if (miniVideoRef.current)   { miniVideoRef.current.srcObject   = stream; tryPlayRemote(miniVideoRef.current); }
+    if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; tryPlayRemote(remoteAudioRef.current); }
+  }, [tryPlayRemote]);
 
   /* ── 通话提示音（callTones.js:WebAudio 合成 + autoplay 预热）────────
      · 回铃音：主叫拨出等待期循环（450Hz「响1秒·停4秒」）
@@ -327,6 +356,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
+    // A-2：H264 优先。编解码偏好须在任何 createOffer/createAnswer 之前设（此处设置后
+    // 对本 pc 后续所有协商——主叫首 offer、ICE restart 重协商——持续有效；被叫应答路径
+    // 在 processOffer 里于 setRemoteDescription 后再补设一次）
+    await preferH264(pc);
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) socket?.emit('call:ice', withCallId({ to: remoteId, candidate }, callId));
@@ -403,6 +436,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       for (const c of pendingIceRef.current.splice(0)) {
         try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* stale */ }
       }
+      // A-2：被叫应答路径。远端 offer 可能创建我方未 addTrack 的视频 transceiver
+      // （如纯语音起呼、对方切视频后重协商），须在 createAnswer 前设 H264 优先
+      await preferH264(pc);
       const answer = await pc.createAnswer();
       const tunedAnswer = tuneSdpForWeakNetwork(answer.sdp);
       await pc.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: tunedAnswer }));
@@ -598,6 +634,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         // eslint-disable-next-line react-hooks/immutability
         videoAddStreamRef.current = vs;   // 持有引用防 GC 停轨
         capVideoBitrate(pc);   // 幂等：确保新补的视频轨也受发送码率上限约束
+        // A-2：语音→视频新 addTrack 产生全新视频 transceiver，须在下面的 createOffer 前重设 H264 优先
+        await preferH264(pc);
       } else {
         // 视频→语音：停 + 移除视频轨
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
@@ -636,6 +674,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     // （react-hooks/set-state-in-effect 7.x 对"状态守卫型同步 setState"属误报边界，见 AUDIT 待办）
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (status !== 'connected') { setCallQuality(null); return; }
+    // 上次采样的 { lost, received } 基线（窗口差分用，见下）
+    let prevSnapshot = null;
     const intervalId = setInterval(async () => {
       const pc = pcRef.current;
       if (!pc) return;
@@ -644,12 +684,23 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         let rtt = null, lost = 0, received = 0;
         stats.forEach(s => {
           if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') rtt = (s.currentRoundTripTime || 0) * 1000;
-          if (s.type === 'inbound-rtp' && s.kind === 'audio') {
+          // B-2：音频与视频 inbound 都计入——任一路丢包都影响体验（视频丢包=花屏/卡顿）
+          if (s.type === 'inbound-rtp' && (s.kind === 'audio' || s.kind === 'video')) {
             lost += s.packetsLost || 0;
             received += s.packetsReceived || 0;
           }
         });
-        const lossRate = received + lost > 0 ? lost / (received + lost) : 0;
+        // B-2：丢包率改为相邻两次采样的窗口差分。累计值除法的旧算法会把接通头几秒的
+        // 瞬时尖峰永久摊进分母之外的高位（丢包只增不减），一次尖峰定格"差"再也下不来；
+        // 差分后只反映最近 2s 窗口的真实丢包。首次采样只记基线不判定，顺带跳过首个窗口。
+        // ICE restart 后计数器可能清零：增量夹取 ≥0，清零窗口按 0 处理，下一窗口自愈。
+        let lossRate = 0;
+        if (prevSnapshot) {
+          const dLost = Math.max(0, lost - prevSnapshot.lost);
+          const dRecv = Math.max(0, received - prevSnapshot.received);
+          if (dLost + dRecv > 0) lossRate = dLost / (dLost + dRecv);
+        }
+        prevSnapshot = { lost, received };
         let q = 'good';
         if (rtt !== null) {
           if (rtt >= 500 || lossRate >= 0.08) q = 'poor';
@@ -691,6 +742,21 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       >
         {/* 音频持续输出（ref callback 重挂时自动恢复 srcObject） */}
         <audio ref={onRemoteAudioMount} autoPlay hidden />
+
+        {/* B-4：缩小态同样提示 autoplay 被拦（气泡内空间小，只留精简样式） */}
+        {showAudioHint && (
+          <div
+            role="status"
+            onClick={() => setShowAudioHint(false)}
+            style={{
+              position: 'absolute', top: -24, left: '50%', transform: 'translateX(-50%)',
+              padding: '3px 8px', borderRadius: 999, background: 'rgba(0,0,0,.72)',
+              color: '#fff', fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer',
+            }}
+          >
+            🔇 {t('call.tapToRestoreAudio')} ✕
+          </div>
+        )}
 
         {videoMode ? (
           <div className="cm-bubble-video">
@@ -770,6 +836,29 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       {mediaError && (
         <div role="alert" className="cm-media-error">
           {t('call.micAccessErrorTemplate').replace('{device}', videoMode ? t('call.cameraMicShort') : t('call.micShort'))}
+        </div>
+      )}
+
+      {/* B-4：autoplay 被浏览器策略拦下——点击/按键任意处即恢复，✕ 只关提示 */}
+      {showAudioHint && inProgress && (
+        <div
+          role="status"
+          style={{
+            position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 30,
+            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px',
+            borderRadius: 999, background: 'rgba(0,0,0,.72)', color: '#fff', fontSize: 13,
+            boxShadow: '0 4px 16px rgba(0,0,0,.35)', whiteSpace: 'nowrap',
+          }}
+        >
+          <span>🔇 {t('call.tapToRestoreAudio')}</span>
+          <button
+            type="button"
+            aria-label={t('common.close')}
+            onClick={() => setShowAudioHint(false)}
+            style={{ border: 0, background: 'transparent', color: 'rgba(255,255,255,.75)', cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1 }}
+          >
+            ✕
+          </button>
         </div>
       )}
 

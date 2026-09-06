@@ -289,7 +289,9 @@ final class CallManager: NSObject, ObservableObject {
         socket.callIncoming.receive(on: DispatchQueue.main).sink { [weak self] (from, type, name, callId) in
             guard let self else { return }
             if self.state.stage != .idle && self.state.stage != .ended {
-                self.socket.emitCallResponse(to: from, accepted: false, callId: callId); return
+                // B-3：忙线拒接带 busy=true（对齐 Web Home.jsx 语义，后端 call.js 原样转发），
+                // 主叫可区分"对方忙线中"与普通拒接；已有来电/通话 UI 保持不覆盖
+                self.socket.emitCallResponse(to: from, accepted: false, callId: callId, busy: true); return
             }
             self.state = CallState(stage: .incoming, peerId: from, peerName: name, isVideo: type == "video", isCaller: false, callId: callId)
             // 锁屏/后台来电：App 不在前台时补弹本地通知（含接听/拒绝按钮），
@@ -449,7 +451,8 @@ final class CallManager: NSObject, ObservableObject {
         guard let pc = pc else { return }
         pc.offer(for: mediaConstraints()) { [weak self] desc, err in
             guard let self, let desc, err == nil else { return }
-            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
+            // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
             self.socket.emitCallOffer(to: self.state.peerId, sdp: tuned.sdp, callId: self.state.callId)
         }
@@ -492,7 +495,8 @@ final class CallManager: NSObject, ObservableObject {
         guard let pc = pc else { return }
         pc.answer(for: mediaConstraints()) { [weak self] desc, err in
             guard let self, let desc, err == nil else { return }
-            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
+            // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
             self.socket.emitCallAnswer(to: self.state.peerId, sdp: tuned.sdp, callId: self.state.callId)
         }

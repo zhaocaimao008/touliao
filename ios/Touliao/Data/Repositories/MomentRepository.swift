@@ -1,11 +1,30 @@
 import Foundation
 import Combine
 
-private struct CreateMomentBody: Encodable { let content: String; let images: [String]; let visibility: String; let visibleTo: [String] }
+private struct CreateMomentBody: Encodable {
+    let content: String
+    let images: [String]
+    let visibility: String
+    let visibleTo: [String]
+    // 视频动态（F5）：可选 1 段视频 + 可选封面；nil 不编码，避免 images 数组与空串语义混淆
+    let video: String?
+    let cover: String?
+    enum CodingKeys: String, CodingKey { case content, images, visibility, visibleTo, video, cover }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(content, forKey: .content)
+        try c.encode(images, forKey: .images)
+        try c.encode(visibility, forKey: .visibility)
+        try c.encode(visibleTo, forKey: .visibleTo)
+        try c.encodeIfPresent(video, forKey: .video)
+        try c.encodeIfPresent(cover, forKey: .cover)
+    }
+}
 private struct CommentBody: Encodable {
     let content: String
     let replyToUser: String?   // 回复某条评论时带上被回复人 id；nil 则不回复(编码时省略)
 }
+private struct MomentVideoResponse: Decodable { let url: String }
 
 final class MomentRepository {
     static let shared = MomentRepository()
@@ -19,8 +38,19 @@ final class MomentRepository {
         try await api.send("api/moments?limit=\(limit)&offset=\(offset)")
     }
 
-    func create(content: String, images: [String], visibility: String, visibleTo: [String] = []) async throws -> Moment {
-        try await api.send("api/moments", method: "POST", body: CreateMomentBody(content: content, images: images, visibility: visibility, visibleTo: visibleTo))
+    func create(content: String, images: [String], visibility: String, visibleTo: [String] = [],
+                video: String? = nil, cover: String? = nil) async throws -> Moment {
+        try await api.send("api/moments", method: "POST",
+                           body: CreateMomentBody(content: content, images: images, visibility: visibility, visibleTo: visibleTo, video: video, cover: cover))
+    }
+
+    /// 朋友圈视频上传（F5）：POST /api/moments/video（单文件，字段名 video，服务端魔数校验），
+    /// 返回 /uploads/moments/xxx.mp4 相对 URL，发布时随 video 字段引用。大文件走磁盘流式上传。
+    func uploadVideo(fileURL: URL, fileName: String, mimeType: String) async throws -> String {
+        let res: MomentVideoResponse = try await api.uploadFileStream(
+            "api/moments/video", fileURL: fileURL, fileName: fileName, mimeType: mimeType, fieldName: "video"
+        )
+        return res.url
     }
 
     func uploadImages(_ datas: [(data: Data, name: String)]) async throws -> [String] {

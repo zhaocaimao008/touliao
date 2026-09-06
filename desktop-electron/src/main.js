@@ -11,13 +11,15 @@ const log = require('electron-log');
 const Store = require('electron-store');
 const { validatePublicKeyPem } = require('./lib/validatePublicKeyPem');
 
-// ── Windows 渲染修复：硬件加速冲突导致的气泡/图片重叠残影 ──
-// 现象：Web 端正常，桌面端出现消息气泡、图片局部残影错乱（GPU 合成器驱动 bug 的典型症状）。
-// 方案：全局禁用硬件加速 + GPU 合成 + GPU 缓存，渲染全部走软件光栅化，彻底规避驱动层残影。
-// 代价：滚动/动画由 GPU 合成改为 CPU，聊天列表滚动仍流畅（Chromium 软件光栅化足够），
-//       视频通话走 WebRTC 软编解码不受影响。若后续换驱动可移除本行恢复硬件加速。
-app.disableHardwareAcceleration();
-app.commandLine.appendSwitch('disable-gpu-compositing');
+// ── Windows 渲染修复残留项（历史见 23721d7）──
+// 2026-08 为修「消息气泡/图片重叠残影」曾三管齐下：禁硬件加速+禁 GPU 合成+禁 GPU 缓存，
+// 同批还修了行高估算（estimateHeight）与 CSS 图层策略——残影根因更可能在后两者（行定位
+// 错位把下一行压进图片区）。而 disableHardwareAcceleration/disable-gpu-compositing 会把
+// 整个渲染打到软件光栅化：WebRTC 的 GPU 视频解码依赖硬件加速，8.1.15 起四端已升 720p 采集，
+// 桌面端仍禁硬加速 = 720p 强制软解，收流必糊（CPU 忙时更甚）。禁 compositing 同样强制软
+// 合成，与禁硬加速同罪，不能只留它一个。两者均退役，仅保留 disable-gpu-cache（几乎无副
+// 作用，防旧缓存图层复用，且下方 clearRenderCaches 每次启动本就在清这些目录）。
+// 若 Windows 气泡残影复发：先查 estimateHeight/CSS 图层修复与 GPU 驱动版本，不要再回到禁硬加速。
 app.commandLine.appendSwitch('disable-gpu-cache');
 // 显式开启高 DPI 感知：Windows 125%/150% 缩放下按物理像素渲染，
 // 避免 Chromium 默认模糊缩放导致的边框/气泡边缘错位重绘。

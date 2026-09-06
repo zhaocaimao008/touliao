@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.touliao.app.core.util.formatChatTime
 import com.touliao.app.data.model.FriendRequest
 import com.touliao.app.data.model.SentRequest
 import com.touliao.app.ui.components.InitialAvatar
@@ -112,9 +113,17 @@ private fun SentRow(req: SentRequest, avatarUrl: String? = null) {
         InitialAvatar(name = req.username.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(req.username.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(req.username.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f, fill = false), maxLines = 1)
+                Spacer(Modifier.weight(1f))
+                // 申请时间（对齐 Web F3b：名字行右侧展示）
+                if (req.created_at > 0) {
+                    Text(formatChatTime(req.created_at), color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall)
+                }
+            }
             Text(req.message.ifBlank { "请求添加对方为好友" }, color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
         }
+        Spacer(Modifier.width(8.dp))
         Text(
             when (req.status) { "accepted" -> "已同意"; "rejected" -> "已拒绝"; else -> "等待验证" },
             color = if (req.status == "accepted") VxinGreen else VxinTextSecondary,
@@ -132,7 +141,14 @@ private fun RequestRow(req: FriendRequest, avatarUrl: String? = null, busy: Bool
         InitialAvatar(name = req.username.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(req.username.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(req.username.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f, fill = false), maxLines = 1)
+                Spacer(Modifier.weight(1f))
+                // 申请时间（对齐 Web F3b：名字行右侧展示）
+                if (req.created_at > 0) {
+                    Text(formatChatTime(req.created_at), color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall)
+                }
+            }
             Text(
                 req.message.ifBlank { "请求添加你为好友" },
                 color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall,

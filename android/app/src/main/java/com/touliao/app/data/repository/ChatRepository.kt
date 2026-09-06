@@ -76,7 +76,9 @@ class ChatRepository @Inject constructor(
         runCatching { api.markRead(conversationId, MarkReadRequest(messageId)) }
     }
 
-    suspend fun loadConversations(): List<Conversation> = api.conversations()
+    /** includeArchived=true 时返回含已归档会话（主列表页拉全量后本地分流，对齐 Web） */
+    suspend fun loadConversations(includeArchived: Boolean = false): List<Conversation> =
+        api.conversations(if (includeArchived) 1 else 0)
 
     suspend fun loadHistory(conversationId: String, before: Long? = null, after: Long? = null): List<Message> =
         api.history(conversationId, before = before, after = after)
@@ -157,6 +159,14 @@ class ChatRepository @Inject constructor(
     suspend fun setConversationMuted(conversationId: String, muted: Boolean) =
         api.muteConversation(conversationId, com.touliao.app.data.model.MuteConversationBody(if (muted) 1 else 0))
 
+    /** 会话归档/取消归档 */
+    suspend fun setConversationArchived(conversationId: String, archived: Boolean) =
+        api.archiveConversation(conversationId, com.touliao.app.data.model.ArchiveConversationBody(archived))
+
+    /** 会话内消息已读状态（F4b）：msgIds ≤100 条，返回 msgId → 已读用户 id 列表 */
+    suspend fun readStates(conversationId: String, msgIds: List<String>): Map<String, List<String>> =
+        api.readStates(conversationId, msgIds.joinToString(",")).readStates
+
     /** 标为未读 */
     suspend fun markConversationUnread(conversationId: String) = api.markUnread(conversationId)
 
@@ -174,6 +184,10 @@ class ChatRepository @Inject constructor(
 
     suspend fun forward(msgId: String, conversationIds: List<String>) =
         api.forward(com.touliao.app.data.model.ForwardBody(msgId, conversationIds))
+
+    /** 合并转发（F4a）：向单个目标发一条 type=merged、content=JSON 的消息 */
+    suspend fun sendMerged(conversationId: String, contentJson: String) =
+        api.sendHttp(conversationId, com.touliao.app.data.model.SendMessageBody(content = contentJson, type = "merged"))
 
     suspend fun collectMessage(msgId: String) = api.collectMessage(msgId)
 

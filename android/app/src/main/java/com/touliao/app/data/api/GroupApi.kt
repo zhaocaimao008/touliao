@@ -75,6 +75,10 @@ interface GroupApi {
     @GET("api/messages/conversation/{id}/qr-code")
     suspend fun qrCode(@Path("id") id: String): GroupQr
 
+    /** 生成/复用群邀请链接（普通成员需群开启 member_can_invite） */
+    @POST("api/messages/conversation/{id}/invite-link")
+    suspend fun createInviteLink(@Path("id") id: String): com.touliao.app.data.model.GroupInviteLink
+
     /** 通过邀请 token 进群 */
     @POST("api/messages/join/{token}")
     suspend fun join(@Path("token") token: String): JoinGroupResult

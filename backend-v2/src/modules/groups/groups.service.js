@@ -1,5 +1,6 @@
 'use strict';
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const QRCode = require('qrcode');
 const { db } = require('../../db/connection');
 const config = require('../../config');
@@ -18,6 +19,27 @@ function setNickname(io, convId, userId, nickname) {
 }
 
 // ── 邀请链接 / 二维码 / 扫码进群 ────────────────────────────────
+// 生成/复用群的邀请 token：有效期内同群复用同一 token（F1 #3 规格，二维码与链接
+// 不会因重复点按钮而失效），过期/无 token 才重新生成并作废旧 token。
+// token 用随机 16 字节 base64url（128bit 熵、URL 安全，替代旧的 16 位 hex=64bit）。
+function upsertInviteToken(convId, createdBy) {
+  const now = Math.floor(Date.now() / 1000);
+  const existing = db.prepare(
+    'SELECT token, expires_at FROM group_invite_tokens WHERE conversation_id=? AND expires_at>? ORDER BY created_at DESC LIMIT 1'
+  ).get(convId, now);
+  // 返回形状统一为 { token, expiresAt }（复用路径来自 DB 行是 expires_at，这里归一化，
+  // 调用方不必区分两条路径）
+  if (existing) return { token: existing.token, expiresAt: existing.expires_at };
+  const token = crypto.randomBytes(16).toString('base64url');
+  const expiresAt = now + 7 * 24 * 3600;
+  db.transaction(() => {
+    db.prepare('DELETE FROM group_invite_tokens WHERE conversation_id=?').run(convId);
+    db.prepare('INSERT INTO group_invite_tokens (token, conversation_id, created_by, expires_at) VALUES (?, ?, ?, ?)')
+      .run(token, convId, createdBy, expiresAt);
+  })();
+  return { token, expiresAt };
+}
+
 function createInviteLink(convId, userId) {
   const role = memberRole(convId, userId);
   if (!role) throw forbidden('不在群内');
@@ -26,34 +48,26 @@ function createInviteLink(convId, userId) {
     const conv = db.prepare('SELECT member_can_invite FROM conversations WHERE id=?').get(convId);
     if (!conv?.member_can_invite) throw forbidden('仅群主和管理员可生成邀请链接');
   }
-  const token = uuidv4().replace(/-/g, '').slice(0, 16).toUpperCase();
-  const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
-  db.transaction(() => {
-    db.prepare('DELETE FROM group_invite_tokens WHERE conversation_id=?').run(convId);
-    db.prepare('INSERT INTO group_invite_tokens (token, conversation_id, created_by, expires_at) VALUES (?, ?, ?, ?)')
-      .run(token, convId, userId, expiresAt);
-  })();
-  return { token, url: `${config.appUrl}/join/${token}`, expiresAt };
+  const invite = upsertInviteToken(convId, userId);
+  const url = `${config.appUrl}/join/${invite.token}`;
+  // link 与 url 同值：url 是既有字段（老客户端在读），link 为 F1 新增别名
+  return { token: invite.token, link: url, url, expiresAt: invite.expiresAt };
 }
 
 async function getQrCode(convId, userId) {
   requireMember(convId, userId, '不在群内');
+  const now = Math.floor(Date.now() / 1000);
   let invite = db.prepare('SELECT token FROM group_invite_tokens WHERE conversation_id=? AND expires_at>? ORDER BY created_at DESC LIMIT 1')
-    .get(convId, Math.floor(Date.now() / 1000));
+    .get(convId, now);
   if (!invite) {
+    // 复用已有有效 token 时无需权限校验（token 本来就是群内可见的）；
+    // 只有要生成新 token 时才校验普通成员的邀请权限（与原逻辑一致）
     const role = memberRole(convId, userId);
     if (role === 'member') {
       const conv = db.prepare('SELECT member_can_invite FROM conversations WHERE id=?').get(convId);
       if (!conv?.member_can_invite) throw forbidden('仅群主和管理员可生成邀请链接');
     }
-    const token = uuidv4().replace(/-/g, '').slice(0, 16).toUpperCase();
-    const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
-    db.transaction(() => {
-      db.prepare('DELETE FROM group_invite_tokens WHERE conversation_id=?').run(convId);
-      db.prepare('INSERT INTO group_invite_tokens (token,conversation_id,created_by,expires_at) VALUES (?,?,?,?)')
-        .run(token, convId, userId, expiresAt);
-    })();
-    invite = { token };
+    invite = upsertInviteToken(convId, userId);
   }
   const url = `${config.appUrl}/join/${invite.token}`;
   const qrCode = await QRCode.toDataURL(url, { width: 240, margin: 2, color: { dark: '#191919', light: '#ffffff' } });
@@ -82,6 +96,20 @@ function joinByToken(io, userId, token) {
     .get(token, Math.floor(Date.now() / 1000));
   if (!invite) throw notFound('邀请链接无效或已过期');
 
+  // 黑名单/封禁门控（F1 #3）：封禁账号、与群主存在任一方向拉黑的用户，不能经链接入群。
+  // banned 正常会在登录/token 层被拦，这里防御性复查；拉黑关系给出明确错误。
+  const group = db.prepare('SELECT owner_id FROM conversations WHERE id=?').get(invite.conversation_id);
+  if (!group) throw notFound('群聊不存在或已解散');
+  if (db.prepare('SELECT banned FROM users WHERE id=?').get(userId)?.banned) {
+    throw forbidden('该账号已停用，无法加入群聊');
+  }
+  if (group.owner_id && group.owner_id !== userId) {
+    const blocked = db.prepare(
+      'SELECT 1 FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?) LIMIT 1'
+    ).get(group.owner_id, userId, userId, group.owner_id);
+    if (blocked) throw forbidden('无法加入该群：你与群主之间存在拉黑关系');
+  }
+
   let alreadyMember = false;
   db.transaction(() => {
     if (isMember(invite.conversation_id, userId)) { alreadyMember = true; return; }
@@ -96,7 +124,9 @@ function joinByToken(io, userId, token) {
   })();
   invalidateConv(invite.conversation_id); // 入群后立即可见（isMember 5s 缓存失效）
   if (alreadyMember) {
-    return { success: true, conversationId: invite.conversation_id, alreadyMember: true };
+    // 幂等返回已在群，同时带回群信息（客户端要能直接跳转会话）
+    const conv = db.prepare('SELECT id,type,name,avatar FROM conversations WHERE id=?').get(invite.conversation_id);
+    return { success: true, conversationId: invite.conversation_id, conversation: conv, alreadyMember: true };
   }
   const conv = db.prepare('SELECT id,type,name,avatar FROM conversations WHERE id=?').get(invite.conversation_id);
   if (io) {
@@ -217,6 +247,9 @@ function leave(io, convId, userId) {
   if (conv.owner_id === userId) throw badRequest('群主不能直接退出群聊，请先转让群主后再退出，或解散群聊');
   const result = db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, userId);
   if (result.changes === 0) throw forbidden('您不在此群中');
+  // 清理本人在该群的个人会话设置（归档/置顶/免打扰/已读水位等）：退群即不再是成员，
+  // 残留行会导致重新入群后带着旧 archived/pinned 状态（F1 #5：退群清理归档行）。
+  db.prepare('DELETE FROM conversation_settings WHERE conversation_id=? AND user_id=?').run(convId, userId);
   invalidateConv(convId); // 退群后立即失权（isMember 5s 缓存失效，防退群后短暂仍可访问群附件）
   if (io) {
     io.in(`user_${userId}`).socketsLeave(convId);
@@ -277,7 +310,8 @@ function manage(io, convId, userId, body) {
 }
 
 // ── 设置/取消管理员（仅群主）────────────────────────────────────
-// 转让群主：当前群主 → newOwnerId（新群主），原群主降为普通成员
+// 转让群主：当前群主 → newOwnerId（新群主），原群主降为管理员（F1 #7：保留管理
+// 权限协助交接，owner-only 权限判据是 conversations.owner_id，改数据即生效）
 function transferOwner(io, convId, ownerId, newOwnerId) {
   if (!newOwnerId) throw badRequest('参数缺失');
   const conv = db.prepare('SELECT owner_id FROM conversations WHERE id=?').get(convId);
@@ -286,18 +320,19 @@ function transferOwner(io, convId, ownerId, newOwnerId) {
   if (newOwnerId === ownerId) throw badRequest('不能转让给自己');
   const target = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, newOwnerId);
   if (!target) throw notFound('成员不存在');
+  if (target.role === 'owner') throw badRequest('对方已是群主');
 
   db.transaction(() => {
     db.prepare('UPDATE conversations SET owner_id=? WHERE id=?').run(newOwnerId, convId);
     db.prepare("UPDATE conversation_members SET role='owner' WHERE conversation_id=? AND user_id=?").run(convId, newOwnerId);
-    db.prepare("UPDATE conversation_members SET role='member' WHERE conversation_id=? AND user_id=?").run(convId, ownerId);
+    db.prepare("UPDATE conversation_members SET role='admin' WHERE conversation_id=? AND user_id=?").run(convId, ownerId);
   })();
   invalidateConv(convId); // 两个人的角色都变了，isMember/memberRole 5s 缓存必须立即失效，否则新群主短时间内仍被当成普通成员拒绝管理操作
 
   if (io) {
     io.to(convId).emit('group_updated', { id: convId, owner_id: newOwnerId });
     io.to(`user_${newOwnerId}`).emit('role_changed', { conversationId: convId, role: 'owner' });
-    io.to(`user_${ownerId}`).emit('role_changed', { conversationId: convId, role: 'member' });
+    io.to(`user_${ownerId}`).emit('role_changed', { conversationId: convId, role: 'admin' });
   }
 }
 

@@ -7,6 +7,8 @@ import { showToast, showConfirm } from '../utils/toast';
 import { useConvSettings } from '../hooks/useConvSettings';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
+import { useSocket } from '../contexts/SocketContext';
+import { copyToClipboard } from '../utils/clipboard';
 export { GroupAvatar } from './GroupAvatar'; // re-export 向后兼容
 
 /* ── 群头像上传（管理员 hover 显示相机图标） ── */
@@ -83,7 +85,7 @@ function RoleBadge({ role }) {
 /* ── 成员行（提升到组件外以保证 react-window 引用稳定）── */
 const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }) {
   const { t } = useI18n();
-  const { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, transferOwner, kickMember } = data;
+  const { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, kickMember } = data;
   const m = filtered[index];
   const q = kickSearch.toLowerCase();
   return (
@@ -119,13 +121,6 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
           onClick={() => toggleAdmin(m.id, m.role)}
         >{m.role === 'admin' ? t('groupInfo.revokeAdmin') : t('groupInfo.makeAdmin')}</button>
       )}
-      {isOwner && m.role !== 'owner' && (
-        <button
-          className="gi-btn-admin"
-          style={{ color: 'var(--green)', border: '1px solid var(--green)' }}
-          onClick={() => transferOwner(m.id)}
-        >{t('groupInfo.transferOwnership')}</button>
-      )}
       {isAdmin && m.id !== currentUserId && m.role === 'member' && (
         <button className="gi-btn-kick" onClick={() => kickMember(m.id)}>{t('groupInfo.removeMember')}</button>
       )}
@@ -136,6 +131,7 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
 /* ── 主组件 ── */
 export default function GroupInfo({ conversation, currentUserId, onClose, onLeave, onConvUpdate, onPickBackground, onClearBackground, onCleared, onOpenChatFiles }) {
   const { t } = useI18n();
+  const { socket } = useSocket();
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editName, setEditName] = useState(false);
@@ -167,6 +163,9 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   // 群二维码
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQrData] = useState(null);
+  const [showTransferOwner, setShowTransferOwner] = useState(false);
+  const [transferringOwner, setTransferringOwner] = useState(false);
+  const [copyingInviteLink, setCopyingInviteLink] = useState(false);
 
   const applyInfo = useCallback((data) => {
     setInfo(data);
@@ -196,14 +195,29 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   }, [conversation.id, applyInfo]);
 
   useEffect(() => {
+    if (!socket) return undefined;
+    const refreshInfo = payload => {
+      const id = payload?.conversationId || payload?.id;
+      if (String(id) === String(conversation.id)) load();
+    };
+    socket.on('group_updated', refreshInfo);
+    socket.on('role_changed', refreshInfo);
+    return () => {
+      socket.off('group_updated', refreshInfo);
+      socket.off('role_changed', refreshInfo);
+    };
+  }, [socket, conversation.id, load]);
+
+  useEffect(() => {
     const handler = e => {
       if (e.key !== 'Escape') return;
       if (showInvite) { setShowInvite(false); return; }
+      if (showTransferOwner) { setShowTransferOwner(false); return; }
       if (showQR) { setShowQR(false); return; }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [showInvite, showQR]);
+  }, [showInvite, showQR, showTransferOwner]);
 
   const myRole = info?.myRole || 'member';
   const isOwner = myRole === 'owner';
@@ -315,17 +329,38 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   const transferOwner = async (uid) => {
     const name = info.members.find(m => m.id === uid)?.username || t('groupInfo.unknownUser');
     if (!(await showConfirm(t('groupInfo.confirmTransferOwnerTemplate').replace('{name}', name)))) return;
+    setTransferringOwner(true);
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/transfer-owner`, { userId: uid });
       setInfo(i => ({
         ...i,
         owner_id: uid,
-        myRole: 'member',
+        myRole: 'admin',
         members: i.members.map(m =>
-          m.id === uid ? { ...m, role: 'owner' } : (m.role === 'owner' ? { ...m, role: 'member' } : m)
+          m.id === uid ? { ...m, role: 'owner' } : (m.role === 'owner' ? { ...m, role: 'admin' } : m)
         ),
       }));
+      setShowTransferOwner(false);
+      showToast(t('groupInfo.transferOwnerSuccess'), 'success');
     } catch (e) { showToast(e.response?.data?.error || t('groupInfo.transferOwnerFailed'), 'error'); }
+    finally { setTransferringOwner(false); }
+  };
+
+  const copyInviteLink = async () => {
+    if (copyingInviteLink) return;
+    setCopyingInviteLink(true);
+    try {
+      const { data } = await axios.post(`/api/messages/conversation/${conversation.id}/invite-link`);
+      const raw = data?.url || data?.link || '';
+      if (!raw) throw new Error('missing invite link');
+      const absolute = new URL(raw, window.location.origin).toString();
+      const copied = await copyToClipboard(absolute);
+      showToast(copied ? t('groupInfo.inviteLinkCopied') : t('groupInfo.inviteLinkCopyFailed'), copied ? 'success' : 'error');
+    } catch (e) {
+      showToast(e.response?.data?.error || t('groupInfo.inviteLinkCreateFailed'), 'error');
+    } finally {
+      setCopyingInviteLink(false);
+    }
   };
 
   /* 移出成员 */
@@ -604,6 +639,13 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   </div>
                   <Toggle on={!!info.member_can_invite} onChange={toggleMemberInvite} disabled={togglingMemberInvite} label={t('groupInfo.memberInviteLabel')} />
                 </div>
+
+                {isOwner && (
+                  <button type="button" className="gi-mg-action" onClick={() => setShowTransferOwner(true)}>
+                    <span>{t('groupInfo.transferOwnership')}</span>
+                    <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -680,7 +722,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               if (kickSearch && filtered.length === 0) {
                 return <div className="gi-no-match">{t('groupInfo.noMatchingMembers')}</div>;
               }
-              const itemData = { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, transferOwner, kickMember };
+              const itemData = { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, kickMember };
               if (filtered.length > 50) {
                 return (
                   <FixedSizeList
@@ -770,6 +812,12 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             <span className="gi-text14">{t('groupInfo.qrTitle')}</span>
             <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
           </div>
+          {(isAdmin || info.member_can_invite) && (
+            <button type="button" className="gi-qr-row" onClick={copyInviteLink} disabled={copyingInviteLink}>
+              <span className="gi-text14">{copyingInviteLink ? t('common.loading') : t('groupInfo.copyInviteLink')}</span>
+              <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7a5 5 0 000 10h4v-1.9H7A3.1 3.1 0 013.9 12zM8 13h8v-2H8v2zm9-6h-4v1.9h4a3.1 3.1 0 010 6.2h-4V17h4a5 5 0 000-10z"/></svg>
+            </button>
+          )}
         </div>
 
         {/* 导出聊天记录 */}
@@ -833,6 +881,29 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               ) : (
                 <div className="gi-qr-load">{t('common.loading')}</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTransferOwner && (
+        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && !transferringOwner && setShowTransferOwner(false)}>
+          <div className="wc-modal wide" role="dialog" aria-modal="true" aria-label={t('groupInfo.transferOwnership')}>
+            <div className="wc-modal-header">
+              <span className="wc-modal-title">{t('groupInfo.transferOwnership')}</span>
+              <button type="button" className="wc-modal-close" onClick={() => setShowTransferOwner(false)} disabled={transferringOwner} aria-label={t('common.close')}>✕</button>
+            </div>
+            <div className="wc-modal-body">
+              <div className="gi-inv-hint">{t('groupInfo.transferOwnerHint')}</div>
+              <div className="gi-inv-list">
+                {info.members.filter(member => String(member.id) !== String(currentUserId)).map(member => (
+                  <button type="button" key={member.id} className="wc-group-member-item gi-transfer-member" onClick={() => transferOwner(member.id)} disabled={transferringOwner}>
+                    <Avatar src={member.avatar} name={member.username} size={36} />
+                    <span className="gi-inv-name">{member.username}</span>
+                    <RoleBadge role={member.role} />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -66,7 +66,9 @@ private struct GroupCallView: View {
                     LazyVGrid(columns: columns, spacing: 6) {
                         tile(track: state.isVideo && state.cameraEnabled ? manager.localVideoTrack : nil, label: "我", mirror: true)
                         ForEach(state.participants, id: \.self) { pid in
-                            tile(track: state.isVideo ? manager.remoteTracks[pid] : nil, label: "成员", mirror: false)
+                            // B-1：远端格按轨存在渲染（对齐 Web streamForRef）——语音模式收到
+                            // 其他成员升级发来的视频也能出画，不受本地 isVideo 门控
+                            tile(track: manager.remoteTracks[pid], label: "成员", mirror: false)
                         }
                     }
                     .padding(8)
@@ -101,8 +103,22 @@ private struct GroupCallView: View {
         HStack(spacing: 28) {
             circleButton(state.micEnabled ? "静音" : "取消静音", Color(white: 0.35)) { manager.toggleMic() }
             circleButton("挂断", .red) { manager.hangup() }
+            // B-1：语音模式也提供"开启视频"升级入口；视频模式保持原摄像头开关（镜像 Web GroupCallModal）
+            circleButton(state.isVideo ? (state.cameraEnabled ? "关摄像头" : "开摄像头") : "开启视频", Color(white: 0.35)) {
+                if state.isVideo {
+                    manager.toggleCamera()
+                } else {
+                    // 语音加入时 .task 只请求了麦克风权限，升级前补请求相机权限
+                    // （拒绝时 upgradeToVideo 内 startCapture 无帧，保持语音不受影响）
+                    Task {
+                        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                            AVCaptureDevice.requestAccess(for: .video) { _ in cont.resume() }
+                        }
+                        manager.upgradeToVideo()
+                    }
+                }
+            }
             if state.isVideo {
-                circleButton(state.cameraEnabled ? "关摄像头" : "开摄像头", Color(white: 0.35)) { manager.toggleCamera() }
                 circleButton("翻转", Color(white: 0.35)) { manager.switchCamera() }
             }
         }

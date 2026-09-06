@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
+import VideoPreview from './VideoPreview';
+import UploadProgressBar from './UploadProgressBar';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast, showConfirm } from '../utils/toast';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
-import { getThumbUrl } from '../utils/url';
+import { getThumbUrl, mediaUrl } from '../utils/url';
 import { linkify } from '../utils/linkify';
 import { useI18n } from '../contexts/I18nContext';
+import { validateMomentVideo } from '../utils/momentMedia';
 
 function ago(sec) {
   // 钳到 0：时钟偏差/服务器时间超前时避免出现「-3分钟前」
@@ -31,6 +34,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
   const [loadingComments, setLoadingComments] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [lightbox, setLightbox] = useState(null); // { urls, idx } | null
+  const [videoLightbox, setVideoLightbox] = useState(false);
   const [likePop, setLikePop] = useState(false);  // 主动点赞时心跳动画（仅点击触发，避免 feed 加载已赞项乱跳）
 
   const viewAllComments = async () => {
@@ -133,9 +137,30 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
             </div>
           )
         )}
+        {m.video && (
+          <button
+            type="button"
+            className="wc-moment-video-card"
+            onClick={() => setVideoLightbox(true)}
+            aria-label={t('moments.playVideo')}
+          >
+            <video
+              src={`${mediaUrl(m.video)}#t=0.1`}
+              poster={m.cover ? mediaUrl(m.cover) : undefined}
+              preload="metadata"
+              muted
+              playsInline
+              tabIndex={-1}
+            />
+            <span className="wc-moment-video-play" aria-hidden="true">▶</span>
+          </button>
+        )}
         {lightbox && (
           <ImagePreview urls={lightbox.urls} initialIdx={lightbox.idx}
             url={lightbox.urls[lightbox.idx]} onClose={() => setLightbox(null)} />
+        )}
+        {videoLightbox && (
+          <VideoPreview url={mediaUrl(m.video)} name={t('moments.videoFilename')} onClose={() => setVideoLightbox(false)} />
         )}
 
         <div className="wc-moment-actions">
@@ -243,6 +268,8 @@ export default function Moments() {
   const [loadError, setLoadError] = useState(false);
   const [text, setText] = useState('');
   const [images, setImages] = useState([]); // [{previewUrl, file}]
+  const [mediaMode, setMediaMode] = useState('images'); // images | video
+  const [video, setVideo] = useState(null); // { previewUrl, file }
   const [posting, setPosting] = useState(false);
   const [uploadPct, setUploadPct] = useState(null);   // null=非上传中；0-100=图片上传进度
   const [composing, setComposing] = useState(false);
@@ -258,10 +285,16 @@ export default function Moments() {
   const [editText, setEditText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const imgInputRef = useRef(null);
+  const videoInputRef = useRef(null);
   const likingRef = useRef({});
   const imagesRef = useRef(images);
+  const videoRef = useRef(video);
   useEffect(() => { imagesRef.current = images; }, [images]);
-  useEffect(() => () => { imagesRef.current.forEach(img => URL.revokeObjectURL(img.previewUrl)); }, []);
+  useEffect(() => { videoRef.current = video; }, [video]);
+  useEffect(() => () => {
+    imagesRef.current.forEach(img => URL.revokeObjectURL(img.previewUrl));
+    if (videoRef.current) URL.revokeObjectURL(videoRef.current.previewUrl);
+  }, []);
 
   // 重试/刷新用（显示转圈后重拉）
   const load = useCallback(() => {
@@ -373,9 +406,43 @@ export default function Moments() {
     });
   };
 
-  const resetCompose = () => {
+  const clearImages = () => {
     images.forEach(img => URL.revokeObjectURL(img.previewUrl));
     setImages([]);
+  };
+
+  const clearVideo = () => {
+    if (video) URL.revokeObjectURL(video.previewUrl);
+    setVideo(null);
+  };
+
+  const changeMediaMode = (mode) => {
+    if (mode === mediaMode) return;
+    if (mode === 'video') clearImages();
+    else clearVideo();
+    setMediaMode(mode);
+  };
+
+  const handleVideoPick = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const error = validateMomentVideo(file);
+    if (error) {
+      const key = error === 'empty' ? 'moments.videoEmptyError'
+        : error === 'too-large' ? 'moments.videoSizeError'
+          : 'moments.videoTypeError';
+      showToast(t(key), 'error');
+      return;
+    }
+    clearVideo();
+    setVideo({ previewUrl: URL.createObjectURL(file), file });
+  };
+
+  const resetCompose = () => {
+    clearImages();
+    clearVideo();
+    setMediaMode('images');
     setText('');
     setVisibility('all');
     setVisibleTo([]);
@@ -393,14 +460,28 @@ export default function Moments() {
 
   const publish = async () => {
     if (posting) return;                 // 防连点：发布中禁止重复提交
-    if (!text.trim() && images.length === 0) return;
+    if (!text.trim() && images.length === 0 && !video) return;
     if (visibility === 'include' && visibleTo.length === 0) {
       setShowFriendPicker(true); return;
     }
     setPosting(true);
     try {
+      let uploadedVideo = '';
       let imageUrls = [];
-      if (images.length > 0) {
+      if (mediaMode === 'video' && video) {
+        setUploadPct(0);
+        const fd = new FormData();
+        fd.append('video', video.file);
+        const { data } = await axios.post('/api/moments/video', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (e) => {
+            if (e.total) setUploadPct(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+          },
+          timeout: 600000,
+        });
+        setUploadPct(100);
+        uploadedVideo = data.url || '';
+      } else if (images.length > 0) {
         setUploadPct(0);
         const fd = new FormData();
         images.forEach(img => fd.append('images', img.file));
@@ -414,7 +495,9 @@ export default function Moments() {
         setUploadPct(100);
         imageUrls = data.urls || [];
       }
-      const payload = { content: text.trim(), images: imageUrls, visibility };
+      const payload = mediaMode === 'video'
+        ? { content: text.trim(), video: uploadedVideo, visibility }
+        : { content: text.trim(), images: imageUrls, visibility };
       if (visibility === 'include' || visibility === 'exclude') payload.visibleTo = visibleTo;
       const { data } = await axios.post('/api/moments', payload);
       setList(p => [data, ...p]);
@@ -667,13 +750,26 @@ export default function Moments() {
                 ))}
               </div>
             )}
+            {video && (
+              <div className="wc-moment-video-compose">
+                <video src={video.previewUrl} controls preload="metadata" playsInline />
+                <button type="button" onClick={clearVideo} aria-label={t('moments.removeVideo')}>×</button>
+              </div>
+            )}
+            <div className="wc-moment-media-modes" role="radiogroup" aria-label={t('moments.mediaMode')}>
+              <button type="button" role="radio" aria-checked={mediaMode === 'images'} className={mediaMode === 'images' ? 'active' : ''} onClick={() => changeMediaMode('images')}>{t('moments.imageMode')}</button>
+              <button type="button" role="radio" aria-checked={mediaMode === 'video'} className={mediaMode === 'video' ? 'active' : ''} onClick={() => changeMediaMode('video')}>{t('moments.videoMode')}</button>
+            </div>
             <div className="wc-moment-editor-actions">
-              <button className="wc-moment-img-btn" onClick={() => imgInputRef.current?.click()}
+              {mediaMode === 'images' ? <button className="wc-moment-img-btn" onClick={() => imgInputRef.current?.click()}
                 disabled={images.length >= 9} title={t('moments.addImage')} aria-label={`${t('moments.addImage')}${images.length > 0 ? t('moments.addImageCountSuffixTemplate').replace('{n}', images.length) : ''}`}>
                 🖼 {t('moments.imagesLabel')}{images.length > 0 ? ` (${images.length}/9)` : ''}
-              </button>
+              </button> : <button className="wc-moment-img-btn" type="button" onClick={() => videoInputRef.current?.click()} disabled={!!video}>
+                🎬 {video ? t('moments.videoSelected') : t('moments.selectVideo')}
+              </button>}
               <input ref={imgInputRef} type="file" accept="image/*" multiple className="moments-hidden-input"
                 onChange={handleImagePick} />
+              <input ref={videoInputRef} type="file" accept="video/*" className="moments-hidden-input" onChange={handleVideoPick} />
               <select className="wc-moment-vis-select" value={visibility}
                 onChange={e => onVisibilityChange(e.target.value)} title={t('moments.whoCanSee')}>
                 <option value="all">🌐 {t('moments.visPublic')}</option>
@@ -693,12 +789,20 @@ export default function Moments() {
               <button className="wc-moment-editor-cancel"
                 onClick={resetCompose}>{t('common.cancel')}</button>
               <button className="wc-moment-editor-publish"
-                disabled={posting || (!text.trim() && images.length === 0)} onClick={publish}>
+                disabled={posting || (!text.trim() && images.length === 0 && !video)} onClick={publish}>
                 {posting
                   ? (uploadPct !== null && uploadPct < 100 ? t('moments.uploadingTemplate').replace('{pct}', uploadPct) : t('moments.publishing'))
                   : t('moments.publish')}
               </button>
             </div>
+            <UploadProgressBar
+              uploadState={uploadPct === null ? null : {
+                name: mediaMode === 'video' ? (video?.file.name || t('moments.videoMode')) : t('moments.imagesLabel'),
+                progress: uploadPct,
+                status: 'uploading',
+              }}
+              onCancel={() => {}}
+            />
           </div>
         )}
       </div>

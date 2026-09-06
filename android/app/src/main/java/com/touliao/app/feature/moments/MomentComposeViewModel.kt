@@ -18,7 +18,9 @@ import javax.inject.Inject
 
 data class MomentComposeUiState(
     val content: String = "",
+    val mediaMode: String = "images",   // images | video（F4a：两者互斥，切换清空另一侧）
     val images: List<Uri> = emptyList(),
+    val video: Uri? = null,             // 视频模式选中的单段视频
     val visibility: String = "all",   // all | friends | private | include | exclude
     val visibleTo: List<String> = emptyList(),  // include/exclude 选中的好友 id
     val friends: List<com.touliao.app.data.model.Contact> = emptyList(),
@@ -70,11 +72,23 @@ class MomentComposeViewModel @Inject constructor(
     }
     fun removeImage(uri: Uri) = _uiState.update { it.copy(images = it.images - uri) }
 
+    /** 图片/视频互斥：切到视频清空已选图片，切回图片清空视频（对齐 Web changeMediaMode） */
+    fun setMediaMode(mode: String) = _uiState.update {
+        if (it.mediaMode == mode) it
+        else if (mode == "video") it.copy(mediaMode = mode, images = emptyList())
+        else it.copy(mediaMode = mode, video = null)
+    }
+
+    fun setVideo(uri: Uri?) = _uiState.update {
+        if (uri == null) it else it.copy(video = uri, images = emptyList(), mediaMode = "video")
+    }
+    fun removeVideo() = _uiState.update { it.copy(video = null) }
+
     fun publish() {
         val s = _uiState.value
         if (s.publishing) return
-        if (s.content.isBlank() && s.images.isEmpty()) {
-            _uiState.update { it.copy(error = "请输入内容或选择图片") }
+        if (s.content.isBlank() && s.images.isEmpty() && s.video == null) {
+            _uiState.update { it.copy(error = "请输入内容或选择图片/视频") }
             return
         }
         if (s.visibility == "include" && s.visibleTo.isEmpty()) {
@@ -85,13 +99,25 @@ class MomentComposeViewModel @Inject constructor(
         _uiState.update { it.copy(publishing = true, error = null) }
         viewModelScope.launch {
             runCatching {
-                val urls = if (s.images.isEmpty()) emptyList() else {
-                    val parts = withContext(Dispatchers.IO) {
-                        s.images.mapNotNull { uri -> mediaUploader.prepareFromUri(uri, fieldName = "images")?.part }
+                if (s.mediaMode == "video" && s.video != null) {
+                    // 视频模式：单段视频先传 /moments/video（字段名 video，与图片上传同为
+                    // prepareFromUri 流式 multipart，服务端按 MIME/大小校验），发布只带 video
+                    val uri = s.video
+                    val part = withContext(Dispatchers.IO) {
+                        mediaUploader.prepareFromUri(uri, fieldName = "video")
+                    } ?: throw IllegalStateException("无法读取视频文件")
+                    val videoUrl = momentRepository.uploadVideo(part.part)
+                    if (videoUrl.isBlank()) throw IllegalStateException("视频上传失败")
+                    momentRepository.create(s.content.trim(), emptyList(), s.visibility, visList, video = videoUrl)
+                } else {
+                    val urls = if (s.images.isEmpty()) emptyList() else {
+                        val parts = withContext(Dispatchers.IO) {
+                            s.images.mapNotNull { uri -> mediaUploader.prepareFromUri(uri, fieldName = "images")?.part }
+                        }
+                        momentRepository.uploadImages(parts)
                     }
-                    momentRepository.uploadImages(parts)
+                    momentRepository.create(s.content.trim(), urls, s.visibility, visList)
                 }
-                momentRepository.create(s.content.trim(), urls, s.visibility, visList)
             }
                 .onSuccess { _uiState.update { it.copy(publishing = false, done = true) } }
                 .onFailure { e -> _uiState.update { it.copy(publishing = false, error = e.toUserMessage("发布失败")) } }

@@ -1,11 +1,12 @@
 import './auth.css';
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
 import { timeoutSignal } from '../utils/config';
 import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
+import { showToast } from '../utils/toast';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
@@ -30,6 +31,11 @@ export default function Login() {
 
   const { login, accounts, removeAccount, maxAccounts } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.notice) showToast(location.state.notice, 'info');
+  }, [location.state?.notice]);
 
   const loadCaptcha = useCallback(() => {
     setCaptchaText('');
@@ -98,7 +104,7 @@ export default function Login() {
       if (remember) await saveCred(phone);
       else removeCred(phone);
       login(data.user, data.token);
-      navigate('/');
+      navigate(location.state?.from || '/', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || t('auth.loginFailed'));
       // 验证码一次核销即失效（不管猜对猜错），报错后旧图必然已经作废，直接换一张，

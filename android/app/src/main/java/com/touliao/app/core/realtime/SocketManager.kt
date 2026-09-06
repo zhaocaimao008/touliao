@@ -642,9 +642,12 @@ class SocketManager @Inject constructor(
         }
     }
 
-    fun emitCallResponse(to: String, accepted: Boolean, callId: String = "") {
+    fun emitCallResponse(to: String, accepted: Boolean, callId: String = "", busy: Boolean = false) {
         val payload = JSONObject().put("to", to).put("accepted", accepted)
         if (callId.isNotEmpty()) payload.put("callId", callId)
+        // B-3：忙线拒接时带 busy=true（对齐 Web Home.jsx 语义；后端 call.js 原样转发，
+        // 主叫据此区分"对方忙线中"与普通拒接）
+        if (busy) payload.put("busy", true)
         socket?.emit("call:response", payload)
     }
 

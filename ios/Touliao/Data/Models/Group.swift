@@ -6,6 +6,17 @@ struct GroupQr: Decodable {
     var token: String = ""
 }
 
+/// POST conversation/{id}/invite-link 响应（F5 群邀请链接）：link/url 同值，url 是既有字段。
+struct GroupInviteLink: Decodable {
+    var token: String = ""
+    var link: String = ""
+    var url: String = ""
+    var expiresAt: Int = 0
+
+    /// 复制用地址：优先 url，退回 link
+    var shareUrl: String { url.isEmpty ? link : url }
+}
+
 struct JoinGroupResult: Decodable {
     var success: Bool = false
     var conversationId: String = ""
@@ -44,10 +55,13 @@ struct GroupInfo: Decodable {
     var muteAll: Int = 0
     var noPrivateChat: Int = 0
     var noAddFriend: Int = 0
+    var memberCanInvite: Int = 0   // 1=普通成员可邀请/生成邀请链接（决定"复制邀请链接"入口显隐）
     var members: [GroupMember] = []
 
     var canManage: Bool { myRole == "owner" || myRole == "admin" }
     var isOwner: Bool { myRole == "owner" }
+    /// 生成邀请链接权限：群主/管理员，或群开启 member_can_invite 的普通成员（与后端 createInviteLink 同口径）
+    var canCreateInviteLink: Bool { canManage || memberCanInvite == 1 }
     func myNickname(_ myId: String) -> String { members.first { $0.id == myId }?.nickname ?? "" }
 
     enum CodingKeys: String, CodingKey {
@@ -56,6 +70,7 @@ struct GroupInfo: Decodable {
         case muteAll = "mute_all"
         case noPrivateChat = "no_private_chat"
         case noAddFriend = "no_add_friend"
+        case memberCanInvite = "member_can_invite"
     }
 
     init(from decoder: Decoder) throws {
@@ -69,6 +84,7 @@ struct GroupInfo: Decodable {
         muteAll = (try? c.decode(Int.self, forKey: .muteAll)) ?? 0
         noPrivateChat = (try? c.decode(Int.self, forKey: .noPrivateChat)) ?? 0
         noAddFriend = (try? c.decode(Int.self, forKey: .noAddFriend)) ?? 0
+        memberCanInvite = (try? c.decode(Int.self, forKey: .memberCanInvite)) ?? 0
         members = (try? c.decode([GroupMember].self, forKey: .members)) ?? []
     }
 }

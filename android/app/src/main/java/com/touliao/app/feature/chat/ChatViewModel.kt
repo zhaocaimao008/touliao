@@ -14,6 +14,10 @@ import com.touliao.app.core.push.NotificationHelper
 import com.touliao.app.core.util.MediaUrlResolver
 import com.touliao.app.data.model.LocalMsgStatus
 import com.touliao.app.data.model.Message
+import com.touliao.app.data.model.MERGED_FORWARD_MAX_ITEMS
+import com.touliao.app.data.model.buildMergedPayload
+import com.touliao.app.data.model.encodeToJson
+import com.touliao.app.data.model.isForwardableMessage
 import com.touliao.app.data.model.ReplyPreview
 import com.touliao.app.data.model.RedPacketContent
 import com.touliao.app.data.model.RedPacketDetail
@@ -95,7 +99,19 @@ data class ChatUiState(
     // ── 后台功能开关（群通话按钮显隐）默认开启，拉取失败不误伤 ──
     val groupVoiceCallEnabled: Boolean = true,
     val groupVideoCallEnabled: Boolean = true,
+    // ── 已读状态详情弹窗（F4b）：非 null 时聊天页展示 ReadStatusDialog ──
+    val readStatusDetail: ReadStatusDetail? = null,
     val error: String? = null,
+)
+
+/** 已读状态详情加载态（messageId 锁定，切换消息时旧响应不覆盖新弹窗） */
+data class ReadStatusDetail(
+    val messageId: String,
+    val loading: Boolean = false,
+    val error: Boolean = false,
+    val readUserIds: List<String> = emptyList(),
+    /** 触发弹窗的原消息（供失败重试重发 read-states 请求） */
+    val message: Message? = null,
 )
 
 @HiltViewModel
@@ -764,6 +780,41 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 合并转发（F4a #2）：把多选消息组装成一条 type=merged、content=JSON 的消息
+     * 发到各目标会话（走 HTTP POST /api/messages/:id —— 后端 ALLOWED_HTTP_TYPES 含
+     * merged；不走 socket sendMessage，那是 text 专用）。红包/转账/系统消息被过滤，
+     * 超出 30 条截取前 30（对齐 Web buildMergedPayload）。
+     */
+    fun forwardMergedSelected(conversationIds: List<String>) {
+        if (conversationIds.isEmpty()) return
+        val s = _uiState.value
+        if (!s.multiSelect || s.selectedIds.isEmpty()) return
+        // 按列表顺序（即时间序）取选中的完整消息，再过滤可转发类型
+        val forwardable = s.messages.filter { it.id in s.selectedIds }.filter(::isForwardableMessage)
+        if (forwardable.isEmpty()) {
+            showToast("所选消息不支持合并转发")
+            return
+        }
+        if (forwardable.size > MERGED_FORWARD_MAX_ITEMS) {
+            showToast("最多合并 $MERGED_FORWARD_MAX_ITEMS 条，已截取前 $MERGED_FORWARD_MAX_ITEMS 条")
+        }
+        val payload = buildMergedPayload(forwardable, "")
+        val mergedTitle = if (title.isNotBlank()) "${title}的聊天记录" else "${payload.items.size}条聊天记录"
+        val contentJson = payload.copy(title = mergedTitle).encodeToJson()
+        viewModelScope.launch {
+            val results = conversationIds.map { cid -> runCatching { chatRepository.sendMerged(cid, contentJson) } }
+            val ok = results.count { it.isSuccess }
+            val fail = results.size - ok
+            val message = when {
+                fail == 0 -> "已合并转发到 $ok 个会话"
+                ok > 0 -> "部分成功：已转发 $ok 个、失败 $fail 个"
+                else -> results.firstNotNullOfOrNull { r -> r.exceptionOrNull() }?.toUserMessage("合并转发失败") ?: "合并转发失败"
+            }
+            _uiState.update { it.copy(multiSelect = false, selectedIds = emptySet(), error = message) }
+        }
+    }
+
     private fun updateReactions(msgId: String, reactions: List<com.touliao.app.data.model.MessageReaction>) {
         _uiState.update { s ->
             s.copy(messages = s.messages.map { if (it.id == msgId) it.copy(reactions = reactions) else it })
@@ -1002,6 +1053,54 @@ class ChatViewModel @Inject constructor(
     fun isReadByPeer(msg: Message): Boolean =
         msg.sender_id == myId &&
             (msg.read || (_uiState.value.peerReadAt > 0 && msg.created_at <= _uiState.value.peerReadAt))
+
+    // ── 已读状态详情（F4b，长按菜单「已读状态」弹窗数据源）──────────────
+    /** 自己发送、非删除、非发送中的 text/image/file 消息才展示菜单项（与 Web 同口径） */
+    fun canViewMsgReadStatus(msg: Message): Boolean = canViewReadStatus(msg, myId)
+
+    fun openReadStatus(msg: Message) {
+        if (!canViewMsgReadStatus(msg)) return
+        _uiState.update { it.copy(readStatusDetail = ReadStatusDetail(msg.id, loading = true, message = msg)) }
+        viewModelScope.launch {
+            runCatching { chatRepository.readStates(conversationId, listOf(msg.id)) }
+                .onSuccess { states ->
+                    val ids = states[msg.id].orEmpty()
+                    _uiState.update { s ->
+                        val cur = s.readStatusDetail
+                        if (cur?.messageId == msg.id) s.copy(readStatusDetail = cur.copy(loading = false, readUserIds = ids)) else s
+                    }
+                }
+                .onFailure {
+                    _uiState.update { s ->
+                        val cur = s.readStatusDetail
+                        if (cur?.messageId == msg.id) s.copy(readStatusDetail = cur.copy(loading = false, error = true)) else s
+                    }
+                }
+        }
+    }
+
+    fun dismissReadStatus() = _uiState.update { it.copy(readStatusDetail = null) }
+
+    /** 弹窗内「重试」：对同一条消息重发 read-states 请求 */
+    fun retryReadStatus() {
+        _uiState.value.readStatusDetail?.message?.let { openReadStatus(it) }
+    }
+
+    /** 弹窗展示模型：私聊=对方已读/未读；群聊=已读 N/M + 已读成员名单 */
+    fun readStatusModel(detail: ReadStatusDetail): ReadStatusModel {
+        val peerId = savedPeerUserId.ifBlank {
+            _uiState.value.messages.firstOrNull { it.sender_id != myId }?.sender_id.orEmpty()
+        }
+        return buildReadStatusModel(
+            isGroup = isGroup,
+            members = _uiState.value.groupMembers,
+            currentUserId = myId,
+            senderId = myId,
+            readUserIds = detail.readUserIds,
+            peerId = peerId,
+            peerName = _uiState.value.title,
+        )
+    }
 
     private fun markReadLatest() {
         val last = _uiState.value.messages.lastOrNull() ?: return

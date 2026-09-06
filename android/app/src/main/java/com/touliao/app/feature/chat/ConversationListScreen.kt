@@ -73,6 +73,11 @@ fun ConversationListScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val socketStatus by viewModel.socketStatus.collectAsStateWithLifecycle()
     var clearTarget by remember { mutableStateOf<Conversation?>(null) }
+    // 归档视图开关（纯展示态）：主列表/归档列表按 archived 标记本地分流
+    var showArchived by remember { mutableStateOf(false) }
+    val archivedList = remember(state.conversations) { archivedConversations(state.conversations) }
+    val activeList = remember(state.conversations) { activeConversations(state.conversations) }
+    val archiveUnread = remember(state.conversations) { archiveUnreadTotal(state.conversations) }
 
     // 从聊天页返回时刷新草稿(显示/清除「[草稿]」前缀)
     LifecycleResumeEffect(Unit) {
@@ -148,6 +153,7 @@ fun ConversationListScreen(
         val refreshing = state.loading && state.conversations.isNotEmpty()
         val pullState = rememberPullRefreshState(refreshing = refreshing, onRefresh = { viewModel.refresh() })
         Box(modifier = Modifier.fillMaxSize().padding(padding).pullRefresh(pullState)) {
+            val visible = if (showArchived) archivedList else activeList
             when {
                 state.loading && state.conversations.isEmpty() ->
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -167,8 +173,92 @@ fun ConversationListScreen(
                         modifier = Modifier.align(Alignment.Center),
                     )
 
+                showArchived -> Column(Modifier.fillMaxSize()) {
+                    // 归档列表头部：返回主列表 + 归档会话数
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = { showArchived = false }) { Text("‹ 返回") }
+                        Spacer(Modifier.width(4.dp))
+                        Text("已归档会话", style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.width(6.dp))
+                        Text("${archivedList.size}", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
+                    }
+                    if (archivedList.isEmpty()) {
+                        com.touliao.app.ui.components.EmptyState(
+                            icon = "🗄",
+                            title = "暂无归档会话",
+                            subtitle = "长按会话可选「归档该会话」",
+                            modifier = Modifier.weight(1f).align(Alignment.CenterHorizontally),
+                        )
+                    } else {
+                        LazyColumn(Modifier.fillMaxSize()) {
+                            items(archivedList, key = { it.id }) { conv ->
+                                ConversationRow(
+                                    conv,
+                                    avatarUrl = viewModel.resolveUrl(conv.avatar),
+                                    draft = state.drafts[conv.id].orEmpty(),
+                                    onClick = { onOpenConversation(conv) },
+                                    onTogglePin = { viewModel.togglePin(conv) },
+                                    onToggleMute = { viewModel.toggleMute(conv) },
+                                    onToggleArchive = { viewModel.toggleArchive(conv) },
+                                    onClear = { clearTarget = conv },
+                                    onMarkRead = { viewModel.markConversationRead(conv) },
+                                    onMarkUnread = { viewModel.markConversationUnread(conv) },
+                                )
+                                HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
+                            }
+                        }
+                    }
+                }
+
                 else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(state.conversations, key = { it.id }) { conv ->
+                    // 归档入口行（主列表顶部，聚合归档未读角标；无归档会话时隐藏，对齐微信）
+                    if (archivedList.isNotEmpty()) {
+                        item(key = "archive-entry") {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showArchived = true }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    Modifier.size(48.dp).clip(CircleShape).background(Color(0x11000000)),
+                                    contentAlignment = Alignment.Center,
+                                ) { Text("🗄", fontSize = 22.sp) }
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("已归档会话", style = MaterialTheme.typography.bodyLarge)
+                                    Text("${archivedList.size} 个会话", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                                }
+                                if (archiveUnread > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFFA5151)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            if (archiveUnread > 99) "99+" else archiveUnread.toString(),
+                                            color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
+                                        )
+                                    }
+                                }
+                            }
+                            HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
+                        }
+                    }
+                    if (visible.isEmpty()) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                                Text("会话都已归档", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                            }
+                        }
+                    }
+                    items(visible, key = { it.id }) { conv ->
                         ConversationRow(
                             conv,
                             avatarUrl = viewModel.resolveUrl(conv.avatar),
@@ -176,6 +266,7 @@ fun ConversationListScreen(
                             onClick = { onOpenConversation(conv) },
                             onTogglePin = { viewModel.togglePin(conv) },
                             onToggleMute = { viewModel.toggleMute(conv) },
+                            onToggleArchive = { viewModel.toggleArchive(conv) },
                             onClear = { clearTarget = conv },
                             onMarkRead = { viewModel.markConversationRead(conv) },
                             onMarkUnread = { viewModel.markConversationUnread(conv) },
@@ -208,6 +299,7 @@ private fun ConversationRow(
     onClick: () -> Unit,
     onTogglePin: () -> Unit = {},
     onToggleMute: () -> Unit = {},
+    onToggleArchive: () -> Unit = {},
     onClear: () -> Unit = {},
     onMarkRead: () -> Unit = {},
     onMarkUnread: () -> Unit = {},
@@ -306,6 +398,7 @@ private fun ConversationRow(
             }
             DropdownMenuItem(text = { Text(if (conv.pinned == 1) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
             DropdownMenuItem(text = { Text(if (conv.muted == 1) "取消免打扰" else "消息免打扰") }, onClick = { onToggleMute(); menuOpen = false })
+            DropdownMenuItem(text = { Text(if (conv.archived == 1) "取消归档" else "归档该会话") }, onClick = { onToggleArchive(); menuOpen = false })
             DropdownMenuItem(text = { Text("清空聊天记录", color = Color(0xFFFA5151)) }, onClick = { onClear(); menuOpen = false })
         }
     }
@@ -324,6 +417,7 @@ private fun previewText(conv: Conversation): String {
         // call 的 content 即人话(如「语音通话 30 秒」),预览直接显示
         "call" -> conv.lastMessage ?: "[通话]"
         "contact_card", "contact" -> "[名片]"
+        "merged" -> "[聊天记录]"
         else -> conv.lastMessage ?: ""
     }
     // 群聊预览加发送者名前缀(对齐微信「张三: 内容」)

@@ -132,6 +132,30 @@
   line-height: var(--lh-snug);
 }
 
+.fwd-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 0 24px 12px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--bg-input-search);
+}
+.fwd-mode button {
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.fwd-mode button.active {
+  background: var(--bg-card);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  font-weight: var(--font-semibold);
+}
+
 /* ── Tabs (underline style) ──────────────────────────────────────── */
 .fwd-tabs {
   display: flex;
@@ -419,5 +443,4 @@
   background: var(--color-primary-hover);
   box-shadow: var(--shadow-btn-primary-hover);
 }
-
 

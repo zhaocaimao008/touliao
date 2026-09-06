@@ -12,6 +12,20 @@ import { firstLetter, comparePinyin } from '../utils/pinyin';
 import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 
+function formatRequestTime(timestamp, formatter) {
+  const seconds = Number(timestamp);
+  if (!Number.isFinite(seconds) || seconds <= 0) return '';
+  const date = new Date(seconds * 1000);
+  if (Number.isNaN(date.getTime())) return '';
+  return formatter.format(date);
+}
+
+function RequestTime({ timestamp, formatter }) {
+  const text = formatRequestTime(timestamp, formatter);
+  if (!text) return null;
+  return <time className="req-time" dateTime={new Date(Number(timestamp) * 1000).toISOString()}>{text}</time>;
+}
+
 /* ── 主组件 ── */
 // AI 助手会话对象。
 // ⚠ 现状：AI 助手已下线（后端 .env 的 botId 为空 → /api/config 的 aiAssistants 返回 []），
@@ -35,7 +49,10 @@ function aiBotConv(conversationId, bot) {
 }
 
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed, openFriendRequests = 0, onOpenFriendRequestsConsumed }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const requestTimeFormatter = useMemo(() => new Intl.DateTimeFormat(lang, {
+    month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  }), [lang]);
   const [contacts, setContacts] = useState([]);
   const [requests, setRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
@@ -316,7 +333,10 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   <div key={r.id} className="req-item" data-testid="friend-request-item">
                     <Avatar src={r.avatar || r.from?.avatar} name={r.username || r.from?.username} size={48} className="cl-avatar-rounded" />
                     <div className="req-info">
-                      <div className="req-name">{r.username || r.from?.username}</div>
+                      <div className="req-name-row">
+                        <div className="req-name">{r.username || r.from?.username}</div>
+                        <RequestTime timestamp={r.created_at} formatter={requestTimeFormatter} />
+                      </div>
                       <div className="req-msg">{r.message || t('contacts.defaultFriendRequestMsg')}</div>
                     </div>
                     <div className="req-btns">
@@ -339,7 +359,10 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   <div key={r.id} className="req-item">
                     <Avatar src={r.avatar} name={r.username} size={48} className="cl-avatar-rounded" />
                     <div className="req-info">
-                      <div className="req-name">{r.username}</div>
+                      <div className="req-name-row">
+                        <div className="req-name">{r.username}</div>
+                        <RequestTime timestamp={r.created_at} formatter={requestTimeFormatter} />
+                      </div>
                       <div className="req-msg">{r.message || t('contacts.defaultSentRequestMsg')}</div>
                     </div>
                     <span className={`req-status req-status-${r.status}`}>

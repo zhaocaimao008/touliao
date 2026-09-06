@@ -646,6 +646,12 @@ function applySchema(db) {
     // 只能持久化用户偏好——客户端切语言时上报，写到这一列。
     // 缺省 zh-CN 与既有行为一致，老用户不受影响。
     "ALTER TABLE user_settings ADD COLUMN lang TEXT DEFAULT 'zh-CN'",
+    // ── F1 批次（2026-09-05）──────────────────────────────────────
+    // 朋友圈发视频：video=视频URL，cover=可选封面图URL；空串=无（老行为不变，纯图文动态两列恒为''）
+    "ALTER TABLE moments ADD COLUMN video TEXT DEFAULT ''",
+    "ALTER TABLE moments ADD COLUMN cover TEXT DEFAULT ''",
+    // 会话归档：按用户按会话，0=未归档(默认，老行为不变)/1=已归档
+    "ALTER TABLE conversation_settings ADD COLUMN archived INTEGER DEFAULT 0",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

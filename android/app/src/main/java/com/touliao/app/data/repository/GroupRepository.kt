@@ -56,5 +56,8 @@ class GroupRepository @Inject constructor(
 
     suspend fun qrCode(conversationId: String) = groupApi.qrCode(conversationId)
 
+    /** 生成/复用群邀请链接（7 天有效期内同群复用同一 token） */
+    suspend fun createInviteLink(conversationId: String) = groupApi.createInviteLink(conversationId)
+
     suspend fun join(token: String) = groupApi.join(token)
 }

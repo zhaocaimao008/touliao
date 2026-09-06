@@ -82,6 +82,7 @@ export function estimateHeight(item) {
   else if (msg.type === 'video') base = MEDIA_MAX_H + MEDIA_ROW_PAD + MEDIA_ROW_PAD_BOTTOM;
   else if (msg.type === 'red_packet') base = 130;
   else if (msg.type === 'contact_card') base = 100;
+  else if (msg.type === 'merged') base = 132;
   else if (msg.type === 'sticker') base = 140 + MEDIA_ROW_PAD_BOTTOM;
   else {
     // 文本(及未知类型兜底)：按内容行数精确估算，首帧即贴近真实高度 → 发送不抖、长文不叠。

@@ -6,8 +6,9 @@ import { showToast } from '../utils/toast';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { useI18n } from '../contexts/I18nContext';
 import './ForwardModal.css';
+import { buildMergedPayload } from '../utils/mergedForward';
 
-export default function ForwardModal({ message, messages, onClose }) {
+export default function ForwardModal({ message, messages, sourceConversationName, onClose }) {
   const { t } = useI18n();
   // 支持单条(message)与多条(messages)转发；统一成数组处理
   const msgList = Array.isArray(messages) && messages.length ? messages : (message ? [message] : []);
@@ -22,6 +23,8 @@ export default function ForwardModal({ message, messages, onClose }) {
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [result, setResult] = useState(null);
+  const [forwardMode, setForwardMode] = useState('separate');
+  const mergedMessageCount = Math.min(msgList.length, 30);
 
   useEffect(() => {
     // 兜底成数组：接口异常/返回非数组时避免 filteredFriends/.filter 抛错导致弹窗白屏
@@ -124,6 +127,37 @@ export default function ForwardModal({ message, messages, onClose }) {
     if (selected.size === 0 || msgList.length === 0) return;
     setSending(true);
     try {
+      if (forwardMode === 'merged') {
+        const title = sourceConversationName
+          ? t('fwd.conversationHistoryTemplate').replace('{name}', sourceConversationName)
+          : t('fwd.messageCountTitleTemplate').replace('{count}', mergedMessageCount);
+        const merged = buildMergedPayload(msgList, {
+          title,
+          labels: {
+            image: t('chatlist.previewImage'), voice: t('chatlist.previewVoice'),
+            video: t('chatlist.previewVideo'), file: t('chatlist.previewFile'),
+            contact: t('chatlist.previewContact'), merged: t('chatlist.previewMerged'),
+            seconds: t('fwd.seconds'),
+          },
+        });
+        const sends = await Promise.allSettled([...selected].map(conversationId =>
+          axios.post(`/api/messages/${encodeURIComponent(conversationId)}`, {
+            type: 'merged', content: JSON.stringify(merged),
+          })
+        ));
+        const successCount = sends.filter(item => item.status === 'fulfilled').length;
+        const failedCount = sends.length - successCount;
+        setResult({
+          status: failedCount === 0 ? 'success' : successCount > 0 ? 'partial_success' : 'failed',
+          success_count: successCount,
+          failed_count: failedCount,
+          forwardMode: 'merged',
+        });
+        setSending(false);
+        setDone(true);
+        setTimeout(onClose, 3000);
+        return;
+      }
       // 多条走 msgIds，单条走 msgId（后端两者都兼容）
       const clientBatchId = globalThis.crypto?.randomUUID?.() || `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const payload = { conversationIds: [...selected], client_batch_id: clientBatchId };
@@ -149,7 +183,7 @@ export default function ForwardModal({ message, messages, onClose }) {
     return (m.content?.slice(0, 50) || '') + (m.content?.length > 50 ? '…' : '');
   };
   const msgPreview = () => {
-    if (msgList.length > 1) return t('fwd.forwardOneByOneTemplate').replace('{count}', msgList.length);
+    if (msgList.length > 1) return (forwardMode === 'merged' ? t('fwd.mergePreviewTemplate') : t('fwd.forwardOneByOneTemplate')).replace('{count}', forwardMode === 'merged' ? mergedMessageCount : msgList.length);
     return typePreview(primaryMsg);
   };
 
@@ -175,7 +209,9 @@ export default function ForwardModal({ message, messages, onClose }) {
             </div>
             <div className="fwd-done-title">{result?.status === 'success' ? t('fwd.success') : result?.status === 'partial_success' ? t('fwd.partialSuccess') : t('fwd.forwardFailed')}</div>
             <div className="fwd-done-sub">
-              {t('fwd.resultSummaryTemplate').replace('{success}', result?.success_count || 0).replace('{failed}', result?.failed_count || 0)}
+              {result?.forwardMode === 'merged' && !result?.failed_count
+                ? t('fwd.forwardedToTemplate').replace('{count}', result?.success_count || 0)
+                : t('fwd.resultSummaryTemplate').replace('{success}', result?.success_count || 0).replace('{failed}', result?.failed_count || 0)}
             </div>
             {result?.retryable_message_ids?.length > 0 && (
               <div className="fwd-done-sub">{t('fwd.retryableHint')}</div>
@@ -192,6 +228,13 @@ export default function ForwardModal({ message, messages, onClose }) {
                 <div className="fwd-preview-text">{msgPreview()}</div>
               </div>
             </div>
+
+            {msgList.length > 1 && (
+              <div className="fwd-mode" role="radiogroup" aria-label={t('fwd.modeAriaLabel')}>
+                <button type="button" role="radio" aria-checked={forwardMode === 'separate'} className={forwardMode === 'separate' ? 'active' : ''} onClick={() => setForwardMode('separate')}>{t('fwd.forwardOneByOne')}</button>
+                <button type="button" role="radio" aria-checked={forwardMode === 'merged'} className={forwardMode === 'merged' ? 'active' : ''} onClick={() => setForwardMode('merged')}>{t('fwd.mergeForward')}</button>
+              </div>
+            )}
 
             {/* 搜索栏 */}
             <div className="fwd-search-wrap">
