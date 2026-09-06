@@ -86,13 +86,12 @@ func formatSearchMessageSummary(type: String, content: String) -> String {
     case "voice": return compact("语音")
     case "video": return compact("视频", body)
     case "file": return compact("文件", body)
-    case "contact_card", "contact": {
+    case "contact_card", "contact":
         let obj = parseContentObject(body)
         let name = (obj["remark"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             ?? (obj["username"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             ?? (obj["name"] as? String) ?? ""
         return compact("名片", name)
-    }()
     case "red_packet": return compact("红包", (parseContentObject(body)["greeting"] as? String) ?? "")
     case "transfer": return compact("转账", (parseContentObject(body)["note"] as? String) ?? "")
     case "merged": return compact("聊天记录", (parseContentObject(body)["title"] as? String) ?? "")
