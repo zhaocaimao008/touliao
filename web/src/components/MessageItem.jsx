@@ -315,7 +315,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                    }}
                    className="wc-msg-file-link" data-testid="msg-file">
                   <div className="wc-msg-file-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'var(--brand-primary, #07C160)' }}>
+                    <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'var(--brand-primary)' }}>
                       <path d="M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm8 1.5V8h4.5L14 3.5z" />
                     </svg>
                   </div>

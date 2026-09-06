@@ -146,7 +146,7 @@ function XlsxRenderer({ url, onLoaded, onError }) {
             <button key={s.name} onClick={() => setActiveSheet(i)}
               style={{
                 border: 'none', padding: '4px 12px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap',
-                background: i === activeSheet ? 'var(--brand-primary, #07C160)' : 'var(--bg-card-hover)',
+                background: i === activeSheet ? 'var(--brand-primary)' : 'var(--bg-card-hover)',
                 color: i === activeSheet ? '#fff' : 'var(--text-primary)', fontSize: 13,
               }}>{s.name}</button>
           ))}
@@ -399,7 +399,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
         {dl && dl.status === 'downloading' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#fff', fontSize: 13 }}>
             <div style={{ width: 140, height: 6, background: 'rgba(255,255,255,.25)', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ width: `${dl.progress || 0}%`, height: '100%', background: 'var(--brand-primary, #07C160)', transition: 'width .2s' }} />
+              <div style={{ width: `${dl.progress || 0}%`, height: '100%', background: 'var(--brand-primary)', transition: 'width .2s' }} />
             </div>
             <span>{dl.indeterminate ? '下载中…' : `${dl.progress || 0}%`}</span>
             <button onClick={() => cancelDownload(dlIdRef.current)} style={linkBtnStyle}>{t('common.cancel')}</button>
@@ -424,4 +424,4 @@ const actionBtnStyle = {
   border: 'none', cursor: 'pointer', color: '#fff', fontSize: 14,
   background: 'rgba(255,255,255,.18)', padding: '8px 20px', borderRadius: 20,
 };
-const linkBtnStyle = { border: 'none', background: 'transparent', color: 'var(--brand-primary, #07C160)', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' };
+const linkBtnStyle = { border: 'none', background: 'transparent', color: 'var(--brand-primary)', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' };
