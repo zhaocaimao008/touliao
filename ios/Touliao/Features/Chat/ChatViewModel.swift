@@ -175,13 +175,13 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] msgIds in Task { @MainActor in
                 guard let self else { return }
                 let idSet = Set(msgIds)
-                messages.removeAll { idSet.contains($0.id) }
-                for i in messages.indices {
-                    if let replyId = messages[i].replyTo?.id, idSet.contains(replyId) {
-                        messages[i].replyTo?.deleted = 1
+                self.messages.removeAll { idSet.contains($0.id) }
+                for i in self.messages.indices {
+                    if let replyId = self.messages[i].replyTo?.id, idSet.contains(replyId) {
+                        self.messages[i].replyTo?.deleted = 1
                     }
                 }
-                persistCache()
+                self.persistCache()
                 for id in msgIds { MsgCacheStore.shared.remove(self.conversationId, id) }
             }}
             .store(in: &cancellables)
