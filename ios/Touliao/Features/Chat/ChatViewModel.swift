@@ -176,8 +176,10 @@ final class ChatViewModel: ObservableObject {
                 guard let self else { return }
                 let idSet = Set(msgIds)
                 messages.removeAll { idSet.contains($0.id) }
-                for i in messages.indices where messages[i].replyTo?.id.map({ idSet.contains($0) }) == true {
-                    messages[i].replyTo?.deleted = 1
+                for i in messages.indices {
+                    if let replyId = messages[i].replyTo?.id, idSet.contains(replyId) {
+                        messages[i].replyTo?.deleted = 1
+                    }
                 }
                 persistCache()
                 for id in msgIds { MsgCacheStore.shared.remove(self.conversationId, id) }
