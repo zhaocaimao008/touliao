@@ -595,11 +595,16 @@ class ChatViewModel @Inject constructor(
     }
 
     fun vanish(msg: Message) {
+        val previous = _uiState.value.messages
+        _uiState.update { it.copy(messages = removeMessageAndDetachReplies(it.messages, msg.id)) }
         viewModelScope.launch {
             chatRepository.vanishMessage(msg.id)
-                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("删除失败")) } }
+                .onSuccess { msgCacheStore.remove(conversationId, msg.id) }
+                .onFailure { e ->
+                    _uiState.update { it.copy(messages = previous, error = e.toUserMessage("删除失败")) }
+                }
         }
-        // 实时事件 message_vanished 驱动列表更新
+        // 实时事件 message_vanished 仍作为多端同步兜底。
     }
 
     fun react(msg: Message, emoji: String) {
@@ -765,7 +770,12 @@ class ChatViewModel @Inject constructor(
             runCatching { chatRepository.batchDelete(conversationId, ids) }
                 .onSuccess {
                     // 本端乐观移除(广播 messages_batch_deleted 亦会移除，幂等)
-                    _uiState.update { s -> s.copy(messages = s.messages.filterNot { it.id in ids }, multiSelect = false, selectedIds = emptySet()) }
+                    _uiState.update { s -> s.copy(
+                        messages = removeMessagesAndDetachReplies(s.messages, ids.toSet()),
+                        multiSelect = false,
+                        selectedIds = emptySet(),
+                    ) }
+                    ids.forEach { msgCacheStore.remove(conversationId, it) }
                 }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("批量删除失败")) } }
         }

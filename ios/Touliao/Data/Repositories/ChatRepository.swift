@@ -83,16 +83,16 @@ final class ChatRepository {
         await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId, clientMsgId: clientMsgId)
     }
 
-    /// 撤回/删除消息
-    func deleteMessage(_ msgId: String, forEveryone: Bool = true) async {
-        let _: EmptyResponse? = try? await api.send(
+    /// 撤回/删除消息。错误必须向上抛出，让 UI 恢复乐观移除并提示失败。
+    func deleteMessage(_ msgId: String, forEveryone: Bool = true) async throws {
+        let _: EmptyResponse = try await api.send(
             "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: forEveryone, vanish: nil, forMe: nil)
         )
     }
 
-    /// 彻底删除不留痕迹
-    func vanishMessage(_ msgId: String) async {
-        let _: EmptyResponse? = try? await api.send(
+    /// 彻底删除不留痕迹。
+    func vanishMessage(_ msgId: String) async throws {
+        let _: EmptyResponse = try await api.send(
             "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: false, vanish: true, forMe: nil)
         )
     }

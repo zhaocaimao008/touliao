@@ -175,7 +175,11 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] msgIds in Task { @MainActor in
                 guard let self else { return }
                 let idSet = Set(msgIds)
-                self.messages.removeAll { idSet.contains($0.id) }
+                messages.removeAll { idSet.contains($0.id) }
+                for i in messages.indices where messages[i].replyTo?.id.map(idSet.contains) == true {
+                    messages[i].replyTo?.deleted = 1
+                }
+                persistCache()
                 for id in msgIds { MsgCacheStore.shared.remove(self.conversationId, id) }
             }}
             .store(in: &cancellables)
@@ -564,7 +568,17 @@ final class ChatViewModel: ObservableObject {
     }
 
     func vanish(_ msg: Message) {
-        Task { await repo.vanishMessage(msg.id) }   // 实时事件 message_vanished 移除，无痕
+        let prev = messages
+        removeMessage(msg.id)
+        Task {
+            do {
+                try await repo.vanishMessage(msg.id)
+                MsgCacheStore.shared.remove(conversationId, msg.id)
+            } catch {
+                messages = prev
+                self.error = (error as? LocalizedError)?.errorDescription ?? "删除失败"
+            }
+        }
     }
 
     /// 移除目标消息 + 引用它的消息引用块无痕摘除(replyTo.deleted=1 →
