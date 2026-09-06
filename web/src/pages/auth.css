@@ -109,7 +109,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-submit:active { transform: translateY(0); box-shadow: 0 3px 12px rgba(var(--color-primary-rgb),.34); }
 .auth-submit:disabled { background: rgba(255,255,255,.09); box-shadow: none; transform: none; cursor: not-allowed; color: rgba(255,255,255,.32); }
 .auth-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: var(--gray-0); border-radius: var(--radius-full); animation: wc-spin .6s linear infinite; }
-.auth-pwd-toggle { background: none; border: none; cursor: pointer; padding: 0; color: rgba(255,255,255,.35); display: flex; align-items: center; flex-shrink: 0; transition: color var(--dur-fast); }
+.auth-pwd-toggle { background: none; border: none; cursor: pointer; padding: 10px; margin: -10px; color: rgba(255,255,255,.35); display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; flex-shrink: 0; transition: color var(--dur-fast); }
 .auth-pwd-toggle:hover { color: rgba(255,255,255,.75); }
 /* 「记住密码」勾选行：与忘记密码链接同处一行(space-between) */
 .auth-remember-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-3); }
