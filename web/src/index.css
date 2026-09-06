@@ -1120,7 +1120,18 @@ body.dark-mode * {
   flex-direction: column;
   align-items: center;
   gap: var(--sp-1h);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
+}
+.wc-more-item:focus-visible {
+  outline: 2px solid rgba(var(--color-primary-rgb), .55);
+  outline-offset: 4px;
+  border-radius: var(--radius-md);
 }
 .wc-more-icon {
   width: 52px;
