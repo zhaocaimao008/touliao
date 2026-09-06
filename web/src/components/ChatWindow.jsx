@@ -79,12 +79,17 @@ function CtxMenuPortal({ anchor, onClose, children }) {
   useLayoutEffect(() => {
     const el = menuRef.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
+    // 用 offsetWidth/offsetHeight（布局尺寸）而非 getBoundingClientRect：
+    // 菜单挂入场动画 ctxIn(scale .94→1, fill both)，getBoundingClientRect 返回的是
+    // transform 后的视觉尺寸，在 useLayoutEffect 首帧测到的是缩小值(≈260×.94)，
+    // 定位按缩小尺寸 clamp，展开后右侧/底部溢出视口。offsetWidth 不受 transform 影响。
+    const mw = el.offsetWidth || el.getBoundingClientRect().width;
+    const mh = el.offsetHeight || el.getBoundingClientRect().height;
     const vw = window.innerWidth, vh = window.innerHeight;
     // 底部保留区：输入框(~64px) + TabBar(~56px) + 安全区；顶部避状态栏
     const bottomReserve = 140;
     const safeTop = 8;
-    setPos(computeCtxPos(anchor, { width: r.width, height: r.height },
+    setPos(computeCtxPos(anchor, { width: mw, height: mh },
       { width: vw, height: vh },
       { safeTop, safeBottom: 8, bottomReserve, gap: 6, edge: 12 }));
   }, [anchor, children]);
