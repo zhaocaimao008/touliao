@@ -1405,7 +1405,7 @@ body.dark-mode * {
 .wc-me-actions { display: flex; align-items: center; gap: var(--sp-1h); flex-shrink: 0; }
 .wc-me-qr-btn {
   display: flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px;
+  width: 40px; height: 40px;
   color: var(--text-secondary);
   background: transparent;
   border-radius: var(--radius-md);
@@ -3051,7 +3051,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
   text-align: center;
 }
 .cl-add-btn {
-  margin-top: 14px; padding: 8px 20px;
+  margin-top: 14px; padding: 8px 20px; min-height: 44px;
   background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0);
   border-radius: var(--radius-md); font-size: var(--text-sm2); cursor: pointer;
   transition: background var(--dur-fast);
@@ -4130,7 +4130,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 }
 .m-title { font-size: var(--text-h5); font-weight: var(--font-semibold); color: var(--text-title); }
 .m-topbar-add {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px;
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px;
   display: flex; align-items: center; justify-content: center;
   border: none; background: transparent; color: var(--text-title); cursor: pointer;
 }

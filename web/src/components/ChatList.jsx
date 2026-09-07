@@ -420,7 +420,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           data-testid="mention-list-btn"
           style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            padding: '9px 16px', background: 'none', border: 'none',
+            padding: '13px 16px', background: 'none', border: 'none',
             borderBottom: '1px solid var(--border-subtle)',
             cursor: 'pointer', width: '100%', textAlign: 'left',
             color: 'var(--text-secondary)', fontSize: 'var(--text-sm2)',

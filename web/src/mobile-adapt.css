@@ -273,3 +273,8 @@ html.capacitor-app {
 html.capacitor-app body {
   overflow: auto !important;
 }
+
+/* ── 触控目标下限：窄屏图标按钮/主按钮 ≥44px ─────────────────── */
+@media (max-width: 768px) {
+  .wc-me-qr-btn { width: 44px; height: 44px; }
+}
