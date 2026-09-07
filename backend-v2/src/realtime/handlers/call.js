@@ -64,6 +64,29 @@ function resolveCooldownMs(raw, fallback) {
 }
 const CALL_COOLDOWN_MS = resolveCooldownMs(process.env.CALL_COOLDOWN_MS, 5_000);
 const callRateMap = new Map();
+// 冷却定时器按用户跟踪：set 时先清旧 timer，delete 也清——防 5s 整点边界旧 timer
+// 误删新冷却记录（旧定时器在"新记录已写入、旧 timer 尚未执行"的窗口触发会绕过限流）。
+const callRateTimers = new Map();
+function setCooldown(userId, now = Date.now()) {
+  const old = callRateTimers.get(userId);
+  if (old) clearTimeout(old);
+  callRateMap.set(userId, now);
+  callRateTimers.set(userId, setTimeout(() => {
+    callRateMap.delete(userId);
+    callRateTimers.delete(userId);
+  }, CALL_COOLDOWN_MS));
+}
+function removeCooldown(userId) {
+  callRateMap.delete(userId);
+  const t = callRateTimers.get(userId);
+  if (t) { clearTimeout(t); callRateTimers.delete(userId); }
+}
+// call:end.reason 白名单：未限定值不得转发给对端（防未知 reason 触发对端未定义状态迁移）。
+// 服务端 DB 状态从不依赖 reason（按 answeredAt 计算），此白名单只保护对端文案/状态机。
+const CALL_END_REASONS = new Set([
+  'timeout', 'replaced', 'disconnected', 'stale', 'answered_elsewhere',
+  'rejected_elsewhere', 'server_restarted', 'network', 'error', 'hangup',
+]);
 
 // 模块级共享（单进程 fork 实例）：key = `${callerId}>${calleeId}`
 // ⚠️ 纯内存 Map，没有 Redis/DB 镜像，进程重启会丢失全部进行中通话的状态——这次
@@ -89,7 +112,7 @@ function scheduleCallTimeout(key, io, registry) {
       activeCalls.delete(key);
       registry.end(c.id);
       // 通话已结束 → 清除冷却，允许立即重拨（P1-1）
-      callRateMap.delete(callerId);
+      removeCooldown(callerId);
       // 未接听超时也要补发 call:end，否则被叫端 UI/本地通知（未收到任何结束信号）会永久悬挂（NOTIFY-002 E3）
       // 带 callId：客户端 callEndEvents 按 callId 匹配，防跨事件流乱序误杀新来电（P1-3）
       io.to(`user_${calleeId}`).emit('call:end', { from: callerId, reason: 'timeout', callId: c.id });
@@ -136,7 +159,7 @@ function cleanupExpiredPrivateCall(io, registry, { callId, userId, kind }) {
   } finally {
     activeCalls.delete(key);
     registry.end(callId);
-    callRateMap.delete(callerId);
+    removeCooldown(callerId);
   }
 }
 
@@ -175,11 +198,14 @@ function registerCallHandler(io, socket, registry) {
     }
     const type = rawType == null ? 'audio' : rawType;
     if (to === userId) return;
-    // 频率限制：5s 内同一主叫只能发起一次（防呼叫骚扰）
+    // 频率限制：5s 内同一主叫只能发起一次（防呼叫骚扰）；命中限流不静默丢——
+    // 给 ack 回执明确失败，避免客户端白等整个超时窗口（"主叫假响铃"）
     const now = Date.now();
-    if (now - (callRateMap.get(userId) || 0) < CALL_COOLDOWN_MS) return;
-    callRateMap.set(userId, now);
-    setTimeout(() => callRateMap.delete(userId), CALL_COOLDOWN_MS);
+    if (now - (callRateMap.get(userId) || 0) < CALL_COOLDOWN_MS) {
+      if (typeof ack === 'function') ack({ callId: null, error: 'CALL_RATE_LIMIT' });
+      return;
+    }
+    setCooldown(userId, now);
     // 防骚扰 / 防绕过拉黑：被叫已拉黑主叫，或双方无私聊会话(非任意ID都能拨)，则拒接。
     const blocked = readDb.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(to, userId);
     const shareConv = readDb.prepare(`
@@ -228,8 +254,10 @@ function registerCallHandler(io, socket, registry) {
         // reason:'stale'）。改成两个分支都通知被叫，复用已有的 'replaced' 语义（客户端已经
         // 需要处理这个 reason，不需要新增分支），不再区分"已接通/未接听"两种覆盖情况。
         io.to(`user_${to}`).emit('call:end', { from: userId, reason: 'replaced', callId: old.id });
-        // 旧通话被覆盖 → 清除冷却，允许立即重拨（P1-1）
-        callRateMap.delete(userId);
+        // 旧通话被覆盖 → 冷却保留（本请求已在上面 setCooldown）：
+        // 此前这里 callRateMap.delete 会让"重拨覆盖一通仍在响的旧通话"后无冷却——
+        // 攻击者可每轮 replaced+新 incoming 无限连环骚扰被叫并刷 call_logs（AUDIT P1-1）。
+        // 合法"挂断后立刻重拨他人"路径不受影响：call:end/disconnect/超时收尾才清冷却。
       } catch {}
       activeCalls.delete(key);
       registry.end(old.id);
@@ -388,7 +416,8 @@ function registerCallHandler(io, socket, registry) {
     if (!p) return;
     const to = guardId(socket, 'call:end', 'to', p.to);
     if (!to) return;
-    const reason = typeof p.reason === 'string' ? p.reason : undefined;
+    // reason 白名单：非限定值不转发（防对端按未知 reason 做未定义状态迁移/文案）
+    const reason = typeof p.reason === 'string' && CALL_END_REASONS.has(p.reason) ? p.reason : undefined;
     const resolved = resolveCall(p, to, 'call:end');
     if (!resolved) return;
     if (!resolved.ok) { reportResolutionError('call:end', resolved); return; }
@@ -427,7 +456,7 @@ function registerCallHandler(io, socket, registry) {
       // 挂断的这台设备自己）避免操作设备收到自己挂断动作的回声后又重复处理一遍。
       socket.to(`user_${userId}`).emit('call:end', { from: userId, reason, callId: c.id });
       // 通话已结束 → 清除冷却，允许立即重拨（P1-1）
-      callRateMap.delete(userId);
+      removeCooldown(userId);
     }
   });
 
@@ -459,5 +488,7 @@ registerCallHandler.handleGraceExpired = cleanupExpiredPrivateCall;
 // 供测试直接断言 env 注入/异常回退逻辑(不改动正常 handler 行为)
 registerCallHandler.resolveTimeoutMs = resolveTimeoutMs;
 registerCallHandler.resolveCooldownMs = resolveCooldownMs;
+// 供单测核验冷却原语（防重拨绕过回归, 见 test/call-cooldown-unit.test.js）
+registerCallHandler.cooldownInternals = { setCooldown, removeCooldown, callRateMap, callRateTimers, CALL_COOLDOWN_MS };
 
 module.exports = registerCallHandler;

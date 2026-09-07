@@ -48,7 +48,7 @@
 ### 3.4 通话
 - 真 WebRTC 语音/视频:1v1 + 群组通话
 - STUN + TURN 中继(时效凭证接口 `/api/turn/credentials`)
-- iOS 来电推送(PushKit VoIP,后端直连 APNs)
+- iOS 来电推送:APNs alert 直连(INCOMING_CALL category,当前方案;PushKit VoIP 已随 2026-08 capability 移除,如需"被杀弹系统来电"见 docs/TOULIAO-IOS-VOIP-ENTITLEMENT-STEPS.md 重新开通)
 
 ### 3.5 钱包/红包
 - 余额体系(事务化,防并发扣减)

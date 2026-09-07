@@ -227,7 +227,11 @@ class CallManager @Inject constructor(
         } else {
             audioManager.isSpeakerphoneOn = defaultSpeaker
         }
-        _state.update { it.copy(speakerOn = defaultSpeaker, bluetoothAvailable = btAvailable, bluetoothOn = btAvailable) }
+        // bluetoothOn 只在 receiver 收到 SCO_AUDIO_STATE_CONNECTED 后置 true（B-5）——
+        // 先置 false：SCO 未就绪/启动失败(被 runCatching 吞)期间 UI 不得谎称"已路由蓝牙"，
+        // 否则用户看到蓝牙已启用但声音还在听筒/扬声器（AUDIT P3）。bluetoothAvailable 仅表示
+        // "有已连接耳机可切"，不代表已路由。
+        _state.update { it.copy(speakerOn = defaultSpeaker, bluetoothAvailable = btAvailable, bluetoothOn = false) }
     }
 
     private fun releaseAudioFocusAndRoute() {
@@ -287,6 +291,9 @@ class CallManager @Inject constructor(
     private var videoSource: VideoSource? = null
     private var localAudioTrack: AudioTrack? = null
     private var videoCapturer: VideoCapturer? = null
+    // AUDIT P2：本端本地视频轨是否真正可用（摄像头采集成功并 addTrack）。
+    // createLocalTracks 里据此判断是否需降级为纯音频（呼出转 audio 类型/接听转语音 UI）。
+    private var localVideoOk = false
     private var surfaceHelper: SurfaceTextureHelper? = null
 
     var localVideoTrack: VideoTrack? = null
@@ -376,13 +383,29 @@ class CallManager @Inject constructor(
             if (attempt != callAttempt || _state.value.stage != CallStage.OUTGOING) return@launch
             createPeerConnection()
             createLocalTracks(video)
+            // AUDIT P2：视频通话但摄像头不可用（无摄像头/被占用/权限拒）→ 本端如实降级为
+            // 纯音频：状态改 audio + 按 audio 发起请求，对端按语音通话接听（不再"视频通话
+            // 黑屏"静默失真）。视频权限被拒时用户可在通话中再点开摄像头重试。
+            if (video && !localVideoOk) {
+                Log.w(TAG, "视频采集不可用,本端降级为纯音频发起")
+                _state.update { it.copy(isVideo = false) }
+            }
             // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（此刻 App 在前台、权限已授予，满足 FGS 合规）
-            CallForegroundService.start(context, video)
+            CallForegroundService.start(context, _state.value.isVideo)
             val name = sessionManager.currentUser?.username.orEmpty()
             // ack 携带服务端生成的 callId；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
-            val callId = socketManager.emitCallRequest(peerId, if (video) "video" else "audio", name)
+            val callId = socketManager.emitCallRequest(peerId, if (_state.value.isVideo) "video" else "audio", name)
             if (callId == null) {
-                // ack 超时/socket 未连/请求被拒（P1-4）：立即收尾并提示，不再静默回铃 60s
+                // ack 超时/socket 未连/请求被拒（P1-4）：立即收尾并提示，不再静默回铃 60s。
+                // AUDIT P2（幽灵响铃）：请求可能已到达服务端而仅 ack 丢失——此时服务端
+                // activeCalls 仍在响，被叫会无人接也无人拒直到 120s。若 socket 仍连着，
+                // 补发一条无 callId 的 call:end 让服务端按 (我,对端) 关系清掉该通（服务端
+                // CALL_REQUIRE_ID=false 走 resolvePrivateCall 兜底；请求未达服务端则无害）。
+                // 仅在已连接时发：未连接时 socket.io 会把 emit 排进 sendBuffer，重连后补发的
+                // 旧 end 可能误杀将来同对端的新通话。
+                if (_state.value.peerId.isNotEmpty() && socketManager.isConnected()) {
+                    socketManager.emitCallEnd(_state.value.peerId)
+                }
                 if (attempt == callAttempt && _state.value.stage == CallStage.OUTGOING) cleanup(CallStage.ENDED)
                 return@launch
             }
@@ -403,8 +426,15 @@ class CallManager @Inject constructor(
             if (_state.value.stage == CallStage.ENDED) return@launch
             createPeerConnection()
             createLocalTracks(s.isVideo)
+            // AUDIT P2：被叫接听时本端摄像头不可用 → 本端如实转语音 UI（不发视频轨）。
+            // 对端仍按视频类型显示其本地画面但收不到我方视频轨，其 UI 已有"对端未开视频"
+            // 的兜底渲染；通话中仍可手动再开摄像头。
+            if (s.isVideo && !localVideoOk) {
+                Log.w(TAG, "视频采集不可用,接听降级为纯音频")
+                _state.update { it.copy(isVideo = false) }
+            }
             // 本地媒体已开始采集 → 起前台服务保活（接听时 App 在前台、权限已授予）
-            CallForegroundService.start(context, s.isVideo)
+            CallForegroundService.start(context, _state.value.isVideo)
             socketManager.emitCallResponse(s.peerId, true, s.callId)
             // 等待主叫的 call:offer
         }
@@ -782,13 +812,20 @@ class CallManager @Inject constructor(
         val f = factory ?: return
         val pc = peerConnection ?: return
         acquireAudioFocusAndRoute()
+        localVideoOk = false
         // 音频
         audioSource = f.createAudioSource(MediaConstraints())
         localAudioTrack = f.createAudioTrack("audio0", audioSource).apply { setEnabled(true) }
         pc.addTrack(localAudioTrack, listOf(STREAM_ID))
-        // 视频
+        // 视频：摄像头不可用/启动失败 → 不 abort（音频轨已加），降级为纯音频由调用方判定
+        // （呼出侧改发 audio 请求；接听侧保持音频应答）。静默继续只会让对端/本端 UI 误以为
+        // 有视频轨——黑屏假视频比明示的纯音频更糟。
         if (video) {
-            val capturer = createCameraCapturer() ?: return
+            val capturer = createCameraCapturer()
+            if (capturer == null) {
+                Log.w(TAG, "视频采集不可用(无摄像头/被占用/权限拒):本端按纯音频继续")
+                return
+            }
             videoCapturer = capturer
             surfaceHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
             videoSource = f.createVideoSource(false)
@@ -797,6 +834,7 @@ class CallManager @Inject constructor(
                 .onFailure { e -> Log.w(TAG, "视频采集启动失败: ${e.message}") }
             localVideoTrack = f.createVideoTrack("video0", videoSource).apply { setEnabled(true) }
             pc.addTrack(localVideoTrack, listOf(STREAM_ID))
+            localVideoOk = true
         }
     }
 

@@ -680,6 +680,9 @@ class SocketManager @Inject constructor(
         socket?.emit("call:end", payload)
     }
 
+    /** 当前 socket 是否处于已连接状态（emit 前守卫，防未连接时包进 sendBuffer 排队成幽灵信令） */
+    fun isConnected(): Boolean = socket?.connected() ?: false
+
     /** 通话中切换语音↔视频：告知对方新类型（媒体重协商由 call:offer/answer 驱动） */
     fun emitCallSwitchType(to: String, type: String, callId: String = "") {
         val payload = JSONObject().put("to", to).put("type", type)

@@ -60,6 +60,9 @@ final class CallManager: NSObject, ObservableObject {
 
     /// 主叫呼叫超时任务（未接听自动挂断）；接通/挂断时取消，避免泄漏。
     private var callTimeoutTask: Task<Void, Never>?
+    /// 结束态延迟收起任务（ended 后延迟清空状态机）——新通话/再次结束时须取消旧的，
+    /// 防上一通遗留的收起任务在新通话也恰好 ended 时提前清空结束画面（AUDIT P3）。
+    private var endedDismissTask: Task<Void, Never>?
     private var disconnectGraceTask: Task<Void, Never>?
     // ICE restart 自愈(网络切换 Wi-Fi↔4G):disconnected 3s 防抖 → restartIce → 15s 窗口 → 最多 3 次 → 挂断。
     // 信令复用现有 call:offer/answer/ice(后端纯转发零改动),对端收到重协商 offer 走现有应答逻辑。
@@ -403,7 +406,12 @@ final class CallManager: NSObject, ObservableObject {
         content.userInfo = ["from": from, "callType": callType, "callerName": callerName, "callId": callId]
 
         let request = UNNotificationRequest(
-            identifier: "incoming_call_\(from)",
+            // AUDIT P3: identifier 带 callId——同对端连续两通来电通知不再互相覆盖
+            //（此前仅 incoming_call_<from>，后一通会顶掉前一通且携带过期 callId）。
+            // callId 为空(极早期推送)时补随机后缀保证唯一，避免覆盖。
+            identifier: callId.isEmpty
+                ? "incoming_call_\(from)_\(UUID().uuidString)"
+                : "incoming_call_\(from)_\(callId)",
             content: content,
             trigger: nil   // 立即触发
         )
@@ -450,7 +458,11 @@ final class CallManager: NSObject, ObservableObject {
     private func createOfferAndSend() {
         guard let pc = pc else { return }
         pc.offer(for: mediaConstraints()) { [weak self] desc, err in
-            guard let self, let desc, err == nil else { return }
+            // AUDIT P2（旧通话迟到回调污染新通话）：完成时校验 pc 仍是当前实例且通话仍在
+            // 协商/进行中——挂断→秒重拨窗口内旧 pc 的迟到 SDP 若照发，会按新通话的
+            // peerId/callId 发给对端，污染新协商。pc 已被替换/收尾 → 一律丢弃。
+            guard let self, let desc, err == nil, self.pc === pc,
+                  self.state.stage == .connecting || self.state.stage == .connected else { return }
             // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
             let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
@@ -494,7 +506,9 @@ final class CallManager: NSObject, ObservableObject {
     private func createAnswerAndSend() {
         guard let pc = pc else { return }
         pc.answer(for: mediaConstraints()) { [weak self] desc, err in
-            guard let self, let desc, err == nil else { return }
+            // AUDIT P2：同 createOfferAndSend——旧连接的迟到 answer 不得按新通话身份发出
+            guard let self, let desc, err == nil, self.pc === pc,
+                  self.state.stage == .connecting || self.state.stage == .connected else { return }
             // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
             let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
@@ -631,6 +645,7 @@ final class CallManager: NSObject, ObservableObject {
 
     // MARK: - 清理
     private func cleanup(_ finalStage: CallStage) {
+        endedDismissTask?.cancel(); endedDismissTask = nil   // 新一轮结束/新通话先撤旧收起任务
         qualityTask?.cancel(); qualityTask = nil          // 停质量采样
         cancelIceRestart()                          // 清 ICE restart 定时器/计数
         cancelDisconnectGrace()
@@ -656,9 +671,10 @@ final class CallManager: NSObject, ObservableObject {
             // 小窗会卡死在"已结束"画面。改成manager自己调度，不依赖哪个UI正在显示。
             state.isMinimized = false
             let delay: UInt64 = state.timedOut ? 1_800_000_000 : 800_000_000
-            Task { [weak self] in
+            endedDismissTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: delay)
-                self?.consumeEnded()
+                guard let self, !Task.isCancelled else { return }
+                self.consumeEnded()
             }
         }
     }
@@ -667,6 +683,8 @@ final class CallManager: NSObject, ObservableObject {
 // MARK: - RTCPeerConnectionDelegate
 extension CallManager: RTCPeerConnectionDelegate {
     func peerConnection(_ peerConnection: RTCPeerConnection, didGenerate candidate: RTCIceCandidate) {
+        // AUDIT P2：旧 pc（挂断后被替换/关闭）迟到的候选不得按当前通话身份发出
+        guard peerConnection === pc else { return }
         let peer = state.peerId
         socket.emitCallIce(to: peer, candidate: candidate.sdp, sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex, callId: state.callId)
     }

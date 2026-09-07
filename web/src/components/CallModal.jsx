@@ -208,6 +208,14 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const ICE_RESTART_MAX         = 3;        // 最大重启次数,超限放弃(对称 NAT 无 TURN 再试无益)
   const toneRef = useRef(null); // 循环提示音句柄 { stop }(回铃/来电共用)
 
+  // AUDIT 2026-09-07 加固：
+  // aliveRef=组件存活标记：getUserMedia/TURN/建 PC 等异步副作用在卸载后返回时必须中止，
+  //   否则 cleanup 已先跑、迟到的初始化会重建媒体流/连接 → 通话结束后麦克风摄像头仍被占用。
+  // acceptBusyRef/rejectBusyRef=接听/拒接幂等守卫：双击/连点只执行一次初始化与信令。
+  const aliveRef = useRef(true);
+  const acceptBusyRef = useRef(false);
+  const rejectBusyRef = useRef(false);
+
   const timer = useCallTimer(status === 'connected');
 
   const bubble = useDraggable({ x: window.innerWidth - 110, y: 80 });
@@ -338,6 +346,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   }, []);
 
   const endCall = useCallback((notify, reason = '') => {
+    // 幂等：挂断/超时/网络错误多次触发（双击挂断、ICE 状态机与手动挂断竞态）只收尾一次
+    if (statusRef.current === 'ended') return;
     if (notify) socket?.emit('call:end', withCallId({ to: remoteId, reason }, callId));
     cleanup();
     if (reason) setEndReason(reason);
@@ -350,10 +360,12 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia(constraints); setMediaError(false); }
     catch { stream = new MediaStream(); setMediaError(true); } // 权限拒绝/设备占用：仍建连但提示用户
+    if (!aliveRef.current) { stream.getTracks().forEach(t => t.stop()); return; } // 已卸载:中止
     localStreamRef.current = stream;
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
     const iceConfig = await fetchIceConfig();
+    if (!aliveRef.current) { stream.getTracks().forEach(t => t.stop()); localStreamRef.current = null; return; }
     const pc = new RTCPeerConnection(iceConfig);
     pcRef.current = pc;
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
@@ -361,6 +373,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     // 对本 pc 后续所有协商——主叫首 offer、ICE restart 重协商——持续有效；被叫应答路径
     // 在 processOffer 里于 setRemoteDescription 后再补设一次）
     await preferH264(pc);
+    if (!aliveRef.current) { pc.close(); pcRef.current = null; stream.getTracks().forEach(t => t.stop()); localStreamRef.current = null; return; }
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) socket?.emit('call:ice', withCallId({ to: remoteId, candidate }, callId));
@@ -431,6 +444,13 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const processOffer = useCallback(async (offer) => {
     const pc = pcRef.current;
     if (!pc) return;
+    // glare 防御（AUDIT P2，加固级）：本地已有 offer 在途（我方也在重协商/切类型）时，
+    // 忽略对方的竞争 offer，让本地协商走完——双方恰好同时发起重协商极罕见，且对端
+    // 下轮 ICE restart/再次切换会自愈；不在此处理"双端同时 offer"的完美协商回滚。
+    if (pc.signalingState === 'have-local-offer') {
+      console.warn('[call] glare: 忽略竞争 offer（本地 offer 在途）');
+      return;
+    }
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       // remoteDescription 就绪 → flush 之前早到的 ICE 候选（对齐原生端 pendingIce）
@@ -452,22 +472,40 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   }, [socket, remoteId, callId, endCall]);
 
   const accept = useCallback(async () => {
-    setStatus('connecting');
-    await initPC();
-    socket?.emit('call:response', withCallId({ to: remoteId, accepted: true }, callId));
-    if (pendingOfferRef.current) {
-      await processOffer(pendingOfferRef.current);
-      pendingOfferRef.current = null;
+    // 幂等（AUDIT P1）：双击/连点接听只初始化一次——第二次进入会在 initPC 里再建一个
+    // RTCPeerConnection/getUserMedia，pcRef 被覆盖后第一个 PC 永不 close，其媒体流无引用
+    // 可停 → 通话结束后麦克风/摄像头仍被占用（浏览器指示灯常亮）。
+    if (acceptBusyRef.current || statusRef.current !== 'incoming') return;
+    acceptBusyRef.current = true;
+    try {
+      setStatus('connecting');
+      await initPC();
+      socket?.emit('call:response', withCallId({ to: remoteId, accepted: true }, callId));
+      if (pendingOfferRef.current) {
+        await processOffer(pendingOfferRef.current);
+        pendingOfferRef.current = null;
+      }
+    } catch (e) {
+      console.error('[call] accept 失败:', e);
+      cleanup();
+      setStatus('ended');
+      setTimeout(onClose, 1800);
+    } finally {
+      acceptBusyRef.current = false;
     }
-  }, [socket, remoteId, callId, initPC, processOffer]);
+  }, [socket, remoteId, callId, initPC, processOffer, cleanup, onClose]);
 
   const reject = useCallback(() => {
+    if (rejectBusyRef.current || statusRef.current !== 'incoming') return;
+    rejectBusyRef.current = true;
     socket?.emit('call:response', withCallId({ to: remoteId, accepted: false, reason: 'rejected' }, callId));
     onClose();
   }, [socket, remoteId, callId, onClose]);
 
   // 拒接后回复消息：拒接 + 关闭来电界面 + 回调父层打开与该用户的会话
   const replyInstead = useCallback(() => {
+    if (rejectBusyRef.current || statusRef.current !== 'incoming') return;
+    rejectBusyRef.current = true;
     socket?.emit('call:response', withCallId({ to: remoteId, accepted: false, reason: 'rejected' }, callId));
     onClose();
     // 一并把来电方资料传出去：会话列表里查不到这条私聊时（新建/列表未同步），
@@ -484,6 +522,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     // 不再可能误伤当前正在进行的新通话。
     const onResponse = async ({ from, accepted, reason, busy, callId: evtCallId }) => {
       if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
+      // 状态守卫（AUDIT 加固）：只有主叫仍在"等待应答"时才处理应答——通话已因超时/挂断/
+      // 其他设备操作收尾后，迟到的 accepted 不得把 ended 重新拉回 connecting。
+      if (statusRef.current !== 'calling') return;
       clearTimeout(timeoutRef.current);
       if (!accepted) {
         setEndReason(busy ? 'busy' : (reason || 'rejected'));
@@ -506,6 +547,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     };
     const onOffer = async ({ from, offer, callId: evtCallId }) => {
       if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
+      if (statusRef.current === 'ended' || statusRef.current === 'incoming') return; // 已收尾/未接听不收协商
       if (!pcRef.current) { pendingOfferRef.current = offer; return; }
       await processOffer(offer);
     };
@@ -513,6 +555,12 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
       const pc = pcRef.current;
       if (!pc) return;
+      // answer 必须对应我方已 setLocal 的 offer；stable/have-remote-offer 下收到 answer
+      // = 协议错乱/重复应答，丢弃而不是强设远端（防 InvalidStateError 挂断）
+      if (pc.signalingState !== 'have-local-offer') {
+        console.warn('[call] 忽略异常 answer（signalingState=%s）', pc.signalingState);
+        return;
+      }
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
       // remoteDescription 就绪 → flush 之前早到的 ICE 候选（对齐原生端 pendingIce）
       for (const c of pendingIceRef.current.splice(0)) {
@@ -578,6 +626,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     if (direction === 'outgoing') {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：WebRTC 初始化副作用
       initPC().then(() => {
+        // 卸载后 initPC 可能已中止（aliveRef=false）或组件已收尾：不再安排超时定时器，
+        // 防迟到回调在卸载后仍发 ghost call:end / 残留 30s 定时器
+        if (!aliveRef.current || statusRef.current !== 'calling') return;
         timeoutRef.current = setTimeout(() => {
           if (statusRef.current === 'calling') endCall(true, 'timeout');
         }, CALL_TIMEOUT_MS);
@@ -588,7 +639,11 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         socket?.emit('call:end', withCallId({ to: remoteId }, callId));
     };
     window.addEventListener('beforeunload', onUnload);
-    return () => { window.removeEventListener('beforeunload', onUnload); cleanup(); };
+    return () => {
+      aliveRef.current = false; // 先置死再清理：让所有在途异步副作用(媒体/TURN/协商)自中止
+      window.removeEventListener('beforeunload', onUnload);
+      cleanup();
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 提示音生命周期：主叫拨出等待→回铃音循环；被叫来电→来电铃声循环；
@@ -627,6 +682,11 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       if (next) {
         // 语音→视频：补视频轨
         const vs = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true), audio: false });
+        // AUDIT 加固：等待摄像头授权期间通话已结束/卸载 → 停掉新轨，不残留采集
+        if (!aliveRef.current || statusRef.current !== 'connected') {
+          vs.getVideoTracks().forEach(t => t.stop());
+          return;
+        }
         vs.getVideoTracks().forEach(t => pc.addTrack(t, vs));
         if (localStreamRef.current) {
           vs.getVideoTracks().forEach(t => { try { localStreamRef.current.addTrack(t); } catch { /* 已存在 */ } });

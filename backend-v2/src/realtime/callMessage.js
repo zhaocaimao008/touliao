@@ -40,6 +40,12 @@ const STATUS_TEXT = {
   missed:    () => '对方无应答',
 };
 
+// 同 callId 并发单飞（AUDIT P2）：去重 check(72行)与 insert(appendConversationEvent)之间有
+// await 间隙，同一通话被双终态路径（如一方挂断+另一方断线同时收尾）并发写入时两个调用都能
+// 通过 check → 写两条同 callId 通话消息。进程内按 callId 合并并发调用；串行/已完成后的重复
+// 写仍由 _alreadyWritten(DB 幂等) 兜底。
+const inflightCallWrites = new Map();
+
 function fmtDuration(s) {
   const n = Math.max(0, Number(s) || 0);
   if (n < 60) return `${n} 秒`;
@@ -54,7 +60,7 @@ function fmtDuration(s) {
  *   callerId, calleeId(1对1) | conversationId(群), participants?(群)
  * @param {object} io socket.io 实例（emitSyncAvailable 用）
  */
-async function writeCallMessage(opts, io) {
+async function _writeCallMessageOnce(opts, io) {
   try {
     const { callId, status, duration = 0, callType = 'audio', callerId, conversationId, participants } = opts;
     if (!callId || !callerId) return;
@@ -108,6 +114,19 @@ async function writeCallMessage(opts, io) {
     // 通话消息是体验增强：写入失败不影响通话主流程，只记日志
     console.warn('[call-msg] 写入通话消息失败:', e.message);
   }
+}
+
+// 导出单飞包装：同 callId 并发只落一条（DB 幂等兜底串行后的重复写）
+async function writeCallMessage(opts, io) {
+  const callId = opts && opts.callId;
+  if (!callId) return _writeCallMessageOnce(opts, io);
+  const prev = inflightCallWrites.get(callId);
+  if (prev) return prev;
+  const p = _writeCallMessageOnce(opts, io).finally(() => {
+    if (inflightCallWrites.get(callId) === p) inflightCallWrites.delete(callId);
+  });
+  inflightCallWrites.set(callId, p);
+  return p;
 }
 
 module.exports = { writeCallMessage };

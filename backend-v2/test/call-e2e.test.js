@@ -11,9 +11,13 @@
  * 环境:Jest + 测试库(testEnv)。CALL_TIMEOUT_MS / CALL_RECONNECT_GRACE_MS
  * 经环境变量注入短值(生产默认 120s / 15s,行为不变)。
  */
-process.env.CALL_TIMEOUT_MS = process.env.CALL_TIMEOUT_MS || '3000';      // 超时场景 3s
-process.env.CALL_RECONNECT_GRACE_MS = process.env.CALL_RECONNECT_GRACE_MS || '3000'; // 宽限 3s(给重连留余量)
-process.env.CALL_COOLDOWN_MS = process.env.CALL_COOLDOWN_MS || '0';       // 测试关冷却(连续场景)
+// 强制注入短值（不用 || 默认）：本机存在 backend-v2/.env 时 dotenv 会先把它加载进
+// process.env（jest setupFiles testEnv），|| '3000' 只在"未设置"时生效 → 本地 .env 的
+// 15000/120s 会让"宽限外未重连"类用例 8s 等不到 15s 宽限而必挂（CI 无 .env 才碰巧通过）。
+// 显式赋值在 dotenv 之后仍生效（dotenv 不覆盖已存在项），本地/CI 行为一致。
+process.env.CALL_TIMEOUT_MS = '3000';      // 超时场景 3s
+process.env.CALL_RECONNECT_GRACE_MS = '3000'; // 宽限 3s(给重连留余量)
+process.env.CALL_COOLDOWN_MS = '0';       // 测试关冷却(连续场景)
 process.env.FORCE_SYNC_WRITES = '1';   // writer 同步落库(jest 下 worker flush 延迟不稳定)
 
 const http = require('http');
