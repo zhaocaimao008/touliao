@@ -1158,7 +1158,7 @@ body.dark-mode * {
   z-index: var(--z-popover);
   background: var(--bg-ctx-menu);
   border-radius: 16px;
-  box-shadow: 0 6px 24px rgba(0,0,0,.28), 0 0 0 .5px rgba(255,255,255,.07);
+  box-shadow: var(--elev-popover), 0 0 0 .5px rgba(255,255,255,.07);
   /* 固定宽度 + 安全可视区高度限制 + 内部滚动：
      根因修复：旧样式只有 min-width:148px，无 max-width/max-height，
      菜单项多时被内容撑高到占满屏幕/覆盖输入框和 TabBar。 */
@@ -1422,7 +1422,7 @@ body.dark-mode .wc-me-header { background: var(--bg-card); }
    ============================================================ */
 .wc-modal-overlay { position: fixed; inset: 0; background: var(--scrim-light); display: flex; align-items: center; justify-content: center; z-index: var(--z-modal); animation: fadeIn 180ms ease-out both; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.wc-modal { background: var(--bg-modal); border-radius: var(--radius-lg); overflow: hidden; width: 340px; max-height: 82vh; display: flex; flex-direction: column; box-shadow: var(--elev-dialog), 0 0 0 .5px rgba(0,0,0,.06); animation: slideUp 200ms ease-out both; isolation: isolate; }
+.wc-modal { background: var(--bg-modal); border-radius: var(--radius-modal); overflow: hidden; width: 340px; max-height: 82vh; display: flex; flex-direction: column; box-shadow: var(--elev-dialog), 0 0 0 .5px rgba(0,0,0,.06); animation: slideUp 200ms ease-out both; isolation: isolate; }
 @keyframes slideUp { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .wc-modal.wide { width: 440px; }
 .wc-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--divider); }
@@ -2526,7 +2526,7 @@ body:not(.dark-mode) .wc-discover {
   max-height: 88vh;
   background: var(--bg-app, #EDEFF2);
   border-radius: var(--radius-md);
-  box-shadow: 0 18px 46px rgba(0,0,0,.22);
+  box-shadow: var(--elev-dialog);
 }
 .wc-user-profile-top {
   position: relative;
@@ -2738,7 +2738,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 /* 消息右键菜单（第二处定义：保留动画/圆角，继承第一处的尺寸与布局约束） */
 .wc-ctx-menu {
   border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.16), 0 2px 6px rgba(0,0,0,.08), 0 0 0 .5px rgba(0,0,0,.06);
+  box-shadow: var(--elev-popover), 0 0 0 .5px rgba(0,0,0,.06);
   overflow-y: auto;
   animation: scaleIn .12s var(--ease);
   transform-origin: top left;
@@ -3442,7 +3442,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
      --bg-card / --border-color 自动适配亮(#fff/#E3E7EE)暗(#2C2C2E/#3A3A3C)两套主题。 */
   background:var(--bg-card);
   border:1px solid var(--border-color);
-  box-shadow:0 12px 40px rgba(0,0,0,.18);
+  box-shadow: var(--elev-popover);
   overflow:hidden;
 }
 /* 桌面端(Electron)有 30px 自定义标题栏：下拉面板 top:8px 会被标题栏遮住，
@@ -3641,7 +3641,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   position:fixed; z-index:var(--z-popover);
   background:var(--bg-msg-other); border:1px solid var(--border-color);
   border-radius:var(--radius-lg);
-  box-shadow:0 8px 32px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.1);
+  box-shadow: var(--elev-popover);
   overflow:hidden; min-width:168px;
 }
 .home-add-divider { height:1px; background:var(--border-color); }

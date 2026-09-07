@@ -1141,7 +1141,7 @@ export default function Home() {
           onClick={e => e.target === e.currentTarget && setShowMentions(false)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowMentions(false); } }}>
           <div role="dialog" aria-modal="true" aria-label={t('home.mentionsAriaLabel')}
-            style={{ width: 'min(440px, 92vw)', height: 'min(70vh, 640px)', background: 'var(--bg-panel)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,.28)' }}
+            style={{ width: 'min(440px, 92vw)', height: 'min(70vh, 640px)', background: 'var(--bg-panel)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--elev-modal)' }}
             onClick={e => e.stopPropagation()}>
             <Suspense fallback={null}>
               <MentionList onClose={() => setShowMentions(false)} onJumpToMsg={handleJumpToMention} />

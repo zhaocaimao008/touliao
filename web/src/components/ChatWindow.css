@@ -660,7 +660,7 @@
   background: linear-gradient(180deg,var(--rp-orange) 0%,var(--rp-orange) 140px,var(--bg-card) 140px,var(--bg-card) 100%);
   border-radius: var(--radius-modal);
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0,0,0,.3);
+  box-shadow: var(--elev-dialog);
 }
 .wc-rp-detail-header {
   padding: 26px 20px 18px;

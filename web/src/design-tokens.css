@@ -294,7 +294,7 @@
   --radius-button:     12px;   /* 常规按钮 */
   --radius-button-sm:  4px;    /* 小按钮（B 端操作）*/
   --radius-card:       16px;   /* 内容卡片 */
-  --radius-modal:      14px;   /* 弹窗 */
+  --radius-modal:      18px;   /* 弹窗(与 radius-lg 现状对齐) */
   --radius-badge:      10px;   /* 未读徽标 */
   --radius-tag:        4px;    /* 标签（B 端）*/
   --radius-toggle:     9999px; /* 开关 */

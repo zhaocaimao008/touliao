@@ -172,7 +172,7 @@ export default function ScanQR({ onClose }) {
   return (
     <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div role="dialog" aria-modal="true" aria-label={t('scanQR.title')}
-        style={{ width: 'min(400px, 92vw)', background: 'var(--bg-panel, #fff)', borderRadius: 'var(--radius-lg, 16px)', overflow: 'hidden' }}
+        style={{ width: 'min(400px, 92vw)', background: 'var(--bg-panel, #fff)', borderRadius: 'var(--radius-lg, 16px)', overflow: 'hidden', boxShadow: 'var(--elev-dialog)' }}
         onClick={e => e.stopPropagation()}>
         <div className="wc-modal-header">
           <span className="wc-modal-title">{t('scanQR.title')}</span>
