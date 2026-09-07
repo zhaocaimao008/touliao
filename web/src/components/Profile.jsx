@@ -1462,7 +1462,7 @@ export default function Profile({ isMobile = false }) {
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>{t('settings.logout')}</button>
       </div>
       <div className="wc-logout-div">
-        <button className="wc-edit-hint" style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+        <button className="wc-edit-hint" style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: '12px 16px' }}
           onClick={() => setSubPage('delete-account')}>{t('profile.deleteAccountTitle')}</button>
       </div>
 

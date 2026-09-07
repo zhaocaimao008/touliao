@@ -133,14 +133,14 @@ export default function Collections() {
             style={{ width: '100%', padding: '7px 28px 7px 10px', borderRadius: 'var(--radius-input)', border: '1px solid var(--border-color)', fontSize: 'var(--text-base)', boxSizing: 'border-box' }} />
           {query && (
             <button type="button" aria-label={t('fwd.clearSearchAriaLabel')} title={t('common.clear')} onClick={() => setQuery('')}
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              style={{ position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {TYPES.map(([val, label]) => (
             <button key={val || 'all'} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
-              style={{ fontSize: 'var(--text-sm)', padding: '3px 10px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
-                border: '1px solid var(--border-color)',
+              style={{ fontSize: 'var(--text-sm)', padding: '11px 12px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
+                border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center',
                 background: typeFilter === val ? 'var(--green)' : 'transparent',
                 color: typeFilter === val ? '#fff' : 'var(--text-secondary)' }}>{label}</button>
           ))}
@@ -167,10 +167,10 @@ export default function Collections() {
               <div style={{ display: 'flex', gap: 4 }}>
                 {c.extra?.source_conv_id && (
                   <button onClick={() => jumpToSource(c)}
-                    style={{ fontSize: 'var(--text-sm)', color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>{t('coll.jumpToSource')}</button>
+                    style={{ fontSize: 'var(--text-sm)', color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 8px' }}>{t('coll.jumpToSource')}</button>
                 )}
                 <button onClick={() => remove(c.id)}
-                  style={{ fontSize: 'var(--text-sm)', color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>{t('coll.unfavorite')}</button>
+                  style={{ fontSize: 'var(--text-sm)', color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 8px' }}>{t('coll.unfavorite')}</button>
               </div>
             </div>
           </div>

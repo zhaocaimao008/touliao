@@ -1573,7 +1573,7 @@ body.dark-mode .wc-me-header { background: var(--bg-card); }
   padding: 12px 18px; border-bottom: 1px solid var(--border-color); flex-shrink: 0;
 }
 .wc-moment-composer {
-  width: 100%; text-align: left; padding: 10px 14px; border-radius: var(--radius-card);
+  width: 100%; text-align: left; padding: 13px 14px; border-radius: var(--radius-card);
   background: var(--bg-search); color: var(--text-tertiary); font-size: var(--text-base);
   cursor: pointer; border: 1px solid var(--border-color); font-family: inherit;
 }
@@ -1614,7 +1614,7 @@ body.dark-mode .wc-me-header { background: var(--bg-card); }
 .wc-moment-vis-select { background: none; border: 1px solid var(--border-color); border-radius: var(--radius-button); padding: 4px 8px; font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer; margin-left: var(--sp-2); }
 .wc-moment-notif-bar { display: flex; align-items: center; gap: var(--sp-2); padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--border-color); }
 .wc-moment-notif-bar:hover { background: var(--bg-hover); }
-.wc-moment-settings-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 4px 6px; border-radius: var(--radius-button); line-height: 0; display: inline-flex; align-items: center; }
+.wc-moment-settings-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 13px; border-radius: var(--radius-button); line-height: 0; display: inline-flex; align-items: center; }
 .wc-moment-settings-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .wc-moment-notif-icon { display: inline-flex; align-items: center; color: var(--text-secondary); }
 .wc-moment-notif-label { font-size: var(--text-base); color: var(--text-primary); flex: 1; }
@@ -2033,8 +2033,8 @@ body.dark-mode .wc-settings-entry:hover {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border: none;
     background: transparent;
     cursor: pointer;
@@ -4165,8 +4165,8 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
 .m-chat-page .wc-chat-header { padding-top: env(safe-area-inset-top); }
 .m-chat-page .wc-chat-header-back {
   display: flex; align-items: center; justify-content: center;
-  width: 36px; height: 36px; border: none; background: transparent; cursor: pointer;
-  margin-right: 2px; flex-shrink: 0; color: var(--text-title);
+  width: 44px; height: 44px; border: none; background: transparent; cursor: pointer;
+  flex-shrink: 0; color: var(--text-title);
 }
 .m-chat-page .wc-chat-header-back svg { width: 24px; height: 24px; fill: currentColor; display: block; }
 .m-chat-page .wc-input-area { padding-bottom: env(safe-area-inset-bottom); }
