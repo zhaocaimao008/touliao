@@ -12,6 +12,7 @@
 - SQLite 单机架构对当前量级完全胜任
 
 ## 🔴 P1 推送体系在生产全未配置（功能缺失，非崩溃）
+- **Web Push：✅ 已恢复（2026-09-07）**：backend-v2/.env 生成并写入 `VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY` → `pm2 restart touliao-backend --update-env` → `/api/notifications/vapid-public-key` 200、前端引导条恢复显示、SW 注册成功、503 清零。密钥仅存 .env（未入库）。
 现象：
 - `/api/notifications/vapid-public-key` 每次页面加载都返回 **503**（out.log 每会话 2~6 条 warn）
 - 移动端新消息推送、iOS 直连 APNs、Android 个推、Web Push **全部不生效**
