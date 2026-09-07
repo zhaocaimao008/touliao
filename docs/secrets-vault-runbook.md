@@ -21,12 +21,11 @@ sudo cp /root/touliao-secrets-vault/touliao-secrets-<最新>.gpg /home/ubuntu/  
 ```
 
 ## 待入库清单（当前缺，拿到就跑一次备份）
-- [ ] iOS APNs：Apple Developer → Keys 新建 APNs key → 下载的 `.p8` 放 `extra/apns-key.p8`
-      （同时抄下 Key ID 与 Team ID → 之后写进 `.env` 的 APNS_P8/APNS_KEY_ID/APNS_TEAM_ID）
+- [x] iOS APNs：**已完成（2026-09-07）**——Apple 新建 APNs Key，`extra/apns-key.p8` 已入库；`.env` 已配 `APNS_P8`(内联) + `APNS_KEY_ID=97WQ79FTFQ` + `APNS_TEAM_ID=F2J52VX786`；实测假 token 返回 400 BadDeviceToken = 认证通过
 - [ ] Android 个推：个推开发者平台应用详情页的 AppKey/AppSecret/MasterSecret 记录文本
       → `extra/getui.txt`（AppID 可从现网 APK manifest 用 aapt2 读回）
 - [ ] （可选）FCM service account json → `extra/firebase-service.json`
-- 已入库：VAPID 公/私钥（Web Push）、JWT_SECRET、ADMIN 凭据、后端全部 `.env`
+- 已入库：VAPID 公/私钥（Web Push）、APNs p8、JWT_SECRET、ADMIN 凭据、后端全部 `.env`
 
 ## 换服务器恢复步骤（新机）
 1. 装 gpg：`apt install gpg`
