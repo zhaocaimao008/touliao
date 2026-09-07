@@ -60,3 +60,52 @@
 - errlog 遗留 10.5K 行历史噪声（9-06 前 redis 未装时）：`pm2 flush touliao-backend` 一次即可清零，非问题
 - 后端 requestId/时长日志齐全（1–5ms），无慢查询迹象；数据库连接与 FTS 无异常
 - GETUI/APNs 恢复后，Android/iOS 需重发一次包才能保证 CID 上报路径完整自检（device_tokens 表从 0 开始累积）
+
+---
+
+# 在线语音通话全链路体检（gpt-6 四端审查 + 逐条回码核验, 2026-09-07）
+
+方式：gpt-6(gpt-6-astra) 分四片审查 后端call.js/registry/message/reconciler + Web CallModal + Android CallManager + iOS CallManager，再做跨端合议；全部 P 级条目已由人工回源码逐行核验（未核验的误报已剔除或降级）。只读，**未改代码**。基线：通话相关后端测试 10 suites / 57 tests 全绿；生产日志无通话报错（仅旧 chunk 缓存噪声）；TURN /api/turn/credentials 在线(401=鉴权拦截,正常)。
+
+## 🔴 P1 待修
+- [ ] **服务端重拨覆盖可无限绕过 5s 防骚扰冷却（call.js:178-182 + 231-232）**
+  现象/证据：`callRateMap.set`+一次性 `setTimeout(delete)`（182）；重拨覆盖旧通话时 `callRateMap.delete(userId)`（232）**未为新通话重建冷却**。
+  影响：只要一通旧呼叫仍在响（最长 120s），即可连续重拨无限次——每轮对被叫触发 replaced+新 incoming（连环响铃骚扰），并刷 call_logs/通话系统消息。5s 限流形同虚设。
+  修复建议：覆盖路径 delete 后立即对新通话 set 新时间戳并重置定时器；或在 override 分支内改「重置冷却到 now」而非删除。另 5s 整点边界旧定时器可能误删新记录（同族，一并处理）。建议补冷却生命周期单测。
+- [ ] **Web accept 双击无幂等守卫 → 通话结束后麦克风/摄像头仍被占用（CallModal.jsx:454-462, 348-394）**
+  现象/证据：accept() 无状态/ref 守卫，连点两次在 initPC 完成前可二次执行 → 两个 getUserMedia/RTCPeerConnection；pcRef 被第二个覆盖，第一个 PC 永不 close、其媒体流无引用可停（cleanup 只停 localStreamRef.current=第二个流）。移动端双击接听窗口真实。
+  影响：隐私级——通话已结束但设备采集持续（浏览器指示灯常亮）；权限弹窗期快速取消同理（见 P2#1 同根因）。
+  修复建议：accept/reject/replyInstead 入口加幂等 ref 守卫（如 acceptingRef），并统一到「异步媒体副作用须绑组件存活」模式。
+- [ ] **（需产品拍板）四端呼出等待超时不一致 30/45/60/120s（Web CallModal.jsx:34=30s；iOS CallManager.swift:72=45s；Android CallManager.kt:365=60s；服务端 call.js:49 兜底=120s）**
+  现象/证据：同产品四端「响铃多久自动挂断」不同（30/45/60）；且主叫端超时=客户端发 call:end→服务端落 canceled，服务端 120s 兜底才落 missed——「对方无应答」文案只在两端都不在线时出现。
+  影响：跨端体验不一致（同账号不同设备拨打等待时长不同）；超时语义/落库状态随“谁先超时”漂移，通话记录与聊天系统消息文案可能矛盾（主叫界面「对方未接听」vs 消息「已取消」）。
+  建议：拍板统一值（如 45s），服务端兜底与各端收敛一致；若保留差异需在架构文档写明「服务端 120s 仅兜底双方失联」。
+
+## 🟡 P2 应修
+- [ ] **Web 异步媒体初始化无 unmount 存活守卫（CallModal.jsx:348-394, 577-592）**：挂断/关闭发生在 getUserMedia/TURN/建 PC 完成前 → 结果返回后仍建流/PC（cleanup 已先跑），麦克风持续采集。与 P1#2 同根因，建议统一 aliveRef 守卫模式（发起/接听/切换类型共 3 条入口）。
+- [ ] **Android ack 丢失 → 被叫幽灵响铃直到服务端超时（CallManager.kt:383-390 + SocketManager.kt:623-643）**：call:request 已达服务端但 ack 丢失 → 本地 10s AckWithTimeout 后 cleanup(ENDED) 且**不发 call:end**，服务端 activeCalls 仍在响 → 被叫端无人接也无人拒，直到 120s。建议：ack 超时清理时若仍在 OUTGOING 且 callId 未知，补发服务端可识别的取消（call:error 或带空 callId 的 end 由服务端按 key 清）。
+- [ ] **iOS 异步 SDP/ICE 回调无实例归属校验（CallManager.swift:450-458 / 494-502 / 669-672）**：回调完成时读可变 self.state.peerId/callId 发送——挂断→秒重拨窗口内旧 PC 的迟到 offer/answer/candidate 会按**新通话**身份发出，污染新协商。建议：发起时捕获 (callId, peerId, pc 实例)，回调内校验 `self.pc === pc && stage 匹配` 后再发。
+- [ ] **Android 视频采集失败静默降级为纯音频，无降级状态（CallManager.kt:781-801 createLocalTracks）**：createCameraCapturer 失败直接 return，此时音频轨已 addTrack → 通话以 video 类型继续但无视频轨；对端/UI 仍按视频显示（黑屏），本地无提示。建议：降级为 audio 并走 switch-type 通知对端，或至少 UI 明示。
+- [ ] **通话系统消息去重 check+insert 非原子（callMessage.js:70-72）**：_alreadyWritten.get 与 await appendConversationEvent 之间有异步间隙，并发双终态（如一方挂断+另一方断线同时收尾）可能写两条同 callId 通话消息。建议：insert 后幂等复查/唯一约束，或终态写入串行化；补并发终态测试。
+- [ ] **Web 无 perfect-negotiation 处理（CallModal.jsx:431-520）**：processOffer/onAnswer 直接 setRemoteDescription，无 signalingState/rollback 守卫——双端并发重协商（切换类型+ICE restart 同时）理论可 InvalidStateError。当前拓扑基本单向发起，加固建议（低概率）。
+
+## 🟢 P3 / 记录备查
+- [ ] 服务端 call:end.reason 无白名单校验直接转发（call.js:391-423；DB 状态不依赖 reason，风险仅对端文案）
+- [ ] iOS 本地来电通知 identifier=`incoming_call_<from>` 不含 callId（CallManager.swift:405），同对端快速连续来电通知互相覆盖（入站 stale 校验已兜底）
+- [ ] Android 蓝牙 SCO：bluetoothOn=btAvailable 早于 SCO CONNECTED 置位，startBluetoothSco 失败被 runCatching 吞（CallManager.kt:217-230）→ UI 可能显示蓝牙已路由但音频未走蓝牙
+- [ ] **文档漂移**：references/voice-call-architecture-2026-09-01.md 仍写 iOS 走 PushKit VoIP 直连；实际 2026-08 已整体移除（Apple 移除 capability + 审核 2.5.4），App 被杀无法弹系统来电=已知产品限制，需在 docs/feature 说明同步
+- [ ] 空 callId 容忍（Web matchesCall / Android·iOS CallSignalMatcher）：服务端始终带 callId、CALL_REQUIRE_ID=false 时空 callId 由服务端补全转发、且 Android/iOS 均有 stage 守卫+文档注释 → 有意兼容设计，无需改，禁止误当缺陷修
+
+## ✅ 已核验健康项（无需处理）
+- callId 全链路透传+校验（request/response/offer/answer/ice/switch-type/end/resume）；offer/answer/ice 仅活跃会话转发（防注入）；socket.to() 回声隔离
+- 多端同步 replaced/answered_elsewhere/rejected_elsewhere 后端+三端一致且带 callId；重拨清理旧 timer/session；迟到应答被拒（answeredAt 守卫）
+- 后端通话测试 10 suites/57 tests 全绿（本机 node_modules 原为 omit=dev 缺 supertest，npm ci 后全过）；生产日志无通话错误
+- Web：监听器随 effect 成对解绑；pendingIce 早到候选入队；ICE restart 防抖 3s/窗口 15s/≤3 次自愈
+- Android：attempt 序号+stage 三重校验防旧协程回填；pendingIce 同锁排空；前台服务/质量采样/通知资源清理齐
+- iOS：consumeEnded 有 stage==.ended 守卫（cleanup 延迟任务最坏=新通话恰好 ended 时早清结束页 0.8~1.8s，纯 UI）；incomingFromPush 幂等守卫
+
+## 建议补的测试（防回归）
+- 冷却生命周期：重拨覆盖后立即第 3 次拨号应被拦（call.js）
+- 双击/连点接听只建一个 PC、结束后媒体全部释放（web）
+- 通话终态并发：挂断+断线同时 → call_logs 单终态、通话消息单条（callMessage 原子性）
+- call:end 未知 reason 契约（后端拒绝/透传策略固化）
