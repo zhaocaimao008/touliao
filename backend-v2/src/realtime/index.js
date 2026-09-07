@@ -75,7 +75,9 @@ module.exports = function setupRealtime(io, app) {
     pruneIpHandshake();
     const cookieHeader = socket.handshake.headers.cookie || '';
     const match = cookieHeader.match(new RegExp(`${config.cookieName}=([^;]+)`));
-    const cookieToken = match ? decodeURIComponent(match[1]) : null;
+    let cookieToken = null;
+    try { cookieToken = match ? decodeURIComponent(match[1]) : null; }
+    catch { prodMetrics.recordConnResult(false); return next(new Error('Cookie无效')); }
     const bearerToken = socket.handshake.auth?.token || null;
     const token = cookieToken || bearerToken;
     if (!token) { prodMetrics.recordConnResult(false); return next(new Error('未授权')); }
@@ -179,6 +181,10 @@ module.exports = function setupRealtime(io, app) {
       ? socket.handshake.auth.platform.slice(0, 20)
       : 'unknown';
     presence.addSocket(userId, socket.id, platform);
+    const expiryTimer = socket.user.exp
+      ? setTimeout(() => { socket.emit('session_expired', { reason: 'Token已过期，请重新登录' }); socket.disconnect(true); }, Math.max(0, socket.user.exp * 1000 - Date.now()))
+      : null;
+    if (typeof socket.once === 'function') socket.once('disconnect', () => { if (expiryTimer) clearTimeout(expiryTimer); });
     if (app) app.set('onlineUsers', presence.onlineUserIdSet());
 
     // 立即入 user 房间，会话房间延迟到下一 tick

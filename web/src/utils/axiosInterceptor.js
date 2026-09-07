@@ -64,9 +64,11 @@ async function refreshToken(axios) {
  */
 function shouldRetry(error) {
   if (!error.config || error.config.__retryCount >= 3) return false;
-  
-  // 网络错误或 5xx 服务器错误才重试
-  if (!error.response) return true; // 网络错误
+  // 自动重试只覆盖天然幂等的请求。发送消息、转账、上传等 POST 在响应丢失时
+  // 可能已经提交成功，盲目重试会产生重复业务操作；这些接口应使用业务幂等键自行重试。
+  const method = String(error.config.method || 'get').toLowerCase();
+  if (!['get', 'head', 'options'].includes(method)) return false;
+  if (!error.response) return true;
   const status = error.response.status;
   return status >= 500 && status < 600;
 }
@@ -131,8 +133,9 @@ export function setupAxiosInterceptors(axios) {
         originalRequest._retry = true;
 
         try {
-          await refreshToken(axios);
-          // 重试原请求
+          const refreshedToken = await refreshToken(axios);
+          // Axios 不会把 defaults 回写到已经创建的 config；Bearer 客户端必须显式替换旧 token。
+          if (refreshedToken && originalRequest.headers) originalRequest.headers.Authorization = `Bearer ${refreshedToken}`;
           return axios(originalRequest);
         } catch {
           // 多标签页竞态：本标签页的 refresh 可能因为另一个标签页并发 refresh 抢先

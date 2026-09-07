@@ -55,6 +55,7 @@ module.exports = async function auth(req, res, next) {
           row = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(payload.id);
           if (row) setUserStatus(payload.id, row.banned, row.password_changed_at);
         }
+        if (!row) return res.status(401).json({ error: '用户不存在' });
         if (row?.banned) {
           res.clearCookie(config.cookieName, { path: '/' });
           return res.status(403).json({ error: '账号已被封禁' });

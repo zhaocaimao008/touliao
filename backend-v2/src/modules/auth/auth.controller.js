@@ -82,7 +82,7 @@ exports.refresh = asyncHandler(async (req, res) => {
     if (payload?.exp) await addToBlacklist(req.token, payload.exp).catch(() => {});
   }
   setAuthCookie(req, res, newToken);
-  res.json({ success: true });
+  res.json({ success: true, token: newToken });
 });
 
 exports.logout = asyncHandler(async (req, res) => {
@@ -105,11 +105,13 @@ exports.logout = asyncHandler(async (req, res) => {
       // 注意：仅拉黑 jti 不够——upsertSession 同设备同平台会复用原 session id，
       // 若不删行，重登仍拿到被拉黑的 jti，导致 logout 后无法重新登录。
       if (payload.jti) {
-        try { svc.deleteSession(payload.id, payload.jti); } catch {} // 删行（deleteSession 内部同时拉黑 jti）
+        try { await svc.deleteSession(payload.id, payload.jti); } catch {} // 删行（deleteSession 内部同时拉黑 jti）
       }
       if (walletId) {
         svc.removeDeviceAccount(walletId, payload.id);
       }
+      const io = req.app.get('io');
+      if (io) io.to(`user_${payload.id}`).disconnectSockets(true);
     }
   } catch (_) { /* token 无效就算了 */ }
   res.clearCookie(config.cookieName, { path: '/' });
@@ -122,13 +124,13 @@ exports.sessions = asyncHandler(async (req, res) => {
 });
 
 exports.deleteSession = asyncHandler(async (req, res) => {
-  svc.deleteSession(req.user.id, req.params.id);
+  await svc.deleteSession(req.user.id, req.params.id);
   res.json({ success: true });
 });
 
 exports.deleteAllSessions = asyncHandler(async (req, res) => {
   const { device, platform } = svc.detectDevice(req.headers['user-agent']);
-  svc.deleteAllOtherSessions(req.user.id, device, platform);
+  await svc.deleteAllOtherSessions(req.user.id, device, platform);
   res.json({ success: true });
 });
 

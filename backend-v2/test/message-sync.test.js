@@ -109,7 +109,7 @@ describe('统一消息同步游标', () => {
       'message_created', 'message_edited', 'message_recalled',
     ]);
     expect(response.body.messages.map(event => event.server_sequence)).toEqual([start + 1, start + 2, start + 3]);
-    expect(response.body.messages[1].payload.content).toBe('after edit');
+    expect(response.body.messages[1].payload.content).toBeUndefined();
   });
 
   test('钱包转账提交后发出同步失效提示', async () => {

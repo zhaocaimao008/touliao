@@ -70,23 +70,28 @@ function syncConversation(conversationId, userId, query = {}) {
            m.is_scheduled AS m_is_scheduled,
            m.file_mime AS m_file_mime, m.file_size AS m_file_size,
            m.server_sequence AS m_server_sequence,
+           m.rowid AS m_rowid, cc.cleared_rowid AS cleared_rowid,
+           umd.message_id AS deleted_for_user,
            u.username AS senderName, u.avatar AS senderAvatar
     FROM conversation_events e
     LEFT JOIN messages m ON m.id=e.message_id
     LEFT JOIN users u ON u.id=m.sender_id
+    LEFT JOIN conversation_clears cc ON cc.conversation_id=e.conversation_id AND cc.user_id=?
+    LEFT JOIN user_message_deletions umd ON umd.message_id=e.message_id AND umd.user_id=?
     WHERE e.conversation_id=? AND e.server_sequence>?
       AND (e.target_user_id IS NULL OR e.target_user_id=?)
     ORDER BY e.server_sequence ASC
     LIMIT ?
-  `).all(conversationId, cursor, userId, limit + 1);
+  `).all(userId, userId, conversationId, cursor, userId, limit + 1);
 
   const page = rows.slice(0, limit);
   const hasMoreVisible = rows.length > limit;
   const envelopes = page.map(row => {
     let payload = {};
     try { payload = JSON.parse(row.payload || '{}'); } catch {}
+    const hidden = row.deleted_for_user || (row.m_rowid && row.cleared_rowid && row.m_rowid <= row.cleared_rowid);
     let message = null;
-    if (row.m_id && !['message_recalled', 'message_deleted_for_me', 'message_vanished'].includes(row.event_type)) {
+    if (row.m_id && !hidden && !['message_recalled', 'message_deleted_for_me', 'message_vanished'].includes(row.event_type)) {
       message = {
         id: row.m_id, conversation_id: row.m_conversation_id, sender_id: row.m_sender_id,
         type: row.m_type, content: row.m_content, file_url: row.m_file_url || '',
@@ -100,7 +105,7 @@ function syncConversation(conversationId, userId, query = {}) {
     }
     return {
       server_sequence: row.server_sequence, event_type: row.event_type,
-      message_id: row.message_id, message, payload,
+      message_id: row.message_id, message, payload: hidden || row.m_deleted === 2 ? {} : payload,
       batch_id: row.batch_id || null, client_batch_id: row.client_batch_id || null,
     };
   });

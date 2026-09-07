@@ -53,9 +53,9 @@ function resolveInvite(code) {
 // ── 工具 ────────────────────────────────────────────────────────
 function detectDevice(ua = '') {
   if (/Windows/i.test(ua))        return { device: 'Windows PC', platform: 'Windows' };
-  if (/Macintosh|Mac OS/i.test(ua)) return { device: 'Mac', platform: 'Mac' };
   if (/iPhone/i.test(ua))         return { device: 'iPhone', platform: 'iPhone' };
   if (/iPad/i.test(ua))           return { device: 'iPad', platform: 'iPad' };
+  if (/Macintosh|Mac OS/i.test(ua)) return { device: 'Mac', platform: 'Mac' };
   if (/Android/i.test(ua))        return { device: 'Android 手机', platform: 'Android' };
   if (/Linux/i.test(ua))          return { device: 'Linux PC', platform: 'Linux' };
   return { device: '浏览器', platform: 'Web' };
@@ -186,6 +186,8 @@ function listSessions(userId, req) {
 }
 
 async function deleteSession(userId, sessionId) {
+  const session = db.prepare('SELECT id FROM user_sessions WHERE id=? AND user_id=?').get(sessionId, userId);
+  if (!session) throw notFound('会话不存在');
   db.prepare('DELETE FROM user_sessions WHERE id=? AND user_id=?').run(sessionId, userId);
   // A004: 将被删会话的 jti 加入黑名单，使其已签发 JWT 立即失效（最长 tokenMaxAge）
   try {
@@ -197,13 +199,13 @@ async function deleteSession(userId, sessionId) {
   }
 }
 
-function deleteAllOtherSessions(userId, device, platform) {
+async function deleteAllOtherSessions(userId, device, platform) {
   const now = Math.floor(Date.now() / 1000);
+  const removed = db.prepare('SELECT id FROM user_sessions WHERE user_id=? AND NOT (device=? AND platform=?)').all(userId, device, platform);
   db.transaction(() => {
     db.prepare('DELETE FROM user_sessions WHERE user_id=? AND NOT (device=? AND platform=?)').run(userId, device, platform);
-    // 推进 password_changed_at，令所有被踢设备的 JWT（iat < 该时间戳）立即失效
-    db.prepare('UPDATE users SET password_changed_at=? WHERE id=?').run(now, userId);
   })();
+  await Promise.all(removed.map(s => addToBlacklist(`jti:${s.id}`, now + config.tokenMaxAge).catch(() => {})));
   invalidateUser(userId); // 驱逐状态缓存，令被踢设备下次请求立即拦截
 }
 

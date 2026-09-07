@@ -411,7 +411,8 @@ async function markRead(io, userId, convId, messageId) {
 
   if (messageId) {
     const msg = db.prepare('SELECT created_at FROM messages WHERE id=? AND conversation_id=? AND deleted=0').get(messageId, convId);
-    if (msg) readAt = msg.created_at;
+    if (!msg) throw badRequest("消息不存在或不属于该会话");
+    readAt = msg.created_at;
   } else {
     const last = db.prepare('SELECT id, created_at FROM messages WHERE conversation_id=? AND deleted=0 ORDER BY created_at DESC LIMIT 1').get(convId);
     if (last) { readAt = last.created_at; readMsgId = last.id; }
@@ -423,8 +424,8 @@ async function markRead(io, userId, convId, messageId) {
     INSERT INTO conversation_settings (user_id, conversation_id, last_read_at, last_read_message_id, manually_unread)
     VALUES (?, ?, ?, ?, 0)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET
-      last_read_at = excluded.last_read_at,
-      last_read_message_id = excluded.last_read_message_id,
+      last_read_at = CASE WHEN excluded.last_read_at > conversation_settings.last_read_at THEN excluded.last_read_at ELSE conversation_settings.last_read_at END,
+      last_read_message_id = CASE WHEN excluded.last_read_at > conversation_settings.last_read_at THEN excluded.last_read_message_id ELSE conversation_settings.last_read_message_id END,
       manually_unread = 0
   `, [userId, convId, readAt, readMsgId]);
   invalidateConvCacheForUser(userId);
@@ -438,9 +439,10 @@ async function markRead(io, userId, convId, messageId) {
   if (readMsgId) {
     const convType = db.prepare('SELECT type FROM conversations WHERE id=?').get(convId)?.type;
     if (convType === 'private') {
-      db.prepare(`INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at)
-        SELECT id, ?, ? FROM messages WHERE conversation_id=? AND id <= ? AND deleted=0`)
-        .run(userId, readAt, convId, readMsgId);
+      const target = db.prepare("SELECT rowid FROM messages WHERE id=? AND conversation_id=?").get(readMsgId, convId);
+      if (target) db.prepare(`INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at)
+        SELECT id, ?, ? FROM messages WHERE conversation_id=? AND rowid <= ? AND deleted=0`)
+        .run(userId, readAt, convId, target.rowid);
     }
   }
   return { readAt, lastReadMessageId: readMsgId };
