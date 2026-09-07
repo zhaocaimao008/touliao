@@ -77,7 +77,7 @@
   现象/证据：accept() 无状态/ref 守卫，连点两次在 initPC 完成前可二次执行 → 两个 getUserMedia/RTCPeerConnection；pcRef 被第二个覆盖，第一个 PC 永不 close、其媒体流无引用可停（cleanup 只停 localStreamRef.current=第二个流）。移动端双击接听窗口真实。
   影响：隐私级——通话已结束但设备采集持续（浏览器指示灯常亮）；权限弹窗期快速取消同理（见 P2#1 同根因）。
   修复建议：accept/reject/replyInstead 入口加幂等 ref 守卫（如 acceptingRef），并统一到「异步媒体副作用须绑组件存活」模式。
-- [ ] **（⏳ 待产品拍板, 未改代码）四端呼出等待超时不一致 30/45/60/120s**（Web CallModal.jsx:34=30s；iOS CallManager.swift:72=45s；Android CallManager.kt:365=60s；服务端 call.js:49 兜底=120s）——建议统一为 45s,需用户拍板后再各端改值;现状已写入 voice-call-architecture 参考文档避免再被当缺陷重报。
+- [x] **四端呼出等待超时不一致 30/45/60/120s**（Web CallModal.jsx:34=30s；iOS CallManager.swift:75=45s；Android CallManager.kt:372=60s；服务端 call.js 兜底=120s） ✅已修(2026-09-07,用户拍板「全部修复」按建议值 45s):Web CALL_TIMEOUT_MS 30000→45000;Android delay 60_000→45_000(注释同步);iOS 本就 45 未动;服务端 120s 兜底保留(须长于客户端,双端离线场景仍落 missed)。回归:Android/iOS 靠 GH Actions 编译验证;Web 值改无逻辑变化,eslint/vitest/build 过。剩余差异=服务端兜底 120s 是有意安全网,非缺陷。
   现象/证据：同产品四端「响铃多久自动挂断」不同（30/45/60）；且主叫端超时=客户端发 call:end→服务端落 canceled，服务端 120s 兜底才落 missed——「对方无应答」文案只在两端都不在线时出现。
   影响：跨端体验不一致（同账号不同设备拨打等待时长不同）；超时语义/落库状态随“谁先超时”漂移，通话记录与聊天系统消息文案可能矛盾（主叫界面「对方未接听」vs 消息「已取消」）。
   建议：拍板统一值（如 45s），服务端兜底与各端收敛一致；若保留差异需在架构文档写明「服务端 120s 仅兜底双方失联」。

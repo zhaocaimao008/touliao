@@ -365,11 +365,12 @@ class CallManager @Inject constructor(
         // (此前回铃音先播、acquireAudioFocusAndRoute 在建流时才执行——顺序反了)
         acquireAudioFocusAndRoute()
         playRingbackTone()                  // 主叫拨出→接通前循环回铃音（接通/挂断时停）
-        // 本地呼出超时:60s 内未接通(对方不接/断线,后端 timeout 不向主叫发事件)则自动挂断收尾,
+        // 本地呼出超时:45s 内未接通(对方不接/断线,后端 timeout 不向主叫发事件)则自动挂断收尾,
         // 防止界面永远卡在"呼叫中"。接通(CONNECTED)或挂断时取消(见 cleanup / IceConnectionState)。
+        // 45s = 与 Web/iOS 统一值 (2026-09-07 AUDIT 四端超时不一致项拍板)。
         callTimeoutJob?.cancel()
         callTimeoutJob = scope.launch {
-            delay(60_000)
+            delay(45_000)
             val st = _state.value.stage
             if (st == CallStage.OUTGOING || st == CallStage.CONNECTING) {
                 if (_state.value.peerId.isNotEmpty()) socketManager.emitCallEnd(_state.value.peerId, _state.value.callId)

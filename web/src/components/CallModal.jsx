@@ -31,7 +31,8 @@ async function fetchIceConfig() {
   return FALLBACK_ICE;
 }
 
-const CALL_TIMEOUT_MS = 30000;
+// 未接听自动挂断: 与 iOS/Android 统一为 45s (2026-09-07 AUDIT 四端超时不一致项拍板)
+const CALL_TIMEOUT_MS = 45000;
 
 function useCallTimer(running) {
   const [sec, setSec] = useState(0);
@@ -627,7 +628,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：WebRTC 初始化副作用
       initPC().then(() => {
         // 卸载后 initPC 可能已中止（aliveRef=false）或组件已收尾：不再安排超时定时器，
-        // 防迟到回调在卸载后仍发 ghost call:end / 残留 30s 定时器
+        // 防迟到回调在卸载后仍发 ghost call:end / 残留超时定时器
         if (!aliveRef.current || statusRef.current !== 'calling') return;
         timeoutRef.current = setTimeout(() => {
           if (statusRef.current === 'calling') endCall(true, 'timeout');
