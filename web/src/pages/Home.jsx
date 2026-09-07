@@ -15,7 +15,7 @@ import Profile from '../components/Profile';
 import GlobalSearch from '../components/GlobalSearch';
 import PanelBoundary from '../components/PanelBoundary';
 import { ChatSkeleton, PanelSkeleton } from '../components/PanelSkeleton';
-import { IcoChat, IcoContacts, IcoSearch, IcoAdd, IcoMe, IcoMoments, IcoCall, IcoStar } from '../components/Icons';
+import { IcoChat, IcoContacts, IcoSearch, IcoAdd, IcoMe, IcoMoments, IcoCall, IcoStar, IcoBack, IcoCheck, IcoClose, IcoPersonAdd } from '../components/Icons';
 // 非常驻的重型面板/模态框懒加载，减小首屏 chunk（各自本地 Suspense 兜底）
 // ChatWindow(~2700 行)仅在选中会话后才渲染，懒加载可显著缩小 Home 首屏 chunk。
 const ChatWindow    = lazy(() => import('../components/ChatWindow'));
@@ -204,7 +204,7 @@ function AccountSwitcher() {
                   <Avatar src={a.user?.avatar} name={a.user?.username} size='md' />
                   {active && (
                     <div className="as-active-badge">
-                      <svg className="as-check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                      <IcoCheck className="as-check-icon" />
                     </div>
                   )}
                 </div>
@@ -224,7 +224,7 @@ function AccountSwitcher() {
                   title={active ? t('settings.logout') : t('home.removeFromDevice')}
                   data-testid={active ? 'account-logout-btn' : undefined}
                   className="as-remove-btn">
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                  <IcoClose width="13" height="13" fill="currentColor" />
                 </button>
               </div>
             );
@@ -239,9 +239,7 @@ function AccountSwitcher() {
               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
             </svg>
             <span className="as-profile-label">{t('home.profile')}</span>
-            <svg viewBox="0 0 24 24" className={`as-profile-arrow${showProfile ? ' open' : ''}`}>
-              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-            </svg>
+            <IcoBack className={`as-profile-arrow${showProfile ? ' open' : ''}`} />
           </div>
 
           {/* 资料详情（展开时显示） */}
@@ -285,9 +283,7 @@ function AccountSwitcher() {
               </svg>
             </div>
             <span className={`wc-add-label${showForm ? ' open' : ''}`}>{t('home.addAccount')}</span>
-            <svg viewBox="0 0 24 24" className={`wc-add-chevron${showForm ? ' open' : ''}`}>
-              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-            </svg>
+            <IcoBack className={`wc-add-chevron${showForm ? ' open' : ''}`} />
           </div>
 
           {/* 登录表单：切换已有账号 或 添加新账号 */}
@@ -334,7 +330,7 @@ function CgMemberRow({ contact: c, checked, onToggle }) {
       role="checkbox" tabIndex={0} aria-checked={checked}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onToggle()}>
       <div className={`cg-checkbox${checked ? ' checked' : ''}`}>
-        {checked && <svg className="cg-check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
+        {checked && <IcoCheck className="cg-check-icon" />}
       </div>
       <Avatar src={c.avatar} name={c.remark || c.username} size='md' className="as-avatar-img" />
       <div className="cg-info">
@@ -413,9 +409,7 @@ function CreateGroupModal({ onClose, onCreated }) {
         <div className="cgm-header">
           <span className="cgm-title">{t('home.createGroupTitle')}</span>
           <button onClick={onClose} className="cgm-close" aria-label={t('common.close')}>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
+            <IcoClose width="18" height="18" fill="currentColor" />
           </button>
         </div>
 
@@ -442,7 +436,7 @@ function CreateGroupModal({ onClose, onCreated }) {
                 className="cgm-chip">
                 <Avatar src={c.avatar} name={c.remark || c.username} size='micro' className="as-avatar-img" />
                 <span className="cgm-chip-text">{c.remark || c.username}</span>
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="var(--green)"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                <IcoClose width="12" height="12" fill="var(--green)" />
               </div>
             ))}
           </div>
@@ -1118,10 +1112,10 @@ export default function Home() {
           <div className="home-add-overlay" role="button" tabIndex={0} onClick={closeAddMenu}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeAddMenu(); } }} />
           <div className="home-add-dropdown" style={{ top: addMenuPos.top, right: addMenuPos.right }}>
-            <AddDropItem testid="create-group-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
+            <AddDropItem testid="create-group-entry" icon={<IcoContacts width="17" height="17" fill="currentColor" />}
               label={t('home.createGroupTitle')} onClick={handleCreateGroup} />
             <div className="home-add-divider" />
-            <AddDropItem icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
+            <AddDropItem icon={<IcoPersonAdd width="17" height="17" fill="currentColor" />}
               label={t('home.addFriendMenuLabel')} onClick={handleAddFriend} />
             <div className="home-add-divider" />
             <AddDropItem testid="scan-qr-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 0h3v3h-2v-1h-1v-2zm5 5h3v3h-3v-3zm-5 0h3v3h-3v-3z"/></svg>}

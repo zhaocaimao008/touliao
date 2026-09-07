@@ -60,7 +60,7 @@ import { shareMessage, canShare } from '../utils/share';
 import { isForwardableMessage } from '../utils/mergedForward';
 import { canViewReadStatus, readUserIdsForMessage } from '../utils/readStatus';
 import './ChatWindow.css';
-import { IcoEmoji, IcoMic, IcoImage, IcoFile, IcoMore } from './Icons';
+import { IcoEmoji, IcoMic, IcoImage, IcoFile, IcoMore, IcoVideo, IcoContacts } from './Icons';
 
 import { computeCtxPos } from '../utils/ctxPos';
 
@@ -2815,9 +2815,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                 }
               } },
               { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/></svg>, label:t('chat.file'), action:()=>fileInputRef.current?.click() },
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:t('chat.videoCall'), testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
+              { bg:'var(--icon-bg-neutral)', svg:<IcoVideo style={{width:24,height:24,fill:'var(--text-inverse)'}} />, label:t('chat.videoCall'), testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
               { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:t('chat.voiceCall'), testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:t('chat.contactCard'), action: openCardPicker },
+              { bg:'var(--icon-bg-neutral)', svg:<IcoContacts style={{width:24,height:24,fill:'var(--text-inverse)'}} />, label:t('chat.contactCard'), action: openCardPicker },
               // 定时发送：把输入框当前文本设为定时消息，到点自动发出
               { bg:'var(--color-primary)', testid:'chat-schedule-btn', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>, label:t('chat.scheduleSend'), action: () => { closePanels(); openScheduleModal(); } },
               // 对端账号已注销（管理员删号后，服务端 listConversations 返回 otherUser: null）

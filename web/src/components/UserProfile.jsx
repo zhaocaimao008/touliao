@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
+import { IcoBack, IcoCheck, IcoClose, IcoPersonAdd } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { mediaUrl } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
@@ -155,9 +156,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             : <div className="up-cover-default" />
           }
           <button className="up-close-btn" onClick={onClose} aria-label={t('common.close')}>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
+            <IcoClose width="18" height="18" fill="currentColor" />
           </button>
           <div className="up-avatar-wrap">
             <Avatar src={user.avatar} name={displayName} size='xl' style={{ borderRadius: 'var(--radius-bubble-tip)', boxShadow: '0 2px 12px rgba(0,0,0,.3)' }} />
@@ -195,7 +194,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             <button type="button" className="up-row" onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }}>
               <span className="up-row-label">{t('up.remarkNameLabel')}</span>
               <span className="up-row-value">{user.remark || <span style={{ color: 'var(--text-tertiary)' }}>{t('up.notSet')}</span>}</span>
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+              <IcoBack width="14" height="14" fill="var(--text-tertiary)" />
             </button>
             {user.phone && (
               <div className="up-row">
@@ -232,9 +231,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
           <div className="up-add-area">
             {addStep === 'idle' && (
               <button className="up-btn-primary up-btn-full" onClick={() => setAddStep('composing')}>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style={{ marginRight: 6 }}>
-                  <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                </svg>
+                <IcoPersonAdd width="16" height="16" fill="currentColor" style={{ marginRight: 6 }} />
                 {t('up.applyAddFriend')}
               </button>
             )}
@@ -261,9 +258,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             )}
             {addStep === 'sent' && (
               <div className="up-sent-tip">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--green)" style={{ flexShrink: 0 }}>
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                </svg>
+                <IcoCheck width="16" height="16" fill="var(--green)" style={{ flexShrink: 0 }} />
                 {t('up.applicationSentTip')}
               </div>
             )}

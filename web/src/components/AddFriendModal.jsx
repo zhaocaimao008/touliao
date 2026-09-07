@@ -6,6 +6,7 @@ import UserProfile from './UserProfile';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { useI18n } from '../contexts/I18nContext';
 import './AddFriendModal.css';
+import { IcoBack, IcoClose } from './Icons';
 
 const GREEN = 'var(--green)';
 
@@ -25,9 +26,7 @@ function AfResultItem({ user: u, onClick }) {
           </div>
         )}
       </div>
-      <svg className="afm-result-chevron" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-      </svg>
+      <IcoBack className="afm-result-chevron" width="14" height="14" fill="currentColor" />
     </div>
   );
 }
@@ -109,9 +108,7 @@ export default function AddFriendModal({ onClose, initialQuery = '', onStartChat
             <span className="afm-header-title">{t('contacts.addFriend')}</span>
             <button onClick={onClose} aria-label={t('common.close')}
               className="afm-close-btn">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-              </svg>
+              <IcoClose width="18" height="18" fill="currentColor" />
             </button>
           </div>
 

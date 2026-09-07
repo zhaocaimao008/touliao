@@ -11,6 +11,7 @@ import { showToast, showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
 import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
+import { IcoBack, IcoCheck, IcoContacts, IcoPersonAdd } from './Icons';
 
 function formatRequestTime(timestamp, formatter) {
   const seconds = Number(timestamp);
@@ -223,17 +224,17 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
           <>
             {/* 功能入口 */}
             <EntryRow
-              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
+              icon={<IcoPersonAdd width="18" height="18" fill="var(--text-inverse)" />}
               color="var(--icon-bg-newfriend)" label={t('contacts.newFriends')} badge={requests.length}
               onClick={() => setTab('requests')} testid="cl-new-friends-entry"
             />
             <EntryRow
-              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
+              icon={<IcoContacts width="18" height="18" fill="var(--text-inverse)" />}
               color="var(--icon-bg-group)" label={t('contacts.groupChats')} badge={0}
               onClick={() => setTab('groups')}
             />
             <EntryRow
-              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
+              icon={<IcoPersonAdd width="18" height="18" fill="var(--text-inverse)" />}
               color="var(--brand-500)" label={t('contacts.addFriend')} badge={0}
               onClick={() => setShowAddFriend(true)}
             />
@@ -406,9 +407,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   <div className="wc-contact-item-name">{b.name}</div>
                   <div className="wc-contact-item-sub">{b.description || t('contacts.aiBotIdTemplate').replace('{id}', b.wechat_id)}</div>
                 </div>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)">
-                  <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-                </svg>
+                <IcoBack width="14" height="14" fill="var(--text-tertiary)" />
               </div>
             ))}
           </>
@@ -459,9 +458,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   <div className="wc-contact-item-name">{g.name}</div>
                   <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', g.memberCount)}</div>
                 </div>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)">
-                  <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-                </svg>
+                <IcoBack width="14" height="14" fill="var(--text-tertiary)" />
               </div>
             ))}
             {groups.length === 0 && (
@@ -619,7 +616,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
                   <div className="wc-contact-item-name">{c.remark || c.username}</div>
                 </div>
                 <div className="lt-member-checkbox" style={{ border: `2px solid ${inLabel ? 'var(--green)' : 'var(--divider)'}`, background: inLabel ? 'var(--green)' : 'transparent' }}>
-                  {inLabel && <svg viewBox="0 0 24 24" width="12" height="12" fill="#fff"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
+                  {inLabel && <IcoCheck width="12" height="12" fill="#fff" />}
                 </div>
               </div>
             );
@@ -706,9 +703,7 @@ function EntryRow({ icon, color, label, badge, onClick, testid }) {
           {badge}
         </span>
       )}
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--text-tertiary)" className="cl-entry-arrow">
-        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-      </svg>
+      <IcoBack width="14" height="14" fill="var(--text-tertiary)" className="cl-entry-arrow" />
     </div>
   );
 }

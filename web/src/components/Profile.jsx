@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import AuthImage from './AuthImage';
+import { IcoBack, IcoCheck } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useI18n, SUPPORTED_LANGS } from '../contexts/I18nContext';
@@ -18,9 +19,7 @@ const activateOnKey = (fn) => (e) => {
 };
 
 const ChevronRight = () => (
-  <svg className="wc-chevron" viewBox="0 0 24 24">
-    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-  </svg>
+  <IcoBack className="wc-chevron" />
 );
 
 function Toggle({ checked, onChange, disabled }) {
@@ -724,7 +723,7 @@ function AppearanceSettings({ onBack }) {
         <Card>
           {SUPPORTED_LANGS.map(({ code, name }) => (
             <CRow key={code} label={name} onClick={() => setLang(code)}
-              right={lang === code ? <svg viewBox="0 0 24 24" width="18" height="18" fill="var(--green)"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> : null}
+              right={lang === code ? <IcoCheck width="18" height="18" fill="var(--green)" /> : null}
             />
           ))}
         </Card>
@@ -975,9 +974,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
           </svg>
         </div>
         <span className="wc-add-label" style={{ color: showForm ? 'var(--green)' : undefined }}>{t('profile.addAccount')}</span>
-        <svg className="wc-add-chevron" style={{ transform: showForm ? 'rotate(90deg)' : undefined }} viewBox="0 0 24 24">
-          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-        </svg>
+        <IcoBack className="wc-add-chevron" style={{ transform: showForm ? 'rotate(90deg)' : undefined }} />
       </div>
 
       {showForm && (

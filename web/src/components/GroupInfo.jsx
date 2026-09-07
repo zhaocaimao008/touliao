@@ -9,6 +9,7 @@ import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
 import { useSocket } from '../contexts/SocketContext';
 import { copyToClipboard } from '../utils/clipboard';
+import { IcoBack, IcoContacts, IcoPersonAdd } from './Icons';
 export { GroupAvatar } from './GroupAvatar'; // re-export 向后兼容
 
 /* ── 群头像上传（管理员 hover 显示相机图标） ── */
@@ -585,9 +586,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   </div>
                 )}
               </div>
-              <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-grey" style={{ transform: showManage ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
-                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-              </svg>
+              <IcoBack className="gi-s14 gi-fill-grey" style={{ transform: showManage ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
             </div>
 
             {showManage && (
@@ -619,7 +618,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 {/* 禁止群成员互相添加好友 */}
                 <div className="gi-mg-row-last">
                   <div className="gi-ic28 gi-ic-mg3">
-                    <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-red"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <IcoPersonAdd className="gi-s14 gi-fill-red" />
                   </div>
                   <div className="gi-f1">
                     <div className="gi-mg-label">{t('groupInfo.noAddFriendLabel')}</div>
@@ -631,7 +630,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 {/* 允许普通成员邀请 */}
                 <div className="gi-mg-row-last">
                   <div className="gi-ic28 gi-ic-mg3">
-                    <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-blue"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                    <IcoContacts className="gi-s14 gi-fill-blue" />
                   </div>
                   <div className="gi-f1">
                     <div className="gi-mg-label">{t('groupInfo.memberInviteLabel')}</div>
@@ -643,7 +642,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 {isOwner && (
                   <button type="button" className="gi-mg-action" onClick={() => setShowTransferOwner(true)}>
                     <span>{t('groupInfo.transferOwnership')}</span>
-                    <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    <IcoBack className="gi-s14 gi-fill-tertiary" />
                   </button>
                 )}
               </div>
@@ -747,7 +746,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         <div className="gi-section">
           <div className="gi-row" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onOpenChatFiles?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenChatFiles?.(); } }}>
             <span className="gi-label">{t('groupInfo.chatFiles')}</span>
-            <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            <IcoBack className="gi-s14 gi-fill-tertiary" />
           </div>
           <div className="gi-row">
             <span className="gi-label">{t('chatlist.muteChat')}</span>
@@ -800,7 +799,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             ) : (
               <div className="gi-f1 gi-fcsb gi-nk-cp" role="button" tabIndex={0} onClick={() => { setNicknameVal(myNickname || ''); setEditNickname(true); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNicknameVal(myNickname || ''); setEditNickname(true); } }}>
                 <span style={{ fontSize: 'var(--text-base)', color: myNickname ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{myNickname || t('groupInfo.notSet')}</span>
-                <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                <IcoBack className="gi-s14 gi-fill-tertiary" />
               </div>
             )}
           </div>
@@ -810,7 +809,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         <div className="gi-qr">
           <div className="gi-qr-row" role="button" tabIndex={0} onClick={loadQR} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadQR(); } }}>
             <span className="gi-text14">{t('groupInfo.qrTitle')}</span>
-            <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            <IcoBack className="gi-s14 gi-chevron" />
           </div>
           {(isAdmin || info.member_can_invite) && (
             <button type="button" className="gi-qr-row" onClick={copyInviteLink} disabled={copyingInviteLink}>
@@ -824,7 +823,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         <div className="gi-qr">
           <div className="gi-qr-row" role="button" tabIndex={0} onClick={exportChat} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); exportChat(); } }}>
             <span className="gi-text14">{t('groupInfo.exportChat')}</span>
-            <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            <IcoBack className="gi-s14 gi-chevron" />
           </div>
         </div>
 

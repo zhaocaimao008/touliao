@@ -8,6 +8,7 @@ import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
 import './CallModal.css';
+import { IcoVideo } from './Icons';
 
 // 页面首次交互即预热 AudioContext(autoplay 政策:创建/resume 需在手势栈内,
 // 见 callTones.js 头部说明)。sticky activation 后创建即 running,回铃音/来电
@@ -922,7 +923,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
                 label={t('call.replyMessage')} size={56} onClick={replyInstead} testid="call-reply-btn"
               />
               <CircleBtn
-                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
+                icon={<IcoVideo fill="currentColor" />}
                 label={t('call.accept')} color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
               />
             </div>
@@ -933,7 +934,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
                 <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
               <CircleBtn
-                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
+                icon={<IcoVideo fill="currentColor" />}
                 label={t('call.switchToVoice')} onClick={toggleVideo} testid="call-switch-to-audio-btn"
               />
               <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
@@ -1029,7 +1030,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
                 <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
               <CircleBtn
-                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
+                icon={<IcoVideo fill="currentColor" />}
                 label={t('call.switchToVideo')} onClick={toggleVideo} testid="call-switch-to-video-btn"
               />
               <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
