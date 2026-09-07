@@ -1,0 +1,444 @@
+/* ================================================================
+   投聊 皮肤层 — WeChat 绿 / WeCom 企微蓝
+   ================================================================
+   机制: body[data-skin] 变量覆盖层,置于 design-tokens.css 之后加载。
+   - body[data-skin="wechat"]  → 微信经典绿
+   - body[data-skin="wecom"]   → 企业微信 2023 官方蓝
+   深浅两档: 无 dark-mode class = 浅色; .dark-mode = 深色。
+   我方气泡采用微信/企微原版「浅色容器 + 深字」(浅色档)与
+   「品牌色渐变/填充 + 白字」(深色档),组件规则以 !important 覆盖
+   index.css 的 AURORA 渐变白字默认值。只换色,不动布局/圆角/字体。
+   ================================================================ */
+
+/* ═════════════════════════ ① 微信 WeChat 绿 ═════════════════════════
+   官方色: 微信绿 #07C160,气泡浅绿 #95EC69(浅色档我方气泡容器),
+   深色档绿渐变 #06AD56→#07C160。框架灰白、边框 #D5D5D5 微信质感。 */
+body[data-skin="wechat"] {
+  /* Brand 绿阶 */
+  --brand-50:    #EDF9F2;
+  --brand-100:   #D6F5E2;
+  --brand-200:   #A9EAC4;
+  --brand-300:   #6EDB9E;
+  --brand-400:   #2FCE7A;
+  --brand-500:   #07C160;   /* 微信绿 */
+  --brand-600:   #06AD56;
+  --brand-700:   #059649;
+  --brand-800:   #047A3B;
+  --brand-900:   #035E2D;
+  --color-primary:        var(--brand-500);
+  --color-primary-hover:  var(--brand-600);
+  --color-primary-active: var(--brand-700);
+  --color-primary-muted:  var(--brand-50);
+  --color-primary-rgb:    7, 193, 96;
+  --brand-primary:        var(--brand-500);
+  --grad-brand:       linear-gradient(135deg, #06AD56 0%, #07C160 60%, #2FCE7A 100%);
+  --grad-brand-soft:  linear-gradient(135deg, rgba(7,193,96,.12), rgba(47,206,122,.10));
+
+  /* 气泡 */
+  --bubble-mine:     var(--brand-500);
+  --bubble-mine-rgb: var(--color-primary-rgb);
+  --bubble-other:    #FFFFFF;
+  --bubble-mine-text: #111111;
+
+  /* 背景: 微信浅灰框架 */
+  --bg-app:               #E7E7E7;
+  --bg-shell:             #EDEDED;
+  --bg-panel:             #FFFFFF;
+  --bg-panel-header:      #EDEDED;
+  --bg-panel-item-hover:  rgba(0,0,0,.05);
+  --bg-panel-item-active: #D6D6D6;
+  --bg-panel-item-active-hover: #C9C9C9;
+  --bg-chat:              #FFFFFF;
+  --bg-chat-header:       #F5F5F5;
+  --bg-messages:          #EDEDED;
+  --bg-messages-canvas:   linear-gradient(180deg, #EFEFEF 0%, #EAEAEA 100%);
+  --bg-input:             #FFFFFF;
+  --bg-input-search:      #E5E5E5;
+  --bg-card:              #FFFFFF;
+  --bg-card-hover:        #F7F7F7;
+  --bg-modal:             #FFFFFF;
+  --bg-success-tint:      #E8F9F0;
+  --bg-ctx-menu:          #2E2E2E;
+  --bg-hover:             rgba(0,0,0,.05);
+  --bg-overlay:           rgba(0,0,0,.45);
+  --bg-pinned:            rgba(0,0,0,.02);
+
+  /* 文字 */
+  --text-title:       #191919;
+  --text-primary:     #262626;
+  --text-secondary:   #888888;
+  --text-muted:       #B2B2B2;
+  --text-disabled:    #D0D0D0;
+  --text-link:        #576B95;   /* 微信链接蓝 */
+  --text-link-hover:  #3E5688;
+  --text-on-brand:    #FFFFFF;
+
+  /* 边框 */
+  --border-subtle:  rgba(0,0,0,.05);
+  --border-default: #DADADA;
+  --border-medium:  #C0C0C0;
+  --border-strong:  rgba(0,0,0,.08);
+  --divider:        #E5E5E5;
+
+  /* 灰度调为中性(去紫) */
+  --gray-50:   #F7F7F7;
+  --gray-100:  #F0F0F0;
+  --gray-150:  #EBEBEB;
+  --gray-200:  #E0E0E0;
+  --gray-300:  #C8C8C8;
+  --gray-400:  #A8A8A8;
+  --gray-500:  #8A8A8A;
+  --gray-600:  #666666;
+  --gray-700:  #4D4D4D;
+  --gray-800:  #333333;
+  --gray-900:  #222222;
+  --gray-950:  #161616;
+
+  /* 阴影中性化 */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+  --shadow-lg: 0 10px 28px rgba(0,0,0,.12);
+  --ring-primary: 0 0 0 3px rgba(7,193,96,.15);
+
+  /* 兼容别名 */
+  --green: var(--bubble-mine);
+  --green-rgb: var(--bubble-mine-rgb);
+  --green-hover: var(--brand-600);
+  --link-color: #576B95;
+  --link: #576B95;
+  --bg-msg-mine: var(--brand-500);
+  --bg-msg-other: var(--bubble-other);
+  --border-color: var(--border-default);
+  --text-tertiary: #A0A0A0;
+  --text-placeholder: #A0A0A0;
+  color-scheme: light;
+}
+
+/* 微信 深色档 */
+body[data-skin="wechat"].dark-mode {
+  --brand-50:    #0E2B1C;
+  --brand-100:   #133D26;
+  --brand-200:   #1A5734;
+  --brand-300:   #1F7141;
+  --brand-400:   #07C160;
+  --brand-500:   #07D96B;
+  --brand-600:   #2BD97F;
+  --brand-700:   #5BE69F;
+  --brand-800:   #8CF0BC;
+  --brand-900:   #C8F8DE;
+  --color-primary:       #07C160;
+  --color-primary-hover: #2BD97F;
+  --color-primary-active:#07D96B;
+  --color-primary-muted: rgba(7,193,96,.14);
+  --color-primary-rgb:   7, 193, 96;
+  --grad-brand:      linear-gradient(135deg,#06944A 0%,#07C160 55%,#2BD97F 110%);
+  --grad-brand-soft: linear-gradient(135deg, rgba(7,193,96,.16), rgba(43,217,127,.10));
+
+  --bubble-mine:     #07C160;
+  --bubble-mine-rgb: 7, 193, 96;
+  --bubble-other:    #26262A;
+  --bubble-mine-text:#FFFFFF;
+
+  --bg-app:               #0D0D0D;
+  --bg-shell:             #111111;
+  --bg-panel:             #1C1C1E;
+  --bg-panel-header:      #1C1C1E;
+  --bg-panel-item-hover:  rgba(255,255,255,.06);
+  --bg-panel-item-active: rgba(255,255,255,.08);
+  --bg-panel-item-active-hover: rgba(255,255,255,.12);
+  --bg-chat:              #111111;
+  --bg-chat-header:       #1C1C1E;
+  --bg-messages:          #111111;
+  --bg-messages-canvas:   linear-gradient(180deg,#131313 0%,#0F0F0F 100%);
+  --bg-input:             #1C1C1E;
+  --bg-input-search:      #2C2C2E;
+  --bg-card:              #2C2C2E;
+  --bg-card-hover:        #3A3A3C;
+  --bg-modal:             #1C1C1E;
+  --bg-success-tint:      rgba(7,193,96,.14);
+  --bg-ctx-menu:          #2C2C2E;
+  --bg-hover:             rgba(255,255,255,.06);
+  --bg-overlay:           rgba(0,0,0,.6);
+  --bg-pinned:            rgba(255,255,255,.03);
+
+  --text-title:       #E8E8E8;
+  --text-primary:     #D4D4D4;
+  --text-secondary:   #9A9A9A;
+  --text-muted:       #6E6E6E;
+  --text-disabled:    #4A4A4A;
+  --text-link:        #7DA4E8;
+  --text-link-hover:  #A0BCF0;
+  --text-on-brand:    #FFFFFF;
+
+  --border-subtle:  rgba(255,255,255,.06);
+  --border-default: #3A3A3C;
+  --border-medium:  #4A4A4C;
+  --border-strong:  rgba(255,255,255,.12);
+  --divider:        #333333;
+
+  --gray-50:#1A1A1C; --gray-100:#1E1E20; --gray-150:#2C2C2E; --gray-200:#3A3A3C;
+  --gray-300:#48484A; --gray-400:#636366; --gray-500:#8E8E93; --gray-600:#AEAEB2;
+  --gray-700:#C7C7CC; --gray-800:#D1D1D6; --gray-900:#E5E5EA;
+
+  --ring-primary: 0 0 0 3px rgba(7,193,96,.25);
+  --green: var(--bubble-mine);
+  --green-rgb: var(--bubble-mine-rgb);
+  --green-hover: var(--brand-600);
+  --link-color: var(--text-link);
+  --link: #7DA4E8;
+  --bg-msg-mine: var(--brand-500);
+  --bg-msg-other: var(--bubble-other);
+  --border-color: var(--border-default);
+  --text-tertiary: #7E7E7E;
+  --text-placeholder: #7E7E7E;
+  color-scheme: dark;
+}
+
+/* ═════════════════════════ ② 企业微信 WeCom 蓝 ═════════════════════════
+   官方 2023+ 主色: 品牌蓝 #0082EF ~ #2070E0(App Store 界面实测按钮 #2070E0、
+   选中浅蓝 #E8F1FD)。我方气泡浅蓝容器 + 深蓝字; 深色档蓝渐变 + 白字。 */
+body[data-skin="wecom"] {
+  --brand-50:    #EBF3FE;
+  --brand-100:   #D6E8FD;
+  --brand-200:   #A9D0FA;
+  --brand-300:   #6FB0F4;
+  --brand-400:   #3B8EEC;
+  --brand-500:   #2070E0;   /* 企微界面主蓝 */
+  --brand-600:   #1A5CC4;
+  --brand-700:   #14489C;
+  --brand-800:   #0F3574;
+  --brand-900:   #0A234C;
+  --color-primary:        var(--brand-500);
+  --color-primary-hover:  var(--brand-600);
+  --color-primary-active: var(--brand-700);
+  --color-primary-muted:  var(--brand-50);
+  --color-primary-rgb:    32, 112, 224;
+  --brand-primary:        var(--brand-500);
+  --grad-brand:       linear-gradient(135deg, #1A5CC4 0%, #2070E0 55%, #3B8EEC 110%);
+  --grad-brand-soft:  linear-gradient(135deg, rgba(32,112,224,.12), rgba(59,142,236,.10));
+
+  --bubble-mine:     var(--brand-500);
+  --bubble-mine-rgb: var(--color-primary-rgb);
+  --bubble-other:    #FFFFFF;
+  --bubble-mine-text: #0F2444;
+
+  /* 浅蓝白框架 */
+  --bg-app:               #E4EBF3;
+  --bg-shell:             #EDF2F8;
+  --bg-panel:             #FFFFFF;
+  --bg-panel-header:      #F0F4F9;
+  --bg-panel-item-hover:  rgba(32,112,224,.05);
+  --bg-panel-item-active: #DCECFD;
+  --bg-panel-item-active-hover: #CBDFFA;
+  --bg-chat:              #FFFFFF;
+  --bg-chat-header:       #F5F8FC;
+  --bg-messages:          #EDF1F6;
+  --bg-messages-canvas:   linear-gradient(180deg,#EFF3F8 0%,#EAEFF5 100%);
+  --bg-input:             #FFFFFF;
+  --bg-input-search:      #E6ECF3;
+  --bg-card:              #FFFFFF;
+  --bg-card-hover:        #F5F8FC;
+  --bg-modal:             #FFFFFF;
+  --bg-success-tint:      #E6F7EE;
+  --bg-ctx-menu:          #2E3338;
+  --bg-hover:             rgba(32,112,224,.05);
+  --bg-overlay:           rgba(0,0,0,.45);
+  --bg-pinned:            rgba(32,112,224,.02);
+
+  --text-title:       #141A24;
+  --text-primary:     #1E2733;
+  --text-secondary:   #66727F;
+  --text-muted:       #98A2AD;
+  --text-disabled:    #C9CFD6;
+  --text-link:        #2070E0;
+  --text-link-hover:  #1A5CC4;
+  --text-on-brand:    #FFFFFF;
+
+  --border-subtle:  rgba(20,26,36,.05);
+  --border-default: #D9E0E8;
+  --border-medium:  #BEC8D3;
+  --border-strong:  rgba(20,26,36,.08);
+  --divider:        #E3E9EF;
+
+  --gray-50:#F6F8FA; --gray-100:#EFF2F5; --gray-150:#E9EDF1; --gray-200:#DFE4EA;
+  --gray-300:#C7CDD6; --gray-400:#A5ADB8; --gray-500:#7F8894; --gray-600:#5C6570;
+  --gray-700:#444D58; --gray-800:#2E3640; --gray-900:#1D242D; --gray-950:#131920;
+
+  --shadow-sm: 0 1px 2px rgba(20,26,36,.05);
+  --shadow-md: 0 4px 12px rgba(20,26,36,.08);
+  --shadow-lg: 0 10px 28px rgba(20,26,36,.12);
+  --ring-primary: 0 0 0 3px rgba(32,112,224,.16);
+
+  --green: var(--bubble-mine);
+  --green-rgb: var(--bubble-mine-rgb);
+  --green-hover: var(--brand-600);
+  --link-color: var(--text-link);
+  --link: #2070E0;
+  --bg-msg-mine: var(--brand-500);
+  --bg-msg-other: var(--bubble-other);
+  --border-color: var(--border-default);
+  --text-tertiary: #8A95A1;
+  --text-placeholder: #8A95A1;
+  color-scheme: light;
+}
+
+/* 企微 深色档 */
+body[data-skin="wecom"].dark-mode {
+  --brand-50:    #0A1830;
+  --brand-100:   #0F2142;
+  --brand-200:   #16305E;
+  --brand-300:   #1E4184;
+  --brand-400:   #2070E0;
+  --brand-500:   #4A90E8;
+  --brand-600:   #6BA6EE;
+  --brand-700:   #93BDF3;
+  --brand-800:   #BCD5F8;
+  --brand-900:   #E0ECFC;
+  --color-primary:       #4A90E8;
+  --color-primary-hover: #6BA6EE;
+  --color-primary-active:#2070E0;
+  --color-primary-muted: rgba(74,144,232,.15);
+  --color-primary-rgb:   74, 144, 232;
+  --grad-brand:      linear-gradient(135deg,#1A5CC4 0%,#2070E0 55%,#4A90E8 110%);
+  --grad-brand-soft: linear-gradient(135deg, rgba(74,144,232,.16), rgba(107,166,238,.10));
+
+  --bubble-mine:     #2070E0;
+  --bubble-mine-rgb: 32,112,224;
+  --bubble-other:    #252A31;
+  --bubble-mine-text:#FFFFFF;
+
+  --bg-app:               #0C1016;
+  --bg-shell:             #12161D;
+  --bg-panel:             #1A1F27;
+  --bg-panel-header:      #1A1F27;
+  --bg-panel-item-hover:  rgba(255,255,255,.05);
+  --bg-panel-item-active: rgba(32,112,224,.18);
+  --bg-panel-item-active-hover: rgba(32,112,224,.24);
+  --bg-chat:              #10141B;
+  --bg-chat-header:       #1A1F27;
+  --bg-messages:          #0F1319;
+  --bg-messages-canvas:   linear-gradient(180deg,#11161D 0%,#0D1117 100%);
+  --bg-input:             #1A1F27;
+  --bg-input-search:      #262C35;
+  --bg-card:              #262C35;
+  --bg-card-hover:        #303744;
+  --bg-modal:             #1A1F27;
+  --bg-success-tint:      rgba(32,112,224,.15);
+  --bg-ctx-menu:          #262C35;
+  --bg-hover:             rgba(255,255,255,.05);
+  --bg-overlay:           rgba(0,0,0,.6);
+  --bg-pinned:            rgba(74,144,232,.04);
+
+  --text-title:       #EDF1F5;
+  --text-primary:     #D8DEE5;
+  --text-secondary:   #97A1AC;
+  --text-muted:       #66707C;
+  --text-disabled:    #414A55;
+  --text-link:        #6BA6EE;
+  --text-link-hover:  #93BDF3;
+  --text-on-brand:    #FFFFFF;
+
+  --border-subtle:  rgba(255,255,255,.06);
+  --border-default: #2E353F;
+  --border-medium:  #3D4652;
+  --border-strong:  rgba(255,255,255,.1);
+  --divider:        #262C35;
+
+  --gray-50:#161B22; --gray-100:#1A1F27; --gray-150:#262C35; --gray-200:#303744;
+  --gray-300:#414A55; --gray-400:#66707C; --gray-500:#97A1AC; --gray-600:#B4BCC5;
+  --gray-700:#CFD5DB; --gray-800:#DEE3E8; --gray-900:#EDF1F5;
+
+  --ring-primary: 0 0 0 3px rgba(74,144,232,.22);
+  --green: var(--bubble-mine);
+  --green-rgb: var(--bubble-mine-rgb);
+  --green-hover: var(--brand-600);
+  --link-color: var(--text-link);
+  --link: #6BA6EE;
+  --bg-msg-mine: var(--brand-400);
+  --bg-msg-other: var(--bubble-other);
+  --border-color: var(--border-default);
+  --text-tertiary: #747E8A;
+  --text-placeholder: #747E8A;
+  color-scheme: dark;
+}
+
+/* ═════════════════════════ 气泡模型组件覆盖 ═════════════════════════
+   index.css 默认: mine 气泡 = brand-400→600 渐变 + 白字(AURORA)。
+   微信/企微浅色档改为「浅容器 + 深字」;深色档品牌渐变 + 白字。 */
+
+/* 浅色档: mine 气泡浅容器(微信浅绿 / 企微浅蓝)+ 深字 */
+body[data-skin="wechat"] .wc-msg-bubble.mine,
+body[data-skin="wecom"] .wc-msg-bubble.mine {
+  background: var(--brand-100) !important;
+  color: var(--bubble-mine-text) !important;
+  box-shadow: none !important;
+}
+body[data-skin="wechat"] .wc-msg-bubble.mine::after,
+body[data-skin="wecom"] .wc-msg-bubble.mine::after {
+  border-color: transparent transparent transparent var(--brand-100) !important;
+}
+body[data-skin="wechat"] .wc-msg-bubble.mine a,
+body[data-skin="wecom"] .wc-msg-bubble.mine a {
+  color: var(--brand-600) !important;
+}
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-msg-time,
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-msg-meta,
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-voice-duration,
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-msg-edited,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-msg-time,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-msg-meta,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-voice-duration,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-msg-edited {
+  color: rgba(17,17,17,.42) !important;
+}
+/* 浅色档 mine 气泡内引用/语音等白系适配 → 改浅容器适配 */
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media),
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) {
+  background: rgba(255,255,255,.5) !important;
+  border-left-color: var(--brand-300) !important;
+}
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) .wc-msg-reply-name,
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) .wc-msg-reply-text,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) .wc-msg-reply-name,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) .wc-msg-reply-text {
+  color: rgba(17,17,17,.68) !important;
+}
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-voice-progress-track,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-voice-progress-track {
+  background: var(--brand-300) !important;
+}
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-voice-unplayed-dot,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-voice-unplayed-dot {
+  background: var(--brand-600) !important;
+}
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-voice-play-icon,
+body[data-skin="wechat"] .wc-msg-bubble.mine .wc-voice-play-icon-offset,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-voice-play-icon,
+body[data-skin="wecom"] .wc-msg-bubble.mine .wc-voice-play-icon-offset {
+  fill: var(--brand-700) !important;
+}
+
+/* 深色档: mine 气泡品牌渐变 + 白字(恢复默认, 仅确保品牌色一致) */
+body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine,
+body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine {
+  background: var(--grad-brand) !important;
+  color: #fff !important;
+}
+body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine::after,
+body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine::after {
+  border-color: transparent transparent transparent var(--brand-500) !important;
+}
+body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine a,
+body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine a {
+  color: rgba(255,255,255,.9) !important;
+}
+body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine .wc-msg-time,
+body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine .wc-msg-meta,
+body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine .wc-voice-duration,
+body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine .wc-msg-edited,
+body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine .wc-msg-time,
+body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine .wc-msg-meta,
+body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine .wc-voice-duration,
+body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine .wc-msg-edited {
+  color: rgba(255,255,255,.68) !important;
+}

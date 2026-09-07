@@ -6,6 +6,7 @@ import axios from 'axios';
 import App from './App';
 import './design-tokens.css';
 import './index.css';
+import './skins.css';   // 皮肤层:微信绿 / 企业微信蓝 (body[data-skin] 变量覆盖,必须在 index.css 之后)
 import './mobile-adapt.css';
 import { loadRemoteConfig, getConfig } from './utils/config';
 import { migrateStorage } from './utils/migrateStorage';

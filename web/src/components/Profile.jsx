@@ -641,7 +641,7 @@ function DeviceList({ onBack }) {
 
 /* ── 外观 ── */
 function AppearanceSettings({ onBack }) {
-  const { themeMode, setThemeMode, fontSize, setFontSize } = useSettings();
+  const { themeMode, setThemeMode, skin, setSkin, fontSize, setFontSize } = useSettings();
   const { t, lang, setLang } = useI18n();
   const FONT_OPTIONS = [
     { key: 'small',  label: t('profile.fontSmall'),  size: 12 },
@@ -670,6 +670,32 @@ function AppearanceSettings({ onBack }) {
               onClick={() => setThemeMode(mode)}>
               <span className="wc-appearance-emoji">{emoji}</span>
               <span className="profile-appearance-label" style={{ color: textColor, fontWeight: themeMode === mode ? 600 : 400 }}>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <SLabel>{t('profile.skinTitle')}</SLabel>
+      <div className="wc-section-pad">
+        <div className="wc-appearance-row">
+          {[
+            // 每套皮肤: 按钮底色 = 聊天气泡预览(自己/对方), 选中描边用其主色
+            { key: 'aurora', label: t('profile.skinAurora'), bg: 'linear-gradient(105deg,#FBFAFE 50%,#E7E4F0 50%)', accent: '#6D5AE6', dot: '#6D5AE6' },
+            { key: 'wechat', label: t('profile.skinWechat'), bg: 'linear-gradient(105deg,#95EC69 50%,#FFFFFF 50%)', accent: '#07C160', dot: '#07C160' },
+            { key: 'wecom',  label: t('profile.skinWecom'),  bg: 'linear-gradient(105deg,#D6E8FD 50%,#FFFFFF 50%)', accent: '#2070E0', dot: '#2070E0' },
+          ].map(({ key, label, bg, accent, dot }) => (
+            <button key={key} type="button"
+              className="wc-appearance-btn"
+              aria-pressed={skin === key}
+              style={{
+                background: bg,
+                border: `2.5px solid ${skin === key ? accent : '#D9D9DE'}`,
+                boxShadow: skin === key ? `0 0 0 4px ${accent}26` : '0 2px 8px rgba(0,0,0,.08)',
+              }}
+              onClick={() => setSkin(key)}>
+              <span className="wc-appearance-emoji">
+                <span style={{ display:'inline-block', width:14, height:14, borderRadius:'50%', background:dot, verticalAlign:'-2px', boxShadow:'0 0 0 2px rgba(255,255,255,.7)' }} />
+              </span>
+              <span className="profile-appearance-label" style={{ color: '#333', fontWeight: skin === key ? 600 : 400 }}>{label}</span>
             </button>
           ))}
         </div>
