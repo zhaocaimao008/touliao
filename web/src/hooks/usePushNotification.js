@@ -81,8 +81,16 @@ export function usePushNotification(user) {
     async function setup() {
       try {
         // 1. 拉取 VAPID 公钥
+        //    服务端未配置 Web Push（/vapid-public-key 返回 503/404）或返回体缺公钥时，
+        //    **不能继续注册/引导**：否则「开启」后权限授予了、订阅却永远建不成——
+        //    引导条消失但推送永远不会到，且 Chrome 权限一旦授予无法撤回重问（假开通）。
+        //    此时把 permission 置 'unsupported' → PushPermissionGuide 不再出现。
         const { data } = await axios.get('/api/notifications/vapid-public-key');
-        if (cancelled || !data.publicKey) return;
+        if (cancelled) return;
+        if (!data || !data.publicKey) {
+          setPermission('unsupported');
+          return;
+        }
         vapidKeyRef.current = data.publicKey;
 
         // 2. 注册 Service Worker（不需要通知权限，离线缓存等能力也依赖它）
@@ -99,7 +107,9 @@ export function usePushNotification(user) {
           await subscribeNow();
         }
       } catch {
-        // 浏览器不支持或网络失败，静默降级（应用其余部分不受影响）
+        // 服务端推送未就绪（VAPID 503 等）或网络失败：同样视为当前不可用，
+        // 收起引导条，避免诱导用户授权后收不到推送。服务端补齐 VAPID 后下次进入恢复。
+        if (!cancelled) setPermission('unsupported');
       }
     }
 

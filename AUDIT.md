@@ -36,10 +36,9 @@
    - 改完 `pm2 restart touliao-backend --update-env`，然后 `curl /api/notifications/vapid-public-key` 应 200、`push-diag` 端点复查
 2. 若不做 Web Push：前端 `usePushNotification.js` setup 的 503 分支要**显式置 unsupported**（目前 catch 吞掉导致引导条假“可开启”），见 P2。
 
-## 🟡 P2 Web 推送引导条假可用（承接 P1，代码级缺陷独立存在）
-- `web/src/hooks/usePushNotification.js:101-103`：setup 的 catch 静默吞所有失败；`vapidKeyRef` 空 → `subscribeNow()` 静默 return（L110）
-- `PushPermissionGuide` 只看 `permission==='default'`，不看“服务端是否可订阅”
-- 后果见 P1 影响第二条。修复方向：setup 失败（fetch 非 200 / 无 publicKey）时把 permission 置 `'unsupported'` 或给 guide 传 `serverPushReady=false`，引导条即不再出现
+## 🟡 P2 Web 推送引导条假可用 —— ✅ 已修（2026-09-07, web/src/hooks/usePushNotification.js）
+- 修复：setup() 拉 VAPID 失败（503/404/无公钥）或异常时置 `permission='unsupported'` → `PushPermissionGuide` 不再出现；不再把失败静默吞掉造成“已授权但永不建订阅"。服务端补齐 VAPID 后下次进入自动恢复引导。
+- 注：本修复**不是**启用 Web Push；VAPID 配上后该代码路径自然进入正常订阅。
 
 ## 🟡 P3 管理后台无 IP 白名单
 - 启动日志自警：`ADMIN_IP_WHITELIST 未配置，后台可从任意 IP 登录`；`ADMIN_USERNAME/PASSWORD/JWT_SECRET` 已配但白名单空
