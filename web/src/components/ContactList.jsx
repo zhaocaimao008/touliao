@@ -331,7 +331,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 )}
                 {requests.map(r => (
                   <div key={r.id} className="req-item" data-testid="friend-request-item">
-                    <Avatar src={r.avatar || r.from?.avatar} name={r.username || r.from?.username} size={48} className="cl-avatar-rounded" />
+                    <Avatar src={r.avatar || r.from?.avatar} name={r.username || r.from?.username} size='lg' className="cl-avatar-rounded" />
                     <div className="req-info">
                       <div className="req-name-row">
                         <div className="req-name">{r.username || r.from?.username}</div>
@@ -357,7 +357,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 )}
                 {sentRequests.map(r => (
                   <div key={r.id} className="req-item">
-                    <Avatar src={r.avatar} name={r.username} size={48} className="cl-avatar-rounded" />
+                    <Avatar src={r.avatar} name={r.username} size='lg' className="cl-avatar-rounded" />
                     <div className="req-info">
                       <div className="req-name-row">
                         <div className="req-name">{r.username}</div>
@@ -401,7 +401,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                       .catch(() => showToast(t('contacts.cannotCreateConvRetry'), 'error'));
                   }
                 }}>
-                <Avatar src={b.avatar || ''} name={b.name} size={40} className="cl-avatar-rounded" />
+                <Avatar src={b.avatar || ''} name={b.name} size='md' className="cl-avatar-rounded" />
                 <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{b.name}</div>
                   <div className="wc-contact-item-sub">{b.description || t('contacts.aiBotIdTemplate').replace('{id}', b.wechat_id)}</div>
@@ -425,7 +425,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             )}
             {blockedUsers.map(u => (
               <div key={u.id} className="req-item">
-                <Avatar src={u.avatar} name={u.username} size={48} className="cl-avatar-rounded" />
+                <Avatar src={u.avatar} name={u.username} size='lg' className="cl-avatar-rounded" />
                 <div className="req-info">
                   <div className="req-name">{u.username}</div>
                 </div>
@@ -454,7 +454,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 onClick={() => onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] })}
                 role="button" tabIndex={0}
                 onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] }))}>
-                <GroupAvatar members={g.members || []} avatar={g.avatar} size={40} />
+                <GroupAvatar members={g.members || []} avatar={g.avatar} size='md' />
                   <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{g.name}</div>
                   <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', g.memberCount)}</div>
@@ -614,7 +614,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
               <div key={c.id} className="wc-contact-item" role="checkbox" tabIndex={0} aria-checked={inLabel}
                 onClick={() => { toggleMember(label.id, c.id, inLabel); memberIds[inLabel ? 'delete' : 'add'](c.id); }}
                 onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (toggleMember(label.id, c.id, inLabel), memberIds[inLabel ? 'delete' : 'add'](c.id))}>
-                <Avatar src={c.avatar} name={c.remark || c.username} size={40} style={{ borderRadius: 'var(--radius-sm)' }} />
+                <Avatar src={c.avatar} name={c.remark || c.username} size='md' style={{ borderRadius: 'var(--radius-sm)' }} />
                 <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{c.remark || c.username}</div>
                 </div>
@@ -673,7 +673,7 @@ const ContactRow = memo(function ContactRow({ contact: c, online, onOpen }) {
       role="button" tabIndex={0}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(c.id))}>
       <div className="cl-avatar-wrap">
-        <Avatar src={c.avatar} name={c.remark || c.username} size={40}
+        <Avatar src={c.avatar} name={c.remark || c.username} size='md'
           style={{ borderRadius: 'var(--radius-sm)' }}
           online={online} />
       </div>

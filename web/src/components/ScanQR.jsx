@@ -197,7 +197,7 @@ export default function ScanQR({ onClose }) {
 
         {(phase === 'preview' || phase === 'joining') && info && (
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-            <Avatar src={info.avatar ? mediaUrl(info.avatar) : ''} name={info.name} size={64} style={{ borderRadius: 'var(--radius-lg, 16px)' }} />
+            <Avatar src={info.avatar ? mediaUrl(info.avatar) : ''} name={info.name} size='xl' style={{ borderRadius: 'var(--radius-lg, 16px)' }} />
             <div style={{ fontSize: 'var(--text-lg, 18px)', fontWeight: 600, color: 'var(--text-primary, #191919)' }}>{info.name || t('scanQR.defaultGroupName')}</div>
             <div style={{ fontSize: 'var(--text-sm2, 14px)', color: 'var(--text-tertiary, #999)' }}>
               {info.memberCount ? t('scanQR.memberCountTemplate').replace('{count}', info.memberCount) : t('scanQR.groupInvite')}
@@ -218,7 +218,7 @@ export default function ScanQR({ onClose }) {
           <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
             <Avatar
               src={userInfo.user.avatar ? mediaUrl(userInfo.user.avatar) : ''}
-              name={userInfo.user.username} size={64}
+              name={userInfo.user.username} size='xl'
               style={{ borderRadius: 'var(--radius-lg, 16px)' }}
             />
             <div style={{ fontSize: 'var(--text-lg, 18px)', fontWeight: 600, color: 'var(--text-primary, #191919)' }}>

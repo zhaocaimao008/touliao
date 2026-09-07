@@ -68,7 +68,7 @@ export default function ReadStatusModal({ state, conversation, members, currentU
                 <ul className="read-status-list" aria-label={t('readStatus.readMembers')}>
                   {model.readers.map(reader => (
                     <li key={reader.id} className="read-status-member">
-                      <Avatar src={reader.avatar} name={reader.name || t('readStatus.unknownMember')} size={36} />
+                      <Avatar src={reader.avatar} name={reader.name || t('readStatus.unknownMember')} size='sm' />
                       <span>{reader.name || t('readStatus.unknownMember')}</span>
                     </li>
                   ))}

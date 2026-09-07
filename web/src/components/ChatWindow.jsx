@@ -2676,7 +2676,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   className="wc-card-picker-item"
                   role="button" tabIndex={0}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sendContactCard(c); } }}>
-                  <Avatar src={c.avatar} name={c.remark || c.username} size={40} style={{ borderRadius: 'var(--radius-sm)' }} />
+                  <Avatar src={c.avatar} name={c.remark || c.username} size='md' style={{ borderRadius: 'var(--radius-sm)' }} />
                   <div className="wc-card-picker-item-info">
                     <div className="wc-card-picker-item-name">{c.remark || c.username}</div>
                     {c.wechat_id && <div className="wc-card-picker-item-wechat">{t('contacts.touliaoIdTemplate').replace('{id}', c.wechat_id)}</div>}
@@ -2867,7 +2867,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                         className={`wc-at-list-item${i === atIndex ? ' active' : ''}`}
                         role="option" aria-selected={i === atIndex}
                         onMouseDown={e => { e.preventDefault(); insertAtMention(m); }}>
-                        <Avatar src={m.avatar} name={m.username} size={22} />
+                        <Avatar src={m.avatar} name={m.username} size='micro' />
                         <span>{m.username}</span>
                       </div>
                     ))}

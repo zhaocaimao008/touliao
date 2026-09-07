@@ -301,7 +301,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
                       </svg>
                     </span>
                   </div>
-                  <Avatar src={f.avatar} name={f.remark || f.username} size={36} />
+                  <Avatar src={f.avatar} name={f.remark || f.username} size='sm' />
                   <div className="fwd-item-info">
                     <div className="fwd-item-name">{f.remark || f.username}</div>
                   </div>
@@ -321,7 +321,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
                       </svg>
                     </span>
                   </div>
-                  <GroupAvatar members={g.members || []} avatar={g.avatar || g.groupAvatar} size={36} />
+                  <GroupAvatar members={g.members || []} avatar={g.avatar || g.groupAvatar} size='sm' />
                   <div className="fwd-item-info">
                     <div className="fwd-item-name">{g.name}</div>
                     <div className="fwd-item-sub">{t('fwd.memberCountTemplate').replace('{count}', g.memberCount)}</div>

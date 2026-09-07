@@ -65,7 +65,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
 
   return (
     <div className="wc-moment-card">
-      <Avatar src={m.author?.avatar} name={m.author?.username} size={40} />
+      <Avatar src={m.author?.avatar} name={m.author?.username} size='md' />
       <div className="wc-moment-body">
         <div className="wc-moment-header">
           <span className="wc-moment-name">{m.author?.username || t('moments.defaultUser')}</span>
@@ -680,7 +680,7 @@ export default function Moments() {
                     role="checkbox" tabIndex={0} aria-checked={checked}
                     onClick={() => toggleVisibleFriend(f.id)}
                     onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && toggleVisibleFriend(f.id)}>
-                    <Avatar src={f.avatar} name={f.remark || f.username} size={36} />
+                    <Avatar src={f.avatar} name={f.remark || f.username} size='sm' />
                     <div className="wc-moment-notif-body">
                       <div className="wc-moment-notif-text">{f.remark || f.username}</div>
                     </div>
@@ -711,7 +711,7 @@ export default function Moments() {
                 <div role="status" className="wc-moment-state moments-state-pad40">{t('moments.noNotifications')}</div>
               ) : notifList.map(n => (
                 <div key={n.id} className="wc-moment-notif-item">
-                  <Avatar src={n.actor?.avatar} name={n.actor?.username} size={36} />
+                  <Avatar src={n.actor?.avatar} name={n.actor?.username} size='sm' />
                   <div className="wc-moment-notif-body">
                     <div className="wc-moment-notif-text">
                       <b>{n.actor?.username || t('moments.defaultUser')}</b>

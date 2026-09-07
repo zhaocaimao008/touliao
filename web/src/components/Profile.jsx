@@ -547,7 +547,7 @@ function InviteFriends({ onBack }) {
             <CRow label={t('common.loading')} />
           ) : (data?.invitees?.length ? data.invitees.map(u => (
             <CRow key={u.id}
-              icon={<Avatar src={u.avatar} name={u.username} size={28} />} bg="transparent"
+              icon={<Avatar src={u.avatar} name={u.username} size='xs' />} bg="transparent"
               label={u.username}
               desc={u.wechat_id ? t('profile.touliaoIdColonTemplate').replace('{id}', u.wechat_id) : ''}
               right={<span className="profile-meta-sm">{fmtTime(u.created_at)}</span>} />
@@ -958,7 +958,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
       {otherAccounts.map((a) => (
           <div key={a.id} onClick={() => doSwitch(a.id)} className="wc-add-row" role="button" tabIndex={0} onKeyDown={activateOnKey(() => doSwitch(a.id))}>
             <div className="wc-add-avatar-wrap">
-              <Avatar src={a.user?.avatar} name={a.user?.username} size={40} />
+              <Avatar src={a.user?.avatar} name={a.user?.username} size='md' />
             </div>
             <div className="wc-crow-body">
               <div className="wc-add-name">{a.user?.username || t('profile.unnamed')}</div>
@@ -1084,7 +1084,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
           <div className="pf-avatar-wrap" role="button" tabIndex={0}
             onClick={handleAvatarClick} onKeyDown={e => activateOnKey(handleAvatarClick)(e)}
             aria-label={t('profile.changeAvatar')}>
-            <Avatar src={user?.avatar} name={user?.username} size={92} />
+            <Avatar src={user?.avatar} name={user?.username} size='hero' />
             <span className="pf-avatar-edit" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
             </span>
@@ -1361,7 +1361,7 @@ export default function Profile({ isMobile = false }) {
       {/* ── 个人信息头部 ── */}
       <div className="wc-me-header" role="button" tabIndex={0} onClick={() => setSubPage('profile-detail')} onKeyDown={activateOnKey(() => setSubPage('profile-detail'))}>
         <div className="wc-me-avatar-wrap">
-          <Avatar src={user?.avatar} name={user?.username} size={64} />
+          <Avatar src={user?.avatar} name={user?.username} size='xl' />
         </div>
         <div className="wc-me-info">
           <div className="wc-me-name">{user?.username || t('profile.noNickname')}</div>

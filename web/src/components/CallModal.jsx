@@ -790,7 +790,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             >
               <Avatar
                 src={remoteUser?.avatar} name={remoteUser?.name || '?'}
-                size={68}
+                size='68'
                 style={{ borderRadius: '50%', display: 'block' }}
               />
               <button
@@ -906,7 +906,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         {/* 来电居中显示 */}
         {status === 'incoming' && (
           <div className="cm-incoming-center">
-            <Avatar src={remoteUser?.avatar} name={remoteUser?.name || '?'} size={88} style={{ borderRadius: '50%', boxShadow: '0 4px 20px rgba(0,0,0,.4)' }} />
+            <Avatar src={remoteUser?.avatar} name={remoteUser?.name || '?'} size='88' style={{ borderRadius: '50%', boxShadow: '0 4px 20px rgba(0,0,0,.4)' }} />
             <div className="cm-incoming-name">{remoteUser?.name}</div>
             <div className="cm-incoming-desc">{t('call.invitingVideoCall')}</div>
           </div>

@@ -43,7 +43,7 @@ export default function JoinGroup() {
   return (
     <div className="join-page">
       <section className="join-card" aria-busy={joining}>
-        <Avatar src={preview?.avatar} name={preview?.name || t('common.appName')} size={72} />
+        <Avatar src={preview?.avatar} name={preview?.name || t('common.appName')} size='xl' />
         <h1>{preview?.name || t('join.title')}</h1>
         {preview?.memberCount != null && <p>{t('join.memberCountTemplate').replace('{count}', preview.memberCount)}</p>}
         {joining ? (

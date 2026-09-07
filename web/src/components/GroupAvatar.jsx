@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Avatar, { getColor } from './Avatar';
+import Avatar, { getColor, avatarPx } from './Avatar';
 import { mediaUrl } from '../utils/url';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -17,22 +17,23 @@ function GroupGridCell({ member = {}, cellSize }) {
   );
 }
 
-/** 群头像拼图（微信风格 N宫格，支持自定义头像） */
-export function GroupAvatar({ members = [], size = 48, avatar = '' }) {
+/** 群头像拼图（微信风格 N宫格，支持自定义头像）— size 接受 4 档命名(micro/xs/sm/md/lg/xl/hero)或像素 */
+export function GroupAvatar({ members = [], size = 'lg', avatar = '' }) {
   const { t } = useI18n();
+  const px = avatarPx(size);
   const [avatarErr, setAvatarErr] = useState(false);
   const [prevAvatar, setPrevAvatar] = useState(avatar);
   if (avatar !== prevAvatar) { setPrevAvatar(avatar); setAvatarErr(false); }
   if (avatar && !avatarErr) {
-    return <img src={mediaUrl(avatar)} alt="" loading="lazy" onError={() => setAvatarErr(true)} style={{ width: size, height: size, borderRadius: Math.max(3, Math.round(size * 0.13)), objectFit: 'cover', flexShrink: 0 }} />;
+    return <img src={mediaUrl(avatar)} alt="" loading="lazy" onError={() => setAvatarErr(true)} style={{ width: px, height: px, borderRadius: Math.max(3, Math.round(px * 0.13)), objectFit: 'cover', flexShrink: 0 }} />;
   }
   const n = Math.min(members.length, 9);
   if (n === 0) return <Avatar name={t('groupAvatar.fallbackName')} size={size} />;
   if (n === 1) return <Avatar src={members[0].avatar} name={members[0].username} size={size} />;
   const grid = n <= 4 ? 2 : 3;
-  const cellSize = Math.floor((size - (grid + 1) * 2) / grid);
+  const cellSize = Math.floor((px - (grid + 1) * 2) / grid);
   return (
-    <div style={{ width: size, height: size, borderRadius: Math.max(3, Math.round(size * 0.13)), background: 'var(--bg-input-search)', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
+    <div style={{ width: px, height: px, borderRadius: Math.max(3, Math.round(px * 0.13)), background: 'var(--bg-input-search)', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
       {members.slice(0, grid * grid).map((m, i) => (
         <GroupGridCell key={m.id ?? m.username ?? i} member={m} cellSize={cellSize} />
       ))}

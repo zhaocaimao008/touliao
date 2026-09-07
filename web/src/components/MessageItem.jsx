@@ -134,7 +134,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
         title={!isMine ? t('chat.clickToViewProfile') : undefined}
         style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}
       >
-        <Avatar src={msg.senderAvatar} name={msg.senderName} size={36} />
+        <Avatar src={msg.senderAvatar} name={msg.senderName} size='sm' />
       </div>
       <div className="wc-msg-body">
         {!isMine && convType === 'group' && !consecutive && (
@@ -341,7 +341,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && card.uid) { e.preventDefault(); cbs.setShowUserProfile(card.uid); } }}
                 >
                   <div className="wc-contact-card-body">
-                    <Avatar src={card.avatar} name={card.username} size={40} style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
+                    <Avatar src={card.avatar} name={card.username} size='md' style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
                     <div className="wc-contact-card-info">
                       <div className="wc-contact-card-name">{card.username || t('messageItem.defaultUsername')}</div>
                       {card.wechat_id && <div className="wc-contact-card-wechat">{t('messageItem.touliaoIdTemplate').replace('{id}', card.wechat_id)}</div>}

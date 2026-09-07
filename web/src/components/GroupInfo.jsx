@@ -33,7 +33,7 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
     >
       {info.avatar && !avErr
         ? <img src={mediaUrl(info.avatar)} alt="" loading="lazy" className="gi-av-img" onError={() => setAvErr(true)} style={{ borderRadius: r }} />
-        : <GroupAvatar members={info.members} size={48} />
+        : <GroupAvatar members={info.members} size='lg' />
       }
       {isAdmin && (hovered || uploading) && (
         <div className="gi-av-overlay" style={{ borderRadius: r }}>
@@ -90,7 +90,7 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
   const q = kickSearch.toLowerCase();
   return (
     <div className="gi-mi" style={style}>
-      <Avatar src={m.avatar} name={m.username} size={40} />
+      <Avatar src={m.avatar} name={m.username} size='md' />
       <div className="gi-f1">
         <div className="gi-mn">
           {q && (m.username || '').toLowerCase().includes(q)
@@ -898,7 +898,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               <div className="gi-inv-list">
                 {info.members.filter(member => String(member.id) !== String(currentUserId)).map(member => (
                   <button type="button" key={member.id} className="wc-group-member-item gi-transfer-member" onClick={() => transferOwner(member.id)} disabled={transferringOwner}>
-                    <Avatar src={member.avatar} name={member.username} size={36} />
+                    <Avatar src={member.avatar} name={member.username} size='sm' />
                     <span className="gi-inv-name">{member.username}</span>
                     <RoleBadge role={member.role} />
                   </button>
@@ -925,7 +925,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   : myContacts.map(c => (
                     <div key={c.id} className="wc-group-member-item" role="checkbox" tabIndex={0} aria-checked={selectedInvite.has(c.id)} onClick={() => setSelectedInvite(prev => { const s = new Set(prev); s.has(c.id) ? s.delete(c.id) : s.add(c.id); return s; })} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedInvite(prev => { const s = new Set(prev); s.has(c.id) ? s.delete(c.id) : s.add(c.id); return s; })}>
                       <div className={`wc-group-check${selectedInvite.has(c.id) ? ' checked' : ''}`}>{selectedInvite.has(c.id) ? '✓' : ''}</div>
-                      <Avatar src={c.avatar} name={c.remark || c.username} size={36} />
+                      <Avatar src={c.avatar} name={c.remark || c.username} size='sm' />
                       <span className="gi-inv-name">{c.remark || c.username}</span>
                     </div>
                   ))

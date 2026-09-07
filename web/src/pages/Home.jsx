@@ -201,7 +201,7 @@ function AccountSwitcher() {
                 role="button" tabIndex={0}
                 onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !active) { e.preventDefault(); doSwitch(a.id); } }}>
                 <div className="as-avatar-wrap">
-                  <Avatar src={a.user?.avatar} name={a.user?.username} size={40} />
+                  <Avatar src={a.user?.avatar} name={a.user?.username} size='md' />
                   {active && (
                     <div className="as-active-badge">
                       <svg className="as-check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
@@ -336,7 +336,7 @@ function CgMemberRow({ contact: c, checked, onToggle }) {
       <div className={`cg-checkbox${checked ? ' checked' : ''}`}>
         {checked && <svg className="cg-check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
       </div>
-      <Avatar src={c.avatar} name={c.remark || c.username} size={40} className="as-avatar-img" />
+      <Avatar src={c.avatar} name={c.remark || c.username} size='md' className="as-avatar-img" />
       <div className="cg-info">
         <div className={`cg-name${checked ? ' checked' : ''}`}>{c.remark || c.username}</div>
         {c.remark && <div className="cg-username">{c.username}</div>}
@@ -440,7 +440,7 @@ function CreateGroupModal({ onClose, onCreated }) {
             {selectedContacts.map(c => (
               <div key={c.id} role="button" tabIndex={0} aria-label={t('home.removeMemberTemplate').replace('{name}', c.remark || c.username)} onClick={() => toggle(c.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(c.id); } }}
                 className="cgm-chip">
-                <Avatar src={c.avatar} name={c.remark || c.username} size={20} className="as-avatar-img" />
+                <Avatar src={c.avatar} name={c.remark || c.username} size='micro' className="as-avatar-img" />
                 <span className="cgm-chip-text">{c.remark || c.username}</span>
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="var(--green)"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
               </div>

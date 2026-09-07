@@ -108,8 +108,8 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
               onKeyDown={e => { if (onOpenChat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPeer(c); } }}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: onOpenChat ? 'pointer' : 'default' }}>
               {c.kind === 'group'
-                ? <GroupAvatar avatar={c.peer_avatar} size={40} />
-                : <Avatar src={c.peer_avatar} name={c.peer_name} size={40} />}
+                ? <GroupAvatar avatar={c.peer_avatar} size='md' />
+                : <Avatar src={c.peer_avatar} name={c.peer_name} size='md' />}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || t('messageItem.defaultUsername')}</div>
                 <div style={{ fontSize: 'var(--text-sm)', color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>

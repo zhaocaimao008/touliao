@@ -203,7 +203,7 @@ export default function ChatFiles({ convId, onClose }) {
                   {item.fileName || (item.type === 'image' ? t('chatFiles.tabImage') : item.type === 'video' ? t('chatFiles.tabVideo') : t('chatFiles.tabFile'))}
                 </div>
                 <div className="chatfiles-info-meta">
-                  <Avatar src={item.senderAvatar} name={item.senderName} size={13}
+                  <Avatar src={item.senderAvatar} name={item.senderName} size='13'
                     style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }} />
                   <span className="chatfiles-info-sender">
                     {item.senderName} · {format(item.createdAt * 1000)}

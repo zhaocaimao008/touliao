@@ -160,7 +160,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             </svg>
           </button>
           <div className="up-avatar-wrap">
-            <Avatar src={user.avatar} name={displayName} size={64} style={{ borderRadius: 'var(--radius-bubble-tip)', boxShadow: '0 2px 12px rgba(0,0,0,.3)' }} />
+            <Avatar src={user.avatar} name={displayName} size='xl' style={{ borderRadius: 'var(--radius-bubble-tip)', boxShadow: '0 2px 12px rgba(0,0,0,.3)' }} />
           </div>
         </div>
 

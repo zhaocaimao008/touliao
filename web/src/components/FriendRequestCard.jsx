@@ -48,7 +48,7 @@ function FriendRequestCardRoot() {
       data-testid="friend-request-card"
       onClick={() => { item.onView?.(); dismiss(); }}
     >
-      <Avatar src={item.avatar} name={item.name} size={40} className="cl-avatar-rounded" />
+      <Avatar src={item.avatar} name={item.name} size='md' className="cl-avatar-rounded" />
       <div className="frc-body">
         <div className="frc-title">{item.name}</div>
         <div className="frc-sub">{t('friendRequestCard.subtitle')}</div>

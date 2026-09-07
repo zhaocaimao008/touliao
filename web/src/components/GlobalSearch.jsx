@@ -185,7 +185,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
             <div key={c.id} className="gs-row" onClick={() => openContact(c)}
               role="button" tabIndex={0}
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openContact(c))}>
-              <Avatar src={c.avatar} name={c.remark || c.username} size={40} />
+              <Avatar src={c.avatar} name={c.remark || c.username} size='md' />
               <div className="gs-info">
                 <div className="gs-name">{highlight(c.remark || c.username, q)}</div>
                 {c.remark && c.username && c.username.toLowerCase().includes(q) && (
@@ -217,7 +217,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--text-inverse)"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 </div>
               ) : (
-                <GroupAvatar members={g.members || []} avatar={g.avatar} size={40} />
+                <GroupAvatar members={g.members || []} avatar={g.avatar} size='md' />
               )}
               <div className="gs-info">
                 <div className="gs-name">{highlight(g.name, q)}</div>
@@ -268,7 +268,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
             <div key={m.id} className="gs-row" onClick={() => openMessageLocation(m)}
               role="button" tabIndex={0}
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openMessageLocation(m))}>
-              <Avatar src={m.senderAvatar} name={m.senderName} size={40} />
+              <Avatar src={m.senderAvatar} name={m.senderName} size='md' />
               <div className="gs-info">
                 <div className="gs-msg-meta">
                   {m.senderName} {m.convType === 'group' ? t('gs.inGroupTemplate').replace('{name}', m.convName) : ''}

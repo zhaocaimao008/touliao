@@ -13,7 +13,7 @@ function AfResultItem({ user: u, onClick }) {
   const { t } = useI18n();
   return (
     <div className="afm-result-item" role="button" tabIndex={0} onClick={onClick} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
-      <Avatar src={u.avatar} name={u.username} size={48}
+      <Avatar src={u.avatar} name={u.username} size='lg'
         style={{ borderRadius: 'var(--radius-avatar-lg)', flexShrink: 0 }} />
       <div className="afm-result-info">
         <div className="afm-result-name">{u.username}</div>
