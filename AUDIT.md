@@ -1,5 +1,10 @@
 # 投聊 · 性能与逻辑体检 AUDIT（2026-09-07）
 
+## 🔐 凭据保险库（已建, 2026-09-07, 换服务器免重办推送凭证）
+- 见 `docs/secrets-vault-runbook.md`：GPG-AES256 加密包（/root/touliao-secrets-vault/），口令已交付用户密码管理器；`.env`+VAPID 已入库，APNs p8/个推三件套拿到后放 `extra/` 跑 `backup-vault.sh` 即入库
+- 旧机教训固化：凭据必须可离线恢复，禁止只存在于单台服务器 .env
+
+
 范围：backend-v2（PM2 `touliao-backend`:3003，新加坡 13.212.117.22）+ web 前端 + 运行环境。只读检查，**未改任何代码**。本文件即待办清单，按优先级处理；处置后在本文件打勾并删除条目。
 
 ## 体检基线（健康项，无需处理）
