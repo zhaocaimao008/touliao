@@ -11,6 +11,12 @@
  */
 
 const redis = require('redis');
+const { createHash } = require('crypto');
+
+// A scoped resource ticket can identify its issuer's credential without containing that JWT.
+function credentialKey(token) {
+  return `credential:${createHash('sha256').update(token).digest('hex')}`;
+}
 
 let redisClient = null;
 let useRedis = false;
@@ -98,24 +104,27 @@ async function addToBlacklist(token, expiresAt) {
   const ttl = expiresAt - now;
   if (ttl <= 0) return;
 
-  // 立即驱逐干净缓存，防止同一 token 在 30s 内继续被放行
-  _cleanDel(token);
+  const keys = [token, credentialKey(token)];
+  // Commit both revocation keys before the first await. Otherwise a concurrent read during
+  // Redis I/O can repopulate cleanCache from pre-revocation SQLite and survive the later write.
+  try {
+    const db = getDb();
+    db.transaction(() => {
+      const insert = db.prepare('INSERT OR REPLACE INTO token_blacklist (token, expires_at) VALUES (?, ?)');
+      for (const key of keys) insert.run(key, expiresAt);
+    })();
+  } catch (err) {
+    console.error('[TokenBlacklist] SQLite add error:', err.message);
+    throw err; // Do not report successful revocation without its durable authority.
+  }
+  for (const key of keys) _cleanDel(key);
 
-  const key = `blacklist:${token}`;
   try {
     if (useRedis && redisClient) {
-      await redisClient.setEx(key, ttl, '1');
-      // 不 return：继续双写 SQLite 作为持久备份，防 Redis 抖动时注销 token 被复活
+      for (const key of keys) await redisClient.setEx(`blacklist:${key}`, ttl, '1');
     }
   } catch (err) {
     console.error('[TokenBlacklist] Redis add error:', err.message);
-  }
-
-  // SQLite 持久化（主路径 + Redis 双写备份）
-  try {
-    getDb().prepare('INSERT OR REPLACE INTO token_blacklist (token, expires_at) VALUES (?, ?)').run(token, expiresAt);
-  } catch (err) {
-    console.error('[TokenBlacklist] SQLite add error:', err.message);
   }
 }
 
@@ -180,4 +189,4 @@ async function clear() {
 // 启动时初始化 Redis
 initRedis();
 
-module.exports = { addToBlacklist, isBlacklisted, clear };
+module.exports = { addToBlacklist, isBlacklisted, credentialKey, clear };

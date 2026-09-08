@@ -108,7 +108,8 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // 授权唯一依据 = file_registry（上传时登记的真实归属），不信任 messages/moments 引用行
 // （引用行可被攻击者植入伪造，见 p1-02-review-bypass2 回归测试）。
 const jwt = require('jsonwebtoken');
-const { isBlacklisted } = require('./utils/tokenBlacklist');
+const { isBlacklisted, credentialKey } = require('./utils/tokenBlacklist');
+const { userAuthorizationError } = require('./utils/userAuthorization');
 const { isMember } = require('./modules/messages/shared');
 const { assertVisible } = require('./modules/moments/moments.service');
 const { lookupFile } = require('./utils/fileRegistry');
@@ -202,42 +203,56 @@ function resolveUploadAccess(userId, reqPath) {
   return null; // 未知类别
 }
 
-app.use('/uploads', (req, res, next) => {
+app.use('/uploads', async (req, res, next) => {
   // Cookie 优先；Electron/移动端用 Bearer 鉴权、<img> 无法带 header，故同时支持 ?token= 查询参数与 Bearer 兜底
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
   const token = req.cookies?.[config.cookieName] || req.cookies?.[config.admin.cookieName]
     || req.query?.token || bearer;
   if (!token) return res.status(401).json({ error: '未授权' });
 
-  let userId = null;
+  let payload;
+  let issuer;
   let isAdmin = false;
-  let isResourceTicket = false;
   try {
-    const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
-    if (payload.file && !payload.id) {
-      if (payload.file !== `/uploads${req.path}`) return res.status(401).json({ error: '未授权' });
-      isResourceTicket = true;
-    } else if (payload.id) {
-      userId = payload.id;
-    } else {
+    payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+    // Development may share the secrets; still require the dedicated admin payload and verify its key.
+    if (payload.admin === true && !payload.id && !payload.file && !payload.purpose) {
       jwt.verify(token, config.adminJwtSecret, { algorithms: ['HS256'] });
       isAdmin = true;
     }
   } catch {
     try {
-      jwt.verify(token, config.adminJwtSecret, { algorithms: ['HS256'] });
-      isAdmin = true;
+      const adminPayload = jwt.verify(token, config.adminJwtSecret, { algorithms: ['HS256'] });
+      isAdmin = adminPayload.admin === true && !adminPayload.id && !adminPayload.file && !adminPayload.purpose;
+      if (!isAdmin) return res.status(401).json({ error: '未授权' });
     } catch {
       return res.status(401).json({ error: '未授权' });
     }
   }
 
-  (isResourceTicket ? Promise.resolve(false) : isBlacklisted(token)).then(async blacklisted => {
-    if (blacklisted) return res.status(401).json({ error: '登录已失效，请重新登录' });
+  try {
+    if (await isBlacklisted(token)) return res.status(401).json({ error: '登录已失效，请重新登录' });
+    if (!isAdmin) {
+      if (payload.file || payload.purpose) {
+        if (payload.purpose !== 'upload-read' || payload.file !== `/uploads${req.path}` || payload.id || payload.jti
+          || typeof payload.sub !== 'string' || !payload.sub
+          || !/^credential:[a-f0-9]{64}$/.test(payload.credential || '')
+          || !Number.isFinite(payload.credentialIat) || !Number.isFinite(payload.exp)
+          || (payload.sessionId !== null && typeof payload.sessionId !== 'string')) {
+          return res.status(401).json({ error: '未授权' });
+        }
+        if (await isBlacklisted(payload.credential)) return res.status(401).json({ error: '登录已失效，请重新登录' });
+        issuer = { id: payload.sub, jti: payload.sessionId, iat: payload.credentialIat };
+      } else {
+        issuer = payload;
+      }
+      const denied = await userAuthorizationError(issuer);
+      if (denied) return res.status(denied.status).json({ error: denied.error });
+    }
 
     // P1-02：管理员放行全部；普通用户按资源类别做所有权/权限校验
-    if (!isAdmin && !isResourceTicket) {
-      const access = resolveUploadAccess(userId, req.path);
+    if (!isAdmin) {
+      const access = resolveUploadAccess(issuer.id, req.path);
       if (!access) return res.status(404).json({ error: '资源不存在' });
       if (!access.ok) return res.status(access.status || 403).json({ error: '无权访问' });
     }
@@ -258,10 +273,10 @@ app.use('/uploads', (req, res, next) => {
       }
     }
     next();
-  }).catch(err => {
+  } catch (err) {
     console.error('[uploads] blacklist check error:', err.message);
     res.status(503).json({ error: '认证服务暂时不可用' });
-  });
+  }
 }, uploadsCacheMiddleware, express.static(config.uploadsRoot, {
   // uploads 均为 uuid 命名、内容永不变更 → 强缓存，消除每次加载的 304 回源往返，
   // 头像/图片打开会话即从本地缓存秒出。private：内容经鉴权，禁止共享缓存(CDN/代理)存储，
@@ -338,7 +353,14 @@ app.get('/api/uploads/ticket', auth, (req, res) => {
   const access = resolveUploadAccess(req.user.id, pathname.slice('/uploads'.length));
   if (!access) return res.status(404).json({ error: '资源不存在' });
   if (!access.ok) return res.status(access.status || 403).json({ error: '无权访问' });
-  const token = jwt.sign({ file: pathname }, config.jwtSecret, { algorithm: 'HS256', expiresIn: 600 });
+  // Numeric exp is in seconds (jsonwebtoken); never extend the issuing credential's lifetime.
+  // https://github.com/auth0/node-jsonwebtoken#token-expiration-exp-claim
+  if (!Number.isFinite(req.user.iat) || !Number.isFinite(req.user.exp)) return res.status(401).json({ error: '请重新登录' });
+  const token = jwt.sign({
+    purpose: 'upload-read', file: pathname, sub: req.user.id,
+    sessionId: req.user.jti || null, credential: credentialKey(req.token), credentialIat: req.user.iat,
+    exp: Math.min(Math.floor(Date.now() / 1000) + 600, req.user.exp),
+  }, config.jwtSecret, { algorithm: 'HS256' });
   res.json({ url: `${pathname}?token=${encodeURIComponent(token)}` });
 });
 

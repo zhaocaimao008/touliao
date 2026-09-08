@@ -83,7 +83,7 @@ exports.refresh = asyncHandler(async (req, res) => {
     const { addToBlacklist } = require('../../utils/tokenBlacklist');
     const jwt = require('jsonwebtoken');
     const payload = jwt.decode(req.token);
-    if (payload?.exp) await addToBlacklist(req.token, payload.exp).catch(() => {});
+    if (payload?.exp) await addToBlacklist(req.token, payload.exp);
     req.app.get('io')?.in(tokenRoom(req.token)).disconnectSockets(true);
   }
   setAuthCookie(req, res, newToken);
@@ -118,7 +118,10 @@ exports.logout = asyncHandler(async (req, res) => {
         svc.removeDeviceAccount(walletId, payload.id);
       }
     }
-  } catch (_) { /* token 无效就算了 */ }
+  } catch (err) {
+    // Invalid credentials are already logged out; a storage failure must not pretend revocation succeeded.
+    if (!['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(err.name)) throw err;
+  }
   res.clearCookie(config.cookieName, { path: '/' });
   res.clearCookie(config.csrfCookie, { path: '/' });  // 同时清 CSRF cookie，避免残留导致下次登录/注册误报
   res.json({ success: true });
