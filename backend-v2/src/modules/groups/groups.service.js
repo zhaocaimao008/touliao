@@ -40,14 +40,18 @@ function upsertInviteToken(convId, createdBy) {
   return { token, expiresAt };
 }
 
-function createInviteLink(convId, userId) {
+function requireInvitePermission(convId, userId) {
   const role = memberRole(convId, userId);
   if (!role) throw forbidden('不在群内');
-  // 普通成员需群开启了"允许成员邀请"才能生成链接
   if (role === 'member') {
     const conv = db.prepare('SELECT member_can_invite FROM conversations WHERE id=?').get(convId);
     if (!conv?.member_can_invite) throw forbidden('仅群主和管理员可生成邀请链接');
   }
+}
+
+function createInviteLink(convId, userId) {
+  // 普通成员需群开启了"允许成员邀请"才能获取或生成邀请凭据
+  requireInvitePermission(convId, userId);
   const invite = upsertInviteToken(convId, userId);
   const url = `${config.appUrl}/join/${invite.token}`;
   // link 与 url 同值：url 是既有字段（老客户端在读），link 为 F1 新增别名
@@ -55,18 +59,12 @@ function createInviteLink(convId, userId) {
 }
 
 async function getQrCode(convId, userId) {
-  requireMember(convId, userId, '不在群内');
+  // 权限检查必须发生在 token 查询/复用之前；否则已有有效 token 会绕过邀请开关。
+  requireInvitePermission(convId, userId);
   const now = Math.floor(Date.now() / 1000);
   let invite = db.prepare('SELECT token FROM group_invite_tokens WHERE conversation_id=? AND expires_at>? ORDER BY created_at DESC LIMIT 1')
     .get(convId, now);
   if (!invite) {
-    // 复用已有有效 token 时无需权限校验（token 本来就是群内可见的）；
-    // 只有要生成新 token 时才校验普通成员的邀请权限（与原逻辑一致）
-    const role = memberRole(convId, userId);
-    if (role === 'member') {
-      const conv = db.prepare('SELECT member_can_invite FROM conversations WHERE id=?').get(convId);
-      if (!conv?.member_can_invite) throw forbidden('仅群主和管理员可生成邀请链接');
-    }
     invite = upsertInviteToken(convId, userId);
   }
   const url = `${config.appUrl}/join/${invite.token}`;
