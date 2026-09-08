@@ -652,6 +652,21 @@ function applySchema(db) {
     "ALTER TABLE moments ADD COLUMN cover TEXT DEFAULT ''",
     // 会话归档：按用户按会话，0=未归档(默认，老行为不变)/1=已归档
     "ALTER TABLE conversation_settings ADD COLUMN archived INTEGER DEFAULT 0",
+    // Q01: additive authority; old sessions are imported once, preserving historical jti values.
+    // The old UA-unique table is never used to authenticate or to restore revoked sessions.
+    `CREATE TABLE IF NOT EXISTS auth_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device TEXT DEFAULT '未知设备', platform TEXT DEFAULT 'Web', ip TEXT,
+      created_at INTEGER DEFAULT (strftime('%s','now')),
+      last_seen INTEGER DEFAULT (strftime('%s','now'))
+    )`,
+    `INSERT OR IGNORE INTO auth_sessions (id,user_id,device,platform,ip,created_at,last_seen)
+      SELECT id,user_id,device,platform,ip,created_at,last_seen FROM user_sessions`,
+    "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)",
+    // Old grants cannot be mapped safely to a physical session. They require password login.
+    "ALTER TABLE device_accounts ADD COLUMN session_id TEXT DEFAULT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_device_accounts_session ON device_accounts(user_id,session_id)",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────
@@ -672,7 +687,9 @@ function applySchema(db) {
     db.prepare('SELECT idx FROM schema_migrations').all().map(r => r.idx)
   );
   migrationsSnapshot = migrations;   // 供 verifySchemaDrift 启动时全量核对（防 idx 漂移漏建）
-  migrations.forEach((sql, idx) => {
+  // Schema writes and version markers commit together: a crash cannot leave a copied authority
+  // without its marker (which would otherwise resurrect removed sessions on the next startup).
+  db.transaction(() => migrations.forEach((sql, idx) => {
     if (alreadyApplied.has(idx)) return; // 已成功执行过，跳过
     try {
       db.prepare(sql).run();
@@ -687,7 +704,7 @@ function applySchema(db) {
       console.error('[db] Migration FAILED (aborting):', `#${idx}`, sql.slice(0, 120), '|', e.message);
       throw new Error(`数据库迁移 #${idx} 失败: ${e.message}`);
     }
-  });
+  }))();
 }
 
 // ── FTS5 trigram 全文索引 + 同步触发器 ───────────────────────────
