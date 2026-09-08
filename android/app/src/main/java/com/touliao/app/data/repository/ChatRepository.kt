@@ -30,7 +30,8 @@ class ChatRepository @Inject constructor(
     private val api: MessageApi,
     private val chunkUploader: ChunkUploader,
     private val socketManager: SocketManager,
-) {
+) : HistoryPageSource {
+    private val historyPageSource = ApiHistoryPageSource(api)
     /** 实时连接状态（供 UI 显示「连接中/已连接」） */
     val socketStatus: StateFlow<SocketStatus> = socketManager.status
 
@@ -80,8 +81,12 @@ class ChatRepository @Inject constructor(
     suspend fun loadConversations(includeArchived: Boolean = false): List<Conversation> =
         api.conversations(if (includeArchived) 1 else 0)
 
-    suspend fun loadHistory(conversationId: String, before: Long? = null, after: Long? = null): List<Message> =
-        api.history(conversationId, before = before, after = after)
+    override suspend fun loadHistory(
+        conversationId: String,
+        before: Long?,
+        beforeId: String?,
+        after: Long?,
+    ): List<Message> = historyPageSource.loadHistory(conversationId, before, beforeId, after)
 
     suspend fun sync(conversationId: String, cursor: Long, limit: Int = 500) =
         api.sync(conversationId, cursor, limit)

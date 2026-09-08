@@ -101,6 +101,7 @@ final class ChatViewModel: ObservableObject {
     private var peerUserId: String?
 
     private let repo = ChatRepository.shared
+    private let historyPagination = HistoryPaginationAction(source: ChatRepository.shared)
     private let recorder = AudioRecorder.shared
     private let player = AudioPlayerService.shared
     private var cancellables = Set<AnyCancellable>()
@@ -938,16 +939,23 @@ final class ChatViewModel: ObservableObject {
     /// 上滑加载更早消息
     func loadEarlier() {
         guard let credential = captureAttempt() else { return }
-        guard !loadingEarlier, !reachedStart, let before = messages.first?.createdAt else { return }
-        loadingEarlier = true
         Task {
-            defer { loadingEarlier = false }
-            if let older = try? await repo.loadHistory(conversationId, before: before) {
-                guard currentAttempt(credential) else { return }
-                let existing = Set(messages.map { $0.id })
-                messages = older.filter { !existing.contains($0.id) } + messages
-                reachedStart = older.count < 50
-            }
+            await historyPagination.execute(
+                conversationId: conversationId,
+                state: {
+                    HistoryPaginationState(
+                        messages: self.messages,
+                        loadingEarlier: self.loadingEarlier,
+                        reachedStart: self.reachedStart
+                    )
+                },
+                isCurrentAttempt: { self.currentAttempt(credential) },
+                apply: { state in
+                    self.messages = state.messages
+                    self.loadingEarlier = state.loadingEarlier
+                    self.reachedStart = state.reachedStart
+                }
+            )
         }
     }
 

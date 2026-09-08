@@ -44,12 +44,13 @@ interface MessageApi {
         @Query("includeArchived") includeArchived: Int = 0,
     ): List<Conversation>
 
-    /** 某会话历史消息，升序返回；分页用 before（早于该时间戳，epoch 秒）或 after（晚于该时间戳，增量拉取） */
+    /** 某会话历史消息，升序返回；翻页用 before + beforeId 复合边界，after 用于增量拉取。 */
     @GET("api/messages/{conversationId}")
     suspend fun history(
         @Path("conversationId") conversationId: String,
         @Query("limit") limit: Int = 50,
         @Query("before") before: Long? = null,
+        @Query("beforeId") beforeId: String? = null,
         @Query("after") after: Long? = null,
     ): List<Message>
 

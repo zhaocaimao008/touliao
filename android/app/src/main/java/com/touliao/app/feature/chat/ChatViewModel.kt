@@ -158,6 +158,7 @@ class ChatViewModel @Inject constructor(
     // 进入会话即恢复上次未发送的草稿(对齐微信/Web)
     private val _uiState = MutableStateFlow(ChatUiState(title = title, loading = true, input = draftStore.get(conversationId)))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+    private val historyPagination = HistoryPaginationAction(chatRepository)
 
     /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻（错误与"已收藏/已转发"等成功提示共用 error 字段） */
     fun consumeError() = _uiState.update { it.copy(error = null) }
@@ -910,21 +911,13 @@ class ChatViewModel @Inject constructor(
     /** 上滑加载更早消息（按最早一条的时间向前翻页） */
     fun loadEarlier() {
         val credential = captureAttempt() ?: return
-        val s = _uiState.value
-        if (s.loadingEarlier || s.reachedStart || s.messages.isEmpty()) return
-        val before = s.messages.first().created_at
-        _uiState.update { it.copy(loadingEarlier = true) }
         viewModelScope.launch {
-            runCatching { chatRepository.loadHistory(conversationId, before = before) }
-                .onSuccess { older ->
-                    if (!currentAttempt(credential)) return@onSuccess
-                    _uiState.update { st ->
-                        val existing = st.messages.map { it.id }.toSet()
-                        val merged = older.filterNot { it.id in existing } + st.messages
-                        st.copy(loadingEarlier = false, messages = merged, reachedStart = older.size < HISTORY_PAGE)
-                    }
-                }
-                .onFailure { _uiState.update { it.copy(loadingEarlier = false) } }
+            historyPagination.execute(
+                conversationId = conversationId,
+                state = { _uiState.value },
+                isCurrentAttempt = { currentAttempt(credential) },
+                updateState = { transform -> _uiState.update(transform) },
+            )
         }
     }
 
