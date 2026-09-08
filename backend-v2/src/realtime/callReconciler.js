@@ -2,6 +2,11 @@
 /**
  * 服务进程重启收尾（Task 4，2026-08-31）。
  *
+ * 审计澄清（命名易混淆，见独立红队审计报告 P1-B）：本文件与"双方同时呼叫"的并发
+ * 仲裁**无关**——那个逻辑在 callSessionRegistry.js 的 createPrivate()/occupy() 里
+ * （先到先得，无优先级）。本文件只做进程重启后的数据库悬挂记录收尾，别处若要找
+ * "同时呼叫怎么判"，不要找这里。
+ *
  * callSessionRegistry 是纯内存状态（单进程 fork，见 callSessionRegistry.js），进程
  * 重启必然丢失全部进行中通话的媒体会话——SDP/ICE、设备 socket 所有权、对端状态在
  * 单进程重启后无法可靠恢复，这里不尝试重建 PeerConnection。
