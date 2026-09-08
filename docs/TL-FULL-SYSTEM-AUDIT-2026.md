@@ -94,6 +94,32 @@ HTTP/Socket 幂等兼容契约：明确传入的 key 必须是 1–128 字符非
 
 <!-- FINAL_RESULTS -->
 
+## 6A. 最后一轮验证（2026-09-08 UTC）
+
+本轮基于远程提交 `16ff9572`，并在同步 `origin/main` 后的审计分支上执行。迁移追加检查通过（139 条基线保持不变，尾部追加 6 条），`git diff --check` 通过。
+
+| 范围 | 实际结果 | 结论 |
+|---|---|---|
+| Web lint | `npm run lint` 通过 | 通过 |
+| Web unit/integration | Vitest 18 个文件、122 项通过 | 通过 |
+| Web production build | Vite production build 通过 | 通过 |
+| Web typecheck | Web 为 JavaScript 项目，无 `tsconfig.json` 或 TypeScript 源文件 | 不适用，不能伪造通过 |
+| Landing build/typecheck | Next 16.3.4 编译、TypeScript、静态页生成均通过 | 通过 |
+| Browser smoke/integration | 注册、好友、私聊、Emoji、刷新、离线恢复、390px viewport；无 page error | 通过；FCP 328ms、LCP 636ms、CLS 0 |
+| Linux Electron smoke | Electron 43.6.0、store、preload bridge 通过 | 通过；容器禁用 OS sandbox，不能替代发布安全验收 |
+| Backend complete suite | 103 suites；803 passed、1 skipped、804 tests；唯一跳过项是 `DISABLE_RATE_LIMIT=1` 时的限流分支，默认运行未设置该变量 | 断言通过，但 `--detectOpenHandles` 进程未自然退出，句柄验收阻塞 |
+| Redis/queue/rate-limit integration | 独立 Redis：跨进程撤销 3 项、队列/ACK 6 项、限流 7 项通过 | 通过 |
+| Browser phase 2 | 浏览器真实流程结果为 `login/textAndEmoji/onePersistedMessage/offlineRecovery/refresh/mobileWidth390=true` | 通过 |
+| Signing preflight | 6 项通过，仅临时测试密钥 | 通过门禁；没有签名安装包验收 |
+
+核心认证、刷新、会话撤销、多端、WebSocket、重连、离线同步、单聊/群聊、好友申请、撤回删除、已读未读、排序、UUID/幂等、Redis、事务、并发、上传和消息权限均由现有回归矩阵覆盖；本轮没有发现新的 P0/P1 源码问题。安全扫描未发现仓库中的私钥、Token 或生产密码；移动端 Firebase 配置中的 `AIza...` 为客户端公开配置值，不是服务端私钥。
+
+依赖扫描仍报告后端 14 个 moderate（high/critical 为 0），以及 Web 的 `xlsx@0.18.5` high advisory（上游暂无修复）和 React Router moderate advisory。性能基准 8 项全部通过：首次对话列表平均 25.00ms、缓存命中平均 25.70ms、单用户查询平均 30.80ms、100 并发读取成功率 100%、50 并发写入成功率 100%；浏览器 FCP 328ms、LCP 636ms、CLS 0。未建立生产 CPU/内存基线，不能据此宣称无泄漏或无异常。`xlsx` 用于浏览器端文档预览，当前代码仍需把恶意表格解析风险作为 P2 维护项处理；本轮没有盲目升级造成协议或文件预览回归。
+
+因此当前计数保持 **P0 = 0，P1 = 0，P2 = 4（3 项部分完成、1 项环境阻塞；另有依赖和容量风险）**，健康度维持 **90/100**。无法验证的内容包括 Android/iOS 真机与 SDK/Xcode、Windows 签名安装包、真实弱网和多实例压力、云对象存储供应商链路、生产负载以及后端句柄自然退出。由于句柄检查未完成且存在未修复的高危 `xlsx` 依赖，本轮结论为：**暂不建议合并 main**。
+
+
+
 ## 7. 重点流程与验证边界
 
 | 用户指定流程 | 已验证 | 尚不能据此宣称通过 |
