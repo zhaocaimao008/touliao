@@ -72,6 +72,10 @@ const activeCalls = new Map();
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
+function emitAccountCallEnd(target, accountId, from, reason, callId) {
+  target.to(`user_${accountId}`).emit('call:end', { from, reason, callId });
+}
+
 /**
  * 创建通话超时定时器：未被应答的通话在 CALL_TIMEOUT_MS 后自动清除
  */
@@ -92,7 +96,8 @@ function scheduleCallTimeout(key, io, registry) {
       callRateMap.delete(callerId);
       // 未接听超时也要补发 call:end，否则被叫端 UI/本地通知（未收到任何结束信号）会永久悬挂（NOTIFY-002 E3）
       // 带 callId：客户端 callEndEvents 按 callId 匹配，防跨事件流乱序误杀新来电（P1-3）
-      io.to(`user_${calleeId}`).emit('call:end', { from: callerId, reason: 'timeout', callId: c.id });
+      emitAccountCallEnd(io, callerId, calleeId, 'timeout', c.id);
+      emitAccountCallEnd(io, calleeId, callerId, 'timeout', c.id);
     }
   }, CALL_TIMEOUT_MS);
 }
@@ -130,7 +135,8 @@ function cleanupExpiredPrivateCall(io, registry, { callId, userId, kind }) {
         callerId, calleeId,
       }, io);
     }
-    io.to(`user_${otherId}`).emit('call:end', { from: userId, reason: 'disconnected', callId: call.id });
+    emitAccountCallEnd(io, userId, otherId, 'disconnected', call.id);
+    emitAccountCallEnd(io, otherId, userId, 'disconnected', call.id);
   } catch (e) {
     console.warn('[call] disconnect 落库失败:', e.message);
   } finally {
@@ -334,11 +340,16 @@ function registerCallHandler(io, socket, registry) {
     // （answered_elsewhere / rejected_elsewhere），详见 AUDIT.md 改动清单。用 socket.to()
     // （不含当前操作的这台设备自己）只通知同一用户的其他设备，避免操作设备收到自己发出
     // 的动作对应的回声通知后又重复处理一遍（比如拒绝后又触发一次拒绝逻辑）。
-    socket.to(`user_${userId}`).emit('call:end', {
-      from: userId,
-      reason: accepted ? 'answered_elsewhere' : 'rejected_elsewhere',
-      callId: c.id,
-    });
+    if (!accepted) {
+      emitAccountCallEnd(io, to, userId, busy ? 'busy' : (reason || 'rejected'), c.id);
+    }
+    emitAccountCallEnd(
+      socket,
+      userId,
+      userId,
+      accepted ? 'answered_elsewhere' : 'rejected_elsewhere',
+      c.id,
+    );
   });
 
   // call:offer/answer/ice：校验双方确实存在活跃通话，防止信令注入攻击
@@ -420,12 +431,12 @@ function registerCallHandler(io, socket, registry) {
       activeCalls.delete(k2);
       registry.end(callId);
       // 只有活跃通话存在时才转发：防止任意用户强制关闭他人通话界面（带 callId，P1-3）
-      io.to(`user_${to}`).emit('call:end', { from: userId, reason, callId: c.id });
+      emitAccountCallEnd(io, to, userId, reason, c.id);
       // 2026-08-30 修复（多端不同步，同一类问题）：挂断动作此前只广播给了对方(to)，挂断
       // 发起者(userId)自己的其他在线设备完全不知道已经在别的设备上挂断了。事件/payload
       // 跟发给对方那份完全一致，直接复用，不需要客户端新增监听。用 socket.to()（不含当前
       // 挂断的这台设备自己）避免操作设备收到自己挂断动作的回声后又重复处理一遍。
-      socket.to(`user_${userId}`).emit('call:end', { from: userId, reason, callId: c.id });
+      emitAccountCallEnd(socket, userId, userId, reason, c.id);
       // 通话已结束 → 清除冷却，允许立即重拨（P1-1）
       callRateMap.delete(userId);
     }
