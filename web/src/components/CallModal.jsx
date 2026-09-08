@@ -7,7 +7,12 @@ import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingT
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
-import { initializeCallMedia, stopStream } from '../utils/callLifecycle';
+import {
+  currentCallMedia,
+  initializeCallMedia,
+  scheduleCurrentCallTimeout,
+  stopStream,
+} from '../utils/callLifecycle';
 import './CallModal.css';
 
 // 页面首次交互即预热 AudioContext(autoplay 政策:创建/resume 需在手势栈内,
@@ -370,7 +375,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const initPC = useCallback(async () => {
     const generation = mediaGenerationRef.current;
     const constraints = { audio: true, video: videoConstraints(isVideo) };
-    const pc = await initializeCallMedia({
+    const initializedPc = await initializeCallMedia({
       constraints,
       getUserMedia: value => navigator.mediaDevices.getUserMedia(value),
       createEmptyStream: () => new MediaStream(),
@@ -391,6 +396,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       publishPeerConnection: value => { pcRef.current = value; },
       discardPeerConnection: value => { if (pcRef.current === value) pcRef.current = null; },
     });
+    const pc = currentCallMedia(
+      initializedPc,
+      value => isMediaGenerationCurrent(generation, value),
+    );
     if (!pc) return null;
 
     pc.onicecandidate = ({ candidate }) => {
@@ -611,11 +620,17 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   // 其内部 setState 属正当的取媒体流程，非可派生同步状态。
   useEffect(() => {
     if (direction === 'outgoing') {
+      const generation = mediaGenerationRef.current;
       initPC().then(pc => {
-        if (!pc) return;
-        timeoutRef.current = setTimeout(() => {
-          if (statusRef.current === 'calling') endCall(true, 'timeout');
-        }, CALL_TIMEOUT_MS);
+        timeoutRef.current = scheduleCurrentCallTimeout({
+          pc,
+          isCurrent: value => isMediaGenerationCurrent(generation, value),
+          setTimer: setTimeout,
+          delay: CALL_TIMEOUT_MS,
+          onTimeout: () => {
+            if (statusRef.current === 'calling') endCall(true, 'timeout');
+          },
+        });
       });
     }
     const onUnload = () => {

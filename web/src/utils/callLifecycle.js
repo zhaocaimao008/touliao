@@ -2,6 +2,17 @@ function stopStream(stream) {
   stream?.getTracks().forEach(track => track.stop());
 }
 
+function currentCallMedia(pc, isCurrent) {
+  return pc && isCurrent(pc) ? pc : null;
+}
+
+function scheduleCurrentCallTimeout({ pc, isCurrent, setTimer, delay, onTimeout }) {
+  if (!currentCallMedia(pc, isCurrent)) return null;
+  return setTimer(() => {
+    if (currentCallMedia(pc, isCurrent)) onTimeout();
+  }, delay);
+}
+
 export async function initializeCallMedia({
   constraints,
   getUserMedia,
@@ -55,4 +66,4 @@ export async function initializeCallMedia({
   return pc;
 }
 
-export { stopStream };
+export { currentCallMedia, scheduleCurrentCallTimeout, stopStream };

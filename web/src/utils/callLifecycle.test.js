@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { initializeCallMedia } from './callLifecycle';
+import * as callLifecycle from './callLifecycle';
+
+const { initializeCallMedia } = callLifecycle;
 
 function deferred() {
   let resolve;
@@ -121,5 +123,67 @@ describe('initializeCallMedia', () => {
     expect(stream.tracks.every(track => track.stopped)).toBe(true);
     expect(harness.published.stream).toBeNull();
     expect(harness.published.pc).toBeNull();
+  });
+});
+
+describe('call media handoff guards', () => {
+  it('rejects a PC invalidated between an awaited helper and its caller continuation', () => {
+    const pc = peerConnection();
+
+    expect(callLifecycle.currentCallMedia(pc, () => false)).toBeNull();
+  });
+
+  it('does not install an outgoing timeout after initPC resolves into an old generation', () => {
+    let installed = false;
+
+    const timer = callLifecycle.scheduleCurrentCallTimeout({
+      pc: peerConnection(),
+      isCurrent: () => false,
+      setTimer: () => { installed = true; return 1; },
+      delay: 30_000,
+      onTimeout: () => {},
+    });
+
+    expect(timer).toBeNull();
+    expect(installed).toBe(false);
+  });
+
+  it('suppresses an installed timeout when its call generation later becomes stale', () => {
+    let current = true;
+    let scheduled;
+    let expired = false;
+    const pc = peerConnection();
+
+    const timer = callLifecycle.scheduleCurrentCallTimeout({
+      pc,
+      isCurrent: value => current && value === pc,
+      setTimer: callback => { scheduled = callback; return 7; },
+      delay: 30_000,
+      onTimeout: () => { expired = true; },
+    });
+    current = false;
+    scheduled();
+
+    expect(timer).toBe(7);
+    expect(expired).toBe(false);
+  });
+
+  it('installs and executes the outgoing timeout for the current PC', () => {
+    let scheduled;
+    let expired = false;
+    const pc = peerConnection();
+
+    const timer = callLifecycle.scheduleCurrentCallTimeout({
+      pc,
+      isCurrent: value => value === pc,
+      setTimer: (callback, delay) => { scheduled = { callback, delay }; return 9; },
+      delay: 30_000,
+      onTimeout: () => { expired = true; },
+    });
+    scheduled.callback();
+
+    expect(timer).toBe(9);
+    expect(scheduled.delay).toBe(30_000);
+    expect(expired).toBe(true);
   });
 });
