@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import jsQR from 'jsqr';
 import axios from 'axios';
 import Avatar from './Avatar';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { showToast } from '../utils/toast';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -16,6 +16,7 @@ import { useI18n } from '../contexts/I18nContext';
  *   onClose(convId?) — 关闭；带 convId 时表示已入群，父级据此打开会话
  */
 export default function ScanQR({ onClose }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);

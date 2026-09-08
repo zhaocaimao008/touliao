@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { FixedSizeList } from 'react-window';
 import Avatar from './Avatar';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 import { useConvSettings } from '../hooks/useConvSettings';
 import { GroupAvatar } from './GroupAvatar';
@@ -13,11 +13,13 @@ export { GroupAvatar } from './GroupAvatar'; // re-export 向后兼容
 
 /* ── 群头像上传（管理员 hover 显示相机图标） ── */
 function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, onChange }) {
+  useMediaCredentials();
+  const avatarUrl = mediaUrl(info.avatar);
   const { t } = useI18n();
   const [hovered, setHovered] = useState(false);
   const [avErr, setAvErr] = useState(false);
-  const [prevAvatar, setPrevAvatar] = useState(info.avatar);
-  if (info.avatar !== prevAvatar) { setPrevAvatar(info.avatar); setAvErr(false); }
+  const [prevAvatar, setPrevAvatar] = useState(avatarUrl);
+  if (avatarUrl !== prevAvatar) { setPrevAvatar(avatarUrl); setAvErr(false); }
   const r = Math.round(50 * 0.22);
   return (
     <div
@@ -32,7 +34,7 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
       title={isAdmin ? t('groupInfo.clickToChangeAvatar') : undefined}
     >
       {info.avatar && !avErr
-        ? <img src={mediaUrl(info.avatar)} alt="" loading="lazy" className="gi-av-img" onError={() => setAvErr(true)} style={{ borderRadius: r }} />
+        ? <img src={avatarUrl} alt="" loading="lazy" className="gi-av-img" onError={() => setAvErr(true)} style={{ borderRadius: r }} />
         : <GroupAvatar members={info.members} size={48} />
       }
       {isAdmin && (hovered || uploading) && (

@@ -11,6 +11,7 @@
 //   2. 远程配置（Config.api/socket）
 //   3. 空值 → Web 同源，相对路径可用
 import { getConfig, isConfigLoaded } from './config';
+import { useSyncExternalStore } from 'react';
 
 function getBaseUrl() {
   const manualUrl = localStorage.getItem('touliao_server_url');
@@ -30,6 +31,42 @@ function bearerToken() {
   try { return localStorage.getItem('touliao_electron_token') || ''; } catch { return ''; }
 }
 
+// Tickets belong to the exact issuing credential and server. Keep them in memory so old
+// sessionStorage entries (including pre-revocation tickets) never survive a reload/login.
+const mediaTickets = new Map();
+const mediaListeners = new Set();
+let ticketContext = { token: '', base: '', generation: 0 };
+function clearMediaTickets() {
+  mediaTickets.clear();
+  ticketContext = { token: '', base: '', generation: ticketContext.generation + 1 };
+}
+export function invalidateMediaTickets() {
+  clearMediaTickets();
+  for (const listener of mediaListeners) listener();
+}
+function subscribeMedia(listener) {
+  mediaListeners.add(listener);
+  return () => mediaListeners.delete(listener);
+}
+const mediaSnapshot = () => ticketContext.generation;
+// Subscribe at component top level; mediaUrl remains safe inside maps/event handlers.
+// https://react.dev/reference/react/useSyncExternalStore
+export function useMediaCredentials() {
+  return useSyncExternalStore(subscribeMedia, mediaSnapshot);
+}
+window.addEventListener?.('touliao:credentials-updated', invalidateMediaTickets);
+window.addEventListener?.('storage', event => {
+  if (['touliao_electron_token', 'touliao_server_url', 'touliao_session_revision', null].includes(event.key)) invalidateMediaTickets();
+});
+
+function ticketExpiry(url, base) {
+  try {
+    const token = new URL(url, base).searchParams.get('token');
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return Math.min(Date.now() + 9 * 60 * 1000, Number(payload.exp) * 1000 - 1000);
+  } catch { return 0; } // A response with no readable expiry may be used once, never cached.
+}
+
 export function mediaUrl(u) {
   if (!u) return u;
   // 已经是绝对地址 / data / blob，原样返回
@@ -45,25 +82,33 @@ export function mediaUrl(u) {
 
   // 桌面/移动端用 Bearer 请求短时、单文件资源票据；登录 JWT 不进入媒体 URL。
   const token = bearerToken();
+  if (ticketContext.token !== token || ticketContext.base !== base) {
+    clearMediaTickets();
+    ticketContext = { ...ticketContext, token, base };
+  }
+  const generation = ticketContext.generation;
   if (token && /\/uploads\//.test(abs)) {
     const file = new URL(abs).pathname;
-    const cacheKey = `touliao_media_ticket:${file}`;
     try {
-      const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+      const cached = mediaTickets.get(file);
       if (cached?.url && cached.expiresAt > Date.now()) {
         return cached.url.startsWith('/') ? base + cached.url : cached.url;
       }
 
       // mediaUrl 的调用方需要同步字符串（img/video/href）。仅桌面/原生首次取票时
-      // 同步请求一次，之后 9 分钟均命中 sessionStorage，避免把登录 JWT 写入 URL。
+      // 同步请求一次，随后在当前凭据的有效期内复用，避免把登录 JWT 写入 URL。
       const xhr = new XMLHttpRequest();
       xhr.open('GET', `${base}/api/uploads/ticket?file=${encodeURIComponent(file)}`, false);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.withCredentials = true;
       xhr.send();
+      // A credential/server update during the request must discard this old response.
+      if (token !== bearerToken() || base !== getBaseUrl().replace(/\/$/, '') || generation !== ticketContext.generation) return abs;
       if (xhr.status >= 200 && xhr.status < 300) {
         const ticket = JSON.parse(xhr.responseText);
-        sessionStorage.setItem(cacheKey, JSON.stringify({ url: ticket.url, expiresAt: Date.now() + 9 * 60 * 1000 }));
+        if (typeof ticket.url !== 'string') return abs;
+        if (mediaTickets.size >= 500) mediaTickets.delete(mediaTickets.keys().next().value);
+        mediaTickets.set(file, { url: ticket.url, expiresAt: ticketExpiry(ticket.url, base) });
         return ticket.url.startsWith('/') ? base + ticket.url : ticket.url;
       }
     } catch { /* 取票失败时返回无凭证 URL，由现有加载错误路径处理 */ }

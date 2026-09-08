@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { showConfirm, showToast } from '../utils/toast';
 import { downloadFile } from '../utils/download';
 import ImagePreview from './ImagePreview';
@@ -13,6 +13,7 @@ function formatDate(sec) {
 }
 
 export default function Collections() {
+  useMediaCredentials();
   const { t } = useI18n();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,7 @@ export default function Collections() {
   // 所有图片收藏的完整 URL，供灯箱左右切换（跟随当前展示的列表）
   const imageUrls = shown
     .filter(c => c.type === 'image')
-    .map(c => mediaUrl(c.extra?.file_url || c.content));
+    .map(c => c.extra?.file_url || c.content);
 
   const remove = async (id) => {
     if (!(await showConfirm(t('coll.confirmRemove')))) return;
@@ -97,9 +98,9 @@ export default function Collections() {
   const renderContent = (c) => {
     if (c.type === 'image') {
       const url = mediaUrl(c.extra?.file_url || c.content);
-      const idx = imageUrls.indexOf(url);
+      const idx = imageUrls.indexOf(c.extra?.file_url || c.content);
       const open = () => setLightbox({ urls: imageUrls, idx: idx < 0 ? 0 : idx });
-      return <img loading="lazy" src={url} alt={t('coll.collectedImageAlt')}
+      return <img key={url} loading="lazy" src={url} alt={t('coll.collectedImageAlt')}
         role="button" tabIndex={0} aria-label={t('moments.viewLargeImage')}
         onError={e => { e.currentTarget.style.display = 'none'; }}
         onClick={open}

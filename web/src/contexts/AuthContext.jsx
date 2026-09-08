@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import axios from 'axios';
 import { clearCache } from '../utils/msgCache';
 import { clearCsrfToken, notifyCredentialsUpdated } from '../utils/axiosInterceptor';
+import { invalidateMediaTickets } from '../utils/url';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
 axios.defaults.withCredentials = true;
@@ -38,6 +39,7 @@ function setElectronToken(token) {
     localStorage.removeItem(ELECTRON_TOKEN_KEY);
     delete axios.defaults.headers.common['Authorization'];
   }
+  invalidateMediaTickets();
 }
 
 // ── 多账号"最近登录"记录 ──────────────────────────────────────────

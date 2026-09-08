@@ -52,7 +52,7 @@ const ReadStatusModal     = lazy(() => import('./ReadStatusModal'));
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { rememberAspect } from '../utils/imgDimCache';
 import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import { downloadFile } from '../utils/download';
@@ -198,6 +198,7 @@ async function uploadThumb(thumbUploadUrl, blob) {
 }
 
 export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall, onStartGroupCall, onStartChat }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
@@ -2388,7 +2389,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 图片在 it.msg.type==='image'(此前误用 it.type==='image' 恒空→画廊只能看单张)。
     const imageUrls = flatItems
       .filter(it => it.type === 'message' && it.msg?.type === 'image' && it.msg.file_url)
-      .map(it => mediaUrl(it.msg.file_url));
+      .map(it => it.msg.file_url);
     const idx = imageUrls.indexOf(clickedUrl);
     setLightboxState({ urls: imageUrls, idx: idx >= 0 ? idx : 0 });
   };

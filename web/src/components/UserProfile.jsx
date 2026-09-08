@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { useAuth } from '../contexts/AuthContext';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
 import useFocusTrap from '../hooks/useFocusTrap';
@@ -10,6 +10,7 @@ import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 
 export default function UserProfile({ userId, onClose, onStartChat, onFriendAdded, onFriendDeleted, onNudge }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const { user: currentUser } = useAuth();
   const [user, setUser] = useState(null);
@@ -150,7 +151,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {/* 顶部封面区 */}
         <div className="up-header">
           {user.cover_photo
-            ? <img src={mediaUrl(user.cover_photo)} loading="lazy" className="up-cover" alt=""
+            ? <img key={mediaUrl(user.cover_photo)} src={mediaUrl(user.cover_photo)} loading="lazy" className="up-cover" alt=""
                    onError={e => { e.currentTarget.onerror = null; e.currentTarget.className = 'up-cover-default'; e.currentTarget.removeAttribute('src'); }} />
             : <div className="up-cover-default" />
           }

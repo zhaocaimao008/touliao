@@ -34,7 +34,7 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePushNotification } from '../hooks/usePushNotification';
 import useFocusTrap from '../hooks/useFocusTrap';
-import { mediaUrl, goLogin } from '../utils/url';
+import { mediaUrl, goLogin, useMediaCredentials } from '../utils/url';
 import { warmupCacheDB } from '../utils/msgCache';
 import { saveCred, removeCred } from '../utils/rememberedCreds';
 import { useI18n } from '../contexts/I18nContext';
@@ -76,6 +76,7 @@ const visibleTabs = (features) =>
 
 /* ── 左上角头像 — 点击展开账号切换/添加下拉面板 ── */
 function AccountSwitcher() {
+  useMediaCredentials();
   const { t } = useI18n();
   const { user, accounts, login, switchAccount, removeAccount, logout } = useAuth();
   const [open, setOpen] = useState(false);
@@ -91,8 +92,9 @@ function AccountSwitcher() {
   const containerRef = useRef(null);
   const letter = (user?.username || '?')[0].toUpperCase();
   // 头像地址变化即复位错误态：render 期派生（存上一次 avatar），避免 effect 内同步 setState
-  const [prevAvatar, setPrevAvatar] = useState(user?.avatar);
-  if (user?.avatar !== prevAvatar) { setPrevAvatar(user?.avatar); setAvatarErr(false); }
+  const avatarUrl = mediaUrl(user?.avatar);
+  const [prevAvatar, setPrevAvatar] = useState(avatarUrl);
+  if (avatarUrl !== prevAvatar) { setPrevAvatar(avatarUrl); setAvatarErr(false); }
 
   /* 点外部关闭，不用全屏遮罩（遮罩会挡住头像按钮本身） */
   useEffect(() => {
@@ -181,7 +183,7 @@ function AccountSwitcher() {
       <div className="as-avatar-btn" data-testid="account-switcher" role="button" tabIndex={0} aria-label={t('home.accountSwitch')} aria-expanded={open} onClick={() => setOpen(v => !v)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}>
         <div className={`as-avatar-inner${open ? ' as-avatar-inner-open' : ''}`}>
           {user?.avatar && !avatarErr
-            ? <img src={mediaUrl(user.avatar)} alt="" loading="lazy" className="as-avatar-img" onError={() => setAvatarErr(true)} />
+            ? <img src={avatarUrl} alt="" loading="lazy" className="as-avatar-img" onError={() => setAvatarErr(true)} />
             : letter
           }
         </div>
