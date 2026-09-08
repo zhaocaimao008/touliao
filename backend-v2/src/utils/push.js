@@ -321,23 +321,29 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   const settingsMap = new Map(settingsRows.map(r => [r.user_id, r]));
   const defaultSettings = { last_read_at: 0, muted: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0, quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00', lang: pushI18n.DEFAULT_LANG };
 
-  // 批量未读数（优化 N+1）：一次查询取回所有目标用户的未读数，替代循环内逐用户 COUNT。
-  // 大群（500 人）一条消息原为 500 次同步 SQLite 查询阻塞事件循环，现为 1 次。
-  // 语义对齐原实现：排除发送者本人、按各自 last_read_at（conversation_settings）过滤。
-  const unreadRows = db.prepare(`
-    SELECT cm.user_id AS uid,
-      (SELECT COUNT(*) FROM messages m
-       WHERE m.conversation_id = cm.conversation_id
-         AND m.deleted = 0
-         AND m.sender_id != ?
-         AND m.created_at > COALESCE(
-           (SELECT cs.last_read_at FROM conversation_settings cs
-            WHERE cs.user_id = cm.user_id AND cs.conversation_id = cm.conversation_id), 0)
-      ) AS cnt
-    FROM conversation_members cm
-    WHERE cm.conversation_id = ? AND cm.user_id IN (${ph})
-  `).all(senderId, conversationId, ...targetUids);
-  const unreadMap = new Map(unreadRows.map(r => [r.uid, Math.min(Number(r.cnt) || 0, 99)]));
+  // 未读数：此前的"批量"实现虽然只发一条 SQL，但内部仍是每个成员一次相关子查询
+  // （SQLite 执行引擎逐行求值），大群一条消息仍等价于 N 次子查询，是审计发现的
+  // 事件循环延迟根因之一（与 conversations.service.js 的同类问题不同代码路径，
+  // 需单独修）。改为：先取一次"发送者以外、晚于最早已读水位"的消息时间戳列表
+  // （单次扁平查询，走 created_at 索引），再在内存里用各自 last_read_at 二分计数——
+  // 把 N 次子查询降为 1 次查询 + O(N log M) 的纯内存计算。
+  const lastReadTimes = targetUids.map(uid => Number((settingsMap.get(uid) || defaultSettings).last_read_at) || 0);
+  const minLastRead = Math.min(...lastReadTimes);
+  const candidateTimes = db.prepare(`
+    SELECT created_at FROM messages
+    WHERE conversation_id = ? AND deleted = 0 AND sender_id != ? AND created_at > ?
+    ORDER BY created_at ASC
+  `).all(conversationId, senderId, minLastRead).map(r => r.created_at);
+  function countAfter(ts) {
+    // 二分查找第一个 > ts 的位置，其后元素个数即未读数
+    let lo = 0, hi = candidateTimes.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (candidateTimes[mid] > ts) hi = mid; else lo = mid + 1;
+    }
+    return candidateTimes.length - lo;
+  }
+  const unreadMap = new Map(targetUids.map((uid, i) => [uid, Math.min(countAfter(lastReadTimes[i]), 99)]));
 
   const pushPromises = targetUids.map(uid => {
     const settings = settingsMap.get(uid) || defaultSettings;

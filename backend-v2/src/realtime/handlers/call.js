@@ -116,6 +116,10 @@ function scheduleCallTimeout(key, io, registry) {
       // 未接听超时也要补发 call:end，否则被叫端 UI/本地通知（未收到任何结束信号）会永久悬挂（NOTIFY-002 E3）
       // 带 callId：客户端 callEndEvents 按 callId 匹配，防跨事件流乱序误杀新来电（P1-3）
       io.to(`user_${calleeId}`).emit('call:end', { from: callerId, reason: 'timeout', callId: c.id });
+      // 审计 P0-1 修复：此前只通知被叫，主叫端永远收不到任何服务端信号——四端各自的 45s
+      // 客户端计时器只是代偿这个契约缺口；一旦某端计时器逻辑有 bug，主叫会在服务端已经
+      // canceled 之后本地永久卡在"呼叫中"。这里补发对称信号，reason 与被叫视角区分。
+      io.to(`user_${callerId}`).emit('call:end', { from: calleeId, reason: 'no_answer', callId: c.id });
     }
   }, CALL_TIMEOUT_MS);
 }
@@ -271,6 +275,10 @@ function registerCallHandler(io, socket, registry) {
     });
     if (!created.ok) {
       socket.emit('call:error', { code: created.code, callId: created.callId });
+      // 审计 P1-A 修复：此前 CALL_BUSY 等 registry 失败只发独立 call:error，从不调用 ack——
+      // 若客户端按标准"发 call:request 后等待 ack 决定下一步"模式编码（且未独立监听
+      // call:error 兜底），会永久挂起。与上面 CALL_RATE_LIMIT 分支的失败信号语义保持一致。
+      if (typeof ack === 'function') ack({ callId: null, error: created.code });
       return;
     }
     const timer = scheduleCallTimeout(key, io, registry);

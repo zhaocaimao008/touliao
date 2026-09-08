@@ -161,15 +161,32 @@ setInterval(() => {
     const sorted = [...convCache.entries()].sort((a, b) => a[1].ts - b[1].ts);
     for (let i = 0; i < evictCount; i++) convCache.delete(sorted[i][0]);
   }
+  for (const [key, val] of memberIdCache) {
+    if (now - val.ts >= CONV_CACHE_TTL) memberIdCache.delete(key);
+  }
 }, 60_000).unref();
+
+// 成员 id 短 TTL 缓存：审计发现活跃大群每条消息都触发一次同步全成员 SELECT（最多
+// 500 人），事件循环延迟在压测中从 ~10ms 飙升到 150-290ms。同一会话短窗口内（对齐
+// CONV_CACHE_TTL）连续多条消息复用同一份成员 id 列表，避免重复查库；容忍的代价仅是
+// "刚加入/退出的成员，其自身会话列表条目最多延迟一个 TTL 窗口才被这条失效通知触达"
+// ——不影响消息实时收发（走独立的 socket 广播路径），只影响列表排序的极短暂陈旧。
+const memberIdCache = new Map(); // convId -> { ids, ts }
+
+function getMemberIdsCached(convId) {
+  const hit = memberIdCache.get(convId);
+  if (hit && Date.now() - hit.ts < CONV_CACHE_TTL) return hit.ids;
+  const ids = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(convId).map(r => r.user_id);
+  memberIdCache.set(convId, { ids, ts: Date.now() });
+  return ids;
+}
 
 // 失效某会话所有成员的会话列表缓存。
 // 发消息/转发/撤回等改变会话「最新消息/排序」的操作调用，使收发双方(群则全员)
 // 下次拉列表都能读到最新状态，而非等 2s TTL 自然过期。
-// 注：仅操作进程内 convCache（listConversations 真正读的缓存），一次带索引的成员查询。
+// 注：仅操作进程内 convCache（listConversations 真正读的缓存）。
 function invalidateConvCacheForConversation(convId) {
-  const members = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(convId);
-  for (const m of members) convCache.delete(m.user_id);
+  for (const uid of getMemberIdsCached(convId)) convCache.delete(uid);
 }
 
 // 失效单个用户的会话列表缓存（仅影响自己的操作，如置顶/免打扰/清空）。

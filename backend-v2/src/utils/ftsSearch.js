@@ -81,6 +81,15 @@ function initFTS5() {
  * @param {object} options - 选项 { limit, offset, senderOnly }
  * @returns {Array} 搜索结果
  */
+// trigram 分词器要求查询串至少 3 个字符才能组成一个完整 trigram；更短的查询
+// MATCH 恒为 0 行（不报错，静默返回空）。中文最高频词大量是 2 字（"你好"/"图片"/"优化"……），
+// 短于此长度一律降级为 LIKE（无索引全表扫描，但当前数据量下可接受，见审计 P0-1）。
+const FTS_MIN_LEN = 3;
+
+function isShortQuery(trimmed) {
+  return trimmed.length > 0 && trimmed.length < FTS_MIN_LEN;
+}
+
 function searchMessages(query, conversationId, userId, options = {}) {
   const { limit = 50, offset = 0, senderOnly = null } = options;
 
@@ -95,29 +104,36 @@ function searchMessages(query, conversationId, userId, options = {}) {
     return [];
   }
 
-  // trigram 分词器对任意 Unicode（含中文）均有效；
-  // 将整个查询串包在双引号中作短语搜索，避免 FTS5 运算符注入。
-  // 双引号内部的 `"` 需转义为 `""（FTS5 规范）。
-  const ftsPhrase = `"${trimmed.replace(/"/g, '""')}"`;
+  const short = isShortQuery(trimmed);
+  const params = [];
+  let sql;
 
-  let sql = `
-    SELECT
-      m.id,
-      m.content,
-      m.type,
-      m.conversation_id,
-      m.sender_id,
-      m.created_at,
-      u.username as senderName,
-      u.avatar as senderAvatar,
-      rank
-    FROM messages_fts fts
-    JOIN messages m ON m.id = fts.message_id
-    JOIN users u ON u.id = m.sender_id
-    WHERE fts.content MATCH ?
-  `;
-
-  const params = [ftsPhrase];
+  if (short) {
+    sql = `
+      SELECT
+        m.id, m.content, m.type, m.conversation_id, m.sender_id, m.created_at,
+        u.username as senderName, u.avatar as senderAvatar, 0 as rank
+      FROM messages m
+      JOIN users u ON u.id = m.sender_id
+      WHERE m.deleted = 0 AND m.type = 'text' AND m.content LIKE ? ESCAPE '\\'
+    `;
+    params.push(`%${escapeLike(trimmed)}%`);
+  } else {
+    // trigram 分词器对任意 Unicode（含中文）均有效；
+    // 将整个查询串包在双引号中作短语搜索，避免 FTS5 运算符注入。
+    // 双引号内部的 `"` 需转义为 `""（FTS5 规范）。
+    const ftsPhrase = `"${trimmed.replace(/"/g, '""')}"`;
+    sql = `
+      SELECT
+        m.id, m.content, m.type, m.conversation_id, m.sender_id, m.created_at,
+        u.username as senderName, u.avatar as senderAvatar, rank
+      FROM messages_fts fts
+      JOIN messages m ON m.id = fts.message_id
+      JOIN users u ON u.id = m.sender_id
+      WHERE fts.content MATCH ?
+    `;
+    params.push(ftsPhrase);
+  }
 
   if (conversationId) {
     sql += ' AND m.conversation_id = ?';
@@ -135,10 +151,9 @@ function searchMessages(query, conversationId, userId, options = {}) {
     params.push(senderOnly);
   }
 
-  sql += `
-    ORDER BY rank DESC
-    LIMIT ? OFFSET ?
-  `;
+  // FTS5 rank 是代价值（越小/越负越相关），升序才是"最相关在前"；
+  // 短查询走 LIKE 无 rank 概念，按最新优先。
+  sql += short ? ' ORDER BY m.created_at DESC LIMIT ? OFFSET ?' : ' ORDER BY rank LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
   try {
@@ -148,6 +163,11 @@ function searchMessages(query, conversationId, userId, options = {}) {
     console.warn('[FTS5] 搜索失败:', err.message, 'query:', trimmed);
     return [];
   }
+}
+
+// LIKE 通配符 %/_ 转义（用户查询串本身含 % 或 _ 时不应被当作通配符）
+function escapeLike(s) {
+  return s.replace(/[\\%_]/g, ch => `\\${ch}`);
 }
 
 /**
@@ -225,15 +245,26 @@ function countMessages(query, conversationId, senderOnly = null, userId = null) 
   const trimmed = (query || '').trim().substring(0, 100);
   if (!trimmed) return 0;
 
-  const ftsPhrase = `"${trimmed.replace(/"/g, '""')}"`;
-  let sql = `
-    SELECT COUNT(*) AS n
-    FROM messages_fts fts
-    JOIN messages m ON m.id = fts.message_id
-    WHERE fts.content MATCH ?
-    AND m.conversation_id = ?
-  `;
-  const params = [ftsPhrase, conversationId];
+  let sql, params;
+  if (isShortQuery(trimmed)) {
+    sql = `
+      SELECT COUNT(*) AS n
+      FROM messages m
+      WHERE m.deleted = 0 AND m.type = 'text' AND m.content LIKE ? ESCAPE '\\'
+      AND m.conversation_id = ?
+    `;
+    params = [`%${escapeLike(trimmed)}%`, conversationId];
+  } else {
+    const ftsPhrase = `"${trimmed.replace(/"/g, '""')}"`;
+    sql = `
+      SELECT COUNT(*) AS n
+      FROM messages_fts fts
+      JOIN messages m ON m.id = fts.message_id
+      WHERE fts.content MATCH ?
+      AND m.conversation_id = ?
+    `;
+    params = [ftsPhrase, conversationId];
+  }
   if (userId) {
     // P1-06 统一水位线：total 与 rows 保持一致
     sql += ' AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)';
@@ -267,22 +298,28 @@ function searchMessagesInConversations(query, conversationIds, userId = null, { 
   const trimmed = (query || '').trim().substring(0, 100);
   if (!trimmed) return { results: [], total: 0 };
 
-  const ftsPhrase = `"${trimmed.replace(/"/g, '""')}"`;
   // 为 IN 子句生成等数量的占位符
   const ph = conversationIds.map(() => '?').join(',');
+  const short = isShortQuery(trimmed);
 
-  const baseWhere = `
+  const baseWhere = short ? `
+    FROM messages m
+    JOIN users u ON u.id = m.sender_id
+    WHERE m.deleted = 0 AND m.type = 'text' AND m.content LIKE ? ESCAPE '\\'
+    AND m.conversation_id IN (${ph})
+  ` : `
     FROM messages_fts fts
     JOIN messages m ON m.id = fts.message_id
     JOIN users u ON u.id = m.sender_id
     WHERE fts.content MATCH ?
     AND m.conversation_id IN (${ph})
   `;
+  const matchParam = short ? `%${escapeLike(trimmed)}%` : `"${trimmed.replace(/"/g, '""')}"`;
   // P1-06 统一水位线：全局搜索也按 per-user cleared_rowid 过滤（参数在 IN 之前）
   const watermarkClause = userId
     ? `\n    AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)`
     : '';
-  const baseParams = userId ? [ftsPhrase, ...conversationIds, userId] : [ftsPhrase, ...conversationIds];
+  const baseParams = userId ? [matchParam, ...conversationIds, userId] : [matchParam, ...conversationIds];
   const baseWhereFull = `${baseWhere}${watermarkClause}`;
 
   try {
