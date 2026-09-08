@@ -110,8 +110,8 @@ final class SocketService {
 
     // ── 群通话(mesh) 信令 ──
     let gcInvite = PassthroughSubject<(callId: String, conversationId: String, type: String, from: String, fromName: String), Never>()
-    let gcStarted = PassthroughSubject<(callId: String, type: String), Never>()
-    let gcPeers = PassthroughSubject<(callId: String, type: String, peers: [String]), Never>()
+    let gcStarted = PassthroughSubject<(callId: String, type: String, resumeToken: String?), Never>()
+    let gcPeers = PassthroughSubject<(callId: String, type: String, peers: [String], resumeToken: String?), Never>()
     let gcPeerJoined = PassthroughSubject<(callId: String, userId: String), Never>()
     let gcPeerLeft = PassthroughSubject<(callId: String, userId: String), Never>()
     let gcOffer = PassthroughSubject<(callId: String, from: String, sdp: String), Never>()
@@ -382,12 +382,14 @@ final class SocketService {
         }
         sock.on("group_call:started") { [weak self] data, _ in
             guard let d = data.first as? [String: Any] else { return }
-            self?.gcStarted.send((d["callId"] as? String ?? "", d["type"] as? String ?? "audio"))
+            let resumeToken = (d["resumeToken"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            self?.gcStarted.send((d["callId"] as? String ?? "", d["type"] as? String ?? "audio", resumeToken))
         }
         sock.on("group_call:peers") { [weak self] data, _ in
             guard let d = data.first as? [String: Any] else { return }
             let peers = (d["peers"] as? [String]) ?? []
-            self?.gcPeers.send((d["callId"] as? String ?? "", d["type"] as? String ?? "audio", peers))
+            let resumeToken = (d["resumeToken"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            self?.gcPeers.send((d["callId"] as? String ?? "", d["type"] as? String ?? "audio", peers, resumeToken))
         }
         sock.on("group_call:peer_joined") { [weak self] data, _ in
             guard let d = data.first as? [String: Any] else { return }
@@ -484,11 +486,15 @@ final class SocketService {
         socket?.emit("nudge", payload)
     }
 
+    struct CallRequestAck { let callId: String; let resumeToken: String? }
+
     // ── 通话信令发送 ──
     /// 主叫发起：ack 携带服务端生成的 callId（随后随 accept/reject/hangup 回传，供服务端
-    /// 做过期应答校验，对齐 Android）。连接已断或 ack 超时(10s)则返回 nil，不阻断通话
-    /// 主流程——callId 缺失时服务端跳过校验，保持兼容（对齐 backend CALL_REQUIRE_ID=false 默认）。
-    func emitCallRequest(to: String, type: String, callerName: String) async -> String? {
+    /// 做过期应答校验，对齐 Android），以及 resumeToken（Q06 全修：断线重连必须证明持有它
+    /// 才能 resume，光凭 callId+userId 不再够——同账号旁观设备不能在断线宽限期内抢注这通
+    /// 电话）。连接已断或 ack 超时(10s)则整体返回 nil，不阻断通话主流程——callId 缺失时
+    /// 服务端跳过校验，保持兼容（对齐 backend CALL_REQUIRE_ID=false 默认）。
+    func emitCallRequest(to: String, type: String, callerName: String) async -> CallRequestAck? {
         guard let sock = socket, sock.status == .connected else { return nil }
         let payload: [String: Any] = ["to": to, "type": type, "caller": ["name": callerName]]
         return await withCheckedContinuation { continuation in
@@ -498,7 +504,8 @@ final class SocketService {
                           let callId = dict["callId"] as? String, !callId.isEmpty else {
                         continuation.resume(returning: nil); return
                     }
-                    continuation.resume(returning: callId)
+                    let resumeToken = (dict["resumeToken"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                    continuation.resume(returning: CallRequestAck(callId: callId, resumeToken: resumeToken))
                 }
         }
     }
@@ -509,6 +516,22 @@ final class SocketService {
         // 主叫据此区分"对方忙线中"与普通拒接）
         if busy { payload["busy"] = true }
         socket?.emit("call:response", payload)
+    }
+    /// 被叫接听专用：accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken
+    /// （Q06 全修）。拒接/忙线场景不需要它，继续用上面 fire-and-forget 的 emitCallResponse。
+    func emitCallAccept(to: String, callId: String) async -> String? {
+        guard let sock = socket, sock.status == .connected else { return nil }
+        let payload: [String: Any] = ["to": to, "accepted": true, "callId": callId]
+        return await withCheckedContinuation { continuation in
+            sock.emitWithAck("call:response", payload)
+                .timingOut(after: 10) { ackData in
+                    guard let dict = ackData.first as? [String: Any],
+                          let token = dict["resumeToken"] as? String, !token.isEmpty else {
+                        continuation.resume(returning: nil); return
+                    }
+                    continuation.resume(returning: token)
+                }
+        }
     }
     func emitCallOffer(to: String, sdp: String, callId: String = "") {
         var payload: [String: Any] = ["to": to, "offer": ["type": "offer", "sdp": sdp]]
@@ -537,9 +560,11 @@ final class SocketService {
         if !callId.isEmpty { payload["callId"] = callId }
         socket?.emit("call:switch-type", payload)
     }
-    func emitCallResume(callId: String) {
+    func emitCallResume(callId: String, resumeToken: String?) {
         guard !callId.isEmpty else { return }
-        socket?.emit("call:resume", ["callId": callId])
+        var payload: [String: Any] = ["callId": callId]
+        if let resumeToken, !resumeToken.isEmpty { payload["resumeToken"] = resumeToken }
+        socket?.emit("call:resume", payload)
     }
 
     // ── 群通话信令发送 ──
@@ -563,9 +588,11 @@ final class SocketService {
     func emitGroupCallLeave(callId: String) {
         socket?.emit("group_call:leave", ["callId": callId])
     }
-    func emitGroupCallResume(callId: String) {
+    func emitGroupCallResume(callId: String, resumeToken: String?) {
         guard !callId.isEmpty else { return }
-        socket?.emit("group_call:resume", ["callId": callId])
+        var payload: [String: Any] = ["callId": callId]
+        if let resumeToken, !resumeToken.isEmpty { payload["resumeToken"] = resumeToken }
+        socket?.emit("group_call:resume", payload)
     }
 
     func disconnect() { KeychainStore.shared.synchronized {

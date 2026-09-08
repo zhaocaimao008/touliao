@@ -264,17 +264,57 @@ describe('group call occupancy contract', () => {
     const bob = createSocket('bob', 'bob-web', io);
     registerGroupCallHandler(io, bob, registry);
     bob.handlers['group_call:join']({ callId });
+    const resumeToken = bob.last('group_call:peers').payload.resumeToken;
     io.emitted.length = 0;
 
     bob.handlers.disconnect();
     const bobReconnected = createSocket('bob', 'bob-web-2', io);
     registerGroupCallHandler(io, bobReconnected, registry);
-    bobReconnected.handlers['group_call:resume']({ callId });
+    // Q06 全修：resume 必须带上加入时签发的 resumeToken，光凭 callId+userId 不再够。
+    bobReconnected.handlers['group_call:resume']({ callId, resumeToken });
 
     jest.advanceTimersByTime(15_000);
 
     expect(io.events('group_call:peer_left')).toHaveLength(0);
     expect(registry.get(callId).participants.get('bob').socketIds).toEqual(new Set(['bob-web-2']));
+  });
+
+  test('resume without the resumeToken issued at join cannot reclaim a disconnected member\'s slot (Q06 ownership bypass)', () => {
+    const io = createIoHarness();
+    let registry;
+    registry = createRegistry({
+      onGraceExpired: info => registerGroupCallHandler.handleGraceExpired(io, registry, info),
+    });
+    const alice = createSocket('alice', 'alice-web', io);
+    registerGroupCallHandler(io, alice, registry);
+    alice.handlers['group_call:start']({ conversationId: 'conv-resume-no-token', type: 'audio' });
+    const callId = alice.last('group_call:started').payload.callId;
+
+    const bob = createSocket('bob', 'bob-web', io);
+    registerGroupCallHandler(io, bob, registry);
+    bob.handlers['group_call:join']({ callId });
+
+    bob.handlers.disconnect(); // bob 进入宽限期，socketIds 归零
+
+    // 一个不知道 resumeToken 的旁观 Socket（同账号 bob 的另一台设备，或者只是知道
+    // callId 的人）不能靠普通 group_call:join（落到 occupy 的"已是成员"分支）
+    // 或没带 token 的 group_call:resume 顶替进去。
+    const bystanderJoin = createSocket('bob', 'bob-bystander-join', io);
+    registerGroupCallHandler(io, bystanderJoin, registry);
+    bystanderJoin.handlers['group_call:join']({ callId });
+    // occupy() 落到 bindSocket 的"已断线、无凭据"分支被拒绝，group_call:join 按既有
+    // CALL_ID_MISMATCH→'not_found' 映射回错误，不会静默把这个 socket 接进通话。
+    expect(bystanderJoin.last('group_call:error').payload.reason).toBe('not_found');
+    expect(registry.get(callId).participants.get('bob').socketIds.size).toBe(0);
+
+    const bystanderResume = createSocket('bob', 'bob-bystander-resume', io);
+    registerGroupCallHandler(io, bystanderResume, registry);
+    bystanderResume.handlers['group_call:resume']({ callId });
+    expect(bystanderResume.last('group_call:error').payload.reason).toBe('not_found');
+    expect(registry.get(callId).participants.get('bob').socketIds.size).toBe(0);
+
+    jest.advanceTimersByTime(15_000);
+    expect(io.last('group_call:peer_left').payload).toEqual({ callId, userId: 'bob' }); // 宽限如期到期，没有被假恢复取消
   });
 
   test('grace expiry with no resume removes only that member, not the whole call', () => {

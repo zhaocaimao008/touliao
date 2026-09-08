@@ -423,7 +423,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (pendingCallRef.current !== 'pending') return; // 已经被 call:error 取消，忽略迟到的 ack
       pendingCallRef.current = null;
       if (!ack?.callId) return; // 旧后端/异常：没有 callId 就不开呼叫界面，防止无 callId 的通话流程
-      onStartCall?.({ type, direction: 'outgoing', remoteUser, remoteId, callId: ack.callId });
+      onStartCall?.({ type, direction: 'outgoing', remoteUser, remoteId, callId: ack.callId, resumeToken: ack.resumeToken });
     });
   }, [socket, conversation, user, onStartCall, t]);
 

@@ -58,6 +58,9 @@ final class CallManager: NSObject, ObservableObject {
     private var callIdentityEpoch: UInt64?
     private var participatingCallId = ""
     private var participatingIdentityEpoch: UInt64?
+    // Q06 全修：resume 必须证明持有它，光凭 callId+userId 不再够（同账号旁观设备不能在
+    // 断线宽限期内抢注）。startCall/accept 的 ack 里签发，cleanup() 清空。
+    private var participatingResumeToken: String?
     private var cancellables = Set<AnyCancellable>()
     private let socket = SocketService.shared
 
@@ -184,17 +187,18 @@ final class CallManager: NSObject, ObservableObject {
             tonePlayer.playRingback()           // 会话就绪后→主叫回铃音（接通/挂断时停）
             createPeerConnection()
             createLocalTracks(video: video)
-            let callId = await socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
+            let requestAck = await socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
             // ack 超时/未连接返回 nil：不强行挂断——callId 缺失时后端按兼容模式放行，仅丢失
             // 过期应答/串话保护。仅在仍是同一通呼出时才回填（防重拨/挂断后污染新状态）。
-            if let callId,
+            if let requestAck,
                callIdentityEpoch == identityEpoch,
                KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
                state.stage == .outgoing,
                state.peerId == peerId {
-                state.callId = callId
-                participatingCallId = callId
+                state.callId = requestAck.callId
+                participatingCallId = requestAck.callId
                 participatingIdentityEpoch = identityEpoch
+                participatingResumeToken = requestAck.resumeToken
             }
         }
     }
@@ -217,9 +221,11 @@ final class CallManager: NSObject, ObservableObject {
             configureAudioSession()             // 建流前配好通话音频会话
             createPeerConnection()
             createLocalTracks(video: state.isVideo)
-            socket.emitCallResponse(to: peerId, accepted: true, callId: callId)
+            // accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken（Q06 全修）
+            let resumeToken = await socket.emitCallAccept(to: peerId, callId: callId)
             participatingCallId = callId
             participatingIdentityEpoch = identityEpoch
+            participatingResumeToken = resumeToken
         }
     }
 
@@ -323,7 +329,7 @@ final class CallManager: NSObject, ObservableObject {
                         currentIdentityEpoch: KeychainStore.shared.snapshot().identityEpoch
                       )
                 else { return }
-                self.socket.emitCallResume(callId: self.state.callId)
+                self.socket.emitCallResume(callId: self.state.callId, resumeToken: self.participatingResumeToken)
             }
             .store(in: &cancellables)
 
@@ -682,6 +688,7 @@ final class CallManager: NSObject, ObservableObject {
         callIdentityEpoch = nil
         participatingCallId = ""
         participatingIdentityEpoch = nil
+        participatingResumeToken = nil
         qualityTask?.cancel(); qualityTask = nil          // 停质量采样
         cancelIceRestart()                          // 清 ICE restart 定时器/计数
         cancelDisconnectGrace()

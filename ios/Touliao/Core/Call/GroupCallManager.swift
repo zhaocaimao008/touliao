@@ -65,6 +65,9 @@ final class GroupCallManager: NSObject, ObservableObject {
     private var callIdentityEpoch: UInt64?
     private var participatingCallId = ""
     private var participatingIdentityEpoch: UInt64?
+    // Q06 全修：group_call:resume 必须证明持有它，光凭 callId+userId 不再够（同账号旁观
+    // 设备不能在断线宽限期内抢注）。gcStarted/gcPeers 里签发，cleanup() 清空。
+    private var participatingResumeToken: String?
 
     /// 建群通话/加入后的连接超时；始终停在 .connecting（服务端未回 started/peers）则自动结束。
     private var connectTimeoutTask: Task<Void, Never>?
@@ -246,7 +249,7 @@ final class GroupCallManager: NSObject, ObservableObject {
                         currentIdentityEpoch: KeychainStore.shared.snapshot().identityEpoch
                       )
                 else { return }
-                self.socket.emitGroupCallResume(callId: self.state.callId)
+                self.socket.emitGroupCallResume(callId: self.state.callId, resumeToken: self.participatingResumeToken)
             }
             .store(in: &cancellables)
 
@@ -256,7 +259,7 @@ final class GroupCallManager: NSObject, ObservableObject {
             self.pendingInvite = GroupCallInvite(callId: inv.callId, conversationId: inv.conversationId, type: inv.type, from: inv.from, fromName: inv.fromName)
         }.store(in: &cancellables)
 
-        socket.gcStarted.receive(on: DispatchQueue.main).sink { [weak self] (callId, _) in
+        socket.gcStarted.receive(on: DispatchQueue.main).sink { [weak self] (callId, _, resumeToken) in
             guard let self,
                   let identityEpoch = self.callIdentityEpoch,
                   KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
@@ -264,12 +267,13 @@ final class GroupCallManager: NSObject, ObservableObject {
             else { return }
             self.participatingCallId = callId
             self.participatingIdentityEpoch = identityEpoch
+            self.participatingResumeToken = resumeToken
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
             if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
         }.store(in: &cancellables)
 
-        socket.gcPeers.receive(on: DispatchQueue.main).sink { [weak self] (callId, _, peers) in
+        socket.gcPeers.receive(on: DispatchQueue.main).sink { [weak self] (callId, _, peers, resumeToken) in
             guard let self,
                   let identityEpoch = self.callIdentityEpoch,
                   KeychainStore.shared.snapshot().identityEpoch == identityEpoch
@@ -277,6 +281,7 @@ final class GroupCallManager: NSObject, ObservableObject {
             if !self.state.callId.isEmpty && callId != self.state.callId { return }
             self.participatingCallId = callId
             self.participatingIdentityEpoch = identityEpoch
+            self.participatingResumeToken = resumeToken
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
             if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
@@ -537,6 +542,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         callIdentityEpoch = nil
         participatingCallId = ""
         participatingIdentityEpoch = nil
+        participatingResumeToken = nil
         cancelConnectTimeout()              // 取消连接超时，避免泄漏
         peers.values.forEach { $0.cancelIceRestart() }
         peers.values.forEach { $0.pc.close() }

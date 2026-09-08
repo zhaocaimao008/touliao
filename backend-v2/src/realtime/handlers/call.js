@@ -278,11 +278,13 @@ function registerCallHandler(io, socket, registry) {
         .catch(e => console.warn('[call] 来电推送失败:', e.message));
     }
     // 主叫侧回执携带 callId：随后随 accept/reject/hangup 回传做过期应答校验（对齐被叫侧）。
-    // 旧客户端不传 ack 回调则跳过，无兼容风险。
-    if (typeof ack === 'function') ack({ callId: id });
+    // 旧客户端不传 ack 回调则跳过，无兼容风险。同时回传 resumeToken（Q06 全修）：
+    // 只经这条直连 ack 回给发起方自己这一条 Socket，绝不进 call:incoming/call:outgoing
+    // 等房间广播——同账号旁观设备/对方都不该拿到它。
+    if (typeof ack === 'function') ack({ callId: id, resumeToken: created.resumeToken });
   });
 
-  socket.on('call:response', (payload) => {
+  socket.on('call:response', (payload, ack) => {
     // P0-002 强校验：负载必须是对象，to 必须是合法字符串 ID
     const p = guardPayload(socket, 'call:response', payload);
     if (!p) return;
@@ -313,9 +315,11 @@ function registerCallHandler(io, socket, registry) {
     if (c.timer) clearTimeout(c.timer); // 取消超时定时器（fix: 已应答不再超时清理）
     if (accepted) {
       // 重复 accepted 守卫（P2-4）：同账号双端先后接听同一通，第二次不得回拨 answeredAt
+      // ——这也是被叫首次 accept 唯一能落到这里的路径，isInitialBind 才安全（Q06 全修）。
       if (c.answeredAt) return;
-      const bound = registry.bindSocket(callId, userId, socket.id);
+      const bound = registry.bindSocket(callId, userId, socket.id, { isInitialBind: true });
       if (!bound.ok) { reportResolutionError('call:response', bound); return; }
+      if (typeof ack === 'function') ack({ resumeToken: bound.resumeToken });
       c.answeredAt = nowSec();
       resolved.session.answeredAt = c.answeredAt;
       write("UPDATE call_logs SET status='ongoing' WHERE id=?", [c.id]);
@@ -456,7 +460,8 @@ function registerCallHandler(io, socket, registry) {
       socket.emit('call:error', { code: 'CALL_ID_MISMATCH', event: 'call:resume', callId });
       return;
     }
-    const resumed = registry.resume(callId, userId, socket.id);
+    const resumeToken = typeof p.resumeToken === 'string' && p.resumeToken.length <= 64 ? p.resumeToken : undefined; // 防超大负载做无谓字符串比较,resumeToken 是 UUID(36字符),合法值恒 <=64
+    const resumed = registry.resume(callId, userId, socket.id, resumeToken);
     if (!resumed.ok) reportResolutionError('call:resume', resumed);
   });
 

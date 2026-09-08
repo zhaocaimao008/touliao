@@ -195,11 +195,17 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const participatingRef = useRef(direction === 'outgoing');
   const closedRef = useRef(false);
   const mediaGenerationRef = useRef(0);
+  // Q06 全修：resume 现在必须证明持有绑定时后端签发的 resumeToken——光凭 callId+userId
+  // 不再够，否则同账号旁观设备能在断线宽限期内抢注这通电话。主叫在 call:request 的
+  // ack 里已经拿到（call.resumeToken）；被叫要等 accept 的 ack 才有，见 accept()。
+  const resumeTokenRef = useRef(call.resumeToken);
 
   useEffect(() => {
     if (!socket) return;
     const resumeParticipatingCall = () => {
-      if (!closedRef.current && participatingRef.current && callId) socket.emit('call:resume', { callId });
+      if (!closedRef.current && participatingRef.current && callId) {
+        socket.emit('call:resume', { callId, resumeToken: resumeTokenRef.current });
+      }
     };
     socket.on('connect', resumeParticipatingCall);
     return () => socket.off('connect', resumeParticipatingCall);
@@ -498,7 +504,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     // accept continuation 重新标成参会者，随后在 1.8s 结束页里发旧 resume。
     if (closedRef.current) return;
     participatingRef.current = true;
-    socket?.emit('call:response', withCallId({ to: remoteId, accepted: true }, callId));
+    socket?.emit('call:response', withCallId({ to: remoteId, accepted: true }, callId), (ack) => {
+      resumeTokenRef.current = ack?.resumeToken;
+    });
     if (pendingOfferRef.current) {
       await processOffer(pendingOfferRef.current);
       pendingOfferRef.current = null;

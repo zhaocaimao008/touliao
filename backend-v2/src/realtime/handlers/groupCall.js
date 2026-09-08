@@ -156,7 +156,9 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
       callId, conversationId, type: t, from: userId,
       fromName: starter?.username, fromAvatar: starter?.avatar,
     });
-    socket.emit('group_call:started', { callId, conversationId, type: t, ...requestMeta });
+    // resumeToken（Q06 全修）：只经这条直连 ack 回给发起方自己这一条 Socket，
+    // group_call:invite 群广播不带它。
+    socket.emit('group_call:started', { callId, conversationId, type: t, resumeToken: created.resumeToken, ...requestMeta });
   });
 
   socket.on('group_call:join', (payload) => {
@@ -182,8 +184,9 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     call.members.add(userId);
     call.peak = Math.max(call.peak, call.members.size);
 
-    // 回给加入者：当前已有成员列表（它将作为 answerer 等待这些人的 offer）
-    socket.emit('group_call:peers', { callId, conversationId: call.conversationId, type: call.type, peers });
+    // 回给加入者：当前已有成员列表（它将作为 answerer 等待这些人的 offer）+
+    // resumeToken（Q06 全修，仅首次真正加入时由 registry 签发；直连 ack，不广播）
+    socket.emit('group_call:peers', { callId, conversationId: call.conversationId, type: call.type, peers, resumeToken: joined.resumeToken });
     // 通知既有成员：新 peer 加入 → 各自向其发起 offer（mesh，避免 glare）
     for (const uid of peers) io.to(`user_${uid}`).emit('group_call:peer_joined', { callId, userId });
   });
@@ -223,7 +226,8 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
       socket.emit('group_call:error', { reason: 'not_found', callId });
       return;
     }
-    const resumed = registry.resume(callId, userId, socket.id);
+    const resumeToken = typeof p.resumeToken === 'string' && p.resumeToken.length <= 64 ? p.resumeToken : undefined; // 防超大负载做无谓字符串比较,resumeToken 是 UUID(36字符),合法值恒 <=64
+    const resumed = registry.resume(callId, userId, socket.id, resumeToken);
     if (!resumed.ok) socket.emit('group_call:error', { reason: reasonForCode(resumed.code), callId });
   });
 

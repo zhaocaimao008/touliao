@@ -341,11 +341,13 @@ describe('private call signaling contract', () => {
     const ack = jest.fn();
     first.handlers['call:request']({ to: 'bob-resume', type: 'audio' }, ack);
     const callId = ack.mock.calls[0][0].callId;
+    const resumeToken = ack.mock.calls[0][0].resumeToken;
     first.handlers.disconnect();
 
     const reconnected = createSocket('alice-resume', 'web-after', io);
     registerCallHandler(io, reconnected, registry);
-    reconnected.handlers['call:resume']({ callId });
+    // Q06 全修：resume 必须带上 call:request ack 里签发的 resumeToken。
+    reconnected.handlers['call:resume']({ callId, resumeToken });
     jest.advanceTimersByTime(15_000);
 
     expect(registry.get(callId).participants.get('alice-resume').socketIds)

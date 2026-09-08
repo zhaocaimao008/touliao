@@ -28,15 +28,17 @@ test('last participating socket starts grace and resume cancels it', () => {
   const clearTimer = jest.fn();
   const r = createRegistry({ graceMs: 15_000, setTimer: fn => (callback = fn), clearTimer });
 
-  r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'web-a' });
+  const created = r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'web-a' });
 
   expect(r.unbindSocket('alice', 'web-a').graceStarted).toBe(true);
-  expect(r.resume('c1', 'alice', 'web-a2').ok).toBe(true);
+  // Q06 全修：resume 必须证明持有创建时签发的 resumeToken，光凭 userId 不再够——
+  // 否则同账号任意旁观 Socket 都能在宽限期内顶替进来（ownership-design-review.md #1/#3）。
+  expect(r.resume('c1', 'alice', 'web-a2', created.resumeToken).ok).toBe(true);
   expect(clearTimer).toHaveBeenCalled();
   expect(callback).toBeDefined();
 });
 
-test('resume cannot bind a second socket while the participating socket is still connected', () => {
+test('resume without the resumeToken issued at binding is rejected, even while the original socket is still connected', () => {
   const r = createRegistry();
 
   r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'web-owner' });
@@ -47,6 +49,83 @@ test('resume cannot bind a second socket while the participating socket is still
     callId: 'c1',
   });
   expect(r.get('c1').participants.get('alice').socketIds).toEqual(new Set(['web-owner']));
+});
+
+test('resume with a wrong resumeToken is rejected after the participant has actually disconnected', () => {
+  const r = createRegistry();
+
+  const created = r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'web-owner' });
+  r.unbindSocket('alice', 'web-owner');
+
+  expect(r.resume('c1', 'alice', 'web-observer', 'wrong-token')).toMatchObject({
+    ok: false, code: 'CALL_ID_MISMATCH', callId: 'c1',
+  });
+  expect(r.resume('c1', 'alice', 'web-observer')).toMatchObject({
+    ok: false, code: 'CALL_ID_MISMATCH', callId: 'c1',
+  });
+  expect(r.resume('c1', 'alice', 'web-observer', created.resumeToken).ok).toBe(true);
+});
+
+test('resume cannot bind a reserved-but-never-accepted callee before accept issues their resumeToken', () => {
+  const r = createRegistry();
+
+  r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'web-owner' });
+
+  // bob 从未真正 accept/bind 过，参与者槽位存在但 resumeToken 还没签发——
+  // 任何人光凭 userId 冒充 bob 调 resume 都不该在被叫接听前就把自己接进去。
+  expect(r.resume('c1', 'bob', 'bob-observer')).toMatchObject({
+    ok: false, code: 'CALL_ID_MISMATCH', callId: 'c1',
+  });
+  expect(r.get('c1').participants.get('bob').socketIds.size).toBe(0);
+});
+
+test('bindSocket freely adds a concurrent socket while the participant is still live (existing multi-device behavior, no token required)', () => {
+  const r = createRegistry();
+
+  r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'alice-web' });
+  // bob accept 首绑（call.js 真实用法）
+  expect(r.bindSocket('c1', 'bob', 'bob-phone', { isInitialBind: true }).ok).toBe(true);
+
+  // alice 还活着(alice-web 未断)时开第二个标签页——existing product behavior, unaffected
+  expect(r.bindSocket('c1', 'alice', 'alice-web-2').ok).toBe(true);
+  expect(r.get('c1').participants.get('alice').socketIds).toEqual(new Set(['alice-web', 'alice-web-2']));
+});
+
+test('bindSocket without isInitialBind or a resumeToken cannot acquire a disconnected participant\'s slot (Q06 ownership bypass via ordinary join)', () => {
+  const r = createRegistry();
+
+  const created = r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'alice-web' });
+  r.unbindSocket('alice', 'alice-web'); // alice 断线，进入宽限期，socketIds 归零
+
+  // 另一台旁观 Socket（同账号）不带任何凭据，光凭一次普通 bindSocket（例如
+  // group_call:join 落到 occupy 的"已是成员"分支）就想顶替进去——必须被拒绝，
+  // 这正是 ownership-design-review.md 阻断项 #1 描述的洞。
+  expect(r.bindSocket('c1', 'alice', 'alice-observer')).toMatchObject({
+    ok: false, code: 'CALL_ID_MISMATCH', callId: 'c1',
+  });
+  expect(r.bindSocket('c1', 'alice', 'alice-observer', { isInitialBind: true })).toMatchObject({
+    ok: false, code: 'CALL_ID_MISMATCH', callId: 'c1',
+  });
+  expect(r.get('c1').participants.get('alice').socketIds.size).toBe(0);
+
+  // 真正的原设备带着 createPrivate 签发的 resumeToken 走 resume 才能恢复
+  expect(r.resume('c1', 'alice', 'alice-web-2', created.resumeToken).ok).toBe(true);
+});
+
+test('isInitialBind mints a resumeToken only for a participant that has never bound before', () => {
+  const r = createRegistry();
+
+  r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'alice-web' });
+  const firstAccept = r.bindSocket('c1', 'bob', 'bob-phone', { isInitialBind: true });
+  expect(firstAccept.ok).toBe(true);
+  expect(firstAccept.resumeToken).toEqual(expect.any(String));
+
+  r.unbindSocket('bob', 'bob-phone'); // bob 断线，进入宽限期，已经有 resumeToken 了
+
+  // isInitialBind 不能在已经签发过 token 之后被用来重新抢注一个新身份
+  expect(r.bindSocket('c1', 'bob', 'bob-imposter', { isInitialBind: true })).toMatchObject({
+    ok: false, code: 'CALL_ID_MISMATCH', callId: 'c1',
+  });
 });
 
 test('private and group calls share the same busy occupancy', () => {

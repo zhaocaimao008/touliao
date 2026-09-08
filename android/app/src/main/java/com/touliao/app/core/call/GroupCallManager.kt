@@ -101,6 +101,9 @@ class GroupCallManager @Inject constructor(
     @Volatile private var iceServers: List<PeerConnection.IceServer> = fallbackIceServers
     @Volatile private var busyElsewhereCallId: String = ""
     @Volatile private var participatingCallId: String = ""
+    // Q06 全修：group_call:resume 必须证明持有它，光凭 callId+userId 不再够（同账号
+    // 旁观设备不能在断线宽限期内抢注）。group_call:started/peers 里签发，cleanup() 清空。
+    @Volatile private var participatingResumeToken: String? = null
 
     init {
         ensureFactory()
@@ -199,7 +202,7 @@ class GroupCallManager @Inject constructor(
                 if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED &&
                     CallSignalMatcher.canResume(cid, participatingCallId)
                 ) {
-                    socketManager.emitGroupCallResume(cid)
+                    socketManager.emitGroupCallResume(cid, participatingResumeToken)
                 }
             }
         }
@@ -207,6 +210,7 @@ class GroupCallManager @Inject constructor(
             socketManager.groupCallStartedEvents.collect { e ->
                 if (_state.value.stage == GroupCallStage.ENDED) return@collect
                 participatingCallId = e.callId
+                participatingResumeToken = e.resumeToken
                 _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
             }
         }
@@ -214,6 +218,7 @@ class GroupCallManager @Inject constructor(
             socketManager.groupCallPeersEvents.collect { e ->
                 if (_state.value.callId.isNotEmpty() && e.callId != _state.value.callId) return@collect
                 participatingCallId = e.callId
+                participatingResumeToken = e.resumeToken
                 _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
                 // 作为 answerer：为既有成员预建 PC，等其 offer
                 e.peers.forEach { pid -> peerFor(pid) }
@@ -478,6 +483,7 @@ class GroupCallManager @Inject constructor(
 
     private fun cleanup() {
         participatingCallId = ""
+        participatingResumeToken = null
         peers.values.forEach {
             it.iceRestartDebounceJob?.cancel(); it.iceRestartDebounceJob = null
             it.iceRestartRecoverJob?.cancel(); it.iceRestartRecoverJob = null

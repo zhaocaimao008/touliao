@@ -118,6 +118,9 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const remoteSetRef = useRef(new Set());
   const pendingIceRef = useRef(new Map());
   const callIdRef = useRef(session.callId || null);
+  // Q06 全修：group_call:resume 现在必须证明持有 group_call:started/peers 签发的
+  // resumeToken——光凭 callId+userId 不再够，否则同账号旁观设备能在宽限期内抢注。
+  const resumeTokenRef = useRef(null);
   const reactAttemptId = useId();
   const startRequestIdRef = useRef(mode === 'start' ? `group-start-${reactAttemptId}` : null);
   const closedRef = useRef(false);
@@ -269,7 +272,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     if (!socket) return;
     const resumeParticipatingCall = () => {
       if (participatingRef.current && callIdRef.current && !closedRef.current) {
-        socket.emit('group_call:resume', { callId: callIdRef.current });
+        socket.emit('group_call:resume', { callId: callIdRef.current, resumeToken: resumeTokenRef.current });
       }
     };
     socket.on('connect', resumeParticipatingCall);
@@ -357,16 +360,18 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   // ── 信令事件 ──────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
-    const onStarted = ({ callId: cid, requestId }) => {
+    const onStarted = ({ callId: cid, requestId, resumeToken }) => {
       if (!cid || !matchesGroupStartAttempt({ requestId }, startRequestIdRef.current)) return;
       if (callIdRef.current && cid !== callIdRef.current) return;
       participatingRef.current = true;
       callIdRef.current = cid; setCallId(cid); setStatus('connected');
+      resumeTokenRef.current = resumeToken;
     };
-    const onPeers = async ({ callId: cid, peers }) => {
+    const onPeers = async ({ callId: cid, peers, resumeToken }) => {
       if (!cid || !callIdRef.current || cid !== callIdRef.current) return;
       participatingRef.current = true;
       callIdRef.current = cid; setCallId(cid); setStatus('connected');
+      resumeTokenRef.current = resumeToken;
       peers.forEach(pid => createPC(pid));
     };
     const onPeerJoined = async ({ callId: cid, userId: pid }) => {

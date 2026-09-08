@@ -1,8 +1,24 @@
 'use strict';
 
+const crypto = require('crypto');
+
 const CALL_BUSY = 'CALL_BUSY';
 const CALL_NOT_FOUND = 'CALL_NOT_FOUND';
 const CALL_ID_MISMATCH = 'CALL_ID_MISMATCH';
+
+// Q06 全修（2026-09-08）：resume 身份代际协议。userId 单独不足以证明"这就是原参与
+// 设备"——jti 可被同账号多个标签/设备共享，同账号旁观 Socket 光凭 userId 就能对一个
+// 已断开(在宽限期内)的参与者调用 resume 顶替上去，窃听/劫持通话（Q06 audit 设计审查
+// ownership-design-review.md 阻断项 #1/#3）。方案：每个参与者第一次真正绑定 Socket 时
+// 签发一个不透明 resumeToken，只经由直连 ack 回给那一条 Socket（绝不进房间广播）；
+// 之后任何"换一个新 Socket"的绑定都必须证明持有这个 token。同一账号多端并发加入
+// （已有产品行为，如 A 手机在通话中，A 又开一个 Web 标签页）继续走 bindSocket 的
+// 免 token 路径——那不是"恢复丢失的连接"，是"追加一条活跃连接"，ordinary
+// occupy/create/accept 路径不因此收紧。只有 resume() 明确声称"我在恢复"才强制要求
+// token，且不管原 Socket 是否仍存活都要求（不然旁观者可以趁参与者还在线时抢注）。
+function generateResumeToken() {
+  return crypto.randomUUID();
+}
 
 /**
  * Stores process-local call ownership. Socket and persistence effects belong in
@@ -81,10 +97,14 @@ function createRegistry({
     };
 
     for (const userId of participantIds) {
-      session.participants.set(userId, { socketIds: new Set(), joinedAt: Date.now(), graceTimer: null });
+      session.participants.set(userId, { socketIds: new Set(), joinedAt: Date.now(), graceTimer: null, resumeToken: null });
       userSessions.set(userId, callId);
     }
-    addSocket(session.participants.get(metadata.socketOwnerId), socketId);
+    const owner = session.participants.get(metadata.socketOwnerId);
+    if (owner) {
+      owner.resumeToken = generateResumeToken();
+      addSocket(owner, socketId);
+    }
     sessions.set(callId, session);
     return session;
   }
@@ -122,7 +142,7 @@ function createRegistry({
       conversationId,
       startedBy: callerId,
     });
-    return ok({ callId, session });
+    return ok({ callId, session, resumeToken: session.participants.get(callerId).resumeToken });
   }
 
   function createGroup({ callId, conversationId, startedBy, socketId, type } = {}) {
@@ -148,7 +168,7 @@ function createRegistry({
       conversationId,
       startedBy,
     });
-    return ok({ callId, session });
+    return ok({ callId, session, resumeToken: session.participants.get(startedBy).resumeToken });
   }
 
   function occupy(callId, userId, socketId) {
@@ -166,22 +186,48 @@ function createRegistry({
     const occupiedCallId = userSessions.get(userId);
     if (occupiedCallId) return failure(CALL_BUSY, { userId, callId: occupiedCallId });
 
-    const newParticipant = { socketIds: new Set(), joinedAt: Date.now(), graceTimer: null };
+    const newParticipant = {
+      socketIds: new Set(), joinedAt: Date.now(), graceTimer: null,
+      resumeToken: generateResumeToken(),
+    };
     addSocket(newParticipant, socketId);
     session.participants.set(userId, newParticipant);
     userSessions.set(userId, callId);
-    return ok({ callId, session });
+    return ok({ callId, session, resumeToken: newParticipant.resumeToken });
   }
 
-  function bindSocket(callId, userId, socketId) {
+  // 一般绑定入口：create 的 owner 自绑、occupy 已是成员的重绑、call.js accept 时的
+  // 被叫首绑均走这里。同账号多端并发追加连接（对方还活着）继续免 token——那是既有
+  // 产品行为（如群通话同账号手机+Web 同时在线），不是"恢复丢失连接"的安全边界。
+  // 只有参与者当前【没有任何存活连接】时才进入需要凭据的分支：
+  //   - resumeToken 已签发过 → 必须是 isInitialBind 且此前从未绑定过(resumeToken
+  //     仍为 null)才放行——这条路径只有 call.js 被叫首次 accept 会传 isInitialBind，
+  //     ordinary occupy(group_call:join) 不传，因此在宽限期内的"另一台设备假装
+  //     ordinary join"会在这里被挡（Q06 review 阻断项 #1）。
+  //   - 已有 resumeToken 时不接受 isInitialBind 重新签发（防止已建立身份的参与者
+  //     被人从头抢注一个新 token）。
+  function bindSocket(callId, userId, socketId, { isInitialBind = false } = {}) {
     const session = sessions.get(callId);
     if (!session) return failure(CALL_NOT_FOUND, { callId });
     const participant = participantFor(session, userId);
     if (!participant || userSessions.get(userId) !== callId) return failure(CALL_ID_MISMATCH, { callId });
 
+    if (participant.socketIds.has(socketId)) {
+      cancelGrace(participant);
+      return ok({ callId, userId, session, resumeToken: participant.resumeToken });
+    }
+    if (participant.socketIds.size > 0) {
+      cancelGrace(participant);
+      addSocket(participant, socketId);
+      return ok({ callId, userId, session, resumeToken: participant.resumeToken });
+    }
+    if (participant.resumeToken != null || !isInitialBind) {
+      return failure(CALL_ID_MISMATCH, { callId });
+    }
+    participant.resumeToken = generateResumeToken();
     cancelGrace(participant);
     addSocket(participant, socketId);
-    return ok({ callId, userId, session });
+    return ok({ callId, userId, session, resumeToken: participant.resumeToken });
   }
 
   function unbindSocket(userId, socketId) {
@@ -196,8 +242,26 @@ function createRegistry({
     return { affected: true, graceStarted: true, callId };
   }
 
-  function resume(callId, userId, socketId) {
-    return bindSocket(callId, userId, socketId);
+  // resume 是"我在恢复一条丢失的连接"这个明确声明，必须始终验证 resumeToken——
+  // 即使参与者眼下还有其它存活连接（Q06 review 要求的 required case：旁观者不能趁
+  // 参与者仍在线时抢先 resume 占一个位置）。跟 bindSocket 的免 token 多端追加路径
+  // 分开是有意的，不能合并成同一个"size>0 就放行"分支。
+  function resume(callId, userId, socketId, resumeToken) {
+    const session = sessions.get(callId);
+    if (!session) return failure(CALL_NOT_FOUND, { callId });
+    const participant = participantFor(session, userId);
+    if (!participant || userSessions.get(userId) !== callId) return failure(CALL_ID_MISMATCH, { callId });
+
+    if (participant.socketIds.has(socketId)) {
+      cancelGrace(participant);
+      return ok({ callId, userId, session });
+    }
+    if (!participant.resumeToken || resumeToken !== participant.resumeToken) {
+      return failure(CALL_ID_MISMATCH, { callId });
+    }
+    cancelGrace(participant);
+    addSocket(participant, socketId);
+    return ok({ callId, userId, session });
   }
 
   function releaseUser(callId, userId) {

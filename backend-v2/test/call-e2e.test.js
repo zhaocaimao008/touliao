@@ -71,6 +71,14 @@ function callRequest(sa, a, b, type = 'audio') {
   });
 }
 
+/** 接听通话,返回 ack 里的 resumeToken（Q06 全修：resume 必须带上它）。 */
+function acceptCall(sb, aId, callId) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('accept ack 超时')), 4000);
+    sb.emit('call:response', { to: aId, callId, accepted: true }, (ack) => { clearTimeout(t); resolve(ack?.resumeToken); });
+  });
+}
+
 function lastCallLog(aId, bId) {
   return db.prepare(
     "SELECT * FROM call_logs WHERE (caller_id=? AND callee_id=?) OR (caller_id=? AND callee_id=?) ORDER BY started_at DESC, rowid DESC LIMIT 1"
@@ -251,14 +259,15 @@ describe('通话 E2E 信令全链路(真 socket)', () => {
     const respP = once(sa, 'call:response');
     const callId = await callRequest(sa, a, b);
     await incP;
-    sb.emit('call:response', { to: a.userId, callId, accepted: true });
+    const resumeToken = await acceptCall(sb, a.userId, callId);
     await respP;
 
-    // B 断线(宽限 2s 内)→ 重连 + call:resume → 通话保持;挂断仍走 completed
+    // B 断线(宽限 2s 内)→ 重连 + call:resume(带 accept ack 签发的 resumeToken,
+    // Q06 全修后光凭 callId+userId 不再够) → 通话保持;挂断仍走 completed
     sb.disconnect();
     await wait(300);
     const sb2 = await connect(b.token);
-    sb2.emit('call:resume', { callId });   // 契约:无 ack,行为断言
+    sb2.emit('call:resume', { callId, resumeToken });   // 契约:无 ack,行为断言
     await wait(500);                       // 等 resume 处理(宽限未到期,不应触发挂断)
 
     const endA = once(sa, 'call:end');
