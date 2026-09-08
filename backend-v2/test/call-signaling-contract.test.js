@@ -366,6 +366,7 @@ describe('private call signaling contract', () => {
       setupRealtime(io);
       const socket = {
         id: 'socket-wiring',
+        authToken: 'synthetic-auth-token',
         user: { id: 'alice-wiring' },
         use: jest.fn(),
         join: jest.fn(),

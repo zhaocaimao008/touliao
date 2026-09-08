@@ -467,8 +467,13 @@ class SocketManager @Inject constructor(
         }
         s.on("call:end") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
-                val from = o.optString("from").takeIf { it.isNotEmpty() } ?: return@let
-                _callEnd.tryEmit(CallEndEvent(from, o.optString("callId"), o.optString("reason")))
+                val from = o.optString("from")
+                val callId = o.optString("callId")
+                val reason = o.optString("reason")
+                // session 丢失的 resume 终态由服务端直接回当前 socket，没有 peer/from。
+                // 仅把带精确 callId 的 server_restarted 放行；其它无 from 数据仍拒绝。
+                if (from.isEmpty() && (reason != "server_restarted" || callId.isEmpty())) return@let
+                _callEnd.tryEmit(CallEndEvent(from, callId, reason))
             }
         }
         s.on("call:switch-type") { args ->

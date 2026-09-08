@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useId } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { showToast } from '../utils/toast';
@@ -6,6 +6,7 @@ import { installPrewarm, startRingback as toneRingback, stopTone, playConnectedT
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
+import { matchesGroupStartAttempt } from '../utils/callSignaling';
 
 installPrewarm();
 
@@ -117,7 +118,10 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const remoteSetRef = useRef(new Set());
   const pendingIceRef = useRef(new Map());
   const callIdRef = useRef(session.callId || null);
+  const reactAttemptId = useId();
+  const startRequestIdRef = useRef(mode === 'start' ? `group-start-${reactAttemptId}` : null);
   const closedRef = useRef(false);
+  const participatingRef = useRef(false);
   // ICE restart 自愈(网络切换):peerId → 重启计数 / {debounce, recover} 定时器。
   // 与 1:1 同策略:disconnected 3s 防抖 → restartIce → 15s 窗口 → 最多 3 次 → removePeer。
   const peerRestartCountRef = useRef(new Map());
@@ -251,6 +255,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const cleanup = useCallback(() => {
     if (closedRef.current) return;
     closedRef.current = true;
+    participatingRef.current = false;
     if (callIdRef.current) socket?.emit('group_call:leave', { callId: callIdRef.current });
     pcsRef.current.forEach(pc => { try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch { /* 连接已关闭 */ } });
     pcsRef.current.clear();
@@ -258,6 +263,17 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     peerRestartTimersRef.current.clear();
     peerRestartCountRef.current.clear();
     localStreamRef.current?.getTracks().forEach(t => t.stop());
+  }, [socket]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const resumeParticipatingCall = () => {
+      if (participatingRef.current && callIdRef.current && !closedRef.current) {
+        socket.emit('group_call:resume', { callId: callIdRef.current });
+      }
+    };
+    socket.on('connect', resumeParticipatingCall);
+    return () => socket.off('connect', resumeParticipatingCall);
   }, [socket]);
 
   const hangup = useCallback(() => { cleanup(); }, [cleanup]);
@@ -327,7 +343,11 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       setSelfHasVideo(selfHasVideoRef.current);
       iceCfgRef.current = await fetchIceConfig();
       if (cancelled) return;
-      if (mode === 'start') socket?.emit('group_call:start', { conversationId, type });
+      if (mode === 'start') socket?.emit('group_call:start', {
+        conversationId,
+        type,
+        requestId: startRequestIdRef.current,
+      });
       else socket?.emit('group_call:join', { callId: callIdRef.current });
     })();
     return () => { cancelled = true; cleanup(); };
@@ -337,16 +357,25 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   // ── 信令事件 ──────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
-    const onStarted = ({ callId: cid }) => { callIdRef.current = cid; setCallId(cid); setStatus('connected'); };
+    const onStarted = ({ callId: cid, requestId }) => {
+      if (!cid || !matchesGroupStartAttempt({ requestId }, startRequestIdRef.current)) return;
+      if (callIdRef.current && cid !== callIdRef.current) return;
+      participatingRef.current = true;
+      callIdRef.current = cid; setCallId(cid); setStatus('connected');
+    };
     const onPeers = async ({ callId: cid, peers }) => {
+      if (!cid || (callIdRef.current && cid !== callIdRef.current)) return;
+      participatingRef.current = true;
       callIdRef.current = cid; setCallId(cid); setStatus('connected');
       peers.forEach(pid => createPC(pid));
     };
-    const onPeerJoined = async ({ userId: pid }) => {
+    const onPeerJoined = async ({ callId: cid, userId: pid }) => {
+      if (cid !== callIdRef.current) return;
       createPC(pid);
       await sendOfferToPeer(pid);   // B-1：与新成员建连 / 升级重协商共用的发 offer 路径
     };
-    const onOffer = async ({ from, offer }) => {
+    const onOffer = async ({ callId: cid, from, offer }) => {
+      if (cid !== callIdRef.current) return;
       const pc = createPC(from);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       remoteSetRef.current.add(from); drainIce(from);
@@ -356,13 +385,15 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       await pc.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: tunedAnswer }));
       socket.emit('group_call:answer', { callId: callIdRef.current, to: from, answer: { type: answer.type, sdp: tunedAnswer } });
     };
-    const onAnswer = async ({ from, answer }) => {
+    const onAnswer = async ({ callId: cid, from, answer }) => {
+      if (cid !== callIdRef.current) return;
       const pc = pcsRef.current.get(from);
       if (!pc) return;
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
       remoteSetRef.current.add(from); drainIce(from);
     };
-    const onIce = ({ from, candidate }) => {
+    const onIce = ({ callId: cid, from, candidate }) => {
+      if (cid !== callIdRef.current) return;
       const pc = pcsRef.current.get(from);
       if (pc && remoteSetRef.current.has(from)) {
         pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
@@ -372,8 +403,13 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
         pendingIceRef.current.set(from, arr);
       }
     };
-    const onPeerLeft = ({ userId: pid }) => removePeer(pid);
-    const onError = ({ reason }) => {
+    const onPeerLeft = ({ callId: cid, userId: pid }) => {
+      if (cid === callIdRef.current) removePeer(pid);
+    };
+    const onError = ({ reason, callId: cid, requestId }) => {
+      if (requestId) {
+        if (!matchesGroupStartAttempt({ requestId }, startRequestIdRef.current)) return;
+      } else if (!cid || cid !== callIdRef.current) return;
       const msg = {
         busy: t('groupCall.errorBusy'),
         not_group: t('groupCall.errorNotGroup'),
@@ -386,7 +422,8 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       hangup();
     };
     // 服务端强制结束（如超过时长上限）：提示并关闭界面
-    const onEnded = ({ reason }) => {
+    const onEnded = ({ callId: cid, reason }) => {
+      if (!cid || cid !== callIdRef.current) return;
       showToast(reason === 'timeout' ? t('groupCall.endedTimeout') : t('call.callEnded'), 'info');
       hangup();
       onClose?.();

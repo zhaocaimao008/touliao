@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import axios from 'axios';
 import Avatar from './Avatar';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
-import { matchesCall, withCallId } from '../utils/callSignaling';
+import { matchesCall, matchesCallEnd, withCallId } from '../utils/callSignaling';
 import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingTone, playConnectedTone } from '../utils/callTones';
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
@@ -184,6 +184,19 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const focusTrapRef = useFocusTrap(['calling', 'connecting', 'connected'].includes(status) || status === 'incoming');
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
+  // 只有真正发起或在本设备接听的实例拥有恢复权；同账号其它设备收到的 incoming
+  // 旁观界面在接听前不能借重连占用该通话。
+  const participatingRef = useRef(direction === 'outgoing');
+  const closedRef = useRef(false);
+
+  useEffect(() => {
+    if (!socket) return;
+    const resumeParticipatingCall = () => {
+      if (!closedRef.current && participatingRef.current && callId) socket.emit('call:resume', { callId });
+    };
+    socket.on('connect', resumeParticipatingCall);
+    return () => socket.off('connect', resumeParticipatingCall);
+  }, [socket, callId]);
 
   const pcRef           = useRef(null);
   const localStreamRef  = useRef(null);
@@ -319,6 +332,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const playConnected = useCallback(() => { playConnectedTone(); }, []);
 
   const cleanup = useCallback(() => {
+    closedRef.current = true;
+    participatingRef.current = false;
     clearTimeout(timeoutRef.current);
     clearTimeout(iceTimeoutRef.current);
     clearTimeout(disconnectRef.current);
@@ -454,6 +469,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const accept = useCallback(async () => {
     setStatus('connecting');
     await initPC();
+    // initPC 含媒体/TURN await；期间可能已挂断或卸载。终态不能被迟到的
+    // accept continuation 重新标成参会者，随后在 1.8s 结束页里发旧 resume。
+    if (closedRef.current) return;
+    participatingRef.current = true;
     socket?.emit('call:response', withCallId({ to: remoteId, accepted: true }, callId));
     if (pendingOfferRef.current) {
       await processOffer(pendingOfferRef.current);
@@ -544,7 +563,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       const isSelfDeviceSync = reason === 'answered_elsewhere' || reason === 'rejected_elsewhere';
       const matched = isSelfDeviceSync
         ? !evtCallId || !callId || evtCallId === callId
-        : matchesCall({ from, callId: evtCallId }, activeCallInfo);
+        : matchesCallEnd({ from, callId: evtCallId, reason }, activeCallInfo);
       if (!matched) return;
       if (reason) setEndReason(reason);
       setStatus('ended');

@@ -8,4 +8,21 @@ enum CallSignalMatcher {
         guard activePeerId == eventPeerId else { return false }
         return eventCallId.isEmpty || eventCallId == activeCallId
     }
+
+    static func matchesEnd(
+        activeCallId: String,
+        eventCallId: String,
+        activePeerId: String,
+        eventPeerId: String,
+        reason: String
+    ) -> Bool {
+        if reason == "server_restarted" {
+            return !eventCallId.isEmpty && eventCallId == activeCallId
+        }
+        return matches(activeCallId: activeCallId, eventCallId: eventCallId, activePeerId: activePeerId, eventPeerId: eventPeerId)
+    }
+
+    static func canResume(activeCallId: String, participatingCallId: String) -> Bool {
+        !activeCallId.isEmpty && activeCallId == participatingCallId
+    }
 }

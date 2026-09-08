@@ -359,8 +359,14 @@ final class SocketService {
             self?.callIce.send((from, c, sdpMid, idx, d["callId"] as? String ?? ""))
         }
         sock.on("call:end") { [weak self] data, _ in
-            guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
-            self?.callEnd.send((from, d["callId"] as? String ?? "", d["reason"] as? String ?? ""))
+            guard let d = data.first as? [String: Any] else { return }
+            let from = d["from"] as? String ?? ""
+            let callId = d["callId"] as? String ?? ""
+            let reason = d["reason"] as? String ?? ""
+            // resume 对应的内存 session 已丢失时，服务端直接回当前 socket，因而没有 from。
+            // 仅放行带 callId 的 server_restarted；其它无 peer 的终态仍视为无效输入。
+            guard !from.isEmpty || (reason == "server_restarted" && !callId.isEmpty) else { return }
+            self?.callEnd.send((from, callId, reason))
         }
         sock.on("call:switch-type") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
@@ -531,6 +537,10 @@ final class SocketService {
         if !callId.isEmpty { payload["callId"] = callId }
         socket?.emit("call:switch-type", payload)
     }
+    func emitCallResume(callId: String) {
+        guard !callId.isEmpty else { return }
+        socket?.emit("call:resume", ["callId": callId])
+    }
 
     // ── 群通话信令发送 ──
     func emitGroupCallStart(conversationId: String, type: String) {
@@ -552,6 +562,10 @@ final class SocketService {
     }
     func emitGroupCallLeave(callId: String) {
         socket?.emit("group_call:leave", ["callId": callId])
+    }
+    func emitGroupCallResume(callId: String) {
+        guard !callId.isEmpty else { return }
+        socket?.emit("group_call:resume", ["callId": callId])
     }
 
     func disconnect() { KeychainStore.shared.synchronized {

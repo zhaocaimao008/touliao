@@ -55,6 +55,7 @@ final class CallManager: NSObject, ObservableObject {
 
     private var pendingIce: [RTCIceCandidate] = []
     private var remoteDescSet = false
+    private var participatingCallId = ""
     private var cancellables = Set<AnyCancellable>()
     private let socket = SocketService.shared
 
@@ -181,6 +182,7 @@ final class CallManager: NSObject, ObservableObject {
             // 过期应答/串话保护。仅在仍是同一通呼出时才回填（防重拨/挂断后污染新状态）。
             if let callId, state.stage == .outgoing, state.peerId == peerId {
                 state.callId = callId
+                participatingCallId = callId
             }
         }
     }
@@ -198,6 +200,7 @@ final class CallManager: NSObject, ObservableObject {
             createPeerConnection()
             createLocalTracks(video: state.isVideo)
             socket.emitCallResponse(to: peerId, accepted: true, callId: callId)
+            participatingCallId = callId
         }
     }
 
@@ -286,6 +289,22 @@ final class CallManager: NSObject, ObservableObject {
 
     // MARK: - 信令
     private func observeSignaling() {
+        socket.status
+            .filter { $0 == .connected }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self,
+                      self.state.stage != .idle,
+                      self.state.stage != .ended,
+                      CallSignalMatcher.canResume(
+                        activeCallId: self.state.callId,
+                        participatingCallId: self.participatingCallId
+                      )
+                else { return }
+                self.socket.emitCallResume(callId: self.state.callId)
+            }
+            .store(in: &cancellables)
+
         socket.callIncoming.receive(on: DispatchQueue.main).sink { [weak self] (from, type, name, callId) in
             guard let self else { return }
             if self.state.stage != .idle && self.state.stage != .ended {
@@ -371,7 +390,13 @@ final class CallManager: NSObject, ObservableObject {
                 let idOk = callId.isEmpty || self.state.callId.isEmpty || callId == self.state.callId
                 matched = hasActiveCall && idOk
             } else {
-                matched = CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
+                matched = CallSignalMatcher.matchesEnd(
+                    activeCallId: self.state.callId,
+                    eventCallId: callId,
+                    activePeerId: self.state.peerId,
+                    eventPeerId: from,
+                    reason: reason
+                )
             }
             guard matched else { return }
             VoipCallManager.shared.endActiveCall()   // 对方挂断/被其它设备处理时同步收尾 CallKit
@@ -631,6 +656,7 @@ final class CallManager: NSObject, ObservableObject {
 
     // MARK: - 清理
     private func cleanup(_ finalStage: CallStage) {
+        participatingCallId = ""
         qualityTask?.cancel(); qualityTask = nil          // 停质量采样
         cancelIceRestart()                          // 清 ICE restart 定时器/计数
         cancelDisconnectGrace()

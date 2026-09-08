@@ -100,6 +100,7 @@ class GroupCallManager @Inject constructor(
     )
     @Volatile private var iceServers: List<PeerConnection.IceServer> = fallbackIceServers
     @Volatile private var busyElsewhereCallId: String = ""
+    @Volatile private var participatingCallId: String = ""
 
     init {
         ensureFactory()
@@ -195,7 +196,9 @@ class GroupCallManager @Inject constructor(
         scope.launch {
             socketManager.status.filter { it == com.touliao.app.core.realtime.SocketStatus.CONNECTED }.collect {
                 val cid = _state.value.callId
-                if (cid.isNotEmpty() && _state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) {
+                if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED &&
+                    CallSignalMatcher.canResume(cid, participatingCallId)
+                ) {
                     socketManager.emitGroupCallResume(cid)
                 }
             }
@@ -203,12 +206,14 @@ class GroupCallManager @Inject constructor(
         scope.launch {
             socketManager.groupCallStartedEvents.collect { e ->
                 if (_state.value.stage == GroupCallStage.ENDED) return@collect
+                participatingCallId = e.callId
                 _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
             }
         }
         scope.launch {
             socketManager.groupCallPeersEvents.collect { e ->
                 if (_state.value.callId.isNotEmpty() && e.callId != _state.value.callId) return@collect
+                participatingCallId = e.callId
                 _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
                 // 作为 answerer：为既有成员预建 PC，等其 offer
                 e.peers.forEach { pid -> peerFor(pid) }
@@ -278,8 +283,9 @@ class GroupCallManager @Inject constructor(
         scope.launch {
             // 服务端强制结束（如超过时长上限）：无条件结束本地通话并回收资源
             socketManager.groupCallEndedEvents.collect { e ->
-                if (_state.value.stage == GroupCallStage.IDLE) return@collect
-                if (e.callId.isNotEmpty() && e.callId != _state.value.callId) return@collect
+                if (_state.value.stage == GroupCallStage.IDLE ||
+                    !CallSignalMatcher.canResume(_state.value.callId, e.callId)
+                ) return@collect
                 Log.w(TAG, "group call ended by server: ${e.reason}")
                 cleanup()
             }
@@ -471,6 +477,7 @@ class GroupCallManager @Inject constructor(
     }
 
     private fun cleanup() {
+        participatingCallId = ""
         peers.values.forEach {
             it.iceRestartDebounceJob?.cancel(); it.iceRestartDebounceJob = null
             it.iceRestartRecoverJob?.cancel(); it.iceRestartRecoverJob = null

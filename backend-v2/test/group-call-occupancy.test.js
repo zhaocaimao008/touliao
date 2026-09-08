@@ -57,6 +57,7 @@ function createSocket(userId, socketId, io) {
   const emitted = [];
   return {
     id: socketId,
+    authToken: 'synthetic-auth-token',
     user: { id: userId },
     handlers,
     emitted,
@@ -83,9 +84,16 @@ describe('group call occupancy contract', () => {
 
     const alice = createSocket('alice', 'alice-group-web', io);
     registerGroupCallHandler(io, alice, registry);
-    alice.handlers['group_call:start']({ conversationId: 'conv-start-busy', type: 'audio' });
+    alice.handlers['group_call:start']({
+      conversationId: 'conv-start-busy',
+      type: 'audio',
+      requestId: 'attempt-start-busy',
+    });
 
-    expect(alice.last('group_call:error').payload.reason).toBe('busy');
+    expect(alice.last('group_call:error').payload).toEqual({
+      reason: 'busy',
+      requestId: 'attempt-start-busy',
+    });
   });
 
   test('private call cannot be started while occupying a group call', () => {
@@ -114,6 +122,26 @@ describe('group call occupancy contract', () => {
     expect(registry.callForUser('alice')).toBe(callId);
     expect(registry.get(callId)).toMatchObject({ kind: 'group', conversationId: 'conv-start-ok' });
     expect(io.last('group_call:invite').payload.callId).toBe(callId);
+    expect(started.payload).not.toHaveProperty('requestId'); // legacy request stays compatible
+  });
+
+  test('start echoes its requestId only to the initiating socket', () => {
+    const io = createIoHarness();
+    const registry = createRegistry();
+    const alice = createSocket('alice-attempt', 'alice-attempt-web', io);
+    registerGroupCallHandler(io, alice, registry);
+
+    alice.handlers['group_call:start']({
+      conversationId: 'conv-start-attempt',
+      type: 'audio',
+      requestId: 'attempt-current',
+    });
+
+    expect(alice.last('group_call:started').payload).toMatchObject({
+      callId: expect.any(String),
+      requestId: 'attempt-current',
+    });
+    expect(io.last('group_call:invite').payload).not.toHaveProperty('requestId');
   });
 
   test('join adds a registry occupant and broadcasts to existing members', () => {
@@ -331,6 +359,7 @@ describe('group call occupancy contract', () => {
       setupRealtime(io);
       const socket = {
         id: 'socket-group-wiring',
+        authToken: 'synthetic-auth-token',
         user: { id: 'alice-group-wiring' },
         use: jest.fn(),
         join: jest.fn(),

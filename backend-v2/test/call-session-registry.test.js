@@ -36,6 +36,19 @@ test('last participating socket starts grace and resume cancels it', () => {
   expect(callback).toBeDefined();
 });
 
+test('resume cannot bind a second socket while the participating socket is still connected', () => {
+  const r = createRegistry();
+
+  r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'web-owner' });
+
+  expect(r.resume('c1', 'alice', 'web-observer')).toMatchObject({
+    ok: false,
+    code: 'CALL_ID_MISMATCH',
+    callId: 'c1',
+  });
+  expect(r.get('c1').participants.get('alice').socketIds).toEqual(new Set(['web-owner']));
+});
+
 test('private and group calls share the same busy occupancy', () => {
   const r = createRegistry();
 

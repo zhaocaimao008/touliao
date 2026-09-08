@@ -103,35 +103,41 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     // P0-002 强校验：负载必须是对象，conversationId 必须是合法字符串 ID
     const p = guardPayload(socket, 'group_call:start', payload);
     if (!p) return;
+    const requestId = p.requestId == null
+      ? null
+      : guardId(socket, 'group_call:start', 'requestId', p.requestId);
+    if (p.requestId != null && !requestId) return;
+    const requestMeta = requestId ? { requestId } : {};
+    const emitStartError = reason => socket.emit('group_call:error', { reason, ...requestMeta });
     const conversationId = guardId(socket, 'group_call:start', 'conversationId', p.conversationId);
     if (!conversationId) return;
     const rawType = p.type;
     // callType 枚举校验：缺省默认 audio；其余必须为字符串且∈{audio,video}，否则拒绝（与 call.js 口径一致）
     if (rawType != null && (typeof rawType !== 'string' || (rawType !== 'audio' && rawType !== 'video'))) {
       console.warn(`[realtime] 非法 callType 被拒绝 event=group_call:start type=${typeof rawType === 'string' ? rawType : typeof rawType} from=${userId}`);
-      socket.emit('group_call:error', { reason: 'invalid_type' });
+      emitStartError('invalid_type');
       return;
     }
     const type = rawType == null ? 'audio' : rawType;
     if (!isMember(conversationId, userId)) return;
     // 提前用 registry 查一次忙线（含私聊，跟群聊共用同一份 userSessions），省一次无谓的DB查询；
     // 真正原子的忙线判定在下面 registry.createGroup() 内部，这里只是快速失败路径。
-    if (registry.callForUser(userId)) { socket.emit('group_call:error', { reason: 'busy' }); return; }
+    if (registry.callForUser(userId)) { emitStartError('busy'); return; }
     const activeInConv = [...groupCalls.values()].find(c => c.conversationId === conversationId);
-    if (activeInConv) { socket.emit('group_call:error', { reason: 'active_call' }); return; }
+    if (activeInConv) { emitStartError('active_call'); return; }
     const conv = readDb.prepare("SELECT type FROM conversations WHERE id=?").get(conversationId);
-    if (!conv || conv.type !== 'group') { socket.emit('group_call:error', { reason: 'not_group' }); return; }
+    if (!conv || conv.type !== 'group') { emitStartError('not_group'); return; }
 
     const t = type === 'video' ? 'video' : 'audio';
     // 后台开关拦截：被关闭的通话类型直接拒绝发起（实时生效，无需重启/重连）
     if (!groupCallAllowed(t)) {
-      socket.emit('group_call:error', { reason: t === 'video' ? 'video_disabled' : 'voice_disabled' });
+      emitStartError(t === 'video' ? 'video_disabled' : 'voice_disabled');
       return;
     }
 
     const callId = uuidv4();
     const created = registry.createGroup({ callId, conversationId, startedBy: userId, socketId: socket.id, type: t });
-    if (!created.ok) { socket.emit('group_call:error', { reason: reasonForCode(created.code) }); return; }
+    if (!created.ok) { emitStartError(reasonForCode(created.code)); return; }
     const call = { conversationId, type: t, startedBy: userId, members: new Set([userId]), peak: 1, startedAt: nowSec(), timer: null };
     call.timer = setTimeout(() => {
       const c = groupCalls.get(callId);
@@ -150,7 +156,7 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
       callId, conversationId, type: t, from: userId,
       fromName: starter?.username, fromAvatar: starter?.avatar,
     });
-    socket.emit('group_call:started', { callId, conversationId, type: t });
+    socket.emit('group_call:started', { callId, conversationId, type: t, ...requestMeta });
   });
 
   socket.on('group_call:join', (payload) => {
