@@ -21,6 +21,7 @@ describe('message cursor sync', () => {
     const saveCursor = vi.fn();
     const finalCursor = await catchUpConversation({
       conversationId: 'c', accountId: 'u', loadCursor: async () => 0,
+      isCurrent: () => true,
       saveCursor, applyPage: async () => {}, requestPage: async () => pages.shift(),
     });
     expect(finalCursor).toBe(1000);

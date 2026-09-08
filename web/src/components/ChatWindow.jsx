@@ -318,33 +318,48 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setMessages([]);
   }
   const syncInFlightRef = useRef(null);
-  const syncRequestedRef = useRef(false);
+  // A view token changes on every conversation/owner transition, including ABA.
+  const syncViewRef = useRef(null);
+  if (syncViewRef.current?.conversationId !== conversation.id || syncViewRef.current?.owner !== outboxScope) {
+    syncViewRef.current = { conversationId: conversation.id, owner: outboxScope };
+  }
+  const syncView = syncViewRef.current;
 
   const catchUp = useCallback(() => {
-    if (!conversation.id || !user?.id) return Promise.resolve();
-    if (syncInFlightRef.current) {
-      syncRequestedRef.current = true;
-      return syncInFlightRef.current;
+    const scope = captureSession();
+    const isCurrent = () => isSessionCurrent(scope) && mountedRef.current &&
+      scope.accountId === user?.id && scope.generation === outboxScope?.generation && syncViewRef.current === syncView;
+    if (!conversation.id || !isCurrent()) return Promise.resolve();
+    const existing = syncInFlightRef.current;
+    if (existing?.isCurrent()) {
+      existing.requested = true;
+      return existing.task;
     }
+    // An obsolete flight must neither block the new view nor clear its flight.
+    const flight = { isCurrent, requested: false, task: null };
     const task = (async () => {
       do {
-        syncRequestedRef.current = false;
+        flight.requested = false;
         await catchUpConversation({
           conversationId: conversation.id,
-          accountId: user.id,
+          accountId: scope.accountId,
+          isCurrent,
           loadCursor: loadSyncCursor,
           saveCursor: saveSyncCursor,
           requestPage: async (conversationId, cursor, limit) => {
-            const { data } = await axios.get(`/api/messages/${conversationId}/sync`, { params: { cursor, limit } });
+            const { data } = await axios.get(`/api/messages/${conversationId}/sync`, {
+              params: { cursor, limit }, _sessionContext: scope,
+            });
             return data;
           },
-          applyPage: async events => setMessages(previous => applySyncEvents(previous, events)),
+          applyPage: async events => setMessages(previous => isCurrent() ? applySyncEvents(previous, events) : previous),
         });
-      } while (syncRequestedRef.current);
-    })().finally(() => { if (syncInFlightRef.current === task) syncInFlightRef.current = null; });
-    syncInFlightRef.current = task;
+      } while (isCurrent() && flight.requested);
+    })().finally(() => { if (syncInFlightRef.current === flight) syncInFlightRef.current = null; });
+    flight.task = task;
+    syncInFlightRef.current = flight;
     return task;
-  }, [conversation.id, user?.id]);
+  }, [conversation.id, user?.id, outboxScope, syncView]);
 
   // ── 点击输入区外部关闭 emoji / more / 表情包 面板 ────────────────────
   useEffect(() => {
@@ -615,6 +630,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // AbortController：会话切换时取消上一个会话的未完成请求，防止数据串堂
     const ac = new AbortController();
     const loadScope = captureSession();
+    const loadView = syncViewRef.current;
+    const isLoadCurrent = () => isSessionCurrent(loadScope) && !ac.signal.aborted && syncViewRef.current === loadView;
 
     // 离线缓存首屏：先渲染本地缓存历史（若有），服务端到达后合并覆盖。
     // 首个到达（缓存或网络）整体替换旧会话残留消息；后续到达走合并。
@@ -667,6 +684,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // 会用 setMessages(merged) 覆盖掉刚发的消息,导致其静默消失(无失败态、无重发入口)。
         // 用函数式更新读当前 state,把服务端未包含的在途乐观消息补回队尾。
         setMessages(prev => {
+          if (!isLoadCurrent()) return prev;
           if (firstArrival) {
             firstArrival = false;
             setInitialLoading(false);
@@ -688,8 +706,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             : merged;
         });
         const maxSequence = data.reduce((max, message) => Math.max(max, Number(message.server_sequence) || 0), 0);
-        loadSyncCursor(user.id, conversation.id).then(cursor => {
-          if (cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence);
+        loadSyncCursor(user.id, conversation.id, isLoadCurrent).then(cursor => {
+          if (isLoadCurrent() && cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence, isLoadCurrent);
         }).catch(() => {});
         scheduleBurn(data);
         setHasMore(data.length === 40);

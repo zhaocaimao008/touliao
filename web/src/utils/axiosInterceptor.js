@@ -3,14 +3,13 @@
  * 提升安全性和用户体验
  */
 
-import { captureSession, isSessionCurrent } from './sessionContext';
+import { captureSession, isOperationCurrent, isOperationGenerationCurrent } from './sessionContext';
 
 let csrfToken = null;
 let csrfRevision = null;
 let tokenRefreshPromise = null;
 const revision = () => localStorage.getItem('touliao_session_revision');
-const currentRequest = config => !config || (config._sessionContext
-  ? isSessionCurrent(config._sessionContext) : config._sessionRevision === revision());
+const currentRequest = config => !config || isOperationCurrent(config._sessionContext);
 function staleRequest(config) {
   config._sessionStale = true;
   return Object.assign(new Error('Session changed during request'), { config, code: 'ERR_CANCELED' });
@@ -50,20 +49,25 @@ function extractCsrfToken(response) {
  * 刷新 token（防止在请求过程中 token 过期）
  */
 async function refreshToken(axios) {
-  if (tokenRefreshPromise) return tokenRefreshPromise;
+  if (tokenRefreshPromise && isOperationCurrent(tokenRefreshPromise.scope)) return tokenRefreshPromise.promise;
+  const scope = captureSession();
+  const flight = { scope, promise: null };
   
-  tokenRefreshPromise = axios.post('/api/auth/refresh')
+  const promise = axios.post('/api/auth/refresh', null, { _sessionContext: scope })
     .then(res => {
+      if (!currentRequest(res.config)) throw staleRequest(res.config);
       const newToken = res.data?.token;
       if (newToken && (window.__ELECTRON_CONFIG__ || window.Capacitor)) {
         localStorage.setItem('touliao_electron_token', newToken);
         axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       }
       notifyCredentialsUpdated();
-      return newToken;
+      // Rotation may synchronously notify subscribers; never adopt a new login.
+      if (!isOperationGenerationCurrent(scope)) throw staleRequest(res.config);
+      return { token: newToken, scope: captureSession() };
     })
     .catch(err => {
-      if (err.config?._sessionStale) throw err;
+      if (err.config?._sessionStale || !isOperationCurrent(scope)) throw staleRequest(err.config || { _sessionContext: scope });
       // 刷新失败，清除认证状态
       console.error('[axios] Token refresh failed:', err);
       if (window.__ELECTRON_CONFIG__ || window.Capacitor) {
@@ -74,10 +78,11 @@ async function refreshToken(axios) {
       throw err;
     })
     .finally(() => {
-      tokenRefreshPromise = null;
+      if (tokenRefreshPromise === flight) tokenRefreshPromise = null;
     });
-  
-  return tokenRefreshPromise;
+  flight.promise = promise;
+  tokenRefreshPromise = flight;
+  return promise;
 }
 
 /**
@@ -110,9 +115,9 @@ export function setupAxiosInterceptors(axios) {
   // ── 请求拦截器 ──
   axios.interceptors.request.use(
     config => {
-      if (config._sessionRevision !== undefined && !currentRequest(config)) throw staleRequest(config);
+      if (config._sessionContext && !currentRequest(config)) throw staleRequest(config);
       config._sessionRevision = revision();
-      config._sessionContext = captureSession();
+      config._sessionContext ??= captureSession();
       if (csrfRevision !== revision()) { csrfToken = null; csrfRevision = revision(); }
       const cookieToken = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrf_token='))?.slice(11);
       if (cookieToken) csrfToken = cookieToken;
@@ -162,9 +167,13 @@ export function setupAxiosInterceptors(axios) {
         originalRequest._retry = true;
 
         try {
-          const newToken = await refreshToken(axios);
+          const refreshed = await refreshToken(axios);
+          if (!isOperationGenerationCurrent(originalRequest._sessionContext) || !isOperationCurrent(refreshed.scope)) {
+            throw staleRequest(originalRequest);
+          }
+          const newToken = refreshed.token;
           originalRequest._sessionRevision = revision();
-          originalRequest._sessionContext = captureSession();
+          originalRequest._sessionContext = refreshed.scope;
           if (newToken && (window.__ELECTRON_CONFIG__ || window.Capacitor)) {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
           }

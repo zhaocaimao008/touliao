@@ -46,29 +46,30 @@ function cursorKey(accountId, convId) {
   return `${String(accountId)}:${String(convId)}`;
 }
 
-export async function loadSyncCursor(accountId, convId) {
-  if (!accountId || !convId) return 0;
+export async function loadSyncCursor(accountId, convId, isCurrent = () => true) {
+  if (!accountId || !convId || !isCurrent()) return 0;
   const database = await openDB();
-  if (!database) return 0;
+  if (!database || !isCurrent()) return 0;
   return new Promise((resolve) => {
     try {
       const req = database.transaction(CURSOR_STORE, 'readonly').objectStore(CURSOR_STORE).get(cursorKey(accountId, convId));
-      req.onsuccess = () => resolve(Number(req.result?.lastSyncedSequence) || 0);
+      req.onsuccess = () => resolve(isCurrent() ? Number(req.result?.lastSyncedSequence) || 0 : 0);
       req.onerror = () => resolve(0);
     } catch { resolve(0); }
   });
 }
 
-export async function saveSyncCursor(accountId, convId, sequence) {
-  if (!accountId || !convId || !Number.isSafeInteger(sequence) || sequence < 0) return;
+export async function saveSyncCursor(accountId, convId, sequence, isCurrent = () => true) {
+  if (!accountId || !convId || !Number.isSafeInteger(sequence) || sequence < 0 || !isCurrent()) return;
   const database = await openDB();
-  if (!database) return;
+  if (!database || !isCurrent()) return;
   return new Promise((resolve) => {
     try {
       const store = database.transaction(CURSOR_STORE, 'readwrite').objectStore(CURSOR_STORE);
       const key = cursorKey(accountId, convId);
       const get = store.get(key);
       get.onsuccess = () => {
+        if (!isCurrent()) { resolve(); return; }
         const previous = Number(get.result?.lastSyncedSequence) || 0;
         const req = store.put({ key, accountId: String(accountId), convId: String(convId), lastSyncedSequence: Math.max(previous, sequence) });
         req.onsuccess = req.onerror = () => resolve();

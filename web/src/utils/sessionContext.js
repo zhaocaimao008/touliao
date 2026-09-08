@@ -13,11 +13,18 @@ export function activateSession(server, accountId) {
 }
 export function invalidateSession() { generation++; active = null; }
 export function captureSession() {
-  return active && { ...active, revision: localStorage.getItem(SESSION_REVISION_KEY) };
+  // Bootstrap/switch requests also belong to an operation, even without an owner.
+  return { ...active, generation, revision: localStorage.getItem(SESSION_REVISION_KEY),
+    ownerMarker: active ? ownerKey(active) : localStorage.getItem(SESSION_OWNER_KEY) };
+}
+export function isOperationGenerationCurrent(scope) {
+  return !!scope && scope.generation === generation &&
+    scope.ownerMarker === localStorage.getItem(SESSION_OWNER_KEY);
+}
+export function isOperationCurrent(scope) {
+  return isOperationGenerationCurrent(scope) && scope.revision === localStorage.getItem(SESSION_REVISION_KEY);
 }
 export function isSessionCurrent(scope) {
-  return !!scope && !!active && scope.generation === active.generation &&
-    scope.server === active.server && scope.accountId === active.accountId &&
-    localStorage.getItem(SESSION_OWNER_KEY) === ownerKey(scope) &&
-    scope.revision === localStorage.getItem(SESSION_REVISION_KEY);
+  return isOperationCurrent(scope) && !!active &&
+    scope.server === active.server && scope.accountId === active.accountId;
 }

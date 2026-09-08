@@ -128,14 +128,20 @@ function assertSortedOrRepair(arr) {
   }
 }
 
-export async function catchUpConversation({ conversationId, accountId, requestPage, loadCursor, saveCursor, applyPage, limit = 500 }) {
-  let cursor = await loadCursor(accountId, conversationId);
+export async function catchUpConversation({ conversationId, accountId, requestPage, loadCursor, saveCursor, applyPage, isCurrent, limit = 500 }) {
+  if (!isCurrent()) return;
+  let cursor = await loadCursor(accountId, conversationId, isCurrent);
+  if (!isCurrent()) return;
   let hasMore = true;
   while (hasMore) {
+    if (!isCurrent()) return;
     const page = await requestPage(conversationId, cursor, limit);
+    if (!isCurrent()) return;
     if (!page || !Number.isSafeInteger(page.next_cursor) || page.next_cursor < cursor) throw new Error('invalid sync cursor response');
     await applyPage(page.messages || []);
-    await saveCursor(accountId, conversationId, page.next_cursor);
+    if (!isCurrent()) return;
+    await saveCursor(accountId, conversationId, page.next_cursor, isCurrent);
+    if (!isCurrent()) return;
     hasMore = page.has_more;
     if (!hasMore) return page.next_cursor;
     if (page.next_cursor === cursor) throw new Error('sync cursor made no progress');
