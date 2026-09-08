@@ -13,6 +13,26 @@ describe('message cursor sync', () => {
     expect(applySyncEvents([], events)).toEqual([{ id: 'a', content: 'edited', server_sequence: 1, edited: 1 }]);
   });
 
+  // Q04 双向清空回归：clearConversation 现在真的置空消息(deleted=2)，不再是仅隐藏操作者的
+  // per-user watermark。一台离线设备补拉到清空之前的 message_created 事件时，join 到的是
+  // 清空后的当前行(deleted=2/content='')——绝不能把它当"新消息"插回来，否则清空/撤回
+  // 从未发生过一样，原文在离线设备上复活。
+  it('drops a message_created event whose live-joined row was cleared/recalled after the fact (deleted=2), instead of resurrecting it', () => {
+    const events = [
+      { server_sequence: 1, event_type: 'message_created', message_id: 'a', message: { id: 'a', content: 'secret', deleted: 0, server_sequence: 1 } },
+      { server_sequence: 2, event_type: 'message_created', message_id: 'b', message: { id: 'b', content: '', deleted: 2, server_sequence: 2 } },
+    ];
+    expect(applySyncEvents([], events)).toEqual([{ id: 'a', content: 'secret', deleted: 0, server_sequence: 1 }]);
+  });
+
+  it('removes an already-present message when a later-arriving message_created for it turns up deleted=2', () => {
+    const current = [{ id: 'a', content: 'secret', deleted: 0, server_sequence: 1 }];
+    const events = [
+      { server_sequence: 2, event_type: 'message_created', message_id: 'a', message: { id: 'a', content: '', deleted: 2, server_sequence: 2 } },
+    ];
+    expect(applySyncEvents(current, events)).toEqual([]);
+  });
+
   it('continues until has_more is false and persists each page cursor', async () => {
     const pages = [
       { next_cursor: 500, has_more: true, messages: [] },

@@ -10,6 +10,7 @@ const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember } = require('../messages/shared');
 const cache = require('../../utils/cache');
+const broadcaster = require('../../realtime/broadcaster');
 
 // ── 私聊会话：取或建 ────────────────────────────────────────────
 const _findPrivate = db.prepare(`
@@ -469,14 +470,22 @@ async function setBurnAfter(userId, convId, seconds) {
   return { burn_after: s };
 }
 
-// ── 按用户清空会话（H-2）：仅对操作者隐藏，对方消息不受影响 ──────
-// P1-06 review：清空后必须失效该会话搜索缓存 + 该用户全局搜索缓存，
+// ── 清空会话（双向，2026-09-08）：真正删除会话内容，对全体成员生效 ──────
+// 沿用 remove() forEveryone 同一套 DB 语义（deleted=2/清内容），一次性覆盖清空时刻
+// 之前的全部消息；不再是仅隐藏操作者视图的 per-user watermark。
+// UI 文案（privateChat.confirmClearTemplate / groupInfo.confirmClearMessagesTemplate，
+// I18nContext.jsx）历来就写"双向删除/所有成员都将看不到"，本次是让实现对齐既有文案，
+// 不是新增产品语义。conversation_clears watermark 仍保留写入：history()/media() 等既有
+// 读路径的 cleared_rowid 过滤条件不必逐一改造，双重生效对已删内容无副作用。
+// P1-06 review：清空后必须失效该会话全体成员的搜索缓存，
 // 否则 Redis 在线时同 TTL 内二次搜索会从 stale 缓存「复活」已清空消息。
-function invalidateSearchCaches(userId, convIds) {
+function invalidateSearchCaches(userIds, convIds) {
   const patterns = [];
   for (const convId of convIds) patterns.push(`search:${convId}:*`);
-  patterns.push(`search:${userId}:*`);      // messages.service.js 全局搜索缓存
-  patterns.push(`search:global:${userId}:*`); // search.service.js 全局搜索缓存
+  for (const userId of userIds) {
+    patterns.push(`search:${userId}:*`);      // messages.service.js 全局搜索缓存
+    patterns.push(`search:global:${userId}:*`); // search.service.js 全局搜索缓存
+  }
   for (const p of patterns) cache.delPattern(p).catch(() => {});
 }
 
@@ -485,14 +494,30 @@ function clearConversation(io, userId, convId) {
   const now = Math.floor(Date.now() / 1000);
   // 精确水位线：该会话当前最大消息 rowid（rowid 单调递增，无同秒歧义）
   const maxRowid = db.prepare('SELECT COALESCE(MAX(rowid), 0) AS r FROM messages WHERE conversation_id=?').get(convId).r;
-  db.prepare(`
-    INSERT INTO conversation_clears (user_id, conversation_id, cleared_at, cleared_rowid)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
-  `).run(userId, convId, now, maxRowid);
-  invalidateSearchCaches(userId, [convId]);
-  if (io) io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId });
-  return 1;
+  const memberIds = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?')
+    .all(convId).map(m => m.user_id);
+  const clearedIds = db.prepare('SELECT id FROM messages WHERE conversation_id=? AND rowid<=? AND deleted=0')
+    .all(convId, maxRowid).map(m => m.id);
+
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO conversation_clears (user_id, conversation_id, cleared_at, cleared_rowid)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
+    `).run(userId, convId, now, maxRowid);
+    if (clearedIds.length) {
+      db.prepare(`UPDATE messages SET deleted=2, content='', file_url='' WHERE conversation_id=? AND rowid<=? AND deleted=0`)
+        .run(convId, maxRowid);
+    }
+  })();
+  // 摘除还没发出去的批量合并快照，避免清空后原文冒出来复活（同 remove() forEveryone 的 race）
+  broadcaster.purgeRoomQueue(convId);
+
+  invalidateSearchCaches(memberIds, [convId]);
+  invalidateConvCacheForConversation(convId);
+  // 广播到整个会话房间（不再只发操作者自己的设备）：对方/群内其他成员在线时立即同步清空
+  if (io) io.to(convId).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId, clearedRowid: maxRowid });
+  return clearedIds.length;
 }
 
 function clearAllConversations(io, userId) {
@@ -505,7 +530,7 @@ function clearAllConversations(io, userId) {
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
   `);
   db.transaction(() => { for (const { conversation_id } of convs) upsert.run(userId, conversation_id, now, conversation_id); })();
-  invalidateSearchCaches(userId, convs.map(c => c.conversation_id));
+  invalidateSearchCaches([userId], convs.map(c => c.conversation_id));
   if (io) for (const { conversation_id } of convs) {
     io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: conversation_id, clearedBy: userId });
   }

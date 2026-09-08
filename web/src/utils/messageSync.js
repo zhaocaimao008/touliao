@@ -21,6 +21,16 @@ export function applySyncEvents(currentMessages, events) {
     const key = String(event.message_id);
     if (event.event_type === 'message_created') {
       if (!event.message) continue;
+      // 双向清空/撤回后的旧 message_created 补拉：sync 按 server_sequence 重放事件，
+      // 但 message 字段是实时 join 的当前行——若这条消息在事件产生之后被清空会话/撤回
+      // (deleted=2/内容已清空)，这里绝不能把清空前的语义当"新消息"插回来，否则清空后
+      // 离线设备一补拉，内容原样复活，等于清空/撤回从未发生。按 message_recalled 一样处理：
+      // 已在列表里就摘除，不在列表里就跳过，不插入。
+      if (event.message.deleted === 2) {
+        const at = index.get(key);
+        if (at !== undefined) { result.splice(at, 1); index = buildIndex(); }
+        continue;
+      }
       // 乐观占位替换：client_msg_id 命中的本地消息删除（让位给真实消息，避免双显）
       const optimisticKey = event.message.client_msg_id;
       if (optimisticKey) {

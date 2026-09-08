@@ -172,6 +172,16 @@ function purgeQueuedMessage(room, msgId) {
   if (idx !== -1) slot.msgs.splice(idx, 1);
 }
 
+/**
+ * 清空会话（双向，2026-09-08）：一次性摘除该房间批量合并队列里的全部待发快照。
+ * 清空覆盖「调用时刻之前的全部消息」，凡是还卡在合并窗口里没发出去的消息必然
+ * 属于这个范围，逐条 purgeQueuedMessage 是同一件事、只是 O(n) 摘 O(n) 条，直接清空更省。
+ */
+function purgeRoomQueue(room) {
+  const slot = pending.get(room);
+  if (slot) slot.msgs = [];
+}
+
 // 进程退出时同步清空 pending，防止 SIGTERM 时积压消息丢失
 function flushAllSync() {
   if (timer) { clearTimeout(timer); timer = null; }
@@ -181,4 +191,4 @@ function flushAllSync() {
 process.on('SIGTERM', flushAllSync);
 process.on('SIGINT',  flushAllSync);
 
-module.exports = { setIo, broadcastMessage, emit, purgeQueuedMessage, flushAllSync, stats };
+module.exports = { setIo, broadcastMessage, emit, purgeQueuedMessage, purgeRoomQueue, flushAllSync, stats };
