@@ -13,6 +13,7 @@ const { csrfCookieOptions } = require('../utils/cookies');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
 const { readDb } = require('../db/connection');
 const { getUserStatus, setUserStatus } = require('../utils/userStatusCache');
+const { hasActiveSession, passwordRevoked } = require('../utils/sessionAuthorization');
 
 module.exports = async function auth(req, res, next) {
   // Cookie first (web); fall back to Bearer header (Electron desktop)
@@ -42,8 +43,7 @@ module.exports = async function auth(req, res, next) {
       // 删除会话时已将 `jti:<sessionId>` 加入黑名单，此处按 jti 精确拦截。
       if (payload.jti) {
         const jtiBlacklisted = await isBlacklisted(`jti:${payload.jti}`);
-        if (jtiBlacklisted) {
-          res.clearCookie(config.cookieName, { path: '/' });
+        if (jtiBlacklisted || !hasActiveSession(payload)) {
           return res.status(401).json({ error: '该会话已失效，请重新登录' });
         }
       }
@@ -51,16 +51,14 @@ module.exports = async function auth(req, res, next) {
       // 优先命中进程内缓存（30s TTL），未命中才查 DB 并回填缓存。
       if (payload.id) {
         let row = getUserStatus(payload.id);
-        if (!row) {
+        if (!row || !payload.jti) {
           row = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(payload.id);
           if (row) setUserStatus(payload.id, row.banned, row.password_changed_at);
         }
         if (row?.banned) {
-          res.clearCookie(config.cookieName, { path: '/' });
           return res.status(403).json({ error: '账号已被封禁' });
         }
-        if (payload.iat && row?.password_changed_at && payload.iat < row.password_changed_at) {
-          res.clearCookie(config.cookieName, { path: '/' });
+        if (passwordRevoked(payload, row?.password_changed_at)) {
           return res.status(401).json({ error: '密码已修改，请重新登录' });
         }
       }
@@ -71,13 +69,11 @@ module.exports = async function auth(req, res, next) {
       res.setHeader('X-CSRF-Token', req.csrfToken);
       next();
     } catch {
-      res.clearCookie(config.cookieName, { path: '/' });
       return res.status(401).json({ error: 'Token无效或已过期' });
     }
   } catch (err) {
     console.error('[Auth] Blacklist check error:', err);
     // ⚠ 不降级放行，拒绝请求（H2）
-    res.clearCookie(config.cookieName, { path: '/' });
     return res.status(503).json({ error: '认证服务暂时不可用，请稍后再试' });
   }
 };

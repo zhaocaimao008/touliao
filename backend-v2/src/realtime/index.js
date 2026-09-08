@@ -10,6 +10,7 @@ const config = require('../config');
 const { readDb } = require('../db/connection');
 const { write } = require('../db/writer');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
+const { hasActiveSession, passwordRevoked, tokenRoom } = require('../utils/sessionAuthorization');
 const presence = require('./presence');
 const broadcaster = require('./broadcaster');
 const prodMetrics = require('../utils/prodMetrics');
@@ -81,6 +82,7 @@ module.exports = function setupRealtime(io, app) {
     if (!token) { prodMetrics.recordConnResult(false); return next(new Error('未授权')); }
     try {
       socket.user = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+      socket.authToken = token;
       // 黑名单（logout / 强制下线的 token 不得接入）
       if (await isBlacklisted(token)) {
         prodMetrics.recordConnResult(false);
@@ -88,7 +90,7 @@ module.exports = function setupRealtime(io, app) {
       }
       // A004 复审 FAIL-2：被删会话的 JWT（payload.jti）已加入 jti 黑名单，
       // 握手必须一并校验，否则旧 JWT 可新建 socket 连接并发消息。
-      if (socket.user.jti && (await isBlacklisted(`jti:${socket.user.jti}`))) {
+      if (socket.user.jti && ((await isBlacklisted(`jti:${socket.user.jti}`)) || !hasActiveSession(socket.user))) {
         prodMetrics.recordConnResult(false);
         return next(new Error('会话已失效，请重新登录'));
       }
@@ -100,7 +102,7 @@ module.exports = function setupRealtime(io, app) {
         return next(new Error('用户不存在，请重新登录'));
       }
       if (user?.banned) { prodMetrics.recordConnResult(false); return next(new Error('账号已被封禁')); }
-      if (user?.password_changed_at && socket.user.iat < user.password_changed_at) {
+      if (passwordRevoked(socket.user, user.password_changed_at)) {
         prodMetrics.recordConnResult(false);
         return next(new Error('密码已修改，请重新登录'));
       }
@@ -140,7 +142,8 @@ module.exports = function setupRealtime(io, app) {
     //    和 HTTP 中间件 middleware/auth.js 的检查对齐，见 AUDIT.md 七节两条🟡）
     socket.use(async ([event, ...args], next) => {
       try {
-        if (socket.user?.jti && (await isBlacklisted(`jti:${socket.user.jti}`))) {
+        if ((await isBlacklisted(socket.authToken)) ||
+            (socket.user?.jti && (await isBlacklisted(`jti:${socket.user.jti}`))) || !hasActiveSession(socket.user)) {
           prodMetrics.recordConnResult(false);
           socket.emit('session_expired', { reason: '会话已失效，请重新登录' });
           socket.disconnect(true);
@@ -158,7 +161,7 @@ module.exports = function setupRealtime(io, app) {
           socket.disconnect(true);
           return next(new Error('账号不可用'));
         }
-        if (u.password_changed_at && socket.user.iat < u.password_changed_at) {
+        if (passwordRevoked(socket.user, u.password_changed_at)) {
           prodMetrics.recordConnResult(false);
           socket.emit('session_expired', { reason: '密码已修改，请重新登录' });
           socket.disconnect(true);
@@ -183,6 +186,8 @@ module.exports = function setupRealtime(io, app) {
 
     // 立即入 user 房间，会话房间延迟到下一 tick
     socket.join(`user_${userId}`);
+    socket.join(socket.user.jti ? `session_${socket.user.jti}` : `legacy_user_${userId}`);
+    socket.join(tokenRoom(socket.authToken));
     setImmediate(() => {
       try {
         // 限制加入房间数上限：极端情况下（用户在数千个群）无上限 join 会阻塞事件循环。

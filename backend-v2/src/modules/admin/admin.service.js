@@ -151,7 +151,7 @@ function userDetail(id) {
   user.contactCount = db.prepare('SELECT COUNT(*) n FROM contacts WHERE user_id=?').get(id).n;
   user.messageCount = db.prepare('SELECT COUNT(*) n FROM messages WHERE sender_id=? AND deleted=0').get(id).n;
   user.groupCount   = db.prepare("SELECT COUNT(*) n FROM conversation_members cm JOIN conversations c ON c.id=cm.conversation_id AND c.type='group' WHERE cm.user_id=?").get(id).n;
-  user.sessions     = db.prepare('SELECT device, platform, ip, last_seen FROM user_sessions WHERE user_id=? ORDER BY last_seen DESC').all(id);
+  user.sessions     = db.prepare('SELECT device, platform, ip, last_seen FROM auth_sessions WHERE user_id=? ORDER BY last_seen DESC').all(id);
   user.balance      = wallet.getBalance(id);
   return user;
 }
@@ -193,10 +193,13 @@ async function resetPassword(io, id, newPassword) {
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
   if (!user) throw notFound('用户不存在');
   const hash = await bcrypt.hash(newPassword, 12);
-  db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, Math.floor(Date.now() / 1000), id);
+  db.transaction(() => {
+    db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, Math.floor(Date.now() / 1000), id);
+    db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(id);
+    db.prepare('DELETE FROM auth_sessions WHERE user_id=?').run(id);
+  })();
   invalidateUser(id); // 驱逐状态缓存，令旧 JWT 立即失效
   // 踢掉该用户所有会话并强制断开 socket，使旧 JWT 立即失效
-  db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(id);
   if (io) io.to(`user_${id}`).disconnectSockets(true);
 }
 
@@ -272,6 +275,7 @@ function deleteUser(io, id) {
     db.prepare('DELETE FROM conversation_members WHERE user_id=?').run(id);
     db.prepare('DELETE FROM user_settings WHERE user_id=?').run(id);
     db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(id);
+    db.prepare('DELETE FROM auth_sessions WHERE user_id=?').run(id);
     db.prepare('DELETE FROM push_subscriptions WHERE user_id=?').run(id);
     db.prepare('DELETE FROM device_tokens WHERE user_id=?').run(id);
     db.prepare('DELETE FROM collections WHERE user_id=?').run(id);
