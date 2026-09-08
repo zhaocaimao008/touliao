@@ -23,6 +23,16 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Signing preflight
+        shell: bash
+        env:
+          TL_UPDATE_KEY: ${{ secrets.UPDATE_PRIVATE_KEY }}
+          UPDATE_PRIVATE_KEY: ${{ runner.temp }}/update-private-key.pem
+        run: |
+          umask 077
+          printf '%s' "$TL_UPDATE_KEY" > "$UPDATE_PRIVATE_KEY"
+          node desktop-electron/scripts/preflight-signing.js
+
       - name: Install web deps
         working-directory: web
         run: npm ci
@@ -35,10 +45,6 @@ jobs:
         working-directory: desktop-electron
         run: npm ci
 
-      - name: 写入更新签名私钥（临时文件，用完即删）
-        shell: bash
-        run: echo "${{ secrets.UPDATE_PRIVATE_KEY }}" > "${{ runner.temp }}/update-private-key.pem"
-
       - name: Build Windows installer
         working-directory: desktop-electron
         # build:win 内部的 build:web 在 Windows cmd 里 cd 可能不生效；
@@ -47,7 +53,7 @@ jobs:
         # 私钥缺失或不合法时这一步会直接失败，不会产出无签名的包。
         env:
           UPDATE_PRIVATE_KEY: ${{ runner.temp }}/update-private-key.pem
-        run: npx electron-builder --win --x64
+        run: node scripts/run-electron-builder.js --win --x64
 
       - name: 签名更新元数据 latest.yml
         working-directory: desktop-electron

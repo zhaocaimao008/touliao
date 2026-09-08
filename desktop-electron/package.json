@@ -16,7 +16,12 @@
     "build:mac": "npm run build:web && node scripts/run-electron-builder.js --mac --x64 && node scripts/sign-update.js dist latest-mac.yml",
     "build:linux": "npm run build:web && node scripts/run-electron-builder.js --linux --x64 && node scripts/sign-update.js dist latest-linux.yml",
     "pack": "npm run build:web && node scripts/run-electron-builder.js --dir",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "prebuild": "node scripts/preflight-signing.js",
+    "prebuild:win": "node scripts/preflight-signing.js",
+    "prebuild:mac": "node scripts/preflight-signing.js",
+    "prebuild:linux": "node scripts/preflight-signing.js",
+    "prepack": "node scripts/preflight-signing.js"
   },
   "build": {
     "appId": "com.touliao.desktop",
@@ -79,13 +84,13 @@
     }
   },
   "dependencies": {
+    "electron-log": "^5.0.0",
     "electron-store": "^8.1.0",
-    "electron-updater": "^6.1.0",
-    "electron-log": "^5.0.0"
+    "electron-updater": "^6.1.0"
   },
   "devDependencies": {
-    "electron": "^30.0.0",
-    "electron-builder": "^24.13.0",
-    "@electron/asar": "^3.4.1"
+    "@electron/asar": "^3.4.1",
+    "electron": "43.6.0",
+    "electron-builder": "26.15.3"
   }
 }

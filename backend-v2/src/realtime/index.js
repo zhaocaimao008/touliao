@@ -54,6 +54,7 @@ function pruneIpHandshake() {
 }
 
 module.exports = function setupRealtime(io, app) {
+  require('./securityEvents').bind(io);
   broadcaster.setIo(io); // 广播调度器绑定 io 实例（分片削峰派发）
   const callRegistry = createCallSessionRegistry({
     graceMs: config.calls.reconnectGraceMs,
@@ -67,7 +68,7 @@ module.exports = function setupRealtime(io, app) {
   io.use(async (socket, next) => {
     prodMetrics.recordConnAttempt(); // 监控：连接/重连成功率（每次握手即一次尝试）
     // P1-07 增强：per-IP 握手频率限制（先于 JWT 验证，挡住廉价批量握手风暴）
-    const ip = socket.handshake.address || 'unknown';
+    const ip = require('../utils/proxyTrust').socketIp(socket) || 'unknown';
     if (!checkIpHandshake(ip)) {
       prodMetrics.recordConnResult(false);
       return next(new Error('连接过于频繁，请稍后再试'));
@@ -95,12 +96,13 @@ module.exports = function setupRealtime(io, app) {
         return next(new Error('会话已失效，请重新登录'));
       }
       // 检查封禁状态 + password_changed_at（与 HTTP auth 中间件等价）
-      const user = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(socket.user.id);
+      const user = readDb.prepare('SELECT banned, password_changed_at, auth_version FROM users WHERE id=?').get(socket.user.id);
       // A004 复审 FAIL-3：admin 硬删除用户后用户行不存在，旧 JWT 不得再接入。
       if (!user) {
         prodMetrics.recordConnResult(false);
         return next(new Error('用户不存在，请重新登录'));
       }
+      if ((socket.user.auth_version || 0) !== (user.auth_version || 0)) return next(new Error('会话已失效'));
       if (user?.banned) { prodMetrics.recordConnResult(false); return next(new Error('账号已被封禁')); }
       if (user?.password_changed_at && socket.user.iat < user.password_changed_at) {
         prodMetrics.recordConnResult(false);
@@ -154,8 +156,8 @@ module.exports = function setupRealtime(io, app) {
           socket.disconnect(true);
           return next(new Error('Token已过期'));
         }
-        const u = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(socket.user.id);
-        if (!u || u.banned) {
+        const u = readDb.prepare('SELECT banned, password_changed_at, auth_version FROM users WHERE id=?').get(socket.user.id);
+        if (!u || u.banned || (socket.user.auth_version || 0) !== (u.auth_version || 0)) {
           prodMetrics.recordConnResult(false);
           socket.disconnect(true);
           return next(new Error('账号不可用'));
@@ -184,11 +186,20 @@ module.exports = function setupRealtime(io, app) {
     const expiryTimer = socket.user.exp
       ? setTimeout(() => { socket.emit('session_expired', { reason: 'Token已过期，请重新登录' }); socket.disconnect(true); }, Math.max(0, socket.user.exp * 1000 - Date.now()))
       : null;
-    if (typeof socket.once === 'function') socket.once('disconnect', () => { if (expiryTimer) clearTimeout(expiryTimer); });
+    const stateTimer = typeof socket.once === 'function' && typeof socket.disconnect === 'function' ? setInterval(async () => {
+      try {
+        const state = readDb.prepare('SELECT banned,auth_version FROM users WHERE id=?').get(userId);
+        if (!state || state.banned || (socket.user.auth_version || 0) !== (state.auth_version || 0) ||
+            (socket.user.jti && await isBlacklisted(`jti:${socket.user.jti}`))) socket.disconnect(true);
+      } catch { socket.disconnect(true); }
+    }, 5000) : null;
+    stateTimer?.unref?.();
+    if (typeof socket.once === 'function') socket.once('disconnect', () => { if (expiryTimer) clearTimeout(expiryTimer); clearInterval(stateTimer); });
     if (app) app.set('onlineUsers', presence.onlineUserIdSet());
 
     // 立即入 user 房间，会话房间延迟到下一 tick
     socket.join(`user_${userId}`);
+    if (socket.user.jti) socket.join(`session_${socket.user.jti}`);
     setImmediate(() => {
       try {
         // 限制加入房间数上限：极端情况下（用户在数千个群）无上限 join 会阻塞事件循环。

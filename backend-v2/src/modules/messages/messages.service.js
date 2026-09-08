@@ -206,7 +206,9 @@ function missed(io, userId, after) {
 }
 
 // ── HTTP 发送（fallback）────────────────────────────────────────
-async function send(io, convId, userId, { content, type, reply_to_id }) {
+async function send(io, convId, userId, { content, type, reply_to_id, client_msg_id, clientMsgId }) {
+  const { normalizeKey, replay } = require('./idempotency');
+  const key = normalizeKey(client_msg_id === undefined ? clientMsgId : client_msg_id);
   // merged：合并转发，content 为服务端透传的 JSON（{title,items:[...]}），服务端不解析理解
   const ALLOWED_HTTP_TYPES = new Set(['text', 'contact_card', 'merged']);
   const safeType = ALLOWED_HTTP_TYPES.has(type) ? type : 'text';
@@ -216,6 +218,8 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   moderation.assertClean(content);
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
+  const previous = replay(convId,userId,key,{content,type:safeType,reply_to_id});
+  if (previous) return previous;
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
   // 私聊守卫：黑名单 + 屏蔽陌生人合并校验（复用已取的 conv，省去重复 conversations 查询）
   const guardReason = privateSendGuard(convId, userId, conv);
@@ -227,13 +231,24 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   }
   const id = uuidv4();
   // P0-1：改走 worker 异步写，主线程不再同步抢 WAL 写锁；await 保证落库后再 buildMessage 读回
-  const sequenced = await appendConversationEvent({
+  let sequenced;
+  try {
+  sequenced = await appendConversationEvent({
     conversationId: convId, eventType: 'message_created', messageId: id, actorId: userId,
     ops: [{
-      sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,server_sequence) VALUES (?,?,?,?,?,?,?)',
-      params: [id, convId, userId, safeType, content, reply_to_id || null, SEQUENCE_PARAM],
+      sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,server_sequence,client_msg_id) VALUES (?,?,?,?,?,?,?,?)',
+      params: [id, convId, userId, safeType, content, reply_to_id || null, SEQUENCE_PARAM, key],
     }],
   });
+  } catch (err) {
+    // The unique index is the arbiter across simultaneous HTTP and Socket writers.
+    if (err.message.includes('UNIQUE constraint failed: messages.')) {
+      const previous = replay(convId,userId,key,{content,type:safeType,reply_to_id});
+      if (previous) return previous;
+    }
+    if (err.message.includes('UNIQUE constraint failed: messages.')) throw require('../../utils/http').conflict('client_msg_id 已用于其他会话');
+    throw err;
+  }
 
   // #4 尾延迟：缓存失效是非关键写，改后台异步执行，不阻塞响应
   cache.delPattern(`search:*${userId}*`).catch(() => {});

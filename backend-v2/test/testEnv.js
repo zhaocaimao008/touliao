@@ -18,10 +18,16 @@
  */
 const path = require('path');
 
-const TEST_DB = path.join(__dirname, '.tmp-test-db.sqlite');
-const TEST_UPLOADS = path.join(__dirname, '.tmp-test-uploads');
+const runId = process.env.TL_TEST_RUN_ID || require('crypto').randomUUID();
+if (!/^[a-zA-Z0-9-]+$/.test(runId)) throw new Error('Invalid isolated test run id');
+process.env.TL_TEST_RUN_ID = runId;
+const TEST_DB = path.join(__dirname, `.tmp-test-${runId}.sqlite`);
+const TEST_UPLOADS = path.join(__dirname, `.tmp-test-uploads-${runId}`);
 
 process.env.NODE_ENV          = 'test';
+process.env.REDIS_URL = process.env.TEST_REDIS_URL || '';
+process.env.REDIS_HOST = '127.0.0.1';
+process.env.REDIS_PORT = process.env.TEST_REDIS_PORT || '16379';
 process.env.DB_PATH           = TEST_DB;
 process.env.UPLOADS_ROOT      = TEST_UPLOADS;
 process.env.DISABLE_CSRF      = '1';

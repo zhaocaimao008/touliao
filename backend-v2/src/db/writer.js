@@ -7,8 +7,9 @@
  *
  * 容错：worker 非零退出自动重启（500ms），重启窗口内写操作缓存 retryQueue；
  * writeAsync 未决操作记录 _pendingOps，崩溃后加入 retryQueue 重放，
- * 保证 Promise 最终 resolve（已入库的 INSERT 由 UNIQUE 冲突静默忽略）。
+ * 通过稳定 operationId 与同事务结果表重放；已提交的操作返回原结果。
  */
+const { randomUUID } = require('crypto');
 const { Worker } = require('worker_threads');
 const { performance } = require('perf_hooks');
 const path = require('path');
@@ -37,10 +38,10 @@ const MAX_QUEUE_SIZE   = 30000;  // 提升至 30k（适配峰值流量）
 const HIGH_WATER_MARK  = 22000;  // 进入过载阈值
 const LOW_WATER_MARK   = 8000;   // 退出过载阈值（更宽松，减少抖动）
 let _overloaded = false;
-const backpressure = { rejected: 0, droppedWrites: 0, overloadedEnters: 0, get queueDepth() { return _pending.size; }, get overloaded() { return _overloaded; } };
+const backpressure = { rejected: 0, droppedWrites: 0, overloadedEnters: 0, get queueDepth() { return _pendingOps.size; }, get overloaded() { return _overloaded; } };
 function updateOverload() {
-  if (!_overloaded && _pending.size >= HIGH_WATER_MARK) { _overloaded = true; backpressure.overloadedEnters++; }
-  else if (_overloaded && _pending.size <= LOW_WATER_MARK) { _overloaded = false; }
+  if (!_overloaded && _pendingOps.size >= HIGH_WATER_MARK) { _overloaded = true; backpressure.overloadedEnters++; }
+  else if (_overloaded && _pendingOps.size <= LOW_WATER_MARK) { _overloaded = false; }
 }
 
 let worker        = null;
@@ -49,6 +50,9 @@ const _pending    = new Map();   // reqId → handler(err)
 const _pendingOps = new Map();   // reqId → 原始外发消息对象（write 或 writeBatch），崩溃重启时原样重放
 const retryQueue  = [];
 let isRestarting  = false;
+let stopping = false;
+let shutdownPromise;
+let resolveShutdown;
 
 function createWorker() {
   const w = new Worker(WORKER_SCRIPT, { workerData: WORKER_DATA });
@@ -71,13 +75,12 @@ function createWorker() {
   w.on('error', e => console.error('[dbWriter] Worker error:', e.message));
 
   w.on('exit', code => {
-    if (code === 0) return;
+    if (stopping) { resolveShutdown?.(); return; }
     console.error('[dbWriter] Worker crashed (code %d), restarting in %dms …', code, RESTART_DELAY);
     isRestarting = true;
     // 未决操作（write / writeBatch）原样重新入队，待新 worker 起来后重放
-    for (const [, msg] of _pendingOps) {
-      retryQueue.unshift(msg);
-    }
+    const queued = new Map([..._pendingOps.values(), ...retryQueue].map(msg => [msg.reqId, msg]));
+    retryQueue.splice(0, retryQueue.length, ...[...queued.values()].sort((a, b) => a.reqId - b.reqId));
     _pendingOps.clear();
     setTimeout(() => {
       worker = createWorker();
@@ -86,7 +89,7 @@ function createWorker() {
       for (const msg of backlog) {
         // 重新注册到 _pendingOps，防止二次崩溃时 Promise 永久悬挂
         if (msg.reqId != null) _pendingOps.set(msg.reqId, msg);
-        try { worker.postMessage(msg); } catch {}
+        postMsg(msg);
       }
       console.info('[dbWriter] Worker restarted, flushed %d buffered ops', backlog.length);
     }, RESTART_DELAY);
@@ -99,7 +102,15 @@ worker = createWorker();
 
 function postMsg(msg) {
   if (isRestarting) retryQueue.push(msg);
-  else worker.postMessage(msg);
+  else {
+    try { worker.postMessage(msg); }
+    catch (err) {
+      _pendingOps.delete(msg.reqId);
+      const handler = _pending.get(msg.reqId);
+      _pending.delete(msg.reqId);
+      if (handler) handler(err); else throw err;
+    }
+  }
 }
 
 function write(sql, params = []) {
@@ -110,19 +121,23 @@ function write(sql, params = []) {
     return;
   }
   // fire-and-forget：过载时丢弃（非关键写，如送达记录），避免加剧堆积
+  updateOverload();
   if (_overloaded) { backpressure.droppedWrites++; return; }
-  postMsg({ type: 'write', sql, params });
+  const id = ++_reqId;
+  const msg = { type: 'write', sql, params, reqId: id, operationId: randomUUID() };
+  _pendingOps.set(id, msg);
+  postMsg(msg);
 }
 
 function writeAsync(sql, params = []) {
   updateOverload();
   // 背压：未决写达到上限即快速失败，禁止 Promise 无限堆积
-  if (_pending.size >= MAX_QUEUE_SIZE) {
+  if (_pendingOps.size >= MAX_QUEUE_SIZE) {
     backpressure.rejected++;
     return Promise.reject(new Error('WRITE_QUEUE_OVERLOAD'));
   }
   const id = ++_reqId;
-  const msg = { type: 'write', sql, params, reqId: id };
+  const msg = { type: 'write', sql, params, reqId: id, operationId: randomUUID() };
   _pendingOps.set(id, msg);
   const t0 = performance.now();
   return new Promise((resolve, reject) => {
@@ -137,12 +152,12 @@ function writeAsync(sql, params = []) {
  */
 function writeBatch(ops) {
   updateOverload();
-  if (_pending.size >= MAX_QUEUE_SIZE) {
+  if (_pendingOps.size >= MAX_QUEUE_SIZE) {
     backpressure.rejected++;
     return Promise.reject(new Error('WRITE_QUEUE_OVERLOAD'));
   }
   const id = ++_reqId;
-  const msg = { type: 'writeBatch', ops, reqId: id };
+  const msg = { type: 'writeBatch', ops, reqId: id, operationId: randomUUID() };
   _pendingOps.set(id, msg);
   const t0 = performance.now();
   return new Promise((resolve, reject) => {
@@ -160,12 +175,12 @@ const SEQUENCE_PARAM = '__TOULIAO_SERVER_SEQUENCE__';
  */
 function writeSequencedEvent({ conversationId, event, ops = [] }) {
   updateOverload();
-  if (_pending.size >= MAX_QUEUE_SIZE) {
+  if (_pendingOps.size >= MAX_QUEUE_SIZE) {
     backpressure.rejected++;
     return Promise.reject(new Error('WRITE_QUEUE_OVERLOAD'));
   }
   const id = ++_reqId;
-  const msg = { type: 'writeSequencedEvent', conversationId, event, ops, reqId: id };
+  const msg = { type: 'writeSequencedEvent', conversationId, event, ops, reqId: id, operationId: randomUUID() };
   _pendingOps.set(id, msg);
   const t0 = performance.now();
   return new Promise((resolve, reject) => {
@@ -178,7 +193,11 @@ function writeSequencedEvent({ conversationId, event, ops = [] }) {
 }
 
 function shutdown() {
-  postMsg({ type: 'shutdown' });
+  if (!shutdownPromise) {
+    stopping = true;
+    shutdownPromise = new Promise(resolve => { resolveShutdown = resolve; postMsg({ type: 'shutdown' }); });
+  }
+  return shutdownPromise;
 }
 
 // 监控：未决写数量（writeAsync/writeBatch 尚未收到 worker ack）作为 Worker 队列深度代理

@@ -13,19 +13,6 @@ const { appendConversationEvent, emitSyncAvailable } = require('../../modules/me
 
 const TYPE_FALLBACK = { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]' };
 
-/**
- * 幂等性检测：如果该消息已有 client_msg_id 且 database 中已存在相同(sender_id, client_msg_id)，
- * 则直接返回已落库的消息，不重复写入。（fix: 防止弱网 ack 超时重发导致消息重复）
- */
-function checkDedup(userId, clientMsgId, conversationId) {
-  if (!clientMsgId) return null;
-  return readDb.prepare(`
-    SELECT m.*, u.username as senderName, u.avatar as senderAvatar
-    FROM messages m JOIN users u ON u.id=m.sender_id
-    WHERE m.sender_id=? AND m.client_msg_id=? AND m.conversation_id=? LIMIT 1
-  `).get(userId, clientMsgId, conversationId);
-}
-
 module.exports = function registerFileHandler(io, socket) {
   const userId = socket.user.id;
 
@@ -59,37 +46,16 @@ module.exports = function registerFileHandler(io, socket) {
       ack?.({ success: false, error: '文件 URL 非法：须为本站上传路径或已配置的云存储域名' }); return;
     }
 
-    // P1-02：本地文件必须已登记在 file_registry（上传流程写入），
-    // 防攻击者植入任意 /uploads/ URL 到消息行冒充自己的附件（planted-row 攻击）。
-    if (isLocalUrl && !lookupFile(file_url)) {
-      ack?.({ success: false, error: '文件不存在或已失效' }); return;
-    }
-
-    // ── 幂等性去重（fix: 防止弱网 ack 超时重发导致消息重复）──
-    if (clientMsgId) {
-      const existing = checkDedup(userId, clientMsgId, conversationId);
-      if (existing) {
-        const msg = {
-          id: existing.id, conversation_id: existing.conversation_id,
-          sender_id: existing.sender_id, type: existing.type,
-          content: existing.content, file_url: existing.file_url || '',
-          duration: existing.duration || 0,
-          reply_to_id: existing.reply_to_id || null,
-          deleted: existing.deleted, edited: existing.edited,
-          created_at: existing.created_at,
-          senderName: existing.senderName || '',
-          senderAvatar: existing.senderAvatar || '',
-          client_msg_id: existing.client_msg_id || null,
-          server_sequence: existing.server_sequence || 0,
-          reactions: [], replyTo: null,
-        };
-        ack?.({ success: true, message: msg });
-        return;
-      }
-    }
-
     const member = readDb.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(conversationId, userId);
-    if (!member) { ack?.({ success: false, error: '非群成员' }); return; }
+    if (!member) { ack({success:false,error:'非群成员'}); return; }
+    const registered = lookupFile(file_url);
+    if (!registered || registered.owner_id !== userId || registered.conversation_id !== conversationId) {
+      ack({success:false,error:'文件不存在或无权发送，请使用转发接口分享已有附件'}); return;
+    }
+    if (clientMsgId) {
+      const previous = require('../../modules/messages/idempotency').replay(conversationId,userId,clientMsgId,{type,file_url,content:typeof content==='string'?content.slice(0,200):'',reply_to_id});
+      if (previous) { ack({success:true,message:previous});return; }
+    }
 
     const conv = readDb.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(conversationId);
     if (conv?.mute_all && member.role === 'member') { ack?.({ success: false, error: '全员禁言中，您没有发言权限' }); return; }
@@ -173,7 +139,13 @@ module.exports = function registerFileHandler(io, socket) {
       }
     });
     } catch (err) {
-      ack?.({ success: false, error: '服务器内部错误，请重试' });
+      if (err.message.includes('UNIQUE constraint failed: messages.') && data.clientMsgId) {
+        try {
+          const previous = require('../../modules/messages/idempotency').replay(data.conversationId,userId,data.clientMsgId,{...data,content:typeof data.content==='string'?data.content.slice(0,200):''});
+          if (previous) { ack({success:true,message:previous});return; }
+        } catch (conflict) { ack({success:false,error:conflict.message});return; }
+      }
+      ack?.({ success: false, error: err.expose ? err.message : '服务器内部错误，请重试' });
     }
   });
 };

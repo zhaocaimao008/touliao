@@ -6,6 +6,7 @@ import { showToast } from '../utils/toast';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { useI18n } from '../contexts/I18nContext';
 import './ForwardModal.css';
+import { createMessageKeys } from '../utils/messageKeys';
 import { buildMergedPayload } from '../utils/mergedForward';
 
 export default function ForwardModal({ message, messages, sourceConversationName, onClose }) {
@@ -23,6 +24,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [result, setResult] = useState(null);
+  const [messageKey] = useState(createMessageKeys);
   const [forwardMode, setForwardMode] = useState('separate');
   const mergedMessageCount = Math.min(msgList.length, 30);
 
@@ -143,6 +145,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
         const sends = await Promise.allSettled([...selected].map(conversationId =>
           axios.post(`/api/messages/${encodeURIComponent(conversationId)}`, {
             type: 'merged', content: JSON.stringify(merged),
+            client_msg_id: messageKey(conversationId, JSON.stringify(merged)),
           })
         ));
         const successCount = sends.filter(item => item.status === 'fulfilled').length;
@@ -159,7 +162,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
         return;
       }
       // 多条走 msgIds，单条走 msgId（后端两者都兼容）
-      const clientBatchId = globalThis.crypto?.randomUUID?.() || `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const clientBatchId = messageKey('batch', JSON.stringify({ ids: msgList.map(m => m.id), targets: [...selected].sort() }));
       const payload = { conversationIds: [...selected], client_batch_id: clientBatchId };
       if (msgList.length > 1) payload.msgIds = msgList.map(m => m.id);
       else payload.msgId = msgList[0].id;

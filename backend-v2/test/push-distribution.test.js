@@ -48,6 +48,8 @@ const { db } = require('../src/db/connection');
 const push = require('../src/utils/push');
 const getuiPush = require('../src/utils/getuiPush');
 const firebaseAdmin = require('firebase-admin');
+const closeOriginalResources = require('./cleanupResources').captureCleanup();
+afterAll(closeOriginalResources);
 
 // ── 全 platform 集:显式声明(硬编码),不自动吸收 DB 新值 ──
 // 守卫1 强制:DB 出现声明之外的新值 → 测试红,提示开发者补声明 + 覆盖。

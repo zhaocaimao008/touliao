@@ -7,7 +7,9 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { badRequest, forbidden } = require('../utils/http');
+const adminAuth = require('../middleware/adminAuth');
+const { requireMessageMember } = require('../utils/messageAccess');
+const { badRequest } = require('../utils/http');
 const { db } = require('../db/connection');
 
 /**
@@ -40,6 +42,7 @@ router.post('/ack/delivery', auth, async (req, res, next) => {
       throw badRequest('缺少参数: messageId');
     }
 
+    requireMessageMember(messageId, req.user.id);
     const ackManager = req.app.get('ackManager');
     await ackManager.recordDelivery(messageId, userId, timestamp || Date.now());
 
@@ -79,6 +82,7 @@ router.post('/ack/read', auth, async (req, res, next) => {
       throw badRequest('缺少参数: messageId');
     }
 
+    requireMessageMember(messageId, req.user.id);
     const ackManager = req.app.get('ackManager');
     await ackManager.recordRead(messageId, userId, timestamp || Date.now());
 
@@ -123,6 +127,7 @@ router.get('/ack/status', auth, async (req, res, next) => {
       throw badRequest('缺少参数: messageId');
     }
 
+    requireMessageMember(messageId, req.user.id);
     const ackManager = req.app.get('ackManager');
     const status = await ackManager.getMessageAckStatus(messageId);
 
@@ -147,7 +152,7 @@ router.get('/ack/status', auth, async (req, res, next) => {
  *       200:
  *         description: 队列统计
  */
-router.get('/queue/stats', auth, async (req, res, next) => {
+router.get('/queue/stats', adminAuth, async (req, res, next) => {
   try {
     const { queueName = 'messages' } = req.query;
 
@@ -178,7 +183,7 @@ router.get('/queue/stats', auth, async (req, res, next) => {
  *       200:
  *         description: DLQ 消息列表
  */
-router.get('/dlq', auth, async (req, res, next) => {
+router.get('/dlq', adminAuth, async (req, res, next) => {
   try {
     const { queueName = 'messages', limit = 50 } = req.query;
 

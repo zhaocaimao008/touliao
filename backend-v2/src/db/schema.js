@@ -652,6 +652,17 @@ function applySchema(db) {
     "ALTER TABLE moments ADD COLUMN cover TEXT DEFAULT ''",
     // 会话归档：按用户按会话，0=未归档(默认，老行为不变)/1=已归档
     "ALTER TABLE conversation_settings ADD COLUMN archived INTEGER DEFAULT 0",
+    "ALTER TABLE conversation_settings ADD COLUMN last_read_rowid INTEGER NOT NULL DEFAULT 0",
+    "UPDATE conversation_settings SET last_read_rowid=COALESCE((SELECT rowid FROM messages WHERE id=last_read_message_id AND conversation_id=conversation_settings.conversation_id), (SELECT MAX(rowid) FROM messages WHERE conversation_id=conversation_settings.conversation_id AND created_at<last_read_at),0)",
+    "ALTER TABLE users ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 0",
+    // Persist the allocation floor: deleting the newest message must not recycle a read/clear watermark.
+    "CREATE TABLE IF NOT EXISTS message_rowid_floor (id INTEGER PRIMARY KEY CHECK(id=1), last_rowid INTEGER NOT NULL)",
+    "INSERT OR IGNORE INTO message_rowid_floor (id,last_rowid) VALUES (1,MAX(COALESCE((SELECT MAX(rowid) FROM messages),0),COALESCE((SELECT MAX(cleared_rowid) FROM conversation_clears),0),COALESCE((SELECT MAX(last_read_rowid) FROM conversation_settings),0)))",
+    `CREATE TRIGGER IF NOT EXISTS message_rowid_monotonic AFTER INSERT ON messages BEGIN
+      UPDATE messages SET rowid=(SELECT last_rowid+1 FROM message_rowid_floor WHERE id=1)
+        WHERE id=NEW.id AND rowid <= (SELECT last_rowid FROM message_rowid_floor WHERE id=1);
+      UPDATE message_rowid_floor SET last_rowid=(SELECT rowid FROM messages WHERE id=NEW.id) WHERE id=1;
+    END`,
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

@@ -20,6 +20,8 @@ db.pragma('temp_store = MEMORY');
 db.pragma('mmap_size = 268435456');
 db.pragma('foreign_keys = ON');
 
+db.exec('CREATE TABLE IF NOT EXISTS writer_operations (operation_id TEXT PRIMARY KEY, result TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT (unixepoch()))');
+
 const stmtCache = new Map();
 const stmt = sql => {
   if (!stmtCache.has(sql)) stmtCache.set(sql, db.prepare(sql));
@@ -32,6 +34,15 @@ let timer = null;
 const SEQUENCE_PARAM = '__TOULIAO_SERVER_SEQUENCE__';
 
 function runItem(item) {
+  if (!item.operationId) return applyItem(item);
+  const saved = stmt('SELECT result FROM writer_operations WHERE operation_id=?').get(item.operationId);
+  if (saved) return JSON.parse(saved.result);
+  const result = applyItem(item);
+  stmt('INSERT INTO writer_operations (operation_id,result) VALUES (?,?)').run(item.operationId, JSON.stringify(result));
+  return result;
+}
+
+function applyItem(item) {
   if (item.type === 'writeSequencedEvent') {
     const allocated = stmt(`
       INSERT INTO conversation_sequences (conversation_id,last_sequence) VALUES (?,1)
@@ -71,8 +82,7 @@ function flushBatch(batch) {
     for (const item of batch) {
       try {
         let result;
-        if (item.ops || item.type === 'writeSequencedEvent') result = db.transaction(() => runItem(item))();
-        else result = runItem(item);
+        result = db.transaction(() => runItem(item))();
         if (item.reqId != null) parentPort.postMessage({ type: 'ack', ids: [item.reqId], result });
       } catch (itemErr) {
         console.error('[dbWorker] SQL 执行失败:', item.sql || '(batch)', itemErr.message);

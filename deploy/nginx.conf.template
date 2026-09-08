@@ -1,5 +1,13 @@
 # 投聊 nginx 配置模板 —— 由 deploy/setup.sh 自动填充 __DOMAIN__ / __PORT__ / __WEBROOT__
 # 换服务器无需手改：脚本会根据传入域名生成最终配置。
+# http context: only WebSocket upgrades consume this per-client bucket.
+# Behind a CDN, first configure real_ip using only that CDN's trusted CIDRs.
+map $http_upgrade $touliao_ws_limit_key {
+    default "";
+    ~*websocket $binary_remote_addr;
+}
+limit_req_zone $touliao_ws_limit_key zone=touliao_ws_handshake:10m rate=30r/m;
+
 server {
     listen 80;
     server_name __DOMAIN__;
@@ -20,6 +28,8 @@ server {
 
     # ── WebSocket（Socket.io 实时消息）──────────────────────
     location /socket.io/ {
+        limit_req zone=touliao_ws_handshake burst=10 nodelay;
+        limit_req_status 429;
         proxy_pass http://127.0.0.1:__PORT__;
         proxy_http_version 1.1;
         proxy_set_header Upgrade           $http_upgrade;

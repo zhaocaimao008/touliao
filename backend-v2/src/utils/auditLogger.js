@@ -256,7 +256,7 @@ class AuditLogger {
    * 清理旧日志（保留90天）
    */
   startCleanupJob() {
-    setInterval(() => {
+    this.cleanupTimer = setInterval(() => {
       try {
         const cutoff = Math.floor(Date.now() / 1000) - (90 * 24 * 60 * 60);
         const result = db.prepare('DELETE FROM audit_logs WHERE created_at < ?').run(cutoff);
@@ -267,11 +267,14 @@ class AuditLogger {
         error('审计日志清理失败', { error: err.message });
       }
     }, 24 * 60 * 60 * 1000);
+    this.cleanupTimer.unref();
   }
 
   /**
    * 获取统计信息
    */
+  stopCleanup() { clearInterval(this.cleanupTimer); }
+
   getStats(days = 7) {
     try {
       const cutoff = Math.floor(Date.now() / 1000) - (days * 24 * 60 * 60);

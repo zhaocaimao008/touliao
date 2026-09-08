@@ -63,7 +63,7 @@ class QueryCache {
 
   // 清理过期条目
   startCleanup() {
-    setInterval(() => {
+    this.cleanupTimer = setInterval(() => {
       const now = Date.now();
       for (const [key, entry] of this.cache.entries()) {
         if (now > entry.expiry) {
@@ -71,7 +71,10 @@ class QueryCache {
         }
       }
     }, 60000); // 每分钟清理一次
+    this.cleanupTimer.unref();
   }
+
+  stopCleanup() { clearInterval(this.cleanupTimer); }
 
   getStats() {
     const total = this.hits + this.misses;

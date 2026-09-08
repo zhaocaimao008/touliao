@@ -10,7 +10,6 @@
  */
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis').default;
 const redis = require('redis');
 
 // ── Redis 共享存储（可选）────────────────────────────────────────
@@ -18,7 +17,7 @@ const redis = require('redis');
 let _redisClient = null;
 let _redisReady  = false;
 
-(async () => {
+const ready = (async () => {
   // 只有显式配置 REDIS_URL 才连 Redis(否则纯内存限流,避免误连本机其他服务的 Redis)
   const url = process.env.REDIS_URL;
   if (!url) {
@@ -36,8 +35,8 @@ let _redisReady  = false;
     });
     c.on('error', () => { _redisReady = false; });
     c.on('ready', () => { _redisReady = true; });
-    await c.connect();
     _redisClient = c;
+    await c.connect();
     _redisReady  = true;
     console.debug('[RateLimit] Redis store connected (db3)');
   } catch {
@@ -47,13 +46,33 @@ let _redisReady  = false;
 
 /** 构建 store 配置：Redis 可用则共享，否则内存。 */
 function makeStore(prefix) {
-  if (_redisReady && _redisClient) {
-    return new RedisStore({
-      sendCommand: (...args) => _redisClient.sendCommand(args),
-      prefix: `rl:${prefix}:`,
-    });
-  }
-  return undefined; // express-rate-limit 默认内存存储
+  if (!process.env.REDIS_URL) return undefined;
+  const fallback = new rateLimit.MemoryStore();
+  let windowMs;
+  const incrementLua = `local hits=redis.call('INCR',KEYS[1]); if hits==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]) end; return {hits,redis.call('PTTL',KEYS[1])}`;
+  return {
+    localKeys: false,
+    init(options) { windowMs=options.windowMs; fallback.init(options); },
+    async increment(key) {
+      // Store is chosen per request, after asynchronous Redis initialization.
+      if (_redisReady && _redisClient) {
+        try {
+          const [totalHits,ttl]=await _redisClient.eval(incrementLua,{keys:[`rl:${prefix}:${key}`],arguments:[String(windowMs)]});
+          return {totalHits:Number(totalHits),resetTime:new Date(Date.now()+Math.max(0,Number(ttl)))};
+        } catch (err) { console.warn('[RateLimit] Redis increment failed; using local fallback:',err.message); }
+      }
+      return fallback.increment(key);
+    },
+    async decrement(key) {
+      fallback.decrement(key);
+      if (_redisReady && _redisClient) await _redisClient.eval("if redis.call('EXISTS',KEYS[1])==1 then return redis.call('DECR',KEYS[1]) end; return 0",{keys:[`rl:${prefix}:${key}`],arguments:[]});
+    },
+    async resetKey(key) {
+      fallback.resetKey(key);
+      if (_redisReady && _redisClient) await _redisClient.del(`rl:${prefix}:${key}`);
+    },
+    shutdown() { fallback.shutdown(); },
+  };
 }
 
 const json = msg => ({ error: msg });
@@ -265,5 +284,9 @@ if (process.env.DISABLE_RATE_LIMIT === '1') {
   const noop = (req, res, next) => next();
   for (const k of Object.keys(limiters)) limiters[k] = noop;
 }
-module.exports = limiters;
+module.exports = { ...limiters, ready, close: async () => {
+  await ready;
+  if (_redisClient) { _redisClient.destroy(); _redisClient=null; }
+  _redisReady=false;
+} };
 

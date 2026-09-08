@@ -12,7 +12,6 @@ const config = require('../config');
 const { csrfCookieOptions } = require('../utils/cookies');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
 const { readDb } = require('../db/connection');
-const { getUserStatus, setUserStatus } = require('../utils/userStatusCache');
 
 module.exports = async function auth(req, res, next) {
   // Cookie first (web); fall back to Bearer header (Electron desktop)
@@ -50,12 +49,9 @@ module.exports = async function auth(req, res, next) {
       // 校验账号状态：封禁即拒（与 socket 握手一致），及 token 是否早于密码修改时间。
       // 优先命中进程内缓存（30s TTL），未命中才查 DB 并回填缓存。
       if (payload.id) {
-        let row = getUserStatus(payload.id);
-        if (!row) {
-          row = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(payload.id);
-          if (row) setUserStatus(payload.id, row.banned, row.password_changed_at);
-        }
+        const row = readDb.prepare('SELECT banned, password_changed_at, auth_version FROM users WHERE id=?').get(payload.id);
         if (!row) return res.status(401).json({ error: '用户不存在' });
+        if ((payload.auth_version || 0) !== row.auth_version) return res.status(401).json({ error: '会话已失效' });
         if (row?.banned) {
           res.clearCookie(config.cookieName, { path: '/' });
           return res.status(403).json({ error: '账号已被封禁' });

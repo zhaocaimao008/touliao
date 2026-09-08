@@ -108,6 +108,9 @@ router.get('/search/suggestions', auth, async (req, res, next) => {
 router.post('/ack/batch', auth, async (req, res, next) => {
   try {
     const { deliveries = [], reads = [] } = req.body;
+    if (!Array.isArray(deliveries) || !Array.isArray(reads) || deliveries.length + reads.length > 500) throw badRequest('无效 ACK 批次');
+    // Validate the entire batch before any cache or database mutation.
+    for (const item of [...deliveries, ...reads]) require('../utils/messageAccess').requireMessageMember(item, req.user.id);
     const batchAckManager = req.app.get('batchAckManager');
 
     if (!batchAckManager) {

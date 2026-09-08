@@ -115,7 +115,12 @@ async function flush() {
   } catch { /* noop */ }
 }
 
+async function close() {
+  if (client) { client.destroy(); client = null; }
+}
+
 module.exports = {
+  close,
   init,
   keys,
   get,

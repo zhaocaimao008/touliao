@@ -65,8 +65,9 @@ function getClientIp(req) {
   return req.ip || req.socket?.remoteAddress || '';
 }
 
-function signToken(user, jti) {
-  const payload = { id: user.id, username: user.username, csrf: uuidv4() };
+function signToken(user, jti, expectedVersion) {
+  const version = db.prepare('SELECT auth_version FROM users WHERE id=?').get(user.id)?.auth_version || 0;
+  const payload = { id: user.id, username: user.username, csrf: uuidv4(), auth_version: expectedVersion === undefined ? version : expectedVersion };
   if (jti) payload.jti = jti; // A004: 会话绑定，删会话后该会话 JWT 可精确失效
   return jwt.sign(
     payload,
@@ -155,16 +156,18 @@ async function login({ phone, password, captchaId, captchaText }, req) {
   if (isLoginCaptchaRequired() && !(await captcha.verify(captchaId, captchaText))) {
     throw badRequest('验证码错误或已过期，请重新获取');
   }
-  const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,password,banned FROM users WHERE phone=?').get(phone);
+  const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,password,banned,auth_version FROM users WHERE phone=?').get(phone);
   // 时序保护：无论用户是否存在，都执行完整 bcrypt.compare（约 200ms），
   // 防止通过响应时间区分「手机号未注册」与「密码错误」（时序侧信道 / 用户枚举）。
   const hashToCompare = user?.password || DUMMY_HASH;
   const passwordMatch = await bcrypt.compare(password, hashToCompare);
   if (!user || !passwordMatch) throw badRequest('手机号或密码错误');
-  if (user.banned) throw forbidden('账号已被封禁，请联系管理员');
+  const current = db.prepare('SELECT password,banned,auth_version FROM users WHERE id=?').get(user.id);
+  if (!current || current.password !== user.password || current.auth_version !== user.auth_version) throw forbidden('登录状态已变更，请重新登录');
+  if (current.banned) throw forbidden('账号已被封禁，请联系管理员');
   // A004: 登录即绑定会话 id（jti），删除会话时该 JWT 可精确失效
   const jti = req ? upsertSession(user.id, req) : undefined;
-  return { token: signToken(user, jti), user: serializeUser(user) };
+  return { token: signToken(user, jti, user.auth_version), user: serializeUser(user) };
 }
 
 function getMe(userId) {
@@ -174,7 +177,9 @@ function getMe(userId) {
 
 function refreshToken(payload) {
   // A004: 保留原 jti（会话绑定），会话被删后刷新出的新 token 同样立即失效
-  return signToken({ id: payload.id, username: payload.username }, payload.jti);
+  const user = db.prepare('SELECT banned,auth_version FROM users WHERE id=?').get(payload.id);
+  if (!user || user.banned || user.auth_version !== (payload.auth_version || 0)) throw forbidden('会话已失效');
+  return signToken({ id: payload.id, username: payload.username }, payload.jti, payload.auth_version || 0);
 }
 
 function listSessions(userId, req) {
@@ -188,12 +193,16 @@ function listSessions(userId, req) {
 async function deleteSession(userId, sessionId) {
   const session = db.prepare('SELECT id FROM user_sessions WHERE id=? AND user_id=?').get(sessionId, userId);
   if (!session) throw notFound('会话不存在');
-  db.prepare('DELETE FROM user_sessions WHERE id=? AND user_id=?').run(sessionId, userId);
+  db.transaction(() => {
+    db.prepare('DELETE FROM user_sessions WHERE id=? AND user_id=?').run(sessionId, userId);
+    db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(userId);
+  })();
   // A004: 将被删会话的 jti 加入黑名单，使其已签发 JWT 立即失效（最长 tokenMaxAge）
   try {
     const { addToBlacklist } = require('../../utils/tokenBlacklist');
     const expiresAt = Math.floor(Date.now() / 1000) + config.tokenMaxAge;
-    await addToBlacklist(`jti:${sessionId}`, expiresAt).catch(() => {});
+    await addToBlacklist(`jti:${sessionId}`, expiresAt);
+    await require('../../realtime/securityEvents').revoke(userId, [sessionId]);
   } catch (e) {
     console.error('[Auth] blacklist deleted session jti error:', e.message);
   }
@@ -204,8 +213,10 @@ async function deleteAllOtherSessions(userId, device, platform) {
   const removed = db.prepare('SELECT id FROM user_sessions WHERE user_id=? AND NOT (device=? AND platform=?)').all(userId, device, platform);
   db.transaction(() => {
     db.prepare('DELETE FROM user_sessions WHERE user_id=? AND NOT (device=? AND platform=?)').run(userId, device, platform);
+    db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(userId);
   })();
   await Promise.all(removed.map(s => addToBlacklist(`jti:${s.id}`, now + config.tokenMaxAge).catch(() => {})));
+  await require('../../realtime/securityEvents').revoke(userId, removed.map(s => s.id));
   invalidateUser(userId); // 驱逐状态缓存，令被踢设备下次请求立即拦截
 }
 
@@ -244,7 +255,7 @@ async function deleteAccount(userId, password) {
       throw badRequest(`钱包仍有余额 ${balance} 金币，请先提现或清零后再注销`, 'WALLET_NOT_EMPTY');
     }
 
-    db.prepare("UPDATE users SET username=?, phone=?, password='*', avatar='', bio='', wechat_id=NULL, banned=1 WHERE id=?")
+    db.prepare("UPDATE users SET username=?, phone=?, password='*', avatar='', bio='', wechat_id=NULL, banned=1, auth_version=auth_version+1 WHERE id=?")
       .run(`已注销${anonSuffix}`, `deleted_${anonSuffix}@x`, userId);
     invalidateUser(userId); // 驱逐状态缓存，令已注销账号立即被拒
     db.prepare('DELETE FROM contacts WHERE user_id=? OR contact_id=?').run(userId, userId);
@@ -272,24 +283,34 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');
   const hash = await bcrypt.hash(newPassword, 12);
   const now = Math.floor(Date.now() / 1000);
-  db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, now, userId);
-  db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
+  const changedVersion = db.transaction(() => {
+    const changed = db.prepare('UPDATE users SET password=?, password_changed_at=?, auth_version=auth_version+1 WHERE id=? AND password=? RETURNING auth_version').get(hash, now, userId, user.password);
+    if (!changed) throw forbidden('密码已变更，请重新登录');
+    db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
+    db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(userId);
+    return changed.auth_version;
+  })();
+  await require('../../realtime/securityEvents').revoke(userId);
   // 将当前 token 加入黑名单，防止改密后旧 token 继续有效（最长 7 天）
   if (currentToken) await addToBlacklist(currentToken, jwt.decode(currentToken)?.exp);
   invalidateUser(userId); // 驱逐状态缓存
-  return signToken(user);
+  return signToken(user, undefined, changedVersion);
 }
 
 // ── 设备多账号（丝滑切换）────────────────────────────────────────
 // 记录"本设备(wallet)曾密码登录过 user"，切换时凭此免密重签发 token。
-function recordDeviceAccount(walletId, userId) {
+function recordDeviceAccount(walletId, userId, expectedVersion) {
   if (!walletId || !userId) return;
+  return db.transaction(() => {
+  const user = db.prepare('SELECT banned,auth_version FROM users WHERE id=?').get(userId);
+  if (!user || user.banned || (expectedVersion !== undefined && user.auth_version !== expectedVersion)) throw forbidden('登录状态已变更，请重新登录');
   const now = Math.floor(Date.now() / 1000);
   db.prepare(`
     INSERT INTO device_accounts (wallet_id, user_id, created_at, last_used)
     VALUES (?, ?, ?, ?)
     ON CONFLICT(wallet_id, user_id) DO UPDATE SET last_used=excluded.last_used
   `).run(walletId, userId, now, now);
+  })();
 }
 
 function removeDeviceAccount(walletId, userId) {
@@ -300,16 +321,18 @@ function removeDeviceAccount(walletId, userId) {
 // 免密切换：校验本设备登录过该账号 → 重签发 token + 返回用户信息。
 function switchAccount(walletId, userId, req) {
   if (!walletId) throw badRequest('请重新登录');
+  return db.transaction(() => {
   const owned = db.prepare('SELECT 1 FROM device_accounts WHERE wallet_id=? AND user_id=?').get(walletId, userId);
   if (!owned) throw forbidden('该账号未在本设备登录过，请重新登录');
-  const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,banned FROM users WHERE id=?').get(userId);
+  const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,banned,auth_version FROM users WHERE id=?').get(userId);
   if (!user) { removeDeviceAccount(walletId, userId); throw notFound('用户不存在'); }
   if (user.banned) { removeDeviceAccount(walletId, userId); throw forbidden('账号已被封禁'); }
   db.prepare('UPDATE device_accounts SET last_used=? WHERE wallet_id=? AND user_id=?')
     .run(Math.floor(Date.now() / 1000), walletId, userId);
   // A004: 切换账号同样绑定会话 id（jti）
   const jti = req ? upsertSession(user.id, req) : undefined;
-  return { token: signToken(user, jti), user: serializeUser(user) };
+  return { token: signToken(user, jti, user.auth_version), user: serializeUser(user) };
+  })();
 }
 
 /** 忘记密码：安全策略禁用（P1-01）。

@@ -42,9 +42,9 @@ app.use(compression({
   },
 }));
 
-// Cloudflare → Nginx → Node 双层代理，trust proxy:2 确保 req.ip 取到真实客户端 IP
+// 按实际代理地址/CIDR 信任转发链；直连请求无法通过伪造 XFF 改写来源 IP。
 // 限流器(sendMsgLimiter 等)以此为 key，若取到 Nginx 内网 IP 则所有用户共享同一限流桶
-app.set('trust proxy', 2);
+app.set('trust proxy', require('./utils/proxyTrust').trusted);
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -342,25 +342,16 @@ app.get('/api/uploads/ticket', auth, (req, res) => {
   res.json({ url: `${pathname}?token=${encodeURIComponent(token)}` });
 });
 
-// ── Web Vitals 上报端点（前端 sendBeacon，无需鉴权）───────────────
-// 内存环形缓冲记录最近 500 条，/api/metrics/vitals/recent 可查；不落库不阻塞。
-const vitalsBuffer = [];
-const VITALS_MAX = 500;
+// Anonymous vitals: 10% sampling, 1h retention, 500 entries per instance.
+const vitals = require('./utils/vitalsBuffer').createVitalsBuffer();
 app.post('/api/metrics/vitals', express.text({ type: 'text/plain', limit: '10kb' }), (req, res) => {
-  try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-    if (body && body.name) {
-      vitalsBuffer.push({
-        name: body.name, value: body.value, rating: body.rating,
-        url: (body.url || '').slice(0, 200), ua: (body.userAgent || '').slice(0, 120),
-        t: Date.now(),
-      });
-      if (vitalsBuffer.length > VITALS_MAX) vitalsBuffer.splice(0, vitalsBuffer.length - VITALS_MAX);
-    }
-    res.status(204).end();
-  } catch { res.status(204).end(); } // 解析失败静默（sendBeacon 无响应处理）
+  let body;
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body; }
+  catch { return res.status(400).json({ error: '无效性能指标' }); }
+  if (!vitals.add(body)) return res.status(400).json({ error: '无效性能指标' });
+  res.status(204).end();
 });
-app.get('/api/metrics/vitals/recent', (req, res) => res.json(vitalsBuffer.slice(-100)));
+app.get('/api/metrics/vitals/recent', require('./middleware/adminAuth'), (req, res) => res.json(vitals.recent()));
 
 // ── 路由 ────────────────────────────────────────────────────────
 app.use('/api/auth',          require('./modules/auth/auth.routes'));

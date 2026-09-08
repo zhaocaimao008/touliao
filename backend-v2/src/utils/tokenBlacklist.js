@@ -85,7 +85,7 @@ async function initRedis() {
 
   // 启动时清理 SQLite 过期条目，之后每小时一次
   purgeSqliteExpired();
-  setInterval(purgeSqliteExpired, 3600 * 1000);
+  setInterval(purgeSqliteExpired, 3600 * 1000).unref();
 }
 
 /**
@@ -126,7 +126,7 @@ async function addToBlacklist(token, expiresAt) {
  */
 async function isBlacklisted(token) {
   // 命中干净缓存：该 token 在 30s 内已确认不在黑名单，直接跳过 I/O
-  if (_cleanGet(token)) return false;
+  // Check durable revocations on every request, including after remote invalidation.
 
   try {
     if (useRedis && redisClient) {
@@ -180,4 +180,8 @@ async function clear() {
 // 启动时初始化 Redis
 initRedis();
 
-module.exports = { addToBlacklist, isBlacklisted, clear };
+async function close() {
+  if (redisClient) { redisClient.destroy(); redisClient = null; }
+  useRedis = false;
+}
+module.exports = { addToBlacklist, isBlacklisted, clear, close };

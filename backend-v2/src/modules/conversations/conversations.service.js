@@ -223,7 +223,8 @@ async function listConversations(uid, { includeArchived = false } = {}) {
         WHERE  mu.conversation_id = c.id
           AND  mu.sender_id      != ?
           AND  mu.deleted         = 0
-          AND  mu.created_at      > COALESCE(cs.last_read_at, 0)
+          AND  mu.rowid > COALESCE(cs.last_read_rowid, 0)
+          AND NOT EXISTS (SELECT 1 FROM user_message_deletions md WHERE md.message_id=mu.id AND md.user_id=cm.user_id)
           AND  mu.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                               WHERE user_id=? AND conversation_id=c.id), 0)
         LIMIT 99
@@ -233,7 +234,8 @@ async function listConversations(uid, { includeArchived = false } = {}) {
         WHERE  mm.conversation_id = c.id
           AND  mm.sender_id      != ?
           AND  mm.deleted         = 0
-          AND  mm.created_at      > COALESCE(cs.last_read_at, 0)
+          AND  mm.rowid > COALESCE(cs.last_read_rowid, 0)
+          AND NOT EXISTS (SELECT 1 FROM user_message_deletions md WHERE md.message_id=mm.id AND md.user_id=cm.user_id)
           AND  c.type             = 'group'
           AND  ? != ''
           AND  ( instr(mm.content, '@' || ?) > 0
@@ -256,7 +258,7 @@ async function listConversations(uid, { includeArchived = false } = {}) {
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id = mm.id AND d.user_id = ?)
         AND mm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                    WHERE user_id=? AND conversation_id=c.id), 0)
-      ORDER BY mm.created_at DESC LIMIT 1
+      ORDER BY mm.rowid DESC LIMIT 1
     )
     LEFT JOIN users su ON su.id = m.sender_id
     LEFT JOIN conversation_settings cs ON cs.user_id = ? AND cs.conversation_id = c.id
@@ -334,7 +336,9 @@ function unreadCounts(userId) {
         WHERE  conversation_id = cm.conversation_id
           AND  sender_id      != ?
           AND  deleted         = 0
-          AND  created_at      > COALESCE(cs.last_read_at, 0)
+          AND  rowid > COALESCE(cs.last_read_rowid, 0)
+          AND rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=cm.user_id AND conversation_id=cm.conversation_id),0)
+          AND NOT EXISTS (SELECT 1 FROM user_message_deletions md WHERE md.message_id=messages.id AND md.user_id=cm.user_id)
         LIMIT 99
       )) AS unread_count
     FROM conversation_members cm
@@ -414,20 +418,21 @@ async function markRead(io, userId, convId, messageId) {
     if (!msg) throw badRequest("消息不存在或不属于该会话");
     readAt = msg.created_at;
   } else {
-    const last = db.prepare('SELECT id, created_at FROM messages WHERE conversation_id=? AND deleted=0 ORDER BY created_at DESC LIMIT 1').get(convId);
+    const last = db.prepare('SELECT id, created_at FROM messages WHERE conversation_id=? AND deleted=0 ORDER BY rowid DESC LIMIT 1').get(convId);
     if (last) { readAt = last.created_at; readMsgId = last.id; }
   }
 
-  // #4 尾延迟：markRead 是最热接口。已读状态为最终一致即可，
-  // 改 fire-and-forget 写 + 后台缓存失效，立即返回，不等 worker commit。
-  write(`
-    INSERT INTO conversation_settings (user_id, conversation_id, last_read_at, last_read_message_id, manually_unread)
-    VALUES (?, ?, ?, ?, 0)
-    ON CONFLICT(user_id, conversation_id) DO UPDATE SET
-      last_read_at = CASE WHEN excluded.last_read_at > conversation_settings.last_read_at THEN excluded.last_read_at ELSE conversation_settings.last_read_at END,
-      last_read_message_id = CASE WHEN excluded.last_read_at > conversation_settings.last_read_at THEN excluded.last_read_message_id ELSE conversation_settings.last_read_message_id END,
-      manually_unread = 0
-  `, [userId, convId, readAt, readMsgId]);
+  const readRowid = readMsgId ? db.prepare('SELECT rowid FROM messages WHERE id=? AND conversation_id=?').get(readMsgId, convId)?.rowid || 0 : 0;
+  db.prepare(`
+    INSERT INTO conversation_settings (user_id,conversation_id,last_read_at,last_read_message_id,last_read_rowid,manually_unread)
+    VALUES (?,?,?,?,?,0)
+    ON CONFLICT(user_id,conversation_id) DO UPDATE SET
+      last_read_at=CASE WHEN excluded.last_read_rowid > last_read_rowid THEN excluded.last_read_at ELSE last_read_at END,
+      last_read_message_id=CASE WHEN excluded.last_read_rowid > last_read_rowid THEN excluded.last_read_message_id ELSE last_read_message_id END,
+      last_read_rowid=MAX(last_read_rowid,excluded.last_read_rowid), manually_unread=0
+  `).run(userId,convId,readAt,readMsgId,readRowid);
+  const committed = db.prepare('SELECT last_read_at,last_read_message_id FROM conversation_settings WHERE user_id=? AND conversation_id=?').get(userId,convId);
+  readAt = committed.last_read_at; readMsgId = committed.last_read_message_id;
   invalidateConvCacheForUser(userId);
 
   if (io) {

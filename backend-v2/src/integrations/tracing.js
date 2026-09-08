@@ -290,11 +290,13 @@ class DistributedTracing {
 const tracing = new DistributedTracing();
 
 // 定期清理内存追踪
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   tracing.clearInMemorySpans();
 }, 60000);
+cleanupTimer.unref();
 
 module.exports = {
+  stopCleanup: () => clearInterval(cleanupTimer),
   tracing,
   DistributedTracing,
 };

@@ -101,8 +101,15 @@ jobs:
       - name: Jest（全套 + 覆盖率下限）
         working-directory: backend-v2
         env:
-          REDIS_URL: redis://127.0.0.1:6379
+          TEST_REDIS_URL: redis://127.0.0.1:6379
+          TEST_REDIS_PORT: 6379
         run: npm run test:coverage
+      - name: Jest handle cleanup gate (no forceExit)
+        working-directory: backend-v2
+        env:
+          TEST_REDIS_URL: redis://127.0.0.1:6379
+          TEST_REDIS_PORT: 6379
+        run: timeout 600 npm run test:handles
       - name: 上传覆盖率报告
         if: always()
         uses: actions/upload-artifact@v4

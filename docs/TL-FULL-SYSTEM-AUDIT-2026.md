@@ -1,23 +1,23 @@
 # 《投聊全项目深度审计报告》
 
-审计分支：`audit/gpt-full-review`  
-审计范围：Web、后端、桌面 Electron、Android/iOS 源码、落地页、管理后台、CI/CD、数据库/缓存/实时通信。所有运行服务均使用隔离端口、临时 SQLite、临时上传目录和临时 Redis；未连接生产数据库，未读取或输出真实密钥。
+第二阶段更新：2026-09-08（UTC）。分支：`audit/gpt-full-review`；修复基线：`7de29a0f`。第一阶段原始报告保留在该基线提交中。
 
-## 1. 当前健康度
+范围：Web、后端、Electron、Android/iOS 静态检查、落地页、管理后台、CI、数据库、Redis 和实时协议。按用户最新要求，**短信和邮箱不作本阶段修改或验收**。所有运行验证使用隔离端口、临时 SQLite、临时上传目录和自建临时 Redis；未修改生产数据、生产密钥或部署正在运行的服务。
 
-综合评分：**72/100**。核心聊天路径可以运行，后端测试和 Web 构建稳定，但实时会话失效、同步隐私、确认接口权限、上传并发和生产构建依赖仍需处理后再上线。
+## 1. 当前结论与评分口径
 
-| 维度 | 评分 | 依据 |
+已确认问题：**P0 = 0；P1 = 0（原 20 项全部修复，第二阶段关闭剩余 10 项）**。P2 原 9 项按逐项验收统一为：**5 项关闭、3 项部分完成、1 项环境阻塞**；此外记录后端中危依赖和长期容量限制。第一阶段“P2 9（2 已修复）”未对应具体编号，本次不沿用该含混计数。
+
+第二阶段工程健康度评审：**90/100**。这是针对当前源码、协议和可执行测试证据的人工加权评分，不是工具测出的指标，也不表示所有原生平台达到发布条件。原生端未验收、覆盖率、依赖和容量限制均有扣分；不能用本分数替代上线验收。
+
+| 评审维度 | 得分/权重 | 依据与扣分 |
 |---|---:|---|
-| 架构 | 78 | 模块边界、SQLite WAL、事件游标、缓存和多端客户端较完整；写入 worker、Redis 多实现和历史兼容层增加复杂度 |
-| 代码质量 | 70 | Web/后端测试覆盖广，但覆盖率中等，存在超大组件、旧测试空壳和重复基础设施 |
-| 稳定性 | 68 | 已修复若干会话/WS失效问题；上传竞态、worker 重放和 ACK 权限仍有风险 |
-| 性能 | 75 | Web 首屏实测 FCP 428ms、LCP 984ms、CLS 0.00022；性能基准为小数据集，不能代表高并发 |
-| UI | 76 | 登录、注册、聊天、移动尺寸实测无明显错位；完整原生端视觉回归受 Linux 环境限制 |
-| UX | 74 | 核心聊天发送、Emoji、离线恢复、图片选择可用；错误/空状态和多端恢复仍需统一 |
-| 安全 | 65 | 本轮已修复高影响会话和同步问题；ACK 越权、DLQ 暴露、上传并发和代理 IP 仍需修复 |
-
-问题统计：P0 **0**；P1 **20（10 已修复，10 待修复）**；P2 **9（2 已修复）**；P3 **若干优化项**。数量按本轮确认的独立问题计，不把同一根因在不同端重复计数。
+| 已确认严重问题及安全边界 | 29/30 | 20 个 P1 关闭；权限、撤销、重放与隐私回归；后端仍有中危依赖告警，扣 1 |
+| 一致性、并发及恢复 | 23/25 | 同秒未读、硬删除水位、并发上传、worker 重放、跨进程撤销验证；长期故障注入与 ledger 容量未验收，扣 2 |
+| 回归、构建和可复现性 | 18/20 | 完整后端/Web、独立 Redis、浏览器与句柄门禁；分支覆盖仍不足，扣 2 |
+| 客户端与发布工程 | 11/15 | Web、落地页、Linux Electron 冒烟和签名前置门禁；Android/iOS/Windows 真机与签名发布未验收，扣 4 |
+| 性能与维护性 | 9/10 | 本地性能基准、翻译拆分与隐私采样；大组件和大 chunk 尚存，扣 1 |
+| 合计 | **90/100** | 受下文验证范围约束 |
 
 ## 2. 架构关系
 
@@ -51,64 +51,82 @@ flowchart LR
 - `web/src/utils/axiosInterceptor.js`：refresh 后显式替换原请求 Authorization；自动重试限定 GET/HEAD/OPTIONS，避免非幂等 POST、转账、上传在响应丢失时重复提交。
 - 新增 `backend-v2/test/audit-session-sync.test.js`，覆盖会话越权、refresh、清空/删除/撤回同步、读回执、logout、畸形 WS Cookie、过期 Socket、批量踢出和移动 UA。
 
-## 4. 待修复问题清单
+## 4. 第二阶段 P1 修复、根因与回归
 
-### P1
+| 编号 | 根因与修复后的行为 | 对应回归证据 | 状态 |
+|---|---|---|---|
+| P1-11 ACK 越权 | 原接口仅检查登录。新增 `requireMessageMember`；delivery/read/status/batch 均检查真实消息所属会话成员；批量请求全部预检后才写，限制条数和 ID 类型 | `audit-phase2.test.js`：成员/外部用户矩阵、混合批次无部分写入 | 关闭 |
+| P1-12 队列数据泄露 | DLQ 和统计原对普通用户开放；改为独立 `adminAuth`，普通用户不能读取内部队列载荷 | 同上：DLQ/统计的匿名、普通用户和管理员权限检查 | 关闭 |
+| P1-13 代理限流 | 原 Socket 使用直连代理地址。HTTP/WS 统一用可信 CIDR 解析链；默认只信 loopback；Nginx 模板只针对 Upgrade 握手按 IP 限流 | 同上：伪造 XFF、可信代理、多级链；隔离 Nginx 配置语法检查 | 关闭，实际代理 CIDR 需按部署配置 |
+| P1-14 分块并发 | offset 检查与追加非原子；现在 chunk/finish 共用跨进程锁，心跳与失效恢复；整数 offset、元数据一致性、归属和成员权限同步检查 | 同上：重复块竞争、并发 finish、字节一致、非法 offset、外部用户、过期锁恢复、初始化重试 | 关闭 |
+| P1-15 免密授权撤销 | 密码改变只删 session，设备授权和同秒 JWT 可复活。新增 `auth_version`，密码 CAS 更新、授权撤销在事务内；登录 bcrypt 后重新检查版本，延迟记录设备也检查版本；封禁/重置/注销同步失效 | 同上及 `audit-session-sync.test.js`：同秒旧 JWT、refresh、设备切换、并发封禁与延迟授权 | 关闭 |
+| P1-16 worker 重放 | 原事务提交但 ACK 丢失会重复计数，重排队列会反序。稳定 operationId 与结果账本和业务写同事务；重放返回原结果；覆盖普通/批量/序列/无返回写入，保持 FIFO；停机等待实际退出 | `audit-writer-replay.test.js`、`audit-writer-queue.test.js`：真实 worker 重启、回滚、去重、队列顺序、重启期间停机 | 关闭 |
+| P1-17 未读水位 | 秒级时间戳漏掉同秒消息。未读/提及/已读统一 rowid，事务提交后返回单调水位；过滤个人删除和清空；新增持久行号下界触发器防硬删除后 rowid 复用 | `audit-phase2.test.js`：同秒、逆序 read、删除/清空、无 settings 行、硬删除后新消息仍未读 | 关闭 |
+| P1-18 消息幂等 | HTTP/Socket 契约不一致。统一 key 验证及已存消息回放，保留更严格的 `(sender_id,client_msg_id)` 唯一约束；跨会话冲突 409；重放仍先查成员并隐藏删除内容；文件消息验证文件所有者及所属会话；Web 转发重试复用 key | `audit-phase2.test.js`、`audit-session-sync.test.js`、`messageKeys.test.js`：HTTP 并发、跨传输并发、文件重复、权限和隐藏内容 | 关闭，兼容契约见下 |
+| P1-19 idle Socket 撤销 | 原状态检查依赖发送事件；现在按 user/session room 主动断开，Redis pub/sub 跨进程传播，durable 状态检查与 5 秒 idle 检查作为丢通知兜底；HTTP 不再缓存有效状态跳过 DB 校验 | `audit-session-sync.test.js`、`core-ws-auth.test.js`；独立进程 Redis 集成验证定向撤销及去重 | 关闭 |
+| P1-20 Windows 签名门禁 | 原到打包末期才发现私钥缺失；构建 wrapper、npm prebuild 和 CI 前置验证 Ed25519 类型与内置公钥匹配，不输出密钥 | `audit-signing-preflight.test.js` 6 项，仅临时测试密钥；未生成或宣称通过 Windows 签名安装包 | 关闭门禁缺陷，Windows 发布验收仍阻塞 |
 
-1. **确认接口缺少会话成员校验**（后端，`backend-v2/src/routes/reliability.routes.js:34`、`:73`、`:118`）。任何已登录用户知道 messageId 即可伪造送达/已读，且 status 可观察别人的 ACK。复现：用户 B POST `/api/reliability/ack/read` 使用不属于其会话的 messageId，当前直接 200。根因是只校验 `req.user`，未查询 `conversation_members`。立即修复：统一 `requireMessageMember(messageId,userId)`，delivery/read/status/batch 全部调用。
-2. **死信队列和队列统计对普通用户开放**（`reliability.routes.js:150-188`）。可枚举 queueName 并读取 DLQ payload，可能泄露消息、内部错误和对象 URL。应改为 adminAuth 或独立运维权限。
-3. **反向代理下 WebSocket IP 限流使用 socket.handshake.address**（`backend-v2/src/realtime/index.js:70`）。真实用户都可能被归为 Nginx 地址，30 次/分钟会互相影响；任意未受信任 X-Forwarded-For 的处理也可能绕过。应使用受信代理解析后的地址并在边缘层限流。
-4. **分块上传同 offset 并发写入可能损坏文件**（`backend-v2/src/modules/upload/chunk.js`，由 `messages.routes.js:979-982` 暴露）。offset 检查和 appendFile 之间没有 per-upload lock；两个 PUT 可同时通过。应采用临时分片文件按 offset 命名、O_EXCL/锁和 finish 时连续性校验。
-5. **密码变更后 device_accounts 免密切换授权未撤销**（`auth.service.js:283-310`、`:260-278`）。旧设备钱包记录仍可重新签发新 JWT。密码变更、注销、管理员强制下线应清除或版本化该授权。
-6. **Writer worker 重放没有通用幂等保证**（`backend-v2/src/db/writer.js`）。事务提交后进程在 ACK 前崩溃会重复执行 INSERT/计数更新；失败队列使用 unshift 还可能反转顺序。应为写操作增加 operation id、结果表和重放前检查。
-7. **未读数仍主要依赖秒级 last_read_at**（`conversations.service.js:216-246,329-344`）。同一秒的消息可能被错误计为已读或漏计；应全面使用 server_sequence/rowid 水位，和本轮 message_reads 修复保持一致。
-8. **消息 HTTP 发送缺少统一 client_msg_id 幂等契约**（`messages.service.js` send 路径）。网络响应丢失后客户端无法安全重试，和 Socket 端去重语义不一致。应要求非空 client_msg_id 并建立 `(conversation_id, sender_id, client_msg_id)` 唯一约束或等价幂等表。
-9. **实时 Socket 事件鉴权只在发送事件触发**（`realtime/index.js:141-173`）。本轮已增加 exp 定时器，但删除会话/封禁等状态仍依赖事件或主动断开；所有管理状态变更都应通过 user room 主动断开并保留 Redis pub/sub 广播。
-10. **桌面 Windows 发布默认要求私钥，构建门禁未在 CI 前置验证**（`desktop-electron/scripts/run-electron-builder.js`）。审计构建在签名阶段失败；不能用真实密钥绕过。CI 应在打包前显式检查签名材料并给出清晰失败原因。
+HTTP/Socket 幂等兼容契约：明确传入的 key 必须是 1–128 字符非空字符串，同一用户同一 key 对应同一逻辑消息；payload 不一致返回 409。旧客户端省略 key 时生成 UUID 并随消息返回，保留原调用兼容性；**缺少客户端稳定 key 的重复请求无法保证去重**。可靠重试的客户端必须保存并复用 key，不能每次重试生成新 key。
 
-### P2
+分块锁使用 [proper-lockfile 的原子目录锁、mtime 心跳和 stale 机制](https://github.com/moxystudio/node-proper-lockfile)，避免进程崩溃留下永不释放的简单文件锁。测试覆盖服务端文件完整性和权限，不能替代云对象存储及真机媒体播放验收。
 
-- `/api/metrics/vitals/recent` 无鉴权（`backend-v2/src/app.js:345-363`），返回 URL、UA 和时间；应只对管理员开放或只返回聚合数据。
-- WebV ուitals 只在客户端上报，缺少采样、租户隔离和保留策略；高流量时内存环形缓冲仍是单实例数据。
-- Web 首包 vendor-react gzip 约 109KB，PDF worker 约 366KB、PDF/XLSX lazy chunk 较大；可继续按功能拆包和按需加载。
-- `web/src/index.css`、`I18nContext.jsx`、`ChatWindow.jsx` 等超大文件增加回归成本，应分解主题、翻译和消息渲染职责。
-- 后端覆盖率语句 57.51%、分支 44.76%，虽高于门槛但核心权限分支仍缺少系统化 API 矩阵。
-- Android 构建在当前环境因无 Java/Android SDK 无法执行；iOS 因 Linux 无 Xcode 无法执行，不能据此宣称移动端发布通过。
-- Electron 依赖 Electron 30 已有审计告警；应结合实际运行面和升级兼容性制定升级窗口，不建议直接 `npm audit fix --force`。
-- landing 使用 Next 14.2.5 静态导出；服务端 RSC/中间件类告警在当前静态部署不可直接等同于线上可利用，但仍应安排升级验证。
-- 测试脚本使用 `--forceExit`，可能掩盖未关闭句柄；应在 CI 增加一次不带 forceExit 的 handle 检查。
+## 5. P2 处理与剩余事项
 
-## 5. 验证结果
+| 原问题 | 本阶段结果 | 验收状态 |
+|---|---|---|
+| recent vitals 暴露 URL/UA | 管理员鉴权；入库前仅保留合法数值指标，移除 URL、UA、用户标识；新增隐私测试 | 关闭 |
+| vitals 缺采样和保留策略 | 10% 采样、500 条上限、1 小时 TTL；仅实例级匿名数据，未实现租户分析产品 | 关闭（现有单实例匿名指标范围） |
+| 大 PDF/XLSX chunk | 保留现有 lazy load，生产构建通过；未以删功能方式缩小产物 | 剩余 |
+| 超大文件 | 翻译数据和纯函数移出 I18nContext，新增翻译回归；ChatWindow/index.css 仍需拆分 | 部分完成 |
+| 覆盖率/API 矩阵 | 增加本阶段安全和并发矩阵，覆盖率提升；整体分支覆盖仍低于理想水平 | 部分完成 |
+| Android/iOS 环境 | 保留原始阻塞，无 SDK/Xcode 原生运行证据 | 阻塞 |
+| Electron 30 依赖 | 升级 Electron 43.6.0、builder 26.15.3 及安全传递依赖；npm audit 0；Linux 真运行冒烟通过 | 关闭依赖问题；Windows/macOS 发布验收另列 |
+| Next 14.2.5 | 升级 Next 16.3.4，同步 tsconfig；完整静态构建/typecheck 通过；npm audit 0 | 关闭 |
+| forceExit 掩盖句柄 | 增加 CI 无 forceExit 门禁；清理 Worker、Redis、定时器，修复 resetModules 丢失清理引用 | 关闭 |
 
-| 检查 | 结果 |
-|---|---|
-| Web lint | 通过，0 warning |
-| Web 单测 | 16 文件、116 项通过 |
-| Web 生产构建 | 通过 |
-| 后端完整测试 | 98 套件通过，746 项通过，1 项原有 skip |
-| 后端覆盖率 | 行 60.56%，语句 57.51%，分支 44.76%，函数 52.31% |
-| 后端性能基准 | 8 项通过；小数据集并发读/写和热缓存基准通过 |
-| Landing type/build | 通过 |
-| 浏览器核心流程 | 登录、聊天、Emoji、离线恢复、图片选择、390px 无横溢通过 |
-| 浏览器性能 | FCP 428ms，LCP 984ms，CLS 0.00022；长任务约 55–83ms |
-| Windows | 安装和 Electron 下载成功；签名私钥门禁失败，未伪造签名 |
-| Android | 环境缺 Java/SDK，未跳过并伪报通过 |
-| iOS | 环境无 Xcode，未跳过并伪报通过 |
+依赖版本选择参考 [Next 支持策略](https://nextjs.org/support-policy)、[Next 16 升级指南](https://nextjs.org/docs/app/guides/upgrading/version-16)、[Electron 发布计划](https://releases.electronjs.org/schedule)和 [Electron breaking changes](https://www.electronjs.org/docs/latest/breaking-changes)。Electron 44 涉及当前剪贴板调用兼容变化，本次选 43 分支并实际运行检查；未盲目执行 `npm audit fix --force`。
 
-## 6. 路线图
+新增剩余风险：后端安全更新后仍有 **14 个 moderate 依赖告警，high/critical 为 0**，涉及 Firebase/文件类型/追踪相关链；需逐链升级和兼容验证。Writer 结果账本尚无安全保留期清理策略，会持续增长；本次不采用可能破坏迟到重放的任意短 TTL。多实例端到端消息广播压力、Redis 中断恢复风暴、百万消息历史、持续高并发和云存储供应商链路尚未验收。
 
-立即修复：ACK/读回执成员鉴权、DLQ 管理员鉴权、分块上传并发锁、device_accounts 密码变更撤销、未读 server_sequence 水位、HTTP 消息幂等键。
+## 6. 最终验证
 
-24 小时内：修复代理 IP 限流、公共 vitals 访问、CI 签名前置检查；跑 Redis 开启模式下的全量回归和不带 forceExit 的句柄检查。
+最终计数及可移植摘要见 [验证证据 JSON](verification/TL-PHASE2-2026-09-08.json)。该文件记录实际运行结果，不把源码检查当作运行通过。
 
-7 天内：拆分 ChatWindow 与消息同步模块；建立 Web/Windows/Android/iOS 统一错误、重连、通知和 token 状态协议；增加弱网、网络切换、多设备冲突 E2E。
+<!-- FINAL_RESULTS -->
 
-30 天内：Writer 操作幂等表和可观测重放；消息列表虚拟化压力测试；对象存储断点续传和病毒/内容类型策略；Android/iOS 真机启动、ANR、OOM、后台恢复测试。
+## 7. 重点流程与验证边界
 
-长期：引入跨实例 Socket 状态广播、独立消息存储/归档策略、容量基准和 SLO；依赖按安全公告和兼容性窗口升级。
+| 用户指定流程 | 已验证 | 尚不能据此宣称通过 |
+|---|---|---|
+| 登录/注册、refresh、多设备、好友 | 现有全套 API 回归 + 新增版本撤销/设备授权竞态；浏览器实际注册 fixture、登录、好友聊天、刷新 | 短信/邮箱供应商，原生安全存储 |
+| 群聊、单聊、同步、撤回、删除、已读/未读 | 全套已有业务回归 + 新增权限、水位、同秒和重复请求矩阵 | 原生多端长时间并行压力 |
+| WebSocket、离线、重连、重复、顺序 | 浏览器离线后接收与恢复；真实 HTTP/Socket 竞争；worker 重放 FIFO；Redis 跨进程撤销 | 真实移动网络抖动、网络切换、长时间断网和恢复风暴 |
+| 图片、视频、语音、文件、Emoji | 现有 API/上传测试，新加字节完整性、文件归属和幂等；浏览器实际文本/Emoji | Android/iOS/Windows 编解码、播放、摄录、后台上传；云存储签名链路 |
+| 越权、泄露、Redis、数据库并发、API 幂等 | ACK/队列/文件权限矩阵；撤回删除回放脱敏；真实隔离 Redis；SQLite 并发与事务重放 | 生产渗透测试、生产负载指标；未对所有非消息业务 API 宣称通用幂等 |
 
-## 7. 最值得优先优化的 TOP 20
+Linux Electron 测试验证真实 runtime、electron-store 和 preload bridge；容器使用 `--no-sandbox`，因此记录 `osSandboxDisabled: true`，**不将此测试作为操作系统沙箱安全验收**。Android/iOS/Windows 均无本阶段真机或签名安装包运行通过结果。Web 浏览器是桌面 Chromium 加 390px viewport，不冒充移动原生测试。
 
-1. ACK/已读成员鉴权；2. DLQ 管理员权限；3. 分片上传并发一致性；4. HTTP 消息幂等键；5. 未读 server_sequence 水位；6. device_accounts 撤销；7. Writer 幂等重放；8. 代理真实 IP 限流；9. 跨实例 Socket 失效广播；10. 无 forceExit 句柄检查；11. Android 真机基线；12. iOS 真机基线；13. Windows 签名 CI 门禁；14. ChatWindow 拆分；15. 消息历史压力测试；16. 图片/视频压缩与首帧缓存；17. PDF worker 分包；18. 统一 Toast/Loading/空状态；19. 通知与角标多设备一致性；20. 依赖安全升级窗口。
+测试过程中实际发现并纠正了旧测试把“撤销后免密授权仍有效”当正确行为、idle 断开事件监听时序、测试桩 Socket 定时器及 resetModules 遗留 Worker。保留测试、修正安全预期和资源生命周期；不屏蔽异常、不删除失败测试。早期一次全套断言通过后有句柄未退出，不能计为无泄漏通过；以本节最终自然退出运行作为验收依据。
 
-本报告不代表 Android/iOS/Windows 发布验收已经完成：当前环境分别缺少 Android SDK/JDK、Xcode 和生产签名材料，相关结论已明确标注为环境阻塞。
+## 8. 复现与变更落地说明
+
+在仓库根目录检查迁移：
+
+```bash
+node backend-v2/scripts/check-migration-append.js --base 7de29a0f
+git diff --check
+```
+
+后端目录运行完整覆盖率和句柄检查（脚本仅创建并销毁自己启动的临时 Redis，不 flush 现有 Redis）：
+
+```bash
+node scripts/with-test-redis.js npx jest --coverage --runInBand --detectOpenHandles --testPathIgnorePatterns /node_modules/ performance.test.js
+npx jest --runInBand --detectOpenHandles performance.test.js
+node test/browser-phase2.integration.js
+```
+
+浏览器脚本需安装匹配 Playwright Chromium，或用 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指向测试机器已有的 Chromium。本次使用实际缓存的 headless shell；脚本限制外部 HTTP、自动清理自有 fixture。Web 目录运行 `npm test`、`npm run lint`、`npm run build`；landing 运行 `npm run build`。Linux 桌面冒烟需 Xvfb，运行 `xvfb-run -a ./node_modules/.bin/electron --no-sandbox scripts/test-runtime.cjs`。
+
+迁移只在原数组尾部追加 6 条（139 → 145），没有改写旧迁移；writer 自建结果账本。新字段/表包括 auth_version、last_read_rowid、message_rowid_floor 与行号单调触发器。迁移已在隔离数据库运行，没有对生产库执行。部署配置需令 `TRUSTED_PROXIES` 匹配实际受信代理 CIDR，不能把公网任意地址加入；Nginx 模板已加握手限流，本阶段没有 reload 生产 Nginx。签名前置检查只读提供的发布材料，本阶段未修改任何生产公私钥。
+
+后续工作：完成原生端和 Windows 签名包验收；补真实弱网/多实例压力；处理后端中危依赖；为 worker 账本设计安全归档；继续拆分大组件与大 chunk、扩展权限分支覆盖。上述事项保持显式未验收，不以健康度评分替代证据。

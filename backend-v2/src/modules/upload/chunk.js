@@ -37,7 +37,7 @@ const metaPath = (id) => path.join(CHUNK_DIR, id + '.meta.json');
 const partPath = (id) => path.join(CHUNK_DIR, id + '.part');
 
 function loadMeta(uploadId) {
-  if (meta.has(uploadId)) return meta.get(uploadId);
+  // Read durable metadata on each operation; another process may have completed this upload.
   try {
     const m = JSON.parse(fs.readFileSync(metaPath(uploadId), 'utf8'));
     meta.set(uploadId, m);
@@ -59,9 +59,15 @@ function init(req, res) {
   const { filename, size, hash, mime } = req.body || {};
   if (!isMember(conversationId, req.user.id)) return res.status(403).json({ error: '无权上传至该会话' });
   if (!filename || !size || !hash) return res.status(400).json({ error: '参数缺失: filename,size,hash' });
-  const total = parseInt(size, 10);
-  if (!(total > 0) || total > MAX_FILE) {
+  const total = Number(size);
+  if (!Number.isSafeInteger(total) || !(total > 0) || total > MAX_FILE) {
     return res.status(400).json({ error: `文件大小需为 1 ~ ${Math.floor(MAX_FILE / 1024 / 1024)}MB` });
+  }
+  const id = makeId(req.user.id, conversationId, hash);
+  const previous = loadMeta(id);
+  if (previous) {
+    if (previous.size !== total || previous.filename !== filename || previous.mime !== (mime || '')) return res.status(409).json({ error: '上传参数与已存在会话不一致' });
+    return res.json({ uploadId: id, received: received(id), chunkSize: MAX_CHUNK });
   }
   // P1-03：磁盘剩余空间阈值（防磁盘耗尽 DoS）
   if (!diskSafe()) return res.status(503).json({ error: '服务器磁盘空间不足，请稍后再试' });
@@ -76,7 +82,6 @@ function init(req, res) {
   if (!ALLOWED_CHAT_EXTS.has(ext)) {
     return res.status(400).json({ error: `不支持的文件格式（${ext ? '.' + ext : '无扩展名'}）；仅支持常见图片/音视频/文档/压缩包` });
   }
-  const id = makeId(req.user.id, conversationId, hash);
   const m = { userId: req.user.id, convId: conversationId, filename, size: total, mime: mime || '', hash, createdAt: Date.now() };
   meta.set(id, m);
   fs.writeFileSync(metaPath(id), JSON.stringify(m));
@@ -93,6 +98,7 @@ function status(req, res) {
   if (!validateUploadId(uploadId)) return res.status(400).json({ error: '无效的上传ID' });
   const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在或已过期' });
+  if (req.params.conversationId !== m.convId || !isMember(m.convId, req.user.id)) return res.status(403).json({ error: '无权访问上传' });
   return res.json({ received: received(uploadId), size: m.size });
 }
 
@@ -101,7 +107,9 @@ async function chunk(req, res) {
   if (!validateUploadId(uploadId)) return res.status(400).json({ error: '无效的上传ID' });
   const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在或已过期，请重新 init' });
-  const offset = parseInt(req.query.offset, 10) || 0;
+  if (req.params.conversationId !== m.convId || !isMember(m.convId, req.user.id)) return res.status(403).json({ error: '无权上传至该会话' });
+  const offset = Number(req.query.offset);
+  if (!/^\d+$/.test(String(req.query.offset)) || !Number.isSafeInteger(offset)) return res.status(400).json({ error: '无效偏移' });
   const cur = received(uploadId);
   if (offset !== cur) return res.status(409).json({ error: '偏移不一致，请按 received 续传', received: cur }); // 幂等续传
   const body = req.body; // express.raw -> Buffer
@@ -175,6 +183,10 @@ function sweep() {
     const now = Date.now();
     for (const f of fs.readdirSync(CHUNK_DIR)) {
       const p = path.join(CHUNK_DIR, f);
+      // Never sweep lock directories: proper-lockfile owns their heartbeat and recovery.
+      if (f.endsWith('.lock')) continue;
+      const id = f.split('.')[0];
+      if (fs.existsSync(path.join(CHUNK_DIR, id + '.lock'))) continue;
       try { if (now - fs.statSync(p).mtimeMs > 24 * 3600 * 1000) fs.unlink(p, () => {}); } catch {}
     }
   } catch {}
@@ -191,4 +203,5 @@ function __testResetForUser(userId) {
   for (const [id, m] of meta) if (m.userId === userId) meta.delete(id);
 }
 
-module.exports = { init, status, chunk, finish, MAX_CHUNK, MAX_FILE, __testDeleteMeta, __testResetForUser };
+const { withUploadLock } = require('./lock');
+module.exports = { init, status, chunk: withUploadLock(CHUNK_DIR, chunk), finish: withUploadLock(CHUNK_DIR, finish), MAX_CHUNK, MAX_FILE, __testDeleteMeta, __testResetForUser };

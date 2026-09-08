@@ -4,6 +4,8 @@ const path = require('path');
 const { mkdirSync } = require('fs');
 const { spawnSync } = require('child_process');
 
+require('./preflight-signing').preflight();
+
 const projectRoot = path.resolve(__dirname, '..');
 const cacheRoot = process.env.TOULIAO_BUILD_CACHE || path.join(projectRoot, '.build-cache');
 const electronCache = path.join(cacheRoot, 'electron');

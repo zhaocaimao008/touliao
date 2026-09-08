@@ -58,7 +58,7 @@ async function getAndroidTokens(userId) {
 }
 
 // 定期清理过期缓存
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   let cleaned = 0;
   for (const [key, value] of tokenCache.entries()) {
@@ -69,6 +69,7 @@ setInterval(() => {
   }
   if (cleaned > 0) console.debug(`[FCM] 清理过期缓存 ${cleaned} 条`);
 }, 60000);
+cleanupTimer.unref();
 
 // ── 智能优先级 ────────────────────────────────────────────────────
 function getPriority(messageType, isSilentHour = false) {
@@ -258,6 +259,7 @@ function clearCache() {
 }
 
 module.exports = {
+  stopCleanup: () => clearInterval(cleanupTimer),
   sendBatchAndroidNotifications,
   getAndroidTokens,
   getMetrics,

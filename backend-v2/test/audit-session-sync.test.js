@@ -128,10 +128,40 @@ test('terminate other sessions keeps the current token valid and revokes all oth
   await request(app).delete('/api/auth/sessions').set('Authorization',auth(u)).expect(200);
   expect((await request(app).get('/api/auth/me').set('Authorization',auth(u))).status).toBe(200);
   expect((await request(app).get('/api/auth/me').set('Authorization',`Bearer ${other}`)).status).toBe(401);
-  expect(authService.switchAccount('audit-old-wallet',u.userId,{headers:{}})).toBeTruthy();
+  expect(() => authService.switchAccount('audit-old-wallet',u.userId,{headers:{}})).toThrow();
 });
 
 test('iPhone and iPad are classified before Mac OS compatibility tokens', () => {
   expect(authService.detectDevice('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)').platform).toBe('iPhone');
   expect(authService.detectDevice('Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X)').platform).toBe('iPad');
+});
+
+
+test('revoking one session disconnects only its idle socket', async () => {
+  const u=await makeUser();
+  const login=await request(app).post('/api/auth/login').set('User-Agent','iPhone like Mac OS X').send({phone:u.phone,password:u.password}).expect(200);
+  const current=await connect(u.token),other=await connect(login.body.token);
+  const disconnected=new Promise(resolve=>other.once('disconnect',resolve));
+  await request(app).delete(`/api/auth/sessions/${jwt.decode(login.body.token).jti}`).set('Authorization',auth(u)).expect(200);
+  await disconnected;expect(other.connected).toBe(false);expect(current.connected).toBe(true);
+  current.close();
+});
+
+test('password change disconnects idle sockets without outgoing events', async () => {
+  const u=await makeUser(),s=await connect(u.token);
+  const disconnected=new Promise(resolve=>s.once('disconnect',resolve));
+  await authService.changePassword(u.userId,{oldPassword:u.password,newPassword:'changed12345',currentToken:u.token});
+  await disconnected;expect(s.connected).toBe(false);
+});
+
+test('HTTP and Socket simultaneous retry share one persisted message', async () => {
+  const s=await connect(a.token),key=require('crypto').randomUUID();
+  const data={conversationId,content:'transport retry',type:'text',clientMsgId:key};
+  const [socketAck,httpAck]=await Promise.all([
+    new Promise(resolve=>s.emit('send_message',data,resolve)),
+    request(app).post(`/api/messages/${conversationId}`).set('Authorization',auth(a)).send({content:data.content,type:data.type,client_msg_id:key}),
+  ]);
+  expect(socketAck.success).toBe(true);expect(httpAck.status).toBe(200);expect(socketAck.message.id).toBe(httpAck.body.id);
+  expect(db.prepare('SELECT COUNT(*) n FROM conversation_events WHERE message_id=?').get(httpAck.body.id).n).toBe(1);
+  s.close();
 });
