@@ -7,6 +7,7 @@ import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingT
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
+import { useSocketStatus } from '../contexts/SocketContext';
 import './CallModal.css';
 import { IcoVideo } from './Icons';
 
@@ -185,6 +186,21 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const focusTrapRef = useFocusTrap(['calling', 'connecting', 'connected'].includes(status) || status === 'incoming');
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
+
+  // 审计 P0-2 修复：服务端通话中信令 socket 断线 15s 宽限期到期即强制挂断
+  // （callSessionRegistry.js），与底层 WebRTC 媒体连接是否存活无关——重连快慢不重要，
+  // 重要的是重连后有没有喊一声 call:resume。此前 iOS/Web/Electron 三端全部没做（仅
+  // Android 做了），断网重连场景下会出现服务端已挂断、本地仍显示"通话中"的假通话。
+  // reconnectCount 首次挂载不算重连（effect 首次运行会拿到当时的值，只在后续变化时
+  // 触发），首次运行时不 emit 避免误发。
+  const { reconnectCount } = useSocketStatus();
+  const firstReconnectRef = useRef(reconnectCount);
+  useEffect(() => {
+    if (reconnectCount === firstReconnectRef.current) return;
+    firstReconnectRef.current = reconnectCount;
+    if (statusRef.current === 'ended' || !callId) return;
+    socket?.emit('call:resume', { callId });
+  }, [reconnectCount, socket, callId]);
 
   const pcRef           = useRef(null);
   const localStreamRef  = useRef(null);

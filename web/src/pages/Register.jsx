@@ -93,11 +93,13 @@ export default function Register() {
 
       <div className="auth-container" style={{ width: 400 }}>
         <div className="auth-brand">
-          <div className="auth-brand-icon">
-            <svg viewBox="0 0 40 40" width="38" height="38" fill="none">
-              <path d="M5 7a3 3 0 013-3h16a3 3 0 013 3v12a3 3 0 01-3 3H14l-5 5V7z" fill="rgba(255,255,255,.3)"/>
-              <path d="M17 15a3 3 0 013-3h11a3 3 0 013 3v10a3 3 0 01-3 3h-3v4l-5-4h-3a3 3 0 01-3-3V15z" fill="white"/>
-            </svg>
+          {/* 审计 P0 修复：此前用一个跟登录页真实 App 图标完全不同的"对话气泡"占位符
+              SVG，三个认证页里 2/3 品牌不统一；改为和登录页一致的真实图标。 */}
+          <div className="auth-brand-icon" style={{background:'none',boxShadow:'none',padding:0,overflow:'hidden'}}>
+            <picture>
+              <source srcSet="/icon.webp" type="image/webp" />
+              <img src="/icon.png" alt={t('common.appName')} width="38" height="38" style={{borderRadius:'var(--radius-md)',display:'block',objectFit:'cover'}} />
+            </picture>
           </div>
           <h1 className="auth-brand-name">{t('auth.createAccount')}</h1>
           <p className="auth-brand-desc">{t('auth.registerSlogan')}</p>

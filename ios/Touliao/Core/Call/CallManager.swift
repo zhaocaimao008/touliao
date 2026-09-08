@@ -388,6 +388,16 @@ final class CallManager: NSObject, ObservableObject {
                 self.state.isVideo = (evt.type == "video")
             }
         }.store(in: &cancellables)
+
+        // 审计 P0-2 修复：signaling socket 重连后若不喊一声 call:resume，服务端 15s
+        // 宽限期到期会把本端当断线判定为通话结束（与 WebRTC 媒体连接是否存活无关）。
+        // 此前 CallManager 从不订阅 socket 重连事件，是 iOS/Web/Electron 三端共同缺失
+        // 的信令契约，仅 Android 端实现了（见审计报告 P0-2）。
+        socket.reconnected.receive(on: DispatchQueue.main).sink { [weak self] in
+            guard let self else { return }
+            guard self.state.stage != .idle && self.state.stage != .ended, !self.state.callId.isEmpty else { return }
+            self.socket.emitCallResume(callId: self.state.callId)
+        }.store(in: &cancellables)
     }
 
     private func drainIce() {

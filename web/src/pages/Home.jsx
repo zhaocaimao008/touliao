@@ -1260,9 +1260,12 @@ export default function Home() {
       {/* 主内容区 */}
       <div className="wc-main">
 
-        {/* 面板区（固定顶栏 + 内容） */}
+        {/* 面板区（固定顶栏 + 内容）。审计 P0 修复：此前不分 tab 一律用聊天列表的窄
+            宽度，通讯录/朋友圈/通话/收藏/我这五个 tab 右侧因此被 home-chat-area 的
+            "未选中会话"占位符锁死约 70% 屏幕。非聊天 tab 下面板改为占满整个内容区，
+            且不再渲染 home-chat-area（见下方渲染条件同步加了 tab==='chats'）。 */}
         {(!isMobile || showPanel) && (
-          <div className="wc-panel">
+          <div className={`wc-panel${tab !== 'chats' ? ' wc-panel-full' : ''}`}>
 
             {/* 固定顶栏：搜索 + 二维码 + 添加 */}
             <div className="wc-panel-topbar">
@@ -1299,8 +1302,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* 聊天区 */}
-        {(!isMobile || showChat) && (
+        {/* 聊天区：仅"消息" tab 下渲染（含其"未选中会话"占位符 WcEmpty，语义只服务这个
+            tab）。其余四个 tab 由上面已经占满宽度的 wc-panel 单独承载内容。 */}
+        {(!isMobile || showChat) && tab === 'chats' && (
           <div className="home-chat-area">
             {activeConv
               ? (

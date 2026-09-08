@@ -6,6 +6,7 @@ import { installPrewarm, startRingback as toneRingback, stopTone, playConnectedT
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
+import { useSocketStatus } from '../contexts/SocketContext';
 
 installPrewarm();
 
@@ -125,6 +126,18 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const ICE_RESTART_DEBOUNCE_MS = 3000;
   const ICE_RESTART_WINDOW_MS   = 15000;
   const ICE_RESTART_MAX         = 3;
+
+  // 审计 P0-2 修复（群通话同款）：signaling socket 断线重连若不发 group_call:resume，
+  // 服务端 15s 宽限期到期会把本端当断线成员移除（与 1v1 CallModal 同一根因，见其内
+  // 注释）。首次挂载不算重连，只在 reconnectCount 后续变化时补发。
+  const { reconnectCount } = useSocketStatus();
+  const firstReconnectRef = useRef(reconnectCount);
+  useEffect(() => {
+    if (reconnectCount === firstReconnectRef.current) return;
+    firstReconnectRef.current = reconnectCount;
+    if (closedRef.current || !callIdRef.current) return;
+    socket?.emit('group_call:resume', { callId: callIdRef.current });
+  }, [reconnectCount, socket]);
 
   // A-3：按当前已连接 peer 数对全部已连接 pc 重放码率/降档。人数与施加对象都只算
   // 已连接的——未协商完的 sender 上 setParameters 在部分浏览器会抛错（静默即可，但

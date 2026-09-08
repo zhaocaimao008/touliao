@@ -519,6 +519,12 @@ final class SocketService {
         if !callId.isEmpty { payload["callId"] = callId }
         socket?.emit("call:switch-type", payload)
     }
+    // 审计 P0-2 修复：通话中信令 socket 断线，服务端 15s 宽限期到期即强制挂断
+    // （与 WebRTC 媒体连接是否存活无关）。此前 iOS 从未发送这个信号（仅 Android
+    // 实现了），断网重连后会出现服务端已挂断、本地仍显示"通话中"的假通话。
+    func emitCallResume(callId: String) {
+        socket?.emit("call:resume", ["callId": callId])
+    }
 
     // ── 群通话信令发送 ──
     func emitGroupCallStart(conversationId: String, type: String) {
@@ -540,6 +546,10 @@ final class SocketService {
     }
     func emitGroupCallLeave(callId: String) {
         socket?.emit("group_call:leave", ["callId": callId])
+    }
+    // 审计 P0-2 修复（群通话同款，见 emitCallResume 注释）。
+    func emitGroupCallResume(callId: String) {
+        socket?.emit("group_call:resume", ["callId": callId])
     }
 
     func disconnect() {

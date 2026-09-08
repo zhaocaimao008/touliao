@@ -292,6 +292,16 @@ body.dark-mode * {
   position: relative;
 }
 
+/* 审计 P0 修复：通讯录/朋友圈/通话/收藏/我这五个非聊天 tab 下，面板占满整个
+   内容区（不再固定成聊天列表的窄宽度），因为这些 tab 下 home-chat-area 根本
+   不会渲染（见 Home.jsx 渲染条件），没有右侧内容区跟它分宽度。 */
+.wc-panel.wc-panel-full {
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+  border-right: none;
+}
+
 /* Panel content area */
 .wc-panel-content {
   flex: 1;

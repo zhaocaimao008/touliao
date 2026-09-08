@@ -18,11 +18,12 @@ export default function ForgotPassword() {
 
       <div className="auth-container" style={{ width: 400 }}>
         <div className="auth-brand">
-          <div className="auth-brand-icon">
-            <svg viewBox="0 0 40 40" width="38" height="38" fill="none">
-              <path d="M5 7a3 3 0 013-3h16a3 3 0 013 3v12a3 3 0 01-3 3H14l-5 5V7z" fill="rgba(255,255,255,.3)"/>
-              <path d="M17 15a3 3 0 013-3h11a3 3 0 013 3v10a3 3 0 01-3 3h-3v4l-5-4h-3a3 3 0 01-3-3V15z" fill="white"/>
-            </svg>
+          {/* 审计 P0 修复：与登录页统一为真实 App 图标，见 Register.jsx 同款改动注释。 */}
+          <div className="auth-brand-icon" style={{background:'none',boxShadow:'none',padding:0,overflow:'hidden'}}>
+            <picture>
+              <source srcSet="/icon.webp" type="image/webp" />
+              <img src="/icon.png" alt={t('common.appName')} width="38" height="38" style={{borderRadius:'var(--radius-md)',display:'block',objectFit:'cover'}} />
+            </picture>
           </div>
           <h1 className="auth-brand-name">{t('auth.forgotTitle')}</h1>
           <p className="auth-brand-desc">{t('auth.forgotUnavailable')}</p>

@@ -293,6 +293,13 @@ final class GroupCallManager: NSObject, ObservableObject {
             guard self.state.stage != .idle, callId.isEmpty || callId == self.state.callId else { return }
             self.cleanup()
         }.store(in: &cancellables)
+
+        // 审计 P0-2 修复（群通话同款，见 CallManager.observeSignaling 内注释）。
+        socket.reconnected.receive(on: DispatchQueue.main).sink { [weak self] in
+            guard let self else { return }
+            guard self.state.stage != .idle && self.state.stage != .ended, !self.state.callId.isEmpty else { return }
+            self.socket.emitGroupCallResume(callId: self.state.callId)
+        }.store(in: &cancellables)
     }
 
     /// 建 offer(含弱网 SDP 调优 + A-2 H264 优先)并通过信令发给指定 peer；新成员加入和 ICE restart 重协商共用。
