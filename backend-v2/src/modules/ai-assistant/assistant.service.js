@@ -20,6 +20,7 @@ const { appendConversationEvent, emitSyncAvailable } = require('../messages/sync
 const config = require('../../config');
 const { buildMessage } = require('../messages/shared');
 const broadcaster = require('../../realtime/broadcaster');
+const moderation = require('../moderation/moderation.service');
 
 const AI_BOT_ID = (config.ai && config.ai.botId) || '';
 const HERMES_BOT_ID = (config.ai && config.ai.hermesBotId) || '';
@@ -352,7 +353,10 @@ async function doReply(io, convId, senderId, msg, bot, images = []) {
     }
 
     const aiResult = await askAI(bot, userContent, history);
-    const replyText = aiResult.content;
+    // 审计 Round2-P1 修复：AI 回复此前直接入库广播，完全未经审核——包括被恶意 prompt
+    // 引导复述违禁内容的场景。用 firstMatch 而非 assertClean：这是系统生成内容，命中
+    // 时应该退化成一句安全的兜底回复，而不是 throw 让这个异步任务直接失败/静默丢单。
+    const replyText = moderation.firstMatch(aiResult.content) ? '抱歉，这个问题我不方便回答。' : aiResult.content;
 
     // turn 完成
     await writeAsync(

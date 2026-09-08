@@ -6,6 +6,7 @@ const { db } = require('../../db/connection');
 const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember, memberRole, purgeConversation, invalidateConv } = require('../messages/shared');
+const moderation = require('../moderation/moderation.service');
 
 // ── 群昵称 ──────────────────────────────────────────────────────
 function setNickname(io, convId, userId, nickname) {
@@ -150,6 +151,12 @@ function updateInfo(io, convId, userId, { name, announcement }) {
   const role = memberRole(convId, userId);
   if (!role) throw forbidden('不在群内');
   if (role === 'member') throw forbidden('仅群主和管理员可修改群信息');
+
+  // 审计 Round2-P1 修复：此前群名/群公告完全未接审核，是曝光面最大的一个入口——
+  // 群公告经 group_updated 事件实时广播给全群，等同一个不设防的广播频道。放在权限
+  // 校验之后，避免非群成员靠这个接口当"黑名单词探针"用。
+  if (name !== undefined) moderation.assertClean(name.trim());
+  if (announcement !== undefined) moderation.assertClean(announcement);
 
   if (name !== undefined) db.prepare('UPDATE conversations SET name=? WHERE id=?').run(name.trim(), convId);
   if (announcement !== undefined) db.prepare('UPDATE conversations SET announcement=? WHERE id=?').run(announcement, convId);

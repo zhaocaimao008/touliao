@@ -365,6 +365,9 @@ function editMoment(userId, momentId, { content, visibility, visibleTo } = {}) {
   const imgs = safeImages(m.images);
   // 视频动态（F1 #1）：文字清空后仍有视频，不算空内容
   if (!nextContent && imgs.length === 0 && !m.video) throw badRequest('内容不能为空');
+  // 审计 Round2-P1 修复：创建/评论有审核，编辑此前完全没有——原样绕过审核发布违禁词。
+  // 只在内容真的变化时校验，未改内容（如只改 visibility）不必重新过一遍。
+  if (content != null && nextContent !== m.content) moderation.assertClean(nextContent);
 
   const VALID_VIS = new Set(['all', 'friends', 'private', 'include', 'exclude']);
   const nextVis = (visibility && VALID_VIS.has(visibility)) ? visibility : m.visibility;

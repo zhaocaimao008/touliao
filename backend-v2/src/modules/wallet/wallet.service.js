@@ -11,6 +11,7 @@ const { db } = require('../../db/connection');
 const { badRequest, notFound, forbidden } = require('../../utils/http');
 const broadcaster = require('../../realtime/broadcaster');
 const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sync.service');
+const moderation = require('../moderation/moderation.service');
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -88,6 +89,8 @@ async function transfer(senderId, { to_user_id, amount, note }, io = null) {
 
   const fromUser = db.prepare('SELECT username FROM users WHERE id=?').get(senderId);
   const safeNote = note && typeof note === 'string' ? note.trim().slice(0, 50) : '';
+  // 审计 Round2-P1 修复：转账备注作为聊天气泡展示给收款人，此前完全未接审核。
+  if (safeNote) moderation.assertClean(safeNote);
   const refId  = uuidv4(); // 两条流水共用同一 refId，方便对账
   const msgId  = uuidv4();
   const msgContent = JSON.stringify({ amount: amt, note: safeNote, refId });
