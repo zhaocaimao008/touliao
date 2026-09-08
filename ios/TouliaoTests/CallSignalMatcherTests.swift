@@ -64,6 +64,39 @@ final class CallSignalMatcherTests: XCTestCase {
         XCTAssertTrue(canResume("c1", "c1", participation.identityEpoch, refreshed.identityEpoch))
     }
 
+    func testTerminalSignalEndsCurrentJoiningCallBeforeParticipationIsConfirmed() {
+        XCTAssertTrue(CallSignalMatcher.matchesTerminal(
+            activeCallId: "c1",
+            eventCallId: "c1",
+            callIdentityEpoch: 7,
+            currentIdentityEpoch: 7
+        ))
+    }
+
+    func testTerminalSignalRejectsStaleCallId() {
+        XCTAssertFalse(CallSignalMatcher.matchesTerminal(
+            activeCallId: "c1",
+            eventCallId: "old",
+            callIdentityEpoch: 7,
+            currentIdentityEpoch: 7
+        ))
+    }
+
+    func testTerminalSignalRejectsStaleIdentityAndMissingCallIdentity() {
+        XCTAssertFalse(CallSignalMatcher.matchesTerminal(
+            activeCallId: "c1",
+            eventCallId: "c1",
+            callIdentityEpoch: 7,
+            currentIdentityEpoch: 8
+        ))
+        XCTAssertFalse(CallSignalMatcher.matchesTerminal(
+            activeCallId: "c1",
+            eventCallId: "c1",
+            callIdentityEpoch: nil,
+            currentIdentityEpoch: 7
+        ))
+    }
+
     private func canResume(
         _ activeCallId: String,
         _ participatingCallId: String,

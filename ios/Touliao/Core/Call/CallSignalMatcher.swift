@@ -32,4 +32,15 @@ enum CallSignalMatcher {
         return !activeCallId.isEmpty && activeCallId == participatingCallId &&
             participatingIdentityEpoch == currentIdentityEpoch
     }
+
+    static func matchesTerminal(
+        activeCallId: String,
+        eventCallId: String,
+        callIdentityEpoch: UInt64?,
+        currentIdentityEpoch: UInt64
+    ) -> Bool {
+        guard let callIdentityEpoch else { return false }
+        return !activeCallId.isEmpty && activeCallId == eventCallId &&
+            callIdentityEpoch == currentIdentityEpoch
+    }
 }

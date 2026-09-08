@@ -333,10 +333,10 @@ final class GroupCallManager: NSObject, ObservableObject {
         socket.gcEnded.receive(on: DispatchQueue.main).sink { [weak self] (callId, _) in
             guard let self else { return }
             guard self.state.stage != .idle,
-                  CallSignalMatcher.canResume(
+                  CallSignalMatcher.matchesTerminal(
                     activeCallId: self.state.callId,
-                    participatingCallId: callId,
-                    participatingIdentityEpoch: self.participatingIdentityEpoch,
+                    eventCallId: callId,
+                    callIdentityEpoch: self.callIdentityEpoch,
                     currentIdentityEpoch: KeychainStore.shared.snapshot().identityEpoch
                   )
             else { return }
