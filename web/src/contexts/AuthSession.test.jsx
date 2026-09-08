@@ -2,6 +2,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import axios from 'axios';
 import { AuthProvider } from './AuthContext';
 import { captureSession, invalidateSession } from '../utils/sessionContext';
+import { clearCsrfToken, setupAxiosInterceptors } from '../utils/axiosInterceptor';
+const originalAdapter = axios.defaults.adapter;
 
 // Exercise the real provider callbacks; only React scheduling and HTTP transport
 // are fixtures. This is not a DOM/navigation test (the browser suite owns that).
@@ -21,6 +23,8 @@ vi.mock('react', async importOriginal => ({ ...(await importOriginal()),
 }));
 beforeEach(() => {
   hooks.effects.length = 0; hooks.states.length = 0;
+  axios.interceptors.request.clear(); axios.interceptors.response.clear();
+  clearCsrfToken();
   delete axios.defaults.baseURL;
   delete axios.defaults.headers.common.Authorization;
   const storage = new Map();
@@ -28,9 +32,14 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', local); vi.stubGlobal('sessionStorage', local);
   vi.stubGlobal('window', Object.assign(new EventTarget(), { location: { href: 'https://fixture.invalid', reload: vi.fn() } }));
   vi.stubGlobal('navigator', {});
+  vi.stubGlobal('document', { cookie: '' });
   invalidateSession();
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  axios.defaults.adapter = originalAdapter;
+  axios.interceptors.request.clear(); axios.interceptors.response.clear();
+  vi.restoreAllMocks(); vi.unstubAllGlobals();
+});
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 
 test.each(['success', 'failure'])('late bootstrap %s cannot publish after login B', async outcome => {
@@ -158,4 +167,92 @@ test('current change-password success installs the new credential and publishes 
   expect(captureSession().accountId).toBe('A');
   expect(localStorage.getItem('touliao_electron_token')).toBe('synthetic-new-A');
   expect(localStorage.getItem('touliao_session_revision')).toBeTruthy();
+});
+
+// Real Provider -> Axios -> refresh -> retried DELETE. No axios method mocks.
+// Removing response-context adoption makes the refresh control fail; removing
+// identity/revision guards makes the paused B/ABA cases clear the newer login.
+function pushCleanupTransport({ refresh = false, cleanupFailure = false, pauseAt, onPause = () => {}, release = Promise.resolve() } = {}) {
+  const wire = [];
+  let deleteAttempts = 0;
+  const unsubscribe = vi.fn(async () => {
+    if (pauseAt === 'unsubscribe') { onPause(); await release; }
+    return true;
+  });
+  navigator.serviceWorker = { getRegistration: async () => ({ pushManager: {
+    getSubscription: async () => ({ endpoint: 'https://push.invalid/synthetic', unsubscribe }),
+  } }) };
+  const adapter = async config => {
+    wire.push(`${config.method}:${config.url}`);
+    if (config.url === '/api/notifications/web-subscribe') {
+      if (refresh && deleteAttempts++ === 0) {
+        throw new axios.AxiosError('synthetic expired credential', 'ERR_BAD_REQUEST', config, null, { status: 401, config });
+      }
+      if (pauseAt === 'delete') { onPause(); await release; }
+      if (cleanupFailure) {
+        throw new axios.AxiosError('synthetic cleanup forbidden', 'ERR_BAD_REQUEST', config, null, { status: 403, config });
+      }
+    }
+    return { status: 200, data: config.url === '/api/auth/refresh' ? { token: 'synthetic-new-A' } : {}, headers: {}, config };
+  };
+  axios.defaults.adapter = adapter;
+  setupAxiosInterceptors(axios);
+  return { wire, unsubscribe };
+}
+
+test.each([false, true])('logout completes push cleanup through the real Axios chain (refresh=%s)', async refresh => {
+  const { wire, unsubscribe } = pushCleanupTransport({ refresh });
+  const api = AuthProvider({ children: null }).props.value;
+  api.login({ id: 'A' });
+  await api.logout();
+  expect(wire).toEqual(refresh
+    ? ['delete:/api/notifications/web-subscribe', 'post:/api/auth/refresh', 'delete:/api/notifications/web-subscribe', 'post:/api/auth/logout']
+    : ['delete:/api/notifications/web-subscribe', 'post:/api/auth/logout']);
+  expect(unsubscribe).toHaveBeenCalledOnce();
+  expect(hooks.states[0]).toBe(null);
+  expect(captureSession().accountId).toBeUndefined();
+});
+
+test.each([
+  ['delete', 'B'], ['delete', 'ABA'], ['unsubscribe', 'B'], ['unsubscribe', 'ABA'],
+])('logout with refresh paused at %s cannot continue after %s', async (pauseAt, identity) => {
+  let resume, started;
+  const release = new Promise(resolve => { resume = resolve; });
+  const begun = new Promise(resolve => { started = resolve; });
+  const { wire, unsubscribe } = pushCleanupTransport({ refresh: true, pauseAt, release, onPause: started });
+  const api = AuthProvider({ children: null }).props.value;
+  api.login({ id: 'A' });
+  const ending = api.logout();
+  expect(await Promise.race([begun.then(() => true), ending.then(() => false)])).toBe(true);
+  api.login({ id: 'B' });
+  if (identity === 'ABA') api.login({ id: 'A' });
+  resume(); await ending;
+  expect(wire).not.toContain('post:/api/auth/logout');
+  expect(unsubscribe).toHaveBeenCalledTimes(pauseAt === 'delete' ? 0 : 1);
+  expect(captureSession().accountId).toBe(identity === 'ABA' ? 'A' : 'B');
+  expect(hooks.states[0]).toEqual({ id: identity === 'ABA' ? 'A' : 'B' });
+});
+
+test('logout remains best-effort if push DELETE fails after its own valid refresh', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const { wire, unsubscribe } = pushCleanupTransport({ refresh: true, cleanupFailure: true });
+  const api = AuthProvider({ children: null }).props.value;
+  api.login({ id: 'A' });
+  await api.logout();
+  expect(wire).toContain('post:/api/auth/logout');
+  expect(unsubscribe).not.toHaveBeenCalled();
+  expect(hooks.states[0]).toBe(null);
+});
+
+// Client-only shared-pattern check: the adapter accepts refresh after a synthetic
+// deletion. This does not establish that a real deleted account can refresh.
+test.each([false, true])('deleteAccount consumes a synthetic cleanup response (refresh=%s)', async refresh => {
+  const { wire, unsubscribe } = pushCleanupTransport({ refresh });
+  const api = AuthProvider({ children: null }).props.value;
+  api.login({ id: 'A' });
+  await api.deleteAccount('synthetic-password');
+  expect(wire[0]).toBe('post:/api/auth/delete-account');
+  expect(wire).not.toContain('post:/api/auth/logout');
+  expect(unsubscribe).toHaveBeenCalledOnce();
+  expect(hooks.states[0]).toBe(null);
 });

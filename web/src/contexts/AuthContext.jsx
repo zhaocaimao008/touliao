@@ -185,7 +185,7 @@ export const AuthProvider = ({ children }) => {
   // ── 登出 ──────────────────────────────────────────────────────
   const logout = async () => {
     invalidateSession();
-    const operation = captureSession();
+    let operation = captureSession();
     try {
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.getRegistration('/');
@@ -193,8 +193,15 @@ export const AuthProvider = ({ children }) => {
         const sub = reg ? await reg.pushManager.getSubscription() : null;
         if (!isOperationCurrent(operation)) return;
         if (sub) {
-          await axios.delete('/api/notifications/web-subscribe', { data: { endpoint: sub.endpoint }, _sessionContext: operation });
-          if (!isOperationCurrent(operation)) return;
+          const cleanupResponse = await axios.delete('/api/notifications/web-subscribe', { data: { endpoint: sub.endpoint }, _sessionContext: operation })
+            .catch(error => {
+              // A failed cleanup remains best-effort, including after its own refresh.
+              if (canPublishResponse(operation, error)) operation = error.config?._sessionContext || operation;
+              throw error;
+            });
+          if (!canPublishResponse(operation, cleanupResponse)) return;
+          // Adopt only the checked response revision, never a newly captured login.
+          operation = cleanupResponse.config?._sessionContext || operation;
           await sub.unsubscribe();
         }
       }
@@ -226,7 +233,7 @@ export const AuthProvider = ({ children }) => {
     const response = await axios.post('/api/auth/delete-account', { password }, { _sessionContext: requestScope });
     if (!canPublishResponse(requestScope, response)) return;
     invalidateSession();
-    const operation = captureSession();
+    let operation = captureSession();
     try {
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.getRegistration('/');
@@ -234,8 +241,13 @@ export const AuthProvider = ({ children }) => {
         const sub = reg ? await reg.pushManager.getSubscription() : null;
         if (!isOperationCurrent(operation)) return;
         if (sub) {
-          await axios.delete('/api/notifications/web-subscribe', { data: { endpoint: sub.endpoint }, _sessionContext: operation });
-          if (!isOperationCurrent(operation)) return;
+          const cleanupResponse = await axios.delete('/api/notifications/web-subscribe', { data: { endpoint: sub.endpoint }, _sessionContext: operation })
+            .catch(error => {
+              if (canPublishResponse(operation, error)) operation = error.config?._sessionContext || operation;
+              throw error;
+            });
+          if (!canPublishResponse(operation, cleanupResponse)) return;
+          operation = cleanupResponse.config?._sessionContext || operation;
           await sub.unsubscribe();
         }
       }
