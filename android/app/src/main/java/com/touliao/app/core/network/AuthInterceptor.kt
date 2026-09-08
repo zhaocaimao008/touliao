@@ -17,12 +17,13 @@ class AuthInterceptor @Inject constructor(
     private val tokenStore: TokenStore,
 ) : Interceptor {
 
-    private val _unauthorized = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val unauthorizedEvents: SharedFlow<Unit> = _unauthorized
+    private val _unauthorized = MutableSharedFlow<TokenStore.Snapshot>(extraBufferCapacity = 1)
+    val unauthorizedEvents: SharedFlow<TokenStore.Snapshot> = _unauthorized
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
-        val request = tokenStore.token?.let { token ->
+        val credential = tokenStore.snapshot()
+        val request = credential.token?.let { token ->
             original.newBuilder()
                 .header("Authorization", "Bearer $token")
                 .build()
@@ -35,8 +36,7 @@ class AuthInterceptor @Inject constructor(
         // 输错一次密码就把当前已登录账号的 token/离线缓存全部清掉（数据丢失级事故）。
         // 只有受保护 API 的 401 才视为 token 失效。
         if (response.code == 401 && !isAuthEndpoint(original.url.encodedPath)) {
-            tokenStore.clear()
-            _unauthorized.tryEmit(Unit)
+            tokenStore.invalidate(credential)?.let { _unauthorized.tryEmit(it) }
         }
         return response
     }

@@ -42,10 +42,12 @@ class SessionManager @Inject constructor(
 
     init {
         scope.launch {
-            authInterceptor.unauthorizedEvents.collect {
-                socketManager.disconnect()
-                msgCacheStore.clear()   // 401 被动登出也清离线缓存（隐私红线）
-                _state.value = AuthState.Unauthenticated
+            authInterceptor.unauthorizedEvents.collect { marker ->
+                tokenStore.withCurrent(marker) {
+                    socketManager.disconnect()
+                    msgCacheStore.clear()
+                    _state.value = AuthState.Unauthenticated
+                }
             }
         }
         // 先拉远程配置确定服务器地址，再恢复会话（确保后续请求/Socket 用对地址）
@@ -56,17 +58,22 @@ class SessionManager @Inject constructor(
     }
 
     suspend fun restoreSession() {
+        val credential = tokenStore.snapshot()
         val user = authRepository.restoreSession()
-        if (user != null) {
-            socketManager.connect()
-            pushManager.registerCurrentToken()
-            _state.value = AuthState.Authenticated(user)
-        } else {
-            _state.value = AuthState.Unauthenticated
+        tokenStore.withCurrent(credential) {
+            if (user != null) {
+                socketManager.connect()
+                pushManager.registerCurrentToken()
+                _state.value = AuthState.Authenticated(user)
+            } else {
+                _state.value = AuthState.Unauthenticated
+            }
         }
     }
 
     fun onAuthenticated(user: User) {
+        if (accountStore.activeId() != user.id) return
+        tokenStore.beginIdentityChange()
         // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
         socketManager.disconnect()
         msgCacheStore.clear()          // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
@@ -94,42 +101,60 @@ class SessionManager @Inject constructor(
     /** 切换到已登录的另一账号（本地有 token，免重登） */
     fun switchAccount(accountId: String) {
         val token = accountStore.tokenFor(accountId) ?: return
+        tokenStore.beginIdentityChange()
+        _state.value = AuthState.Loading
+        val operation = tokenStore.snapshot()
         scope.launch {
+            if (!tokenStore.isCurrent(operation)) return@launch
             pushManager.unregisterCurrentToken()   // 须在覆盖 tokenStore.token 之前调用，否则会用新账号身份去删旧账号的 token（见 AUDIT.md 十四节"串号推送"）
-            socketManager.disconnect()
-            accountStore.setActive(accountId)
-            tokenStore.token = token
-            msgCacheStore.clear()          // 切号缓存隔离：新账号不读旧账号离线消息
-            socketManager.connect()
-            pushManager.registerCurrentToken()
+            if (!tokenStore.withCurrent(operation) {
+                socketManager.disconnect()
+                accountStore.setActive(accountId)
+                tokenStore.token = token
+                msgCacheStore.clear()
+                socketManager.connect()
+                pushManager.registerCurrentToken()
+            }) return@launch
             restoreSession()
         }
     }
 
     /** 改密后应用新签发的 token：覆盖当前 Bearer token 与本账号已存 token，避免旧 token 失效被登出。 */
-    fun applyNewToken(token: String) {
-        if (token.isBlank()) return
-        tokenStore.token = token
-        accountStore.activeId()?.let { accountStore.updateToken(it, token) }
-        socketManager.disconnect()
-        socketManager.connect()
+    fun credentialSnapshot() = tokenStore.snapshot()
+    fun isCredentialCurrent(snapshot: com.touliao.app.core.storage.TokenStore.Snapshot) = tokenStore.isCurrent(snapshot)
+    fun applyNewToken(token: String, expected: com.touliao.app.core.storage.TokenStore.Snapshot): Boolean {
+        if (token.isBlank()) return false
+        return tokenStore.installReplacement(expected, token) {
+            accountStore.activeId()?.let { accountStore.updateToken(it, token) }
+            socketManager.disconnect()
+            socketManager.connect()
+        }
     }
 
     /** 注销账户成功后本地收尾：与 logout 一致清理，回到登录页。 */
     suspend fun deleteAccount() {
+        tokenStore.beginIdentityChange()
+        val credential = tokenStore.snapshot()
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前
+        tokenStore.withCurrent(credential) {
         socketManager.disconnect()
         tokenStore.clear()
         msgCacheStore.clear()                  // 离线消息缓存全清（隐私红线）
         accountStore.activeId()?.let { accountStore.remove(it) }
         _state.value = AuthState.Unauthenticated
+        }
     }
 
     suspend fun logout() {
+        tokenStore.beginIdentityChange()
+        val credential = tokenStore.snapshot()
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前
+        if (!tokenStore.isCurrent(credential)) return
         socketManager.disconnect()
-        authRepository.logout()
-        msgCacheStore.clear()                  // 离线消息缓存全清（隐私红线：登出/切账号）
-        _state.value = AuthState.Unauthenticated
+        val marker = authRepository.logout() ?: return
+        tokenStore.withCurrent(marker) {
+            msgCacheStore.clear()
+            _state.value = AuthState.Unauthenticated
+        }
     }
 }

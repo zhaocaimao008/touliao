@@ -85,6 +85,7 @@ class SocketManager @Inject constructor(
     private val json: Json,
 ) {
     private var socket: Socket? = null
+    private var socketCredential: TokenStore.Snapshot? = null
 
     private val _status = MutableStateFlow(SocketStatus.DISCONNECTED)
     val status: StateFlow<SocketStatus> = _status.asStateFlow()
@@ -220,9 +221,9 @@ class SocketManager @Inject constructor(
     private val _gcEnded = MutableSharedFlow<GroupCallEndedEvent>(extraBufferCapacity = 8)
     val groupCallEndedEvents: SharedFlow<GroupCallEndedEvent> = _gcEnded.asSharedFlow()
 
-    @Synchronized
-    fun connect() {
-        val token = tokenStore.token ?: return        // 未登录不连
+    fun connect(): Unit = synchronized(tokenStore) {
+        val credential = tokenStore.snapshot()
+        val token = credential.token ?: return        // 未登录不连
         if (socket?.connected() == true) return
 
         // 已有实例先清理，避免 token/地址变更后复用旧连接
@@ -243,6 +244,7 @@ class SocketManager @Inject constructor(
             Log.e(TAG, "build socket failed: ${e.message}")
             return
         }
+        socketCredential = credential
         socket = s
 
         s.on(Socket.EVENT_CONNECT) { _status.value = SocketStatus.CONNECTED }
@@ -252,12 +254,13 @@ class SocketManager @Inject constructor(
             Log.w(TAG, "connect_error: ${args.firstOrNull()}")
         }
 
-        s.on("new_message") { args -> parseMessage(args.firstOrNull())?.let(_incomingMessages::tryEmit) }
+        s.on("new_message") { args -> if (!tokenStore.isCurrent(credential)) return@on; parseMessage(args.firstOrNull())?.let(_incomingMessages::tryEmit) }
         s.on("conversation_sync_available") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("conversationId")
                 ?.takeIf { it.isNotEmpty() }?.let(_syncAvailable::tryEmit)
         }
         s.on("new_message_batch") { args ->
+            if (!tokenStore.isCurrent(credential)) return@on
             (args.firstOrNull() as? JSONArray)?.let { arr ->
                 for (i in 0 until arr.length()) parseMessage(arr.optJSONObject(i))?.let(_incomingMessages::tryEmit)
             }
@@ -559,10 +562,11 @@ class SocketManager @Inject constructor(
         content: String,
         replyToId: String? = null,
         clientMsgId: String? = null,
+        credential: TokenStore.Snapshot,
     ): Result<Message> =
-        suspendCancellableCoroutine { cont ->
+        suspendCancellableCoroutine { cont -> synchronized(tokenStore) {
             val s = socket
-            if (s == null || !s.connected()) {
+            if (!tokenStore.isCurrent(credential) || socketCredential != credential || s == null || !s.connected()) {
                 cont.resume(Result.failure(IllegalStateException("连接已断开")))
                 return@suspendCancellableCoroutine
             }
@@ -575,6 +579,9 @@ class SocketManager @Inject constructor(
             s.emit("send_message", payload, object : io.socket.client.AckWithTimeout(10_000) {
                 override fun onSuccess(vararg ackArgs: Any?) {
                     if (!cont.isActive) return
+                    if (!tokenStore.isCurrent(credential)) {
+                        cont.resume(Result.failure(IllegalStateException("会话已变更"))); return
+                    }
                     val resp = ackArgs.firstOrNull() as? JSONObject
                     when {
                         resp == null -> cont.resume(Result.failure(IllegalStateException("无响应")))
@@ -592,7 +599,7 @@ class SocketManager @Inject constructor(
                     cont.resume(Result.failure(IllegalStateException("发送超时，请重试")))
                 }
             })
-        }
+        } }
 
     /** 进入会话时主动入房（连上后服务端已自动入房，这里兜底防时序） */
     fun joinConversation(conversationId: String) {
@@ -721,8 +728,7 @@ class SocketManager @Inject constructor(
         if (callId.isNotEmpty()) socket?.emit("group_call:resume", JSONObject().put("callId", callId))
     }
 
-    @Synchronized
-    fun disconnect() {
+    fun disconnect() = synchronized(tokenStore) {
         disconnectInternal()
         _status.value = SocketStatus.DISCONNECTED
     }
