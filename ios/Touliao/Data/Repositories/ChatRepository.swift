@@ -79,8 +79,8 @@ final class ChatRepository {
         return try await api.send("api/messages/conversation/\(conversationId)/search?q=\(enc)")
     }
 
-    func sendText(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil) async -> Result<Message, Error> {
-        await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId, clientMsgId: clientMsgId)
+    func sendText(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil, credential: KeychainStore.Snapshot) async -> Result<Message, Error> {
+        await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId, clientMsgId: clientMsgId, credential: credential)
     }
 
     /// 撤回/删除消息。错误必须向上抛出，让 UI 恢复乐观移除并提示失败。

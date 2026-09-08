@@ -28,10 +28,13 @@ final class SessionStore: ObservableObject {
     init() {
         observer = NotificationCenter.default.addObserver(
             forName: APIClient.unauthorizedNotification, object: nil, queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+            guard let marker = notification.object as? KeychainStore.Snapshot else { return }
             Task { @MainActor in
-                SocketService.shared.disconnect()
-                self?.state = .unauthenticated
+                KeychainStore.shared.withCurrent(marker) {
+                    SocketService.shared.disconnect()
+                    self?.state = .unauthenticated
+                }
             }
         }
         // socket 鉴权失败（token 失效/封禁/会话过期）→ 同样踢回登录页。
@@ -39,12 +42,13 @@ final class SessionStore: ObservableObject {
         // 鉴权错误后停止重连并发出 authFailure；这里消费并登出，避免旧 token 无限重连。
         socketAuthCancellable = SocketService.shared.authFailure
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] message in
+            .sink { [weak self] failure in
                 Task { @MainActor in
-                    SocketService.shared.disconnect()
-                    self?.state = .unauthenticated
-                    // 提示语供 UI 展示（可选）
-                    self?.lastAuthError = message
+                    KeychainStore.shared.withCurrent(failure.credential) {
+                        SocketService.shared.disconnect()
+                        self?.state = .unauthenticated
+                        self?.lastAuthError = failure.message
+                    }
                 }
             }
         // 先拉远程配置确定服务器地址，再恢复会话
@@ -62,16 +66,22 @@ final class SessionStore: ObservableObject {
     }
 
     func restoreSession() async {
-        if let user = await repo.restoreSession() {
-            SocketService.shared.connect()
-            PushManager.shared.requestAuthorizationAndRegister()
-            state = .authenticated(user)
-        } else {
-            state = .unauthenticated
+        let credential = KeychainStore.shared.snapshot()
+        let user = await repo.restoreSession()
+        KeychainStore.shared.withCurrent(credential) {
+            if let user {
+                SocketService.shared.connect()
+                PushManager.shared.requestAuthorizationAndRegister()
+                state = .authenticated(user)
+            } else {
+                state = .unauthenticated
+            }
         }
     }
 
     func onAuthenticated(_ user: User) {
+        guard AccountStore.shared.activeId() == user.id else { return }
+        KeychainStore.shared.beginIdentityChange()
         // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
         SocketService.shared.disconnect()
         MsgCacheStore.shared.clear()   // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
@@ -100,18 +110,24 @@ final class SessionStore: ObservableObject {
 
     func switchAccount(_ id: String) {
         guard let token = AccountStore.shared.token(for: id) else { return }
+        KeychainStore.shared.beginIdentityChange()
+        state = .loading
+        let operation = KeychainStore.shared.snapshot()
         Task {
+            guard KeychainStore.shared.isCurrent(operation) else { return }
             // 须在覆盖 KeychainStore.token 之前 await 完成，否则 unregister() 里的删除请求
             // 可能用新账号的 token 认证，导致删的是新账号身份而不是旧账号的 push token，
             // 旧账号 token 原样留在后端（见 AUDIT.md 十四节"串号推送"）
             await PushManager.shared.unregister()
-            SocketService.shared.disconnect()
-            AccountStore.shared.setActive(id)
-            KeychainStore.shared.token = token
-            MsgCacheStore.shared.clear()   // 切号缓存隔离：新账号不读旧账号离线消息
-            SocketService.shared.connect()
-            PushManager.shared.requestAuthorizationAndRegister()
-            refreshAccounts()   // active 变化 → 刷新「当前」标记
+            guard KeychainStore.shared.withCurrent(operation, {
+                SocketService.shared.disconnect()
+                AccountStore.shared.setActive(id)
+                KeychainStore.shared.token = token
+                MsgCacheStore.shared.clear()
+                SocketService.shared.connect()
+                PushManager.shared.requestAuthorizationAndRegister()
+                refreshAccounts()
+            }) else { return }
             await restoreSession()
         }
     }
@@ -124,31 +140,40 @@ final class SessionStore: ObservableObject {
     }
 
     /// 改密后应用新签发的 token：覆盖当前 Bearer token 与本账号已存 token，避免旧 token 失效被登出。
-    func applyNewToken(_ token: String) {
-        guard !token.isEmpty else { return }
-        KeychainStore.shared.token = token
-        if let active = AccountStore.shared.activeId() { AccountStore.shared.updateToken(active, token) }
-        SocketService.shared.disconnect()
-        SocketService.shared.connect()
+    @discardableResult func applyNewToken(_ token: String, expected: KeychainStore.Snapshot) -> Bool {
+        KeychainStore.shared.installReplacement(expected, token: token) {
+            if let active = AccountStore.shared.activeId() { AccountStore.shared.updateToken(active, token) }
+            SocketService.shared.disconnect()
+            SocketService.shared.connect()
+        }
     }
 
     /// 注销账户成功后本地收尾：清登录态回登录页（与 logout 一致，但不再调 /logout）。
     func deleteAccount() async {
+        KeychainStore.shared.beginIdentityChange()
+        let credential = KeychainStore.shared.snapshot()
         await PushManager.shared.unregister()
-        SocketService.shared.disconnect()
-        if let active = AccountStore.shared.activeId() { AccountStore.shared.remove(active) }
-        KeychainStore.shared.clear()
-        MsgCacheStore.shared.clear()   // 离线消息缓存全清（隐私红线）
-        refreshAccounts()
-        state = .unauthenticated
+        KeychainStore.shared.withCurrent(credential) {
+            SocketService.shared.disconnect()
+            if let active = AccountStore.shared.activeId() { AccountStore.shared.remove(active) }
+            KeychainStore.shared.clear()
+            MsgCacheStore.shared.clear()
+            refreshAccounts()
+            state = .unauthenticated
+        }
     }
 
     func logout() async {
+        KeychainStore.shared.beginIdentityChange()
+        let credential = KeychainStore.shared.snapshot()
         await PushManager.shared.unregister()
+        guard KeychainStore.shared.isCurrent(credential) else { return }
         SocketService.shared.disconnect()
-        await repo.logout()
-        MsgCacheStore.shared.clear()   // 离线消息缓存全清（隐私红线：登出/切账号）
-        refreshAccounts()   // AuthRepository.logout 已移除当前账号，同步发布列表
-        state = .unauthenticated
+        guard let marker = await repo.logout() else { return }
+        KeychainStore.shared.withCurrent(marker) {
+            MsgCacheStore.shared.clear()
+            refreshAccounts()
+            state = .unauthenticated
+        }
     }
 }

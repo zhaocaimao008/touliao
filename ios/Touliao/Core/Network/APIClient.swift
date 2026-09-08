@@ -34,7 +34,14 @@ struct AnyEncodable: Encodable {
 /// 与 Android APIClient/AuthInterceptor 等价；不处理 CSRF（无 cookie，后端对 Bearer 放行）。
 final class APIClient {
     static let shared = APIClient()
-    private init() {}
+    private let session: URLSession
+    private let credentials: KeychainStore
+    private let baseURL: () -> String
+    init(session: URLSession = .shared, credentials: KeychainStore = .shared, baseURL: @escaping () -> String = { ServerConfig.shared.baseURL }) {
+        self.session = session
+        self.credentials = credentials
+        self.baseURL = baseURL
+    }
 
     /// 401 通知；SessionStore 订阅后清状态、跳登录页
     static let unauthorizedNotification = Notification.Name("vxin.unauthorized")
@@ -49,29 +56,30 @@ final class APIClient {
         body: Encodable? = nil,
         authorized: Bool = true
     ) async throws -> T {
-        var request = try makeRequest(path: path, method: method, authorized: authorized)
+        let credential = credentials.snapshot()
+        var request = try makeRequest(path: path, method: method, authorized: authorized, credential: credential)
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try encoder.encode(AnyEncodable(body))
         }
         let (data, response): (Data, URLResponse)
-        do { (data, response) = try await URLSession.shared.data(for: request) }
+        do { (data, response) = try await session.data(for: request) }
         catch { throw APIError.network }
-        return try handle(data: data, response: response)
+        return try handle(data: data, response: response, credential: credential, path: path)
     }
 
     /// 取原始字节（带 Bearer），用于二维码 PNG 等非 JSON 响应。
     func fetchData(_ path: String) async throws -> Data {
-        let request = try makeRequest(path: path, method: "GET", authorized: true)
+        let credential = credentials.snapshot()
+        let request = try makeRequest(path: path, method: "GET", authorized: true, credential: credential)
         let (data, response): (Data, URLResponse)
-        do { (data, response) = try await URLSession.shared.data(for: request) }
+        do { (data, response) = try await session.data(for: request) }
         catch { throw APIError.network }
         guard let http = response as? HTTPURLResponse else { throw APIError.network }
         switch http.statusCode {
         case 200..<300: return data
         case 401:
-            KeychainStore.shared.token = nil
-            NotificationCenter.default.post(name: Self.unauthorizedNotification, object: nil)
+            invalidate(credential, path: path)
             throw APIError.unauthorized
         default: throw APIError.server(http.statusCode, nil)
         }
@@ -87,7 +95,8 @@ final class APIClient {
         method: String = "POST",
         duration: Int = 0
     ) async throws -> T {
-        var request = try makeRequest(path: path, method: method, authorized: true)
+        let credential = credentials.snapshot()
+        var request = try makeRequest(path: path, method: method, authorized: true, credential: credential)
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
@@ -106,9 +115,9 @@ final class APIClient {
         body.appendString("\r\n--\(boundary)--\r\n")
 
         let (data, response): (Data, URLResponse)
-        do { (data, response) = try await URLSession.shared.upload(for: request, from: body) }
+        do { (data, response) = try await session.upload(for: request, from: body) }
         catch { throw APIError.network }
-        return try handle(data: data, response: response)
+        return try handle(data: data, response: response, credential: credential, path: path)
     }
 
     /// 2026-08-29 新增：大文件(视频)流式上传。与上面 `upload(fileData:)` 走同一 multipart 接口，
@@ -125,7 +134,8 @@ final class APIClient {
         method: String = "POST",
         onProgress: (@Sendable (Double) -> Void)? = nil
     ) async throws -> T {
-        var request = try makeRequest(path: path, method: method, authorized: true)
+        let credential = credentials.snapshot()
+        var request = try makeRequest(path: path, method: method, authorized: true, credential: credential)
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
@@ -137,9 +147,9 @@ final class APIClient {
         let delegate = onProgress.map { UploadProgressDelegate(onProgress: $0) }
         let (data, response): (Data, URLResponse)
         do {
-            (data, response) = try await URLSession.shared.upload(for: request, fromFile: envelopeURL, delegate: delegate)
+            (data, response) = try await session.upload(for: request, fromFile: envelopeURL, delegate: delegate)
         } catch { throw APIError.network }
-        return try handle(data: data, response: response)
+        return try handle(data: data, response: response, credential: credential, path: path)
     }
 
     /// 把 multipart 头部 + 源文件内容 + 尾部拼接写入一个新的临时"信封"文件。
@@ -187,17 +197,23 @@ final class APIClient {
     }
 
     // MARK: - 内部
-    private func makeRequest(path: String, method: String, authorized: Bool) throws -> URLRequest {
-        guard let url = URL(string: ServerConfig.shared.baseURL + "/" + path) else { throw APIError.network }
+    private func makeRequest(path: String, method: String, authorized: Bool, credential: KeychainStore.Snapshot) throws -> URLRequest {
+        guard let url = URL(string: baseURL() + "/" + path) else { throw APIError.network }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        if authorized, let token = KeychainStore.shared.token {
+        if authorized, let token = credential.token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         return request
     }
 
-    private func handle<T: Decodable>(data: Data, response: URLResponse) throws -> T {
+    private func invalidate(_ credential: KeychainStore.Snapshot, path: String) {
+        guard !path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).hasPrefix("api/auth/"),
+              let marker = credentials.invalidate(credential) else { return }
+        NotificationCenter.default.post(name: Self.unauthorizedNotification, object: marker)
+    }
+
+    private func handle<T: Decodable>(data: Data, response: URLResponse, credential: KeychainStore.Snapshot, path: String) throws -> T {
         guard let http = response as? HTTPURLResponse else { throw APIError.network }
         switch http.statusCode {
         case 200..<300:
@@ -205,8 +221,7 @@ final class APIClient {
             do { return try decoder.decode(T.self, from: data) }
             catch { throw APIError.decoding }
         case 401:
-            KeychainStore.shared.token = nil
-            NotificationCenter.default.post(name: Self.unauthorizedNotification, object: nil)
+            invalidate(credential, path: path)
             throw APIError.unauthorized
         default:
             let message = try? decoder.decode(APIErrorBody.self, from: data).error
