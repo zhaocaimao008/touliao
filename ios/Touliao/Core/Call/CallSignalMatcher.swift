@@ -22,7 +22,14 @@ enum CallSignalMatcher {
         return matches(activeCallId: activeCallId, eventCallId: eventCallId, activePeerId: activePeerId, eventPeerId: eventPeerId)
     }
 
-    static func canResume(activeCallId: String, participatingCallId: String) -> Bool {
-        !activeCallId.isEmpty && activeCallId == participatingCallId
+    static func canResume(
+        activeCallId: String,
+        participatingCallId: String,
+        participatingIdentityEpoch: UInt64?,
+        currentIdentityEpoch: UInt64
+    ) -> Bool {
+        guard let participatingIdentityEpoch else { return false }
+        return !activeCallId.isEmpty && activeCallId == participatingCallId &&
+            participatingIdentityEpoch == currentIdentityEpoch
     }
 }

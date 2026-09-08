@@ -62,7 +62,9 @@ final class GroupCallManager: NSObject, ObservableObject {
     private var iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
     private var cancellables = Set<AnyCancellable>()
     private let socket = SocketService.shared
+    private var callIdentityEpoch: UInt64?
     private var participatingCallId = ""
+    private var participatingIdentityEpoch: UInt64?
 
     /// 建群通话/加入后的连接超时；始终停在 .connecting（服务端未回 started/peers）则自动结束。
     private var connectTimeoutTask: Task<Void, Never>?
@@ -147,12 +149,17 @@ final class GroupCallManager: NSObject, ObservableObject {
     // MARK: - 对外动作
     func start(conversationId: String, video: Bool) {
         guard state.stage == .idle || state.stage == .ended else { return }
+        let identityEpoch = KeychainStore.shared.snapshot().identityEpoch
+        callIdentityEpoch = identityEpoch
         pendingInvite = nil
         state = GroupCallState(stage: .connecting, conversationId: conversationId, isVideo: video)
         startConnectTimeout()                   // 连接超时自动结束
         Task { @MainActor in
             await refreshIceServers()
-            guard state.stage != .ended else { return }
+            guard callIdentityEpoch == identityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  state.stage != .ended
+            else { return }
             configureAudioSession()             // 建流前配好通话音频会话
             createLocalMedia(video: video)
             socket.emitGroupCallStart(conversationId: conversationId, type: video ? "video" : "audio")
@@ -161,12 +168,17 @@ final class GroupCallManager: NSObject, ObservableObject {
 
     func join(callId: String, conversationId: String, video: Bool) {
         guard state.stage == .idle || state.stage == .ended else { return }
+        let identityEpoch = KeychainStore.shared.snapshot().identityEpoch
+        callIdentityEpoch = identityEpoch
         pendingInvite = nil
         state = GroupCallState(stage: .connecting, callId: callId, conversationId: conversationId, isVideo: video)
         startConnectTimeout()                   // 连接超时自动结束
         Task { @MainActor in
             await refreshIceServers()
-            guard state.stage != .ended else { return }
+            guard callIdentityEpoch == identityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  state.stage != .ended
+            else { return }
             configureAudioSession()             // 建流前配好通话音频会话
             createLocalMedia(video: video)
             socket.emitGroupCallJoin(callId: callId)
@@ -229,7 +241,9 @@ final class GroupCallManager: NSObject, ObservableObject {
                       self.state.stage != .ended,
                       CallSignalMatcher.canResume(
                         activeCallId: self.state.callId,
-                        participatingCallId: self.participatingCallId
+                        participatingCallId: self.participatingCallId,
+                        participatingIdentityEpoch: self.participatingIdentityEpoch,
+                        currentIdentityEpoch: KeychainStore.shared.snapshot().identityEpoch
                       )
                 else { return }
                 self.socket.emitGroupCallResume(callId: self.state.callId)
@@ -243,17 +257,26 @@ final class GroupCallManager: NSObject, ObservableObject {
         }.store(in: &cancellables)
 
         socket.gcStarted.receive(on: DispatchQueue.main).sink { [weak self] (callId, _) in
-            guard let self, self.state.stage != .ended else { return }
+            guard let self,
+                  let identityEpoch = self.callIdentityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  self.state.stage != .ended
+            else { return }
             self.participatingCallId = callId
+            self.participatingIdentityEpoch = identityEpoch
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
             if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
         }.store(in: &cancellables)
 
         socket.gcPeers.receive(on: DispatchQueue.main).sink { [weak self] (callId, _, peers) in
-            guard let self else { return }
+            guard let self,
+                  let identityEpoch = self.callIdentityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch
+            else { return }
             if !self.state.callId.isEmpty && callId != self.state.callId { return }
             self.participatingCallId = callId
+            self.participatingIdentityEpoch = identityEpoch
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
             if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
@@ -310,7 +333,12 @@ final class GroupCallManager: NSObject, ObservableObject {
         socket.gcEnded.receive(on: DispatchQueue.main).sink { [weak self] (callId, _) in
             guard let self else { return }
             guard self.state.stage != .idle,
-                  CallSignalMatcher.canResume(activeCallId: self.state.callId, participatingCallId: callId)
+                  CallSignalMatcher.canResume(
+                    activeCallId: self.state.callId,
+                    participatingCallId: callId,
+                    participatingIdentityEpoch: self.participatingIdentityEpoch,
+                    currentIdentityEpoch: KeychainStore.shared.snapshot().identityEpoch
+                  )
             else { return }
             self.cleanup()
         }.store(in: &cancellables)
@@ -506,7 +534,9 @@ final class GroupCallManager: NSObject, ObservableObject {
 
     /// 弱网调优（2026-09-02）：Opus inband FEC + 码率上限 64kbps + 单声道（与 CallManager 一致）。
     private func cleanup() {
+        callIdentityEpoch = nil
         participatingCallId = ""
+        participatingIdentityEpoch = nil
         cancelConnectTimeout()              // 取消连接超时，避免泄漏
         peers.values.forEach { $0.cancelIceRestart() }
         peers.values.forEach { $0.pc.close() }

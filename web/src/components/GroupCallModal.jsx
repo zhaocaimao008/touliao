@@ -364,7 +364,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       callIdRef.current = cid; setCallId(cid); setStatus('connected');
     };
     const onPeers = async ({ callId: cid, peers }) => {
-      if (!cid || (callIdRef.current && cid !== callIdRef.current)) return;
+      if (!cid || !callIdRef.current || cid !== callIdRef.current) return;
       participatingRef.current = true;
       callIdRef.current = cid; setCallId(cid); setStatus('connected');
       peers.forEach(pid => createPC(pid));
