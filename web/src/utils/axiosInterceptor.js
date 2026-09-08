@@ -6,6 +6,13 @@
 let csrfToken = null;
 let tokenRefreshPromise = null;
 
+// Signal only after the response has installed the new Cookie/Bearer credential.
+export function notifyCredentialsUpdated() {
+  window.dispatchEvent(new Event('touliao:credentials-updated'));
+  // Other tabs share cookies but do not receive this tab's HTTP response callback.
+  localStorage.setItem('touliao_session_revision', `${Date.now()}:${Math.random()}`);
+}
+
 /**
  * 从响应头或 Cookie 中提取 CSRF token
  */
@@ -40,6 +47,7 @@ async function refreshToken(axios) {
         localStorage.setItem('touliao_electron_token', newToken);
         axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       }
+      notifyCredentialsUpdated();
       return newToken;
     })
     .catch(err => {
@@ -131,7 +139,10 @@ export function setupAxiosInterceptors(axios) {
         originalRequest._retry = true;
 
         try {
-          await refreshToken(axios);
+          const newToken = await refreshToken(axios);
+          if (newToken && (window.__ELECTRON_CONFIG__ || window.Capacitor)) {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          }
           // 重试原请求
           return axios(originalRequest);
         } catch {

@@ -128,6 +128,8 @@ final class SessionStore: ObservableObject {
         guard !token.isEmpty else { return }
         KeychainStore.shared.token = token
         if let active = AccountStore.shared.activeId() { AccountStore.shared.updateToken(active, token) }
+        SocketService.shared.disconnect()
+        SocketService.shared.connect()
     }
 
     /// 注销账户成功后本地收尾：清登录态回登录页（与 logout 一致，但不再调 /logout）。

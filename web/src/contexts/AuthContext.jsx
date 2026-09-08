@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { clearCache } from '../utils/msgCache';
-import { clearCsrfToken } from '../utils/axiosInterceptor';
+import { clearCsrfToken, notifyCredentialsUpdated } from '../utils/axiosInterceptor';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
 axios.defaults.withCredentials = true;
@@ -178,6 +178,7 @@ export const AuthProvider = ({ children }) => {
   const changePassword = async (oldPassword, newPassword) => {
     const { data } = await axios.put('/api/auth/change-password', { oldPassword, newPassword });
     setElectronToken(data.token || null);
+    notifyCredentialsUpdated();
   };
 
   // ── 注销账户（需当前密码确认）：账号已删，本地收尾同 logout 但不再调 /logout ──

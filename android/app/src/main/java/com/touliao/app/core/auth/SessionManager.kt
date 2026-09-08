@@ -111,6 +111,8 @@ class SessionManager @Inject constructor(
         if (token.isBlank()) return
         tokenStore.token = token
         accountStore.activeId()?.let { accountStore.updateToken(it, token) }
+        socketManager.disconnect()
+        socketManager.connect()
     }
 
     /** 注销账户成功后本地收尾：与 logout 一致清理，回到登录页。 */
