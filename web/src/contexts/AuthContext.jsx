@@ -3,6 +3,7 @@ import axios from 'axios';
 import { clearCache } from '../utils/msgCache';
 import { clearCsrfToken, notifyCredentialsUpdated } from '../utils/axiosInterceptor';
 import { invalidateMediaTickets } from '../utils/url';
+import { activateSession, invalidateSession, SESSION_OWNER_KEY } from '../utils/sessionContext';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
 axios.defaults.withCredentials = true;
@@ -75,6 +76,10 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser]         = useState(null);
   const [accounts, setAccounts] = useState(() => readAccounts());
   const [loading, setLoading]   = useState(true);
+  const [outboxScope, setOutboxScope] = useState(null);
+  const bindOwner = userData => setOutboxScope(activateSession(
+    new URL(axios.defaults.baseURL || '/', window.location.href).href.replace(/\/$/, ''), userData.id
+  ));
   const userRef = useRef(null);
   useEffect(() => { userRef.current = user; }, [user]);
 
@@ -96,6 +101,8 @@ export const AuthProvider = ({ children }) => {
         const url = err.config?.url || '';
         const isAuthBootstrap = url.includes('/auth/refresh') || url.includes('/auth/login');
         if (err.response?.status === 401 && userRef.current && !isAuthBootstrap) {
+          if (err.config?._sessionStale) return Promise.reject(err);
+          invalidateSession();
           setUser(null);
           setElectronToken(null);
           if (window.__ELECTRON_CONFIG__) window.location.hash = '#/login';
@@ -115,6 +122,7 @@ export const AuthProvider = ({ children }) => {
     }
     axios.get('/api/auth/me')
       .then(r => {
+        bindOwner(r.data);
         setUser(r.data);
         // 刷新"最近登录"记录中的用户信息（头像/昵称可能已更新）
         const next = readAccounts().map(a => a.id === r.data.id ? { ...a, user: r.data, lastLoginAt: Date.now() } : a);
@@ -127,6 +135,7 @@ export const AuthProvider = ({ children }) => {
 
   // ── 登录成功回调（由 Login/Register 页面调用） ─────────────────
   const login = (userData, token) => {
+    bindOwner(userData);
     setElectronToken(token || null);
     setUser(userData);
     const next = upsertAccount(userData);
@@ -138,10 +147,12 @@ export const AuthProvider = ({ children }) => {
   // 成功即换上新账号的 Cookie，reload 重建 socket / 拉取数据。
   // 失败（如 wallet 过期、该账号未在本设备登录过）抛错，调用方回退到密码登录。
   const switchAccount = async (accountId) => {
+    invalidateSession();
     const { data } = await axios.post('/api/auth/switch', { userId: accountId });
     const next = upsertAccount(data.user);
     setAccounts(next);
     setUser(data.user);
+    bindOwner(data.user);
     clearCsrfCache();
     window.location.reload();
   };
@@ -157,6 +168,7 @@ export const AuthProvider = ({ children }) => {
 
   // ── 登出 ──────────────────────────────────────────────────────
   const logout = async () => {
+    invalidateSession();
     try {
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.getRegistration('/');
@@ -186,6 +198,7 @@ export const AuthProvider = ({ children }) => {
   // ── 注销账户（需当前密码确认）：账号已删，本地收尾同 logout 但不再调 /logout ──
   const deleteAccount = async (password) => {
     await axios.post('/api/auth/delete-account', { password });
+    invalidateSession();
     try {
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.getRegistration('/');
@@ -208,6 +221,7 @@ export const AuthProvider = ({ children }) => {
   // 2. 更新 axios baseURL
   // 3. 清除当前登录态 → PrivateRoute 自动跳转登录页 → 用户用新服务器账号重新登录
   const changeServer = async (newUrl) => {
+    invalidateSession();
     const clean = newUrl.trim().replace(/\/$/, '');
     try { await axios.post('/api/auth/logout'); } catch { /* logout is best-effort on server switch */ }
     if (window.__ELECTRON_CONFIG__) {
@@ -221,6 +235,17 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setAccounts([]);
   };
+
+  useEffect(() => {
+    const onStorage = event => {
+      if (event.key !== SESSION_OWNER_KEY) return;
+      invalidateSession();
+      setUser(null);
+      window.location.reload();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   // ── 更新本地用户缓存（头像/昵称变更后调用） ─────────────────
   const updateUser = (data) => {
@@ -237,6 +262,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{
       user,
+      outboxScope,
       login,
       logout,
       changePassword,

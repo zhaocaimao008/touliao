@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import axios from 'axios';
-import { setupAxiosInterceptors, clearCsrfToken } from './axiosInterceptor';
+import { setupAxiosInterceptors, clearCsrfToken, setCsrfToken, notifyCredentialsUpdated } from './axiosInterceptor';
 
 beforeEach(() => {
   const store = new Map();
@@ -44,4 +44,42 @@ test('successful Cookie refresh signals credential readiness so an idle Socket c
   const client = clientForRefresh(false);
   expect((await client.get('/api/protected-fixture')).status).toBe(200);
   expect(ready).toBe(true);
+});
+
+test('sibling revision uses the current CSRF Cookie on a write without background GET', async () => {
+  setCsrfToken('old-csrf');
+  document.cookie = 'csrf_token=current-csrf';
+  localStorage.setItem('touliao_session_revision', 'sibling-rotation');
+  const client = axios.create({ adapter: async config => ({ status: 200,
+    data: { accepted: config.headers.get('X-CSRF-Token') === 'current-csrf' }, headers: {}, config }) });
+  setupAxiosInterceptors(client);
+  expect((await client.put('/api/fixture', {})).data.accepted).toBe(true);
+});
+
+test('credential listeners observe the new revision synchronously', () => {
+  let seen;
+  window.addEventListener('touliao:credentials-updated', () => { seen = localStorage.getItem('touliao_session_revision'); });
+  notifyCredentialsUpdated();
+  expect(seen).toBeTruthy();
+  expect(seen).toBe(localStorage.getItem('touliao_session_revision'));
+});
+
+test.each(['same-tab', 'sibling'])('late old header cannot poison subsequent writes after %s rotation', async mode => {
+  let finish;
+  const client = axios.create({ adapter: config => config.url === '/slow'
+    ? new Promise(resolve => { finish = () => resolve({ status: 200, data: {}, headers: { 'x-csrf-token': 'stale' }, config }); })
+    : Promise.resolve({ status: 200, data: { csrf: config.headers.get('X-CSRF-Token') || null }, headers: {}, config }) });
+  setupAxiosInterceptors(client);
+  const old = client.get('/slow').catch(error => error.code);
+  await Promise.resolve();
+  document.cookie = 'csrf_token=fresh';
+  if (mode === 'same-tab') notifyCredentialsUpdated();
+  else localStorage.setItem('touliao_session_revision', 'sibling');
+  expect((await client.put('/write')).data.csrf).toBe('fresh');
+  finish();
+  expect(await old).toBe('ERR_CANCELED');
+  expect((await client.put('/write')).data.csrf).toBe('fresh');
+  document.cookie = '';
+  localStorage.setItem('touliao_session_revision', 'logout');
+  expect((await client.put('/write')).data.csrf).toBe(null);
 });
