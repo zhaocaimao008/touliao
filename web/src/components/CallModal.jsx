@@ -7,6 +7,7 @@ import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingT
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
+import { initializeCallMedia, stopStream } from '../utils/callLifecycle';
 import './CallModal.css';
 
 // 页面首次交互即预热 AudioContext(autoplay 政策:创建/resume 需在手势栈内,
@@ -188,6 +189,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   // 旁观界面在接听前不能借重连占用该通话。
   const participatingRef = useRef(direction === 'outgoing');
   const closedRef = useRef(false);
+  const mediaGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!socket) return;
@@ -220,6 +222,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const ICE_RESTART_WINDOW_MS   = 15000;    // restart 后等待恢复的窗口
   const ICE_RESTART_MAX         = 3;        // 最大重启次数,超限放弃(对称 NAT 无 TURN 再试无益)
   const toneRef = useRef(null); // 循环提示音句柄 { stop }(回铃/来电共用)
+
+  const isMediaGenerationCurrent = useCallback((generation, pc = null) => (
+    !closedRef.current && generation === mediaGenerationRef.current && (!pc || pcRef.current === pc)
+  ), []);
 
   const timer = useCallTimer(status === 'connected');
 
@@ -332,6 +338,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const playConnected = useCallback(() => { playConnectedTone(); }, []);
 
   const cleanup = useCallback(() => {
+    mediaGenerationRef.current += 1;
     closedRef.current = true;
     participatingRef.current = false;
     clearTimeout(timeoutRef.current);
@@ -361,21 +368,30 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   }, [socket, remoteId, callId, cleanup, onClose]);
 
   const initPC = useCallback(async () => {
+    const generation = mediaGenerationRef.current;
     const constraints = { audio: true, video: videoConstraints(isVideo) };
-    let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia(constraints); setMediaError(false); }
-    catch { stream = new MediaStream(); setMediaError(true); } // 权限拒绝/设备占用：仍建连但提示用户
-    localStreamRef.current = stream;
-    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-
-    const iceConfig = await fetchIceConfig();
-    const pc = new RTCPeerConnection(iceConfig);
-    pcRef.current = pc;
-    stream.getTracks().forEach(t => pc.addTrack(t, stream));
-    // A-2：H264 优先。编解码偏好须在任何 createOffer/createAnswer 之前设（此处设置后
-    // 对本 pc 后续所有协商——主叫首 offer、ICE restart 重协商——持续有效；被叫应答路径
-    // 在 processOffer 里于 setRemoteDescription 后再补设一次）
-    await preferH264(pc);
+    const pc = await initializeCallMedia({
+      constraints,
+      getUserMedia: value => navigator.mediaDevices.getUserMedia(value),
+      createEmptyStream: () => new MediaStream(),
+      fetchIceConfig,
+      createPeerConnection: iceConfig => new RTCPeerConnection(iceConfig),
+      // A-2：H264 优先。编解码偏好须在任何 createOffer/createAnswer 之前设。
+      preparePeerConnection: preferH264,
+      isCurrent: () => isMediaGenerationCurrent(generation),
+      setMediaError,
+      publishStream: stream => {
+        localStreamRef.current = stream;
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      },
+      discardStream: stream => {
+        if (localStreamRef.current === stream) localStreamRef.current = null;
+        if (localVideoRef.current?.srcObject === stream) localVideoRef.current.srcObject = null;
+      },
+      publishPeerConnection: value => { pcRef.current = value; },
+      discardPeerConnection: value => { if (pcRef.current === value) pcRef.current = null; },
+    });
+    if (!pc) return null;
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) socket?.emit('call:ice', withCallId({ to: remoteId, candidate }, callId));
@@ -441,7 +457,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       }
     };
     return pc;
-  }, [isVideo, socket, remoteId, callId, endCall, attachRemoteStream]);
+  }, [isVideo, socket, remoteId, callId, endCall, attachRemoteStream, isMediaGenerationCurrent]);
 
   const processOffer = useCallback(async (offer) => {
     const pc = pcRef.current;
@@ -595,8 +611,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   // 其内部 setState 属正当的取媒体流程，非可派生同步状态。
   useEffect(() => {
     if (direction === 'outgoing') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：WebRTC 初始化副作用
-      initPC().then(() => {
+      initPC().then(pc => {
+        if (!pc) return;
         timeoutRef.current = setTimeout(() => {
           if (statusRef.current === 'calling') endCall(true, 'timeout');
         }, CALL_TIMEOUT_MS);
@@ -641,11 +657,14 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const toggleVideo = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc || statusRef.current !== 'connected') return;
+    const generation = mediaGenerationRef.current;
+    const isCurrent = () => isMediaGenerationCurrent(generation, pc);
     const next = !videoMode;
     try {
       if (next) {
         // 语音→视频：补视频轨
         const vs = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true), audio: false });
+        if (!isCurrent()) { stopStream(vs); return; }
         vs.getVideoTracks().forEach(t => pc.addTrack(t, vs));
         if (localStreamRef.current) {
           vs.getVideoTracks().forEach(t => { try { localStreamRef.current.addTrack(t); } catch { /* 已存在 */ } });
@@ -656,6 +675,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         capVideoBitrate(pc);   // 幂等：确保新补的视频轨也受发送码率上限约束
         // A-2：语音→视频新 addTrack 产生全新视频 transceiver，须在下面的 createOffer 前重设 H264 优先
         await preferH264(pc);
+        if (!isCurrent()) return;
       } else {
         // 视频→语音：停 + 移除视频轨
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
@@ -665,8 +685,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         }
       }
       const offer = await pc.createOffer();
+      if (!isCurrent()) return;
       const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
       await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+      if (!isCurrent()) return;
       socket.emit('call:offer', withCallId({ to: remoteId, offer: { type: offer.type, sdp: tunedOffer } }, callId));
       socket.emit('call:switch-type', withCallId({ to: remoteId, type: next ? 'video' : 'audio' }, callId));
       setVideoMode(next);
@@ -674,9 +696,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         localVideoRef.current.srcObject = localStreamRef.current;
       }
     } catch (e) {
-      console.error('[call] 切换类型失败:', e);
+      if (isCurrent()) console.error('[call] 切换类型失败:', e);
     }
-  }, [videoMode, socket, remoteId, callId]);
+  }, [videoMode, socket, remoteId, callId, isMediaGenerationCurrent]);
 
   const END_TEXT = {
     rejected: t('call.endReasonRejected'),
