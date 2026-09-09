@@ -268,15 +268,23 @@ test('a password change awaiting bcrypt cannot restore a session that was remove
   const other = await login(account);
   const entered = deferred(), release = deferred();
   const hash = bcrypt.hash;
-  jest.spyOn(bcrypt, 'hash').mockImplementationOnce(async (...args) => {
-    const value = await hash(...args);
-    entered.resolve();
-    await release.promise;
-    return value;
+  // bcryptjs's own compare() recomputes internally via hash(data, saltString, callback) —
+  // callback-style, second arg is the salt (a string). Only the deliberate call we want to
+  // delay, hash(newPassword, costFactor), passes a rounds NUMBER as the second arg; let the
+  // compare()-internal call straight through or it eats this mock and never actually blocks.
+  jest.spyOn(bcrypt, 'hash').mockImplementation((...args) => {
+    if (typeof args[1] !== 'number') return hash(...args);
+    return (async () => {
+      const value = await hash(...args);
+      entered.resolve();
+      await release.promise;
+      return value;
+    })();
   });
   const pending = change(other, account).then(res => res);
   await entered.promise;
-  expect((await revoke(current, other)).status).toBe(200);
+  const revokeRes = await revoke(current, other);
+  expect(revokeRes.status).toBe(200);
   release.resolve();
   expect((await pending).status).toBe(401);
   expect((await me(await login(account, UA, other.wallet))).status).toBe(200);

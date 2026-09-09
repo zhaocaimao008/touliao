@@ -39,9 +39,11 @@ export default function Collections() {
       .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setLoadError(true); })
       .finally(() => { if (!signal?.aborted) setLoading(false); });
   }, []);
-  // 初次挂载拉取：loading 初值已为 true，effect 内不做同步 setState（避免级联渲染）
+  // 初次挂载拉取：load() 内的 setLoading(true) 是幂等 no-op（初值已为 true），
+  // 真正的状态变化在 fetchAllPages 的 promise 回调里，非可派生同步状态。
   useEffect(() => {
     const ac = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：load() 内 setState 幂等，非派生同步
     load(ac.signal);
     return () => ac.abort();
   }, [load]);

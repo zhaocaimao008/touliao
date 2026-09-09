@@ -680,7 +680,6 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   useEffect(() => {
     if (direction === 'outgoing') {
       const generation = mediaGenerationRef.current;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：WebRTC 初始化副作用
       initPC().then(pc => {
         // 卸载后 initPC 可能已中止（aliveRef=false/呼叫世代已过期）或组件已收尾：
         // 不再安排超时定时器，防迟到回调在卸载后仍发 ghost call:end / 残留超时定时器
