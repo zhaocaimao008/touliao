@@ -161,7 +161,7 @@ describe('group call occupancy contract', () => {
     expect(io.last('group_call:peer_joined').payload).toEqual({ callId, userId: 'bob' });
   });
 
-  test('joining twice with a second device is idempotent and does not re-broadcast', () => {
+  test('rejoining with the exact same socket is idempotent and does not re-broadcast', () => {
     const io = createIoHarness();
     const registry = createRegistry();
     const alice = createSocket('alice', 'alice-web', io);
@@ -169,17 +169,39 @@ describe('group call occupancy contract', () => {
     alice.handlers['group_call:start']({ conversationId: 'conv-idempotent-join', type: 'audio' });
     const callId = alice.last('group_call:started').payload.callId;
 
+    const bob = createSocket('bob', 'bob-web', io);
+    registerGroupCallHandler(io, bob, registry);
+    bob.handlers['group_call:join']({ callId });
+    io.emitted.length = 0; // 只关心第二次 join 的行为
+
+    bob.handlers['group_call:join']({ callId }); // 同一条 Socket 重复 join：保持幂等
+
+    expect(io.events('group_call:peer_joined')).toHaveLength(0); // 幂等：不重复广播
+    expect(registry.get(callId).participants.get('bob').socketIds).toEqual(new Set(['bob-web']));
+  });
+
+  test('Q11 保留第一台拒绝第二台：同账号第二台设备 join 被明确拒绝，不静默并入、不影响第一台', () => {
+    const io = createIoHarness();
+    const registry = createRegistry();
+    const alice = createSocket('alice', 'alice-web', io);
+    registerGroupCallHandler(io, alice, registry);
+    alice.handlers['group_call:start']({ conversationId: 'conv-second-device-join', type: 'audio' });
+    const callId = alice.last('group_call:started').payload.callId;
+
     const bobWeb = createSocket('bob', 'bob-web', io);
     registerGroupCallHandler(io, bobWeb, registry);
     bobWeb.handlers['group_call:join']({ callId });
-    io.emitted.length = 0; // 只关心第二次 join 的行为
+    io.emitted.length = 0; // 只关心第二台设备 join 的行为
 
     const bobPhone = createSocket('bob', 'bob-phone', io);
     registerGroupCallHandler(io, bobPhone, registry);
     bobPhone.handlers['group_call:join']({ callId });
 
-    expect(io.events('group_call:peer_joined')).toHaveLength(0); // 幂等：不重复广播
-    expect(registry.get(callId).participants.get('bob').socketIds).toEqual(new Set(['bob-web', 'bob-phone']));
+    // 审计报告原文复现的正是"第二次 join 后绑定 Socket 数 2、给 B2 回包 0"——
+    // 这里改成 B2 拿到明确的 group_call:error(busy)，不再是沉默的 0 回包。
+    expect(bobPhone.last('group_call:error').payload.reason).toBe('busy');
+    expect(io.events('group_call:peer_joined')).toHaveLength(0);
+    expect(registry.get(callId).participants.get('bob').socketIds).toEqual(new Set(['bob-web'])); // 第一台不受影响
   });
 
   test('a user already busy in another private call cannot join a group call', () => {
@@ -216,6 +238,55 @@ describe('group call occupancy contract', () => {
     expect(registry.callForUser('bob')).toBeUndefined();
     expect(io.last('group_call:peer_left').payload).toEqual({ callId, userId: 'bob' });
     expect(registry.get(callId)).toBeDefined(); // alice 还在，通话没结束
+  });
+
+  test('Q11 保留第一台拒绝第二台：一个从未真正加入的同账号旁观 Socket 不能靠 leave 把真正在场的那台踢出去', () => {
+    const io = createIoHarness();
+    const registry = createRegistry();
+    const alice = createSocket('alice', 'alice-web', io);
+    registerGroupCallHandler(io, alice, registry);
+    alice.handlers['group_call:start']({ conversationId: 'conv-q11-leave', type: 'audio' });
+    const callId = alice.last('group_call:started').payload.callId;
+
+    const bob = createSocket('bob', 'bob-web', io);
+    registerGroupCallHandler(io, bob, registry);
+    bob.handlers['group_call:join']({ callId });
+    io.emitted.length = 0;
+
+    // bob 的第二台设备从未真正 join 成功（比如恰好撞上宽限期被 Q06 拒绝，或者单纯
+    // 就是知道 callId 但没走过 occupy）——它对同一个 callId 发 leave，不该影响
+    // bob-web 这台真正在场的连接。
+    const bobBystander = createSocket('bob', 'bob-bystander', io);
+    registerGroupCallHandler(io, bobBystander, registry);
+    bobBystander.handlers['group_call:leave']({ callId });
+
+    expect(io.events('group_call:peer_left')).toHaveLength(0); // 没有被误移除
+    expect(registry.callForUser('bob')).toBe(callId);
+    expect(registry.get(callId).participants.get('bob').socketIds).toEqual(new Set(['bob-web']));
+  });
+
+  test('Q11：未真正绑定的旁观 Socket 不能冒充成员转发 offer/answer/ice', () => {
+    const io = createIoHarness();
+    const registry = createRegistry();
+    const alice = createSocket('alice', 'alice-web', io);
+    registerGroupCallHandler(io, alice, registry);
+    alice.handlers['group_call:start']({ conversationId: 'conv-q11-fwd', type: 'audio' });
+    const callId = alice.last('group_call:started').payload.callId;
+
+    const bob = createSocket('bob', 'bob-web', io);
+    registerGroupCallHandler(io, bob, registry);
+    bob.handlers['group_call:join']({ callId });
+    io.emitted.length = 0;
+
+    const bobBystander = createSocket('bob', 'bob-bystander', io);
+    registerGroupCallHandler(io, bobBystander, registry);
+    bobBystander.handlers['group_call:offer']({ callId, to: 'alice', offer: { sdp: 'x', type: 'offer' } });
+
+    expect(io.events('group_call:offer')).toHaveLength(0);
+
+    // 对照：真正绑定的 bob-web 能正常转发
+    bob.handlers['group_call:offer']({ callId, to: 'alice', offer: { sdp: 'x', type: 'offer' } });
+    expect(io.last('group_call:offer').payload).toEqual({ callId, from: 'bob', offer: { sdp: 'x', type: 'offer' } });
   });
 
   test('last member leaving ends the call in both groupCalls bookkeeping and the registry', () => {

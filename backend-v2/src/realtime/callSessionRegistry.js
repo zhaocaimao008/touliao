@@ -11,11 +11,12 @@ const CALL_ID_MISMATCH = 'CALL_ID_MISMATCH';
 // 已断开(在宽限期内)的参与者调用 resume 顶替上去，窃听/劫持通话（Q06 audit 设计审查
 // ownership-design-review.md 阻断项 #1/#3）。方案：每个参与者第一次真正绑定 Socket 时
 // 签发一个不透明 resumeToken，只经由直连 ack 回给那一条 Socket（绝不进房间广播）；
-// 之后任何"换一个新 Socket"的绑定都必须证明持有这个 token。同一账号多端并发加入
-// （已有产品行为，如 A 手机在通话中，A 又开一个 Web 标签页）继续走 bindSocket 的
-// 免 token 路径——那不是"恢复丢失的连接"，是"追加一条活跃连接"，ordinary
-// occupy/create/accept 路径不因此收紧。只有 resume() 明确声称"我在恢复"才强制要求
-// token，且不管原 Socket 是否仍存活都要求（不然旁观者可以趁参与者还在线时抢注）。
+// 之后任何"换一个新 Socket"的绑定都必须证明持有这个 token，resume() 明确声称"我在
+// 恢复"时始终强制要求，不管原 Socket 是否仍存活（不然旁观者可以趁参与者还在线时抢注）。
+// Q11 全修（用户决策：保留第一台，拒绝第二台）：ordinary bindSocket（occupy 的已是
+// 成员分支、create 的 owner 自绑）不再对"参与者已有存活连接+来了个不同新 Socket"
+// 免 token 放行——同账号第二台设备/标签页必须被明确拒绝(CALL_BUSY)，不能静默并入
+// socketIds 集合。只有 resumeToken 匹配的真正恢复才能在参与者断线后重新占用。
 function generateResumeToken() {
   return crypto.randomUUID();
 }
@@ -197,13 +198,18 @@ function createRegistry({
   }
 
   // 一般绑定入口：create 的 owner 自绑、occupy 已是成员的重绑、call.js accept 时的
-  // 被叫首绑均走这里。同账号多端并发追加连接（对方还活着）继续免 token——那是既有
-  // 产品行为（如群通话同账号手机+Web 同时在线），不是"恢复丢失连接"的安全边界。
-  // 只有参与者当前【没有任何存活连接】时才进入需要凭据的分支：
+  // 被叫首绑均走这里。
+  // Q11 全修（用户决策：保留第一台，拒绝第二台）：同一个已绑定的 Socket 重复调用保持
+  // 幂等；但只要参与者当前还有任意存活连接，任何【不同】的新 Socket 一律明确拒绝
+  // （CALL_BUSY），不再"免 token 追加"——同账号第二台设备/标签页不能静默并入，必须
+  // 拿到明确错误。这修的正是审计报告 Q11 原文的复现："第二次 join 后绑定 Socket 数
+  // 2、给 B2 回包 0"——旧实现悄悄接纳、不回任何信号，B2 卡在"加入中"。
+  // 只有参与者当前【没有任何存活连接】时才进入需要凭据的恢复分支：
   //   - resumeToken 已签发过 → 必须是 isInitialBind 且此前从未绑定过(resumeToken
   //     仍为 null)才放行——这条路径只有 call.js 被叫首次 accept 会传 isInitialBind，
   //     ordinary occupy(group_call:join) 不传，因此在宽限期内的"另一台设备假装
-  //     ordinary join"会在这里被挡（Q06 review 阻断项 #1）。
+  //     ordinary join"会在这里被挡（Q06 review 阻断项 #1）。真正的恢复必须走 resume()
+  //     并证明持有 resumeToken，不经过这个函数。
   //   - 已有 resumeToken 时不接受 isInitialBind 重新签发（防止已建立身份的参与者
   //     被人从头抢注一个新 token）。
   function bindSocket(callId, userId, socketId, { isInitialBind = false } = {}) {
@@ -217,9 +223,7 @@ function createRegistry({
       return ok({ callId, userId, session, resumeToken: participant.resumeToken });
     }
     if (participant.socketIds.size > 0) {
-      cancelGrace(participant);
-      addSocket(participant, socketId);
-      return ok({ callId, userId, session, resumeToken: participant.resumeToken });
+      return failure(CALL_BUSY, { callId, userId });
     }
     if (participant.resumeToken != null || !isInitialBind) {
       return failure(CALL_ID_MISMATCH, { callId });

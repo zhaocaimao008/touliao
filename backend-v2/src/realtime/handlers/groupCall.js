@@ -196,11 +196,22 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
   socket.on('group_call:answer', (payload) => { const p = guardPayload(socket, 'group_call:answer', payload); if (!p) return; const { callId, to, answer } = p; fwd('group_call:answer', { callId, from: userId, answer }, to, callId); });
   socket.on('group_call:ice',    (payload) => { const p = guardPayload(socket, 'group_call:ice', payload); if (!p) return; const { callId, to, candidate } = p; fwd('group_call:ice',    { callId, from: userId, candidate }, to, callId); });
 
+  // Q11 全修：这条 Socket 是否真的是 registry 承认的、这通通话里 userId 的绑定连接
+  // 之一——不是"userId 是不是成员"（groupCalls.members 按 userId 记录，同账号任意
+  // 一条 Socket 都命中），是"发这个动作的这条具体连接有没有真的加入过"。第二台设备
+  // 光凭 userId 匹配就能对第一台设备已占的 ownership 发号施令（leave 把真正在通话
+  // 里的那台踢出去、offer/answer/ice 冒充成员转发）是同一类 ownership 绕过，跟
+  // resume 的洞是一体的，用同一份 registry 状态堵。
+  function isBoundParticipantSocket(callId, socketId) {
+    return !!registry.get(callId)?.participants.get(userId)?.socketIds.has(socketId);
+  }
+
   function fwd(event, payload, to, callId) {
     if (typeof to !== 'string' || !to || to.length > 64) return;
     if (typeof callId !== 'string' || !callId || callId.length > 64) return;
     const call = groupCalls.get(callId);
     if (!call || !call.members.has(userId) || !call.members.has(to)) return; // 只在同一通话成员间转发
+    if (!isBoundParticipantSocket(callId, socket.id)) return; // 发起方这条 Socket 必须真的绑定过，不能只是同账号
     io.to(`user_${to}`).emit(event, payload);
   }
 
@@ -209,6 +220,9 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     if (!p) return;
     const callId = guardId(socket, 'group_call:leave', 'callId', p.callId);
     if (!callId) return;
+    // 只有真正绑定过的 Socket 能让自己离开；一个从未真正加入(比如 occupy 被 Q06
+    // 防重放拒绝)的旁观 Socket 不能靠 leave 把真正在场的那台设备顶出去。
+    if (!isBoundParticipantSocket(callId, socket.id)) return;
     removeMember(io, registry, callId, userId); // 主动 leave：立即释放，不走宽限
   });
 

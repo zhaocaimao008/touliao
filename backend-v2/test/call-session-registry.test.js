@@ -79,16 +79,18 @@ test('resume cannot bind a reserved-but-never-accepted callee before accept issu
   expect(r.get('c1').participants.get('bob').socketIds.size).toBe(0);
 });
 
-test('bindSocket freely adds a concurrent socket while the participant is still live (existing multi-device behavior, no token required)', () => {
+test('bindSocket rejects a second, different socket while the participant is still live (Q11: keep the first device, reject the second)', () => {
   const r = createRegistry();
 
   r.createPrivate({ callId: 'c1', callerId: 'alice', calleeId: 'bob', socketId: 'alice-web' });
   // bob accept 首绑（call.js 真实用法）
   expect(r.bindSocket('c1', 'bob', 'bob-phone', { isInitialBind: true }).ok).toBe(true);
 
-  // alice 还活着(alice-web 未断)时开第二个标签页——existing product behavior, unaffected
-  expect(r.bindSocket('c1', 'alice', 'alice-web-2').ok).toBe(true);
-  expect(r.get('c1').participants.get('alice').socketIds).toEqual(new Set(['alice-web', 'alice-web-2']));
+  // alice 还活着(alice-web 未断)时，一个不同的新 Socket（第二台设备/标签页）想加入——
+  // 必须被明确拒绝，不能静默并入 socketIds；同一个已绑定的 socketId 重复调用仍幂等。
+  expect(r.bindSocket('c1', 'alice', 'alice-web-2')).toMatchObject({ ok: false, code: 'CALL_BUSY' });
+  expect(r.bindSocket('c1', 'alice', 'alice-web').ok).toBe(true); // 同一 socketId 重复调用：幂等
+  expect(r.get('c1').participants.get('alice').socketIds).toEqual(new Set(['alice-web']));
 });
 
 test('bindSocket without isInitialBind or a resumeToken cannot acquire a disconnected participant\'s slot (Q06 ownership bypass via ordinary join)', () => {
@@ -147,14 +149,24 @@ test('private creation checks every participant before changing shared state', (
   expect(r.get('c1')).toBeUndefined();
 });
 
-test('occupy adds a group member atomically and is idempotent for the same call', () => {
+test('occupy adds a group member atomically and is idempotent for the exact same socket', () => {
   const r = createRegistry();
 
   r.createGroup({ callId: 'g1', conversationId: 'g', startedBy: 'alice', socketId: 'alice-web' });
 
   expect(r.occupy('g1', 'bob', 'bob-web')).toMatchObject({ ok: true });
-  expect(r.occupy('g1', 'bob', 'bob-phone')).toMatchObject({ ok: true, alreadyMember: true });
-  expect(r.get('g1').participants.get('bob').socketIds).toEqual(new Set(['bob-web', 'bob-phone']));
+  expect(r.occupy('g1', 'bob', 'bob-web')).toMatchObject({ ok: true, alreadyMember: true }); // 同一 socket 重复 join：幂等
+  expect(r.get('g1').participants.get('bob').socketIds).toEqual(new Set(['bob-web']));
+});
+
+test('occupy rejects a second, different socket for an already-live member (Q11: keep the first device, reject the second)', () => {
+  const r = createRegistry();
+
+  r.createGroup({ callId: 'g1', conversationId: 'g', startedBy: 'alice', socketId: 'alice-web' });
+
+  expect(r.occupy('g1', 'bob', 'bob-web')).toMatchObject({ ok: true });
+  expect(r.occupy('g1', 'bob', 'bob-phone')).toMatchObject({ ok: false, code: 'CALL_BUSY' });
+  expect(r.get('g1').participants.get('bob').socketIds).toEqual(new Set(['bob-web'])); // 第一台不受影响
 });
 
 test('releaseUser frees a group participant immediately without ending other members', () => {
