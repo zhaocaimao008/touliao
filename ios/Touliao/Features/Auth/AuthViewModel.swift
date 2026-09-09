@@ -6,6 +6,11 @@ final class AuthViewModel: ObservableObject {
     @Published var phone = ""
     @Published var password = ""
     @Published var serverURL = ServerConfig.shared.baseURL
+    // 企业代码：查目录表拿到该客户自己的服务器地址后直接切换，不需要用户知道完整域名。
+    // 与上面手动输入 serverURL 是并存的两条路径，互不干扰。
+    @Published var tenantCode = ""
+    @Published var resolvingTenantCode = false
+    @Published var tenantCodeStatus: String?
     // 注册额外字段
     @Published var username = ""
     @Published var inviteCode = ""   // 6位数字邀请码；是否必填由 inviteRequired 决定
@@ -67,6 +72,21 @@ final class AuthViewModel: ObservableObject {
     func saveServerURL() {
         let url = serverURL.trimmingCharacters(in: .whitespaces)
         if !url.isEmpty { ServerConfig.shared.baseURL = url }
+    }
+
+    /// 按企业代码解析并切换服务器；成功返回 true（调用方据此收起输入框）。
+    func resolveTenantCode() async -> Bool {
+        resolvingTenantCode = true
+        tenantCodeStatus = nil
+        defer { resolvingTenantCode = false }
+        guard let found = await RemoteConfig.resolve(code: tenantCode) else {
+            tenantCodeStatus = "找不到该企业代码，请确认后重试"
+            return false
+        }
+        serverURL = found.api
+        saveServerURL()
+        tenantCodeStatus = found.name.isEmpty ? nil : "已连接「\(found.name)」"
+        return true
     }
 
     func login() {

@@ -248,6 +248,33 @@ fun LoginScreen(
             Text("切换服务器", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
         }
         if (showServerConfig) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                OutlinedTextField(
+                    value = state.tenantCode,
+                    onValueChange = viewModel::onTenantCodeChange,
+                    label = { Text("企业代码") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = { viewModel.resolveTenantCode(onResolved = { showServerConfig = false }) },
+                    enabled = !state.resolvingTenantCode && state.tenantCode.isNotBlank(),
+                ) {
+                    Text(if (state.resolvingTenantCode) "查找中…" else "连接", color = VxinGreen)
+                }
+            }
+            state.tenantCodeStatus?.let {
+                Text(it, color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+            }
+            Text(
+                "不知道代码？向你的公司/团队管理员索取，或在下方直接填服务器地址。",
+                color = VxinTextSecondary,
+                fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
+            )
+
             OutlinedTextField(
                 value = state.serverUrl,
                 onValueChange = viewModel::onServerUrlChange,

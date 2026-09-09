@@ -3,6 +3,7 @@ package com.touliao.app.feature.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.touliao.app.core.auth.SessionManager
+import com.touliao.app.core.config.RemoteConfig
 import com.touliao.app.core.network.toUserMessage
 import com.touliao.app.core.storage.ServerConfig
 import com.touliao.app.data.api.ConfigApi
@@ -19,6 +20,11 @@ data class LoginUiState(
     val phone: String = "",
     val password: String = "",
     val serverUrl: String = "",
+    // 企业代码：查目录表拿到该客户自己的服务器地址后直接切换，不需要用户知道完整域名。
+    // 与上面手动输入 serverUrl 是并存的两条路径，互不干扰。
+    val tenantCode: String = "",
+    val resolvingTenantCode: Boolean = false,
+    val tenantCodeStatus: String? = null,
     val loading: Boolean = false,
     val loggedIn: Boolean = false,   // 成功后用于「添加账号」流程返回
     val error: String? = null,
@@ -39,6 +45,7 @@ class LoginViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val serverConfig: ServerConfig,
     private val configApi: ConfigApi,
+    private val remoteConfig: RemoteConfig,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState(serverUrl = serverConfig.baseUrl))
@@ -59,6 +66,7 @@ class LoginViewModel @Inject constructor(
     fun onPhoneChange(v: String) = _uiState.update { it.copy(phone = v, error = null) }
     fun onPasswordChange(v: String) = _uiState.update { it.copy(password = v, error = null) }
     fun onServerUrlChange(v: String) = _uiState.update { it.copy(serverUrl = v) }
+    fun onTenantCodeChange(v: String) = _uiState.update { it.copy(tenantCode = v, tenantCodeStatus = null) }
     fun onCaptchaTextChange(v: String) = _uiState.update { it.copy(captchaText = v, error = null) }
 
     fun loadCaptcha() {
@@ -74,6 +82,28 @@ class LoginViewModel @Inject constructor(
     fun saveServerUrl() {
         val url = _uiState.value.serverUrl.trim()
         if (url.isNotEmpty()) serverConfig.baseUrl = url
+    }
+
+    /** 按企业代码解析并切换服务器；[onResolved] 在成功时回调，供 UI 收起输入框。 */
+    fun resolveTenantCode(onResolved: () -> Unit) {
+        val code = _uiState.value.tenantCode
+        _uiState.update { it.copy(resolvingTenantCode = true, tenantCodeStatus = null) }
+        viewModelScope.launch {
+            val entry = remoteConfig.resolveCode(code)
+            if (entry == null) {
+                _uiState.update { it.copy(resolvingTenantCode = false, tenantCodeStatus = "找不到该企业代码，请确认后重试") }
+                return@launch
+            }
+            _uiState.update { it.copy(serverUrl = entry.api) }
+            saveServerUrl()
+            _uiState.update {
+                it.copy(
+                    resolvingTenantCode = false,
+                    tenantCodeStatus = entry.name.takeIf { n -> n.isNotBlank() }?.let { n -> "已连接「$n」" },
+                )
+            }
+            onResolved()
+        }
     }
 
     fun submit() {

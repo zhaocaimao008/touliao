@@ -10,7 +10,7 @@ import { goLogin } from '../utils/url';
 import { setIncomingRingtone } from '../utils/callTones';
 import { showConfirm, showToast } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
-import { timeoutSignal } from '../utils/config';
+import { timeoutSignal, resolveTenantCode } from '../utils/config';
 
 /* ─── 小工具 ─── */
 // role="button" 的 div 应同时支持 Enter 和空格触发（空格默认会滚动页面，需 preventDefault）
@@ -1142,6 +1142,27 @@ function ServerSettings({ onBack }) {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [tenantCode, setTenantCode] = useState('');
+  const [resolving, setResolving] = useState(false);
+  const [codeResult, setCodeResult] = useState(null);
+
+  // 企业代码：查目录表拿到该客户自己的服务器地址后直接切换，不需要用户知道完整域名。
+  // 与下面手动输入 URL 是并存的两条路径，互不干扰。
+  const handleResolveCode = async () => {
+    const key = tenantCode.trim();
+    if (!key) return;
+    setResolving(true); setCodeResult(null);
+    const entry = await resolveTenantCode(key);
+    if (!entry) {
+      setCodeResult({ ok: false, msg: t('profile.tenantCodeNotFound') });
+      setResolving(false);
+      return;
+    }
+    setCodeResult({ ok: true, msg: entry.name ? t('profile.tenantCodeFound').replace('{name}', entry.name) : t('profile.serverConnectSuccess') });
+    setInput(entry.api);
+    await changeServer(entry.api);
+    setResolving(false);
+  };
 
   const testConn = async () => {
     const url = input.trim().replace(/\/$/, '');
@@ -1166,6 +1187,29 @@ function ServerSettings({ onBack }) {
   return (
     <PageBg>
       <PageHeader title={t('profile.serverAddressTitle')} onBack={onBack} />
+      <div className="wc-server-pad">
+        <div className="wc-server-label">{t('profile.tenantCodeLabel')}</div>
+        <input
+          value={tenantCode}
+          onChange={e => { setTenantCode(e.target.value); setCodeResult(null); }}
+          placeholder={t('profile.tenantCodePlaceholder')}
+          aria-label={t('profile.tenantCodeLabel')}
+          className="wc-server-input"
+        />
+        {codeResult && (
+          <div role="status" className="profile-test-result" style={{ color: codeResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
+            {codeResult.msg}
+          </div>
+        )}
+      </div>
+      <div className="wc-server-btn-row">
+        <button onClick={handleResolveCode} disabled={resolving || !tenantCode.trim()} className="wc-btn-save">
+          {resolving ? t('profile.tenantCodeResolving') : t('profile.tenantCodeResolve')}
+        </button>
+      </div>
+      <div className="wc-server-hint">
+        <div className="wc-server-hint-box">{t('profile.tenantCodeHint')}</div>
+      </div>
       <div className="wc-server-pad">
         <div className="wc-server-label">{t('profile.serverAddressLabel')}</div>
         <input

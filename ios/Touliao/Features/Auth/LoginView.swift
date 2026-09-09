@@ -120,6 +120,28 @@ struct LoginView: View {
                 .foregroundColor(.vxinTextSecondary)
 
             if showServerConfig {
+                HStack(spacing: 8) {
+                    TextField("企业代码", text: $vm.tenantCode)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .textFieldStyle(.roundedBorder)
+                    Button(vm.resolvingTenantCode ? "查找中…" : "连接") {
+                        Task {
+                            if await vm.resolveTenantCode() { showServerConfig = false }
+                        }
+                    }
+                    .disabled(vm.resolvingTenantCode || vm.tenantCode.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .foregroundColor(.vxinGreen)
+                }
+                if let status = vm.tenantCodeStatus {
+                    Text(status)
+                        .font(.caption)
+                        .foregroundColor(.vxinTextSecondary)
+                }
+                Text("不知道代码？向你的公司/团队管理员索取，或在下方直接填服务器地址。")
+                    .font(.caption2)
+                    .foregroundColor(.vxinTextSecondary)
+
                 TextField("服务器地址", text: $vm.serverURL)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)

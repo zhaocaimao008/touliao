@@ -28,6 +28,13 @@ const CONFIG_URLS = [
   'https://touliao.cc/config.json',                                          // 主：投聊独立配置（不依赖共享配置仓库）
   'https://www.touliao.cc/config.json',                                      // 兜底：www 子域（同源站）
 ];
+// 企业代码目录：与 config.json 并列的独立引导数据。config.json 回答"默认连谁"，
+// directory.json 回答"这个企业代码对应连谁"——多个客户各自独立服务器/独立数据库，
+// 共用同一份 App 时，靠这份表把一个短代码解析成客户自己的服务器地址。
+const DIRECTORY_URLS = [
+  'https://touliao.cc/directory.json',
+  'https://www.touliao.cc/directory.json',
+];
 const CACHE_KEY   = 'touliao_remote_config';
 const CACHE_TS    = 'touliao_remote_config_ts';
 
@@ -121,6 +128,27 @@ export function getConfig() {
  */
 export function isConfigLoaded() {
   return _loaded;
+}
+
+/**
+ * 按企业代码解析出对应客户的服务器地址（登录页"企业代码"入口用）。
+ * 与手动输入完整 URL 是并存的两条路径，这个仅在用户主动填了代码时才发起请求，
+ * 不影响正常启动流程。查到目录但代码不存在时不再尝试其余镜像地址（内容应一致）。
+ * @returns {Promise<{api:string,name:string}|null>}
+ */
+export async function resolveTenantCode(code) {
+  const key = (code || '').trim().toLowerCase();
+  if (!key) return null;
+  for (const url of DIRECTORY_URLS) {
+    try {
+      const res = await fetch(url, { signal: timeoutSignal(6000) });
+      if (!res.ok) continue;
+      const table = await res.json();
+      const entry = table[key];
+      return entry?.api ? { api: entry.api.replace(/\/$/, ''), name: entry.name || '' } : null;
+    } catch { /* 该地址不可达，尝试下一个镜像 */ }
+  }
+  return null;
 }
 
 /**
