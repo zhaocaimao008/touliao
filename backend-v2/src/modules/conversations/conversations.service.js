@@ -409,13 +409,14 @@ async function markRead(io, userId, convId, messageId) {
   if (!isMember(convId, userId)) return { readAt: 0, lastReadMessageId: null };
   let readAt = Math.floor(Date.now() / 1000);
   let readMsgId = messageId || null;
+  let readRowid = null; // Q10 全修：message_reads 回填必须按单调 rowid 划界，不能拿随机 UUID 当排序键
 
   if (messageId) {
-    const msg = db.prepare('SELECT created_at FROM messages WHERE id=? AND conversation_id=? AND deleted=0').get(messageId, convId);
-    if (msg) readAt = msg.created_at;
+    const msg = db.prepare('SELECT created_at, rowid AS rid FROM messages WHERE id=? AND conversation_id=? AND deleted=0').get(messageId, convId);
+    if (msg) { readAt = msg.created_at; readRowid = msg.rid; }
   } else {
-    const last = db.prepare('SELECT id, created_at FROM messages WHERE conversation_id=? AND deleted=0 ORDER BY created_at DESC LIMIT 1').get(convId);
-    if (last) { readAt = last.created_at; readMsgId = last.id; }
+    const last = db.prepare('SELECT id, created_at, rowid AS rid FROM messages WHERE conversation_id=? AND deleted=0 ORDER BY created_at DESC LIMIT 1').get(convId);
+    if (last) { readAt = last.created_at; readMsgId = last.id; readRowid = last.rid; }
   }
 
   // #4 尾延迟：markRead 是最热接口。已读状态为最终一致即可，
@@ -436,12 +437,16 @@ async function markRead(io, userId, convId, messageId) {
   }
 
   // 私聊：批量写消息级已读（三态展示的持久化最终态，Redis ackManager 仅实时缓存）
-  if (readMsgId) {
+  // Q10 全修：原来按消息 id（随机 UUID）做 `id <= readMsgId` 字典序比较——uuidv4 的
+  // 字典序跟发送顺序毫无关系，一条更晚发送、字典序更小的新消息会被一起标成已读。
+  // 改用 rowid（单调递增，插入顺序=时间顺序，无同秒歧义），跟本文件 clearConversation
+  // 和 messages.service.js 分页用的边界口径一致。
+  if (readMsgId && readRowid != null) {
     const convType = db.prepare('SELECT type FROM conversations WHERE id=?').get(convId)?.type;
     if (convType === 'private') {
       db.prepare(`INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at)
-        SELECT id, ?, ? FROM messages WHERE conversation_id=? AND id <= ? AND deleted=0`)
-        .run(userId, readAt, convId, readMsgId);
+        SELECT id, ?, ? FROM messages WHERE conversation_id=? AND rowid <= ? AND deleted=0`)
+        .run(userId, readAt, convId, readRowid);
     }
   }
   return { readAt, lastReadMessageId: readMsgId };
