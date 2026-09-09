@@ -178,10 +178,19 @@ function invalidateConvCacheForUser(userId) {
   convCache.delete(userId);
 }
 
-async function listConversations(uid, { includeArchived = false } = {}) {
-  // 归档视图不进内存缓存（低频查询，实现简单优先；主列表缓存 key 仍只按 uid，
-  // 不因 includeArchived 分裂缓存维度，避免主列表缓存被归档视图挤占/污染）。
-  if (!includeArchived) {
+// Q12 全修：合法会话数可达 1000（当前建群上限），固定 LIMIT 500 且无分页契约时，
+// 超过 500 之后的会话在列表里永久不可见、无法"继续浏览"。补 offset/limit，默认值
+// 与原来的行为完全一致（不传参 = 老客户端拿到跟以前一样的前 500 条，零破坏性）。
+const CONV_LIST_DEFAULT_LIMIT = 500;
+const CONV_LIST_MAX_LIMIT = 500;
+
+async function listConversations(uid, { includeArchived = false, offset = 0, limit = CONV_LIST_DEFAULT_LIMIT } = {}) {
+  const off = Number.isInteger(offset) && offset > 0 ? offset : 0;
+  const lim = Number.isInteger(limit) && limit > 0 ? Math.min(limit, CONV_LIST_MAX_LIMIT) : CONV_LIST_DEFAULT_LIMIT;
+  // 内存缓存只覆盖"第一页、默认参数"这个最常见的路径；翻页/自定义 limit 直查 DB——
+  // 按 (uid, offset, limit) 拆分缓存维度收益不大（翻页本就低频），不值得为此复杂化。
+  const isDefaultPage = off === 0 && lim === CONV_LIST_DEFAULT_LIMIT;
+  if (!includeArchived && isDefaultPage) {
     const cached = convCache.get(uid);
     if (cached) {
       if (Date.now() - cached.ts < CONV_CACHE_TTL) return cached.data;
@@ -271,9 +280,9 @@ async function listConversations(uid, { includeArchived = false } = {}) {
     LEFT JOIN users ou ON ou.id = cm_o.user_id
     LEFT JOIN contacts ct ON ct.user_id = ? AND ct.contact_id = ou.id
     ${includeArchived ? '' : 'WHERE COALESCE(cs.archived, 0) = 0'}
-    ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC
-    LIMIT 500
-  `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid);
+    ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC, c.id DESC
+    LIMIT ? OFFSET ?
+  `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid, lim, off);
 
   const memberMap = new Map();
   if (rows.some(r => r.type === 'group')) {
@@ -309,8 +318,8 @@ async function listConversations(uid, { includeArchived = false } = {}) {
     return { ...conv, members: memberMap.get(conv.id) || [], hasMention: hasMentionBool };
   });
 
-  // 写回内存缓存（超出上限时跳过写入，等下次清理后恢复）；归档视图不写入主列表缓存
-  if (!includeArchived && convCache.size < CONV_CACHE_MAX) {
+  // 写回内存缓存（超出上限时跳过写入，等下次清理后恢复）；归档视图/非默认分页不写入主列表缓存
+  if (!includeArchived && isDefaultPage && convCache.size < CONV_CACHE_MAX) {
     convCache.set(uid, { data: conversations, ts: Date.now() });
   }
   return conversations;

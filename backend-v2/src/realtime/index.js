@@ -27,6 +27,27 @@ const createCallSessionRegistry = require('./callSessionRegistry');
 // 正常多端 ≤ 3~4 台，留余量到 5。超额连接在握手阶段直接拒绝（不进入 DB 查询链）。
 const MAX_SOCKETS_PER_USER = 5;
 
+// Q12 全修：会话数超过 AUTO_JOIN_MAX_ROOMS 时，自动订阅哪 500 个必须跟会话列表
+// listConversations 展示的前 N 个口径一致（置顶优先、最近活跃优先），否则超限用户
+// 列表里最新的会话可能不在自动订阅集合里——正文/sync_available 广播发到会话房间，
+// 该用户收不到，预览延迟到手动打开会话才补订阅（typing.js 的 join_conversation）。
+// 抽成具名导出函数，便于直接单测排序/截断行为，不用为此起真实 socket 连接跑 500+ 房间。
+const AUTO_JOIN_MAX_ROOMS = 500;
+function autoJoinConversationIds(db, userId, limit = AUTO_JOIN_MAX_ROOMS) {
+  return db.prepare(`
+    SELECT cm.conversation_id AS conversation_id
+    FROM conversation_members cm
+    LEFT JOIN conversation_settings cs ON cs.conversation_id = cm.conversation_id AND cs.user_id = cm.user_id
+    LEFT JOIN conversations c ON c.id = cm.conversation_id
+    LEFT JOIN (
+      SELECT conversation_id, MAX(created_at) AS last_at FROM messages WHERE deleted=0 GROUP BY conversation_id
+    ) m ON m.conversation_id = cm.conversation_id
+    WHERE cm.user_id = ?
+    ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.last_at, c.created_at) DESC, c.id DESC
+    LIMIT ?
+  `).all(userId, limit).map(c => c.conversation_id);
+}
+
 // P1-07 增强：per-IP 握手频率限制（防单 IP 换多个账号批量建连耗尽握手/DB 查询）。
 // 60s 窗口内同一 IP 最多 30 次握手尝试，超限拒绝。条目带过期清理防 Map 增长。
 const IP_HANDSHAKE_WINDOW_MS = 60 * 1000;
@@ -192,10 +213,7 @@ module.exports = function setupRealtime(io, app) {
       try {
         // 限制加入房间数上限：极端情况下（用户在数千个群）无上限 join 会阻塞事件循环。
         // 500 与 maxGroupMembers 配置一致，覆盖绝大多数正常使用场景。
-        const MAX_ROOMS = 500;
-        const convIds = readDb.prepare(
-          'SELECT conversation_id FROM conversation_members WHERE user_id=? LIMIT ?'
-        ).all(userId, MAX_ROOMS).map(c => c.conversation_id);
+        const convIds = autoJoinConversationIds(readDb, userId);
         if (convIds.length) socket.join(convIds);
       } catch (err) {
         console.error('[realtime] join rooms error:', err);
@@ -241,6 +259,8 @@ module.exports = function setupRealtime(io, app) {
 
 // ── P1-07 测试钩子（生产无副作用，仅断言限流内部状态）──────────
 module.exports.MAX_SOCKETS_PER_USER = MAX_SOCKETS_PER_USER;
+module.exports.autoJoinConversationIds = autoJoinConversationIds;
+module.exports.AUTO_JOIN_MAX_ROOMS = AUTO_JOIN_MAX_ROOMS;
 module.exports.checkIpHandshake = checkIpHandshake;
 module.exports.ipHandshakeSize = () => ipHandshake.size;
 module.exports._resetIpHandshake = () => ipHandshake.clear();

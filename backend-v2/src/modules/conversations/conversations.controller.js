@@ -21,8 +21,15 @@ exports.list          = asyncHandler(async (req, res) => {
   // 会话列表变化频率高，短时缓存 10s 防重连风暴批量请求；stale-while-revalidate 保证实时感
   // includeArchived=1 时含已归档会话（默认排除，向后兼容）
   const includeArchived = req.query.includeArchived === '1' || req.query.includeArchived === 'true';
+  // Q12 全修：offset/limit 续页，缺省时与旧行为完全一致（前 500 条）
+  const offset = parseInt(req.query.offset, 10);
+  const limit = parseInt(req.query.limit, 10);
   res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=30');
-  res.json(await svc.listConversations(req.user.id, { includeArchived }));
+  res.json(await svc.listConversations(req.user.id, {
+    includeArchived,
+    ...(Number.isInteger(offset) ? { offset } : {}),
+    ...(Number.isInteger(limit) ? { limit } : {}),
+  }));
 });
 exports.members       = asyncHandler(async (req, res) => res.json(svc.listMembers(req.params.conversationId, req.user.id)));
 exports.unreadCounts  = asyncHandler(async (req, res) => res.json(svc.unreadCounts(req.user.id)));
