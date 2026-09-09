@@ -103,35 +103,41 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     // P0-002 强校验：负载必须是对象，conversationId 必须是合法字符串 ID
     const p = guardPayload(socket, 'group_call:start', payload);
     if (!p) return;
+    const requestId = p.requestId == null
+      ? null
+      : guardId(socket, 'group_call:start', 'requestId', p.requestId);
+    if (p.requestId != null && !requestId) return;
+    const requestMeta = requestId ? { requestId } : {};
+    const emitStartError = reason => socket.emit('group_call:error', { reason, ...requestMeta });
     const conversationId = guardId(socket, 'group_call:start', 'conversationId', p.conversationId);
     if (!conversationId) return;
     const rawType = p.type;
     // callType 枚举校验：缺省默认 audio；其余必须为字符串且∈{audio,video}，否则拒绝（与 call.js 口径一致）
     if (rawType != null && (typeof rawType !== 'string' || (rawType !== 'audio' && rawType !== 'video'))) {
       console.warn(`[realtime] 非法 callType 被拒绝 event=group_call:start type=${typeof rawType === 'string' ? rawType : typeof rawType} from=${userId}`);
-      socket.emit('group_call:error', { reason: 'invalid_type' });
+      emitStartError('invalid_type');
       return;
     }
     const type = rawType == null ? 'audio' : rawType;
     if (!isMember(conversationId, userId)) return;
     // 提前用 registry 查一次忙线（含私聊，跟群聊共用同一份 userSessions），省一次无谓的DB查询；
     // 真正原子的忙线判定在下面 registry.createGroup() 内部，这里只是快速失败路径。
-    if (registry.callForUser(userId)) { socket.emit('group_call:error', { reason: 'busy' }); return; }
+    if (registry.callForUser(userId)) { emitStartError('busy'); return; }
     const activeInConv = [...groupCalls.values()].find(c => c.conversationId === conversationId);
-    if (activeInConv) { socket.emit('group_call:error', { reason: 'active_call' }); return; }
+    if (activeInConv) { emitStartError('active_call'); return; }
     const conv = readDb.prepare("SELECT type FROM conversations WHERE id=?").get(conversationId);
-    if (!conv || conv.type !== 'group') { socket.emit('group_call:error', { reason: 'not_group' }); return; }
+    if (!conv || conv.type !== 'group') { emitStartError('not_group'); return; }
 
     const t = type === 'video' ? 'video' : 'audio';
     // 后台开关拦截：被关闭的通话类型直接拒绝发起（实时生效，无需重启/重连）
     if (!groupCallAllowed(t)) {
-      socket.emit('group_call:error', { reason: t === 'video' ? 'video_disabled' : 'voice_disabled' });
+      emitStartError(t === 'video' ? 'video_disabled' : 'voice_disabled');
       return;
     }
 
     const callId = uuidv4();
     const created = registry.createGroup({ callId, conversationId, startedBy: userId, socketId: socket.id, type: t });
-    if (!created.ok) { socket.emit('group_call:error', { reason: reasonForCode(created.code) }); return; }
+    if (!created.ok) { emitStartError(reasonForCode(created.code)); return; }
     const call = { conversationId, type: t, startedBy: userId, members: new Set([userId]), peak: 1, startedAt: nowSec(), timer: null };
     call.timer = setTimeout(() => {
       const c = groupCalls.get(callId);
@@ -150,7 +156,9 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
       callId, conversationId, type: t, from: userId,
       fromName: starter?.username, fromAvatar: starter?.avatar,
     });
-    socket.emit('group_call:started', { callId, conversationId, type: t });
+    // resumeToken（Q06 全修）：只经这条直连 ack 回给发起方自己这一条 Socket，
+    // group_call:invite 群广播不带它。
+    socket.emit('group_call:started', { callId, conversationId, type: t, resumeToken: created.resumeToken, ...requestMeta });
   });
 
   socket.on('group_call:join', (payload) => {
@@ -176,8 +184,9 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     call.members.add(userId);
     call.peak = Math.max(call.peak, call.members.size);
 
-    // 回给加入者：当前已有成员列表（它将作为 answerer 等待这些人的 offer）
-    socket.emit('group_call:peers', { callId, conversationId: call.conversationId, type: call.type, peers });
+    // 回给加入者：当前已有成员列表（它将作为 answerer 等待这些人的 offer）+
+    // resumeToken（Q06 全修，仅首次真正加入时由 registry 签发；直连 ack，不广播）
+    socket.emit('group_call:peers', { callId, conversationId: call.conversationId, type: call.type, peers, resumeToken: joined.resumeToken });
     // 通知既有成员：新 peer 加入 → 各自向其发起 offer（mesh，避免 glare）
     for (const uid of peers) io.to(`user_${uid}`).emit('group_call:peer_joined', { callId, userId });
   });
@@ -187,11 +196,22 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
   socket.on('group_call:answer', (payload) => { const p = guardPayload(socket, 'group_call:answer', payload); if (!p) return; const { callId, to, answer } = p; fwd('group_call:answer', { callId, from: userId, answer }, to, callId); });
   socket.on('group_call:ice',    (payload) => { const p = guardPayload(socket, 'group_call:ice', payload); if (!p) return; const { callId, to, candidate } = p; fwd('group_call:ice',    { callId, from: userId, candidate }, to, callId); });
 
+  // Q11 全修：这条 Socket 是否真的是 registry 承认的、这通通话里 userId 的绑定连接
+  // 之一——不是"userId 是不是成员"（groupCalls.members 按 userId 记录，同账号任意
+  // 一条 Socket 都命中），是"发这个动作的这条具体连接有没有真的加入过"。第二台设备
+  // 光凭 userId 匹配就能对第一台设备已占的 ownership 发号施令（leave 把真正在通话
+  // 里的那台踢出去、offer/answer/ice 冒充成员转发）是同一类 ownership 绕过，跟
+  // resume 的洞是一体的，用同一份 registry 状态堵。
+  function isBoundParticipantSocket(callId, socketId) {
+    return !!registry.get(callId)?.participants.get(userId)?.socketIds.has(socketId);
+  }
+
   function fwd(event, payload, to, callId) {
     if (typeof to !== 'string' || !to || to.length > 64) return;
     if (typeof callId !== 'string' || !callId || callId.length > 64) return;
     const call = groupCalls.get(callId);
     if (!call || !call.members.has(userId) || !call.members.has(to)) return; // 只在同一通话成员间转发
+    if (!isBoundParticipantSocket(callId, socket.id)) return; // 发起方这条 Socket 必须真的绑定过，不能只是同账号
     io.to(`user_${to}`).emit(event, payload);
   }
 
@@ -200,6 +220,9 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     if (!p) return;
     const callId = guardId(socket, 'group_call:leave', 'callId', p.callId);
     if (!callId) return;
+    // 只有真正绑定过的 Socket 能让自己离开；一个从未真正加入(比如 occupy 被 Q06
+    // 防重放拒绝)的旁观 Socket 不能靠 leave 把真正在场的那台设备顶出去。
+    if (!isBoundParticipantSocket(callId, socket.id)) return;
     removeMember(io, registry, callId, userId); // 主动 leave：立即释放，不走宽限
   });
 
@@ -217,7 +240,8 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
       socket.emit('group_call:error', { reason: 'not_found', callId });
       return;
     }
-    const resumed = registry.resume(callId, userId, socket.id);
+    const resumeToken = typeof p.resumeToken === 'string' && p.resumeToken.length <= 64 ? p.resumeToken : undefined; // 防超大负载做无谓字符串比较,resumeToken 是 UUID(36字符),合法值恒 <=64
+    const resumed = registry.resume(callId, userId, socket.id, resumeToken);
     if (!resumed.ok) socket.emit('group_call:error', { reason: reasonForCode(resumed.code), callId });
   });
 

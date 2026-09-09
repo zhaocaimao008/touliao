@@ -328,6 +328,30 @@ describe('#4 已读状态查询 read-states', () => {
     expect(rs.body.readStates[m2]).toContain(b.userId);
   });
 
+  // Q10 全修：markRead 原来把 message_reads 回填条件写成 `id <= readMsgId`——id 是
+  // uuidv4，字典序跟发送顺序毫无关系。这里直接插两条 id 顺序被"反着"排的消息
+  // （复现审计报告原文："M1 ID 以 8 开头、时间 300；M2 ID 以 1 开头、时间 400"），
+  // 标记较早的 m1 已读后，字典序更小、但实际更晚发送/未读的 m2 绝不能被一起标已读。
+  test('Q10 UUID 字典序不能冒充已读边界：标记较早消息已读不会误标字典序更小的更晚消息', async () => {
+    const olderId = '80000000-0000-4000-8000-000000000001'; // 以 '8' 开头，字典序大
+    const newerId = '10000000-0000-4000-8000-000000000002'; // 以 '1' 开头，字典序小，但真实发送更晚
+    db.prepare(`INSERT INTO messages (id, conversation_id, sender_id, type, content, created_at)
+      VALUES (?, ?, ?, 'text', ?, ?)`).run(olderId, convId, a.userId, 'q10-older', 300);
+    db.prepare(`INSERT INTO messages (id, conversation_id, sender_id, type, content, created_at)
+      VALUES (?, ?, ?, 'text', ?, ?)`).run(newerId, convId, a.userId, 'q10-newer', 400);
+
+    const read = await request(app).post(`/api/messages/conversation/${convId}/read`)
+      .set(authOf(b)).send({ messageId: olderId });
+    expect(read.status).toBe(200);
+
+    // message_reads 是 markRead 内同步写的（不像 conversation_settings 走 worker），
+    // 不需要轮询；直接查表验证只有 olderId 被回填。
+    const readRows = db.prepare('SELECT message_id FROM message_reads WHERE user_id=? AND message_id IN (?,?)')
+      .all(b.userId, olderId, newerId).map(r => r.message_id);
+    expect(readRows).toContain(olderId);
+    expect(readRows).not.toContain(newerId);
+  });
+
   test('群聊：成员 read 后 readBy 含该成员、不含发送者', async () => {
     const o = await makeUser({ username: 'f1_rs_g' });
     const m = await makeUser({ username: 'f1_rs_gm' });

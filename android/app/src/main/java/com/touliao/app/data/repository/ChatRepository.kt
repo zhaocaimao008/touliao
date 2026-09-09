@@ -30,7 +30,8 @@ class ChatRepository @Inject constructor(
     private val api: MessageApi,
     private val chunkUploader: ChunkUploader,
     private val socketManager: SocketManager,
-) {
+) : HistoryPageSource {
+    private val historyPageSource = ApiHistoryPageSource(api)
     /** 实时连接状态（供 UI 显示「连接中/已连接」） */
     val socketStatus: StateFlow<SocketStatus> = socketManager.status
 
@@ -80,8 +81,12 @@ class ChatRepository @Inject constructor(
     suspend fun loadConversations(includeArchived: Boolean = false): List<Conversation> =
         api.conversations(if (includeArchived) 1 else 0)
 
-    suspend fun loadHistory(conversationId: String, before: Long? = null, after: Long? = null): List<Message> =
-        api.history(conversationId, before = before, after = after)
+    override suspend fun loadHistory(
+        conversationId: String,
+        before: Long?,
+        beforeId: String?,
+        after: Long?,
+    ): List<Message> = historyPageSource.loadHistory(conversationId, before, beforeId, after)
 
     suspend fun sync(conversationId: String, cursor: Long, limit: Int = 500) =
         api.sync(conversationId, cursor, limit)
@@ -95,8 +100,9 @@ class ChatRepository @Inject constructor(
         content: String,
         replyToId: String? = null,
         clientMsgId: String? = null,
+        credential: com.touliao.app.core.storage.TokenStore.Snapshot,
     ): Result<Message> =
-        socketManager.sendMessage(conversationId, content, replyToId, clientMsgId)
+        socketManager.sendMessage(conversationId, content, replyToId, clientMsgId, credential)
 
     /** 上传媒体并返回服务端创建的消息（同时会经 Socket 广播给其他端） */
     suspend fun uploadMedia(conversationId: String, part: MultipartBody.Part): Message =

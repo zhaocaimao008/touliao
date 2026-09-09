@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import Avatar, { getColor, avatarPx } from './Avatar';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { useI18n } from '../contexts/I18nContext';
 
 /** 宫格单元：头像失败回退首字母 */
 function GroupGridCell({ member = {}, cellSize }) {
+  useMediaCredentials();
+  const avatarUrl = mediaUrl(member.avatar);
   const [err, setErr] = useState(false);
-  const [prevAvatar, setPrevAvatar] = useState(member.avatar);
-  if (member.avatar !== prevAvatar) { setPrevAvatar(member.avatar); setErr(false); }
+  const [prevAvatar, setPrevAvatar] = useState(avatarUrl);
+  if (avatarUrl !== prevAvatar) { setPrevAvatar(avatarUrl); setErr(false); }
   return (
     <div style={{ width: cellSize, height: cellSize, borderRadius: 'var(--radius-xs)', overflow: 'hidden', background: getColor(member.username || '?'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {member.avatar && !err
-        ? <img loading="lazy" src={mediaUrl(member.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setErr(true)} />
+        ? <img loading="lazy" src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setErr(true)} />
         : <span style={{ fontSize: cellSize * 0.45, fontWeight: 600, color: 'var(--text-inverse)' }}>{(member.username || '?')[0]}</span>}
     </div>
   );
@@ -19,13 +21,15 @@ function GroupGridCell({ member = {}, cellSize }) {
 
 /** 群头像拼图（微信风格 N宫格，支持自定义头像）— size 接受 4 档命名(micro/xs/sm/md/lg/xl/hero)或像素 */
 export function GroupAvatar({ members = [], size = 'lg', avatar = '' }) {
+  useMediaCredentials();
+  const avatarUrl = mediaUrl(avatar);
   const { t } = useI18n();
   const px = avatarPx(size);
   const [avatarErr, setAvatarErr] = useState(false);
-  const [prevAvatar, setPrevAvatar] = useState(avatar);
-  if (avatar !== prevAvatar) { setPrevAvatar(avatar); setAvatarErr(false); }
+  const [prevAvatar, setPrevAvatar] = useState(avatarUrl);
+  if (avatarUrl !== prevAvatar) { setPrevAvatar(avatarUrl); setAvatarErr(false); }
   if (avatar && !avatarErr) {
-    return <img src={mediaUrl(avatar)} alt="" loading="lazy" onError={() => setAvatarErr(true)} style={{ width: px, height: px, borderRadius: Math.max(3, Math.round(px * 0.13)), objectFit: 'cover', flexShrink: 0 }} />;
+    return <img src={avatarUrl} alt="" loading="lazy" onError={() => setAvatarErr(true)} style={{ width: px, height: px, borderRadius: Math.max(3, Math.round(px * 0.13)), objectFit: 'cover', flexShrink: 0 }} />;
   }
   const n = Math.min(members.length, 9);
   if (n === 0) return <Avatar name={t('groupAvatar.fallbackName')} size={size} />;

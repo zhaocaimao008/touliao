@@ -189,6 +189,67 @@ describe('private call signaling contract', () => {
     );
   });
 
+  test('rejection sends an exact terminal to caller observers before a third party calls', () => {
+    const io = createIoHarness();
+    const registry = createRegistry();
+    const alice = createSocket('alice-reject-terminal', 'alice-main', io);
+    const aliceObserver = createSocket('alice-reject-terminal', 'alice-observer', io);
+    const bob = createSocket('bob-reject-terminal', 'bob-main', io);
+    const carol = createSocket('carol-after-reject', 'carol-main', io);
+    for (const current of [alice, aliceObserver, bob, carol]) registerCallHandler(io, current, registry);
+    const firstAck = jest.fn();
+    alice.handlers['call:request']({ to: 'bob-reject-terminal', type: 'audio' }, firstAck);
+    const firstCallId = firstAck.mock.calls[0][0].callId;
+
+    bob.handlers['call:response']({
+      to: 'alice-reject-terminal',
+      callId: firstCallId,
+      accepted: false,
+      reason: 'rejected',
+    });
+
+    expect(io.events('call:end').filter(({ room }) => room === 'user_alice-reject-terminal'))
+      .toContainEqual({
+        room: 'user_alice-reject-terminal',
+        event: 'call:end',
+        payload: { from: 'bob-reject-terminal', reason: 'rejected', callId: firstCallId },
+      });
+    expect(io.events('call:end').some(({ room }) => room === 'user_carol-after-reject')).toBe(false);
+
+    const nextAck = jest.fn();
+    carol.handlers['call:request']({ to: 'alice-reject-terminal', type: 'audio' }, nextAck);
+    expect(registry.get(nextAck.mock.calls[0][0].callId)).toBeDefined();
+  });
+
+  test('timeout sends an exact terminal to both accounts but not to an unrelated account', () => {
+    const io = createIoHarness();
+    const registry = createRegistry();
+    const alice = createSocket('alice-timeout-terminal', 'alice-main', io);
+    const aliceObserver = createSocket('alice-timeout-terminal', 'alice-observer', io);
+    const bob = createSocket('bob-timeout-terminal', 'bob-main', io);
+    const carol = createSocket('carol-timeout-unrelated', 'carol-main', io);
+    for (const current of [alice, aliceObserver, bob, carol]) registerCallHandler(io, current, registry);
+    const ack = jest.fn();
+    alice.handlers['call:request']({ to: 'bob-timeout-terminal', type: 'audio' }, ack);
+    const callId = ack.mock.calls[0][0].callId;
+
+    jest.advanceTimersByTime(120_000);
+
+    expect(io.events('call:end')).toEqual(expect.arrayContaining([
+      {
+        room: 'user_alice-timeout-terminal',
+        event: 'call:end',
+        payload: { from: 'bob-timeout-terminal', reason: 'timeout', callId },
+      },
+      {
+        room: 'user_bob-timeout-terminal',
+        event: 'call:end',
+        payload: { from: 'alice-timeout-terminal', reason: 'timeout', callId },
+      },
+    ]));
+    expect(io.events('call:end').some(({ room }) => room === 'user_carol-timeout-unrelated')).toBe(false);
+  });
+
   test.each([
     ['call:answer', 'answer', { type: 'answer', sdp: 'v=0 answer' }],
     ['call:ice', 'candidate', { candidate: 'candidate:1' }],
@@ -280,11 +341,13 @@ describe('private call signaling contract', () => {
     const ack = jest.fn();
     first.handlers['call:request']({ to: 'bob-resume', type: 'audio' }, ack);
     const callId = ack.mock.calls[0][0].callId;
+    const resumeToken = ack.mock.calls[0][0].resumeToken;
     first.handlers.disconnect();
 
     const reconnected = createSocket('alice-resume', 'web-after', io);
     registerCallHandler(io, reconnected, registry);
-    reconnected.handlers['call:resume']({ callId });
+    // Q06 全修：resume 必须带上 call:request ack 里签发的 resumeToken。
+    reconnected.handlers['call:resume']({ callId, resumeToken });
     jest.advanceTimersByTime(15_000);
 
     expect(registry.get(callId).participants.get('alice-resume').socketIds)
@@ -314,11 +377,18 @@ describe('private call signaling contract', () => {
       "UPDATE call_logs SET status='canceled', ended_at=? WHERE id=?",
       [expect.any(Number), callId]
     );
-    expect(io.last('call:end').payload).toEqual({
-      from: 'alice-grace',
-      reason: 'disconnected',
-      callId,
-    });
+    expect(io.events('call:end')).toEqual(expect.arrayContaining([
+      {
+        room: 'user_alice-grace',
+        event: 'call:end',
+        payload: { from: 'bob-grace', reason: 'disconnected', callId },
+      },
+      {
+        room: 'user_bob-grace',
+        event: 'call:end',
+        payload: { from: 'alice-grace', reason: 'disconnected', callId },
+      },
+    ]));
     expect(registry.get(callId)).toBeUndefined();
   });
 
@@ -366,6 +436,7 @@ describe('private call signaling contract', () => {
       setupRealtime(io);
       const socket = {
         id: 'socket-wiring',
+        authToken: 'synthetic-auth-token',
         user: { id: 'alice-wiring' },
         use: jest.fn(),
         join: jest.fn(),

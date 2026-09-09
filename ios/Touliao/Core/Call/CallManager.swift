@@ -55,6 +55,12 @@ final class CallManager: NSObject, ObservableObject {
 
     private var pendingIce: [RTCIceCandidate] = []
     private var remoteDescSet = false
+    private var callIdentityEpoch: UInt64?
+    private var participatingCallId = ""
+    private var participatingIdentityEpoch: UInt64?
+    // Q06 全修：resume 必须证明持有它，光凭 callId+userId 不再够（同账号旁观设备不能在
+    // 断线宽限期内抢注）。startCall/accept 的 ack 里签发，cleanup() 清空。
+    private var participatingResumeToken: String?
     private var cancellables = Set<AnyCancellable>()
     private let socket = SocketService.shared
 
@@ -170,20 +176,32 @@ final class CallManager: NSObject, ObservableObject {
     // MARK: - 对外动作
     func startCall(peerId: String, peerName: String, video: Bool, callerName: String) {
         guard state.stage == .idle || state.stage == .ended else { return }
+        let identityEpoch = KeychainStore.shared.snapshot().identityEpoch
+        callIdentityEpoch = identityEpoch
         state = CallState(stage: .outgoing, peerId: peerId, peerName: peerName, isVideo: video, isCaller: true)
         startCallTimeout()                      // 未接听 45s 自动挂断
         Task { @MainActor in
             await refreshIceServers()           // 先拿到含 TURN 的 ICE，再建连接
-            guard state.stage != .ended else { return }   // 期间被取消
+            guard callIdentityEpoch == identityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  state.stage != .ended
+            else { return }   // 期间被取消、切号或服务器身份变化
             configureAudioSession()             // 建流前配好通话音频会话
             tonePlayer.playRingback()           // 会话就绪后→主叫回铃音（接通/挂断时停）
             createPeerConnection()
             createLocalTracks(video: video)
-            let callId = await socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
+            let requestAck = await socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
             // ack 超时/未连接返回 nil：不强行挂断——callId 缺失时后端按兼容模式放行，仅丢失
             // 过期应答/串话保护。仅在仍是同一通呼出时才回填（防重拨/挂断后污染新状态）。
-            if let callId, state.stage == .outgoing, state.peerId == peerId {
-                state.callId = callId
+            if let requestAck,
+               callIdentityEpoch == identityEpoch,
+               KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+               state.stage == .outgoing,
+               state.peerId == peerId {
+                state.callId = requestAck.callId
+                participatingCallId = requestAck.callId
+                participatingIdentityEpoch = identityEpoch
+                participatingResumeToken = requestAck.resumeToken
             }
         }
     }
@@ -192,15 +210,25 @@ final class CallManager: NSObject, ObservableObject {
         guard state.stage == .incoming else { return }
         let peerId = state.peerId
         let callId = state.callId
+        guard let identityEpoch = callIdentityEpoch,
+              KeychainStore.shared.snapshot().identityEpoch == identityEpoch
+        else { return }
         clearIncomingCallNotifications(from: peerId)   // 接听后清掉该来电的通知，避免用户误触过期通知
         state.stage = .connecting
         Task { @MainActor in
             await refreshIceServers()
-            guard state.stage != .ended else { return }
+            guard callIdentityEpoch == identityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  state.stage != .ended
+            else { return }
             configureAudioSession()             // 建流前配好通话音频会话
             createPeerConnection()
             createLocalTracks(video: state.isVideo)
-            socket.emitCallResponse(to: peerId, accepted: true, callId: callId)
+            // accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken（Q06 全修）
+            let resumeToken = await socket.emitCallAccept(to: peerId, callId: callId)
+            participatingCallId = callId
+            participatingIdentityEpoch = identityEpoch
+            participatingResumeToken = resumeToken
         }
     }
 
@@ -284,11 +312,30 @@ final class CallManager: NSObject, ObservableObject {
     func incomingFromPush(from: String, callType: String, callerName: String, callId: String = "") {
         guard !from.isEmpty else { return }
         guard state.stage == .idle || state.stage == .ended else { return }
+        callIdentityEpoch = KeychainStore.shared.snapshot().identityEpoch
         state = CallState(stage: .incoming, peerId: from, peerName: callerName, isVideo: callType == "video", isCaller: false, callId: callId)
     }
 
     // MARK: - 信令
     private func observeSignaling() {
+        socket.status
+            .filter { $0 == .connected }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self,
+                      self.state.stage != .idle,
+                      self.state.stage != .ended,
+                      CallSignalMatcher.canResume(
+                        activeCallId: self.state.callId,
+                        participatingCallId: self.participatingCallId,
+                        participatingIdentityEpoch: self.participatingIdentityEpoch,
+                        currentIdentityEpoch: KeychainStore.shared.snapshot().identityEpoch
+                      )
+                else { return }
+                self.socket.emitCallResume(callId: self.state.callId, resumeToken: self.participatingResumeToken)
+            }
+            .store(in: &cancellables)
+
         socket.callIncoming.receive(on: DispatchQueue.main).sink { [weak self] (from, type, name, callId) in
             guard let self else { return }
             if self.state.stage != .idle && self.state.stage != .ended {
@@ -296,6 +343,7 @@ final class CallManager: NSObject, ObservableObject {
                 // 主叫可区分"对方忙线中"与普通拒接；已有来电/通话 UI 保持不覆盖
                 self.socket.emitCallResponse(to: from, accepted: false, callId: callId, busy: true); return
             }
+            self.callIdentityEpoch = KeychainStore.shared.snapshot().identityEpoch
             self.state = CallState(stage: .incoming, peerId: from, peerName: name, isVideo: type == "video", isCaller: false, callId: callId)
             // 锁屏/后台来电：App 不在前台时补弹本地通知（含接听/拒绝按钮），
             // 前台由来电邀请横幅 UI 展示，避免重复打扰。
@@ -374,7 +422,13 @@ final class CallManager: NSObject, ObservableObject {
                 let idOk = callId.isEmpty || self.state.callId.isEmpty || callId == self.state.callId
                 matched = hasActiveCall && idOk
             } else {
-                matched = CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
+                matched = CallSignalMatcher.matchesEnd(
+                    activeCallId: self.state.callId,
+                    eventCallId: callId,
+                    activePeerId: self.state.peerId,
+                    eventPeerId: from,
+                    reason: reason
+                )
             }
             guard matched else { return }
             VoipCallManager.shared.endActiveCall()   // 对方挂断/被其它设备处理时同步收尾 CallKit
@@ -646,6 +700,10 @@ final class CallManager: NSObject, ObservableObject {
     // MARK: - 清理
     private func cleanup(_ finalStage: CallStage) {
         endedDismissTask?.cancel(); endedDismissTask = nil   // 新一轮结束/新通话先撤旧收起任务
+        callIdentityEpoch = nil
+        participatingCallId = ""
+        participatingIdentityEpoch = nil
+        participatingResumeToken = nil
         qualityTask?.cancel(); qualityTask = nil          // 停质量采样
         cancelIceRestart()                          // 清 ICE restart 定时器/计数
         cancelDisconnectGrace()

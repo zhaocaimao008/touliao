@@ -7,6 +7,7 @@ const { asyncHandler, badRequest } = require('../../utils/http');
 const { db } = require('../../db/connection');
 const svc = require('./auth.service');
 const captcha = require('../../utils/captcha');
+const { tokenRoom } = require('../../utils/sessionAuthorization');
 
 function setAuthCookie(req, res, token) {
   res.cookie(config.cookieName, token, authCookieOptions(req));
@@ -14,7 +15,10 @@ function setAuthCookie(req, res, token) {
   // CSRF 门控的"无 csrf Cookie 即放行"窗口里（auth 中间件要到该请求才补发 Cookie）。
   // 在登录/注册即补发，关闭该窗口。
   const csrf = jwt.decode(token)?.csrf;
-  if (csrf) res.cookie(config.csrfCookie, csrf, csrfCookieOptions(req));
+  if (csrf) {
+    res.cookie(config.csrfCookie, csrf, csrfCookieOptions(req));
+    res.setHeader('X-CSRF-Token', csrf);
+  }
 }
 
 // 取本设备 wallet id（多账号丝滑切换）：无则生成并下发长效 httpOnly Cookie
@@ -34,14 +38,14 @@ exports.captcha = async (req, res) => {
 exports.register = asyncHandler(async (req, res) => {
   const { token, user } = await svc.register(req.body, req);
   setAuthCookie(req, res, token);
-  svc.recordDeviceAccount(ensureWallet(req, res), user.id);
+  svc.recordDeviceAccount(ensureWallet(req, res), user.id, jwt.decode(token).jti);
   res.json({ token, user });
 });
 
 exports.login = asyncHandler(async (req, res) => {
   const { token, user } = await svc.login(req.body, req);
   setAuthCookie(req, res, token);
-  svc.recordDeviceAccount(ensureWallet(req, res), user.id);
+  svc.recordDeviceAccount(ensureWallet(req, res), user.id, jwt.decode(token).jti);
   res.json({ token, user });
 });
 
@@ -79,10 +83,11 @@ exports.refresh = asyncHandler(async (req, res) => {
     const { addToBlacklist } = require('../../utils/tokenBlacklist');
     const jwt = require('jsonwebtoken');
     const payload = jwt.decode(req.token);
-    if (payload?.exp) await addToBlacklist(req.token, payload.exp).catch(() => {});
+    if (payload?.exp) await addToBlacklist(req.token, payload.exp);
+    req.app.get('io')?.in(tokenRoom(req.token)).disconnectSockets(true);
   }
   setAuthCookie(req, res, newToken);
-  res.json({ success: true });
+  res.json({ success: true, token: newToken });
 });
 
 exports.logout = asyncHandler(async (req, res) => {
@@ -102,16 +107,21 @@ exports.logout = asyncHandler(async (req, res) => {
       const { addToBlacklist } = require('../../utils/tokenBlacklist');
       await addToBlacklist(tok, payload.exp);
       // A004：logout 时删除当前会话行 + 拉黑其 jti。
-      // 注意：仅拉黑 jti 不够——upsertSession 同设备同平台会复用原 session id，
+      // 注意：仅拉黑 jti 不够——有效 wallet grant 会复用原 session id，
       // 若不删行，重登仍拿到被拉黑的 jti，导致 logout 后无法重新登录。
       if (payload.jti) {
-        try { svc.deleteSession(payload.id, payload.jti); } catch {} // 删行（deleteSession 内部同时拉黑 jti）
+        try { await svc.deleteSession(payload.id, payload.jti); } catch {} // 删行（deleteSession 内部同时拉黑 jti）
+        req.app.get('io')?.in(`session_${payload.jti}`).disconnectSockets(true);
+        req.app.get('io')?.in(`legacy_user_${payload.id}`).disconnectSockets(true);
       }
       if (walletId) {
         svc.removeDeviceAccount(walletId, payload.id);
       }
     }
-  } catch (_) { /* token 无效就算了 */ }
+  } catch (err) {
+    // Invalid credentials are already logged out; a storage failure must not pretend revocation succeeded.
+    if (!['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(err.name)) throw err;
+  }
   res.clearCookie(config.cookieName, { path: '/' });
   res.clearCookie(config.csrfCookie, { path: '/' });  // 同时清 CSRF cookie，避免残留导致下次登录/注册误报
   res.json({ success: true });
@@ -122,13 +132,18 @@ exports.sessions = asyncHandler(async (req, res) => {
 });
 
 exports.deleteSession = asyncHandler(async (req, res) => {
-  svc.deleteSession(req.user.id, req.params.id);
+  const owned = db.prepare('SELECT 1 FROM auth_sessions WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  await svc.deleteSession(req.user.id, req.params.id);
+  if (owned) {
+    req.app.get('io')?.in(`session_${req.params.id}`).disconnectSockets(true);
+    req.app.get('io')?.in(`legacy_user_${req.user.id}`).disconnectSockets(true);
+  }
   res.json({ success: true });
 });
 
 exports.deleteAllSessions = asyncHandler(async (req, res) => {
-  const { device, platform } = svc.detectDevice(req.headers['user-agent']);
-  svc.deleteAllOtherSessions(req.user.id, device, platform);
+  svc.deleteAllOtherSessions(req.user.id, req.user.jti);
+  req.app.get('io')?.in(`user_${req.user.id}`).except(`session_${req.user.jti}`).disconnectSockets(true);
   res.json({ success: true });
 });
 
@@ -153,7 +168,9 @@ exports.deleteAccount = asyncHandler(async (req, res) => {
 });
 
 exports.changePassword = asyncHandler(async (req, res) => {
-  const token = await svc.changePassword(req.user.id, { ...req.body, currentToken: req.token });
+  const token = await svc.changePassword(req.user.id, { ...req.body, currentToken: req.token }, req);
+  svc.recordDeviceAccount(ensureWallet(req, res), req.user.id, jwt.decode(token).jti);
+  req.app.get('io')?.in(`user_${req.user.id}`).disconnectSockets(true);
   setAuthCookie(req, res, token);
   // 关键：改密后旧 token 已加入黑名单+清 session。Cookie 客户端(浏览器)靠上面刷新的 Cookie 续命；
   // Bearer 客户端(桌面 Electron / 移动 Capacitor / Android / iOS 原生)必须拿到新 token 覆盖本地，

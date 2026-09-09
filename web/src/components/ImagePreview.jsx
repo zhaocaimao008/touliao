@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
 import { useI18n } from '../contexts/I18nContext';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 
 // 从(可能带 ?token= 的)图片地址里抽一个像样的下载文件名
 function filenameFromUrl(u) {
@@ -13,11 +14,12 @@ function filenameFromUrl(u) {
 }
 
 export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose }) {
+  useMediaCredentials();
   const { t } = useI18n();
   // Gallery mode: urls array + current index; single mode: just url
   const gallery = urls && urls.length > 1;
   const [idx, setIdx] = useState(initialIdx);
-  const currentUrl = gallery ? urls[idx] : url;
+  const currentUrl = mediaUrl(gallery ? urls[idx] : url);
 
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });

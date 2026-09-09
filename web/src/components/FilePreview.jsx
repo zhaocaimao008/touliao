@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { startDownload, subscribe, cancelDownload, retryDownload } from '../utils/downloadManager';
 import { shareMessage, canShare } from '../utils/share';
 import { humanFileSize as humanSize } from '../utils/fileSize';
@@ -287,6 +287,7 @@ function iconFor(kind) {
  * 与 ImagePreview/VideoPreview 对齐的全屏遮罩交互：Esc 关闭、底部操作条。
  */
 export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onClose }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const url = mediaUrl(fileUrl);
   const kind = classify(mimeType, filename);

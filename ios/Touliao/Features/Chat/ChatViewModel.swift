@@ -83,11 +83,25 @@ final class ChatViewModel: ObservableObject {
     let title: String
     let myId: String
     let isGroup: Bool
+    private let identityEpoch: UInt64
+    private let outboxOwner: OutboxOwner
+    private var currentOwner: Bool {
+        KeychainStore.shared.snapshot().identityEpoch == identityEpoch &&
+            ServerConfig.shared.baseURL == outboxOwner.server && AccountStore.shared.activeId() == myId
+    }
+    private func captureAttempt() -> KeychainStore.Snapshot? {
+        let snapshot = KeychainStore.shared.snapshot()
+        return currentOwner && snapshot.token != nil ? snapshot : nil
+    }
+    private func currentAttempt(_ snapshot: KeychainStore.Snapshot) -> Bool {
+        currentOwner && KeychainStore.shared.isCurrent(snapshot)
+    }
     /// 私聊对端 userId(来自 Conversation.otherUser.id)。可靠取对端的首选;
     /// 通话发起用。为空时回退扫历史消息。
     private var peerUserId: String?
 
     private let repo = ChatRepository.shared
+    private let historyPagination = HistoryPaginationAction(source: ChatRepository.shared)
     private let recorder = AudioRecorder.shared
     private let player = AudioPlayerService.shared
     private var cancellables = Set<AnyCancellable>()
@@ -98,6 +112,8 @@ final class ChatViewModel: ObservableObject {
         self.conversationId = conversationId
         self.title = title
         self.myId = myId
+        self.identityEpoch = KeychainStore.shared.snapshot().identityEpoch
+        self.outboxOwner = OutboxOwner(server: ServerConfig.shared.baseURL, accountId: myId)
         self.isGroup = isGroup
         self.peerUserId = peerUserId
         self.input = DraftStore.shared.get(conversationId)   // 恢复未发送草稿(对齐微信/Web/Android)
@@ -836,16 +852,18 @@ final class ChatViewModel: ObservableObject {
     /// 缓存非真相源——loadHistory 成功后以服务端结果 mergeById 覆盖并重新落盘。
     /// 阅后即焚会话不读缓存（该会话本就不落盘）；已存在 outbox 待发消息也一并合并。
     private func primeFromCache() {
+        guard currentOwner else { return }
         guard !conversationId.isEmpty, burnAfter == 0 else { return }
         let cached = MsgCacheStore.shared.load(conversationId)
-        guard !cached.isEmpty, messages.isEmpty else { return }   // 已被 loadHistory 抢先则不覆盖
-        let pending = OutboxStore.shared.load(conversationId)
+        guard messages.isEmpty else { return }   // 已被 loadHistory 抢先则不覆盖
+        let pending = OutboxStore.shared.load(conversationId, owner: outboxOwner)
         messages = ChatMessageMerge.mergeServerWithPending(server: cached, pending: pending)
     }
 
     /// 将当前「已确认历史消息」落盘（内部 normalize：去乐观/待发、去重、截断 50）。
     /// 阅后即焚会话不落盘（隐私红线）——并顺手清掉可能残留的缓存。
     private func persistCache() {
+        guard currentOwner else { return }
         guard !conversationId.isEmpty else { return }
         guard burnAfter == 0 else { MsgCacheStore.shared.clear(conversationId); return }
         MsgCacheStore.shared.save(conversationId, messages)
@@ -853,15 +871,17 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - 历史 / 实时
     func loadHistory(announceHeal: Bool = false) async {
+        guard let credential = captureAttempt() else { return }
         do {
             let list = try await repo.loadHistory(conversationId)
+            guard currentAttempt(credential) else { return }
             // 合并本地待发件箱：上次发送失败且未成功的文本消息，切走/重启/重连后仍在。
             // 服务端可能已幂等落库(id==outbox 的 clientMsgId) → 已成功,剔除并清理。
             let serverIds = Set(list.map { $0.id })
-            let pending = OutboxStore.shared.load(conversationId)
+            let pending = OutboxStore.shared.load(conversationId, owner: outboxOwner)
             let stillPending = pending.filter { !serverIds.contains($0.id) }
             for done in pending where !stillPending.contains(where: { $0.id == done.id }) {
-                OutboxStore.shared.remove(conversationId, done.id)
+                OutboxStore.shared.remove(conversationId, done.id, owner: outboxOwner)
             }
             messages = ChatMessageMerge.mergeServerWithPending(server: list, pending: stillPending)
             if SyncCursorStore.shared.load(accountId: myId, conversationId: conversationId) == 0,
@@ -878,14 +898,16 @@ final class ChatViewModel: ObservableObject {
             }
             markReadLatest()   // 打开会话即标记已读
             try? await UNUserNotificationCenter.current().setBadgeCount(0)   // 打开会话即清零角标，避免残留
+            guard currentAttempt(credential) else { return }
             healFailedMessages(announce: announceHeal)   // 连线且有失败气泡 → 进会话/重连自动重发
-        } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载消息失败" }
+        } catch { if currentAttempt(credential) { self.error = (error as? LocalizedError)?.errorDescription ?? "加载消息失败" } }
     }
 
     private var syncRunning = false
     private var syncRequested = false
 
     func catchUp() async {
+        guard let credential = captureAttempt() else { return }
         guard !conversationId.isEmpty, !myId.isEmpty else { return }
         if syncRunning { syncRequested = true; return }
         syncRunning = true
@@ -895,11 +917,12 @@ final class ChatViewModel: ObservableObject {
           var cursor = SyncCursorStore.shared.load(accountId: myId, conversationId: conversationId)
           while true {
             guard let page = try? await repo.sync(conversationId, cursor: cursor), page.nextCursor >= cursor else { return }
+            guard currentAttempt(credential) else { return }
             // outbox 清理副作用（原 claimOrAppend 内联）：created 事件命中本地乐观占位 → 清待发件箱
             for event in page.messages where event.eventType == "message_created" {
-                if let m = event.message, let cid = m.clientMsgId,
+                if let m = event.message, m.senderId == myId, let cid = m.clientMsgId,
                    let hit = messages.first(where: { $0.clientMsgId == cid || $0.id == cid }) {
-                    OutboxStore.shared.remove(conversationId, hit.id)
+                    OutboxStore.shared.remove(conversationId, hit.id, owner: outboxOwner)
                 }
             }
             messages = ChatMessageMerge.applySyncEvents(messages, page.messages)
@@ -915,15 +938,24 @@ final class ChatViewModel: ObservableObject {
 
     /// 上滑加载更早消息
     func loadEarlier() {
-        guard !loadingEarlier, !reachedStart, let before = messages.first?.createdAt else { return }
-        loadingEarlier = true
+        guard let credential = captureAttempt() else { return }
         Task {
-            defer { loadingEarlier = false }
-            if let older = try? await repo.loadHistory(conversationId, before: before) {
-                let existing = Set(messages.map { $0.id })
-                messages = older.filter { !existing.contains($0.id) } + messages
-                reachedStart = older.count < 50
-            }
+            await historyPagination.execute(
+                conversationId: conversationId,
+                state: {
+                    HistoryPaginationState(
+                        messages: self.messages,
+                        loadingEarlier: self.loadingEarlier,
+                        reachedStart: self.reachedStart
+                    )
+                },
+                isCurrentAttempt: { self.currentAttempt(credential) },
+                apply: { state in
+                    self.messages = state.messages
+                    self.loadingEarlier = state.loadingEarlier
+                    self.reachedStart = state.reachedStart
+                }
+            )
         }
     }
 
@@ -938,6 +970,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     private func onIncoming(_ msg: Message) {
+        guard currentOwner else { return }
         guard msg.conversationId == conversationId else { return }
         claimOrAppend(msg)
         persistCache()   // 收到真实 socket 新消息 → 追加后落盘（截断 50）
@@ -950,9 +983,10 @@ final class ChatViewModel: ObservableObject {
     /// 关键：即便发送时 ack 丢失(乐观转 failed)，只要广播带回同一 client_msg_id 也能自愈为成功。
     /// 2026-09-02：合并语义抽入 ChatMessageMerge.claimOrAppend（纯函数），本方法只留 outbox 副作用。
     private func claimOrAppend(_ msg: Message) {
-        if let cid = msg.clientMsgId,
+        guard currentOwner else { return }
+        if msg.senderId == myId, let cid = msg.clientMsgId,
            let hit = messages.first(where: { $0.clientMsgId == cid || $0.id == cid }) {
-            OutboxStore.shared.remove(conversationId, hit.id)
+            OutboxStore.shared.remove(conversationId, hit.id, owner: outboxOwner)
         }
         messages = ChatMessageMerge.claimOrAppend(messages, msg)
     }
@@ -1004,6 +1038,7 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - 文本
     func sendText() {
+        guard currentOwner else { return }
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         Haptics.impact(.light)   // 发送轻震，给一点触觉反馈
@@ -1029,33 +1064,24 @@ final class ChatViewModel: ObservableObject {
 
     /// 发送一条乐观消息并处理成功/失败落地；失败入待发件箱，可自动/手动重发。
     private func dispatchSend(_ optimistic: Message) {
+        guard let credential = captureAttempt(), optimistic.senderId == myId,
+              optimistic.conversationId == conversationId else { return }
         let cid = optimistic.clientMsgId ?? optimistic.id
-        // 标记发送中（重发场景从 failed 回到 sending）
         setLocalStatus(optimistic.id, LocalMsgStatus.sending)
         Task { [weak self] in
             guard let self else { return }
-            let result = await repo.sendText(conversationId: optimistic.conversationId,
-                                             content: optimistic.content,
-                                             replyToId: optimistic.replyToId, clientMsgId: cid)
-            switch result {
-            case .success(let real):
-                OutboxStore.shared.remove(conversationId, optimistic.id)
-                // 用真实消息替换乐观气泡（保留位置）；若广播已先到则去重后按序插入
-                // 2026-09-02：插入走纯函数（原 insertBySequence 已并入 ChatMessageMerge.insertBySeq）
-                messages.removeAll { $0.id == real.id }
-                if let idx = messages.firstIndex(where: { $0.id == optimistic.id }) {
-                    messages[idx] = real
-                    // 洞 B(2026-09-02)：替换后相邻 seq 校验——旧 outbox pending 若曾卡在错槽
-                    // （洞 A 时期/重启前产物），确认消息带新 seq 停在错槽位则取出重插自愈
-                    // （对齐 Web ChatWindow.jsx ack 替换 + Android applySyncEvents 就地更新）。
-                    messages = ChatMessageMerge.relocate(messages, at: idx)
-                } else { messages = ChatMessageMerge.insertBySeq(messages, real) }
-            case .failure:
-                setLocalStatus(optimistic.id, LocalMsgStatus.failed)
-                var failed = optimistic
-                failed.localStatus = LocalMsgStatus.failed
-                OutboxStore.shared.upsert(conversationId, failed)
-            }
+            await sendOwnedText(message: optimistic, owner: outboxOwner, credential: credential,
+                credentials: .shared, outbox: .shared,
+                send: { snapshot in await self.repo.sendText(conversationId: optimistic.conversationId,
+                    content: optimistic.content, replyToId: optimistic.replyToId, clientMsgId: cid, credential: snapshot) },
+                onSuccess: { real in
+                    self.messages.removeAll { $0.id == real.id }
+                    if let idx = self.messages.firstIndex(where: { $0.id == optimistic.id }) {
+                        self.messages[idx] = real
+                        self.messages = ChatMessageMerge.relocate(self.messages, at: idx)
+                    } else { self.messages = ChatMessageMerge.insertBySeq(self.messages, real) }
+                },
+                onFailure: { self.setLocalStatus(optimistic.id, LocalMsgStatus.failed) })
         }
     }
 
@@ -1072,6 +1098,7 @@ final class ChatViewModel: ObservableObject {
     /// 自动自愈：把当前所有 failed 文本气泡错峰重发（连线时调用，对齐 Web/Android）。
     /// - Parameter announce: true 时轻量安抚一次（网络恢复场景），进会话静默不打扰。
     func healFailedMessages(announce: Bool = false) {
+        guard let credential = captureAttempt() else { return }
         guard repo.isSocketConnected else { return }
         let failed = messages.filter { $0.localStatus == LocalMsgStatus.failed }
         guard !failed.isEmpty else { return }
@@ -1080,6 +1107,7 @@ final class ChatViewModel: ObservableObject {
             guard let self else { return }
             for (i, m) in failed.enumerated() {
                 try? await Task.sleep(nanoseconds: UInt64(i) * 120_000_000)   // 错峰 120ms
+                guard !Task.isCancelled, currentAttempt(credential) else { return }
                 if let cur = messages.first(where: { $0.id == m.id }), cur.localStatus == LocalMsgStatus.failed {
                     dispatchSend(cur)
                 }

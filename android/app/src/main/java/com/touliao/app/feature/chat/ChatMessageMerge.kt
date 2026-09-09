@@ -74,6 +74,13 @@ fun applySyncEvents(messages: List<Message>, events: List<ConversationEvent>): L
         when (event.event_type) {
             "message_created" -> {
                 val msg = event.message ?: return@forEach
+                // 双向清空/撤回后的旧 message_created 补拉：message 字段是实时 join 的当前行，
+                // 若这条消息在事件产生之后被清空会话/撤回(deleted=2)，绝不能当"新消息"插回来，
+                // 否则清空后离线设备一补拉，内容原样复活。按 recalled 一样处理：按 id 移除。
+                if (msg.deleted == 2) {
+                    current.removeAll { it.id == msg.id }
+                    return@forEach
+                }
                 // 乐观占位替换：client_msg_id 命中的本地消息删除（让位给真实消息）
                 msg.clientMsgId?.let { cid ->
                     current.removeAll { it.clientMsgId == cid || it.id == cid }

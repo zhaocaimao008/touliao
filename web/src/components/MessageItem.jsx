@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import Avatar from './Avatar';
-import { mediaUrl, getThumbUrl } from '../utils/url';
+import { mediaUrl, getThumbUrl, useMediaCredentials } from '../utils/url';
 import { formatFull } from '../utils/time';
 import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
@@ -21,6 +21,7 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
 });
 
 const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
     convType, userId, groupSettings, myGroupRole, members,
@@ -234,14 +235,15 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 : undefined;
               return (
                 <ImgOptimized
+                  key={imgSrc}
                   data-testid="msg-image"
                   src={imgSrc}
                   alt={t('messageItem.messageImageAlt')}
                   className="wc-msg-img"
                   aspectStyle={aspectStyle}
                   role="button" tabIndex={0} aria-label={t('moments.viewLargeImage')}
-                  onClick={() => cbs.setLightboxUrl(imgSrc)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.setLightboxUrl(imgSrc); } }}
+                  onClick={() => cbs.setLightboxUrl(msg.file_url)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.setLightboxUrl(msg.file_url); } }}
                   onLoad={e => {
                     const el = e.currentTarget;
                     rememberAspect(imgSrc, el.naturalWidth, el.naturalHeight);
@@ -261,7 +263,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               // 用 #t=0.1 让浏览器抓取首帧作为封面缩略图（不自动播放，点击才全屏播放）
               // 防御: file_url 缺失(撤回/删除后缓存残留)时 vidSrc 为 undefined,不得调 .includes
               const posterSrc = (vidSrc || '').includes('#') ? vidSrc : `${vidSrc || ''}#t=0.1`;
-              const openPreview = () => cbs.setVideoUrl?.({ url: vidSrc, name: msg.content });
+              const openPreview = () => cbs.setVideoUrl?.({ url: msg.file_url, name: msg.content });
               return (
                 <div
                   className="wc-msg-video-wrap"
@@ -327,7 +329,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               );
             })()}
             {msg.type === 'sticker' && (
-              <img loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" onLoad={() => measure?.()} onError={e => { e.currentTarget.style.display = 'none'; measure?.(); }} style={{ maxWidth: 120, maxHeight: 120 }} />
+              <img key={mediaUrl(msg.file_url || msg.content)} loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" onLoad={() => measure?.()} onError={e => { e.currentTarget.style.display = 'none'; measure?.(); }} style={{ maxWidth: 120, maxHeight: 120 }} />
             )}
             {msg.type === 'contact_card' && (() => {
               let card = {};

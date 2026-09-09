@@ -9,9 +9,12 @@ import retrofit2.http.Query
 
 interface FavoritesApi {
 
-    /** 我的收藏列表 */
+    /** 我的收藏列表分页（服务端 limit 上限 100；Q13 全修：调用方必须续页，不能只拿一页当全量） */
     @GET("api/users/me/collections")
-    suspend fun list(): List<Collection>
+    suspend fun list(
+        @Query("offset") offset: Int = 0,
+        @Query("limit") limit: Int = 100,
+    ): List<Collection>
 
     /** 搜索收藏（关键词 + 可选类型过滤） */
     @GET("api/users/me/collections/search")

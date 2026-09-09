@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { downloadFile } from '../utils/download';
 import { format } from '../utils/time';
 import Avatar from './Avatar';
@@ -28,6 +28,7 @@ const IcoFile = () => (
 );
 
 export default function ChatFiles({ convId, onClose }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const [tab, setTab] = useState('all');
   const [items, setItems] = useState([]);
@@ -86,7 +87,7 @@ export default function ChatFiles({ convId, onClose }) {
 
   const handleClick = (item) => {
     if (item.type === 'image' || item.type === 'video') {
-      setPreview({ url: mediaUrl(item.fileUrl), type: item.type, name: item.fileName });
+      setPreview({ url: item.fileUrl, type: item.type, name: item.fileName });
     } else {
       downloadFile(mediaUrl(item.fileUrl), item.fileName || 'download');
     }
@@ -184,6 +185,7 @@ export default function ChatFiles({ convId, onClose }) {
               <div className="chatfiles-thumb">
                 {item.type === 'image' ? (
                   <img
+                    key={mediaUrl(item.fileUrl)}
                     src={mediaUrl(item.fileUrl)}
                     alt={item.fileName}
                     loading="lazy"

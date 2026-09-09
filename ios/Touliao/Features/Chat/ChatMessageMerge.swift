@@ -75,7 +75,16 @@ enum ChatMessageMerge {
         for event in events.sorted(by: { $0.serverSequence < $1.serverSequence }) {
             switch event.eventType {
             case "message_created":
-                if let message = event.message { result = claimOrAppend(result, message) }
+                if let message = event.message {
+                    // 双向清空/撤回后的旧 message_created 补拉：message 字段是实时 join 的当前行，
+                    // 若这条消息在事件产生之后被清空会话/撤回(deleted=2)，绝不能当"新消息"插回来，
+                    // 否则清空后离线设备一补拉，内容原样复活。按 recalled 一样处理：按 id 移除。
+                    if message.deleted == 2 {
+                        result.removeAll { $0.id == message.id }
+                    } else {
+                        result = claimOrAppend(result, message)
+                    }
+                }
             case "message_edited":
                 if let index = result.firstIndex(where: { $0.id == event.messageId }) {
                     result[index].content = event.payload["content"] ?? result[index].content

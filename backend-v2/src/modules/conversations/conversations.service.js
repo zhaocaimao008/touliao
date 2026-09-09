@@ -10,6 +10,7 @@ const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember } = require('../messages/shared');
 const cache = require('../../utils/cache');
+const broadcaster = require('../../realtime/broadcaster');
 
 // ── 私聊会话：取或建 ────────────────────────────────────────────
 const _findPrivate = db.prepare(`
@@ -177,10 +178,19 @@ function invalidateConvCacheForUser(userId) {
   convCache.delete(userId);
 }
 
-async function listConversations(uid, { includeArchived = false } = {}) {
-  // 归档视图不进内存缓存（低频查询，实现简单优先；主列表缓存 key 仍只按 uid，
-  // 不因 includeArchived 分裂缓存维度，避免主列表缓存被归档视图挤占/污染）。
-  if (!includeArchived) {
+// Q12 全修：合法会话数可达 1000（当前建群上限），固定 LIMIT 500 且无分页契约时，
+// 超过 500 之后的会话在列表里永久不可见、无法"继续浏览"。补 offset/limit，默认值
+// 与原来的行为完全一致（不传参 = 老客户端拿到跟以前一样的前 500 条，零破坏性）。
+const CONV_LIST_DEFAULT_LIMIT = 500;
+const CONV_LIST_MAX_LIMIT = 500;
+
+async function listConversations(uid, { includeArchived = false, offset = 0, limit = CONV_LIST_DEFAULT_LIMIT } = {}) {
+  const off = Number.isInteger(offset) && offset > 0 ? offset : 0;
+  const lim = Number.isInteger(limit) && limit > 0 ? Math.min(limit, CONV_LIST_MAX_LIMIT) : CONV_LIST_DEFAULT_LIMIT;
+  // 内存缓存只覆盖"第一页、默认参数"这个最常见的路径；翻页/自定义 limit 直查 DB——
+  // 按 (uid, offset, limit) 拆分缓存维度收益不大（翻页本就低频），不值得为此复杂化。
+  const isDefaultPage = off === 0 && lim === CONV_LIST_DEFAULT_LIMIT;
+  if (!includeArchived && isDefaultPage) {
     const cached = convCache.get(uid);
     if (cached) {
       if (Date.now() - cached.ts < CONV_CACHE_TTL) return cached.data;
@@ -270,9 +280,9 @@ async function listConversations(uid, { includeArchived = false } = {}) {
     LEFT JOIN users ou ON ou.id = cm_o.user_id
     LEFT JOIN contacts ct ON ct.user_id = ? AND ct.contact_id = ou.id
     ${includeArchived ? '' : 'WHERE COALESCE(cs.archived, 0) = 0'}
-    ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC
-    LIMIT 500
-  `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid);
+    ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC, c.id DESC
+    LIMIT ? OFFSET ?
+  `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid, lim, off);
 
   const memberMap = new Map();
   if (rows.some(r => r.type === 'group')) {
@@ -308,8 +318,8 @@ async function listConversations(uid, { includeArchived = false } = {}) {
     return { ...conv, members: memberMap.get(conv.id) || [], hasMention: hasMentionBool };
   });
 
-  // 写回内存缓存（超出上限时跳过写入，等下次清理后恢复）；归档视图不写入主列表缓存
-  if (!includeArchived && convCache.size < CONV_CACHE_MAX) {
+  // 写回内存缓存（超出上限时跳过写入，等下次清理后恢复）；归档视图/非默认分页不写入主列表缓存
+  if (!includeArchived && isDefaultPage && convCache.size < CONV_CACHE_MAX) {
     convCache.set(uid, { data: conversations, ts: Date.now() });
   }
   return conversations;
@@ -408,13 +418,14 @@ async function markRead(io, userId, convId, messageId) {
   if (!isMember(convId, userId)) return { readAt: 0, lastReadMessageId: null };
   let readAt = Math.floor(Date.now() / 1000);
   let readMsgId = messageId || null;
+  let readRowid = null; // Q10 全修：message_reads 回填必须按单调 rowid 划界，不能拿随机 UUID 当排序键
 
   if (messageId) {
-    const msg = db.prepare('SELECT created_at FROM messages WHERE id=? AND conversation_id=? AND deleted=0').get(messageId, convId);
-    if (msg) readAt = msg.created_at;
+    const msg = db.prepare('SELECT created_at, rowid AS rid FROM messages WHERE id=? AND conversation_id=? AND deleted=0').get(messageId, convId);
+    if (msg) { readAt = msg.created_at; readRowid = msg.rid; }
   } else {
-    const last = db.prepare('SELECT id, created_at FROM messages WHERE conversation_id=? AND deleted=0 ORDER BY created_at DESC LIMIT 1').get(convId);
-    if (last) { readAt = last.created_at; readMsgId = last.id; }
+    const last = db.prepare('SELECT id, created_at, rowid AS rid FROM messages WHERE conversation_id=? AND deleted=0 ORDER BY created_at DESC LIMIT 1').get(convId);
+    if (last) { readAt = last.created_at; readMsgId = last.id; readRowid = last.rid; }
   }
 
   // #4 尾延迟：markRead 是最热接口。已读状态为最终一致即可，
@@ -435,12 +446,16 @@ async function markRead(io, userId, convId, messageId) {
   }
 
   // 私聊：批量写消息级已读（三态展示的持久化最终态，Redis ackManager 仅实时缓存）
-  if (readMsgId) {
+  // Q10 全修：原来按消息 id（随机 UUID）做 `id <= readMsgId` 字典序比较——uuidv4 的
+  // 字典序跟发送顺序毫无关系，一条更晚发送、字典序更小的新消息会被一起标成已读。
+  // 改用 rowid（单调递增，插入顺序=时间顺序，无同秒歧义），跟本文件 clearConversation
+  // 和 messages.service.js 分页用的边界口径一致。
+  if (readMsgId && readRowid != null) {
     const convType = db.prepare('SELECT type FROM conversations WHERE id=?').get(convId)?.type;
     if (convType === 'private') {
       db.prepare(`INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at)
-        SELECT id, ?, ? FROM messages WHERE conversation_id=? AND id <= ? AND deleted=0`)
-        .run(userId, readAt, convId, readMsgId);
+        SELECT id, ?, ? FROM messages WHERE conversation_id=? AND rowid <= ? AND deleted=0`)
+        .run(userId, readAt, convId, readRowid);
     }
   }
   return { readAt, lastReadMessageId: readMsgId };
@@ -469,14 +484,22 @@ async function setBurnAfter(userId, convId, seconds) {
   return { burn_after: s };
 }
 
-// ── 按用户清空会话（H-2）：仅对操作者隐藏，对方消息不受影响 ──────
-// P1-06 review：清空后必须失效该会话搜索缓存 + 该用户全局搜索缓存，
+// ── 清空会话（双向，2026-09-08）：真正删除会话内容，对全体成员生效 ──────
+// 沿用 remove() forEveryone 同一套 DB 语义（deleted=2/清内容），一次性覆盖清空时刻
+// 之前的全部消息；不再是仅隐藏操作者视图的 per-user watermark。
+// UI 文案（privateChat.confirmClearTemplate / groupInfo.confirmClearMessagesTemplate，
+// I18nContext.jsx）历来就写"双向删除/所有成员都将看不到"，本次是让实现对齐既有文案，
+// 不是新增产品语义。conversation_clears watermark 仍保留写入：history()/media() 等既有
+// 读路径的 cleared_rowid 过滤条件不必逐一改造，双重生效对已删内容无副作用。
+// P1-06 review：清空后必须失效该会话全体成员的搜索缓存，
 // 否则 Redis 在线时同 TTL 内二次搜索会从 stale 缓存「复活」已清空消息。
-function invalidateSearchCaches(userId, convIds) {
+function invalidateSearchCaches(userIds, convIds) {
   const patterns = [];
   for (const convId of convIds) patterns.push(`search:${convId}:*`);
-  patterns.push(`search:${userId}:*`);      // messages.service.js 全局搜索缓存
-  patterns.push(`search:global:${userId}:*`); // search.service.js 全局搜索缓存
+  for (const userId of userIds) {
+    patterns.push(`search:${userId}:*`);      // messages.service.js 全局搜索缓存
+    patterns.push(`search:global:${userId}:*`); // search.service.js 全局搜索缓存
+  }
   for (const p of patterns) cache.delPattern(p).catch(() => {});
 }
 
@@ -485,14 +508,30 @@ function clearConversation(io, userId, convId) {
   const now = Math.floor(Date.now() / 1000);
   // 精确水位线：该会话当前最大消息 rowid（rowid 单调递增，无同秒歧义）
   const maxRowid = db.prepare('SELECT COALESCE(MAX(rowid), 0) AS r FROM messages WHERE conversation_id=?').get(convId).r;
-  db.prepare(`
-    INSERT INTO conversation_clears (user_id, conversation_id, cleared_at, cleared_rowid)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
-  `).run(userId, convId, now, maxRowid);
-  invalidateSearchCaches(userId, [convId]);
-  if (io) io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId });
-  return 1;
+  const memberIds = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?')
+    .all(convId).map(m => m.user_id);
+  const clearedIds = db.prepare('SELECT id FROM messages WHERE conversation_id=? AND rowid<=? AND deleted=0')
+    .all(convId, maxRowid).map(m => m.id);
+
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO conversation_clears (user_id, conversation_id, cleared_at, cleared_rowid)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
+    `).run(userId, convId, now, maxRowid);
+    if (clearedIds.length) {
+      db.prepare(`UPDATE messages SET deleted=2, content='', file_url='' WHERE conversation_id=? AND rowid<=? AND deleted=0`)
+        .run(convId, maxRowid);
+    }
+  })();
+  // 摘除还没发出去的批量合并快照，避免清空后原文冒出来复活（同 remove() forEveryone 的 race）
+  broadcaster.purgeRoomQueue(convId);
+
+  invalidateSearchCaches(memberIds, [convId]);
+  invalidateConvCacheForConversation(convId);
+  // 广播到整个会话房间（不再只发操作者自己的设备）：对方/群内其他成员在线时立即同步清空
+  if (io) io.to(convId).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId, clearedRowid: maxRowid });
+  return clearedIds.length;
 }
 
 function clearAllConversations(io, userId) {
@@ -505,7 +544,7 @@ function clearAllConversations(io, userId) {
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
   `);
   db.transaction(() => { for (const { conversation_id } of convs) upsert.run(userId, conversation_id, now, conversation_id); })();
-  invalidateSearchCaches(userId, convs.map(c => c.conversation_id));
+  invalidateSearchCaches([userId], convs.map(c => c.conversation_id));
   if (io) for (const { conversation_id } of convs) {
     io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: conversation_id, clearedBy: userId });
   }

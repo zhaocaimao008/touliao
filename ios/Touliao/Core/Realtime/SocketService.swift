@@ -47,10 +47,11 @@ final class SocketService {
     /// 注意：SocketIO 库自带 SocketManager 类型，这里用全限定名避免与本类混淆
     private var manager: SocketIO.SocketManager?
     private var socket: SocketIOClient?
+    private var socketCredential: KeychainStore.Snapshot?
 
     let status = CurrentValueSubject<SocketStatus, Never>(.disconnected)
     /// socket 鉴权失败（token 失效/封禁等）→ 上层应提示重新登录。负载为服务端错误消息。
-    let authFailure = PassthroughSubject<String, Never>()
+    let authFailure = PassthroughSubject<(message: String, credential: KeychainStore.Snapshot), Never>()
     let incoming = PassthroughSubject<Message, Never>()
     let syncAvailable = PassthroughSubject<String, Never>()
     /// 超大户群降级通知 → 会话内补拉增量、会话列表刷新摘要/未读
@@ -109,8 +110,8 @@ final class SocketService {
 
     // ── 群通话(mesh) 信令 ──
     let gcInvite = PassthroughSubject<(callId: String, conversationId: String, type: String, from: String, fromName: String), Never>()
-    let gcStarted = PassthroughSubject<(callId: String, type: String), Never>()
-    let gcPeers = PassthroughSubject<(callId: String, type: String, peers: [String]), Never>()
+    let gcStarted = PassthroughSubject<(callId: String, type: String, resumeToken: String?), Never>()
+    let gcPeers = PassthroughSubject<(callId: String, type: String, peers: [String], resumeToken: String?), Never>()
     let gcPeerJoined = PassthroughSubject<(callId: String, userId: String), Never>()
     let gcPeerLeft = PassthroughSubject<(callId: String, userId: String), Never>()
     let gcOffer = PassthroughSubject<(callId: String, from: String, sdp: String), Never>()
@@ -122,8 +123,9 @@ final class SocketService {
 
     private let decoder = JSONDecoder()
 
-    func connect() {
-        guard let token = KeychainStore.shared.token else { return }
+    func connect() { KeychainStore.shared.synchronized {
+        let credential = KeychainStore.shared.snapshot()
+        guard let token = credential.token else { return }
         if socket?.status == .connected { return }
         disconnect()
 
@@ -140,12 +142,14 @@ final class SocketService {
 
         var hasConnectedBefore = false
         sock.on(clientEvent: .connect) { [weak self] _, _ in
+            guard KeychainStore.shared.isCurrent(credential) else { return }
             guard let self else { return }
             if hasConnectedBefore { self.reconnected.send(()) }
             hasConnectedBefore = true
             self.status.send(.connected)
         }
         sock.on(clientEvent: .disconnect) { [weak self] _, _ in
+            guard KeychainStore.shared.isCurrent(credential) else { return }
             self?.status.send(.disconnected)
         }
         // 鉴权失败处理（P0）：服务端 handshake 校验 token 失败时通过 connect_error
@@ -153,6 +157,7 @@ final class SocketService {
         // 空耗流量与服务器连接。现在：鉴权类错误（未授权/Token失效/会话失效/用户不存在/
         // 封禁/密码已修改）→ 停止重连并抛 authFailure 通知上层重新登录；纯网络错误继续重连。
         sock.on(clientEvent: .error) { [weak self] data, _ in
+            guard KeychainStore.shared.isCurrent(credential) else { return }
             guard let self else { return }
             let message = (data.first as? String) ?? ""
             let fatalAuth = [
@@ -164,12 +169,13 @@ final class SocketService {
                 self.manager = nil
                 self.socket = nil
                 self.status.send(.disconnected)
-                self.authFailure.send(message)
+                self.authFailure.send((message, credential))
             }
             // 其他错误（网络波动等）→ 库自动重连
         }
 
         sock.on("new_message") { [weak self] data, _ in
+            guard KeychainStore.shared.isCurrent(credential) else { return }
             self?.handleMessage(data.first)
         }
         sock.on("conversation_sync_available") { [weak self] data, _ in
@@ -178,6 +184,7 @@ final class SocketService {
             }
         }
         sock.on("new_message_batch") { [weak self] data, _ in
+            guard KeychainStore.shared.isCurrent(credential) else { return }
             if let arr = data.first as? [[String: Any]] {
                 arr.forEach { self?.handleMessage($0) }
             }
@@ -352,8 +359,14 @@ final class SocketService {
             self?.callIce.send((from, c, sdpMid, idx, d["callId"] as? String ?? ""))
         }
         sock.on("call:end") { [weak self] data, _ in
-            guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
-            self?.callEnd.send((from, d["callId"] as? String ?? "", d["reason"] as? String ?? ""))
+            guard let d = data.first as? [String: Any] else { return }
+            let from = d["from"] as? String ?? ""
+            let callId = d["callId"] as? String ?? ""
+            let reason = d["reason"] as? String ?? ""
+            // resume 对应的内存 session 已丢失时，服务端直接回当前 socket，因而没有 from。
+            // 仅放行带 callId 的 server_restarted；其它无 peer 的终态仍视为无效输入。
+            guard !from.isEmpty || (reason == "server_restarted" && !callId.isEmpty) else { return }
+            self?.callEnd.send((from, callId, reason))
         }
         sock.on("call:switch-type") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
@@ -369,12 +382,14 @@ final class SocketService {
         }
         sock.on("group_call:started") { [weak self] data, _ in
             guard let d = data.first as? [String: Any] else { return }
-            self?.gcStarted.send((d["callId"] as? String ?? "", d["type"] as? String ?? "audio"))
+            let resumeToken = (d["resumeToken"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            self?.gcStarted.send((d["callId"] as? String ?? "", d["type"] as? String ?? "audio", resumeToken))
         }
         sock.on("group_call:peers") { [weak self] data, _ in
             guard let d = data.first as? [String: Any] else { return }
             let peers = (d["peers"] as? [String]) ?? []
-            self?.gcPeers.send((d["callId"] as? String ?? "", d["type"] as? String ?? "audio", peers))
+            let resumeToken = (d["resumeToken"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            self?.gcPeers.send((d["callId"] as? String ?? "", d["type"] as? String ?? "audio", peers, resumeToken))
         }
         sock.on("group_call:peer_joined") { [weak self] data, _ in
             guard let d = data.first as? [String: Any] else { return }
@@ -408,41 +423,46 @@ final class SocketService {
         }
 
         manager = mgr
+        socketCredential = credential
         socket = sock
         status.send(.connecting)
         // platform 供服务端按平台维度判定在线（来电推送兜底不因同账号 Web 在线而被压制）
         sock.connect(withPayload: ["token": token, "platform": "ios"])
-    }
+    } }
 
     /// 通过 socket 发送文本消息；ack 返回服务端落库后的 Message（消息收发阶段调用）。
     /// clientMsgId：幂等键。后端据 (sender_id, client_msg_id) 去重——ack 丢失后若上层复用
     /// 同一 clientMsgId 重发（或 socket 重连缓冲自动补发），服务端只落库一次、不产生重复气泡
     /// （对齐 Web / Android）。为兼容旧调用点，默认随机生成一次。
-    func sendMessage(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil) async -> Result<Message, Error> {
-        guard let sock = socket, sock.status == .connected else {
-            return .failure(SocketError.notConnected)
-        }
-        var payload: [String: Any] = [
-            "conversationId": conversationId,
-            "content": content,
-            "clientMsgId": clientMsgId ?? UUID().uuidString,
-        ]
-        if let replyToId { payload["reply_to_id"] = replyToId }
-        return await withCheckedContinuation { continuation in
-            sock.emitWithAck("send_message", payload)
-                .timingOut(after: 15) { [weak self] ackData in
-                    guard let self else { return }
-                    guard let dict = ackData.first as? [String: Any] else {
-                        continuation.resume(returning: .failure(SocketError.noResponse)); return
+    func sendMessage(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil, credential: KeychainStore.Snapshot) async -> Result<Message, Error> {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { [self] in
+                KeychainStore.shared.synchronized {
+                    guard KeychainStore.shared.isCurrent(credential), socketCredential == credential,
+                          let sock = socket, sock.status == .connected else {
+                        continuation.resume(returning: .failure(SocketError.notConnected)); return
                     }
-                    if let ok = dict["success"] as? Bool, ok,
-                       let msgDict = dict["message"], let msg = self.decode(msgDict) {
-                        continuation.resume(returning: .success(msg))
-                    } else {
-                        let err = (dict["error"] as? String) ?? "发送失败"
-                        continuation.resume(returning: .failure(SocketError.server(err)))
+                    var payload: [String: Any] = [
+                        "conversationId": conversationId, "content": content,
+                        "clientMsgId": clientMsgId ?? UUID().uuidString,
+                    ]
+                    if let replyToId { payload["reply_to_id"] = replyToId }
+                    sock.emitWithAck("send_message", payload).timingOut(after: 15) { ackData in
+                        guard KeychainStore.shared.isCurrent(credential) else {
+                            continuation.resume(returning: .failure(SocketError.notConnected)); return
+                        }
+                        guard let dict = ackData.first as? [String: Any] else {
+                            continuation.resume(returning: .failure(SocketError.noResponse)); return
+                        }
+                        if let ok = dict["success"] as? Bool, ok,
+                           let msgDict = dict["message"], let msg = self.decode(msgDict) {
+                            continuation.resume(returning: .success(msg))
+                        } else {
+                            continuation.resume(returning: .failure(SocketError.server((dict["error"] as? String) ?? "发送失败")))
+                        }
                     }
                 }
+            }
         }
     }
 
@@ -466,11 +486,15 @@ final class SocketService {
         socket?.emit("nudge", payload)
     }
 
+    struct CallRequestAck { let callId: String; let resumeToken: String? }
+
     // ── 通话信令发送 ──
     /// 主叫发起：ack 携带服务端生成的 callId（随后随 accept/reject/hangup 回传，供服务端
-    /// 做过期应答校验，对齐 Android）。连接已断或 ack 超时(10s)则返回 nil，不阻断通话
-    /// 主流程——callId 缺失时服务端跳过校验，保持兼容（对齐 backend CALL_REQUIRE_ID=false 默认）。
-    func emitCallRequest(to: String, type: String, callerName: String) async -> String? {
+    /// 做过期应答校验，对齐 Android），以及 resumeToken（Q06 全修：断线重连必须证明持有它
+    /// 才能 resume，光凭 callId+userId 不再够——同账号旁观设备不能在断线宽限期内抢注这通
+    /// 电话）。连接已断或 ack 超时(10s)则整体返回 nil，不阻断通话主流程——callId 缺失时
+    /// 服务端跳过校验，保持兼容（对齐 backend CALL_REQUIRE_ID=false 默认）。
+    func emitCallRequest(to: String, type: String, callerName: String) async -> CallRequestAck? {
         guard let sock = socket, sock.status == .connected else { return nil }
         let payload: [String: Any] = ["to": to, "type": type, "caller": ["name": callerName]]
         return await withCheckedContinuation { continuation in
@@ -480,7 +504,8 @@ final class SocketService {
                           let callId = dict["callId"] as? String, !callId.isEmpty else {
                         continuation.resume(returning: nil); return
                     }
-                    continuation.resume(returning: callId)
+                    let resumeToken = (dict["resumeToken"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                    continuation.resume(returning: CallRequestAck(callId: callId, resumeToken: resumeToken))
                 }
         }
     }
@@ -491,6 +516,22 @@ final class SocketService {
         // 主叫据此区分"对方忙线中"与普通拒接）
         if busy { payload["busy"] = true }
         socket?.emit("call:response", payload)
+    }
+    /// 被叫接听专用：accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken
+    /// （Q06 全修）。拒接/忙线场景不需要它，继续用上面 fire-and-forget 的 emitCallResponse。
+    func emitCallAccept(to: String, callId: String) async -> String? {
+        guard let sock = socket, sock.status == .connected else { return nil }
+        let payload: [String: Any] = ["to": to, "accepted": true, "callId": callId]
+        return await withCheckedContinuation { continuation in
+            sock.emitWithAck("call:response", payload)
+                .timingOut(after: 10) { ackData in
+                    guard let dict = ackData.first as? [String: Any],
+                          let token = dict["resumeToken"] as? String, !token.isEmpty else {
+                        continuation.resume(returning: nil); return
+                    }
+                    continuation.resume(returning: token)
+                }
+        }
     }
     func emitCallOffer(to: String, sdp: String, callId: String = "") {
         var payload: [String: Any] = ["to": to, "offer": ["type": "offer", "sdp": sdp]]
@@ -519,6 +560,12 @@ final class SocketService {
         if !callId.isEmpty { payload["callId"] = callId }
         socket?.emit("call:switch-type", payload)
     }
+    func emitCallResume(callId: String, resumeToken: String?) {
+        guard !callId.isEmpty else { return }
+        var payload: [String: Any] = ["callId": callId]
+        if let resumeToken, !resumeToken.isEmpty { payload["resumeToken"] = resumeToken }
+        socket?.emit("call:resume", payload)
+    }
 
     // ── 群通话信令发送 ──
     func emitGroupCallStart(conversationId: String, type: String) {
@@ -541,15 +588,21 @@ final class SocketService {
     func emitGroupCallLeave(callId: String) {
         socket?.emit("group_call:leave", ["callId": callId])
     }
+    func emitGroupCallResume(callId: String, resumeToken: String?) {
+        guard !callId.isEmpty else { return }
+        var payload: [String: Any] = ["callId": callId]
+        if let resumeToken, !resumeToken.isEmpty { payload["resumeToken"] = resumeToken }
+        socket?.emit("group_call:resume", payload)
+    }
 
-    func disconnect() {
+    func disconnect() { KeychainStore.shared.synchronized {
         socket?.removeAllHandlers()
         socket?.disconnect()
         manager?.disconnect()
         socket = nil
         manager = nil
         status.send(.disconnected)
-    }
+    } }
 
     private func handleMessage(_ any: Any?) {
         decode(any).map { incoming.send($0) }

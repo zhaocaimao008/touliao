@@ -21,6 +21,16 @@ export function applySyncEvents(currentMessages, events) {
     const key = String(event.message_id);
     if (event.event_type === 'message_created') {
       if (!event.message) continue;
+      // 双向清空/撤回后的旧 message_created 补拉：sync 按 server_sequence 重放事件，
+      // 但 message 字段是实时 join 的当前行——若这条消息在事件产生之后被清空会话/撤回
+      // (deleted=2/内容已清空)，这里绝不能把清空前的语义当"新消息"插回来，否则清空后
+      // 离线设备一补拉，内容原样复活，等于清空/撤回从未发生。按 message_recalled 一样处理：
+      // 已在列表里就摘除，不在列表里就跳过，不插入。
+      if (event.message.deleted === 2) {
+        const at = index.get(key);
+        if (at !== undefined) { result.splice(at, 1); index = buildIndex(); }
+        continue;
+      }
       // 乐观占位替换：client_msg_id 命中的本地消息删除（让位给真实消息，避免双显）
       const optimisticKey = event.message.client_msg_id;
       if (optimisticKey) {
@@ -128,14 +138,20 @@ function assertSortedOrRepair(arr) {
   }
 }
 
-export async function catchUpConversation({ conversationId, accountId, requestPage, loadCursor, saveCursor, applyPage, limit = 500 }) {
-  let cursor = await loadCursor(accountId, conversationId);
+export async function catchUpConversation({ conversationId, accountId, requestPage, loadCursor, saveCursor, applyPage, isCurrent, limit = 500 }) {
+  if (!isCurrent()) return;
+  let cursor = await loadCursor(accountId, conversationId, isCurrent);
+  if (!isCurrent()) return;
   let hasMore = true;
   while (hasMore) {
+    if (!isCurrent()) return;
     const page = await requestPage(conversationId, cursor, limit);
+    if (!isCurrent()) return;
     if (!page || !Number.isSafeInteger(page.next_cursor) || page.next_cursor < cursor) throw new Error('invalid sync cursor response');
     await applyPage(page.messages || []);
-    await saveCursor(accountId, conversationId, page.next_cursor);
+    if (!isCurrent()) return;
+    await saveCursor(accountId, conversationId, page.next_cursor, isCurrent);
+    if (!isCurrent()) return;
     hasMore = page.has_more;
     if (!hasMore) return page.next_cursor;
     if (page.next_cursor === cursor) throw new Error('sync cursor made no progress');

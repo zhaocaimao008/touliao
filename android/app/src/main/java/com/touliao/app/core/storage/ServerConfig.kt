@@ -16,6 +16,7 @@ import javax.inject.Singleton
 @Singleton
 class ServerConfig @Inject constructor(
     @ApplicationContext context: Context,
+    private val tokenStore: TokenStore,
 ) {
     private val prefs = context.getSharedPreferences("vxin_server", Context.MODE_PRIVATE)
 
@@ -23,7 +24,10 @@ class ServerConfig @Inject constructor(
     var baseUrl: String
         get() = manualOverride() ?: remote() ?: BuildConfig.DEFAULT_SERVER_URL
         set(value) {
-            prefs.edit().putString(KEY_OVERRIDE, normalize(value)).apply()
+            synchronized(tokenStore) {
+                if (baseUrl != normalize(value)) tokenStore.beginIdentityChange()
+                prefs.edit().putString(KEY_OVERRIDE, normalize(value)).apply()
+            }
         }
 
     /** 供 Retrofit 初始化用：保证以 '/' 结尾 */
@@ -32,11 +36,19 @@ class ServerConfig @Inject constructor(
     /** RemoteConfig 写入远程地址（不覆盖用户的手动切换） */
     fun setRemote(url: String) {
         val n = normalize(url)
-        if (n.isNotEmpty()) prefs.edit().putString(KEY_REMOTE, n).apply()
+        synchronized(tokenStore) {
+            if (n.isNotEmpty()) {
+                if (manualOverride() == null && baseUrl != n) tokenStore.beginIdentityChange()
+                prefs.edit().putString(KEY_REMOTE, n).apply()
+            }
+        }
     }
 
     /** 清除手动覆盖，回到远程/默认 */
-    fun clearManualOverride() = prefs.edit().remove(KEY_OVERRIDE).apply()
+    fun clearManualOverride() = synchronized(tokenStore) {
+        tokenStore.beginIdentityChange()
+        prefs.edit().remove(KEY_OVERRIDE).apply()
+    }
 
     private fun manualOverride(): String? = prefs.getString(KEY_OVERRIDE, null)?.takeIf { it.isNotBlank() }
     private fun remote(): String? = prefs.getString(KEY_REMOTE, null)?.takeIf { it.isNotBlank() }

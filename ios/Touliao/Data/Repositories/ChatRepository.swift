@@ -2,12 +2,20 @@ import Foundation
 import Combine
 
 /// 聊天仓库。与 Android ChatRepository 等价。
-final class ChatRepository {
-    static let shared = ChatRepository()
-    private init() {}
+final class ChatRepository: HistoryPageSource {
+    static let shared = ChatRepository(api: .shared, socket: .shared)
 
-    private let api = APIClient.shared
-    private let socket = SocketService.shared
+    private let api: APIClient
+    private let socket: SocketService
+
+    convenience init(api: APIClient) {
+        self.init(api: api, socket: .shared)
+    }
+
+    private init(api: APIClient, socket: SocketService) {
+        self.api = api
+        self.socket = socket
+    }
 
     /// 实时连接状态（供 UI 显示连接中/已连接）
     var statusPublisher: AnyPublisher<SocketStatus, Never> { socket.status.eraseToAnyPublisher() }
@@ -63,9 +71,17 @@ final class ChatRepository {
         try await api.send(includeArchived ? "api/messages/conversations?includeArchived=1" : "api/messages/conversations")
     }
 
-    func loadHistory(_ conversationId: String, before: Double? = nil) async throws -> [Message] {
+    func loadHistory(
+        _ conversationId: String,
+        before: Double? = nil,
+        beforeId: String? = nil
+    ) async throws -> [Message] {
         var path = "api/messages/\(conversationId)?limit=50"
         if let before { path += "&before=\(Int(before))" }
+        if let beforeId {
+            let encoded = beforeId.addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? beforeId
+            path += "&beforeId=\(encoded)"
+        }
         return try await api.send(path)
     }
 
@@ -79,8 +95,8 @@ final class ChatRepository {
         return try await api.send("api/messages/conversation/\(conversationId)/search?q=\(enc)")
     }
 
-    func sendText(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil) async -> Result<Message, Error> {
-        await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId, clientMsgId: clientMsgId)
+    func sendText(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil, credential: KeychainStore.Snapshot) async -> Result<Message, Error> {
+        await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId, clientMsgId: clientMsgId, credential: credential)
     }
 
     /// 撤回/删除消息。错误必须向上抛出，让 UI 恢复乐观移除并提示失败。

@@ -13,13 +13,14 @@ final class ChatMessageMergeTests: XCTestCase {
 
     // ── 构造辅助 ──────────────────────────────────────────────
     private func m(_ id: Int, seq: Int64, cid: String? = nil,
-                   local: String? = nil, createdAt: Double = 0) -> Message {
+                   local: String? = nil, createdAt: Double = 0, deleted: Int = 0) -> Message {
         var msg = Message(cachedId: "\(id)", conversationId: "c1", senderId: "u1")
         msg.content = "m\(id)"
         msg.createdAt = createdAt
         msg.serverSequence = seq
         msg.clientMsgId = cid
         msg.localStatus = local
+        msg.deleted = deleted
         return msg
     }
 
@@ -98,5 +99,27 @@ final class ChatMessageMergeTests: XCTestCase {
         // 红（第 1 轮）：替换后 [m1(1), m2(3), r(2)] —— 真实序 [1,3,2] 永续乱序
         // 绿（第 2 轮）：violatesOrder 检出 → 取出按 seq2 重插 → [m1, r, m2] 自愈
         assertRealSeqAscending(result)
+    }
+
+    // ── Q04 双向清空回归 ────────────────────────────────────────
+    // clearConversation 现在真的置空消息(deleted=2)，不再是仅隐藏操作者的 per-user
+    // watermark。离线设备补拉到清空之前的 message_created 事件时，message 字段是清空后的
+    // 当前行(deleted=2/content='')——绝不能当"新消息"插回来，否则原文在离线设备上复活。
+    func testDroppedMessageCreatedForAlreadyClearedRowIsNotResurrected() {
+        let a = m(1, seq: 1, createdAt: 100)
+        let bCleared = m(2, seq: 2, createdAt: 200, deleted: 2)
+
+        let result = ChatMessageMerge.applySyncEvents([], [createdEvent(1, a), createdEvent(2, bCleared)])
+
+        XCTAssertEqual(result.map(\.id), [a.id])
+    }
+
+    func testLaterArrivingClearedMessageCreatedRemovesAnAlreadyPresentMessage() {
+        let a = m(1, seq: 1, createdAt: 100)
+        let aClearedLater = m(1, seq: 2, createdAt: 100, deleted: 2)
+
+        let result = ChatMessageMerge.applySyncEvents([a], [createdEvent(2, aClearedLater)])
+
+        XCTAssertTrue(result.isEmpty, "清空后不得残留该消息")
     }
 }

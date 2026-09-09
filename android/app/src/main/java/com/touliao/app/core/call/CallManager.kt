@@ -287,6 +287,10 @@ class CallManager @Inject constructor(
     private var iceRestartRecoverJob: Job? = null    // restart 后等待 connected 的窗口
     private var iceRestartCount = 0                  // 连续重启次数,恢复后清零
     @Volatile private var callAttempt = 0L   // 主叫呼出序号：ack 延迟时防止旧 callId 写入新一次呼出（P2-1 @Volatile 防跨线程撕裂）
+    @Volatile private var participatingCallId = "" // 仅本设备实际request/accept成功进入的通话可在重连后resume
+    // Q06 全修：resume 时必须证明持有它，光凭 callId+userId 不再够（同账号旁观设备
+    // 不能在断线宽限期内抢注这通电话）。request/accept 的 ack 里签发，cleanup() 清空。
+    @Volatile private var participatingResumeToken: String? = null
     private var audioSource: org.webrtc.AudioSource? = null
     private var videoSource: VideoSource? = null
     private var localAudioTrack: AudioTrack? = null
@@ -394,9 +398,9 @@ class CallManager @Inject constructor(
             // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（此刻 App 在前台、权限已授予，满足 FGS 合规）
             CallForegroundService.start(context, _state.value.isVideo)
             val name = sessionManager.currentUser?.username.orEmpty()
-            // ack 携带服务端生成的 callId；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
-            val callId = socketManager.emitCallRequest(peerId, if (_state.value.isVideo) "video" else "audio", name)
-            if (callId == null) {
+            // ack 携带服务端生成的 callId + resumeToken；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
+            val requestAck = socketManager.emitCallRequest(peerId, if (_state.value.isVideo) "video" else "audio", name)
+            if (requestAck == null) {
                 // ack 超时/socket 未连/请求被拒（P1-4）：立即收尾并提示，不再静默回铃 60s。
                 // AUDIT P2（幽灵响铃）：请求可能已到达服务端而仅 ack 丢失——此时服务端
                 // activeCalls 仍在响，被叫会无人接也无人拒直到 120s。若 socket 仍连着，
@@ -410,8 +414,11 @@ class CallManager @Inject constructor(
                 if (attempt == callAttempt && _state.value.stage == CallStage.OUTGOING) cleanup(CallStage.ENDED)
                 return@launch
             }
+            val callId = requestAck.callId
             if (attempt == callAttempt && _state.value.peerId == peerId && _state.value.stage != CallStage.ENDED) {
                 _state.update { it.copy(callId = callId) }
+                participatingCallId = callId
+                participatingResumeToken = requestAck.resumeToken
             }
         }
     }
@@ -436,7 +443,9 @@ class CallManager @Inject constructor(
             }
             // 本地媒体已开始采集 → 起前台服务保活（接听时 App 在前台、权限已授予）
             CallForegroundService.start(context, _state.value.isVideo)
-            socketManager.emitCallResponse(s.peerId, true, s.callId)
+            // accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken（Q06 全修）
+            socketManager.emitCallResponse(s.peerId, true, s.callId, onAck = { token -> participatingResumeToken = token })
+            participatingCallId = s.callId
             // 等待主叫的 call:offer
         }
     }
@@ -545,8 +554,10 @@ class CallManager @Inject constructor(
         scope.launch {
             socketManager.status.filter { it == com.touliao.app.core.realtime.SocketStatus.CONNECTED }.collect {
                 val s = _state.value
-                if (s.callId.isNotEmpty() && s.stage != CallStage.IDLE && s.stage != CallStage.ENDED) {
-                    socketManager.emitCallResume(s.callId)
+                if (s.stage != CallStage.IDLE && s.stage != CallStage.ENDED &&
+                    CallSignalMatcher.canResume(s.callId, participatingCallId)
+                ) {
+                    socketManager.emitCallResume(s.callId, participatingResumeToken)
                 }
             }
         }
@@ -683,7 +694,7 @@ class CallManager @Inject constructor(
                     val idOk = e.callId.isEmpty() || s.callId.isEmpty() || e.callId == s.callId
                     hasActiveCall && idOk
                 } else {
-                    CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)
+                    CallSignalMatcher.matchesEnd(s.callId, e.callId, s.peerId, e.from, e.reason)
                 }
                 val matchesOtherDeviceOutgoing = !s.isCaller && s.stage == CallStage.OUTGOING &&
                     (e.callId.isEmpty() || e.callId == s.callId)
@@ -940,6 +951,8 @@ class CallManager @Inject constructor(
 
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage) {
+        participatingCallId = ""
+        participatingResumeToken = null
         stopIncomingTone()                                // 停来电铃声（接听/拒接/挂断/清理）
         qualityJob?.cancel(); qualityJob = null          // 停质量采样
         releaseTone()                                     // 停回铃/接通音并释放 ToneGenerator

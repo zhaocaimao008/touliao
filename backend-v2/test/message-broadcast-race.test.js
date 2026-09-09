@@ -19,6 +19,7 @@ const { Server } = require('socket.io');
 const { app, makeUser, befriend, privateConversation } = require('./helpers');
 const setupRealtime = require('../src/realtime');
 const msgSvc = require('../src/modules/messages/messages.service');
+const convSvc = require('../src/modules/conversations/conversations.service');
 const broadcaster = require('../src/realtime/broadcaster');
 const { db } = require('../src/db/connection');
 const { v4: uuidv4 } = require('uuid');
@@ -105,6 +106,30 @@ test('彻底删除(vanish)紧跟发送：批处理冲刷时不应带原始内容
     content: '这条要彻底删除', deleted: 0, created_at: Math.floor(Date.now() / 1000),
   });
   await msgSvc.remove(app.get('io'), a.userId, msgId, false, true, false);
+
+  await wait(300);
+  expect(received.newMessage).toBeNull();
+});
+
+test('清空会话(双向)紧跟发送：批处理冲刷时不应带原始内容触发 new_message', async () => {
+  const a = await makeUser({ username: 'race_clear_a' });
+  const b = await makeUser({ username: 'race_clear_b' });
+  await befriend(a, b);
+  const convId = await privateConversation(a, b);
+
+  const sb = await connect(b.token);
+  await wait(200);
+
+  const received = { newMessage: null };
+  sb.on('new_message', (m) => { received.newMessage = m; });
+
+  const msgId = insertMsg(convId, a.userId, '清空前一瞬间发的这条不该复活');
+  broadcaster.broadcastMessage(convId, {
+    id: msgId, conversation_id: convId, sender_id: a.userId, type: 'text',
+    content: '清空前一瞬间发的这条不该复活', deleted: 0, created_at: Math.floor(Date.now() / 1000),
+  });
+  // 紧跟着清空整个会话（无额外延时）——clearConversation 内部先摘队列快照再返回
+  convSvc.clearConversation(app.get('io'), a.userId, convId);
 
   await wait(300);
   expect(received.newMessage).toBeNull();

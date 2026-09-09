@@ -87,9 +87,18 @@ export const SocketProvider = ({ children }) => {
     // 没有它的话，休眠唤醒后要等 socket.io pingTimeout(20秒) 超时才会判定断线开始重连；
     // 唤醒瞬间主动 connect() 能把这个滞后降到几乎瞬间（AUDIT.md 十二节🟡）。
     const onElectronResume = () => { if (!s.connected) s.connect(); };
+    const onCredentialsUpdated = () => {
+      const token = isDesktop ? localStorage.getItem('touliao_electron_token') : null;
+      s.auth = { platform: isDesktop ? 'desktop' : 'web', ...(token ? { token } : {}) };
+      s.disconnect();
+      s.connect();
+    };
+    const onStorage = event => { if (event.key === 'touliao_session_revision') onCredentialsUpdated(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
     window.addEventListener('electron:resume', onElectronResume);
+    window.addEventListener('touliao:credentials-updated', onCredentialsUpdated);
+    window.addEventListener('storage', onStorage);
 
     return () => {
       everConnectedRef.current = false;
@@ -97,6 +106,8 @@ export const SocketProvider = ({ children }) => {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('electron:resume', onElectronResume);
+      window.removeEventListener('touliao:credentials-updated', onCredentialsUpdated);
+      window.removeEventListener('storage', onStorage);
       s.disconnect();
       setSocket(null);
       setConnected(false);
@@ -129,4 +140,3 @@ export const useSocket = () => ({ ...useContext(SocketCoreContext), ...useContex
 export const useSocketCore   = () => useContext(SocketCoreContext);
 /** 仅状态部分 — connected/reconnectCount */
 export const useSocketStatus = () => useContext(SocketStatusContext);
-

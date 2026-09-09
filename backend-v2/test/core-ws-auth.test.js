@@ -74,7 +74,7 @@ describe('WebSocket 连接与鉴权', () => {
     await expect(connect(a.token)).rejects.toBeTruthy();
   });
 
-  test('异常路径：改密码后已建立的 WS 连接应在下一次事件时被立即断开（不必等断线重连）', async () => {
+  test('异常路径：改密码后已建立的 WS 立即断开，旧 token 不能重新握手', async () => {
     const a = await makeUser({ username: 'ws_pwchange' });
     const s = await connect(a.token);
     try {
@@ -83,21 +83,20 @@ describe('WebSocket 连接与鉴权', () => {
       // 否则 "iat < password_changed_at" 在同一秒内不成立，测试会假阳性通过。
       await new Promise(r => setTimeout(r, 1100));
 
+      // Q01 now disconnects during the HTTP request, so observe before requesting revocation.
+      const disconnected = new Promise(resolve => s.once('disconnect', () => resolve(true)));
       const changed = await request(app)
         .put('/api/auth/change-password')
         .set('Authorization', `Bearer ${a.token}`)
         .send({ oldPassword: a.password, newPassword: 'newPassw0rd7890' });
       expect(changed.status).toBe(200);
 
-      const disconnected = new Promise(resolve => s.once('disconnect', () => resolve(true)));
-      // 逐事件复检只在客户端发出事件时触发，主动发一个事件触发它
-      s.emit('typing', { conversationId: 'irrelevant' });
-
       await Promise.race([
         disconnected,
         new Promise((_, reject) => setTimeout(() => reject(new Error('未在超时内断开')), 2000)),
       ]);
       expect(s.connected).toBe(false);
+      await expect(connect(a.token)).rejects.toBeTruthy();
     } finally {
       s.close();
     }

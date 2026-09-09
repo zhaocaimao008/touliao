@@ -59,8 +59,8 @@ data class CallSwitchTypeEvent(val callId: String, val from: String, val type: S
 
 // ── 群通话(mesh) 信令事件 ──
 data class GroupCallInviteEvent(val callId: String, val conversationId: String, val type: String, val from: String, val fromName: String, val fromAvatar: String = "")
-data class GroupCallStartedEvent(val callId: String, val type: String)
-data class GroupCallPeersEvent(val callId: String, val type: String, val peers: List<String>)
+data class GroupCallStartedEvent(val callId: String, val type: String, val resumeToken: String?)
+data class GroupCallPeersEvent(val callId: String, val type: String, val peers: List<String>, val resumeToken: String?)
 data class GroupCallPeerEvent(val callId: String, val userId: String)               // peer_joined / peer_left
 data class GroupCallSdpEvent(val callId: String, val from: String, val sdp: String) // offer / answer
 data class GroupCallIceEvent(val callId: String, val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
@@ -85,6 +85,7 @@ class SocketManager @Inject constructor(
     private val json: Json,
 ) {
     private var socket: Socket? = null
+    private var socketCredential: TokenStore.Snapshot? = null
 
     private val _status = MutableStateFlow(SocketStatus.DISCONNECTED)
     val status: StateFlow<SocketStatus> = _status.asStateFlow()
@@ -220,9 +221,9 @@ class SocketManager @Inject constructor(
     private val _gcEnded = MutableSharedFlow<GroupCallEndedEvent>(extraBufferCapacity = 8)
     val groupCallEndedEvents: SharedFlow<GroupCallEndedEvent> = _gcEnded.asSharedFlow()
 
-    @Synchronized
-    fun connect() {
-        val token = tokenStore.token ?: return        // 未登录不连
+    fun connect(): Unit = synchronized(tokenStore) {
+        val credential = tokenStore.snapshot()
+        val token = credential.token ?: return        // 未登录不连
         if (socket?.connected() == true) return
 
         // 已有实例先清理，避免 token/地址变更后复用旧连接
@@ -243,6 +244,7 @@ class SocketManager @Inject constructor(
             Log.e(TAG, "build socket failed: ${e.message}")
             return
         }
+        socketCredential = credential
         socket = s
 
         s.on(Socket.EVENT_CONNECT) { _status.value = SocketStatus.CONNECTED }
@@ -252,12 +254,13 @@ class SocketManager @Inject constructor(
             Log.w(TAG, "connect_error: ${args.firstOrNull()}")
         }
 
-        s.on("new_message") { args -> parseMessage(args.firstOrNull())?.let(_incomingMessages::tryEmit) }
+        s.on("new_message") { args -> if (!tokenStore.isCurrent(credential)) return@on; parseMessage(args.firstOrNull())?.let(_incomingMessages::tryEmit) }
         s.on("conversation_sync_available") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("conversationId")
                 ?.takeIf { it.isNotEmpty() }?.let(_syncAvailable::tryEmit)
         }
         s.on("new_message_batch") { args ->
+            if (!tokenStore.isCurrent(credential)) return@on
             (args.firstOrNull() as? JSONArray)?.let { arr ->
                 for (i in 0 until arr.length()) parseMessage(arr.optJSONObject(i))?.let(_incomingMessages::tryEmit)
             }
@@ -464,8 +467,13 @@ class SocketManager @Inject constructor(
         }
         s.on("call:end") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
-                val from = o.optString("from").takeIf { it.isNotEmpty() } ?: return@let
-                _callEnd.tryEmit(CallEndEvent(from, o.optString("callId"), o.optString("reason")))
+                val from = o.optString("from")
+                val callId = o.optString("callId")
+                val reason = o.optString("reason")
+                // session 丢失的 resume 终态由服务端直接回当前 socket，没有 peer/from。
+                // 仅把带精确 callId 的 server_restarted 放行；其它无 from 数据仍拒绝。
+                if (from.isEmpty() && (reason != "server_restarted" || callId.isEmpty())) return@let
+                _callEnd.tryEmit(CallEndEvent(from, callId, reason))
             }
         }
         s.on("call:switch-type") { args ->
@@ -491,14 +499,20 @@ class SocketManager @Inject constructor(
         }
         s.on("group_call:started") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
-                _gcStarted.tryEmit(GroupCallStartedEvent(o.optString("callId"), o.optString("type", "audio")))
+                _gcStarted.tryEmit(GroupCallStartedEvent(
+                    o.optString("callId"), o.optString("type", "audio"),
+                    o.optString("resumeToken").takeIf { it.isNotEmpty() },
+                ))
             }
         }
         s.on("group_call:peers") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val arr = o.optJSONArray("peers")
                 val peers = if (arr != null) (0 until arr.length()).map { arr.optString(it) } else emptyList()
-                _gcPeers.tryEmit(GroupCallPeersEvent(o.optString("callId"), o.optString("type", "audio"), peers))
+                _gcPeers.tryEmit(GroupCallPeersEvent(
+                    o.optString("callId"), o.optString("type", "audio"), peers,
+                    o.optString("resumeToken").takeIf { it.isNotEmpty() },
+                ))
             }
         }
         s.on("group_call:peer_joined") { args ->
@@ -559,10 +573,11 @@ class SocketManager @Inject constructor(
         content: String,
         replyToId: String? = null,
         clientMsgId: String? = null,
+        credential: TokenStore.Snapshot,
     ): Result<Message> =
-        suspendCancellableCoroutine { cont ->
+        suspendCancellableCoroutine { cont -> synchronized(tokenStore) {
             val s = socket
-            if (s == null || !s.connected()) {
+            if (!tokenStore.isCurrent(credential) || socketCredential != credential || s == null || !s.connected()) {
                 cont.resume(Result.failure(IllegalStateException("连接已断开")))
                 return@suspendCancellableCoroutine
             }
@@ -575,6 +590,9 @@ class SocketManager @Inject constructor(
             s.emit("send_message", payload, object : io.socket.client.AckWithTimeout(10_000) {
                 override fun onSuccess(vararg ackArgs: Any?) {
                     if (!cont.isActive) return
+                    if (!tokenStore.isCurrent(credential)) {
+                        cont.resume(Result.failure(IllegalStateException("会话已变更"))); return
+                    }
                     val resp = ackArgs.firstOrNull() as? JSONObject
                     when {
                         resp == null -> cont.resume(Result.failure(IllegalStateException("无响应")))
@@ -592,7 +610,7 @@ class SocketManager @Inject constructor(
                     cont.resume(Result.failure(IllegalStateException("发送超时，请重试")))
                 }
             })
-        }
+        } }
 
     /** 进入会话时主动入房（连上后服务端已自动入房，这里兜底防时序） */
     fun joinConversation(conversationId: String) {
@@ -617,10 +635,12 @@ class SocketManager @Inject constructor(
     // ── 通话信令发送 ──
     /**
      * 主叫发起：ack 携带服务端生成的 callId（随后随 accept/reject/hangup 回传，
-     * 供服务端做过期应答校验，对齐 iOS/被叫侧）。连接已断或 ack 超时(10s)则返回 null，
+     * 供服务端做过期应答校验，对齐 iOS/被叫侧），以及 resumeToken（Q06 全修：断线
+     * 重连必须证明持有它才能 resume，光凭 callId+userId 不再够——同账号旁观设备
+     * 不能在断线宽限期内抢注这通电话）。连接已断或 ack 超时(10s)则整体返回 null，
      * 不阻断通话主流程——callId 缺失时服务端跳过校验，保持兼容。
      */
-    suspend fun emitCallRequest(to: String, type: String, callerName: String): String? {
+    suspend fun emitCallRequest(to: String, type: String, callerName: String): CallRequestAck? {
         val s = socket ?: return null
         if (!s.connected()) return null
         val payload = JSONObject()
@@ -630,8 +650,9 @@ class SocketManager @Inject constructor(
             s.emit("call:request", arrayOf<Any>(payload), object : io.socket.client.AckWithTimeout(10_000) {
                 override fun onSuccess(vararg ackArgs: Any?) {
                     if (!cont.isActive) return
-                    val callId = (ackArgs.firstOrNull() as? JSONObject)?.optString("callId")?.takeIf { it.isNotEmpty() }
-                    cont.resume(callId)
+                    val ack = ackArgs.firstOrNull() as? JSONObject
+                    val callId = ack?.optString("callId")?.takeIf { it.isNotEmpty() }
+                    cont.resume(callId?.let { CallRequestAck(it, ack.optString("resumeToken").takeIf { t -> t.isNotEmpty() }) })
                 }
 
                 override fun onTimeout() {
@@ -642,13 +663,29 @@ class SocketManager @Inject constructor(
         }
     }
 
-    fun emitCallResponse(to: String, accepted: Boolean, callId: String = "", busy: Boolean = false) {
+    data class CallRequestAck(val callId: String, val resumeToken: String?)
+
+    /**
+     * 被叫应答。accepted=true 且传入 onAck 时会等服务端 ack 拿 resumeToken（Q06 全修，
+     * accept 是被叫唯一真正绑定 Socket 的时刻，只有这里能拿到）；拒接/忙线场景不传
+     * onAck，行为与此前完全一致（fire-and-forget，不等待任何回执）。
+     */
+    fun emitCallResponse(to: String, accepted: Boolean, callId: String = "", busy: Boolean = false, onAck: ((String?) -> Unit)? = null) {
         val payload = JSONObject().put("to", to).put("accepted", accepted)
         if (callId.isNotEmpty()) payload.put("callId", callId)
         // B-3：忙线拒接时带 busy=true（对齐 Web Home.jsx 语义；后端 call.js 原样转发，
         // 主叫据此区分"对方忙线中"与普通拒接）
         if (busy) payload.put("busy", true)
-        socket?.emit("call:response", payload)
+        if (onAck != null) {
+            socket?.emit("call:response", arrayOf<Any>(payload), object : io.socket.client.AckWithTimeout(10_000) {
+                override fun onSuccess(vararg ackArgs: Any?) {
+                    onAck((ackArgs.firstOrNull() as? JSONObject)?.optString("resumeToken")?.takeIf { it.isNotEmpty() })
+                }
+                override fun onTimeout() { onAck(null) }
+            }) ?: onAck(null)
+        } else {
+            socket?.emit("call:response", payload)
+        }
     }
 
     fun emitCallOffer(to: String, sdp: String, callId: String = "") {
@@ -690,8 +727,11 @@ class SocketManager @Inject constructor(
         socket?.emit("call:switch-type", payload)
     }
 
-    fun emitCallResume(callId: String) {
-        if (callId.isNotEmpty()) socket?.emit("call:resume", JSONObject().put("callId", callId))
+    fun emitCallResume(callId: String, resumeToken: String?) {
+        if (callId.isEmpty()) return
+        val payload = JSONObject().put("callId", callId)
+        if (!resumeToken.isNullOrEmpty()) payload.put("resumeToken", resumeToken)
+        socket?.emit("call:resume", payload)
     }
 
     // ── 群通话信令发送 ──
@@ -720,12 +760,14 @@ class SocketManager @Inject constructor(
         socket?.emit("group_call:leave", JSONObject().put("callId", callId))
     }
 
-    fun emitGroupCallResume(callId: String) {
-        if (callId.isNotEmpty()) socket?.emit("group_call:resume", JSONObject().put("callId", callId))
+    fun emitGroupCallResume(callId: String, resumeToken: String?) {
+        if (callId.isEmpty()) return
+        val payload = JSONObject().put("callId", callId)
+        if (!resumeToken.isNullOrEmpty()) payload.put("resumeToken", resumeToken)
+        socket?.emit("group_call:resume", payload)
     }
 
-    @Synchronized
-    fun disconnect() {
+    fun disconnect() = synchronized(tokenStore) {
         disconnectInternal()
         _status.value = SocketStatus.DISCONNECTED
     }

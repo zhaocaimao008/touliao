@@ -1,5 +1,5 @@
 import React, { memo, useState } from 'react';
-import { mediaUrl, getThumbUrl } from '../utils/url';
+import { mediaUrl, getThumbUrl, useMediaCredentials } from '../utils/url';
 
 // 无头像时的字母头像配色：AURORA 极光系多彩，按名字 hash 稳定取色，去掉"整页灰"
 const COLORS = [
@@ -33,6 +33,9 @@ export const AVATAR_TIERS = {
 export const avatarPx = (size) => (typeof size === 'string' ? AVATAR_TIERS[size] || 40 : size);
 
 export default memo(function Avatar({ src, name = '', size = 'md', style = {}, online = false, className: _className = '', onClick }) {
+  useMediaCredentials();
+  const thumbUrl = mediaUrl(getThumbUrl(src));
+  const originalUrl = mediaUrl(src);
   const px = avatarPx(size);
   const radius = Math.max(3, Math.round(px * 0.13)); // 微信风方圆角(原 0.22 偏圆)
   const baseStyle = { width: px, height: px, borderRadius: radius, overflow: 'hidden', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', ...style };
@@ -41,14 +44,12 @@ export default memo(function Avatar({ src, name = '', size = 'md', style = {}, o
   // 图片加载失败（如服务器上文件不存在）时回退到字母头像，避免显示浏览器碎图图标。
   // src 变化即重置错误态：用 render 期派生（存上一次 src）替代 effect，避免多余一帧闪烁。
   const [errored, setErrored] = useState(false);
-  const [prevSrc, setPrevSrc] = useState(src);
-  if (src !== prevSrc) {
-    setPrevSrc(src);
+  const [prevSrc, setPrevSrc] = useState(originalUrl);
+  if (originalUrl !== prevSrc) {
+    setPrevSrc(originalUrl);
     setErrored(false);
   }
   const showImg = src && !errored;
-  const thumbUrl = mediaUrl(getThumbUrl(src));
-  const originalUrl = mediaUrl(src);
 
   return (
     <div

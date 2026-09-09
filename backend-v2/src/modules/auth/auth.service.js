@@ -4,10 +4,11 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');
 const { db, generateVxinId, generateUserInviteCode } = require('../../db/connection');
-const { badRequest, notFound, forbidden } = require('../../utils/http');
+const { badRequest, notFound, forbidden, unauthorized } = require('../../utils/http');
 const { addToBlacklist } = require('../../utils/tokenBlacklist');
 const { invalidateUser } = require('../../utils/userStatusCache');
 const captcha = require('../../utils/captcha');
+const { hasActiveSession, passwordRevoked } = require('../../utils/sessionAuthorization');
 
 // 运行时邀请码：支持多个逗号分隔（后台可改）
 function currentInviteCode() {
@@ -86,13 +87,15 @@ function serializeUser(u) {
 function upsertSession(userId, req) {
   const { device, platform } = detectDevice(req.headers['user-agent']);
   const now = Math.floor(Date.now() / 1000);
-  // A004: 返回实际生效的 session id（同设备同平台复用原 id，作为 JWT 的 jti）
-  const existing = db.prepare('SELECT id FROM user_sessions WHERE user_id=? AND device=? AND platform=?').get(userId, device, platform);
+  // Only a wallet with a live grant can identify an existing device, never its User-Agent.
+  const walletId = req.cookies?.[config.walletCookie];
+  const existing = walletId && db.prepare(`SELECT s.id FROM auth_sessions s JOIN device_accounts d
+    ON d.session_id=s.id AND d.user_id=s.user_id WHERE d.wallet_id=? AND d.user_id=?`).get(walletId, userId);
   const id = existing?.id || uuidv4();
   db.prepare(`
-    INSERT INTO user_sessions (id, user_id, device, platform, ip, created_at, last_seen)
+    INSERT INTO auth_sessions (id, user_id, device, platform, ip, created_at, last_seen)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, device, platform) DO UPDATE SET ip=excluded.ip, last_seen=excluded.last_seen
+    ON CONFLICT(id) DO UPDATE SET ip=excluded.ip, last_seen=excluded.last_seen
   `).run(id, userId, device, platform, getClientIp(req), now, now);
   return id;
 }
@@ -161,10 +164,14 @@ async function login({ phone, password, captchaId, captchaText }, req) {
   const hashToCompare = user?.password || DUMMY_HASH;
   const passwordMatch = await bcrypt.compare(password, hashToCompare);
   if (!user || !passwordMatch) throw badRequest('手机号或密码错误');
-  if (user.banned) throw forbidden('账号已被封禁，请联系管理员');
-  // A004: 登录即绑定会话 id（jti），删除会话时该 JWT 可精确失效
-  const jti = req ? upsertSession(user.id, req) : undefined;
-  return { token: signToken(user, jti), user: serializeUser(user) };
+  return db.transaction(() => {
+    // bcrypt yielded: revalidate and create authority in one write transaction.
+    const current = db.prepare('SELECT password,banned FROM users WHERE id=?').get(user.id);
+    if (!current || current.password !== user.password) throw badRequest('手机号或密码错误');
+    if (current.banned) throw forbidden('账号已被封禁，请联系管理员');
+    const jti = req ? upsertSession(user.id, req) : undefined;
+    return { token: signToken(user, jti), user: serializeUser(user) };
+  })();
 }
 
 function getMe(userId) {
@@ -178,15 +185,24 @@ function refreshToken(payload) {
 }
 
 function listSessions(userId, req) {
-  const { device, platform } = detectDevice(req.headers['user-agent']);
-  const sessions = db.prepare('SELECT * FROM user_sessions WHERE user_id=? ORDER BY last_seen DESC').all(userId);
-  db.prepare('UPDATE user_sessions SET last_seen=? WHERE user_id=? AND device=? AND platform=?')
-    .run(Math.floor(Date.now() / 1000), userId, device, platform);
-  return sessions.map(s => ({ ...s, current: s.device === device && s.platform === platform }));
+  const sessions = db.prepare('SELECT * FROM auth_sessions WHERE user_id=? ORDER BY last_seen DESC').all(userId);
+  db.prepare('UPDATE auth_sessions SET last_seen=? WHERE user_id=? AND id=?')
+    .run(Math.floor(Date.now() / 1000), userId, req.user?.jti || '');
+  return sessions.map(s => ({ ...s, current: s.id === req.user?.jti }));
 }
 
 async function deleteSession(userId, sessionId) {
-  db.prepare('DELETE FROM user_sessions WHERE id=? AND user_id=?').run(sessionId, userId);
+  const deleted = db.transaction(() => {
+    const session = db.prepare('SELECT 1 FROM auth_sessions WHERE id=? AND user_id=?').get(sessionId, userId);
+    if (!session) return false;
+    db.prepare('DELETE FROM device_accounts WHERE session_id=? AND user_id=?').run(sessionId, userId);
+    db.prepare('DELETE FROM auth_sessions WHERE id=? AND user_id=?').run(sessionId, userId);
+    // Legacy JWTs have no device binding; the approved policy revokes all old-format tokens.
+    db.prepare('UPDATE users SET password_changed_at=? WHERE id=?').run(Math.floor(Date.now() / 1000), userId);
+    return true;
+  })();
+  if (!deleted) return;
+  invalidateUser(userId);
   // A004: 将被删会话的 jti 加入黑名单，使其已签发 JWT 立即失效（最长 tokenMaxAge）
   try {
     const { addToBlacklist } = require('../../utils/tokenBlacklist');
@@ -197,11 +213,12 @@ async function deleteSession(userId, sessionId) {
   }
 }
 
-function deleteAllOtherSessions(userId, device, platform) {
+function deleteAllOtherSessions(userId, currentSessionId) {
   const now = Math.floor(Date.now() / 1000);
   db.transaction(() => {
-    db.prepare('DELETE FROM user_sessions WHERE user_id=? AND NOT (device=? AND platform=?)').run(userId, device, platform);
-    // 推进 password_changed_at，令所有被踢设备的 JWT（iat < 该时间戳）立即失效
+    db.prepare('DELETE FROM device_accounts WHERE user_id=? AND (session_id IS NULL OR session_id!=?)').run(userId, currentSessionId || '');
+    db.prepare('DELETE FROM auth_sessions WHERE user_id=? AND id!=?').run(userId, currentSessionId || '');
+    // Only legacy unbound JWTs use this watermark; retained bound sessions remain valid.
     db.prepare('UPDATE users SET password_changed_at=? WHERE id=?').run(now, userId);
   })();
   invalidateUser(userId); // 驱逐状态缓存，令被踢设备下次请求立即拦截
@@ -250,6 +267,7 @@ async function deleteAccount(userId, password) {
     db.prepare('DELETE FROM friend_requests WHERE from_id=? OR to_id=?').run(userId, userId);
     db.prepare('DELETE FROM conversation_members WHERE user_id=?').run(userId);
     db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(userId);
+    db.prepare('DELETE FROM auth_sessions WHERE user_id=?').run(userId);
     db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
     // 补清此前遗漏的用户脏数据（参照 admin.deleteUser 的清理口径；自助注销仅软删用户本体，不删他人可见的会话/消息）
     db.prepare('DELETE FROM conversation_settings WHERE user_id=?').run(userId);
@@ -257,7 +275,7 @@ async function deleteAccount(userId, password) {
   })();
 }
 
-async function changePassword(userId, { oldPassword, newPassword, currentToken }) {
+async function changePassword(userId, { oldPassword, newPassword, currentToken }, req) {
   // 后台开关拦截：关闭「自助修改密码」后，任何客户端（含绕过 UI 的直连）都被拒绝。
   // 直接读 admin_settings，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
   if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_change_password')?.value === 'off') {
@@ -270,24 +288,36 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');
   const hash = await bcrypt.hash(newPassword, 12);
   const now = Math.floor(Date.now() / 1000);
-  db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, now, userId);
-  db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(userId);
+  const jti = db.transaction(() => {
+    const current = db.prepare('SELECT password,banned,password_changed_at FROM users WHERE id=?').get(userId);
+    const payload = currentToken && jwt.decode(currentToken);
+    if (!current || current.banned || current.password !== user.password ||
+        (payload && (!hasActiveSession(payload) || passwordRevoked(payload, current.password_changed_at)))) {
+      throw unauthorized('登录授权已变更，请重新登录');
+    }
+    db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, now, userId);
+    db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(userId);
+    db.prepare('DELETE FROM auth_sessions WHERE user_id=?').run(userId);
+    const sessionId = upsertSession(userId, req || { headers: {} });
+    recordDeviceAccount(req?.cookies?.[config.walletCookie], userId, sessionId);
+    return sessionId;
+  })();
   // 将当前 token 加入黑名单，防止改密后旧 token 继续有效（最长 7 天）
   if (currentToken) await addToBlacklist(currentToken, jwt.decode(currentToken)?.exp);
   invalidateUser(userId); // 驱逐状态缓存
-  return signToken(user);
+  return signToken(user, jti);
 }
 
 // ── 设备多账号（丝滑切换）────────────────────────────────────────
 // 记录"本设备(wallet)曾密码登录过 user"，切换时凭此免密重签发 token。
-function recordDeviceAccount(walletId, userId) {
-  if (!walletId || !userId) return;
+function recordDeviceAccount(walletId, userId, sessionId) {
+  if (!walletId || !userId || !sessionId) return;
   const now = Math.floor(Date.now() / 1000);
   db.prepare(`
-    INSERT INTO device_accounts (wallet_id, user_id, created_at, last_used)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(wallet_id, user_id) DO UPDATE SET last_used=excluded.last_used
-  `).run(walletId, userId, now, now);
+    INSERT INTO device_accounts (wallet_id, user_id, created_at, last_used, session_id)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(wallet_id, user_id) DO UPDATE SET last_used=excluded.last_used, session_id=excluded.session_id
+  `).run(walletId, userId, now, now, sessionId);
 }
 
 function removeDeviceAccount(walletId, userId) {
@@ -298,7 +328,8 @@ function removeDeviceAccount(walletId, userId) {
 // 免密切换：校验本设备登录过该账号 → 重签发 token + 返回用户信息。
 function switchAccount(walletId, userId, req) {
   if (!walletId) throw badRequest('请重新登录');
-  const owned = db.prepare('SELECT 1 FROM device_accounts WHERE wallet_id=? AND user_id=?').get(walletId, userId);
+  const owned = db.prepare(`SELECT s.id FROM device_accounts d JOIN auth_sessions s
+    ON s.id=d.session_id AND s.user_id=d.user_id WHERE d.wallet_id=? AND d.user_id=?`).get(walletId, userId);
   if (!owned) throw forbidden('该账号未在本设备登录过，请重新登录');
   const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,banned FROM users WHERE id=?').get(userId);
   if (!user) { removeDeviceAccount(walletId, userId); throw notFound('用户不存在'); }
@@ -306,8 +337,7 @@ function switchAccount(walletId, userId, req) {
   db.prepare('UPDATE device_accounts SET last_used=? WHERE wallet_id=? AND user_id=?')
     .run(Math.floor(Date.now() / 1000), walletId, userId);
   // A004: 切换账号同样绑定会话 id（jti）
-  const jti = req ? upsertSession(user.id, req) : undefined;
-  return { token: signToken(user, jti), user: serializeUser(user) };
+  return { token: signToken(user, owned.id), user: serializeUser(user) };
 }
 
 /** 忘记密码：安全策略禁用（P1-01）。

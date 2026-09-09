@@ -7,7 +7,7 @@ import UploadProgressBar from './UploadProgressBar';
 import { useAuth } from '../contexts/AuthContext';
 import { showToast, showConfirm } from '../utils/toast';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
-import { getThumbUrl, mediaUrl } from '../utils/url';
+import { getThumbUrl, mediaUrl, useMediaCredentials } from '../utils/url';
 import { linkify } from '../utils/linkify';
 import { useI18n } from '../contexts/I18nContext';
 import { validateMomentVideo } from '../utils/momentMedia';
@@ -26,6 +26,7 @@ const CONTENT_LIMIT = 120;
 
 /* 单条动态（memo：仅当本卡片数据 m 变化时才重渲染，点赞/评论不再重刷整个 feed）*/
 const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments, onReport, onEdit }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const [commenting, setCommenting] = useState(false);
   const [text, setText] = useState('');
