@@ -12,13 +12,16 @@ export async function preferH264(pc) {
     const trs = pc.getTransceivers ? pc.getTransceivers() : [];
     // sender（本端 addTrack）或 receiver（远端 offer 创建）任一 track 是视频即命中
     const tr = trs.find(t => t.sender?.track?.kind === 'video' || t.receiver?.track?.kind === 'video');
-    const sender = tr?.sender;
-    if (!sender || !sender.setCodecPreferences) return;
+    // Q14 全修：setCodecPreferences 是 RTCRtpTransceiver 的方法，不是 RTCRtpSender 的——
+    // 原来取 tr.sender 再判 sender.setCodecPreferences 恒为 undefined，直接 early return，
+    // H264 偏好从未真正设置过（真实 Chromium 复现：调用次数 0）。改成直接在 transceiver
+    // 上判断/调用。
+    if (!tr || !tr.setCodecPreferences) return;
     const prefs = RTCRtpSender.getCapabilities('video')?.codecs || [];
     const pick = (m) => prefs.find(c => c.mimeType.toLowerCase().includes(m));
     const h264 = pick('h264');
     const vp8 = pick('vp8');
-    if (h264) sender.setCodecPreferences([h264, vp8, ...prefs.filter(c => c !== h264 && c !== vp8)].filter(Boolean));
+    if (h264) tr.setCodecPreferences([h264, vp8, ...prefs.filter(c => c !== h264 && c !== vp8)].filter(Boolean));
   } catch { /* 不支持（如 Safari）即维持默认编码顺序 */ }
 }
 
