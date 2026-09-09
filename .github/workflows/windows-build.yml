@@ -127,19 +127,21 @@ jobs:
             exit 1
           fi
           echo "部署: $EXE"
-          # 2026-08-29 修复：此前一直写到 /var/www/downloads/，但 nginx(touliao-cc.conf)
-          # 的 /downloads/ location 实际 alias 到 /var/www/touliao-downloads/ ——
-          # 前者这台服务器上根本不存在，即使 DEPLOY_* secret 配好了，文件也永远不会被真实
-          # 提供服务(https://touliao.cc/downloads/... 会 404)。同时把直链文件名统一成
-          # touliao-windows-latest.exe(不带 -setup 后缀)，与已在用的下载页命名一致。
+          # 2026-09-09 修复：此前写到 /var/www/touliao-downloads/，但那是旧机路径。
+          # 当前这台("新机")nginx(touliao-cc.conf) 的 /downloads/ location 实际 alias
+          # 到 /var/www/downloads/ ——旧路径这台机器上根本不存在，即使 DEPLOY_* secret
+          # 配好了，文件也永远不会被真实提供服务(https://touliao.cc/downloads/... 会
+          # 404，实测报过 "Cannot find channel latest.yml" 客户端更新失败)。android-release.yml
+          # 2026-09-07 已经先改过同一个问题(见其 "新机 nginx alias" 注释)，这里跟上同一路径。
+          # 直链文件名统一成 touliao-windows-latest.exe(不带 -setup 后缀)，与下载页命名一致。
           ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
-            "mkdir -p /var/www/touliao-downloads/updates"
+            "mkdir -p /var/www/downloads/updates"
           scp -i ~/.ssh/deploy_key "$EXE" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/touliao-downloads/touliao-windows-latest.exe"
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/touliao-windows-latest.exe"
           # 关键：把带版本名的 exe 也放进 updates/，electron-updater 读 latest.yml 后按原名去 updates/ 取，
           # 否则自动更新会 404（此前 updates/ 只有旧版 exe）。
           scp -i ~/.ssh/deploy_key "$EXE" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/touliao-downloads/updates/$(basename "$EXE")"
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/$(basename "$EXE")"
           # 2026-08-30 修复：此前这里用 `find ... -name latest.yml -o -name '*.blockmap'`
           # 显式枚举文件名，2026-08-30当天新增的 latest.yml.sig 没被同步进这个枚举列表，
           # 直到今天 DEPLOY_SSH_KEY 第一次真正配好、这个 job 第一次真实跑通部署，
@@ -153,7 +155,7 @@ jobs:
           while IFS= read -r f; do
             echo "同步: $f"
             scp -i ~/.ssh/deploy_key "$f" \
-              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/touliao-downloads/updates/"
+              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/"
           done < <(find artifacts -type f ! -name "*.exe")
           echo "✅ SCP 全部完成"
 
