@@ -100,6 +100,63 @@ async function pushToUser(userId, payload) {
     } catch {}
   }
 
+  // ── iOS APNs 直连（不依赖 Firebase；Firebase 未配置时也必须发）──────────
+  // 修复：此前该段被包在 `if (firebaseAdmin)` 内 → Firebase 未配置时 iOS 锁屏
+  // 通知整块被跳过（来电推送走独立函数故正常，普通消息永远无通知）。
+  const iosApnsTokens = tokensOf('ios_apns');
+  const iosTokens = tokensOf('ios');
+
+
+  for (const row of iosApnsTokens) {
+    // APNs 直连(HTTP/2 + Provider Token)：不依赖 Firebase 控制台 APNs 密钥配置。
+    // 未配置 APNS_* 时返回 skipped；直连失败降级 FCM(如有 FCM token)。
+    promises.push(
+      sendIosPush(row.token, {
+        title: payload.senderName,
+        body: payload.body,
+        badge: payload.badge || 1,
+        conversationId: payload.conversationId,
+        senderId: payload.senderId,
+        timestamp: payload.timestamp,
+        type: payload.type,
+      }).then((res) => {
+        if (res?.ok || res?.skipped || !firebaseAdmin || !iosTokens.length) return;
+        // 直连失败且有 FCM token → 降级 FCM(双保险)
+        const msg = {
+          token: iosTokens[0].token,
+          notification: { title: payload.senderName, body: payload.body },
+          data: {
+            conversationId: payload.conversationId || '',
+            senderId:       payload.senderId || '',
+            timestamp:      String(payload.timestamp || Date.now()),
+            type:           payload.type || 'message',
+          },
+          apns: {
+            headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
+            payload: {
+              aps: {
+                alert: { title: payload.senderName, body: payload.body },
+                sound: 'default',
+                badge: payload.badge || 1,
+              },
+            },
+          },
+        };
+        return firebaseAdmin.messaging().send(msg)
+          .then(id => { console.debug(`[push] iOS FCM 兜底发送成功 user=${userId} msgId=${id}`); })
+          .catch(err => {
+            if (err.code === 'messaging/invalid-registration-token' ||
+                err.code === 'messaging/registration-token-not-registered') {
+              db.prepare('DELETE FROM device_tokens WHERE id=?').run(iosTokens[0].id);
+            }
+            console.warn(`[push] iOS FCM 兜底失败 user=${userId} code=${err.code}`);
+          });
+      }).catch(err => {
+        console.warn(`[push] iOS 直连异常 user=${userId}: ${err?.message}`);
+      })
+    );
+  }
+
   if (firebaseAdmin) {
     // 只取真正的 FCM token（android/ios）。个推 CID（platform='getui'）不是合法 FCM token，
     // 若混进来会被 FCM 判为无效 → 命中下方失效清理逻辑而被误删，
@@ -130,60 +187,6 @@ async function pushToUser(userId, payload) {
       );
     }
 
-    // iOS 单独处理：优先直连 APNs(platform='ios_apns', 原始 64 位 hex token)，
-    // 兼容旧版只上报 FCM token 的设备(platform='ios', 走 FCM 兜底)。
-    const iosApnsTokens = tokensOf('ios_apns');
-    const iosTokens = tokensOf('ios');
-
-    for (const row of iosApnsTokens) {
-      // APNs 直连(HTTP/2 + Provider Token)：不依赖 Firebase 控制台 APNs 密钥配置。
-      // 未配置 APNS_* 时返回 skipped；直连失败降级 FCM(如有 FCM token)。
-      promises.push(
-        sendIosPush(row.token, {
-          title: payload.senderName,
-          body: payload.body,
-          badge: payload.badge || 1,
-          conversationId: payload.conversationId,
-          senderId: payload.senderId,
-          timestamp: payload.timestamp,
-          type: payload.type,
-        }).then((res) => {
-          if (res?.ok || res?.skipped || !firebaseAdmin || !iosTokens.length) return;
-          // 直连失败且有 FCM token → 降级 FCM(双保险)
-          const msg = {
-            token: iosTokens[0].token,
-            notification: { title: payload.senderName, body: payload.body },
-            data: {
-              conversationId: payload.conversationId || '',
-              senderId:       payload.senderId || '',
-              timestamp:      String(payload.timestamp || Date.now()),
-              type:           payload.type || 'message',
-            },
-            apns: {
-              headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
-              payload: {
-                aps: {
-                  alert: { title: payload.senderName, body: payload.body },
-                  sound: 'default',
-                  badge: payload.badge || 1,
-                },
-              },
-            },
-          };
-          return firebaseAdmin.messaging().send(msg)
-            .then(id => { console.debug(`[push] iOS FCM 兜底发送成功 user=${userId} msgId=${id}`); })
-            .catch(err => {
-              if (err.code === 'messaging/invalid-registration-token' ||
-                  err.code === 'messaging/registration-token-not-registered') {
-                db.prepare('DELETE FROM device_tokens WHERE id=?').run(iosTokens[0].id);
-              }
-              console.warn(`[push] iOS FCM 兜底失败 user=${userId} code=${err.code}`);
-            });
-        }).catch(err => {
-          console.warn(`[push] iOS 直连异常 user=${userId}: ${err?.message}`);
-        })
-      );
-    }
 
     // 已存在 APNs 原生 token 的用户不再并行走 iOS FCM，避免同一设备重复通知。
     const iosFcmTokens = iosApnsTokens.length ? [] : iosTokens;
