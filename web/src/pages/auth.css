@@ -145,7 +145,7 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
   color: rgba(255,255,255,.72);
 }
 
-/* 桌面端登录页服务器切换 */
+/* 登录页服务器切换（企业代码：网页+桌面端都可用；手动填完整地址仅桌面端） */
 .auth-server { margin-top: var(--sp-4); text-align: center; }
 .auth-server-toggle { background: none; border: none; color: rgba(255,255,255,.4); font-size: var(--text-sm); cursor: pointer; padding: 6px 10px; border-radius: var(--radius-button); transition: color var(--dur-fast), background var(--dur-fast); }
 .auth-server-toggle:hover { color: var(--gray-0); background: rgba(255,255,255,.05); }
@@ -155,11 +155,17 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-server-input:focus { border-color: rgba(var(--color-primary-rgb),.5); background: rgba(var(--color-primary-rgb),.08); }
 .auth-server-input::placeholder { color: rgba(255,255,255,.25); }
 .auth-server-result { font-size: var(--text-sm); margin-top: var(--sp-2); }
+.auth-server-hint { font-size: var(--text-sm); color: rgba(255,255,255,.35); margin-top: var(--sp-2); line-height: 1.5; }
 .auth-server-btns { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); }
 .auth-server-btn { flex: 1; padding: 10px 0; border-radius: var(--radius-md); font-size: var(--text-sm2); font-weight: var(--font-medium); cursor: pointer; border: none; transition: opacity var(--dur-fast); }
 .auth-server-btn:hover { opacity: .85; }
+.auth-server-btn:disabled { opacity: .5; cursor: default; }
 .auth-server-btn.ghost { background: rgba(255,255,255,.08); color: var(--gray-0); border: 1px solid rgba(255,255,255,.12); }
 .auth-server-btn.primary { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); }
 .auth-server-cancel { display: block; width: 100%; margin-top: var(--sp-2); background: none; border: none; color: rgba(255,255,255,.4); font-size: var(--text-sm); cursor: pointer; padding: var(--sp-1); }
 .auth-server-cancel:hover { color: var(--gray-0); }
+/* 企业代码行：输入框占满剩余宽度，「连接」按钮宽度按内容自适应 */
+.auth-tenant-row { display: flex; gap: var(--sp-2); align-items: center; }
+.auth-tenant-row .auth-server-input { flex: 1; }
+.auth-tenant-row .auth-server-btn { flex: 0 0 auto; padding: 10px 16px; }
 
