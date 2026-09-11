@@ -7,6 +7,10 @@ import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
 import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
 import { matchesGroupStartAttempt } from '../utils/callSignaling';
+import { stopStream } from '../utils/callLifecycle';
+import './GroupCallModal.css';
+import useCallAudioOutput from '../hooks/useCallAudioOutput';
+import useCallAudioLevels from '../hooks/useCallAudioLevels';
 
 installPrewarm();
 
@@ -46,7 +50,8 @@ function useResponsiveGrid(tileCount) {
     const update = () => {
       const w = window.innerWidth;
       if (tileCount <= 1) setCols(1);
-      else if (tileCount <= 4) setCols(w < 480 ? 1 : 2);
+      else if (tileCount <= 2) setCols(w < 480 ? 1 : 2);
+      else if (tileCount <= 4) setCols(2);
       else setCols(w < 640 ? 2 : 3);
     };
     update();
@@ -63,16 +68,17 @@ function useFocusTrap(open) {
     if (!open) return;
     const container = containerRef.current;
     if (!container) return;
-    const focusableSel = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"]), [role="button"]';
+    const focusableSel = 'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+    const focusable = () => [...container.querySelectorAll(focusableSel)].filter(el => el.getClientRects().length > 0);
     const prevFocus = document.activeElement;
     const focusFirst = () => {
-      const els = container.querySelectorAll(focusableSel);
+      const els = focusable();
       if (els.length) els[0].focus();
     };
     focusFirst();
     const handler = (e) => {
       if (e.key !== 'Tab') return;
-      const els = container.querySelectorAll(focusableSel);
+      const els = focusable();
       if (!els.length) return;
       const first = els[0], last = els[els.length - 1];
       if (e.shiftKey) {
@@ -99,15 +105,21 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const [callId, setCallId] = useState(session.callId || null);
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
-  // B-1：本端当前是否真的持有视频轨。语音会话初始 false（升级后置 true）；视频会话
-  // gUM 失败（空流保底）时也为 false——此时"开摄像头"按钮成为重试入口。
+  // 本端是否持有视频轨；初始化失败时清零，成功重试后按实际轨道更新。
   const [selfHasVideo, setSelfHasVideo] = useState(isVideo);
   // B-1：远端成员是否送来过视频轨（peerId → true）。语音会话里对端升级后靠 ontrack
   // 自然置位，Tile 据此切视频布局，无需额外信令。
   const [remoteVideo, setRemoteVideo] = useState({});
   const [remoteStreams, setRemoteStreams] = useState({});
   const [localStream, setLocalStream] = useState(null);
-  const [status, setStatus] = useState(mode === 'start' ? 'calling' : 'joining');
+  const [status, setStatus] = useState('preparing');
+  const [peerStates, setPeerStates] = useState({});
+  const [mediaError, setMediaError] = useState(false);
+  const [connectedAt, setConnectedAt] = useState(null);
+  const mediaBusyRef = useRef(false);
+  const joiningTimerRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   const localStreamRef = useRef(null);
   const selfHasVideoRef = useRef(isVideo);
@@ -133,6 +145,19 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const ICE_RESTART_WINDOW_MS   = 15000;
   const ICE_RESTART_MAX         = 3;
 
+  const syncPeerStatus = useCallback(() => {
+    if (closedRef.current) return;
+    const states = Object.fromEntries([...pcsRef.current].map(([id, pc]) => [id, pc.connectionState]));
+    setPeerStates(states);
+    const values = Object.values(states);
+    if (values.includes('connected')) {
+      setStatus('connected');
+      setConnectedAt(prev => prev ?? Date.now());
+    } else if (values.some(s => s === 'disconnected' || s === 'failed')) setStatus('reconnecting');
+    else if (values.length) setStatus('connecting');
+    else if (participatingRef.current) setStatus('waiting');
+  }, []);
+
   // A-3：按当前已连接 peer 数对全部已连接 pc 重放码率/降档。人数与施加对象都只算
   // 已连接的——未协商完的 sender 上 setParameters 在部分浏览器会抛错（静默即可，但
   // 没必要），且连上才真正占编码资源。触发点：新 peer connected / peer 离开（removePeer）。
@@ -148,7 +173,15 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
 
   const removePeer = useCallback((peerId) => {
     const pc = pcsRef.current.get(peerId);
-    if (pc) { try { pc.close(); } catch { /* 连接已关闭 */ } pcsRef.current.delete(peerId); }
+    if (pc) {
+      pc.onconnectionstatechange = null; pc.ontrack = null; pc.onicecandidate = null;
+      pcsRef.current.delete(peerId);
+      try { pc.close(); } catch { /* 连接已关闭 */ }
+    }
+    const timers = peerRestartTimersRef.current.get(peerId);
+    clearTimeout(timers?.debounce); clearTimeout(timers?.recover);
+    peerRestartTimersRef.current.delete(peerId);
+    peerRestartCountRef.current.delete(peerId);
     remoteSetRef.current.delete(peerId);
     pendingIceRef.current.delete(peerId);
     setRemoteStreams(prev => {
@@ -160,7 +193,8 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       const n = { ...prev }; delete n[peerId]; return n;
     });
     reapplyCaps();   // A-3：人数减少 → 剩余 peer 的码率/降档按新人数重放（撤销降档也靠它）
-  }, [reapplyCaps]);
+    syncPeerStatus();
+  }, [reapplyCaps, syncPeerStatus]);
 
   const drainIce = useCallback((peerId) => {
     const pc = pcsRef.current.get(peerId);
@@ -172,22 +206,26 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   }, []);
 
   const createPC = useCallback((peerId) => {
+    if (closedRef.current) return null;
     if (pcsRef.current.has(peerId)) return pcsRef.current.get(peerId);
     const pc = new RTCPeerConnection(iceCfgRef.current);
     pcsRef.current.set(peerId, pc);
+    syncPeerStatus();
     localStreamRef.current?.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) socket?.emit('group_call:ice', { callId: callIdRef.current, to: peerId, candidate });
     };
     pc.ontrack = (e) => {
-      const stream = e.streams[0];
+      if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
+      const stream = e.streams[0] || new MediaStream([e.track]);
       setRemoteStreams(prev => (prev[peerId] === stream ? prev : { ...prev, [peerId]: stream }));
-      // B-1：远端语音→视频升级后新到的视频轨——置位让 Tile 切视频布局（WebRTC 轨自然触发）
+      // 远端语音升级视频后按收到的轨道切换布局。
       if (e.track.kind === 'video') setRemoteVideo(prev => (prev[peerId] ? prev : { ...prev, [peerId]: true }));
     };
     // ICE restart 状态机(与 1:1 同策略):disconnected 3s 防抖 → restartIce → 15s 窗口
     // → 最多 3 次 → removePeer。信令复用 group_call:offer/answer/ice,后端零改动。
     const tryPeerRestart = async () => {
+      if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
       const count = peerRestartCountRef.current.get(peerId) || 0;
       if (count >= ICE_RESTART_MAX) { removePeer(peerId); return; }
       peerRestartCountRef.current.set(peerId, count + 1);
@@ -195,12 +233,15 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通（对齐 1:1/iOS/Android 修复）
       try {
         const offer = await pc.createOffer();
+        if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
         const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
         await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+        if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
         socket?.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type: offer.type, sdp: tunedOffer } });
       } catch (err) {
         console.error('[groupCall] ICE restart 重协商失败:', err);
       }
+      if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
       const timers = peerRestartTimersRef.current.get(peerId) || {};
       clearTimeout(timers.recover);
       timers.recover = setTimeout(() => {
@@ -212,6 +253,8 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       peerRestartTimersRef.current.set(peerId, timers);
     };
     pc.onconnectionstatechange = () => {
+      if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
+      syncPeerStatus();
       const s = pc.connectionState;
       if (s === 'connected') {
         // restart 后恢复:清定时器 + 计数清零(可反复自愈)
@@ -239,7 +282,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       }
     };
     return pc;
-  }, [socket, removePeer, reapplyCaps]);
+  }, [socket, removePeer, reapplyCaps, syncPeerStatus]);
 
   // 对单个 peer 建 offer 并发送（含 H264 偏好 + 弱网调优）。onPeerJoined（新成员入会）
   // 与 B-1 语音→视频升级的逐 peer 重协商共用；mesh 无集中媒体单元，每 peer 独立一份
@@ -247,25 +290,32 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   // 轨已 addTrack，该 peer 下一次协商自然带上。
   const sendOfferToPeer = useCallback(async (peerId) => {
     const pc = pcsRef.current.get(peerId);
-    if (!pc || pc.signalingState !== 'stable') return;
+    if (closedRef.current || !pc || pc.signalingState !== 'stable') return;
     await preferH264(pc);   // A-2：addTrack 后、createOffer 前设 H264 优先（setCodecPreferences 须先于协商）
+    if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
     const offer = await pc.createOffer();
+    if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
     const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
     await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+    if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
     socket?.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type: offer.type, sdp: tunedOffer } });
   }, [socket]);
 
   const cleanup = useCallback(() => {
     if (closedRef.current) return;
     closedRef.current = true;
+    clearTimeout(joiningTimerRef.current);
     participatingRef.current = false;
     if (callIdRef.current) socket?.emit('group_call:leave', { callId: callIdRef.current });
-    pcsRef.current.forEach(pc => { try { pc.onicecandidate = null; pc.ontrack = null; pc.close(); } catch { /* 连接已关闭 */ } });
+    pcsRef.current.forEach(pc => { try { pc.onicecandidate = null; pc.ontrack = null; pc.onconnectionstatechange = null; pc.close(); } catch { /* 连接已关闭 */ } });
     pcsRef.current.clear();
     peerRestartTimersRef.current.forEach(t => { clearTimeout(t.debounce); clearTimeout(t.recover); });
     peerRestartTimersRef.current.clear();
     peerRestartCountRef.current.clear();
-    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    stopStream(localStreamRef.current);
+    stopStream(upgradeStreamRef.current);
+    localStreamRef.current = null;
+    upgradeStreamRef.current = null;
   }, [socket]);
 
   useEffect(() => {
@@ -279,9 +329,15 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     return () => socket.off('connect', resumeParticipatingCall);
   }, [socket]);
 
-  const hangup = useCallback(() => { cleanup(); }, [cleanup]);
+  const hangup = useCallback(() => {
+    if (closedRef.current) return;
+    cleanup();
+    setStatus('ended');
+    onCloseRef.current?.();
+  }, [cleanup]);
 
   const toggleMute = useCallback(() => {
+    if (closedRef.current || !localStreamRef.current?.getAudioTracks().some(t => t.readyState === 'live')) return;
     const on = !muted; setMuted(on);
     localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = !on; });
     return on;
@@ -299,12 +355,13 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   // 人数降档上限对新视频 sender 生效（capVideoBitrate 支持任意 pc）。失败（权限拒绝/
   // 设备占用）提示并保持语音。反向（升级后关摄像头）走上面现有 toggleCamera，不改。
   const upgradeToVideo = useCallback(async () => {
-    if (selfHasVideoRef.current || upgradingRef.current) return;
+    if (closedRef.current || !localStreamRef.current || selfHasVideoRef.current || upgradingRef.current) return;
     upgradingRef.current = true;
     try {
       const vs = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true), audio: false });
+      if (closedRef.current) { stopStream(vs); return; }
       const track = vs.getVideoTracks()[0];
-      if (!track) return;
+      if (!track) { stopStream(vs); return; }
       upgradeStreamRef.current = vs;   // 持有引用防 GC 停轨
       const ls = localStreamRef.current;
       if (!ls) {
@@ -316,11 +373,13 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       setSelfHasVideo(true);
       setCameraOff(false);
       for (const [pid, pc] of pcsRef.current) {
+        if (closedRef.current) { stopStream(vs); return; }
         try { pc.addTrack(track, localStreamRef.current); } catch { /* 该 pc 已带此轨 */ }
         await sendOfferToPeer(pid);
       }
       reapplyCaps();
     } catch (e) {
+      if (closedRef.current) return;
       console.error('[groupCall] 升级视频失败:', e);
       showToast(t('call.cameraOpenFailed'), 'error');
     } finally {
@@ -328,32 +387,56 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     }
   }, [sendOfferToPeer, reapplyCaps, t]);
 
-  const peerIds = Object.keys(remoteStreams);
+  const peerIds = Object.keys(peerStates);
   const tileCount = peerIds.length + 1;
 
-  // ── 初始化媒体 ──────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      let stream;
-      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints(isVideo) }); }
-      catch { /* 权限拒绝/设备占用，用空流保底 */ stream = new MediaStream(); }
-      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+  // 未拿到麦克风时不入会；用户明确重试后再请求权限。
+  const initializeMedia = useCallback(async () => {
+    if (closedRef.current || mediaBusyRef.current || participatingRef.current) return;
+    mediaBusyRef.current = true;
+    setStatus('preparing');
+    setMediaError(false);
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints(isVideo) });
+      if (closedRef.current) { stopStream(stream); return; }
+      if (!stream.getAudioTracks().some(track => track.readyState === 'live')) throw new Error('No microphone track');
       localStreamRef.current = stream;
       setLocalStream(stream);
-      // B-1：以"实际拿到视频轨"为准（视频会话 gUM 失败/空流保底 → false，升级按钮变重试入口）
       selfHasVideoRef.current = stream.getVideoTracks().length > 0;
       setSelfHasVideo(selfHasVideoRef.current);
       iceCfgRef.current = await fetchIceConfig();
-      if (cancelled) return;
-      if (mode === 'start') socket?.emit('group_call:start', {
-        conversationId,
-        type,
-        requestId: startRequestIdRef.current,
-      });
-      else socket?.emit('group_call:join', { callId: callIdRef.current });
-    })();
-    return () => { cancelled = true; cleanup(); };
+      if (closedRef.current) { stopStream(stream); return; }
+      if (!socket || socket.connected === false) throw new Error('Signaling offline');
+      setStatus('joining');
+      joiningTimerRef.current = setTimeout(() => {
+        if (!closedRef.current && !participatingRef.current) {
+          showToast(t('groupCall.joinTimeout'), 'error');
+          hangup();
+        }
+      }, 20000);
+      if (mode === 'start') socket.emit('group_call:start', { conversationId, type, requestId: startRequestIdRef.current });
+      else socket.emit('group_call:join', { callId: callIdRef.current });
+    } catch (error) {
+      stopStream(stream);
+      if (closedRef.current) return;
+      localStreamRef.current = null;
+      setLocalStream(null);
+      setSelfHasVideo(false);
+      selfHasVideoRef.current = false;
+      setMediaError(true);
+      setStatus('media-error');
+      console.warn('[groupCall] 初始化失败:', error);
+    } finally {
+      mediaBusyRef.current = false;
+    }
+  }, [socket, isVideo, mode, conversationId, type, hangup, t]);
+
+  useEffect(() => {
+    // Queue startup so acquisition only runs for a still-mounted session.
+    Promise.resolve().then(initializeMedia);
+    return cleanup;
+    // Session is mounted once; retry is an explicit user action.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -361,44 +444,66 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   useEffect(() => {
     if (!socket) return;
     const onStarted = ({ callId: cid, requestId, resumeToken }) => {
-      if (!cid || !matchesGroupStartAttempt({ requestId }, startRequestIdRef.current)) return;
+      if (closedRef.current || !cid || !matchesGroupStartAttempt({ requestId }, startRequestIdRef.current)) return;
       if (callIdRef.current && cid !== callIdRef.current) return;
       participatingRef.current = true;
-      callIdRef.current = cid; setCallId(cid); setStatus('connected');
+      clearTimeout(joiningTimerRef.current);
+      callIdRef.current = cid; setCallId(cid);
+      syncPeerStatus();
       resumeTokenRef.current = resumeToken;
     };
     const onPeers = async ({ callId: cid, peers, resumeToken }) => {
-      if (!cid || !callIdRef.current || cid !== callIdRef.current) return;
+      if (closedRef.current || !cid || !callIdRef.current || cid !== callIdRef.current) return;
       participatingRef.current = true;
-      callIdRef.current = cid; setCallId(cid); setStatus('connected');
+      clearTimeout(joiningTimerRef.current);
+      callIdRef.current = cid; setCallId(cid);
+      syncPeerStatus();
       resumeTokenRef.current = resumeToken;
       peers.forEach(pid => createPC(pid));
     };
     const onPeerJoined = async ({ callId: cid, userId: pid }) => {
-      if (cid !== callIdRef.current) return;
+      if (closedRef.current || cid !== callIdRef.current) return;
       createPC(pid);
-      await sendOfferToPeer(pid);   // B-1：与新成员建连 / 升级重协商共用的发 offer 路径
+      try { await sendOfferToPeer(pid); }
+      catch (error) { if (!closedRef.current) { console.warn('[groupCall] 建连失败:', error); removePeer(pid); } }
     };
     const onOffer = async ({ callId: cid, from, offer }) => {
-      if (cid !== callIdRef.current) return;
+      if (closedRef.current || cid !== callIdRef.current) return;
       const pc = createPC(from);
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      remoteSetRef.current.add(from); drainIce(from);
-      await preferH264(pc);   // A-2：被叫路径——setRemoteDescription 后、createAnswer 前（远端 offer 可能新建视频 transceiver）
-      const answer = await pc.createAnswer();
-      const tunedAnswer = tuneSdpForWeakNetwork(answer.sdp);
-      await pc.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: tunedAnswer }));
-      socket.emit('group_call:answer', { callId: callIdRef.current, to: from, answer: { type: answer.type, sdp: tunedAnswer } });
+      const current = () => !closedRef.current && pcsRef.current.get(from) === pc;
+      if (!pc) return;
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        if (!current()) return;
+        remoteSetRef.current.add(from); drainIce(from);
+        await preferH264(pc);
+        if (!current()) return;
+        const answer = await pc.createAnswer();
+        if (!current()) return;
+        const tunedAnswer = tuneSdpForWeakNetwork(answer.sdp);
+        await pc.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: tunedAnswer }));
+        if (!current()) return;
+        socket.emit('group_call:answer', { callId: callIdRef.current, to: from, answer: { type: answer.type, sdp: tunedAnswer } });
+      } catch (error) {
+        if (current()) { console.warn('[groupCall] 接收 offer 失败:', error); removePeer(from); }
+      }
     };
     const onAnswer = async ({ callId: cid, from, answer }) => {
-      if (cid !== callIdRef.current) return;
+      if (closedRef.current || cid !== callIdRef.current) return;
       const pc = pcsRef.current.get(from);
       if (!pc) return;
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      remoteSetRef.current.add(from); drainIce(from);
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        if (closedRef.current || pcsRef.current.get(from) !== pc) return;
+        remoteSetRef.current.add(from); drainIce(from);
+      } catch (error) {
+        if (!closedRef.current && pcsRef.current.get(from) === pc) {
+          console.warn('[groupCall] 接收 answer 失败:', error); removePeer(from);
+        }
+      }
     };
     const onIce = ({ callId: cid, from, candidate }) => {
-      if (cid !== callIdRef.current) return;
+      if (closedRef.current || cid !== callIdRef.current) return;
       const pc = pcsRef.current.get(from);
       if (pc && remoteSetRef.current.has(from)) {
         pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
@@ -412,11 +517,13 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       if (cid === callIdRef.current) removePeer(pid);
     };
     const onError = ({ reason, callId: cid, requestId }) => {
+      if (closedRef.current) return;
       if (requestId) {
         if (!matchesGroupStartAttempt({ requestId }, startRequestIdRef.current)) return;
       } else if (!cid || cid !== callIdRef.current) return;
       const msg = {
         busy: t('groupCall.errorBusy'),
+        active_call: t('groupCall.errorActiveCall'),
         not_group: t('groupCall.errorNotGroup'),
         not_found: t('call.callEnded'),
         full: t('groupCall.errorFull'),
@@ -428,10 +535,9 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     };
     // 服务端强制结束（如超过时长上限）：提示并关闭界面
     const onEnded = ({ callId: cid, reason }) => {
-      if (!cid || cid !== callIdRef.current) return;
+      if (closedRef.current || !cid || cid !== callIdRef.current) return;
       showToast(reason === 'timeout' ? t('groupCall.endedTimeout') : t('call.callEnded'), 'info');
       hangup();
-      onClose?.();
     };
     socket.on('group_call:started', onStarted);
     socket.on('group_call:peers', onPeers);
@@ -453,11 +559,11 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       socket.off('group_call:error', onError);
       socket.off('group_call:ended', onEnded);
     };
-  }, [socket, createPC, drainIce, removePeer, hangup, onClose, sendOfferToPeer, t]);
+  }, [socket, createPC, drainIce, removePeer, hangup, sendOfferToPeer, syncPeerStatus, t]);
 
   return {
     callId, muted, cameraOff, selfHasVideo, remoteVideo, remoteStreams, localStream, status,
-    peerIds, tileCount, localStreamRef, isVideo,
+    peerIds, peerStates, tileCount, localStreamRef, isVideo, mediaError, connectedAt, initializeMedia,
     toggleMute, toggleCamera, upgradeToVideo, hangup, cleanup,
   };
 }
@@ -468,128 +574,184 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
 export default function GroupCallModal({ socket, user, session, nameOf, onClose }) {
   const { t } = useI18n();
   const webrtc = useGroupCallWebRTC({ socket, user, session, nameOf, onClose });
+  const [members, setMembers] = useState({});
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    axios.get(`/api/messages/conversation/${session.conversationId}/members`, { signal: controller.signal })
+      .then(({ data }) => {
+        if (active && Array.isArray(data)) setMembers(Object.fromEntries(data.map(member => [member.id, { name: member.username, avatar: member.avatar }])));
+      }).catch(() => {});
+    return () => { active = false; controller.abort(); };
+  }, [session.conversationId]);
   const cols = useResponsiveGrid(webrtc.tileCount);
-  const containerRef = useFocusTrap(true);
+  const [minimized, setMinimized] = useState(false);
+  const containerRef = useFocusTrap(!minimized);
   const toneRef = useRef(null); // 回铃音循环句柄 { stop }
   const { muted, cameraOff, remoteStreams, remoteVideo, localStream, status, isVideo, selfHasVideo, peerIds, tileCount } = webrtc;
 
-  // 主叫等待期回铃音：status='calling'(发出 start 到有人加入/结束)循环；
-  // 其余状态停止。接通瞬间播一声提示音。
+  const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    if (status === 'calling' && !toneRef.current) {
-      stopTone();
-      toneRef.current = toneRingback();
-    } else if (status !== 'calling') {
-      toneRef.current?.stop();
-      toneRef.current = null;
-    }
+    if (!webrtc.connectedAt) return;
+    const tick = () => setElapsed(Math.floor((Date.now() - webrtc.connectedAt) / 1000));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [webrtc.connectedAt]);
+  const waiting = session.mode === 'start' && status === 'waiting' && !webrtc.connectedAt;
+  useEffect(() => {
+    if (waiting) { stopTone(); toneRef.current = toneRingback(); }
     if (status === 'connected') playConnectedTone();
     return () => { toneRef.current?.stop(); toneRef.current = null; };
-  }, [status]);
+  }, [waiting, status]);
 
-  const handleHangup = () => {
-    toneRef.current?.stop();
-    toneRef.current = null;
-    webrtc.hangup();
-    webrtc.cleanup();
-    onClose();
+  const statusText = {
+    preparing: t('groupCall.statusPreparing'),
+    'media-error': t('groupCall.statusMediaError'),
+    joining: t('groupCall.statusJoining'),
+    waiting: t('groupCall.statusWaitingOthers'),
+    connecting: t('call.connecting'),
+    reconnecting: t('groupCall.statusReconnecting'),
+    connected: t('groupCall.statusConnected'),
+    ended: t('call.callEnded'),
+  }[status];
+  const timerText = `${Math.floor(elapsed / 60).toString().padStart(2, '0')}:${(elapsed % 60).toString().padStart(2, '0')}`;
+  const mediaReady = !!localStream && !webrtc.mediaError && status !== 'ended';
+  const output = useCallAudioOutput(mediaReady);
+  const levels = useCallAudioLevels(localStream, remoteStreams);
+  const [volumes, setVolumes] = useState({});
+  const [blockedPeers, setBlockedPeers] = useState({});
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const onAudioBlocked = useCallback((id, blocked) => {
+    setBlockedPeers(prev => prev[id] === blocked ? prev : { ...prev, [id]: blocked });
+  }, []);
+  const audioBlocked = peerIds.some(id => blockedPeers[id]);
+  const title = t('groupCall.headerTemplate')
+    .replace('{type}', isVideo ? t('groupCall.videoCallLabel') : t('groupCall.voiceCallLabel'))
+    .replace('{count}', tileCount);
+  const names = Object.fromEntries(peerIds.map(id => [id, nameOf?.(id) || members[id] || { name: t('groupCall.member') }]));
+  const speakingNames = [levels.self?.speaking && !muted ? t('home.tab.me') : null,
+    ...peerIds.filter(id => levels[id]?.speaking).map(id => names[id].name)].filter(Boolean);
+  const speakerText = speakingNames.length ? t('groupCall.speakingNames').replace('{names}', speakingNames.join('、')) : '';
+  const [floating, setFloating] = useState(null);
+  const dragRef = useRef(null);
+  const miniRef = useRef(null);
+  useEffect(() => {
+    const clamp = () => setFloating(position => position ? {
+      x: Math.max(8, Math.min(position.x, window.innerWidth - (miniRef.current?.offsetWidth || 280) - 8)),
+      y: Math.max(8, Math.min(position.y, window.innerHeight - (miniRef.current?.offsetHeight || 140) - 8)),
+    } : position);
+    window.addEventListener('resize', clamp);
+    return () => window.removeEventListener('resize', clamp);
+  }, []);
+  const beginDrag = event => {
+    if (event.button !== 0) return;
+    const bounds = miniRef.current.getBoundingClientRect();
+    dragRef.current = { pointer: event.pointerId, x: event.clientX - bounds.x, y: event.clientY - bounds.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveDrag = event => {
+    const drag = dragRef.current;
+    if (!drag || event.pointerId !== drag.pointer) return;
+    const bounds = miniRef.current.getBoundingClientRect();
+    setFloating({ x: Math.max(8, Math.min(event.clientX - drag.x, innerWidth - bounds.width - 8)),
+      y: Math.max(8, Math.min(event.clientY - drag.y, innerHeight - bounds.height - 8)) });
   };
 
+
   return (
-    <div
-      ref={containerRef}
-      role="dialog"
-      aria-label={t('groupCall.title')}
-      aria-modal="true"
-      style={{
-        position: 'fixed', inset: 0, zIndex: "var(--z-call)",
-        background: 'rgba(18,18,18,0.97)',
-        display: 'flex', flexDirection: 'column',
-        color: 'var(--text-inverse)',
-      }}
-    >
-      {/* 顶部状态栏 */}
-      <header style={{
-        textAlign: 'center', padding: '14px 12px 6px',
-        fontSize: isMobileWidth() ? 13 : 15,
-        color: 'rgba(255,255,255,.85)',
-      }}>
-        {t('groupCall.headerTemplate')
-          .replace('{type}', isVideo ? t('groupCall.videoCallLabel') : t('groupCall.voiceCallLabel'))
-          .replace('{count}', tileCount)}
-        <span style={{
-          fontSize: isMobileWidth() ? 11 : 12,
-          color: 'rgba(255,255,255,.45)', marginLeft: 8,
-        }}>
-          {status === 'connected' ? t('groupCall.statusConnected') : (webrtc.callId ? t('groupCall.statusWaitingOthers') : t('groupCall.statusJoining'))}
-        </span>
+    <>
+    {/* These players stay mounted across minimize/restore and conversation navigation. */}
+    <div className="gcm-audio-players" aria-hidden="true">
+      {peerIds.map(id => <RemoteAudio key={id} peerId={id} stream={remoteStreams[id]}
+        volume={volumes[id] ?? 1} register={output.register} onBlocked={onAudioBlocked} />)}
+    </div>
+    <div ref={containerRef} hidden={minimized} role="dialog" aria-label={t('groupCall.title')} aria-modal="true" className={`gcm-dialog${tileCount >= 5 ? ' gcm-dialog--compact' : ''}`}>
+      <header className="gcm-header">
+        <h2>{title}</h2>
+        <button type="button" className="gcm-minimize" aria-label={t('call.minimize')} title={t('call.minimize')}
+          onClick={() => setMinimized(true)}><CallIcon kind="minimize" /></button>
+        <p role="status" className={`gcm-status gcm-status--${status}`}>
+          <span className="gcm-status-dot" aria-hidden="true" />{statusText}
+          {webrtc.connectedAt && <span className="gcm-timer" aria-label={t('groupCall.duration')}>{timerText}</span>}
+        </p>
       </header>
-
-      {/* 画面宫格 — 响应式 */}
-      <div style={{
-        flex: 1,
-        display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gap: isMobileWidth() ? 4 : 6,
-        padding: isMobileWidth() ? 6 : 10,
-        alignContent: 'center', overflow: 'auto',
-      }}>
-        <Tile
-          stream={localStream}
-          muted
-          isVideo={selfHasVideo && !cameraOff}
-          info={{ name: t('home.tab.me'), avatar: user?.avatar }}
-          self
-        />
-        {peerIds.map(pid => (
-          <Tile
-            key={pid}
-            streamForRef={remoteStreams[pid]}
-            isVideo={isVideo || !!remoteVideo[pid]}
-            info={nameOf?.(pid) || { name: t('groupCall.member') }}
-          />
-        ))}
+      {webrtc.mediaError && (
+        <div className="gcm-error" role="alert">
+          <span>{t('groupCall.mediaError')}</span>
+          <button type="button" onClick={webrtc.initializeMedia}>{t('common.retry')}</button>
+        </div>
+      )}
+      {audioBlocked && <div className="gcm-error" role="status"><span>{t('call.tapToRestoreAudio')}</span>
+        <button type="button" onClick={() => window.dispatchEvent(new Event('call:resume-audio'))}>{t('groupCall.restoreSound')}</button></div>}
+      <p className="gcm-speakers" aria-live="off" title={speakerText}>{speakerText || t('groupCall.speechHint')}</p>
+      <div className="gcm-stage">
+        <div className="gcm-grid" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          <Tile stream={localStream} muted isVideo={selfHasVideo && !cameraOff}
+            info={{ name: t('home.tab.me'), avatar: user?.avatar }} self level={muted ? null : levels.self}
+            badge={!mediaReady ? t('groupCall.micUnavailable') : muted ? t('groupCall.micMuted') : t('groupCall.micOn')} />
+          {peerIds.map(pid => (
+            <Tile key={pid} streamForRef={remoteStreams[pid]} isVideo={isVideo || !!remoteVideo[pid]}
+              info={names[pid]} level={levels[pid]}
+              badge={webrtc.peerStates[pid] === 'connected' ? t('groupCall.statusConnected')
+                : ['failed', 'disconnected'].includes(webrtc.peerStates[pid]) ? t('groupCall.statusReconnecting') : t('call.connecting')} />
+          ))}
+        </div>
       </div>
-
-      {/* 控制区 — 响应式 */}
-      <nav aria-label={t('groupCall.controls')} style={{
-        display: 'flex', justifyContent: 'center', gap: isMobileWidth() ? 20 : 28,
-        padding: isMobileWidth() ? '14px 0 24px' : '18px 0 34px',
-      }}>
-        {webrtc.selfHasVideo ? (
-          <CtrlBtn
-            icon={cameraOff ? '📷' : '📹'}
-            label={cameraOff ? t('call.turnCameraOn') : t('call.turnCameraOff')}
-            bg={cameraOff ? '#555' : 'rgba(255,255,255,.18)'}
-            size={isMobileWidth() ? 44 : 52}
-            onClick={webrtc.toggleCamera}
-          />
-        ) : (
-          /* B-1：语音模式/取流失败时也显示摄像头按钮——点击即升级视频（补轨+重协商） */
-          <CtrlBtn
-            icon="📷"
-            label={t('call.turnCameraOn')}
-            bg="#555"
-            size={isMobileWidth() ? 44 : 52}
-            onClick={webrtc.upgradeToVideo}
-          />
-        )}
-        <CtrlBtn
-          icon={muted ? '🔇' : '🎙️'}
-          label={muted ? t('call.unmute') : t('call.mute')}
-          bg="rgba(255,255,255,.18)"
-          size={isMobileWidth() ? 44 : 52}
-          onClick={webrtc.toggleMute}
-        />
-        <CtrlBtn
-          icon="📵"
-          label={t('call.hangup')}
-          bg="var(--color-badge)"
-          size={isMobileWidth() ? 54 : 64}
-          onClick={handleHangup}
-        />
+      {showAudioSettings && <section className="gcm-audio-settings" aria-label={t('groupCall.audioSettings')}>
+        <div className="gcm-output-row">
+          {output.supported ? <label>
+            <span>{t('call.outputDevice')}</span>
+            <select value={output.selected} disabled={output.pending} onChange={e => output.select(e.target.value)}>
+              <option value="">{t('groupCall.systemOutput')}</option>
+              {output.devices.map((device, index) => <option key={device.deviceId} value={device.deviceId}>
+                {device.label || t('groupCall.outputNumber').replace('{number}', index + 1)}
+              </option>)}
+            </select>
+          </label> : <p>{t('groupCall.outputUnsupported')}</p>}
+          {output.canChoose && <button type="button" disabled={output.pending} onClick={output.choose}>{t('groupCall.chooseOutput')}</button>}
+        </div>
+        {output.error && <p className="gcm-settings-error" role="alert">{t('groupCall.outputFailed')}</p>}
+        {output.unplugged && <p role="status">{t('groupCall.outputDisconnected')}</p>}
+        {peerIds.length > 0 && <fieldset className="gcm-volumes"><legend>{t('groupCall.memberVolumes')}</legend>
+          {peerIds.map(id => <label key={id} className="gcm-volume">
+            <span title={names[id].name}>{names[id].name}</span>
+            <input type="range" min="0" max="100" step="5" value={Math.round((volumes[id] ?? 1) * 100)}
+              aria-label={t('groupCall.memberVolume').replace('{name}', names[id].name)}
+              onChange={e => { const volume = Number(e.target.value) / 100; setVolumes(prev => ({ ...prev, [id]: volume })); }} />
+            <output>{Math.round((volumes[id] ?? 1) * 100)}%</output>
+          </label>)}
+        </fieldset>}
+      </section>}
+      <nav aria-label={t('groupCall.controls')} className="gcm-controls">
+        <CtrlBtn icon={<CallIcon kind="camera" off={!selfHasVideo || cameraOff} />}
+          label={!selfHasVideo || cameraOff ? t('call.turnCameraOn') : t('call.turnCameraOff')}
+          pressed={selfHasVideo && !cameraOff} disabled={!mediaReady}
+          onClick={selfHasVideo ? webrtc.toggleCamera : webrtc.upgradeToVideo} />
+        <CtrlBtn icon={<CallIcon kind="mic" off={muted || !mediaReady} />}
+          label={muted ? t('call.unmute') : t('call.mute')} pressed={muted} disabled={!mediaReady}
+          onClick={webrtc.toggleMute} />
+        <CtrlBtn icon={<CallIcon kind="output" />} label={t('groupCall.audioSettings')}
+          pressed={showAudioSettings} onClick={() => setShowAudioSettings(value => !value)} />
+        <CtrlBtn icon={<CallIcon kind="hangup" />} label={t('call.hangup')} danger onClick={webrtc.hangup} />
       </nav>
     </div>
+    {minimized && <aside ref={miniRef} className="gcm-mini" aria-label={t('groupCall.minimized')}
+      style={floating ? { left: floating.x, top: floating.y, right: 'auto', bottom: 'auto' } : undefined}>
+      <div className="gcm-mini-drag" onPointerDown={beginDrag} onPointerMove={moveDrag}
+        onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} aria-hidden="true"><span /></div>
+      <button type="button" className="gcm-mini-restore" onClick={() => setMinimized(false)} aria-label={t('groupCall.restoreCall')}>
+        <strong>{title}</strong><span>{statusText}{webrtc.connectedAt ? ` · ${timerText}` : ''}</span>
+        {speakerText && <span className="gcm-mini-speaking">{speakerText}</span>}
+      </button>
+      {audioBlocked && <p role="status">{t('call.tapToRestoreAudio')}</p>}
+      <div className="gcm-mini-actions">
+        <button type="button" onClick={webrtc.toggleMute} disabled={!mediaReady} aria-pressed={muted} aria-label={muted ? t('call.unmute') : t('call.mute')}><CallIcon kind="mic" off={muted} /></button>
+        <button type="button" onClick={() => setMinimized(false)} aria-label={t('groupCall.restoreCall')}><CallIcon kind="restore" /></button>
+        <button type="button" className="gcm-mini-hangup" onClick={webrtc.hangup} aria-label={t('call.hangup')}><CallIcon kind="hangup" /></button>
+      </div>
+    </aside>}
+    </>
   );
 }
 
@@ -600,117 +762,80 @@ function isMobileWidth() {
   return window.innerWidth < 480;
 }
 
-// ── 单路画面 ─────────────────────────────────────────────────
-function Tile({ stream, streamForRef, muted, isVideo, info, self }) {
-  const { t } = useI18n();
+// Audio lives outside the visual tiles: no remount or duplicate playback when minimized.
+function RemoteAudio({ peerId, stream, volume, register, onBlocked }) {
   const ref = useRef(null);
-  const s = stream || streamForRef;
-  // B-4（2026-09-05）：srcObject 挂上后显式 play() 兜底，被 autoplay 手势策略拦下时在
-  // 画面上出"点击恢复声音"提示，任意点击/按键自动重试。自己（muted）不会被拦。
-  const [playBlocked, setPlayBlocked] = useState(false);
-  const [hintDismissed, setHintDismissed] = useState(false);
+  useEffect(() => register(ref.current), [register]);
+  useEffect(() => { if (ref.current) ref.current.volume = volume; }, [volume]);
   useEffect(() => {
-    if (!ref.current || !s) return;
-    ref.current.srcObject = s;
-    try { ref.current.play().catch(() => setPlayBlocked(true)); }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 老浏览器同步抛错的兜底路径,与上方异步 catch 置同一状态(7.x 误报边界)
-    catch { setPlayBlocked(true); }
-  }, [s]);
-  useEffect(() => {
-    if (!playBlocked) return;
-    const retry = () => {
-      ref.current?.play().then(() => setPlayBlocked(false)).catch(() => {});
+    const element = ref.current;
+    if (!stream || !element) return;
+    let active = true;
+    element.srcObject = stream;
+    const play = () => {
+      element.play().then(() => { if (active) onBlocked(peerId, false); })
+        .catch(() => { if (active) onBlocked(peerId, true); });
     };
+    play();
+    const retry = () => { if (element.paused) play(); };
     window.addEventListener('pointerdown', retry);
     window.addEventListener('keydown', retry);
+    window.addEventListener('call:resume-audio', retry);
     return () => {
+      active = false;
       window.removeEventListener('pointerdown', retry);
       window.removeEventListener('keydown', retry);
+      window.removeEventListener('call:resume-audio', retry);
+      element.pause(); element.srcObject = null;
     };
-  }, [playBlocked]);
+  }, [stream, peerId, onBlocked]);
+  return <audio ref={ref} data-peer-id={peerId} autoPlay />;
+}
+
+function Tile({ stream, streamForRef, isVideo, info, self, badge, level }) {
+  const { t } = useI18n();
+  const ref = useRef(null);
+  const media = stream || streamForRef;
+  useEffect(() => {
+    const video = ref.current;
+    if (!video || !media) return;
+    video.srcObject = media;
+    video.play().catch(() => {});
+    return () => { video.pause(); video.srcObject = null; };
+  }, [media]);
   const displayName = info?.name || t('groupCall.member');
   return (
-    <div
-      aria-label={t('groupCall.participantVideoAltTemplate').replace('{name}', displayName)}
-      style={{
-        position: 'relative', background: '#000', borderRadius: 'var(--radius-md)',
-        overflow: 'hidden', minHeight: isMobileWidth() ? 100 : 140,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        border: self ? '2px solid var(--color-primary,#6D5AE6)' : '1px solid rgba(255,255,255,.08)',
-      }}
-    >
-      <video
-        ref={ref} autoPlay playsInline muted={muted}
-        style={{
-          width: '100%', height: '100%', objectFit: 'cover',
-          display: isVideo ? 'block' : 'none',
-        }}
-      />
-      {!isVideo && (
-        <Avatar src={info?.avatar} name={info?.name || '?'} size={isMobileWidth() ? 54 : 72}
-          style={{ borderRadius: 'var(--radius-xl)' }} />
-      )}
-      <div style={{
-        position: 'absolute', bottom: 6, left: 8,
-        fontSize: isMobileWidth() ? 11 : 12,
-        color: 'var(--text-inverse)',
-        textShadow: '0 1px 3px rgba(0,0,0,.6)',
-      }}>
-        {displayName}
+    <div aria-label={t('groupCall.participantVideoAltTemplate').replace('{name}', displayName)}
+      className={`gcm-tile${self ? ' gcm-tile--self' : ''}${level?.speaking ? ' gcm-tile--speaking' : ''}`}>
+      <video ref={ref} autoPlay playsInline muted className={isVideo ? 'gcm-video' : 'gcm-video gcm-video--hidden'} />
+      {!isVideo && <Avatar src={info?.avatar} name={displayName} size={isMobileWidth() ? 54 : 72} />}
+      <div className="gcm-member-label"><span className="gcm-member-name" title={displayName}>{displayName}</span>
+        {badge && <span className="gcm-member-status">{badge}</span>}
       </div>
-
-      {/* B-4：autoplay 被拦——点击/按键任意处即恢复，✕ 只关提示 */}
-      {playBlocked && !hintDismissed && !self && (
-        <div
-          role="status"
-          style={{
-            position: 'absolute', top: 6, left: 6, right: 6, zIndex: 2,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-            padding: '4px 8px', borderRadius: 8, background: 'rgba(0,0,0,.72)',
-            color: '#fff', fontSize: 11, whiteSpace: 'nowrap',
-          }}
-        >
-          <span>🔇 {t('call.tapToRestoreAudio')}</span>
-          <button
-            type="button"
-            aria-label={t('common.close')}
-            onClick={() => setHintDismissed(true)}
-            style={{ border: 0, background: 'transparent', color: 'rgba(255,255,255,.75)', cursor: 'pointer', fontSize: 11, padding: '0 2px', lineHeight: 1 }}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      <span className={`gcm-level${level?.speaking ? ' gcm-level--speaking' : ''}`} title={level?.speaking ? t('groupCall.speaking') : undefined}
+        aria-label={level?.speaking ? t('groupCall.speaking') : undefined}>
+        {[0,1,2].map(i => <i key={i} style={{ height: `${Math.max(3, Math.min(18, (level?.level || 0) * (i === 1 ? 32 : 22)))}px` }} />)}
+      </span>
     </div>
   );
 }
 
 // ── 控制按钮 ─────────────────────────────────────────────────
-function CtrlBtn({ icon, label, bg, size = 52, onClick }) {
-  return (
-    <div
-      role="button"
-      aria-label={label}
-      tabIndex={0}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e); }
-      }}
-      onClick={onClick}
-      style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        gap: isMobileWidth() ? 6 : 8, cursor: 'pointer',
-      }}
-    >
-      <div style={{
-        width: size, height: size, borderRadius: size / 2,
-        background: bg, display: 'flex', alignItems: 'center',
-        justifyContent: 'center', fontSize: size * 0.42,
-      }}>
-        {icon}
-      </div>
-      <span style={{ fontSize: isMobileWidth() ? 10 : 11, color: 'rgba(255,255,255,.6)' }}>
-        {label}
-      </span>
-    </div>
-  );
+function CallIcon({ kind, off }) {
+  return <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind === 'mic' && <><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></>}
+    {kind === 'camera' && <><rect x="3" y="6" width="12" height="12" rx="2" /><path d="m15 10 6-4v12l-6-4" /></>}
+    {kind === 'output' && <><path d="M4 9h4l5-4v14l-5-4H4zM17 9a5 5 0 0 1 0 6M20 6a9 9 0 0 1 0 12" /></>}
+    {kind === 'minimize' && <path d="M5 17h14" />}
+    {kind === 'restore' && <path d="M5 10V5h5M14 5h5v5M19 14v5h-5M10 19H5v-5" />}
+    {kind === 'hangup' && <path d="M3 15v-4c5-5 13-5 18 0v4l-5-1v-3a15 15 0 0 0-8 0v3z" />}
+    {off && <path d="m3 3 18 18" />}
+  </svg>;
+}
+
+function CtrlBtn({ icon, label, pressed, danger, disabled, onClick }) {
+  return <button type="button" className={`gcm-control${danger ? ' gcm-control--danger' : ''}`}
+    aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick}>
+    <span className="gcm-control-icon">{icon}</span><span>{label}</span>
+  </button>;
 }

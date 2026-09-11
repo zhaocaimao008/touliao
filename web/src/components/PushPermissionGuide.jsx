@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useI18n } from '../contexts/I18nContext';
+import './PermissionGuide.css';
 
 const LS_KEY = 'touliao_push_guide_dismissed';
 
@@ -68,49 +69,13 @@ export default function PushPermissionGuide({ permission, onEnable }) {
     setDismissed(true);
   };
 
-  // 定位：让开固定顶栏 + 安全区（避免盖住返回键/会话名），并且**必须错开
-  // CallSoundGuide 一行**。两者对首次访问的网页用户是同时满足条件的（铃声引导没点过、
-  // 通知权限还是 default），如果坐标完全相同，z-index 低的那个不是"叠在下面"，
-  // 而是被整个盖住——看不见也点不到。故这里下移一整条横幅的高度（约 40px）。
-  const style = {
-    position: 'fixed',
-    top: 'calc(var(--header-h, 54px) + env(safe-area-inset-top, 0px) + 8px + 44px)',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    zIndex: 9998,   // 与 CallSoundGuide(9999) 无重叠，这里只是保持一个确定的先后
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '8px 14px',
-    borderRadius: 999,
-    background: 'rgba(23,29,48,0.95)',
-    color: '#fff',
-    fontSize: 13,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
-    maxWidth: 'calc(100vw - 24px)',
-  };
-
   return (
-    <div style={style} role="status">
-      <span>🔔 {t('pushGuide.text')}</span>
-      <button
-        onClick={enable}
-        style={{
-          border: 'none', borderRadius: 999, padding: '4px 14px',
-          background: 'var(--color-primary)', color: '#fff', fontSize: 13, cursor: 'pointer',
-        }}
-      >
-        {t('pushGuide.enable')}
-      </button>
-      <button
-        onClick={later}
-        style={{
-          border: 'none', borderRadius: 999, padding: '4px 10px',
-          background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 12, cursor: 'pointer',
-        }}
-      >
-        {t('pushGuide.later')}
-      </button>
+    <div className="permission-guide" role="status">
+      <span>{t('pushGuide.text')}</span>
+      <div className="permission-guide-actions">
+        <button type="button" onClick={enable}>{t('pushGuide.enable')}</button>
+        <button type="button" onClick={later}>{t('pushGuide.later')}</button>
+      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import { prewarmAudio } from '../utils/callTones';
+import { createVoiceRecorder, recordedVoice } from '../utils/voiceRecording';
 import VideoPreview from './VideoPreview';
 import FilePreview from './FilePreview';
 import VirtualMessageList from './VirtualMessageList';
@@ -1974,27 +1975,32 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const startRecording = async () => {
     if (recordingLockRef.current) return; // 已在录音/正在开麦，忽略重复触发
     recordingLockRef.current = true;
+    let stream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const recorder = new MediaRecorder(stream);
+      const recorder = createVoiceRecorder(stream);
       const chunks = [];
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' });
+        stream.getTracks().forEach(t => t.stop());
+        let recording;
+        try { recording = recordedVoice(chunks, recorder); }
+        catch { showToast(t('chat.voiceSendFailed'), 'error'); return; }
+        const { blob, mimeType, filename } = recording;
         if (blob.size < 1000) { stream.getTracks().forEach(t => t.stop()); return; } // too short
         setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'uploading' });
         const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
         try {
           let publicUrl;
           try {
-            ({ publicUrl } = await uploadToCloud(blob, 'audio/webm', 'voice.webm', onProg));
+            ({ publicUrl } = await uploadToCloud(blob, mimeType, filename, onProg));
           } catch (cloudErr) {
             // 与图片/文件一致:云直传失败(非400/403)回退本地上传(走后端/upload,CSP必放行)。
             // 修复"未配置云存储/Electron CSP拦截时语音消息100%失败"。
             const status = cloudErr.response?.status;
             if (status === 400 || status === 403) throw cloudErr;
-            const voiceFile = new File([blob], 'voice.webm', { type: 'audio/webm' });
+            const voiceFile = new File([blob], filename, { type: mimeType });
             await uploadLocal(voiceFile, onProg); // 后端入库+广播,无需再 emit
             setUploadState(null);
             forceScrollRef.current = true;
@@ -2008,7 +2014,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             conversationId: conversation.id,
             type:     'voice',
             file_url: publicUrl,
-            content:  'voice.webm',
+            content:  filename,
             clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
           }, (res) => { if (!res?.success) showToast(res?.error || t('chat.voiceSendFailed'), 'error'); });
           setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
@@ -2023,7 +2029,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
       recorderRef.current = recorder;
       setRecording(true);
-    } catch { showToast(t('chat.micAccessDenied'), 'error'); recordingLockRef.current = false; }
+    } catch { stream?.getTracks().forEach(t => t.stop()); showToast(t('chat.micAccessDenied'), 'error'); recordingLockRef.current = false; }
   };
 
   const stopRecording = () => {

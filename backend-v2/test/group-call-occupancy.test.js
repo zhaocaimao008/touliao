@@ -125,6 +125,21 @@ describe('group call occupancy contract', () => {
     expect(started.payload).not.toHaveProperty('requestId'); // legacy request stays compatible
   });
 
+  test('last participant leaving ends the invitation for the entire conversation', () => {
+    const io = createIoHarness();
+    const registry = createRegistry();
+    const alice = createSocket('invite-alice', 'invite-alice-web', io);
+    registerGroupCallHandler(io, alice, registry);
+    alice.handlers['group_call:start']({ conversationId: 'conv-invite-end', type: 'audio' });
+    const { callId } = alice.last('group_call:started').payload;
+    expect(io.last('group_call:invite').payload.expiresAt).toBe(Date.now() + 60000);
+    alice.handlers['group_call:leave']({ callId });
+    expect(io.last('group_call:ended')).toEqual({
+      room: 'conv-invite-end', event: 'group_call:ended', payload: { callId, reason: 'ended' },
+    });
+    expect(registry.callForUser('invite-alice')).toBeUndefined();
+  });
+
   test('start echoes its requestId only to the initiating socket', () => {
     const io = createIoHarness();
     const registry = createRegistry();

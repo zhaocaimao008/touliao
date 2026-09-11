@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
-import { showConfirm } from '../utils/toast';
+import { showConfirm, showToast } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
 import { startCallVisualAlert, stopCallVisualAlert } from '../utils/callVisualAlert';
 import { setIncomingRingtone, prewarmAudio, stopTone, startIncomingTone } from '../utils/callTones';
@@ -837,6 +837,7 @@ export default function Home() {
   }, [socket]);
 
   const [activeCall, setActiveCall] = useState(null);
+  const [groupCall, setGroupCall] = useState(null);
 
   // 来电铃声：启动时从服务端同步 user_settings.ringtone（未进过设置页的用户也生效）
   useEffect(() => {
@@ -883,7 +884,7 @@ export default function Home() {
     const onIncoming = ({ from, type, caller, callId }) => {
       setActiveCall(prev => {
         // 通话中（自己接听/正在通话，或者同账号另一台设备正在呼叫别人）忽略新来电（busy）
-        if (prev || busyElsewhereCallId) {
+        if (prev || groupCall || busyElsewhereCallId) {
           socket.emit('call:response', { to: from, accepted: false, busy: true, callId });
           return prev;
         }
@@ -904,24 +905,40 @@ export default function Home() {
     };
     socket.on('call:incoming', onIncoming);
     return () => socket.off('call:incoming', onIncoming);
-  }, [socket, showNotification, busyElsewhereCallId, t]);
+  }, [socket, showNotification, busyElsewhereCallId, groupCall, t]);
 
   // 群通话（进行中 session / 收到的邀请）——提到 Home 顶层是因为 socket 在连接时
   // 就 join 了用户所有会话的房间（backend-v2/src/realtime/index.js），邀请广播不
   // 分你当前打开的是哪个会话；此前监听器挂在 ChatWindow 内部，只有邀请所属的那个
   // 群聊恰好正打开时才收得到，别的会话/标签页收不到任何提醒（真实断点，2026-09-03 修）。
-  const [groupCall, setGroupCall] = useState(null);
   const [groupCallInvite, setGroupCallInvite] = useState(null);
 
   useEffect(() => {
     if (!socket) return;
     const onInvite = (inv) => {
-      if (groupCall || activeCall) return; // 已在通话中（1:1 或群）——忽略，加入时后端 registry 会再兜底判忙
-      setGroupCallInvite(inv);
+      if (groupCall || activeCall || !inv?.callId) return;
+      if (inv.expiresAt && inv.expiresAt <= Date.now()) return;
+      setGroupCallInvite({ ...inv, expiresAt: Math.min(inv.expiresAt || Infinity, Date.now() + 60000) });
+    };
+    const onEnded = ({ callId } = {}) => {
+      setGroupCallInvite(current => current?.callId === callId ? null : current);
     };
     socket.on('group_call:invite', onInvite);
-    return () => socket.off('group_call:invite', onInvite);
+    socket.on('group_call:ended', onEnded);
+    return () => {
+      socket.off('group_call:invite', onInvite);
+      socket.off('group_call:ended', onEnded);
+    };
   }, [socket, groupCall, activeCall]);
+
+  useEffect(() => {
+    if (!groupCallInvite) return;
+    const callId = groupCallInvite.callId;
+    const timer = setTimeout(() => {
+      setGroupCallInvite(current => current?.callId === callId ? null : current);
+    }, Math.max(0, groupCallInvite.expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [groupCallInvite]);
 
   // 群通话被叫来电铃声：收到邀请条(未加入/未拒绝)期间循环;消失即停
   const groupInviteToneRef = useRef(null);
@@ -939,16 +956,19 @@ export default function Home() {
 
   const joinGroupCall = useCallback(() => {
     if (!groupCallInvite) return;
+    if (activeCall || groupCall || busyElsewhereCallId) { showToast(t('groupCall.errorBusy'), 'info'); return; }
+    if (groupCallInvite.expiresAt <= Date.now()) { setGroupCallInvite(null); return; }
     setGroupCall({ mode: 'join', callId: groupCallInvite.callId, conversationId: groupCallInvite.conversationId, type: groupCallInvite.type });
     setGroupCallInvite(null);
-  }, [groupCallInvite]);
+  }, [groupCallInvite, activeCall, groupCall, busyElsewhereCallId, t]);
 
   // 从 ChatWindow 发起群通话（仅当前打开的群聊会调用）——session 全局挂载，
   // 与是否切走会话/关闭聊天窗口无关，行为对齐 1:1 通话的 handleStartCall。
   const handleStartGroupCall = useCallback((conversationId, type) => {
+    if (activeCall || groupCall || busyElsewhereCallId) { showToast(t('groupCall.errorBusy'), 'info'); return; }
     setGroupCallInvite(null);
     setGroupCall({ mode: 'start', conversationId, type });
-  }, []);
+  }, [activeCall, groupCall, busyElsewhereCallId, t]);
 
   const handleTabChange = (t) => {
     setTab(t);
@@ -1060,10 +1080,8 @@ export default function Home() {
 
   // 各端共用的浮层（二维码 / 添加菜单 / 建群 / 网络搜索 / 通话）
   const overlays = (
-    <>
+    <React.Fragment key="home-overlays">
       <ReconnectingBanner />
-      <CallSoundGuide />
-      <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
       {activeCall && (
         <Suspense fallback={null}>
           <CallModal
@@ -1086,12 +1104,14 @@ export default function Home() {
         </Suspense>
       )}
       {groupCallInvite && !groupCall && (
-        <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: "calc(var(--z-call) + 100)", background: 'var(--bg-ctx-menu)', color: 'var(--text-inverse)', borderRadius: 'var(--radius-lg)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 28px rgba(0,0,0,.4)' }}>
-          <span style={{ fontSize: 'var(--text-base)' }}>
+        <div className="home-group-invite" role="region" aria-label={t('groupCall.title')}>
+          <span>
             {t('chat.groupCallInviteTemplate').replace('{name}', groupCallInvite.fromName || t('chat.groupMemberDefault')).replace('{type}', groupCallInvite.type === 'video' ? t('chat.callTypeVideo') : t('chat.callTypeVoice'))}
           </span>
-          <button onClick={joinGroupCall} style={{ background: 'var(--color-primary,#6D5AE6)', color: 'var(--text-inverse)', border: 0, borderRadius: 'var(--radius-input)', padding: '6px 14px', cursor: 'pointer' }}>{t('chat.join')}</button>
-          <button onClick={() => setGroupCallInvite(null)} style={{ background: 'transparent', color: 'rgba(255,255,255,.6)', border: 0, cursor: 'pointer' }}>{t('chat.ignore')}</button>
+          <div className="home-group-invite-actions">
+            <button type="button" onClick={joinGroupCall}>{t('chat.join')}</button>
+            <button type="button" onClick={() => setGroupCallInvite(null)}>{t('chat.ignore')}</button>
+          </div>
         </div>
       )}
       {showQR && (
@@ -1150,7 +1170,7 @@ export default function Home() {
           <ScanQR onClose={handleScanDone} />
         </Suspense>
       )}
-    </>
+    </React.Fragment>
   );
 
   // ── 移动端布局（宽度 < 768 或原生 App）：底部 TabBar + 全屏页 + 全屏聊天 ──
@@ -1195,6 +1215,8 @@ export default function Home() {
                   <span className="m-title">{mLabel(tab)}</span>
                 </div>
               )}
+              <CallSoundGuide />
+            <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
               <div className="m-content">
                 {search.trim() ? (
                   <GlobalSearch query={search}
@@ -1289,6 +1311,8 @@ export default function Home() {
               </button>
             </div>
 
+            <CallSoundGuide />
+            <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
             <div className="wc-panel-content">
               {search.trim() ? (
                 <GlobalSearch

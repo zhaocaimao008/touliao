@@ -51,10 +51,12 @@ function groupCallAllowed(type) {
 // registry.callForUser(userId)。
 const groupCalls = new Map();
 
-function endCall(io, registry, callId) {
+function endCall(io, registry, callId, reason = 'ended') {
   const call = groupCalls.get(callId);
   if (!call) return;
   if (call.timer) clearTimeout(call.timer);
+  // Invited members also need to dismiss the invitation and stop ringing.
+  io.to(call.conversationId).emit('group_call:ended', { callId, reason });
   groupCalls.delete(callId);
   registry.end(callId);
   const endedAt = nowSec();
@@ -143,8 +145,7 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
       const c = groupCalls.get(callId);
       if (!c) return;
       console.warn(`[groupCall] 通话 ${callId} 超过4小时，强制结束`);
-      for (const uid of [...c.members]) io.to(`user_${uid}`).emit('group_call:ended', { callId, reason: 'timeout' });
-      endCall(io, registry, callId);
+      endCall(io, registry, callId, 'timeout');
     }, MAX_CALL_DURATION_MS);
     groupCalls.set(callId, call);
     write('INSERT INTO group_call_logs (id,conversation_id,started_by,type,participant_count) VALUES (?,?,?,?,1)',
@@ -153,7 +154,7 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     const starter = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
     // 通知会话内其他成员有群通话邀请（conversationId 房间已在连接时 join）
     socket.to(conversationId).emit('group_call:invite', {
-      callId, conversationId, type: t, from: userId,
+      callId, conversationId, type: t, from: userId, expiresAt: Date.now() + 60000,
       fromName: starter?.username, fromAvatar: starter?.avatar,
     });
     // resumeToken（Q06 全修）：只经这条直连 ack 回给发起方自己这一条 Socket，

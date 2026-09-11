@@ -79,3 +79,10 @@
 .wc-archive-header button { border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; }
 .wc-archive-header button:first-child { font-size: var(--text-xl); }
 .wc-archive-header button:disabled { cursor: default; opacity: .4; }
+
+/* Incoming invitations fit narrow screens and keep action labels intact. */
+.home-group-invite { position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: calc(var(--z-call) + 100); width: min(480px, calc(100% - 24px)); box-sizing: border-box; background: #252734; color: #fff; border: 1px solid #535566; border-radius: 16px; padding: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; box-shadow: 0 8px 28px #0005; }
+.home-group-invite > span { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.home-group-invite-actions { display: flex; gap: 8px; margin-left: auto; }
+.home-group-invite button { white-space: nowrap; min-height: 44px; padding: 8px 16px; border: 0; border-radius: 10px; background: var(--color-primary, #6d5ae6); color: #fff; cursor: pointer; }
+.home-group-invite button + button { background: #3a3c4d; }

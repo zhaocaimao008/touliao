@@ -173,7 +173,12 @@ async function verifyChatFile(filePath, originalname, claimedMime = '') {
   if (detected && DANGEROUS_DETECTED_MIMES.has(detected.mime)) {
     return { ok: false, reason: `文件真实内容为可执行/危险类型（${detected.mime}）` };
   }
-  return { ok: true, ext: '.' + ext, mime: detected?.mime || claimedMime || 'application/octet-stream' };
+  // file-type identifies the container, not whether WebM/MP4 contains video.
+  // Keep the audio classification only when the declared and detected containers match.
+  const claimedBase = claimedMime.split(';')[0].trim().toLowerCase();
+  const audioContainer = (detected?.mime === 'video/webm' && claimedBase === 'audio/webm')
+    || (detected?.mime === 'video/mp4' && claimedBase === 'audio/mp4');
+  return { ok: true, ext: '.' + ext, mime: audioContainer ? claimedBase : detected?.mime || claimedMime || 'application/octet-stream' };
 }
 
 function handleMulterError(err, req, res, next) {

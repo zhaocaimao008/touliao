@@ -125,11 +125,20 @@ function parseUrl(raw) {
 function runAllocate(target, username, credential, timeoutMs) {
   return new Promise((resolve, reject) => {
     let socket;
-    const timer = setTimeout(() => { try { socket && socket.destroy(); } catch {} reject(new Error('TURN probe timeout')); }, timeoutMs);
-
+    let finished = false;
+    const closeTransport = () => {
+      if (!socket) return;
+      try {
+        if (target.transport === 'udp') socket.close();
+        else socket.destroy();
+      } catch { /* Already closed, or failed before binding. */ }
+    };
+    const timer = setTimeout(() => finish(undefined, new Error('TURN probe timeout')), timeoutMs);
     const finish = (value, error) => {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
-      try { socket && socket.destroy(); } catch {}
+      closeTransport();
       if (error) reject(error); else resolve(value);
     };
 

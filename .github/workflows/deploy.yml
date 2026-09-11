@@ -110,7 +110,7 @@ jobs:
         run: npm run lint -- --max-warnings=0
 
   deploy:
-    name: 部署到生产服务器（45.77.131.33）
+    name: 部署到生产服务器
     needs: [test, backend-jest, web-gate]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
@@ -159,9 +159,11 @@ jobs:
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-          DEPLOY_PATH: /root/touliao/backend-v2
+          DEPLOY_PATH: /home/ubuntu/gh-mirror/touliao/backend-v2
+          DEPLOY_COMMIT: ${{ github.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 2026-09-11：新机由 ubuntu 的 PM2 运行；只对 nginx/静态目录操作使用 sudo。
           # ⚠ 用单引号 heredoc 保持脚本字面量；把变量通过远端 bash -s 的命令行 env 传进去
           #   （原脚本把 env 设在 runner 上，heredoc 里 $DEPLOY_PATH 在服务器端是空的 → cd 到家目录 → git 找不到仓库）
           #
@@ -181,9 +183,9 @@ jobs:
           for attempt in 1 2; do
             if ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -o ConnectTimeout=30 \
                 -o TCPKeepAlive=yes -i ~/.ssh/deploy_key ${DEPLOY_USER}@${DEPLOY_HOST} \
-                "DEPLOY_PATH='${DEPLOY_PATH}' GH_TOKEN='${GH_TOKEN}' bash -s" << 'DEPLOY_SCRIPT'
+                "DEPLOY_PATH='${DEPLOY_PATH}' DEPLOY_COMMIT='${DEPLOY_COMMIT}' GH_TOKEN='${GH_TOKEN}' bash -s" << 'DEPLOY_SCRIPT'
           set -e
-          REPO_ROOT="$(dirname "$DEPLOY_PATH")"   # git 仓库根 = backend-v2 的上一级（/root/touliao）
+          REPO_ROOT="$(dirname "$DEPLOY_PATH")"   # 当前生产 PM2 的工作目录位于 ubuntu 仓库中
           AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/zhaocaimao008/touliao.git"
           CLEAN_URL="https://github.com/zhaocaimao008/touliao.git"
 
@@ -200,9 +202,11 @@ jobs:
             git -C "$REPO_ROOT" remote set-url origin "$CLEAN_URL"
           fi
 
-          echo "📥 步骤 1: 拉取最新代码 (main)"
+          echo "📥 步骤 1: 拉取本次发布提交 $DEPLOY_COMMIT"
           # 记录部署前的 commit，供健康检查失败时自动回滚（生产自愈，避免坏版本长期在线）
-          PREV_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo '')"
+          DEPLOY_STATE="$REPO_ROOT/.git/touliao-last-healthy-sha"
+          PREV_SHA="$(cat "$DEPLOY_STATE" 2>/dev/null || git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo '')"
+          if [ -n "$PREV_SHA" ]; then git -C "$REPO_ROOT" cat-file -e "$PREV_SHA^{commit}"; fi
           echo "部署前版本: ${PREV_SHA:-<无（首次部署）>}"
           # touliao 允许运维直接在服务器本机改代码、事后再补 commit——reset --hard 会
           # 无声冲掉这类还没提交的直改。部署前先 stash（含未跟踪文件）保住这些改动，
@@ -214,8 +218,9 @@ jobs:
             echo "已 stash，部署完成后请手动 git stash list / git stash show -p 检查是否需要合并回来"
           fi
           # 用带 token 的 URL 显式 fetch（token 不落盘到 remote 配置）
-          git -C "$REPO_ROOT" fetch "$AUTH_URL" main
+          git -C "$REPO_ROOT" fetch "$AUTH_URL" "$DEPLOY_COMMIT"
           git -C "$REPO_ROOT" reset --hard FETCH_HEAD
+          test "$(git -C "$REPO_ROOT" rev-parse HEAD)" = "$DEPLOY_COMMIT"
 
           echo "🌐 步骤 2a: 构建 Web 前端"
           cd "$REPO_ROOT/web"
@@ -232,11 +237,11 @@ jobs:
           # 用 -a 不加 --delete：/var/www/touliao-web/ 只放构建产物，config.json 已单独
           # 存在 /var/www/touliao-runtime-config/，理论上可以 --delete，但沿用 README
           # 里"确认目录纯净前不要 --delete"的保守约定。
-          mkdir -p /var/www/touliao-web
-          cp -r /var/www/touliao-web "/var/www/touliao-web.bak-$(date -u +%Y%m%dT%H%M%SZ)" 2>/dev/null || true
+          sudo -n mkdir -p /var/www/touliao-web
+          sudo -n cp -r /var/www/touliao-web "/var/www/touliao-web.bak-$(date -u +%Y%m%dT%H%M%SZ)" 2>/dev/null || true
           # 每次部署都建一份备份，之前没有清理——留最近 10 份，多的删掉（按目录名时间戳排序）
-          ls -1dt /var/www/touliao-web.bak-* 2>/dev/null | tail -n +11 | xargs -r rm -rf
-          rsync -a "$REPO_ROOT/web/dist/" /var/www/touliao-web/
+          ls -1dt /var/www/touliao-web.bak-* 2>/dev/null | tail -n +11 | xargs -r sudo -n rm -rf
+          sudo -n rsync -a "$REPO_ROOT/web/dist/" /var/www/touliao-web/
           echo "✅ Web 已发布到 /var/www/touliao-web/"
 
           # 2026-09-04：上面 rsync 不带 --delete，旧哈希 chunk 只增不减（实测已累积
@@ -246,7 +251,7 @@ jobs:
           # 且 mtime 超过 24h 宽限期」的文件，删前 tar 备份到 backups/。清理失败不阻断
           # 部署——它不影响本次发布的正确性。
           if [ -x "$REPO_ROOT/ops/prune-web-assets.sh" ]; then
-            WEB_ROOT=/var/www/touliao-web "$REPO_ROOT/ops/prune-web-assets.sh" --apply \
+            sudo -n env WEB_ROOT=/var/www/touliao-web "$REPO_ROOT/ops/prune-web-assets.sh" --apply \
               || echo "⚠ 资产清理失败（不阻断部署）"
           fi
 
@@ -260,7 +265,8 @@ jobs:
           pm2 save || true
 
           echo "🔄 步骤 3b: Reload nginx（使静态文件变更立即生效）"
-          nginx -s reload 2>/dev/null || kill -HUP $(cat /run/nginx.pid 2>/dev/null || cat /var/run/nginx.pid 2>/dev/null) 2>/dev/null || true
+          sudo -n nginx -t
+          sudo -n nginx -s reload
 
           echo "✅ 步骤 4: 健康检查"
           sleep 5
@@ -279,7 +285,7 @@ jobs:
               echo "↩️  自动回滚到部署前版本 $PREV_SHA"
               git -C "$REPO_ROOT" reset --hard "$PREV_SHA"
               if cd "$REPO_ROOT/web" && npm ci && npm run build; then
-                rsync -a "$REPO_ROOT/web/dist/" /var/www/touliao-web/
+                sudo -n rsync -a "$REPO_ROOT/web/dist/" /var/www/touliao-web/
                 echo "✅ 回滚后 Web 已重新发布"
               else
                 echo "⚠ 回滚 web 构建失败，/var/www/touliao-web/ 保留新版产物未回退"
@@ -301,7 +307,9 @@ jobs:
             fi
             exit 1   # 无论是否回滚成功，本次部署都判失败（触发失败通知）
           fi
-          echo "🎉 部署完成 $(date)"
+          printf '%s\n' "$DEPLOY_COMMIT" > "$DEPLOY_STATE.tmp"
+          mv "$DEPLOY_STATE.tmp" "$DEPLOY_STATE"
+          echo "🎉 部署完成 $(date) | commit=$DEPLOY_COMMIT"
 
           DEPLOY_SCRIPT
             then
