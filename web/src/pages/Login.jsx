@@ -4,7 +4,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
-import { timeoutSignal } from '../utils/config';
+import { timeoutSignal, resolveTenantCode } from '../utils/config';
 import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 import { showToast } from '../utils/toast';
 
@@ -62,7 +62,7 @@ export default function Login() {
     setRemember(hasCred(p));
   };
 
-  // ── 服务器切换（仅桌面端，登录前即可切换，无需重装） ──
+  // ── 服务器切换（登录前即可切换，无需重装） ──
   // 地址来自 localStorage（手动切换）或远程配置（CONFIG_URLS：touliao.cc）
   // 不再硬编码任何域名（统一走远程配置解析出的后端）
   const currentServer = localStorage.getItem('touliao_server_url') || axios.defaults.baseURL || '';
@@ -70,6 +70,31 @@ export default function Login() {
   const [serverInput, setServerInput] = useState(currentServer);
   const [serverTest, setServerTest] = useState(null);
   const [serverBusy, setServerBusy] = useState(false);
+
+  // 企业代码：多个客户共用同一份 App/Web 构建、各自独立服务器时，靠这个短代码
+  // 查 directory.json 解析出客户自己的服务器地址，不需要用户知道完整域名。
+  // 必须在登录之前就能填——账号本来就建在客户自己的服务器上，不换过去根本登录不了，
+  // 而换服务器的入口如果只留在登录后的「设置」里，用户永远进不去（见 web/src/components/Profile.jsx 的
+  // ServerSettings：那是给已登录用户后续再切用的，不能替代登录前这一入口）。
+  const [tenantCode, setTenantCode] = useState('');
+  const [resolvingTenant, setResolvingTenant] = useState(false);
+  const [tenantResult, setTenantResult] = useState(null);
+
+  const handleResolveTenantCode = async () => {
+    const code = tenantCode.trim();
+    if (!code) return;
+    setResolvingTenant(true); setTenantResult(null);
+    const entry = await resolveTenantCode(code);
+    if (!entry) {
+      setTenantResult({ ok: false, msg: t('profile.tenantCodeNotFound') });
+      setResolvingTenant(false);
+      return;
+    }
+    setTenantResult({ ok: true, msg: entry.name ? t('profile.tenantCodeFound').replace('{name}', entry.name) : t('profile.serverConnectSuccess') });
+    localStorage.setItem('touliao_server_url', entry.api);
+    axios.defaults.baseURL = entry.api;
+    window.location.reload();
+  };
 
   const testServer = async () => {
     const url = serverInput.trim().replace(/\/$/, '');
@@ -320,44 +345,77 @@ export default function Login() {
           </div>
         )}
 
-        {/* 服务器切换 — 仅桌面端 */}
-        {isElectron && (
-          <div className="auth-server">
-            {!showServer ? (
-              <button type="button" className="auth-server-toggle" onClick={() => setShowServer(true)}>
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style={{ marginRight: 5, verticalAlign: '-2px' }}>
-                  <path d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm2-5a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>
-                </svg>
-                {t('auth.currentServerLabel')}{currentServer.replace(/^https?:\/\//, '')} · {t('auth.switchServer')}
-              </button>
-            ) : (
-              <div className="auth-server-panel">
-                <div className="auth-server-title">{t('auth.serverAddressLabel')}</div>
+        {/* 服务器切换 — 登录前即可用：网页端和桌面端都能填企业代码；
+            手动填完整地址目前仍只对桌面端开放（网页端正常都是同域相对路径，不需要）。 */}
+        <div className="auth-server">
+          {!showServer ? (
+            <button type="button" className="auth-server-toggle" data-testid="login-switch-server-toggle" onClick={() => setShowServer(true)}>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style={{ marginRight: 5, verticalAlign: '-2px' }}>
+                <path d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm2-5a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>
+              </svg>
+              {currentServer ? `${t('auth.currentServerLabel')}${currentServer.replace(/^https?:\/\//, '')} · ` : ''}{t('auth.switchServer')}
+            </button>
+          ) : (
+            <div className="auth-server-panel">
+              <div className="auth-server-title">{t('profile.tenantCodeLabel')}</div>
+              <div className="auth-tenant-row">
                 <input
                   className="auth-server-input"
-                  aria-label={t('auth.serverAddressLabel')}
-                  value={serverInput}
-                  onChange={e => { setServerInput(e.target.value); setServerTest(null); }}
-                  placeholder={t('auth.serverPlaceholder')}
+                  aria-label={t('profile.tenantCodeLabel')}
+                  data-testid="login-tenant-code-input"
+                  value={tenantCode}
+                  onChange={e => { setTenantCode(e.target.value); setTenantResult(null); }}
+                  placeholder={t('profile.tenantCodePlaceholder')}
                   autoCapitalize="none"
                   spellCheck={false}
                 />
-                {serverTest && (
-                  <div className="auth-server-result" role="alert" style={{ color: serverTest.ok ? 'var(--green)' : 'var(--color-danger)' }}>
-                    {serverTest.msg}
-                  </div>
-                )}
-                <div className="auth-server-btns">
-                  <button type="button" onClick={testServer} disabled={serverBusy} className="auth-server-btn ghost">
-                    {serverBusy ? t('auth.testing') : t('auth.testConnection')}
-                  </button>
-                  <button type="button" onClick={saveServer} className="auth-server-btn primary">{t('auth.saveAndSwitch')}</button>
-                </div>
-                <button type="button" className="auth-server-cancel" onClick={() => { setShowServer(false); setServerInput(currentServer); setServerTest(null); }}>{t('common.cancel')}</button>
+                <button
+                  type="button"
+                  onClick={handleResolveTenantCode}
+                  disabled={resolvingTenant || !tenantCode.trim()}
+                  className="auth-server-btn primary"
+                  data-testid="login-tenant-code-connect"
+                >
+                  {resolvingTenant ? t('profile.tenantCodeResolving') : t('profile.tenantCodeResolve')}
+                </button>
               </div>
-            )}
-          </div>
-        )}
+              {tenantResult && (
+                <div className="auth-server-result" role="alert" style={{ color: tenantResult.ok ? 'var(--green)' : 'var(--color-danger)' }}>
+                  {tenantResult.msg}
+                </div>
+              )}
+              <div className="auth-server-hint">{t('profile.tenantCodeHint')}</div>
+
+              {isElectron && (
+                <>
+                  <div className="auth-server-title" style={{ marginTop: 'var(--sp-4)' }}>{t('auth.serverAddressLabel')}</div>
+                  <input
+                    className="auth-server-input"
+                    aria-label={t('auth.serverAddressLabel')}
+                    value={serverInput}
+                    onChange={e => { setServerInput(e.target.value); setServerTest(null); }}
+                    placeholder={t('auth.serverPlaceholder')}
+                    autoCapitalize="none"
+                    spellCheck={false}
+                  />
+                  {serverTest && (
+                    <div className="auth-server-result" role="alert" style={{ color: serverTest.ok ? 'var(--green)' : 'var(--color-danger)' }}>
+                      {serverTest.msg}
+                    </div>
+                  )}
+                  <div className="auth-server-btns">
+                    <button type="button" onClick={testServer} disabled={serverBusy} className="auth-server-btn ghost">
+                      {serverBusy ? t('auth.testing') : t('auth.testConnection')}
+                    </button>
+                    <button type="button" onClick={saveServer} className="auth-server-btn primary">{t('auth.saveAndSwitch')}</button>
+                  </div>
+                </>
+              )}
+
+              <button type="button" className="auth-server-cancel" onClick={() => { setShowServer(false); setServerInput(currentServer); setServerTest(null); setTenantCode(''); setTenantResult(null); }}>{t('common.cancel')}</button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
