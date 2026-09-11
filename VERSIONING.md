@@ -2,6 +2,8 @@
 
 > 目的：终结历史上「一个裸 `v*` tag 同时误触发桌面端 + 安卓 + iOS 发布」和
 > 「tag 数字与实际产物版本对不上」的混乱。本规范为唯一真相来源。
+>
+> 表格版本号最后校对：2026-09-11（校对方式：直接读各端 manifest，不抄旧文档）。
 
 ## 1. 各端版本号 = 各自的 manifest（单一真相源 / SSOT）
 
@@ -9,16 +11,18 @@
 
 | 端 | 版本真相源文件 | 字段 | 当前版本 |
 |----|--------------|------|---------|
-| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 2.0.57 |
-| 桌面端渲染层内嵌 | `desktop-electron/src/package.json` | `version` | 与上一致（2.0.57） |
-| Web 前端 | `web/package.json` | `version` | 2.0.19 |
-| 后端 | `backend-v2/package.json` | `version` | 2.0.0 |
-| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 1.0.50 / code 51 |
-| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 1.0.33 / build 32 |
-| 后端发现配置 | `vxin-config/config.json` | `version` | 2.0.1 |
+| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 8.1.17 |
+| Web 前端 | `web/package.json` | `version` | 8.1.17 |
+| 后端 | `backend-v2/package.json` | `version` | 8.0.0 |
+| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 8.1.18 / code 80 |
+| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 8.1.18 / build 37 |
+| 运行时发现配置（不在本仓库） | 生产机 `/var/www/touliao-runtime-config/{config.json,directory.json}` | `api` / 租户代码表 | 运维手工维护 |
 
 > 桌面端走 electron-updater：`latest.yml` 的 `version` **必须**等于
 > `desktop-electron/package.json` 的 `version`，且每次发布**必须递增**，否则客户端认为「无更新」。
+>
+> 注：`desktop-electron/src/package.json` 是渲染层内嵌包描述，**不含 `version` 字段**，
+> 不参与版本判定（早期文档曾把它列为真相源，已修正）。
 
 ## 2. Tag 命名规范：带端前缀，各触发各的发布
 
@@ -26,11 +30,11 @@
 
 | tag 形态 | 触发的工作流 | 用途 |
 |---------|------------|------|
-| `desktop-v<版本>`（如 `desktop-v2.0.5`） | `.github/workflows/windows-build.yml` | 桌面端打包 + 部署更新源 |
-| `android-v<版本>`（如 `android-v1.0.2`） | `.github/workflows/android-release.yml` | 安卓签名 APK + 部署 |
-| `ios-v<版本>`（如 `ios-v1.0.10`） | `.github/workflows/ios-testflight.yml` | iOS 构建 + 上传 TestFlight + 自动送外部 Beta 审核 |
+| `desktop-v<版本>`（如 `desktop-v8.1.17`） | `.github/workflows/windows-build.yml` | 桌面端打包 + 部署更新源 |
+| `android-v<版本>`（如 `android-v8.1.18`） | `.github/workflows/android-release.yml` | 安卓签名 APK + 部署 |
+| `ios-v<版本>`（如 `ios-v8.1.18`） | `.github/workflows/ios-testflight.yml` | iOS 构建 + 上传 TestFlight + 自动送外部 Beta 审核 |
 
-版本号部分**与该端 manifest 的版本号一致**（如 `desktop-v2.0.5` ↔ desktop package.json `2.0.5`）。
+版本号部分**与该端 manifest 的版本号一致**（如 `desktop-v8.1.17` ↔ desktop package.json `8.1.17`）。
 
 ## 3. 发布流程（以桌面端为例）
 
@@ -38,8 +42,8 @@
 2. 提交合并到 `main`。
 3. 打 tag：`git tag -a desktop-v<新版本> -m "..." && git push origin desktop-v<新版本>`。
 4. `windows-build.yml` 自动：Windows 打包 → 上传 `.exe`/`latest.yml`/`.blockmap`
-   → SCP 部署到香港服务器 `/var/www/downloads/updates/`。
-5. 验证 `https://dipsin.com/downloads/updates/latest.yml` 的 `version` 已是新版本。
+   → SCP 部署到生产机（当前新加坡 `13.212.117.22`）`/var/www/downloads/updates/`。
+5. 验证 `https://touliao.cc/downloads/updates/latest.yml` 的 `version` 已是新版本。
 
 安卓同理，改 `versionName`/`versionCode` → 打 `android-v<版本>` tag。
 
@@ -57,5 +61,8 @@
 | `v2.0.5` | 桌面端 2.0.5 白屏修复发布（**已由 `desktop-v2.0.5` 取代其语义**） |
 | `v2.2.0` | 8 功能特性里程碑（非发布产物） |
 
+> ⚠️ 项目在 2026-08-13 统一重置到 `8.x` 版本体系（伴随 `v信` → `投聊` 改名），
+> 上表 `2.0.x` 及更早的 `1.0.x` 版本线已全部作废，仅作历史留痕。
+>
 > ⚠️ `v2.0.5` 这个裸 tag 曾同时误触发了一次安卓构建（run 29077152693），正是本规范
 > 要杜绝的问题。自本规范起，桌面端发布用 `desktop-v*`。
