@@ -11,7 +11,7 @@
 
 | 端 | 版本真相源文件 | 字段 | 当前版本 |
 |----|--------------|------|---------|
-| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 8.1.17 |
+| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 8.1.18 |
 | Web 前端 | `web/package.json` | `version` | 8.1.17 |
 | 后端 | `backend-v2/package.json` | `version` | 8.0.0 |
 | Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 8.1.18 / code 80 |
