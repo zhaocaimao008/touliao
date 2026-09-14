@@ -255,6 +255,18 @@ jobs:
               || echo "⚠ 资产清理失败（不阻断部署）"
           fi
 
+          echo "📤 步骤 2a-2: 发布后台管理面板到 /var/www/touliao-admin/"
+          # ⚠ 2026-09-14 补上的缺口：admin/ 面板此前只有「人工复制到服务器」这一步
+          # （没有任何脚本/流水线管它），换服务器后 /var/www/touliao-admin/ 目录消失，
+          # 加上线上 nginx 也缺 /admin/ location，导致 https://touliao.cc/admin/
+          # 被 SPA fallback 接管、显示前端页面而非登录后台。两个缺口一起补：
+          #   1) 本步骤负责把 admin/ 同步到站点目录
+          #   2) nginx 的 /admin/ location 见 deploy/nginx/touliao-cc.conf（需人工
+          #      同步到线上 /etc/nginx/sites-enabled/touliao-cc.conf 后 reload）
+          sudo -n mkdir -p /var/www/touliao-admin
+          sudo -n rsync -a "$REPO_ROOT/admin/" /var/www/touliao-admin/
+          echo "✅ 后台面板已发布到 /var/www/touliao-admin/"
+
           echo "📦 步骤 2b: 安装后端生产依赖"
           cd "$DEPLOY_PATH"
           npm ci --omit=dev
