@@ -34,6 +34,7 @@ class SessionManager @Inject constructor(
     private val tokenStore: com.touliao.app.core.storage.TokenStore,
     private val accountStore: com.touliao.app.core.storage.AccountStore,
     private val msgCacheStore: com.touliao.app.core.storage.MsgCacheStore,
+    private val notificationHelper: com.touliao.app.core.push.NotificationHelper,
     authInterceptor: AuthInterceptor,
     @AppScope private val scope: CoroutineScope,
 ) {
@@ -44,6 +45,7 @@ class SessionManager @Inject constructor(
         scope.launch {
             authInterceptor.unauthorizedEvents.collect { marker ->
                 tokenStore.withCurrent(marker) {
+                    notificationHelper.clearAccountNotifications()
                     socketManager.disconnect()
                     msgCacheStore.clear()
                     _state.value = AuthState.Unauthenticated
@@ -74,6 +76,7 @@ class SessionManager @Inject constructor(
     fun onAuthenticated(user: User) {
         if (accountStore.activeId() != user.id) return
         tokenStore.beginIdentityChange()
+        notificationHelper.clearAccountNotifications()
         // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
         socketManager.disconnect()
         msgCacheStore.clear()          // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
@@ -102,6 +105,7 @@ class SessionManager @Inject constructor(
     fun switchAccount(accountId: String) {
         val token = accountStore.tokenFor(accountId) ?: return
         tokenStore.beginIdentityChange()
+        notificationHelper.clearAccountNotifications()
         _state.value = AuthState.Loading
         val operation = tokenStore.snapshot()
         scope.launch {
@@ -128,12 +132,14 @@ class SessionManager @Inject constructor(
             accountStore.activeId()?.let { accountStore.updateToken(it, token) }
             socketManager.disconnect()
             socketManager.connect()
+            pushManager.registerCurrentToken()
         }
     }
 
     /** 注销账户成功后本地收尾：与 logout 一致清理，回到登录页。 */
     suspend fun deleteAccount() {
         tokenStore.beginIdentityChange()
+        notificationHelper.clearAccountNotifications()
         val credential = tokenStore.snapshot()
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前
         tokenStore.withCurrent(credential) {
@@ -147,6 +153,7 @@ class SessionManager @Inject constructor(
 
     suspend fun logout() {
         tokenStore.beginIdentityChange()
+        notificationHelper.clearAccountNotifications()
         val credential = tokenStore.snapshot()
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前
         if (!tokenStore.isCurrent(credential)) return

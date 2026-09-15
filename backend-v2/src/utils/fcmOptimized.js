@@ -1,4 +1,5 @@
 'use strict';
+const deviceOwnership = require('./devicePushOwnership');
 /**
  * Android FCM 优化推送模块
  * 优化项:
@@ -60,6 +61,7 @@ function getPriority(messageType, isSilentHour = false) {
 // ── 消息大小控制 (确保不超过 4KB) ──────────────────────────────────
 function compressData(data) {
   return {
+    recipientId: String(data.recipientId || ''),
     conversationId: data.conversationId || '',
     senderId: data.senderId || '',
     timestamp: String(data.timestamp || Date.now()),
@@ -127,6 +129,7 @@ async function sendBatchAndroidNotifications(userId, payload) {
         body: payload.body,
       },
       data: compressData({
+        recipientId: String(userId),
         conversationId: payload.conversationId,
         senderId: payload.senderId,
         timestamp: payload.timestamp,
@@ -183,7 +186,7 @@ async function sendBatchAndroidNotifications(userId, payload) {
         if (error.code === 'messaging/invalid-registration-token' ||
             error.code === 'messaging/registration-token-not-registered') {
           console.debug(`[FCM] 清理失效 Token: ${tokens[idx].id}`);
-          db.prepare('DELETE FROM device_tokens WHERE id=?').run(tokens[idx].id);
+          deviceOwnership.forget(tokens[idx]);
         }
       }
     });

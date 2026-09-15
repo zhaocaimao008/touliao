@@ -24,6 +24,8 @@ import javax.inject.Singleton
 @Singleton
 class NotificationHelper @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val accountStore: com.touliao.app.core.storage.AccountStore,
+    private val tokenStore: com.touliao.app.core.storage.TokenStore,
 ) {
     init { createChannel() }
 
@@ -32,7 +34,16 @@ class NotificationHelper @Inject constructor(
     // synchronized(lines) 内完成，防止并发消息到达时互相打断导致丢行/状态错乱/CME。
     private val pendingLines = ConcurrentHashMap<String, ArrayDeque<String>>()
 
-    fun showMessageNotification(title: String, body: String, conversationId: String?, unreadCount: Int? = null) {
+    fun acceptsRecipient(recipientId: String?) = PushRecipient.matches(recipientId, accountStore.activeId(), tokenStore.isLoggedIn)
+
+    fun clearAccountNotifications() {
+        pendingLines.clear()
+        NotificationManagerCompat.from(context).cancelAll()
+        com.touliao.app.navigation.PendingConversationHolder.conversationId.value = null
+    }
+
+    fun showMessageNotification(title: String, body: String, conversationId: String?, unreadCount: Int? = null, recipientId: String? = accountStore.activeId()) {
+        if (!acceptsRecipient(recipientId)) return
         val convId = conversationId ?: "global"
         val lines = pendingLines.getOrPut(convId) { ArrayDeque() }
 
@@ -46,6 +57,8 @@ class NotificationHelper @Inject constructor(
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 conversationId?.let { putExtra(EXTRA_CONVERSATION_ID, it) }
+                putExtra(EXTRA_RECIPIENT_ID, recipientId)
+                data = android.net.Uri.Builder().scheme("touliao").authority("notification").appendPath(recipientId).appendPath(convId).build()
             }
             // requestCode 仅用于区分 PendingIntent 身份（不同会话点击后带不同 extra），
             // 与下面 notify() 的 tray 身份无关，取 convId.hashCode() 足够。
@@ -127,7 +140,8 @@ class NotificationHelper @Inject constructor(
      * data 来自后端 data-only FCM（type=call）。点击/接听/拒绝均拉起 MainActivity 并带 extra，
      * 由 MainActivity 交给 CallManager 进入 INCOMING（accept 时并置接听意图）。
      */
-    fun showCallNotification(callId: String, from: String, callerName: String, callType: String) {
+    fun showCallNotification(callId: String, from: String, callerName: String, callType: String, recipientId: String? = accountStore.activeId()) {
+        if (!acceptsRecipient(recipientId)) return
         fun callIntent(action: String) = Intent(context, MainActivity::class.java).apply {
             this.action = action
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -135,6 +149,8 @@ class NotificationHelper @Inject constructor(
             putExtra(EXTRA_CALL_FROM, from)
             putExtra(EXTRA_CALL_NAME, callerName)
             putExtra(EXTRA_CALL_TYPE, callType)
+            putExtra(EXTRA_RECIPIENT_ID, recipientId)
+            data = android.net.Uri.Builder().scheme("touliao").authority("call").appendPath(recipientId).appendPath(callId).build()
         }
         val reqBase = from.hashCode()
         val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -204,6 +220,7 @@ class NotificationHelper @Inject constructor(
         const val CHANNEL_ID = "vxin_messages_v3"
         const val CALL_CHANNEL_ID = "vxin_calls"
         const val EXTRA_CONVERSATION_ID = "conversationId"
+        const val EXTRA_RECIPIENT_ID = "recipientId"
         // 消息通知固定 id：配合 notify(tag=convId, id=...) 使用，身份由 tag 区分，
         // 不依赖进程内计数器，跨进程重启保持稳定（见 F4 修复说明）。
         const val MESSAGE_NOTIFICATION_ID = 1000

@@ -82,6 +82,7 @@ final class SessionStore: ObservableObject {
     func onAuthenticated(_ user: User) {
         guard AccountStore.shared.activeId() == user.id else { return }
         KeychainStore.shared.beginIdentityChange()
+        PushManager.shared.clearDisplayedNotifications()
         // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
         SocketService.shared.disconnect()
         MsgCacheStore.shared.clear()   // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
@@ -145,6 +146,7 @@ final class SessionStore: ObservableObject {
             if let active = AccountStore.shared.activeId() { AccountStore.shared.updateToken(active, token) }
             SocketService.shared.disconnect()
             SocketService.shared.connect()
+            PushManager.shared.refreshRegistrationIfNeeded()
         }
     }
 

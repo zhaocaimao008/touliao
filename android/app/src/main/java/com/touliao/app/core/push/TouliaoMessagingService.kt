@@ -24,6 +24,7 @@ class TouliaoMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
+        if (!notificationHelper.acceptsRecipient(data["recipientId"])) return
         // 来电推送（后端 data-only：type=call）→ 走全屏来电通知，不当普通消息处理
         if (data["type"] == "call") {
             notificationHelper.showCallNotification(
@@ -31,6 +32,7 @@ class TouliaoMessagingService : FirebaseMessagingService() {
                 from = data["from"].orEmpty(),
                 callerName = data["callerName"].orEmpty(),
                 callType = data["callType"] ?: "audio",
+                recipientId = data["recipientId"],
             )
             return
         }
@@ -43,6 +45,6 @@ class TouliaoMessagingService : FirebaseMessagingService() {
         // badge 为后端 SQL COUNT(未读)>last_read_at 算出的真实未读数（见 push.js pushNewMessage），
         // 用它做角标而非本地聚合条数（本地最多只缓存 5 条摘要，不能代表真实未读）。
         val badge = data["badge"]?.toIntOrNull()
-        notificationHelper.showMessageNotification(title, body, data["conversationId"], badge)
+        notificationHelper.showMessageNotification(title, body, data["conversationId"], badge, data["recipientId"])
     }
 }

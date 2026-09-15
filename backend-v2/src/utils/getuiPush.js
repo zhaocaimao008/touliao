@@ -134,6 +134,7 @@ async function pushToCid(cid, { title, body, payload }) {
     type: payload?.type || '',      // 事件类型（message/call/friend_request…），客户端据此区分展示/跳转（NOTIFY-004 P1-2）
     conversationId: payload?.conversationId || '',
     senderId: payload?.senderId || '',
+    recipientId: String(payload?.recipientId || ''),
   });
   const message = {
     request_id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
@@ -153,7 +154,7 @@ async function pushToCid(cid, { title, body, payload }) {
       android: {
         ups: {
           notification: { title, body, click_type: 'intent',
-            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;${payload?.conversationId ? `S.conversationId=${encodeURIComponent(payload.conversationId)};` : ''}end` },
+            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;S.recipientId=${encodeURIComponent(payload?.recipientId || '')};${payload?.conversationId ? `S.conversationId=${encodeURIComponent(payload.conversationId)};` : ''}end` },
           // 各厂商离线厂商通道 options（保证锁屏送达）
           options: {
             HW: { '/message/android/notification/importance': 'HIGH' },
@@ -175,7 +176,7 @@ async function pushToCid(cid, { title, body, payload }) {
  *    callId/callFrom/callerName/callType（与 NotificationHelper.EXTRA_CALL_* 键名对齐），
  *    MainActivity 识别后重建来电界面（被杀场景兜底，无法全屏但保证可见+可点接听）。
  */
-async function pushCallToCid(cid, { callId, from, callerName, callType, lang }) {
+async function pushCallToCid(cid, { callId, from, callerName, callType, lang, recipientId }) {
   const token = await getToken();
   const t = callType === 'video' ? 'video' : 'audio';
   // 文案按【被叫方】语言渲染（lang 由 push.js 的 pushCallInvite 解析后传入）。
@@ -187,6 +188,7 @@ async function pushCallToCid(cid, { callId, from, callerName, callType, lang }) 
   const transmissionPayload = JSON.stringify({
     title, body,
     type: 'call',
+    recipientId: String(recipientId || ''),
     callId: String(callId || ''),
     from: String(from || ''),
     callerName: String(callerName || ''),
@@ -206,7 +208,7 @@ async function pushCallToCid(cid, { callId, from, callerName, callType, lang }) 
             click_type: 'intent',
             // 键名须与 NotificationHelper.EXTRA_CALL_ID/FROM/NAME/TYPE 一致：
             // callId / callFrom / callerName / callType（注意 from 在 intent 里是 callFrom）
-            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;S.callId=${encodeURIComponent(callId || '')};S.callFrom=${encodeURIComponent(from || '')};S.callerName=${encodeURIComponent(callerName || '')};S.callType=${t};end`,
+            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;S.recipientId=${encodeURIComponent(recipientId || '')};S.callId=${encodeURIComponent(callId || '')};S.callFrom=${encodeURIComponent(from || '')};S.callerName=${encodeURIComponent(callerName || '')};S.callType=${t};end`,
           },
           options: {
             HW: { '/message/android/notification/importance': 'HIGH' },

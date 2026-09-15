@@ -6,4 +6,4 @@ import kotlinx.serialization.Serializable
 data class DeviceTokenRequest(val token: String, val platform: String = "android")
 
 @Serializable
-data class DeleteTokenRequest(val token: String)
+data class DeleteTokenRequest(val token: String? = null)

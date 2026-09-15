@@ -7,6 +7,7 @@ import okhttp3.Interceptor
 import okhttp3.Response
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.io.IOException
 
 /**
  * 为每个请求自动注入 Authorization: Bearer <token>。
@@ -22,7 +23,9 @@ class AuthInterceptor @Inject constructor(
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
-        val credential = tokenStore.snapshot()
+        val owner = original.tag(TokenStore.Snapshot::class.java)
+        val credential = owner ?: tokenStore.snapshot()
+        if (owner != null && !tokenStore.isCurrent(owner)) throw IOException("Account changed before request")
         val request = credential.token?.let { token ->
             original.newBuilder()
                 .header("Authorization", "Bearer $token")

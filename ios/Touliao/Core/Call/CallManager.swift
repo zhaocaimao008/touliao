@@ -457,7 +457,7 @@ final class CallManager: NSObject, ObservableObject {
         content.body = callType == "video" ? "邀请你视频通话" : "邀请你语音通话"
         content.sound = .default
         content.categoryIdentifier = "INCOMING_CALL"
-        content.userInfo = ["from": from, "callType": callType, "callerName": callerName, "callId": callId]
+        content.userInfo = ["from": from, "callType": callType, "callerName": callerName, "callId": callId, "recipientId": AccountStore.shared.activeId() ?? ""]
 
         let request = UNNotificationRequest(
             // AUDIT P3: identifier 带 callId——同对端连续两通来电通知不再互相覆盖

@@ -78,9 +78,10 @@ const { pushCallInvite } = require('../src/utils/push');
 const { db } = require('../src/db/connection');
 
 function insertToken(userId, id, token, platform) {
+  const sessionId = db.prepare('SELECT id FROM auth_sessions WHERE user_id=? LIMIT 1').get(userId).id;
   db.prepare(
-    'INSERT OR REPLACE INTO device_tokens (id, user_id, token, platform) VALUES (?,?,?,?)'
-  ).run(id, userId, token, platform);
+    'INSERT OR REPLACE INTO device_tokens (id, user_id, token, platform, session_id) VALUES (?,?,?,?,?)'
+  ).run(id, userId, token, platform, sessionId);
 }
 
 describe('来电推送个推通道（pushCallInvite getui 覆盖）', () => {
