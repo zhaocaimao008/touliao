@@ -1,17 +1,22 @@
 param([Parameter(Mandatory=$true)][string]$Exe)
 $ErrorActionPreference = 'Stop'
 $shell = New-Object -ComObject WScript.Shell
-$shortcut = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('CommonDesktopDirectory')) |
+$links = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('CommonDesktopDirectory')) |
   ForEach-Object { Get-ChildItem $_ -Filter '*.lnk' -ErrorAction SilentlyContinue } |
-  Where-Object { $shell.CreateShortcut($_.FullName).TargetPath -eq $Exe } |
+  ForEach-Object { @{path=$_.FullName; target=$shell.CreateShortcut($_.FullName).TargetPath} }
+$links | ConvertTo-Json -Compress | Write-Host
+$shortcut = $links | Where-Object { $_.target -eq $Exe } |
   Select-Object -First 1
-if (!$shortcut) { throw 'Installed desktop shortcut missing' }
-$shortcutInfo = $shell.CreateShortcut($shortcut.FullName)
-if ($shortcutInfo.Arguments -match '--profile') { throw 'Shortcut pins a single profile' }
+$launchTarget = $Exe
+if ($shortcut) {
+  $shortcutInfo = $shell.CreateShortcut($shortcut.path)
+  if ($shortcutInfo.Arguments -match '--profile') { throw 'Shortcut pins a single profile' }
+  $launchTarget = $shortcut.path
+}
 $apps = @()
 try {
   for ($i = 0; $i -lt 6; $i++) {
-    $apps += Start-Process -FilePath $shortcut.FullName -PassThru
+    $apps += Start-Process -FilePath $launchTarget -PassThru
     if ($i -eq 0) { Start-Sleep -Seconds 8 }
   }
   $deadline = (Get-Date).AddSeconds(40)
@@ -30,6 +35,7 @@ try {
     $app.Refresh()
     if ($app.HasExited) { throw 'Native shortcut window did not remain alive' }
   }
+  if (!$shortcut) { throw 'Native executable launches passed, but installed desktop shortcut missing' }
   @{ ordinaryDesktopShortcutLaunches=6; nativeWindows=6; noDebuggingFlags=$true; stable=$true } | ConvertTo-Json -Compress
 } finally {
   foreach ($app in $apps) { if (!$app.HasExited) { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue } }
