@@ -110,7 +110,7 @@ exports.logout = asyncHandler(async (req, res) => {
       // 注意：仅拉黑 jti 不够——有效 wallet grant 会复用原 session id，
       // 若不删行，重登仍拿到被拉黑的 jti，导致 logout 后无法重新登录。
       if (payload.jti) {
-        try { await svc.deleteSession(payload.id, payload.jti); } catch {} // 删行（deleteSession 内部同时拉黑 jti）
+        await svc.deleteSession(payload.id, payload.jti);
         req.app.get('io')?.in(`session_${payload.jti}`).disconnectSockets(true);
         req.app.get('io')?.in(`legacy_user_${payload.id}`).disconnectSockets(true);
       }

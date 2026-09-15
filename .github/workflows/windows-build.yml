@@ -86,7 +86,10 @@ jobs:
           $env:TOULIAO_LOG_LEVEL = 'info'
           $env:DEBUG = 'pw:browser*'
           node scripts/multi-window-smoke.cjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($LASTEXITCODE -ne 0) {
+            Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-10)} -ErrorAction SilentlyContinue | Where-Object { $_.ProviderName -in @('Application Error', 'Windows Error Reporting') } | Select-Object -First 10 -ExpandProperty Message
+            exit 1
+          }
 
       - name: Upload installer + update feed
         uses: actions/upload-artifact@v4

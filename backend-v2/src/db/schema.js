@@ -680,6 +680,10 @@ function applySchema(db) {
     "ALTER TABLE device_tokens ADD COLUMN session_id TEXT REFERENCES auth_sessions(id) ON DELETE CASCADE",
     "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_session ON push_subscriptions(session_id)",
     "CREATE INDEX IF NOT EXISTS idx_device_tokens_session ON device_tokens(session_id)",
+    // Historical subscriptions cannot be safely attributed to a login session.
+    // Active clients register again; never guess which old device should keep receiving messages.
+    "DELETE FROM push_subscriptions WHERE session_id IS NULL",
+    "DELETE FROM device_tokens WHERE session_id IS NULL",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

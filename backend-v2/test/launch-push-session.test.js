@@ -81,3 +81,31 @@ test('web notification payload binds its actual recipient', async () => {
   expect(webpush.sendNotification).toHaveBeenCalled();
   for (const [, payload] of webpush.sendNotification.mock.calls) expect(JSON.parse(payload).recipientId).toBe(a.userId);
 });
+
+test('logout cannot report success while session and push revocation failed to persist', async () => {
+  const user = await makeUser();
+  const id = jwt.decode(user.token).jti;
+  const sub = subscription(randomUUID());
+  notifications.webSubscribe(user.userId, sub, id);
+  db.exec("CREATE TRIGGER fail_session_delete BEFORE DELETE ON auth_sessions BEGIN SELECT RAISE(ABORT, 'synthetic session delete failure'); END;");
+  try {
+    const failed = await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${user.token}`);
+    expect(failed.status).toBe(500);
+    expect(db.prepare('SELECT 1 FROM push_subscriptions WHERE endpoint=?').get(sub.endpoint)).toBeDefined();
+  } finally { db.exec('DROP TRIGGER fail_session_delete'); }
+  const retry = await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${user.token}`);
+  expect(retry.status).toBe(200);
+  expect(db.prepare('SELECT 1 FROM push_subscriptions WHERE endpoint=?').get(sub.endpoint)).toBeUndefined();
+});
+
+test('legacy unbound credentials cannot register or remove session-owned notifications', async () => {
+  const user = await makeUser();
+  const legacy = jwt.sign({ id: user.userId }, require('../src/config').jwtSecret, { expiresIn: '1h' });
+  const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${legacy}`);
+  expect(me.status).toBe(200);
+  for (const [method, route] of [['post', 'web-subscribe'], ['delete', 'web-subscribe'], ['post', 'device-token'], ['delete', 'device-token']]) {
+    const res = await request(app)[method](`/api/notifications/${route}`).set('Authorization', `Bearer ${legacy}`)
+      .send({ subscription: subscription(randomUUID()), token: randomUUID(), platform: 'android' });
+    expect(res.status).toBe(401);
+  }
+});

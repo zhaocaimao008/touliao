@@ -1186,8 +1186,11 @@ app.whenReady().then(async () => {
     checkUpdateKeyStatus();
     setupSecurity();
     setupIPC();
+    log.info('[Startup] Creating main window');
     createWindow();
+    log.info('[Startup] Creating tray');
     createTray();
+    log.info('[Startup] Registering integrations');
     if (PROFILE === 1) setupAutoUpdater();
     setupShortcuts();
     setupPowerMonitor();
