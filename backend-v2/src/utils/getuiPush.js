@@ -97,9 +97,10 @@ function isTransient(err, res) {
 
 // send / delayMs 可注入纯粹为了可测（默认即真实实现）：这段逻辑要钉死的两条不变量
 // ——「瞬时失败才重试」与「重试复用同一 request_id」——不该为了验证它们去 mock https。
-async function sendPushWithRetry(path, token, message, { send = httpJson, delayMs = PUSH_RETRY_DELAY_MS } = {}) {
+async function sendPushWithRetry(path, token, message, { send = httpJson, delayMs = PUSH_RETRY_DELAY_MS, shouldSend = () => true } = {}) {
   let lastErr = null;
   for (let attempt = 1; attempt <= PUSH_MAX_ATTEMPTS; attempt += 1) {
+    if (!shouldSend()) return { status: 0, json: { code: 0 }, skipped: true };
     let res = null, err = null;
     try {
       res = await send('POST', path, { token }, message);
@@ -122,7 +123,7 @@ async function sendPushWithRetry(path, token, message, { send = httpJson, delayM
  * @param title/body  通知标题/正文
  * @param payload  透传数据（点击跳转用），会放进 transmission
  */
-async function pushToCid(cid, { title, body, payload }) {
+async function pushToCid(cid, { title, body, payload, isCurrent }) {
   const token = await getToken();
   // transmission（透传）格式与 VxinGeTuiService.onReceiveMessageData 解析约定一致：
   // {"title":"...","body":"...","conversationId":"..."}
@@ -164,7 +165,7 @@ async function pushToCid(cid, { title, body, payload }) {
       },
     },
   };
-  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message);
+  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
   return { status, json, cid };
 }
 
@@ -176,7 +177,7 @@ async function pushToCid(cid, { title, body, payload }) {
  *    callId/callFrom/callerName/callType（与 NotificationHelper.EXTRA_CALL_* 键名对齐），
  *    MainActivity 识别后重建来电界面（被杀场景兜底，无法全屏但保证可见+可点接听）。
  */
-async function pushCallToCid(cid, { callId, from, callerName, callType, lang, recipientId }) {
+async function pushCallToCid(cid, { callId, from, callerName, callType, lang, recipientId, isCurrent }) {
   const token = await getToken();
   const t = callType === 'video' ? 'video' : 'audio';
   // 文案按【被叫方】语言渲染（lang 由 push.js 的 pushCallInvite 解析后传入）。
@@ -220,7 +221,7 @@ async function pushCallToCid(cid, { callId, from, callerName, callType, lang, re
   };
   // 来电推送同样走瞬时失败重试（复用同一 request_id，个推按它幂等去重，不会重复响铃）。
   // 来电时效性最强，退避仍是 800ms、只重试 1 次——见 sendPushWithRetry 注释。
-  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message);
+  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
   // 此前只要 HTTP 请求本身没抛异常就当成功返回——个推 API 常见的是 HTTP 200 但
   // json.code!==0 的业务失败（cid 过期/未配置厂商 Key/离线保留超限等），调用方
   // （push.js 的 pushCallInvite）只在 promise reject 时才 console.warn，这种"响应体

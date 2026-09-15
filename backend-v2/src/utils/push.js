@@ -94,7 +94,8 @@ async function pushToUser(userId, payload) {
       promises.push(
         webpush.sendNotification(sub, JSON.stringify({ ...payload, recipientId: userId })).catch(err => {
           if (err.statusCode === 410 || err.statusCode === 404) {
-            db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(row.id);
+            db.prepare('DELETE FROM push_subscriptions WHERE id=? AND user_id=? AND session_id IS ? AND subscription=?')
+              .run(row.id, row.user_id, row.session_id ?? null, row.subscription);
           }
         })
       );
@@ -167,7 +168,9 @@ async function pushToUser(userId, payload) {
   if (getuiPush.isEnabled()) {
     const getuiTokens = tokensOf('getui');
     for (const row of getuiTokens) {
+      if (!deviceOwnership.isCurrent(row)) continue;
       getuiPush.pushToCid(row.token, {
+        isCurrent: () => deviceOwnership.isCurrent(row),
         title: payload.senderName || pushI18n.t(payload.lang, 'push.newMessage'),
         body: payload.body || pushI18n.t(payload.lang, 'push.oneNewMessage'),
         payload: { recipientId: userId, type: payload.type || 'message', conversationId: payload.conversationId || '', senderId: payload.senderId || '' },
@@ -655,6 +658,7 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
     if (row.platform === 'getui') {
       if (firebaseAdmin && row.session_id && androidSessions.has(row.session_id)) continue;
       promises.push(getuiPush.pushCallToCid(row.token, {
+        isCurrent: () => deviceOwnership.isCurrent(row),
         callId, from: fromUserId, recipientId: toUserId, callerName, callType: isVideo ? 'video' : 'audio', lang,
       }).catch(err => console.warn(`[push] 个推来电失败 user=${toUserId}: ${err.message}`)));
       continue;

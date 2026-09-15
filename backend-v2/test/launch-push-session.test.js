@@ -82,6 +82,19 @@ test('web notification payload binds its actual recipient', async () => {
   for (const [, payload] of webpush.sendNotification.mock.calls) expect(JSON.parse(payload).recipientId).toBe(a.userId);
 });
 
+test('a delayed Web Push failure cannot erase a subscription rebound to a new session', async () => {
+  const user = await makeUser(), old = session(user), current = session(user);
+  const sub = subscription(randomUUID());
+  notifications.webSubscribe(user.userId, sub, old);
+  let reject;
+  webpush.sendNotification.mockImplementationOnce(() => new Promise((resolve, fail) => { reject = fail; }));
+  const delivery = pushToUser(user.userId, { body: 'fixture' });
+  notifications.webSubscribe(user.userId, sub, current);
+  reject({ statusCode: 410 });
+  await delivery;
+  expect(db.prepare('SELECT session_id FROM push_subscriptions WHERE endpoint=?').get(sub.endpoint).session_id).toBe(current);
+});
+
 test('logout cannot report success while session and push revocation failed to persist', async () => {
   const user = await makeUser();
   const id = jwt.decode(user.token).jti;
