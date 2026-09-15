@@ -1,0 +1,30 @@
+name: Windows Publisher Signature Gate Test
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify trusted binary and reject unsigned or corrupted artifacts
+        shell: pwsh
+        run: |
+          $validator = './desktop-electron/scripts/verify-authenticode.ps1'
+          & $validator -Files (Join-Path $PSHOME 'pwsh.exe')
+          $fixture = Join-Path $env:RUNNER_TEMP 'publisher-fixture.exe'
+          Invoke-WebRequest 'https://touliao.cc/downloads/updates/touliao-8.1.23-setup.exe' -OutFile $fixture
+          $rejected = $false
+          try { & $validator -Files $fixture } catch { $rejected = $true }
+          if (!$rejected) { throw 'Unsigned production installer incorrectly passed publisher verification' }
+          Copy-Item (Join-Path $PSHOME 'pwsh.exe') $fixture -Force
+          $bytes = [IO.File]::ReadAllBytes($fixture)
+          $bytes[4096] = $bytes[4096] -bxor 1
+          [IO.File]::WriteAllBytes($fixture, $bytes)
+          $rejected = $false
+          try { & $validator -Files $fixture } catch { $rejected = $true }
+          if (!$rejected) { throw 'Corrupted signed binary incorrectly passed publisher verification' }
+          Remove-Item $fixture
+          Write-Host 'Trusted publisher accepted; unsigned and modified artifacts rejected.'
