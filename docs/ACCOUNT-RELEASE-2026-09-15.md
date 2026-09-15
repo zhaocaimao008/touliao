@@ -19,14 +19,25 @@
 ## 验证记录
 
 - 推送专项：6 套、53 项通过，使用真实隔离 SQLite 数据库；外部推送服务用明确的替身，不等于实际送达。
-- [最终后端/Web CI](https://github.com/zhaocaimao008/touliao/actions/runs/34979438223)通过，源码 `cf58e122`，包括最后两项推送回归。
+- [最终后端/Web CI](https://github.com/zhaocaimao008/touliao/actions/runs/34979438223)通过，源码 `cf58e122`：后端 112 套、879 项通过、1 项跳过；Web 33 套、240 项通过，Lint、Capacitor 与迁移门禁通过。
 - [Android 编译与单测](https://github.com/zhaocaimao008/touliao/actions/runs/34978897584)：95 项通过，包括账号快照、过期请求、串行清理与通知接收人测试。
 - [iOS 编译与单测](https://github.com/zhaocaimao008/touliao/actions/runs/34978894925)：59 项通过，0 失败。
 - [Android 正式签名包](https://github.com/zhaocaimao008/touliao/actions/runs/34979197799)：签名构建、单测、模拟器安装启动通过；登录截图无裂图，检查无启动崩溃。实际 APK 包名为 `com.touliao.app`，版本 `81 / 8.1.24`，与旧版签名证书相同。
 - [Windows 发布者门禁](https://github.com/zhaocaimao008/touliao/actions/runs/34978906010)通过：接受可信签名程序，拒绝当前未签名安装包和被篡改的签名程序。
 - Android APK SHA-256：`0631c12bd21cd7abd1518d4357b8f617bbe65c699b4fe82b27ab4deeb3568763`。APK v2/v3 签名验证通过；证书 SHA-256：`345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c`。
-- [iOS TestFlight 8.1.24](https://github.com/zhaocaimao008/touliao/actions/runs/34980219307)正在构建上传，未提交外部 Beta 审核；这不等于 App Store 上架。
-- 后端与 Android 公网发布验证将在完成后补记。部署前数据库备份 `touliao-20260915_141502_582825917.db.gz` 恢复验证通过，数据库完整性与外键检查通过。
+- [iOS TestFlight 8.1.24](https://github.com/zhaocaimao008/touliao/actions/runs/34980219307)正式构建、Apple 校验、上传通过；App Store Connect API 确认构建 `1789481788` 处理状态为 `VALID`，构建 ID 为 `ff80e518-7d8d-4749-a2a9-d6465865ceec`。未提交外部 Beta 审核或 App Store 审核，这不等于 App Store 上架。
+- 下载 IPA 后解析实际 Info.plist 和签名描述文件：应用 ID `com.touliao.app`、版本 `8.1.24`、构建号 `1789481788`、iOS 26.5 SDK、APNs 为 production、调试权限关闭。IPA SHA-256：`cf2ca4a72f2682f94e2b06ffd58c932cfdb6f04ba6481ec175fb37739a7163c0`。
+
+## 已发布及复验
+
+- 后端 `8.0.5` 已从经过全量测试的源码部署，只有投聊进程被重启；其他三个项目进程 PID 不变。依赖锁除本包版本外未变化，无数据库迁移。
+- 重启就绪前短暂出现 502，自动重试后健康检查通过，随后公网与浏览器复验正常。数据库完整性及外键检查通过，用户 13、消息 107、会话 11、登录会话 16、迁移 154，部署前后未变化。
+- 后续连续 5 次公网健康检查全部正常，投聊进程无额外重启，结构化证据见私有目录 `production-verification.json`。
+- Android `8.1.24 / 81` 已发布到 [正式下载地址](https://touliao.cc/downloads/touliao-android-latest.apk)，更新清单已同步。公网 APK 为 56,808,304 字节，与上面经过模拟器启动测试的产物逐字节相同，SHA-256 一致。
+- Windows 保持 `8.1.23`，本轮复验公网安装包、Ed25519 更新签名、大小与哈希均通过。此前已验证桌面图标连续启动的独立实例；本轮不改该行为。
+- Web 保持 `8.1.23`。公网静态资源与原测试构建一致；浏览器桌面 1440x900、手机 390x844 检查：裂图 0、脚本错误 0、水平溢出 0。
+- 部署前数据库备份 `touliao-20260915_141502_582825917.db.gz` 恢复验证通过；部署后[私有异地备份 34980647640](https://github.com/zhaocaimao008/touliao-private-backups/actions/runs/34980647640)通过，解密后验证 56 张表和 2 个归档，完整性正常、外键错误 0。配置及数据库、WAL、SHM 权限均为 600。
+- 原工作区 8 份移动草稿逐一核对保留，只有 Gradle 正式版本递增；分身参数、独立包名和分身更新清单没有进入正式构建。
 
 ## 仍需外部条件
 
