@@ -190,7 +190,7 @@ jobs:
             echo "同步: $f"
             scp -i ~/.ssh/deploy_key "$f" \
               "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/.$(basename "$f").pending"
-            ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
+            ssh -n -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
               "mv /var/www/downloads/updates/.$(basename "$f").pending /var/www/downloads/updates/$(basename "$f")"
           done < <(find artifacts -type f ! -name "*.exe" ! -name latest.yml; find artifacts -type f -name latest.yml)
           echo "✅ SCP 全部完成"
@@ -201,22 +201,24 @@ jobs:
           EXE_NAME=$(basename "$EXE")
           BASE="https://touliao.cc/downloads"
           fail=0
+          received=$(mktemp)
+          trap 'rm -f "$received"' EXIT
           check() {
             local url="$1"
-            local code
-            code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
-            if [ "$code" = "200" ]; then
-              echo "✅ $url → HTTP $code"
+            local expected="$2"
+            if curl --fail --silent --show-error --max-time 180 "$url" -o "$received" && cmp -s "$expected" "$received"; then
+              echo "Verified published bytes: $url"
             else
-              echo "::error::$url → HTTP $code（期望200）"
+              echo "::error::Published file is missing or differs from the verified artifact: $url"
               fail=1
             fi
           }
-          check "$BASE/updates/latest.yml"
-          check "$BASE/updates/latest.yml.sig"
-          check "$BASE/updates/$EXE_NAME"           # electron-updater 真正会去拉的版本化安装包
-          check "$BASE/touliao-windows-latest.exe"  # 人工直接下载用的固定直链
-          check "$BASE/touliao-windows-latest-setup.exe"
+          check "$BASE/updates/latest.yml" "$(find artifacts -name latest.yml | head -1)"
+          check "$BASE/updates/latest.yml.sig" "$(find artifacts -name latest.yml.sig | head -1)"
+          check "$BASE/updates/$EXE_NAME" "$EXE"
+          check "$BASE/updates/$EXE_NAME.blockmap" "$(find artifacts -name "$EXE_NAME.blockmap" | head -1)"
+          check "$BASE/touliao-windows-latest.exe" "$EXE"
+          check "$BASE/touliao-windows-latest-setup.exe" "$EXE"
           if [ "$fail" -ne 0 ]; then
             echo "::error::部署后验证失败，至少一个文件线上不可访问，自动更新链路不完整"
             exit 1
