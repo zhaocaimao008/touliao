@@ -68,24 +68,38 @@ const credentials = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const pair = stats.get(transport.selectedCandidatePairId);
           const local = stats.get(pair.localCandidateId), remote = stats.get(pair.remoteCandidateId);
           const media = [...stats.values()].filter(row => row.type === 'inbound-rtp').map(row => ({ kind: row.kind, packetsReceived: row.packetsReceived, framesDecoded: row.framesDecoded }));
-          reports.push({ localCandidate: local.candidateType, remoteCandidate: remote.candidateType, media });
+          reports.push({ localCandidate: local.candidateType, remoteCandidate: remote.candidateType, relayProtocol: local.relayProtocol, localPort: local.port, remotePort: remote.port, media });
         }
         return { reports, received };
+      } catch (error) {
+        const diagnostics = [];
+        for (const connection of connections) {
+          const stats = await connection.getStats();
+          diagnostics.push([...stats.values()].filter(row => ['local-candidate', 'remote-candidate', 'candidate-pair'].includes(row.type)));
+        }
+        throw new Error(`${error.message}; ICE diagnostics: ${JSON.stringify(diagnostics)}`);
       } finally {
         for (const stream of streams) stream.getTracks().forEach(track => track.stop());
         connections.forEach(connection => connection.close());
       }
       }, { ...credentials, urls: [url] });
     }
+    const failures = [];
     for (const url of transports) {
-      const result = await verifyMedia(url);
-      for (const report of result.reports) {
-        assert.equal(report.localCandidate, 'relay'); assert.equal(report.remoteCandidate, 'relay');
-        assert.ok(report.media.some(row => row.kind === 'audio' && row.packetsReceived > 0));
-        assert.ok(report.media.some(row => row.kind === 'video' && row.framesDecoded > 0));
+      try {
+        const result = await verifyMedia(url);
+        for (const report of result.reports) {
+          assert.equal(report.localCandidate, 'relay'); assert.equal(report.remoteCandidate, 'relay');
+          assert.ok(report.media.some(row => row.kind === 'audio' && row.packetsReceived > 0));
+          assert.ok(report.media.some(row => row.kind === 'video' && row.framesDecoded > 0));
+        }
+        console.log(JSON.stringify({ url, bidirectionalRelay: true, ...result }));
+      } catch (error) {
+        failures.push({ url, error: error.message });
+        console.error(JSON.stringify(failures.at(-1)));
       }
-      console.log(JSON.stringify({ url, bidirectionalRelay: true, ...result }));
     }
+    assert.equal(failures.length, 0, 'Every advertised transport must carry bidirectional relay media');
     console.log(JSON.stringify({ authenticatedTransports: transports.length, invalidCredentialsRejected: transports.length, bidirectionalMediaTransports: transports.length }));
   } finally {
     if (browser) await browser.close();
