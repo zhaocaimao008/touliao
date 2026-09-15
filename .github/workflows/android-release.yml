@@ -7,6 +7,11 @@ name: Android Release APK (signed)
 #                       ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD（已配置）。
 on:
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: Publish the verified APK
+        type: boolean
+        default: false
   push:
     tags:
       # 仅安卓端专属前缀触发；避免裸 v* 同时误触发桌面端/iOS 发布（详见 VERSIONING.md）。
@@ -29,6 +34,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+          log-accepted-android-sdk-licenses: false
 
       - name: Make gradlew executable
         working-directory: android
@@ -53,7 +61,7 @@ jobs:
           GETUI_APP_KEY: ${{ secrets.GETUI_APP_KEY }}
           GETUI_APP_SECRET: ${{ secrets.GETUI_APP_SECRET }}
         run: |
-          ./gradlew assembleRelease --stacktrace --no-daemon
+          ./gradlew testDebugUnitTest assembleRelease --stacktrace --no-daemon
 
       - name: Upload signed APK
         if: always()
@@ -61,7 +69,7 @@ jobs:
         with:
           name: touliao-release-apk
           path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error
 
       # ── 部署到服务器（2026-08-30 加固，对齐 deploy.yml 的模式）──────────
       # 此前这一步没做 secret 检测，DEPLOY_SSH_KEY/DEPLOY_USER/DEPLOY_SERVER_HOST 缺失时
@@ -71,7 +79,7 @@ jobs:
       # 静默跳过、不显示假绿灯）②版本清单生成（纯本地计算，不依赖网络/SSH，即使后面
       # 部署失败这一步的产物也已经生成、日志里能看到）③真正的网络部署。
       - name: 检查部署 secret 是否已配置
-        if: success()
+        if: success() && (startsWith(github.ref, 'refs/tags/android-v') || inputs.deploy == true)
         run: |
           missing=()
           [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]     && missing+=("DEPLOY_SSH_KEY")
@@ -101,6 +109,7 @@ jobs:
           cat /tmp/touliao-android-version.json
 
       - name: 部署 APK + 版本清单到服务器
+        if: success() && (startsWith(github.ref, 'refs/tags/android-v') || inputs.deploy == true)
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
@@ -108,12 +117,22 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cp deploy/ssh_known_hosts ~/.ssh/known_hosts
           APK="${{ steps.version.outputs.apk_path }}"
           # 部署根 = nginx /downloads/ alias 目录(2026-09-07 新机实测: /var/www/downloads, 非旧机 touliao-downloads)
           echo "部署: $APK → /var/www/downloads/touliao-android-latest.apk"
           ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /var/www/downloads"
-          scp -i ~/.ssh/deploy_key "$APK" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/touliao-android-latest.apk"
+          scp -i ~/.ssh/deploy_key "$APK" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/.touliao-android-latest.apk.pending"
+          ssh -n -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mv /var/www/downloads/.touliao-android-latest.apk.pending /var/www/downloads/touliao-android-latest.apk"
           echo "✅ APK 已发布到 https://touliao.cc/downloads/touliao-android-latest.apk"
-          scp -i ~/.ssh/deploy_key /tmp/touliao-android-version.json "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/touliao-android-version.json"
+          scp -i ~/.ssh/deploy_key /tmp/touliao-android-version.json "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/.touliao-android-version.json.pending"
+          ssh -n -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mv /var/www/downloads/.touliao-android-version.json.pending /var/www/downloads/touliao-android-version.json"
+          curl --fail --silent --show-error --max-time 180 https://touliao.cc/downloads/touliao-android-latest.apk -o "$RUNNER_TEMP/published.apk"
+          cmp "$APK" "$RUNNER_TEMP/published.apk"
+          curl --fail --silent --show-error --max-time 30 https://touliao.cc/downloads/touliao-android-version.json -o "$RUNNER_TEMP/published.json"
+          cmp /tmp/touliao-android-version.json "$RUNNER_TEMP/published.json"
           echo "✅ 版本清单已发布到 https://touliao.cc/downloads/touliao-android-version.json"
+
+      - name: Remove signing and deployment keys
+        if: always()
+        run: rm -f "$RUNNER_TEMP/touliao-release.jks" ~/.ssh/deploy_key
