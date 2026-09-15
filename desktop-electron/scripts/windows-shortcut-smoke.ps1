@@ -5,6 +5,11 @@ $links = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath
   ForEach-Object { Get-ChildItem $_ -Filter '*.lnk' -ErrorAction SilentlyContinue } |
   ForEach-Object { @{path=$_.FullName; target=$shell.CreateShortcut($_.FullName).TargetPath} }
 $links | ConvertTo-Json -Compress | Write-Host
+foreach ($link in $links) {
+  if (!$link.target) {
+    @{path=$link.path; bytes=[Convert]::ToBase64String([IO.File]::ReadAllBytes($link.path))} | ConvertTo-Json -Compress | Write-Host
+  }
+}
 $shortcut = $links | Where-Object { $_.target -eq $Exe } |
   Select-Object -First 1
 $launchTarget = $Exe

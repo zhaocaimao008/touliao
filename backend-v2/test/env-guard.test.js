@@ -9,6 +9,8 @@
  */
 const { spawnSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const { resolveTimeoutMs, resolveCooldownMs } = require('../src/realtime/handlers/call');
 
 describe('CALL_TIMEOUT_MS / CALL_COOLDOWN_MS env 保护', () => {
@@ -40,6 +42,9 @@ describe('CALL_TIMEOUT_MS / CALL_COOLDOWN_MS env 保护', () => {
 
 describe('FORCE_SYNC_WRITES 门禁(仅 NODE_ENV=test 生效)', () => {
   const root = path.join(__dirname, '..');
+  let temporary;
+  beforeEach(() => { temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'touliao-env-guard-')); });
+  afterEach(() => fs.rmSync(temporary, { recursive: true, force: true }));
   const script = "const w=require('./src/db/writer'); console.log('loaded'); process.exit(0);";
 
   test('NODE_ENV=production + FORCE_SYNC_WRITES=1 → 忽略并告警', () => {
@@ -58,7 +63,7 @@ describe('FORCE_SYNC_WRITES 门禁(仅 NODE_ENV=test 生效)', () => {
         JWT_SECRET: 'env-guard-test-jwt-secret-0123456789abcdef',
         ADMIN_USERNAME: 'env-guard-admin',
         ADMIN_PASSWORD: 'env-guard-admin-password-123456',
-        DB_PATH: '/tmp/fs-guard-prod.sqlite',
+        DB_PATH: path.join(temporary, 'production.sqlite'),
       },
     });
     expect(r.status).toBe(0);
@@ -70,7 +75,7 @@ describe('FORCE_SYNC_WRITES 门禁(仅 NODE_ENV=test 生效)', () => {
       cwd: root,
       encoding: 'utf8',
       timeout: 15000,
-      env: { ...process.env, NODE_ENV: 'test', FORCE_SYNC_WRITES: '1', DB_PATH: '/tmp/fs-guard-test.sqlite' },
+      env: { ...process.env, NODE_ENV: 'test', FORCE_SYNC_WRITES: '1', DB_PATH: path.join(temporary, 'test.sqlite') },
     });
     expect(r.status).toBe(0);
     expect(r.stderr + r.stdout).not.toContain('已忽略');
