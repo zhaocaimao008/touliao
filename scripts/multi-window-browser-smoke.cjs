@@ -22,6 +22,9 @@ const app = require('../backend-v2/src/app');
 const setupRealtime = require('../backend-v2/src/realtime');
 const web = path.resolve(process.env.TOULIAO_WEB_BUILD || path.join(__dirname, '../web/dist'));
 const site = express();
+if (process.env.TOULIAO_LEGACY_SW) {
+  site.get('/sw.js', (_req, res) => res.sendFile(path.resolve(process.env.TOULIAO_LEGACY_SW)));
+}
 site.use(['/api', '/uploads'], (req, res, next) => {
   req.url = req.originalUrl;
   app(req, res, next);
@@ -50,7 +53,7 @@ setupRealtime(io, app);
     }
     browser = await chromium.launch({ headless: true,
       ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'allow' });
     await context.route('https://**/*', route => route.request().url().includes('config.json')
       ? route.fulfill({ json: { api: base, socket: base, cdn: base, version: 'test' } })
       : route.abort());
@@ -71,6 +74,17 @@ setupRealtime(io, app);
       await page.getByTestId('login-submit-btn').click();
       await page.getByTestId('account-switcher').waitFor({ timeout: 20000 });
       assert.equal((await identity(page)).id, users[i].id);
+      if (i === 0) {
+        await page.evaluate(async () => {
+          await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          await navigator.serviceWorker.ready;
+          const cache = await caches.open('touliao-api-v1');
+          await cache.put('/api/config', new Response(JSON.stringify({ features: {} }), {
+            headers: { 'content-type': 'application/json', date: new Date().toUTCString() },
+          }));
+        });
+        await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+      }
     }
     for (let i = 0; i < pages.length; i++) {
       await pages[i].reload();
@@ -89,7 +103,7 @@ setupRealtime(io, app);
     await pages[1].screenshot({ path: path.join(temp, 'login-mobile.png'), fullPage: true });
     assert.ok(await pages[1].evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await pages[2].screenshot({ path: path.join(temp, 'independent-account.png') });
-    console.log(JSON.stringify({ independentAccounts: 3, csrfEnabled: true, logoutIsolated: true, socketsIsolated: true, screenshots: temp }));
+    console.log(JSON.stringify({ independentAccounts: 3, csrfEnabled: true, sharedServiceWorker: true, logoutIsolated: true, socketsIsolated: true, screenshots: temp }));
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => io.close(resolve));

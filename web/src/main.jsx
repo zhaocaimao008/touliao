@@ -14,7 +14,7 @@ import { migrateStorage } from './utils/migrateStorage';
 import { initWebVitals } from './utils/webVitals';
 import { initImageOptimizer } from './utils/imageOptimizer';
 import { setupAxiosInterceptors } from './utils/axiosInterceptor';
-import { initAccountWindow, isBearerClient, isIsolatedWindow } from './utils/clientStorage';
+import { accountWindowId, initAccountWindow, isBearerClient, isIsolatedWindow } from './utils/clientStorage';
 
 // ── Sentry 错误监控（异步懒加载，不阻塞首屏）─────────────
 if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
@@ -92,7 +92,8 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   // An older server would silently overwrite the shared login cookie.
   if (isIsolatedWindow()) {
     try {
-      const response = await axios.get('/api/config');
+      // Older service workers cache /api/config without varying by session headers.
+      const response = await axios.get('/api/config', { params: { accountWindow: accountWindowId() } });
       if (response.headers['x-touliao-session'] !== 'isolated') throw new Error('unsupported');
     } catch {
       document.getElementById('root').textContent = '独立账号窗口暂不可用，请确认服务器在线并已升级到支持多开的版本。';

@@ -40,6 +40,7 @@ self.addEventListener('fetch', (e) => {
 
   // 1. API：跳过（实时数据），仅 /api/config 做 stale-while-revalidate
   if (path.startsWith('/api/')) {
+    if (request.headers.get('X-Touliao-Session') === 'isolated') return;
     if (path === '/api/config') {
       e.respondWith(staleWhileRevalidate(request, 'touliao-api-v1', 300));
     }
