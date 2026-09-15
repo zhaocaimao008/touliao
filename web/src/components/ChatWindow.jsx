@@ -1,3 +1,4 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, useLayoutEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { composeReducer, initialComposeState } from '../reducers/composeReducer';

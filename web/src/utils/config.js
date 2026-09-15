@@ -186,3 +186,4 @@ export function switchServer(newUrl) {
     return true;
   } catch { return false; }
 }
+import { clientStorage as localStorage } from './clientStorage';

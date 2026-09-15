@@ -4,6 +4,7 @@
 // 任何 IndexedDB 异常（隐私模式/配额满/被禁用）一律静默降级，不影响主流程。
 // 注：旧 DB_NAME='vxin' 用户首次打开时旧库自然失效（另一个名字），数据从服务端拉取补全，无需迁移。
 
+import { accountWindowId } from './clientStorage';
 const DB_NAME = 'touliao';
 const STORE = 'msgcache_v1';       // schema 版本前缀；破坏性变更时改此名弃用旧库
 const CURSOR_STORE = 'sync_cursors_v1';
@@ -22,7 +23,8 @@ function openDB() {
   dbPromise = new Promise((resolve) => {
     try {
       if (typeof indexedDB === 'undefined') { resolve(null); return; }
-      const req = indexedDB.open(DB_NAME, 2);
+      const windowId = accountWindowId();
+      const req = indexedDB.open(windowId ? `${DB_NAME}-window-${windowId}` : DB_NAME, 2);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(STORE)) {

@@ -10,8 +10,10 @@
 //   1. 运行时手动切换（localStorage touliao_server_url）
 //   2. 远程配置（Config.api/socket）
 //   3. 空值 → Web 同源，相对路径可用
+import { clientStorage as localStorage } from './clientStorage';
 import { getConfig, isConfigLoaded } from './config';
 import { useSyncExternalStore } from 'react';
+import { isIsolatedWindow } from './clientStorage';
 
 function getBaseUrl() {
   const manualUrl = localStorage.getItem('touliao_server_url');
@@ -24,7 +26,7 @@ function getBaseUrl() {
     if (cfg.socket) return cfg.socket;
   }
 
-  return '';
+  return isIsolatedWindow() ? window.location.origin : '';
 }
 
 function bearerToken() {
@@ -56,6 +58,7 @@ export function useMediaCredentials() {
 }
 window.addEventListener?.('touliao:credentials-updated', invalidateMediaTickets);
 window.addEventListener?.('storage', event => {
+  if (isIsolatedWindow()) return;
   if (['touliao_electron_token', 'touliao_server_url', 'touliao_session_revision', null].includes(event.key)) invalidateMediaTickets();
 });
 
@@ -69,16 +72,27 @@ function ticketExpiry(url, base) {
 
 export function mediaUrl(u) {
   if (!u) return u;
-  // 已经是绝对地址 / data / blob，原样返回
-  if (/^(https?:|data:|blob:)/i.test(u)) return u;
+  if (/^(data:|blob:)/i.test(u)) return u;
 
   const isElectron = !!window.__ELECTRON_CONFIG__;
   const isNative   = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-  if (!isElectron && !isNative) return u; // Web 同源，相对路径(带 Cookie)可用
+  if (!isElectron && !isNative && !isIsolatedWindow()) return u;
 
   const base = getBaseUrl().replace(/\/$/, '');
   if (!base) return u;
-  let abs = u.startsWith('/') ? base + u : `${base}/${u}`;
+  let abs;
+  try {
+    const resource = new URL(u, `${base}/`);
+    if (resource.origin !== new URL(base).origin) return u;
+    abs = resource.href;
+  } catch { return u; }
+  const fallback = () => {
+    if (!isIsolatedWindow() || !new URL(abs).pathname.startsWith('/uploads/')) return abs;
+    // Never fall back to another account's shared cookie when ticket issuance fails.
+    const denied = new URL(abs);
+    denied.searchParams.set('token', 'unavailable');
+    return denied.href;
+  };
 
   // 桌面/移动端用 Bearer 请求短时、单文件资源票据；登录 JWT 不进入媒体 URL。
   const token = bearerToken();
@@ -100,20 +114,21 @@ export function mediaUrl(u) {
       const xhr = new XMLHttpRequest();
       xhr.open('GET', `${base}/api/uploads/ticket?file=${encodeURIComponent(file)}`, false);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      if (isIsolatedWindow()) xhr.setRequestHeader('X-Touliao-Session', 'isolated');
       xhr.withCredentials = true;
       xhr.send();
       // A credential/server update during the request must discard this old response.
-      if (token !== bearerToken() || base !== getBaseUrl().replace(/\/$/, '') || generation !== ticketContext.generation) return abs;
+      if (token !== bearerToken() || base !== getBaseUrl().replace(/\/$/, '') || generation !== ticketContext.generation) return fallback();
       if (xhr.status >= 200 && xhr.status < 300) {
         const ticket = JSON.parse(xhr.responseText);
-        if (typeof ticket.url !== 'string') return abs;
+        if (typeof ticket.url !== 'string') return fallback();
         if (mediaTickets.size >= 500) mediaTickets.delete(mediaTickets.keys().next().value);
         mediaTickets.set(file, { url: ticket.url, expiresAt: ticketExpiry(ticket.url, base) });
         return ticket.url.startsWith('/') ? base + ticket.url : ticket.url;
       }
     } catch { /* 取票失败时返回无凭证 URL，由现有加载错误路径处理 */ }
   }
-  return abs;
+  return fallback();
 }
 
 // 由原图 URL 推导缩略图 URL：/uploads/<category>/<uuid>.<ext> → 同目录下的

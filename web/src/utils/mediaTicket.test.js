@@ -86,3 +86,27 @@ test('cache never outlives a short-lived ticket', () => {
   expect(mediaUrl(file)).not.toBe(first);
   expect(minted).toBe(2);
 });
+
+test('same-server absolute uploads require tickets; external images remain untouched', () => {
+  expect(mediaUrl(root + file)).toContain('?token=');
+  expect(mediaUrl('https://external.example' + file)).toBe('https://external.example' + file);
+  expect(minted).toBe(1);
+});
+
+test('isolated browser uses only its own bearer and cannot fall back to shared cookies', () => {
+  delete window.__ELECTRON_CONFIG__;
+  window.location = { origin: root };
+  sessionStorage.setItem('touliao_account_window', 'independent-window');
+  sessionStorage.setItem('touliao_electron_token', 'isolated-B');
+  const headers = {};
+  vi.stubGlobal('XMLHttpRequest', class {
+    open() {}
+    setRequestHeader(name, value) { headers[name] = value; }
+    send() { this.status = 401; }
+  });
+  expect(mediaUrl(root + file)).toBe(`${root}${file}?token=unavailable`);
+  expect(headers.Authorization).toBe('Bearer isolated-B');
+  expect(headers['X-Touliao-Session']).toBe('isolated');
+  sessionStorage.removeItem('touliao_electron_token');
+  expect(mediaUrl(file)).toBe(`${root}${file}?token=unavailable`);
+});

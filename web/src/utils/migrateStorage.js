@@ -23,3 +23,4 @@ export function migrateStorage() {
     }
   } catch { /* localStorage 在隐私模式下不可用 */ }
 }
+import { clientStorage as localStorage } from './clientStorage';

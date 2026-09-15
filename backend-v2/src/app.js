@@ -82,6 +82,7 @@ app.use(cors({
     cb(err);
   },
   credentials: true,
+  exposedHeaders: ['X-CSRF-Token', 'X-Touliao-Session'],
 }));
 
 // 请求 ID（贯穿日志/错误响应）→ 日志和监控中间件
@@ -98,6 +99,7 @@ const { cdnRewriteMiddleware, uploadsCacheMiddleware } = require('./integrations
 app.use(cdnRewriteMiddleware);
 
 app.use(cookieParser());
+app.use('/api', require('./middleware/isolatedSession'));
 // body 体积上限：JSON/表单请求只承载文本消息与元数据（最长消息 2000 字），
 // 大文件走 multipart/分片上传通道。限 1MB 防止超大 JSON 撑爆内存（DoS 加固）。
 app.use(express.json({ limit: '1mb' }));
@@ -204,10 +206,9 @@ function resolveUploadAccess(userId, reqPath) {
 }
 
 app.use('/uploads', async (req, res, next) => {
-  // Cookie 优先；Electron/移动端用 Bearer 鉴权、<img> 无法带 header，故同时支持 ?token= 查询参数与 Bearer 兜底
+  // Explicit media credentials take precedence over a different account's shared cookie.
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
-  const token = req.cookies?.[config.cookieName] || req.cookies?.[config.admin.cookieName]
-    || req.query?.token || bearer;
+  const token = req.query?.token || bearer || req.cookies?.[config.cookieName] || req.cookies?.[config.admin.cookieName];
   if (!token) return res.status(401).json({ error: '未授权' });
 
   let payload;

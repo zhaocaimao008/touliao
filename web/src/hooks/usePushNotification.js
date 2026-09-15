@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { isIsolatedWindow } from '../utils/clientStorage';
 
 // URL-safe Base64 → Uint8Array（VAPID 公钥转换）
 function urlBase64ToUint8Array(base64String) {
@@ -17,7 +18,7 @@ export function usePushNotification(user) {
   const enablePushRef = useRef(null);
   // 'unsupported' | 'default' | 'granted' | 'denied'，驱动 PushPermissionGuide 是否出现
   const [permission, setPermission] = useState(
-    () => (typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
+    () => (isIsolatedWindow() || typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   );
 
   useEffect(() => {
@@ -61,7 +62,7 @@ export function usePushNotification(user) {
 
     // Electron 桌面端用原生通知（window.electron.showNotification），
     // 且 file:// 下无法注册 Service Worker，直接跳过 web-push。
-    if (window.__ELECTRON_CONFIG__) return;
+    if (window.__ELECTRON_CONFIG__ || isIsolatedWindow()) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
     let cancelled = false;
@@ -185,7 +186,7 @@ export function usePushNotification(user) {
     if (fn) return fn();
     const supported = typeof navigator !== 'undefined'
       && 'serviceWorker' in navigator && typeof PushManager !== 'undefined'
-      && !window.__ELECTRON_CONFIG__ && !window.Capacitor?.isNativePlatform?.();
+      && !window.__ELECTRON_CONFIG__ && !window.Capacitor?.isNativePlatform?.() && !isIsolatedWindow();
     return supported ? 'default' : 'unsupported';
   }, []);
 

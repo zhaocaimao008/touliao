@@ -4,6 +4,14 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
         globalShortcut, screen, Notification, shell, session, clipboard, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
+const { MAX_PROFILES, profileFromArgs, profilePath } = require('./lib/profiles');
+const PROFILE = profileFromArgs(process.argv);
+const PROFILE_ROOT = app.getPath('userData');
+const PROFILE_PATH = profilePath(PROFILE_ROOT, PROFILE);
+fs.mkdirSync(PROFILE_PATH, { recursive: true });
+app.setPath('userData', PROFILE_PATH);
+app.setPath('sessionData', PROFILE_PATH);
 const crypto = require('crypto');
 const https = require('https');
 const { autoUpdater } = require('electron-updater');
@@ -100,7 +108,7 @@ process.on('unhandledRejection', (reason) => {
 //   - 退出时安装是 Electron 原生的覆盖安装流程，保留用户数据，不引入新的执行路径。
 //   - update-downloaded 事件仍保留确认弹框（立即重启安装），与"最终无感"互补。
 // ⚠️ 生产前必须对安装包做代码签名，详见 desktop-electron/SECURITY-RELEASE.md
-autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.autoInstallOnAppQuit = PROFILE === 1;
 // 安全：关闭自动下载，改由 update-available 事件中先对更新元数据(latest.yml)做
 // Ed25519 二次验签，通过后再 downloadUpdate()。使更新真实性不单纯依赖 TLS。
 autoUpdater.autoDownload = false;
@@ -410,7 +418,7 @@ function createWindow() {
     height: bounds.height,
     minWidth: 900,
     minHeight: 600,
-    title: '投聊',
+    title: `投聊 - 账号窗口 ${PROFILE}`,
     icon: path.join(__dirname, '../assets/icon.png'),
     frame: false,
     titleBarStyle: 'hidden',
@@ -431,6 +439,7 @@ function createWindow() {
       additionalArguments: [
         `--vxin-app-version=${app.getVersion()}`,
         `--vxin-server-url=${SERVER_URL}`,
+        `--touliao-profile=${PROFILE}`,
       ],
       webSecurity: true,
       allowRunningInsecureContent: false,
@@ -472,7 +481,7 @@ function createWindow() {
     if (hasShownWindow || mainWindow.isDestroyed()) return;
     hasShownWindow = true;
     mainWindow.show();
-    setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
+    if (PROFILE === 1) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
   };
 
   mainWindow.once('ready-to-show', showWindowOnce);
@@ -688,6 +697,25 @@ function setupAutoUpdater() {
 }
 
 // ── 系统托盘 ───────────────────────────────────────────────
+function openAccountWindow(profile) {
+  profilePath(PROFILE_ROOT, profile);
+  const args = [...(app.isPackaged ? [] : [app.getAppPath()]), `--profile=${profile}`];
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const child = spawn(process.execPath, args, { detached: true, stdio: 'ignore', env });
+  child.on('error', error => log.error('账号窗口启动失败:', error));
+  child.unref();
+}
+
+async function chooseAccountWindow() {
+  const buttons = Array.from({ length: MAX_PROFILES }, (_, i) => `账号窗口 ${i + 1}`);
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    title: '打开账号窗口', message: '选择账号窗口', buttons: [...buttons, '取消'],
+    cancelId: MAX_PROFILES, noLink: true,
+  });
+  if (response < MAX_PROFILES) openAccountWindow(response + 1);
+}
+
 function createTray() {
   const iconPath = path.join(__dirname, '../assets/icon.png');
   let trayIcon = nativeImage.createFromPath(iconPath);
@@ -706,7 +734,7 @@ function createTray() {
     log.error('创建系统托盘失败，跳过托盘（应用仍可用）:', e.message);
     return;
   }
-  tray.setToolTip('投聊');
+  tray.setToolTip(`投聊 - 账号窗口 ${PROFILE}`);
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -714,7 +742,14 @@ function createTray() {
       click: () => { mainWindow?.show(); mainWindow?.focus(); },
     },
     {
+      label: '账号窗口',
+      submenu: Array.from({ length: MAX_PROFILES }, (_, i) => ({
+        label: `账号窗口 ${i + 1}`, click: () => openAccountWindow(i + 1),
+      })),
+    },
+    {
       label: '检查更新',
+      enabled: PROFILE === 1,
       click: () => {
         mainWindow?.show(); mainWindow?.focus();
         autoUpdater.checkForUpdates().catch((e) => {
@@ -725,6 +760,7 @@ function createTray() {
     { type: 'separator' },
     {
       label: '开机启动',
+      enabled: PROFILE === 1,
       type: 'checkbox',
       checked: store.get('autoLaunch'),
       click: (item) => {
@@ -997,6 +1033,10 @@ function setupIPC() {
     return true;
   });
   ipcMain.handle('config:getServerUrl', () => store.get('serverUrl'));
+  ipcMain.handle('window:newAccount', (_e) => {
+    if (!isTrustedSender(_e)) return;
+    return chooseAccountWindow();
+  });
 
   // 快捷键设置：读取 / 修改 / 重置
   ipcMain.handle('shortcuts:getAll', (_e) => {
@@ -1037,7 +1077,7 @@ function setupIPC() {
 
   // 更新：用户在 UI 确认后主动触发安装
   ipcMain.handle('update:install', (_e) => {
-    if (!isTrustedSender(_e)) return;
+    if (!isTrustedSender(_e) || PROFILE !== 1) return;
     isQuitting = true;
     autoUpdater.quitAndInstall();
   });
@@ -1045,6 +1085,10 @@ function setupIPC() {
   // 更新：用户手动点「检查更新」按钮触发
   ipcMain.handle('update:check', (_e) => {
     if (!isTrustedSender(_e)) return;
+    if (PROFILE !== 1) {
+      mainWindow?.webContents.send('update:error', '请在账号窗口 1 检查更新，安装前退出其他账号窗口。');
+      return;
+    }
     autoUpdater.checkForUpdates().catch((e) => {
       mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
     });
@@ -1085,16 +1129,17 @@ function setupPowerMonitor() {
 }
 
 // ── 应用生命周期 ───────────────────────────────────────────
-// 单实例锁：避免多实例导致托盘/配置竞争，第二次启动聚焦已有窗口
+// Each userData directory owns one instance lock and its own Chromium session.
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, args) => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
     }
+    if (!args.some(arg => arg.startsWith('--profile='))) chooseAccountWindow();
   });
 
   // 强制所有渲染进程启用沙箱（即使将来新增窗口忘记设置）
@@ -1128,7 +1173,7 @@ async function clearRenderCaches() {
 }
 
 app.whenReady().then(async () => {
-    if (store.get('autoLaunch')) {
+    if (PROFILE === 1 && store.get('autoLaunch')) {
       app.setLoginItemSettings({ openAtLogin: true });
     }
 
@@ -1144,7 +1189,7 @@ app.whenReady().then(async () => {
     setupIPC();
     createWindow();
     createTray();
-    setupAutoUpdater();
+    if (PROFILE === 1) setupAutoUpdater();
     setupShortcuts();
     setupPowerMonitor();
 

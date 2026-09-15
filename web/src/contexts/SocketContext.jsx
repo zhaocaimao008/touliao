@@ -1,7 +1,9 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { getConfig, isConfigLoaded } from '../utils/config';
+import { isBearerClient, isIsolatedWindow } from '../utils/clientStorage';
 
 // 拆分成两个 context 避免 reconnect 引起无关组件 re-render：
 // SocketCoreContext  — socket 实例 + 稳定回调（重连时不变）
@@ -43,14 +45,14 @@ export const SocketProvider = ({ children }) => {
     const serverUrl = manualUrl || cfg?.socket || import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_BASE || '/';
 
     const isDesktop = !!(window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.());
-    const electronToken = isDesktop ? localStorage.getItem('touliao_electron_token') : null;
+    const electronToken = isBearerClient() ? localStorage.getItem('touliao_electron_token') : null;
 
     // platform 供服务端按平台维度判定在线（来电推送兜底不因同账号 Web 在线而被压制，
     // 见 backend-v2/src/realtime/presence.js onlinePlatforms）
     const s = io(serverUrl, {
       transports: ['websocket'],
       withCredentials: true,
-      auth: { platform: isDesktop ? 'desktop' : 'web', ...(electronToken ? { token: electronToken } : {}) },
+      auth: { platform: isDesktop ? 'desktop' : 'web', isolated: isIsolatedWindow(), ...(electronToken ? { token: electronToken } : {}) },
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -88,12 +90,12 @@ export const SocketProvider = ({ children }) => {
     // 唤醒瞬间主动 connect() 能把这个滞后降到几乎瞬间（AUDIT.md 十二节🟡）。
     const onElectronResume = () => { if (!s.connected) s.connect(); };
     const onCredentialsUpdated = () => {
-      const token = isDesktop ? localStorage.getItem('touliao_electron_token') : null;
-      s.auth = { platform: isDesktop ? 'desktop' : 'web', ...(token ? { token } : {}) };
+      const token = isBearerClient() ? localStorage.getItem('touliao_electron_token') : null;
+      s.auth = { platform: isDesktop ? 'desktop' : 'web', isolated: isIsolatedWindow(), ...(token ? { token } : {}) };
       s.disconnect();
       s.connect();
     };
-    const onStorage = event => { if (event.key === 'touliao_session_revision') onCredentialsUpdated(); };
+    const onStorage = event => { if (!isIsolatedWindow() && event.key === 'touliao_session_revision') onCredentialsUpdated(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
     window.addEventListener('electron:resume', onElectronResume);

@@ -99,7 +99,7 @@ module.exports = function setupRealtime(io, app) {
     const match = cookieHeader.match(new RegExp(`${config.cookieName}=([^;]+)`));
     const cookieToken = match ? decodeURIComponent(match[1]) : null;
     const bearerToken = socket.handshake.auth?.token || null;
-    const token = cookieToken || bearerToken;
+    const token = socket.handshake.auth?.isolated === true ? bearerToken : cookieToken || bearerToken;
     if (!token) { prodMetrics.recordConnResult(false); return next(new Error('未授权')); }
     try {
       socket.user = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });

@@ -1,3 +1,4 @@
+import { clientStorage as localStorage } from './utils/clientStorage';
 import './perf-monitor.js';   // 端到端性能打点（注入 window.__touliaoPerf，须在 App 之前）
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -13,6 +14,7 @@ import { migrateStorage } from './utils/migrateStorage';
 import { initWebVitals } from './utils/webVitals';
 import { initImageOptimizer } from './utils/imageOptimizer';
 import { setupAxiosInterceptors } from './utils/axiosInterceptor';
+import { initAccountWindow, isBearerClient, isIsolatedWindow } from './utils/clientStorage';
 
 // ── Sentry 错误监控（异步懒加载，不阻塞首屏）─────────────
 if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
@@ -37,6 +39,7 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 // 3. 启动 React
 
 (async function boot() {
+  initAccountWindow();
   // 迁移旧版 vxin_* localStorage key
   migrateStorage();
 
@@ -86,8 +89,19 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   // 设置 Axios 拦截器（CSRF、token 刷新、错误重试）
   setupAxiosInterceptors(axios);
 
+  // An older server would silently overwrite the shared login cookie.
+  if (isIsolatedWindow()) {
+    try {
+      const response = await axios.get('/api/config');
+      if (response.headers['x-touliao-session'] !== 'isolated') throw new Error('unsupported');
+    } catch {
+      document.getElementById('root').textContent = '独立账号窗口暂不可用，请确认服务器在线并已升级到支持多开的版本。';
+      return;
+    }
+  }
+
   // 3. Electron / 移动端恢复 Bearer token（localStorage 持久化）
-  if (isElectron || isMobile) {
+  if (isBearerClient()) {
     const stored = localStorage.getItem('touliao_electron_token');
     if (stored) axios.defaults.headers.common['Authorization'] = `Bearer ${stored}`;
   }

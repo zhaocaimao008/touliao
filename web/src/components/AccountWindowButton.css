@@ -1,0 +1,12 @@
+.auth-window-button {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary, #24292f);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.auth-window-button:focus-visible { outline: 2px solid var(--green, #07c160); outline-offset: 2px; }
+.auth-brand .auth-window-button { margin-top: 12px; color: #fff; border-color: rgba(255,255,255,.4); }

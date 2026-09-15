@@ -82,3 +82,4 @@ export function removeFromOutbox(convId, tempIdOrId, scope) {
   const next = list.filter((m) => (m._tempId || m.id) !== tempIdOrId && m.id !== tempIdOrId);
   if (next.length !== list.length) saveOutbox(convId, next, scope);
 }
+import { clientStorage as localStorage } from './clientStorage';

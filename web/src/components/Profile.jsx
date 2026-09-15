@@ -1,3 +1,4 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -923,9 +924,10 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
   const [loading, setLoading]   = useState(false);
   const phoneRef = useRef(null);
 
-  const doSwitch = (id) => {
+  const doSwitch = async (id) => {
     if (id === user?.id) return;
-    if (switchAccount(id)) window.location.reload();
+    try { await switchAccount(id); }
+    catch (err) { setError(err.message); setShowForm(true); }
   };
 
   const doAdd = async (e) => {
@@ -1498,6 +1500,7 @@ export default function Profile({ isMobile = false }) {
         </>
       )}
 
+      <div className="wc-logout-div"><AccountWindowButton /></div>
       {/* ── 退出 ── */}
       <div className="wc-logout-div">
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>{t('settings.logout')}</button>
@@ -1520,3 +1523,4 @@ export default function Profile({ isMobile = false }) {
     </PageBg>
   );
 }
+import AccountWindowButton from './AccountWindowButton';

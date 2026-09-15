@@ -1,3 +1,4 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const translations = {

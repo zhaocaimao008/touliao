@@ -1,3 +1,4 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';

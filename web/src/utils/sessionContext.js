@@ -28,3 +28,4 @@ export function isSessionCurrent(scope) {
   return isOperationCurrent(scope) && !!active &&
     scope.server === active.server && scope.accountId === active.accountId;
 }
+import { clientStorage as localStorage } from './clientStorage';

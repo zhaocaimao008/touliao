@@ -1,3 +1,4 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useState } from 'react';
 import { prewarmAudio } from '../utils/callTones';
 import { useI18n } from '../contexts/I18nContext';

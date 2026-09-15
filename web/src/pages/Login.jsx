@@ -1,3 +1,4 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import './auth.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
@@ -7,6 +8,7 @@ import { useI18n } from '../contexts/I18nContext';
 import { timeoutSignal, resolveTenantCode } from '../utils/config';
 import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 import { showToast } from '../utils/toast';
+import AccountWindowButton from '../components/AccountWindowButton';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
@@ -150,12 +152,13 @@ export default function Login() {
         <div className="auth-brand">
           <div className="auth-brand-icon" style={{background:'none',boxShadow:'none',padding:0,overflow:'hidden'}}>
             <picture>
-              <source srcSet="/icon.webp" type="image/webp" />
-              <img src="/icon.png" alt={t('common.appName')} width="68" height="68" style={{borderRadius:'var(--radius-2xl)',display:'block',objectFit:'cover'}} />
+              <source srcSet={`${import.meta.env.BASE_URL}icon.webp`} type="image/webp" />
+              <img src={`${import.meta.env.BASE_URL}icon.png`} alt={t('common.appName')} width="68" height="68" style={{borderRadius:'var(--radius-2xl)',display:'block',objectFit:'cover'}} />
             </picture>
           </div>
           <h1 className="auth-brand-name auth-brand-name--brand">{t('common.appName')}</h1>
           <p className="auth-brand-desc">{t('auth.slogan')}</p>
+          <AccountWindowButton />
         </div>
 
         {/* 最近登录：点击仅回填手机号。 */}

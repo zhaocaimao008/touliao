@@ -3,7 +3,9 @@
  * 提升安全性和用户体验
  */
 
+import { clientStorage as localStorage } from './clientStorage';
 import { captureSession, isOperationCurrent, isOperationGenerationCurrent } from './sessionContext';
+import { isBearerClient, isIsolatedWindow } from './clientStorage';
 
 let csrfToken = null;
 let csrfRevision = null;
@@ -35,7 +37,7 @@ function extractCsrfToken(response) {
   }
   
   // 从 Cookie 中提取（备选方案）
-  const cookies = document.cookie.split(';');
+  const cookies = isIsolatedWindow() ? [] : document.cookie.split(';');
   for (const cookie of cookies) {
     const [key, value] = cookie.trim().split('=');
     if (key === 'csrf_token') {
@@ -57,7 +59,7 @@ async function refreshToken(axios) {
     .then(res => {
       if (!currentRequest(res.config)) throw staleRequest(res.config);
       const newToken = res.data?.token;
-      if (newToken && (window.__ELECTRON_CONFIG__ || window.Capacitor)) {
+      if (newToken && isBearerClient()) {
         localStorage.setItem('touliao_electron_token', newToken);
         axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       }
@@ -70,7 +72,7 @@ async function refreshToken(axios) {
       if (err.config?._sessionStale || !isOperationCurrent(scope)) throw staleRequest(err.config || { _sessionContext: scope });
       // 刷新失败，清除认证状态
       console.error('[axios] Token refresh failed:', err);
-      if (window.__ELECTRON_CONFIG__ || window.Capacitor) {
+      if (isBearerClient()) {
         localStorage.removeItem('touliao_electron_token');
         delete axios.defaults.headers.common['Authorization'];
       }
@@ -115,11 +117,12 @@ export function setupAxiosInterceptors(axios) {
   // ── 请求拦截器 ──
   axios.interceptors.request.use(
     config => {
+      if (isIsolatedWindow()) config.headers['X-Touliao-Session'] = 'isolated';
       if (config._sessionContext && !currentRequest(config)) throw staleRequest(config);
       config._sessionRevision = revision();
       config._sessionContext ??= captureSession();
       if (csrfRevision !== revision()) { csrfToken = null; csrfRevision = revision(); }
-      const cookieToken = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrf_token='))?.slice(11);
+      const cookieToken = !isIsolatedWindow() && document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrf_token='))?.slice(11);
       if (cookieToken) csrfToken = cookieToken;
       // 自动附加 CSRF token（非 GET/HEAD/OPTIONS）
       if (csrfToken && !/^(get|head|options)$/i.test(config.method)) {
@@ -174,7 +177,7 @@ export function setupAxiosInterceptors(axios) {
           const newToken = refreshed.token;
           originalRequest._sessionRevision = revision();
           originalRequest._sessionContext = refreshed.scope;
-          if (newToken && (window.__ELECTRON_CONFIG__ || window.Capacitor)) {
+          if (newToken && isBearerClient()) {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
           }
           // 重试原请求

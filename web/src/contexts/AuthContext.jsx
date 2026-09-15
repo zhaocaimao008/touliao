@@ -1,8 +1,10 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { clearCache } from '../utils/msgCache';
 import { clearCsrfToken, notifyCredentialsUpdated } from '../utils/axiosInterceptor';
 import { invalidateMediaTickets } from '../utils/url';
+import { isBearerClient, isIsolatedWindow } from '../utils/clientStorage';
 import { activateSession, captureSession, invalidateSession, isOperationCurrent, isOperationGenerationCurrent, SESSION_OWNER_KEY } from '../utils/sessionContext';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
@@ -23,7 +25,6 @@ const canPublishResponse = (operation, response) => isOperationGenerationCurrent
 const ELECTRON_TOKEN_KEY = 'touliao_electron_token';
 // Electron(file://)与移动端(Capacitor 跨域 https://localhost)均无法可靠使用 Cookie，
 // 统一改用 Bearer token；用 localStorage 持久化，App 重启后免重新登录。
-const isBearerClient = () => !!(window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.());
 
 // 清除 CSRF token 缓存（会话结束/切换账号或服务器时调用）：
 // session 与 localStorage 兜底缓存必须一起清，否则旧会话的 token 会残留在
@@ -160,11 +161,13 @@ export const AuthProvider = ({ children }) => {
   // 成功即换上新账号的 Cookie，reload 重建 socket / 拉取数据。
   // 失败（如 wallet 过期、该账号未在本设备登录过）抛错，调用方回退到密码登录。
   const switchAccount = async (accountId) => {
+    if (isIsolatedWindow()) throw new Error('请在独立账号窗口中使用密码登录。');
     invalidateSession();
     const operation = captureSession();
     const response = await axios.post('/api/auth/switch', { userId: accountId }, { _sessionContext: operation });
     if (!canPublishResponse(operation, response)) return;
     const { data } = response;
+    setElectronToken(data.token || null);
     const next = upsertAccount(data.user);
     setAccounts(next);
     setUser(data.user);
@@ -187,7 +190,7 @@ export const AuthProvider = ({ children }) => {
     invalidateSession();
     let operation = captureSession();
     try {
-      if ('serviceWorker' in navigator) {
+      if (!isIsolatedWindow() && 'serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.getRegistration('/');
         if (!isOperationCurrent(operation)) return;
         const sub = reg ? await reg.pushManager.getSubscription() : null;
@@ -235,7 +238,7 @@ export const AuthProvider = ({ children }) => {
     invalidateSession();
     let operation = captureSession();
     try {
-      if ('serviceWorker' in navigator) {
+      if (!isIsolatedWindow() && 'serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.getRegistration('/');
         if (!isOperationCurrent(operation)) return;
         const sub = reg ? await reg.pushManager.getSubscription() : null;
@@ -284,6 +287,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const onStorage = event => {
+      if (isIsolatedWindow()) return;
       if (event.key !== SESSION_OWNER_KEY) return;
       invalidateSession();
       setUser(null);

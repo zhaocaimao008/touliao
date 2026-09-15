@@ -77,3 +77,4 @@ export function rememberAspect(url, naturalWidth, naturalHeight) {
   }
   scheduleFlush();
 }
+import { clientStorage as localStorage } from './clientStorage';

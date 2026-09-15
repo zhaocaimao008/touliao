@@ -1,6 +1,6 @@
 {
   "name": "touliao-backend-v2",
-  "version": "8.0.0",
+  "version": "8.0.1",
   "description": "投聊后端 —— 分层模块化重写",
   "main": "src/server.js",
   "scripts": {
