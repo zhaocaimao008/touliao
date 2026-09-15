@@ -25,7 +25,8 @@ const credentials = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
     const context = await browser.newContext({ permissions: ['camera', 'microphone'] });
     const page = await context.newPage();
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    const result = await page.evaluate(async iceServer => {
+    async function verifyMedia(url) {
+      return page.evaluate(async iceServer => {
       const connections = [new RTCPeerConnection({ iceServers: [iceServer], iceTransportPolicy: 'relay' }), new RTCPeerConnection({ iceServers: [iceServer], iceTransportPolicy: 'relay' })];
       const streams = [], queues = [[], []], received = [[], []];
       const wait = async check => {
@@ -74,13 +75,18 @@ const credentials = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
         for (const stream of streams) stream.getTracks().forEach(track => track.stop());
         connections.forEach(connection => connection.close());
       }
-    }, credentials);
-    for (const report of result.reports) {
-      assert.equal(report.localCandidate, 'relay'); assert.equal(report.remoteCandidate, 'relay');
-      assert.ok(report.media.some(row => row.kind === 'audio' && row.packetsReceived > 0));
-      assert.ok(report.media.some(row => row.kind === 'video' && row.framesDecoded > 0));
+      }, { ...credentials, urls: [url] });
     }
-    console.log(JSON.stringify({ authenticatedTransports: 3, invalidCredentialsRejected: 3, bidirectionalRelay: true, ...result }));
+    for (const url of transports) {
+      const result = await verifyMedia(url);
+      for (const report of result.reports) {
+        assert.equal(report.localCandidate, 'relay'); assert.equal(report.remoteCandidate, 'relay');
+        assert.ok(report.media.some(row => row.kind === 'audio' && row.packetsReceived > 0));
+        assert.ok(report.media.some(row => row.kind === 'video' && row.framesDecoded > 0));
+      }
+      console.log(JSON.stringify({ url, bidirectionalRelay: true, ...result }));
+    }
+    console.log(JSON.stringify({ authenticatedTransports: transports.length, invalidCredentialsRejected: transports.length, bidirectionalMediaTransports: transports.length }));
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
