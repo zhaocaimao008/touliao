@@ -29,7 +29,7 @@ function webSubscribe(userId, subscription, sessionId = null) {
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(user_id, endpoint) DO UPDATE SET subscription=excluded.subscription, session_id=excluded.session_id, created_at=(strftime('%s','now'))
   `).run(uuidv4(), userId, subscription.endpoint, JSON.stringify(subscription), sessionId);
-  })();
+  }).immediate();
 }
 
 function webUnsubscribe(userId, endpoint, sessionId = null) {
@@ -54,7 +54,7 @@ function saveDeviceToken(userId, token, platform, sessionId = null) {
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(user_id, token) DO UPDATE SET platform=excluded.platform, session_id=excluded.session_id, created_at=(strftime('%s','now'))
   `).run(uuidv4(), userId, token, platform, sessionId);
-  })();
+  }).immediate();
 }
 
 function deleteDeviceToken(userId, token, sessionId = null) {

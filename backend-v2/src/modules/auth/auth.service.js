@@ -192,6 +192,7 @@ function listSessions(userId, req) {
 }
 
 async function deleteSession(userId, sessionId) {
+  // Reserve the writer before reading; a worker commit must not invalidate our WAL snapshot.
   const deleted = db.transaction(() => {
     const session = db.prepare('SELECT 1 FROM auth_sessions WHERE id=? AND user_id=?').get(sessionId, userId);
     if (!session) return false;
@@ -200,7 +201,7 @@ async function deleteSession(userId, sessionId) {
     // Legacy JWTs have no device binding; the approved policy revokes all old-format tokens.
     db.prepare('UPDATE users SET password_changed_at=? WHERE id=?').run(Math.floor(Date.now() / 1000), userId);
     return true;
-  })();
+  }).immediate();
   if (!deleted) return;
   invalidateUser(userId);
   // A004: 将被删会话的 jti 加入黑名单，使其已签发 JWT 立即失效（最长 tokenMaxAge）

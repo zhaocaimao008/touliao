@@ -109,3 +109,30 @@ test('legacy unbound credentials cannot register or remove session-owned notific
     expect(res.status).toBe(401);
   }
 });
+
+test('session ownership transactions reserve the SQLite writer before reading', async () => {
+  const Database = require('better-sqlite3');
+  const peer = new Database(db.name, { timeout: 0 });
+  const id = session(a);
+  const prepare = db.prepare.bind(db);
+  let probes = 0;
+  const spy = jest.spyOn(db, 'prepare').mockImplementation(sql => {
+    const statement = prepare(sql);
+    if (sql === 'SELECT 1 FROM auth_sessions WHERE id=? AND user_id=?') {
+      return { get(...args) {
+        const row = statement.get(...args);
+        // A deferred transaction would let this connection invalidate its read snapshot.
+        expect(() => peer.prepare('UPDATE users SET status=status WHERE id=?').run(a.userId)).toThrow(/locked/);
+        probes++;
+        return row;
+      } };
+    }
+    return statement;
+  });
+  try {
+    notifications.webSubscribe(a.userId, subscription(randomUUID()), id);
+    notifications.saveDeviceToken(a.userId, randomUUID(), 'android', id);
+    await auth.deleteSession(a.userId, id);
+    expect(probes).toBe(3);
+  } finally { spy.mockRestore(); peer.close(); }
+});
