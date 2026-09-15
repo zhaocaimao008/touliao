@@ -74,3 +74,12 @@ sqlite3 "$RESTORE/database.db" 'PRAGMA integrity_check; PRAGMA foreign_key_check
 - 不备份其他项目、全局 SSH/PM2/云平台凭据、历史安装包和依赖缓存。完整源码不等于完全离线可构建。
 - GitHub Artifact 不是不可变存储，也没有异云容灾 SLA。30 天每日完整快照约需数 GB 存储，留意额度和失败通知；不要删除最后可恢复副本。
 - 当前只在本机隔离目录和 GitHub 临时 runner 验证恢复，没有新服务器实机切换演练。上线新机的操作应按上节单独执行。
+
+## 2026-09-15 实测记录
+
+- [备份安全测试 34989651984](https://github.com/zhaocaimao008/touliao/actions/runs/34989651984)：8 项 Node 测试、15 项 Python 测试全部通过，本机也通过。
+- [完整备份 34989657668](https://github.com/zhaocaimao008/touliao-private-backups/actions/runs/34989657668)：成功，Artifact 约 198 MB，保留至 2026-10-15；仅包含 `snapshot.tar.age` 密文。
+- 快照源码提交 `3cabb54061db4b1d89b262adc03306048c03a67d`，包含 1,765 个文件，去重为 1,720 个数据块；校验 56 张表和 4 个子归档，SQLite 完整性正常、无外键错误。
+- 18 项凭据成功恢复；Android 私钥与 APK 签名一致，iOS 证书/私钥/描述文件匹配，更新 Ed25519 密钥匹配。Windows 发布者证书未配置。iOS 证书及描述文件当前到期日为 2027-08-29。
+- 从已保存的 GitHub Artifact 重新下载后，本机再次完成解密、文件/附件恢复与签名材料验证，HTTPS 私钥匹配证书，TURN 密钥匹配后端配置。演练明文随后清理。
+- 线上健康检查正常，后端 PID `540974`、重启次数 `16` 均未改变，TURN 重启次数 `0`；现有 8 个移动端相关草稿文件逐一确认未修改。未重启生产服务、未发布客户端。
