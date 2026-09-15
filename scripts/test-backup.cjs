@@ -54,3 +54,30 @@ test('configured but missing uploads directory fails the backup', t => {
   const res = spawnSync('bash', [script], { env: f.env, encoding: 'utf8' });
   assert.notEqual(res.status, 0, res.stdout + res.stderr);
 });
+
+test('manifest retains v1 compatibility and verifies all v2 migration components', t => {
+  const f = fixture(t);
+  assert.equal(spawnSync('bash', [script], { env: f.env }).status, 0);
+  const names = fs.readdirSync(f.backups);
+  fs.renameSync(path.join(f.backups, names.find(n => n.endsWith('.db.gz'))), path.join(f.backups, 'database.db.gz'));
+  fs.renameSync(path.join(f.backups, names.find(n => n.startsWith('uploads-'))), path.join(f.backups, 'uploads.tar.gz'));
+  const manifestScript = path.resolve(__dirname, '../deploy/backup-manifest.cjs');
+  const check = mode => spawnSync(process.execPath, [manifestScript, mode, f.backups], { encoding: 'utf8' });
+  assert.equal(check('create').status, 0);
+  assert.equal(JSON.parse(check('verify').stdout).format, 1);
+  const migrationScript = path.resolve(__dirname, '../deploy/migration-bundle.py');
+  const make = spawnSync('python3', ['-B', '-c', "import importlib.util,sys,io,tempfile; s=importlib.util.spec_from_file_location('m',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); t=tempfile.TemporaryDirectory(); b=m.Builder(t.name); b.add_stream(io.BytesIO(b'private environment'),'config/backend.env'); b.pack(sys.argv[2],{})", migrationScript, path.join(f.backups, 'migration.tar.gz')]);
+  assert.equal(make.status, 0);
+  const credentials = path.join(f.backups, 'ci-credentials.age');
+  fs.writeFileSync(credentials, 'age-encryption.org/v1\nfixture ciphertext');
+  assert.equal(check('create').status, 0);
+  const report = JSON.parse(check('verify').stdout);
+  assert.equal(report.format, 2);
+  assert.equal(report.archivesVerified, 4);
+  assert.equal(report.migrationFilesVerified, 1);
+  fs.appendFileSync(credentials, 'tampered');
+  assert.notEqual(check('verify').status, 0);
+  fs.unlinkSync(credentials);
+  assert.notEqual(check('verify').status, 0);
+  assert.equal(fs.existsSync(path.join(f.backups, 'restore.db')), false);
+});

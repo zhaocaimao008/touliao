@@ -24,13 +24,23 @@ async function digest(file) {
     for (const { name } of query(db, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")) {
       tables[name] = query(db, `SELECT COUNT(*) AS count FROM "${name.replaceAll('"', '""')}"`)[0].count;
     }
-    const hashes = {};
-    for (const name of ['database.db.gz', 'uploads.tar.gz']) hashes[name] = await digest(path.join(dir, name));
-    execFileSync('tar', ['-tzf', path.join(dir, 'uploads.tar.gz')], { stdio: 'ignore' });
-    const report = { format: 1, tables, hashes };
     const file = path.join(dir, 'manifest.json');
+    const expected = mode === 'verify' ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+    const format = expected?.format || (fs.existsSync(path.join(dir, 'migration.tar.gz')) ? 2 : 1);
+    assert.ok([1, 2].includes(format), 'Unsupported backup format');
+    const archives = ['database.db.gz', 'uploads.tar.gz'];
+    if (format === 2) archives.push('migration.tar.gz', 'ci-credentials.age');
+    const hashes = {};
+    for (const name of archives) hashes[name] = await digest(path.join(dir, name));
+    execFileSync('tar', ['-tzf', path.join(dir, 'uploads.tar.gz')], { stdio: 'ignore' });
+    let migration;
+    if (format === 2) {
+      migration = JSON.parse(execFileSync('python3', [path.join(__dirname, 'migration-bundle.py'), 'verify', path.join(dir, 'migration.tar.gz')], { encoding: 'utf8' }));
+      assert.ok(fs.readFileSync(path.join(dir, 'ci-credentials.age')).subarray(0, 22).toString().startsWith('age-encryption.org/v1'));
+    }
+    const report = { format, tables, hashes };
     if (mode === 'create') fs.writeFileSync(file, JSON.stringify(report), { mode: 0o600 });
-    else assert.deepEqual(report, JSON.parse(fs.readFileSync(file, 'utf8')));
-    console.log(JSON.stringify({ mode, integrity: 'ok', foreignKeyErrors: 0, tablesVerified: Object.keys(tables).length, archivesVerified: 2 }));
+    else assert.deepEqual(report, expected);
+    console.log(JSON.stringify({ mode, format, integrity: 'ok', foreignKeyErrors: 0, tablesVerified: Object.keys(tables).length, archivesVerified: archives.length, ...(migration ? { migrationFilesVerified: migration.filesVerified } : {}) }));
   } finally { fs.rmSync(db, { force: true }); }
-})().catch(error => { console.error(error.message); process.exitCode = 1; });
+})().catch(() => { console.error('Backup verification failed; private manifest details are omitted.'); process.exitCode = 1; });
