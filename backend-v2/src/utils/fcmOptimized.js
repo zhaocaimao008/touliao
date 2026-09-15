@@ -3,7 +3,7 @@
  * Android FCM 优化推送模块
  * 优化项:
  * 1. 批量发送 (sendEachForMulticast) - 减少 90% API 调用
- * 2. Token 缓存 - 减少 80% 数据库查询
+ * 2. 每次发送查询当前 Token 归属，避免切号/退出后继续推送
  * 3. 智能优先级 - 节省电池 10-20%
  * 4. 超时控制 - 快速失败快速重试
  * 5. 消息大小控制 - 确保消息不超过 4KB
@@ -34,41 +34,15 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && proc
   console.debug('[FCM] Firebase 未配置，FCM 推送不可用');
 }
 
-// ── Token 缓存管理 (5 分钟 TTL) ──────────────────────────────────
-const tokenCache = new Map();
-const TOKEN_CACHE_TTL = 300000; // 5 分钟
-
-async function getAndroidTokens(userId) {
-  const cacheKey = `tokens_${userId}`;
-  const cached = tokenCache.get(cacheKey);
-  
-  // 检查缓存是否有效
-  if (cached && Date.now() - cached.time < TOKEN_CACHE_TTL) {
-    return cached.tokens;
-  }
-  
-  // 从数据库查询
+// Token ownership must be checked at send time, never cached across sessions.
+function getAndroidTokens(userId) {
+  // Token ownership is authorization state: never reuse it after logout or account transfer.
   const tokens = db.prepare(
     "SELECT * FROM device_tokens WHERE user_id=? AND platform='android'"
   ).all(userId);
   
-  // 缓存结果
-  tokenCache.set(cacheKey, { tokens, time: Date.now() });
   return tokens;
 }
-
-// 定期清理过期缓存
-setInterval(() => {
-  const now = Date.now();
-  let cleaned = 0;
-  for (const [key, value] of tokenCache.entries()) {
-    if (now - value.time > TOKEN_CACHE_TTL * 2) {
-      tokenCache.delete(key);
-      cleaned++;
-    }
-  }
-  if (cleaned > 0) console.debug(`[FCM] 清理过期缓存 ${cleaned} 条`);
-}, 60000);
 
 // ── 智能优先级 ────────────────────────────────────────────────────
 function getPriority(messageType, isSilentHour = false) {
@@ -132,8 +106,8 @@ async function sendBatchAndroidNotifications(userId, payload) {
   const startTime = Date.now();
   
   try {
-    // 1. 获取用户的 Android 设备 Token (使用缓存)
-    const tokens = await getAndroidTokens(userId);
+    // 1. 获取用户当前有效的 Android 设备 Token
+    const tokens = getAndroidTokens(userId);
     if (tokens.length === 0) {
       console.debug(`[FCM] 用户 ${userId} 无 Android 设备`);
       return null;
@@ -253,7 +227,7 @@ function getMetrics() {
 
 // ── 清空缓存 (用于测试) ────────────────────────────────────────────
 function clearCache() {
-  tokenCache.clear();
+  // Retained for callers from older releases; authorization tokens are no longer cached.
   console.debug('[FCM] Token 缓存已清空');
 }
 

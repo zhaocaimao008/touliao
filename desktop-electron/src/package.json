@@ -15,11 +15,11 @@
   "_comment": "构建配置以 desktop-electron/package.json 为唯一来源；此文件不再保留 build 段以避免漂移。请始终从 desktop-electron/ 根目录构建。",
   "dependencies": {
     "electron-store": "^8.1.0",
-    "electron-updater": "^6.1.0",
+    "electron-updater": "6.8.9",
     "electron-log": "^5.0.0"
   },
   "devDependencies": {
-    "electron": "^30.0.0",
-    "electron-builder": "^24.13.0"
+    "electron": "43.7.0",
+    "electron-builder": "26.15.3"
   }
 }

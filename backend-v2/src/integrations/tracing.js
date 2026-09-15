@@ -6,7 +6,7 @@
 const { NodeSDK } = require('@opentelemetry/sdk-node');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
 const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc');
-const { Resource } = require('@opentelemetry/resources');
+const { defaultResource, resourceFromAttributes } = require('@opentelemetry/resources');
 const { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } = require('@opentelemetry/semantic-conventions');
 const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 const opentelemetry = require('@opentelemetry/api');
@@ -49,8 +49,8 @@ class DistributedTracing {
 
     try {
       // 配置资源
-      const resource = Resource.default().merge(
-        new Resource({
+      const resource = defaultResource().merge(
+        resourceFromAttributes({
           [SEMRESATTRS_SERVICE_NAME]: serviceName,
           [SEMRESATTRS_SERVICE_VERSION]: process.env.npm_package_version || '2.2.0',
           [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',

@@ -91,7 +91,7 @@ async function pushToUser(userId, payload) {
       // 纵深防御：跳过非法/内网 endpoint（挡入口校验前遗留的存量恶意订阅），防 SSRF
       if (!isAllowedPushEndpoint(sub?.endpoint)) continue;
       promises.push(
-        webpush.sendNotification(sub, JSON.stringify(payload)).catch(err => {
+        webpush.sendNotification(sub, JSON.stringify({ ...payload, recipientId: userId })).catch(err => {
           if (err.statusCode === 410 || err.statusCode === 404) {
             db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(row.id);
           }

@@ -39,14 +39,14 @@ exports.register = asyncHandler(async (req, res) => {
   const { token, user } = await svc.register(req.body, req);
   setAuthCookie(req, res, token);
   svc.recordDeviceAccount(ensureWallet(req, res), user.id, jwt.decode(token).jti);
-  res.json({ token, user });
+  res.json({ token, user: { ...user, sessionId: jwt.decode(token).jti } });
 });
 
 exports.login = asyncHandler(async (req, res) => {
   const { token, user } = await svc.login(req.body, req);
   setAuthCookie(req, res, token);
   svc.recordDeviceAccount(ensureWallet(req, res), user.id, jwt.decode(token).jti);
-  res.json({ token, user });
+  res.json({ token, user: { ...user, sessionId: jwt.decode(token).jti } });
 });
 
 // 免密切换账号：凭 wallet cookie 校验本设备登录过该账号 → 重签发 token
@@ -56,7 +56,7 @@ exports.switchAccount = asyncHandler(async (req, res) => {
   const walletId = req.cookies?.[config.walletCookie];
   const { token, user } = svc.switchAccount(walletId, userId, req);
   setAuthCookie(req, res, token);
-  res.json({ user, token });
+  res.json({ user: { ...user, sessionId: jwt.decode(token).jti }, token });
 });
 
 // 从本设备移除某账号（删除/退出后不再可免密切换）。只影响本设备的钱包。
@@ -73,7 +73,7 @@ exports.me = asyncHandler(async (req, res) => {
     res.clearCookie(config.cookieName, { path: '/' });
     return res.status(401).json({ error: '用户不存在' });
   }
-  res.json(user);
+  res.json({ ...user, sessionId: req.user.jti });
 });
 
 exports.refresh = asyncHandler(async (req, res) => {
@@ -175,7 +175,7 @@ exports.changePassword = asyncHandler(async (req, res) => {
   // 关键：改密后旧 token 已加入黑名单+清 session。Cookie 客户端(浏览器)靠上面刷新的 Cookie 续命；
   // Bearer 客户端(桌面 Electron / 移动 Capacitor / Android / iOS 原生)必须拿到新 token 覆盖本地，
   // 否则旧 Bearer token 立即失效 → 后续请求 401 被强制登出，表现为「改密后功能不正常」。
-  res.json({ success: true, token });
+  res.json({ success: true, token, sessionId: jwt.decode(token).jti });
 });
 
 exports.resetPassword = asyncHandler(async (req, res) => {

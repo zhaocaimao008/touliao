@@ -1,0 +1,10 @@
+'use strict';
+const express = require('express');
+const { rateLimit } = require('express-rate-limit');
+const { createSharedStores } = require('../../src/utils/sharedRateLimitStore');
+const stores = createSharedStores(process.env.TEST_REDIS_URL, process.env.TEST_RATE_PREFIX);
+const app = express();
+app.get('/limited', rateLimit({ windowMs: 60000, limit: 2, store: stores.makeStore('shared') }), (_req, res) => res.json({ ok: true }));
+app.use((error, _req, res, _next) => res.status(error.status || 500).json({ error_code: error.code }));
+const server = app.listen(0, '127.0.0.1', () => process.send({ port: server.address().port }));
+process.on('SIGTERM', async () => { await stores.close(); server.close(() => process.exit(0)); });

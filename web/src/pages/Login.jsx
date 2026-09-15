@@ -9,6 +9,7 @@ import { timeoutSignal, resolveTenantCode } from '../utils/config';
 import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 import { showToast } from '../utils/toast';
 import AccountWindowButton from '../components/AccountWindowButton';
+import { safeReturnPath } from '../utils/returnPath';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
@@ -131,7 +132,7 @@ export default function Login() {
       if (remember) await saveCred(phone);
       else removeCred(phone);
       login(data.user, data.token);
-      navigate(location.state?.from || '/', { replace: true });
+      navigate(safeReturnPath(location.state?.from), { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || t('auth.loginFailed'));
       // 验证码一次核销即失效（不管猜对猜错），报错后旧图必然已经作废，直接换一张，

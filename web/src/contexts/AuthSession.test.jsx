@@ -169,6 +169,17 @@ test('current change-password success installs the new credential and publishes 
   expect(localStorage.getItem('touliao_session_revision')).toBeTruthy();
 });
 
+test('logout never unsubscribes the root registration when its dedicated registration is missing', async () => {
+  const getSubscription = vi.fn();
+  navigator.serviceWorker = { getRegistration: async () => ({ scope: 'https://fixture.invalid/', pushManager: { getSubscription } }) };
+  vi.spyOn(axios, 'post').mockResolvedValue({ data: {} });
+  const api = AuthProvider({ children: null }).props.value;
+  api.login({ id: 'A', sessionId: 'session-A' });
+  await api.logout();
+  expect(getSubscription).not.toHaveBeenCalled();
+  expect(hooks.states[0]).toBe(null);
+});
+
 // Real Provider -> Axios -> refresh -> retried DELETE. No axios method mocks.
 // Removing response-context adoption makes the refresh control fail; removing
 // identity/revision guards makes the paused B/ABA cases clear the newer login.
@@ -179,7 +190,7 @@ function pushCleanupTransport({ refresh = false, cleanupFailure = false, pauseAt
     if (pauseAt === 'unsubscribe') { onPause(); await release; }
     return true;
   });
-  navigator.serviceWorker = { getRegistration: async () => ({ pushManager: {
+  navigator.serviceWorker = { getRegistration: async scope => ({ scope: `https://app.test${scope}`, pushManager: {
     getSubscription: async () => ({ endpoint: 'https://push.invalid/synthetic', unsubscribe }),
   } }) };
   const adapter = async config => {

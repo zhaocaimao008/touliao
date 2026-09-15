@@ -1,7 +1,7 @@
 {
   "name": "touliao-web",
   "type": "module",
-  "version": "8.1.22",
+  "version": "8.1.23",
   "description": "投聊 — 企业级安全即时通讯客户端",
   "homepage": "",
   "author": {
@@ -10,6 +10,7 @@
   },
   "desktopName": "com.touliao.desktop",
   "scripts": {
+    "postinstall": "node scripts/patch-capacitor-tar.cjs",
     "dev": "vite --port 3000",
     "build": "vite build",
     "preview": "vite preview",
@@ -40,7 +41,7 @@
     "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "6.30.6",
+    "react-router-dom": "7.18.3",
     "react-virtualized-auto-sizer": "^1.0.24",
     "react-window": "^1.8.11",
     "socket.io-client": "^4.7.4",
@@ -62,10 +63,13 @@
     "vite": "^8.0.16",
     "vite-plugin-compression": "^0.5.1",
     "vite-plugin-singlefile": "^2.3.3",
-    "vitest": "^2.1.9",
+    "vitest": "4.1.11",
     "wait-on": "^9.0.10",
     "workbox-webpack-plugin": "^7.4.1",
     "workbox-window": "^7.4.1"
+  },
+  "overrides": {
+    "tar": "7.5.22"
   },
   "optionalDependencies": {
     "@capacitor/app": "^4.0.0",

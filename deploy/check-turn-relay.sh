@@ -21,7 +21,7 @@ while IFS='=' read -r key value; do
 done < <(grep -E '^(TURN_SECRET|TURN_URLS)=' "$ENV_FILE" || true)
 [[ -n "$TURN_SECRET" && -n "$TURN_URLS" ]] || { echo "TURN relay allocation: FAIL (missing configuration)" >&2; exit 1; }
 
-TURN_PROBE_USERNAME="$(date +%s):turn-probe"
+TURN_PROBE_USERNAME="$(( $(date +%s) + 600 )):turn-probe"
 TURN_PROBE_CREDENTIAL="$(printf '%s' "$TURN_PROBE_USERNAME" | openssl dgst -sha1 -hmac "$TURN_SECRET" -binary | base64 -w0)"
 export TURN_PROBE_URL="$TURN_URLS" TURN_PROBE_USERNAME TURN_PROBE_CREDENTIAL
 exec node "$SCRIPT_DIR/lib/turn-allocation-probe.js"

@@ -1,0 +1,17 @@
+services:
+  turn:
+    image: coturn/coturn@sha256:aa68aab64a3b929d57fc2924c98ea447bf996cf8dade2508e7b71eaf23f1f14e
+    container_name: touliao-coturn
+    restart: unless-stopped
+    network_mode: host
+    user: '65534:65534'
+    read_only: true
+    cap_drop: [ALL]
+    # The upstream binary has this file capability and cannot exec without it in the bounding set.
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,noexec,size=32m,uid=65534,gid=65534
+    volumes:
+      - /etc/touliao-turn:/etc/coturn:ro
+    command: ['-c', '/etc/coturn/turnserver.conf']

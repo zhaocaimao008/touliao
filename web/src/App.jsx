@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { I18nProvider, useI18n } from './contexts/I18nContext';
 import { SocketProvider } from './contexts/SocketContext';
+import { FilePreviewProvider } from './contexts/FilePreviewContext';
 import ElectronTitlebar from './components/ElectronTitlebar';
 import UpdateBanner from './components/UpdateBanner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -81,7 +82,7 @@ export default function App() {
                   {/* 内层边界：聊天主页崩溃时不连累已登录外壳，可单独重试 */}
                   <ErrorBoundary>
                     <SocketProvider>
-                      <Home />
+                      <FilePreviewProvider><Home /></FilePreviewProvider>
                     </SocketProvider>
                   </ErrorBoundary>
                 </PrivateRoute>

@@ -156,7 +156,7 @@ function runAllocate(target, username, credential, timeoutMs) {
       exchangeOn(sendStep, username, credential, target, finish);
     } else {
       socket = target.isTls
-        ? tls.connect({ host: target.host, port: target.port, rejectUnauthorized: false })
+        ? tls.connect({ host: target.host, servername: target.host, port: target.port, rejectUnauthorized: true })
         : net.createConnection(target.port, target.host);
       socket.on('error', onTransportError);
       const pending = [];

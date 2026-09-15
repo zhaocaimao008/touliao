@@ -676,6 +676,10 @@ function applySchema(db) {
       SELECT endpoint FROM push_subscriptions GROUP BY endpoint HAVING COUNT(*) > 1
     )`,
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subscriptions_owner ON push_subscriptions(endpoint)",
+    "ALTER TABLE push_subscriptions ADD COLUMN session_id TEXT REFERENCES auth_sessions(id) ON DELETE CASCADE",
+    "ALTER TABLE device_tokens ADD COLUMN session_id TEXT REFERENCES auth_sessions(id) ON DELETE CASCADE",
+    "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_session ON push_subscriptions(session_id)",
+    "CREATE INDEX IF NOT EXISTS idx_device_tokens_session ON device_tokens(session_id)",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

@@ -5,6 +5,7 @@ import { clearCache } from '../utils/msgCache';
 import { clearCsrfToken, notifyCredentialsUpdated } from '../utils/axiosInterceptor';
 import { invalidateMediaTickets } from '../utils/url';
 import { isBearerClient, isIsolatedWindow } from '../utils/clientStorage';
+import { pushScope } from '../utils/pushScope';
 import { activateSession, captureSession, invalidateSession, isOperationCurrent, isOperationGenerationCurrent, SESSION_OWNER_KEY } from '../utils/sessionContext';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
@@ -82,10 +83,13 @@ export const AuthProvider = ({ children }) => {
   const [accounts, setAccounts] = useState(() => readAccounts());
   const [loading, setLoading]   = useState(true);
   const [outboxScope, setOutboxScope] = useState(null);
-  const bindOwner = userData => setOutboxScope(activateSession(
-    new URL(axios.defaults.baseURL || '/', window.location.href).href.replace(/\/$/, ''), userData.id
-  ));
   const userRef = useRef(null);
+  const bindOwner = userData => {
+    userRef.current = userData;
+    setOutboxScope(activateSession(
+      new URL(axios.defaults.baseURL || '/', window.location.href).href.replace(/\/$/, ''), userData.id
+    ));
+  };
   useEffect(() => { userRef.current = user; }, [user]);
 
   // ── 401 自动踢出 ───────────────────────────────────────────────
@@ -190,10 +194,11 @@ export const AuthProvider = ({ children }) => {
     invalidateSession();
     let operation = captureSession();
     try {
-      if (!isIsolatedWindow() && 'serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration('/');
+      if (userRef.current && 'serviceWorker' in navigator) {
+        const scope = pushScope(userRef.current);
+        const reg = await navigator.serviceWorker.getRegistration(scope);
         if (!isOperationCurrent(operation)) return;
-        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        const sub = reg && new URL(reg.scope).pathname === scope ? await reg.pushManager.getSubscription() : null;
         if (!isOperationCurrent(operation)) return;
         if (sub) {
           const cleanupResponse = await axios.delete('/api/notifications/web-subscribe', { data: { endpoint: sub.endpoint }, _sessionContext: operation })
@@ -227,6 +232,7 @@ export const AuthProvider = ({ children }) => {
     if (!canPublishResponse(operation, response)) return;
     const { data } = response;
     setElectronToken(data.token || null);
+    if (data.sessionId) setUser(previous => ({ ...previous, sessionId: data.sessionId }));
     notifyCredentialsUpdated();
   };
 
@@ -238,10 +244,11 @@ export const AuthProvider = ({ children }) => {
     invalidateSession();
     let operation = captureSession();
     try {
-      if (!isIsolatedWindow() && 'serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration('/');
+      if (userRef.current && 'serviceWorker' in navigator) {
+        const scope = pushScope(userRef.current);
+        const reg = await navigator.serviceWorker.getRegistration(scope);
         if (!isOperationCurrent(operation)) return;
-        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        const sub = reg && new URL(reg.scope).pathname === scope ? await reg.pushManager.getSubscription() : null;
         if (!isOperationCurrent(operation)) return;
         if (sub) {
           const cleanupResponse = await axios.delete('/api/notifications/web-subscribe', { data: { endpoint: sub.endpoint }, _sessionContext: operation })

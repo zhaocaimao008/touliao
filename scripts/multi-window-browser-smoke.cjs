@@ -16,6 +16,12 @@ process.env.UPLOADS_ROOT = path.join(temp, 'uploads');
 process.env.DISABLE_CSRF = '0';
 process.env.REDIS_URL = '';
 process.env.COOKIE_SECURE = 'false';
+const webpush = require('../backend-v2/node_modules/web-push');
+const vapid = webpush.generateVAPIDKeys();
+process.env.VAPID_PUBLIC_KEY = vapid.publicKey;
+process.env.VAPID_PRIVATE_KEY = vapid.privateKey;
+// The external push gateway is a fixture; browser worker registration/routing is real.
+webpush.sendNotification = async () => ({});
 // Prevent dotenv from loading deployment secrets and external integration endpoints.
 process.chdir(temp);
 const app = require('../backend-v2/src/app');
@@ -70,7 +76,21 @@ setupRealtime(io, app);
     await api(users[1], 'POST', '/api/users/avatar', avatar);
     browser = await chromium.launch({ headless: true,
       ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'allow' });
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'allow', permissions: ['notifications'] });
+    await context.addInitScript(() => {
+      const subscriptions = new Map();
+      Object.defineProperty(ServiceWorkerRegistration.prototype, 'pushManager', { get() {
+        const scope = this.scope;
+        return { getSubscription: async () => subscriptions.get(scope) || null,
+          subscribe: async () => {
+            const endpoint = `https://fcm.googleapis.com/fcm/send/smoke-${encodeURIComponent(scope)}`;
+            const sub = { endpoint, toJSON: () => ({ endpoint, keys: { p256dh: 'fixture', auth: 'fixture' } }),
+              unsubscribe: async () => { subscriptions.delete(scope); return true; } };
+            subscriptions.set(scope, sub);
+            return sub;
+          } };
+      } });
+    });
     context.setDefaultTimeout(20000);
     await context.route('https://**/*', route => route.request().url().includes('config.json')
       ? route.fulfill({ json: { api: base, socket: base, cdn: base, version: 'test' } })
@@ -111,6 +131,13 @@ setupRealtime(io, app);
     }
     const connectedIds = new Set([...io.sockets.sockets.values()].map(socket => socket.user.id));
     assert.ok(users.every(user => connectedIds.has(user.id)), 'all three accounts have distinct connected sockets');
+    const { db } = require('../backend-v2/src/db/connection');
+    for (const page of pages) await page.waitForFunction(async () => (await navigator.serviceWorker.getRegistrations()).filter(reg => new URL(reg.scope).pathname.startsWith('/push/')).length === 3);
+    for (let i = 0; i < 100 && db.prepare('SELECT COUNT(*) AS n FROM push_subscriptions').get().n < 3; i++) await new Promise(resolve => setTimeout(resolve, 50));
+    const pushRows = db.prepare('SELECT user_id,endpoint,session_id FROM push_subscriptions').all();
+    assert.equal(pushRows.length, 3, 'three distinct push subscriptions coexist');
+    assert.equal(new Set(pushRows.map(row => row.endpoint)).size, 3);
+    assert.ok(pushRows.every(row => row.session_id), 'subscriptions are session-bound');
     for (const page of pages.slice(0, 2)) await page.getByTestId(`conv-item-${conversationId}`).click();
     const avatarImage = pages[0].getByTestId(`conv-item-${conversationId}`).locator('img');
     await avatarImage.waitFor();
@@ -139,9 +166,9 @@ setupRealtime(io, app);
     assert.equal(await pages[1].evaluate(() => !!window.__unsafeSheet), false);
     await preview.getByRole('button', { name: 'Second sheet', exact: true }).click();
     await preview.getByText('Second sheet value', { exact: true }).waitFor();
-    await pages[1].getByTestId('file-preview-close').click();
     await pages[1].setViewportSize({ width: 390, height: 844 });
-    await pages[1].getByTestId('msg-file').filter({ hasText: 'launch-audit.xlsx' }).click();
+    await preview.getByText('Second sheet value', { exact: true }).waitFor();
+    await preview.getByRole('button', { name: 'First sheet', exact: true }).click();
     await preview.locator('.wc-xlsx-table-wrap').getByText('Launch audit', { exact: true }).waitFor();
     await preview.evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
     assert.ok(await preview.evaluate(el => el.contains(document.elementFromPoint(innerWidth / 2, innerHeight / 2))), 'preview is above the chat surface');
@@ -156,11 +183,12 @@ setupRealtime(io, app);
     assert.equal((await identity(pages[1])).status, 401);
     assert.equal((await identity(pages[0])).id, users[0].id);
     assert.equal((await identity(pages[2])).id, users[2].id);
+    assert.deepEqual(db.prepare('SELECT user_id FROM push_subscriptions ORDER BY user_id').all().map(row => row.user_id), [users[0].id, users[2].id].sort());
     await pages[1].setViewportSize({ width: 390, height: 844 });
     await pages[1].screenshot({ path: path.join(temp, 'login-mobile.png'), fullPage: true });
     assert.ok(await pages[1].evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await pages[2].screenshot({ path: path.join(temp, 'independent-account.png') });
-    console.log(JSON.stringify({ independentAccounts: 3, csrfEnabled: true, sharedServiceWorker: true, logoutIsolated: true, socketsIsolated: true, bidirectionalChat: true, avatarLoaded: true, spreadsheetPreview: true, screenshots: temp }));
+    console.log(JSON.stringify({ independentAccounts: 3, csrfEnabled: true, sharedServiceWorker: true, isolatedPushRegistrations: 3, externalPushGatewayMocked: true, logoutIsolated: true, socketsIsolated: true, bidirectionalChat: true, avatarLoaded: true, spreadsheetPreview: true, previewSurvivesResize: true, screenshots: temp }));
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => io.close(resolve));

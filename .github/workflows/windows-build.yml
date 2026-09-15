@@ -5,6 +5,11 @@ name: Windows Desktop Build
 # 跑完在底部 Artifacts 下载 touliao-windows-setup。
 on:
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: Publish verified installer to production
+        type: boolean
+        default: false
   push:
     tags:
       # 仅桌面端专属前缀触发；避免裸 v* 同时误触发 Android/iOS 发布（详见 VERSIONING.md）。
@@ -18,10 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node 20
+      - name: Set up Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install web deps
         working-directory: web
@@ -64,6 +69,23 @@ jobs:
         shell: bash
         run: rm -f "${{ runner.temp }}/update-private-key.pem"
 
+      - name: Windows installed app multi-window regression
+        working-directory: desktop-electron
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist/touliao-*-setup.exe | Select-Object -First 1
+          if (!$installer) { throw "Installer missing" }
+          $installDir = Join-Path $env:RUNNER_TEMP 'touliao-installed'
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S', "/D=$installDir" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+          $exe = Join-Path $installDir 'touliao.exe'
+          if (!(Test-Path $exe)) { throw "Installed executable missing" }
+          Get-Process touliao -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
+          $env:TOULIAO_ELECTRON = $exe
+          $env:TOULIAO_PACKAGED_APP = '1'
+          node scripts/multi-window-smoke.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Upload installer + update feed
         uses: actions/upload-artifact@v4
         with:
@@ -87,8 +109,10 @@ jobs:
   deploy:
     name: 部署到香港服务器
     needs: build
+    if: startsWith(github.ref, 'refs/tags/desktop-v') || inputs.deploy == true
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       # 2026-08-30 加固：此前没有 secret 检测，DEPLOY_SSH_KEY/DEPLOY_USER/DEPLOY_SERVER_HOST
       # 缺失时"SCP 到服务器"这一步会直接因 ssh 连接失败而报错（exit code 255），历史上
       # 已经实际发生过2次，构建本身成功但部署这一步标红——现状本身已经是"明确失败"，不是
@@ -117,7 +141,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.DEPLOY_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cp deploy/ssh_known_hosts ~/.ssh/known_hosts
 
       - name: SCP 到服务器
         run: |
@@ -137,11 +161,15 @@ jobs:
           ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
             "mkdir -p /var/www/downloads/updates"
           scp -i ~/.ssh/deploy_key "$EXE" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/touliao-windows-latest.exe"
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/.touliao-windows-latest.exe.pending"
+          ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
+            "mv /var/www/downloads/.touliao-windows-latest.exe.pending /var/www/downloads/touliao-windows-latest.exe && cp /var/www/downloads/touliao-windows-latest.exe /var/www/downloads/.touliao-windows-latest-setup.exe.pending && mv /var/www/downloads/.touliao-windows-latest-setup.exe.pending /var/www/downloads/touliao-windows-latest-setup.exe"
           # 关键：把带版本名的 exe 也放进 updates/，electron-updater 读 latest.yml 后按原名去 updates/ 取，
           # 否则自动更新会 404（此前 updates/ 只有旧版 exe）。
           scp -i ~/.ssh/deploy_key "$EXE" \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/$(basename "$EXE")"
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/.$(basename "$EXE").pending"
+          ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
+            "mv /var/www/downloads/updates/.$(basename "$EXE").pending /var/www/downloads/updates/$(basename "$EXE")"
           # 2026-08-30 修复：此前这里用 `find ... -name latest.yml -o -name '*.blockmap'`
           # 显式枚举文件名，2026-08-30当天新增的 latest.yml.sig 没被同步进这个枚举列表，
           # 直到今天 DEPLOY_SSH_KEY 第一次真正配好、这个 job 第一次真实跑通部署，
@@ -155,8 +183,10 @@ jobs:
           while IFS= read -r f; do
             echo "同步: $f"
             scp -i ~/.ssh/deploy_key "$f" \
-              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/"
-          done < <(find artifacts -type f ! -name "*.exe")
+              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}:/var/www/downloads/updates/.$(basename "$f").pending"
+            ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_SERVER_HOST }}" \
+              "mv /var/www/downloads/updates/.$(basename "$f").pending /var/www/downloads/updates/$(basename "$f")"
+          done < <(find artifacts -type f ! -name "*.exe" ! -name latest.yml; find artifacts -type f -name latest.yml)
           echo "✅ SCP 全部完成"
 
       - name: 部署后真实验证（curl 逐个确认线上真的能拿到，不只信上面的日志）
@@ -180,6 +210,7 @@ jobs:
           check "$BASE/updates/latest.yml.sig"
           check "$BASE/updates/$EXE_NAME"           # electron-updater 真正会去拉的版本化安装包
           check "$BASE/touliao-windows-latest.exe"  # 人工直接下载用的固定直链
+          check "$BASE/touliao-windows-latest-setup.exe"
           if [ "$fail" -ne 0 ]; then
             echo "::error::部署后验证失败，至少一个文件线上不可访问，自动更新链路不完整"
             exit 1

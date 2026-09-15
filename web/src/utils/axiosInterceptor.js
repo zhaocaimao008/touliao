@@ -92,6 +92,7 @@ async function refreshToken(axios) {
  */
 function shouldRetry(error) {
   if (!error.config || error.config.__retryCount >= 3) return false;
+  if (error.response?.data?.error_code === 'CLOUD_STORAGE_UNCONFIGURED') return false;
   
   // 网络错误或 5xx 服务器错误才重试
   if (!error.response) return true; // 网络错误
