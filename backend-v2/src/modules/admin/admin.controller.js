@@ -102,12 +102,8 @@ exports.revokeTrusted = asyncHandler(async (req, res) => { sec.revokeTrusted(req
 exports.logout = asyncHandler(async (req, res) => {
   const token = req.cookies?.[config.admin.cookieName] || req.adminToken;
   if (token) {
-    try {
-      const payload = jwt.decode(token);
-      if (payload?.exp) {
-        addToBlacklist(token, payload.exp);
-      }
-    } catch { /* ignore */ }
+    const payload = jwt.decode(token);
+    if (payload?.exp) await addToBlacklist(token, payload.exp);
   }
   res.clearCookie(config.admin.cookieName, { path: '/' });
   res.json({ success: true });

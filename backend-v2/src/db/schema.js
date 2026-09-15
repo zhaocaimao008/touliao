@@ -667,6 +667,15 @@ function applySchema(db) {
     // Old grants cannot be mapped safely to a physical session. They require password login.
     "ALTER TABLE device_accounts ADD COLUMN session_id TEXT DEFAULT NULL",
     "CREATE INDEX IF NOT EXISTS idx_device_accounts_session ON device_accounts(user_id,session_id)",
+    // Ambiguous legacy push ownership must be re-registered by the active client.
+    `DELETE FROM device_tokens WHERE token IN (
+      SELECT token FROM device_tokens GROUP BY token HAVING COUNT(*) > 1
+    )`,
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_device_tokens_owner ON device_tokens(token)",
+    `DELETE FROM push_subscriptions WHERE endpoint IN (
+      SELECT endpoint FROM push_subscriptions GROUP BY endpoint HAVING COUNT(*) > 1
+    )`,
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subscriptions_owner ON push_subscriptions(endpoint)",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

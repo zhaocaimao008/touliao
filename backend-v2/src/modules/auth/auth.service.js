@@ -17,7 +17,7 @@ function currentInviteCode() {
 }
 
 function isValidInviteCode(code) {
-  if (!/^\d{6}$/.test(code)) return false;
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return false;
   const raw = currentInviteCode();
   // 必须先配置邀请码才能注册：未配置时一律拒绝（不再默认放行任意 6 位码）
   if (!raw) return false;
@@ -41,7 +41,7 @@ function isLoginCaptchaRequired() {
 // 解析注册邀请码：先认管理员全局码（无邀请人），再认某用户的专属码（记其为邀请人）。
 // 返回 { valid, inviterId }。inviterId 仅在用了他人专属码时非空。
 function resolveInvite(code) {
-  if (!/^\d{6}$/.test(code)) return { valid: false, inviterId: null };
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return { valid: false, inviterId: null };
   const raw = currentInviteCode();
   const globals = raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : [];
   if (globals.includes(code)) return { valid: true, inviterId: null };
@@ -121,14 +121,14 @@ async function register({ username, phone, password, inviteCode }, req) {
   // resolveInvite 同时兼容「管理员全局码」和「其他用户的专属邀请码」，后者会记录邀请人（裂变）。
   let inviterId = null;
   if (isInviteRequired()) {
-    if (!inviteCode || !/^\d{6}$/.test(inviteCode)) throw badRequest('邀请码必须是6位数字');
+    if (typeof inviteCode !== 'string' || !/^\d{6}$/.test(inviteCode)) throw badRequest('邀请码必须是6位数字');
     const r = resolveInvite(inviteCode);
     if (!r.valid) throw badRequest('邀请码不正确');
     inviterId = r.inviterId;
   } else if (inviteCode && /^\d{6}$/.test(inviteCode)) {
     inviterId = resolveInvite(inviteCode).inviterId; // 关闭校验时仍尽力记录邀请关系
   }
-  if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(password))
+  if (typeof password !== 'string' || !/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(password))
     throw badRequest('密码必须至少8位，且至少包含1个字母和1个数字');
 
   if (db.prepare('SELECT id FROM users WHERE phone=? OR username=?').get(phone, username))
@@ -152,7 +152,7 @@ async function register({ username, phone, password, inviteCode }, req) {
   return { token: signToken({ id, username }, jti), user };
 }
 async function login({ phone, password, captchaId, captchaText }, req) {
-  if (!phone || !password) throw badRequest('请填写手机号和密码');
+  if (typeof phone !== 'string' || typeof password !== 'string' || !phone || !password) throw badRequest('请填写手机号和密码');
   // 图形验证码：开关开启时强制校验，且必须先于密码比对完成（不能等密码验证过了才发现验证码错，
   // 那样验证码就形同虚设，暴力破解者可以完全绕过它反复试密码）。
   if (isLoginCaptchaRequired() && !(await captcha.verify(captchaId, captchaText))) {
@@ -225,6 +225,7 @@ function deleteAllOtherSessions(userId, currentSessionId) {
 }
 
 async function deleteAccount(userId, password) {
+  if (typeof password !== 'string' || !password) throw badRequest('请输入密码');
   const user = db.prepare('SELECT password FROM users WHERE id=?').get(userId);
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(password, user.password)) throw badRequest('密码错误，注销失败');
@@ -281,7 +282,7 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_change_password')?.value === 'off') {
     throw forbidden('管理员已关闭自助修改密码功能');
   }
-  if (!oldPassword || !newPassword) throw badRequest('请填写完整');
+  if (typeof oldPassword !== 'string' || typeof newPassword !== 'string' || !oldPassword || !newPassword) throw badRequest('请填写完整');
   if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(newPassword)) throw badRequest('新密码至少8位且需包含字母和数字');
   const user = db.prepare('SELECT id,username,password,banned FROM users WHERE id=?').get(userId);
   if (!user) throw notFound('用户不存在');

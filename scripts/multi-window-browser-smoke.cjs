@@ -49,11 +49,29 @@ setupRealtime(io, app);
         body: JSON.stringify(credentials),
       });
       assert.equal(response.status, 200);
-      users.push({ ...credentials, ...(await response.json()).user });
+      const registered = await response.json();
+      users.push({ ...credentials, ...registered.user, token: registered.token });
     }
+    const api = async (user, method, url, body) => {
+      const response = await fetch(`${base}${url}`, { method,
+        headers: { Authorization: `Bearer ${user.token}`, ...(body instanceof FormData ? {} : { 'content-type': 'application/json' }) },
+        ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }),
+      });
+      assert.equal(response.status, 200, `${method} ${url}`);
+      return response.json();
+    };
+    await api(users[0], 'POST', '/api/users/friend-request', { toId: users[1].id });
+    const requests = await api(users[1], 'GET', '/api/users/friend-requests');
+    await api(users[1], 'POST', `/api/users/friend-request/${requests[0].id}/handle`, { action: 'accept' });
+    const { conversationId } = await api(users[0], 'POST', '/api/messages/conversation/private', { userId: users[1].id });
+    const avatar = new FormData();
+    const avatarBytes = await require('../backend-v2/node_modules/sharp')({ create: { width: 32, height: 32, channels: 3, background: '#29a87d' } }).png().toBuffer();
+    avatar.append('avatar', new Blob([avatarBytes], { type: 'image/png' }), 'avatar.png');
+    await api(users[1], 'POST', '/api/users/avatar', avatar);
     browser = await chromium.launch({ headless: true,
       ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'allow' });
+    context.setDefaultTimeout(20000);
     await context.route('https://**/*', route => route.request().url().includes('config.json')
       ? route.fulfill({ json: { api: base, socket: base, cdn: base, version: 'test' } })
       : route.abort());
@@ -93,6 +111,43 @@ setupRealtime(io, app);
     }
     const connectedIds = new Set([...io.sockets.sockets.values()].map(socket => socket.user.id));
     assert.ok(users.every(user => connectedIds.has(user.id)), 'all three accounts have distinct connected sockets');
+    for (const page of pages.slice(0, 2)) await page.getByTestId(`conv-item-${conversationId}`).click();
+    const avatarImage = pages[0].getByTestId(`conv-item-${conversationId}`).locator('img');
+    await avatarImage.waitFor();
+    await pages[0].waitForFunction(() => [...document.querySelectorAll('.wc-chat-item-avatar img')].some(img => img.complete && img.naturalWidth > 0));
+    await pages[0].getByTestId('chat-msg-input').fill('launch audit hello');
+    await pages[0].getByTestId('chat-send-btn').click();
+    await pages[1].getByText('launch audit hello', { exact: true }).last().waitFor();
+    await pages[1].getByTestId('chat-msg-input').fill('launch audit reply');
+    await pages[1].getByTestId('chat-send-btn').click();
+    await pages[0].getByText('launch audit reply', { exact: true }).last().waitFor();
+    const XLSX = require('../web/node_modules/xlsx');
+    assert.equal(XLSX.version, '0.20.3');
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet([['Launch audit', 42], ['Safe cell', 'hello']]);
+    sheet.A2.h = '<img src="x" onerror="window.__unsafeSheet=true">';
+    XLSX.utils.book_append_sheet(workbook, sheet, 'First sheet');
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['Second sheet value']]), 'Second sheet');
+    await pages[0].getByTestId('chat-attach-file').setInputFiles({ name: 'launch-audit.xlsx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }),
+    });
+    await pages[1].getByTestId('msg-file').filter({ hasText: 'launch-audit.xlsx' }).click();
+    const preview = pages[1].getByTestId('file-preview');
+    await preview.locator('.wc-xlsx-table-wrap').getByText('Launch audit', { exact: true }).waitFor();
+    assert.equal(await preview.locator('[onerror],script').count(), 0);
+    assert.equal(await pages[1].evaluate(() => !!window.__unsafeSheet), false);
+    await preview.getByRole('button', { name: 'Second sheet', exact: true }).click();
+    await preview.getByText('Second sheet value', { exact: true }).waitFor();
+    await pages[1].getByTestId('file-preview-close').click();
+    await pages[1].setViewportSize({ width: 390, height: 844 });
+    await pages[1].getByTestId('msg-file').filter({ hasText: 'launch-audit.xlsx' }).click();
+    await preview.locator('.wc-xlsx-table-wrap').getByText('Launch audit', { exact: true }).waitFor();
+    await pages[1].screenshot({ path: path.join(temp, 'spreadsheet-mobile.png'), fullPage: true });
+    assert.ok(await pages[1].evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await pages[1].getByTestId('file-preview-close').click();
+    await pages[1].setViewportSize({ width: 1280, height: 900 });
+    await pages[0].screenshot({ path: path.join(temp, 'chat-desktop.png') });
     await pages[1].getByTestId('nav-tab-me').click();
     await pages[1].locator('.wc-logout-btn').click();
     await pages[1].getByTestId('login-phone-input').waitFor();
@@ -103,7 +158,7 @@ setupRealtime(io, app);
     await pages[1].screenshot({ path: path.join(temp, 'login-mobile.png'), fullPage: true });
     assert.ok(await pages[1].evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await pages[2].screenshot({ path: path.join(temp, 'independent-account.png') });
-    console.log(JSON.stringify({ independentAccounts: 3, csrfEnabled: true, sharedServiceWorker: true, logoutIsolated: true, socketsIsolated: true, screenshots: temp }));
+    console.log(JSON.stringify({ independentAccounts: 3, csrfEnabled: true, sharedServiceWorker: true, logoutIsolated: true, socketsIsolated: true, bidirectionalChat: true, avatarLoaded: true, spreadsheetPreview: true, screenshots: temp }));
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => io.close(resolve));

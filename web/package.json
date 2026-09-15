@@ -1,7 +1,7 @@
 {
   "name": "touliao-web",
   "type": "module",
-  "version": "8.1.19",
+  "version": "8.1.22",
   "description": "投聊 — 企业级安全即时通讯客户端",
   "homepage": "",
   "author": {
@@ -40,12 +40,12 @@
     "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.1",
+    "react-router-dom": "6.30.6",
     "react-virtualized-auto-sizer": "^1.0.24",
     "react-window": "^1.8.11",
     "socket.io-client": "^4.7.4",
     "timeago.js": "^4.0.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@capacitor/android": "^4.8.2",

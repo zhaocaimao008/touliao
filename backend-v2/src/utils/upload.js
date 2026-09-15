@@ -12,7 +12,6 @@
 const multer   = require('multer');
 const path     = require('path');
 const fs       = require('fs');
-const fileType = require('file-type');
 const sharp    = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 
@@ -135,7 +134,10 @@ async function readMagic(filePath) {
     fh = await fs.promises.open(filePath, 'r');
     await fh.read(buf, 0, len, 0);
     await fh.close(); fh = null;
-    try { return await fileType.fromBuffer(buf); } catch { return null; }
+    try {
+      const { fileTypeFromBuffer } = await import('file-type');
+      return await fileTypeFromBuffer(buf);
+    } catch { return null; }
   } catch {
     return null;
   } finally {
@@ -376,7 +378,7 @@ function makeChatUploader(dest) {
   });
   const multerMw = wrapUpload(multer({
     storage,
-    limits: { fileSize: MAX_UPLOAD_BYTES },
+    limits: { fileSize: MAX_UPLOAD_BYTES, fields: 32, fieldSize: 65536, fieldNestingDepth: 8, fieldArrayIndexLimit: 100 },
   }).single('file'));
   // P1-03：直传路径与分片路径同口径 —— 磁盘阈值 + 单用户并发上限，
   // 否则攻击者可绕过 upload-init 的分片限制走直传耗尽磁盘（审计 BACKEND-A005）。
@@ -436,7 +438,7 @@ function makeVideoUploader(dest, fieldName = 'video', maxSize = MAX_UPLOAD_BYTES
   });
   const multerMw = wrapUpload(multer({
     storage,
-    limits: { fileSize: maxSize },
+    limits: { fileSize: maxSize, fields: 32, fieldSize: 65536, fieldNestingDepth: 8, fieldArrayIndexLimit: 100 },
   }).single(fieldName));
   return [makeUploadGuard(dest), multerMw, makeVideoMagicMiddleware()];
 }
@@ -449,7 +451,7 @@ function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 
   });
   const m = multer({
     storage,
-    limits: { fileSize: maxSize },
+    limits: { fileSize: maxSize, fields: 32, fieldSize: 65536, fieldNestingDepth: 8, fieldArrayIndexLimit: 100 },
     fileFilter: (req, file, cb) => {
       if (!ALLOWED_IMAGE_MIMES.has(file.mimetype)) {
         return cb(new Error('400 Invalid File Type: 仅支持图片格式（JPEG/PNG/GIF/WebP）'));

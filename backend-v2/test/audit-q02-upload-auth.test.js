@@ -185,7 +185,7 @@ test('ticket lifetime cannot outlast its issuing user credential', async () => {
 
 test('administrator access requires admin claim and rejects blacklisted credentials', async () => {
   const f = await fixture();
-  const adminToken = jwt.sign({ admin: true, csrf: 'q02-admin' }, config.adminJwtSecret, { expiresIn: 600 });
+  const adminToken = jwt.sign({ admin: true, username: config.admin.username, csrf: 'q02-admin' }, config.adminJwtSecret, { expiresIn: 600 });
   expect((await request(app).get(f.file).set('Cookie', `${config.admin.cookieName}=${adminToken}`)).text).toBe(BYTES);
   expect((await getFile(f.file, adminToken)).text).toBe(BYTES);
   const nonAdmin = jwt.sign({ csrf: 'q02-no-admin' }, config.adminJwtSecret, { expiresIn: 600 });
@@ -199,7 +199,7 @@ test('development shared-secret configuration still distinguishes administrator 
   const original = config.adminJwtSecret;
   config.adminJwtSecret = config.jwtSecret;
   try {
-    const token = jwt.sign({ admin: true, csrf: 'q02-dev-admin' }, config.adminJwtSecret, { expiresIn: 600 });
+    const token = jwt.sign({ admin: true, username: config.admin.username, csrf: 'q02-dev-admin' }, config.adminJwtSecret, { expiresIn: 600 });
     expect((await getFile(f.file, token)).text).toBe(BYTES);
     expect((await getFile(f.file, outsider.token)).status).toBe(403);
   } finally { config.adminJwtSecret = original; }

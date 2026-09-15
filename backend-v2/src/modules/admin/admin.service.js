@@ -28,6 +28,7 @@ function timingSafeEqual(a, b) {
 // （此前这里只返回布尔值，controller 转头又硬编码 config.admin.username 签 token——
 // 即便将来真的加了别的管理员账号，登录成功后 cookie 里仍会写成 env 账号，是本次要修的核心问题）。
 function verifyCredentials(username, password) {
+  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) throw badRequest('请输入管理员账号和密码');
   const hasEnvAdmin = !!(config.admin.username && config.admin.password);
   if (hasEnvAdmin) {
     const okUser = timingSafeEqual(username, config.admin.username);

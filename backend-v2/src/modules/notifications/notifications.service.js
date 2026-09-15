@@ -16,11 +16,14 @@ function webSubscribe(userId, subscription) {
   // endpoint 必须来自已知浏览器推送服务域名，防 SSRF（endpoint 指向内网/元数据地址）
   if (!isAllowedPushEndpoint(subscription.endpoint))
     throw badRequest('订阅端点不受支持');
-  db.prepare(`
+  db.transaction(() => {
+    db.prepare('DELETE FROM push_subscriptions WHERE endpoint=? AND user_id<>?').run(subscription.endpoint, userId);
+    db.prepare(`
     INSERT INTO push_subscriptions (id, user_id, endpoint, subscription)
     VALUES (?, ?, ?, ?)
-    ON CONFLICT(user_id, endpoint) DO UPDATE SET subscription=excluded.subscription
+    ON CONFLICT(user_id, endpoint) DO UPDATE SET subscription=excluded.subscription, created_at=(strftime('%s','now'))
   `).run(uuidv4(), userId, subscription.endpoint, JSON.stringify(subscription));
+  })();
 }
 
 function webUnsubscribe(userId, endpoint) {
@@ -37,11 +40,14 @@ function saveDeviceToken(userId, token, platform) {
   // ios_apns = iOS 原始 APNs device token（64 位 hex），后端直连 APNs 用它发送，
   // 不依赖 Firebase 控制台 APNs 密钥配置（无人值守环境传不了密钥,FCM→APNs 永远失败）。
   if (!['android', 'ios', 'ios_voip', 'getui', 'ios_apns'].includes(platform)) throw badRequest('参数无效，platform 必须为 android、ios、ios_voip、getui 或 ios_apns');
-  db.prepare(`
+  db.transaction(() => {
+    db.prepare('DELETE FROM device_tokens WHERE token=? AND user_id<>?').run(token, userId);
+    db.prepare(`
     INSERT INTO device_tokens (id, user_id, token, platform)
     VALUES (?, ?, ?, ?)
     ON CONFLICT(user_id, token) DO UPDATE SET platform=excluded.platform, created_at=(strftime('%s','now'))
   `).run(uuidv4(), userId, token, platform);
+  })();
 }
 
 function deleteDeviceToken(userId, token) {
