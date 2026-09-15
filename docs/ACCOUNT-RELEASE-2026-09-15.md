@@ -51,3 +51,16 @@
 
 私有证据目录：`/home/ubuntu/touliao-account-fixes-evidence-20260915`。包含原移动草稿及构建日志，不要上传整个目录。
 实现依据：[Retrofit 请求 Tag](https://github.com/square/retrofit/blob/trunk/CHANGELOG.md)、[Apple APNs 注册回调](https://developer.apple.com/documentation/uikit/uiapplication/registerforremotenotifications())、[Android Emulator Runner](https://github.com/ReactiveCircus/android-emulator-runner)。
+
+## 后续：iOS 正式送审（2026-09-15 17:09 UTC）
+
+用户要求直接提交 `8.1.24`。本次提交的是正式 App Store 审核，不是外部 TestFlight Beta 审核；更新本页前述“未提交 App Store 审核”的历史状态。
+
+- 撤回旧版 `8.1.18` 的审核提交 `7de8c5ef-ac5f-4c0e-ae08-7efd4ca067c9`，确认其状态为 `COMPLETE` 后，保留原商店版本记录与截图，将版本改为 `8.1.24`。
+- 精确关联已通过处理的构建 `1789481788`，构建 ID `ff80e518-7d8d-4749-a2a9-d6465865ceec`；没有重新打包或混入未提交的移动端草稿。
+- 原审核资料所列账号在当前生产库不存在。通过正常注册接口创建一个普通权限专用审核账号，采用随机密码，更新苹果审核资料。实际登录、资料读取、退出均通过；测试会话已清理，没有修改已有用户的密码。
+- 保留三张已完成上传的截图、联系信息和现有发布设置；删除商店描述中未实现的“消息端到端加密”表述，不作新的隐私或合规声明。
+- 新提交 ID `32c47e08-ca89-41aa-8248-028834c0f8d9`，苹果接收时间 `2026-09-15T17:09:02.775Z`。重复读取版本及审核提交均为 `WAITING_FOR_REVIEW`，版本/构建匹配；发布方式仍为 `AFTER_APPROVAL`。
+- 送审前后数据库备份恢复验证均通过，SQLite 完整性正常、外键错误为零。新增审核账号后用户数 14，消息 107、会话 11、登录会话 16；未重启后端。
+
+审核尚未通过，不代表已经上架，也不承诺审核完成时间。私有操作回执及审核账号资料位于 `/home/ubuntu/asc-work/submission-8124-20260915`（目录 0700、文件 0600），不得提交凭据到仓库。
