@@ -5,13 +5,21 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { MAX_PROFILES, profileFromArgs, profilePath } = require('./lib/profiles');
-const PROFILE = profileFromArgs(process.argv);
+const { MAX_PROFILES, profilePath, claimProfile } = require('./lib/profiles');
 const PROFILE_ROOT = app.getPath('userData');
-const PROFILE_PATH = profilePath(PROFILE_ROOT, PROFILE);
-fs.mkdirSync(PROFILE_PATH, { recursive: true });
-app.setPath('userData', PROFILE_PATH);
-app.setPath('sessionData', PROFILE_PATH);
+let PROFILE;
+try {
+  PROFILE = claimProfile(app, PROFILE_ROOT, process.argv);
+} catch (error) {
+  dialog.showErrorBox('无法打开投聊', error.message);
+  app.exit(1);
+}
+if (PROFILE === null) {
+  if (!process.argv.some(arg => arg.startsWith('--profile='))) {
+    dialog.showErrorBox('无法新开账号窗口', `已达到 ${MAX_PROFILES} 个账号窗口，请先退出不再使用的窗口。`);
+  }
+  app.exit(0);
+}
 const crypto = require('crypto');
 const https = require('https');
 const { autoUpdater } = require('electron-updater');
@@ -698,22 +706,16 @@ function setupAutoUpdater() {
 
 // ── 系统托盘 ───────────────────────────────────────────────
 function openAccountWindow(profile) {
-  profilePath(PROFILE_ROOT, profile);
-  const args = [...(app.isPackaged ? [] : [app.getAppPath()]), `--profile=${profile}`];
+  if (profile !== undefined) profilePath(PROFILE_ROOT, profile);
+  const args = [
+    ...(app.isPackaged ? [] : [app.getAppPath()]),
+    ...(profile === undefined ? [] : [`--profile=${profile}`]),
+  ];
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   const child = spawn(process.execPath, args, { detached: true, stdio: 'ignore', env });
   child.on('error', error => log.error('账号窗口启动失败:', error));
   child.unref();
-}
-
-async function chooseAccountWindow() {
-  const buttons = Array.from({ length: MAX_PROFILES }, (_, i) => `账号窗口 ${i + 1}`);
-  const { response } = await dialog.showMessageBox(mainWindow, {
-    title: '打开账号窗口', message: '选择账号窗口', buttons: [...buttons, '取消'],
-    cancelId: MAX_PROFILES, noLink: true,
-  });
-  if (response < MAX_PROFILES) openAccountWindow(response + 1);
 }
 
 function createTray() {
@@ -742,10 +744,8 @@ function createTray() {
       click: () => { mainWindow?.show(); mainWindow?.focus(); },
     },
     {
-      label: '账号窗口',
-      submenu: Array.from({ length: MAX_PROFILES }, (_, i) => ({
-        label: `账号窗口 ${i + 1}`, click: () => openAccountWindow(i + 1),
-      })),
+      label: '新开账号窗口',
+      click: () => openAccountWindow(),
     },
     {
       label: '检查更新',
@@ -1035,7 +1035,7 @@ function setupIPC() {
   ipcMain.handle('config:getServerUrl', () => store.get('serverUrl'));
   ipcMain.handle('window:newAccount', (_e) => {
     if (!isTrustedSender(_e)) return;
-    return chooseAccountWindow();
+    return openAccountWindow();
   });
 
   // 快捷键设置：读取 / 修改 / 重置
@@ -1130,16 +1130,15 @@ function setupPowerMonitor() {
 
 // ── 应用生命周期 ───────────────────────────────────────────
 // Each userData directory owns one instance lock and its own Chromium session.
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
-} else {
-  app.on('second-instance', (_event, args) => {
+if (app.hasSingleInstanceLock()) {
+  app.on('second-instance', (_event, args, _cwd, data) => {
+    // Default desktop launches allocate their own profile; probes must not steal focus.
+    if (data?.automaticWindow || !args.some(arg => arg.startsWith('--profile='))) return;
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();
     }
-    if (!args.some(arg => arg.startsWith('--profile='))) chooseAccountWindow();
   });
 
   // 强制所有渲染进程启用沙箱（即使将来新增窗口忘记设置）
