@@ -26,6 +26,9 @@ const { _electron: electron } = require('playwright');
       args: [...(process.env.TOULIAO_PACKAGED_APP ? [] : [appDir]), '--no-sandbox'], env,
     });
     apps.push(app);
+    app.process().stdout?.on('data', data => process.stdout.write(data));
+    app.process().stderr?.on('data', data => process.stderr.write(data));
+    app.process().on('exit', (code, signal) => console.log('Electron process exited:', { code, signal }));
     // Fresh profiles use real config/unauthenticated APIs, without creating server accounts.
     const page = await app.firstWindow();
     const responses = [];

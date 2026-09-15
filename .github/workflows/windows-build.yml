@@ -83,6 +83,8 @@ jobs:
           Get-Process touliao -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
           $env:TOULIAO_ELECTRON = $exe
           $env:TOULIAO_PACKAGED_APP = '1'
+          $env:TOULIAO_LOG_LEVEL = 'info'
+          $env:DEBUG = 'pw:browser*'
           node scripts/multi-window-smoke.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

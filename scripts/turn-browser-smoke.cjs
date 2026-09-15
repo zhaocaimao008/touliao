@@ -6,10 +6,16 @@ const { chromium } = require('../desktop-electron/node_modules/playwright');
 const { probeTurn } = require('../deploy/lib/turn-allocation-probe');
 const credentials = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 (async () => {
+  const transports = [];
   for (const url of credentials.urls) {
-    assert.equal((await probeTurn({ ...credentials, urls: [url], timeoutMs: 8000 })).ok, true, url);
-    assert.equal((await probeTurn({ ...credentials, credential: 'invalid', urls: [url], timeoutMs: 8000 })).ok, false, `invalid credential: ${url}`);
+    try {
+      assert.equal((await probeTurn({ ...credentials, urls: [url], timeoutMs: 8000 })).ok, true, url);
+      assert.equal((await probeTurn({ ...credentials, credential: 'invalid', urls: [url], timeoutMs: 8000 })).ok, false, `invalid credential: ${url}`);
+      transports.push(url);
+      console.log(JSON.stringify({ url, allocation: true, invalidCredentialRejected: true }));
+    } catch (error) { console.error(JSON.stringify({ url, allocation: false, error: error.message })); }
   }
+  assert.equal(transports.length, credentials.urls.length, 'All configured transports must pass external allocation');
   const server = http.createServer((_req, res) => res.end('<!doctype html><title>TURN test</title>'));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   let browser;
