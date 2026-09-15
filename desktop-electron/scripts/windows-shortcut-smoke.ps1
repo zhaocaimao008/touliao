@@ -5,19 +5,15 @@ $links = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath
   ForEach-Object { Get-ChildItem $_ -Filter '*.lnk' -ErrorAction SilentlyContinue } |
   ForEach-Object { @{path=$_.FullName; target=$shell.CreateShortcut($_.FullName).TargetPath} }
 $links | ConvertTo-Json -Compress | Write-Host
-foreach ($link in $links) {
-  if (!$link.target) {
-    @{path=$link.path; bytes=[Convert]::ToBase64String([IO.File]::ReadAllBytes($link.path))} | ConvertTo-Json -Compress | Write-Host
-  }
-}
-$shortcut = $links | Where-Object { $_.target -eq $Exe } |
+$name = (Get-Content (Join-Path $PSScriptRoot '../package.json') -Raw | ConvertFrom-Json).build.nsis.shortcutName + '.lnk'
+# WScript can return an empty target for shell links on the runner's D: volume.
+# Verify the actual process launched by the installed shortcut instead.
+$shortcut = $links | Where-Object { (Split-Path $_.path -Leaf) -eq $name } |
   Select-Object -First 1
-$launchTarget = $Exe
-if ($shortcut) {
-  $shortcutInfo = $shell.CreateShortcut($shortcut.path)
-  if ($shortcutInfo.Arguments -match '--profile') { throw 'Shortcut pins a single profile' }
-  $launchTarget = $shortcut.path
-}
+if (!$shortcut) { throw 'Installed desktop shortcut missing' }
+$shortcutInfo = $shell.CreateShortcut($shortcut.path)
+if ($shortcutInfo.Arguments -match '--profile') { throw 'Shortcut pins a single profile' }
+$launchTarget = $shortcut.path
 $apps = @()
 try {
   for ($i = 0; $i -lt 6; $i++) {
@@ -39,8 +35,8 @@ try {
   foreach ($app in $apps) {
     $app.Refresh()
     if ($app.HasExited) { throw 'Native shortcut window did not remain alive' }
+    if ($app.MainModule.FileName -ne $Exe) { throw 'Desktop shortcut launched an unexpected executable' }
   }
-  if (!$shortcut) { throw 'Native executable launches passed, but installed desktop shortcut missing' }
   @{ ordinaryDesktopShortcutLaunches=6; nativeWindows=6; noDebuggingFlags=$true; stable=$true } | ConvertTo-Json -Compress
 } finally {
   foreach ($app in $apps) { if (!$app.HasExited) { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue } }

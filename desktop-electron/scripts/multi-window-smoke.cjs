@@ -23,7 +23,7 @@ const { _electron: electron } = require('playwright');
   const launch = async () => {
     const app = await electron.launch({
       executablePath: process.env.TOULIAO_ELECTRON,
-      args: [...(process.env.TOULIAO_PACKAGED_APP ? [] : [appDir]), '--no-sandbox'], env,
+      args: [...(process.env.TOULIAO_PACKAGED_APP ? [] : [appDir]), ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
     });
     apps.push(app);
     app.process().stdout?.on('data', data => process.stdout.write(data));

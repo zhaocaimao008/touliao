@@ -33,7 +33,7 @@ const hash = data => crypto.createHash('sha256').update(data).digest('hex');
       await page.waitForFunction(() => [...document.images].every(image => image.complete && image.naturalWidth > 0));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       assert.deepEqual(errors, []);
-      await page.screenshot({ path: path.join(out, `login-${viewport.width}.png`), fullPage: true });
+      await page.screenshot({ path: path.join(out, `login-${viewport.width}.png`), fullPage: true, animations: 'disabled' });
       await context.close();
     }
     console.log(JSON.stringify({ health: 'ok', assetsMatch: true, loginViewports: 2, brokenImages: 0, pageErrors: 0, horizontalOverflow: false, screenshots: out }));
