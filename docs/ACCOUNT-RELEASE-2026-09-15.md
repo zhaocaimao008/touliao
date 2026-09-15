@@ -41,7 +41,7 @@
 
 ## 仍需外部条件
 
-- TURN 外网复验 [34977567875](https://github.com/zhaocaimao008/touliao/actions/runs/34977567875)仍失败，服务器身份调用 Lightsail 管理 API 返回 AccessDenied。放行 TCP/UDP 3478、TCP 5349、UDP 41000-41999 并通过外网分配与 relay-only 双向媒体测试之前，不启用待配置的 TURN。
+- TURN 云防火墙阻断已于同日后续处理解除：用户添加规则后，三种传输的外网鉴权和独立 relay-only 双向媒体测试连续通过，15:03 UTC 已启用生产配置。详见 [TURN 启用记录](TURN-ACTIVATION-2026-09-15.md)，其中保留中途一次 UDP 超时及验收边界。
 - 没有 Windows 发布者证书。未来正式发布必须配置 `WINDOWS_CERTIFICATE_BASE64`、`WINDOWS_CERTIFICATE_PASSWORD`，强制签名，并用 Windows 验证安装包及应用签名的可信状态和时间戳。现有 Windows 8.1.23 不重新打包或伪装为已签名。
 - Windows 的可信发布者依赖有效证书或完成身份验证的签名服务，不能用 Ed25519 更新签名替代；签名本身也不是 SmartScreen 永不提示的保证。参见 [Microsoft 签名信任模型](https://learn.microsoft.com/en-us/azure/artifact-signing/concept-trust-models)。
 - 本轮保留现有“当前账号在线、保存其他账号供切换”的行为，不把账号列表改造成多个账号同时在线。外部推送服务已经接受的在途通知不可撤回，尤其后台由系统展示的通知不经过应用过滤；不能承诺零在途通知。
