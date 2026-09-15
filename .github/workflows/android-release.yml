@@ -63,6 +63,26 @@ jobs:
         run: |
           ./gradlew testDebugUnitTest assembleRelease --stacktrace --no-daemon
 
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+
+      - name: Installed release APK startup regression
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          disable-animations: true
+          script: bash scripts/android-startup-smoke.sh android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload startup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-startup-evidence
+          path: android-startup-evidence/
+          if-no-files-found: ignore
+
       - name: Upload signed APK
         if: always()
         uses: actions/upload-artifact@v4
