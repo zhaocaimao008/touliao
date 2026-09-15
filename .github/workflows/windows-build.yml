@@ -81,6 +81,7 @@ jobs:
           $exe = Join-Path $installDir 'touliao.exe'
           if (!(Test-Path $exe)) { throw "Installed executable missing" }
           Get-Process touliao -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
+          ./scripts/windows-shortcut-smoke.ps1 -Exe $exe
           $env:TOULIAO_ELECTRON = $exe
           $env:TOULIAO_PACKAGED_APP = '1'
           $env:TOULIAO_LOG_LEVEL = 'info'
