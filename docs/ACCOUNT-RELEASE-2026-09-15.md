@@ -64,3 +64,14 @@
 - 送审前后数据库备份恢复验证均通过，SQLite 完整性正常、外键错误为零。新增审核账号后用户数 14，消息 107、会话 11、登录会话 16；未重启后端。
 
 审核尚未通过，不代表已经上架，也不承诺审核完成时间。私有操作回执及审核账号资料位于 `/home/ubuntu/asc-work/submission-8124-20260915`（目录 0700、文件 0600），不得提交凭据到仓库。
+
+## 后续：TestFlight 外部测试送审（2026-09-15）
+
+用户进一步明确关注的是 TestFlight 中的“准备提交”，因此另行提交同一构建的外部 Beta 审核，保留上节正式 App Store 审核不变。
+
+- 构建仍为 `8.1.24 / 1789481788`，ID `ff80e518-7d8d-4749-a2a9-d6465865ceec`。补齐此前为空的中文测试内容，将已验证的专用审核账号同步到 Beta 审核资料。
+- 加入已有“公开测试”组 `f8ad8b68-76f3-47ee-a8dd-2dc88ecaf4ac`，保留原构建列表和公开链接设置，不创建重复组、不修改其他测试员。
+- 调用正式 Beta 审核提交接口后重复查询确认：`betaReviewState=WAITING_FOR_REVIEW`、`externalBuildState=WAITING_FOR_BETA_REVIEW`，不再是 `READY_FOR_BETA_SUBMISSION`。
+- App Store 正式提交 `32c47e08-ca89-41aa-8248-028834c0f8d9` 仍为 `WAITING_FOR_REVIEW`，提交时间和关联版本/构建未变化。后台健康检查正常，测试登录会话已退出，现有业务数据未改动。
+
+此时两个审核流程都已送审，但均不等于审核通过。新版外部 TestFlight 安装仍需等待 Apple Beta 审核结果；回执及修改前资料保存在私有目录 `/home/ubuntu/asc-work/testflight-8124-20260915`。
