@@ -1,6 +1,14 @@
 name: Windows Publisher Signature Gate Test
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/windows-signing-gate.yml'
+      - 'desktop-electron/scripts/verify-authenticode.ps1'
+  pull_request:
+    paths:
+      - '.github/workflows/windows-signing-gate.yml'
+      - 'desktop-electron/scripts/verify-authenticode.ps1'
 permissions:
   contents: read
 jobs:
