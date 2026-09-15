@@ -100,7 +100,7 @@ test('logout cannot report success while session and push revocation failed to p
 
 test('legacy unbound credentials cannot register or remove session-owned notifications', async () => {
   const user = await makeUser();
-  const legacy = jwt.sign({ id: user.userId }, require('../src/config').jwtSecret, { expiresIn: '1h' });
+  const legacy = jwt.sign({ id: user.userId, csrf: randomUUID() }, require('../src/config').jwtSecret, { expiresIn: '1h' });
   const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${legacy}`);
   expect(me.status).toBe(200);
   for (const [method, route] of [['post', 'web-subscribe'], ['delete', 'web-subscribe'], ['post', 'device-token'], ['delete', 'device-token']]) {
