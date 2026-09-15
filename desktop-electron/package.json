@@ -85,7 +85,7 @@
   },
   "devDependencies": {
     "playwright": "1.60.0",
-    "electron": "43.7.0",
+    "electron": "42.11.3",
     "electron-builder": "26.15.3",
     "@electron/asar": "4.3.0"
   }
