@@ -25,6 +25,17 @@ final class SessionStore: ObservableObject {
     private var observer: NSObjectProtocol?
     private var socketAuthCancellable: AnyCancellable?
 
+    private func clearIdentityResources() {
+        CallManager.shared.resetForAccountChange()
+        GroupCallManager.shared.resetForAccountChange()
+        PushManager.shared.clearDisplayedNotifications()
+    }
+
+    private func beginIdentityChange() {
+        clearIdentityResources()
+        KeychainStore.shared.beginIdentityChange()
+    }
+
     init() {
         observer = NotificationCenter.default.addObserver(
             forName: APIClient.unauthorizedNotification, object: nil, queue: .main
@@ -32,6 +43,7 @@ final class SessionStore: ObservableObject {
             guard let marker = notification.object as? KeychainStore.Snapshot else { return }
             Task { @MainActor in
                 KeychainStore.shared.withCurrent(marker) {
+                    self?.clearIdentityResources()
                     SocketService.shared.disconnect()
                     self?.state = .unauthenticated
                 }
@@ -45,6 +57,7 @@ final class SessionStore: ObservableObject {
             .sink { [weak self] failure in
                 Task { @MainActor in
                     KeychainStore.shared.withCurrent(failure.credential) {
+                        self?.clearIdentityResources()
                         SocketService.shared.disconnect()
                         self?.state = .unauthenticated
                         self?.lastAuthError = failure.message
@@ -81,8 +94,7 @@ final class SessionStore: ObservableObject {
 
     func onAuthenticated(_ user: User) {
         guard AccountStore.shared.activeId() == user.id else { return }
-        KeychainStore.shared.beginIdentityChange()
-        PushManager.shared.clearDisplayedNotifications()
+        beginIdentityChange()
         // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
         SocketService.shared.disconnect()
         MsgCacheStore.shared.clear()   // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
@@ -111,7 +123,7 @@ final class SessionStore: ObservableObject {
 
     func switchAccount(_ id: String) {
         guard let token = AccountStore.shared.token(for: id) else { return }
-        KeychainStore.shared.beginIdentityChange()
+        beginIdentityChange()
         state = .loading
         let operation = KeychainStore.shared.snapshot()
         Task {
@@ -152,7 +164,7 @@ final class SessionStore: ObservableObject {
 
     /// 注销账户成功后本地收尾：清登录态回登录页（与 logout 一致，但不再调 /logout）。
     func deleteAccount() async {
-        KeychainStore.shared.beginIdentityChange()
+        beginIdentityChange()
         let credential = KeychainStore.shared.snapshot()
         await PushManager.shared.unregister()
         KeychainStore.shared.withCurrent(credential) {
@@ -166,7 +178,7 @@ final class SessionStore: ObservableObject {
     }
 
     func logout() async {
-        KeychainStore.shared.beginIdentityChange()
+        beginIdentityChange()
         let credential = KeychainStore.shared.snapshot()
         await PushManager.shared.unregister()
         guard KeychainStore.shared.isCurrent(credential) else { return }

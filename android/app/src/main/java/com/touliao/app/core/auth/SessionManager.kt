@@ -40,11 +40,20 @@ class SessionManager @Inject constructor(
 ) {
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
     val state: StateFlow<AuthState> = _state.asStateFlow()
+    private val identityCleanup = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
+
+    fun onIdentityCleanup(action: () -> Unit) { identityCleanup.add(action) }
+
+    private fun beginIdentityChange() {
+        identityCleanup.forEach { it() }
+        tokenStore.beginIdentityChange()
+    }
 
     init {
         scope.launch {
             authInterceptor.unauthorizedEvents.collect { marker ->
                 tokenStore.withCurrent(marker) {
+                    identityCleanup.forEach { it() }
                     notificationHelper.clearAccountNotifications()
                     socketManager.disconnect()
                     msgCacheStore.clear()
@@ -75,7 +84,7 @@ class SessionManager @Inject constructor(
 
     fun onAuthenticated(user: User) {
         if (accountStore.activeId() != user.id) return
-        tokenStore.beginIdentityChange()
+        beginIdentityChange()
         notificationHelper.clearAccountNotifications()
         // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
         socketManager.disconnect()
@@ -104,7 +113,7 @@ class SessionManager @Inject constructor(
     /** 切换到已登录的另一账号（本地有 token，免重登） */
     fun switchAccount(accountId: String) {
         val token = accountStore.tokenFor(accountId) ?: return
-        tokenStore.beginIdentityChange()
+        beginIdentityChange()
         notificationHelper.clearAccountNotifications()
         _state.value = AuthState.Loading
         val operation = tokenStore.snapshot()
@@ -138,7 +147,7 @@ class SessionManager @Inject constructor(
 
     /** 注销账户成功后本地收尾：与 logout 一致清理，回到登录页。 */
     suspend fun deleteAccount() {
-        tokenStore.beginIdentityChange()
+        beginIdentityChange()
         notificationHelper.clearAccountNotifications()
         val credential = tokenStore.snapshot()
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前
@@ -152,7 +161,7 @@ class SessionManager @Inject constructor(
     }
 
     suspend fun logout() {
-        tokenStore.beginIdentityChange()
+        beginIdentityChange()
         notificationHelper.clearAccountNotifications()
         val credential = tokenStore.snapshot()
         pushManager.unregisterCurrentToken()   // 须在清 auth token 前

@@ -266,6 +266,12 @@ final class CallManager: NSObject, ObservableObject {
         cleanup(.ended)
     }
 
+    func resetForAccountChange() {
+        guard state.stage != .idle && state.stage != .ended else { return }
+        VoipCallManager.shared.endActiveCall()
+        cleanup(.ended)
+    }
+
     /// 通话小窗：最小化/恢复全屏通话界面。只切UI呈现，不触碰PeerConnection/信令，
     /// 媒体流在最小化期间正常继续。
     func setMinimized(_ minimized: Bool) {

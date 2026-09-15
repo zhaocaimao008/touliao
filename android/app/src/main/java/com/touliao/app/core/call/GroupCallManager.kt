@@ -104,10 +104,15 @@ class GroupCallManager @Inject constructor(
     // Q06 全修：group_call:resume 必须证明持有它，光凭 callId+userId 不再够（同账号
     // 旁观设备不能在断线宽限期内抢注）。group_call:started/peers 里签发，cleanup() 清空。
     @Volatile private var participatingResumeToken: String? = null
+    @Volatile private var callAttempt = 0L
 
     init {
         ensureFactory()
         observeSignaling()
+        sessionManager.onIdentityCleanup {
+            if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) cleanup()
+            busyElsewhereCallId = ""
+        }
     }
 
     private fun ensureFactory() {
@@ -142,10 +147,11 @@ class GroupCallManager @Inject constructor(
     fun start(conversationId: String, video: Boolean) {
         if (busyElsewhereCallId.isNotEmpty()) return
         if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) return
+        val attempt = ++callAttempt
         _state.value = GroupCallState(GroupCallStage.CONNECTING, conversationId = conversationId, isVideo = video)
         scope.launch {
             refreshIceServers()
-            if (_state.value.stage == GroupCallStage.ENDED) return@launch
+            if (attempt != callAttempt || _state.value.stage == GroupCallStage.ENDED) return@launch
             createLocalMedia(video)
             socketManager.emitGroupCallStart(conversationId, if (video) "video" else "audio")
         }
@@ -154,10 +160,11 @@ class GroupCallManager @Inject constructor(
     /** 加入已有群通话 */
     fun join(callId: String, conversationId: String, video: Boolean) {
         if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) return
+        val attempt = ++callAttempt
         _state.value = GroupCallState(GroupCallStage.CONNECTING, callId, conversationId, isVideo = video)
         scope.launch {
             refreshIceServers()
-            if (_state.value.stage == GroupCallStage.ENDED) return@launch
+            if (attempt != callAttempt || _state.value.stage == GroupCallStage.ENDED) return@launch
             createLocalMedia(video)
             socketManager.emitGroupCallJoin(callId)
         }
@@ -482,6 +489,7 @@ class GroupCallManager @Inject constructor(
     }
 
     private fun cleanup() {
+        callAttempt++
         participatingCallId = ""
         participatingResumeToken = null
         peers.values.forEach {

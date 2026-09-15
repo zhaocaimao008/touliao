@@ -157,9 +157,11 @@ final class HistoryPaginationTests: XCTestCase {
     }
 
     private func messagesJSON(_ ids: ClosedRange<Int>, _ conversationId: String, _ createdAt: Int) -> String {
-        "[" + ids.map {
-            """{"id":"\(String(format: "m-%03d", $0))","conversation_id":"\(conversationId)","sender_id":"sender","created_at":\(createdAt)}"""
-        }.joined(separator: ",") + "]"
+        let records: [[String: Any]] = ids.map {
+            ["id": String(format: "m-%03d", $0), "conversation_id": conversationId,
+             "sender_id": "sender", "created_at": createdAt]
+        }
+        return String(data: try! JSONSerialization.data(withJSONObject: records), encoding: .utf8)!
     }
 
     private func message(_ id: String, _ conversationId: String, _ createdAt: Double, _ status: String? = nil) -> Message {

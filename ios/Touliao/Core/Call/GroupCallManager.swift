@@ -193,6 +193,11 @@ final class GroupCallManager: NSObject, ObservableObject {
         cleanup()
     }
 
+    func resetForAccountChange() {
+        guard state.stage != .idle && state.stage != .ended else { return }
+        cleanup()
+    }
+
     func toggleMic() {
         let on = !state.micEnabled
         localAudioTrack?.isEnabled = on

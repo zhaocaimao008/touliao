@@ -345,6 +345,9 @@ class CallManager @Inject constructor(
     init {
         ensureFactory()
         observeSignaling()
+        sessionManager.onIdentityCleanup {
+            if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) cleanup(CallStage.ENDED)
+        }
     }
 
     private fun ensureFactory() {
@@ -951,6 +954,7 @@ class CallManager @Inject constructor(
 
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage) {
+        callAttempt++
         participatingCallId = ""
         participatingResumeToken = null
         stopIncomingTone()                                // 停来电铃声（接听/拒接/挂断/清理）
