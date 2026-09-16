@@ -33,8 +33,8 @@ function history(convId, userId, { before, after, limit, beforeId }) {
     SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?
   )`;
   let query = `
-    SELECT m.*, u.username as senderName, u.avatar as senderAvatar
-    FROM messages m JOIN users u ON u.id=m.sender_id
+    SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar
+    FROM messages m LEFT JOIN users u ON u.id=m.sender_id
     WHERE m.conversation_id=? AND m.deleted=0 ${userDelClause}
       AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0
       )
@@ -101,8 +101,8 @@ function history(convId, userId, { before, after, limit, beforeId }) {
   if (replyIds.length > 0) {
     const ph = replyIds.map(() => '?').join(',');
     db.prepare(`
-      SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
-      FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id IN (${ph}) AND m.conversation_id = ?
+      SELECT m.id, m.type, m.content, m.file_url, m.deleted, COALESCE(u.username, '') AS senderName
+      FROM messages m LEFT JOIN users u ON u.id = m.sender_id WHERE m.id IN (${ph}) AND m.conversation_id = ?
     `).all(...replyIds, convId).forEach(r => replyMap.set(r.id, r));
   }
 
@@ -135,6 +135,14 @@ function history(convId, userId, { before, after, limit, beforeId }) {
 }
 
 // ── 断线补拉（io 用于送达回执）──────────────────────────────────
+// 注（2026-09-16 优化排查）：Web/Android/iOS 三端代码库内均无任何调用方引用
+// `GET /messages/missed`——2026-08-31 引入的按会话 server_sequence 游标协议
+// （见 sync.service.js syncConversation() + 路由 `/:conversationId/sync`）已取代
+// 本接口，三端现均走该协议做断线重连补拉。本函数疑似已是死代码，保留是为防御
+// 未知/未升级调用方（如仍在字段中运行的极旧客户端版本）。LIMIT 300 若被真实命中
+// 会静默截断（非分页，只是丢弃超出部分）；由于确认无已知调用方，暂不新增无人
+// 会用到的游标分页机制，只把上限放宽为更宽松的安全余量。若未来发现有活跃调用方，
+// 应改造为 syncConversation() 同款 cursor + has_more 分页，而非继续放宽 LIMIT。
 function missed(io, userId, after) {
   if (after <= 0) throw badRequest('after 参数无效');
   const convRows = db.prepare('SELECT conversation_id FROM conversation_members WHERE user_id=?').all(userId);
@@ -143,13 +151,13 @@ function missed(io, userId, after) {
   const convIds = convRows.map(r => r.conversation_id);
   const ph = convIds.map(() => '?').join(',');
   const messages = db.prepare(`
-    SELECT m.*, u.username as senderName, u.avatar as senderAvatar
-    FROM messages m JOIN users u ON u.id = m.sender_id
+    SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar
+    FROM messages m LEFT JOIN users u ON u.id = m.sender_id
     WHERE m.conversation_id IN (${ph}) AND m.deleted = 0 AND m.created_at > ?
       AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
       AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                    WHERE user_id=? AND conversation_id=m.conversation_id), 0)
-    ORDER BY m.created_at ASC LIMIT 300
+    ORDER BY m.created_at ASC LIMIT 1000
   `).all(...convIds, after, userId, userId);
 
   const replyIds = [...new Set(messages.filter(m => m.reply_to_id).map(m => m.reply_to_id))];
@@ -158,8 +166,8 @@ function missed(io, userId, after) {
     const rph = replyIds.map(() => '?').join(',');
     const convPh = convIds.map(() => '?').join(',');
     db.prepare(`
-      SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
-      FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id IN (${rph}) AND m.conversation_id IN (${convPh})
+      SELECT m.id, m.type, m.content, m.file_url, m.deleted, COALESCE(u.username, '') AS senderName
+      FROM messages m LEFT JOIN users u ON u.id = m.sender_id WHERE m.id IN (${rph}) AND m.conversation_id IN (${convPh})
     `).all(...replyIds, ...convIds).forEach(r => replyMap.set(r.id, r));
   }
 
@@ -406,7 +414,7 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
     for (const cid of new Set(targets.map(t => t.convId))) convSvc.invalidateConvCacheForConversation(cid);
   }
 
-  const selectStmt = db.prepare('SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?');
+  const selectStmt = db.prepare("SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar FROM messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.id=?");
   targets.forEach(({ convId, id, serverSequence }) => {
     const newMsg = selectStmt.get(id);
     if (!newMsg) return;
@@ -679,7 +687,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
     const joins = `
       FROM messages m
       JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
-      JOIN users u ON u.id = m.sender_id
+      LEFT JOIN users u ON u.id = m.sender_id
       JOIN conversations c ON c.id = m.conversation_id
       LEFT JOIN conversation_members cm_o
              ON cm_o.conversation_id = m.conversation_id AND c.type = 'private'
@@ -715,7 +723,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
       .get(...joinParams, ...condParams)?.cnt || 0;
     const rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.sender_id, m.content, m.type, m.created_at,
-             u.username AS senderName, u.avatar AS senderAvatar,
+             COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar,
              c.name AS convName, c.type AS convType,
              ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
       ${joins}
@@ -757,12 +765,12 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
 
     rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
-             u.username AS senderName, u.avatar AS senderAvatar,
+             COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar,
              c.name AS convName, c.type AS convType,
              ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
       FROM messages m
       JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
-      JOIN users u ON u.id = m.sender_id
+      LEFT JOIN users u ON u.id = m.sender_id
       JOIN conversations c ON c.id = m.conversation_id
       LEFT JOIN conversation_members cm_o
              ON cm_o.conversation_id = m.conversation_id AND c.type = 'private'
@@ -795,13 +803,13 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
 
     rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
-             u.username AS senderName, u.avatar AS senderAvatar,
+             COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar,
              c.name AS convName, c.type AS convType,
              ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
       FROM messages_fts
       JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
       JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
-      JOIN users u ON u.id = m.sender_id
+      LEFT JOIN users u ON u.id = m.sender_id
       JOIN conversations c ON c.id = m.conversation_id
       LEFT JOIN conversation_members cm_o
              ON cm_o.conversation_id = m.conversation_id AND c.type = 'private'
@@ -869,8 +877,8 @@ async function searchInConversation(convId, userId, q, filters = {}) {
     if (senderId) { conds.push('m.sender_id = ?'); params.push(senderId); }
 
     return db.prepare(`
-      SELECT m.*, u.username AS senderName, u.avatar AS senderAvatar
-      FROM messages m JOIN users u ON u.id = m.sender_id
+      SELECT m.*, COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar
+      FROM messages m LEFT JOIN users u ON u.id = m.sender_id
       WHERE ${conds.join(' AND ')}
       ORDER BY m.created_at DESC LIMIT 50
     `).all(...params);
@@ -894,9 +902,9 @@ async function searchInConversation(convId, userId, q, filters = {}) {
   if (maxTokenLen < 3) {
     const like = `%${q.trim().replace(/[\\%_]/g, c => '\\' + c)}%`;
     result = db.prepare(`
-      SELECT m.*, u.username AS senderName, u.avatar AS senderAvatar
+      SELECT m.*, COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar
       FROM messages m
-      JOIN users u ON u.id = m.sender_id
+      LEFT JOIN users u ON u.id = m.sender_id
       WHERE m.conversation_id = ? AND m.deleted = 0
         AND m.content LIKE ? ESCAPE '\\'
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
@@ -906,10 +914,10 @@ async function searchInConversation(convId, userId, q, filters = {}) {
   } else {
     const ftsQuery = tokens.map(t => `"${t.replace(/"/g, '""')}"`).join(' OR ');
     result = db.prepare(`
-      SELECT m.*, u.username AS senderName, u.avatar AS senderAvatar
+      SELECT m.*, COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar
       FROM messages_fts
       JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
-      JOIN users u ON u.id = m.sender_id
+      LEFT JOIN users u ON u.id = m.sender_id
       WHERE messages_fts MATCH ? AND messages_fts.conversation_id = ?
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
@@ -943,15 +951,15 @@ function aroundMessage(convId, msgId, userId) {
 
   const HALF = 25;
   const before = db.prepare(`
-    SELECT m.*, u.username as senderName, u.avatar as senderAvatar
-    FROM messages m JOIN users u ON u.id=m.sender_id
+    SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar
+    FROM messages m LEFT JOIN users u ON u.id=m.sender_id
     WHERE m.conversation_id=? AND m.created_at<=? AND m.deleted=0 ${clearClause} ${userDelClause}
     ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?
   `).all(convId, target.created_at, userId, userId, HALF + 1);
 
   const after = db.prepare(`
-    SELECT m.*, u.username as senderName, u.avatar as senderAvatar
-    FROM messages m JOIN users u ON u.id=m.sender_id
+    SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar
+    FROM messages m LEFT JOIN users u ON u.id=m.sender_id
     WHERE m.conversation_id=? AND m.created_at>? AND m.deleted=0 ${clearClause} ${userDelClause}
     ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?
   `).all(convId, target.created_at, userId, userId, HALF);
@@ -964,8 +972,8 @@ function aroundMessage(convId, msgId, userId) {
   if (replyIds.length > 0) {
     const ph = replyIds.map(() => '?').join(',');
     db.prepare(`
-      SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
-      FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id IN (${ph}) AND m.conversation_id=?
+      SELECT m.id, m.type, m.content, m.file_url, m.deleted, COALESCE(u.username, '') AS senderName
+      FROM messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.id IN (${ph}) AND m.conversation_id=?
     `).all(...replyIds, convId).forEach(r => replyMap.set(r.id, r));
   }
 
@@ -1001,8 +1009,8 @@ function exportConversation(convId, userId) {
   // 最多导出 10000 条，按时间升序
   const msgs = db.prepare(`
     SELECT m.created_at, m.type, m.content, m.file_url, m.deleted,
-           u.username AS senderName
-    FROM messages m JOIN users u ON u.id=m.sender_id
+           COALESCE(u.username, '') AS senderName
+    FROM messages m LEFT JOIN users u ON u.id=m.sender_id
     WHERE m.conversation_id=? AND m.deleted=0
       AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                    WHERE user_id=? AND conversation_id=m.conversation_id), 0)
@@ -1143,9 +1151,9 @@ function getConversationFiles(convId, userId, { type = 'all', offset = 0, limit 
 
   const rows = db.prepare(`
     SELECT m.id, m.type, m.content, m.file_url, m.created_at, m.file_mime, m.file_size,
-           u.username AS sender_name, u.avatar AS sender_avatar
+           COALESCE(u.username, '') AS sender_name, COALESCE(u.avatar, '') AS sender_avatar
     FROM messages m
-    JOIN users u ON u.id = m.sender_id
+    LEFT JOIN users u ON u.id = m.sender_id
     WHERE m.conversation_id = ? AND m.deleted = 0
       AND m.type IN (${ph})
     ORDER BY m.created_at DESC, m.rowid DESC
@@ -1192,7 +1200,7 @@ function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
 
   const baseFrom = `
     FROM messages m
-    JOIN users u ON u.id = m.sender_id
+    LEFT JOIN users u ON u.id = m.sender_id
     JOIN conversations c ON c.id = m.conversation_id
     JOIN conversation_members cm
          ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
@@ -1231,7 +1239,7 @@ function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
     // 多取 1 条用来判断 hasMore，不用"返回条数==limit"这种有边界误差的启发式。
     rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.content, m.created_at, m.sender_id,
-             u.username AS sender_name, c.name AS conv_name, c.type AS conv_type
+             COALESCE(u.username, '') AS sender_name, c.name AS conv_name, c.type AS conv_type
       ${baseFrom} ${cursorClause}
       ORDER BY m.created_at DESC, m.rowid DESC
       LIMIT ?
@@ -1241,7 +1249,7 @@ function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
     const safeOffset = Math.max(parseInt(offset) || 0, 0);
     rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.content, m.created_at, m.sender_id,
-             u.username AS sender_name, c.name AS conv_name, c.type AS conv_type
+             COALESCE(u.username, '') AS sender_name, c.name AS conv_name, c.type AS conv_type
       ${baseFrom}
       ORDER BY m.created_at DESC, m.rowid DESC
       LIMIT ? OFFSET ?
