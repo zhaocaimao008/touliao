@@ -38,16 +38,19 @@ interface MessageApi {
         @Query("limit") limit: Int = 500,
     ): com.touliao.app.data.model.MessageSyncResponse
 
-    /** 会话列表（含最后一条消息、未读数等派生字段） */
+    /** 会话列表（含最后一条消息、未读数等派生字段）；includeArchived=true 时含已归档会话（默认排除） */
     @GET("api/messages/conversations")
-    suspend fun conversations(): List<Conversation>
+    suspend fun conversations(
+        @Query("includeArchived") includeArchived: Int = 0,
+    ): List<Conversation>
 
-    /** 某会话历史消息，升序返回；分页用 before（早于该时间戳，epoch 秒）或 after（晚于该时间戳，增量拉取） */
+    /** 某会话历史消息，升序返回；翻页用 before + beforeId 复合边界，after 用于增量拉取。 */
     @GET("api/messages/{conversationId}")
     suspend fun history(
         @Path("conversationId") conversationId: String,
         @Query("limit") limit: Int = 50,
         @Query("before") before: Long? = null,
+        @Query("beforeId") beforeId: String? = null,
         @Query("after") after: Long? = null,
     ): List<Message>
 
@@ -123,13 +126,24 @@ interface MessageApi {
     @POST("api/messages/{msgId}/collect")
     suspend fun collectMessage(@Path("msgId") msgId: String)
 
-    /** 编辑消息（本人文本，2 分钟内） */
+    /** 编辑消息（本人文本） */
     @PUT("api/messages/{msgId}/edit")
     suspend fun editMessage(@Path("msgId") msgId: String, @Body body: com.touliao.app.data.model.EditMessageBody)
 
     /** 转发消息到多个会话 */
     @POST("api/messages/forward")
     suspend fun forward(@Body body: com.touliao.app.data.model.ForwardBody)
+
+    /**
+     * HTTP 发消息（F4a 合并转发）：文本常规走 socket，此通道用于 type=merged
+     * （content 为 {title,items} JSON，服务端透传）。后端还会广播 new_message，
+     * 本端列表经 socket 回声刷新，这里只关心发送成败。
+     */
+    @POST("api/messages/{conversationId}")
+    suspend fun sendHttp(
+        @Path("conversationId") conversationId: String,
+        @Body body: com.touliao.app.data.model.SendMessageBody,
+    ): Message
 
     /** 会话置顶（pinned: 1/0） */
     @POST("api/messages/conversation/{convId}/pin")
@@ -138,6 +152,17 @@ interface MessageApi {
     /** 会话免打扰（muted: 1/0） */
     @POST("api/messages/conversation/{convId}/mute")
     suspend fun muteConversation(@Path("convId") convId: String, @Body body: com.touliao.app.data.model.MuteConversationBody)
+
+    /** 会话归档/取消归档（archived: true/false） */
+    @POST("api/messages/conversation/{convId}/archive")
+    suspend fun archiveConversation(@Path("convId") convId: String, @Body body: com.touliao.app.data.model.ArchiveConversationBody)
+
+    /** 会话内消息已读状态（msgIds 逗号分隔，≤100 条；返回 { readStates: { msgId: [userId,...] } }） */
+    @GET("api/messages/conversation/{convId}/read-states")
+    suspend fun readStates(
+        @Path("convId") convId: String,
+        @Query("msgIds") msgIds: String,
+    ): com.touliao.app.data.model.ReadStatesResponse
 
     /** 标为未读（会话列表长按） */
     @POST("api/messages/conversation/{convId}/mark-unread")

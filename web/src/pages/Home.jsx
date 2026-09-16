@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
-import { showConfirm } from '../utils/toast';
+import { showConfirm, showToast } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
 import { startCallVisualAlert, stopCallVisualAlert } from '../utils/callVisualAlert';
 import { setIncomingRingtone, prewarmAudio, stopTone, startIncomingTone } from '../utils/callTones';
@@ -15,7 +15,7 @@ import Profile from '../components/Profile';
 import GlobalSearch from '../components/GlobalSearch';
 import PanelBoundary from '../components/PanelBoundary';
 import { ChatSkeleton, PanelSkeleton } from '../components/PanelSkeleton';
-import { IcoChat, IcoContacts, IcoSearch, IcoAdd, IcoMe, IcoMoments, IcoCall, IcoStar } from '../components/Icons';
+import { IcoChat, IcoContacts, IcoSearch, IcoAdd, IcoMe, IcoMoments, IcoCall, IcoStar, IcoBack, IcoCheck, IcoClose, IcoPersonAdd } from '../components/Icons';
 // 非常驻的重型面板/模态框懒加载，减小首屏 chunk（各自本地 Suspense 兜底）
 // ChatWindow(~2700 行)仅在选中会话后才渲染，懒加载可显著缩小 Home 首屏 chunk。
 const ChatWindow    = lazy(() => import('../components/ChatWindow'));
@@ -34,10 +34,11 @@ import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { usePushNotification } from '../hooks/usePushNotification';
 import useFocusTrap from '../hooks/useFocusTrap';
-import { mediaUrl, goLogin } from '../utils/url';
+import { mediaUrl, goLogin, useMediaCredentials } from '../utils/url';
 import { warmupCacheDB } from '../utils/msgCache';
 import { saveCred, removeCred } from '../utils/rememberedCreds';
 import { useI18n } from '../contexts/I18nContext';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 function WcEmpty() {
   // 对齐微信 PC：未选会话时近乎纯净留白，仅一枚极淡的单色图标，无文字、无彩色
@@ -75,6 +76,7 @@ const visibleTabs = (features) =>
 
 /* ── 左上角头像 — 点击展开账号切换/添加下拉面板 ── */
 function AccountSwitcher() {
+  useMediaCredentials();
   const { t } = useI18n();
   const { user, accounts, login, switchAccount, removeAccount, logout } = useAuth();
   const [open, setOpen] = useState(false);
@@ -90,8 +92,9 @@ function AccountSwitcher() {
   const containerRef = useRef(null);
   const letter = (user?.username || '?')[0].toUpperCase();
   // 头像地址变化即复位错误态：render 期派生（存上一次 avatar），避免 effect 内同步 setState
-  const [prevAvatar, setPrevAvatar] = useState(user?.avatar);
-  if (user?.avatar !== prevAvatar) { setPrevAvatar(user?.avatar); setAvatarErr(false); }
+  const avatarUrl = mediaUrl(user?.avatar);
+  const [prevAvatar, setPrevAvatar] = useState(avatarUrl);
+  if (avatarUrl !== prevAvatar) { setPrevAvatar(avatarUrl); setAvatarErr(false); }
 
   /* 点外部关闭，不用全屏遮罩（遮罩会挡住头像按钮本身） */
   useEffect(() => {
@@ -180,7 +183,7 @@ function AccountSwitcher() {
       <div className="as-avatar-btn" data-testid="account-switcher" role="button" tabIndex={0} aria-label={t('home.accountSwitch')} aria-expanded={open} onClick={() => setOpen(v => !v)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}>
         <div className={`as-avatar-inner${open ? ' as-avatar-inner-open' : ''}`}>
           {user?.avatar && !avatarErr
-            ? <img src={mediaUrl(user.avatar)} alt="" loading="lazy" className="as-avatar-img" onError={() => setAvatarErr(true)} />
+            ? <img src={avatarUrl} alt="" loading="lazy" className="as-avatar-img" onError={() => setAvatarErr(true)} />
             : letter
           }
         </div>
@@ -200,10 +203,10 @@ function AccountSwitcher() {
                 role="button" tabIndex={0}
                 onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !active) { e.preventDefault(); doSwitch(a.id); } }}>
                 <div className="as-avatar-wrap">
-                  <Avatar src={a.user?.avatar} name={a.user?.username} size={40} />
+                  <Avatar src={a.user?.avatar} name={a.user?.username} size='md' />
                   {active && (
                     <div className="as-active-badge">
-                      <svg className="as-check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                      <IcoCheck className="as-check-icon" />
                     </div>
                   )}
                 </div>
@@ -223,7 +226,7 @@ function AccountSwitcher() {
                   title={active ? t('settings.logout') : t('home.removeFromDevice')}
                   data-testid={active ? 'account-logout-btn' : undefined}
                   className="as-remove-btn">
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                  <IcoClose width="13" height="13" fill="currentColor" />
                 </button>
               </div>
             );
@@ -238,9 +241,7 @@ function AccountSwitcher() {
               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
             </svg>
             <span className="as-profile-label">{t('home.profile')}</span>
-            <svg viewBox="0 0 24 24" className={`as-profile-arrow${showProfile ? ' open' : ''}`}>
-              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-            </svg>
+            <IcoBack className={`as-profile-arrow${showProfile ? ' open' : ''}`} />
           </div>
 
           {/* 资料详情（展开时显示） */}
@@ -284,9 +285,7 @@ function AccountSwitcher() {
               </svg>
             </div>
             <span className={`wc-add-label${showForm ? ' open' : ''}`}>{t('home.addAccount')}</span>
-            <svg viewBox="0 0 24 24" className={`wc-add-chevron${showForm ? ' open' : ''}`}>
-              <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-            </svg>
+            <IcoBack className={`wc-add-chevron${showForm ? ' open' : ''}`} />
           </div>
 
           {/* 登录表单：切换已有账号 或 添加新账号 */}
@@ -333,9 +332,9 @@ function CgMemberRow({ contact: c, checked, onToggle }) {
       role="checkbox" tabIndex={0} aria-checked={checked}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onToggle()}>
       <div className={`cg-checkbox${checked ? ' checked' : ''}`}>
-        {checked && <svg className="cg-check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>}
+        {checked && <IcoCheck className="cg-check-icon" />}
       </div>
-      <Avatar src={c.avatar} name={c.remark || c.username} size={40} className="as-avatar-img" />
+      <Avatar src={c.avatar} name={c.remark || c.username} size='md' className="as-avatar-img" />
       <div className="cg-info">
         <div className={`cg-name${checked ? ' checked' : ''}`}>{c.remark || c.username}</div>
         {c.remark && <div className="cg-username">{c.username}</div>}
@@ -412,9 +411,7 @@ function CreateGroupModal({ onClose, onCreated }) {
         <div className="cgm-header">
           <span className="cgm-title">{t('home.createGroupTitle')}</span>
           <button onClick={onClose} className="cgm-close" aria-label={t('common.close')}>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
+            <IcoClose width="18" height="18" fill="currentColor" />
           </button>
         </div>
 
@@ -439,9 +436,9 @@ function CreateGroupModal({ onClose, onCreated }) {
             {selectedContacts.map(c => (
               <div key={c.id} role="button" tabIndex={0} aria-label={t('home.removeMemberTemplate').replace('{name}', c.remark || c.username)} onClick={() => toggle(c.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(c.id); } }}
                 className="cgm-chip">
-                <Avatar src={c.avatar} name={c.remark || c.username} size={20} className="as-avatar-img" />
+                <Avatar src={c.avatar} name={c.remark || c.username} size='micro' className="as-avatar-img" />
                 <span className="cgm-chip-text">{c.remark || c.username}</span>
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="var(--green)"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                <IcoClose width="12" height="12" fill="var(--green)" />
               </div>
             ))}
           </div>
@@ -523,6 +520,8 @@ export default function Home() {
   const [convRefreshKey, setConvRefreshKey] = useState(0);
   const { socket, reconnectCount, registerUnreadCleared } = useSocket();
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   // 通知权限不再自动申请：permission==='default' 时由 PushPermissionGuide 出软引导，
   // 用户点「开启」（真实手势）才调 enablePush() 走系统权限框。详见 usePushNotification.js。
   const { permission: pushPermission, enablePush } = usePushNotification(user);
@@ -555,6 +554,17 @@ export default function Home() {
     setUnread(prev => ({ ...prev, [conv.id]: 0 }));
     setTab('chats');
   }, []);
+
+  useEffect(() => {
+    const conversation = location.state?.openConversation;
+    if (!conversation?.id) return undefined;
+    const timer = setTimeout(() => {
+      handleSelectConv(conversation);
+      setConvRefreshKey(key => key + 1);
+      navigate('/', { replace: true, state: null });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [location.state, handleSelectConv, navigate]);
 
   // 拒接来电后回复消息：取/建与该用户的私聊会话并打开（来电必已有共同会话，正常命中已存在）。
   // ⚠ 这个接口的返回体是 `{ conversationId }`，既没有 `conversation` 也没有 `id`
@@ -827,6 +837,7 @@ export default function Home() {
   }, [socket]);
 
   const [activeCall, setActiveCall] = useState(null);
+  const [groupCall, setGroupCall] = useState(null);
 
   // 来电铃声：启动时从服务端同步 user_settings.ringtone（未进过设置页的用户也生效）
   useEffect(() => {
@@ -873,7 +884,7 @@ export default function Home() {
     const onIncoming = ({ from, type, caller, callId }) => {
       setActiveCall(prev => {
         // 通话中（自己接听/正在通话，或者同账号另一台设备正在呼叫别人）忽略新来电（busy）
-        if (prev || busyElsewhereCallId) {
+        if (prev || groupCall || busyElsewhereCallId) {
           socket.emit('call:response', { to: from, accepted: false, busy: true, callId });
           return prev;
         }
@@ -894,24 +905,40 @@ export default function Home() {
     };
     socket.on('call:incoming', onIncoming);
     return () => socket.off('call:incoming', onIncoming);
-  }, [socket, showNotification, busyElsewhereCallId, t]);
+  }, [socket, showNotification, busyElsewhereCallId, groupCall, t]);
 
   // 群通话（进行中 session / 收到的邀请）——提到 Home 顶层是因为 socket 在连接时
   // 就 join 了用户所有会话的房间（backend-v2/src/realtime/index.js），邀请广播不
   // 分你当前打开的是哪个会话；此前监听器挂在 ChatWindow 内部，只有邀请所属的那个
   // 群聊恰好正打开时才收得到，别的会话/标签页收不到任何提醒（真实断点，2026-09-03 修）。
-  const [groupCall, setGroupCall] = useState(null);
   const [groupCallInvite, setGroupCallInvite] = useState(null);
 
   useEffect(() => {
     if (!socket) return;
     const onInvite = (inv) => {
-      if (groupCall || activeCall) return; // 已在通话中（1:1 或群）——忽略，加入时后端 registry 会再兜底判忙
-      setGroupCallInvite(inv);
+      if (groupCall || activeCall || !inv?.callId) return;
+      if (inv.expiresAt && inv.expiresAt <= Date.now()) return;
+      setGroupCallInvite({ ...inv, expiresAt: Math.min(inv.expiresAt || Infinity, Date.now() + 60000) });
+    };
+    const onEnded = ({ callId } = {}) => {
+      setGroupCallInvite(current => current?.callId === callId ? null : current);
     };
     socket.on('group_call:invite', onInvite);
-    return () => socket.off('group_call:invite', onInvite);
+    socket.on('group_call:ended', onEnded);
+    return () => {
+      socket.off('group_call:invite', onInvite);
+      socket.off('group_call:ended', onEnded);
+    };
   }, [socket, groupCall, activeCall]);
+
+  useEffect(() => {
+    if (!groupCallInvite) return;
+    const callId = groupCallInvite.callId;
+    const timer = setTimeout(() => {
+      setGroupCallInvite(current => current?.callId === callId ? null : current);
+    }, Math.max(0, groupCallInvite.expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [groupCallInvite]);
 
   // 群通话被叫来电铃声：收到邀请条(未加入/未拒绝)期间循环;消失即停
   const groupInviteToneRef = useRef(null);
@@ -929,16 +956,19 @@ export default function Home() {
 
   const joinGroupCall = useCallback(() => {
     if (!groupCallInvite) return;
+    if (activeCall || groupCall || busyElsewhereCallId) { showToast(t('groupCall.errorBusy'), 'info'); return; }
+    if (groupCallInvite.expiresAt <= Date.now()) { setGroupCallInvite(null); return; }
     setGroupCall({ mode: 'join', callId: groupCallInvite.callId, conversationId: groupCallInvite.conversationId, type: groupCallInvite.type });
     setGroupCallInvite(null);
-  }, [groupCallInvite]);
+  }, [groupCallInvite, activeCall, groupCall, busyElsewhereCallId, t]);
 
   // 从 ChatWindow 发起群通话（仅当前打开的群聊会调用）——session 全局挂载，
   // 与是否切走会话/关闭聊天窗口无关，行为对齐 1:1 通话的 handleStartCall。
   const handleStartGroupCall = useCallback((conversationId, type) => {
+    if (activeCall || groupCall || busyElsewhereCallId) { showToast(t('groupCall.errorBusy'), 'info'); return; }
     setGroupCallInvite(null);
     setGroupCall({ mode: 'start', conversationId, type });
-  }, []);
+  }, [activeCall, groupCall, busyElsewhereCallId, t]);
 
   const handleTabChange = (t) => {
     setTab(t);
@@ -1050,10 +1080,8 @@ export default function Home() {
 
   // 各端共用的浮层（二维码 / 添加菜单 / 建群 / 网络搜索 / 通话）
   const overlays = (
-    <>
+    <React.Fragment key="home-overlays">
       <ReconnectingBanner />
-      <CallSoundGuide />
-      <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
       {activeCall && (
         <Suspense fallback={null}>
           <CallModal
@@ -1076,12 +1104,14 @@ export default function Home() {
         </Suspense>
       )}
       {groupCallInvite && !groupCall && (
-        <div style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: "calc(var(--z-call) + 100)", background: 'var(--bg-ctx-menu)', color: 'var(--text-inverse)', borderRadius: 'var(--radius-lg)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 28px rgba(0,0,0,.4)' }}>
-          <span style={{ fontSize: 'var(--text-base)' }}>
+        <div className="home-group-invite" role="region" aria-label={t('groupCall.title')}>
+          <span>
             {t('chat.groupCallInviteTemplate').replace('{name}', groupCallInvite.fromName || t('chat.groupMemberDefault')).replace('{type}', groupCallInvite.type === 'video' ? t('chat.callTypeVideo') : t('chat.callTypeVoice'))}
           </span>
-          <button onClick={joinGroupCall} style={{ background: 'var(--color-primary,#6D5AE6)', color: 'var(--text-inverse)', border: 0, borderRadius: 'var(--radius-input)', padding: '6px 14px', cursor: 'pointer' }}>{t('chat.join')}</button>
-          <button onClick={() => setGroupCallInvite(null)} style={{ background: 'transparent', color: 'rgba(255,255,255,.6)', border: 0, cursor: 'pointer' }}>{t('chat.ignore')}</button>
+          <div className="home-group-invite-actions">
+            <button type="button" onClick={joinGroupCall}>{t('chat.join')}</button>
+            <button type="button" onClick={() => setGroupCallInvite(null)}>{t('chat.ignore')}</button>
+          </div>
         </div>
       )}
       {showQR && (
@@ -1104,10 +1134,10 @@ export default function Home() {
           <div className="home-add-overlay" role="button" tabIndex={0} onClick={closeAddMenu}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeAddMenu(); } }} />
           <div className="home-add-dropdown" style={{ top: addMenuPos.top, right: addMenuPos.right }}>
-            <AddDropItem testid="create-group-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>}
+            <AddDropItem testid="create-group-entry" icon={<IcoContacts width="17" height="17" fill="currentColor" />}
               label={t('home.createGroupTitle')} onClick={handleCreateGroup} />
             <div className="home-add-divider" />
-            <AddDropItem icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>}
+            <AddDropItem icon={<IcoPersonAdd width="17" height="17" fill="currentColor" />}
               label={t('home.addFriendMenuLabel')} onClick={handleAddFriend} />
             <div className="home-add-divider" />
             <AddDropItem testid="scan-qr-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 0h3v3h-2v-1h-1v-2zm5 5h3v3h-3v-3zm-5 0h3v3h-3v-3z"/></svg>}
@@ -1127,7 +1157,7 @@ export default function Home() {
           onClick={e => e.target === e.currentTarget && setShowMentions(false)}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowMentions(false); } }}>
           <div role="dialog" aria-modal="true" aria-label={t('home.mentionsAriaLabel')}
-            style={{ width: 'min(440px, 92vw)', height: 'min(70vh, 640px)', background: 'var(--bg-panel)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,.28)' }}
+            style={{ width: 'min(440px, 92vw)', height: 'min(70vh, 640px)', background: 'var(--bg-panel)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--elev-modal)' }}
             onClick={e => e.stopPropagation()}>
             <Suspense fallback={null}>
               <MentionList onClose={() => setShowMentions(false)} onJumpToMsg={handleJumpToMention} />
@@ -1140,7 +1170,7 @@ export default function Home() {
           <ScanQR onClose={handleScanDone} />
         </Suspense>
       )}
-    </>
+    </React.Fragment>
   );
 
   // ── 移动端布局（宽度 < 768 或原生 App）：底部 TabBar + 全屏页 + 全屏聊天 ──
@@ -1185,6 +1215,8 @@ export default function Home() {
                   <span className="m-title">{mLabel(tab)}</span>
                 </div>
               )}
+              <CallSoundGuide />
+            <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
               <div className="m-content">
                 {search.trim() ? (
                   <GlobalSearch query={search}
@@ -1279,6 +1311,8 @@ export default function Home() {
               </button>
             </div>
 
+            <CallSoundGuide />
+            <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
             <div className="wc-panel-content">
               {search.trim() ? (
                 <GlobalSearch

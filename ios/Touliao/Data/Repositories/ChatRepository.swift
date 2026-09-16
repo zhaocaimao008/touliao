@@ -2,12 +2,20 @@ import Foundation
 import Combine
 
 /// 聊天仓库。与 Android ChatRepository 等价。
-final class ChatRepository {
-    static let shared = ChatRepository()
-    private init() {}
+final class ChatRepository: HistoryPageSource {
+    static let shared = ChatRepository(api: .shared, socket: .shared)
 
-    private let api = APIClient.shared
-    private let socket = SocketService.shared
+    private let api: APIClient
+    private let socket: SocketService
+
+    convenience init(api: APIClient) {
+        self.init(api: api, socket: .shared)
+    }
+
+    private init(api: APIClient, socket: SocketService) {
+        self.api = api
+        self.socket = socket
+    }
 
     /// 实时连接状态（供 UI 显示连接中/已连接）
     var statusPublisher: AnyPublisher<SocketStatus, Never> { socket.status.eraseToAnyPublisher() }
@@ -59,13 +67,21 @@ final class ChatRepository {
         )
     }
 
-    func loadConversations() async throws -> [Conversation] {
-        try await api.send("api/messages/conversations")
+    func loadConversations(includeArchived: Bool = false) async throws -> [Conversation] {
+        try await api.send(includeArchived ? "api/messages/conversations?includeArchived=1" : "api/messages/conversations")
     }
 
-    func loadHistory(_ conversationId: String, before: Double? = nil) async throws -> [Message] {
+    func loadHistory(
+        _ conversationId: String,
+        before: Double? = nil,
+        beforeId: String? = nil
+    ) async throws -> [Message] {
         var path = "api/messages/\(conversationId)?limit=50"
         if let before { path += "&before=\(Int(before))" }
+        if let beforeId {
+            let encoded = beforeId.addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? beforeId
+            path += "&beforeId=\(encoded)"
+        }
         return try await api.send(path)
     }
 
@@ -79,30 +95,22 @@ final class ChatRepository {
         return try await api.send("api/messages/conversation/\(conversationId)/search?q=\(enc)")
     }
 
-    func sendText(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil) async -> Result<Message, Error> {
-        await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId, clientMsgId: clientMsgId)
+    func sendText(conversationId: String, content: String, replyToId: String? = nil, clientMsgId: String? = nil, credential: KeychainStore.Snapshot) async -> Result<Message, Error> {
+        await socket.sendMessage(conversationId: conversationId, content: content, replyToId: replyToId, clientMsgId: clientMsgId, credential: credential)
     }
 
-    /// 撤回/删除消息
-    func deleteMessage(_ msgId: String, forEveryone: Bool = true) async {
-        let _: EmptyResponse? = try? await api.send(
+    /// 撤回/删除消息。错误必须向上抛出，让 UI 恢复乐观移除并提示失败。
+    func deleteMessage(_ msgId: String, forEveryone: Bool = true) async throws {
+        let _: EmptyResponse = try await api.send(
             "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: forEveryone, vanish: nil, forMe: nil)
         )
     }
 
-    /// 彻底删除不留痕迹
-    func vanishMessage(_ msgId: String) async {
-        let _: EmptyResponse? = try? await api.send(
+    /// 彻底删除不留痕迹。
+    func vanishMessage(_ msgId: String) async throws {
+        let _: EmptyResponse = try await api.send(
             "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: false, vanish: true, forMe: nil)
         )
-    }
-
-    /// 个人删除（per-user tombstone，仅当前账号生效，对方不受影响）
-    func deleteForMeMessage(_ msgId: String) async -> Bool {
-        let resp: EmptyResponse? = try? await api.send(
-            "api/messages/\(msgId)", method: "DELETE", body: DeleteMessageBody(forEveryone: false, vanish: nil, forMe: true)
-        )
-        return resp != nil
     }
 
     /// 表情回应(切换)
@@ -163,6 +171,28 @@ final class ChatRepository {
         )
     }
 
+    /// 会话归档/取消归档（仅本人维度，不影响其他成员；F5）
+    func setConversationArchived(_ conversationId: String, archived: Bool) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/conversation/\(conversationId)/archive", method: "POST", body: ArchiveConvBody(archived: archived)
+        )
+    }
+
+    /// 按会话批量拉取消息已读状态（F5）：返回 { msgId: [已读 userId...] }，已读者不含发送者本人
+    func readStates(_ conversationId: String, msgIds: [String]) async throws -> [String: [String]] {
+        guard !msgIds.isEmpty else { return [:] }
+        let joined = msgIds.joined(separator: ",").addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? msgIds.joined(separator: ",")
+        let resp: ReadStatesResponse = try await api.send("api/messages/conversation/\(conversationId)/read-states?msgIds=\(joined)")
+        return resp.readStates
+    }
+
+    /// 发送合并转发消息（F5）：POST /api/messages/:convId，type=merged，content 为 {title,items} JSON
+    /// （服务端透传不解析；对齐 Web ForwardModal 合并转发路径）。服务端会同时经 Socket 广播。
+    @discardableResult
+    func sendMergedForward(conversationId: String, json content: String) async throws -> Message {
+        try await api.send("api/messages/\(conversationId)", method: "POST", body: SendTypedBody(type: "merged", content: content))
+    }
+
     func clearMessages(_ conversationId: String) async throws {
         let _: EmptyResponse = try await api.send(
             "api/messages/conversation/\(conversationId)/messages", method: "DELETE"
@@ -197,7 +227,14 @@ final class ChatRepository {
 
     func forward(msgId: String, conversationIds: [String]) async throws {
         let _: EmptyResponse = try await api.send(
-            "api/messages/forward", method: "POST", body: ForwardBody(msgId: msgId, conversationIds: conversationIds)
+            "api/messages/forward", method: "POST", body: ForwardBody(msgId: msgId, msgIds: nil, conversationIds: conversationIds)
+        )
+    }
+
+    /// 多条逐条转发（F5）：后端 /forward 支持 msgIds 数组（单次≤30），按选择顺序逐条复制到每个目标会话
+    func forwardMessages(msgIds: [String], conversationIds: [String]) async throws {
+        let _: EmptyResponse = try await api.send(
+            "api/messages/forward", method: "POST", body: ForwardBody(msgId: nil, msgIds: msgIds, conversationIds: conversationIds)
         )
     }
 
@@ -266,10 +303,13 @@ private struct BackgroundBody: Encodable { let background: String }
 private struct PinMessageBody: Encodable { let msgId: String }
 private struct PinConvBody: Encodable { let pinned: Int }
 private struct MuteConvBody: Encodable { let muted: Int }
+private struct ArchiveConvBody: Encodable { let archived: Bool }
+private struct SendTypedBody: Encodable { let type: String; let content: String }
+private struct ReadStatesResponse: Decodable { let readStates: [String: [String]] }
 private struct BurnAfterBody: Encodable { let seconds: Int }
 private struct FileHelperResponse: Decodable { let conversationId: String }
 private struct EditBody: Encodable { let content: String }
-private struct ForwardBody: Encodable { let msgId: String; let conversationIds: [String] }
+private struct ForwardBody: Encodable { let msgId: String?; let msgIds: [String]?; let conversationIds: [String] }
 private struct DeleteMessageBody: Encodable { let forEveryone: Bool; let vanish: Bool?; let forMe: Bool? }
 private struct BatchDeleteBody: Encodable { let msgIds: [String]; let conversationId: String }
 private struct BatchDeleteResponse: Decodable { let success: Bool?; let deleted: Int? }

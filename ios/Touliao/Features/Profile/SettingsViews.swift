@@ -457,15 +457,19 @@ final class ChangePasswordViewModel: ObservableObject {
     var valid: Bool { !oldPassword.isEmpty && newPassword.count >= 6 && newPassword == confirmPassword }
 
     /// 改密：token 可能为 nil（旧后端兼容），SessionStore.applyNewToken 对空串自行短路，调用方无需判空。
-    func submit(onSuccess: @escaping (String?) -> Void) {
+    func submit(onSuccess: @escaping (String?, KeychainStore.Snapshot) -> Void) {
         guard !changing, valid else { return }
+        let credential = KeychainStore.shared.snapshot()
         changing = true; message = nil
         Task {
+            guard KeychainStore.shared.isCurrent(credential) else { return }
             do {
                 let token = try await repo.changePassword(oldPassword: oldPassword, newPassword: newPassword)
+                guard KeychainStore.shared.isCurrent(credential) else { return }
                 message = "密码已修改"
-                onSuccess(token)
+                onSuccess(token, credential)
             } catch {
+                guard KeychainStore.shared.isCurrent(credential) else { return }
                 message = (error as? LocalizedError)?.errorDescription ?? "修改失败"
             }
             changing = false
@@ -495,8 +499,8 @@ struct ChangePasswordView: View {
             }
             Section(content: {
                 Button {
-                    vm.submit { token in
-                        session.applyNewToken(token ?? "")
+                    vm.submit { token, credential in
+                        if let token, !session.applyNewToken(token, expected: credential) { return }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { dismiss() }
                     }
                 } label: {
@@ -505,7 +509,7 @@ struct ChangePasswordView: View {
                 .disabled(!vm.valid || vm.changing)
                 .accessibilityIdentifier("change-password-submit")
             }, footer: {
-                Text("修改后本设备将使用新密码继续登录，其它已登录设备不受影响。")
+                Text("修改后本设备保持登录，其它已登录设备需使用新密码重新登录。")
             })
         }
         .navigationTitle("修改密码")

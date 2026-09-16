@@ -1,7 +1,9 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import AuthImage from './AuthImage';
+import { IcoBack, IcoCheck } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { useI18n, SUPPORTED_LANGS } from '../contexts/I18nContext';
@@ -9,7 +11,7 @@ import { goLogin } from '../utils/url';
 import { setIncomingRingtone } from '../utils/callTones';
 import { showConfirm, showToast } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
-import { timeoutSignal } from '../utils/config';
+import { timeoutSignal, resolveTenantCode } from '../utils/config';
 
 /* ─── 小工具 ─── */
 // role="button" 的 div 应同时支持 Enter 和空格触发（空格默认会滚动页面，需 preventDefault）
@@ -18,9 +20,7 @@ const activateOnKey = (fn) => (e) => {
 };
 
 const ChevronRight = () => (
-  <svg className="wc-chevron" viewBox="0 0 24 24">
-    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-  </svg>
+  <IcoBack className="wc-chevron" />
 );
 
 function Toggle({ checked, onChange, disabled }) {
@@ -547,7 +547,7 @@ function InviteFriends({ onBack }) {
             <CRow label={t('common.loading')} />
           ) : (data?.invitees?.length ? data.invitees.map(u => (
             <CRow key={u.id}
-              icon={<Avatar src={u.avatar} name={u.username} size={28} />} bg="transparent"
+              icon={<Avatar src={u.avatar} name={u.username} size='xs' />} bg="transparent"
               label={u.username}
               desc={u.wechat_id ? t('profile.touliaoIdColonTemplate').replace('{id}', u.wechat_id) : ''}
               right={<span className="profile-meta-sm">{fmtTime(u.created_at)}</span>} />
@@ -641,7 +641,7 @@ function DeviceList({ onBack }) {
 
 /* ── 外观 ── */
 function AppearanceSettings({ onBack }) {
-  const { themeMode, setThemeMode, fontSize, setFontSize } = useSettings();
+  const { themeMode, setThemeMode, skin, setSkin, fontSize, setFontSize } = useSettings();
   const { t, lang, setLang } = useI18n();
   const FONT_OPTIONS = [
     { key: 'small',  label: t('profile.fontSmall'),  size: 12 },
@@ -674,6 +674,32 @@ function AppearanceSettings({ onBack }) {
           ))}
         </div>
       </div>
+      <SLabel>{t('profile.skinTitle')}</SLabel>
+      <div className="wc-section-pad">
+        <div className="wc-appearance-row">
+          {[
+            // 每套皮肤: 按钮底色 = 聊天气泡预览(自己/对方), 选中描边用其主色
+            { key: 'aurora', label: t('profile.skinAurora'), bg: 'linear-gradient(105deg,#FBFAFE 50%,#E7E4F0 50%)', accent: '#6D5AE6', dot: '#6D5AE6' },
+            { key: 'wechat', label: t('profile.skinWechat'), bg: 'linear-gradient(105deg,#95EC69 50%,#FFFFFF 50%)', accent: '#07C160', dot: '#07C160' },
+            { key: 'wecom',  label: t('profile.skinWecom'),  bg: 'linear-gradient(105deg,#D6E8FD 50%,#FFFFFF 50%)', accent: '#2070E0', dot: '#2070E0' },
+          ].map(({ key, label, bg, accent, dot }) => (
+            <button key={key} type="button"
+              className="wc-appearance-btn"
+              aria-pressed={skin === key}
+              style={{
+                background: bg,
+                border: `2.5px solid ${skin === key ? accent : '#D9D9DE'}`,
+                boxShadow: skin === key ? `0 0 0 4px ${accent}26` : '0 2px 8px rgba(0,0,0,.08)',
+              }}
+              onClick={() => setSkin(key)}>
+              <span className="wc-appearance-emoji">
+                <span style={{ display:'inline-block', width:14, height:14, borderRadius:'50%', background:dot, verticalAlign:'-2px', boxShadow:'0 0 0 2px rgba(255,255,255,.7)' }} />
+              </span>
+              <span className="profile-appearance-label" style={{ color: '#333', fontWeight: skin === key ? 600 : 400 }}>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <SLabel>{t('profile.fontSizeTitle')}</SLabel>
       <div className="wc-section-pad">
         <Card>
@@ -698,7 +724,7 @@ function AppearanceSettings({ onBack }) {
         <Card>
           {SUPPORTED_LANGS.map(({ code, name }) => (
             <CRow key={code} label={name} onClick={() => setLang(code)}
-              right={lang === code ? <svg viewBox="0 0 24 24" width="18" height="18" fill="var(--green)"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> : null}
+              right={lang === code ? <IcoCheck width="18" height="18" fill="var(--green)" /> : null}
             />
           ))}
         </Card>
@@ -898,9 +924,10 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
   const [loading, setLoading]   = useState(false);
   const phoneRef = useRef(null);
 
-  const doSwitch = (id) => {
+  const doSwitch = async (id) => {
     if (id === user?.id) return;
-    if (switchAccount(id)) window.location.reload();
+    try { await switchAccount(id); }
+    catch (err) { setError(err.message); setShowForm(true); }
   };
 
   const doAdd = async (e) => {
@@ -932,7 +959,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
       {otherAccounts.map((a) => (
           <div key={a.id} onClick={() => doSwitch(a.id)} className="wc-add-row" role="button" tabIndex={0} onKeyDown={activateOnKey(() => doSwitch(a.id))}>
             <div className="wc-add-avatar-wrap">
-              <Avatar src={a.user?.avatar} name={a.user?.username} size={40} />
+              <Avatar src={a.user?.avatar} name={a.user?.username} size='md' />
             </div>
             <div className="wc-crow-body">
               <div className="wc-add-name">{a.user?.username || t('profile.unnamed')}</div>
@@ -949,9 +976,7 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
           </svg>
         </div>
         <span className="wc-add-label" style={{ color: showForm ? 'var(--green)' : undefined }}>{t('profile.addAccount')}</span>
-        <svg className="wc-add-chevron" style={{ transform: showForm ? 'rotate(90deg)' : undefined }} viewBox="0 0 24 24">
-          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-        </svg>
+        <IcoBack className="wc-add-chevron" style={{ transform: showForm ? 'rotate(90deg)' : undefined }} />
       </div>
 
       {showForm && (
@@ -1058,7 +1083,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
           <div className="pf-avatar-wrap" role="button" tabIndex={0}
             onClick={handleAvatarClick} onKeyDown={e => activateOnKey(handleAvatarClick)(e)}
             aria-label={t('profile.changeAvatar')}>
-            <Avatar src={user?.avatar} name={user?.username} size={92} />
+            <Avatar src={user?.avatar} name={user?.username} size='hero' />
             <span className="pf-avatar-edit" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
             </span>
@@ -1119,6 +1144,27 @@ function ServerSettings({ onBack }) {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [tenantCode, setTenantCode] = useState('');
+  const [resolving, setResolving] = useState(false);
+  const [codeResult, setCodeResult] = useState(null);
+
+  // 企业代码：查目录表拿到该客户自己的服务器地址后直接切换，不需要用户知道完整域名。
+  // 与下面手动输入 URL 是并存的两条路径，互不干扰。
+  const handleResolveCode = async () => {
+    const key = tenantCode.trim();
+    if (!key) return;
+    setResolving(true); setCodeResult(null);
+    const entry = await resolveTenantCode(key);
+    if (!entry) {
+      setCodeResult({ ok: false, msg: t('profile.tenantCodeNotFound') });
+      setResolving(false);
+      return;
+    }
+    setCodeResult({ ok: true, msg: entry.name ? t('profile.tenantCodeFound').replace('{name}', entry.name) : t('profile.serverConnectSuccess') });
+    setInput(entry.api);
+    await changeServer(entry.api);
+    setResolving(false);
+  };
 
   const testConn = async () => {
     const url = input.trim().replace(/\/$/, '');
@@ -1143,6 +1189,29 @@ function ServerSettings({ onBack }) {
   return (
     <PageBg>
       <PageHeader title={t('profile.serverAddressTitle')} onBack={onBack} />
+      <div className="wc-server-pad">
+        <div className="wc-server-label">{t('profile.tenantCodeLabel')}</div>
+        <input
+          value={tenantCode}
+          onChange={e => { setTenantCode(e.target.value); setCodeResult(null); }}
+          placeholder={t('profile.tenantCodePlaceholder')}
+          aria-label={t('profile.tenantCodeLabel')}
+          className="wc-server-input"
+        />
+        {codeResult && (
+          <div role="status" className="profile-test-result" style={{ color: codeResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
+            {codeResult.msg}
+          </div>
+        )}
+      </div>
+      <div className="wc-server-btn-row">
+        <button onClick={handleResolveCode} disabled={resolving || !tenantCode.trim()} className="wc-btn-save">
+          {resolving ? t('profile.tenantCodeResolving') : t('profile.tenantCodeResolve')}
+        </button>
+      </div>
+      <div className="wc-server-hint">
+        <div className="wc-server-hint-box">{t('profile.tenantCodeHint')}</div>
+      </div>
       <div className="wc-server-pad">
         <div className="wc-server-label">{t('profile.serverAddressLabel')}</div>
         <input
@@ -1335,7 +1404,7 @@ export default function Profile({ isMobile = false }) {
       {/* ── 个人信息头部 ── */}
       <div className="wc-me-header" role="button" tabIndex={0} onClick={() => setSubPage('profile-detail')} onKeyDown={activateOnKey(() => setSubPage('profile-detail'))}>
         <div className="wc-me-avatar-wrap">
-          <Avatar src={user?.avatar} name={user?.username} size={64} />
+          <Avatar src={user?.avatar} name={user?.username} size='xl' />
         </div>
         <div className="wc-me-info">
           <div className="wc-me-name">{user?.username || t('profile.noNickname')}</div>
@@ -1431,12 +1500,13 @@ export default function Profile({ isMobile = false }) {
         </>
       )}
 
+      <div className="wc-logout-div"><AccountWindowButton /></div>
       {/* ── 退出 ── */}
       <div className="wc-logout-div">
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>{t('settings.logout')}</button>
       </div>
       <div className="wc-logout-div">
-        <button className="wc-edit-hint" style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+        <button className="wc-edit-hint" style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: '12px 16px' }}
           onClick={() => setSubPage('delete-account')}>{t('profile.deleteAccountTitle')}</button>
       </div>
 
@@ -1453,3 +1523,4 @@ export default function Profile({ isMobile = false }) {
     </PageBg>
   );
 }
+import AccountWindowButton from './AccountWindowButton';

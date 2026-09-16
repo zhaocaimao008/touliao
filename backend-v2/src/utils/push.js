@@ -13,6 +13,7 @@ const { db } = require('../db/connection');
 const getuiPush = require('./getuiPush');
 const pushI18n = require('./pushI18n');
 const fcmOptimized = require('./fcmOptimized');  // 新增：Android FCM 优化模块
+const deviceOwnership = require('./devicePushOwnership');
 
 // Web Push endpoint 只可能来自浏览器推送服务(FCM/Mozilla/Apple/WNS)。限制到已知服务域名，
 // 防 SSRF——攻击者若把订阅 endpoint 指向内网/云元数据地址(如 http://169.254.169.254、
@@ -91,142 +92,71 @@ async function pushToUser(userId, payload) {
       // 纵深防御：跳过非法/内网 endpoint（挡入口校验前遗留的存量恶意订阅），防 SSRF
       if (!isAllowedPushEndpoint(sub?.endpoint)) continue;
       promises.push(
-        webpush.sendNotification(sub, JSON.stringify(payload)).catch(err => {
+        webpush.sendNotification(sub, JSON.stringify({ ...payload, recipientId: userId })).catch(err => {
           if (err.statusCode === 410 || err.statusCode === 404) {
-            db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(row.id);
+            db.prepare('DELETE FROM push_subscriptions WHERE id=? AND user_id=? AND session_id IS ? AND subscription=?')
+              .run(row.id, row.user_id, row.session_id ?? null, row.subscription);
           }
         })
       );
     } catch {}
   }
 
-  if (firebaseAdmin) {
-    // 只取真正的 FCM token（android/ios）。个推 CID（platform='getui'）不是合法 FCM token，
-    // 若混进来会被 FCM 判为无效 → 命中下方失效清理逻辑而被误删，
-    // 国产 ROM 上（FCM token 恒为 null，仅有个推 CID）会因此丢掉唯一的锁屏通路。个推交给下面的个推循环。
+  const iosApnsTokens = tokensOf('ios_apns');
+  const iosTokens = tokensOf('ios');
+  const nativeSessions = new Set(iosApnsTokens.map(row => row.session_id).filter(Boolean));
 
-    // ────────── 优化：使用批量发送而不是逐条发送 ──────────
-    // 优化前：对每个 token 逐条调用 firebaseAdmin.messaging().send()
-    // 优化后：一次 API 调用通过 sendEachForMulticast() 批量发送
-    // 性能提升：减少 70-90% 的 API 调用
-
-    // 检查是否有 Android 设备
-    const androidTokens = tokensOf('android');
-
-    if (androidTokens.length > 0) {
-      // 使用优化的批量发送
-      promises.push(
-        fcmOptimized.sendBatchAndroidNotifications(userId, {
-          senderName: payload.senderName,
-          body: payload.body,
-          conversationId: payload.conversationId,
-          senderId: payload.senderId,
-          type: payload.type,
-          timestamp: payload.timestamp,
-          badge: payload.badge,
-        }).catch(err => {
-          console.warn(`[push] Android 批量推送异常: ${err?.message}`);
-        })
-      );
-    }
-
-    // iOS 单独处理：优先直连 APNs(platform='ios_apns', 原始 64 位 hex token)，
-    // 兼容旧版只上报 FCM token 的设备(platform='ios', 走 FCM 兜底)。
-    const iosApnsTokens = tokensOf('ios_apns');
-    const iosTokens = tokensOf('ios');
-
-    for (const row of iosApnsTokens) {
-      // APNs 直连(HTTP/2 + Provider Token)：不依赖 Firebase 控制台 APNs 密钥配置。
-      // 未配置 APNS_* 时返回 skipped；直连失败降级 FCM(如有 FCM token)。
-      promises.push(
-        sendIosPush(row.token, {
-          title: payload.senderName,
-          body: payload.body,
-          badge: payload.badge || 1,
-          conversationId: payload.conversationId,
-          senderId: payload.senderId,
-          timestamp: payload.timestamp,
-          type: payload.type,
-        }).then((res) => {
-          if (res?.ok || res?.skipped || !firebaseAdmin || !iosTokens.length) return;
-          // 直连失败且有 FCM token → 降级 FCM(双保险)
-          const msg = {
-            token: iosTokens[0].token,
-            notification: { title: payload.senderName, body: payload.body },
-            data: {
-              conversationId: payload.conversationId || '',
-              senderId:       payload.senderId || '',
-              timestamp:      String(payload.timestamp || Date.now()),
-              type:           payload.type || 'message',
-            },
-            apns: {
-              headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
-              payload: {
-                aps: {
-                  alert: { title: payload.senderName, body: payload.body },
-                  sound: 'default',
-                  badge: payload.badge || 1,
-                },
-              },
-            },
-          };
-          return firebaseAdmin.messaging().send(msg)
-            .then(id => { console.debug(`[push] iOS FCM 兜底发送成功 user=${userId} msgId=${id}`); })
-            .catch(err => {
-              if (err.code === 'messaging/invalid-registration-token' ||
-                  err.code === 'messaging/registration-token-not-registered') {
-                db.prepare('DELETE FROM device_tokens WHERE id=?').run(iosTokens[0].id);
-              }
-              console.warn(`[push] iOS FCM 兜底失败 user=${userId} code=${err.code}`);
-            });
-        }).catch(err => {
-          console.warn(`[push] iOS 直连异常 user=${userId}: ${err?.message}`);
-        })
-      );
-    }
-
-    // 已存在 APNs 原生 token 的用户不再并行走 iOS FCM，避免同一设备重复通知。
-    const iosFcmTokens = iosApnsTokens.length ? [] : iosTokens;
-    for (const row of iosFcmTokens) {
-      // 旧版设备仅上报 FCM token：走 FCM→APNs(需 Firebase 控制台已上传 APNs 密钥；
-      // 未上传时 FCM 报 third-party-auth-error,此处仅记录)。
-      if (!firebaseAdmin) continue;
-      const message = {
+  const sendIosFcm = async (row) => {
+    if (!firebaseAdmin || !deviceOwnership.isCurrent(row)) return;
+    try {
+      await firebaseAdmin.messaging().send({
         token: row.token,
         notification: { title: payload.senderName, body: payload.body },
         data: {
+          recipientId: String(userId),
           conversationId: payload.conversationId || '',
-          senderId:       payload.senderId || '',
-          timestamp:      String(payload.timestamp || Date.now()),
-          type:           payload.type || 'message',
+          senderId: payload.senderId || '',
+          timestamp: String(payload.timestamp || Date.now()),
+          type: payload.type || 'message',
         },
         apns: {
-          headers: {
-            // 锁屏/后台送达的关键：alert 类型 + 最高优先级（10=立即送达并唤醒屏幕）
-            'apns-push-type': 'alert',
-            'apns-priority': '10',
-          },
-          payload: {
-            aps: {
-              alert: { title: payload.senderName, body: payload.body },
-              sound: 'default',
-              badge: payload.badge || 1,
-            },
-          },
+          headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
+          payload: { aps: {
+            alert: { title: payload.senderName, body: payload.body },
+            sound: 'default', badge: payload.badge || 1,
+          } },
         },
-      };
-      promises.push(
-        firebaseAdmin.messaging().send(message)
-          .then(id => { console.debug(`[push] iOS FCM 发送成功 user=${userId} msgId=${id}`); })
-          .catch(err => {
-            console.warn(`[push] iOS FCM 发送失败 user=${userId} code=${err.code || '?'} msg=${err.message}`);
-            if (err.code === 'messaging/invalid-registration-token' ||
-                err.code === 'messaging/registration-token-not-registered') {
-              db.prepare('DELETE FROM device_tokens WHERE id=?').run(row.id);
-            }
-          })
-      );
+      });
+    } catch (error) {
+      if (['messaging/invalid-registration-token', 'messaging/registration-token-not-registered'].includes(error.code))
+        deviceOwnership.forget(row);
+      console.warn('[push] iOS FCM failed:', error.code);
     }
+  };
+
+  // Pair FCM/APNs only within the same login session, never across a user's devices.
+  for (const row of iosApnsTokens) {
+    promises.push(sendIosPush(row.token, {
+      title: payload.senderName, body: payload.body, badge: payload.badge || 1,
+      recipientId: userId, conversationId: payload.conversationId,
+      senderId: payload.senderId, timestamp: payload.timestamp, type: payload.type,
+      destination: row,
+    }).then(async result => {
+      if (result?.ok || !row.session_id) return;
+      for (const fallback of iosTokens.filter(token => token.session_id === row.session_id))
+        await sendIosFcm(fallback);
+    }).catch(error => console.warn('[push] iOS APNs failed:', error.message)));
+  }
+  for (const row of iosTokens) {
+    if (!row.session_id || !nativeSessions.has(row.session_id)) promises.push(sendIosFcm(row));
+  }
+
+  if (firebaseAdmin && tokensOf('android').length) {
+    promises.push(fcmOptimized.sendBatchAndroidNotifications(userId, {
+      senderName: payload.senderName, body: payload.body,
+      conversationId: payload.conversationId, senderId: payload.senderId,
+      type: payload.type, timestamp: payload.timestamp, badge: payload.badge,
+    }).catch(error => console.warn('[push] Android FCM failed:', error.message)));
   }
 
   const results = await Promise.allSettled(promises);
@@ -238,16 +168,18 @@ async function pushToUser(userId, payload) {
   if (getuiPush.isEnabled()) {
     const getuiTokens = tokensOf('getui');
     for (const row of getuiTokens) {
+      if (!deviceOwnership.isCurrent(row)) continue;
       getuiPush.pushToCid(row.token, {
+        isCurrent: () => deviceOwnership.isCurrent(row),
         title: payload.senderName || pushI18n.t(payload.lang, 'push.newMessage'),
         body: payload.body || pushI18n.t(payload.lang, 'push.oneNewMessage'),
-        payload: { type: payload.type || 'message', conversationId: payload.conversationId || '', senderId: payload.senderId || '' },
+        payload: { recipientId: userId, type: payload.type || 'message', conversationId: payload.conversationId || '', senderId: payload.senderId || '' },
       }).then(({ json }) => {
         if (json.code !== 0) {
           console.warn(`[push] 个推失败 user=${userId} code=${json.code} msg=${json.msg}`);
           // CID 失效时清除，避免无效推送积累
           if (json.code === 10001 || json.code === 10002) {
-            db.prepare('DELETE FROM device_tokens WHERE id=?').run(row.id);
+            deviceOwnership.forget(row);
           }
         } else {
           console.debug(`[push] 个推成功 user=${userId}`);
@@ -373,7 +305,7 @@ const APNS_TOPIC = 'com.touliao.app';
 const APNS_HOST = 'https://api.push.apple.com:443';   // 生产环境(TestFlight/App Store)
 // const APNS_HOST = 'https://api.sandbox.push.apple.com:443'; // 开发环境(debug 真机)
 
-function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId, timestamp, type, collapseId }) {
+function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId, timestamp, type, collapseId, recipientId, destination }) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (result) => {
@@ -394,6 +326,7 @@ function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId
         badge: Number(badge) || 1,
         'mutable-content': 1,
       },
+      recipientId: String(recipientId || ''),
       conversationId: String(conversationId || ''),
       senderId: String(senderId || ''),
       timestamp: String(timestamp || Date.now()),
@@ -452,7 +385,7 @@ function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId
         console.warn(`[push] iOS APNs 凭据无效 status=${status} body=${resBody}`);
       } else if (status === 410 || reason === 'BadDeviceToken' || reason === 'Unregistered') {
         // 设备 token 已失效(卸载/重装/系统回收)→ 清理,避免反复无效推送
-        try { db.prepare('DELETE FROM device_tokens WHERE token=?').run(deviceToken); } catch {}
+        if (destination) deviceOwnership.forget(destination);
         console.warn(`[push] iOS token 失效已清理 status=${status} reason=${reason}`);
       } else {
         console.warn(`[push] iOS APNs 推送失败 status=${status} reason=${reason}`);
@@ -494,7 +427,7 @@ function getApnsVoipToken() {
 
 // PushKit voip push：纯自定义 JSON payload（不允许带 aps.alert），app 收到后自行
 // reportNewIncomingCall 弹 CallKit 界面。凭据缺失时静默降级（不影响其他推送通路）。
-function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
+function sendVoipPush(deviceToken, { callId, from, callerName, callType, recipientId, destination }) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (result) => {
@@ -510,6 +443,7 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
     }
     const body = JSON.stringify({
       type: 'call',
+      recipientId: String(recipientId || ''),
       callId: String(callId || ''),
       from: String(from || ''),
       callerName: String(callerName || ''),
@@ -571,7 +505,7 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
         console.warn(`[call-push] APNs voip 凭据无效 status=${status} body=${resBody}`);
       } else if (status === 410 || reason === 'BadDeviceToken' || reason === 'Unregistered') {
         // 设备 token 已失效（卸载/重装/系统回收）→ 清理，避免反复无效推送
-        try { db.prepare('DELETE FROM device_tokens WHERE token=?').run(deviceToken); } catch {}
+        if (destination) deviceOwnership.forget(destination);
         console.warn(`[call-push] APNs voip token 失效已清理 status=${status} reason=${reason}`);
       } else {
         console.warn(`[call-push] APNs voip 推送失败 status=${status} reason=${reason}`);
@@ -595,7 +529,7 @@ function sendVoipPush(deviceToken, { callId, from, callerName, callType }) {
 // 从未真正送达过。'ios_apns' 平台的 token 直连不经过 FCM，绕开这条失败路径。
 // payload 顶层 from/callerName/callId/callType 字段名与 AppDelegate.swift:89-92
 // 读取 userInfo 的字段名一一对应（ANSWER/DECLINE 通知动作靠这几个字段重建来电状态）。
-function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, callType, lang }) {
+function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, callType, lang, destination }) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (result) => {
@@ -616,6 +550,7 @@ function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, call
         sound: 'default',
         category: 'INCOMING_CALL',
       },
+      recipientId: String(toUserId || ''),
       from: String(from || ''),
       callerName: String(callerName || ''),
       callId: String(callId || ''),
@@ -677,7 +612,7 @@ function sendIosCallPush(deviceToken, { callId, from, toUserId, callerName, call
         console.warn(`[call-push] iOS 来电 APNs 凭据无效 status=${status} body=${resBody}`);
       } else if (status === 410 || reason === 'BadDeviceToken' || reason === 'Unregistered') {
         // 设备 token 已失效(卸载/重装/系统回收)→ 清理,避免反复无效推送
-        try { db.prepare('DELETE FROM device_tokens WHERE token=?').run(deviceToken); } catch {}
+        if (destination) deviceOwnership.forget(destination);
         console.warn(`[call-push] iOS 来电 token 失效已清理 status=${status} reason=${reason}`);
       } else {
         console.warn(`[call-push] iOS 来电 APNs 推送失败 status=${status} reason=${reason}`);
@@ -718,27 +653,29 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   // FCM 优先（防同设备双弹）：有 android(FCM) token 的 GMS 设备，全屏来电走 FCM——
   // 被杀场景 FCM 仍能拉起进程弹 fullScreenIntent，能力最完整；个推仅兜底无 GMS 的设备。
   // 同一台设备同时注册 android+getui 双 token（PushManager 逻辑），若两者都推会双弹来电。
-  const hasAndroidFcm = deviceTokens.some(r => r.platform === 'android');
+  const androidSessions = new Set(deviceTokens.filter(r => r.platform === 'android').map(r => r.session_id).filter(Boolean));
   for (const row of deviceTokens) {
     if (row.platform === 'getui') {
-      if (hasAndroidFcm) continue;   // FCM 已覆盖，个推不重复推（防双弹）
+      if (firebaseAdmin && row.session_id && androidSessions.has(row.session_id)) continue;
       promises.push(getuiPush.pushCallToCid(row.token, {
-        callId, from: fromUserId, callerName, callType: isVideo ? 'video' : 'audio', lang,
+        isCurrent: () => deviceOwnership.isCurrent(row),
+        callId, from: fromUserId, recipientId: toUserId, callerName, callType: isVideo ? 'video' : 'audio', lang,
       }).catch(err => console.warn(`[push] 个推来电失败 user=${toUserId}: ${err.message}`)));
       continue;
     }
     if (row.platform === 'ios_voip') {
-      promises.push(sendVoipPush(row.token, { callId, from: fromUserId, callerName, callType: isVideo ? 'video' : 'audio' }));
+      promises.push(sendVoipPush(row.token, { callId, from: fromUserId, recipientId: toUserId, destination: row, callerName, callType: isVideo ? 'video' : 'audio' }));
       continue;
     }
     if (row.platform === 'ios_apns') {
-      promises.push(sendIosCallPush(row.token, { callId, from: fromUserId, toUserId, callerName, callType: isVideo ? 'video' : 'audio', lang }));
+      promises.push(sendIosCallPush(row.token, { callId, from: fromUserId, toUserId, destination: row, callerName, callType: isVideo ? 'video' : 'audio', lang }));
       continue;
     }
     const message = {
       token: row.token,
       data: {
         type:       'call',
+        recipientId: String(toUserId),
         callType:   isVideo ? 'video' : 'audio',
         from:       String(fromUserId || ''),
         callerName: String(callerName || ''),
@@ -769,7 +706,7 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
     promises.push(firebaseAdmin.messaging().send(message).catch(err => {
       if (err.code === 'messaging/invalid-registration-token' ||
           err.code === 'messaging/registration-token-not-registered') {
-        db.prepare('DELETE FROM device_tokens WHERE id=?').run(row.id);
+        deviceOwnership.forget(row);
       }
     }));
   }

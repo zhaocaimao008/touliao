@@ -9,7 +9,7 @@ struct LabelMember: Decodable, Identifiable, Equatable {
 struct FriendLabel: Decodable, Identifiable, Equatable {
     let id: String
     var name: String = ""
-    var color: String = "#07C160"
+    var color: String = "#6D5AE6"
     var members: [LabelMember] = []
 }
 

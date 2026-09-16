@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // 来电通过 fullScreenIntent 拉起本 Activity 时，若设备处于锁屏/熄屏，
         // 需主动点亮屏幕并越过锁屏展示来电界面，否则用户只看到黑屏/锁屏、看不到弹窗。
-        if (isCallIntent(intent)) enableShowOverLockscreen()
+        if (isCallIntent(intent) && notificationHelper.acceptsRecipient(intent?.getStringExtra(NotificationHelper.EXTRA_RECIPIENT_ID))) enableShowOverLockscreen()
         handleCallIntent(intent)
         handleMessageIntent(intent)
         setContent {
@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (isCallIntent(intent)) enableShowOverLockscreen()
+        if (isCallIntent(intent) && notificationHelper.acceptsRecipient(intent.getStringExtra(NotificationHelper.EXTRA_RECIPIENT_ID))) enableShowOverLockscreen()
         handleCallIntent(intent)
         handleMessageIntent(intent)
     }
@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
         // 厂商通道点击(action=MAIN + callId extra)同样放行,走 else 分支进入来电界面
         val hasCallIdExtra = intent.getStringExtra(NotificationHelper.EXTRA_CALL_ID) != null
         if (!isCallAction && !hasCallIdExtra) return
+        if (!notificationHelper.acceptsRecipient(intent.getStringExtra(NotificationHelper.EXTRA_RECIPIENT_ID))) return
 
         val from = intent.getStringExtra(NotificationHelper.EXTRA_CALL_FROM).orEmpty()
         val callType = intent.getStringExtra(NotificationHelper.EXTRA_CALL_TYPE) ?: "audio"
@@ -131,6 +132,7 @@ class MainActivity : ComponentActivity() {
         }
         // 消费掉，避免旋转/重建时重复触发
         intent.action = null
+        intent.removeExtra(NotificationHelper.EXTRA_CALL_ID)
     }
 
     /**
@@ -142,6 +144,7 @@ class MainActivity : ComponentActivity() {
     private fun handleMessageIntent(intent: Intent?) {
         if (isCallIntent(intent)) return
         val convId = intent?.getStringExtra(NotificationHelper.EXTRA_CONVERSATION_ID) ?: return
+        if (!notificationHelper.acceptsRecipient(intent.getStringExtra(NotificationHelper.EXTRA_RECIPIENT_ID))) return
         // MainActivity exported=true，任意外部 App 可显式 startActivity 附带任意字符串。
         // conversationId 后续会拼进 Compose 路由 path 段并作为后端会话查询参数，格式校验兜底：
         // 真正的越权访问在后端 requireMember() 已挡住（非会话成员 403），这里只防路由畸形值

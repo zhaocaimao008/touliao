@@ -5,56 +5,16 @@
  *
  * 存储策略：
  *   - REDIS_URL 配置且连接成功 → 使用 rate-limit-redis 共享存储（多进程/多实例安全）。
- *   - Redis 不可用 → 降级为进程内存存储（当前单进程 fork 模式下与之前行为完全一致）。
- *   两种路径下限流语义相同，仅多进程场景下共享模式才有实质差异。
+ *   - 未配置 Redis → 进程内存存储；已配置但不可用 → 503，防止跨实例限流被绕过。
  */
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis').default;
-const redis = require('redis');
-
-// ── Redis 共享存储（可选）────────────────────────────────────────
-// 尝试连接 Redis；失败时静默降级为内存存储，不阻塞启动。
-let _redisClient = null;
-let _redisReady  = false;
-
-(async () => {
-  // 只有显式配置 REDIS_URL 才连 Redis(否则纯内存限流,避免误连本机其他服务的 Redis)
-  const url = process.env.REDIS_URL;
-  if (!url) {
-    console.debug('[RateLimit] REDIS_URL 未配置, 使用进程内存存储');
-    return;
-  }
-  try {
-    const c = redis.createClient({
-      url,
-      database: 3, // db3 供 rate-limit 专用，与 cache(0)/blacklist(1) 隔离
-      socket: {
-        connectTimeout: 1000,
-        reconnectStrategy: (n) => (n >= 2 ? false : 200),
-      },
-    });
-    c.on('error', () => { _redisReady = false; });
-    c.on('ready', () => { _redisReady = true; });
-    await c.connect();
-    _redisClient = c;
-    _redisReady  = true;
-    console.debug('[RateLimit] Redis store connected (db3)');
-  } catch {
-    console.warn('[RateLimit] Redis unavailable, using in-memory store');
-  }
-})();
-
-/** 构建 store 配置：Redis 可用则共享，否则内存。 */
-function makeStore(prefix) {
-  if (_redisReady && _redisClient) {
-    return new RedisStore({
-      sendCommand: (...args) => _redisClient.sendCommand(args),
-      prefix: `rl:${prefix}:`,
-    });
-  }
-  return undefined; // express-rate-limit 默认内存存储
-}
+const { createSharedStores } = require('../utils/sharedRateLimitStore');
+const sharedStores = process.env.REDIS_URL && process.env.DISABLE_RATE_LIMIT !== '1'
+  ? createSharedStores(process.env.REDIS_URL) : null;
+const makeStore = prefix => sharedStores?.makeStore(prefix);
+const phoneKey = req => typeof req.body?.phone === 'string' && req.body.phone.length > 0 && req.body.phone.length <= 64
+  ? req.body.phone : ipKeyGenerator(req.ip);
 
 const json = msg => ({ error: msg });
 const base = { standardHeaders: true, legacyHeaders: false };
@@ -63,7 +23,7 @@ const base = { standardHeaders: true, legacyHeaders: false };
 const loginLimiter = rateLimit({
   ...base, windowMs: 10 * 60 * 1000, max: 5,
   store: makeStore('login'),
-  keyGenerator: (req) => req.body?.phone || ipKeyGenerator(req.ip),
+  keyGenerator: phoneKey,
   skipSuccessfulRequests: true, // 仅失败计数,成功登录不占额度(防误锁+防按号锁号 DoS)
   handler: (req, res) => res.status(429).json(json('登录尝试过于频繁，账户已锁定10分钟')),
   message: json('登录尝试过于频繁，请10分钟后再试'),
@@ -126,11 +86,20 @@ const momentImageLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
 });
 
+// 朋友圈视频上传：单文件体积大，单用户 10 分钟 10 次
+const momentVideoLimiter = rateLimit({
+  ...base, windowMs: 10 * 60 * 1000, max: 10,
+  store: makeStore('momentVideo'),
+  keyGenerator: req => req.user?.id || ipKeyGenerator(req.ip),
+  handler: (req, res) => res.status(429).json(json('视频上传过于频繁，请稍后再试')),
+  validate: { xForwardedForHeader: false },
+});
+
 // 重置密码：单手机号 1 小时最多 3 次
 const resetPasswordLimiter = rateLimit({
   ...base, windowMs: 60 * 60 * 1000, max: 3,
   store: makeStore('resetPwd'),
-  keyGenerator: (req) => req.body?.phone || ipKeyGenerator(req.ip),
+  keyGenerator: phoneKey,
   handler: (req, res) => res.status(429).json(json('重置密码过于频繁，请1小时后再试')),
   validate: { xForwardedForHeader: false },
 });
@@ -251,10 +220,9 @@ const captchaLimiter = rateLimit({
 });
 
 // 测试模式:DISABLE_RATE_LIMIT=1 时所有限流变 no-op
-const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, logoutLimiter, momentImageLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter, pushSubscribeLimiter, turnCredentialLimiter, joinGroupLimiter, captchaLimiter };
+const limiters = { loginLimiter, registerLimiter, sendMsgLimiter, uploadCredentialLimiter, switchLimiter, forgetLimiter, logoutLimiter, momentImageLimiter, momentVideoLimiter, reactLimiter, resetPasswordLimiter, chunkInitLimiter, chunkUploadLimiter, rechargeLimiter, searchLimiter, createMomentLimiter, commentLimiter, profileUpdateLimiter, stickerLimiter, pushSubscribeLimiter, turnCredentialLimiter, joinGroupLimiter, captchaLimiter };
 if (process.env.DISABLE_RATE_LIMIT === '1') {
   const noop = (req, res, next) => next();
   for (const k of Object.keys(limiters)) limiters[k] = noop;
 }
 module.exports = limiters;
-

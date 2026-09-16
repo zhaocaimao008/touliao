@@ -71,6 +71,7 @@ fun GroupInfoScreen(
     viewModel: GroupInfoViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var showRename by remember { mutableStateOf(false) }
     var showAnnouncement by remember { mutableStateOf(false) }
     var showNickname by remember { mutableStateOf(false) }
@@ -81,6 +82,21 @@ fun GroupInfoScreen(
 
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.setAvatar(it) }
+    }
+
+    // F4a 群邀请链接：VM 拿到 URL 后写剪贴板 + toast（一次性消费）
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    LaunchedEffect(state.inviteLink) {
+        val link = state.inviteLink ?: return@LaunchedEffect
+        clipboard.setText(androidx.compose.ui.text.AnnotatedString(link))
+        android.widget.Toast.makeText(context, "邀请链接已复制", android.widget.Toast.LENGTH_SHORT).show()
+        viewModel.consumeInviteLink()
+    }
+    // 转让成功等一次性绿色提示
+    LaunchedEffect(state.notice) {
+        state.notice ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(2500)
+        viewModel.consumeNotice()
     }
 
     LaunchedEffect(state.left) { if (state.left) onLeft() }
@@ -180,6 +196,21 @@ fun GroupInfoScreen(
                             Text("邀请进群", color = VxinTextSecondary)
                             Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary)
                         }
+                        // F4a 复制邀请链接：群主/管理员，或群开启 member_can_invite 的普通成员
+                        // （权限语义与后端 createInviteLink、Web F3a 一致）。链接经 web 落地页
+                        // 处理入群，原生侧只负责复制/分享。
+                        if (info.canManage || info.member_can_invite == 1) {
+                            HorizontalDivider()
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable(enabled = !state.copyingInviteLink) { viewModel.copyInviteLink() }
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("复制邀请链接", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                                Text(if (state.copyingInviteLink) "生成中…" else "🔗 复制", color = VxinTextSecondary)
+                            }
+                        }
                         HorizontalDivider()
                         Text(
                             "群成员 (${info.members.size})",
@@ -244,6 +275,9 @@ fun GroupInfoScreen(
                 androidx.compose.runtime.LaunchedEffect(it) { kotlinx.coroutines.delay(2500); viewModel.consumeError() }
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
             }
+            state.notice?.let {
+                Text(it, color = VxinGreen, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
+            }
         }
     }
 
@@ -285,7 +319,7 @@ fun GroupInfoScreen(
         AlertDialog(
             onDismissRequest = { transferTarget = null },
             title = { Text("转让群主") },
-            text = { Text("确认将群主转让给「${target.displayName}」？转让后你将成为普通成员。") },
+            text = { Text("确认将群主转让给「${target.displayName}」？转让后你将成为管理员，对方成为新群主。") },
             confirmButton = { TextButton(onClick = { viewModel.transferOwner(target); transferTarget = null }) { Text("转让") } },
             dismissButton = { TextButton(onClick = { transferTarget = null }) { Text("取消") } },
         )

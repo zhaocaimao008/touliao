@@ -3,10 +3,12 @@ const path   = require('path');
 const router = require('express').Router();
 const auth   = require('../../middleware/auth');
 const m      = require('./moments.controller');
-const { makeImageUploader } = require('../../utils/upload');
+const { makeImageUploader, makeVideoUploader } = require('../../utils/upload');
 const config = require('../../config');
-const { momentImageLimiter, createMomentLimiter, commentLimiter, reactLimiter } = require('../../middleware/rateLimiters');
+const { momentImageLimiter, momentVideoLimiter, createMomentLimiter, commentLimiter, reactLimiter } = require('../../middleware/rateLimiters');
 const uploadMomentImages = makeImageUploader(path.join(config.uploadsRoot, 'moments'), 'images', 9, 5 * 1024 * 1024);
+// 朋友圈视频（F1 #1）：与图片同存 moments 目录（/uploads/moments/<uuid>.mp4），访问鉴权同类别
+const uploadMomentVideo = makeVideoUploader(path.join(config.uploadsRoot, 'moments'), 'video');
 
 /**
  * @swagger
@@ -56,6 +58,7 @@ const uploadMomentImages = makeImageUploader(path.join(config.uploadsRoot, 'mome
 router.get   ('/',                auth, m.timeline);
 router.post  ('/',                auth, createMomentLimiter, m.create);
 router.post  ('/images',          auth, momentImageLimiter, ...uploadMomentImages, m.uploadImages);
+router.post  ('/video',           auth, momentVideoLimiter, ...uploadMomentVideo, m.uploadVideo);
 
 /**
  * @swagger

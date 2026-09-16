@@ -33,6 +33,16 @@ function fakeSender(sequence) {
 }
 
 describe('sendPushWithRetry', () => {
+  test('a rebound destination is never submitted or retried under the previous account', async () => {
+    const never = jest.fn();
+    expect((await sendPushWithRetry('/push/single/cid', 'tk', MSG, { send: never, shouldSend: () => false })).skipped).toBe(true);
+    expect(never).not.toHaveBeenCalled();
+    let current = true;
+    const send = jest.fn(async () => { current = false; throw new Error('temporary timeout'); });
+    const result = await sendPushWithRetry('/push/single/cid', 'tk', MSG, { send, delayMs: 0, shouldSend: () => current });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(result.skipped).toBe(true);
+  });
   test('一次成功：不重试', async () => {
     const f = fakeSender([ok]);
     const res = await sendPushWithRetry('/push/single/cid', 'tk', MSG, { send: f.send, delayMs: 0 });

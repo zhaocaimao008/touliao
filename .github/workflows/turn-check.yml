@@ -1,0 +1,36 @@
+name: TURN External Verification
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install probe dependencies
+        working-directory: desktop-electron
+        run: npm ci --ignore-scripts
+      - name: Install Chromium
+        working-directory: desktop-electron
+        run: npx playwright install --with-deps chromium
+      - name: Obtain short-lived probe credential
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/turn-key"
+          cp deploy/ssh_known_hosts ~/.ssh/known_hosts
+          ssh -i "$RUNNER_TEMP/turn-key" -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" 'sudo /usr/local/bin/touliao-turn-probe-credentials' > "$RUNNER_TEMP/turn-credentials.json"
+      - name: Verify external allocation, authentication and relay-only media
+        run: node scripts/turn-browser-smoke.cjs "$RUNNER_TEMP/turn-credentials.json"
+      - name: Remove temporary credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/turn-key" "$RUNNER_TEMP/turn-credentials.json"

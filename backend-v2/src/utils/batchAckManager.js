@@ -54,6 +54,8 @@ class BatchAckManager extends AckManager {
   async processBatch(batchKey) {
     const batch = this.pendingBatches.get(batchKey);
     if (!batch) return;
+    // Detach before yielding so newly queued receipts cannot be deleted by this flush.
+    this.pendingBatches.delete(batchKey);
 
     try {
       if (batch.timer) {
@@ -87,11 +89,9 @@ class BatchAckManager extends AckManager {
       await pipeline.exec();
       console.debug(`[BatchACK] 处理完成: ${type} x${items.length} (user: ${userId})`);
 
-      this.pendingBatches.delete(batchKey);
       return { processed: items.length, type };
     } catch (err) {
       console.error('[BatchACK] 处理失败:', err.message);
-      this.pendingBatches.delete(batchKey);
     }
   }
 

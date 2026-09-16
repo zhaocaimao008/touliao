@@ -2,6 +2,7 @@ import React, { useEffect, useCallback } from 'react';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
 import { useI18n } from '../contexts/I18nContext';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 
 // 从(可能带 ?token= / #t= 的)视频地址里抽一个像样的下载文件名
 function filenameFromUrl(u) {
@@ -16,7 +17,9 @@ function filenameFromUrl(u) {
  * 全屏视频预览：点聊天/聊天文件里的视频缩略图后打开。
  * 与 ImagePreview 对齐的全屏遮罩交互：Esc 关闭、点遮罩关闭、底部下载按钮。
  */
-export default function VideoPreview({ url, name, onClose }) {
+export default function VideoPreview({ url: fileUrl, name, onClose }) {
+  useMediaCredentials();
+  const url = mediaUrl(fileUrl);
   const { t } = useI18n();
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') onClose();

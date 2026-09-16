@@ -120,6 +120,7 @@ class MessageNotificationBridge @Inject constructor(
         "location" -> "[位置]"
         "red_packet" -> "[红包] 恭喜发财"
         "contact_card" -> "[名片]"
+        "merged" -> "[聊天记录]"   // content 是透传 JSON，直显会刷屏
         else -> msg.content.take(100)
     }
 

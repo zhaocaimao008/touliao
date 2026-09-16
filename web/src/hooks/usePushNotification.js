@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { pushScope, matchesPushTarget, waitForPushWorker } from '../utils/pushScope';
+import { captureSession, isOperationGenerationCurrent } from '../utils/sessionContext';
 
 // URL-safe Base64 → Uint8Array（VAPID 公钥转换）
 function urlBase64ToUint8Array(base64String) {
@@ -22,6 +24,7 @@ export function usePushNotification(user) {
 
   useEffect(() => {
     if (!user) return;
+    const scope = captureSession();
 
     // 原生 App（Capacitor / Android·iOS）：走 FCM/APNs 设备令牌，而非 Web Push
     if (window.Capacitor?.isNativePlatform?.()) {
@@ -38,7 +41,11 @@ export function usePushNotification(user) {
           }
           if (perm.receive !== 'granted' || cancelled) return;
           const regL = await PushNotifications.addListener('registration', (token) => {
-            const platform = window.Capacitor.getPlatform?.() === 'ios' ? 'ios' : 'android';
+            if (cancelled || !isOperationGenerationCurrent(scope)) return;
+            // Capacitor's iOS registration callback returns the raw APNs device
+            // token, not an FCM registration token. Keep the platform explicit
+            // so the backend uses its direct APNs provider path.
+            const platform = window.Capacitor.getPlatform?.() === 'ios' ? 'ios_apns' : 'android';
             axios.post('/api/notifications/device-token', { token: token.value, platform }).catch(() => {});
           });
           const errL = await PushNotifications.addListener('registrationError', () => {});
@@ -62,6 +69,7 @@ export function usePushNotification(user) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
     let cancelled = false;
+    const current = () => !cancelled && isOperationGenerationCurrent(scope);
     // setup 的完成信号：用户可能在 SW 注册/公钥拉取还没跑完时就点了「开启」，
     // enablePush 先 await 它，避免出现「权限已授予但订阅没建成」的哑火状态。
     let readyPromise = null;
@@ -78,40 +86,52 @@ export function usePushNotification(user) {
     async function setup() {
       try {
         // 1. 拉取 VAPID 公钥
+        //    服务端未配置 Web Push（/vapid-public-key 返回 503/404）或返回体缺公钥时，
+        //    **不能继续注册/引导**：否则「开启」后权限授予了、订阅却永远建不成——
+        //    引导条消失但推送永远不会到，且 Chrome 权限一旦授予无法撤回重问（假开通）。
+        //    此时把 permission 置 'unsupported' → PushPermissionGuide 不再出现。
         const { data } = await axios.get('/api/notifications/vapid-public-key');
-        if (cancelled || !data.publicKey) return;
+        if (!current()) return;
+        if (!data || !data.publicKey) {
+          setPermission('unsupported');
+          return;
+        }
         vapidKeyRef.current = data.publicKey;
 
         // 2. 注册 Service Worker（不需要通知权限，离线缓存等能力也依赖它）
-        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
-        if (cancelled) return;
+        const reg = await navigator.serviceWorker.register('/push-sw.js', { scope: pushScope(user), updateViaCache: 'none' });
+        await waitForPushWorker(reg);
+        if (!current()) return;
         regRef.current = reg;
 
         // 3. 监听 Service Worker 消息（通知点击跳转到会话）
-        navigator.serviceWorker.addEventListener('message', handleSWMessage);
 
         // 4. 已授权 → 直接续订，无需再打扰用户
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           await subscribeNow();
         }
       } catch {
-        // 浏览器不支持或网络失败，静默降级（应用其余部分不受影响）
+        // 服务端推送未就绪（VAPID 503 等）或网络失败：同样视为当前不可用，
+        // 收起引导条，避免诱导用户授权后收不到推送。服务端补齐 VAPID 后下次进入恢复。
+        if (current()) setPermission('unsupported');
       }
     }
 
     // 订阅并上报（幂等：已订阅直接复用现有订阅）。调用前必须已经是 granted。
     async function subscribeNow() {
-      const reg = regRef.current || await navigator.serviceWorker.ready;
+      if (!current()) return;
+      const reg = regRef.current;
       const publicKey = vapidKeyRef.current;
       if (!reg || !publicKey) return;
       const existing = await reg.pushManager.getSubscription();
+      if (!current()) return;
       const sub = existing || await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
+      if (!current()) return;
       subscriptionRef.current = sub;
-      await axios.post('/api/notifications/web-subscribe', { subscription: sub.toJSON() });
+      await axios.post('/api/notifications/web-subscribe', { subscription: sub.toJSON() }, { _sessionContext: captureSession() });
     }
 
     // 暴露给引导条：必须在用户点击的同步调用栈里触发，Safari 才认这个手势
@@ -120,6 +140,7 @@ export function usePushNotification(user) {
       // requestPermission 必须是点击后第一个 await，前面不能插任何 await，
       // 否则手势上下文丢失，Safari 会直接拒绝。
       const result = await Notification.requestPermission();
+      if (!current()) return result;
       setPermission(result);
       if (result !== 'granted') return result;
       try {
@@ -130,18 +151,38 @@ export function usePushNotification(user) {
     };
 
     function handleSWMessage(event) {
-      if (event.data?.type === 'OPEN_CONVERSATION') {
+      if (!current() || !matchesPushTarget(event.data, user)) return;
+      if (event.data.type === 'PUSH_RESUBSCRIBE') {
+        subscribeNow().catch(() => {});
+      } else if (event.data.type === 'OPEN_CONVERSATION') {
+        event.ports?.[0]?.postMessage(true);
         window.dispatchEvent(new CustomEvent('touliao:open-conversation', {
           detail: { conversationId: event.data.conversationId },
         }));
       }
     }
 
+    navigator.serviceWorker.addEventListener('message', handleSWMessage);
+    const pending = new URL(window.location.href).searchParams;
+    const openPending = setTimeout(() => {
+      if (current() && pending.get('pushAccount') === user.id && pending.get('conversationId')) {
+        window.dispatchEvent(new CustomEvent('touliao:open-conversation', {
+          detail: { conversationId: pending.get('conversationId') },
+        }));
+      }
+    }, 0);
+    const renew = () => { if (current()) subscribeNow().catch(() => {}); };
+    window.addEventListener('touliao:credentials-updated', renew);
     readyPromise = setup();
 
     return () => {
       cancelled = true;
+      clearTimeout(openPending);
       enablePushRef.current = null;
+      regRef.current = null;
+      vapidKeyRef.current = null;
+      subscriptionRef.current = null;
+      window.removeEventListener('touliao:credentials-updated', renew);
       navigator.serviceWorker.removeEventListener('message', handleSWMessage);
     };
     // 仅用 user 做登录态判空：user 变化（登录/登出/切换账号）时重新建立推送订阅

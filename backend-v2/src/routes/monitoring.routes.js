@@ -4,7 +4,6 @@
  */
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 
 // /health 无需鉴权（给监控探针/负载均衡使用）
@@ -17,7 +16,7 @@ const { getCdnStatus } = require('../integrations/cdnOptimizer');
 const { getStats: getQueryStats } = require('../utils/queryOptimizer');
 
 // 以下端点需要登录
-router.use(auth);
+router.use(adminAuth);
 
 /**
  * GET /api/monitoring/health
@@ -84,7 +83,7 @@ router.get('/query-stats', (req, res) => {
  * POST /api/monitoring/redis-clear
  * 清空 Redis 缓存（仅后台管理员）
  */
-router.post('/redis-clear', adminAuth, async (req, res) => {
+router.post('/redis-clear', async (req, res) => {
   try {
     const pattern = req.body.pattern || '*';
     const count = await redisCache.delPattern(pattern);

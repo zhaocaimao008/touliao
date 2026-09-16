@@ -6,6 +6,8 @@ struct ConversationListView: View {
     @State private var clearTarget: Conversation?
     @State private var showMentions = false          // @我消息聚合全屏弹窗
     @State private var showMoments = false           // 朋友圈全屏弹窗（方案A：顶栏图标，非底部 tab）
+    @State private var showArchived = false          // F5 归档视图（本地分流，不动导航栈）
+    @State private var showClearArchiveConfirm = false
     private let myId: String
 
     init(myId: String) {
@@ -137,21 +139,39 @@ struct ConversationListView: View {
                 subtitle: "去「通讯录」找好友开始聊天吧"
             )
         } else {
-            List(vm.conversations) { conv in
-                NavigationLink(value: conv) {
-                    ConversationRow(conversation: conv, draft: vm.drafts[conv.id] ?? "")
+            // F5 归档：主/归档列表按 archived 标记本地分流（数据源同一次 includeArchived=1 拉取）。
+            // socket 新消息只改对应会话的 summary/unread 并保留标记，归档会话不会回到主列表。
+            let visible = showArchived ? vm.archivedConversations : vm.activeConversations
+            List {
+                if showArchived {
+                    archiveHeaderRow
+                } else {
+                    archiveEntryRow
                 }
-                .accessibilityIdentifier("conv-item-\(conv.id)")
-                .listRowBackground(conv.pinned == 1 ? Color.gray.opacity(0.08) : Color.clear)
-                .contextMenu {
-                    if conv.unreadCount > 0 {
-                        Button("标为已读") { vm.markRead(conv) }
-                    } else {
-                        Button("标为未读") { vm.markUnread(conv) }
+                ForEach(visible) { conv in
+                    NavigationLink(value: conv) {
+                        ConversationRow(conversation: conv, draft: vm.drafts[conv.id] ?? "")
                     }
-                    Button(conv.pinned == 1 ? "取消置顶" : "置顶") { vm.togglePin(conv) }
-                    Button(conv.muted == 1 ? "取消免打扰" : "消息免打扰") { vm.toggleMute(conv) }
-                    Button("清空聊天记录", role: .destructive) { clearTarget = conv }
+                    .accessibilityIdentifier("conv-item-\(conv.id)")
+                    .listRowBackground(conv.pinned == 1 ? Color.gray.opacity(0.08) : Color.clear)
+                    .contextMenu {
+                        if conv.unreadCount > 0 {
+                            Button("标为已读") { vm.markRead(conv) }
+                        } else {
+                            Button("标为未读") { vm.markUnread(conv) }
+                        }
+                        Button(conv.pinned == 1 ? "取消置顶" : "置顶") { vm.togglePin(conv) }
+                        Button(conv.muted == 1 ? "取消免打扰" : "消息免打扰") { vm.toggleMute(conv) }
+                        Button(conv.archived == 1 ? "取消归档" : "归档") { vm.setArchived(conv, archived: conv.archived != 1) }
+                        Button("清空聊天记录", role: .destructive) { clearTarget = conv }
+                    }
+                }
+                if visible.isEmpty {
+                    Text(showArchived ? "暂无归档会话" : "暂无会话")
+                        .font(.footnote).foregroundColor(.vxinTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 32)
+                        .listRowSeparator(.hidden)
                 }
             }
             .listStyle(.plain)
@@ -163,7 +183,68 @@ struct ConversationListView: View {
             } message: {
                 Text("确认清空与「\(clearTarget?.name ?? "该会话")」的聊天记录？此操作不可恢复。")
             }
+            .alert("全部取消归档", isPresented: $showClearArchiveConfirm) {
+                Button("取消", role: .cancel) {}
+                Button("取消归档", role: .destructive) { vm.clearArchive() }
+            } message: {
+                Text("确认将全部 \(vm.archivedConversations.count) 个归档会话恢复到主列表？")
+            }
+            // F5：归档/取消归档/一键恢复失败提示（此前 vm.error 仅在列表为空时内联展示，操作失败会静默）
+            .toast($vm.error)
         }
+    }
+
+    /// F5 归档入口行：聚合未读角标 + 归档数量（对齐 Web wc-archive-entry）
+    private var archiveEntryRow: some View {
+        Button {
+            withAnimation { showArchived = true }
+        } label: {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: VxinRadius.sm)
+                    .fill(Color.vxinBrand.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                    .overlay(Image(systemName: "archivebox").foregroundColor(.vxinGreen))
+                Text("归档").font(.body)
+                Spacer()
+                if vm.archiveUnreadTotal > 0 {
+                    Text(vm.archiveUnreadTotal > 99 ? "99+" : "\(vm.archiveUnreadTotal)")
+                        .font(.caption2).foregroundColor(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.vxinError).clipShape(Capsule())
+                }
+                if !vm.archivedConversations.isEmpty {
+                    Text("\(vm.archivedConversations.count)").font(.caption).foregroundColor(.vxinTextSecondary)
+                }
+                Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary)
+            }
+            .padding(.vertical, 4)
+        }
+        .accessibilityIdentifier("conv-list-archive-entry")
+        .accessibilityLabel("归档会话")
+    }
+
+    /// F5 归档视图顶栏：返回主列表 + 一键全部取消归档（对齐 Web wc-archive-header）
+    private var archiveHeaderRow: some View {
+        HStack {
+            Button {
+                withAnimation { showArchived = false }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                    Text("返回")
+                }
+                .foregroundColor(.vxinGreen)
+            }
+            .accessibilityLabel("返回消息列表")
+            Spacer()
+            Text("已归档").font(.body.bold())
+            Spacer()
+            Button("全部取消归档") { showClearArchiveConfirm = true }
+                .font(.subheadline)
+                .disabled(vm.archivedConversations.isEmpty)
+        }
+        .padding(.vertical, 6)
+        .listRowSeparator(.hidden)
     }
 
     private var statusLabel: String {
@@ -254,6 +335,7 @@ private struct ConversationRow: View {
         case "nudge": body = "[拍一拍]"
         case "call": body = conversation.lastMessage ?? "[通话]"   // content 即人话,直接显示
         case "contact_card", "contact": body = "[名片]"
+        case "merged": body = "[聊天记录]"   // F5 合并转发：列表预览用占位符，不露 JSON 原文
         default: body = conversation.lastMessage ?? ""
         }
         // 群聊预览加发送者名前缀(对齐微信/安卓「张三: 内容」)

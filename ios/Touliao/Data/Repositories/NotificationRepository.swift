@@ -6,7 +6,7 @@ struct DeviceTokenBody: Encodable {
 }
 
 struct DeleteTokenBody: Encodable {
-    let token: String
+    let token: String?
 }
 
 /// 设备 token 注册/注销。与 Android NotificationApi 等价。
@@ -16,17 +16,17 @@ final class NotificationRepository {
 
     private let api = APIClient.shared
 
-    func register(token: String, platform: String = "ios") async {
+    func register(token: String, platform: String = "ios", owner: KeychainStore.Snapshot) async {
         let _: EmptyResponse? = try? await api.send(
             "api/notifications/device-token", method: "POST",
-            body: DeviceTokenBody(token: token, platform: platform)
+            body: DeviceTokenBody(token: token, platform: platform), owner: owner
         )
     }
 
-    func delete(token: String) async {
+    func deleteAll(owner: KeychainStore.Snapshot) async {
         let _: EmptyResponse? = try? await api.send(
             "api/notifications/device-token", method: "DELETE",
-            body: DeleteTokenBody(token: token)
+            body: DeleteTokenBody(token: nil), owner: owner
         )
     }
 

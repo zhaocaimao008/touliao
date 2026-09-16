@@ -177,8 +177,16 @@ function writeSequencedEvent({ conversationId, event, ops = [] }) {
   });
 }
 
+// 可等待的优雅关闭：resolve 于 worker 真正退出（'exit' 事件），而非发消息即返回。
+// 修复：旧版 fire-and-forget 导致测试反复 require 本模块时 worker 无法被确认关闭，
+// 累积成 Jest MaxListenersExceededWarning / open handle（须 --forceExit 收尾）。
 function shutdown() {
-  postMsg({ type: 'shutdown' });
+  if (!worker) return Promise.resolve();
+  const w = worker;
+  return new Promise(resolve => {
+    w.once('exit', () => resolve());
+    postMsg({ type: 'shutdown' });
+  });
 }
 
 // 监控：未决写数量（writeAsync/writeBatch 尚未收到 worker ack）作为 Worker 队列深度代理

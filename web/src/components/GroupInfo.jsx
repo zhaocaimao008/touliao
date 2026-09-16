@@ -2,20 +2,25 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { FixedSizeList } from 'react-window';
 import Avatar from './Avatar';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 import { useConvSettings } from '../hooks/useConvSettings';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
+import { useSocket } from '../contexts/SocketContext';
+import { copyToClipboard } from '../utils/clipboard';
+import { IcoBack, IcoContacts, IcoPersonAdd } from './Icons';
 export { GroupAvatar } from './GroupAvatar'; // re-export 向后兼容
 
 /* ── 群头像上传（管理员 hover 显示相机图标） ── */
 function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, onChange }) {
+  useMediaCredentials();
+  const avatarUrl = mediaUrl(info.avatar);
   const { t } = useI18n();
   const [hovered, setHovered] = useState(false);
   const [avErr, setAvErr] = useState(false);
-  const [prevAvatar, setPrevAvatar] = useState(info.avatar);
-  if (info.avatar !== prevAvatar) { setPrevAvatar(info.avatar); setAvErr(false); }
+  const [prevAvatar, setPrevAvatar] = useState(avatarUrl);
+  if (avatarUrl !== prevAvatar) { setPrevAvatar(avatarUrl); setAvErr(false); }
   const r = Math.round(50 * 0.22);
   return (
     <div
@@ -30,8 +35,8 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
       title={isAdmin ? t('groupInfo.clickToChangeAvatar') : undefined}
     >
       {info.avatar && !avErr
-        ? <img src={mediaUrl(info.avatar)} alt="" loading="lazy" className="gi-av-img" onError={() => setAvErr(true)} style={{ borderRadius: r }} />
-        : <GroupAvatar members={info.members} size={48} />
+        ? <img src={avatarUrl} alt="" loading="lazy" className="gi-av-img" onError={() => setAvErr(true)} style={{ borderRadius: r }} />
+        : <GroupAvatar members={info.members} size='lg' />
       }
       {isAdmin && (hovered || uploading) && (
         <div className="gi-av-overlay" style={{ borderRadius: r }}>
@@ -83,12 +88,12 @@ function RoleBadge({ role }) {
 /* ── 成员行（提升到组件外以保证 react-window 引用稳定）── */
 const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }) {
   const { t } = useI18n();
-  const { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, transferOwner, kickMember } = data;
+  const { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, kickMember } = data;
   const m = filtered[index];
   const q = kickSearch.toLowerCase();
   return (
     <div className="gi-mi" style={style}>
-      <Avatar src={m.avatar} name={m.username} size={40} />
+      <Avatar src={m.avatar} name={m.username} size='md' />
       <div className="gi-f1">
         <div className="gi-mn">
           {q && (m.username || '').toLowerCase().includes(q)
@@ -119,13 +124,6 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
           onClick={() => toggleAdmin(m.id, m.role)}
         >{m.role === 'admin' ? t('groupInfo.revokeAdmin') : t('groupInfo.makeAdmin')}</button>
       )}
-      {isOwner && m.role !== 'owner' && (
-        <button
-          className="gi-btn-admin"
-          style={{ color: 'var(--green)', border: '1px solid var(--green)' }}
-          onClick={() => transferOwner(m.id)}
-        >{t('groupInfo.transferOwnership')}</button>
-      )}
       {isAdmin && m.id !== currentUserId && m.role === 'member' && (
         <button className="gi-btn-kick" onClick={() => kickMember(m.id)}>{t('groupInfo.removeMember')}</button>
       )}
@@ -136,6 +134,7 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
 /* ── 主组件 ── */
 export default function GroupInfo({ conversation, currentUserId, onClose, onLeave, onConvUpdate, onPickBackground, onClearBackground, onCleared, onOpenChatFiles }) {
   const { t } = useI18n();
+  const { socket } = useSocket();
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editName, setEditName] = useState(false);
@@ -167,6 +166,9 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   // 群二维码
   const [showQR, setShowQR] = useState(false);
   const [qrData, setQrData] = useState(null);
+  const [showTransferOwner, setShowTransferOwner] = useState(false);
+  const [transferringOwner, setTransferringOwner] = useState(false);
+  const [copyingInviteLink, setCopyingInviteLink] = useState(false);
 
   const applyInfo = useCallback((data) => {
     setInfo(data);
@@ -196,14 +198,29 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   }, [conversation.id, applyInfo]);
 
   useEffect(() => {
+    if (!socket) return undefined;
+    const refreshInfo = payload => {
+      const id = payload?.conversationId || payload?.id;
+      if (String(id) === String(conversation.id)) load();
+    };
+    socket.on('group_updated', refreshInfo);
+    socket.on('role_changed', refreshInfo);
+    return () => {
+      socket.off('group_updated', refreshInfo);
+      socket.off('role_changed', refreshInfo);
+    };
+  }, [socket, conversation.id, load]);
+
+  useEffect(() => {
     const handler = e => {
       if (e.key !== 'Escape') return;
       if (showInvite) { setShowInvite(false); return; }
+      if (showTransferOwner) { setShowTransferOwner(false); return; }
       if (showQR) { setShowQR(false); return; }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [showInvite, showQR]);
+  }, [showInvite, showQR, showTransferOwner]);
 
   const myRole = info?.myRole || 'member';
   const isOwner = myRole === 'owner';
@@ -315,17 +332,38 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   const transferOwner = async (uid) => {
     const name = info.members.find(m => m.id === uid)?.username || t('groupInfo.unknownUser');
     if (!(await showConfirm(t('groupInfo.confirmTransferOwnerTemplate').replace('{name}', name)))) return;
+    setTransferringOwner(true);
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/transfer-owner`, { userId: uid });
       setInfo(i => ({
         ...i,
         owner_id: uid,
-        myRole: 'member',
+        myRole: 'admin',
         members: i.members.map(m =>
-          m.id === uid ? { ...m, role: 'owner' } : (m.role === 'owner' ? { ...m, role: 'member' } : m)
+          m.id === uid ? { ...m, role: 'owner' } : (m.role === 'owner' ? { ...m, role: 'admin' } : m)
         ),
       }));
+      setShowTransferOwner(false);
+      showToast(t('groupInfo.transferOwnerSuccess'), 'success');
     } catch (e) { showToast(e.response?.data?.error || t('groupInfo.transferOwnerFailed'), 'error'); }
+    finally { setTransferringOwner(false); }
+  };
+
+  const copyInviteLink = async () => {
+    if (copyingInviteLink) return;
+    setCopyingInviteLink(true);
+    try {
+      const { data } = await axios.post(`/api/messages/conversation/${conversation.id}/invite-link`);
+      const raw = data?.url || data?.link || '';
+      if (!raw) throw new Error('missing invite link');
+      const absolute = new URL(raw, window.location.origin).toString();
+      const copied = await copyToClipboard(absolute);
+      showToast(copied ? t('groupInfo.inviteLinkCopied') : t('groupInfo.inviteLinkCopyFailed'), copied ? 'success' : 'error');
+    } catch (e) {
+      showToast(e.response?.data?.error || t('groupInfo.inviteLinkCreateFailed'), 'error');
+    } finally {
+      setCopyingInviteLink(false);
+    }
   };
 
   /* 移出成员 */
@@ -550,9 +588,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   </div>
                 )}
               </div>
-              <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-grey" style={{ transform: showManage ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
-                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-              </svg>
+              <IcoBack className="gi-s14 gi-fill-grey" style={{ transform: showManage ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
             </div>
 
             {showManage && (
@@ -584,7 +620,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 {/* 禁止群成员互相添加好友 */}
                 <div className="gi-mg-row-last">
                   <div className="gi-ic28 gi-ic-mg3">
-                    <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-red"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <IcoPersonAdd className="gi-s14 gi-fill-red" />
                   </div>
                   <div className="gi-f1">
                     <div className="gi-mg-label">{t('groupInfo.noAddFriendLabel')}</div>
@@ -596,7 +632,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 {/* 允许普通成员邀请 */}
                 <div className="gi-mg-row-last">
                   <div className="gi-ic28 gi-ic-mg3">
-                    <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-blue"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                    <IcoContacts className="gi-s14 gi-fill-blue" />
                   </div>
                   <div className="gi-f1">
                     <div className="gi-mg-label">{t('groupInfo.memberInviteLabel')}</div>
@@ -604,6 +640,13 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   </div>
                   <Toggle on={!!info.member_can_invite} onChange={toggleMemberInvite} disabled={togglingMemberInvite} label={t('groupInfo.memberInviteLabel')} />
                 </div>
+
+                {isOwner && (
+                  <button type="button" className="gi-mg-action" onClick={() => setShowTransferOwner(true)}>
+                    <span>{t('groupInfo.transferOwnership')}</span>
+                    <IcoBack className="gi-s14 gi-fill-tertiary" />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -680,7 +723,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               if (kickSearch && filtered.length === 0) {
                 return <div className="gi-no-match">{t('groupInfo.noMatchingMembers')}</div>;
               }
-              const itemData = { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, transferOwner, kickMember };
+              const itemData = { filtered, kickSearch, isOwner, isAdmin, currentUserId, toggleAdmin, kickMember };
               if (filtered.length > 50) {
                 return (
                   <FixedSizeList
@@ -705,7 +748,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         <div className="gi-section">
           <div className="gi-row" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onOpenChatFiles?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenChatFiles?.(); } }}>
             <span className="gi-label">{t('groupInfo.chatFiles')}</span>
-            <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            <IcoBack className="gi-s14 gi-fill-tertiary" />
           </div>
           <div className="gi-row">
             <span className="gi-label">{t('chatlist.muteChat')}</span>
@@ -758,7 +801,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             ) : (
               <div className="gi-f1 gi-fcsb gi-nk-cp" role="button" tabIndex={0} onClick={() => { setNicknameVal(myNickname || ''); setEditNickname(true); }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNicknameVal(myNickname || ''); setEditNickname(true); } }}>
                 <span style={{ fontSize: 'var(--text-base)', color: myNickname ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{myNickname || t('groupInfo.notSet')}</span>
-                <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-tertiary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                <IcoBack className="gi-s14 gi-fill-tertiary" />
               </div>
             )}
           </div>
@@ -768,15 +811,21 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         <div className="gi-qr">
           <div className="gi-qr-row" role="button" tabIndex={0} onClick={loadQR} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadQR(); } }}>
             <span className="gi-text14">{t('groupInfo.qrTitle')}</span>
-            <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            <IcoBack className="gi-s14 gi-chevron" />
           </div>
+          {(isAdmin || info.member_can_invite) && (
+            <button type="button" className="gi-qr-row" onClick={copyInviteLink} disabled={copyingInviteLink}>
+              <span className="gi-text14">{copyingInviteLink ? t('common.loading') : t('groupInfo.copyInviteLink')}</span>
+              <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7a5 5 0 000 10h4v-1.9H7A3.1 3.1 0 013.9 12zM8 13h8v-2H8v2zm9-6h-4v1.9h4a3.1 3.1 0 010 6.2h-4V17h4a5 5 0 000-10z"/></svg>
+            </button>
+          )}
         </div>
 
         {/* 导出聊天记录 */}
         <div className="gi-qr">
           <div className="gi-qr-row" role="button" tabIndex={0} onClick={exportChat} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); exportChat(); } }}>
             <span className="gi-text14">{t('groupInfo.exportChat')}</span>
-            <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            <IcoBack className="gi-s14 gi-chevron" />
           </div>
         </div>
 
@@ -838,6 +887,29 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         </div>
       )}
 
+      {showTransferOwner && (
+        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && !transferringOwner && setShowTransferOwner(false)}>
+          <div className="wc-modal wide" role="dialog" aria-modal="true" aria-label={t('groupInfo.transferOwnership')}>
+            <div className="wc-modal-header">
+              <span className="wc-modal-title">{t('groupInfo.transferOwnership')}</span>
+              <button type="button" className="wc-modal-close" onClick={() => setShowTransferOwner(false)} disabled={transferringOwner} aria-label={t('common.close')}>✕</button>
+            </div>
+            <div className="wc-modal-body">
+              <div className="gi-inv-hint">{t('groupInfo.transferOwnerHint')}</div>
+              <div className="gi-inv-list">
+                {info.members.filter(member => String(member.id) !== String(currentUserId)).map(member => (
+                  <button type="button" key={member.id} className="wc-group-member-item gi-transfer-member" onClick={() => transferOwner(member.id)} disabled={transferringOwner}>
+                    <Avatar src={member.avatar} name={member.username} size='sm' />
+                    <span className="gi-inv-name">{member.username}</span>
+                    <RoleBadge role={member.role} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 邀请成员弹窗 */}
       {showInvite && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowInvite(false)}>
@@ -854,7 +926,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   : myContacts.map(c => (
                     <div key={c.id} className="wc-group-member-item" role="checkbox" tabIndex={0} aria-checked={selectedInvite.has(c.id)} onClick={() => setSelectedInvite(prev => { const s = new Set(prev); s.has(c.id) ? s.delete(c.id) : s.add(c.id); return s; })} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedInvite(prev => { const s = new Set(prev); s.has(c.id) ? s.delete(c.id) : s.add(c.id); return s; })}>
                       <div className={`wc-group-check${selectedInvite.has(c.id) ? ' checked' : ''}`}>{selectedInvite.has(c.id) ? '✓' : ''}</div>
-                      <Avatar src={c.avatar} name={c.remark || c.username} size={36} />
+                      <Avatar src={c.avatar} name={c.remark || c.username} size='sm' />
                       <span className="gi-inv-name">{c.remark || c.username}</span>
                     </div>
                   ))

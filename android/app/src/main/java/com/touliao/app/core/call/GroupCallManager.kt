@@ -100,10 +100,19 @@ class GroupCallManager @Inject constructor(
     )
     @Volatile private var iceServers: List<PeerConnection.IceServer> = fallbackIceServers
     @Volatile private var busyElsewhereCallId: String = ""
+    @Volatile private var participatingCallId: String = ""
+    // Q06 全修：group_call:resume 必须证明持有它，光凭 callId+userId 不再够（同账号
+    // 旁观设备不能在断线宽限期内抢注）。group_call:started/peers 里签发，cleanup() 清空。
+    @Volatile private var participatingResumeToken: String? = null
+    @Volatile private var callAttempt = 0L
 
     init {
         ensureFactory()
         observeSignaling()
+        sessionManager.onIdentityCleanup {
+            if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) cleanup()
+            busyElsewhereCallId = ""
+        }
     }
 
     private fun ensureFactory() {
@@ -138,10 +147,11 @@ class GroupCallManager @Inject constructor(
     fun start(conversationId: String, video: Boolean) {
         if (busyElsewhereCallId.isNotEmpty()) return
         if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) return
+        val attempt = ++callAttempt
         _state.value = GroupCallState(GroupCallStage.CONNECTING, conversationId = conversationId, isVideo = video)
         scope.launch {
             refreshIceServers()
-            if (_state.value.stage == GroupCallStage.ENDED) return@launch
+            if (attempt != callAttempt || _state.value.stage == GroupCallStage.ENDED) return@launch
             createLocalMedia(video)
             socketManager.emitGroupCallStart(conversationId, if (video) "video" else "audio")
         }
@@ -150,10 +160,11 @@ class GroupCallManager @Inject constructor(
     /** 加入已有群通话 */
     fun join(callId: String, conversationId: String, video: Boolean) {
         if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) return
+        val attempt = ++callAttempt
         _state.value = GroupCallState(GroupCallStage.CONNECTING, callId, conversationId, isVideo = video)
         scope.launch {
             refreshIceServers()
-            if (_state.value.stage == GroupCallStage.ENDED) return@launch
+            if (attempt != callAttempt || _state.value.stage == GroupCallStage.ENDED) return@launch
             createLocalMedia(video)
             socketManager.emitGroupCallJoin(callId)
         }
@@ -195,20 +206,26 @@ class GroupCallManager @Inject constructor(
         scope.launch {
             socketManager.status.filter { it == com.touliao.app.core.realtime.SocketStatus.CONNECTED }.collect {
                 val cid = _state.value.callId
-                if (cid.isNotEmpty() && _state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) {
-                    socketManager.emitGroupCallResume(cid)
+                if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED &&
+                    CallSignalMatcher.canResume(cid, participatingCallId)
+                ) {
+                    socketManager.emitGroupCallResume(cid, participatingResumeToken)
                 }
             }
         }
         scope.launch {
             socketManager.groupCallStartedEvents.collect { e ->
                 if (_state.value.stage == GroupCallStage.ENDED) return@collect
+                participatingCallId = e.callId
+                participatingResumeToken = e.resumeToken
                 _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
             }
         }
         scope.launch {
             socketManager.groupCallPeersEvents.collect { e ->
                 if (_state.value.callId.isNotEmpty() && e.callId != _state.value.callId) return@collect
+                participatingCallId = e.callId
+                participatingResumeToken = e.resumeToken
                 _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
                 // 作为 answerer：为既有成员预建 PC，等其 offer
                 e.peers.forEach { pid -> peerFor(pid) }
@@ -234,7 +251,8 @@ class GroupCallManager @Inject constructor(
                         drainIce(e.from)   // 锁内置位 remoteDescSet 并排空缓存候选
                         peer.pc.createAnswer(object : SimpleSdpObserver() {
                             override fun onCreateSuccess(desc: SessionDescription) {
-                                val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
+                                // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+                                val tuned = SessionDescription(desc.type, tuneSdpForCall(desc.description))
                                 peer.pc.setLocalDescription(SimpleSdpObserver(), tuned)
                                 socketManager.emitGroupCallAnswer(_state.value.callId, e.from, tuned.description)
                             }
@@ -277,8 +295,9 @@ class GroupCallManager @Inject constructor(
         scope.launch {
             // 服务端强制结束（如超过时长上限）：无条件结束本地通话并回收资源
             socketManager.groupCallEndedEvents.collect { e ->
-                if (_state.value.stage == GroupCallStage.IDLE) return@collect
-                if (e.callId.isNotEmpty() && e.callId != _state.value.callId) return@collect
+                if (_state.value.stage == GroupCallStage.IDLE ||
+                    !CallSignalMatcher.canResume(_state.value.callId, e.callId)
+                ) return@collect
                 Log.w(TAG, "group call ended by server: ${e.reason}")
                 cleanup()
             }
@@ -319,6 +338,46 @@ class GroupCallManager @Inject constructor(
         return null
     }
 
+    /**
+     * N1+A-3：视频发送参数。maxBps=发送码率上限（群 mesh 按已连接人数传入，见
+     * [reapplyGroupCaps]）；degrade=true 时对 encodings[0] 叠加 2 倍降分辨率压 CPU/带宽，
+     * false 时显式清掉该字段（人数回落恢复全分辨率）。仅影响 video sender，异常静默。
+     * （Android 端 1v1 CallManager 的 capVideoBitrate 固定 2.5M 不降档，与此互不影响。）
+     */
+    private fun capVideoBitrate(pc: PeerConnection, maxBps: Int = 2_500_000, degrade: Boolean = false) {
+        runCatching {
+            pc.getSenders().filter { it.track()?.kind() == "video" }.forEach { sender ->
+                val params = sender.parameters
+                params.encodings?.firstOrNull()?.let { enc ->
+                    enc.maxBitrateBps = maxBps
+                    enc.scaleResolutionDownBy = if (degrade) 2.0 else null
+                }
+                sender.parameters = params
+            }
+        }
+    }
+
+    // A-3（2026-09-05）：mesh 群通话按当前已连接 peer 数 n 对全部已连接 pc 重放视频码率/
+    // 降档——N 路同时编码共享同一份 CPU/上行带宽，人越多每路预算必须越低：
+    //   ≤2（与 1v1 默认一致）2.5M / 3 人 1.6M / 4 人 1.2M / ≥5 人 1.0M；
+    //   n≥4 叠加 scaleResolutionDownBy=2 降编码负载，人数回落靠 degrade=false 清掉恢复。
+    // 触发点：任一 peer ICE connected / removePeer。只对已连接的 pc 施加——未协商完的
+    // sender 上设参数可能失败，且连上才真正占编码资源。
+    private fun reapplyGroupCaps() {
+        fun connected(p: Peer) = p.pc.iceConnectionState().let {
+            it == PeerConnection.IceConnectionState.CONNECTED || it == PeerConnection.IceConnectionState.COMPLETED
+        }
+        val n = peers.values.count { connected(it) }
+        val maxBps = when {
+            n <= 2 -> 2_500_000
+            n == 3 -> 1_600_000
+            n == 4 -> 1_200_000
+            else -> 1_000_000
+        }
+        val degrade = n >= 4
+        peers.values.filter { connected(it) }.forEach { capVideoBitrate(it.pc, maxBps, degrade) }
+    }
+
     // 为某 peer 建立 PeerConnection（含本地轨）。幂等。
     private fun peerFor(peerId: String): Peer {
         peers[peerId]?.let { return it }
@@ -344,6 +403,8 @@ class GroupCallManager @Inject constructor(
                         peer.iceRestartDebounceJob?.cancel(); peer.iceRestartDebounceJob = null
                         peer.iceRestartRecoverJob?.cancel(); peer.iceRestartRecoverJob = null
                         peer.iceRestartCount = 0
+                        // A-3：本 pc 刚转 connected → 按最新已连接人数对全部已连接 pc（含本条）重放码率/降档
+                        reapplyGroupCaps()
                     }
                     PeerConnection.IceConnectionState.DISCONNECTED -> {
                         // 短时探测间隙:3s 防抖后再重启,避免无谓重协商
@@ -387,13 +448,14 @@ class GroupCallManager @Inject constructor(
         }
         _remoteTracks.update { it - peerId }
         _state.update { it.copy(participants = peers.keys.toList()) }
+        reapplyGroupCaps()   // A-3：人数减少 → 剩余 peer 按新人数重放码率/降档（撤销降档也靠它）
     }
 
-    /** 建 offer(含弱网调优)并通过信令发给指定 peer；新成员加入和 ICE restart 重协商共用。 */
+    /** 建 offer(含弱网调优+A-2 H264 优先)并通过信令发给指定 peer；新成员加入和 ICE restart 重协商共用。 */
     private fun sendOffer(peerId: String, peer: Peer) {
         peer.pc.createOffer(object : SimpleSdpObserver() {
             override fun onCreateSuccess(desc: SessionDescription) {
-                val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
+                val tuned = SessionDescription(desc.type, tuneSdpForCall(desc.description))
                 peer.pc.setLocalDescription(SimpleSdpObserver(), tuned)
                 socketManager.emitGroupCallOffer(_state.value.callId, peerId, tuned.description)
             }
@@ -427,6 +489,9 @@ class GroupCallManager @Inject constructor(
     }
 
     private fun cleanup() {
+        callAttempt++
+        participatingCallId = ""
+        participatingResumeToken = null
         peers.values.forEach {
             it.iceRestartDebounceJob?.cancel(); it.iceRestartDebounceJob = null
             it.iceRestartRecoverJob?.cancel(); it.iceRestartRecoverJob = null

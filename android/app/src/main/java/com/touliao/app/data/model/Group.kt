@@ -25,6 +25,7 @@ data class GroupInfo(
     val mute_all: Int = 0,
     val no_private_chat: Int = 0,
     val no_add_friend: Int = 0,
+    val member_can_invite: Int = 0,   // 1=普通成员可邀请/生成邀请链接
     val members: List<GroupMember> = emptyList(),
 ) {
     val canManage: Boolean get() = myRole == "owner" || myRole == "admin"
@@ -54,6 +55,15 @@ data class GroupQr(
     val qrCode: String = "",   // data:image/png;base64,...
     val url: String = "",      // 邀请链接 appUrl/join/TOKEN
     val token: String = "",
+)
+
+/** POST .../invite-link 响应（F1 #3）：link 与 url 同值，url 为既有字段 */
+@Serializable
+data class GroupInviteLink(
+    val token: String = "",
+    val link: String = "",
+    val url: String = "",
+    val expiresAt: Long = 0,
 )
 
 /** 通过 token 进群（POST /join/:token） */

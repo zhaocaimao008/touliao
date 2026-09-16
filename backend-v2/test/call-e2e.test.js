@@ -11,9 +11,13 @@
  * 环境:Jest + 测试库(testEnv)。CALL_TIMEOUT_MS / CALL_RECONNECT_GRACE_MS
  * 经环境变量注入短值(生产默认 120s / 15s,行为不变)。
  */
-process.env.CALL_TIMEOUT_MS = process.env.CALL_TIMEOUT_MS || '3000';      // 超时场景 3s
-process.env.CALL_RECONNECT_GRACE_MS = process.env.CALL_RECONNECT_GRACE_MS || '3000'; // 宽限 3s(给重连留余量)
-process.env.CALL_COOLDOWN_MS = process.env.CALL_COOLDOWN_MS || '0';       // 测试关冷却(连续场景)
+// 强制注入短值（不用 || 默认）：本机存在 backend-v2/.env 时 dotenv 会先把它加载进
+// process.env（jest setupFiles testEnv），|| '3000' 只在"未设置"时生效 → 本地 .env 的
+// 15000/120s 会让"宽限外未重连"类用例 8s 等不到 15s 宽限而必挂（CI 无 .env 才碰巧通过）。
+// 显式赋值在 dotenv 之后仍生效（dotenv 不覆盖已存在项），本地/CI 行为一致。
+process.env.CALL_TIMEOUT_MS = '3000';      // 超时场景 3s
+process.env.CALL_RECONNECT_GRACE_MS = '3000'; // 宽限 3s(给重连留余量)
+process.env.CALL_COOLDOWN_MS = '0';       // 测试关冷却(连续场景)
 process.env.FORCE_SYNC_WRITES = '1';   // writer 同步落库(jest 下 worker flush 延迟不稳定)
 
 const http = require('http');
@@ -68,6 +72,14 @@ function callRequest(sa, a, b, type = 'audio') {
       to: b.userId, type,
       caller: { id: a.userId, name: a.username, avatar: '' },
     }, (ack) => ack?.callId ? resolve(ack.callId) : reject(new Error('ack 无 callId')));
+  });
+}
+
+/** 接听通话,返回 ack 里的 resumeToken（Q06 全修：resume 必须带上它）。 */
+function acceptCall(sb, aId, callId) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('accept ack 超时')), 4000);
+    sb.emit('call:response', { to: aId, callId, accepted: true }, (ack) => { clearTimeout(t); resolve(ack?.resumeToken); });
   });
 }
 
@@ -251,14 +263,15 @@ describe('通话 E2E 信令全链路(真 socket)', () => {
     const respP = once(sa, 'call:response');
     const callId = await callRequest(sa, a, b);
     await incP;
-    sb.emit('call:response', { to: a.userId, callId, accepted: true });
+    const resumeToken = await acceptCall(sb, a.userId, callId);
     await respP;
 
-    // B 断线(宽限 2s 内)→ 重连 + call:resume → 通话保持;挂断仍走 completed
+    // B 断线(宽限 2s 内)→ 重连 + call:resume(带 accept ack 签发的 resumeToken,
+    // Q06 全修后光凭 callId+userId 不再够) → 通话保持;挂断仍走 completed
     sb.disconnect();
     await wait(300);
     const sb2 = await connect(b.token);
-    sb2.emit('call:resume', { callId });   // 契约:无 ack,行为断言
+    sb2.emit('call:resume', { callId, resumeToken });   // 契约:无 ack,行为断言
     await wait(500);                       // 等 resume 处理(宽限未到期,不应触发挂断)
 
     const endA = once(sa, 'call:end');

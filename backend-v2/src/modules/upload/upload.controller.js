@@ -13,7 +13,7 @@ const { isMember } = require('../messages/shared');
  */
 exports.credential = asyncHandler(async (req, res) => {
   if (!isConfigured()) {
-    return res.status(503).json({ error: '云存储未配置，请在服务器 .env 中设置 CLOUD_PROVIDER 及对应密钥' });
+    return res.status(503).json({ error: '云存储未配置，请在服务器 .env 中设置 CLOUD_PROVIDER 及对应密钥', error_code: 'CLOUD_STORAGE_UNCONFIGURED' });
   }
   const { filename, contentType, conversationId, fileSize } = req.body;
   if (!filename || !contentType || !conversationId) {

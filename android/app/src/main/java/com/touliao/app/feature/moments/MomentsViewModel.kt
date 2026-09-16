@@ -33,6 +33,7 @@ data class MomentsUiState(
 )
 
 private const val PAGE = 20
+private const val MAX_COMMENT_PAGES = 60 // IV-3：loadAllComments 分页上限，防极端海量评论无限拉取耗尽资源（最多约 3000 条）
 
 @HiltViewModel
 class MomentsViewModel @Inject constructor(
@@ -157,11 +158,13 @@ class MomentsViewModel @Inject constructor(
         viewModelScope.launch {
             val all = mutableListOf<MomentComment>()
             var offset = 0
-            while (true) {
+            var pageCount = 0
+            while (pageCount < MAX_COMMENT_PAGES) {
                 val page = runCatching { momentRepository.comments(moment.id, 50, offset) }.getOrNull() ?: break
                 all += page.items
                 if (!page.hasMore || page.items.isEmpty()) break
                 offset += 50
+                pageCount++
             }
             _uiState.update { s ->
                 s.copy(moments = s.moments.map { m -> if (m.id == moment.id) m.copy(comments = all, commentCount = all.size) else m })

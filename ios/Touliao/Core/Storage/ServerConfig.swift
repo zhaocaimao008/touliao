@@ -16,18 +16,33 @@ final class ServerConfig {
     var baseURL: String {
         get { manualOverride ?? remote ?? Self.defaultURL }
         set {
-            let v = normalize(newValue)
-            if !v.isEmpty { UserDefaults.standard.set(v, forKey: overrideKey) }
+            KeychainStore.shared.synchronized {
+                let v = normalize(newValue)
+                if !v.isEmpty {
+                    if baseURL != v { KeychainStore.shared.beginIdentityChange() }
+                    UserDefaults.standard.set(v, forKey: overrideKey)
+                }
+            }
         }
     }
 
     /// RemoteConfig 写入远程地址（不覆盖用户手动切换）
     func setRemote(_ url: String) {
         let v = normalize(url)
-        if !v.isEmpty { UserDefaults.standard.set(v, forKey: remoteKey) }
+        KeychainStore.shared.synchronized {
+            if !v.isEmpty {
+                if manualOverride == nil && baseURL != v { KeychainStore.shared.beginIdentityChange() }
+                UserDefaults.standard.set(v, forKey: remoteKey)
+            }
+        }
     }
 
-    func clearManualOverride() { UserDefaults.standard.removeObject(forKey: overrideKey) }
+    func clearManualOverride() {
+        KeychainStore.shared.synchronized {
+            KeychainStore.shared.beginIdentityChange()
+            UserDefaults.standard.removeObject(forKey: overrideKey)
+        }
+    }
 
     private var manualOverride: String? {
         UserDefaults.standard.string(forKey: overrideKey).flatMap { $0.isEmpty ? nil : $0 }

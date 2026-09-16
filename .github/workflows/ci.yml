@@ -36,6 +36,8 @@ jobs:
       - name: Capacitor 版本一致性
         working-directory: web
         run: npm run check:capacitor
+      - name: Capacitor Android template and sync compatibility
+        run: node scripts/test-capacitor-sync.cjs
       - name: ESLint
         working-directory: web
         run: npm run lint -- --max-warnings=0
@@ -98,6 +100,8 @@ jobs:
       - name: 安装 backend 依赖
         working-directory: backend-v2
         run: npm ci
+      - name: Install Redis binary for isolated restart regression
+        run: sudo apt-get update -qq && sudo apt-get install -y redis-server
       - name: Jest（全套 + 覆盖率下限）
         working-directory: backend-v2
         env:

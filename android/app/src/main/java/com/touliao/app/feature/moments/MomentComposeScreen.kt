@@ -1,7 +1,9 @@
 package com.touliao.app.feature.moments
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +34,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import androidx.compose.ui.graphics.asImageBitmap
 import com.touliao.app.ui.theme.VxinGreen
 import com.touliao.app.ui.theme.VxinTextSecondary
 
@@ -54,6 +60,10 @@ fun MomentComposeScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isNotEmpty()) viewModel.addImages(uris)
+    }
+    // F4a 视频模式：系统 picker 单选 video/*（与聊天发视频同款 GetContent 路径）
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.setVideo(it) }
     }
 
     LaunchedEffect(state.done) { if (state.done) onPublished() }
@@ -81,6 +91,61 @@ fun MomentComposeScreen(
                 minLines = 3,
             )
             Spacer(Modifier.size(12.dp))
+            // 媒体模式切换（F4a）：图片 9 张 / 视频 1 段，互斥
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = state.mediaMode == "images",
+                    onClick = { viewModel.setMediaMode("images") },
+                    label = { Text("图片") },
+                )
+                FilterChip(
+                    selected = state.mediaMode == "video",
+                    onClick = { viewModel.setMediaMode("video") },
+                    label = { Text("视频") },
+                )
+            }
+            Spacer(Modifier.size(12.dp))
+            if (state.mediaMode == "video") {
+                // 视频模式：单段；已选则显示首帧封面 + 移除，未选显示添加格
+                val video = state.video
+                if (video == null) {
+                    Box(
+                        Modifier.fillMaxWidth(0.6f).aspectRatio(16f / 9f).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
+                            .clickable { videoPicker.launch("video/*") },
+                        contentAlignment = Alignment.Center,
+                    ) { Text("＋", color = VxinTextSecondary) }
+                } else {
+                    Box(
+                        Modifier.fillMaxWidth(0.6f).aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm)),
+                    ) {
+                        VideoThumb(uri = video, modifier = Modifier.fillMaxSize())
+                        Box(
+                            Modifier.fillMaxSize()
+                                .background(Color(0x55000000))
+                                .clickable { viewModel.removeVideo() },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("▶", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl)
+                        }
+                        Text(
+                            "✕",
+                            color = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb))
+                                .clickable { viewModel.removeVideo() }
+                                .padding(horizontal = 6.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.size(4.dp))
+                Text(
+                    if (state.video == null) "可选择 1 段视频" else "已选择视频",
+                    color = VxinTextSecondary,
+                    fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
+                )
+            } else {
             LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxWidth()) {
                 items(state.images, key = { it }) { uri ->
                     Box(Modifier.padding(2.dp).aspectRatio(1f)) {
@@ -97,6 +162,7 @@ fun MomentComposeScreen(
                         ) { Text("＋", color = VxinTextSecondary) }
                     }
                 }
+            }
             }
             Spacer(Modifier.size(16.dp))
             Text("谁可以看", color = VxinTextSecondary)
@@ -149,5 +215,38 @@ fun MomentComposeScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * 本地视频首帧缩略图（F4a 朋友圈发视频预览用）：
+ * MediaMetadataRetriever 取第 0 秒帧，IO 线程执行；取不到（损坏/格式不支持）给黑底占位。
+ */
+@Composable
+private fun VideoThumb(uri: Uri, modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var thumb by remember(uri) { androidx.compose.runtime.mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(uri) {
+        thumb = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val retriever = android.media.MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(context, uri)
+                    retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                } finally {
+                    retriever.release()
+                }
+            }.getOrNull()
+        }
+    }
+    Box(modifier.background(Color(0xFF1A1A1A)), contentAlignment = Alignment.Center) {
+        thumb?.let {
+            androidx.compose.foundation.Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = "视频封面",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } ?: Text("🎬", fontSize = com.touliao.app.ui.theme.VxinTextSize.lg)
     }
 }

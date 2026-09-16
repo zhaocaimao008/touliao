@@ -11,7 +11,7 @@ val VxinTeal = Color(0xFF17B8A6)          // 青碧辅助色（气泡渐变尾�
 // 兼容旧引用名（各 Screen 无需改动）：统一指向极光靛
 val VxinGreen = VxinBrand
 val VxinGreenDark = VxinBrandDark
-val VxinBg = Color(0xFFF7F7F7)            // 浅灰壳层，对齐 web
+val VxinBg = Color(0xFFF3F1FA)            // 紫调壳层，对齐 web --bg-messages
 val VxinTextPrimary = Color(0xFF1A1A1A)   // 正文近黑，对齐 web --text-primary
 val VxinTextSecondary = Color(0xFF888888) // 辅助中性灰，对齐 web --text-secondary
 val VxinError = Color(0xFFFA5151)

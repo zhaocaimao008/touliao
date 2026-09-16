@@ -30,7 +30,8 @@ class ChatRepository @Inject constructor(
     private val api: MessageApi,
     private val chunkUploader: ChunkUploader,
     private val socketManager: SocketManager,
-) {
+) : HistoryPageSource {
+    private val historyPageSource = ApiHistoryPageSource(api)
     /** 实时连接状态（供 UI 显示「连接中/已连接」） */
     val socketStatus: StateFlow<SocketStatus> = socketManager.status
 
@@ -76,10 +77,16 @@ class ChatRepository @Inject constructor(
         runCatching { api.markRead(conversationId, MarkReadRequest(messageId)) }
     }
 
-    suspend fun loadConversations(): List<Conversation> = api.conversations()
+    /** includeArchived=true 时返回含已归档会话（主列表页拉全量后本地分流，对齐 Web） */
+    suspend fun loadConversations(includeArchived: Boolean = false): List<Conversation> =
+        api.conversations(if (includeArchived) 1 else 0)
 
-    suspend fun loadHistory(conversationId: String, before: Long? = null, after: Long? = null): List<Message> =
-        api.history(conversationId, before = before, after = after)
+    override suspend fun loadHistory(
+        conversationId: String,
+        before: Long?,
+        beforeId: String?,
+        after: Long?,
+    ): List<Message> = historyPageSource.loadHistory(conversationId, before, beforeId, after)
 
     suspend fun sync(conversationId: String, cursor: Long, limit: Int = 500) =
         api.sync(conversationId, cursor, limit)
@@ -93,8 +100,9 @@ class ChatRepository @Inject constructor(
         content: String,
         replyToId: String? = null,
         clientMsgId: String? = null,
+        credential: com.touliao.app.core.storage.TokenStore.Snapshot,
     ): Result<Message> =
-        socketManager.sendMessage(conversationId, content, replyToId, clientMsgId)
+        socketManager.sendMessage(conversationId, content, replyToId, clientMsgId, credential)
 
     /** 上传媒体并返回服务端创建的消息（同时会经 Socket 广播给其他端） */
     suspend fun uploadMedia(conversationId: String, part: MultipartBody.Part): Message =
@@ -137,10 +145,6 @@ class ChatRepository @Inject constructor(
     suspend fun vanishMessage(msgId: String) =
         runCatching { api.deleteMessage(msgId, DeleteMessageBody(vanish = true)) }
 
-    /** 个人删除（per-user tombstone，仅当前账号生效，对方不受影响） */
-    suspend fun deleteForMeMessage(msgId: String) =
-        runCatching { api.deleteMessage(msgId, DeleteMessageBody(forMe = true)) }
-
     /** 表情回应(切换) */
     suspend fun react(msgId: String, emoji: String) =
         runCatching { api.react(msgId, ReactBody(emoji)) }
@@ -161,6 +165,14 @@ class ChatRepository @Inject constructor(
     suspend fun setConversationMuted(conversationId: String, muted: Boolean) =
         api.muteConversation(conversationId, com.touliao.app.data.model.MuteConversationBody(if (muted) 1 else 0))
 
+    /** 会话归档/取消归档 */
+    suspend fun setConversationArchived(conversationId: String, archived: Boolean) =
+        api.archiveConversation(conversationId, com.touliao.app.data.model.ArchiveConversationBody(archived))
+
+    /** 会话内消息已读状态（F4b）：msgIds ≤100 条，返回 msgId → 已读用户 id 列表 */
+    suspend fun readStates(conversationId: String, msgIds: List<String>): Map<String, List<String>> =
+        api.readStates(conversationId, msgIds.joinToString(",")).readStates
+
     /** 标为未读 */
     suspend fun markConversationUnread(conversationId: String) = api.markUnread(conversationId)
 
@@ -178,6 +190,10 @@ class ChatRepository @Inject constructor(
 
     suspend fun forward(msgId: String, conversationIds: List<String>) =
         api.forward(com.touliao.app.data.model.ForwardBody(msgId, conversationIds))
+
+    /** 合并转发（F4a）：向单个目标发一条 type=merged、content=JSON 的消息 */
+    suspend fun sendMerged(conversationId: String, contentJson: String) =
+        api.sendHttp(conversationId, com.touliao.app.data.model.SendMessageBody(content = contentJson, type = "merged"))
 
     suspend fun collectMessage(msgId: String) = api.collectMessage(msgId)
 

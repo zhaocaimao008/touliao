@@ -1,3 +1,4 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, useLayoutEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { composeReducer, initialComposeState } from '../reducers/composeReducer';
@@ -6,8 +7,9 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import { prewarmAudio } from '../utils/callTones';
+import { createVoiceRecorder, recordedVoice } from '../utils/voiceRecording';
 import VideoPreview from './VideoPreview';
-import FilePreview from './FilePreview';
+import { useFilePreview } from '../contexts/FilePreviewContext';
 import VirtualMessageList from './VirtualMessageList';
 import ChatHeader from './ChatHeader';
 import ConvSearchBar from './ConvSearchBar';
@@ -16,6 +18,8 @@ import UploadProgressBar from './UploadProgressBar';
 import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
+import { captureSession, isSessionCurrent } from '../utils/sessionContext';
+import { sendOwnedText } from '../utils/outboxSender';
 import { loadCache, saveCache, clearCache, removeFromCache, loadSyncCursor, saveSyncCursor } from '../utils/msgCache';
 import { applySyncEvents, catchUpConversation, insertBySeq, violatesOrder } from '../utils/messageSync';
 import { ChatSkeleton } from './PanelSkeleton';
@@ -35,6 +39,9 @@ const CHAT_ALLOWED_EXTS = new Set([
   'zip','rar','7z','gz','tar','bz2','xz','tgz',
 ]);
 const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
+// 媒体消息类型(图片/视频/文件/语音/名片/红包/表情)：flatItems 逐条判断是否参与"连续消息"压缩，
+// 原为循环体内每条消息都 new Set 一次，提到模块级避免重复分配。
+const MEDIA_TYPES = new Set(['image', 'video', 'file', 'voice', 'contact_card', 'red_packet', 'sticker', 'merged']);
 const EmojiPicker         = lazy(() => import('./EmojiPicker'));
 const StickerPanel        = lazy(() => import('./StickerPanel'));
 const GroupInfo           = lazy(() => import('./GroupInfo'));
@@ -45,16 +52,19 @@ const ForwardModal        = lazy(() => import('./ForwardModal'));
 const ScheduleSendModal   = lazy(() => import('./ScheduleSendModal'));
 const PrivateChatSettings = lazy(() => import('./PrivateChatSettings'));
 const ChatFiles           = lazy(() => import('./ChatFiles'));
+const ReadStatusModal     = lazy(() => import('./ReadStatusModal'));
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { rememberAspect } from '../utils/imgDimCache';
 import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
+import { isForwardableMessage } from '../utils/mergedForward';
+import { canViewReadStatus, readUserIdsForMessage } from '../utils/readStatus';
 import './ChatWindow.css';
-import { IcoEmoji, IcoMic, IcoImage, IcoFile, IcoMore } from './Icons';
+import { IcoEmoji, IcoMic, IcoImage, IcoFile, IcoMore, IcoVideo, IcoContacts } from './Icons';
 
 import { computeCtxPos } from '../utils/ctxPos';
 
@@ -73,12 +83,17 @@ function CtxMenuPortal({ anchor, onClose, children }) {
   useLayoutEffect(() => {
     const el = menuRef.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
+    // 用 offsetWidth/offsetHeight（布局尺寸）而非 getBoundingClientRect：
+    // 菜单挂入场动画 ctxIn(scale .94→1, fill both)，getBoundingClientRect 返回的是
+    // transform 后的视觉尺寸，在 useLayoutEffect 首帧测到的是缩小值(≈260×.94)，
+    // 定位按缩小尺寸 clamp，展开后右侧/底部溢出视口。offsetWidth 不受 transform 影响。
+    const mw = el.offsetWidth || el.getBoundingClientRect().width;
+    const mh = el.offsetHeight || el.getBoundingClientRect().height;
     const vw = window.innerWidth, vh = window.innerHeight;
     // 底部保留区：输入框(~64px) + TabBar(~56px) + 安全区；顶部避状态栏
     const bottomReserve = 140;
     const safeTop = 8;
-    setPos(computeCtxPos(anchor, { width: r.width, height: r.height },
+    setPos(computeCtxPos(anchor, { width: mw, height: mh },
       { width: vw, height: vh },
       { safeTop, safeBottom: 8, bottomReserve, gap: 6, edge: 12 }));
   }, [anchor, children]);
@@ -192,6 +207,7 @@ async function uploadThumb(thumbUploadUrl, blob) {
 }
 
 export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall, onStartGroupCall, onStartChat }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
@@ -229,6 +245,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [showTransfer,  setShowTransfer]  = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [readStatus, setReadStatus] = useState(null);
   // 多选模式
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedMsgs, setSelectedMsgs] = useState(new Set());
@@ -261,7 +278,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [claiming, setClaiming] = useState(false);
   const [lightboxState, setLightboxState] = useState(null); // { urls, idx } or null
   const [videoPreview, setVideoPreview] = useState(null);   // { url, name } or null
-  const [filePreview, setFilePreview] = useState(null);     // { fileUrl, filename, mimeType, fileSize } or null
+  const setFilePreview = useFilePreview();
   const [isDragOver, setIsDragOver] = useState(false);
   // 定时发送弹窗
   const [showScheduleSend, setShowScheduleSend] = useState(false);
@@ -301,35 +318,55 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const textareaRef = useRef(null);
   const inputAreaRef = useRef(null);
   const { socket, reconnectCount, registerDelivered } = useSocket();
-  const { user } = useAuth();
+  const { user, outboxScope } = useAuth();
+  const [renderOwner, setRenderOwner] = useState(outboxScope);
+  if (renderOwner !== outboxScope) {
+    setRenderOwner(outboxScope);
+    setMessages([]);
+  }
   const syncInFlightRef = useRef(null);
-  const syncRequestedRef = useRef(false);
+  // A view token changes on every conversation/owner transition, including ABA.
+  const syncViewRef = useRef(null);
+  if (syncViewRef.current?.conversationId !== conversation.id || syncViewRef.current?.owner !== outboxScope) {
+    syncViewRef.current = { conversationId: conversation.id, owner: outboxScope };
+  }
+  const syncView = syncViewRef.current;
 
   const catchUp = useCallback(() => {
-    if (!conversation.id || !user?.id) return Promise.resolve();
-    if (syncInFlightRef.current) {
-      syncRequestedRef.current = true;
-      return syncInFlightRef.current;
+    const scope = captureSession();
+    const isCurrent = () => isSessionCurrent(scope) && mountedRef.current &&
+      scope.accountId === user?.id && scope.generation === outboxScope?.generation && syncViewRef.current === syncView;
+    if (!conversation.id || !isCurrent()) return Promise.resolve();
+    const existing = syncInFlightRef.current;
+    if (existing?.isCurrent()) {
+      existing.requested = true;
+      return existing.task;
     }
+    // An obsolete flight must neither block the new view nor clear its flight.
+    const flight = { isCurrent, requested: false, task: null };
     const task = (async () => {
       do {
-        syncRequestedRef.current = false;
+        flight.requested = false;
         await catchUpConversation({
           conversationId: conversation.id,
-          accountId: user.id,
+          accountId: scope.accountId,
+          isCurrent,
           loadCursor: loadSyncCursor,
           saveCursor: saveSyncCursor,
           requestPage: async (conversationId, cursor, limit) => {
-            const { data } = await axios.get(`/api/messages/${conversationId}/sync`, { params: { cursor, limit } });
+            const { data } = await axios.get(`/api/messages/${conversationId}/sync`, {
+              params: { cursor, limit }, _sessionContext: scope,
+            });
             return data;
           },
-          applyPage: async events => setMessages(previous => applySyncEvents(previous, events)),
+          applyPage: async events => setMessages(previous => isCurrent() ? applySyncEvents(previous, events) : previous),
         });
-      } while (syncRequestedRef.current);
-    })().finally(() => { if (syncInFlightRef.current === task) syncInFlightRef.current = null; });
-    syncInFlightRef.current = task;
+      } while (isCurrent() && flight.requested);
+    })().finally(() => { if (syncInFlightRef.current === flight) syncInFlightRef.current = null; });
+    flight.task = task;
+    syncInFlightRef.current = flight;
     return task;
-  }, [conversation.id, user?.id]);
+  }, [conversation.id, user?.id, outboxScope, syncView]);
 
   // ── 点击输入区外部关闭 emoji / more / 表情包 面板 ────────────────────
   useEffect(() => {
@@ -393,7 +430,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (pendingCallRef.current !== 'pending') return; // 已经被 call:error 取消，忽略迟到的 ack
       pendingCallRef.current = null;
       if (!ack?.callId) return; // 旧后端/异常：没有 callId 就不开呼叫界面，防止无 callId 的通话流程
-      onStartCall?.({ type, direction: 'outgoing', remoteUser, remoteId, callId: ack.callId });
+      onStartCall?.({ type, direction: 'outgoing', remoteUser, remoteId, callId: ack.callId, resumeToken: ack.resumeToken });
     });
   }, [socket, conversation, user, onStartCall, t]);
 
@@ -440,32 +477,43 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const convTypeRef = useRef(conversation.type);
   const messagesRef = useRef([]);
   const membersRef  = useRef([]);
+  // 组件是否仍挂载：断线重连错峰重发的 setTimeout 回调触发时用它守护，
+  // 避免卸载后仍向已失效的 state 写入 / 向已切走的会话补发消息
+  const mountedRef  = useRef(true);
   useEffect(() => { convIdRef.current   = conversation.id;   }, [conversation.id]);
   useEffect(() => { convTypeRef.current = conversation.type; }, [conversation.type]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { membersRef.current  = members;  }, [members]);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   // ── 待发件箱同步：以本地 messages 为准，实时反写 localStorage ────────
   // 任何走到 _status:'error' 的「文本」乐观消息 → 写入 outbox（切会话/刷新不丢）；
   // 一旦被真实消息替换（成功/被认领）→ 从 outbox 移除。集中在此一处，覆盖所有
   // 发送/重发/上传路径，避免在十几个 setMessages 站点各自埋点导致遗漏。
   const outboxKeysRef = useRef(new Set());
+  const outboxOwnerRef = useRef(null);
+  const outboxOwnerKey = JSON.stringify([outboxScope?.server, outboxScope?.accountId, conversation.id]);
+  if (outboxOwnerRef.current !== outboxOwnerKey) {
+    outboxOwnerRef.current = outboxOwnerKey;
+    outboxKeysRef.current = new Set();
+  }
   useEffect(() => {
     const convId = conversation.id;
-    if (!convId) return;
+    if (!convId || !isSessionCurrent(captureSession()) || outboxScope?.accountId !== user.id) return;
     const nowFailedKeys = new Set();
     for (const m of messages) {
-      if (m._status === 'error' && m.type === 'text' && m._tempId) {
-        upsertOutbox(convId, m);
+      if (m.conversation_id === convId && m.sender_id === outboxScope.accountId &&
+          (m._status === 'error' || (m._status === 'sending' && outboxKeysRef.current.has(m._tempId))) && m.type === 'text' && m._tempId) {
+        upsertOutbox(convId, m, outboxScope);
         nowFailedKeys.add(m._tempId);
       }
     }
     // 上一轮在 outbox、这轮已不再失败（成功送达或被删）→ 清出 outbox
     for (const key of outboxKeysRef.current) {
-      if (!nowFailedKeys.has(key)) removeFromOutbox(convId, key);
+      if (!nowFailedKeys.has(key)) removeFromOutbox(convId, key, outboxScope);
     }
     outboxKeysRef.current = nowFailedKeys;
-  }, [messages, conversation.id]);
+  }, [messages, conversation.id, outboxScope, user.id]);
 
   // ── 离线消息缓存同步：以本地 messages 为准，防抖反写 IndexedDB ──────────
   // 与上方 outbox 同理，集中一处覆盖新消息/批量/撤回/编辑/清空所有路径：messages
@@ -571,6 +619,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 旧消息最多残留几十 ms（IndexedDB 预热后缓存读取极快），期间界面有内容而非空白。
   const [prevConvId, setPrevConvId] = useState(conversation.id);
   if (conversation.id !== prevConvId) {
+    setMessages([]);
     setPrevConvId(conversation.id);
     // compose 全清 + 载入新会话草稿（replyTo/editingMsg/voiceMode/input 原子重置）
     dispatchCompose({ type: 'RESET', draft: localStorage.getItem(`draft_${conversation.id}`) || '' });
@@ -587,6 +636,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   useEffect(() => {
     // AbortController：会话切换时取消上一个会话的未完成请求，防止数据串堂
     const ac = new AbortController();
+    const loadScope = captureSession();
+    const loadView = syncViewRef.current;
+    const isLoadCurrent = () => isSessionCurrent(loadScope) && !ac.signal.aborted && syncViewRef.current === loadView;
 
     // 离线缓存首屏：先渲染本地缓存历史（若有），服务端到达后合并覆盖。
     // 首个到达（缓存或网络）整体替换旧会话残留消息；后续到达走合并。
@@ -600,7 +652,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       ? clearCache(convIdForCache).then(() => [])
       : loadCache(convIdForCache);
     cachedMessages.then(cached => {
-      if (ac.signal.aborted || !cached.length) return;
+      if (!isSessionCurrent(loadScope) || ac.signal.aborted || !cached.length) return;
       if (!firstArrival) return;   // 网络结果已到（更新更全），丢弃旧缓存
       firstArrival = false;
       setInitialLoading(false);
@@ -609,9 +661,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     fetchMessages(null, ac.signal)
       .then(data => {
-        if (ac.signal.aborted) return; // 会话已切走，丢弃结果
+        if (!isSessionCurrent(loadScope) || ac.signal.aborted) return; // 会话已切走，丢弃结果
         // 合并本地待发件箱：上次「发送失败」且未成功的文本消息，切回本会话仍在
-        const pending = loadOutbox(conversation.id);
+        const pending = loadOutbox(conversation.id, outboxScope);
         let merged = data;
         if (pending.length) {
           const serverIds = new Set(data.map(m => m.id));
@@ -622,7 +674,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           );
           // 把「其实已成功」的从 outbox 清掉
           for (const p of pending) {
-            if (!stillPending.includes(p)) removeFromOutbox(conversation.id, p._tempId || p.id);
+            if (!stillPending.includes(p)) removeFromOutbox(conversation.id, p._tempId || p.id, outboxScope);
           }
           if (stillPending.length) {
             // 2026-09-02 洞A：不再按 created_at 与服务端消息混排——pending 的 created_at 来自
@@ -639,6 +691,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // 会用 setMessages(merged) 覆盖掉刚发的消息,导致其静默消失(无失败态、无重发入口)。
         // 用函数式更新读当前 state,把服务端未包含的在途乐观消息补回队尾。
         setMessages(prev => {
+          if (!isLoadCurrent()) return prev;
           if (firstArrival) {
             firstArrival = false;
             setInitialLoading(false);
@@ -660,8 +713,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             : merged;
         });
         const maxSequence = data.reduce((max, message) => Math.max(max, Number(message.server_sequence) || 0), 0);
-        loadSyncCursor(user.id, conversation.id).then(cursor => {
-          if (cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence);
+        loadSyncCursor(user.id, conversation.id, isLoadCurrent).then(cursor => {
+          if (isLoadCurrent() && cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence, isLoadCurrent);
         }).catch(() => {});
         scheduleBurn(data);
         setHasMore(data.length === 40);
@@ -689,7 +742,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 延后一个宏任务发出，让历史请求先一步进入服务端处理队列；会话切换够快时（signal 已 abort）
     // 直接跳过，省掉即将作废的请求。
     const deferred = setTimeout(() => {
-      if (ac.signal.aborted) return;
+      if (!isSessionCurrent(loadScope) || ac.signal.aborted) return;
 
       // 加载置顶消息
       axios.get(`/api/messages/conversation/${conversation.id}/pinned-messages`, { signal: ac.signal })
@@ -699,7 +752,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (conversation.type === 'group') {
         // 获取群详情：成员列表、我的角色、管理设置
         axios.get(`/api/messages/conversation/${conversation.id}/info`, { signal: ac.signal }).then(r => {
-          if (ac.signal.aborted) return;
+          if (!isSessionCurrent(loadScope) || ac.signal.aborted) return;
           setMembers(r.data.members || []);
           setMyGroupRole(r.data.myRole || 'member');
           setAnnouncement(r.data.announcement || '');
@@ -723,7 +776,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       // 直接清 timer 会让它永远停在 sending、既不成功也不失败→无失败态❗、outbox 不收录→
       // 弱网/重连场景下静默丢失。故清 timer 前把这些未决消息就地标为 'error',
       // 交给 outbox 同步 effect 持久化 + 重连自愈重发(clientMsgId 幂等,不会重复)。
-      if (pendingMsgs.size) {
+      if (isSessionCurrent(loadScope) && pendingMsgs.size) {
         const stale = new Set(pendingMsgs.keys());
         setMessages(prev => prev.map(m =>
           (m._tempId && stale.has(m._tempId) && m._status === 'sending' && m.conversation_id === convIdAtSetup)
@@ -735,7 +788,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       confirmedIds.clear();
       readerReadAtRef.current = {};
     };
-  }, [conversation.id, conversation.burn_after, fetchMessages, socket, conversation.type, conversation.scrollToId, scheduleBurn, user.id]);
+  }, [conversation.id, conversation.burn_after, fetchMessages, socket, conversation.type, conversation.scrollToId, scheduleBurn, user.id, outboxScope]);
 
   // 新消息到达且当前在底部时，自动标记已读（带最新消息 ID）
   // 阈值与自动滚底(<400)一致：处于 120~400px 区间时新消息会被自动拉到底，
@@ -914,16 +967,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   useEffect(() => {
     if (!socket) return;
+    const eventScope = captureSession();
     // 超大户群降级通知（new_message_notify）：服务端对 >500 在线 socket 的房间不再推全量消息，
     // 只推轻量通知。客户端若正停留在该会话，拉取增量消息补齐。
     const onNotify = async ({ conversationId, ts }) => {
+      if (!isSessionCurrent(eventScope)) return;
       if (conversationId !== convIdRef.current) return;
       try {
         // after-1: 覆盖同秒边界（与断线重连补拉逻辑一致），重复消息由 setMessages 内按 id 去重
         const { data } = await axios.get(`/api/messages/${conversationId}`, {
           params: { after: (ts || 0) - 1, limit: 100 },
         });
-        if (!data.length) return;
+        if (!isSessionCurrent(eventScope) || !data.length) return;
         setMessages(prev => {
           const existingIds = new Set(prev.map(m => m.id));
           let next = prev.slice();
@@ -944,6 +999,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       } catch { /* 拉取失败静默，用户刷新或下条消息会再触发 */ }
     };
     const onMsg = (msg) => {
+      if (!isSessionCurrent(eventScope)) return;
       const currentConvId = convIdRef.current;
       if (msg.conversation_id !== currentConvId) return;
       if (confirmedMsgIds.current.has(msg.id)) {
@@ -1046,21 +1102,33 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         if (m.replyTo && m.replyTo.id === msgId) return { ...m, replyTo: { ...m.replyTo, deleted: 1 } }; // 引用块摘除
         return m;
       }).filter(Boolean));
+      // 消息被移除后同步清掉多选态里的失效 id，避免残留导致批量操作误伤
+      setSelectedMsgs(prev => (prev.has(msgId) ? (() => { const n = new Set(prev); n.delete(msgId); return n; })() : prev));
       if (conversationId) removeFromCache(conversationId, msgId).catch(() => {});
     };
     const onVanished = ({ msgId, conversationId }) => {
       setMessages(prev => prev.filter(m => m.id !== msgId));
+      setSelectedMsgs(prev => (prev.has(msgId) ? (() => { const n = new Set(prev); n.delete(msgId); return n; })() : prev));
       if (conversationId) removeFromCache(conversationId, msgId).catch(() => {});
     };
     const onBatchDeleted = ({ msgIds: ids }) => {
       if (!ids?.length) return;
       const idSet = new Set(ids);
       setMessages(prev => prev.filter(m => !idSet.has(m.id)));
+      // 同步过滤多选态里被批量删除的 id
+      setSelectedMsgs(prev => {
+        let changed = false;
+        const n = new Set(prev);
+        idSet.forEach(id => { if (n.delete(id)) changed = true; });
+        return changed ? n : prev;
+      });
     };
     const onCleared = ({ conversationId }) => {
       if (conversationId !== convIdRef.current) return;
       setMessages([]);
       setPinnedMessages([]);
+      // 会话被清空：多选态里的所有 id 均已失效
+      setSelectedMsgs(prev => (prev.size ? new Set() : prev));
     };
     const onEdited = ({ msgId, content }) => {
       setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content, edited: 1 } : m));
@@ -1177,12 +1245,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     socket.on('message_reaction', onReaction);
     socket.on('message_read', onRead);
     // 精确已读回执（/api/reliability/ack/read 通路广播）：逐条标蓝双勾
-    socket.on('message:read', ({ messageId, conversationId }) => {
+    const onExactRead = ({ messageId, conversationId }) => {
       if (conversationId !== convIdRef.current) return;
       setMessages(prev => prev.map(m =>
         m.id === messageId && m.sender_id === user.id ? { ...m, _read: true } : m
       ));
-    });
+    };
+    socket.on('message:read', onExactRead);
     // message_delivered 已通过 registerDelivered(onDelivered) 注册到 SocketContext，不重复注册
     // socket.on('red_packet_claimed', onRedPacketClaimed); // removed
     socket.on('group_updated', onGroupUpdated);
@@ -1231,6 +1300,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       socket.off('message_edited', onEdited);
       socket.off('message_reaction', onReaction);
       socket.off('message_read', onRead);
+      socket.off('message:read', onExactRead);
       socket.off('group_updated', onGroupUpdated);
       socket.off('role_changed', onRoleChanged);
       socket.off('group_kicked', onGroupKicked);
@@ -1239,7 +1309,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       socket.off('message_pinned', onPinned);
       socket.off('message_unpinned', onUnpinned);
     };
-  }, [socket, conversation.id, user.id, onClose, registerDelivered, scheduleBurn, catchUp, t]);
+  }, [socket, reconnectCount, outboxScope, conversation.id, user.id, onClose, registerDelivered, scheduleBurn, catchUp, t]);
 
   // ── 限流自动退避重发 ─────────────────────────────────────────────
   // 服务端 send_message 命中逐用户限流(config.limits.msgRateLimit，当前 3 条/秒)时返回
@@ -1275,61 +1345,40 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     return () => { for (const st of map.values()) clearTimeout(st.timer); map.clear(); };
   }, [conversation.id]);
   // ── 重发失败消息（复用 pendingMsgsRef + ack 机制）─────────────
-  const retryMessage = useCallback((failedMsg) => {
-    if (!socket) return;
-    // 2026-09-02：不再换新 _tempId——保持原 tempId 同时作 clientMsgId 幂等键。
-    // 旧实现换 newTempId 导致广播(client_msg_id=原tempId)先于 ack 到达时 onMsg
-    // 匹配不到本地乐观消息 → append 末尾 + 与 ack 替换的消息重复双显（现象二）。
-    const tempId = failedMsg._tempId || failedMsg.id;
-    setMessages(prev =>
-      prev.map(m => (m._tempId === tempId || m.id === tempId)
-        ? { ...m, _status: 'sending' }
-        : m
-      )
-    );
-    const timer = setTimeout(() => {
-      pendingMsgsRef.current.delete(tempId);
-      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
-    }, 5000);
-    pendingMsgsRef.current.set(tempId, timer);
-    socket.emit('send_message', {
-      conversationId: failedMsg.conversation_id,
-      content:        failedMsg.content,
-      type:           failedMsg.type,
-      reply_to_id:    failedMsg.reply_to_id || null,
-      clientMsgId:    tempId, // 幂等键:重发若原消息已落库,后端去重不产生重复
-    }, (ack) => {
-      clearTimeout(pendingMsgsRef.current.get(tempId));
-      pendingMsgsRef.current.delete(tempId);
-      if (ack?.success && ack.message) {
-        confirmedMsgIds.current.add(ack.message.id);
-        // 洞B(2026-09-02)：ack 落地不再裸 map 就地替换——pending 若曾被锚在中间(旧 outbox),
-        // 确认消息带新 seq 停在错槽位。替换后做相邻 seq 校验,违序则取出按新 seq 重定位。
+  const transmitText = useCallback((message) => {
+    const scope = captureSession();
+    const tempId = message._tempId || message.id;
+    if (scope?.accountId !== user.id || scope?.generation !== outboxScope?.generation ||
+        message.conversation_id !== conversation.id) return;
+    const timer = sendOwnedText({
+      socket, scope, message,
+      isActive: () => mountedRef.current && convIdRef.current === message.conversation_id,
+      onStatus: status => setMessages(prev => prev.map(m =>
+        m._tempId === tempId ? { ...m, _status: status } : m)),
+      onAck: confirmed => {
+        pendingMsgsRef.current.delete(tempId);
+        confirmedMsgIds.current.add(confirmed.id);
         setMessages(prev => {
           const idx = prev.findIndex(m => m._tempId === tempId);
           if (idx < 0) return prev;
           const next = prev.slice();
-          next[idx] = { ...ack.message };
+          next[idx] = confirmed;
           if (violatesOrder(next, idx)) {
             const [moved] = next.splice(idx, 1);
             insertBySeq(next, moved);
           }
           return next;
         });
-        removeFromOutbox(conversation.id, tempId); // 重发成功即清待发件箱(幂等)
-      } else if (ack?.code === 'RATE_LIMITED' && scheduleRateLimitedRetry(tempId, ack.retryAfterMs)) {
-        // 保持「发送中」：不标失败、不弹提示、不进 outbox —— 由定时器按服务端给的
-        // 时间自动重发（clientMsgId 不变，后端幂等去重，不会产生重复消息）。
-      } else {
-        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
-        if (ack?.error) showToast(ack.error, 'error');
-      }
+      },
+      // 命中限流时保持「发送中」：不标失败、不弹提示、不进 outbox —— 由 scheduleRateLimitedRetry
+      // 按服务端给的 retryAfterMs 自动重发（clientMsgId 不变，后端幂等去重，不会产生重复消息）。
+      onRateLimited: retryAfterMs => scheduleRateLimitedRetry(tempId, retryAfterMs),
     });
-  }, [socket, conversation.id, scheduleRateLimitedRetry]);
-
+    if (timer) pendingMsgsRef.current.set(tempId, timer);
+  }, [socket, conversation.id, user.id, outboxScope, scheduleRateLimitedRetry]);
+  const retryMessage = transmitText;
   // 退避调度器回调 retryMessage，两者互相引用，用 ref 打破循环（放在 retryMessage 之后赋值）
   retryMessageRef.current = retryMessage;
-
 
   // ── 断线重连后：自动自愈「发送失败」的消息（弱网/电梯/地铁场景）─────────
   // 重连时补拉服务端消息(上面的 effect)可认领「已落库但 ack 丢失」的乐观消息；
@@ -1337,7 +1386,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 这里在重连后自动对它们重发一次——clientMsgId 复用原 tempId，后端幂等去重，
   // 即使个别消息其实已落库也不会产生重复。小间隔错峰，避免瞬时突发。
   const healedOnReconnectRef = useRef(0);
+  const reconnectResendTimersRef = useRef([]); // 收集本轮错峰重发的 setTimeout 句柄，供 cleanup 统一清理
   useEffect(() => {
+    const retryScope = captureSession();
     if (reconnectCount === 0 || reconnectCount === healedOnReconnectRef.current) return;
     if (!socket?.connected) return;
     healedOnReconnectRef.current = reconnectCount;
@@ -1347,12 +1398,19 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     showToast(t('chat.networkRecoveredResendTemplate').replace('{count}', failed.length));
     failed.forEach((m, i) => {
       // 错峰重发：每条间隔 120ms，避免重连瞬间 N 条消息同时打满连接
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        // 组件已切换会话/卸载：不再向失效的 state 补发
+        if (!mountedRef.current || !isSessionCurrent(retryScope)) return;
         // 二次确认仍处于失败态（用户可能已手动重发或它已被认领）
         const cur = messagesRef.current.find(x => x._tempId === m._tempId);
         if (cur && cur._status === 'error') retryMessage(cur);
       }, i * 120);
+      reconnectResendTimersRef.current.push(timer);
     });
+    return () => {
+      reconnectResendTimersRef.current.forEach(clearTimeout);
+      reconnectResendTimersRef.current = [];
+    };
   }, [reconnectCount, socket, retryMessage, t]);
 
   // ── 进入会话时：若连接正常且存在从 outbox 恢复的失败消息，静默自动重发一次 ──
@@ -1362,6 +1420,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     healedOnMountRef.current = false; // 换会话重置
   }, [conversation.id]);
   useEffect(() => {
+    const retryScope = captureSession();
     if (healedOnMountRef.current) return;
     if (!socket?.connected) return;
     const failed = messagesRef.current.filter(m => m._status === 'error' && m._tempId);
@@ -1369,6 +1428,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     healedOnMountRef.current = true;
     failed.forEach((m, i) => {
       setTimeout(() => {
+        if (!mountedRef.current || !isSessionCurrent(retryScope)) return;
         const cur = messagesRef.current.find(x => x._tempId === m._tempId);
         if (cur && cur._status === 'error') retryMessage(cur);
       }, i * 120);
@@ -1406,6 +1466,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   }, [user.id, t]); // claiming 经 claimingRef 读取，仅 user.id 需纳入依赖
 
   const sendMessage = async () => {
+    const sendScope = captureSession();
+    if (!isSessionCurrent(sendScope) || sendScope.accountId !== user.id || sendScope.generation !== outboxScope?.generation) return;
     // 复制多行文本粘贴进来时，把换行折叠成空格——消息始终保持单行高度（对齐需求）。
     const text = input.replace(/[\r\n]+/g, ' ').trim();
     if (!text) return;
@@ -1455,61 +1517,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setActivePanel(null);
     socket?.emit('stop_typing', { conversationId: conversation.id });
 
-    // 2. 5s 超时 → 标记失败
-    const timer = setTimeout(() => {
-      pendingMsgsRef.current.delete(tempId);
-      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
-    }, 5000);
-    pendingMsgsRef.current.set(tempId, timer);
-
-    // 未连接(断网/重连窗口):立即标失败,不等 5s ack 超时——失败态即时可见,不依赖定时器。
-    // 但【不 return,继续 emit】:socket.io 缓冲开启时(短暂离线),恢复后缓冲 flush 自动送达,
-    // ack 到达会把它替换为真实消息(最快自愈路径);彻底断开则 emit 丢弃,error+outbox
-    // 由断线重连自愈(healedOnReconnect)兜底。若此处直接 return,缓冲 flush 路径被掐断,
-    // 恢复网络后消息只能等下一次重连事件才重发(E2E OB-02 全量负载下偶发卡在失败态)。
-    if (!socket) return;
-    if (!socket.connected) {
-      pendingMsgsRef.current.delete(tempId);
-      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
-    }
-
-    // 3. 发送并等待 socket.io ack（后端已在 send_message handler 中调用 ack()）
-    const msgClientId = `perf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    window.__touliaoPerf?.send(msgClientId, user.id, conversation.id);
-    socket.emit('send_message', {
-      conversationId: conversation.id,
-      content,
-      type:           'text',
-      reply_to_id:    replySnap?.id || null,
-      clientMsgId:    tempId, // 幂等键:后端据(sender_id,client_msg_id)去重,弱网重发不产生重复消息
-    }, (ack) => {
-      clearTimeout(pendingMsgsRef.current.get(tempId));
-      pendingMsgsRef.current.delete(tempId);
-      if (ack?.success && ack.message) {
-        window.__touliaoPerf?.ack(msgClientId, user.id);
-        // 把真实 id 存入 confirmed，防止 new_message 广播重复添加
-        confirmedMsgIds.current.add(ack.message.id);
-        // 洞B：同 retryMessage ack——替换后相邻 seq 校验,违序重定位(见 :1246 注释)
-        setMessages(prev => {
-          const idx = prev.findIndex(m => m._tempId === tempId);
-          if (idx < 0) return prev;
-          const next = prev.slice();
-          next[idx] = { ...ack.message };
-          if (violatesOrder(next, idx)) {
-            const [moved] = next.splice(idx, 1);
-            insertBySeq(next, moved);
-          }
-          return next;
-        });
-        removeFromOutbox(conversation.id, tempId); // 成功送达即清待发件箱,避免残留
-      } else if (ack?.code === 'RATE_LIMITED' && scheduleRateLimitedRetry(tempId, ack.retryAfterMs)) {
-        // 保持「发送中」：不标失败、不弹提示、不进 outbox —— 由定时器按服务端给的
-        // 时间自动重发（clientMsgId 不变，后端幂等去重，不会产生重复消息）。
-      } else {
-        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'error' } : m));
-        if (ack?.error) showToast(ack.error, 'error');
-      }
-    });
+    transmitText(optimistic);
   };
 
   // ── 分享名片：发送一条 contact_card 消息（content 为被分享用户的 JSON 快照）──
@@ -2009,27 +2017,32 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const startRecording = async () => {
     if (recordingLockRef.current) return; // 已在录音/正在开麦，忽略重复触发
     recordingLockRef.current = true;
+    let stream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const recorder = new MediaRecorder(stream);
+      const recorder = createVoiceRecorder(stream);
       const chunks = [];
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' });
+        stream.getTracks().forEach(t => t.stop());
+        let recording;
+        try { recording = recordedVoice(chunks, recorder); }
+        catch { showToast(t('chat.voiceSendFailed'), 'error'); return; }
+        const { blob, mimeType, filename } = recording;
         if (blob.size < 1000) { stream.getTracks().forEach(t => t.stop()); return; } // too short
         setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'uploading' });
         const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
         try {
           let publicUrl;
           try {
-            ({ publicUrl } = await uploadToCloud(blob, 'audio/webm', 'voice.webm', onProg));
+            ({ publicUrl } = await uploadToCloud(blob, mimeType, filename, onProg));
           } catch (cloudErr) {
             // 与图片/文件一致:云直传失败(非400/403)回退本地上传(走后端/upload,CSP必放行)。
             // 修复"未配置云存储/Electron CSP拦截时语音消息100%失败"。
             const status = cloudErr.response?.status;
             if (status === 400 || status === 403) throw cloudErr;
-            const voiceFile = new File([blob], 'voice.webm', { type: 'audio/webm' });
+            const voiceFile = new File([blob], filename, { type: mimeType });
             await uploadLocal(voiceFile, onProg); // 后端入库+广播,无需再 emit
             setUploadState(null);
             forceScrollRef.current = true;
@@ -2043,7 +2056,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             conversationId: conversation.id,
             type:     'voice',
             file_url: publicUrl,
-            content:  'voice.webm',
+            content:  filename,
             clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
           }, (res) => { if (!res?.success) showToast(res?.error || t('chat.voiceSendFailed'), 'error'); });
           setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
@@ -2058,7 +2071,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
       recorderRef.current = recorder;
       setRecording(true);
-    } catch { showToast(t('chat.micAccessDenied'), 'error'); recordingLockRef.current = false; }
+    } catch { stream?.getTracks().forEach(t => t.stop()); showToast(t('chat.micAccessDenied'), 'error'); recordingLockRef.current = false; }
   };
 
   const stopRecording = () => {
@@ -2088,6 +2101,24 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   };
 
   const closeCtx = () => setCtxMenu(null);
+
+  const loadReadStatus = async (msg) => {
+    if (!canViewReadStatus(msg, user.id)) return;
+    const messageId = String(msg.id);
+    setReadStatus({ message: msg, readUserIds: [], loading: true, error: false });
+    try {
+      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/read-states`, {
+        params: { msgIds: messageId },
+      });
+      setReadStatus(current => current && String(current.message.id) === messageId
+        ? { ...current, readUserIds: readUserIdsForMessage(data, messageId), loading: false }
+        : current);
+    } catch {
+      setReadStatus(current => current && String(current.message.id) === messageId
+        ? { ...current, loading: false, error: true }
+        : current);
+    }
+  };
 
   // 🔥 点击外部关闭菜单
   useEffect(() => {
@@ -2171,6 +2202,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         setSelectedMsgs(new Set([msg.id]));
         break;
 
+      case 'readStatus':
+        await loadReadStatus(msg);
+        break;
+
       case 'pin': {
         const already = pinnedMessages.some(p => p.msgId === msg.id);
         if (already) {
@@ -2217,22 +2252,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         break;
       }
 
-      // 删除：所有消息均可，仅对当前账号生效（per-user tombstone，不影响对方；
-      // 会话列表 preview 由 ChatList 监听 message_deleted_for_me 广播自动刷新）
-      case 'deleteForMe': {
-        // 乐观移除：先隐藏，失败则恢复
-        const prevMsgs = messagesRef.current;
-        setMessages(prev => prev.filter(m => m.id !== msg.id));
-        try {
-          await axios.delete(`/api/messages/${msg.id}`, { data: { forMe: true } });
-          removeFromCache(conversation.id, msg.id).catch(() => {});
-        } catch (e) {
-          setMessages(prevMsgs);
-          showToast(e.response?.data?.error || t('chat.deleteFailedRetry'), 'error');
-        }
-        break;
-      }
-
       default:
         if (action === 'collect') {
           // 带上来源会话/消息 id，收藏列表可「跳转到原消息」
@@ -2254,8 +2273,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const msgs = messages.filter(m => selectedMsgs.has(m.id));
     if (msgs.length === 0) return;
     // 仅可转发类型（红包/名片以外的富媒体均可）；过滤后为空则提示
-    const FORWARDABLE = new Set(['text', 'image', 'voice', 'video', 'file', 'contact_card']);
-    const valid = msgs.filter(m => FORWARDABLE.has(m.type));
+    const valid = msgs.filter(isForwardableMessage);
     if (valid.length === 0) { showToast(t('chat.selectedNotForwardable')); return; }
     if (valid.length < msgs.length) showToast(t('chat.skippedNonForwardableTemplate').replace('{count}', msgs.length - valid.length), 'info');
     if (valid.length === 1) setForwardMsg(valid[0]);
@@ -2303,7 +2321,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       // ⚠ 媒体消息(图片/视频/文件/语音/名片/红包/表情)不参与连续压缩：
       //   它们自带卡片高度，若按 consecutive 收紧到 3px，图片/文字会"粘贴在一起"。
       //   企业微信/微信行为：媒体消息之间永远保留正常 13px 间距。
-      const MEDIA_TYPES = new Set(['image', 'video', 'file', 'voice', 'contact_card', 'red_packet', 'sticker']);
       const isMedia = MEDIA_TYPES.has(msg.type);
       const consecutive = !dividerInserted && prevSenderId === msg.sender_id
         && !isMedia && !prevIsMedia;
@@ -2397,7 +2414,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 图片在 it.msg.type==='image'(此前误用 it.type==='image' 恒空→画廊只能看单张)。
     const imageUrls = flatItems
       .filter(it => it.type === 'message' && it.msg?.type === 'image' && it.msg.file_url)
-      .map(it => mediaUrl(it.msg.file_url));
+      .map(it => it.msg.file_url);
     const idx = imageUrls.indexOf(clickedUrl);
     setLightboxState({ urls: imageUrls, idx: idx >= 0 ? idx : 0 });
   };
@@ -2491,16 +2508,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           url={videoPreview.url}
           name={videoPreview.name}
           onClose={() => setVideoPreview(null)}
-        />
-      )}
-      {/* ── 文档(PDF/Word/Excel/PPT/TXT等)全屏预览 ── */}
-      {filePreview && (
-        <FilePreview
-          fileUrl={filePreview.fileUrl}
-          filename={filePreview.filename}
-          mimeType={filePreview.mimeType}
-          fileSize={filePreview.fileSize}
-          onClose={() => setFilePreview(null)}
         />
       )}
       {/* ── Header ── */}
@@ -2680,7 +2687,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   className="wc-card-picker-item"
                   role="button" tabIndex={0}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sendContactCard(c); } }}>
-                  <Avatar src={c.avatar} name={c.remark || c.username} size={40} style={{ borderRadius: 'var(--radius-sm)' }} />
+                  <Avatar src={c.avatar} name={c.remark || c.username} size='md' style={{ borderRadius: 'var(--radius-sm)' }} />
                   <div className="wc-card-picker-item-info">
                     <div className="wc-card-picker-item-name">{c.remark || c.username}</div>
                     {c.wechat_id && <div className="wc-card-picker-item-wechat">{t('contacts.touliaoIdTemplate').replace('{id}', c.wechat_id)}</div>}
@@ -2707,13 +2714,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {/* ── 转发弹窗（单条）── */}
       {forwardMsg && (
         <Suspense fallback={null}>
-        <ForwardModal message={forwardMsg} onClose={() => setForwardMsg(null)} />
+        <ForwardModal message={forwardMsg} sourceConversationName={conversation.name} onClose={() => setForwardMsg(null)} />
         </Suspense>
       )}
       {/* ── 转发弹窗（多条逐条转发）── */}
       {forwardMsgs && (
         <Suspense fallback={null}>
-        <ForwardModal messages={forwardMsgs} onClose={() => setForwardMsgs(null)} />
+        <ForwardModal messages={forwardMsgs} sourceConversationName={conversation.name} onClose={() => setForwardMsgs(null)} />
         </Suspense>
       )}
 
@@ -2819,9 +2826,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                 }
               } },
               { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/></svg>, label:t('chat.file'), action:()=>fileInputRef.current?.click() },
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>, label:t('chat.videoCall'), testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
+              { bg:'var(--icon-bg-neutral)', svg:<IcoVideo style={{width:24,height:24,fill:'var(--text-inverse)'}} />, label:t('chat.videoCall'), testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
               { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:t('chat.voiceCall'), testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>, label:t('chat.contactCard'), action: openCardPicker },
+              { bg:'var(--icon-bg-neutral)', svg:<IcoContacts style={{width:24,height:24,fill:'var(--text-inverse)'}} />, label:t('chat.contactCard'), action: openCardPicker },
               // 定时发送：把输入框当前文本设为定时消息，到点自动发出
               { bg:'var(--color-primary)', testid:'chat-schedule-btn', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>, label:t('chat.scheduleSend'), action: () => { closePanels(); openScheduleModal(); } },
               // 对端账号已注销（管理员删号后，服务端 listConversations 返回 otherUser: null）
@@ -2833,10 +2840,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                 { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>, label:t('chat.transfer'), action: () => { setShowTransfer(true); closePanels(); } },
               ] : []),
             ].map(item => (
-              <div key={item.label} data-testid={item.testid} className="wc-more-item" role="button" tabIndex={0} onClick={item.action} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.action(); } }}>
+              <button type="button" key={item.label} data-testid={item.testid} className="wc-more-item" onClick={item.action} aria-label={item.label}>
                 <div className="wc-more-icon" style={{ background: item.bg }}>{item.svg}</div>
                 <span className="wc-more-label">{item.label}</span>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -2871,7 +2878,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                         className={`wc-at-list-item${i === atIndex ? ' active' : ''}`}
                         role="option" aria-selected={i === atIndex}
                         onMouseDown={e => { e.preventDefault(); insertAtMention(m); }}>
-                        <Avatar src={m.avatar} name={m.username} size={22} />
+                        <Avatar src={m.avatar} name={m.username} size='micro' />
                         <span>{m.username}</span>
                       </div>
                     ))}
@@ -2953,8 +2960,16 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             </div>
           )}
           <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('reply'); } }}>{t('chat.reply')}</div>
-          {/* 转发：所有类型消息都可转发 */}
-          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>{t('chat.forward')}</div>
+          {isForwardableMessage(ctxMenu.msg) && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>{t('chat.forward')}</div>
+          )}
+          {/* 多选：进入批量选择模式（MultiSelectBar），非发送中消息均可作为起点 */}
+          {!ctxMenu.msg._tempId && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-multiselect" onClick={() => ctxAction('multiselect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('multiselect'); } }}>{t('chat.multiSelect')}</div>
+          )}
+          {canViewReadStatus(ctxMenu.msg, user.id) && (
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-read-status" onClick={() => ctxAction('readStatus')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('readStatus'); } }}>{t('readStatus.menuItem')}</div>
+          )}
           {/* 收藏：文字/图片/视频/文件消息可收藏到「我的收藏」 */}
           {!ctxMenu.msg.deleted && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>{t('chat.collect')}</div>
@@ -2991,10 +3006,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             ctxMenu.msg.sender_id === user.id ||
             (conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin'))
           ) && (
-            <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}>{t('chat.recall')}</div>
+            <>
+              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}>{t('chat.recall')}</div>
+              {/* 删除：彻底删除，双方都不可见（原「仅自己删除」语义已改为复用 vanish，与撤回同权限） */}
+              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-everyone" onClick={() => ctxAction('vanish')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('vanish'); } }}>{t('chat.delete')}</div>
+            </>
           )}
-          {/* 删除：所有消息均可删除，仅对当前账号生效（per-user tombstone，UI 无痕，不影响对方） */}
-          <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-me" onClick={() => ctxAction('deleteForMe')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('deleteForMe'); } }}>{t('chat.delete')}</div>
         </CtxMenuPortal>,
         document.body
       )}
@@ -3015,6 +3032,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           onClose={() => setShowTransfer(false)}
           onSent={() => {}}
         />
+        </Suspense>
+      )}
+      {readStatus && (
+        <Suspense fallback={null}>
+          <ReadStatusModal
+            state={readStatus}
+            conversation={conversation}
+            members={members}
+            currentUserId={user.id}
+            onClose={() => setReadStatus(null)}
+            onRetry={loadReadStatus}
+          />
         </Suspense>
       )}
 

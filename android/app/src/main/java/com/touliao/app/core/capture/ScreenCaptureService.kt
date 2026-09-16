@@ -92,7 +92,7 @@ class ScreenCaptureService : Service() {
             setTextColor(0xFFFFFFFF.toInt())
             textSize = 14f
             gravity = Gravity.CENTER
-            setBackgroundColor(0xCC07C160.toInt())
+            setBackgroundColor(0xCC6D5AE6.toInt())
             setPadding(28, 28, 28, 28)
         }
         val container = FrameLayout(this).apply { addView(ball) }

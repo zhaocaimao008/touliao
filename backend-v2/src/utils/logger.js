@@ -104,7 +104,7 @@ function requestLogger(req, res, next) {
     logger[logLevel]('HTTP Request', {
       requestId: req.id,
       method: req.method,
-      path: req.path,
+      path: req.originalUrl.split('?')[0],
       query: redactQuery(req.query),
       status: res.statusCode,
       duration: `${duration}ms`,

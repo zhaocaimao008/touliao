@@ -18,6 +18,7 @@ data class Conversation(
     val unreadCount: Int = 0,
     val pinned: Int = 0,
     val muted: Int = 0,
+    val archived: Int = 0,                  // 已归档（1=是，会话在归档列表显示；后端 conversation_settings.archived）
     val background: String = "",            // 聊天专属背景图（空=无）
     @kotlinx.serialization.SerialName("burn_after")
     val burnAfter: Int = 0,                 // 阅后即焚秒数（0=关闭）
@@ -43,6 +44,10 @@ data class PinConversationBody(val pinned: Int)
 
 @Serializable
 data class MuteConversationBody(val muted: Int)
+
+/** 会话归档/取消归档（archived=true 归档，会话从主列表移入归档列表） */
+@Serializable
+data class ArchiveConversationBody(val archived: Boolean)
 
 /** 阅后即焚：seconds=0 关闭 */
 @Serializable
@@ -166,6 +171,18 @@ data class EditMessageBody(val content: String)
 @Serializable
 data class ForwardBody(val msgId: String, val conversationIds: List<String>)
 
+/**
+ * HTTP 发消息（POST /api/messages/:conversationId）请求体。
+ * 后端 ALLOWED_HTTP_TYPES = text | contact_card | merged —— 文本常规走 socket，
+ * 这里只为 merged（合并转发，content 为透传 JSON）等 HTTP-only 类型使用。
+ */
+@Serializable
+data class SendMessageBody(
+    val content: String,
+    val type: String = "text",
+    @kotlinx.serialization.SerialName("reply_to_id") val replyToId: String? = null,
+)
+
 @Serializable
 data class BatchDeleteBody(val msgIds: List<String>, val conversationId: String)
 
@@ -245,4 +262,16 @@ data class ConversationFile(
 data class ConversationFilesResponse(
     val items: List<ConversationFile> = emptyList(),
     val total: Int = 0,
+)
+
+// ── F4b: 消息已读状态详情 ─────────────────────────────────────────────────────
+
+/**
+ * 会话内消息已读状态 —— GET /api/messages/conversation/:convId/read-states?msgIds=a,b,c
+ * readStates: msgId → 已读用户 id 列表（后端保证不含发送者本人；
+ * 私聊=对方 message_reads/last_read_at 判定，群=成员会话级已读水位判定）。
+ */
+@Serializable
+data class ReadStatesResponse(
+    val readStates: Map<String, List<String>> = emptyMap(),
 )

@@ -17,13 +17,14 @@ final class AuthRepository {
     }
 
     func login(phone: String, password: String, captchaId: String? = nil, captchaText: String? = nil) async throws -> User {
+        let credential = KeychainStore.shared.snapshot()
         let res: AuthResponse = try await api.send(
             "api/auth/login", method: "POST",
             body: LoginBody(phone: phone.trimmingCharacters(in: .whitespaces), password: password,
                              captchaId: captchaId, captchaText: captchaText),
             authorized: false
         )
-        applyAuth(res)
+        guard applyAuth(res, expected: credential) else { throw CancellationError() }
         return res.user
     }
 
@@ -32,12 +33,16 @@ final class AuthRepository {
         try await api.send("api/auth/captcha", authorized: false)
     }
 
-    private func applyAuth(_ res: AuthResponse) {
-        KeychainStore.shared.token = res.token   // active token
-        AccountStore.shared.upsertActive(StoredAccount(id: res.user.id, username: res.user.username, avatar: res.user.avatar, token: res.token))
+    private func applyAuth(_ res: AuthResponse, expected: KeychainStore.Snapshot) -> Bool {
+        KeychainStore.shared.withCurrent(expected) {
+            KeychainStore.shared.beginIdentityChange()
+            KeychainStore.shared.token = res.token
+            AccountStore.shared.upsertActive(StoredAccount(id: res.user.id, username: res.user.username, avatar: res.user.avatar, token: res.token))
+        }
     }
 
     func register(phone: String, password: String, username: String, inviteCode: String) async throws -> User {
+        let credential = KeychainStore.shared.snapshot()
         let res: AuthResponse = try await api.send(
             "api/auth/register", method: "POST",
             body: RegisterBody(
@@ -48,7 +53,7 @@ final class AuthRepository {
             ),
             authorized: false
         )
-        applyAuth(res)
+        guard applyAuth(res, expected: credential) else { throw CancellationError() }
         return res.user
     }
 
@@ -71,9 +76,15 @@ final class AuthRepository {
         return try? await api.send("api/auth/me")
     }
 
-    func logout() async {
+    func logout() async -> KeychainStore.Snapshot? {
+        let credential = KeychainStore.shared.snapshot()
         let _: EmptyResponse? = try? await api.send("api/auth/logout", method: "POST")
-        if let active = AccountStore.shared.activeId() { AccountStore.shared.remove(active) }
-        KeychainStore.shared.clear()
+        var marker: KeychainStore.Snapshot?
+        KeychainStore.shared.withCurrent(credential) {
+            if let active = AccountStore.shared.activeId() { AccountStore.shared.remove(active) }
+            KeychainStore.shared.clear()
+            marker = KeychainStore.shared.snapshot()
+        }
+        return marker
     }
 }

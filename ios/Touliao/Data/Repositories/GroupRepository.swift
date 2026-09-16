@@ -97,6 +97,12 @@ final class GroupRepository {
         try await api.send("api/messages/conversation/\(conversationId)/qr-code")
     }
 
+    /// 生成/复用群邀请链接（F5）：有效期内同群复用同一 token。普通成员需群开启 member_can_invite
+    /// （后端 createInviteLink 校验，权限不足抛 403）。原生侧只负责复制/分享，不做 /join 深链。
+    func createInviteLink(_ conversationId: String) async throws -> GroupInviteLink {
+        try await api.send("api/messages/conversation/\(conversationId)/invite-link", method: "POST")
+    }
+
     func join(token: String) async throws -> JoinGroupResult {
         try await api.send("api/messages/join/\(token)", method: "POST")
     }

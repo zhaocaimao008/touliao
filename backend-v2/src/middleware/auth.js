@@ -11,8 +11,7 @@ const jwt = require('jsonwebtoken');
 const config = require('../config');
 const { csrfCookieOptions } = require('../utils/cookies');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
-const { readDb } = require('../db/connection');
-const { getUserStatus, setUserStatus } = require('../utils/userStatusCache');
+const { userAuthorizationError } = require('../utils/userAuthorization');
 
 module.exports = async function auth(req, res, next) {
   // Cookie first (web); fall back to Bearer header (Electron desktop)
@@ -38,32 +37,8 @@ module.exports = async function auth(req, res, next) {
 
     try {
       const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
-      // A004: 会话被删（deleteSession）后，该会话签发的 JWT 即使未过期也立即失效。
-      // 删除会话时已将 `jti:<sessionId>` 加入黑名单，此处按 jti 精确拦截。
-      if (payload.jti) {
-        const jtiBlacklisted = await isBlacklisted(`jti:${payload.jti}`);
-        if (jtiBlacklisted) {
-          res.clearCookie(config.cookieName, { path: '/' });
-          return res.status(401).json({ error: '该会话已失效，请重新登录' });
-        }
-      }
-      // 校验账号状态：封禁即拒（与 socket 握手一致），及 token 是否早于密码修改时间。
-      // 优先命中进程内缓存（30s TTL），未命中才查 DB 并回填缓存。
-      if (payload.id) {
-        let row = getUserStatus(payload.id);
-        if (!row) {
-          row = readDb.prepare('SELECT banned, password_changed_at FROM users WHERE id=?').get(payload.id);
-          if (row) setUserStatus(payload.id, row.banned, row.password_changed_at);
-        }
-        if (row?.banned) {
-          res.clearCookie(config.cookieName, { path: '/' });
-          return res.status(403).json({ error: '账号已被封禁' });
-        }
-        if (payload.iat && row?.password_changed_at && payload.iat < row.password_changed_at) {
-          res.clearCookie(config.cookieName, { path: '/' });
-          return res.status(401).json({ error: '密码已修改，请重新登录' });
-        }
-      }
+      const denied = await userAuthorizationError(payload);
+      if (denied) return res.status(denied.status).json({ error: denied.error });
       req.user = payload;
       req.token = token;  // 保存 token 供 logout 使用
       req.csrfToken = req.user.csrf;
@@ -71,13 +46,11 @@ module.exports = async function auth(req, res, next) {
       res.setHeader('X-CSRF-Token', req.csrfToken);
       next();
     } catch {
-      res.clearCookie(config.cookieName, { path: '/' });
       return res.status(401).json({ error: 'Token无效或已过期' });
     }
   } catch (err) {
     console.error('[Auth] Blacklist check error:', err);
     // ⚠ 不降级放行，拒绝请求（H2）
-    res.clearCookie(config.cookieName, { path: '/' });
     return res.status(503).json({ error: '认证服务暂时不可用，请稍后再试' });
   }
 };

@@ -22,6 +22,26 @@ export function matchesCall(event, activeCall) {
 }
 
 /**
+ * Match a terminal event. A resume against an in-memory session lost during a
+ * server restart intentionally has no peer (`from`), so it is accepted only
+ * when both sides carry the same non-empty callId. All ordinary terminals keep
+ * the existing peer + callId rules.
+ */
+export function matchesCallEnd(event, activeCall) {
+  if (event?.reason === 'server_restarted') {
+    return Boolean(event.callId && activeCall?.callId && event.callId === activeCall.callId);
+  }
+  return matchesCall(event, activeCall);
+}
+
+/** Match a group-call start acknowledgement to the component instance that
+ * emitted it. New clients deliberately require the echoed requestId; an old
+ * delayed acknowledgement with no correlation must not claim a new modal. */
+export function matchesGroupStartAttempt(event, activeRequestId) {
+  return Boolean(activeRequestId && event?.requestId === activeRequestId);
+}
+
+/**
  * 给一个信令 payload 补上 callId 字段（call:request 之后的所有事件都要带）。
  * callId 为空/未知时原样返回，不写入 undefined/null 字段污染 payload。
  *

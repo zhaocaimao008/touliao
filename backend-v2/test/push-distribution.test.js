@@ -56,11 +56,12 @@ const KNOWN_PLATFORMS = ['android', 'ios', 'ios_apns', 'ios_voip', 'getui'];
 const ALL_PLATFORMS = [...KNOWN_PLATFORMS];
 
 function insertToken(userId, platform, token) {
+  const sessionId = db.prepare('SELECT id FROM auth_sessions WHERE user_id=? LIMIT 1').get(userId).id;
   db.prepare(
-    'INSERT INTO device_tokens (id, user_id, token, platform, created_at) VALUES (?,?,?,?,?)'
+    'INSERT INTO device_tokens (id, user_id, token, platform, created_at, session_id) VALUES (?,?,?,?,?,?)'
   ).run(
     `${userId}-${platform}-${Math.random().toString(36).slice(2, 10)}`, userId, token, platform,
-    Math.floor(Date.now() / 1000)
+    Math.floor(Date.now() / 1000), sessionId
   );
 }
 function cleanTokens() {

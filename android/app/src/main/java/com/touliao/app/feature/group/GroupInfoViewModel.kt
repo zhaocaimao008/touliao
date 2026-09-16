@@ -28,6 +28,11 @@ data class GroupInfoUiState(
     val updating: Boolean = false,        // 群公告 / 我的群昵称 保存中
     val uploadingAvatar: Boolean = false,
     val left: Boolean = false,      // 已退群/被移出 → UI 关闭返回
+    // F4a 群邀请链接：生成中 / 待复制的链接（Screen 消费后清空）
+    val copyingInviteLink: Boolean = false,
+    val inviteLink: String? = null,
+    // F4a 群主转让成功提示（绿色展示，区别于 error）
+    val notice: String? = null,
     val error: String? = null,
 )
 
@@ -48,6 +53,10 @@ class GroupInfoViewModel @Inject constructor(
 
     /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻 */
     fun consumeError() = _uiState.update { it.copy(error = null) }
+
+    /** 一次性成功提示/待复制链接消费 */
+    fun consumeNotice() = _uiState.update { it.copy(notice = null) }
+    fun consumeInviteLink() = _uiState.update { it.copy(inviteLink = null) }
 
     fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
@@ -146,8 +155,30 @@ class GroupInfoViewModel @Inject constructor(
     fun transferOwner(member: GroupMember) {
         viewModelScope.launch {
             runCatching { groupRepository.transferOwner(conversationId, member.id) }
-                .onSuccess { refresh() }   // 我已变普通成员，重新拉取刷新权限
+                .onSuccess {
+                    // 后端语义：原群主转让后变为管理员（role_changed 广播 'admin'）
+                    _uiState.update { it.copy(notice = "群主已转让给「${member.displayName.ifBlank { "该成员" }}」，你已成为管理员") }
+                    refresh()   // 角色变化，重新拉取刷新权限按钮显隐
+                }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("转让群主失败")) } }
+        }
+    }
+
+    /** F4a 群邀请链接：POST invite-link 拿 URL，Screen 消费后写剪贴板 */
+    fun copyInviteLink() {
+        if (_uiState.value.copyingInviteLink) return
+        _uiState.update { it.copy(copyingInviteLink = true, error = null) }
+        viewModelScope.launch {
+            runCatching { groupRepository.createInviteLink(conversationId) }
+                .onSuccess { link ->
+                    val url = link.url.ifBlank { link.link }
+                    if (url.isBlank()) {
+                        _uiState.update { it.copy(copyingInviteLink = false, error = "邀请链接生成失败") }
+                    } else {
+                        _uiState.update { it.copy(copyingInviteLink = false, inviteLink = url) }
+                    }
+                }
+                .onFailure { e -> _uiState.update { it.copy(copyingInviteLink = false, error = e.toUserMessage("生成邀请链接失败")) } }
         }
     }
 

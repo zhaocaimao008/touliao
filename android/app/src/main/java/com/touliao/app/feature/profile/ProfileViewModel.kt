@@ -127,14 +127,18 @@ class ProfileViewModel @Inject constructor(
     /** 修改密码：原密码 + 新密码。后端改密后旧 token 立即失效，用响应里的新 token 覆盖本地。 */
     fun changePassword(oldPassword: String, newPassword: String) {
         if (_uiState.value.changingPassword) return
+        val credential = sessionManager.credentialSnapshot()
         _uiState.update { it.copy(changingPassword = true, message = null) }
         viewModelScope.launch {
+            if (!sessionManager.isCredentialCurrent(credential)) return@launch
             runCatching { profileRepository.changePassword(oldPassword, newPassword) }
                 .onSuccess { token ->
-                    token?.let { sessionManager.applyNewToken(it) }
+                    if (token != null) {
+                        if (!sessionManager.applyNewToken(token, credential)) return@onSuccess
+                    } else if (!sessionManager.isCredentialCurrent(credential)) return@onSuccess
                     _uiState.update { it.copy(changingPassword = false, message = "密码已修改") }
                 }
-                .onFailure { e -> _uiState.update { it.copy(changingPassword = false, message = e.toUserMessage("修改失败")) } }
+                .onFailure { e -> if (sessionManager.isCredentialCurrent(credential)) _uiState.update { it.copy(changingPassword = false, message = e.toUserMessage("修改失败")) } }
         }
     }
 

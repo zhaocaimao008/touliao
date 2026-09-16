@@ -67,8 +67,8 @@ export default function ElectronTitlebar() {
     >
       <span style={{
         flex: 1, paddingLeft: 56, fontSize: 'var(--text-sm)',
-        color: 'var(--titlebar-title)', letterSpacing: 1,
-      }}>{t('common.appName')}</span>
+        color: 'var(--titlebar-title)', letterSpacing: 0,
+      }}>{t('common.appName')} - 账号窗口 {window.__ELECTRON_CONFIG__?.profile || 1}</span>
 
       <div style={{
         display: 'flex', height: '100%',

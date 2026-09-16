@@ -16,6 +16,7 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
     var background: String = ""           // 聊天专属背景图（空=无）
     var burnAfter: Int = 0                // 阅后即焚秒数（0=关闭）
     var manuallyUnread: Int = 0           // 手动标为未读（1=是）
+    var archived: Int = 0                 // 会话归档（1=已归档，仅本人维度，F5）
     var otherUser: OtherUser?             // 私聊对端信息(后端 listConversations 返回);通话/资料取对端 id 用
     var hasMention: Bool = false          // 有未读的@我(后端按 last_read_at 派生);读后随刷新消失
 
@@ -31,7 +32,7 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, type, name, avatar
         case lastMessage, lastMessageType, lastTime, lastSenderName
-        case unreadCount, pinned, muted, background, otherUser, hasMention
+        case unreadCount, pinned, muted, background, otherUser, hasMention, archived
         case burnAfter = "burn_after"
         case manuallyUnread = "manually_unread"
     }
@@ -60,6 +61,7 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
         background = (try? c.decode(String.self, forKey: .background)) ?? ""
         burnAfter = (try? c.decode(Int.self, forKey: .burnAfter)) ?? 0
         manuallyUnread = (try? c.decode(Int.self, forKey: .manuallyUnread)) ?? 0
+        archived = (try? c.decode(Int.self, forKey: .archived)) ?? 0
         otherUser = try? c.decode(OtherUser.self, forKey: .otherUser)
         hasMention = (try? c.decode(Bool.self, forKey: .hasMention)) ?? false
     }

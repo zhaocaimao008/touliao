@@ -40,6 +40,7 @@ self.addEventListener('fetch', (e) => {
 
   // 1. API：跳过（实时数据），仅 /api/config 做 stale-while-revalidate
   if (path.startsWith('/api/')) {
+    if (request.headers.get('X-Touliao-Session') === 'isolated') return;
     if (path === '/api/config') {
       e.respondWith(staleWhileRevalidate(request, 'touliao-api-v1', 300));
     }
@@ -122,73 +123,5 @@ async function staleWhileRevalidate(request, cacheName, maxAge = 300) {
   return doRevalidate() || new Response('{}', { headers: { 'Content-Type': 'application/json' } });
 }
 
-// ── Push 推送 ────────────────────────────────────────────────────
-self.addEventListener('push', (e) => {
-  let payload = { title: '投聊新消息', body: '你有一条新消息' };
-  if (e.data) {
-    try { payload = e.data.json(); }
-    catch { payload = { title: '投聊', body: e.data.text() }; }
-  }
-
-  const title   = payload.senderName || payload.title || '投聊新消息';
-  const options = {
-    body:      payload.body || '',
-    icon:      '/icon.png',
-    badge:     '/icon.png',
-    tag:       `touliao-conv-${payload.conversationId || 'default'}`,
-    renotify:  true,
-    silent:    false,
-    vibrate:   [200, 100, 200],
-    timestamp: payload.timestamp ? payload.timestamp * 1000 : Date.now(),
-    data: {
-      conversationId: payload.conversationId || '',
-      senderId:       payload.senderId       || '',
-      url:            '/',
-    },
-    actions: [
-      { action: 'reply',   title: '回复' },
-      { action: 'dismiss', title: '忽略' },
-    ],
-  };
-
-  e.waitUntil(self.registration.showNotification(title, options));
-});
-
-// ── 通知点击：跳转到对应会话 ─────────────────────────────────────
-self.addEventListener('notificationclick', (e) => {
-  e.notification.close();
-  if (e.action === 'dismiss') return;
-
-  const { conversationId, url } = e.notification.data || {};
-
-  e.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) {
-        if (w.url.startsWith(self.location.origin)) {
-          w.focus();
-          if (conversationId) {
-            w.postMessage({ type: 'openConversation', conversationId });
-          }
-          return;
-        }
-      }
-      return clients.openWindow(url || '/');
-    })
-  );
-});
-
-// ── 订阅过期自动续期 ─────────────────────────────────────────────
-self.addEventListener('pushsubscriptionchange', (e) => {
-  e.waitUntil(
-    self.registration.pushManager
-      .subscribe(e.oldSubscription.options)
-      .then((sub) =>
-        fetch('/api/notifications/web-subscribe', {
-          method:      'POST',
-          headers:     { 'Content-Type': 'application/json' },
-          body:        JSON.stringify({ subscription: sub }),
-          credentials: 'include',
-        })
-      )
-  );
-});
+// Legacy root subscriptions use the same account-aware click handling.
+importScripts('/push-sw.js');

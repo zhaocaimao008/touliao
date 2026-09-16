@@ -104,6 +104,7 @@ router.get ('/file-helper',          auth, conv.fileHelper);
  *       200:
  *         description: List of conversations
  */
+// ?includeArchived=1 时列表包含已归档会话（默认排除，向后兼容）
 router.get ('/conversations',        auth, conv.list);
 
 /**
@@ -646,6 +647,12 @@ router.post  ('/conversation/:convId/background-upload', auth, ...msg.bgUploadMi
 router.post  ('/conversation/:convId/read',       auth, conv.read);
 router.post  ('/conversation/:convId/mark-unread', auth, conv.markUnread);
 router.post  ('/conversation/:convId/burn-after',  auth, conv.setBurnAfter);
+
+// 会话内批量已读状态查询（msgIds 逗号分隔，最多 100 个）
+router.get   ('/conversation/:convId/read-states', auth, msg.readStates);
+
+// 会话归档：{ archived: true|false }
+router.post  ('/conversation/:convId/archive',     auth, conv.archive);
 
 /**
  * @swagger

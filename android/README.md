@@ -27,6 +27,20 @@ echo "sdk.dir=/path/to/android-sdk" > local.properties
 ./gradlew :app:installDebug
 ```
 
+## 无真实 Firebase 配置的 JVM 单测
+
+仅在隔离开发/CI 工作区使用。需要上述 JDK/SDK 和已下载的 Gradle/依赖缓存：
+
+```bash
+./gradlew --offline --no-daemon --init-script gradle/offline-unit-tests.init.gradle testDebugUnitTest
+```
+
+显式入口为真实 `processDebugGoogleServices` 任务提供 `test-fixtures/google-services.offline.json` 的合成输入，仍执行包名检查、资源生成、应用/测试编译和全部 JVM 用例；不关闭任务或跳过检查。占位 `current_key` 不可认证，不是 Firebase 密钥，不要替换为真实凭据。
+
+该入口只允许 `testDebugUnitTest`（或 `:app:testDebugUnitTest`），拒绝其他任务和排除任务参数。正常 APK/安装/发布构建不会自动使用它，仍需各自合法配置。不要使用本夹具打包或安装应用。
+
+`--offline` 只约束 Gradle 依赖解析，不是测试进程的网络沙箱。运行环境仍须隔离网络、存储、账号和环境变量；不要给本地/CI 测试注入生产凭据。JVM 通过不能证明 Firebase、真机通话、系统权限或推送通过。
+
 ## 服务器地址
 默认地址在 `app/build.gradle.kts` 的 `DEFAULT_SERVER_URL`。
 登录页「切换服务器」可运行时修改并持久化(由 `HostSelectionInterceptor` 动态改写,无需重建 Retrofit)。

@@ -6,6 +6,9 @@ struct SearchResult: Decodable, Identifiable, Hashable {
     var conversationId: String = ""
     var senderId: String = ""
     var content: String = ""
+    /// 消息类型（F5 搜索筛选）：text/image/voice/video/file/contact_card/red_packet/transfer/merged/call，
+    /// 后端 searchGlobal SELECT m.type 原样返回；结果行图标与按类型摘要依赖它
+    var type: String = "text"
     var createdAt: Double = 0
     var senderName: String = ""
     var convName: String = ""
@@ -14,7 +17,7 @@ struct SearchResult: Decodable, Identifiable, Hashable {
     var otherUserId: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, content, senderName, convName, convType, otherUser
+        case id, content, type, senderName, convName, convType, otherUser
         case conversationId = "conversation_id"
         case senderId = "sender_id"
         case createdAt = "created_at"
@@ -28,6 +31,7 @@ struct SearchResult: Decodable, Identifiable, Hashable {
         conversationId = (try? c.decode(String.self, forKey: .conversationId)) ?? ""
         senderId = (try? c.decode(String.self, forKey: .senderId)) ?? ""
         content = (try? c.decode(String.self, forKey: .content)) ?? ""
+        type = (try? c.decode(String.self, forKey: .type)) ?? "text"
         createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
         senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
         convName = (try? c.decode(String.self, forKey: .convName)) ?? ""

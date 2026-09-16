@@ -24,10 +24,11 @@ class ChatMessageMergeTest {
         cid: String? = null,
         local: String? = null,
         createdAt: Long = 0,
+        deleted: Int = 0,
     ) = Message(
         id = id, conversation_id = "c1", sender_id = "u1", content = id,
         created_at = createdAt, server_sequence = seq,
-        clientMsgId = cid, localStatus = local,
+        clientMsgId = cid, localStatus = local, deleted = deleted,
     )
 
     private fun createdEvent(seq: Long, m: Message) = ConversationEvent(
@@ -103,5 +104,30 @@ class ChatMessageMergeTest {
 
         // 红（现状）：替换后 [m1(1), m2(3), r2(2)] —— 真实序 [1,3,2] 永续乱序（catchUp 同 id 就地更新也不修）
         assertRealSeqAscending(result)
+    }
+
+    // ── Q04 双向清空回归 ────────────────────────────────────────
+    // clearConversation 现在真的置空消息(deleted=2)，不再是仅隐藏操作者的 per-user
+    // watermark。离线设备补拉到清空之前的 message_created 事件时，join 到的是清空后的
+    // 当前行(deleted=2/content='')——绝不能当"新消息"插回来，否则原文在离线设备上复活。
+    @Test
+    fun droppedMessageCreatedForAlreadyClearedRowIsNotResurrected() {
+        val a = msg("a", 1, createdAt = 100)
+        val bCleared = msg("b", 2, createdAt = 200, deleted = 2)
+
+        val result = applySyncEvents(emptyList(), listOf(createdEvent(1, a), createdEvent(2, bCleared)))
+
+        assertEquals(listOf("a"), result.map { it.id })
+    }
+
+    @Test
+    fun laterArrivingClearedMessageCreatedRemovesAnAlreadyPresentMessage() {
+        val a = msg("a", 1, createdAt = 100)
+        val current = listOf(a)
+        val aClearedLater = msg("a", 2, createdAt = 100, deleted = 2)
+
+        val result = applySyncEvents(current, listOf(createdEvent(2, aClearedLater)))
+
+        assertTrue("清空后不得残留该消息", result.isEmpty())
     }
 }

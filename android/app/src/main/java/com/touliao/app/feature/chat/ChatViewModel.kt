@@ -14,6 +14,10 @@ import com.touliao.app.core.push.NotificationHelper
 import com.touliao.app.core.util.MediaUrlResolver
 import com.touliao.app.data.model.LocalMsgStatus
 import com.touliao.app.data.model.Message
+import com.touliao.app.data.model.MERGED_FORWARD_MAX_ITEMS
+import com.touliao.app.data.model.buildMergedPayload
+import com.touliao.app.data.model.encodeToJson
+import com.touliao.app.data.model.isForwardableMessage
 import com.touliao.app.data.model.ReplyPreview
 import com.touliao.app.data.model.RedPacketContent
 import com.touliao.app.data.model.RedPacketDetail
@@ -95,7 +99,19 @@ data class ChatUiState(
     // ── 后台功能开关（群通话按钮显隐）默认开启，拉取失败不误伤 ──
     val groupVoiceCallEnabled: Boolean = true,
     val groupVideoCallEnabled: Boolean = true,
+    // ── 已读状态详情弹窗（F4b）：非 null 时聊天页展示 ReadStatusDialog ──
+    val readStatusDetail: ReadStatusDetail? = null,
     val error: String? = null,
+)
+
+/** 已读状态详情加载态（messageId 锁定，切换消息时旧响应不覆盖新弹窗） */
+data class ReadStatusDetail(
+    val messageId: String,
+    val loading: Boolean = false,
+    val error: Boolean = false,
+    val readUserIds: List<String> = emptyList(),
+    /** 触发弹窗的原消息（供失败重试重发 read-states 请求） */
+    val message: Message? = null,
 )
 
 @HiltViewModel
@@ -118,7 +134,9 @@ class ChatViewModel @Inject constructor(
     private val syncCursorStore: com.touliao.app.core.storage.SyncCursorStore,
     private val configApi: com.touliao.app.data.api.ConfigApi,
     private val notificationHelper: NotificationHelper,
-    sessionManager: SessionManager,
+    private val sessionManager: SessionManager,
+    private val tokenStore: com.touliao.app.core.storage.TokenStore,
+    private val serverConfig: com.touliao.app.core.storage.ServerConfig,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -129,9 +147,18 @@ class ChatViewModel @Inject constructor(
 
     val myId: String = (sessionManager.state.value as? AuthState.Authenticated)?.user?.id.orEmpty()
 
+    private val identityEpoch = tokenStore.snapshot().identityEpoch
+    private val outboxOwner = com.touliao.app.core.storage.OutboxOwner(serverConfig.baseUrl, myId)
+    private fun currentOwner() = tokenStore.snapshot().identityEpoch == identityEpoch &&
+        serverConfig.baseUrl == outboxOwner.server && sessionManager.currentUser?.id == myId
+    private fun captureAttempt() = tokenStore.snapshot().takeIf { currentOwner() && it.token != null }
+    private fun currentAttempt(credential: com.touliao.app.core.storage.TokenStore.Snapshot) =
+        currentOwner() && tokenStore.isCurrent(credential)
+
     // 进入会话即恢复上次未发送的草稿(对齐微信/Web)
     private val _uiState = MutableStateFlow(ChatUiState(title = title, loading = true, input = draftStore.get(conversationId)))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+    private val historyPagination = HistoryPaginationAction(chatRepository)
 
     /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻（错误与"已收藏/已转发"等成功提示共用 error 字段） */
     fun consumeError() = _uiState.update { it.copy(error = null) }
@@ -579,25 +606,16 @@ class ChatViewModel @Inject constructor(
     }
 
     fun vanish(msg: Message) {
-        viewModelScope.launch {
-            chatRepository.vanishMessage(msg.id)
-                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("删除失败")) } }
-        }
-        // 实时事件 message_vanished 驱动列表更新
-    }
-
-    /** 个人删除：仅当前账号生效（乐观移除 + 失败恢复 + 多设备经 message_deleted_for_me 同步） */
-    fun deleteForMe(msg: Message) {
-        val prev = _uiState.value.messages
+        val previous = _uiState.value.messages
         _uiState.update { it.copy(messages = removeMessageAndDetachReplies(it.messages, msg.id)) }
         viewModelScope.launch {
-            chatRepository.deleteForMeMessage(msg.id)
+            chatRepository.vanishMessage(msg.id)
                 .onSuccess { msgCacheStore.remove(conversationId, msg.id) }
                 .onFailure { e ->
-                    _uiState.update { s -> s.copy(messages = prev) }   // 失败恢复
-                    _uiState.update { s -> s.copy(error = e.toUserMessage("删除失败，请重试")) }
+                    _uiState.update { it.copy(messages = previous, error = e.toUserMessage("删除失败")) }
                 }
         }
+        // 实时事件 message_vanished 仍作为多端同步兜底。
     }
 
     fun react(msg: Message, emoji: String) {
@@ -763,7 +781,12 @@ class ChatViewModel @Inject constructor(
             runCatching { chatRepository.batchDelete(conversationId, ids) }
                 .onSuccess {
                     // 本端乐观移除(广播 messages_batch_deleted 亦会移除，幂等)
-                    _uiState.update { s -> s.copy(messages = s.messages.filterNot { it.id in ids }, multiSelect = false, selectedIds = emptySet()) }
+                    _uiState.update { s -> s.copy(
+                        messages = removeMessagesAndDetachReplies(s.messages, ids.toSet()),
+                        multiSelect = false,
+                        selectedIds = emptySet(),
+                    ) }
+                    ids.forEach { msgCacheStore.remove(conversationId, it) }
                 }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("批量删除失败")) } }
         }
@@ -775,6 +798,41 @@ class ChatViewModel @Inject constructor(
             runCatching { chatRepository.forward(msg.id, conversationIds) }
                 .onSuccess { _uiState.update { it.copy(error = "已转发") } }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("转发失败")) } }
+        }
+    }
+
+    /**
+     * 合并转发（F4a #2）：把多选消息组装成一条 type=merged、content=JSON 的消息
+     * 发到各目标会话（走 HTTP POST /api/messages/:id —— 后端 ALLOWED_HTTP_TYPES 含
+     * merged；不走 socket sendMessage，那是 text 专用）。红包/转账/系统消息被过滤，
+     * 超出 30 条截取前 30（对齐 Web buildMergedPayload）。
+     */
+    fun forwardMergedSelected(conversationIds: List<String>) {
+        if (conversationIds.isEmpty()) return
+        val s = _uiState.value
+        if (!s.multiSelect || s.selectedIds.isEmpty()) return
+        // 按列表顺序（即时间序）取选中的完整消息，再过滤可转发类型
+        val forwardable = s.messages.filter { it.id in s.selectedIds }.filter(::isForwardableMessage)
+        if (forwardable.isEmpty()) {
+            showToast("所选消息不支持合并转发")
+            return
+        }
+        if (forwardable.size > MERGED_FORWARD_MAX_ITEMS) {
+            showToast("最多合并 $MERGED_FORWARD_MAX_ITEMS 条，已截取前 $MERGED_FORWARD_MAX_ITEMS 条")
+        }
+        val payload = buildMergedPayload(forwardable, "")
+        val mergedTitle = if (title.isNotBlank()) "${title}的聊天记录" else "${payload.items.size}条聊天记录"
+        val contentJson = payload.copy(title = mergedTitle).encodeToJson()
+        viewModelScope.launch {
+            val results = conversationIds.map { cid -> runCatching { chatRepository.sendMerged(cid, contentJson) } }
+            val ok = results.count { it.isSuccess }
+            val fail = results.size - ok
+            val message = when {
+                fail == 0 -> "已合并转发到 $ok 个会话"
+                ok > 0 -> "部分成功：已转发 $ok 个、失败 $fail 个"
+                else -> results.firstNotNullOfOrNull { r -> r.exceptionOrNull() }?.toUserMessage("合并转发失败") ?: "合并转发失败"
+            }
+            _uiState.update { it.copy(multiSelect = false, selectedIds = emptySet(), error = message) }
         }
     }
 
@@ -798,10 +856,10 @@ class ChatViewModel @Inject constructor(
      * 阅后即焚会话不读缓存（该会话本就不落盘，双保险）；已存在 outbox 待发消息也一并合并。
      */
     private fun primeFromCache() {
+        if (!currentOwner()) return;
         if (conversationId.isBlank() || uiBurnAfterEnabled()) return
         val cached = msgCacheStore.load(conversationId)
-        if (cached.isEmpty()) return
-        val pending = outboxStore.load(conversationId)
+        val pending = outboxStore.load(conversationId, outboxOwner)
         val merged = mergeServerWithPending(cached, pending)
         _uiState.update {
             // 已被 loadHistory 抢先填充则不覆盖（竞态保护）
@@ -811,6 +869,7 @@ class ChatViewModel @Inject constructor(
 
     /** 将当前「已确认历史消息」落盘为离线缓存（内部 normalize：去乐观/待发、去重、截断 50）。 */
     private fun persistCache(messages: List<Message>) {
+        if (!currentOwner()) return
         if (conversationId.isBlank()) return
         if (uiBurnAfterEnabled()) { msgCacheStore.clear(conversationId); return }  // 焚毁会话不落盘
         // save 内部 normalize 会剔除 clientMsgId/localStatus 的乐观/待发气泡。
@@ -820,15 +879,18 @@ class ChatViewModel @Inject constructor(
     private fun uiBurnAfterEnabled(): Boolean = _uiState.value.burnAfter > 0
 
     private fun loadHistory() {
+        val credential = captureAttempt() ?: return
         viewModelScope.launch {
+            if (!currentAttempt(credential)) return@launch
             runCatching { chatRepository.loadHistory(conversationId) }
                 .onSuccess { list ->
+                    if (!currentAttempt(credential)) return@onSuccess
                     // 合并本地待发件箱：上次发送失败且未成功的文本消息，切走/重启后仍在。
                     // 服务端可能已幂等落库(id==outbox 的 clientMsgId) → 已成功,剔除并清理。
                     val serverIds = list.mapTo(HashSet()) { it.id }
-                    val pending = outboxStore.load(conversationId)
+                    val pending = outboxStore.load(conversationId, outboxOwner)
                     val stillPending = pending.filter { it.id !in serverIds }
-                    pending.filterNot { it in stillPending }.forEach { outboxStore.remove(conversationId, it.id) }
+                    pending.filterNot { it in stillPending }.forEach { outboxStore.remove(conversationId, it.id, outboxOwner) }
                     val merged = mergeServerWithPending(list, stillPending)
                     _uiState.update { it.copy(loading = false, messages = merged, reachedStart = list.size < HISTORY_PAGE) }
                     if (syncCursorStore.load(myId, conversationId) == 0L) {
@@ -842,26 +904,20 @@ class ChatViewModel @Inject constructor(
                     markReadLatest()   // 打开会话即标记已读
                     healFailedMessages()   // 连线且有失败气泡 → 进会话自动重发一次
                 }
-                .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载消息失败")) } }
+                .onFailure { e -> if (currentAttempt(credential)) _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载消息失败")) } }
         }
     }
 
     /** 上滑加载更早消息（按最早一条的时间向前翻页） */
     fun loadEarlier() {
-        val s = _uiState.value
-        if (s.loadingEarlier || s.reachedStart || s.messages.isEmpty()) return
-        val before = s.messages.first().created_at
-        _uiState.update { it.copy(loadingEarlier = true) }
+        val credential = captureAttempt() ?: return
         viewModelScope.launch {
-            runCatching { chatRepository.loadHistory(conversationId, before = before) }
-                .onSuccess { older ->
-                    _uiState.update { st ->
-                        val existing = st.messages.map { it.id }.toSet()
-                        val merged = older.filterNot { it.id in existing } + st.messages
-                        st.copy(loadingEarlier = false, messages = merged, reachedStart = older.size < HISTORY_PAGE)
-                    }
-                }
-                .onFailure { _uiState.update { it.copy(loadingEarlier = false) } }
+            historyPagination.execute(
+                conversationId = conversationId,
+                state = { _uiState.value },
+                isCurrentAttempt = { currentAttempt(credential) },
+                updateState = { transform -> _uiState.update(transform) },
+            )
         }
     }
 
@@ -878,7 +934,7 @@ class ChatViewModel @Inject constructor(
     private fun observeIncoming() {
         viewModelScope.launch {
             chatRepository.incomingMessages.collect { msg ->
-                if (msg.conversation_id != conversationId) return@collect
+                if (!currentOwner() || msg.conversation_id != conversationId) return@collect
                 claimOrAppend(msg)
                 persistCache(_uiState.value.messages)   // 收到真实 socket 新消息 → 追加后落盘（截断 50）
                 // 仅在底部附近才即时标已读；看历史时留给「N 条新消息」提示，滚回底再标
@@ -893,10 +949,12 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             chatRepository.newMessageNotifyEvents.collect { ev ->
                 if (ev.conversationId != conversationId) return@collect
+                val credential = captureAttempt() ?: return@collect
                 viewModelScope.launch {
+                    if (!currentAttempt(credential)) return@launch
                     runCatching { chatRepository.loadHistory(conversationId, after = (ev.ts - 1).coerceAtLeast(0)) }
                         .onSuccess { inc ->
-                            if (inc.isEmpty()) return@onSuccess
+                            if (!currentAttempt(credential) || inc.isEmpty()) return@onSuccess
                             _uiState.update { st ->
                                 val existing = st.messages.map { it.id }.toSet()
                                 val new = inc.filterNot { it.id in existing }
@@ -923,11 +981,12 @@ class ChatViewModel @Inject constructor(
      * 关键：即便发送时 ack 丢失(乐观转 failed)，只要广播带回同一 client_msg_id，也能自愈为成功。
      */
     private fun claimOrAppend(msg: Message) {
+        if (!currentOwner()) return
         val cid = msg.clientMsgId
         // outbox 清理是副作用，保留在 VM 侧；合并语义（认领替换/去重/追加）在纯函数
-        if (cid != null && (_uiState.value.messages.any { it.clientMsgId == cid || it.id == cid })) {
+        if (msg.sender_id == myId && cid != null && (_uiState.value.messages.any { it.clientMsgId == cid || it.id == cid })) {
             val hit = _uiState.value.messages.first { it.clientMsgId == cid || it.id == cid }
-            outboxStore.remove(conversationId, hit.id)
+            outboxStore.remove(conversationId, hit.id, outboxOwner)
         }
         _uiState.update { state ->
             state.copy(messages = com.touliao.app.feature.chat.claimOrAppend(state.messages, msg))
@@ -959,6 +1018,7 @@ class ChatViewModel @Inject constructor(
     private var syncRequested = false
 
     private fun catchUp() {
+        val credential = captureAttempt() ?: return
         if (conversationId.isBlank() || myId.isBlank()) return
         if (syncRunning) { syncRequested = true; return }
         syncRunning = true
@@ -969,7 +1029,7 @@ class ChatViewModel @Inject constructor(
                 var cursor = syncCursorStore.load(myId, conversationId)
                 do {
                   val page = runCatching { chatRepository.sync(conversationId, cursor) }.getOrNull() ?: break
-                  if (page.next_cursor < cursor) break
+                  if (!currentAttempt(credential) || page.next_cursor < cursor) break
                   _uiState.update { state ->
                     // 2026-09-02 抽取：合并逻辑移入 ChatMessageMerge.applySyncEvents（纯函数）。
                     // 保持「当前有序数组 + 事件按序插入」语义与抽取前完全一致（含洞 A/B，
@@ -1017,6 +1077,54 @@ class ChatViewModel @Inject constructor(
         msg.sender_id == myId &&
             (msg.read || (_uiState.value.peerReadAt > 0 && msg.created_at <= _uiState.value.peerReadAt))
 
+    // ── 已读状态详情（F4b，长按菜单「已读状态」弹窗数据源）──────────────
+    /** 自己发送、非删除、非发送中的 text/image/file 消息才展示菜单项（与 Web 同口径） */
+    fun canViewMsgReadStatus(msg: Message): Boolean = canViewReadStatus(msg, myId)
+
+    fun openReadStatus(msg: Message) {
+        if (!canViewMsgReadStatus(msg)) return
+        _uiState.update { it.copy(readStatusDetail = ReadStatusDetail(msg.id, loading = true, message = msg)) }
+        viewModelScope.launch {
+            runCatching { chatRepository.readStates(conversationId, listOf(msg.id)) }
+                .onSuccess { states ->
+                    val ids = states[msg.id].orEmpty()
+                    _uiState.update { s ->
+                        val cur = s.readStatusDetail
+                        if (cur?.messageId == msg.id) s.copy(readStatusDetail = cur.copy(loading = false, readUserIds = ids)) else s
+                    }
+                }
+                .onFailure {
+                    _uiState.update { s ->
+                        val cur = s.readStatusDetail
+                        if (cur?.messageId == msg.id) s.copy(readStatusDetail = cur.copy(loading = false, error = true)) else s
+                    }
+                }
+        }
+    }
+
+    fun dismissReadStatus() = _uiState.update { it.copy(readStatusDetail = null) }
+
+    /** 弹窗内「重试」：对同一条消息重发 read-states 请求 */
+    fun retryReadStatus() {
+        _uiState.value.readStatusDetail?.message?.let { openReadStatus(it) }
+    }
+
+    /** 弹窗展示模型：私聊=对方已读/未读；群聊=已读 N/M + 已读成员名单 */
+    fun readStatusModel(detail: ReadStatusDetail): ReadStatusModel {
+        val peerId = savedPeerUserId.ifBlank {
+            _uiState.value.messages.firstOrNull { it.sender_id != myId }?.sender_id.orEmpty()
+        }
+        return buildReadStatusModel(
+            isGroup = isGroup,
+            members = _uiState.value.groupMembers,
+            currentUserId = myId,
+            senderId = myId,
+            readUserIds = detail.readUserIds,
+            peerId = peerId,
+            peerName = _uiState.value.title,
+        )
+    }
+
     private fun markReadLatest() {
         val last = _uiState.value.messages.lastOrNull() ?: return
         viewModelScope.launch { chatRepository.markRead(conversationId, last.id) }
@@ -1043,6 +1151,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun send() {
+        if (!currentOwner()) return
         val text = _uiState.value.input.trim()
         if (text.isEmpty()) return
         val replyId = _uiState.value.replyingTo?.id
@@ -1073,23 +1182,21 @@ class ChatViewModel @Inject constructor(
 
     /** 发送一条乐观消息并处理成功/失败落地；失败入待发件箱，可自动/手动重发。 */
     private fun dispatchSend(optimistic: Message) {
+        val credential = captureAttempt() ?: return
+        if (optimistic.sender_id != myId || optimistic.conversation_id != conversationId) return
         val cid = optimistic.clientMsgId ?: optimistic.id
-        // 标记为发送中（重发场景从 failed 回到 sending）
         replaceMessage(optimistic.id) { it.copy(localStatus = LocalMsgStatus.SENDING) }
         viewModelScope.launch {
-            chatRepository.sendText(optimistic.conversation_id, optimistic.content, optimistic.reply_to_id, cid)
-                .onSuccess { real ->
-                    outboxStore.remove(conversationId, optimistic.id)
-                    // 用真实消息替换乐观气泡（保留位置）；若真实消息已由广播先到，去重
+            sendOwnedText(optimistic, outboxOwner, credential, tokenStore, outboxStore,
+                send = { snapshot -> chatRepository.sendText(optimistic.conversation_id, optimistic.content, optimistic.reply_to_id, cid, snapshot) },
+                onSuccess = { real ->
                     _uiState.update { state ->
                         val withoutDup = state.messages.filterNot { it.id == real.id }
                         state.copy(messages = withoutDup.map { if (it.id == optimistic.id) real else it })
                     }
-                }
-                .onFailure {
-                    replaceMessage(optimistic.id) { it.copy(localStatus = LocalMsgStatus.FAILED) }
-                    outboxStore.upsert(conversationId, optimistic.copy(localStatus = LocalMsgStatus.FAILED))
-                }
+                },
+                onFailure = { replaceMessage(optimistic.id) { it.copy(localStatus = LocalMsgStatus.FAILED) } },
+            )
         }
     }
 
@@ -1112,6 +1219,7 @@ class ChatViewModel @Inject constructor(
      * @param announce 为 true 时轻量安抚一次（网络恢复场景），进会话静默不打扰（对齐 Web）。
      */
     private fun healFailedMessages(announce: Boolean = false) {
+        val credential = captureAttempt() ?: return
         if (chatRepository.socketStatus.value != com.touliao.app.core.realtime.SocketStatus.CONNECTED) return
         val failed = _uiState.value.messages.filter { it.localStatus == LocalMsgStatus.FAILED }
         if (failed.isEmpty()) return
@@ -1119,6 +1227,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             failed.forEachIndexed { i, m ->
                 delay(i * 120L)   // 错峰，避免瞬时突发
+                if (!currentAttempt(credential)) return@launch
                 val cur = _uiState.value.messages.firstOrNull { it.id == m.id }
                 if (cur?.localStatus == LocalMsgStatus.FAILED) dispatchSend(cur)
             }

@@ -1,12 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
-import { mediaUrl } from '../utils/url';
-import { matchesCall, withCallId } from '../utils/callSignaling';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
+import { matchesCall, matchesCallEnd, withCallId } from '../utils/callSignaling';
 import { installPrewarm, startRingback as toneRingback, stopTone, startIncomingTone, playConnectedTone } from '../utils/callTones';
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
+import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
+import {
+  currentCallMedia,
+  initializeCallMedia,
+  scheduleCurrentCallTimeout,
+  stopStream,
+} from '../utils/callLifecycle';
 import './CallModal.css';
+import { IcoVideo } from './Icons';
 
 // 页面首次交互即预热 AudioContext(autoplay 政策:创建/resume 需在手势栈内,
 // 见 callTones.js 头部说明)。sticky activation 后创建即 running,回铃音/来电
@@ -29,7 +37,8 @@ async function fetchIceConfig() {
   return FALLBACK_ICE;
 }
 
-const CALL_TIMEOUT_MS = 30000;
+// 未接听自动挂断: 与 iOS/Android 统一为 45s (2026-09-07 AUDIT 四端超时不一致项拍板)
+const CALL_TIMEOUT_MS = 45000;
 
 function useCallTimer(running) {
   const [sec, setSec] = useState(0);
@@ -154,6 +163,7 @@ function useFocusTrap(open) {
 
 /* ── 主组件 ── */
 export default function CallModal({ socket, call, onClose, onReplyMessage }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const { type, direction, remoteUser, remoteId, callId } = call;
   const isVideo = type === 'video';
@@ -182,6 +192,26 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const focusTrapRef = useFocusTrap(['calling', 'connecting', 'connected'].includes(status) || status === 'incoming');
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
+  // 只有真正发起或在本设备接听的实例拥有恢复权；同账号其它设备收到的 incoming
+  // 旁观界面在接听前不能借重连占用该通话。
+  const participatingRef = useRef(direction === 'outgoing');
+  const closedRef = useRef(false);
+  const mediaGenerationRef = useRef(0);
+  // Q06 全修：resume 现在必须证明持有绑定时后端签发的 resumeToken——光凭 callId+userId
+  // 不再够，否则同账号旁观设备能在断线宽限期内抢注这通电话。主叫在 call:request 的
+  // ack 里已经拿到（call.resumeToken）；被叫要等 accept 的 ack 才有，见 accept()。
+  const resumeTokenRef = useRef(call.resumeToken);
+
+  useEffect(() => {
+    if (!socket) return;
+    const resumeParticipatingCall = () => {
+      if (!closedRef.current && participatingRef.current && callId) {
+        socket.emit('call:resume', { callId, resumeToken: resumeTokenRef.current });
+      }
+    };
+    socket.on('connect', resumeParticipatingCall);
+    return () => socket.off('connect', resumeParticipatingCall);
+  }, [socket, callId]);
 
   const pcRef           = useRef(null);
   const localStreamRef  = useRef(null);
@@ -206,10 +236,48 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const ICE_RESTART_MAX         = 3;        // 最大重启次数,超限放弃(对称 NAT 无 TURN 再试无益)
   const toneRef = useRef(null); // 循环提示音句柄 { stop }(回铃/来电共用)
 
+  // AUDIT 2026-09-07 加固：
+  // aliveRef=组件存活标记：getUserMedia/TURN/建 PC 等异步副作用在卸载后返回时必须中止，
+  //   否则 cleanup 已先跑、迟到的初始化会重建媒体流/连接 → 通话结束后麦克风摄像头仍被占用。
+  // acceptBusyRef/rejectBusyRef=接听/拒接幂等守卫：双击/连点只执行一次初始化与信令。
+  const aliveRef = useRef(true);
+  const acceptBusyRef = useRef(false);
+  const rejectBusyRef = useRef(false);
+  const isMediaGenerationCurrent = useCallback((generation, pc = null) => (
+    !closedRef.current && generation === mediaGenerationRef.current && (!pc || pcRef.current === pc)
+  ), []);
+
   const timer = useCallTimer(status === 'connected');
 
   const bubble = useDraggable({ x: window.innerWidth - 110, y: 80 });
   const pip    = useDraggable({ x: window.innerWidth - 130, y: 24 });
+
+  // B-4（2026-09-05）：远端 autoplay 被浏览器手势策略拦下时（play() reject），出一条可
+  // 关闭的"点击恢复声音"提示，首次点击/按键任意处自动重试 play()。audioBlocked 只反映
+  // "仍被拦"（驱动重试监听），showAudioHint 单独控制提示条可见性（✕ 关闭只藏提示不断重试）。
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const [showAudioHint, setShowAudioHint] = useState(false);
+  const markPlayBlocked = useCallback(() => { setAudioBlocked(true); setShowAudioHint(true); }, []);
+  const tryPlayRemote = useCallback((el) => {
+    if (!el) return;
+    try { el.play().catch(markPlayBlocked); }
+    catch { markPlayBlocked(); }
+  }, [markPlayBlocked]);
+  useEffect(() => {
+    if (!audioBlocked) return;
+    const retry = () => {
+      [remoteAudioRef.current, remoteVideoRef.current, miniVideoRef.current].forEach(el => {
+        // 任一路媒体真正播起来即恢复（各元素挂的是同一路远端流）
+        if (el) el.play().then(() => { setAudioBlocked(false); setShowAudioHint(false); }).catch(() => {});
+      });
+    };
+    window.addEventListener('pointerdown', retry);
+    window.addEventListener('keydown', retry);
+    return () => {
+      window.removeEventListener('pointerdown', retry);
+      window.removeEventListener('keydown', retry);
+    };
+  }, [audioBlocked]);
 
   /* ── Ref 回调：元素挂载/重挂时自动恢复 srcObject ────────────
      切换 minimized 状态时 <audio>/<video> 会重新挂载，
@@ -222,19 +290,19 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
 
   const onRemoteVideoMount = useCallback((el) => {
     remoteVideoRef.current = el;
-    if (el && remoteStreamRef.current) el.srcObject = remoteStreamRef.current;
-  }, []);
+    if (el && remoteStreamRef.current) { el.srcObject = remoteStreamRef.current; tryPlayRemote(el); }
+  }, [tryPlayRemote]);
 
   const onMiniVideoMount = useCallback((el) => {
     miniVideoRef.current = el;
-    if (el && remoteStreamRef.current) el.srcObject = remoteStreamRef.current;
-  }, []);
+    if (el && remoteStreamRef.current) { el.srcObject = remoteStreamRef.current; tryPlayRemote(el); }
+  }, [tryPlayRemote]);
 
   const onRemoteAudioMount = useCallback((el) => {
     remoteAudioRef.current = el;
-    if (el && remoteStreamRef.current) el.srcObject = remoteStreamRef.current;
+    if (el && remoteStreamRef.current) { el.srcObject = remoteStreamRef.current; tryPlayRemote(el); }
     if (el && supportsSinkId && outputDeviceId) el.setSinkId(outputDeviceId).catch(() => console.warn('[call] setSinkId 失败:', outputDeviceId));
-  }, [outputDeviceId, supportsSinkId]);
+  }, [outputDeviceId, supportsSinkId, tryPlayRemote]);
 
   // 输出设备枚举：需要先有过麦克风授权(标签才不是空字符串)，通话建立时机正合适。
   useEffect(() => {
@@ -257,10 +325,12 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
 
   const attachRemoteStream = useCallback((stream) => {
     remoteStreamRef.current = stream;
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
-    if (miniVideoRef.current)   miniVideoRef.current.srcObject   = stream;
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
-  }, []);
+    // 流晚于元素挂载到达（ontrack 时元素多已挂好）：srcObject 换流后必须显式 play() 兜底，
+    // autoplay 属性不保证换流后自动起播
+    if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; tryPlayRemote(remoteVideoRef.current); }
+    if (miniVideoRef.current)   { miniVideoRef.current.srcObject   = stream; tryPlayRemote(miniVideoRef.current); }
+    if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; tryPlayRemote(remoteAudioRef.current); }
+  }, [tryPlayRemote]);
 
   /* ── 通话提示音（callTones.js:WebAudio 合成 + autoplay 预热）────────
      · 回铃音：主叫拨出等待期循环（450Hz「响1秒·停4秒」）
@@ -288,6 +358,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const playConnected = useCallback(() => { playConnectedTone(); }, []);
 
   const cleanup = useCallback(() => {
+    mediaGenerationRef.current += 1;
+    closedRef.current = true;
+    participatingRef.current = false;
     clearTimeout(timeoutRef.current);
     clearTimeout(iceTimeoutRef.current);
     clearTimeout(disconnectRef.current);
@@ -307,6 +380,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   }, []);
 
   const endCall = useCallback((notify, reason = '') => {
+    // 幂等：挂断/超时/网络错误多次触发（双击挂断、ICE 状态机与手动挂断竞态）只收尾一次
+    if (statusRef.current === 'ended') return;
     if (notify) socket?.emit('call:end', withCallId({ to: remoteId, reason }, callId));
     cleanup();
     if (reason) setEndReason(reason);
@@ -315,17 +390,38 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   }, [socket, remoteId, callId, cleanup, onClose]);
 
   const initPC = useCallback(async () => {
-    const constraints = { audio: true, video: isVideo };
-    let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia(constraints); setMediaError(false); }
-    catch { stream = new MediaStream(); setMediaError(true); } // 权限拒绝/设备占用：仍建连但提示用户
-    localStreamRef.current = stream;
-    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-
-    const iceConfig = await fetchIceConfig();
-    const pc = new RTCPeerConnection(iceConfig);
-    pcRef.current = pc;
-    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+    const generation = mediaGenerationRef.current;
+    const constraints = { audio: true, video: videoConstraints(isVideo) };
+    // AUDIT 2026-09-07 加固 + Q08 全修：两处独立修复的是同一类问题（异步副作用在
+    // 卸载/换代后必须自中止），isCurrent 里同时折进 aliveRef（卸载）和
+    // isMediaGenerationCurrent（卸载 closedRef + 呼叫世代 + pc 身份三重校验）——
+    // 两者在正常卸载路径下同步翻转，这里叠加纯粹是防御性冗余，不改变任何正常行为。
+    const initializedPc = await initializeCallMedia({
+      constraints,
+      getUserMedia: value => navigator.mediaDevices.getUserMedia(value),
+      createEmptyStream: () => new MediaStream(),
+      fetchIceConfig,
+      createPeerConnection: iceConfig => new RTCPeerConnection(iceConfig),
+      // A-2：H264 优先。编解码偏好须在任何 createOffer/createAnswer 之前设。
+      preparePeerConnection: preferH264,
+      isCurrent: () => aliveRef.current && isMediaGenerationCurrent(generation),
+      setMediaError,
+      publishStream: stream => {
+        localStreamRef.current = stream;
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      },
+      discardStream: stream => {
+        if (localStreamRef.current === stream) localStreamRef.current = null;
+        if (localVideoRef.current?.srcObject === stream) localVideoRef.current.srcObject = null;
+      },
+      publishPeerConnection: value => { pcRef.current = value; },
+      discardPeerConnection: value => { if (pcRef.current === value) pcRef.current = null; },
+    });
+    const pc = currentCallMedia(
+      initializedPc,
+      value => aliveRef.current && isMediaGenerationCurrent(generation, value),
+    );
+    if (!pc) return null;
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate) socket?.emit('call:ice', withCallId({ to: remoteId, candidate }, callId));
@@ -366,6 +462,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         clearTimeout(disconnectRef.current);
         clearTimeout(restartRecoverRef.current);
         iceRestartCountRef.current = 0;
+        capVideoBitrate(pc);
         if (statusRef.current === 'connecting') setStatus('connected');
       } else if (s === 'disconnected') {
         // 短时探测间隙(<3s 通常自愈,如 iOS 锁屏/后台):防抖后再重启,避免无谓重协商
@@ -390,17 +487,27 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       }
     };
     return pc;
-  }, [isVideo, socket, remoteId, callId, endCall, attachRemoteStream]);
+  }, [isVideo, socket, remoteId, callId, endCall, attachRemoteStream, isMediaGenerationCurrent]);
 
   const processOffer = useCallback(async (offer) => {
     const pc = pcRef.current;
     if (!pc) return;
+    // glare 防御（AUDIT P2，加固级）：本地已有 offer 在途（我方也在重协商/切类型）时，
+    // 忽略对方的竞争 offer，让本地协商走完——双方恰好同时发起重协商极罕见，且对端
+    // 下轮 ICE restart/再次切换会自愈；不在此处理"双端同时 offer"的完美协商回滚。
+    if (pc.signalingState === 'have-local-offer') {
+      console.warn('[call] glare: 忽略竞争 offer（本地 offer 在途）');
+      return;
+    }
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       // remoteDescription 就绪 → flush 之前早到的 ICE 候选（对齐原生端 pendingIce）
       for (const c of pendingIceRef.current.splice(0)) {
         try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* stale */ }
       }
+      // A-2：被叫应答路径。远端 offer 可能创建我方未 addTrack 的视频 transceiver
+      // （如纯语音起呼、对方切视频后重协商），须在 createAnswer 前设 H264 优先
+      await preferH264(pc);
       const answer = await pc.createAnswer();
       const tunedAnswer = tuneSdpForWeakNetwork(answer.sdp);
       await pc.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: tunedAnswer }));
@@ -413,22 +520,47 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   }, [socket, remoteId, callId, endCall]);
 
   const accept = useCallback(async () => {
-    setStatus('connecting');
-    await initPC();
-    socket?.emit('call:response', withCallId({ to: remoteId, accepted: true }, callId));
-    if (pendingOfferRef.current) {
-      await processOffer(pendingOfferRef.current);
-      pendingOfferRef.current = null;
+    // 幂等（AUDIT P1）：双击/连点接听只初始化一次——第二次进入会在 initPC 里再建一个
+    // RTCPeerConnection/getUserMedia，pcRef 被覆盖后第一个 PC 永不 close，其媒体流无引用
+    // 可停 → 通话结束后麦克风/摄像头仍被占用（浏览器指示灯常亮）。
+    if (acceptBusyRef.current || statusRef.current !== 'incoming') return;
+    acceptBusyRef.current = true;
+    try {
+      setStatus('connecting');
+      await initPC();
+      // initPC 含媒体/TURN await；期间可能已挂断或卸载。终态不能被迟到的
+      // accept continuation 重新标成参会者，随后在 1.8s 结束页里发旧 resume。
+      if (closedRef.current) return;
+      participatingRef.current = true;
+      // accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken（Q06 全修）
+      socket?.emit('call:response', withCallId({ to: remoteId, accepted: true }, callId), (ack) => {
+        resumeTokenRef.current = ack?.resumeToken;
+      });
+      if (pendingOfferRef.current) {
+        await processOffer(pendingOfferRef.current);
+        pendingOfferRef.current = null;
+      }
+    } catch (e) {
+      console.error('[call] accept 失败:', e);
+      cleanup();
+      setStatus('ended');
+      setTimeout(onClose, 1800);
+    } finally {
+      acceptBusyRef.current = false;
     }
-  }, [socket, remoteId, callId, initPC, processOffer]);
+  }, [socket, remoteId, callId, initPC, processOffer, cleanup, onClose]);
 
   const reject = useCallback(() => {
+    if (rejectBusyRef.current || statusRef.current !== 'incoming') return;
+    rejectBusyRef.current = true;
     socket?.emit('call:response', withCallId({ to: remoteId, accepted: false, reason: 'rejected' }, callId));
     onClose();
   }, [socket, remoteId, callId, onClose]);
 
   // 拒接后回复消息：拒接 + 关闭来电界面 + 回调父层打开与该用户的会话
   const replyInstead = useCallback(() => {
+    if (rejectBusyRef.current || statusRef.current !== 'incoming') return;
+    rejectBusyRef.current = true;
     socket?.emit('call:response', withCallId({ to: remoteId, accepted: false, reason: 'rejected' }, callId));
     onClose();
     // 一并把来电方资料传出去：会话列表里查不到这条私聊时（新建/列表未同步），
@@ -445,6 +577,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     // 不再可能误伤当前正在进行的新通话。
     const onResponse = async ({ from, accepted, reason, busy, callId: evtCallId }) => {
       if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
+      // 状态守卫（AUDIT 加固）：只有主叫仍在"等待应答"时才处理应答——通话已因超时/挂断/
+      // 其他设备操作收尾后，迟到的 accepted 不得把 ended 重新拉回 connecting。
+      if (statusRef.current !== 'calling') return;
       clearTimeout(timeoutRef.current);
       if (!accepted) {
         setEndReason(busy ? 'busy' : (reason || 'rejected'));
@@ -467,6 +602,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     };
     const onOffer = async ({ from, offer, callId: evtCallId }) => {
       if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
+      if (statusRef.current === 'ended' || statusRef.current === 'incoming') return; // 已收尾/未接听不收协商
       if (!pcRef.current) { pendingOfferRef.current = offer; return; }
       await processOffer(offer);
     };
@@ -474,6 +610,12 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       if (!matchesCall({ from, callId: evtCallId }, activeCallInfo)) return;
       const pc = pcRef.current;
       if (!pc) return;
+      // answer 必须对应我方已 setLocal 的 offer；stable/have-remote-offer 下收到 answer
+      // = 协议错乱/重复应答，丢弃而不是强设远端（防 InvalidStateError 挂断）
+      if (pc.signalingState !== 'have-local-offer') {
+        console.warn('[call] 忽略异常 answer（signalingState=%s）', pc.signalingState);
+        return;
+      }
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
       // remoteDescription 就绪 → flush 之前早到的 ICE 候选（对齐原生端 pendingIce）
       for (const c of pendingIceRef.current.splice(0)) {
@@ -505,7 +647,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       const isSelfDeviceSync = reason === 'answered_elsewhere' || reason === 'rejected_elsewhere';
       const matched = isSelfDeviceSync
         ? !evtCallId || !callId || evtCallId === callId
-        : matchesCall({ from, callId: evtCallId }, activeCallInfo);
+        : matchesCallEnd({ from, callId: evtCallId, reason }, activeCallInfo);
       if (!matched) return;
       if (reason) setEndReason(reason);
       setStatus('ended');
@@ -537,11 +679,20 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   // 其内部 setState 属正当的取媒体流程，非可派生同步状态。
   useEffect(() => {
     if (direction === 'outgoing') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：WebRTC 初始化副作用
-      initPC().then(() => {
-        timeoutRef.current = setTimeout(() => {
-          if (statusRef.current === 'calling') endCall(true, 'timeout');
-        }, CALL_TIMEOUT_MS);
+      const generation = mediaGenerationRef.current;
+      initPC().then(pc => {
+        // 卸载后 initPC 可能已中止（aliveRef=false/呼叫世代已过期）或组件已收尾：
+        // 不再安排超时定时器，防迟到回调在卸载后仍发 ghost call:end / 残留超时定时器
+        if (!aliveRef.current || statusRef.current !== 'calling') return;
+        timeoutRef.current = scheduleCurrentCallTimeout({
+          pc,
+          isCurrent: value => isMediaGenerationCurrent(generation, value),
+          setTimer: setTimeout,
+          delay: CALL_TIMEOUT_MS,
+          onTimeout: () => {
+            if (statusRef.current === 'calling') endCall(true, 'timeout');
+          },
+        });
       });
     }
     const onUnload = () => {
@@ -549,7 +700,11 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         socket?.emit('call:end', withCallId({ to: remoteId }, callId));
     };
     window.addEventListener('beforeunload', onUnload);
-    return () => { window.removeEventListener('beforeunload', onUnload); cleanup(); };
+    return () => {
+      aliveRef.current = false; // 先置死再清理：让所有在途异步副作用(媒体/TURN/协商)自中止
+      window.removeEventListener('beforeunload', onUnload);
+      cleanup();
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 提示音生命周期：主叫拨出等待→回铃音循环；被叫来电→来电铃声循环；
@@ -583,11 +738,15 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const toggleVideo = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc || statusRef.current !== 'connected') return;
+    const generation = mediaGenerationRef.current;
+    const isCurrent = () => isMediaGenerationCurrent(generation, pc);
     const next = !videoMode;
     try {
       if (next) {
         // 语音→视频：补视频轨
-        const vs = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const vs = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(true), audio: false });
+        // AUDIT 加固：等待摄像头授权期间通话已结束/卸载 → 停掉新轨，不残留采集
+        if (!aliveRef.current || !isCurrent()) { stopStream(vs); return; }
         vs.getVideoTracks().forEach(t => pc.addTrack(t, vs));
         if (localStreamRef.current) {
           vs.getVideoTracks().forEach(t => { try { localStreamRef.current.addTrack(t); } catch { /* 已存在 */ } });
@@ -595,6 +754,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         // 持有引用防 GC 停轨（异步回调内持流引用属标准模式；react-hooks/immutability 7.x 误报边界）
         // eslint-disable-next-line react-hooks/immutability
         videoAddStreamRef.current = vs;   // 持有引用防 GC 停轨
+        capVideoBitrate(pc);   // 幂等：确保新补的视频轨也受发送码率上限约束
+        // A-2：语音→视频新 addTrack 产生全新视频 transceiver，须在下面的 createOffer 前重设 H264 优先
+        await preferH264(pc);
+        if (!isCurrent()) return;
       } else {
         // 视频→语音：停 + 移除视频轨
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
@@ -604,8 +767,10 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         }
       }
       const offer = await pc.createOffer();
+      if (!isCurrent()) return;
       const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
       await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+      if (!isCurrent()) return;
       socket.emit('call:offer', withCallId({ to: remoteId, offer: { type: offer.type, sdp: tunedOffer } }, callId));
       socket.emit('call:switch-type', withCallId({ to: remoteId, type: next ? 'video' : 'audio' }, callId));
       setVideoMode(next);
@@ -613,9 +778,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         localVideoRef.current.srcObject = localStreamRef.current;
       }
     } catch (e) {
-      console.error('[call] 切换类型失败:', e);
+      if (isCurrent()) console.error('[call] 切换类型失败:', e);
     }
-  }, [videoMode, socket, remoteId, callId]);
+  }, [videoMode, socket, remoteId, callId, isMediaGenerationCurrent]);
 
   const END_TEXT = {
     rejected: t('call.endReasonRejected'),
@@ -633,6 +798,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     // （react-hooks/set-state-in-effect 7.x 对"状态守卫型同步 setState"属误报边界，见 AUDIT 待办）
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (status !== 'connected') { setCallQuality(null); return; }
+    // 上次采样的 { lost, received } 基线（窗口差分用，见下）
+    let prevSnapshot = null;
     const intervalId = setInterval(async () => {
       const pc = pcRef.current;
       if (!pc) return;
@@ -641,12 +808,23 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         let rtt = null, lost = 0, received = 0;
         stats.forEach(s => {
           if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') rtt = (s.currentRoundTripTime || 0) * 1000;
-          if (s.type === 'inbound-rtp' && s.kind === 'audio') {
+          // B-2：音频与视频 inbound 都计入——任一路丢包都影响体验（视频丢包=花屏/卡顿）
+          if (s.type === 'inbound-rtp' && (s.kind === 'audio' || s.kind === 'video')) {
             lost += s.packetsLost || 0;
             received += s.packetsReceived || 0;
           }
         });
-        const lossRate = received + lost > 0 ? lost / (received + lost) : 0;
+        // B-2：丢包率改为相邻两次采样的窗口差分。累计值除法的旧算法会把接通头几秒的
+        // 瞬时尖峰永久摊进分母之外的高位（丢包只增不减），一次尖峰定格"差"再也下不来；
+        // 差分后只反映最近 2s 窗口的真实丢包。首次采样只记基线不判定，顺带跳过首个窗口。
+        // ICE restart 后计数器可能清零：增量夹取 ≥0，清零窗口按 0 处理，下一窗口自愈。
+        let lossRate = 0;
+        if (prevSnapshot) {
+          const dLost = Math.max(0, lost - prevSnapshot.lost);
+          const dRecv = Math.max(0, received - prevSnapshot.received);
+          if (dLost + dRecv > 0) lossRate = dLost / (dLost + dRecv);
+        }
+        prevSnapshot = { lost, received };
         let q = 'good';
         if (rtt !== null) {
           if (rtt >= 500 || lossRate >= 0.08) q = 'poor';
@@ -689,6 +867,21 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         {/* 音频持续输出（ref callback 重挂时自动恢复 srcObject） */}
         <audio ref={onRemoteAudioMount} autoPlay hidden />
 
+        {/* B-4：缩小态同样提示 autoplay 被拦（气泡内空间小，只留精简样式） */}
+        {showAudioHint && (
+          <div
+            role="status"
+            onClick={() => setShowAudioHint(false)}
+            style={{
+              position: 'absolute', top: -24, left: '50%', transform: 'translateX(-50%)',
+              padding: '3px 8px', borderRadius: 999, background: 'rgba(0,0,0,.72)',
+              color: '#fff', fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer',
+            }}
+          >
+            🔇 {t('call.tapToRestoreAudio')} ✕
+          </div>
+        )}
+
         {videoMode ? (
           <div className="cm-bubble-video">
             <video ref={onMiniVideoMount} autoPlay playsInline />
@@ -721,7 +914,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             >
               <Avatar
                 src={remoteUser?.avatar} name={remoteUser?.name || '?'}
-                size={68}
+                size='68'
                 style={{ borderRadius: '50%', display: 'block' }}
               />
               <button
@@ -770,6 +963,29 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         </div>
       )}
 
+      {/* B-4：autoplay 被浏览器策略拦下——点击/按键任意处即恢复，✕ 只关提示 */}
+      {showAudioHint && inProgress && (
+        <div
+          role="status"
+          style={{
+            position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 30,
+            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px',
+            borderRadius: 999, background: 'rgba(0,0,0,.72)', color: '#fff', fontSize: 13,
+            boxShadow: '0 4px 16px rgba(0,0,0,.35)', whiteSpace: 'nowrap',
+          }}
+        >
+          <span>🔇 {t('call.tapToRestoreAudio')}</span>
+          <button
+            type="button"
+            aria-label={t('common.close')}
+            onClick={() => setShowAudioHint(false)}
+            style={{ border: 0, background: 'transparent', color: 'rgba(255,255,255,.75)', cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ── 视频通话 ── */}
       {videoMode && <>
         <video
@@ -814,7 +1030,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         {/* 来电居中显示 */}
         {status === 'incoming' && (
           <div className="cm-incoming-center">
-            <Avatar src={remoteUser?.avatar} name={remoteUser?.name || '?'} size={88} style={{ borderRadius: '50%', boxShadow: '0 4px 20px rgba(0,0,0,.4)' }} />
+            <Avatar src={remoteUser?.avatar} name={remoteUser?.name || '?'} size='88' style={{ borderRadius: '50%', boxShadow: '0 4px 20px rgba(0,0,0,.4)' }} />
             <div className="cm-incoming-name">{remoteUser?.name}</div>
             <div className="cm-incoming-desc">{t('call.invitingVideoCall')}</div>
           </div>
@@ -830,7 +1046,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
                 label={t('call.replyMessage')} size={56} onClick={replyInstead} testid="call-reply-btn"
               />
               <CircleBtn
-                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
+                icon={<IcoVideo fill="currentColor" />}
                 label={t('call.accept')} color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
               />
             </div>
@@ -841,7 +1057,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
                 <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
               <CircleBtn
-                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
+                icon={<IcoVideo fill="currentColor" />}
                 label={t('call.switchToVoice')} onClick={toggleVideo} testid="call-switch-to-audio-btn"
               />
               <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
@@ -937,7 +1153,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
                 <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
               <CircleBtn
-                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>}
+                icon={<IcoVideo fill="currentColor" />}
                 label={t('call.switchToVideo')} onClick={toggleVideo} testid="call-switch-to-video-btn"
               />
               <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />

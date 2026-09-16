@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import Kingfisher
+import UIKit
 
 /// 群相关导航路由（值驱动 NavigationStack）
 enum GroupRoute: Hashable {
@@ -119,6 +120,22 @@ struct GroupInfoView: View {
                                 Text("邀请进群").foregroundColor(.vxinTextSecondary)
                             }
                         }
+
+                        // F5 复制邀请链接：群主/管理员，或群开启 member_can_invite 的普通成员
+                        // （权限语义与后端 createInviteLink、Web/Android 一致）。链接经 web 落地页入群。
+                        if info.canCreateInviteLink {
+                            Button {
+                                vm.copyInviteLink()
+                            } label: {
+                                HStack {
+                                    Text("复制邀请链接").foregroundColor(.primary)
+                                    Spacer()
+                                    Text(vm.copyingInviteLink ? "生成中…" : "🔗 复制")
+                                        .font(.footnote).foregroundColor(.vxinTextSecondary)
+                                }
+                            }
+                            .disabled(vm.copyingInviteLink)
+                        }
                     }
 
                     Section("群成员 (\(info.members.count))") {
@@ -176,6 +193,14 @@ struct GroupInfoView: View {
         .navigationTitle("群聊信息")
         .navigationBarTitleDisplayMode(.inline)
         .task { await vm.refresh() }
+        // F5 邀请链接生成成功 → 写剪贴板并提示（toast 复用 error 字段承载一次性文案，项目惯例）
+        .toast($vm.error)
+        .onChange(of: vm.inviteLinkToCopy) { url in
+            guard let url, !url.isEmpty else { return }
+            UIPasteboard.general.string = url
+            vm.consumeInviteLink()
+            vm.error = "邀请链接已复制"
+        }
         .onChange(of: vm.left) { left in if left { onLeft() } }
         .onChange(of: photoItem) { item in
             guard let item else { return }
@@ -219,7 +244,8 @@ struct GroupInfoView: View {
             Button("取消", role: .cancel) { transferTarget = nil }
             Button("转让", role: .destructive) { if let m = transferTarget { vm.transferOwner(m) }; transferTarget = nil }
         } message: {
-            Text("确认将群主转让给「\(transferTarget?.displayName ?? "")」？转让后你将成为普通成员。")
+            // F1：转让后原群主降为管理员（保留管理权限协助交接），不再是普通成员
+            Text("确认将群主转让给「\(transferTarget?.displayName ?? "")」？转让后你将成为管理员。")
         }
         .alert("退出群聊", isPresented: $showLeaveConfirm) {
             Button("取消", role: .cancel) {}

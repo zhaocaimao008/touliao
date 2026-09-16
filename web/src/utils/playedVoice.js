@@ -47,3 +47,4 @@ export function markVoicePlayed(id) {
   s.add(id);
   scheduleFlush();
 }
+import { clientStorage as localStorage } from './clientStorage';

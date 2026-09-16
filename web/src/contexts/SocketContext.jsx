@@ -1,7 +1,9 @@
+import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { getConfig, isConfigLoaded } from '../utils/config';
+import { isBearerClient, isIsolatedWindow } from '../utils/clientStorage';
 
 // 拆分成两个 context 避免 reconnect 引起无关组件 re-render：
 // SocketCoreContext  — socket 实例 + 稳定回调（重连时不变）
@@ -43,14 +45,14 @@ export const SocketProvider = ({ children }) => {
     const serverUrl = manualUrl || cfg?.socket || import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_BASE || '/';
 
     const isDesktop = !!(window.__ELECTRON_CONFIG__ || window.Capacitor?.isNativePlatform?.());
-    const electronToken = isDesktop ? localStorage.getItem('touliao_electron_token') : null;
+    const electronToken = isBearerClient() ? localStorage.getItem('touliao_electron_token') : null;
 
     // platform 供服务端按平台维度判定在线（来电推送兜底不因同账号 Web 在线而被压制，
     // 见 backend-v2/src/realtime/presence.js onlinePlatforms）
     const s = io(serverUrl, {
       transports: ['websocket'],
       withCredentials: true,
-      auth: { platform: isDesktop ? 'desktop' : 'web', ...(electronToken ? { token: electronToken } : {}) },
+      auth: { platform: isDesktop ? 'desktop' : 'web', isolated: isIsolatedWindow(), ...(electronToken ? { token: electronToken } : {}) },
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -87,9 +89,18 @@ export const SocketProvider = ({ children }) => {
     // 没有它的话，休眠唤醒后要等 socket.io pingTimeout(20秒) 超时才会判定断线开始重连；
     // 唤醒瞬间主动 connect() 能把这个滞后降到几乎瞬间（AUDIT.md 十二节🟡）。
     const onElectronResume = () => { if (!s.connected) s.connect(); };
+    const onCredentialsUpdated = () => {
+      const token = isBearerClient() ? localStorage.getItem('touliao_electron_token') : null;
+      s.auth = { platform: isDesktop ? 'desktop' : 'web', isolated: isIsolatedWindow(), ...(token ? { token } : {}) };
+      s.disconnect();
+      s.connect();
+    };
+    const onStorage = event => { if (!isIsolatedWindow() && event.key === 'touliao_session_revision') onCredentialsUpdated(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
     window.addEventListener('electron:resume', onElectronResume);
+    window.addEventListener('touliao:credentials-updated', onCredentialsUpdated);
+    window.addEventListener('storage', onStorage);
 
     return () => {
       everConnectedRef.current = false;
@@ -97,6 +108,8 @@ export const SocketProvider = ({ children }) => {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('electron:resume', onElectronResume);
+      window.removeEventListener('touliao:credentials-updated', onCredentialsUpdated);
+      window.removeEventListener('storage', onStorage);
       s.disconnect();
       setSocket(null);
       setConnected(false);
@@ -129,4 +142,3 @@ export const useSocket = () => ({ ...useContext(SocketCoreContext), ...useContex
 export const useSocketCore   = () => useContext(SocketCoreContext);
 /** 仅状态部分 — connected/reconnectCount */
 export const useSocketStatus = () => useContext(SocketStatusContext);
-

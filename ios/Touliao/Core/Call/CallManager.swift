@@ -55,11 +55,20 @@ final class CallManager: NSObject, ObservableObject {
 
     private var pendingIce: [RTCIceCandidate] = []
     private var remoteDescSet = false
+    private var callIdentityEpoch: UInt64?
+    private var participatingCallId = ""
+    private var participatingIdentityEpoch: UInt64?
+    // Q06 全修：resume 必须证明持有它，光凭 callId+userId 不再够（同账号旁观设备不能在
+    // 断线宽限期内抢注）。startCall/accept 的 ack 里签发，cleanup() 清空。
+    private var participatingResumeToken: String?
     private var cancellables = Set<AnyCancellable>()
     private let socket = SocketService.shared
 
     /// 主叫呼叫超时任务（未接听自动挂断）；接通/挂断时取消，避免泄漏。
     private var callTimeoutTask: Task<Void, Never>?
+    /// 结束态延迟收起任务（ended 后延迟清空状态机）——新通话/再次结束时须取消旧的，
+    /// 防上一通遗留的收起任务在新通话也恰好 ended 时提前清空结束画面（AUDIT P3）。
+    private var endedDismissTask: Task<Void, Never>?
     private var disconnectGraceTask: Task<Void, Never>?
     // ICE restart 自愈(网络切换 Wi-Fi↔4G):disconnected 3s 防抖 → restartIce → 15s 窗口 → 最多 3 次 → 挂断。
     // 信令复用现有 call:offer/answer/ice(后端纯转发零改动),对端收到重协商 offer 走现有应答逻辑。
@@ -167,20 +176,32 @@ final class CallManager: NSObject, ObservableObject {
     // MARK: - 对外动作
     func startCall(peerId: String, peerName: String, video: Bool, callerName: String) {
         guard state.stage == .idle || state.stage == .ended else { return }
+        let identityEpoch = KeychainStore.shared.snapshot().identityEpoch
+        callIdentityEpoch = identityEpoch
         state = CallState(stage: .outgoing, peerId: peerId, peerName: peerName, isVideo: video, isCaller: true)
         startCallTimeout()                      // 未接听 45s 自动挂断
         Task { @MainActor in
             await refreshIceServers()           // 先拿到含 TURN 的 ICE，再建连接
-            guard state.stage != .ended else { return }   // 期间被取消
+            guard callIdentityEpoch == identityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  state.stage != .ended
+            else { return }   // 期间被取消、切号或服务器身份变化
             configureAudioSession()             // 建流前配好通话音频会话
             tonePlayer.playRingback()           // 会话就绪后→主叫回铃音（接通/挂断时停）
             createPeerConnection()
             createLocalTracks(video: video)
-            let callId = await socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
+            let requestAck = await socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
             // ack 超时/未连接返回 nil：不强行挂断——callId 缺失时后端按兼容模式放行，仅丢失
             // 过期应答/串话保护。仅在仍是同一通呼出时才回填（防重拨/挂断后污染新状态）。
-            if let callId, state.stage == .outgoing, state.peerId == peerId {
-                state.callId = callId
+            if let requestAck,
+               callIdentityEpoch == identityEpoch,
+               KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+               state.stage == .outgoing,
+               state.peerId == peerId {
+                state.callId = requestAck.callId
+                participatingCallId = requestAck.callId
+                participatingIdentityEpoch = identityEpoch
+                participatingResumeToken = requestAck.resumeToken
             }
         }
     }
@@ -189,15 +210,25 @@ final class CallManager: NSObject, ObservableObject {
         guard state.stage == .incoming else { return }
         let peerId = state.peerId
         let callId = state.callId
+        guard let identityEpoch = callIdentityEpoch,
+              KeychainStore.shared.snapshot().identityEpoch == identityEpoch
+        else { return }
         clearIncomingCallNotifications(from: peerId)   // 接听后清掉该来电的通知，避免用户误触过期通知
         state.stage = .connecting
         Task { @MainActor in
             await refreshIceServers()
-            guard state.stage != .ended else { return }
+            guard callIdentityEpoch == identityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  state.stage != .ended
+            else { return }
             configureAudioSession()             // 建流前配好通话音频会话
             createPeerConnection()
             createLocalTracks(video: state.isVideo)
-            socket.emitCallResponse(to: peerId, accepted: true, callId: callId)
+            // accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken（Q06 全修）
+            let resumeToken = await socket.emitCallAccept(to: peerId, callId: callId)
+            participatingCallId = callId
+            participatingIdentityEpoch = identityEpoch
+            participatingResumeToken = resumeToken
         }
     }
 
@@ -232,6 +263,12 @@ final class CallManager: NSObject, ObservableObject {
     func hangup() {
         if !state.peerId.isEmpty { socket.emitCallEnd(to: state.peerId, callId: state.callId) }
         VoipCallManager.shared.endActiveCall()   // 同步收尾 CallKit 通话界面
+        cleanup(.ended)
+    }
+
+    func resetForAccountChange() {
+        guard state.stage != .idle && state.stage != .ended else { return }
+        VoipCallManager.shared.endActiveCall()
         cleanup(.ended)
     }
 
@@ -281,16 +318,38 @@ final class CallManager: NSObject, ObservableObject {
     func incomingFromPush(from: String, callType: String, callerName: String, callId: String = "") {
         guard !from.isEmpty else { return }
         guard state.stage == .idle || state.stage == .ended else { return }
+        callIdentityEpoch = KeychainStore.shared.snapshot().identityEpoch
         state = CallState(stage: .incoming, peerId: from, peerName: callerName, isVideo: callType == "video", isCaller: false, callId: callId)
     }
 
     // MARK: - 信令
     private func observeSignaling() {
+        socket.status
+            .filter { $0 == .connected }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self,
+                      self.state.stage != .idle,
+                      self.state.stage != .ended,
+                      CallSignalMatcher.canResume(
+                        activeCallId: self.state.callId,
+                        participatingCallId: self.participatingCallId,
+                        participatingIdentityEpoch: self.participatingIdentityEpoch,
+                        currentIdentityEpoch: KeychainStore.shared.snapshot().identityEpoch
+                      )
+                else { return }
+                self.socket.emitCallResume(callId: self.state.callId, resumeToken: self.participatingResumeToken)
+            }
+            .store(in: &cancellables)
+
         socket.callIncoming.receive(on: DispatchQueue.main).sink { [weak self] (from, type, name, callId) in
             guard let self else { return }
             if self.state.stage != .idle && self.state.stage != .ended {
-                self.socket.emitCallResponse(to: from, accepted: false, callId: callId); return
+                // B-3：忙线拒接带 busy=true（对齐 Web Home.jsx 语义，后端 call.js 原样转发），
+                // 主叫可区分"对方忙线中"与普通拒接；已有来电/通话 UI 保持不覆盖
+                self.socket.emitCallResponse(to: from, accepted: false, callId: callId, busy: true); return
             }
+            self.callIdentityEpoch = KeychainStore.shared.snapshot().identityEpoch
             self.state = CallState(stage: .incoming, peerId: from, peerName: name, isVideo: type == "video", isCaller: false, callId: callId)
             // 锁屏/后台来电：App 不在前台时补弹本地通知（含接听/拒绝按钮），
             // 前台由来电邀请横幅 UI 展示，避免重复打扰。
@@ -369,7 +428,13 @@ final class CallManager: NSObject, ObservableObject {
                 let idOk = callId.isEmpty || self.state.callId.isEmpty || callId == self.state.callId
                 matched = hasActiveCall && idOk
             } else {
-                matched = CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
+                matched = CallSignalMatcher.matchesEnd(
+                    activeCallId: self.state.callId,
+                    eventCallId: callId,
+                    activePeerId: self.state.peerId,
+                    eventPeerId: from,
+                    reason: reason
+                )
             }
             guard matched else { return }
             VoipCallManager.shared.endActiveCall()   // 对方挂断/被其它设备处理时同步收尾 CallKit
@@ -398,10 +463,15 @@ final class CallManager: NSObject, ObservableObject {
         content.body = callType == "video" ? "邀请你视频通话" : "邀请你语音通话"
         content.sound = .default
         content.categoryIdentifier = "INCOMING_CALL"
-        content.userInfo = ["from": from, "callType": callType, "callerName": callerName, "callId": callId]
+        content.userInfo = ["from": from, "callType": callType, "callerName": callerName, "callId": callId, "recipientId": AccountStore.shared.activeId() ?? ""]
 
         let request = UNNotificationRequest(
-            identifier: "incoming_call_\(from)",
+            // AUDIT P3: identifier 带 callId——同对端连续两通来电通知不再互相覆盖
+            //（此前仅 incoming_call_<from>，后一通会顶掉前一通且携带过期 callId）。
+            // callId 为空(极早期推送)时补随机后缀保证唯一，避免覆盖。
+            identifier: callId.isEmpty
+                ? "incoming_call_\(from)_\(UUID().uuidString)"
+                : "incoming_call_\(from)_\(callId)",
             content: content,
             trigger: nil   // 立即触发
         )
@@ -448,8 +518,13 @@ final class CallManager: NSObject, ObservableObject {
     private func createOfferAndSend() {
         guard let pc = pc else { return }
         pc.offer(for: mediaConstraints()) { [weak self] desc, err in
-            guard let self, let desc, err == nil else { return }
-            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
+            // AUDIT P2（旧通话迟到回调污染新通话）：完成时校验 pc 仍是当前实例且通话仍在
+            // 协商/进行中——挂断→秒重拨窗口内旧 pc 的迟到 SDP 若照发，会按新通话的
+            // peerId/callId 发给对端，污染新协商。pc 已被替换/收尾 → 一律丢弃。
+            guard let self, let desc, err == nil, self.pc === pc,
+                  self.state.stage == .connecting || self.state.stage == .connected else { return }
+            // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
             self.socket.emitCallOffer(to: self.state.peerId, sdp: tuned.sdp, callId: self.state.callId)
         }
@@ -474,6 +549,7 @@ final class CallManager: NSObject, ObservableObject {
                 localVideoTrack?.isEnabled = true
             }
             startCapture(position: .front)
+            capVideoBitrate(pc)   // 2026-09-05:语音→视频补轨后叠加发送码率上限
         } else {
             // 视频→语音：停采集 + 移除视频轨（capturer/track 引用保留，切回可复用）
             pc.senders.filter { $0.track?.kind == "video" }.forEach { sender in
@@ -490,8 +566,11 @@ final class CallManager: NSObject, ObservableObject {
     private func createAnswerAndSend() {
         guard let pc = pc else { return }
         pc.answer(for: mediaConstraints()) { [weak self] desc, err in
-            guard let self, let desc, err == nil else { return }
-            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
+            // AUDIT P2：同 createOfferAndSend——旧连接的迟到 answer 不得按新通话身份发出
+            guard let self, let desc, err == nil, self.pc === pc,
+                  self.state.stage == .connecting || self.state.stage == .connected else { return }
+            // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
             pc.setLocalDescription(tuned) { _ in }
             self.socket.emitCallAnswer(to: self.state.peerId, sdp: tuned.sdp, callId: self.state.callId)
         }
@@ -541,14 +620,36 @@ final class CallManager: NSObject, ObservableObject {
         let devices = RTCCameraVideoCapturer.captureDevices()
         guard let device = devices.first(where: { $0.position == position }) ?? devices.first else { return }
         let formats = RTCCameraVideoCapturer.supportedFormats(for: device)
-        let format = formats.sorted {
+        // 2026-09-05 修复:视频模糊根因之一——原逻辑只挑 >=640(约 480p)里最小的一个。
+        // 优先挑 >=1280(约 720p)里最小的一个;没有 720p 及以上格式的设备再退回旧逻辑。
+        let sortedFormats = formats.sorted {
             let d1 = CMVideoFormatDescriptionGetDimensions($0.formatDescription)
             let d2 = CMVideoFormatDescriptionGetDimensions($1.formatDescription)
             return d1.width * d1.height < d2.width * d2.height
-        }.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 640 }) ?? formats.last
+        }
+        let format = sortedFormats.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 1280 })
+            ?? sortedFormats.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 640 })
+            ?? formats.last
         guard let format else { return }
         let fps = format.videoSupportedFrameRateRanges.map { $0.maxFrameRate }.max() ?? 30
         capturer.startCapture(with: device, format: format, fps: Int(min(fps, 30)))
+    }
+
+    /// 2026-09-05 发送码率上限:采集分辨率提到 720p 后叠加码率上限,避免弱网下码率过高导致更卡。
+    /// API 依据:官方 WebRTC sdk/objc/api/peerconnection/RTCRtpSender.h(与本项目 project.yml 锁定的
+    /// stasel/WebRTC 125.0.0 一致,该包为官方 WebRTC 源码无改动编译产物)—— `parameters` 是
+    /// `@property(nonatomic, copy) RTCRtpParameters *`(get/set 属性,不是独立的 setParameters: 方法),
+    /// 因此这里用属性赋值回写,不使用 responds(to:)/#selector(setParameters(_:)) (那样在 Swift 里
+    /// 无法编译,因为该 API 并不存在独立的 setParameters(_:) 方法)。`pc.senders` / `track?.kind` 用法
+    /// 与本文件既有代码(toggleVideo 里 `pc.senders.filter { $0.track?.kind == "video" }`)一致。
+    private func capVideoBitrate(_ pc: RTCPeerConnection) {
+        for sender in pc.senders where sender.track?.kind == "video" {
+            let p = sender.parameters
+            if let enc = p.encodings.first {
+                enc.maxBitrateBps = NSNumber(value: 2_500_000)
+                sender.parameters = p
+            }
+        }
     }
 
     // MARK: - 通话质量指示（2026-09-02）：getStats 2s 采样 RTT/丢包率 → 优/中/差
@@ -604,6 +705,11 @@ final class CallManager: NSObject, ObservableObject {
 
     // MARK: - 清理
     private func cleanup(_ finalStage: CallStage) {
+        endedDismissTask?.cancel(); endedDismissTask = nil   // 新一轮结束/新通话先撤旧收起任务
+        callIdentityEpoch = nil
+        participatingCallId = ""
+        participatingIdentityEpoch = nil
+        participatingResumeToken = nil
         qualityTask?.cancel(); qualityTask = nil          // 停质量采样
         cancelIceRestart()                          // 清 ICE restart 定时器/计数
         cancelDisconnectGrace()
@@ -629,9 +735,10 @@ final class CallManager: NSObject, ObservableObject {
             // 小窗会卡死在"已结束"画面。改成manager自己调度，不依赖哪个UI正在显示。
             state.isMinimized = false
             let delay: UInt64 = state.timedOut ? 1_800_000_000 : 800_000_000
-            Task { [weak self] in
+            endedDismissTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: delay)
-                self?.consumeEnded()
+                guard let self, !Task.isCancelled else { return }
+                self.consumeEnded()
             }
         }
     }
@@ -640,6 +747,8 @@ final class CallManager: NSObject, ObservableObject {
 // MARK: - RTCPeerConnectionDelegate
 extension CallManager: RTCPeerConnectionDelegate {
     func peerConnection(_ peerConnection: RTCPeerConnection, didGenerate candidate: RTCIceCandidate) {
+        // AUDIT P2：旧 pc（挂断后被替换/关闭）迟到的候选不得按当前通话身份发出
+        guard peerConnection === pc else { return }
         let peer = state.peerId
         socket.emitCallIce(to: peer, candidate: candidate.sdp, sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex, callId: state.callId)
     }
@@ -668,6 +777,7 @@ extension CallManager: RTCPeerConnectionDelegate {
                     self.state.stage = .connected
                 }
                 self.startQualitySampling()
+                self.capVideoBitrate(peerConnection)   // 2026-09-05:接通(含 ICE restart 后重新 connected)时叠加发送码率上限
             case .disconnected:
                 // 锁屏/切后台/网络波动时 ICE 短暂 disconnected,数秒内自动恢复。
                 // 3s 防抖 → restartIce() 自愈;15s 恢复窗口内未恢复则重试(最多 3 次)→ 挂断。

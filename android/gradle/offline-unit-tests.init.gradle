@@ -1,0 +1,15 @@
+// Explicit JVM-test-only input. Never selected by an ordinary APK build.
+// Google Services still validates the package and generates its real resources.
+gradle.projectsEvaluated {
+    def requested = gradle.startParameter.taskNames
+    def allowed = ['testDebugUnitTest', ':app:testDebugUnitTest']
+    if (requested.size() != 1 || !allowed.contains(requested[0]) || !gradle.startParameter.excludedTaskNames.isEmpty()) {
+        throw new GradleException('Offline unit-test input permits only testDebugUnitTest, with no excluded tasks')
+    }
+    def app = gradle.rootProject.project(':app')
+    def fixture = gradle.rootProject.file('test-fixtures/google-services.offline.json')
+    if (!fixture.isFile()) throw new GradleException('Offline unit-test input is missing')
+    app.tasks.named('processDebugGoogleServices').configure {
+        googleServicesJsonFiles.set([fixture])
+    }
+}

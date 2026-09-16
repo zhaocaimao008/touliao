@@ -1,9 +1,10 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { I18nProvider, useI18n } from './contexts/I18nContext';
 import { SocketProvider } from './contexts/SocketContext';
+import { FilePreviewProvider } from './contexts/FilePreviewContext';
 import ElectronTitlebar from './components/ElectronTitlebar';
 import UpdateBanner from './components/UpdateBanner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -14,6 +15,7 @@ const Login          = lazy(() => import('./pages/Login'));
 const Register       = lazy(() => import('./pages/Register'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const Home           = lazy(() => import('./pages/Home'));
+const JoinGroup      = lazy(() => import('./pages/JoinGroup'));
 
 // Electron 使用 HashRouter（file:// 不支持 pushState）；Web 用 BrowserRouter
 const Router = window.__ELECTRON_CONFIG__ ? HashRouter : BrowserRouter;
@@ -31,8 +33,13 @@ const RouteFallback = () => <CenteredLoading />;
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const { t } = useI18n();
+  const location = useLocation();
   if (loading) return <CenteredLoading />;
-  return user ? children : <Navigate to="/login" />;
+  return user ? children : <Navigate to="/login" replace state={{
+    from: `${location.pathname}${location.search}`,
+    notice: location.pathname.startsWith('/join/') ? t('join.loginRequired') : '',
+  }} />;
 };
 
 // skip-link 需要在 I18nProvider 内部取词，故单独拆成组件
@@ -67,12 +74,15 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/join/:token" element={
+                <PrivateRoute><JoinGroup /></PrivateRoute>
+              } />
               <Route path="/*" element={
                 <PrivateRoute>
                   {/* 内层边界：聊天主页崩溃时不连累已登录外壳，可单独重试 */}
                   <ErrorBoundary>
                     <SocketProvider>
-                      <Home />
+                      <FilePreviewProvider><Home /></FilePreviewProvider>
                     </SocketProvider>
                   </ErrorBoundary>
                 </PrivateRoute>

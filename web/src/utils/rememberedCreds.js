@@ -47,3 +47,4 @@ export function lastRememberedPhone() {
   const phones = readAll();
   return phones.length ? phones[phones.length - 1] : '';
 }
+import { clientStorage as localStorage } from './clientStorage';

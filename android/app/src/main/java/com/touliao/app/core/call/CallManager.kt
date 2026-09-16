@@ -96,16 +96,52 @@ class CallManager @Inject constructor(
     private var micEnabledBeforeFocusLoss = true
     private val audioFocusListener = android.media.AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
-            android.media.AudioManager.AUDIOFOCUS_LOSS,
+            android.media.AudioManager.AUDIOFOCUS_LOSS -> {
+                micEnabledBeforeFocusLoss = _state.value.micEnabled
+                localAudioTrack?.setEnabled(false)
+                _state.update { it.copy(micEnabled = false) }
+                // B-5：焦点被长期抢占（其他应用取得焦点）——停提示音 + toast 提示，不自动挂断；
+                // 焦点回收（GAIN）后恢复麦克风与对应阶段提示音。
+                pauseTonesForFocusLoss()
+                showInterruptedToast()
+            }
             android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 micEnabledBeforeFocusLoss = _state.value.micEnabled
                 localAudioTrack?.setEnabled(false)
                 _state.update { it.copy(micEnabled = false) }
+                // B-5：短时抢占（系统来电/通知）→ 暂停铃声/回铃等循环提示音，GAIN 后按阶段补播
+                pauseTonesForFocusLoss()
+            }
+            android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                // B-5：短时压低音量（导航播报/提示音）——通话流不受影响，显式忽略
             }
             android.media.AudioManager.AUDIOFOCUS_GAIN -> {
                 localAudioTrack?.setEnabled(micEnabledBeforeFocusLoss)
                 _state.update { it.copy(micEnabled = micEnabledBeforeFocusLoss) }
+                resumeTonesAfterFocusGain()
             }
+            else -> {}
+        }
+    }
+
+    /** B-5：焦点被抢时停循环提示音（来电铃/回铃）。接通提示音是一次性 200ms，不专门处理。 */
+    private fun pauseTonesForFocusLoss() {
+        stopIncomingTone()   // 取消铃声循环 + stopTone（顺带停掉回铃长音）
+    }
+
+    /** B-5：焦点恢复后按通话阶段补播对应提示音（来电铃/回铃）。 */
+    private fun resumeTonesAfterFocusGain() {
+        when (_state.value.stage) {
+            CallStage.INCOMING -> playIncomingTone()
+            CallStage.OUTGOING -> playRingbackTone()
+            else -> {}
+        }
+    }
+
+    /** B-5：焦点被长期抢占时提示（仅 toast，不断话）。焦点回调在主线程，Toast 直接弹。 */
+    private fun showInterruptedToast() {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(context, "通话被其他应用打断", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -120,8 +156,25 @@ class CallManager @Inject constructor(
                 android.media.AudioManager.EXTRA_SCO_AUDIO_STATE,
                 android.media.AudioManager.SCO_AUDIO_STATE_ERROR,
             )
-            val connected = scoState == android.media.AudioManager.SCO_AUDIO_STATE_CONNECTED
-            _state.update { it.copy(bluetoothOn = connected) }
+            when (scoState) {
+                android.media.AudioManager.SCO_AUDIO_STATE_CONNECTED -> {
+                    // B-5：SCO 真正建立后才切路由——音频改走蓝牙耳机（提示音随 SCO 流）
+                    audioManager.isBluetoothScoOn = true
+                    audioManager.isSpeakerphoneOn = false
+                    _state.update { it.copy(bluetoothOn = true, speakerOn = false) }
+                }
+                android.media.AudioManager.SCO_AUDIO_STATE_DISCONNECTED -> {
+                    // B-5：SCO 意外断开（耳机摘下/关机）→ 回退听筒。仅在状态仍标记蓝牙路由时
+                    // 处理：toggleSpeaker/toggleBluetooth 主动关 SCO 触发的 DISCONNECTED 不能
+                    // 覆盖用户刚切的扬声器（那两处已先把 state.bluetoothOn 置 false）。
+                    if (_state.value.bluetoothOn) {
+                        audioManager.isBluetoothScoOn = false
+                        audioManager.isSpeakerphoneOn = false
+                        _state.update { it.copy(bluetoothOn = false, speakerOn = false) }
+                    }
+                }
+                else -> {}   // CONNECTING/ERROR：等终态，不动乐观标记
+            }
         }
     }
 
@@ -151,7 +204,8 @@ class CallManager @Inject constructor(
             android.media.AudioManager.STREAM_VOICE_CALL,
             android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
         )
-        if (hasBluetoothPermission()) {
+        if (hasBluetoothPermission() && !bluetoothScoReceiverRegistered) {
+            // B-5：防重复注册——playIncomingTone/acquireAudioFocusAndRoute/GAIN 恢复多处都会走到这
             runCatching {
                 context.registerReceiver(
                     bluetoothScoReceiver,
@@ -165,14 +219,19 @@ class CallManager @Inject constructor(
         // 否则维持原逻辑：语音通话默认听筒，视频通话默认扬声器。
         val defaultSpeaker = !btAvailable && _state.value.isVideo
         if (btAvailable) {
+            // B-5：只发起 SCO，不立即 isBluetoothScoOn=true 抢路由——等 receiver 收到
+            // SCO_AUDIO_STATE_CONNECTED 再真正切蓝牙，避免 SCO 未就绪期间音频走错设备。
             @Suppress("DEPRECATION")
             runCatching { audioManager.startBluetoothSco() }
                 .onFailure { e -> Log.w(TAG, "启动蓝牙 SCO 失败: ${e.message}") }
-            audioManager.isBluetoothScoOn = true
         } else {
             audioManager.isSpeakerphoneOn = defaultSpeaker
         }
-        _state.update { it.copy(speakerOn = defaultSpeaker, bluetoothAvailable = btAvailable, bluetoothOn = btAvailable) }
+        // bluetoothOn 只在 receiver 收到 SCO_AUDIO_STATE_CONNECTED 后置 true（B-5）——
+        // 先置 false：SCO 未就绪/启动失败(被 runCatching 吞)期间 UI 不得谎称"已路由蓝牙"，
+        // 否则用户看到蓝牙已启用但声音还在听筒/扬声器（AUDIT P3）。bluetoothAvailable 仅表示
+        // "有已连接耳机可切"，不代表已路由。
+        _state.update { it.copy(speakerOn = defaultSpeaker, bluetoothAvailable = btAvailable, bluetoothOn = false) }
     }
 
     private fun releaseAudioFocusAndRoute() {
@@ -207,9 +266,9 @@ class CallManager @Inject constructor(
     fun toggleBluetooth() {
         val enabled = !_state.value.bluetoothOn
         if (enabled) {
+            // B-5：只发起 SCO，实际路由等 receiver 收到 CONNECTED 后再切（见 bluetoothScoReceiver）
             @Suppress("DEPRECATION")
             runCatching { audioManager.startBluetoothSco() }
-            audioManager.isBluetoothScoOn = true
             audioManager.isSpeakerphoneOn = false
         } else {
             @Suppress("DEPRECATION")
@@ -228,10 +287,17 @@ class CallManager @Inject constructor(
     private var iceRestartRecoverJob: Job? = null    // restart 后等待 connected 的窗口
     private var iceRestartCount = 0                  // 连续重启次数,恢复后清零
     @Volatile private var callAttempt = 0L   // 主叫呼出序号：ack 延迟时防止旧 callId 写入新一次呼出（P2-1 @Volatile 防跨线程撕裂）
+    @Volatile private var participatingCallId = "" // 仅本设备实际request/accept成功进入的通话可在重连后resume
+    // Q06 全修：resume 时必须证明持有它，光凭 callId+userId 不再够（同账号旁观设备
+    // 不能在断线宽限期内抢注这通电话）。request/accept 的 ack 里签发，cleanup() 清空。
+    @Volatile private var participatingResumeToken: String? = null
     private var audioSource: org.webrtc.AudioSource? = null
     private var videoSource: VideoSource? = null
     private var localAudioTrack: AudioTrack? = null
     private var videoCapturer: VideoCapturer? = null
+    // AUDIT P2：本端本地视频轨是否真正可用（摄像头采集成功并 addTrack）。
+    // createLocalTracks 里据此判断是否需降级为纯音频（呼出转 audio 类型/接听转语音 UI）。
+    private var localVideoOk = false
     private var surfaceHelper: SurfaceTextureHelper? = null
 
     var localVideoTrack: VideoTrack? = null
@@ -279,6 +345,9 @@ class CallManager @Inject constructor(
     init {
         ensureFactory()
         observeSignaling()
+        sessionManager.onIdentityCleanup {
+            if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) cleanup(CallStage.ENDED)
+        }
     }
 
     private fun ensureFactory() {
@@ -303,11 +372,12 @@ class CallManager @Inject constructor(
         // (此前回铃音先播、acquireAudioFocusAndRoute 在建流时才执行——顺序反了)
         acquireAudioFocusAndRoute()
         playRingbackTone()                  // 主叫拨出→接通前循环回铃音（接通/挂断时停）
-        // 本地呼出超时:60s 内未接通(对方不接/断线,后端 timeout 不向主叫发事件)则自动挂断收尾,
+        // 本地呼出超时:45s 内未接通(对方不接/断线,后端 timeout 不向主叫发事件)则自动挂断收尾,
         // 防止界面永远卡在"呼叫中"。接通(CONNECTED)或挂断时取消(见 cleanup / IceConnectionState)。
+        // 45s = 与 Web/iOS 统一值 (2026-09-07 AUDIT 四端超时不一致项拍板)。
         callTimeoutJob?.cancel()
         callTimeoutJob = scope.launch {
-            delay(60_000)
+            delay(45_000)
             val st = _state.value.stage
             if (st == CallStage.OUTGOING || st == CallStage.CONNECTING) {
                 if (_state.value.peerId.isNotEmpty()) socketManager.emitCallEnd(_state.value.peerId, _state.value.callId)
@@ -321,18 +391,37 @@ class CallManager @Inject constructor(
             if (attempt != callAttempt || _state.value.stage != CallStage.OUTGOING) return@launch
             createPeerConnection()
             createLocalTracks(video)
+            // AUDIT P2：视频通话但摄像头不可用（无摄像头/被占用/权限拒）→ 本端如实降级为
+            // 纯音频：状态改 audio + 按 audio 发起请求，对端按语音通话接听（不再"视频通话
+            // 黑屏"静默失真）。视频权限被拒时用户可在通话中再点开摄像头重试。
+            if (video && !localVideoOk) {
+                Log.w(TAG, "视频采集不可用,本端降级为纯音频发起")
+                _state.update { it.copy(isVideo = false) }
+            }
             // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（此刻 App 在前台、权限已授予，满足 FGS 合规）
-            CallForegroundService.start(context, video)
+            CallForegroundService.start(context, _state.value.isVideo)
             val name = sessionManager.currentUser?.username.orEmpty()
-            // ack 携带服务端生成的 callId；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
-            val callId = socketManager.emitCallRequest(peerId, if (video) "video" else "audio", name)
-            if (callId == null) {
-                // ack 超时/socket 未连/请求被拒（P1-4）：立即收尾并提示，不再静默回铃 60s
+            // ack 携带服务端生成的 callId + resumeToken；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
+            val requestAck = socketManager.emitCallRequest(peerId, if (_state.value.isVideo) "video" else "audio", name)
+            if (requestAck == null) {
+                // ack 超时/socket 未连/请求被拒（P1-4）：立即收尾并提示，不再静默回铃 60s。
+                // AUDIT P2（幽灵响铃）：请求可能已到达服务端而仅 ack 丢失——此时服务端
+                // activeCalls 仍在响，被叫会无人接也无人拒直到 120s。若 socket 仍连着，
+                // 补发一条无 callId 的 call:end 让服务端按 (我,对端) 关系清掉该通（服务端
+                // CALL_REQUIRE_ID=false 走 resolvePrivateCall 兜底；请求未达服务端则无害）。
+                // 仅在已连接时发：未连接时 socket.io 会把 emit 排进 sendBuffer，重连后补发的
+                // 旧 end 可能误杀将来同对端的新通话。
+                if (_state.value.peerId.isNotEmpty() && socketManager.isConnected()) {
+                    socketManager.emitCallEnd(_state.value.peerId)
+                }
                 if (attempt == callAttempt && _state.value.stage == CallStage.OUTGOING) cleanup(CallStage.ENDED)
                 return@launch
             }
+            val callId = requestAck.callId
             if (attempt == callAttempt && _state.value.peerId == peerId && _state.value.stage != CallStage.ENDED) {
                 _state.update { it.copy(callId = callId) }
+                participatingCallId = callId
+                participatingResumeToken = requestAck.resumeToken
             }
         }
     }
@@ -348,9 +437,18 @@ class CallManager @Inject constructor(
             if (_state.value.stage == CallStage.ENDED) return@launch
             createPeerConnection()
             createLocalTracks(s.isVideo)
+            // AUDIT P2：被叫接听时本端摄像头不可用 → 本端如实转语音 UI（不发视频轨）。
+            // 对端仍按视频类型显示其本地画面但收不到我方视频轨，其 UI 已有"对端未开视频"
+            // 的兜底渲染；通话中仍可手动再开摄像头。
+            if (s.isVideo && !localVideoOk) {
+                Log.w(TAG, "视频采集不可用,接听降级为纯音频")
+                _state.update { it.copy(isVideo = false) }
+            }
             // 本地媒体已开始采集 → 起前台服务保活（接听时 App 在前台、权限已授予）
-            CallForegroundService.start(context, s.isVideo)
-            socketManager.emitCallResponse(s.peerId, true, s.callId)
+            CallForegroundService.start(context, _state.value.isVideo)
+            // accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken（Q06 全修）
+            socketManager.emitCallResponse(s.peerId, true, s.callId, onAck = { token -> participatingResumeToken = token })
+            participatingCallId = s.callId
             // 等待主叫的 call:offer
         }
     }
@@ -445,6 +543,13 @@ class CallManager @Inject constructor(
         }
         // 从空闲新进入 INCOMING 才播铃（重复推送/升级 callId 不重播）
         if (wasIdle) playIncomingTone()
+        else {
+            // B-3：正在通话/已有来电 UI（不覆盖）时收到 FCM 来电推送 → 同样回忙线拒接，
+            // 与 socket 通路 call:incoming 的 busy 语义一致；同一通的重复推送不算（只升级了 callId）
+            val s = _state.value
+            val sameIncoming = s.stage == CallStage.INCOMING && s.peerId == from
+            if (!sameIncoming) socketManager.emitCallResponse(from, false, callId, busy = true)
+        }
     }
 
     // ── 信令处理 ───────────────────────────────────────────
@@ -452,8 +557,10 @@ class CallManager @Inject constructor(
         scope.launch {
             socketManager.status.filter { it == com.touliao.app.core.realtime.SocketStatus.CONNECTED }.collect {
                 val s = _state.value
-                if (s.callId.isNotEmpty() && s.stage != CallStage.IDLE && s.stage != CallStage.ENDED) {
-                    socketManager.emitCallResume(s.callId)
+                if (s.stage != CallStage.IDLE && s.stage != CallStage.ENDED &&
+                    CallSignalMatcher.canResume(s.callId, participatingCallId)
+                ) {
+                    socketManager.emitCallResume(s.callId, participatingResumeToken)
                 }
             }
         }
@@ -481,8 +588,9 @@ class CallManager @Inject constructor(
                     return@collect
                 }
                 if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) {
-                    // 忙线：直接拒接
-                    socketManager.emitCallResponse(e.from, false, e.callId)
+                    // B-3：忙线拒接带 busy=true（对齐 Web Home.jsx 语义，后端 call.js 原样转发），
+                    // 主叫可区分"对方忙线中"与普通拒接；已有来电/通话 UI 保持不覆盖
+                    socketManager.emitCallResponse(e.from, false, e.callId, busy = true)
                     return@collect
                 }
                 _state.value = CallState(
@@ -589,7 +697,7 @@ class CallManager @Inject constructor(
                     val idOk = e.callId.isEmpty() || s.callId.isEmpty() || e.callId == s.callId
                     hasActiveCall && idOk
                 } else {
-                    CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)
+                    CallSignalMatcher.matchesEnd(s.callId, e.callId, s.peerId, e.from, e.reason)
                 }
                 val matchesOtherDeviceOutgoing = !s.isCaller && s.stage == CallStage.OUTGOING &&
                     (e.callId.isEmpty() || e.callId == s.callId)
@@ -615,7 +723,8 @@ class CallManager @Inject constructor(
         val pc = peerConnection ?: return
         pc.createOffer(object : SimpleSdpObserver() {
             override fun onCreateSuccess(desc: SessionDescription) {
-                val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
+                // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+                val tuned = SessionDescription(desc.type, tuneSdpForCall(desc.description))
                 pc.setLocalDescription(SimpleSdpObserver(), tuned)
                 socketManager.emitCallOffer(_state.value.peerId, tuned.description, _state.value.callId)
             }
@@ -626,7 +735,8 @@ class CallManager @Inject constructor(
         val pc = peerConnection ?: return
         pc.createAnswer(object : SimpleSdpObserver() {
             override fun onCreateSuccess(desc: SessionDescription) {
-                val tuned = SessionDescription(desc.type, tuneSdpForWeakNetwork(desc.description))
+                // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+                val tuned = SessionDescription(desc.type, tuneSdpForCall(desc.description))
                 pc.setLocalDescription(SimpleSdpObserver(), tuned)
                 socketManager.emitCallAnswer(_state.value.peerId, tuned.description, _state.value.callId)
             }
@@ -671,6 +781,8 @@ class CallManager @Inject constructor(
                             else it
                         }
                         startQualitySampling()
+                        // N1：接通/恢复即对视频 sender 施加发送码率上限(2.5Mbps)，防止全端无约束导致模糊。
+                        peerConnection?.let { capVideoBitrate(it) }
                     }
                     PeerConnection.IceConnectionState.DISCONNECTED -> {
                         // 短时探测间隙(<3s 通常自愈,锁屏/后台):防抖后再重启,避免无谓重协商
@@ -700,17 +812,35 @@ class CallManager @Inject constructor(
         })
     }
 
+    /** N1：视频发送码率上限 2.5Mbps（全端一致），仅影响 video sender；异常静默不影响通话。 */
+    private fun capVideoBitrate(pc: PeerConnection) {
+        runCatching {
+            pc.getSenders().filter { it.track()?.kind() == "video" }.forEach { sender ->
+                val params = sender.parameters
+                params.encodings?.firstOrNull()?.maxBitrateBps = 2_500_000
+                sender.parameters = params
+            }
+        }
+    }
+
     private fun createLocalTracks(video: Boolean) {
         val f = factory ?: return
         val pc = peerConnection ?: return
         acquireAudioFocusAndRoute()
+        localVideoOk = false
         // 音频
         audioSource = f.createAudioSource(MediaConstraints())
         localAudioTrack = f.createAudioTrack("audio0", audioSource).apply { setEnabled(true) }
         pc.addTrack(localAudioTrack, listOf(STREAM_ID))
-        // 视频
+        // 视频：摄像头不可用/启动失败 → 不 abort（音频轨已加），降级为纯音频由调用方判定
+        // （呼出侧改发 audio 请求；接听侧保持音频应答）。静默继续只会让对端/本端 UI 误以为
+        // 有视频轨——黑屏假视频比明示的纯音频更糟。
         if (video) {
-            val capturer = createCameraCapturer() ?: return
+            val capturer = createCameraCapturer()
+            if (capturer == null) {
+                Log.w(TAG, "视频采集不可用(无摄像头/被占用/权限拒):本端按纯音频继续")
+                return
+            }
             videoCapturer = capturer
             surfaceHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
             videoSource = f.createVideoSource(false)
@@ -719,6 +849,7 @@ class CallManager @Inject constructor(
                 .onFailure { e -> Log.w(TAG, "视频采集启动失败: ${e.message}") }
             localVideoTrack = f.createVideoTrack("video0", videoSource).apply { setEnabled(true) }
             pc.addTrack(localVideoTrack, listOf(STREAM_ID))
+            localVideoOk = true
         }
     }
 
@@ -803,6 +934,7 @@ class CallManager @Inject constructor(
                         runCatching { localVideoTrack?.setEnabled(true) }
                         runCatching { videoCapturer?.startCapture(1280, 720, 30) }
                     }
+                    capVideoBitrate(pc)   // N1：补轨成功后立即施加发送码率上限
                 } else {
                     // 视频→语音：停采集 + 移除视频轨（track 引用保留，切回可复用）
                     pc.getSenders().filter { it.track()?.kind() == "video" }.forEach { sender ->
@@ -822,6 +954,9 @@ class CallManager @Inject constructor(
 
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage) {
+        callAttempt++
+        participatingCallId = ""
+        participatingResumeToken = null
         stopIncomingTone()                                // 停来电铃声（接听/拒接/挂断/清理）
         qualityJob?.cancel(); qualityJob = null          // 停质量采样
         releaseTone()                                     // 停回铃/接通音并释放 ToneGenerator

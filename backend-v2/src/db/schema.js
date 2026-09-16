@@ -465,7 +465,7 @@ function applySchema(db) {
       id         TEXT PRIMARY KEY,
       user_id    TEXT NOT NULL,
       name       TEXT NOT NULL,
-      color      TEXT DEFAULT '#07C160',
+      color      TEXT DEFAULT '#6D5AE6',
       created_at INTEGER DEFAULT (strftime('%s','now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
@@ -646,6 +646,44 @@ function applySchema(db) {
     // 只能持久化用户偏好——客户端切语言时上报，写到这一列。
     // 缺省 zh-CN 与既有行为一致，老用户不受影响。
     "ALTER TABLE user_settings ADD COLUMN lang TEXT DEFAULT 'zh-CN'",
+    // ── F1 批次（2026-09-05）──────────────────────────────────────
+    // 朋友圈发视频：video=视频URL，cover=可选封面图URL；空串=无（老行为不变，纯图文动态两列恒为''）
+    "ALTER TABLE moments ADD COLUMN video TEXT DEFAULT ''",
+    "ALTER TABLE moments ADD COLUMN cover TEXT DEFAULT ''",
+    // 会话归档：按用户按会话，0=未归档(默认，老行为不变)/1=已归档
+    "ALTER TABLE conversation_settings ADD COLUMN archived INTEGER DEFAULT 0",
+    // Q01: additive authority; old sessions are imported once, preserving historical jti values.
+    // The old UA-unique table is never used to authenticate or to restore revoked sessions.
+    `CREATE TABLE IF NOT EXISTS auth_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device TEXT DEFAULT '未知设备', platform TEXT DEFAULT 'Web', ip TEXT,
+      created_at INTEGER DEFAULT (strftime('%s','now')),
+      last_seen INTEGER DEFAULT (strftime('%s','now'))
+    )`,
+    `INSERT OR IGNORE INTO auth_sessions (id,user_id,device,platform,ip,created_at,last_seen)
+      SELECT id,user_id,device,platform,ip,created_at,last_seen FROM user_sessions`,
+    "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)",
+    // Old grants cannot be mapped safely to a physical session. They require password login.
+    "ALTER TABLE device_accounts ADD COLUMN session_id TEXT DEFAULT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_device_accounts_session ON device_accounts(user_id,session_id)",
+    // Ambiguous legacy push ownership must be re-registered by the active client.
+    `DELETE FROM device_tokens WHERE token IN (
+      SELECT token FROM device_tokens GROUP BY token HAVING COUNT(*) > 1
+    )`,
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_device_tokens_owner ON device_tokens(token)",
+    `DELETE FROM push_subscriptions WHERE endpoint IN (
+      SELECT endpoint FROM push_subscriptions GROUP BY endpoint HAVING COUNT(*) > 1
+    )`,
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_push_subscriptions_owner ON push_subscriptions(endpoint)",
+    "ALTER TABLE push_subscriptions ADD COLUMN session_id TEXT REFERENCES auth_sessions(id) ON DELETE CASCADE",
+    "ALTER TABLE device_tokens ADD COLUMN session_id TEXT REFERENCES auth_sessions(id) ON DELETE CASCADE",
+    "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_session ON push_subscriptions(session_id)",
+    "CREATE INDEX IF NOT EXISTS idx_device_tokens_session ON device_tokens(session_id)",
+    // Historical subscriptions cannot be safely attributed to a login session.
+    // Active clients register again; never guess which old device should keep receiving messages.
+    "DELETE FROM push_subscriptions WHERE session_id IS NULL",
+    "DELETE FROM device_tokens WHERE session_id IS NULL",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────
@@ -666,7 +704,9 @@ function applySchema(db) {
     db.prepare('SELECT idx FROM schema_migrations').all().map(r => r.idx)
   );
   migrationsSnapshot = migrations;   // 供 verifySchemaDrift 启动时全量核对（防 idx 漂移漏建）
-  migrations.forEach((sql, idx) => {
+  // Schema writes and version markers commit together: a crash cannot leave a copied authority
+  // without its marker (which would otherwise resurrect removed sessions on the next startup).
+  db.transaction(() => migrations.forEach((sql, idx) => {
     if (alreadyApplied.has(idx)) return; // 已成功执行过，跳过
     try {
       db.prepare(sql).run();
@@ -681,7 +721,7 @@ function applySchema(db) {
       console.error('[db] Migration FAILED (aborting):', `#${idx}`, sql.slice(0, 120), '|', e.message);
       throw new Error(`数据库迁移 #${idx} 失败: ${e.message}`);
     }
-  });
+  }))();
 }
 
 // ── FTS5 trigram 全文索引 + 同步触发器 ───────────────────────────

@@ -116,4 +116,15 @@ describe('通话系统消息(type=call)', () => {
     expect(c.participants).toBe(5);
     expect(rows[0].content).toBe('视频通话 2 分钟');
   });
+
+  test('并发双终态:同 callId 同时写两次只落一条(AUDIT P2 单飞守卫)', async () => {
+    const callId = 'call-race-1';
+    await Promise.all([
+      writeCallMessage({ callId, status: 'completed', duration: 30, callType: 'audio', callerId: a.userId, calleeId: b.userId }, mockIo),
+      writeCallMessage({ callId, status: 'completed', duration: 30, callType: 'audio', callerId: a.userId, calleeId: b.userId }, mockIo),
+    ]);
+    const rows = lastCallMessages().filter(r => (r.file_url || '').includes(callId));
+    expect(rows.length).toBe(1);
+    expect(rows[0].conversation_id).toBe(convId);
+  });
 });

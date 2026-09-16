@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchesCall, withCallId } from './callSignaling';
+import { matchesCall, matchesCallEnd, matchesGroupStartAttempt, withCallId } from './callSignaling';
 
 describe('matchesCall', () => {
   it('rejects an event from the same peer with an old callId', () => {
@@ -44,5 +44,37 @@ describe('withCallId', () => {
     const result = withCallId(original, 'c1');
     expect(original).toEqual({ to: 'bob' });
     expect(result).not.toBe(original);
+  });
+});
+
+describe('matchesCallEnd', () => {
+  const active = { remoteId: 'bob', callId: 'current-call' };
+
+  it('accepts a server restart terminal without from only for the exact active callId', () => {
+    expect(matchesCallEnd({ reason: 'server_restarted', callId: 'current-call' }, active)).toBe(true);
+    expect(matchesCallEnd({ reason: 'server_restarted', callId: 'old-call' }, active)).toBe(false);
+    expect(matchesCallEnd({ reason: 'server_restarted' }, active)).toBe(false);
+  });
+
+  it('does not treat another from-less terminal as belonging to the active call', () => {
+    expect(matchesCallEnd({ reason: 'timeout', callId: 'current-call' }, active)).toBe(false);
+  });
+
+  it('preserves peer and callId matching for ordinary terminals', () => {
+    expect(matchesCallEnd({ from: 'bob', reason: 'hangup', callId: 'current-call' }, active)).toBe(true);
+    expect(matchesCallEnd({ from: 'bob', reason: 'hangup', callId: 'old-call' }, active)).toBe(false);
+    expect(matchesCallEnd({ from: 'mallory', reason: 'hangup', callId: 'current-call' }, active)).toBe(false);
+  });
+});
+
+describe('matchesGroupStartAttempt', () => {
+  it('accepts matching and duplicate acknowledgements for the current attempt', () => {
+    expect(matchesGroupStartAttempt({ requestId: 'attempt-current' }, 'attempt-current')).toBe(true);
+    expect(matchesGroupStartAttempt({ requestId: 'attempt-current' }, 'attempt-current')).toBe(true);
+  });
+
+  it('rejects a late acknowledgement from an old or uncorrelated server request', () => {
+    expect(matchesGroupStartAttempt({ requestId: 'attempt-old' }, 'attempt-current')).toBe(false);
+    expect(matchesGroupStartAttempt({}, 'attempt-current')).toBe(false);
   });
 });

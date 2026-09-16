@@ -7,7 +7,9 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { badRequest, forbidden } = require('../utils/http');
+const adminAuth = require('../middleware/adminAuth');
+const { badRequest } = require('../utils/http');
+const { requireMessageAccess } = require('../utils/messageAuthorization');
 const { db } = require('../db/connection');
 
 /**
@@ -40,6 +42,7 @@ router.post('/ack/delivery', auth, async (req, res, next) => {
       throw badRequest('缺少参数: messageId');
     }
 
+    requireMessageAccess(messageId, userId);
     const ackManager = req.app.get('ackManager');
     await ackManager.recordDelivery(messageId, userId, timestamp || Date.now());
 
@@ -79,14 +82,15 @@ router.post('/ack/read', auth, async (req, res, next) => {
       throw badRequest('缺少参数: messageId');
     }
 
+    requireMessageAccess(messageId, userId);
     const ackManager = req.app.get('ackManager');
     await ackManager.recordRead(messageId, userId, timestamp || Date.now());
+    const msg = requireMessageAccess(messageId, userId);
 
     // 持久化到 SQLite（三态展示的最终态；Redis 仅实时缓存，TTL 过期不丢）
     db.prepare('INSERT OR IGNORE INTO message_reads (message_id, user_id) VALUES (?, ?)').run(messageId, userId);
 
     // 向发送者实时广播精确回执（消息气泡 蓝双勾 即时流转）
-    const msg = db.prepare('SELECT sender_id, conversation_id FROM messages WHERE id=?').get(messageId);
     if (msg && msg.sender_id !== userId) {
       req.app.get('io')?.to(`user_${msg.sender_id}`).emit('message:read', {
         messageId, readBy: userId, conversationId: msg.conversation_id,
@@ -123,6 +127,7 @@ router.get('/ack/status', auth, async (req, res, next) => {
       throw badRequest('缺少参数: messageId');
     }
 
+    requireMessageAccess(messageId, req.user.id);
     const ackManager = req.app.get('ackManager');
     const status = await ackManager.getMessageAckStatus(messageId);
 
@@ -147,7 +152,7 @@ router.get('/ack/status', auth, async (req, res, next) => {
  *       200:
  *         description: 队列统计
  */
-router.get('/queue/stats', auth, async (req, res, next) => {
+router.get('/queue/stats', adminAuth, async (req, res, next) => {
   try {
     const { queueName = 'messages' } = req.query;
 
@@ -178,9 +183,11 @@ router.get('/queue/stats', auth, async (req, res, next) => {
  *       200:
  *         description: DLQ 消息列表
  */
-router.get('/dlq', auth, async (req, res, next) => {
+router.get('/dlq', adminAuth, async (req, res, next) => {
   try {
     const { queueName = 'messages', limit = 50 } = req.query;
+    if (typeof queueName !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(queueName)
+      || !Number.isInteger(Number(limit)) || Number(limit) < 1 || Number(limit) > 100) throw badRequest('队列参数无效');
 
     const msgQueue = req.app.get('msgQueue');
     const messages = await msgQueue.getDLQMessages(queueName, parseInt(limit));

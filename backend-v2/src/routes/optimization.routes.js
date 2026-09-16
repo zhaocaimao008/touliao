@@ -7,7 +7,9 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { badRequest } = require('../utils/http');
+const adminAuth = require('../middleware/adminAuth');
+const { badRequest, forbidden } = require('../utils/http');
+const { requireMessageAccess } = require('../utils/messageAuthorization');
 
 /**
  * @swagger
@@ -108,6 +110,10 @@ router.get('/search/suggestions', auth, async (req, res, next) => {
 router.post('/ack/batch', auth, async (req, res, next) => {
   try {
     const { deliveries = [], reads = [] } = req.body;
+    if (!Array.isArray(deliveries) || !Array.isArray(reads) || deliveries.length + reads.length > 500) {
+      throw badRequest('每批最多 500 条消息');
+    }
+    for (const messageId of new Set([...deliveries, ...reads])) requireMessageAccess(messageId, req.user.id);
     const batchAckManager = req.app.get('batchAckManager');
 
     if (!batchAckManager) {
@@ -117,7 +123,6 @@ router.post('/ack/batch', auth, async (req, res, next) => {
     const results = {
       deliveries: await batchAckManager.batchRecordDelivery(req.user.id, deliveries),
       reads: await batchAckManager.batchRecordRead(req.user.id, reads),
-      stats: batchAckManager.getStats(),
     };
 
     res.json(results);
@@ -134,7 +139,7 @@ router.post('/ack/batch', auth, async (req, res, next) => {
  *     tags: [Optimization]
  *     security: [{ bearerAuth: [] }]
  */
-router.post('/ack/flush', auth, async (req, res, next) => {
+router.post('/ack/flush', adminAuth, async (req, res, next) => {
   try {
     const batchAckManager = req.app.get('batchAckManager');
 
@@ -229,7 +234,7 @@ router.post('/dedup/mark', auth, async (req, res, next) => {
  *     tags: [Optimization]
  *     security: [{ bearerAuth: [] }]
  */
-router.post('/cache/warm', auth, async (req, res, next) => {
+router.post('/cache/warm', adminAuth, async (req, res, next) => {
   try {
     const cacheWarmer = req.app.get('cacheWarmer');
 
@@ -270,6 +275,7 @@ router.post('/cache/warm', auth, async (req, res, next) => {
 router.post('/cache/warm-user', auth, async (req, res, next) => {
   try {
     const { userId } = req.body;
+    if (userId !== req.user.id) throw forbidden('只能预热自己的数据');
     const cacheWarmer = req.app.get('cacheWarmer');
 
     if (!cacheWarmer) {
@@ -340,7 +346,7 @@ router.post('/network/detect', auth, async (req, res, next) => {
  *     tags: [Optimization]
  *     security: [{ bearerAuth: [] }]
  */
-router.get('/stats', auth, async (req, res, next) => {
+router.get('/stats', adminAuth, async (req, res, next) => {
   try {
     const stats = {
       searchRanking: req.app.get('searchRanking')?.getSearchTrending ? 'ready' : 'offline',

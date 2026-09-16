@@ -9,6 +9,9 @@ final class GroupInfoViewModel: ObservableObject {
     @Published var uploadingAvatar = false
     @Published var left = false
     @Published var error: String?
+    /// F5 群邀请链接：生成中标记（防连点）+ 待复制 URL（View 消费后写剪贴板）
+    @Published var copyingInviteLink = false
+    @Published var inviteLinkToCopy: String?
 
     let conversationId: String
     private let repo = GroupRepository.shared
@@ -100,9 +103,37 @@ final class GroupInfoViewModel: ObservableObject {
         Task {
             do {
                 try await repo.transferOwner(conversationId, userId: member.id)
-                await refresh()   // 我已变普通成员，刷新权限
+                // F1：转让后我变管理员、对方变群主；刷新拿服务端真值（role_changed 广播也会触发刷新，幂等）
+                await refresh()
+                // 成功提示（对齐 Web transferOwnerSuccess；本页 error 字段兼作 toast 载体，见 .toast($vm.error)）
+                error = "已将群主转让给\(member.displayName.isEmpty ? "该成员" : "「\(member.displayName)」")"
             } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "转让群主失败" }
         }
+    }
+
+    /// F5 群邀请链接：POST invite-link 拿 URL，View 消费后写剪贴板（对齐 Android copyInviteLink）。
+    /// 链接经 web 落地页 /join/:token 处理入群，原生侧只负责复制，不做深链。
+    func copyInviteLink() {
+        guard !copyingInviteLink else { return }
+        copyingInviteLink = true
+        Task {
+            do {
+                let link = try await repo.createInviteLink(conversationId)
+                let url = link.shareUrl
+                if url.isEmpty {
+                    error = "邀请链接生成失败"
+                } else {
+                    inviteLinkToCopy = url
+                }
+            } catch {
+                self.error = (error as? LocalizedError)?.errorDescription ?? "生成邀请链接失败"
+            }
+            copyingInviteLink = false
+        }
+    }
+
+    func consumeInviteLink() {
+        inviteLinkToCopy = nil
     }
 
     func setManage(muteAll: Bool? = nil, noPrivateChat: Bool? = nil, noAddFriend: Bool? = nil) {

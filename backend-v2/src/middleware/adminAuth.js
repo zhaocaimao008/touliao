@@ -9,8 +9,10 @@ const jwt = require('jsonwebtoken');
 const config = require('../config');
 const { csrfCookieOptions } = require('../utils/cookies');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
+const { currentAdmin, allowedAdminIp } = require('../utils/adminAuthorization');
 
 module.exports = function adminAuth(req, res, next) {
+  if (!allowedAdminIp(req.ip)) return res.status(403).json({ error: '后台仅限白名单 IP 访问' });
   const token = req.cookies?.[config.admin.cookieName];
   if (!token) return res.status(401).json({ error: '未登录后台' });
   // 异步黑名单检查
@@ -21,8 +23,13 @@ module.exports = function adminAuth(req, res, next) {
     }
     try {
       const payload = jwt.verify(token, config.adminJwtSecret, { algorithms: ['HS256'] });
-      if (!payload.admin) return res.status(403).json({ error: '无后台权限' });
-      req.admin = payload;
+      if (payload.admin !== true) return res.status(403).json({ error: '无后台权限' });
+      const identity = currentAdmin(payload);
+      if (!identity) {
+        res.clearCookie(config.admin.cookieName, { path: '/' });
+        return res.status(401).json({ error: '后台登录已过期' });
+      }
+      req.admin = identity;
       req.adminToken = token;
       req.csrfToken = payload.csrf;
       res.cookie(config.csrfCookie, payload.csrf, csrfCookieOptions(req));

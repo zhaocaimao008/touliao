@@ -46,9 +46,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
         PushManager.shared.setApnsToken(hex)
         Task { await NotificationRepository.shared.diag("didRegister ok hexPrefix=\(String(hex.prefix(8))) isLoggedIn=\(KeychainStore.shared.isLoggedIn)") }
-        if !hex.isEmpty && KeychainStore.shared.isLoggedIn {
-            Task { await NotificationRepository.shared.register(token: hex, platform: "ios_apns") }
-        }
     }
 
     func application(_ application: UIApplication,
@@ -74,12 +71,17 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         // 前台收到推送：App 已通过 socket 实时收到消息并更新 UI + 震动（ConversationListViewModel），
         // 再展示横幅会与应用内 UI 重复打扰。服务端现总是推送（修复锁屏无通知），
         // 故前台只响声音、不弹横幅；锁屏/后台由系统正常展示完整通知。
-        completionHandler([.sound])
+        completionHandler(PushRecipient.accepts(notification.request.content.userInfo) ? [.sound] : [])
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
+        let owner = KeychainStore.shared.snapshot()
+        guard PushRecipient.accepts(response.notification.request.content.userInfo) else {
+            completionHandler()
+            return
+        }
         // 来电通知动作：接听/拒绝。userInfo 由 CallManager.showIncomingCallNotification /
         // push.js pushCallInvite 携带 from/callType/callerName/callId；先 incomingFromPush 重建
         // incoming 状态（幂等，覆盖 App 被杀后由通知重新拉起、state 尚未建立的情况），再 accept/reject。
@@ -91,12 +93,14 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
             let callerName = info["callerName"] as? String ?? ""
             let callId = info["callId"] as? String ?? ""
             Task { @MainActor in
+                guard KeychainStore.shared.isCurrent(owner) else { completionHandler(); return }
                 CallManager.shared.incomingFromPush(from: from, callType: callType, callerName: callerName, callId: callId)
                 // 冷启动时 SessionStore.restoreSession() 才刚异步发起 socket 连接/鉴权：此刻直接
                 // emit 可能打到 nil socket（reject 空发）或抢在鉴权完成前发送（accept 丢失）。
                 // 等 socket 就绪（有限超时，避免用户被卡在系统通知上）再发送动作，最后才调用
                 // completionHandler——过早调用 iOS 可能在动作真正发出前就把 App 挂起（NOTIFY-002 F2）。
                 await Self.awaitSocketReady(timeout: 8)
+                guard KeychainStore.shared.isCurrent(owner) else { completionHandler(); return }
                 if actionId == "ANSWER" {
                     CallManager.shared.accept()
                 } else {
@@ -133,6 +137,7 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
             let callType = info["callType"] as? String ?? "audio"
             let callerName = info["callerName"] as? String ?? ""
             Task { @MainActor in
+                guard KeychainStore.shared.isCurrent(owner) else { return }
                 CallManager.shared.incomingFromPush(from: from, callType: callType, callerName: callerName, callId: callId)
             }
         }

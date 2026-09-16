@@ -97,9 +97,10 @@ function isTransient(err, res) {
 
 // send / delayMs 可注入纯粹为了可测（默认即真实实现）：这段逻辑要钉死的两条不变量
 // ——「瞬时失败才重试」与「重试复用同一 request_id」——不该为了验证它们去 mock https。
-async function sendPushWithRetry(path, token, message, { send = httpJson, delayMs = PUSH_RETRY_DELAY_MS } = {}) {
+async function sendPushWithRetry(path, token, message, { send = httpJson, delayMs = PUSH_RETRY_DELAY_MS, shouldSend = () => true } = {}) {
   let lastErr = null;
   for (let attempt = 1; attempt <= PUSH_MAX_ATTEMPTS; attempt += 1) {
+    if (!shouldSend()) return { status: 0, json: { code: 0 }, skipped: true };
     let res = null, err = null;
     try {
       res = await send('POST', path, { token }, message);
@@ -122,7 +123,7 @@ async function sendPushWithRetry(path, token, message, { send = httpJson, delayM
  * @param title/body  通知标题/正文
  * @param payload  透传数据（点击跳转用），会放进 transmission
  */
-async function pushToCid(cid, { title, body, payload }) {
+async function pushToCid(cid, { title, body, payload, isCurrent }) {
   const token = await getToken();
   // transmission（透传）格式与 VxinGeTuiService.onReceiveMessageData 解析约定一致：
   // {"title":"...","body":"...","conversationId":"..."}
@@ -134,6 +135,7 @@ async function pushToCid(cid, { title, body, payload }) {
     type: payload?.type || '',      // 事件类型（message/call/friend_request…），客户端据此区分展示/跳转（NOTIFY-004 P1-2）
     conversationId: payload?.conversationId || '',
     senderId: payload?.senderId || '',
+    recipientId: String(payload?.recipientId || ''),
   });
   const message = {
     request_id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
@@ -153,7 +155,7 @@ async function pushToCid(cid, { title, body, payload }) {
       android: {
         ups: {
           notification: { title, body, click_type: 'intent',
-            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;${payload?.conversationId ? `S.conversationId=${encodeURIComponent(payload.conversationId)};` : ''}end` },
+            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;S.recipientId=${encodeURIComponent(payload?.recipientId || '')};${payload?.conversationId ? `S.conversationId=${encodeURIComponent(payload.conversationId)};` : ''}end` },
           // 各厂商离线厂商通道 options（保证锁屏送达）
           options: {
             HW: { '/message/android/notification/importance': 'HIGH' },
@@ -163,7 +165,7 @@ async function pushToCid(cid, { title, body, payload }) {
       },
     },
   };
-  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message);
+  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
   return { status, json, cid };
 }
 
@@ -175,7 +177,7 @@ async function pushToCid(cid, { title, body, payload }) {
  *    callId/callFrom/callerName/callType（与 NotificationHelper.EXTRA_CALL_* 键名对齐），
  *    MainActivity 识别后重建来电界面（被杀场景兜底，无法全屏但保证可见+可点接听）。
  */
-async function pushCallToCid(cid, { callId, from, callerName, callType, lang }) {
+async function pushCallToCid(cid, { callId, from, callerName, callType, lang, recipientId, isCurrent }) {
   const token = await getToken();
   const t = callType === 'video' ? 'video' : 'audio';
   // 文案按【被叫方】语言渲染（lang 由 push.js 的 pushCallInvite 解析后传入）。
@@ -187,6 +189,7 @@ async function pushCallToCid(cid, { callId, from, callerName, callType, lang }) 
   const transmissionPayload = JSON.stringify({
     title, body,
     type: 'call',
+    recipientId: String(recipientId || ''),
     callId: String(callId || ''),
     from: String(from || ''),
     callerName: String(callerName || ''),
@@ -206,7 +209,7 @@ async function pushCallToCid(cid, { callId, from, callerName, callType, lang }) 
             click_type: 'intent',
             // 键名须与 NotificationHelper.EXTRA_CALL_ID/FROM/NAME/TYPE 一致：
             // callId / callFrom / callerName / callType（注意 from 在 intent 里是 callFrom）
-            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;S.callId=${encodeURIComponent(callId || '')};S.callFrom=${encodeURIComponent(from || '')};S.callerName=${encodeURIComponent(callerName || '')};S.callType=${t};end`,
+            intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;S.recipientId=${encodeURIComponent(recipientId || '')};S.callId=${encodeURIComponent(callId || '')};S.callFrom=${encodeURIComponent(from || '')};S.callerName=${encodeURIComponent(callerName || '')};S.callType=${t};end`,
           },
           options: {
             HW: { '/message/android/notification/importance': 'HIGH' },
@@ -218,7 +221,7 @@ async function pushCallToCid(cid, { callId, from, callerName, callType, lang }) 
   };
   // 来电推送同样走瞬时失败重试（复用同一 request_id，个推按它幂等去重，不会重复响铃）。
   // 来电时效性最强，退避仍是 800ms、只重试 1 次——见 sendPushWithRetry 注释。
-  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message);
+  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
   // 此前只要 HTTP 请求本身没抛异常就当成功返回——个推 API 常见的是 HTTP 200 但
   // json.code!==0 的业务失败（cid 过期/未配置厂商 Key/离线保留超限等），调用方
   // （push.js 的 pushCallInvite）只在 promise reject 时才 console.warn，这种"响应体

@@ -178,7 +178,7 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
 }
 
 // ── 发布 ────────────────────────────────────────────────────────
-function createMoment(io, userId, { content, images, visibility, visibleTo }) {
+function createMoment(io, userId, { content, images, visibility, visibleTo, video, cover }) {
   // 后台开关拦截：关闭「朋友圈」后，任何客户端（含绕过 UI 的直连）都被拒绝发布。
   // 直接读 admin_settings，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
   if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_moments')?.value === 'off') {
@@ -189,13 +189,23 @@ function createMoment(io, userId, { content, images, visibility, visibleTo }) {
   // URL 白名单：只允许本服务器 uploads 目录或已配置的云存储域名
   const localPrefix = config.appUrl + '/uploads/';
   const cloudBase = isConfigured() ? getPublicBase() : null;
-  const imgs = rawImgs.filter(url => {
+  const isAllowedUrl = url => {
     if (typeof url !== 'string') return false;
     if (url.startsWith(localPrefix) || url.startsWith('/uploads/')) return true;
     if (cloudBase && url.startsWith(cloudBase + '/')) return true;
     return false;
-  });
-  if (!text && imgs.length === 0) throw badRequest('内容不能为空');
+  };
+  const imgs = rawImgs.filter(isAllowedUrl);
+  // 视频（F1 #1）：可选 1 段视频 + 可选封面图；与图片互斥（video 模式不允许 images）。
+  // 视频/封面 URL 非白名单时显式报错（不像图片那样静默过滤——单值字段，静默丢会导致
+  // "发了个空动态"，用户无从得知）。封面只在带视频时有效。
+  const vid = typeof video === 'string' ? video.trim() : '';
+  if (vid && !isAllowedUrl(vid)) throw badRequest('视频地址无效');
+  if (vid && imgs.length > 0) throw badRequest('视频动态不能同时附带图片');
+  const cov = typeof cover === 'string' ? cover.trim() : '';
+  if (cov && !isAllowedUrl(cov)) throw badRequest('封面地址无效');
+  if (cov && !vid) throw badRequest('封面仅用于视频动态');
+  if (!text && imgs.length === 0 && !vid) throw badRequest('内容不能为空');
   if (text.length > 5000) throw badRequest('内容过长');
   moderation.assertClean(text);
   const vis = ['all', 'friends', 'private', 'include', 'exclude'].includes(visibility) ? visibility : 'all';
@@ -216,8 +226,8 @@ function createMoment(io, userId, { content, images, visibility, visibleTo }) {
   }
 
   const id = uuidv4();
-  db.prepare('INSERT INTO moments (id,user_id,content,images,visibility,visible_to) VALUES (?,?,?,?,?,?)')
-    .run(id, userId, text, JSON.stringify(imgs), vis, visList);
+  db.prepare('INSERT INTO moments (id,user_id,content,images,video,cover,visibility,visible_to) VALUES (?,?,?,?,?,?,?,?)')
+    .run(id, userId, text, JSON.stringify(imgs), vid, cov, vis, visList);
 
   // 新动态推送：按可见性收敛推送名单，排除双向拉黑用户
   if (io && vis !== 'private') {
@@ -308,8 +318,10 @@ function getMoment(viewerId, momentId) {
 // 物理删除一条动态及其级联数据（评论/点赞/通知/举报）。不做权限校验，调用方负责鉴权。
 // 作者删除(deleteMoment) 与 后台举报处理(admin.resolveReport) 共用，避免重复。
 function purgeMoment(momentId) {
-  const m = db.prepare('SELECT images FROM moments WHERE id=?').get(momentId);
+  const m = db.prepare('SELECT images, video, cover FROM moments WHERE id=?').get(momentId);
   const images = JSON.parse(m?.images || '[]');
+  // 视频/封面同样清本地文件（OSS 外链跳过，与图片同口径）
+  const mediaFiles = [...images, m?.video, m?.cover].filter(Boolean);
 
   db.transaction(() => {
     db.prepare('DELETE FROM moment_comments WHERE moment_id=?').run(momentId);
@@ -322,7 +334,7 @@ function purgeMoment(momentId) {
   // 异步清理本地存储图片（OSS 图片为外部 URL，跳过）
   const fs = require('fs');
   const path = require('path');
-  for (const url of images) {
+  for (const url of mediaFiles) {
     try {
       const rel = String(url).replace(/^https?:\/\/[^/]+/, '').replace(/^\/uploads\//, '');
       const abs = path.join(config.uploadsRoot, rel);
@@ -351,7 +363,8 @@ function editMoment(userId, momentId, { content, visibility, visibleTo } = {}) {
 
   const nextContent = content == null ? m.content : String(content).trim();
   const imgs = safeImages(m.images);
-  if (!nextContent && imgs.length === 0) throw badRequest('内容不能为空');
+  // 视频动态（F1 #1）：文字清空后仍有视频，不算空内容
+  if (!nextContent && imgs.length === 0 && !m.video) throw badRequest('内容不能为空');
 
   const VALID_VIS = new Set(['all', 'friends', 'private', 'include', 'exclude']);
   const nextVis = (visibility && VALID_VIS.has(visibility)) ? visibility : m.visibility;
@@ -509,7 +522,7 @@ function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
   const rows = db.prepare(`
     SELECT mn.id, mn.type, mn.moment_id, mn.comment_id, mn.is_read, mn.created_at,
            u.id AS actor_id, u.username AS actor_name, u.avatar AS actor_avatar,
-           m.content AS moment_content, m.images AS moment_images,
+           m.content AS moment_content, m.images AS moment_images, m.cover AS moment_cover,
            mc.content AS comment_content
     FROM moment_notifications mn
     JOIN users u ON u.id = mn.actor_id
@@ -542,7 +555,7 @@ function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
       read: !!r.is_read,
       createdAt: r.created_at,
       actor: { id: r.actor_id, username: r.actor_name, avatar: r.actor_avatar },
-      moment: { content: r.moment_content || '', thumb: images[0] || '' },
+      moment: { content: r.moment_content || '', thumb: images[0] || r.moment_cover || '' },
       commentContent: r.comment_content || '',
     };
   });

@@ -35,7 +35,14 @@ struct FriendRequestsView: View {
                 HStack(spacing: 12) {
                     InitialAvatar(name: req.username.isEmpty ? "?" : req.username, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(req.username.isEmpty ? "未命名" : req.username)
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(req.username.isEmpty ? "未命名" : req.username)
+                                .lineLimit(1)
+                            Spacer()
+                            // 申请时间（F5 补齐，对齐 Web/Android 名字行右侧展示）
+                            Text(formatChatTime(req.createdAt))
+                                .font(.caption2).foregroundColor(.vxinTextSecondary)
+                        }
                         Text(req.message.isEmpty ? "请求添加你为好友" : req.message)
                             .font(.caption).foregroundColor(.vxinTextSecondary)
                     }
@@ -60,7 +67,14 @@ struct FriendRequestsView: View {
                 HStack(spacing: 12) {
                     InitialAvatar(name: req.username.isEmpty ? "?" : req.username, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(req.username.isEmpty ? "未命名" : req.username)
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(req.username.isEmpty ? "未命名" : req.username)
+                                .lineLimit(1)
+                            Spacer()
+                            // 申请时间（F5 补齐，对齐 Web/Android 名字行右侧展示）
+                            Text(formatChatTime(req.createdAt))
+                                .font(.caption2).foregroundColor(.vxinTextSecondary)
+                        }
                         Text(req.message.isEmpty ? "请求添加对方为好友" : req.message)
                             .font(.caption).foregroundColor(.vxinTextSecondary)
                     }

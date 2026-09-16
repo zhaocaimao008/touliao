@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { showConfirm, showToast } from '../utils/toast';
 import { downloadFile } from '../utils/download';
 import ImagePreview from './ImagePreview';
 import { Skeleton } from './StateViews';
 import { useI18n } from '../contexts/I18nContext';
+import { fetchAllPages } from '../utils/paginateAll';
 
 function formatDate(sec) {
   const dt = new Date(sec * 1000);
@@ -13,6 +14,7 @@ function formatDate(sec) {
 }
 
 export default function Collections() {
+  useMediaCredentials();
   const { t } = useI18n();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,23 +25,28 @@ export default function Collections() {
   const [results, setResults] = useState(null);    // null=未搜索(显示全量) | 数组=搜索结果
   const [searching, setSearching] = useState(false);
 
-  // 重试用（显示转圈后重拉）
-  const load = useCallback(() => {
+  // Q13 全修：收藏最多 1000 条，服务端 limit/offset 分页上限 100——原来只请求一次
+  // 默认页,超过 100 条的旧收藏在列表/本地类型筛选里都摸不到。改成续页拉全量
+  // （worst case 10 次请求，收藏页本就是低频、非首屏路径，不做虚拟滚动/增量渲染）。
+  // 重试用（显示转圈后重拉），也是初次挂载拉取的唯一实现，接受 AbortSignal 供卸载取消。
+  const load = useCallback((signal) => {
     setLoading(true);
-    axios.get('/api/users/me/collections')
-      .then(r => { setList(r.data); setLoadError(false); })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
+    fetchAllPages({
+      requestPage: (offset, limit) => axios.get('/api/users/me/collections', { params: { offset, limit }, signal }).then(r => r.data),
+      signal,
+    })
+      .then(items => { setList(items); setLoadError(false); })
+      .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setLoadError(true); })
+      .finally(() => { if (!signal?.aborted) setLoading(false); });
   }, []);
-  // 初次挂载拉取：loading 初值已为 true，effect 内不做同步 setState（避免级联渲染）
+  // 初次挂载拉取：load() 内的 setLoading(true) 是幂等 no-op（初值已为 true），
+  // 真正的状态变化在 fetchAllPages 的 promise 回调里，非可派生同步状态。
   useEffect(() => {
-    let alive = true;
-    axios.get('/api/users/me/collections')
-      .then(r => { if (alive) { setList(r.data); setLoadError(false); } })
-      .catch(() => { if (alive) setLoadError(true); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, []);
+    const ac = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：load() 内 setState 幂等，非派生同步
+    load(ac.signal);
+    return () => ac.abort();
+  }, [load]);
 
   // 搜索：关键词为空且无类型过滤 → 回到全量列表；否则调 /collections/search（去抖）
   // 空关键词的复位（results=null）交由 render 期派生，避免 effect 同步 setState。
@@ -72,7 +79,7 @@ export default function Collections() {
   // 所有图片收藏的完整 URL，供灯箱左右切换（跟随当前展示的列表）
   const imageUrls = shown
     .filter(c => c.type === 'image')
-    .map(c => mediaUrl(c.extra?.file_url || c.content));
+    .map(c => c.extra?.file_url || c.content);
 
   const remove = async (id) => {
     if (!(await showConfirm(t('coll.confirmRemove')))) return;
@@ -97,9 +104,9 @@ export default function Collections() {
   const renderContent = (c) => {
     if (c.type === 'image') {
       const url = mediaUrl(c.extra?.file_url || c.content);
-      const idx = imageUrls.indexOf(url);
+      const idx = imageUrls.indexOf(c.extra?.file_url || c.content);
       const open = () => setLightbox({ urls: imageUrls, idx: idx < 0 ? 0 : idx });
-      return <img loading="lazy" src={url} alt={t('coll.collectedImageAlt')}
+      return <img key={url} loading="lazy" src={url} alt={t('coll.collectedImageAlt')}
         role="button" tabIndex={0} aria-label={t('moments.viewLargeImage')}
         onError={e => { e.currentTarget.style.display = 'none'; }}
         onClick={open}
@@ -133,14 +140,14 @@ export default function Collections() {
             style={{ width: '100%', padding: '7px 28px 7px 10px', borderRadius: 'var(--radius-input)', border: '1px solid var(--border-color)', fontSize: 'var(--text-base)', boxSizing: 'border-box' }} />
           {query && (
             <button type="button" aria-label={t('fwd.clearSearchAriaLabel')} title={t('common.clear')} onClick={() => setQuery('')}
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 18, height: 18, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              style={{ position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {TYPES.map(([val, label]) => (
             <button key={val || 'all'} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
-              style={{ fontSize: 'var(--text-sm)', padding: '3px 10px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
-                border: '1px solid var(--border-color)',
+              style={{ fontSize: 'var(--text-sm)', padding: '11px 12px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
+                border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center',
                 background: typeFilter === val ? 'var(--green)' : 'transparent',
                 color: typeFilter === val ? '#fff' : 'var(--text-secondary)' }}>{label}</button>
           ))}
@@ -150,7 +157,7 @@ export default function Collections() {
         <Skeleton rows={6} avatar />
       ) : loadError && list.length === 0 ? (
         <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
-          {t('moments.loadFailed')}<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{t('moments.clickRetry')}</button>
+          {t('moments.loadFailed')}<button onClick={() => load()} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{t('moments.clickRetry')}</button>
         </div>
       ) : (inSearch && searching) ? (
         <div role="status" style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>{t('convSearch.searching')}</div>
@@ -167,10 +174,10 @@ export default function Collections() {
               <div style={{ display: 'flex', gap: 4 }}>
                 {c.extra?.source_conv_id && (
                   <button onClick={() => jumpToSource(c)}
-                    style={{ fontSize: 'var(--text-sm)', color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>{t('coll.jumpToSource')}</button>
+                    style={{ fontSize: 'var(--text-sm)', color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 8px' }}>{t('coll.jumpToSource')}</button>
                 )}
                 <button onClick={() => remove(c.id)}
-                  style={{ fontSize: 'var(--text-sm)', color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>{t('coll.unfavorite')}</button>
+                  style={{ fontSize: 'var(--text-sm)', color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 8px' }}>{t('coll.unfavorite')}</button>
               </div>
             </div>
           </div>

@@ -41,5 +41,6 @@ yarn-error.log*
 .gradle/
 
 # Mobile native projects
-# android/ 已纳入 git 管理（只排除 build/ 和 assets/public，参见 android/.gitignore）
+# 早期 Capacitor 脚手架（vxin 品牌残留）已清理，真正的原生 Android/iOS 在仓库根目录 android/、ios/。
+android/
 ios/

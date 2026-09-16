@@ -92,7 +92,7 @@ async function execute(id) {
 
   // Electron 桌面：主进程 downloadURL 走系统下载队列(渲染进程跨域fetch会被CORS拦)，
   // 落盘到"下载"目录，完全交给 will-download 处理，不在此处重复实现进度轮询。
-  const electronDownload = window.electronAPI?.downloadFile || window.touliaoAPI?.downloadFile;
+  const electronDownload = window.electronAPI?.downloadFile;
   if (isElectron() && electronDownload) {
     // autoOpen: 只有"该格式投聊自己不能App内预览、用户是主动选择要交给别的应用打开"
     // 时才为 true（见 FilePreview.jsx 的"用其他应用打开"入口）；其余一律 false——

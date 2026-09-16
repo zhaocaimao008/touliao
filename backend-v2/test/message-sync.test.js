@@ -4,6 +4,7 @@ const { request, app, makeUser, befriend, privateConversation } = require('./hel
 const { db } = require('../src/db/connection');
 const { appendConversationEvent } = require('../src/modules/messages/sync.service');
 const messageService = require('../src/modules/messages/messages.service');
+const conversationsService = require('../src/modules/conversations/conversations.service');
 const walletService = require('../src/modules/wallet/wallet.service');
 
 describe('统一消息同步游标', () => {
@@ -110,6 +111,38 @@ describe('统一消息同步游标', () => {
     ]);
     expect(response.body.messages.map(event => event.server_sequence)).toEqual([start + 1, start + 2, start + 3]);
     expect(response.body.messages[1].payload.content).toBe('after edit');
+  });
+
+  // Q04 双向清空回归：clearConversation 现在真的清空内容(deleted=2)，对全体成员生效，
+  // 不再是仅隐藏操作者视图的 per-user watermark。停留在旧 cursor 的离线设备（无论是
+  // 清空发起者自己的其他设备，还是对方的设备）补拉时，绝不能把清空前的原文同步回来。
+  test('清空会话是双向的：旧 cursor 补拉到的 message_created 内容已被真实清空，双方都看不到', async () => {
+    const start = db.prepare('SELECT COALESCE(MAX(server_sequence),0) AS seq FROM conversation_events WHERE conversation_id=?').get(convId).seq;
+    const secret = await messageService.send(null, convId, a.userId, { content: 'p04-secret-content', type: 'text' });
+
+    // a 清空整个会话（现在对 b 同样生效——不是只隐藏 a 自己的视图）
+    const clearedCount = conversationsService.clearConversation(null, a.userId, convId);
+    expect(clearedCount).toBeGreaterThanOrEqual(1);
+
+    // a 自己的 history 看不到（本来就有的行为）
+    const aHistory = await request(app).get(`/api/messages/${convId}`).set('Authorization', `Bearer ${a.token}`);
+    const aItems = aHistory.body.items || aHistory.body.messages || aHistory.body;
+    expect(aItems.map(m => m.id)).not.toContain(secret.id);
+
+    // 关键：b 从清空前的旧 cursor 补拉，message_created 事件仍在事件流里，
+    // 但 join 到的当前行必须是已清空的（deleted=2/content=''），不能是原文
+    const bSync = await request(app).get(`/api/messages/${convId}/sync?cursor=${start}`)
+      .set('Authorization', `Bearer ${b.token}`);
+    expect(bSync.status).toBe(200);
+    const createdEvt = bSync.body.messages.find(e => e.message_id === secret.id && e.event_type === 'message_created');
+    expect(createdEvt).toBeTruthy();
+    expect(createdEvt.message.deleted).toBe(2);
+    expect(createdEvt.message.content).toBe('');
+
+    // 双向：b 自己走 history 同样看不到该消息（对方也无法看到）
+    const bHistory = await request(app).get(`/api/messages/${convId}`).set('Authorization', `Bearer ${b.token}`);
+    const bItems = bHistory.body.items || bHistory.body.messages || bHistory.body;
+    expect(bItems.map(m => m.id)).not.toContain(secret.id);
   });
 
   test('钱包转账提交后发出同步失效提示', async () => {

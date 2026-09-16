@@ -62,6 +62,12 @@ final class GroupCallManager: NSObject, ObservableObject {
     private var iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
     private var cancellables = Set<AnyCancellable>()
     private let socket = SocketService.shared
+    private var callIdentityEpoch: UInt64?
+    private var participatingCallId = ""
+    private var participatingIdentityEpoch: UInt64?
+    // Q06 全修：group_call:resume 必须证明持有它，光凭 callId+userId 不再够（同账号旁观
+    // 设备不能在断线宽限期内抢注）。gcStarted/gcPeers 里签发，cleanup() 清空。
+    private var participatingResumeToken: String?
 
     /// 建群通话/加入后的连接超时；始终停在 .connecting（服务端未回 started/peers）则自动结束。
     private var connectTimeoutTask: Task<Void, Never>?
@@ -146,12 +152,17 @@ final class GroupCallManager: NSObject, ObservableObject {
     // MARK: - 对外动作
     func start(conversationId: String, video: Bool) {
         guard state.stage == .idle || state.stage == .ended else { return }
+        let identityEpoch = KeychainStore.shared.snapshot().identityEpoch
+        callIdentityEpoch = identityEpoch
         pendingInvite = nil
         state = GroupCallState(stage: .connecting, conversationId: conversationId, isVideo: video)
         startConnectTimeout()                   // 连接超时自动结束
         Task { @MainActor in
             await refreshIceServers()
-            guard state.stage != .ended else { return }
+            guard callIdentityEpoch == identityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  state.stage != .ended
+            else { return }
             configureAudioSession()             // 建流前配好通话音频会话
             createLocalMedia(video: video)
             socket.emitGroupCallStart(conversationId: conversationId, type: video ? "video" : "audio")
@@ -160,12 +171,17 @@ final class GroupCallManager: NSObject, ObservableObject {
 
     func join(callId: String, conversationId: String, video: Bool) {
         guard state.stage == .idle || state.stage == .ended else { return }
+        let identityEpoch = KeychainStore.shared.snapshot().identityEpoch
+        callIdentityEpoch = identityEpoch
         pendingInvite = nil
         state = GroupCallState(stage: .connecting, callId: callId, conversationId: conversationId, isVideo: video)
         startConnectTimeout()                   // 连接超时自动结束
         Task { @MainActor in
             await refreshIceServers()
-            guard state.stage != .ended else { return }
+            guard callIdentityEpoch == identityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  state.stage != .ended
+            else { return }
             configureAudioSession()             // 建流前配好通话音频会话
             createLocalMedia(video: video)
             socket.emitGroupCallJoin(callId: callId)
@@ -174,6 +190,11 @@ final class GroupCallManager: NSObject, ObservableObject {
 
     func hangup() {
         if !state.callId.isEmpty { socket.emitGroupCallLeave(callId: state.callId) }
+        cleanup()
+    }
+
+    func resetForAccountChange() {
+        guard state.stage != .idle && state.stage != .ended else { return }
         cleanup()
     }
 
@@ -187,6 +208,29 @@ final class GroupCallManager: NSObject, ObservableObject {
         localVideoTrack?.isEnabled = on
         state.cameraEnabled = on
     }
+    /// B-1（2026-09-05）：语音加入者升级视频（镜像 Web GroupCallModal.upgradeToVideo）。
+    /// 补视频轨（已存在则复用，建轨/采集与 1v1 CallManager.toggleVideo 同款）后对每条已建立
+    /// pc add 轨并逐个重协商 offer（mesh 每 peer 一份 offer，走群既有 sendOffer 路径）。
+    /// 对端 answer 侧无需改动：unified plan 下 setRemoteDescription 按 remote offer 自动
+    /// 创建 video transceiver，createAnswer 必须应答（recvonly），onRemoteVideo 自然出画。
+    /// 反向（升级后关摄像头）走 toggleCamera 原开关逻辑，不改。
+    func upgradeToVideo() {
+        guard !state.isVideo, state.stage == .connected || state.stage == .connecting else { return }
+        if localVideoTrack == nil {
+            let videoSource = factory.videoSource()
+            videoCapturer = RTCCameraVideoCapturer(delegate: videoSource)
+            localVideoTrack = factory.videoTrack(with: videoSource, trackId: "g_video")
+        }
+        startCapture(position: .front)
+        // 先置 isVideo：mediaConstraints() 按 it 决定 OfferToReceiveVideo，UI 视频格也按它渲染
+        state.isVideo = true
+        state.cameraEnabled = true
+        for (pid, entry) in peers {
+            entry.pc.add(localVideoTrack!, streamIds: ["g_stream"])
+            sendOffer(to: pid, entry: entry)
+        }
+        reapplyGroupCaps()   // 升级新增 video sender，对已连接 pc 立即按人数施加码率上限
+    }
     func switchCamera() {
         guard let capturer = videoCapturer else { return }
         let current = capturer.captureSession.inputs.compactMap { ($0 as? AVCaptureDeviceInput)?.device.position }.first ?? .front
@@ -196,22 +240,53 @@ final class GroupCallManager: NSObject, ObservableObject {
 
     // MARK: - 信令
     private func observeSignaling() {
+        socket.status
+            .filter { $0 == .connected }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self,
+                      self.state.stage != .idle,
+                      self.state.stage != .ended,
+                      CallSignalMatcher.canResume(
+                        activeCallId: self.state.callId,
+                        participatingCallId: self.participatingCallId,
+                        participatingIdentityEpoch: self.participatingIdentityEpoch,
+                        currentIdentityEpoch: KeychainStore.shared.snapshot().identityEpoch
+                      )
+                else { return }
+                self.socket.emitGroupCallResume(callId: self.state.callId, resumeToken: self.participatingResumeToken)
+            }
+            .store(in: &cancellables)
+
         socket.gcInvite.receive(on: DispatchQueue.main).sink { [weak self] inv in
             guard let self else { return }
             if self.state.stage == .connecting || self.state.stage == .connected { return }
             self.pendingInvite = GroupCallInvite(callId: inv.callId, conversationId: inv.conversationId, type: inv.type, from: inv.from, fromName: inv.fromName)
         }.store(in: &cancellables)
 
-        socket.gcStarted.receive(on: DispatchQueue.main).sink { [weak self] (callId, _) in
-            guard let self, self.state.stage != .ended else { return }
+        socket.gcStarted.receive(on: DispatchQueue.main).sink { [weak self] (callId, _, resumeToken) in
+            guard let self,
+                  let identityEpoch = self.callIdentityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
+                  self.state.stage != .ended
+            else { return }
+            self.participatingCallId = callId
+            self.participatingIdentityEpoch = identityEpoch
+            self.participatingResumeToken = resumeToken
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
             if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
         }.store(in: &cancellables)
 
-        socket.gcPeers.receive(on: DispatchQueue.main).sink { [weak self] (callId, _, peers) in
-            guard let self else { return }
+        socket.gcPeers.receive(on: DispatchQueue.main).sink { [weak self] (callId, _, peers, resumeToken) in
+            guard let self,
+                  let identityEpoch = self.callIdentityEpoch,
+                  KeychainStore.shared.snapshot().identityEpoch == identityEpoch
+            else { return }
             if !self.state.callId.isEmpty && callId != self.state.callId { return }
+            self.participatingCallId = callId
+            self.participatingIdentityEpoch = identityEpoch
+            self.participatingResumeToken = resumeToken
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
             if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
@@ -233,7 +308,8 @@ final class GroupCallManager: NSObject, ObservableObject {
                 entry.remoteDescSet = true; self.drainIce(from)
                 entry.pc.answer(for: self.mediaConstraints()) { [weak self] desc, err in
                     guard let self, let desc, err == nil else { return }
-                    let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
+                    // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+                    let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
                     entry.pc.setLocalDescription(tuned) { _ in }
                     self.socket.emitGroupCallAnswer(callId: self.state.callId, to: from, sdp: tuned.sdp)
                 }
@@ -266,16 +342,23 @@ final class GroupCallManager: NSObject, ObservableObject {
         // 服务端强制结束（如超过时长上限）：无条件结束本地通话并回收资源
         socket.gcEnded.receive(on: DispatchQueue.main).sink { [weak self] (callId, _) in
             guard let self else { return }
-            guard self.state.stage != .idle, callId.isEmpty || callId == self.state.callId else { return }
+            guard self.state.stage != .idle,
+                  CallSignalMatcher.matchesTerminal(
+                    activeCallId: self.state.callId,
+                    eventCallId: callId,
+                    callIdentityEpoch: self.callIdentityEpoch,
+                    currentIdentityEpoch: KeychainStore.shared.snapshot().identityEpoch
+                  )
+            else { return }
             self.cleanup()
         }.store(in: &cancellables)
     }
 
-    /// 建 offer(含弱网 SDP 调优)并通过信令发给指定 peer；新成员加入和 ICE restart 重协商共用。
+    /// 建 offer(含弱网 SDP 调优 + A-2 H264 优先)并通过信令发给指定 peer；新成员加入和 ICE restart 重协商共用。
     private func sendOffer(to peerId: String, entry: PeerEntry) {
         entry.pc.offer(for: mediaConstraints()) { [weak self] desc, err in
             guard let self, let desc, err == nil else { return }
-            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForWeakNetwork(desc.sdp))
+            let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
             entry.pc.setLocalDescription(tuned) { _ in }
             self.socket.emitGroupCallOffer(callId: self.state.callId, to: peerId, sdp: tuned.sdp)
         }
@@ -302,6 +385,8 @@ final class GroupCallManager: NSObject, ObservableObject {
             case .connected, .completed:
                 // restart 后恢复:清定时器 + 计数清零(可反复自愈)
                 self.peers[peerId]?.cancelIceRestart()
+                // A-3：本 pc 刚转 connected → 按最新已连接人数对全部已连接 pc（含本条）重放码率/降档
+                self.reapplyGroupCaps()
             case .disconnected:
                 // 短时探测间隙:3s 防抖后再重启,避免无谓重协商
                 guard let entry = self.peers[peerId] else { return }
@@ -369,14 +454,61 @@ final class GroupCallManager: NSObject, ObservableObject {
         let devices = RTCCameraVideoCapturer.captureDevices()
         guard let device = devices.first(where: { $0.position == position }) ?? devices.first else { return }
         let formats = RTCCameraVideoCapturer.supportedFormats(for: device)
-        let format = formats.sorted {
+        // 2026-09-05 修复:视频模糊根因之一——原逻辑只挑 >=640(约 480p)里最小的一个。
+        // 优先挑 >=1280(约 720p)里最小的一个;没有 720p 及以上格式的设备再退回旧逻辑。
+        let sortedFormats = formats.sorted {
             let d1 = CMVideoFormatDescriptionGetDimensions($0.formatDescription)
             let d2 = CMVideoFormatDescriptionGetDimensions($1.formatDescription)
             return d1.width * d1.height < d2.width * d2.height
-        }.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 640 }) ?? formats.last
+        }
+        let format = sortedFormats.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 1280 })
+            ?? sortedFormats.first(where: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width >= 640 })
+            ?? formats.last
         guard let format else { return }
         let fps = format.videoSupportedFrameRateRanges.map { $0.maxFrameRate }.max() ?? 30
         capturer.startCapture(with: device, format: format, fps: Int(min(fps, 30)))
+    }
+
+    /// N1+A-3：视频发送参数。maxBps=发送码率上限（群 mesh 按已连接人数传入，见
+    /// [reapplyGroupCaps]）；degrade=true 时对 encodings[0] 叠加 2 倍降分辨率压 CPU/带宽，
+    /// false 时显式清掉该字段（人数回落恢复全分辨率）。仅影响 video sender。
+    /// （1v1 CallManager 的 capVideoBitrate 固定 2.5M 不降档，与此互不影响。）
+    /// API 依据与 CallManager.capVideoBitrate 同：RTCRtpSender.parameters 为 get/set 属性，
+    /// scaleResolutionDownBy 与 maxBitrateBps 同为 nullable NSNumber（RTCRtpEncodingParameters）。
+    private func capVideoBitrate(_ pc: RTCPeerConnection, maxBps: Int = 2_500_000, degrade: Bool = false) {
+        for sender in pc.senders where sender.track?.kind == "video" {
+            let p = sender.parameters
+            if let enc = p.encodings.first {
+                enc.maxBitrateBps = NSNumber(value: maxBps)
+                enc.scaleResolutionDownBy = degrade ? NSNumber(value: 2) : nil
+                sender.parameters = p
+            }
+        }
+    }
+
+    // A-3（2026-09-05）：mesh 群通话按当前已连接 peer 数 n 对全部已连接 pc 重放视频码率/
+    // 降档——N 路同时编码共享同一份 CPU/上行带宽，人越多每路预算必须越低：
+    //   ≤2（与 1v1 默认一致）2.5M / 3 人 1.6M / 4 人 1.2M / ≥5 人 1.0M；
+    //   n≥4 叠加 scaleResolutionDownBy=2 降编码负载，人数回落靠 degrade=false 清掉恢复。
+    // 触发点：任一 peer ICE connected / removePeer / 语音→视频升级。只对已连接的 pc 施加
+    // ——未协商完的 sender 上设参数可能失败，且连上才真正占编码资源。
+    private func reapplyGroupCaps() {
+        func connected(_ entry: PeerEntry) -> Bool {
+            let st = entry.pc.iceConnectionState
+            return st == .connected || st == .completed
+        }
+        let n = peers.values.filter(connected).count
+        let maxBps: Int
+        switch n {
+        case ...2: maxBps = 2_500_000
+        case 3: maxBps = 1_600_000
+        case 4: maxBps = 1_200_000
+        default: maxBps = 1_000_000
+        }
+        let degrade = n >= 4
+        for entry in peers.values where connected(entry) {
+            capVideoBitrate(entry.pc, maxBps: maxBps, degrade: degrade)
+        }
     }
 
     private func peerFor(_ peerId: String) -> PeerEntry? {
@@ -400,6 +532,7 @@ final class GroupCallManager: NSObject, ObservableObject {
         peers[peerId] = nil
         remoteTracks[peerId] = nil
         state.participants = Array(peers.keys)
+        reapplyGroupCaps()   // A-3：人数减少 → 剩余 peer 按新人数重放码率/降档（撤销降档也靠它）
     }
 
     private func mediaConstraints() -> RTCMediaConstraints {
@@ -411,6 +544,10 @@ final class GroupCallManager: NSObject, ObservableObject {
 
     /// 弱网调优（2026-09-02）：Opus inband FEC + 码率上限 64kbps + 单声道（与 CallManager 一致）。
     private func cleanup() {
+        callIdentityEpoch = nil
+        participatingCallId = ""
+        participatingIdentityEpoch = nil
+        participatingResumeToken = nil
         cancelConnectTimeout()              // 取消连接超时，避免泄漏
         peers.values.forEach { $0.cancelIceRestart() }
         peers.values.forEach { $0.pc.close() }

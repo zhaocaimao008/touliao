@@ -4,6 +4,22 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
         globalShortcut, screen, Notification, shell, session, clipboard, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
+const { MAX_PROFILES, profilePath, claimProfile } = require('./lib/profiles');
+const PROFILE_ROOT = app.getPath('userData');
+let PROFILE;
+try {
+  PROFILE = claimProfile(app, PROFILE_ROOT, process.argv);
+} catch (error) {
+  dialog.showErrorBox('无法打开投聊', error.message);
+  app.exit(1);
+}
+if (PROFILE === null) {
+  if (!process.argv.some(arg => arg.startsWith('--profile='))) {
+    dialog.showErrorBox('无法新开账号窗口', `已达到 ${MAX_PROFILES} 个账号窗口，请先退出不再使用的窗口。`);
+  }
+  app.exit(0);
+}
 const crypto = require('crypto');
 const https = require('https');
 const { autoUpdater } = require('electron-updater');
@@ -11,13 +27,15 @@ const log = require('electron-log');
 const Store = require('electron-store');
 const { validatePublicKeyPem } = require('./lib/validatePublicKeyPem');
 
-// ── Windows 渲染修复：硬件加速冲突导致的气泡/图片重叠残影 ──
-// 现象：Web 端正常，桌面端出现消息气泡、图片局部残影错乱（GPU 合成器驱动 bug 的典型症状）。
-// 方案：全局禁用硬件加速 + GPU 合成 + GPU 缓存，渲染全部走软件光栅化，彻底规避驱动层残影。
-// 代价：滚动/动画由 GPU 合成改为 CPU，聊天列表滚动仍流畅（Chromium 软件光栅化足够），
-//       视频通话走 WebRTC 软编解码不受影响。若后续换驱动可移除本行恢复硬件加速。
-app.disableHardwareAcceleration();
-app.commandLine.appendSwitch('disable-gpu-compositing');
+// ── Windows 渲染修复残留项（历史见 23721d7）──
+// 2026-08 为修「消息气泡/图片重叠残影」曾三管齐下：禁硬件加速+禁 GPU 合成+禁 GPU 缓存，
+// 同批还修了行高估算（estimateHeight）与 CSS 图层策略——残影根因更可能在后两者（行定位
+// 错位把下一行压进图片区）。而 disableHardwareAcceleration/disable-gpu-compositing 会把
+// 整个渲染打到软件光栅化：WebRTC 的 GPU 视频解码依赖硬件加速，8.1.15 起四端已升 720p 采集，
+// 桌面端仍禁硬加速 = 720p 强制软解，收流必糊（CPU 忙时更甚）。禁 compositing 同样强制软
+// 合成，与禁硬加速同罪，不能只留它一个。两者均退役，仅保留 disable-gpu-cache（几乎无副
+// 作用，防旧缓存图层复用，且下方 clearRenderCaches 每次启动本就在清这些目录）。
+// 若 Windows 气泡残影复发：先查 estimateHeight/CSS 图层修复与 GPU 驱动版本，不要再回到禁硬加速。
 app.commandLine.appendSwitch('disable-gpu-cache');
 // 显式开启高 DPI 感知：Windows 125%/150% 缩放下按物理像素渲染，
 // 避免 Chromium 默认模糊缩放导致的边框/气泡边缘错位重绘。
@@ -98,7 +116,7 @@ process.on('unhandledRejection', (reason) => {
 //   - 退出时安装是 Electron 原生的覆盖安装流程，保留用户数据，不引入新的执行路径。
 //   - update-downloaded 事件仍保留确认弹框（立即重启安装），与"最终无感"互补。
 // ⚠️ 生产前必须对安装包做代码签名，详见 desktop-electron/SECURITY-RELEASE.md
-autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.autoInstallOnAppQuit = PROFILE === 1;
 // 安全：关闭自动下载，改由 update-available 事件中先对更新元数据(latest.yml)做
 // Ed25519 二次验签，通过后再 downloadUpdate()。使更新真实性不单纯依赖 TLS。
 autoUpdater.autoDownload = false;
@@ -408,7 +426,7 @@ function createWindow() {
     height: bounds.height,
     minWidth: 900,
     minHeight: 600,
-    title: '投聊',
+    title: `投聊 - 账号窗口 ${PROFILE}`,
     icon: path.join(__dirname, '../assets/icon.png'),
     frame: false,
     titleBarStyle: 'hidden',
@@ -429,6 +447,7 @@ function createWindow() {
       additionalArguments: [
         `--vxin-app-version=${app.getVersion()}`,
         `--vxin-server-url=${SERVER_URL}`,
+        `--touliao-profile=${PROFILE}`,
       ],
       webSecurity: true,
       allowRunningInsecureContent: false,
@@ -470,7 +489,7 @@ function createWindow() {
     if (hasShownWindow || mainWindow.isDestroyed()) return;
     hasShownWindow = true;
     mainWindow.show();
-    setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
+    if (PROFILE === 1) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
   };
 
   mainWindow.once('ready-to-show', showWindowOnce);
@@ -686,6 +705,19 @@ function setupAutoUpdater() {
 }
 
 // ── 系统托盘 ───────────────────────────────────────────────
+function openAccountWindow(profile) {
+  if (profile !== undefined) profilePath(PROFILE_ROOT, profile);
+  const args = [
+    ...(app.isPackaged ? [] : [app.getAppPath()]),
+    ...(profile === undefined ? [] : [`--profile=${profile}`]),
+  ];
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const child = spawn(process.execPath, args, { detached: true, stdio: 'ignore', env });
+  child.on('error', error => log.error('账号窗口启动失败:', error));
+  child.unref();
+}
+
 function createTray() {
   const iconPath = path.join(__dirname, '../assets/icon.png');
   let trayIcon = nativeImage.createFromPath(iconPath);
@@ -704,7 +736,7 @@ function createTray() {
     log.error('创建系统托盘失败，跳过托盘（应用仍可用）:', e.message);
     return;
   }
-  tray.setToolTip('投聊');
+  tray.setToolTip(`投聊 - 账号窗口 ${PROFILE}`);
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -712,7 +744,12 @@ function createTray() {
       click: () => { mainWindow?.show(); mainWindow?.focus(); },
     },
     {
+      label: '新开账号窗口',
+      click: () => openAccountWindow(),
+    },
+    {
       label: '检查更新',
+      enabled: PROFILE === 1,
       click: () => {
         mainWindow?.show(); mainWindow?.focus();
         autoUpdater.checkForUpdates().catch((e) => {
@@ -723,6 +760,7 @@ function createTray() {
     { type: 'separator' },
     {
       label: '开机启动',
+      enabled: PROFILE === 1,
       type: 'checkbox',
       checked: store.get('autoLaunch'),
       click: (item) => {
@@ -995,6 +1033,10 @@ function setupIPC() {
     return true;
   });
   ipcMain.handle('config:getServerUrl', () => store.get('serverUrl'));
+  ipcMain.handle('window:newAccount', (_e) => {
+    if (!isTrustedSender(_e)) return;
+    return openAccountWindow();
+  });
 
   // 快捷键设置：读取 / 修改 / 重置
   ipcMain.handle('shortcuts:getAll', (_e) => {
@@ -1035,7 +1077,7 @@ function setupIPC() {
 
   // 更新：用户在 UI 确认后主动触发安装
   ipcMain.handle('update:install', (_e) => {
-    if (!isTrustedSender(_e)) return;
+    if (!isTrustedSender(_e) || PROFILE !== 1) return;
     isQuitting = true;
     autoUpdater.quitAndInstall();
   });
@@ -1043,6 +1085,10 @@ function setupIPC() {
   // 更新：用户手动点「检查更新」按钮触发
   ipcMain.handle('update:check', (_e) => {
     if (!isTrustedSender(_e)) return;
+    if (PROFILE !== 1) {
+      mainWindow?.webContents.send('update:error', '请在账号窗口 1 检查更新，安装前退出其他账号窗口。');
+      return;
+    }
     autoUpdater.checkForUpdates().catch((e) => {
       mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
     });
@@ -1083,11 +1129,11 @@ function setupPowerMonitor() {
 }
 
 // ── 应用生命周期 ───────────────────────────────────────────
-// 单实例锁：避免多实例导致托盘/配置竞争，第二次启动聚焦已有窗口
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
-} else {
-  app.on('second-instance', () => {
+// Each userData directory owns one instance lock and its own Chromium session.
+if (app.hasSingleInstanceLock()) {
+  app.on('second-instance', (_event, args, _cwd, data) => {
+    // Default desktop launches allocate their own profile; probes must not steal focus.
+    if (data?.automaticWindow || !args.some(arg => arg.startsWith('--profile='))) return;
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -1126,7 +1172,7 @@ async function clearRenderCaches() {
 }
 
 app.whenReady().then(async () => {
-    if (store.get('autoLaunch')) {
+    if (PROFILE === 1 && store.get('autoLaunch')) {
       app.setLoginItemSettings({ openAtLogin: true });
     }
 
@@ -1140,9 +1186,12 @@ app.whenReady().then(async () => {
     checkUpdateKeyStatus();
     setupSecurity();
     setupIPC();
+    log.info('[Startup] Creating main window');
     createWindow();
+    log.info('[Startup] Creating tray');
     createTray();
-    setupAutoUpdater();
+    log.info('[Startup] Registering integrations');
+    if (PROFILE === 1) setupAutoUpdater();
     setupShortcuts();
     setupPowerMonitor();
 

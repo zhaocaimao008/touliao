@@ -33,6 +33,8 @@ data class Moment(
     val user_id: String = "",
     val content: String = "",
     val images: List<String> = emptyList(),
+    val video: String = "",               // 视频动态：/uploads/moments/xxx（F1 #1，与 images 互斥）
+    val cover: String = "",               // 视频封面（可选，Android 端不上传、仅渲染服务端已有值）
     val visibility: String = "all",
     val created_at: Long = 0,
     val author: MomentAuthor = MomentAuthor(),
@@ -47,6 +49,8 @@ data class Moment(
 data class CreateMomentBody(
     val content: String,
     val images: List<String> = emptyList(),
+    val video: String = "",                // 视频模式：先 /moments/video 上传拿到的 URL
+    val cover: String = "",
     val visibility: String = "all",          // all | friends | private | include | exclude
     val visibleTo: List<String> = emptyList() // include/exclude 时的好友 id 名单
 )
@@ -59,6 +63,10 @@ data class MomentLikeResponse(val liked: Boolean = false, val likeCount: Int = 0
 
 @Serializable
 data class MomentImagesResponse(val urls: List<String> = emptyList())
+
+// POST /moments/video 响应（只存文件返回 URL，不建动态）
+@Serializable
+data class MomentVideoResponse(val url: String = "")
 
 // GET /moments/:id/comments 分页响应（查看全部评论用）
 @Serializable

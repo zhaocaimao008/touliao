@@ -1,11 +1,36 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { IDBObjectStore } from 'fake-indexeddb';
 import 'fake-indexeddb/auto';   // 注入内存版 indexedDB
-import { loadCache, saveCache, removeFromCache, clearCache, mergeById, __TESTING__ } from './msgCache';
+import { loadCache, saveCache, removeFromCache, clearCache, mergeById, loadSyncCursor, saveSyncCursor, __TESTING__ } from './msgCache';
 
 const M = (id, over = {}) => ({ id, content: `c${id}`, created_at: id, ...over });
 
 describe('msgCache（离线消息历史缓存）', () => {
   beforeEach(async () => { await clearCache(); });
+
+  it('cursor write cancelled while opening IndexedDB leaves the previous cursor intact', async () => {
+    await saveSyncCursor('cancel-A', 'group', 3);
+    let current = true;
+    const saving = saveSyncCursor('cancel-A', 'group', 9, () => current);
+    current = false;
+    await saving;
+    expect(await loadSyncCursor('cancel-A', 'group')).toBe(3);
+  });
+
+  it('cursor write cancelled by the IndexedDB read callback cannot put a newer cursor', async () => {
+    await saveSyncCursor('cancel-read-A', 'group', 3);
+    let current = true;
+    const originalGet = IDBObjectStore.prototype.get;
+    const get = vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementation(function (key) {
+      const request = originalGet.call(this, key);
+      request.addEventListener('success', () => { current = false; }, { once: true });
+      return request;
+    });
+    try { await saveSyncCursor('cancel-read-A', 'group', 9, () => current); }
+    finally { get.mockRestore(); }
+    expect(current).toBe(false);
+    expect(await loadSyncCursor('cancel-read-A', 'group')).toBe(3);
+  });
 
   it('save → load 往返一致（升序）', async () => {
     await saveCache('c1', [M(2), M(1), M(3)]);

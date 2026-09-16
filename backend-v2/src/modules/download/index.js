@@ -74,7 +74,7 @@ router.get('/', (req, res) => {
 <meta name="description" content="投聊 客户端下载 — 安全、私密、多端同步的企业级即时通讯"/>
 <style>
 :root{
-  --green:#07C160; --green-light:#09D96C; --green-dark:#06AD56;
+  --green:#6D5AE6; --green-light:#8A78EB; --green-dark:#5A47D6;
   --bg:#0D1117; --bg2:#161D2E; --card:rgba(255,255,255,.04);
   --border:rgba(255,255,255,.09); --text:#EAEEF5; --text2:rgba(234,238,245,.55);
   --text3:rgba(234,238,245,.32);
@@ -142,10 +142,10 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.5px;margin-bottom:10px}
   display:inline-flex;align-items:center;gap:6px;padding:9px 18px;
   background:linear-gradient(135deg,var(--green),var(--green-dark));color:#fff;
   border-radius:10px;text-decoration:none;font-size:13.5px;font-weight:650;white-space:nowrap;
-  box-shadow:0 4px 16px rgba(7,193,96,.35);transition:transform .15s,box-shadow .15s;
+  box-shadow:0 4px 16px rgba(109,90,230,.35);transition:transform .15s,box-shadow .15s;
 }
 .btn svg{width:15px;height:15px}
-.btn:hover{transform:translateY(-1px);box-shadow:0 6px 22px rgba(7,193,96,.5);background:linear-gradient(135deg,var(--green-light),var(--green))}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 22px rgba(109,90,230,.5);background:linear-gradient(135deg,var(--green-light),var(--green))}
 .btn:active{transform:translateY(0)}
 .btn-disabled{padding:9px 16px;background:rgba(255,255,255,.06);color:var(--text3);border-radius:10px;font-size:12.5px;white-space:nowrap;border:1px solid var(--border)}
 

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { downloadFile } from '../utils/download';
 import { format } from '../utils/time';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import VideoPreview from './VideoPreview';
 import { useI18n } from '../contexts/I18nContext';
+import { IcoVideo } from './Icons';
 
 /**
  * 聊天文件聚合视图（抽屉面板）
@@ -25,13 +26,9 @@ const IcoFile = () => (
     <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
   </svg>
 );
-const IcoVideo = () => (
-  <svg viewBox="0 0 24 24" className="chatfiles-tab-icon">
-    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
-  </svg>
-);
 
 export default function ChatFiles({ convId, onClose }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const [tab, setTab] = useState('all');
   const [items, setItems] = useState([]);
@@ -90,7 +87,7 @@ export default function ChatFiles({ convId, onClose }) {
 
   const handleClick = (item) => {
     if (item.type === 'image' || item.type === 'video') {
-      setPreview({ url: mediaUrl(item.fileUrl), type: item.type, name: item.fileName });
+      setPreview({ url: item.fileUrl, type: item.type, name: item.fileName });
     } else {
       downloadFile(mediaUrl(item.fileUrl), item.fileName || 'download');
     }
@@ -188,13 +185,14 @@ export default function ChatFiles({ convId, onClose }) {
               <div className="chatfiles-thumb">
                 {item.type === 'image' ? (
                   <img
+                    key={mediaUrl(item.fileUrl)}
                     src={mediaUrl(item.fileUrl)}
                     alt={item.fileName}
                     loading="lazy"
                     className="chatfiles-thumb-img"
                     onError={e => { e.target.style.display = 'none'; }}
                   />
-                ) : item.type === 'video' ? <IcoVideo /> : <IcoFile />}
+                ) : item.type === 'video' ? <IcoVideo className="chatfiles-tab-icon" /> : <IcoFile />}
               </div>
 
               {/* 信息 */}
@@ -203,7 +201,7 @@ export default function ChatFiles({ convId, onClose }) {
                   {item.fileName || (item.type === 'image' ? t('chatFiles.tabImage') : item.type === 'video' ? t('chatFiles.tabVideo') : t('chatFiles.tabFile'))}
                 </div>
                 <div className="chatfiles-info-meta">
-                  <Avatar src={item.senderAvatar} name={item.senderName} size={13}
+                  <Avatar src={item.senderAvatar} name={item.senderName} size='13'
                     style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }} />
                   <span className="chatfiles-info-sender">
                     {item.senderName} · {format(item.createdAt * 1000)}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
-import { mediaUrl } from '../utils/url';
+import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 import { useI18n } from '../contexts/I18nContext';
 import './StickerPanel.css';
@@ -12,6 +12,7 @@ const MAX_STICKER_MB = 5;   // 表情图上限，超出前端就拦，省去无�
 // 响应体不到 30KB，图片本身走 <img loading="lazy"> 原生懒加载——不需要额外做请求级分页，
 // 之前"加载更多"是从全量结果里 slice 的假分页，徒增状态复杂度，直接去掉。
 export default function StickerPanel({ onSend }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const [stickers, setStickers] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -76,7 +77,7 @@ export default function StickerPanel({ onSend }) {
         {stickers.map(s => (
           <div key={s.id} className="sticker-item" role="button" tabIndex={0} aria-label={t('sticker.send')} onClick={() => onSend(s.id)}
             onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSend(s.id); } }}>
-            <img loading="lazy" src={mediaUrl(s.url)} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} />
+            <img key={mediaUrl(s.url)} loading="lazy" src={mediaUrl(s.url)} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} />
             <button className="sticker-del" onClick={(e) => del(e, s.id)} title={t('chat.delete')} aria-label={t('sticker.deleteAria')}>✕</button>
           </div>
         ))}

@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import Avatar from './Avatar';
-import { mediaUrl, getThumbUrl } from '../utils/url';
+import { mediaUrl, getThumbUrl, useMediaCredentials } from '../utils/url';
 import { formatFull } from '../utils/time';
 import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
@@ -9,6 +9,7 @@ import { getAspect, rememberAspect } from '../utils/imgDimCache';
 import ImgOptimized from './ImgOptimized';
 import { linkify } from '../utils/linkify';
 import { useI18n } from '../contexts/I18nContext';
+import MergedMessageCard from './MergedMessageCard';
 
 // Time divider rendered as a list item
 export const TimeDivider = memo(function TimeDivider({ time }) {
@@ -20,6 +21,7 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
 });
 
 const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
+  useMediaCredentials();
   const { t } = useI18n();
   const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
     convType, userId, groupSettings, myGroupRole, members,
@@ -133,7 +135,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
         title={!isMine ? t('chat.clickToViewProfile') : undefined}
         style={{ cursor: !multiSelect && canClickAvatar && !isMine ? 'pointer' : 'default' }}
       >
-        <Avatar src={msg.senderAvatar} name={msg.senderName} size={36} />
+        <Avatar src={msg.senderAvatar} name={msg.senderName} size='sm' />
       </div>
       <div className="wc-msg-body">
         {!isMine && convType === 'group' && !consecutive && (
@@ -221,6 +223,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 {msg.edited ? <span className="wc-msg-edited" data-testid="msg-edited-flag" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>{t('messageItem.edited')}</span> : null}
               </span>
             )}
+            {msg.type === 'merged' && <MergedMessageCard content={msg.content} />}
             {msg.type === 'image' && (() => {
               const imgSrc = mediaUrl(msg.file_url);
               // 已知宽高比 → 预留正确高度，消除加载时的布局抖动(滚回历史不再跳)
@@ -232,14 +235,15 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 : undefined;
               return (
                 <ImgOptimized
+                  key={imgSrc}
                   data-testid="msg-image"
                   src={imgSrc}
                   alt={t('messageItem.messageImageAlt')}
                   className="wc-msg-img"
                   aspectStyle={aspectStyle}
                   role="button" tabIndex={0} aria-label={t('moments.viewLargeImage')}
-                  onClick={() => cbs.setLightboxUrl(imgSrc)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.setLightboxUrl(imgSrc); } }}
+                  onClick={() => cbs.setLightboxUrl(msg.file_url)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.setLightboxUrl(msg.file_url); } }}
                   onLoad={e => {
                     const el = e.currentTarget;
                     rememberAspect(imgSrc, el.naturalWidth, el.naturalHeight);
@@ -259,7 +263,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               // 用 #t=0.1 让浏览器抓取首帧作为封面缩略图（不自动播放，点击才全屏播放）
               // 防御: file_url 缺失(撤回/删除后缓存残留)时 vidSrc 为 undefined,不得调 .includes
               const posterSrc = (vidSrc || '').includes('#') ? vidSrc : `${vidSrc || ''}#t=0.1`;
-              const openPreview = () => cbs.setVideoUrl?.({ url: vidSrc, name: msg.content });
+              const openPreview = () => cbs.setVideoUrl?.({ url: msg.file_url, name: msg.content });
               return (
                 <div
                   className="wc-msg-video-wrap"
@@ -313,7 +317,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                    }}
                    className="wc-msg-file-link" data-testid="msg-file">
                   <div className="wc-msg-file-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'var(--brand-primary, #07C160)' }}>
+                    <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'var(--brand-primary)' }}>
                       <path d="M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm8 1.5V8h4.5L14 3.5z" />
                     </svg>
                   </div>
@@ -325,7 +329,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               );
             })()}
             {msg.type === 'sticker' && (
-              <img loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" onLoad={() => measure?.()} onError={e => { e.currentTarget.style.display = 'none'; measure?.(); }} style={{ maxWidth: 120, maxHeight: 120 }} />
+              <img key={mediaUrl(msg.file_url || msg.content)} loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" onLoad={() => measure?.()} onError={e => { e.currentTarget.style.display = 'none'; measure?.(); }} style={{ maxWidth: 120, maxHeight: 120 }} />
             )}
             {msg.type === 'contact_card' && (() => {
               let card = {};
@@ -339,7 +343,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && card.uid) { e.preventDefault(); cbs.setShowUserProfile(card.uid); } }}
                 >
                   <div className="wc-contact-card-body">
-                    <Avatar src={card.avatar} name={card.username} size={40} style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
+                    <Avatar src={card.avatar} name={card.username} size='md' style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
                     <div className="wc-contact-card-info">
                       <div className="wc-contact-card-name">{card.username || t('messageItem.defaultUsername')}</div>
                       {card.wechat_id && <div className="wc-contact-card-wechat">{t('messageItem.touliaoIdTemplate').replace('{id}', card.wechat_id)}</div>}

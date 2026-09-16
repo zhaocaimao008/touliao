@@ -1,6 +1,11 @@
 'use strict';
-const { asyncHandler } = require('../../utils/http');
+const { asyncHandler, unauthorized } = require('../../utils/http');
 const svc = require('./notifications.service');
+
+function pushSession(req) {
+  if (!req.user.jti) throw unauthorized('请重新登录后启用通知');
+  return req.user.jti;
+}
 
 exports.vapidPublicKey = asyncHandler(async (req, res) => {
   const key = svc.vapidPublicKey();
@@ -9,19 +14,19 @@ exports.vapidPublicKey = asyncHandler(async (req, res) => {
 });
 
 exports.webSubscribe = asyncHandler(async (req, res) => {
-  svc.webSubscribe(req.user.id, req.body.subscription);
+  svc.webSubscribe(req.user.id, req.body.subscription, pushSession(req));
   res.json({ success: true });
 });
 exports.webUnsubscribe = asyncHandler(async (req, res) => {
-  svc.webUnsubscribe(req.user.id, req.body.endpoint);
+  svc.webUnsubscribe(req.user.id, req.body.endpoint, pushSession(req));
   res.json({ success: true });
 });
 exports.saveDeviceToken = asyncHandler(async (req, res) => {
-  svc.saveDeviceToken(req.user.id, req.body.token, req.body.platform);
+  svc.saveDeviceToken(req.user.id, req.body.token, req.body.platform, pushSession(req));
   res.json({ success: true });
 });
 exports.deleteDeviceToken = asyncHandler(async (req, res) => {
-  svc.deleteDeviceToken(req.user.id, req.body.token);
+  svc.deleteDeviceToken(req.user.id, req.body.token, pushSession(req));
   res.json({ success: true });
 });
 exports.status = asyncHandler(async (req, res) => res.json(svc.status(req.user.id)));

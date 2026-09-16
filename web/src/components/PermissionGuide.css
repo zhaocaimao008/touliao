@@ -1,0 +1,6 @@
+.permission-guide { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; flex-shrink: 0; padding: 12px 14px; margin: 6px 12px 10px; border: 1px solid var(--border-color, #dfdbf0); border-radius: 12px; background: var(--bg-hover, #f0edfa); color: var(--text-primary, #282337); font-size: 13px; line-height: 1.5; }
+.permission-guide > span { flex: 1 1 150px; min-width: 0; }
+.permission-guide-actions { display: flex; flex: 0 0 auto; gap: 8px; margin-left: auto; }
+.permission-guide button { min-height: 40px; padding: 6px 12px; white-space: nowrap; border: 0; border-radius: 8px; font: inherit; cursor: pointer; background: var(--color-primary, #6d5ae6); color: #fff; }
+.permission-guide button + button { background: transparent; color: var(--text-secondary, #625b75); }
+.permission-guide button:focus-visible { outline: 2px solid var(--color-primary, #6d5ae6); outline-offset: 2px; }

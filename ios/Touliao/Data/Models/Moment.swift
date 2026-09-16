@@ -44,6 +44,8 @@ struct Moment: Decodable, Identifiable {
     var userId: String = ""
     var content: String = ""
     var images: [String] = []
+    var video: String = ""                // 视频动态（F5）：与 images 互斥，可选 1 段
+    var cover: String = ""                // 视频封面（可选，仅带视频时有效）
     var visibility: String = "all"
     var createdAt: Double = 0
     var author: MomentAuthor = MomentAuthor()
@@ -54,7 +56,7 @@ struct Moment: Decodable, Identifiable {
     var commentCount: Int = 0
 
     enum CodingKeys: String, CodingKey {
-        case id, content, images, visibility, author, likes, likeCount, liked, comments, commentCount
+        case id, content, images, video, cover, visibility, author, likes, likeCount, liked, comments, commentCount
         case userId = "user_id"
         case createdAt = "created_at"
     }
@@ -64,6 +66,8 @@ struct Moment: Decodable, Identifiable {
         userId = (try? c.decode(String.self, forKey: .userId)) ?? ""
         content = (try? c.decode(String.self, forKey: .content)) ?? ""
         images = (try? c.decode([String].self, forKey: .images)) ?? []
+        video = (try? c.decode(String.self, forKey: .video)) ?? ""
+        cover = (try? c.decode(String.self, forKey: .cover)) ?? ""
         visibility = (try? c.decode(String.self, forKey: .visibility)) ?? "all"
         createdAt = (try? c.decode(Double.self, forKey: .createdAt)) ?? 0
         author = (try? c.decode(MomentAuthor.self, forKey: .author)) ?? MomentAuthor()
