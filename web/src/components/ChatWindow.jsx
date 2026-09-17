@@ -1861,13 +1861,42 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const aspectPromise = file.type.startsWith('image/')
       ? readImageAspect(file).catch(() => null)
       : Promise.resolve(null);
+    const type = file.type.startsWith('image/') ? 'image'
+               : file.type.startsWith('audio/') ? 'voice'
+               : file.type.startsWith('video/') ? 'video'
+               : 'file';
+
+    // ── 乐观占位（修复"发图片/文件后半天不显示、之后又把正在翻看的历史强行拽回底部"）──
+    // 此前这条路径没有像文字消息一样先插入本地占位：点发送后要等上传+服务器一整趟网络
+    // 往返才第一次出现，往返期间用户往上翻历史，等广播终于回来时 onMsg 又无条件贴底，
+    // 把刚才的翻阅动作打断。现在点发送瞬间即插入占位(图片/视频给本地 blob 预览)并贴底，
+    // 广播到达后按 clientMsgId 原地替换成真实消息，行为与文字/名片发送保持一致。
+    const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const localPreviewUrl = (type === 'image' || type === 'video') ? URL.createObjectURL(file) : '';
+    const replySnap = replyTo ? { ...replyTo } : null;
+    const optimistic = {
+      id: tempId, conversation_id: conversation.id, sender_id: user.id,
+      senderName: user.username, senderAvatar: user.avatar,
+      content: file.name, type, file_url: localPreviewUrl, file_size: file.size,
+      created_at: Math.floor(Date.now() / 1000),
+      reply_to_id: replySnap?.id || null, replyTo: replySnap,
+      deleted: 0, edited: 0, reactions: [],
+      _status: 'sending', _tempId: tempId,
+    };
+    const addOptimistic = () => {
+      forceScrollRef.current = true; // 和文字/名片一致：发送瞬间无条件滚到底
+      setMessages(prev => prev.some(m => m._tempId === tempId) ? prev : [...prev, optimistic]);
+    };
+    const dropOptimistic = () => {
+      setMessages(prev => prev.filter(m => m._tempId !== tempId));
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+    };
+    dispatchCompose({ type: 'CLEAR_REPLY' });
+
     const doUpload = async () => {
+      addOptimistic();
       isUploadingRef.current = file.name;
       setUploadState({ name: file.name, progress: 0, status: 'uploading' });
-      const type = file.type.startsWith('image/') ? 'image'
-                 : file.type.startsWith('audio/') ? 'voice'
-                 : file.type.startsWith('video/') ? 'video'
-                 : 'file';
       try {
         let publicUrl;
         let thumbUploadUrl;
@@ -1891,9 +1920,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             if (aspect && localUrl) rememberAspect(mediaUrl(localUrl), aspect.w, aspect.h);
             isUploadingRef.current = false;
             setUploadState(null);
-            dispatchCompose({ type: 'CLEAR_REPLY' });
-            forceScrollRef.current = true;
-            setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
+            // 这条兜底路径是后端直接入库+广播，没有 clientMsgId 回执可对上占位消息，
+            // 只能先摘掉占位，真实消息到达后作为新行插入(见 onMsg)，不追加多余的强制滚动。
+            dropOptimistic();
             return;
           }
           throw cloudErr;
@@ -1904,28 +1933,30 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // 气泡按真实比例预留高度,消除"图片撑高溢出压到下一条文字"的重叠。
         const aspect = await aspectPromise;
         if (aspect && publicUrl) rememberAspect(mediaUrl(publicUrl), aspect.w, aspect.h);
-        if (!socket) { showToast(t('chat.connectionLostRetry'), 'error'); return; }
+        if (!socket) { showToast(t('chat.connectionLostRetry'), 'error'); dropOptimistic(); return; }
         socket.emit('send_file_message', {
           conversationId: conversation.id, type,
           file_url: publicUrl, content: file.name,
-          reply_to_id: replyTo?.id || null,
-          clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
-        }, (res) => { if (!res?.success) showToast(res?.error || t('chat.fileSendFailed'), 'error'); });
+          reply_to_id: replySnap?.id || null,
+          clientMsgId: tempId, // 与占位消息用同一个 id：onMsg 按 client_msg_id 原地替换占位，不重复
+        }, (res) => {
+          if (!res?.success) { showToast(res?.error || t('chat.fileSendFailed'), 'error'); dropOptimistic(); }
+          else if (localPreviewUrl) setTimeout(() => URL.revokeObjectURL(localPreviewUrl), 5000);
+        });
         // 缩略图：仅图片且后端确实发了 thumbUploadUrl(jpg/jpeg/png/webp)才生成上传；
         // 不 await——不能拖慢/阻塞消息发送，消息已经用原图 URL 正常发出去了。
         if (type === 'image' && thumbUploadUrl) {
           makeThumbnailBlob(file).then(blob => uploadThumb(thumbUploadUrl, blob));
         }
-        dispatchCompose({ type: 'CLEAR_REPLY' });
-        setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
       } catch (err) {
         isUploadingRef.current = false;
         const errorMsg = err.response?.data?.error || err.message || t('chat.uploadFailed');
         setUploadState({ name: file.name, progress: 0, status: 'error', errorMsg, retryFn: doUpload });
+        dropOptimistic();
       }
     };
     await doUpload();
-  }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, listOuterRef, t]);
+  }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, t, user.id, user.username, user.avatar]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -2033,6 +2064,24 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         if (blob.size < 1000) { stream.getTracks().forEach(t => t.stop()); return; } // too short
         setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'uploading' });
         const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
+        // 乐观占位:同图片/文件修复,点发送瞬间就显示这条语音消息并贴底,不等上传+广播一整趟
+        // 网络往返才第一次出现,也避免广播延迟到达时的强制贴底打断用户正在翻看的历史。
+        const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const localPreviewUrl = URL.createObjectURL(blob);
+        const optimistic = {
+          id: tempId, conversation_id: conversation.id, sender_id: user.id,
+          senderName: user.username, senderAvatar: user.avatar,
+          content: filename, type: 'voice', file_url: localPreviewUrl,
+          created_at: Math.floor(Date.now() / 1000),
+          reply_to_id: null, replyTo: null, deleted: 0, edited: 0, reactions: [],
+          _status: 'sending', _tempId: tempId,
+        };
+        forceScrollRef.current = true;
+        setMessages(prev => [...prev, optimistic]);
+        const dropOptimistic = () => {
+          setMessages(prev => prev.filter(m => m._tempId !== tempId));
+          URL.revokeObjectURL(localPreviewUrl);
+        };
         try {
           let publicUrl;
           try {
@@ -2045,22 +2094,26 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             const voiceFile = new File([blob], filename, { type: mimeType });
             await uploadLocal(voiceFile, onProg); // 后端入库+广播,无需再 emit
             setUploadState(null);
-            forceScrollRef.current = true;
-            setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
+            // 这条兜底路径没有 clientMsgId 回执可对上占位消息,先摘掉,真实消息到达后作为新行插入。
+            dropOptimistic();
             stream.getTracks().forEach(t => t.stop());
             return;
           }
           setUploadState(null);
-          forceScrollRef.current = true;
           socket?.emit('send_file_message', {
             conversationId: conversation.id,
             type:     'voice',
             file_url: publicUrl,
             content:  filename,
-            clientMsgId: `f_${publicUrl}`, // 幂等键:同一上传URL只落库一次
-          }, (res) => { if (!res?.success) showToast(res?.error || t('chat.voiceSendFailed'), 'error'); });
-          setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 100);
-        } catch { setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'error', errorMsg: t('chat.sendFailed') }); }
+            clientMsgId: tempId, // 与占位消息用同一个 id:onMsg 按 client_msg_id 原地替换占位,不重复
+          }, (res) => {
+            if (!res?.success) { showToast(res?.error || t('chat.voiceSendFailed'), 'error'); dropOptimistic(); }
+            else setTimeout(() => URL.revokeObjectURL(localPreviewUrl), 5000);
+          });
+        } catch {
+          setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'error', errorMsg: t('chat.sendFailed') });
+          dropOptimistic();
+        }
         stream.getTracks().forEach(t => t.stop());
       };
       try {
