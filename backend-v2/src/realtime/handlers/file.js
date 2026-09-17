@@ -46,7 +46,13 @@ module.exports = function registerFileHandler(io, socket) {
     const ALLOWED = new Set(['image', 'voice', 'video', 'file']);
 
     if (!conversationId || !file_url || !ALLOWED.has(type)) { ack?.({ success: false, error: '参数无效' }); return; }
-    if (!presence.checkMsgRate(userId)) { ack?.({ success: false, error: '发送频率过高，请稍后再试' }); return; }
+    // 限流命中时把 retryAfterMs 一并回给客户端，由它自动退避重发（见 presence.checkMsgRate 注释）。
+    // code 是给客户端做机器判断的——不能靠中文文案 match，否则改一个字客户端就失灵。
+    const _rate = presence.checkMsgRate(userId);
+    if (!_rate.ok) {
+      ack?.({ success: false, error: '发送频率过高，请稍后再试', code: 'RATE_LIMITED', retryAfterMs: _rate.retryAfterMs });
+      return;
+    }
 
     // URL 白名单校验：只接受本服务器上传的文件 URL，防止注入任意外链（钓鱼/SSRF）。
     // 两种合法来源：
