@@ -138,6 +138,10 @@ final class NativeUIReviewTests: XCTestCase {
         window.rootViewController = host
         window.makeKeyAndVisible()
         try await Task.sleep(nanoseconds: 700_000_000)
+        // Capture the app canvas consistently. The system keyboard lives in a
+        // separate window and is outside this view-rendering test's scope.
+        host.view.endEditing(true)
+        try await Task.sleep(nanoseconds: 350_000_000)
         if name.hasPrefix("chat-") {
             let messages = MsgCacheStore.shared.load("review-chat")
             XCTAssertTrue(messages.contains { $0.content == "收到，稍后把文件发给你。" }, "Chat rendering requires successfully loaded history")
