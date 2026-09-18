@@ -206,7 +206,7 @@ private fun FileGridItem(
                 .padding(2.dp)
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
-                .background(Color(0x11000000))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable(onClick = onClick),
         ) {
             AsyncImage(

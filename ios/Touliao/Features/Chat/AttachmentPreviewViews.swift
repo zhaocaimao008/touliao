@@ -21,7 +21,7 @@ struct VideoPlayerOverlay: View {
             }
             HStack {
                 Button(action: onDismiss) {
-                    Image(systemName: "xmark")
+                    TouliaoIcon(systemName: "xmark")
                         .foregroundColor(.white)
                         .padding(10)
                         .background(Color.black.opacity(0.4))
@@ -30,7 +30,7 @@ struct VideoPlayerOverlay: View {
                 Spacer()
                 Button(action: saveVideo) {
                     Text(saving ? "保存中…" : "保存视频")
-                        .font(.footnote)
+                        .touliaoFont(14)
                         .foregroundColor(.white)
                         .padding(.horizontal, 14).padding(.vertical, 8)
                         .background(Color.black.opacity(0.4))
@@ -41,7 +41,7 @@ struct VideoPlayerOverlay: View {
             .padding(.top, 50)
             .padding(.horizontal, 16)
             if let errorMsg {
-                Text(errorMsg).foregroundColor(.white).font(.footnote)
+                Text(errorMsg).foregroundColor(.white).touliaoFont(14)
                     .padding(8).background(Color.black.opacity(0.6)).cornerRadius(8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 40)
@@ -88,7 +88,7 @@ struct PdfPreviewOverlay: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             Button(action: onDismiss) {
-                Image(systemName: "xmark")
+                TouliaoIcon(systemName: "xmark")
                     .foregroundColor(.white)
                     .padding(10)
                     .background(Color.black.opacity(0.4))
@@ -146,13 +146,13 @@ struct FileDetailsOverlay: View {
             VStack(spacing: 16) {
                 RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.15))
                     .frame(width: 64, height: 64)
-                    .overlay(Text("FILE").font(.caption).foregroundColor(.white))
+                    .overlay(Text("FILE").touliaoFont(12).foregroundColor(.white))
                 Text(filename ?? "未知文件").foregroundColor(.white).multilineTextAlignment(.center)
                 if let sizeText, !sizeText.isEmpty {
-                    Text(sizeText).font(.footnote).foregroundColor(.white.opacity(0.6))
+                    Text(sizeText).touliaoFont(14).foregroundColor(.white.opacity(0.6))
                 }
                 Text("该文件格式暂不支持在投聊内直接预览，可以下载保存，或下载后选择用其他应用打开。")
-                    .font(.footnote).foregroundColor(.white.opacity(0.6))
+                    .touliaoFont(14).foregroundColor(.white.opacity(0.6))
                     .multilineTextAlignment(.center).padding(.horizontal, 32)
                 HStack(spacing: 12) {
                     Button(action: openWithOtherApp) {
@@ -163,12 +163,12 @@ struct FileDetailsOverlay: View {
                     }
                     .disabled(preparing)
                 }
-                if let errorMsg { Text(errorMsg).font(.footnote).foregroundColor(.red) }
+                if let errorMsg { Text(errorMsg).touliaoFont(14).foregroundColor(.red) }
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             Button(action: onDismiss) {
-                Image(systemName: "xmark")
+                TouliaoIcon(systemName: "xmark")
                     .foregroundColor(.white)
                     .padding(10)
                     .background(Color.black.opacity(0.4))

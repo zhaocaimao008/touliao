@@ -12,17 +12,17 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             ConversationListView(myId: myId)
-                .tabItem { Label("消息", systemImage: "bubble.left.and.bubble.right.fill") }
+                .tabItem { Label("消息", touliaoSystemImage: "bubble.left.and.bubble.right.fill") }
                 .accessibilityIdentifier("nav-tab-chats")
                 .tag(0)
 
             ContactsTab(myId: myId)
-                .tabItem { Label("通讯录", systemImage: "person.2.fill") }
+                .tabItem { Label("通讯录", touliaoSystemImage: "person.2.fill") }
                 .accessibilityIdentifier("nav-tab-contacts")
                 .tag(1)
 
             NavigationStack { ProfileView() }
-                .tabItem { Label("我", systemImage: "person.crop.circle.fill") }
+                .tabItem { Label("我", touliaoSystemImage: "person.crop.circle.fill") }
                 .accessibilityIdentifier("nav-tab-me")
                 .tag(2)
         }

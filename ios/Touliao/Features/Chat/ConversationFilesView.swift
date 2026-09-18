@@ -160,19 +160,17 @@ struct ConversationFilesView: View {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let err = vm.error, vm.items.isEmpty {
             VStack(spacing: 12) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 36)).foregroundColor(.vxinTextSecondary)
+                TouliaoIcon(systemName: "exclamationmark.triangle", size: 36).foregroundColor(.vxinTextSecondary)
                 Text(err).foregroundColor(.vxinError)
                 Button("重试") { Task { await vm.loadFirst() } }.foregroundColor(.vxinGreen)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if vm.items.isEmpty {
             VStack(spacing: 12) {
-                Image(systemName: "folder")
-                    .font(.system(size: 48)).foregroundColor(.vxinTextSecondary)
+                TouliaoIcon(systemName: "folder", size: 48).foregroundColor(.vxinTextSecondary)
                 Text("暂无文件").foregroundColor(.vxinTextSecondary)
                 Text("该会话下的图片、视频与文件会在这里汇总")
-                    .font(.caption).foregroundColor(.vxinTextSecondary)
+                    .touliaoFont(12).foregroundColor(.vxinTextSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if vm.tab == .file {
@@ -195,6 +193,8 @@ struct ConversationFilesView: View {
             }
         }
         .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
         .refreshable { await vm.loadFirst() }
     }
 
@@ -247,16 +247,16 @@ private struct FileRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("📄").font(.system(size: 28))
+            Text("📄").touliaoFont(28)
             VStack(alignment: .leading, spacing: 3) {
                 Text(file.displayName)
-                    .font(.body).lineLimit(1)
+                    .touliaoFont(16).lineLimit(1)
                 HStack(spacing: 8) {
                     Text(file.senderName.isEmpty ? "某人" : file.senderName)
-                        .font(.caption2).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                        .touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
                     Spacer()
                     Text(formatChatTime(file.createdAt))
-                        .font(.caption2).foregroundColor(.vxinTextSecondary)
+                        .touliaoFont(12).foregroundColor(.vxinTextSecondary)
                 }
             }
         }
@@ -272,15 +272,14 @@ private struct MediaGridCell: View {
 
     var body: some View {
         ZStack {
-            Color.gray.opacity(0.12)
+            Color.vxinSurfaceSecondary
             KFImage(source: MediaUrlResolver.kfSource(resolved: resolve(file.fileUrl)))
                 .resizable()
                 .scaledToFill()
             // 视频角标：半透明播放标识
             if file.type == "video" {
                 Color.black.opacity(0.18)
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 30)).foregroundColor(.white.opacity(0.9))
+                TouliaoIcon(systemName: "play.circle.fill", size: 30).foregroundColor(.white.opacity(0.9))
             }
         }
         .aspectRatio(1, contentMode: .fill)
@@ -312,7 +311,7 @@ private struct FilePreviewImageView: View {
             VStack {
                 HStack {
                     Button { onClose() } label: {
-                        Image(systemName: "xmark").foregroundColor(.white).padding()
+                        TouliaoIcon(systemName: "xmark").foregroundColor(.white).padding()
                     }
                     .accessibilityLabel("关闭")
                     Spacer()

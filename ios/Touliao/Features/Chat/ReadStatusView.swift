@@ -100,13 +100,13 @@ struct ReadStatusDetailSheet: View {
                     // 私聊：对方已读/未读
                     HStack(spacing: 12) {
                         Text(model.peerRead ? "✓✓" : "✓")
-                            .font(.title3.bold())
+                            .touliaoFont(18, weight: .bold)
                             .foregroundColor(model.peerRead ? .vxinGreen : .vxinTextSecondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(model.peerRead ? "对方已读" : "对方未读")
-                                .font(.body)
+                                .touliaoFont(16)
                             if !model.peerName.isEmpty {
-                                Text(model.peerName).font(.footnote).foregroundColor(.vxinTextSecondary)
+                                Text(model.peerName).touliaoFont(14).foregroundColor(.vxinTextSecondary)
                             }
                         }
                         Spacer()
@@ -125,12 +125,12 @@ struct ReadStatusDetailSheet: View {
                                     Spacer()
                                     if model.readCount > 0 {
                                         Text(expanded ? "收起" : "展开")
-                                            .font(.footnote).foregroundColor(.vxinGreen)
+                                            .touliaoFont(14).foregroundColor(.vxinGreen)
                                     }
                                 }
                             }
                             if model.readCount == 0 {
-                                Text("暂无成员已读").font(.footnote).foregroundColor(.vxinTextSecondary)
+                                Text("暂无成员已读").touliaoFont(14).foregroundColor(.vxinTextSecondary)
                             }
                         }
                         if expanded {

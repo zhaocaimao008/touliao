@@ -22,23 +22,23 @@ struct MergedMessageCard: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(record.title.isEmpty ? "聊天记录" : record.title)
-                .font(.subheadline.bold())
+                .touliaoFont(14, weight: .bold)
                 .lineLimit(1)
             // 摘要最多 2 条（对齐 Web wc-merged-summary）
             ForEach(Array(record.items.prefix(2).enumerated()), id: \.offset) { _, item in
                 Text("\(item.senderName.isEmpty ? "" : "\(item.senderName): ")\(item.snippet)")
-                    .font(.caption)
+                    .touliaoFont(12)
                     .foregroundColor(isMine ? Color.vxinBubbleText.opacity(0.8) : .vxinTextSecondary)
                     .lineLimit(1)
             }
             Text("查看 \(record.items.count) 条记录")
-                .font(.caption2)
+                .touliaoFont(12)
                 .foregroundColor(isMine ? Color.vxinBubbleText.opacity(0.7) : .vxinTextSecondary)
                 .padding(.top, 2)
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
         .frame(width: 232, alignment: .leading)
-        .background(isMine ? AnyShapeStyle(LinearGradient.vxinBubble) : AnyShapeStyle(Color(.secondarySystemBackground)))
+        .background(isMine ? AnyShapeStyle(LinearGradient.vxinBubble) : AnyShapeStyle(Color.vxinSurfaceSecondary))
         .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md))
     }
 }
@@ -76,19 +76,21 @@ private struct MergedForwardDetailSheet: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
                                     Text(item.senderName.isEmpty ? "成员" : item.senderName)
-                                        .font(.subheadline.bold())
+                                        .touliaoFont(14, weight: .bold)
                                     Spacer()
                                     Text(formatChatTime(item.ts))
-                                        .font(.caption2).foregroundColor(.vxinTextSecondary)
+                                        .touliaoFont(12).foregroundColor(.vxinTextSecondary)
                                 }
                                 Text(item.snippet.isEmpty ? "内容不可用" : item.snippet)
-                                    .font(.subheadline)
+                                    .touliaoFont(14)
                                     .foregroundColor(.vxinTextSecondary)
                             }
                         }
                         .padding(.vertical, 2)
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                 }
             }
             .navigationTitle(title.isEmpty ? "聊天记录" : title)

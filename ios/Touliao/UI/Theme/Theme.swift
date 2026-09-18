@@ -36,7 +36,7 @@ extension LinearGradient {
 
 /// System SF/PingFang fonts with the design's sizes and Dynamic Type scaling.
 private struct TouliaoFontModifier: ViewModifier {
-    @ScaledMetric(relativeTo: .body) private var size: CGFloat
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 16
     let weight: Font.Weight
     let design: Font.Design
     init(size: CGFloat, weight: Font.Weight, design: Font.Design) {

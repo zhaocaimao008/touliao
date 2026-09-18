@@ -52,7 +52,7 @@ struct TouliaoIcon: View {
 }
 
 extension Label where Title == Text, Icon == Image {
-    init(_ title: LocalizedStringKey, touliaoSystemImage: String) {
+    init(_ title: String, touliaoSystemImage: String) {
         self.init { Text(title) } icon: { TouliaoIcon.image(touliaoSystemImage) }
     }
 }

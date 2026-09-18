@@ -54,8 +54,7 @@ struct MentionsView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let err = vm.error, vm.items.isEmpty {
                     VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 36)).foregroundColor(.vxinTextSecondary)
+                        TouliaoIcon(systemName: "exclamationmark.triangle", size: 36).foregroundColor(.vxinTextSecondary)
                         Text(err).foregroundColor(.vxinError)
                         Button("重试") { Task { await vm.loadFirst() } }
                             .foregroundColor(.vxinGreen)
@@ -63,8 +62,7 @@ struct MentionsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if vm.items.isEmpty {
                     VStack(spacing: 12) {
-                        Image(systemName: "at.circle")
-                            .font(.system(size: 48)).foregroundColor(.vxinTextSecondary)
+                        TouliaoIcon(systemName: "at.circle", size: 48).foregroundColor(.vxinTextSecondary)
                         Text("暂无 @ 我的消息").foregroundColor(.vxinTextSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -96,6 +94,8 @@ struct MentionsView: View {
                         }
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                     .refreshable { await vm.loadFirst() }
                 }
             }
@@ -124,17 +124,17 @@ private struct MentionRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(item.convName.isEmpty ? "未知会话" : item.convName)
-                        .font(.body).lineLimit(1)
+                        .touliaoFont(16).lineLimit(1)
                     Spacer()
                     Text(formatChatTime(item.createdAt))
-                        .font(.caption2).foregroundColor(.vxinTextSecondary)
+                        .touliaoFont(12).foregroundColor(.vxinTextSecondary)
                 }
                 HStack(spacing: 4) {
                     // 发送者名（谁 @了我）
                     Text(item.senderName.isEmpty ? "某人" : item.senderName)
-                        .font(.subheadline).foregroundColor(.vxinGreen).lineLimit(1)
+                        .touliaoFont(14).foregroundColor(.vxinGreen).lineLimit(1)
                     Text(": \(item.content)")
-                        .font(.subheadline).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                        .touliaoFont(14).foregroundColor(.vxinTextSecondary).lineLimit(1)
                 }
             }
         }

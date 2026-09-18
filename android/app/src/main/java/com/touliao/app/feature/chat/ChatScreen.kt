@@ -353,7 +353,7 @@ fun ChatScreen(
                                 showChatMenu = false; backgroundPicker.launch("image/*")
                             })
                             if (state.background.isNotBlank()) {
-                                DropdownMenuItem(text = { Text("清除聊天背景", color = Color(0xFFFA5151)) }, onClick = {
+                                DropdownMenuItem(text = { Text("清除聊天背景", color = com.touliao.app.ui.theme.VxinError) }, onClick = {
                                     showChatMenu = false; viewModel.clearBackground()
                                 })
                             }
@@ -401,7 +401,7 @@ fun ChatScreen(
                     TextButton(
                         onClick = { viewModel.batchDeleteSelected() },
                         enabled = state.selectedIds.isNotEmpty(),
-                    ) { Text("删除", color = Color(0xFFFA5151)) }
+                    ) { Text("删除", color = com.touliao.app.ui.theme.VxinError) }
                 }
             } else {
             // imePadding 提到整个底栏：键盘弹出时回复条/输入框/面板一起上移；
@@ -410,7 +410,7 @@ fun ChatScreen(
                 // 编辑态横幅(微信式: 输入框内编辑, 显示"编辑消息" + 原文 + 取消)
                 editTarget?.let { target ->
                     Row(
-                        Modifier.fillMaxWidth().background(Color(0x11000000)).padding(horizontal = 12.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -423,7 +423,7 @@ fun ChatScreen(
                 }
                 state.replyingTo?.let { r ->
                     Row(
-                        Modifier.fillMaxWidth().background(Color(0x11000000)).padding(horizontal = 12.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -555,7 +555,7 @@ fun ChatScreen(
                                     fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
-                                        .background(Color(0x11000000))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
                                         .padding(horizontal = 8.dp, vertical = 2.dp),
                                 )
                             }
@@ -838,7 +838,7 @@ fun ChatScreen(
                                 Text(p.senderName.ifBlank { "成员" }, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
                                 Text(pinnedPreview(p), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
-                            TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = Color(0xFFFA5151)) }
+                            TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = com.touliao.app.ui.theme.VxinError) }
                         }
                         HorizontalDivider(thickness = 0.5.dp)
                     }
@@ -1116,12 +1116,12 @@ private fun pinnedPreview(p: com.touliao.app.data.model.PinnedMessage): String =
 @Composable
 private fun AnnouncementBanner(text: String, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().background(Color(0xFFEAF4FF)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("📢", fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
         Spacer(Modifier.size(8.dp))
-        Text("群公告", color = Color(0xFF3B82F6), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, maxLines = 1)
+        Text("群公告", color = MaterialTheme.colorScheme.primary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, maxLines = 1)
         Spacer(Modifier.size(8.dp))
         // 置顶轮播：单行横向滚动展示（basicMarquee），点按看全文
         Text(
@@ -1137,7 +1137,7 @@ private fun AnnouncementBanner(text: String, onClick: () -> Unit) {
 private fun PinnedBanner(pinned: List<com.touliao.app.data.model.PinnedMessage>, onClick: () -> Unit) {
     val latest = pinned.firstOrNull() ?: return
     Row(
-        modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF7E6)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("📌", fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
@@ -1216,7 +1216,7 @@ private fun MessageBubble(
                     Text(
                         text = "❗发送失败，点击重发",
                         fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
-                        color = Color(0xFFE64545),
+                        color = com.touliao.app.ui.theme.VxinError,
                         modifier = Modifier
                             .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.tag))
                             .clickable(onClick = onRetry)
@@ -1245,7 +1245,7 @@ private fun MessageBubble(
             msg.replyTo?.takeIf { it.deleted == 0 }?.let { rt ->
                 Box(
                     Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
-                        .background(Color(0x11000000))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { rt.id.takeIf { it.isNotBlank() }?.let(onReplyClick) }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
@@ -1323,7 +1323,7 @@ private fun MessageBubble(
                     // 撤回：自己消息，或群主/管理员撤回群内他人消息（对全员生效）
                     // 删除：彻底删除，双方都不可见（原「仅自己删除」语义已改为复用 vanish，与撤回同权限）
                     if (isMine || (canManage && !isMine)) {
-                        DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { showRecallConfirm = true; menuOpen = false })
+                        DropdownMenuItem(text = { Text("撤回", color = com.touliao.app.ui.theme.VxinError) }, onClick = { showRecallConfirm = true; menuOpen = false })
                     }
                     if (canViewReadStatus(msg, myId)) {
                         DropdownMenuItem(text = { Text("已读状态") }, onClick = { onReadStatus(); menuOpen = false })
@@ -1343,7 +1343,7 @@ private fun MessageBubble(
                         val mine = r.mine(myId)
                         Box(
                             Modifier.padding(end = 4.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
-                                .background(if (mine) VxinGreen.copy(alpha = 0.15f) else Color(0x11000000))
+                                .background(if (mine) VxinGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
                                 .then(if (mine) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge)) else Modifier)
                                 .clickable { onReact(r.emoji) }
                                 .padding(horizontal = 6.dp, vertical = 1.dp),
@@ -1359,7 +1359,7 @@ private fun MessageBubble(
             onDismissRequest = { showRecallConfirm = false },
             title = { Text("撤回消息") },
             text = { Text("撤回这条消息？对方不会再看到这条消息") },
-            confirmButton = { TextButton(onClick = { onRecall(); showRecallConfirm = false }) { Text("撤回", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { onRecall(); showRecallConfirm = false }) { Text("撤回", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { showRecallConfirm = false }) { Text("取消") } },
         )
     }
@@ -1414,12 +1414,12 @@ private fun MessageContent(
                         .clickable { onImageClick() },
                     loading = {
                         // 加载中灰底占位 + 转圈(对齐微信,避免空白闪烁)
-                        Box(Modifier.size(140.dp).background(Color(0x11000000)), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(140.dp).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
                         }
                     },
                     error = {
-                        Box(Modifier.size(140.dp).background(Color(0x11000000)), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(140.dp).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                             Text("图片加载失败", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                         }
                     },
@@ -1524,7 +1524,7 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
         // 失败时：气泡左侧显示红色感叹号，点击重试（对齐微信）
         if (p.failed) {
             Box(
-                Modifier.size(20.dp).clip(CircleShape).background(Color(0xFFFA5151))
+                Modifier.size(20.dp).clip(CircleShape).background(com.touliao.app.ui.theme.VxinError)
                     .clickable { onRetry() },
                 contentAlignment = Alignment.Center,
             ) { Text("!", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2) }
@@ -1572,13 +1572,13 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
 }
 
 @Composable
-private fun TextBubble(content: String, isMine: Boolean) {
+internal fun TextBubble(content: String, isMine: Boolean) {
     Box(
         modifier = Modifier
             .widthIn(max = 280.dp)
-            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
+            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.bubble))
             .background(bubbleBrush(isMine))
-            .padding(horizontal = 14.dp, vertical = 9.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(highlightMentions(content, isMine), color = bubbleTextColor(isMine))
     }
@@ -1591,7 +1591,7 @@ private val MENTION_RE = Regex("@[^\\s@]+")
 private fun highlightMentions(content: String, isMine: Boolean): androidx.compose.ui.text.AnnotatedString {
     if (!content.contains('@')) return androidx.compose.ui.text.AnnotatedString(content)
     // @提及高亮：我方靛底用浅色、对方白底用品牌深色，均保证可读
-    val color = if (isMine) Color(0xFFEAE6FF) else VxinBrandDark
+    val color = if (isMine) Color.White else VxinBrandDark
     return androidx.compose.ui.text.buildAnnotatedString {
         var last = 0
         MENTION_RE.findAll(content).forEach { mr ->
@@ -1610,7 +1610,7 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
     Box(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
+            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.bubble))
             .background(bubbleBrush(isMine))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1621,19 +1621,18 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
 @Composable
 private fun bubbleBg(isMine: Boolean): Color =
     if (isMine) VxinBubbleMine
-    else if (isSystemInDarkTheme()) VxinBubbleOtherDark else Color.White
+    else com.touliao.app.ui.theme.LocalTouliaoPalette.current.messageIncoming
 
 // 我方气泡渐变笔刷：极光靛 → 青碧（对齐 web --grad-brand），对方气泡回退纯色
 @Composable
 private fun bubbleBrush(isMine: Boolean): Brush =
-    if (isMine) Brush.linearGradient(listOf(VxinBrandLight, VxinBubbleMine, VxinTeal))
-    else SolidColor(bubbleBg(false))
+    SolidColor(bubbleBg(isMine))
 
 // 气泡文字：我方靛底=白字；对方白/深灰底=深/浅字
 @Composable
 private fun bubbleTextColor(isMine: Boolean): Color =
     if (isMine) VxinBubbleMineText
-    else if (isSystemInDarkTheme()) VxinBubbleTextDark else VxinBubbleText
+    else com.touliao.app.ui.theme.LocalTouliaoPalette.current.text
 
 /** 语音气泡宽度：随时长在 72dp(≤1s/未知)~168dp(≥30s)间线性增长，对齐成熟IM"越长气泡越宽"的直觉。 */
 private fun voiceBubbleWidth(durationSeconds: Int): androidx.compose.ui.unit.Dp {
@@ -1678,7 +1677,7 @@ private fun MessageInputBar(
         if (recording) {
             Text(
                 "● 录音中…点击麦克风停止并发送",
-                color = Color(0xFFFA5151),
+                color = com.touliao.app.ui.theme.VxinError,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
@@ -1761,7 +1760,7 @@ private fun FunctionPanel(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 220.dp)
-            .background(Color(0xFFF2F2F2))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(vertical = 12.dp),
     ) {
         gridItems(items) { (emoji, label, onClick) ->
@@ -1827,12 +1826,12 @@ private fun ScheduleMessageDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 )
                 error?.let {
-                    Text(it, color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
+                    Text(it, color = com.touliao.app.ui.theme.VxinError, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 }
                 Text(
                     "• 至少 15 分钟后，不超过 30 天\n• 到点后后端自动发送",
                     fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
-                    color = Color(0xFF888888),
+                    color = com.touliao.app.ui.theme.VxinTextSecondary,
                 )
             }
         },
@@ -1878,7 +1877,7 @@ private fun ScheduledMessagesDialog(
                     CircularProgressIndicator(Modifier.size(24.dp))
                 }
             } else if (messages.isEmpty()) {
-                Text("暂无待发送的定时消息", color = Color(0xFF888888))
+                Text("暂无待发送的定时消息", color = com.touliao.app.ui.theme.VxinTextSecondary)
             } else {
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {
                     items(messages) { msg ->
@@ -1890,11 +1889,11 @@ private fun ScheduledMessagesDialog(
                                 Text(msg.content, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
                                 Text(
                                     "⏰ ${sdf.format(java.util.Date(msg.send_at * 1000))}",
-                                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = Color(0xFF888888),
+                                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = com.touliao.app.ui.theme.VxinTextSecondary,
                                 )
                             }
                             TextButton(onClick = { onCancel(msg.id) }) {
-                                Text("取消", color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
+                                Text("取消", color = com.touliao.app.ui.theme.VxinError, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                             }
                         }
                         HorizontalDivider(thickness = 0.5.dp)
@@ -1915,7 +1914,7 @@ private fun StickerEmojiPanel(
     onUploadSticker: () -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(0) }
-    Column(Modifier.fillMaxWidth().heightIn(max = 240.dp).background(Color(0xFFF2F2F2))) {
+    Column(Modifier.fillMaxWidth().heightIn(max = 240.dp).background(MaterialTheme.colorScheme.surfaceVariant)) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { tab = 0 }) { Text("表情", color = if (tab == 0) VxinGreen else VxinTextSecondary) }
             TextButton(onClick = { tab = 1 }) { Text("贴纸", color = if (tab == 1) VxinGreen else VxinTextSecondary) }
@@ -2048,7 +2047,7 @@ private fun SendTransferDialog(
                     enabled = !sending,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                err?.let { Spacer(Modifier.size(4.dp)); Text(it, color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
+                err?.let { Spacer(Modifier.size(4.dp)); Text(it, color = com.touliao.app.ui.theme.VxinError, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
             }
         },
         confirmButton = {
@@ -2105,7 +2104,7 @@ private fun SendRedPacketDialog(
                     label = { Text("祝福语（可选）") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                err?.let { Text(it, color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
+                err?.let { Text(it, color = com.touliao.app.ui.theme.VxinError, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
             }
         },
         confirmButton = {

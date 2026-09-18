@@ -26,28 +26,28 @@ struct ConversationListView: View {
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         VStack(spacing: 2) {
-                            Text("消息").font(.headline)
+                            Text("消息").touliaoFont(18, weight: .semibold)
                             Text(statusLabel)
-                                .font(.caption2)
+                                .touliaoFont(12)
                                 .foregroundColor(vm.socketStatus == .connected ? .vxinGreen : .vxinTextSecondary)
                         }
                     }
                     // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
                     if vm.momentsEnabled {
                         ToolbarItem(placement: .navigationBarTrailing) {
-                            Button { showMoments = true } label: { Image(systemName: "photo.on.rectangle") }
+                            Button { showMoments = true } label: { TouliaoIcon(systemName: "photo.on.rectangle") }
                                 .accessibilityLabel("朋友圈")
                                 .accessibilityIdentifier("conv-list-moments-btn")
                         }
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button { path.append(SearchRoute.search) } label: { Image(systemName: "magnifyingglass") }
+                        Button { path.append(SearchRoute.search) } label: { TouliaoIcon(systemName: "magnifyingglass") }
                             .accessibilityLabel("搜索")
                     }
                     // @我消息聚合入口
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button { showMentions = true } label: {
-                            Image(systemName: "at")
+                            TouliaoIcon(systemName: "at")
                         }
                         .accessibilityLabel("@我的消息")
                         .accessibilityIdentifier("conv-list-mentions-btn")
@@ -55,9 +55,9 @@ struct ConversationListView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
                             Button { vm.openFileHelper { conv in path.append(conv) } } label: {
-                                Label("文件传输助手", systemImage: "doc.on.doc")
+                                Label("文件传输助手", touliaoSystemImage: "doc.on.doc")
                             }
-                        } label: { Image(systemName: "plus") }
+                        } label: { TouliaoIcon(systemName: "plus") }
                             .accessibilityLabel("更多")
                     }
                 }
@@ -153,7 +153,7 @@ struct ConversationListView: View {
                         ConversationRow(conversation: conv, draft: vm.drafts[conv.id] ?? "")
                     }
                     .accessibilityIdentifier("conv-item-\(conv.id)")
-                    .listRowBackground(conv.pinned == 1 ? Color.gray.opacity(0.08) : Color.clear)
+                    .listRowBackground(conv.pinned == 1 ? Color.vxinPrimarySoft : Color.clear)
                     .contextMenu {
                         if conv.unreadCount > 0 {
                             Button("标为已读") { vm.markRead(conv) }
@@ -168,13 +168,15 @@ struct ConversationListView: View {
                 }
                 if visible.isEmpty {
                     Text(showArchived ? "暂无归档会话" : "暂无会话")
-                        .font(.footnote).foregroundColor(.vxinTextSecondary)
+                        .touliaoFont(14).foregroundColor(.vxinTextSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 32)
                         .listRowSeparator(.hidden)
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
             .onAppear { vm.refreshDrafts() }   // 从聊天页返回时刷新「[草稿]」前缀
             .refreshable { await vm.refresh() }
             .alert("清空聊天记录", isPresented: .constant(clearTarget != nil)) {
@@ -203,19 +205,19 @@ struct ConversationListView: View {
                 RoundedRectangle(cornerRadius: VxinRadius.sm)
                     .fill(Color.vxinBrand.opacity(0.12))
                     .frame(width: 40, height: 40)
-                    .overlay(Image(systemName: "archivebox").foregroundColor(.vxinGreen))
-                Text("归档").font(.body)
+                    .overlay(TouliaoIcon(systemName: "archivebox").foregroundColor(.vxinGreen))
+                Text("归档").touliaoFont(16)
                 Spacer()
                 if vm.archiveUnreadTotal > 0 {
                     Text(vm.archiveUnreadTotal > 99 ? "99+" : "\(vm.archiveUnreadTotal)")
-                        .font(.caption2).foregroundColor(.white)
+                        .touliaoFont(12).foregroundColor(.white)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Color.vxinError).clipShape(Capsule())
                 }
                 if !vm.archivedConversations.isEmpty {
-                    Text("\(vm.archivedConversations.count)").font(.caption).foregroundColor(.vxinTextSecondary)
+                    Text("\(vm.archivedConversations.count)").touliaoFont(12).foregroundColor(.vxinTextSecondary)
                 }
-                Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary)
+                TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary)
             }
             .padding(.vertical, 4)
         }
@@ -230,17 +232,17 @@ struct ConversationListView: View {
                 withAnimation { showArchived = false }
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
+                    TouliaoIcon(systemName: "chevron.left")
                     Text("返回")
                 }
                 .foregroundColor(.vxinGreen)
             }
             .accessibilityLabel("返回消息列表")
             Spacer()
-            Text("已归档").font(.body.bold())
+            Text("已归档").touliaoFont(16, weight: .bold)
             Spacer()
             Button("全部取消归档") { showClearArchiveConfirm = true }
-                .font(.subheadline)
+                .touliaoFont(14)
                 .disabled(vm.archivedConversations.isEmpty)
         }
         .padding(.vertical, 6)
@@ -256,39 +258,39 @@ struct ConversationListView: View {
     }
 }
 
-private struct ConversationRow: View {
+struct ConversationRow: View {
     let conversation: Conversation
     var draft: String = ""
 
     var body: some View {
         HStack(spacing: 12) {
-            InitialAvatar(name: conversation.name.isEmpty ? "?" : conversation.name, size: 48)
+            InitialAvatar(name: conversation.name.isEmpty ? "?" : conversation.name, size: 44)
             VStack(alignment: .leading, spacing: 3) {
                 Text(conversation.name.isEmpty ? "未命名会话" : conversation.name)
-                    .font(.body)
+                    .touliaoFont(16)
                     .lineLimit(1)
                     .accessibilityIdentifier("conv-item-name")
                 HStack(spacing: 4) {
                     if conversation.hasMention {
                         // 有未读@我：绿色小标，读后随刷新消失
                         Text("[@我]")
-                            .font(.caption2).bold()
+                            .touliaoFont(12).bold()
                             .foregroundColor(.vxinGreen)
                             .accessibilityIdentifier("conv-item-mention")
                     }
                     if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         // 有未发送草稿：红色「[草稿]」前缀(对齐微信/Web/安卓)
                         Text("[草稿]")
-                            .font(.subheadline)
+                            .touliaoFont(14)
                             .foregroundColor(.vxinError)
                             .accessibilityIdentifier("conv-item-draft")
                         Text(draft)
-                            .font(.subheadline)
+                            .touliaoFont(14)
                             .foregroundColor(.vxinTextSecondary)
                             .lineLimit(1)
                     } else {
                         Text(previewText)
-                            .font(.subheadline)
+                            .touliaoFont(14)
                             .foregroundColor(.vxinTextSecondary)
                             .lineLimit(1)
                     }
@@ -297,7 +299,7 @@ private struct ConversationRow: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
                 Text(formatChatTime(conversation.lastTime))
-                    .font(.caption2)
+                    .touliaoFont(12)
                     .foregroundColor(.vxinTextSecondary)
                 if conversation.muted == 1 {
                     // 免打扰：有未读只显示小红点(不显示数字)，并保留🔕(对齐微信/安卓)
@@ -305,11 +307,11 @@ private struct ConversationRow: View {
                         if conversation.unreadCount > 0 {
                             Circle().fill(Color.vxinError).frame(width: 8, height: 8)
                         }
-                        Image(systemName: "bell.slash.fill").font(.caption2).foregroundColor(.vxinTextSecondary)
+                        TouliaoIcon(systemName: "bell.slash.fill").touliaoFont(12).foregroundColor(.vxinTextSecondary)
                     }
                 } else if conversation.unreadCount > 0 {
                     Text(conversation.unreadCount > 99 ? "99+" : "\(conversation.unreadCount)")
-                        .font(.caption2)
+                        .touliaoFont(12)
                         .foregroundColor(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -318,6 +320,7 @@ private struct ConversationRow: View {
                 }
             }
         }
+        .frame(minHeight: 60)
         .padding(.vertical, 4)
     }
 
