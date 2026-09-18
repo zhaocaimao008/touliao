@@ -681,7 +681,7 @@ function AppearanceSettings({ onBack }) {
         <div className="wc-appearance-row">
           {[
             // 每套皮肤: 按钮底色 = 聊天气泡预览(自己/对方), 选中描边用其主色
-            { key: 'touliao', label: lang === 'en' ? 'Touliao Blue' : '投聊蓝', bg: 'var(--tl-surface)', accent: '#2864f0', dot: '#2864f0' },
+            { key: 'touliao', label: t('ui.skinTouliao'), bg: 'var(--tl-surface)', accent: '#2864f0', dot: '#2864f0' },
             { key: 'aurora', label: t('profile.skinAurora'), bg: 'linear-gradient(105deg,#FBFAFE 50%,#E7E4F0 50%)', accent: '#6D5AE6', dot: '#6D5AE6' },
             { key: 'wechat', label: t('profile.skinWechat'), bg: 'linear-gradient(105deg,#95EC69 50%,#FFFFFF 50%)', accent: '#07C160', dot: '#07C160' },
             { key: 'wecom',  label: t('profile.skinWecom'),  bg: 'linear-gradient(105deg,#D6E8FD 50%,#FFFFFF 50%)', accent: '#2070E0', dot: '#2070E0' },

@@ -3,6 +3,12 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const translations = {
   'zh-CN': {
+    'ui.conversationFilter': '会话筛选',
+    'ui.filter.all': '全部',
+    'ui.filter.unread': '未读',
+    'ui.filter.groups': '群聊',
+    'ui.skinTouliao': '投聊蓝',
+
     'callHistory.justNow': '刚刚',
     'callHistory.minutesAgoTemplate': '{n}分钟前',
     'callHistory.hoursAgoTemplate': '{n}小时前',
@@ -1213,6 +1219,12 @@ const translations = {
     'filePreview.pptxNoTextContent': '（此页无文字内容）',
   },
   'en': {
+    'ui.conversationFilter': 'Filter conversations',
+    'ui.filter.all': 'All',
+    'ui.filter.unread': 'Unread',
+    'ui.filter.groups': 'Groups',
+    'ui.skinTouliao': 'Touliao Blue',
+
     'callHistory.justNow': 'Just now',
     'callHistory.minutesAgoTemplate': '{n}m ago',
     'callHistory.hoursAgoTemplate': '{n}h ago',
@@ -2406,6 +2418,12 @@ const translations = {
     'filePreview.pptxNoTextContent': '(No text on this page)',
   },
   'zh-TW': {
+    'ui.conversationFilter': '會話篩選',
+    'ui.filter.all': '全部',
+    'ui.filter.unread': '未讀',
+    'ui.filter.groups': '群組',
+    'ui.skinTouliao': '投聊藍',
+
     'callHistory.justNow': '剛剛',
     'callHistory.minutesAgoTemplate': '{n}分鐘前',
     'callHistory.hoursAgoTemplate': '{n}小時前',

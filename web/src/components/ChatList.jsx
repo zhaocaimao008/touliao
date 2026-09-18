@@ -146,6 +146,7 @@ function ChatListSkeleton() {
 
 export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions }) {
   const [itemHeight, setItemHeight] = useState(rowHeight);
+  const [filter, setFilter] = useState('all');
   useEffect(() => {
     const resize = () => setItemHeight(rowHeight());
     window.addEventListener('resize', resize);
@@ -389,8 +390,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       .map(c => {
         const u = Object.prototype.hasOwnProperty.call(unread, c.id) ? unread[c.id] : (c.unreadCount || 0);
         return c._unread === u ? c : { ...c, _unread: u };
-      });
-  }, [conversations, searchQuery, unread, showArchived]);
+      })
+      .filter(c => filter === 'all' || (filter === 'groups' ? c.type === 'group' : c._unread > 0 || c.manually_unread));
+  }, [conversations, searchQuery, unread, showArchived, filter]);
 
   const archivedConversations = useMemo(() => splitArchivedConversations(conversations).archived, [conversations]);
   const archivedUnread = useMemo(() => archiveUnreadTotal(archivedConversations, unread), [archivedConversations, unread]);
@@ -408,6 +410,14 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)', '--tl-conversation-row-height': `${itemHeight}px`, '--windows-row-height': `${itemHeight}px` }}>
+      {!searchQuery && !showArchived && (
+        <div className="tl-conversation-filters" role="tablist" aria-label={t('ui.conversationFilter')}>
+          {['all', 'unread', 'groups'].map(key => (
+            <button type="button" key={key} role="tab" aria-selected={filter === key}
+              data-testid={`conversation-filter-${key}`} onClick={() => setFilter(key)}>{t(`ui.filter.${key}`)}</button>
+          ))}
+        </div>
+      )}
       {!searchQuery && !showArchived && (!isWindowsDesktop() || archivedConversations.length > 0) && (
         <button type="button" className="wc-archive-entry" onClick={() => setShowArchived(true)}>
           <span className="wc-archive-icon" aria-hidden="true">▣</span>

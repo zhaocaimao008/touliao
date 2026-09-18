@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => {
   res.setHeader('Content-Type', mime[path.extname(filename)] || 'application/octet-stream');
   fs.createReadStream(filename).pipe(res);
 });
-async function fixture(browser, base, { platform = 'win32', width = 1200, height = 800, skin = 'aurora', theme = 'light', authenticated = true, font = 'normal' } = {}) {
+async function fixture(browser, base, { platform = 'win32', width = 1200, height = 800, skin = 'aurora', theme = 'light', authenticated = true, font = 'normal', onSocketEvent, messageReply } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: 'block' });
   await context.addInitScript(({ platform, base, skin, theme, font }) => {
     localStorage.setItem('wc_skin', skin);
@@ -53,7 +53,8 @@ async function fixture(browser, base, { platform = 'win32', width = 1200, height
       const packet = String(data).match(/^42(\d+)(\[.*)$/);
       if (packet) {
         const [event, payload] = JSON.parse(packet[2]);
-        if (event === 'send_message') ws.send('43' + packet[1] + JSON.stringify([{
+        onSocketEvent?.(event, payload);
+        if (event === 'send_message') ws.send('43' + packet[1] + JSON.stringify([messageReply ? messageReply(payload) : {
           success: true,
           message: { id: 'fixture-sent', conversation_id: payload.conversationId, sender_id: user.id, senderName: user.username, content: payload.content, type: 'text', created_at: now + 1, seq: 100 },
         }]));
@@ -113,7 +114,7 @@ async function capture(page, name, errors) {
   if (metrics.windows) {
     assert.equal(metrics.horizontalScrollers, 0, name + ': conversation hover must not create a horizontal scrollbar');
     for (let i = 0; i < metrics.rows.length; i++) {
-      assert.equal(metrics.rows[i].height, 64, name + ': virtual row agrees with rendered row');
+      assert.equal(metrics.rows[i].height, require('../web/src/ui-kit/tokens.json').components.listRow.desktopMinimum, name + ': virtual row agrees with rendered row');
       if (i) assert.ok(metrics.rows[i - 1].bottom <= metrics.rows[i].y + .5, name + ': adjacent rows do not overlap');
     }
     if (metrics.app) {

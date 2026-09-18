@@ -43,6 +43,7 @@ async function capture(page, name, errors) {
   assert.deepEqual(errors, [], name + ': no runtime errors');
   assert.equal(metrics.overflow, false, name + ': no page overflow');
   for (let i = 1; i < metrics.rows.length; i++) assert.ok(metrics.rows[i - 1].bottom <= metrics.rows[i].y + .5, name + ': virtual rows do not overlap');
+  if (process.env.UI_BASELINE !== '1') for (const row of metrics.rows) assert.equal(row.height, page.viewportSize().width < 768 ? 76 : 68, name + ': design row height');
   if (process.env.UI_BASELINE !== '1') {
     assert.equal(metrics.skin, 'touliao');
     assert.equal(metrics.primary.toLowerCase(), metrics.theme === 'dark' ? '#7ca7ff' : '#2864f0', name + ': supplied primary token');
@@ -63,6 +64,15 @@ async function run() {
         const { context, page, errors } = await fixture(browser, base, { platform, width, height, theme, skin: 'touliao' });
         await page.getByTestId('conv-item-ui-0').waitFor();
         await capture(page, prefix + '-conversations', errors);
+        if (process.env.UI_BASELINE !== '1') {
+          await page.getByTestId('conversation-filter-groups').click();
+          await page.getByTestId('conv-item-ui-1').waitFor();
+          assert.equal(await page.getByTestId('conv-item-ui-0').count(), 0);
+          await page.getByTestId('conversation-filter-unread').click();
+          assert.ok(await page.getByTestId('conv-item-ui-0').count());
+          assert.equal(await page.getByTestId('conv-item-ui-2').count(), 0);
+          await page.getByTestId('conversation-filter-all').click();
+        }
         await page.getByTestId('conv-item-ui-0').click();
         await page.locator('.wc-msg-bubble').first().waitFor();
         await capture(page, prefix + '-chat', errors);
@@ -73,6 +83,17 @@ async function run() {
         assert.equal(await input.inputValue(), '中文草稿，尚未发送');
         await page.setViewportSize({ width, height });
         await input.fill('');
+        await input.fill('输入法选词');
+        await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true });
+        assert.equal(await input.inputValue(), '输入法选词', prefix + ': IME does not submit');
+        assert.equal(await page.getByTestId('msg-bubble-fixture-sent').count(), 0);
+        await input.press('Shift+Enter');
+        assert.ok((await input.inputValue()).includes('\n'), prefix + ': Shift+Enter inserts newline');
+        await input.fill('通过既有 WebSocket 发送');
+        await page.getByTestId('chat-send-btn').click();
+        await page.getByTestId('msg-bubble-fixture-sent').waitFor();
+        assert.equal(await input.inputValue(), '', prefix + ': acknowledged send clears composer');
+        await capture(page, prefix + '-sent', errors);
         if (width < 768) await page.locator('.wc-chat-header-back').click();
         await page.getByTestId('nav-tab-contacts').click();
         await page.getByText('新的朋友', { exact: true }).waitFor();

@@ -1,4 +1,5 @@
 import { clientStorage as localStorage } from '../utils/clientStorage';
+import Icon from '../ui-kit/Icon';
 import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, useLayoutEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { composeReducer, initialComposeState } from '../reducers/composeReducer';
@@ -2807,7 +2808,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             className={`wc-tool-btn${showStickers ? ' active' : ''}`}
             title={t('chat.stickers')} aria-label={t('chat.stickers')} aria-expanded={showStickers}
             onClick={() => togglePanel('stickers')}
-          ><svg viewBox="0 0 24 24" className="wc-tool-svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h10l6-6V5c0-1.1-.9-2-2-2zM9 11c-.83 0-1.5-.67-1.5-1.5S8.17 8 9 8s1.5.67 1.5 1.5S9.83 11 9 11zm3.5 5c-2.33 0-4.31-1.46-5.11-3.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5zM15 11c-.83 0-1.5-.67-1.5-1.5S14.17 8 15 8s1.5.67 1.5 1.5S15.83 11 15 11zm-1 9.5V15h5.5L14 20.5z"/></svg></button>
+          ><Icon name="smile-plus" /></button>
 
           <button
             className={`wc-tool-btn${voiceMode ? ' active' : ''}`}
@@ -2840,7 +2841,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               title={t('chat.screenshotHint')}
               aria-label={t('chat.screenshot')}
               onClick={() => { captureAndSendScreenshot(); }}
-            ><svg viewBox="0 0 24 24" className="wc-tool-svg"><path d="M3 5v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2zm16 0v14H5V5h14zm-2 4.5c0 .83-.67 1.5-1.5 1.5S14 10.33 14 9.5 14.67 8 15.5 8s1.5.67 1.5 1.5zM12 19l5-6H7l5 6z"/></svg></button>
+            ><Icon name="scissors" /></button>
           )}
 
           <button
@@ -2985,7 +2986,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   className={`wc-send-btn${input.trim() ? ' active' : ''}`}
                   onClick={sendMessage}
                   disabled={!input.trim()}
-                >{t('chat.send')}</button>
+                ><Icon name="send" size={18} />{t('chat.send')}</button>
               </div>
             )}
           </>

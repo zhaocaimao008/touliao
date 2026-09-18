@@ -56,9 +56,14 @@ const server = http.createServer((req, res) => {
 });
 async function inspect(page) {
   return page.evaluate((critical) => {
+    // Canvas resolves CSS Color 4 (including color-mix) to actual sRGB bytes.
+    const swatch = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
     const rgb = (s) => {
-      const a = s.match(/[\d.]+/g)?.map(Number);
-      return a && a.length >= 3 ? [a[0], a[1], a[2], a[3] ?? 1] : [0, 0, 0, 0];
+      swatch.clearRect(0, 0, 1, 1);
+      swatch.fillStyle = s;
+      swatch.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = swatch.getImageData(0, 0, 1, 1).data;
+      return [r, g, b, a / 255];
     };
     const over = (a, b) => [
       ...a.slice(0, 3).map((v, i) => v * a[3] + b[i] * (1 - a[3])),
@@ -295,7 +300,7 @@ async function check(page, name, errors, { screenshot = true } = {}) {
       : null,
   }));
   for (let i = 0; i < metrics.rows.length; i++) {
-    assert.equal(metrics.rows[i].height, 64);
+    assert.equal(metrics.rows[i].height, require('../web/src/ui-kit/tokens.json').components.listRow.desktopMinimum);
     if (i)
       assert.ok(
         metrics.rows[i - 1].bottom <= metrics.rows[i].top + 0.5,
@@ -360,7 +365,7 @@ async function appearance(page) {
         : {}),
   });
   try {
-    for (const skin of ["aurora", "wechat", "wecom"])
+    for (const skin of ["touliao", "aurora", "wechat", "wecom"])
       for (const theme of ["light", "dark"]) {
         const { context, page, errors } = await fixture(browser, base, {
           skin,

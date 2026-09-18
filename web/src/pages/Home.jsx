@@ -1289,6 +1289,7 @@ export default function Home() {
         {(!isMobile || showPanel) && (
           <div className="wc-panel">
 
+            <div className="tl-panel-heading"><h1>{t(TABS.find(item => item.key === tab)?.labelKey || 'home.tab.chats')}</h1></div>
             {/* 固定顶栏：搜索 + 二维码 + 添加 */}
             <div className="wc-panel-topbar">
               <div className="wc-search">
