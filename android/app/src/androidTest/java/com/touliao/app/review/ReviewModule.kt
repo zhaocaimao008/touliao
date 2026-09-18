@@ -56,8 +56,11 @@ object ReviewModule {
             path.endsWith("/settings") -> "{}"
             else -> "[]"
         }
+        val png = fixtures.optJSONObject(path)?.optString("_reviewPNG")?.takeIf { it.isNotEmpty() }
+        val body = if (png != null) android.util.Base64.decode(png, android.util.Base64.DEFAULT).toResponseBody("image/png".toMediaType())
+            else json.toResponseBody("application/json".toMediaType())
         Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("isolated UI fixture")
-            .body(json.toResponseBody("application/json".toMediaType())).build()
+            .body(body).build()
     }.build()
 
 

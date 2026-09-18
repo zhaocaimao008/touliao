@@ -63,9 +63,13 @@ class NativeUIReviewTest {
                     Surface(Modifier.fillMaxSize()) {
                         key(screen.value, dark.value, large.value) {
                             val nav = rememberNavController()
-                            val id = if (screen.value in listOf("group", "invite-members")) "review-group" else "review-chat"
-                            NavHost(nav, "review/${id}/private/李明") {
-                                composable("review/{conversationId}/{type}/{title}") { ReviewScreen(screen.value) }
+                            val id = if (screen.value in listOf("group", "invite-members", "group-qr")) "review-group" else "review-chat"
+                            NavHost(nav, "review") {
+                                composable("review", arguments = listOf(
+                                    androidx.navigation.navArgument("conversationId") { defaultValue = id },
+                                    androidx.navigation.navArgument("type") { defaultValue = if (id == "review-group") "group" else "private" },
+                                    androidx.navigation.navArgument("title") { defaultValue = "李明" }
+                                )) { ReviewScreen(screen.value) }
                             }
                         }
                     }
@@ -77,11 +81,13 @@ class NativeUIReviewTest {
     @Test fun nativeScreenGallery() {
         val pages = listOf("login", "register", "forgot-password", "conversations", "chat", "files", "mentions",
             "contacts", "add-friend", "friend-requests", "create-group", "blocked", "friend-labels", "group", "invite-members",
-            "search", "profile", "edit-profile", "settings", "appearance", "notifications", "privacy", "sessions", "call-history", "call-controls", "wallet",
+            "search", "my-qr", "group-qr", "profile", "edit-profile", "settings", "appearance", "notifications", "privacy", "sessions", "call-history", "call-controls", "wallet",
             "favorites", "moments", "compose-moment", "invite-friend")
         for (night in listOf(false, true)) for (page in pages) {
             compose.runOnIdle { screen.value = page; dark.value = night; large.value = false }
             settle()
+            if (page == "chat") compose.onAllNodesWithText("收到，稍后把文件发给你。", substring = true).onFirst().assertExists()
+            if (page == "group") compose.onAllNodesWithText("投聊设计讨论", substring = true).onFirst().assertExists()
             snapshot(page + if (night) "-dark" else "-light")
         }
         for (page in listOf("login", "contacts", "chat", "settings", "appearance", "call-controls")) {
@@ -139,6 +145,8 @@ class NativeUIReviewTest {
             "group" -> GroupInfoScreen(onBack = back, onInvite = {}, onLeft = {})
             "invite-members" -> InviteMembersScreen(onBack = back, onDone = {})
             "search" -> SearchScreen(onBack = back, onOpenResult = {})
+            "my-qr" -> MyQrCodeScreen(onBack = back)
+            "group-qr" -> GroupQrScreen(onBack = back)
             "profile" -> ProfileScreen()
             "edit-profile" -> ProfileEditScreen(onBack = back)
             "settings" -> SettingsHomeScreen(onBack = back, onOpenNotifications = {}, onOpenPrivacy = {}, onOpenAppearance = {}, onOpenSessions = {})

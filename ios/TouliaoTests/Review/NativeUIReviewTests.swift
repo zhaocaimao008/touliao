@@ -19,9 +19,10 @@ private final class ReviewURLProtocol: URLProtocol {
         else if path.hasSuffix("/read-states") { value = ["states": [:]] }
         else if path.hasSuffix("/settings") || path == "/config.json" { value = [:] }
         else { value = [] }
-        let bytes = (try? JSONSerialization.data(withJSONObject: value)) ?? Data("{}".utf8)
+        let png = (value as? [String: Any])?["_reviewPNG"] as? String
+        let bytes = png.flatMap { Data(base64Encoded: $0) } ?? (try? JSONSerialization.data(withJSONObject: value)) ?? Data("{}".utf8)
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
-                                       headerFields: ["Content-Type": "application/json"])!
+                                       headerFields: ["Content-Type": png == nil ? "application/json" : "image/png"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: bytes)
         client?.urlProtocolDidFinishLoading(self)
@@ -99,6 +100,7 @@ final class NativeUIReviewTests: XCTestCase {
             ("group", AnyView(GroupInfoView(conversationId: "review-group", onInvite: {}, onLeft: {}))),
             ("invite-members", AnyView(InviteMembersView(conversationId: "review-group", onDone: {}))),
             ("search", AnyView(SearchView(onOpenResult: { _ in }))),
+            ("my-qr", AnyView(MyQRCodeView())), ("group-qr", AnyView(GroupQrView(conversationId: "review-group"))),
             ("profile", AnyView(ProfileView())), ("edit-profile", AnyView(ProfileEditView())),
             ("settings", AnyView(SettingsHomeView())), ("appearance", AnyView(AppearanceSettingsView())),
             ("notifications", AnyView(NotificationSettingsView())), ("privacy", AnyView(PrivacySecurityView())),
@@ -112,6 +114,7 @@ final class NativeUIReviewTests: XCTestCase {
         ]
     }
     private func capture(_ view: AnyView, name: String, dark: Bool, large: Bool = false, width: CGFloat = 390) async throws {
+        print("NATIVE_UI_CAPTURE \(name) width=\(width)"); fflush(stdout)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: width, height: 844)
