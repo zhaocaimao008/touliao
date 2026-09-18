@@ -204,7 +204,7 @@ async function inspect(page) {
         ].map((s) => [s, read(s)]),
       ),
     };
-  });
+  }, critical);
 }
 
 const critical =
@@ -225,6 +225,7 @@ async function check(page, name, errors, { screenshot = true } = {}) {
   const measured = result.texts.filter(
     (t) => t.critical && !t.disabled && !t.avatar,
   );
+  assert.ok(measured.length > 0, name + ": critical text must be measured");
   const failures = measured.filter(
     (t) => t.contrast !== null && t.contrast < 4.5,
   );
