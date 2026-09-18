@@ -107,16 +107,7 @@ jobs:
           profile: pixel_2
           disable-animations: true
           emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
-          script: |
-            adb shell settings put system system_locales zh-CN
-            adb shell pm grant com.touliao.app android.permission.POST_NOTIFICATIONS || true
-            cd android
-            status=0
-            ./gradlew connectedDebugAndroidTest --no-daemon || status=$?
-            mkdir -p native-review
-            adb pull /sdcard/Android/data/com.touliao.app/files/NativeUiReview native-review/ || true
-            adb logcat -d > native-review/logcat.txt
-            exit "$status"
+          script: bash scripts/native-review/run-android.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
