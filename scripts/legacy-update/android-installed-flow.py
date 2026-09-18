@@ -214,7 +214,11 @@ def run(args, report):
     adb('push', str(args.old_apk), '/data/local/tmp/legacy-old.apk')
     shell('cp /data/local/tmp/legacy-old.apk ' + remote_apk)
     click(texts=('去授权',))
-    click(resource='switch_widget')
+    if api >= 34:
+        # Android 14's Compose Settings exposes a checkable row, no widget ID.
+        click(texts=('Allow from this source', '允许来自此来源的应用'))
+    else:
+        click(resource='switch_widget')
     adb('shell', 'input', 'keyevent', '4')
     find_node(texts=('⚠️ 安装包校验未通过',), timeout=60)
     capture(out, '06-cached-wrong-version-blocked')

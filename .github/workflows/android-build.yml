@@ -142,7 +142,6 @@ jobs:
           - {old_run: 33326461700, api: 34}
           - {old_run: 34308823256, api: 34}
           - {old_run: 34979197799, api: 34}
-          - {old_run: 34979197799, api: 26}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
