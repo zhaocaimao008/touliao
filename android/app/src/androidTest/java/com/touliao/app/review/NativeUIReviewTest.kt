@@ -103,6 +103,11 @@ class NativeUIReviewTest {
         compose.onNodeWithTag("login-phone-input").performClick().performTextInput("13800000000")
         compose.onNodeWithTag("login-password-input").performScrollTo().performClick().performTextInput("ReviewOnly123")
         compose.onNodeWithTag("login-submit-btn").assertIsEnabled()
+        compose.waitUntil(timeoutMillis = 8_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+        }
+        settle()
         snapshot("login-keyboard")
         androidx.test.espresso.Espresso.pressBack()
         compose.onNodeWithText("忘记密码").performScrollTo().performClick()

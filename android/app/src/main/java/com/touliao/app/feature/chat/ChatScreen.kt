@@ -322,8 +322,8 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                        if (state.peerTyping) {
+                        Text(if (compactHeader && state.peerTyping) "输入中 · ${state.title.ifBlank { "聊天" }}" else state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        if (state.peerTyping && !compactHeader) {
                             Text("对方正在输入…", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = VxinGreen)
                         }
                     }

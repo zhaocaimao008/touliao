@@ -210,7 +210,10 @@ fun GroupInfoScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text("复制邀请链接", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                                Text(if (state.copyingInviteLink) "生成中…" else "🔗 复制", color = VxinTextSecondary)
+                                if (!state.copyingInviteLink) {
+                                    Icon(com.touliao.app.ui.DesignIcons.Link, contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(20.dp).padding(end = 4.dp))
+                                }
+                                Text(if (state.copyingInviteLink) "生成中…" else "复制", color = VxinTextSecondary)
                             }
                         }
                         HorizontalDivider()

@@ -5,6 +5,7 @@ review_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$review_root/android"
 mkdir -p native-review
 adb shell settings put system system_locales zh-CN
+adb shell settings put secure show_ime_with_hard_keyboard 1
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb devices -l > native-review/devices.txt
