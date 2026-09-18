@@ -25,7 +25,7 @@ import com.touliao.app.ui.theme.VxinTextPrimary
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 /**
- * 统一空态：emoji 图标置于品牌色圆形柔和徽章内 + 主文案 + 可选副文案。
+ * 统一空态：线性图标置于品牌色圆形柔和徽章内 + 主文案 + 可选副文案。
  * 居中显示，用于列表/结果为空时提升观感与友好度（对齐 Web 空态）。
  */
 @Composable
@@ -40,19 +40,24 @@ fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        // 图标徽章：极光靛柔和圆底，替代裸 emoji（对齐 Web cl-empty-icon）
+        // 图标徽章：主题柔和圆底，替代裸 emoji（对齐 Web cl-empty-icon）
         Box(
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(VxinBrand.copy(alpha = 0.16f), VxinBrand.copy(alpha = 0.06f))
-                    )
-                ),
+                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center,
         ) {
-            Text(icon, fontSize = 36.sp)
+            androidx.compose.material3.Icon(
+                when (icon) {
+                    "👥", "👤" -> com.touliao.app.ui.DesignIcons.Users
+                    "🔍" -> com.touliao.app.ui.DesignIcons.Search
+                    "📁", "🗄", "📂" -> com.touliao.app.ui.DesignIcons.Folder
+                    "📞" -> com.touliao.app.ui.DesignIcons.Phone
+                    "⭐", "🌟" -> com.touliao.app.ui.DesignIcons.Star
+                    else -> com.touliao.app.ui.DesignIcons.MessageCircle
+                }, contentDescription = null, modifier = Modifier.size(32.dp), tint = VxinBrand,
+            )
         }
         Spacer(Modifier.height(16.dp))
         Text(

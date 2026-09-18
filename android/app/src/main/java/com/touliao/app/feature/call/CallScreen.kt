@@ -47,8 +47,8 @@ import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
 
-private val CallGreen = com.touliao.app.ui.theme.VxinSuccess   // 接听绿=语义成功色，对齐 web --color-success
-private val CallRed = Color(0xFFFA5151)
+private val CallGreen = com.touliao.app.ui.theme.TouliaoLightPalette.success // Opaque media controls keep a readable white foreground.
+private val CallRed = com.touliao.app.ui.theme.TouliaoLightPalette.readableDanger
 
 /** 全局通话浮层：通话激活时覆盖在主界面之上 */
 @Composable

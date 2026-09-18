@@ -8,10 +8,13 @@ struct RootView: View {
     @AppStorage(AppearanceStore.themeKey) private var themeRaw = AppTheme.system.rawValue
     @AppStorage(AppearanceStore.fontKey) private var fontRaw = AppFontScale.standard.rawValue
 
+    @Environment(\.dynamicTypeSize) private var systemTextSize
+
     var body: some View {
         content
+            .touliaoPage()
             .preferredColorScheme((AppTheme(rawValue: themeRaw) ?? .system).colorScheme)
-            .dynamicTypeSize((AppFontScale(rawValue: fontRaw) ?? .standard).dynamicTypeSize)
+            .dynamicTypeSize(max(systemTextSize, (AppFontScale(rawValue: fontRaw) ?? .standard).dynamicTypeSize))
     }
 
     @ViewBuilder private var content: some View {

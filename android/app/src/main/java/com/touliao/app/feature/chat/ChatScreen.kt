@@ -1587,6 +1587,7 @@ private fun TextBubble(content: String, isMine: Boolean) {
 private val MENTION_RE = Regex("@[^\\s@]+")
 
 /** 高亮文本中的 @用户名 */
+@Composable
 private fun highlightMentions(content: String, isMine: Boolean): androidx.compose.ui.text.AnnotatedString {
     if (!content.contains('@')) return androidx.compose.ui.text.AnnotatedString(content)
     // @提及高亮：我方靛底用浅色、对方白底用品牌深色，均保证可读

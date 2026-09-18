@@ -41,8 +41,8 @@ import com.touliao.app.core.call.GroupCallStage
 import com.touliao.app.core.realtime.GroupCallInviteEvent
 import com.touliao.app.ui.components.InitialAvatar
 
-private val CallGreen = com.touliao.app.ui.theme.VxinSuccess   // 接听绿=语义成功色，对齐 web --color-success
-private val CallRed = Color(0xFFFA5151)
+private val CallGreen = com.touliao.app.ui.theme.TouliaoLightPalette.success // Opaque media controls keep a readable white foreground.
+private val CallRed = com.touliao.app.ui.theme.TouliaoLightPalette.readableDanger
 
 /** 全局群通话浮层 + 来电邀请横幅：始终挂载，监听邀请与通话状态。 */
 @Composable

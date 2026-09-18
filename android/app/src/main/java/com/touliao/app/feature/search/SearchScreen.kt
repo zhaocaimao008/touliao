@@ -232,7 +232,9 @@ private fun ResultRow(r: SearchResult, avatarUrl: String? = null, query: String,
 }
 
 /** 高亮文本中所有匹配 query 的片段（大小写不敏感）。prefixLen 之前的发送者名不参与高亮匹配。 */
+@Composable
 private fun highlightQuery(text: String, query: String, prefixLen: Int = 0): AnnotatedString {
+    val highlightColor = VxinGreen
     val q = query.trim()
     if (q.isEmpty()) return AnnotatedString(text)
     return buildAnnotatedString {
@@ -246,7 +248,7 @@ private fun highlightQuery(text: String, query: String, prefixLen: Int = 0): Ann
             if (idx < prefixLen) {           // 命中发送者名前缀，不高亮，继续向后找
                 append(text.substring(idx, idx + q.length))
             } else {
-                withStyle(SpanStyle(color = VxinGreen, fontWeight = FontWeight.Bold)) {
+                withStyle(SpanStyle(color = highlightColor, fontWeight = FontWeight.Bold)) {
                     append(text.substring(idx, idx + q.length))
                 }
             }

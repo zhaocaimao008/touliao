@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// 投聊 主按钮：极光靛渐变实心药丸 + 加载态（对齐 Web / Android VxinGradientButton）。
-/// 统一各处 CTA 视觉。
+/// Public name retained; flat primary surface with a scalable minimum touch target.
 struct VxinGradientButton: View {
     let title: String
     var loading: Bool = false
@@ -11,24 +10,16 @@ struct VxinGradientButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                if loading { ProgressView().tint(.white) }
-                else { Text(title).bold() }
+                Text(title).touliaoFont(16, weight: .semibold).opacity(loading ? 0 : 1)
+                if loading { ProgressView().tint(.vxinOnPrimary) }
             }
-            .frame(maxWidth: .infinity, minHeight: 50)
-            .background(
-                Group {
-                    if enabled {
-                        LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
-                                       startPoint: .leading, endPoint: .trailing)
-                    } else {
-                        Color.vxinTextSecondary.opacity(0.4)
-                    }
-                }
-            )
-            .foregroundColor(.white)
-            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.pill, style: .continuous))
-            .shadow(color: enabled ? .vxinBrand.opacity(0.35) : .clear, radius: 8, y: 4)
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .foregroundColor(enabled ? .vxinOnPrimary : .vxinTextSecondary)
+            .background(enabled ? Color.vxinBrand : Color.vxinSurfaceSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .disabled(!enabled || loading)
+        .accessibilityLabel(title)
     }
 }

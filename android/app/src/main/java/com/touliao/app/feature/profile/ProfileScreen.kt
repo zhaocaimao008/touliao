@@ -68,8 +68,8 @@ private object Tok {
     val XS = 4.dp;  val S = 8.dp;  val M = 12.dp
     val L = 16.dp;  val XL = 20.dp; val XXL = 24.dp
     // brand（投聊极光靛，不复制 v信绿）
-    val Green   = VxinBrand
-    val GreenBg = VxinBrandMuted
+    val Green: Color @Composable get() = VxinBrand
+    val GreenBg: Color @Composable get() = VxinBrandMuted
     val Red     = Color(0xFFFF3B30)
     // shape / size
     val cardRadius = 16.dp

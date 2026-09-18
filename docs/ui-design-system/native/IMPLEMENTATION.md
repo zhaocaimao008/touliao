@@ -1,0 +1,18 @@
+# Android / iOS 原生接续记录
+
+- 接续分支：`ui/design-system-20260918`；基点 `20aef960bc2bafbeb1610b9fb48734634dea098b`。
+- 开始时工作区干净；之前 Web / Windows 的五次提交保留，不重新实施。
+- 原始设计 `/home/ubuntu/touliao-ui.zip` SHA256 `746211b1de546c6d82b758d1e03d1e06dec0a5611ae8f15e550a4dd547d4e229`。
+- 原生技术栈继续采用 Android Kotlin / Compose、iOS Swift / SwiftUI；不变更接口、模型和后端。
+- 本轮允许同步审阅分支用于云端编译和模拟器测试；不合并、不打发布标签、不发布、不部署。
+- 原生证据目录 `/home/ubuntu/touliao-native-ui-evidence-20260918`。
+
+## 批次 1：主题、字体、图标、基础组件
+
+从已接入 Web 的原始设计 tokens / SVG 生成两端语义颜色和各 136 个矢量资源。保留业务图标回退；头像、按钮、空态采用设计尺寸和颜色。Android 跟随 Compose / sp 字号，iOS 字体采用 ScaledMetric，用户应用字号不再压低系统辅助功能字号。保留现有主题与字号偏好。普通按钮高度改为下限，容许大字换行。颜色对比度使用与 Web 一致的可读文字衍生色，原设计 JSON 不改动。
+
+验证：Android 原有 JVM 单测及新增深浅主题对比度回归通过，`batch1-android.log`；生成一致性与 diff 检查通过。iOS 尚待云端 Xcode 编译，不能将静态检查视为编译通过。
+
+## 验证边界
+
+本地没有 macOS / Xcode、Android 模拟器、手机或 Windows 真机。云端原生模拟器截图会标明平台与环境，不代表真机验收。未提供测试账号或四端设备，真实消息、附件、推送、音视频联测仍待设备环境；自动化测试使用隔离测试数据，不进入正式业务路径。
