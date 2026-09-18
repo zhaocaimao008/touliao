@@ -49,9 +49,9 @@ struct GroupInfoView: View {
                             groupHeroAvatar(info)
                             if vm.uploadingAvatar { ProgressView().tint(.white) }
                             Text(info.name.isEmpty ? "未命名群聊" : info.name)
-                                .font(.title3.bold()).foregroundColor(.white)
+                                .touliaoFont(18, weight: .bold).foregroundColor(.white)
                             Text("\(info.members.count) 名成员")
-                                .font(.footnote).foregroundColor(.white.opacity(0.85))
+                                .touliaoFont(14).foregroundColor(.white.opacity(0.85))
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
@@ -77,7 +77,7 @@ struct GroupInfoView: View {
                                 Text("群名称").foregroundColor(.primary)
                                 Spacer()
                                 Text(info.name.isEmpty ? "未命名群聊" : info.name).foregroundColor(.vxinTextSecondary)
-                                if info.canManage { Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary) }
+                                if info.canManage { TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary) }
                             }
                         }
                         .disabled(!info.canManage)
@@ -92,7 +92,7 @@ struct GroupInfoView: View {
                                 Text(info.announcement.isEmpty ? (info.canManage ? "点击设置群公告" : "暂无群公告") : info.announcement)
                                     .foregroundColor(.vxinTextSecondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                if info.canManage { Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary) }
+                                if info.canManage { TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary) }
                             }
                         }
                         .disabled(!info.canManage)
@@ -106,7 +106,7 @@ struct GroupInfoView: View {
                                 Text("我的群昵称").foregroundColor(.primary)
                                 Spacer()
                                 Text(info.myNickname(myId).isEmpty ? "未设置" : info.myNickname(myId)).foregroundColor(.vxinTextSecondary)
-                                Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary)
+                                TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary)
                             }
                         }
 
@@ -131,7 +131,7 @@ struct GroupInfoView: View {
                                     Text("复制邀请链接").foregroundColor(.primary)
                                     Spacer()
                                     Text(vm.copyingInviteLink ? "生成中…" : "🔗 复制")
-                                        .font(.footnote).foregroundColor(.vxinTextSecondary)
+                                        .touliaoFont(14).foregroundColor(.vxinTextSecondary)
                                 }
                             }
                             .disabled(vm.copyingInviteLink)
@@ -141,7 +141,7 @@ struct GroupInfoView: View {
                     Section("群成员 (\(info.members.count))") {
                         Button(action: onInvite) {
                             HStack {
-                                Image(systemName: "plus.circle.fill").foregroundColor(.vxinGreen)
+                                TouliaoIcon(systemName: "plus.circle.fill").foregroundColor(.vxinGreen)
                                 Text("邀请成员").foregroundColor(.vxinGreen)
                             }
                         }
@@ -152,15 +152,15 @@ struct GroupInfoView: View {
                                     Text(member.displayName.isEmpty ? "未命名" : member.displayName)
                                     if member.role != "member" {
                                         Text(member.role == "owner" ? "群主" : "管理员")
-                                            .font(.caption).foregroundColor(.vxinGreen)
+                                            .touliaoFont(12).foregroundColor(.vxinGreen)
                                     }
                                 }
                                 Spacer()
                                 if info.isOwner && member.role != "owner" {
                                     Button(member.role == "admin" ? "取消管理" : "设管理") { vm.setRole(member, makeAdmin: member.role != "admin") }
-                                        .buttonStyle(.borderless).font(.caption)
+                                        .buttonStyle(.borderless).touliaoFont(12)
                                     Button("转让") { transferTarget = member }
-                                        .buttonStyle(.borderless).font(.caption)
+                                        .buttonStyle(.borderless).touliaoFont(12)
                                 }
                                 if info.canManage && member.role != "owner" {
                                     Button("移除", role: .destructive) { kickTarget = member }
@@ -192,6 +192,7 @@ struct GroupInfoView: View {
         }
         .navigationTitle("群聊信息")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { await vm.refresh() }
         // F5 邀请链接生成成功 → 写剪贴板并提示（toast 复用 error 字段承载一次性文案，项目惯例）
         .toast($vm.error)
@@ -226,6 +227,7 @@ struct GroupInfoView: View {
                 }
                 .navigationTitle("群公告")
                 .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("取消") { showAnnouncement = false } }
                     ToolbarItem(placement: .confirmationAction) {

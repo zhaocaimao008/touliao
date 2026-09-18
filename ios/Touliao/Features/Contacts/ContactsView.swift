@@ -33,38 +33,38 @@ struct ContactsView: View {
                         Spacer()
                         if vm.requestCount > 0 {
                             Text("\(vm.requestCount)")
-                                .font(.caption2).foregroundColor(.white)
+                                .touliaoFont(12).foregroundColor(.white)
                                 .padding(.horizontal, 6).padding(.vertical, 2)
                                 .background(Color.vxinError).clipShape(Capsule())
                         }
-                        Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                        TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
                     }
                 }
                 Button(action: onOpenLabels) {
                     HStack {
                         Text("好友标签").foregroundColor(.primary)
                         Spacer()
-                        Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                        TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
                     }
                 }
                 Button(action: onOpenBlocked) {
                     HStack {
                         Text("黑名单").foregroundColor(.primary)
                         Spacer()
-                        Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                        TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
                     }
                 }
                 Button(action: { vm.showAiBots.toggle() }) {
                     HStack {
                         Text(vm.showAiBots ? "AI 助手 (\\(vm.aiBots.count))" : "AI 助手").foregroundColor(.primary)
                         Spacer()
-                        Image(systemName: vm.showAiBots ? "chevron.up" : "chevron.right")
-                            .foregroundColor(.vxinTextSecondary).font(.caption)
+                        TouliaoIcon(systemName: vm.showAiBots ? "chevron.up" : "chevron.right")
+                            .foregroundColor(.vxinTextSecondary).touliaoFont(12)
                     }
                 }
                 if vm.showAiBots {
                     if vm.aiBots.isEmpty {
-                        Text("暂无 AI 助手").font(.footnote).foregroundColor(.vxinTextSecondary)
+                        Text("暂无 AI 助手").touliaoFont(14).foregroundColor(.vxinTextSecondary)
                     } else {
                         ForEach(vm.aiBots) { bot in
                             Button { Task { if let conv = await vm.startAiChat(bot) { onStartChat(conv) } } } label: {
@@ -73,11 +73,11 @@ struct ContactsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(bot.name.isEmpty ? bot.username : bot.name).foregroundColor(.primary)
                                         if !bot.description.isEmpty {
-                                            Text(bot.description).font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                            Text(bot.description).touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                         }
                                     }
                                     Spacer()
-                                    Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                                    TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
                                 }
                             }
                         }
@@ -102,12 +102,12 @@ struct ContactsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.primary)
                                 if !contact.bio.isEmpty {
-                                    Text(contact.bio).font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                    Text(contact.bio).touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                 }
                                 // 特权账户：离线时展示精确最后在线时间（后端仅对特权账户返回 lastOnlineAt）
                                 if !vm.onlineIds.contains(contact.id),
                                    let ts = contact.lastOnlineAt, ts > 0 {
-                                    Text(formatLastOnline(ts)).font(.caption2).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                    Text(formatLastOnline(ts)).touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                 }
                             }
                             Spacer()
@@ -122,6 +122,8 @@ struct ContactsView: View {
             }
         }
         .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
         .alert("设置备注", isPresented: .constant(remarkTarget != nil)) {
             TextField("留空恢复默认昵称", text: $remarkText)
             Button("取消", role: .cancel) { remarkTarget = nil }
@@ -141,12 +143,13 @@ struct ContactsView: View {
         }
         .navigationTitle("通讯录")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack {
-                    Button(action: onCreateGroup) { Image(systemName: "person.3") }
+                    Button(action: onCreateGroup) { TouliaoIcon(systemName: "person.3") }
                         .accessibilityLabel("发起群聊")
-                    Button(action: onAddFriend) { Image(systemName: "plus") }
+                    Button(action: onAddFriend) { TouliaoIcon(systemName: "plus") }
                         .accessibilityLabel("添加好友")
                 }
             }

@@ -261,8 +261,8 @@ fun GroupInfoScreen(
                         Button(
                             onClick = { if (info.isOwner) showDissolveConfirm = true else showLeaveConfirm = true },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFFECEC),
-                                contentColor = Color(0xFFFA5151),
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = com.touliao.app.ui.theme.VxinError,
                             ),
                             shape = RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -376,7 +376,7 @@ private fun MemberRow(
             TextButton(onClick = onTransfer) { Text("转让", color = VxinGreen) }
         }
         if (canKick) {
-            TextButton(onClick = onKick) { Text("移除", color = Color(0xFFFA5151)) }
+            TextButton(onClick = onKick) { Text("移除", color = com.touliao.app.ui.theme.VxinError) }
         }
     }
 }

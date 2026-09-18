@@ -218,7 +218,7 @@ fun ContactsScreen(
             onDismissRequest = { deleteTarget = null },
             title = { Text("删除好友") },
             text = { Text("确认删除好友「${target.displayName}」？将同时删除聊天记录。") },
-            confirmButton = { TextButton(onClick = { viewModel.deleteContact(target); deleteTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.deleteContact(target); deleteTarget = null }) { Text("删除", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } },
         )
     }
@@ -227,7 +227,7 @@ fun ContactsScreen(
             onDismissRequest = { blockTarget = null },
             title = { Text("加入黑名单") },
             text = { Text("加入黑名单后，将不再收到「${target.displayName}」的消息。") },
-            confirmButton = { TextButton(onClick = { viewModel.block(target); blockTarget = null }) { Text("加入", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.block(target); blockTarget = null }) { Text("加入", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { blockTarget = null }) { Text("取消") } },
         )
     }
@@ -366,7 +366,7 @@ private fun ContactRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
-            InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 48.dp, avatarUrl = avatarUrl)
+            InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
             if (online) {
                 Box(
                     Modifier.align(Alignment.BottomEnd).size(12.dp)
@@ -397,7 +397,7 @@ private fun ContactRow(
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(text = { Text("设置备注") }, onClick = { onRemark(); menuOpen = false })
             DropdownMenuItem(text = { Text("加入黑名单") }, onClick = { onBlock(); menuOpen = false })
-            DropdownMenuItem(text = { Text("删除好友", color = Color(0xFFFA5151)) }, onClick = { onDelete(); menuOpen = false })
+            DropdownMenuItem(text = { Text("删除好友", color = com.touliao.app.ui.theme.VxinError) }, onClick = { onDelete(); menuOpen = false })
         }
     }
 }

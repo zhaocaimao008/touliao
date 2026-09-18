@@ -19,9 +19,9 @@ struct GroupQrView: View {
                     .resizable().interpolation(.none).scaledToFit()
                     .frame(width: 240, height: 240)
                 Text("扫一扫上面的二维码，加入群聊")
-                    .font(.footnote).foregroundColor(.vxinTextSecondary)
+                    .touliaoFont(14).foregroundColor(.vxinTextSecondary)
                 Spacer().frame(height: 12)
-                Text(qr.url).font(.footnote).foregroundColor(.vxinTextSecondary)
+                Text(qr.url).touliaoFont(14).foregroundColor(.vxinTextSecondary)
                     .multilineTextAlignment(.center)
                 Button {
                     UIPasteboard.general.string = qr.url
@@ -30,7 +30,7 @@ struct GroupQrView: View {
                     Text(copied ? "已复制" : "复制邀请链接").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).tint(.vxinGreen)
-                Text("链接 7 天内有效").font(.caption2).foregroundColor(.vxinTextSecondary)
+                Text("链接 7 天内有效").touliaoFont(12).foregroundColor(.vxinTextSecondary)
             } else {
                 Text(error ?? "二维码加载失败").foregroundColor(.vxinTextSecondary)
             }
@@ -39,6 +39,7 @@ struct GroupQrView: View {
         .padding(24)
         .navigationTitle("群聊二维码")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { await load() }
     }
 

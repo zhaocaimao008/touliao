@@ -21,6 +21,7 @@ struct FriendRequestsView: View {
         }
         .navigationTitle("新的朋友")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($vm.error)
         .task { await vm.refresh() }
     }
@@ -41,10 +42,10 @@ struct FriendRequestsView: View {
                             Spacer()
                             // 申请时间（F5 补齐，对齐 Web/Android 名字行右侧展示）
                             Text(formatChatTime(req.createdAt))
-                                .font(.caption2).foregroundColor(.vxinTextSecondary)
+                                .touliaoFont(12).foregroundColor(.vxinTextSecondary)
                         }
                         Text(req.message.isEmpty ? "请求添加你为好友" : req.message)
-                            .font(.caption).foregroundColor(.vxinTextSecondary)
+                            .touliaoFont(12).foregroundColor(.vxinTextSecondary)
                     }
                     Spacer()
                     if vm.handling.contains(req.id) {
@@ -56,6 +57,8 @@ struct FriendRequestsView: View {
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
         }
     }
 
@@ -73,18 +76,20 @@ struct FriendRequestsView: View {
                             Spacer()
                             // 申请时间（F5 补齐，对齐 Web/Android 名字行右侧展示）
                             Text(formatChatTime(req.createdAt))
-                                .font(.caption2).foregroundColor(.vxinTextSecondary)
+                                .touliaoFont(12).foregroundColor(.vxinTextSecondary)
                         }
                         Text(req.message.isEmpty ? "请求添加对方为好友" : req.message)
-                            .font(.caption).foregroundColor(.vxinTextSecondary)
+                            .touliaoFont(12).foregroundColor(.vxinTextSecondary)
                     }
                     Spacer()
                     Text(req.status == "accepted" ? "已同意" : (req.status == "rejected" ? "已拒绝" : "等待验证"))
-                        .font(.caption)
+                        .touliaoFont(12)
                         .foregroundColor(req.status == "accepted" ? .vxinGreen : .vxinTextSecondary)
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
         }
     }
 }

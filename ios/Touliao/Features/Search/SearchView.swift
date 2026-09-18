@@ -14,7 +14,7 @@ struct SearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             TextField("搜索聊天记录", text: $vm.query)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(TouliaoTextFieldStyle())
                 .focused($searchFocused)
                 .submitLabel(.search)
                 .padding(12)
@@ -47,12 +47,12 @@ struct SearchView: View {
                                 // 类型图标 + 摘要（F5：结构化消息透出人话字段，不泄原始 JSON；对齐 Web gs-msg-type-icon）
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                                     Text(messageSearchTypeIcon(r.type))
-                                        .font(.subheadline)
+                                        .touliaoFont(14)
                                         .foregroundColor(.vxinTextSecondary)
                                     Text(highlighted(prefix: r.senderName.isEmpty ? "" : "\(r.senderName): ",
                                                      summary: formatSearchMessageSummary(type: r.type, content: r.content),
                                                      query: vm.query))
-                                        .font(.subheadline).lineLimit(1)
+                                        .touliaoFont(14).lineLimit(1)
                                 }
                             }
                             Spacer()
@@ -60,10 +60,13 @@ struct SearchView: View {
                     }
                 }
                 .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
             }
         }
         .navigationTitle("搜索")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($vm.error)
     }
 
@@ -98,7 +101,7 @@ struct SearchView: View {
                         vm.timeRange = option.value
                     } label: {
                         Text(option.label)
-                            .font(.caption)
+                            .touliaoFont(12)
                             .padding(.horizontal, 12).padding(.vertical, 5)
                             .background(vm.timeRange == option.value ? Color.vxinGreen.opacity(0.15) : Color.gray.opacity(0.1))
                             .foregroundColor(vm.timeRange == option.value ? .vxinGreen : .vxinTextSecondary)

@@ -65,7 +65,7 @@ struct FriendLabelsView: View {
                             Circle().fill(Color(hexOrGreen: label.color)).frame(width: 12, height: 12)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(label.name.isEmpty ? "未命名标签" : label.name).foregroundColor(.primary)
-                                Text("\(label.members.count) 位好友").font(.caption).foregroundColor(.vxinTextSecondary)
+                                Text("\(label.members.count) 位好友").touliaoFont(12).foregroundColor(.vxinTextSecondary)
                             }
                             Spacer()
                         }
@@ -78,9 +78,10 @@ struct FriendLabelsView: View {
         }
         .navigationTitle("好友标签")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showCreate = true } label: { Image(systemName: "plus") }
+                Button { showCreate = true } label: { TouliaoIcon(systemName: "plus") }
             }
         }
         .task { await vm.load() }
@@ -120,12 +121,13 @@ private struct LabelMembersSheet: View {
                     HStack {
                         Text(c.displayName.isEmpty ? "未命名" : c.displayName).foregroundColor(.primary)
                         Spacer()
-                        if memberIds.contains(c.id) { Image(systemName: "checkmark").foregroundColor(.vxinGreen) }
+                        if memberIds.contains(c.id) { TouliaoIcon(systemName: "checkmark").foregroundColor(.vxinGreen) }
                     }
                 }
             }
             .navigationTitle("编辑「\(label.name)」成员")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }
     }

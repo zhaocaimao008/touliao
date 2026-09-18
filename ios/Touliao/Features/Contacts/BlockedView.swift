@@ -43,10 +43,13 @@ struct BlockedView: View {
                     }
                 }
                 .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
             }
         }
         .navigationTitle("黑名单")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { await vm.refresh() }
     }
 }

@@ -17,6 +17,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +61,8 @@ fun RegisterScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .safeDrawingPadding()
+            .verticalScroll(rememberScrollState())
             .imePadding()
             .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -67,10 +73,10 @@ fun RegisterScreen(
             modifier = Modifier
                 .size(64.dp)
                 .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.lg))
-                .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
+                .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(TouliaoIcons.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+            Icon(TouliaoIcons.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(14.dp))
         Text("注册账号", fontSize = com.touliao.app.ui.theme.VxinTextSize.display, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
@@ -133,37 +139,11 @@ fun RegisterScreen(
 
         Spacer(Modifier.height(28.dp))
         // 注册按钮：极光靛渐变实心药丸（与登录页一致）
-        Button(
-            onClick = viewModel::submit,
-            enabled = state.canSubmit,
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent,
-                disabledContainerColor = Color.Transparent,
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .testTag("register-submit-btn"),
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.pill))
-                    .background(
-                        if (state.canSubmit) Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))
-                        else Brush.linearGradient(listOf(VxinTextSecondary, VxinTextSecondary))
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (state.loading) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                } else {
-                    Text("注册并登录", color = Color.White, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
+        com.touliao.app.ui.VxinGradientButton(
+            text = "注册并登录", onClick = viewModel::submit,
+            enabled = state.canSubmit, loading = state.loading,
+            modifier = Modifier.testTag("register-submit-btn"),
+        )
         Spacer(Modifier.height(12.dp))
         TextButton(onClick = onBack) {
             Text("返回登录", color = VxinTextSecondary)

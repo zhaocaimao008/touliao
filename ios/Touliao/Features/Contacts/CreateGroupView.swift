@@ -8,7 +8,7 @@ struct CreateGroupView: View {
     var body: some View {
         VStack(spacing: 0) {
             TextField("群名称（留空自动生成）", text: $vm.name)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(TouliaoTextFieldStyle())
                 .padding()
 
             if vm.loading {
@@ -19,7 +19,7 @@ struct CreateGroupView: View {
                 List(vm.contacts) { contact in
                     Button { vm.toggle(contact.id) } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: vm.selected.contains(contact.id) ? "checkmark.circle.fill" : "circle")
+                            TouliaoIcon(systemName: vm.selected.contains(contact.id) ? "checkmark.circle.fill" : "circle")
                                 .foregroundColor(vm.selected.contains(contact.id) ? .vxinGreen : .vxinTextSecondary)
                             InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 40)
                             Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.primary)
@@ -28,14 +28,17 @@ struct CreateGroupView: View {
                     }
                 }
                 .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
             }
 
             if let error = vm.error {
-                Text(error).foregroundColor(.vxinError).font(.footnote).padding(8)
+                Text(error).foregroundColor(.vxinError).touliaoFont(14).padding(8)
             }
         }
         .navigationTitle("发起群聊")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(vm.selected.isEmpty ? "创建" : "创建(\(vm.selected.count))") {

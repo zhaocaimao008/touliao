@@ -60,3 +60,15 @@ extension View {
             .toolbarBackground(.visible, for: .navigationBar, .tabBar)
     }
 }
+
+struct TouliaoTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .touliaoFont(16)
+            .padding(.horizontal, 12).padding(.vertical, 12)
+            .frame(minHeight: 48)
+            .background(Color.vxinSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vxinBorder, lineWidth: 1))
+    }
+}

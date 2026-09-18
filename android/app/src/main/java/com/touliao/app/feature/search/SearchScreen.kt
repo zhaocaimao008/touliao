@@ -169,7 +169,7 @@ private fun FilterDropdown(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0x11000000))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable { open = true }
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -199,7 +199,7 @@ private fun TimeChip(label: String, selected: Boolean, onClick: () -> Unit) {
         Modifier
             .padding(end = 8.dp)
             .clip(shape)
-            .background(if (selected) VxinGreen.copy(alpha = 0.15f) else Color(0x11000000))
+            .background(if (selected) VxinGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
             .then(if (selected) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), shape) else Modifier)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 5.dp),
