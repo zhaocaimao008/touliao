@@ -33,6 +33,7 @@ struct FriendRequestsView: View {
             VxinEmptyState(systemImage: "person.badge.plus", title: "没有新的好友申请"); Spacer()
         } else {
             List(vm.requests) { req in
+                Group {
                 HStack(spacing: 12) {
                     InitialAvatar(name: req.username.isEmpty ? "?" : req.username, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
@@ -55,6 +56,7 @@ struct FriendRequestsView: View {
                         Button("接受") { vm.handle(req, accept: true) }.buttonStyle(.borderedProminent).tint(.vxinGreen)
                     }
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -67,6 +69,7 @@ struct FriendRequestsView: View {
             VxinEmptyState(systemImage: "paperplane", title: "没有已发送的申请"); Spacer()
         } else {
             List(vm.sent) { req in
+                Group {
                 HStack(spacing: 12) {
                     InitialAvatar(name: req.username.isEmpty ? "?" : req.username, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
@@ -86,6 +89,7 @@ struct FriendRequestsView: View {
                         .touliaoFont(12)
                         .foregroundColor(req.status == "accepted" ? .vxinGreen : .vxinTextSecondary)
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)

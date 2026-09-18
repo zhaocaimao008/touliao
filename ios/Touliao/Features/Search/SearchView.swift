@@ -39,6 +39,7 @@ struct SearchView: View {
                 Spacer()
             } else {
                 List(vm.results) { r in
+                    Group {
                     Button { onOpenResult(r) } label: {
                         HStack(spacing: 12) {
                             InitialAvatar(name: r.convName.isEmpty ? "?" : r.convName, size: 44)
@@ -58,6 +59,7 @@ struct SearchView: View {
                             Spacer()
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .listStyle(.plain)
             .scrollContentBackground(.hidden)

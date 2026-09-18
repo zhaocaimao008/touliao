@@ -524,6 +524,7 @@ private struct MomentNotifSheet: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(items) { n in
+                        Group {
                         HStack(spacing: 12) {
                             InitialAvatar(name: n.actor.username.isEmpty ? "?" : n.actor.username, size: 40)
                             VStack(alignment: .leading, spacing: 3) {
@@ -544,6 +545,7 @@ private struct MomentNotifSheet: View {
                             }
                         }
                         .padding(.vertical, 2)
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
             .scrollContentBackground(.hidden)

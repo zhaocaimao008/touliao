@@ -70,8 +70,10 @@ struct CallHistoryView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(vm.items) { c in
+                    Group {
                     Button { Task { navTarget = await vm.openPeerChat(c) } } label: { row(c) }
                         .buttonStyle(.plain)
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .listStyle(.plain)
             .scrollContentBackground(.hidden)

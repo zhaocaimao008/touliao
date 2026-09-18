@@ -17,6 +17,7 @@ struct CreateGroupView: View {
                 Spacer(); Text("还没有联系人").foregroundColor(.vxinTextSecondary); Spacer()
             } else {
                 List(vm.contacts) { contact in
+                    Group {
                     Button { vm.toggle(contact.id) } label: {
                         HStack(spacing: 12) {
                             TouliaoIcon(systemName: vm.selected.contains(contact.id) ? "checkmark.circle.fill" : "circle")
@@ -26,6 +27,7 @@ struct CreateGroupView: View {
                             Spacer()
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .listStyle(.plain)
             .scrollContentBackground(.hidden)

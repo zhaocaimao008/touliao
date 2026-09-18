@@ -60,7 +60,8 @@ extension View {
         modifier(TouliaoFontModifier(size: size, weight: weight, design: design))
     }
     func touliaoPage() -> some View {
-        self.background(Color.vxinBackground)
+        self.frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.vxinBackground)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 48)
             .touliaoFont(16)

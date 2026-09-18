@@ -235,6 +235,7 @@ struct ChatView: View {
         .sheet(isPresented: $showPinnedList) {
             NavigationStack {
                 List(vm.pinnedMessages) { p in
+                    Group {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(p.senderName.isEmpty ? "成员" : p.senderName).touliaoFont(12).foregroundColor(.vxinTextSecondary)
@@ -243,6 +244,7 @@ struct ChatView: View {
                         Spacer()
                         Button("取消", role: .destructive) { vm.unpinMessage(p.msgId) }.buttonStyle(.borderless)
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .navigationTitle("置顶消息 (\(vm.pinnedMessages.count))")
                 .navigationBarTitleDisplayMode(.inline)
@@ -297,6 +299,7 @@ struct ChatView: View {
         .sheet(isPresented: Binding(get: { vm.forwardTarget != nil }, set: { if !$0 { vm.forwardTarget = nil } })) {
             NavigationStack {
                 List(vm.forwardTargets) { conv in
+                    Group {
                     Button {
                         if forwardSelected.contains(conv.id) { forwardSelected.remove(conv.id) } else { forwardSelected.insert(conv.id) }
                     } label: {
@@ -306,6 +309,7 @@ struct ChatView: View {
                             Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.vxinText).lineLimit(1)
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .navigationTitle("转发到").navigationBarTitleDisplayMode(.inline)
         .touliaoPage()
@@ -325,6 +329,7 @@ struct ChatView: View {
             NavigationStack {
                 VStack(spacing: 0) {
                     List(vm.forwardTargets) { conv in
+                        Group {
                         Button {
                             if multiForwardSelected.contains(conv.id) { multiForwardSelected.remove(conv.id) } else { multiForwardSelected.insert(conv.id) }
                         } label: {
@@ -334,6 +339,7 @@ struct ChatView: View {
                                 Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.vxinText).lineLimit(1)
                             }
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -1556,6 +1562,7 @@ private struct ScheduledListSheet: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(vm.scheduledList) { item in
+                        Group {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text(scheduledStatusLabel(item.status))
@@ -1577,6 +1584,7 @@ private struct ScheduledListSheet: View {
                             }
                         }
                         .padding(.vertical, 2)
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -1730,11 +1738,13 @@ private struct RedPacketDetailSheet: View {
 
                 if !detail.claims.isEmpty {
                     List(detail.claims) { c in
+                        Group {
                         HStack {
                             Text(c.username.isEmpty ? "用户" : c.username)
                             Spacer()
                             Text("\(c.amount) 金币").foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -1770,6 +1780,7 @@ private struct MessageSearchSheet: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(vm.searchResults) { msg in
+                        Group {
                         Button {
                             let id = msg.id
                             vm.searchActive = false
@@ -1786,6 +1797,7 @@ private struct MessageSearchSheet: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
             .scrollContentBackground(.hidden)

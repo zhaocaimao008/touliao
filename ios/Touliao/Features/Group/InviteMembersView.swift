@@ -20,6 +20,7 @@ struct InviteMembersView: View {
                 Text("没有可邀请的联系人").foregroundColor(.vxinTextSecondary)
             } else {
                 List(vm.candidates) { contact in
+                    Group {
                     Button { vm.toggle(contact.id) } label: {
                         HStack(spacing: 12) {
                             TouliaoIcon(systemName: vm.selected.contains(contact.id) ? "checkmark.circle.fill" : "circle")
@@ -29,6 +30,7 @@ struct InviteMembersView: View {
                             Spacer()
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .listStyle(.plain)
             .scrollContentBackground(.hidden)

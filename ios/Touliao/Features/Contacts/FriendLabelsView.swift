@@ -115,6 +115,7 @@ private struct LabelMembersSheet: View {
     var body: some View {
         NavigationStack {
             List(contacts) { c in
+                Group {
                 Button {
                     let add = !memberIds.contains(c.id)
                     if add { memberIds.insert(c.id) } else { memberIds.remove(c.id) }
@@ -126,6 +127,7 @@ private struct LabelMembersSheet: View {
                         if memberIds.contains(c.id) { TouliaoIcon(systemName: "checkmark").foregroundColor(.vxinGreen) }
                     }
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("编辑「\(label.name)」成员")
             .navigationBarTitleDisplayMode(.inline)

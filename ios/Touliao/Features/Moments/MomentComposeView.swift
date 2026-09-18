@@ -206,6 +206,7 @@ struct MomentComposeView: View {
             .sheet(isPresented: $showFriendPicker) {
                 NavigationStack {
                     List(vm.friends) { f in
+                        Group {
                         Button { vm.toggleFriend(f.id) } label: {
                             HStack {
                                 TouliaoIcon(systemName: vm.visibleTo.contains(f.id) ? "checkmark.circle.fill" : "circle").foregroundColor(.vxinGreen)
@@ -213,6 +214,7 @@ struct MomentComposeView: View {
                                 Text(f.displayName.isEmpty ? "用户" : f.displayName).foregroundColor(.vxinText).lineLimit(1)
                             }
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .navigationTitle(vm.visibility == "include" ? "选择可见好友" : "选择不给谁看")
                     .navigationBarTitleDisplayMode(.inline)

@@ -131,7 +131,7 @@ final class NativeUIReviewTests: XCTestCase {
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: width, height: 844)
         window.overrideUserInterfaceStyle = dark ? .dark : .light
-        let content = NavigationStack { view }.environmentObject(session!)
+        let content = NavigationStack { view }.tint(.vxinBrand).environmentObject(session!)
             .environment(\.colorScheme, dark ? .dark : .light)
             .environment(\.dynamicTypeSize, large ? .accessibility3 : .large)
         let host = UIHostingController(rootView: content)

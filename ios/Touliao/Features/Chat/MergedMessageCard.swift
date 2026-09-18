@@ -71,6 +71,7 @@ private struct MergedForwardDetailSheet: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(items) { item in
+                        Group {
                         HStack(alignment: .top, spacing: 8) {
                             Text(typeIcon(item.type))
                             VStack(alignment: .leading, spacing: 2) {
@@ -87,6 +88,7 @@ private struct MergedForwardDetailSheet: View {
                             }
                         }
                         .padding(.vertical, 2)
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
             .scrollContentBackground(.hidden)

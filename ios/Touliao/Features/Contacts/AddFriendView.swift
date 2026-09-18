@@ -47,6 +47,7 @@ struct AddFriendView: View {
             }
 
             List(vm.results) { user in
+                Group {
                 HStack(spacing: 12) {
                     InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
@@ -62,6 +63,7 @@ struct AddFriendView: View {
                         .tint(.vxinGreen)
                         .disabled(sent)
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
