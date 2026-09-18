@@ -89,7 +89,7 @@ final class NativeUIReviewTests: XCTestCase {
             ("profile", AnyView(ProfileView())), ("edit-profile", AnyView(ProfileEditView())),
             ("settings", AnyView(SettingsHomeView())), ("appearance", AnyView(AppearanceSettingsView())),
             ("notifications", AnyView(NotificationSettingsView())), ("privacy", AnyView(PrivacySecurityView())),
-            ("quiet-hours", AnyView(QuietSettingsView())), ("change-phone", AnyView(ChangePhoneView())),
+            ("quiet-hours", AnyView(QuietSettingsView())), ("change-phone", AnyView(ChangePhoneView(currentPhone: "13800000000", onChanged: { _ in }))),
             ("change-password", AnyView(ChangePasswordView())), ("delete-account", AnyView(DeleteAccountView())),
             ("sessions", AnyView(SessionsView())), ("accounts", AnyView(AccountManagementView())),
             ("call-history", AnyView(CallHistoryView())), ("wallet", AnyView(WalletView())),
