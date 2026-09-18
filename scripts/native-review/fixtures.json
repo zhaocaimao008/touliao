@@ -294,7 +294,8 @@
   },
   "/api/messages/mentions/me": {
     "items": [],
-    "hasMore": false
+    "hasMore": false,
+    "total": 0
   },
   "/api/wallet": {
     "balance": 1280,
@@ -328,9 +329,9 @@
   "/api/users/me/sessions": [],
   "/api/calls": [],
   "/api/users/me/invite": {
-    "inviteCode": "REVIEW",
     "invitedCount": 3,
-    "invitedUsers": []
+    "code": "REVIEW",
+    "invitees": []
   },
   "/api/users/me/call-logs": [],
   "/api/users/me/collections": [
