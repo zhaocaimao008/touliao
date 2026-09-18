@@ -139,6 +139,19 @@ class NativeUIReviewTest {
         androidx.test.espresso.Espresso.pressBack()
         compose.onNodeWithText("搜索聊天记录").assertDoesNotExist()
         compose.onNodeWithTag("chat-msg-input").assertExists()
+        for ((night, big, name) in listOf(Triple(false, false, "chat-attachments-light"),
+            Triple(true, false, "chat-attachments-dark"), Triple(true, true, "chat-attachments-dark-large-text"))) {
+            compose.runOnIdle { dark.value = night; large.value = big }
+            settle()
+            compose.onNodeWithTag("chat-more-btn").performClick()
+            settle()
+            for (label in listOf("图片", "视频", "文件")) compose.onNodeWithText(label).assertIsDisplayed()
+            snapshot(name)
+            compose.onNodeWithTag("chat-function-panel").performScrollToNode(hasText("定时列表"))
+            compose.onNodeWithText("定时列表").assertIsDisplayed()
+            compose.onNodeWithTag("chat-more-btn").performClick()
+            compose.onNodeWithTag("chat-function-panel").assertDoesNotExist()
+        }
     }
 
     private fun settle() {

@@ -1761,35 +1761,48 @@ private fun FunctionPanel(
     // 没有专门的"视频"入口——用户在相册选图片时系统选择器被限定成只显示图片，视频压根选不出来，
     // 这正是"安卓没有上传视频的选项"这个反馈的根因。新增独立视频入口(video/*)。
     val items = buildList {
-        add(Triple("🖼", "图片", onPickImage))
-        add(Triple("🎬", "视频", onPickVideo))
-        add(Triple("📎", "文件", onPickFile))
-        if (onScreenshot != null) add(Triple("📷", "截屏", onScreenshot))
-        add(Triple("🧧", "红包", onRedPacket))
-        if (onTransfer != null) add(Triple("💸", "转账", onTransfer))
-        if (onSchedule != null) add(Triple("⏰", "定时发送", onSchedule))
-        if (onScheduleList != null) add(Triple("📋", "定时列表", onScheduleList))
+        add(Triple(com.touliao.app.ui.DesignIcons.Image, "图片", onPickImage))
+        add(Triple(com.touliao.app.ui.DesignIcons.Video, "视频", onPickVideo))
+        add(Triple(com.touliao.app.ui.DesignIcons.Paperclip, "文件", onPickFile))
+        if (onScreenshot != null) add(Triple(com.touliao.app.ui.DesignIcons.Camera, "截屏", onScreenshot))
+        add(Triple(com.touliao.app.ui.DesignIcons.Mail, "红包", onRedPacket))
+        if (onTransfer != null) add(Triple(com.touliao.app.ui.LegacyBusinessIcons.Wallet, "转账", onTransfer))
+        if (onSchedule != null) add(Triple(com.touliao.app.ui.DesignIcons.Clock, "定时发送", onSchedule))
+        if (onScheduleList != null) add(Triple(com.touliao.app.ui.DesignIcons.CalendarDays, "定时列表", onScheduleList))
     }
+    val columns = if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f) 3 else 4
     LazyVerticalGrid(
-        columns = GridCells.Fixed(4),
+        columns = GridCells.Fixed(columns),
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 220.dp)
+            .testTag("chat-function-panel")
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(vertical = 12.dp),
     ) {
-        gridItems(items) { (emoji, label, onClick) ->
-            val tag = when (label) { "图片" -> "chat-attach-image"; "视频" -> "chat-attach-video"; "文件" -> "chat-attach-file"; else -> "chat-attach-redpacket" }
+        gridItems(items) { (icon, label, onClick) ->
+            val tag = when (label) {
+                "图片" -> "chat-attach-image"; "视频" -> "chat-attach-video"; "文件" -> "chat-attach-file"
+                "截屏" -> "chat-attach-screenshot"; "转账" -> "chat-attach-transfer"
+                "定时发送" -> "chat-attach-schedule"; "定时列表" -> "chat-attach-schedule-list"
+                else -> "chat-attach-redpacket"
+            }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(vertical = 8.dp).testTag(tag).clickable(onClick = onClick),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp)
+                    .testTag(tag).clickable(onClick = onClick).padding(vertical = 8.dp),
             ) {
                 Box(
-                    Modifier.size(56.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md)).background(Color.White),
+                    Modifier.size(56.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
+                        .background(MaterialTheme.colorScheme.surface),
                     contentAlignment = Alignment.Center,
-                ) { Text(emoji, fontSize = 26.sp) }
+                ) {
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp),
+                        tint = if (label == "红包") MaterialTheme.colorScheme.error else VxinTextSecondary)
+                }
                 Spacer(Modifier.size(6.dp))
-                Text(label, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
+                Text(label, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
+                    color = VxinTextSecondary, textAlign = TextAlign.Center)
             }
         }
     }
