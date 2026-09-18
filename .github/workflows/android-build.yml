@@ -138,7 +138,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        old_run: [33326461700, 34308823256, 34979197799]
+        include:
+          - {old_run: 33326461700, api: 34}
+          - {old_run: 34308823256, api: 34}
+          - {old_run: 34979197799, api: 34}
+          - {old_run: 34979197799, api: 26}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -164,7 +168,7 @@ jobs:
       - name: Old client discovers downloads validates and installs through its own UI
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
+          api-level: ${{ matrix.api }}
           arch: x86_64
           target: default
           profile: pixel_2
@@ -173,7 +177,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: legacy-android-${{ matrix.old_run }}
+          name: legacy-android-${{ matrix.old_run }}-api${{ matrix.api }}
           path: legacy-evidence/android/
           if-no-files-found: error
 

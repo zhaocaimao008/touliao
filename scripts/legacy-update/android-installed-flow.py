@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise an unmodified historical signed APK through its real update UI.
 
-Only disposable, rooted API 29 emulators are accepted. Account API fixtures stay
+Only disposable, rooted emulators are accepted. Account API fixtures stay
 on loopback; update discovery/download/TLS use the historical production URL.
 No new APK is installed with adb: PackageInstaller must perform that upgrade.
 """
@@ -77,7 +77,7 @@ class Fixture(BaseHTTPRequestHandler):
 
 
 def adb(*args, binary=False, check=True):
-    r = subprocess.run(['adb', *args], capture_output=True, check=check)
+    r = subprocess.run(['adb', *args], capture_output=True, check=check, timeout=60)
     return r.stdout if binary else r.stdout.decode(errors='replace').replace('\r', '').strip()
 
 
@@ -159,10 +159,17 @@ def run(args, report):
     out = args.output
     assert shell('getprop ro.kernel.qemu') == '1', 'Only disposable emulator allowed'
     adb('root'); adb('wait-for-device')
+    api = int(shell('getprop ro.build.version.sdk'))
+    report['environment'] = f'Android API {api} native emulator'
+    report['buildFingerprint'] = shell('getprop ro.build.fingerprint')
     manifest = json.load(urllib.request.urlopen('https://touliao.cc/downloads/touliao-android-version.json', timeout=30))
     assert (manifest['versionName'], manifest['versionCode']) == ('8.1.25', 82), 'Publication changed; re-audit before testing'
     (out / 'public-manifest.json').write_text(json.dumps(manifest, indent=2))
     adb('install', str(args.old_apk))
+    if api >= 33:
+        # Keep notification prompts out of the update exercise; this grants no
+        # installation permission and does not change the updater or its checks.
+        adb('shell', 'pm', 'grant', PACKAGE, 'android.permission.POST_NOTIFICATIONS', check=False)
     before = installed(); report['before'] = before
     assert before['versionCode'] < 82
     # Configure the supported manual server override before first launch. This
@@ -215,15 +222,15 @@ def run(args, report):
     assert shell('test -e ' + remote_apk + '; echo $?') == '1', 'Rejected installer was not removed'
     report['cachedWrongVersionRejectedAndRemoved'] = True
     click(texts=('我知道了',)); click(texts=('检查更新',)); click(texts=('更新',))
-    find_node(texts=('Install', '安装', 'INSTALL'), timeout=240)
+    find_node(texts=('Install', '安装', 'INSTALL', 'Update', 'UPDATE'), timeout=240)
     capture(out, '07-system-installer-before-upgrade')
     click(texts=('Cancel', '取消', 'CANCEL'))
     assert installed()['versionCode'] == before['versionCode']
     report['cancelPreservesOldInstallation'] = True
     # Reopen the same installed old app, retaining its real encrypted credentials.
     restart(); profile_update(); click(texts=('更新',))
-    find_node(texts=('Install', '安装', 'INSTALL'), timeout=240)
-    click(texts=('Install', '安装', 'INSTALL'))
+    find_node(texts=('Install', '安装', 'INSTALL', 'Update', 'UPDATE'), timeout=240)
+    click(texts=('Install', '安装', 'INSTALL', 'Update', 'UPDATE'))
     deadline = time.time() + 120
     while time.time() < deadline and installed()['versionCode'] != 82:
         time.sleep(2)
@@ -245,7 +252,7 @@ def run(args, report):
 def main():
     p = argparse.ArgumentParser(); p.add_argument('--old-apk', type=Path, required=True); p.add_argument('--output', type=Path, required=True)
     args = p.parse_args(); args.output.mkdir(parents=True, exist_ok=True)
-    report = {'environment': 'Android API 29 native emulator', 'unmodifiedHistoricalApk': True,
+    report = {'environment': 'Android native emulator (API recorded after connection)', 'unmodifiedHistoricalApk': True,
               'physicalDevice': False, 'productionAccountTested': False, 'testAccountApi': 'isolated loopback fixture',
               'updateNetwork': 'unchanged historical production HTTPS endpoint', 'hotUpdate': False, 'passed': False}
     server = ThreadingHTTPServer(('127.0.0.1', 18765), Fixture)
