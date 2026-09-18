@@ -144,6 +144,7 @@ struct ConversationListView: View {
             // socket 新消息只改对应会话的 summary/unread 并保留标记，归档会话不会回到主列表。
             let visible = showArchived ? vm.archivedConversations : vm.activeConversations
             List {
+                Group {
                 if showArchived {
                     archiveHeaderRow
                 } else {
@@ -174,6 +175,7 @@ struct ConversationListView: View {
                         .padding(.vertical, 32)
                         .listRowSeparator(.hidden)
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)

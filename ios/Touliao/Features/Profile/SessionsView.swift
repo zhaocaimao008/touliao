@@ -45,6 +45,7 @@ struct SessionsView: View {
 
     var body: some View {
         List {
+            Group {
             if vm.loading {
                 HStack { Spacer(); ProgressView(); Spacer() }
             } else if vm.sessions.isEmpty {
@@ -65,6 +66,7 @@ struct SessionsView: View {
                     }
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("登录设备管理")
         .navigationBarTitleDisplayMode(.inline)

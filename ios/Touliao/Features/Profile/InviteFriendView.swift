@@ -13,6 +13,7 @@ struct InviteFriendView: View {
 
     var body: some View {
         Form {
+            Group {
             if let inv = invite {
                 Section("我的邀请码") {
                     HStack {
@@ -58,6 +59,7 @@ struct InviteFriendView: View {
                     HStack { Spacer(); ProgressView(); Spacer() }
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("邀请好友")
         .navigationBarTitleDisplayMode(.inline)

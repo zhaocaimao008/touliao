@@ -269,6 +269,7 @@ struct ChatView: View {
         .sheet(isPresented: $showMentionPicker) {
             NavigationStack {
                 List {
+                    Group {
                     // 群主/管理员专属：@所有人（置顶入口）
                     if vm.canManageGroup {
                         Button { vm.appendMentionAll(); showMentionPicker = false } label: {
@@ -286,6 +287,7 @@ struct ChatView: View {
                             }
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .navigationTitle("选择要 @ 的成员").navigationBarTitleDisplayMode(.inline)
         .touliaoPage()
@@ -1403,10 +1405,12 @@ private struct SendRedPacketSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Group {
                 TextField("总金币 (1-20000)", text: $amount).keyboardType(.numberPad)
                 TextField("红包个数 (1-100)", text: $count).keyboardType(.numberPad)
                 TextField("祝福语（可选）", text: $greeting)
                 if let error { Text(error).foregroundColor(.vxinError).touliaoFont(14) }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("发红包")
             .navigationBarTitleDisplayMode(.inline)
@@ -1444,9 +1448,11 @@ private struct SendTransferSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Group {
                 TextField("金额（金币，1-20000）", text: $amount).keyboardType(.numberPad)
                 TextField("备注（可选，≤50字）", text: $note)
                 if let error { Text(error).foregroundColor(.vxinError).touliaoFont(14) }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("转账")
             .navigationBarTitleDisplayMode(.inline)
@@ -1483,6 +1489,7 @@ private struct SendScheduleSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Group {
                 Section("消息内容") {
                     TextField("请输入要定时发送的内容…", text: $content, axis: .vertical)
                         .lineLimit(3...6)
@@ -1506,6 +1513,7 @@ private struct SendScheduleSheet: View {
                         .touliaoFont(12)
                         .foregroundColor(.vxinTextSecondary)
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("定时发送")
             .navigationBarTitleDisplayMode(.inline)

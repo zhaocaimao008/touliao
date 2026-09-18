@@ -88,12 +88,14 @@ struct FavoritesView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
+                        Group {
                         ForEach(vm.shown) { item in
                             row(item)
                                 .swipeActions {
                                     Button("取消收藏", role: .destructive) { vm.remove(item) }
                                 }
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -116,7 +118,7 @@ struct FavoritesView: View {
                 KFImage(source: src).resizable().scaledToFit().frame(maxHeight: 200)
             } else { Text("[图片]") }
         case "file":
-            Text("📄 \(item.content.isEmpty ? "文件" : item.content)")
+            Label(item.content.isEmpty ? "文件" : item.content, touliaoSystemImage: "doc")
         case "video":
             Text("🎬 视频")
         default:

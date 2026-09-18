@@ -184,6 +184,7 @@ struct ConversationFilesView: View {
     // 文件：单列行（📄图标 + 文件名 + 发送者 + 时间）
     private var fileList: some View {
         List {
+            Group {
             ForEach(vm.items) { file in
                 Button { openFile(file) } label: { FileRow(file: file) }
                     .buttonStyle(.plain)
@@ -192,6 +193,7 @@ struct ConversationFilesView: View {
             if vm.loadingMore {
                 HStack { Spacer(); ProgressView(); Spacer() }.listRowSeparator(.hidden)
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -248,7 +250,7 @@ private struct FileRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("📄").touliaoFont(28)
+            TouliaoIcon(systemName: "doc", size: 28).foregroundColor(.vxinGreen)
             VStack(alignment: .leading, spacing: 3) {
                 Text(file.displayName)
                     .touliaoFont(16).lineLimit(1)
@@ -274,9 +276,16 @@ private struct MediaGridCell: View {
     var body: some View {
         ZStack {
             Color.vxinSurfaceSecondary
-            KFImage(source: MediaUrlResolver.kfSource(resolved: resolve(file.fileUrl)))
-                .resizable()
-                .scaledToFill()
+            if file.type == "file" {
+                VStack(spacing: 8) {
+                    TouliaoIcon(systemName: "doc", size: 28).foregroundColor(.vxinGreen)
+                    Text(file.displayName).touliaoFont(12).foregroundColor(.vxinText)
+                        .lineLimit(2).multilineTextAlignment(.center)
+                }.padding(8)
+            } else {
+                KFImage(source: MediaUrlResolver.kfSource(resolved: resolve(file.fileUrl)))
+                    .resizable().scaledToFill()
+            }
             // 视频角标：半透明播放标识
             if file.type == "video" {
                 Color.black.opacity(0.18)

@@ -54,6 +54,7 @@ struct FriendLabelsView: View {
 
     var body: some View {
         List {
+            Group {
             if vm.loading {
                 HStack { Spacer(); ProgressView(); Spacer() }
             } else if vm.labels.isEmpty {
@@ -75,6 +76,7 @@ struct FriendLabelsView: View {
                     }
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("好友标签")
         .navigationBarTitleDisplayMode(.inline)

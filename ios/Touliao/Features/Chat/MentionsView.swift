@@ -68,6 +68,7 @@ struct MentionsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
+                        Group {
                         ForEach(vm.items) { item in
                             Button {
                                 let conv = Conversation(id: item.convId, name: item.convName)
@@ -92,6 +93,7 @@ struct MentionsView: View {
                             HStack { Spacer(); ProgressView(); Spacer() }
                                 .listRowSeparator(.hidden)
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
             .scrollContentBackground(.hidden)

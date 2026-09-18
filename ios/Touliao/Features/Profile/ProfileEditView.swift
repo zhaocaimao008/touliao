@@ -24,6 +24,7 @@ struct ProfileEditView: View {
 
     var body: some View {
         Form {
+            Group {
             Section {
                 HStack {
                     Spacer()
@@ -102,6 +103,7 @@ struct ProfileEditView: View {
                 .disabled(saving || username.trimmingCharacters(in: .whitespaces).isEmpty)
                 .accessibilityIdentifier("edit-save-btn")
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("个人资料")
         .navigationBarTitleDisplayMode(.inline)

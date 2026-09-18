@@ -65,6 +65,7 @@ struct AppearanceSettingsView: View {
 
     var body: some View {
         Form {
+            Group {
             Section("主题") {
                 Picker("主题", selection: $themeRaw) {
                     ForEach(AppTheme.allCases) { t in Text(t.label).tag(t.rawValue) }
@@ -78,6 +79,7 @@ struct AppearanceSettingsView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("外观")
         .navigationBarTitleDisplayMode(.inline)
@@ -130,6 +132,7 @@ struct NotificationSettingsView: View {
 
     var body: some View {
         Form {
+            Group {
             Section(content: {
                 Toggle("接收消息通知", isOn: Binding(
                     get: { vm.messageNotify },
@@ -152,6 +155,7 @@ struct NotificationSettingsView: View {
             }, footer: {
                 Text("开启后在指定时段内仅抑制推送，聊天正常收消息。")
             })
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("通知")
         .navigationBarTitleDisplayMode(.inline)
@@ -206,6 +210,7 @@ struct ChangePhoneView: View {
 
     var body: some View {
         Form {
+            Group {
             if !currentPhone.isEmpty {
                 Section("当前手机号") {
                     Text(currentPhone).foregroundColor(.vxinTextSecondary)
@@ -234,6 +239,7 @@ struct ChangePhoneView: View {
                 .disabled(!vm.valid || vm.changing)
                 .accessibilityIdentifier("change-phone-submit")
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("换绑手机号")
         .navigationBarTitleDisplayMode(.inline)
@@ -312,6 +318,7 @@ struct QuietSettingsView: View {
 
     var body: some View {
         Form {
+            Group {
             Section(content: {
                 Toggle("开启勿扰模式", isOn: Binding(
                     get: { vm.quietEnabled },
@@ -355,6 +362,7 @@ struct QuietSettingsView: View {
                 .disabled(vm.saving)
                 .accessibilityIdentifier("quiet-save-btn")
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("勿扰模式")
         .navigationBarTitleDisplayMode(.inline)
@@ -412,6 +420,7 @@ struct PrivacySecurityView: View {
 
     var body: some View {
         Form {
+            Group {
             Section("添加我的方式") {
                 Toggle("通过 投聊号添加", isOn: Binding(
                     get: { vm.addByVxinId }, set: { vm.addByVxinId = $0; vm.update(addByVxinId: $0) }
@@ -437,6 +446,7 @@ struct PrivacySecurityView: View {
                 NavigationLink("修改密码") { ChangePasswordView() }
                 NavigationLink("注销账号") { DeleteAccountView() }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("隐私与安全")
         .navigationBarTitleDisplayMode(.inline)
@@ -489,6 +499,7 @@ struct ChangePasswordView: View {
 
     var body: some View {
         Form {
+            Group {
             Section("原密码") {
                 SecureField("请输入当前登录密码", text: $vm.oldPassword)
                     .textContentType(.password)
@@ -516,6 +527,7 @@ struct ChangePasswordView: View {
             }, footer: {
                 Text("修改后本设备保持登录，其它已登录设备需使用新密码重新登录。")
             })
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("修改密码")
         .navigationBarTitleDisplayMode(.inline)
@@ -556,6 +568,7 @@ struct DeleteAccountView: View {
 
     var body: some View {
         Form {
+            Group {
             Section {
                 Text("注销后账号将无法登录，聊天记录/好友/群组/钱包余额等数据不可找回。请先确保钱包余额已清零。")
                     .foregroundColor(.red)
@@ -575,6 +588,7 @@ struct DeleteAccountView: View {
                 .disabled(vm.password.isEmpty || vm.deleting)
                 .accessibilityIdentifier("delete-account-submit")
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("注销账号")
         .navigationBarTitleDisplayMode(.inline)

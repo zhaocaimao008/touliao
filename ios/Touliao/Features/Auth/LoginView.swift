@@ -85,12 +85,19 @@ struct LoginView: View {
             .padding(.top, 8)
             .accessibilityIdentifier("login-submit-btn")
 
+            ViewThatFits(in: .horizontal) {
             HStack {
                 NavigationLink("注册账号") { RegisterView() }
-                    .foregroundColor(.vxinGreen)
+                    .foregroundColor(.vxinGreen).fixedSize(horizontal: true, vertical: false)
                 Spacer()
                 NavigationLink("忘记密码") { ForgotPasswordView() }
-                    .foregroundColor(.vxinTextSecondary)
+                    .foregroundColor(.vxinTextSecondary).fixedSize(horizontal: true, vertical: false)
+            }
+
+                VStack(spacing: 12) {
+                    NavigationLink("注册账号") { RegisterView() }.foregroundColor(.vxinGreen)
+                    NavigationLink("忘记密码") { ForgotPasswordView() }.foregroundColor(.vxinTextSecondary)
+                }
             }
 
             Button(showServerConfig ? "收起" : "切换服务器") { showServerConfig.toggle() }

@@ -26,6 +26,7 @@ struct WalletView: View {
 
     var body: some View {
         List {
+            Group {
             Section {
                 VStack(spacing: 8) {
                     Text("当前余额（金币）").touliaoFont(12).foregroundColor(.vxinTextSecondary)
@@ -43,6 +44,7 @@ struct WalletView: View {
                     ForEach(vm.transactions) { tx in TransactionRow(tx: tx) }
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("我的钱包")
         .navigationBarTitleDisplayMode(.inline)

@@ -114,6 +114,7 @@ struct ReadStatusDetailSheet: View {
                     .padding()
                 } else {
                     List {
+                        Group {
                         Section {
                             Button {
                                 guard model.readCount > 0 else { return }
@@ -143,6 +144,7 @@ struct ReadStatusDetailSheet: View {
                                 }
                             }
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                 }
             }

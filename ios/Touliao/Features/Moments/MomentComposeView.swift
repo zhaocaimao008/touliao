@@ -111,6 +111,7 @@ struct MomentComposeView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Group {
                 Section {
                     TextField("这一刻的想法…", text: $vm.content, axis: .vertical).lineLimit(3...8)
                 }
@@ -200,6 +201,7 @@ struct MomentComposeView: View {
                 if let error = vm.error {
                     Text(error).foregroundColor(.vxinError).touliaoFont(14)
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .sheet(isPresented: $showFriendPicker) {
                 NavigationStack {

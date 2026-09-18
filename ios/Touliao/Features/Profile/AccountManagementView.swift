@@ -17,6 +17,7 @@ struct AccountManagementView: View {
 
     var body: some View {
         List {
+            Group {
             Section("账号列表") {
                 ForEach(session.accountList) { acc in
                     AccountRow(
@@ -41,6 +42,7 @@ struct AccountManagementView: View {
                         .foregroundColor(AccountMgmtTok.green)
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("切换账号")
         .navigationBarTitleDisplayMode(.inline)

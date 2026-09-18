@@ -121,6 +121,7 @@ private struct HubDivider: View {
 }
 
 private struct HubRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let icon: String
     let title: String
     var trailing: String? = nil
@@ -131,17 +132,22 @@ private struct HubRow: View {
             TouliaoIcon(systemName: icon)
                 .foregroundColor(Color.vxinTextSecondary)
                 .frame(width: 22)
-            Text(title).foregroundColor(Color.vxinText)
-            Spacer()
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).foregroundColor(Color.vxinText)
+                    .fixedSize(horizontal: false, vertical: true)
+                if typeSize.isAccessibilitySize, let trailing, !showsSpinner {
+                    Text(trailing).foregroundColor(.vxinTextSecondary).touliaoFont(14)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
             if showsSpinner {
                 ProgressView().scaleEffect(0.7)
-            } else if let trailing {
+            } else if !typeSize.isAccessibilitySize, let trailing {
                 Text(trailing).foregroundColor(Color.vxinTextSecondary).touliaoFont(14)
             }
             TouliaoIcon(systemName: "chevron.right")
                 .touliaoFont(12).foregroundColor(Color.vxinTextSecondary.opacity(0.6))
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 16).padding(.vertical, 8)
         .frame(minHeight: 52)
         .contentShape(Rectangle())
     }

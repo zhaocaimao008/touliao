@@ -26,6 +26,7 @@ struct ContactsView: View {
 
     var body: some View {
         List {
+            Group {
             Section {
                 Button(action: onRequests) {
                     HStack {
@@ -120,6 +121,7 @@ struct ContactsView: View {
                     }
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .listStyle(.plain)
             .scrollContentBackground(.hidden)

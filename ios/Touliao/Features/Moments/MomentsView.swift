@@ -184,6 +184,7 @@ struct MomentsView: View {
                 Text("还没有朋友圈动态").foregroundColor(.vxinTextSecondary)
             } else {
                 List {
+                    Group {
                     ForEach(vm.moments) { m in
                         MomentCard(
                             moment: m,
@@ -210,6 +211,7 @@ struct MomentsView: View {
                         )
                         .onAppear { if m.id == vm.moments.last?.id { vm.loadMore() } }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .listStyle(.plain)
             .scrollContentBackground(.hidden)
@@ -251,6 +253,7 @@ struct MomentsView: View {
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 List {
+                    Group {
                     Section("允许朋友查看朋友圈的范围") {
                         ForEach([(0, "全部"), (1, "最近一天"), (3, "最近三天"), (30, "最近一个月")], id: \.0) { day, label in
                             Button { vm.setVisibleDays(day) } label: {
@@ -262,6 +265,7 @@ struct MomentsView: View {
                             }
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .navigationTitle("朋友圈设置").navigationBarTitleDisplayMode(.inline)
         .touliaoPage()

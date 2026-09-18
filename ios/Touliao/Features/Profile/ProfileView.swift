@@ -57,6 +57,7 @@ private struct SectionHeader: View {
 
 /// Standard settings row: icon | title | [trailing] | chevron
 private struct SettingsRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let icon: String
     let title: String
     var trailing: String? = nil
@@ -67,20 +68,20 @@ private struct SettingsRow: View {
                 .touliaoFont(Tok.iconSize - 2, weight: .light)
                 .foregroundColor(iconColor)
                 .frame(width: Tok.xxl, alignment: .center)
-            Text(title)
-                .touliaoFont(16)
-                .foregroundColor(Tok.primary)
-            Spacer()
-            if let t = trailing {
-                Text(t)
-                    .touliaoFont(14)
-                    .foregroundColor(Tok.secondary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).touliaoFont(16).foregroundColor(Tok.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if typeSize.isAccessibilitySize, let trailing {
+                    Text(trailing).touliaoFont(14).foregroundColor(Tok.secondary)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if !typeSize.isAccessibilitySize, let trailing {
+                Text(trailing).touliaoFont(14).foregroundColor(Tok.secondary).lineLimit(1)
             }
             TouliaoIcon(systemName: "chevron.right", size: 13)
                 .foregroundColor(Tok.secondary.opacity(0.6))
         }
-        .padding(.horizontal, Tok.l)
+        .padding(.horizontal, Tok.l).padding(.vertical, 8)
         .frame(minHeight: Tok.rowHeight)
         .background(Tok.cardBg)
         .contentShape(Rectangle())
