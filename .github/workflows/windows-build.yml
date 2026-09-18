@@ -19,11 +19,6 @@ jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 45
-    env:
-      # 2026-09-18: publish the requested Windows typography/theme update through
-      # the existing unsigned publisher channel. Only desktop-v8.1.26 is exempt;
-      # restore after publication. Ed25519 and all Windows checks stay mandatory.
-      ALLOW_UNSIGNED_RELEASE: ${{ github.ref == 'refs/tags/desktop-v8.1.26' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,12 +60,7 @@ jobs:
           WIN_CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK)) {
-            if ($env:ALLOW_UNSIGNED_RELEASE -eq 'true') {
-              if ((Get-Content desktop-electron/package.json | ConvertFrom-Json).version -ne '8.1.26') { throw 'Release exception version mismatch' }
-              Write-Warning 'desktop-v8.1.26 has no Authenticode publisher signature, like 8.1.25. Windows may show unknown publisher. Ed25519 update signing remains required.'
-            } else {
-              throw 'Production publication requires WINDOWS_CERTIFICATE_BASE64. Ed25519 update signing is not Windows publisher signing.'
-            }
+            throw 'Production publication requires WINDOWS_CERTIFICATE_BASE64. Ed25519 update signing is not Windows publisher signing.'
           }
 
       - name: 写入更新签名私钥（临时文件，用完即删）
@@ -89,7 +79,7 @@ jobs:
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           PUBLISH_RELEASE: ${{ startsWith(github.ref, 'refs/tags/desktop-v') || inputs.deploy == true }}
         run: |
-          if ($env:PUBLISH_RELEASE -eq 'true' -and !($env:ALLOW_UNSIGNED_RELEASE -eq 'true' -and [string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK))) {
+          if ($env:PUBLISH_RELEASE -eq 'true') {
             npx electron-builder --win --x64 -c.forceCodeSigning=true
           } else {
             npx electron-builder --win --x64
@@ -99,15 +89,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/desktop-v') || inputs.deploy == true
         working-directory: desktop-electron
         shell: pwsh
-        env:
-          WIN_CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
         run: |
-          if ($env:ALLOW_UNSIGNED_RELEASE -eq 'true' -and [string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK)) {
-            Write-Warning 'desktop-v8.1.26 publisher verification is unavailable: no Authenticode certificate is configured.'
-          } else {
-            $installer = Get-ChildItem dist/touliao-*-setup.exe | Select-Object -First 1
-            ./scripts/verify-authenticode.ps1 -Files @('dist/win-unpacked/touliao.exe', $installer.FullName)
-          }
+          $installer = Get-ChildItem dist/touliao-*-setup.exe | Select-Object -First 1
+          ./scripts/verify-authenticode.ps1 -Files @('dist/win-unpacked/touliao.exe', $installer.FullName)
 
       - name: 签名更新元数据 latest.yml
         working-directory: desktop-electron

@@ -1,6 +1,6 @@
 # 投聊 Windows 字体及日间／夜间界面检查
 
-仅调整 Windows。修正已提交到 `fix/windows-ui-20260918`，没有再发版，线上仍为 8.1.25；Android、iOS 和网站部署未改变。
+仅调整 Windows。修正已提交到 `fix/windows-ui-20260918`，检查后按用户要求发布为 Windows 8.1.26，部署到新加坡服务器；Android、iOS 和网站部署未改变。见 [8.1.26 发布记录](WINDOWS-RELEASE-8.1.26.md)。
 
 [交互预览](/home/ubuntu/touliao-windows-theme-review-20260918/preview.html)可切换极光紫、微信绿、企微蓝，比较日间／夜间的聊天、外观、个人设置、通讯录、右键菜单、转发、最小窗口登录及特大字号。
 
@@ -26,7 +26,7 @@
 
 - 字体与主题截图使用真实 Windows 中的 Chromium；安装包的 Electron 检查另行覆盖真实安装、六窗口快捷方式启动、账号隔离和最小窗口登录布局。聊天、注册和消息内容是隔离测试数据，不代表完整真实聊天、音频播放或通话验收。
 - 100%／125%／150% 为渲染像素倍率检查，不能代替用户机器上的 Windows 系统 DPI、ClearType 和辅助功能文字缩放验收。
-- 本轮修正尚未发布，当前已安装的 8.1.25 不会自动包含这些新增调整。
+- 本轮修正已随 Windows 8.1.26 发布；已安装的 8.1.25 需检查更新并重启安装。以上检查记录保留发布前验证结果，实际发布又独立完成 78 个主题场景、真实安装与线上下载校验。
 
 完整证据：`verification.json`、`windows/report.json`、`regression/report.json`、`layout-regression/metrics.json`、`scope-comparison.json`、`scope-check.json`、`windows-workflow.json`，以及构建／lint／单测日志。
 
