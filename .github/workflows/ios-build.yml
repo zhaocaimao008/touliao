@@ -93,7 +93,10 @@ jobs:
             -maximum-test-execution-time-allowance 300 \
             -only-testing:TouliaoTests \
             -resultBundlePath NativeReview.xcresult \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            CODE_SIGN_ENTITLEMENTS="$GITHUB_WORKSPACE/scripts/native-review/Simulator.entitlements" \
             | tee xcodebuild-test.log
 
       - name: Collect native simulator screenshots
