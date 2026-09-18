@@ -57,20 +57,28 @@ jobs:
             | tee xcodebuild.log
 
       # 选一台可用的 iOS 模拟器作 test 目标（xcodebuild test 不接受 generic 目标）。
-      # 取最后一个可用 iOS 设备（通常为较新系统版本）的 UDID。runner 自带 jq。
+      # 取最后一个可用 iPhone 模拟器的 UDID，避免在 iPad 兼容窗口中审阅手机布局。runner 自带 jq。
       - name: Pick a simulator
         id: sim
         run: |
           UDID=$(xcrun simctl list devices available -j \
-            | jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .value[].udid] | last')
+            | jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name | startswith("iPhone")) | .udid] | last')
           if [ -z "$UDID" ] || [ "$UDID" = "null" ]; then
             echo "No available iOS simulator found"; exit 1
           fi
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
           echo "Using simulator UDID: $UDID"
 
+      - name: Boot selected iPhone simulator
+        timeout-minutes: 5
+        run: |
+          xcrun simctl boot '${{ steps.sim.outputs.udid }}' || true
+          xcrun simctl bootstatus '${{ steps.sim.outputs.udid }}' -b
+          xcrun simctl list devices booted -j > ios/native-simulator.json
+
       # 单测门禁：含离线消息缓存 MsgCacheStore 语义基线（与 Web vitest / Android JUnit 三端对齐）。
       - name: Unit tests (TouliaoTests, iOS Simulator)
+        id: native_tests
         working-directory: ios
         run: |
           set -o pipefail
@@ -79,6 +87,10 @@ jobs:
             -scheme Touliao \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -configuration Debug \
+            -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 300 \
             -only-testing:TouliaoTests \
             -resultBundlePath NativeReview.xcresult \
             CODE_SIGNING_ALLOWED=NO \
@@ -91,6 +103,20 @@ jobs:
           if [ -d "$container/Documents/NativeUiReview" ]; then
             cp -R "$container/Documents/NativeUiReview" ios/NativeUiReview
           fi
+          if [ -d ios/NativeReview.xcresult ]; then
+            xcrun xcresulttool export attachments --path ios/NativeReview.xcresult --output-path ios/NativeAttachments
+          fi
+          if [ '${{ steps.native_tests.outcome }}' = 'success' ]; then
+            python3 - <<'PYREVIEW'
+          import json
+          from pathlib import Path
+          images = list(Path('ios/NativeUiReview').glob('*.png'))
+          result = {'environment': 'iPhone Simulator, native SwiftUI/UIKit', 'screenshots': len(images), 'hardware': False}
+          Path('ios/native-validation.json').write_text(json.dumps(result, indent=2) + '\n')
+          assert len(images) >= 75, 'Native screenshot files were not collected'
+          print(result)
+          PYREVIEW
+          fi
 
       - name: Upload build & test logs
         if: always()
@@ -100,6 +126,9 @@ jobs:
           path: |
             ios/xcodebuild.log
             ios/xcodebuild-test.log
+            ios/native-validation.json
+            ios/NativeAttachments/
+            ios/native-simulator.json
             ios/NativeUiReview/
             ios/NativeReview.xcresult/
           if-no-files-found: ignore
