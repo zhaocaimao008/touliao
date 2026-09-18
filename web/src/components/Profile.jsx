@@ -12,6 +12,7 @@ import { setIncomingRingtone } from '../utils/callTones';
 import { showConfirm, showToast } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
 import { timeoutSignal, resolveTenantCode } from '../utils/config';
+import { isWindowsDesktop } from '../utils/desktopPlatform';
 
 /* ─── 小工具 ─── */
 // role="button" 的 div 应同时支持 Enter 和空格触发（空格默认会滚动页面，需 preventDefault）
@@ -709,7 +710,7 @@ function AppearanceSettings({ onBack }) {
                 className={`wc-font-btn${fontSize === key ? ' active' : ''}`}
                 aria-pressed={fontSize === key}
                 onClick={() => setFontSize(key)}>
-                <span className="wc-font-preview" style={{ fontSize: size }}>A</span>
+                <span className="wc-font-preview" style={{ fontSize: size }}>{isWindowsDesktop() ? '字 Aa' : 'A'}</span>
                 <span className="wc-font-label">{label}</span>
               </button>
             ))}

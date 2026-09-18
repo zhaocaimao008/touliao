@@ -40,6 +40,19 @@ jobs:
         working-directory: desktop-electron
         run: npm ci
 
+      - name: Windows typography and day/night themes
+        env:
+          CHROMIUM_CHANNEL: chrome
+        run: node scripts/windows-theme-smoke.cjs
+
+      - name: Upload Windows theme review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-theme-review
+          path: artifacts/windows-themes
+          if-no-files-found: warn
+
       - name: Require publisher credentials for production release
         if: startsWith(github.ref, 'refs/tags/desktop-v') || inputs.deploy == true
         shell: pwsh
