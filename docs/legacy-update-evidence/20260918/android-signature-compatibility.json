@@ -1,0 +1,9 @@
+{
+  "environment": "API 29 native framework; actual compiled verifier classes",
+  "oldFlagsSigningInfoNull": true,
+  "bothFlagsSigningInfoPresent": true,
+  "oldVerifierAcceptedSameSigner": false,
+  "fixedVerifierAcceptedSameSigner": true,
+  "fixedVerifierAcceptedTamperedApk": false,
+  "physicalDevice": false
+}

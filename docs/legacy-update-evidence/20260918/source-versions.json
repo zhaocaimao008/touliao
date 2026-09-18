@@ -1,0 +1,226 @@
+[
+  {
+    "ref": "android-v8.1.6",
+    "version": "8.1.6",
+    "code": 68,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.7",
+    "version": "8.1.7",
+    "code": 69,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.8",
+    "version": "8.1.8",
+    "code": 70,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.9",
+    "version": "8.1.9",
+    "code": 71,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.10",
+    "version": "8.1.10",
+    "code": 72,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.11",
+    "version": "8.1.11",
+    "code": 73,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.12",
+    "version": "8.1.12",
+    "code": 74,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.13",
+    "version": "8.1.13",
+    "code": 75,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.14",
+    "version": "8.1.14",
+    "code": 76,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.15",
+    "version": "8.1.15",
+    "code": 77,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.16",
+    "version": "8.1.16",
+    "code": 78,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.17",
+    "version": "8.1.17",
+    "code": 79,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "android-v8.1.18",
+    "version": "8.1.18",
+    "code": 80,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "31a52c3b",
+    "version": "8.1.4",
+    "code": 66,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "96d64f69",
+    "version": "8.1.5",
+    "code": 67,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  },
+  {
+    "ref": "ec023264",
+    "version": "8.1.24",
+    "code": 81,
+    "url": [
+      "https://touliao.cc/downloads/touliao-android-version.json"
+    ],
+    "hashes": {
+      "core/update/UpdateChecker.kt": "abdb957e4fbd",
+      "core/update/ApkDownloader.kt": "6ea6b2ef01af",
+      "core/update/ApkInstaller.kt": "b1c1c95c4fb0",
+      "feature/update/UpdateViewModel.kt": "346ce19752c0"
+    }
+  }
+]

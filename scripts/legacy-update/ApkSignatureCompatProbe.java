@@ -49,7 +49,9 @@ public final class ApkSignatureCompatProbe {
             + "\"oldFlagsSigningInfoNull\":" + oldFlagsNull + ",\"bothFlagsSigningInfoPresent\":" + bothFlagsPresent
             + ",\"oldVerifierAcceptedSameSigner\":" + oldResult + ",\"fixedVerifierAcceptedSameSigner\":" + fixedResult
             + ",\"fixedVerifierAcceptedTamperedApk\":" + tamperedResult + ",\"physicalDevice\":false}");
-        if (!oldFlagsNull || !bothFlagsPresent || oldResult || !fixedResult || tamperedResult) {
+        // The currently published baseline will eventually contain this fix too.
+        // Record its behavior, but do not require a future baseline to stay broken.
+        if (!oldFlagsNull || !bothFlagsPresent || !fixedResult || tamperedResult) {
             throw new AssertionError("API 29 certificate compatibility regression failed");
         }
     }

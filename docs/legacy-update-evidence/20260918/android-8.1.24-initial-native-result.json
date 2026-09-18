@@ -1,0 +1,20 @@
+{
+  "environment": "Android API 29 native emulator",
+  "unmodifiedHistoricalApk": true,
+  "physicalDevice": false,
+  "productionAccountTested": false,
+  "testAccountApi": "isolated loopback fixture",
+  "updateNetwork": "unchanged historical production HTTPS endpoint",
+  "hotUpdate": false,
+  "passed": false,
+  "before": {
+    "versionCode": 81,
+    "versionName": "8.1.24",
+    "firstInstallTime": "2026-09-18 17:01:30",
+    "uid": "10116"
+  },
+  "discoveryAndNetworkRecovery": "passed",
+  "downloadedSha256": "6a7dde4ce989a41f525c365296c2047608c65cf652a1242cd2ce5a6ef58bc5b9",
+  "cachedWrongVersionRejectedAndRemoved": true,
+  "error": "UI element absent: ('Install', '安装', 'INSTALL') / None"
+}

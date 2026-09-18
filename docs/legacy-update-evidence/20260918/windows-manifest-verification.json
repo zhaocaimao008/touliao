@@ -1,0 +1,7 @@
+{
+  "mechanism": "Node crypto.verify Ed25519 with actual installed-8.1.26 public key",
+  "actualInstalledUpdateDownloadTest": false,
+  "validManifestAccepted": true,
+  "changedManifestRejected": true,
+  "changedSignatureRejected": true
+}
