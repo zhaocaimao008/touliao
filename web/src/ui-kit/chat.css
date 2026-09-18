@@ -37,7 +37,7 @@ html.touliao-ui body .wc-chat-header-name { font-size: 18px; font-weight: 600; }
 html.touliao-ui body .wc-chat-header-btn { width: 36px; height: 36px; min-width: 36px; color: var(--tl-readable-muted); border-radius: 8px; }
 html.touliao-ui body .wc-messages { padding: 20px 24px; }
 html.touliao-ui body .wc-msg-bubble { padding: 8px 12px; border-radius: 16px; font-size: var(--font-msg); line-height: 1.6; max-width: 560px; overflow-wrap: anywhere; box-shadow: none; }
-html.touliao-ui body .wc-msg-bubble.mine { background: var(--tl-message-outgoing) !important; color: var(--tl-message-outgoing-text) !important; border: 0; border-top-right-radius: 4px; }
+html.touliao-ui body .wc-msg-bubble.mine { background: var(--tl-message-outgoing) !important; color: var(--tl-message-outgoing-text) !important; border: 0; border-top-right-radius: 4px; box-shadow: none; }
 html.touliao-ui body .wc-msg-bubble.other { background: var(--tl-message-incoming); color: var(--tl-text); border: 1px solid var(--tl-border); border-top-left-radius: 4px; }
 html.touliao-ui body .wc-msg-bubble::after { display: none; }
 html.touliao-ui body .wc-msg-bubble.mine a { color: var(--tl-message-outgoing-text) !important; text-decoration: underline; text-underline-offset: 3px; }

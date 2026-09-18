@@ -241,7 +241,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               onClick={() => setShowAddFriend(true)}
             />
             <EntryRow
-              icon={<Icon name="circle-check" size={20} />}
+              icon={<Icon name="shield-ban" size={20} />}
               color="var(--icon-bg-neutral)" label={t('contacts.blacklist')} badge={0}
               onClick={() => { fetchBlocked(); setTab('blocked'); }}
             />

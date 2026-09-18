@@ -307,6 +307,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 贴底挂起态:尾部新增消息后置位,直到行高测量稳定(或兜底超时)才清除。
   // 期间收到 onHeightSettle 才补贴底,避免每帧盲滚导致最新消息抖动。
   const stickPendingRef = useRef(false);
+  const stickWorkRef = useRef({ raf: null, timer: null });
   // Item cache for flatItems - preserve object identity for unchanged messages
   const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
@@ -828,6 +829,19 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     return () => window.removeEventListener('touliao:remark-changed', handler);
   }, [conversation.type, conversation.otherUser?.id]);
 
+  // Pending layout work belongs to the view, not to a message status update.
+  // A fast ACK/error must not cancel the first frame that reveals the new row.
+  useEffect(() => {
+    const work = stickWorkRef.current;
+    return () => {
+      cancelAnimationFrame(work.raf);
+      clearTimeout(work.timer);
+      stickPendingRef.current = false;
+      autoScrollingRef.current = false;
+      lastStickSigRef.current = '';
+    };
+  }, []);
+
   // 发送/收到消息时自动跟随到底部。
   // 新消息行高由 ResizeObserver 异步测得，单次 scrollTo 会因高度未定而滚不到底，
   // 故用多帧 sticky 滚动持续贴底，直到高度测量稳定。
@@ -858,19 +872,23 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 新方案:尾部新增/替换时只贴一次底,把「贴底意图」记到 stickPendingRef;之后仅当
     // ResizeObserver 真正修正了行高(VirtualMessageList 的 onHeightSettle 回调)时,才再补贴
     // 一次。高度不再变化→不再有回调→不再滚动,从源头消除振荡。
+    const work = stickWorkRef.current;
+    cancelAnimationFrame(work.raf);
+    clearTimeout(work.timer);
     autoScrollingRef.current = true;
     stickPendingRef.current = true;
     const snap = () => {
+      if (!stickPendingRef.current || !stickBottomRef.current) return;
       const o = listOuterRef.current;
       if (!o) return;
+      // react-window owns the target offset. Writing the previous DOM scrollHeight
+      // here races its state update while unmeasured rows still use estimates.
       virtListRef.current?.scrollToLast();
-      o.scrollTop = o.scrollHeight;
     };
     // 首帧贴底(等 react-window 用新 itemCount 完成一次布局)
-    const raf = requestAnimationFrame(snap);
+    work.raf = requestAnimationFrame(snap);
     // 兜底:即使一直没有高度修正回调,也在 ~500ms 后解除挂起态,避免后续用户上滑看历史时被拽回底
-    const done = setTimeout(() => { stickPendingRef.current = false; autoScrollingRef.current = false; }, 500);
-    return () => { cancelAnimationFrame(raf); clearTimeout(done); autoScrollingRef.current = false; };
+    work.timer = setTimeout(() => { stickPendingRef.current = false; autoScrollingRef.current = false; }, 500);
   }, [messages]);
 
   // 行高被 ResizeObserver 修正后的回调:仅在「贴底挂起」时补贴一次底,使刚发的消息即使
@@ -881,7 +899,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const o = listOuterRef.current;
     if (!o) return;
     virtListRef.current?.scrollToLast();
-    o.scrollTop = o.scrollHeight;
   }, []);
 
   // Load more on scroll to top — RAF 节流，避免高频 scroll 事件触发多次 setState

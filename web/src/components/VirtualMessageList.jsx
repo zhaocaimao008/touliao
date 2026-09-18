@@ -84,7 +84,8 @@ const Row = memo(function Row({ index, style, data }) {
 
   return (
     <div style={style}>
-      <div ref={rowInnerRef} style={{ paddingLeft: 20, paddingRight: 20 }}>
+      {/* Contain child margins so narrow-screen spacing is included in measured height. */}
+      <div ref={rowInnerRef} style={{ display: 'flow-root', paddingLeft: 20, paddingRight: 20 }}>
         {item.type === 'divider'
           ? <TimeDivider time={item.time} />
           : <MessageItem item={item} cbRef={cbRef} measure={updateSize} />
@@ -111,38 +112,24 @@ const VirtualMessageList = forwardRef(function VirtualMessageList(
   const sizeFlusherRef = useRef(null);
   if (!sizeFlusherRef.current) sizeFlusherRef.current = createSizeFlusher(listRef, onSettleRef);
 
-  // When items array length changes (prepend/append), reset indices that shifted
+  // Cache measured heights by stable row identity, including across status updates.
+  // Clearing all heights on a fast ACK/error makes a long chat jump to estimates
+  // while the latest row is virtualized out of view. Reuse heights when rows move.
   const prevItemsRef = useRef(items);
   if (prevItemsRef.current !== items) {
-    // items 变化会重排索引，取消基于旧索引的挂起行高刷新，避免作用到错位的新列表。
-    sizeFlusherRef.current.cancel();
-    const prevLen = prevItemsRef.current.length;
-    const curLen = items.length;
-    // 整批替换(如切换会话):首尾 item 都对不上 → 旧高度缓存全失效,清空避免错位行高
-    const sameEnds = curLen > 0 && prevLen > 0
-      && items[0] === prevItemsRef.current[0]
-      && items[curLen - 1] === prevItemsRef.current[prevLen - 1];
-    if (curLen === prevLen && !sameEnds) {
-      sizeMapRef.current = {};
+    const previous = prevItemsRef.current;
+    const firstChanged = items.findIndex((item, index) => item.key !== previous[index]?.key);
+    if (firstChanged !== -1 || items.length !== previous.length) {
+      sizeFlusherRef.current.cancel();
+      const heights = new Map(previous.map((item, index) => [item.key, sizeMapRef.current[index]]));
+      const nextSizes = {};
+      items.forEach((item, index) => {
+        const height = heights.get(item.key);
+        if (height !== undefined) nextSizes[index] = height;
+      });
+      sizeMapRef.current = nextSizes;
+      // Include measured heights whose pending flush was cancelled during reindexing.
       listRef.current?.resetAfterIndex(0, false);
-    } else if (curLen !== prevLen) {
-      // On prepend: all indices shifted; clear cache to avoid wrong heights
-      if (curLen > prevLen && items[curLen - 1] === prevItemsRef.current[prevLen - 1]) {
-        // Last item is same → items were prepended
-        const diff = curLen - prevLen;
-        const newMap = {};
-        Object.keys(sizeMapRef.current).forEach(k => {
-          newMap[Number(k) + diff] = sizeMapRef.current[k];
-        });
-        sizeMapRef.current = newMap;
-        listRef.current?.resetAfterIndex(0, false);
-      } else if (items[0] !== prevItemsRef.current[0]) {
-        // 首个 item 变了但非「前插」→ 整批替换(切到消息数不同的会话),清空旧缓存
-        sizeMapRef.current = {};
-        listRef.current?.resetAfterIndex(0, false);
-      } else {
-        // 纯追加(尾部新增),首个 item 不变,已有缓存仍有效,不动
-      }
     }
     prevItemsRef.current = items;
   }

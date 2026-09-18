@@ -25,27 +25,44 @@ async function capture(page, name, errors) {
   const metrics = await page.evaluate(() => {
     const box = e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height, bottom: r.bottom }; };
     const rows = [...document.querySelectorAll('[data-testid^="conv-item-ui-"]')].filter(e => e.getBoundingClientRect().width).map(box);
+    const messageRows = [...document.querySelectorAll('.cw-msg-scroll > div > div > div')].map(box);
     const css = getComputedStyle(document.body);
     return {
       overflow: document.documentElement.scrollWidth > innerWidth,
+      windows: document.documentElement.classList.contains('windows-desktop'),
       theme: document.body.classList.contains('dark-mode') ? 'dark' : 'light',
       skin: document.body.dataset.skin,
       primary: css.getPropertyValue('--tl-primary').trim(),
       surface: css.getPropertyValue('--tl-surface').trim(),
-      rows,
+      rows, messageRows,
+      outgoingShadows: [...document.querySelectorAll('.wc-msg-bubble.mine')].map(e => getComputedStyle(e).boxShadow),
       icons: document.querySelectorAll('.tl-icon').length,
       composer: document.querySelector('.wc-input-area') ? box(document.querySelector('.wc-input-area')) : null,
       font: css.fontFamily,
     };
   });
   await page.screenshot({ path: path.join(out, name + '.png'), animations: 'disabled' });
+  if (process.env.UI_CONTRAST === '1') {
+    const { inspect } = require('./windows-theme-smoke.cjs');
+    const colors = await inspect(page);
+    metrics.contrastFailures = colors.texts.filter(t => t.critical && !t.disabled && !t.avatar && t.contrast !== null && t.contrast < 4.5);
+    metrics.fieldFailures = colors.fields.filter(t => t.contrast !== null && t.contrast < 4.5);
+    metrics.measuredTexts = colors.texts.filter(t => t.critical && !t.disabled && !t.avatar).length;
+  }
   report.cases.push({ name, ...metrics });
+  if (process.env.UI_CONTRAST === '1') {
+    assert.deepEqual(metrics.contrastFailures, [], name + ': text contrast');
+    assert.deepEqual(metrics.fieldFailures, [], name + ': field contrast');
+  }
   assert.deepEqual(errors, [], name + ': no runtime errors');
   assert.equal(metrics.overflow, false, name + ': no page overflow');
   for (let i = 1; i < metrics.rows.length; i++) assert.ok(metrics.rows[i - 1].bottom <= metrics.rows[i].y + .5, name + ': virtual rows do not overlap');
+  if (process.env.UI_BASELINE !== '1') for (let i = 1; i < metrics.messageRows.length; i++) assert.ok(metrics.messageRows[i - 1].bottom <= metrics.messageRows[i].y + .5, name + ': measured message rows do not overlap');
   if (process.env.UI_BASELINE !== '1') for (const row of metrics.rows) assert.equal(row.height, page.viewportSize().width < 768 ? 76 : 68, name + ': design row height');
   if (process.env.UI_BASELINE !== '1') {
     assert.equal(metrics.skin, 'touliao');
+    assert.ok(metrics.outgoingShadows.every(shadow => shadow === 'none'), name + ': outgoing bubbles use the flat design surface');
+    if (metrics.windows) assert.ok(metrics.font.startsWith('"Segoe UI"'), name + ': Windows font stack stays consistent in both themes');
     assert.equal(metrics.primary.toLowerCase(), metrics.theme === 'dark' ? '#7ca7ff' : '#2864f0', name + ': supplied primary token');
     assert.ok(metrics.icons > 0, name + ': supplied icons rendered');
   }

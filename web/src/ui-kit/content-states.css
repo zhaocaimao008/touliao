@@ -1,0 +1,60 @@
+html.touliao-ui body .moments-root { width: 100%; max-width: 900px; margin-inline: auto; background: var(--tl-background); }
+html.touliao-ui body .wc-moment-scroll { padding: 16px 24px; }
+html.touliao-ui body .wc-moment-card { padding: 24px; margin-bottom: 16px; gap: 16px; border: 1px solid var(--tl-border); border-radius: 12px; background: var(--tl-surface); box-shadow: none; }
+html.touliao-ui body .wc-moment-name { color: var(--tl-text); font-size: 14px; font-weight: 600; }
+html.touliao-ui body .wc-moment-text { font-size: 14px; line-height: 1.6; color: var(--tl-text); overflow-wrap: anywhere; }
+html.touliao-ui body .wc-moment-images { gap: 8px; }
+html.touliao-ui body .wc-moment-images img { border-radius: 12px; }
+html.touliao-ui body :is(.wc-moment-likes, .wc-moment-comments) { background: var(--tl-surface-secondary); color: var(--tl-text); border-radius: 8px; }
+html.touliao-ui body .wc-moment-action-btn { min-width: 44px; min-height: 36px; border-radius: 8px; color: var(--tl-readable-muted); gap: 6px; }
+html.touliao-ui body .wc-moment-action-btn.liked { color: var(--tl-readable-danger); background: var(--tl-danger-soft); }
+html.touliao-ui body .wc-moment-time { color: var(--tl-readable-muted); font-size: 12px; }
+html.touliao-ui body .wc-moment-notif-bar { background: var(--tl-surface); border-color: var(--tl-border); min-height: 52px; }
+html.touliao-ui body :is(.wc-moment-editor, .wc-moment-composer) { background: var(--tl-surface); color: var(--tl-text); border: 1px solid var(--tl-border); border-radius: 12px; box-shadow: none; }
+html.touliao-ui body .wc-moment-composer { min-height: 64px; color: var(--tl-readable-muted); }
+html.touliao-ui body .wc-moment-editor { padding: 20px; }
+html.touliao-ui body .wc-moment-editor textarea { min-height: 140px; color: var(--tl-text); background: var(--tl-surface); font-size: 14px; line-height: 1.6; }
+html.touliao-ui body .wc-moment-editor-actions { flex-wrap: wrap; gap: 8px; }
+html.touliao-ui body :is(.wc-moment-vis-select, .wc-moment-comment-field) { min-height: 40px; padding: 8px 12px; background: var(--tl-surface-secondary); color: var(--tl-text); border: 1px solid var(--tl-border-strong); border-radius: 12px; }
+html.touliao-ui body :is(.wc-moment-img-btn, .wc-moment-editor-cancel, .wc-moment-media-modes button) { min-height: 36px; border-radius: 8px; color: var(--tl-readable-muted); }
+html.touliao-ui body .wc-moment-img-btn { display: inline-flex; align-items: center; gap: 8px; }
+html.touliao-ui body .wc-moment-media-modes button.active { color: var(--tl-primary); background: var(--tl-primary-soft); border-color: var(--tl-primary); }
+html.touliao-ui body :is(.wc-moment-editor-publish, .wc-moment-comment-submit) { min-height: 36px; border-radius: 8px; background: var(--tl-primary); color: var(--tl-primary-foreground); font-size: 14px; box-shadow: none; }
+html.touliao-ui body :is(.wc-moment-editor-publish, .wc-moment-comment-submit):disabled { background: var(--tl-surface-hover); color: var(--tl-readable-muted); opacity: 1; cursor: not-allowed; }
+html.touliao-ui body .tl-collections { width: 100%; max-width: 900px; margin-inline: auto; padding: 0 24px 24px; }
+html.touliao-ui body .tl-collection-filters { background: var(--tl-background) !important; padding: 16px 0 !important; border-color: var(--tl-border) !important; }
+html.touliao-ui body .tl-collection-filters input { min-height: 40px; color: var(--tl-text); background: var(--tl-surface); border-color: var(--tl-border-strong) !important; }
+html.touliao-ui body .tl-collection-filters button[aria-pressed] { min-height: 36px; padding: 6px 12px !important; border-radius: 8px !important; color: var(--tl-readable-muted) !important; background: var(--tl-surface) !important; }
+html.touliao-ui body .tl-collection-filters button[aria-pressed='true'] { color: var(--tl-primary) !important; background: var(--tl-primary-soft) !important; border-color: var(--tl-primary) !important; }
+html.touliao-ui body .tl-collection-card { margin-top: 16px; padding: 20px !important; background: var(--tl-surface); border: 1px solid var(--tl-border) !important; border-radius: 12px; }
+html.touliao-ui body .tl-group-avatar { border-radius: 12px !important; }
+html.touliao-ui body .tl-group-avatar-cell { background: var(--tl-primary-soft) !important; }
+html.touliao-ui body .tl-group-avatar-cell span { color: var(--tl-primary) !important; }
+html.touliao-ui body .wc-msg-file-icon { color: var(--tl-primary); }
+html.touliao-ui body :is(.wc-upload-bar, .wc-net-banner, .wc-toast) { font-size: 14px; line-height: 1.6; border-radius: 12px; box-shadow: var(--tl-shadow-popover); }
+html.touliao-ui body .wc-upload-bar-progress { background: var(--tl-primary-soft); color: var(--tl-primary); }
+html.touliao-ui body :is(.wc-upload-error-text, .wc-upload-icon-fail, .wc-msg-status-error-icon) { color: var(--tl-readable-danger); }
+html.touliao-ui body .wc-upload-bar-error { background: var(--tl-danger-soft); color: var(--tl-readable-danger); }
+html.touliao-ui body :is(.wc-retry-btn, .wc-cancel-upload-btn) { min-height: 36px; border-radius: 8px; }
+html.touliao-ui body :is(.wc-state-title, .wc-state-text, .wc-empty, .cl-empty-text) { color: var(--tl-readable-muted); }
+html.touliao-ui body .wc-skel { background: var(--tl-surface-hover); }
+@media (max-width: 767px) {
+  html.touliao-ui body .wc-moment-scroll { padding: 16px; }
+  html.touliao-ui body .wc-moment-card { padding: 16px; gap: 12px; }
+  html.touliao-ui body :is(.wc-moment-name, .wc-moment-text, .wc-moment-editor textarea) { font-size: 16px; }
+  html.touliao-ui body .wc-moment-editor { padding: 16px; }
+  html.touliao-ui body :is(.wc-moment-action-btn, .wc-moment-img-btn, .wc-moment-editor-cancel, .wc-moment-editor-publish, .wc-moment-vis-select) { min-height: 44px; }
+  html.touliao-ui body .tl-collections { padding-inline: 16px; }
+}
+/* Inline legacy colors are scoped to these retained controls. */
+html.touliao-ui body .tl-collection-filters button:not([aria-pressed]) { color: var(--tl-text) !important; background: var(--tl-surface-secondary) !important; min-width: 32px; min-height: 32px; }
+html.touliao-ui body .tl-call-log { --color-badge: var(--tl-readable-danger); }
+html.touliao-ui body .tl-collections { --color-badge: var(--tl-readable-danger); }
+html.touliao-ui body :is(.wc-sidebar-badge, .wc-chat-item-badge, .cl-entry-badge, .m-tab-badge, .wc-moment-notif-badge) { background: var(--tl-readable-danger); color: var(--tl-primary-foreground); font-size: 12px; min-width: 18px; min-height: 18px; height: 18px; line-height: 18px; padding-inline: 4px; }
+html.touliao-ui body .wc-toast { background: var(--tl-surface); color: var(--tl-text); border: 1px solid var(--tl-border-strong); }
+html.touliao-ui body .wc-toast.error { background: var(--tl-danger-soft); border-color: var(--tl-readable-danger); }
+html.touliao-ui body .wc-toast.success { background: var(--tl-success-soft); border-color: var(--tl-success); }
+html.touliao-ui body .wc-net-banner { background: var(--tl-warning-soft); color: var(--tl-text); border: 1px solid var(--tl-warning); }
+html.touliao-ui body .wc-net-banner-dot { background: var(--tl-warning); }
+html.touliao-ui body .wc-net-banner.restored { background: var(--tl-success-soft); border-color: var(--tl-success); }
+html.touliao-ui body .wc-net-banner.restored .wc-net-banner-dot { background: var(--tl-success); }

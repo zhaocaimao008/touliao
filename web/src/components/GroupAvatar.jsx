@@ -11,7 +11,7 @@ function GroupGridCell({ member = {}, cellSize }) {
   const [prevAvatar, setPrevAvatar] = useState(avatarUrl);
   if (avatarUrl !== prevAvatar) { setPrevAvatar(avatarUrl); setErr(false); }
   return (
-    <div style={{ width: cellSize, height: cellSize, borderRadius: 'var(--radius-xs)', overflow: 'hidden', background: getColor(member.username || '?'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="tl-group-avatar-cell" style={{ width: cellSize, height: cellSize, borderRadius: 'var(--radius-xs)', overflow: 'hidden', background: getColor(member.username || '?'), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {member.avatar && !err
         ? <img loading="lazy" src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setErr(true)} />
         : <span style={{ fontSize: cellSize * 0.45, fontWeight: 600, color: 'var(--text-inverse)' }}>{(member.username || '?')[0]}</span>}
@@ -37,7 +37,7 @@ export function GroupAvatar({ members = [], size = 'lg', avatar = '' }) {
   const grid = n <= 4 ? 2 : 3;
   const cellSize = Math.floor((px - (grid + 1) * 2) / grid);
   return (
-    <div style={{ width: px, height: px, borderRadius: Math.max(3, Math.round(px * 0.13)), background: 'var(--bg-input-search)', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
+    <div className="tl-group-avatar" style={{ width: px, height: px, borderRadius: Math.max(3, Math.round(px * 0.13)), background: 'var(--bg-input-search)', display: 'grid', overflow: 'hidden', gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`, gap: 2, padding: 2, flexShrink: 0 }}>
       {members.slice(0, grid * grid).map((m, i) => (
         <GroupGridCell key={m.id ?? m.username ?? i} member={m} cellSize={cellSize} />
       ))}

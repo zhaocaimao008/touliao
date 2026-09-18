@@ -131,9 +131,9 @@ export default function Collections() {
   const TYPES = [['', t('coll.typeAll')], ['text', t('coll.typeText')], ['image', t('coll.typeImage')], ['file', t('coll.typeFile')], ['video', t('coll.typeVideo')]];
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
+    <div className="tl-collections" style={{ height: '100%', overflowY: 'auto' }}>
       {/* 搜索栏 + 类型过滤（对齐后端 /collections/search 的 q + type） */}
-      <div style={{ padding: '10px 14px', position: 'sticky', top: 0, background: 'var(--bg-primary, #fff)', zIndex: 1, borderBottom: '1px solid var(--border-color)' }}>
+      <div className="tl-collection-filters" style={{ padding: '10px 14px', position: 'sticky', top: 0, background: 'var(--bg-primary, #fff)', zIndex: 1, borderBottom: '1px solid var(--border-color)' }}>
         <div style={{ position: 'relative' }}>
           <input data-testid="collection-search-input" value={query} onChange={e => setQuery(e.target.value)}
             placeholder={t('coll.searchPlaceholder')} aria-label={t('coll.searchAriaLabel')}
@@ -145,7 +145,7 @@ export default function Collections() {
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {TYPES.map(([val, label]) => (
-            <button key={val || 'all'} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
+            <button key={val || 'all'} aria-pressed={typeFilter === val} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
               style={{ fontSize: 'var(--text-sm)', padding: '11px 12px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
                 border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center',
                 background: typeFilter === val ? 'var(--green)' : 'transparent',
@@ -167,7 +167,7 @@ export default function Collections() {
         </div>
       ) : (
         shown.map(c => (
-          <div key={c.id} data-testid="collection-item" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)' }}>
+          <div key={c.id} className="tl-collection-card" data-testid="collection-item" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)' }}>
             <div style={{ marginBottom: 8 }}>{renderContent(c)}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>{formatDate(c.created_at)}</span>

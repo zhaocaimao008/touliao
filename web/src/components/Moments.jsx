@@ -1,3 +1,4 @@
+import Icon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -168,13 +169,14 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
           <span className="wc-moment-time">{ago(m.created_at)}</span>
           <button
             className={`wc-moment-action-btn${m.liked ? ' liked' : ''}`}
+            aria-pressed={!!m.liked} aria-label={t('moments.like')}
             onClick={() => { if (!m.liked) { setLikePop(true); setTimeout(() => setLikePop(false), 360); } onLike(m); }}
           >
-            <svg viewBox="0 0 24 24" className={likePop ? 'wc-like-pop' : undefined}><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <Icon name="heart" size={18} className={likePop ? 'wc-like-pop' : undefined} />
             {m.likeCount > 0 ? m.likeCount : t('moments.like')}
           </button>
-          <button className="wc-moment-action-btn" onClick={() => setCommenting(v => !v)}>
-            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+          <button className="wc-moment-action-btn" aria-label={t('moments.comment')} onClick={() => setCommenting(v => !v)}>
+            <Icon name="message-circle" size={18} />
             {m.commentCount > 0 ? m.commentCount : t('moments.comment')}
           </button>
         </div>
@@ -182,7 +184,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
         {/* 点赞者 */}
         {m.likes?.length > 0 && (
           <div className="wc-moment-likes">
-            <span className="wc-moment-heart">♥ </span>
+            <Icon name="heart" size={14} className="wc-moment-heart" />
             {m.likes.map(l => l.username).join('、')}
           </div>
         )}
@@ -597,7 +599,7 @@ export default function Moments() {
       {/* 互动通知入口 */}
       <div className="wc-moment-notif-bar" onClick={openNotif} role="button" tabIndex={0}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNotif(); } }}>
-        <span className="wc-moment-notif-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg></span>
+        <span className="wc-moment-notif-icon"><Icon name="bell" size={18} /></span>
         <span className="wc-moment-notif-label">{t('moments.notifications')}</span>
         {notifCount > 0 && <span className="wc-moment-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
         <div className="moments-spacer" />
@@ -764,20 +766,20 @@ export default function Moments() {
             <div className="wc-moment-editor-actions">
               {mediaMode === 'images' ? <button className="wc-moment-img-btn" onClick={() => imgInputRef.current?.click()}
                 disabled={images.length >= 9} title={t('moments.addImage')} aria-label={`${t('moments.addImage')}${images.length > 0 ? t('moments.addImageCountSuffixTemplate').replace('{n}', images.length) : ''}`}>
-                🖼 {t('moments.imagesLabel')}{images.length > 0 ? ` (${images.length}/9)` : ''}
+                <Icon name="image" size={18} /> {t('moments.imagesLabel')}{images.length > 0 ? ` (${images.length}/9)` : ''}
               </button> : <button className="wc-moment-img-btn" type="button" onClick={() => videoInputRef.current?.click()} disabled={!!video}>
-                🎬 {video ? t('moments.videoSelected') : t('moments.selectVideo')}
+                <Icon name="video" size={18} /> {video ? t('moments.videoSelected') : t('moments.selectVideo')}
               </button>}
               <input ref={imgInputRef} type="file" accept="image/*" multiple className="moments-hidden-input"
                 onChange={handleImagePick} />
               <input ref={videoInputRef} type="file" accept="video/*" className="moments-hidden-input" onChange={handleVideoPick} />
               <select className="wc-moment-vis-select" value={visibility}
                 onChange={e => onVisibilityChange(e.target.value)} title={t('moments.whoCanSee')}>
-                <option value="all">🌐 {t('moments.visPublic')}</option>
-                <option value="friends">👥 {t('moments.visFriendsOnly')}</option>
-                <option value="private">🔒 {t('moments.visPrivate')}</option>
-                <option value="include">✅ {t('moments.visInclude')}</option>
-                <option value="exclude">🚫 {t('moments.visExclude')}</option>
+                <option value="all">{t('moments.visPublic')}</option>
+                <option value="friends">{t('moments.visFriendsOnly')}</option>
+                <option value="private">{t('moments.visPrivate')}</option>
+                <option value="include">{t('moments.visInclude')}</option>
+                <option value="exclude">{t('moments.visExclude')}</option>
               </select>
               {(visibility === 'include' || visibility === 'exclude') && (
                 <button className="wc-moment-img-btn" type="button"

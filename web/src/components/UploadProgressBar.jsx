@@ -1,3 +1,4 @@
+import Icon from '../ui-kit/Icon';
 import React, { memo } from 'react';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -19,7 +20,7 @@ function UploadProgressBar({ uploadState, onCancel }) {
     >
       {uploadState.status === 'uploading' ? (
         <>
-          <span className="wc-upload-icon wc-upload-icon-ok">📤</span>
+          <span className="wc-upload-icon wc-upload-icon-ok"><Icon name="arrow-down-to-line" style={{ transform: 'rotate(180deg)' }} /></span>
           <div className="wc-upload-body">
             <div className="wc-upload-name">
               {uploadState.name} · {uploadState.progress}%
@@ -31,7 +32,7 @@ function UploadProgressBar({ uploadState, onCancel }) {
         </>
       ) : (
         <>
-          <span className="wc-upload-icon wc-upload-icon-fail">❌</span>
+          <span className="wc-upload-icon wc-upload-icon-fail"><Icon name="circle-alert" /></span>
           <div className="wc-upload-error-text">
             {uploadState.errorMsg || t('chat.uploadFailed')}
           </div>

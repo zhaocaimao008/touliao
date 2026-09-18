@@ -122,10 +122,11 @@ html.touliao-ui body.dark-mode:is(body, [data-skin]) {
   --info-banner-fg: var(--tl-primary);
   --info-banner-border: var(--tl-border);
   font-family: var(--font);
+  line-height: var(--lh-body);
   color: var(--tl-text);
   background: var(--tl-background);
 }
-html.touliao-ui.windows-desktop body { --font-sans: var(--tl-font-windows); }
+html.touliao-ui.windows-desktop body:is(body, .dark-mode) { --font-sans: var(--tl-font-windows); }
 
 /* Preserve the three existing selectable palettes; the new default is 投聊蓝. */
 html.touliao-ui body:not([data-skin]) { --tl-primary: #5943c6; --tl-primary-hover: #4934b0; --tl-primary-soft: #f1effd; --tl-message-outgoing: #5a47d6; }

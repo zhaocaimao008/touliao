@@ -25,12 +25,12 @@ const ChevronRight = () => (
   <IcoBack className="wc-chevron" />
 );
 
-function Toggle({ checked, onChange, disabled }) {
+function Toggle({ checked, onChange, disabled, 'aria-label': ariaLabel }) {
   return (
     <button type="button" className={`wc-switch${checked ? ' on' : ''}`}
       onClick={e => { e.stopPropagation(); if (!disabled) onChange?.(!checked); }}
       disabled={disabled}
-      aria-pressed={checked}>
+      aria-pressed={checked} aria-label={ariaLabel}>
       <span />
     </button>
   );
@@ -73,7 +73,7 @@ function CRow({ icon, bg, label, value, desc, onClick, right, danger }) {
   return (
     <div className={`wc-crow${onClick ? ' wc-crow-clickable' : ''}`}
       onClick={onClick}
-      role="button" tabIndex={onClick ? 0 : undefined}
+      role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? activateOnKey(onClick) : undefined}>
       {icon && (
         <div className="wc-crow-icon" style={{ background: bg }}>
@@ -85,7 +85,7 @@ function CRow({ icon, bg, label, value, desc, onClick, right, danger }) {
         {desc && <div className="wc-crow-desc">{desc}</div>}
       </div>
       {value != null && <span className={`wc-crow-value${onClick ? ' wc-crow-value-gap' : ''}`}>{value}</span>}
-      {right}
+      {React.isValidElement(right) && right.type === Toggle ? React.cloneElement(right, { 'aria-label': label }) : right}
       {onClick && !right && <ChevronRight />}
     </div>
   );

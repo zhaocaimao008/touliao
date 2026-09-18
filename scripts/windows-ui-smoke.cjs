@@ -33,6 +33,7 @@ const server = http.createServer((req, res) => {
 });
 async function fixture(browser, base, { platform = 'win32', width = 1200, height = 800, skin = 'aurora', theme = 'light', authenticated = true, font = 'normal', onSocketEvent, messageReply } = {}) {
   const sockets = new Set();
+  let socketBlocked = false;
   const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: 'block' });
   await context.addInitScript(({ platform, base, skin, theme, font }) => {
     localStorage.setItem('wc_skin', skin);
@@ -47,6 +48,7 @@ async function fixture(browser, base, { platform = 'win32', width = 1200, height
     }
   }, { platform, base, skin, theme, font });
   await context.routeWebSocket(/.*/, ws => {
+    if (socketBlocked) { ws.close(); return; }
     sockets.add(ws);
     ws.send('0' + JSON.stringify({ sid: 'ui-review', upgrades: [], pingInterval: 60000, pingTimeout: 60000 }));
     ws.onMessage(data => {
@@ -91,7 +93,7 @@ async function fixture(browser, base, { platform = 'win32', width = 1200, height
   await page.goto(base);
   await (authenticated ? page.getByTestId('nav-tab-chats') : page.getByTestId('login-phone-input')).waitFor();
   await page.evaluate(() => document.fonts.ready);
-  return { context, page, errors, emitSocket: (event, payload) => { for (const ws of sockets) ws.send('42' + JSON.stringify([event, payload])); } };
+  return { context, page, errors, disconnectSocket: () => { socketBlocked = true; for (const ws of sockets) ws.close(); }, emitSocket: (event, payload) => { for (const ws of sockets) ws.send('42' + JSON.stringify([event, payload])); } };
 }
 async function capture(page, name, errors) {
   await page.waitForTimeout(160);

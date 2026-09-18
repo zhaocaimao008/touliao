@@ -1,3 +1,4 @@
+import Icon from '../ui-kit/Icon';
 import React, { memo } from 'react';
 import Avatar from './Avatar';
 import { mediaUrl, getThumbUrl, useMediaCredentials } from '../utils/url';
@@ -161,7 +162,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 role="button" tabIndex={0} aria-label={t('messageItem.sendFailedRetry')}
                 onClick={() => cbs.retryMessage(msg)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.retryMessage(msg); } }}
-              >❗</div>
+              ><Icon name="circle-alert" size={20} /></div>
             ) : isLastMine && convType === 'private' ? (
               showRead
                 ? <div className="wc-msg-read wc-msg-status-read" data-testid="msg-read-status">✓✓ {t('messageItem.read')}</div>
@@ -317,9 +318,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                    }}
                    className="wc-msg-file-link" data-testid="msg-file">
                   <div className="wc-msg-file-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'var(--brand-primary)' }}>
-                      <path d="M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm8 1.5V8h4.5L14 3.5z" />
-                    </svg>
+                    <Icon name="file-text" size={28} />
                   </div>
                   <div>
                     <div className="wc-msg-file-name">{msg.content}</div>

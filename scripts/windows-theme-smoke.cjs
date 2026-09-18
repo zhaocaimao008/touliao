@@ -227,7 +227,7 @@ async function inspect(page) {
 }
 
 const critical =
-  ".wc-sidebar-label,.wc-sidebar-badge,.wc-chat-item-name,.wc-chat-item-preview,.wc-chat-item-time,.wc-chat-item-draft,.wc-msg-bubble,.wc-msg-time,.wc-msg-read,.wc-send-btn,.wc-page-header-back,.wc-crow-label,.wc-crow-desc,.wc-crow-value,.profile-appearance-label,.wc-font-preview,.wc-font-label,.profile-font-demo-text,.auth-link,.auth-field-label,.auth-submit,.auth-footer,.fwd-tab,.fwd-preview-label,.fwd-footer-count,.fwd-btn,.wc-ctx-item,.wc-logout-btn,.wc-save-btn,.wc-shortcut-label,.wc-shortcut-hint,.profile-shortcut-label,.profile-shortcut-desc";
+  ".wc-sidebar-label,.wc-sidebar-badge,.wc-chat-item-name,.wc-chat-item-preview,.wc-chat-item-time,.wc-chat-item-draft,.wc-msg-bubble,.wc-msg-time,.wc-msg-read,.wc-send-btn,.wc-page-header-back,.wc-crow-label,.wc-crow-desc,.wc-crow-value,.profile-appearance-label,.wc-font-preview,.wc-font-label,.profile-font-demo-text,.auth-link,.auth-field-label,.auth-submit,.auth-footer,.fwd-tab,.fwd-preview-label,.fwd-footer-count,.fwd-btn,.wc-ctx-item,.wc-logout-btn,.wc-save-btn,.wc-shortcut-label,.wc-shortcut-hint,.profile-shortcut-label,.profile-shortcut-desc,.wc-contact-item-name,.wc-contact-item-sub,.req-name,.req-msg,.req-accept,.req-reject,.up-name,.up-sub,.gi-label,.gi-meta,.gi-name,.gi-sec-tit,.gi-mg-label,.gi-mg-desc,.gs-name,.gs-sub,.wc-moment-name,.wc-moment-text,.wc-moment-time,.wc-moment-action-btn,.wc-moment-editor-publish,.wc-moment-comment-submit,.tl-collection-card,.tl-collection-filters,.wc-device-name,.wc-device-info,.wc-badge-current,.chatfiles-info-name,.chatfiles-info-meta,.tl-call-log,.auth-note,.wc-upload-bar,.wc-net-banner,.wc-toast";
 async function check(page, name, errors, { screenshot = true } = {}) {
   await page.waitForTimeout(220);
   await page.evaluate(() => document.fonts.ready);
@@ -353,7 +353,7 @@ async function appearance(page) {
   await page.getByText("外观", { exact: true }).click();
   await page.locator(".wc-appearance-btn").first().waitFor();
 }
-(async () => {
+async function run() {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch({
@@ -577,8 +577,11 @@ async function appearance(page) {
       JSON.stringify(report, null, 2) + "\n",
     );
   }
-})().catch((error) => {
+}
+if (require.main === module) run().catch((error) => {
   server.close();
   console.error(error);
   process.exitCode = 1;
 });
+
+module.exports = { inspect };
