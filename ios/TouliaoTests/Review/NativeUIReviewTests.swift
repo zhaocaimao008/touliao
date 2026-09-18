@@ -118,13 +118,15 @@ final class NativeUIReviewTests: XCTestCase {
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: width, height: 844)
         window.overrideUserInterfaceStyle = dark ? .dark : .light
-        let content = NavigationStack { view }.environmentObject(session!)
+        let content = NavigationStack { view }.tint(.vxinBrand).environmentObject(session!)
             .environment(\.colorScheme, dark ? .dark : .light)
             .environment(\.dynamicTypeSize, large ? .accessibility3 : .large)
         let host = UIHostingController(rootView: content)
         window.rootViewController = host
         window.makeKeyAndVisible()
         try await Task.sleep(nanoseconds: 700_000_000)
+        host.view.endEditing(true)
+        try await Task.sleep(nanoseconds: 350_000_000)
         if name.hasPrefix("chat-") {
             let messages = MsgCacheStore.shared.load("review-chat")
             XCTAssertTrue(messages.contains { $0.content == "收到，稍后把文件发给你。" }, "Chat rendering requires successfully loaded history")
