@@ -1,0 +1,26 @@
+{
+  "commit": "9733b33199c2587740fca0486cd0bc6e597cc7af",
+  "previous": {
+    "versionCode": 81,
+    "versionName": "8.1.24",
+    "url": "https://touliao.cc/downloads/touliao-android-latest.apk",
+    "notes": "修复添加和切换账号后的推送归属、通知跳转与通话清理问题。",
+    "sha256": "0631c12bd21cd7abd1518d4357b8f617bbe65c699b4fe82b27ab4deeb3568763"
+  },
+  "release": {
+    "versionCode": 82,
+    "versionName": "8.1.25",
+    "url": "https://touliao.cc/downloads/touliao-android-8.1.25.apk",
+    "notes": "统一主题、字体、图标和聊天等原生界面，改善深浅模式、键盘与大字号布局。",
+    "sha256": "6a7dde4ce989a41f525c365296c2047608c65cf652a1242cd2ce5a6ef58bc5b9"
+  },
+  "backup": "/var/www/downloads/.release-backups/android/35364703651-1",
+  "previousApkSha256": "0631c12bd21cd7abd1518d4357b8f617bbe65c699b4fe82b27ab4deeb3568763",
+  "previousManifestSha256": "0445cb1f459d2feb7277affd1e18841b033cd555090bb75b6642df643e71371e",
+  "changedPublicEntries": [
+    "touliao-android-latest.apk",
+    "touliao-android-version.json",
+    "touliao-android-8.1.25.apk",
+    "touliao-android-8.1.24.apk"
+  ]
+}
