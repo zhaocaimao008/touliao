@@ -315,12 +315,14 @@ fun ChatScreen(
     // 被踢/群解散 → 自动返回
     LaunchedEffect(state.closed) { if (state.closed) onBack() }
 
+    val compactHeader = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f ||
+        androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 380
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text(state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"))
+                        Text(state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         if (state.peerTyping) {
                             Text("对方正在输入…", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = VxinGreen)
                         }
@@ -332,6 +334,7 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    if (!compactHeader) {
                     IconButton(onClick = { viewModel.openSearch() }, modifier = Modifier.testTag("chat-search-btn").semantics { contentDescription = "搜索" }) { com.touliao.app.ui.DesignGlyph("🔍", style = MaterialTheme.typography.titleMedium) }
                     // 群聊：语音/视频按钮受后台开关控制（关闭即隐藏）；私聊不受影响
                     if (!viewModel.isGroup || state.groupVoiceCallEnabled) {
@@ -345,10 +348,23 @@ fun ChatScreen(
                             Icon(Icons.Filled.MoreVert, contentDescription = "群聊信息")
                         }
                     }
-                    // 聊天背景设置
+                    }
+                    // Compact headers keep the title readable and expose every existing action in the menu.
                     Box {
-                        IconButton(onClick = { showChatMenu = true }, modifier = Modifier.semantics { contentDescription = "聊天背景" }) { com.touliao.app.ui.DesignGlyph("🖼", style = MaterialTheme.typography.titleMedium) }
+                        IconButton(onClick = { showChatMenu = true }, modifier = Modifier.semantics { contentDescription = "聊天选项" }) { Icon(com.touliao.app.ui.DesignIcons.Ellipsis, contentDescription = null, tint = VxinTextSecondary) }
                         DropdownMenu(expanded = showChatMenu, onDismissRequest = { showChatMenu = false }) {
+                            if (compactHeader) {
+                                DropdownMenuItem(text = { Text("搜索聊天记录") }, onClick = { showChatMenu = false; viewModel.openSearch() })
+                                if (!viewModel.isGroup || state.groupVoiceCallEnabled) {
+                                    DropdownMenuItem(text = { Text("语音通话") }, onClick = { showChatMenu = false; launchCall(false) })
+                                }
+                                if (!viewModel.isGroup || state.groupVideoCallEnabled) {
+                                    DropdownMenuItem(text = { Text("视频通话") }, onClick = { showChatMenu = false; launchCall(true) })
+                                }
+                                if (viewModel.isGroup) {
+                                    DropdownMenuItem(text = { Text("群聊信息") }, onClick = { showChatMenu = false; onOpenGroupInfo(viewModel.conversationId) })
+                                }
+                            }
                             DropdownMenuItem(text = { Text(if (state.background.isBlank()) "设置聊天背景" else "更换聊天背景") }, onClick = {
                                 showChatMenu = false; backgroundPicker.launch("image/*")
                             })

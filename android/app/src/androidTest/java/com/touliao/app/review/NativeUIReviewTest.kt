@@ -114,6 +114,20 @@ class NativeUIReviewTest {
         Assert.assertFalse(ReviewModule.requests.any { it.startsWith("POST /api/auth/login") })
     }
 
+    @Test fun compactChatActionsRemainAvailable() {
+        compose.runOnIdle { screen.value = "chat"; dark.value = true; large.value = true }
+        settle()
+        compose.onNodeWithContentDescription("聊天选项").performClick()
+        for (label in listOf("搜索聊天记录", "语音通话", "视频通话", "聊天文件")) {
+            compose.onNodeWithText(label).assertExists()
+        }
+        compose.onNodeWithText("聊天文件").performScrollTo().assertIsDisplayed()
+        snapshot("chat-menu-dark-large-text")
+        androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithText("搜索聊天记录").assertDoesNotExist()
+        compose.onNodeWithTag("chat-msg-input").assertExists()
+    }
+
     private fun settle() {
         compose.waitForIdle()
         // Native asynchronous repositories complete against in-process responses.
