@@ -9,6 +9,9 @@ test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1
 adb root
 adb wait-for-device
 bash scripts/android-startup-smoke.sh "$previous" "$output/before"
+if [ -f scripts/legacy-update/ApkSignatureCompatProbe.java ]; then
+  bash scripts/legacy-update/run-signature-compat-probe.sh "$previous" "$release" "$output"
+fi
 adb shell am force-stop com.touliao.app
 uid_before=$(adb shell stat -c '%u' /data/user/0/com.touliao.app | tr -d '\r')
 [[ "$uid_before" =~ ^[0-9]+$ ]]

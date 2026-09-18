@@ -190,9 +190,15 @@ class ApkInstaller @Inject constructor(
 
     private fun getApkSignatures(pm: PackageManager, apkFile: File): List<Signature>? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // Android 9/10 的 getPackageArchiveInfo 仅在 GET_SIGNATURES 置位时
+            // 才 collectCertificates；只传新标志会得到 null signingInfo，误报签名不同。
+            // 同时请求两个标志以触发真正的证书校验，仍只比较当前 APK contents signers，
+            // 不回退信任历史签名，也不放行任何读取/验证失败。
+            @Suppress("DEPRECATION")
+            val signingFlags = PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
             val info: PackageInfo = pm.getPackageArchiveInfo(
                 apkFile.absolutePath,
-                PackageManager.GET_SIGNING_CERTIFICATES,
+                signingFlags,
             ) ?: return null
             info.signingInfo?.apkContentsSigners?.toList() ?: return null
         } else {
