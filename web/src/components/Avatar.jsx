@@ -62,8 +62,9 @@ export default memo(function Avatar({ src, name = '', size = 'md', style = {}, o
       {showImg
         ? <>
             {/* 字母垫底：图片加载出来前透出彩色字母而非空白，加载完被图覆盖（无 opacity 切换，规避缓存图不触发 onLoad 的失效） */}
-            <div aria-hidden="true" style={{ ...baseStyle, position: 'absolute', inset: 0, background: getColor(name), color: 'var(--text-inverse)', fontSize: px * 0.42, fontWeight: 600 }}>{letter}</div>
+            <div className="wc-avatar-face wc-avatar-fallback" aria-hidden="true" style={{ ...baseStyle, position: 'absolute', inset: 0, background: getColor(name), color: 'var(--text-inverse)', fontSize: px * 0.42, fontWeight: 600 }}>{letter}</div>
             <img
+              className="wc-avatar-face"
               src={thumbUrl}
               alt={name}
               loading="lazy"
@@ -77,7 +78,7 @@ export default memo(function Avatar({ src, name = '', size = 'md', style = {}, o
               style={{ ...baseStyle, objectFit: 'cover', position: 'relative', zIndex: 1 }}
             />
           </>
-        : <div style={{ ...baseStyle, background: getColor(name), color: 'var(--text-inverse)', fontSize: px * 0.42, fontWeight: 600, transition: 'opacity .15s' }}>{letter}</div>
+        : <div className="wc-avatar-face wc-avatar-fallback" style={{ ...baseStyle, background: getColor(name), color: 'var(--text-inverse)', fontSize: px * 0.42, fontWeight: 600, transition: 'opacity .15s' }}>{letter}</div>
       }
       {online && <span className="wc-online-dot" />}
     </div>

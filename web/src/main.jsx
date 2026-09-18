@@ -44,6 +44,8 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
     document.documentElement.classList.add('windows-desktop');
     await import('./windows-desktop.css');
   }
+  document.documentElement.classList.add('touliao-ui');
+  await import('./ui-kit/design-system.css');
   initAccountWindow();
   // 迁移旧版 vxin_* localStorage key
   migrateStorage();

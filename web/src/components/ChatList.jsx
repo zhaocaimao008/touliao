@@ -12,8 +12,10 @@ import { FixedSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { archiveUnreadTotal, splitArchivedConversations } from '../utils/archiveConversations';
 import { isWindowsDesktop } from '../utils/desktopPlatform';
+import designTokens from '../ui-kit/tokens.json';
 
-const ITEM_HEIGHT = 64;
+const rowHeight = () => window.innerWidth < designTokens.layout.breakpoints.compactDesktopMin
+  ? designTokens.components.listRow.mobileMinimum : designTokens.components.listRow.desktopMinimum;
 
 // 会话排序：置顶优先，其次按最新消息时间倒序（多处 setState 复用，避免逻辑漂移）
 const byPinnedThenTime = (a, b) =>
@@ -78,7 +80,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
 }, (prev, next) => {
   const pi = prev.data.items[prev.index];
   const ni = next.data.items[next.index];
-  return pi === ni && prev.data.activeConvId === next.data.activeConvId && prev.style.top === next.style.top && pi?.manually_unread === ni?.manually_unread
+  return pi === ni && prev.data.activeConvId === next.data.activeConvId && prev.style.top === next.style.top && prev.style.height === next.style.height && pi?.manually_unread === ni?.manually_unread
     && (prev.data.drafts?.[pi?.id] || '') === (next.data.drafts?.[ni?.id] || '');
 });
 
@@ -143,6 +145,12 @@ function ChatListSkeleton() {
 }
 
 export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions }) {
+  const [itemHeight, setItemHeight] = useState(rowHeight);
+  useEffect(() => {
+    const resize = () => setItemHeight(rowHeight());
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
   const { t } = useI18n();
   const [conversations, setConversations] = useState([]);
   const [loaded, setLoaded] = useState(false);   // 首屏是否已拉过一次：未拉完显示骨架，避免闪「暂无聊天」
@@ -399,7 +407,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   }), [filtered, activeConvId, handleSelectConv, user, drafts]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)', ...(isWindowsDesktop() ? { '--windows-row-height': `${ITEM_HEIGHT}px` } : {}) }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)', '--tl-conversation-row-height': `${itemHeight}px`, '--windows-row-height': `${itemHeight}px` }}>
       {!searchQuery && !showArchived && (!isWindowsDesktop() || archivedConversations.length > 0) && (
         <button type="button" className="wc-archive-entry" onClick={() => setShowArchived(true)}>
           <span className="wc-archive-icon" aria-hidden="true">▣</span>
@@ -449,7 +457,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
                   height={height}
                   width={width}
                   itemCount={filtered.length}
-                  itemSize={ITEM_HEIGHT}
+                  itemSize={itemHeight}
                   itemData={listData}
                   overscanCount={5}
                 >

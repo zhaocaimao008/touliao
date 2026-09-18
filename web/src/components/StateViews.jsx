@@ -1,4 +1,5 @@
 import React from 'react';
+import Icon from '../ui-kit/Icon';
 import { useI18n } from '../contexts/I18nContext';
 
 /** Skeleton — 骨架屏占位（列表首屏加载态） */
@@ -20,7 +21,7 @@ export const Skeleton = React.memo(function Skeleton({ rows = 6, avatar = true }
 });
 
 /** EmptyState — 空态 */
-export const EmptyState = React.memo(function EmptyState({ icon = '📭', title, desc, action }) {
+export const EmptyState = React.memo(function EmptyState({ icon = <Icon name="message-circle" />, title, desc, action }) {
   const { t } = useI18n();
   return (
     <div className="wc-state wc-state--empty" role="status">
@@ -37,7 +38,7 @@ export const ErrorState = React.memo(function ErrorState({ title, desc, onRetry 
   const { t } = useI18n();
   return (
     <div className="wc-state wc-state--error" role="alert">
-      <div className="wc-state-icon" aria-hidden="true">⚠️</div>
+      <div className="wc-state-icon" aria-hidden="true"><Icon name="triangle-alert" /></div>
       <div className="wc-state-title">{title ?? t('stateViews.loadFailed')}</div>
       {(desc ?? t('stateViews.checkNetworkRetry')) && <div className="wc-state-desc">{desc ?? t('stateViews.checkNetworkRetry')}</div>}
       {onRetry && (

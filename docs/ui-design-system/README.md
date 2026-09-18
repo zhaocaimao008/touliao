@@ -1,0 +1,43 @@
+# 投聊 UI 设计系统实施记录
+
+## 来源、范围与恢复点
+
+- 实际取得 `/home/ubuntu/touliao-ui.zip`，名称与请求中的 `touliao-ui-kit.zip` 不同；内部七份交接文件及 42 页面、66 组件、136 图标均匹配。
+- 压缩包 SHA-256：`746211b1de546c6d82b758d1e03d1e06dec0a5611ae8f15e550a4dd547d4e229`。
+- 独立参考目录：`/home/ubuntu/design-reference/touliao-ui-20260918/touliao-ui/`。已读取 README、规范、tokens、三份清单及 handoff，并用 Chromium 打开 index.html、检查预览图。
+- 实施工作区：`/home/ubuntu/touliao-design-system-20260918`，分支 `ui/design-system-20260918`。
+- 恢复基点：`1bd57c012ee830fbd66692f0ce7ff96aac84ed1e`，包含已发布 Windows 8.1.26 的应用代码。原 main 和 Windows 工作区开始时均干净，未在原工作区改代码。
+- 本轮本地提交、不推送、不部署、不升版本、不操作生产数据。沿用先前移动端暂不修改的范围，先实施 Web/Windows 共用界面；Android/iOS 原生代码只核对和映射，迁移及真机验证列为后续事项。
+
+## 技术栈与设计决策
+
+| 平台 | 实际实现 | 复用方式与验证边界 |
+| --- | --- | --- |
+| Web | React 18、Vite 8、CSS、react-window | 现有业务组件接入设计变量、SVG 图标及布局样式 |
+| Windows | Electron 43.7、同一 React 渲染层 | 保留 preload、窗口控制、更新、IPC 与多账号隔离；本地 Linux Chromium 模拟渲染不能称为原生 Windows 验收 |
+| Android | Kotlin、Jetpack Compose、Material 3 | 原生独立 UI，不能用 Web 截图或 CSS 变更宣称已迁移 |
+| iOS | Swift、SwiftUI、原生网络和媒体集成 | 原生独立 UI，需 macOS/Xcode 和真机验证；本轮不改动 |
+
+原型 CSS 和组件表中部分尺寸与 tokens 不一致（例如导航 72/76、列表 274/300、控件 38/36）。按交接要求以 `tokens.json` 为正式变量来源，以原型判断层级与布局。仅复制设计变量及 SVG；原型人物、消息、模拟交互和 Toast 不进入正式代码。
+
+新增“投聊蓝”默认皮肤；保留已保存的极光紫、微信绿、企微蓝选择，用户可在外观中切换投聊蓝。保持系统／浅色／深色偏好及用户字体设置。
+
+## 对照清单
+
+- [42 页面映射](page-mapping.csv)：现有 Web/Windows、Android、iOS 路径、协议与能力差异。
+- [66 组件映射](component-mapping.csv)：对应组件和不应复制的演示能力。
+- [30 动作契约映射](action-mapping.csv)：按钮到真实实现的对应关系。
+
+已识别待接入：扫码认证、短信发送／未登录自助重置、独立存储统计、反馈提交、独立入群申请审批、全局文件中心。继续保留管理员协助找回、登录后改密码、设备下线、会话文件、真实群邀请等既有入口，不以原型假动作补齐。
+
+## 第一批：基础设计系统
+
+接入原始 tokens 与可校验生成的 CSS 变量、136 个 SVG 图标、既有图标组件适配；统一主题色、字体、基础按钮／输入／列表／弹窗／焦点／空态；保留旧皮肤选择和账号偏好。会话虚拟列表与实际行高统一为桌面 68、窄屏 76，修复 Web 既有重叠问题。
+
+验证：桌面模式构建通过，33 个测试文件／240 项单测通过，lint 通过；40 个 Windows 模拟／Web、1200／900／390 宽度、深浅主题场景通过，无页面横向溢出和虚拟行重叠，缩放窗口保留输入草稿。
+
+证据目录：`/home/ubuntu/touliao-design-system-evidence-20260918/`。`before/` 保留原 Windows UI 的 37 个场景；`batch1/` 为第一批 40 场景与 report.json。`baseline.json` 记录来源、恢复基点和原工作区状态。仅属于隔离测试环境的数据，不是生产聊天功能全链路验收。
+
+## 回退
+
+原工作区和生产产物未变化。审阅旧版可在另一个目录执行 `git worktree add --detach <新目录> 1bd57c012ee830fbd66692f0ce7ff96aac84ed1e`；如以后合并本轮提交，可按从新到旧顺序逐条 `git revert <本轮提交>`。不使用全局 reset 或 clean，也不删除其他工作区。
