@@ -1,5 +1,7 @@
 # 投聊 UI 设计系统实施记录
 
+原生接续已在 `20aef960` 基础上推进，当前四端状态、原生构建 / 截图与回退方法见 [Android / iOS 报告](native/NATIVE-REPORT.md)。下文此前 Web / Windows 验证记录保持，原生复现命令见新报告。
+
 ## 来源、范围与恢复点
 
 - 实际取得 `/home/ubuntu/touliao-ui.zip`，名称与请求中的 `touliao-ui-kit.zip` 不同；内部七份交接文件及 42 页面、66 组件、136 图标均匹配。

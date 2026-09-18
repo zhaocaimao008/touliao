@@ -1,6 +1,14 @@
 # 投聊 UI 设计系统交付报告
 
-## 交付范围
+## 2026-09-18 原生接续更新
+
+保留 `20aef960` 及之前 Web / Windows 五次提交，在同一独立分支继续完成 Android Compose 与 iOS SwiftUI 的原生样式接入。主题、字体、136 个设计图标、基础组件及已有认证、会话、聊天、联系人、群、资料、设置、文件、内容和通话界面均已逐项处理；业务协议、后端、Core / Data / ViewModel 保持不变。
+
+本轮完整结果、原生截图覆盖、构建与回归记录、设备限制及原生回退方法见 [Android / iOS 交付报告](native/NATIVE-REPORT.md)。逐页记录见 [原生页面审计](native/native-page-audit.csv)。仅同步审阅分支以使用云端构建和原生模拟器，没有合并、发版或部署。Android / iOS 模拟器结果不代表手机真机通过，Windows 真机与四端真实音视频联测仍未验证。
+
+下文保留此前 Web / Windows 批次的交付记录和验证数据，属于 `20aef960` 时的历史状态；其中“未改原生”“未推送”只描述此前批次，不是当前四端状态。本轮不重做已完成的 Web / Windows 改版。
+
+## 此前 Web / Windows 交付范围
 
 本轮在独立分支 `ui/design-system-20260918` 改造 Web／Windows 共用 React 界面，未部署、未发版、未推送远端。Android、iOS 原生工程及 Electron 主进程未改动；后端、接口、WebSocket 协议、数据结构与认证／通话处理逻辑保留。
 
@@ -57,7 +65,7 @@ Windows 冒烟中的 `unchanged-web/darwin/linux` 名称沿用既有脚本，仅
 - 本次环境为 Linux Chromium，Windows 桥接为 fixture；不是原生 Windows 验收。实际 Segoe UI／微软雅黑渲染、125%／150% 系统 DPI、真实 Electron 安装更新、双人音视频连通和服务端成功／失败全链路仍需对应环境联测。浏览器缩放、视口和 CSS 字体栈检查不能替代这些项目。
 - 窄屏截图属于 Web，不是 Android／iOS 原生。按先前范围保留原生端不动，技术栈和页面路径已核对，后续迁移与真机测试单列。
 
-## 回退与继续开发
+## 此前 Web / Windows 回退记录（本轮原生回退见上方报告）
 
 生产、原工作区及旧版安装包没有变化，无需生产回退。审阅恢复点可另建工作区：
 
@@ -68,7 +76,7 @@ git -C /home/ubuntu/gh-mirror/touliao worktree add --detach /home/ubuntu/touliao
 如以后合并本轮提交，需要代码回退时先保存届时的未提交改动，再按从新到旧逐条 `git revert` 本轮五个提交。可用下式取得清单，避免误回退其他提交：
 
 ```bash
-git log --format='%h %s' 1bd57c012ee830fbd66692f0ce7ff96aac84ed1e..ui/design-system-20260918
+git log --format='%h %s' 1bd57c012ee830fbd66692f0ce7ff96aac84ed1e..20aef960
 ```
 
 不执行全局 reset／clean。运行环境与命令见 [实施记录](README.md#重现验证)。
