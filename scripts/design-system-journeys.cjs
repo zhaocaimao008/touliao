@@ -1,0 +1,105 @@
+'use strict';
+// Real React handlers with isolated API fixtures; never use a production server.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || '../desktop-electron/node_modules/playwright');
+const { fixture } = require('./windows-ui-smoke.cjs');
+const { capture, report, server, out } = require('./design-system-smoke.cjs');
+async function run() {
+  fs.mkdirSync(out, { recursive: true });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
+  try {
+    for (const [platform, width, height] of [['win32', 1200, 800], ['web', 390, 844]]) for (const theme of ['light', 'dark']) {
+      const prefix = `${platform}-${width}-${theme}`;
+      const { context, page, errors } = await fixture(browser, base, { platform, width, height, theme, skin: 'touliao' });
+      page.setDefaultTimeout(10000);
+      const requests = [];
+      await context.route('**/api/**', route => {
+        const req = route.request(), p = new URL(req.url()).pathname;
+        requests.push({ path: p, method: req.method(), body: req.postDataJSON() });
+        let json;
+        if (p === '/api/users/friend-requests') json = [{ id: 'request-1', username: '界面测试联系人', message: '你好，我是项目组的同事。', created_at: 1789704000 }];
+        else if (p === '/api/users/friend-request/request-1/handle') json = { success: true };
+        else if (p === '/api/messages/my-groups') json = [{ id: 'ui-1', name: '产品讨论组', memberCount: 3 }];
+        else if (p === '/api/users/peer-0') json = { id: 'peer-0', username: '林晓', isFriend: true, wechat_id: 'lin-test', bio: '这里是隔离的界面测试资料。' };
+        else if (p === '/api/messages/conversation/ui-1/info') json = { id: 'ui-1', name: '产品讨论组', announcement: '请在本周完成界面对照检查。', myRole: 'owner', members: [{ id: 'ui-me', username: '界面体验', role: 'owner' }, { id: 'peer-0', username: '林晓', role: 'member' }, { id: 'peer-1', username: '陈远', role: 'member' }] };
+        else if (p === '/api/users/search') json = [];
+        else if (p.includes('/search')) json = [];
+        if (json !== undefined) return route.fulfill({ json });
+        return route.fallback();
+      });
+      const shot = async name => capture(page, prefix + '-' + name, errors);
+      await page.getByTestId('nav-tab-contacts').click();
+      await page.locator('.tl-contact-shortcuts, .cl-entry-name').first().waitFor();
+      await shot('contacts');
+      await page.getByTestId('cl-new-friends-entry').click();
+      await page.getByTestId('friend-request-item').waitFor();
+      await shot('requests');
+      await page.getByTestId('friend-request-accept').click();
+      await page.getByTestId('friend-request-item').waitFor({ state: 'detached' });
+      assert.ok(requests.some(r => r.path.endsWith('/request-1/handle') && r.body.action === 'accepted'), 'friend acceptance uses existing API contract');
+      await page.locator('.cl-section-back').click();
+      await page.getByText('林晓', { exact: true }).first().click();
+      await page.locator('.up-name').waitFor();
+      await shot('contact-detail');
+      await page.keyboard.press('Escape');
+      await page.getByText('添加好友', { exact: true }).first().click();
+      await page.locator('.afm-card').waitFor();
+      await shot('add-friend');
+      await page.locator('.afm-search-input').fill('不存在的联系人');
+      await page.locator('.afm-search-input').press('Enter');
+      await page.waitForTimeout(600);
+      await shot('add-friend-empty');
+      await page.locator('.afm-close-btn').click();
+      await page.getByText('好友标签', { exact: true }).click();
+      await page.locator('.lt-create-btn').waitFor();
+      await shot('contact-tags');
+      await page.locator('.lt-create-btn').click();
+      await page.locator('.lt-edit-input').waitFor();
+      await shot('contact-tags-edit');
+      await page.locator('.cl-section-back').click();
+      await page.locator('.cl-section-back').click();
+      await page.getByText('黑名单', { exact: true }).click();
+      await shot('blocked');
+      await page.locator('.cl-section-back').click();
+      await page.getByText('群聊', { exact: true }).click();
+      await page.getByText('产品讨论组', { exact: true }).waitFor();
+      await shot('groups');
+      await page.getByText('产品讨论组', { exact: true }).click();
+      await page.getByTestId('chat-group-info-btn').click();
+      await page.locator('.gi-name').waitFor();
+      await shot('group-detail');
+      await page.locator('.gi-btn-name').click();
+      await page.getByTestId('group-rename-input').waitFor();
+      await shot('group-rename');
+      await page.locator('.gi-btn-xl').click();
+      await page.locator('.gi-mg-click').click();
+      await page.locator('.gi-mg-bg').waitFor();
+      await shot('group-permissions');
+      await page.locator('.gi-close-btn').click();
+      if (width < 768) await page.locator('.wc-chat-header-back').click();
+      await page.getByTestId('nav-tab-chats').click();
+      await page.getByTestId('add-menu-btn').click();
+      await page.getByTestId('create-group-entry').click();
+      await page.getByTestId('group-name-input').waitFor();
+      await page.getByTestId('group-name-input').fill('本地截图草稿');
+      await page.getByTestId('group-member-row-peer-0').click();
+      assert.equal(await page.getByTestId('group-member-row-peer-0').getAttribute('aria-checked'), 'true');
+      await shot('create-group');
+      await page.locator('.cgm-close').click();
+      await page.getByTestId('nav-tab-contacts').click();
+      await page.getByPlaceholder('搜索', { exact: true }).fill('林');
+      await page.locator('.gs-row').first().waitFor();
+      await shot('search');
+      await context.close();
+    }
+    report.passed = true;
+  } finally {
+    await browser.close(); server.close();
+    fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2) + '\n');
+  }
+}
+run().catch(error => { console.error(error); server.close(); process.exitCode = 1; });

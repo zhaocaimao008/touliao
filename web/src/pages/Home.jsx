@@ -1254,7 +1254,7 @@ export default function Home() {
   }
 
   return (
-    <div className={`wc-app${isMobile ? ' wc-mobile' : ''}${isWindowsDesktop() && tab === 'me' && !activeConv && !search.trim() ? ' windows-full-panel' : ''}`}>
+    <div className={`wc-app${isMobile ? ' wc-mobile' : ''}${(tab !== 'chats' || search.trim()) && !activeConv ? ' tl-full-panel' : ''}`}>
 
       {/* 左侧导航栏 */}
       <div className="wc-sidebar">

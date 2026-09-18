@@ -114,4 +114,6 @@ async function run() {
     fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 2) + '\n');
   }
 }
-run().catch(error => { console.error(error); server.close(); process.exitCode = 1; });
+if (require.main === module) run().catch(error => { console.error(error); server.close(); process.exitCode = 1; });
+module.exports = { capture, report, server, out };
+
