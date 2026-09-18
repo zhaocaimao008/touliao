@@ -55,6 +55,24 @@ const { _electron: electron } = require('playwright');
     }));
     assert.equal(state.userData, state.sessionData);
     assert.equal(state.packaged, Boolean(process.env.TOULIAO_PACKAGED_APP));
+    if (process.platform === 'win32') {
+      await page.waitForFunction(() => document.documentElement.classList.contains('windows-desktop'));
+      assert.equal(await page.evaluate(() => window.__ELECTRON_CONFIG__.platform), 'win32');
+      assert.equal(await page.locator('.windows-account-entry button').count(), 1);
+      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(900, 600));
+      await page.waitForFunction(() => innerWidth === 900 && innerHeight === 600);
+      await page.evaluate(() => document.fonts.ready);
+      const layout = await page.getByTestId('login-switch-server-toggle').evaluate(button => ({
+        bottom: button.getBoundingClientRect().bottom,
+        height: innerHeight,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+        stylesheet: [...document.styleSheets].some(sheet => sheet.href?.includes('windows-desktop')),
+      }));
+      assert.equal(layout.stylesheet, true, 'packaged Windows stylesheet loaded');
+      assert.equal(layout.overflow, false, 'minimum Windows window does not overflow');
+      assert.ok(layout.bottom <= layout.height, 'login actions fit minimum Windows window');
+      await page.screenshot({ path: path.join(temp, `windows-login-${apps.indexOf(app)}.png`) });
+    }
     return { app, page, state };
   };
   try {
