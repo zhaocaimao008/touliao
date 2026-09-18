@@ -11,6 +11,7 @@ import subprocess
 import zipfile
 
 CERTIFICATE = "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c"
+BUILD_TOOLS = "34.0.0"
 
 
 def require(condition, message):
@@ -21,20 +22,31 @@ def require(condition, message):
 def sdk_tool(name):
     for root in [os.environ.get("ANDROID_HOME"), os.environ.get("ANDROID_SDK_ROOT")]:
         if root:
-            candidates = sorted((Path(root) / "build-tools").glob(f"*/{name}"), reverse=True)
-            if candidates:
-                return str(candidates[0])
+            candidate = Path(root) / "build-tools" / BUILD_TOOLS / name
+            require(candidate.is_file(), f"Required release SDK tool missing: {candidate}")
+            return str(candidate)
     found = shutil.which(name)
     require(found, f"Required SDK tool missing: {name}")
     return found
 
 
+def certificate(signature, apk):
+    certs = re.findall(r"^Signer #\d+ certificate SHA-256 digest: ([0-9a-f]{64})$", signature, re.M)
+    require(certs == [CERTIFICATE], f"APK signer mismatch for {apk}: expected {CERTIFICATE}, got {certs}; tool={sdk_tool('apksigner')}")
+    return certs[0]
+
+
 def inspect(apk):
-    signature = subprocess.check_output([sdk_tool("apksigner"), "verify", "--verbose", "--print-certs", str(apk)], text=True)
-    certs = re.findall(r"Signer #\d+ certificate SHA-256 digest: ([0-9a-f]+)", signature)
-    require(certs == [CERTIFICATE], "APK signer does not match the existing production certificate")
+    command = [sdk_tool("apksigner"), "verify", "--verbose", "--print-certs"]
+    signature = subprocess.check_output(command + [str(apk)], text=True)
+    cert = certificate(signature, apk)
     for scheme in [2, 3]:
         require(re.search(rf"Verified using v{scheme} scheme.*: true", signature), f"Missing APK v{scheme} signature")
+    # For minSdk >= 24, normal verification uses v2/v3 and reports v1=false
+    # even when a valid JAR signature is present. Verify that signature separately.
+    jar_signature = subprocess.check_output(command + ["--min-sdk-version", "23", "--max-sdk-version", "23", str(apk)], text=True)
+    require(certificate(jar_signature, apk) == cert, "JAR and APK signing certificates differ")
+    require(re.search(r"Verified using v1 scheme.*: true", jar_signature), "Missing or invalid APK v1 signature")
     badging = subprocess.check_output([sdk_tool("aapt"), "dump", "badging", str(apk)], text=True)
     match = re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", badging)
     require(match, "Cannot read APK identity")
@@ -43,8 +55,8 @@ def inspect(apk):
     return {
         "package": match[1], "versionCode": int(match[2]), "versionName": match[3],
         "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "bytes": apk.stat().st_size,
-        "certificateSha256": certs[0], "abis": sorted(re.findall(r"'([^']+)'", abis[1])) if abis else [],
-        "v1": bool(re.search(r"Verified using v1 scheme.*: true", signature)), "v2": True, "v3": True,
+        "certificateSha256": cert, "abis": sorted(re.findall(r"'([^']+)'", abis[1])) if abis else [],
+        "v1": True, "v2": True, "v3": True, "verificationBuildTools": BUILD_TOOLS,
     }
 
 
