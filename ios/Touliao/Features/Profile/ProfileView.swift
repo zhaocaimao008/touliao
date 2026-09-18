@@ -10,19 +10,19 @@ private enum Tok {
     static let xs: CGFloat = 4;  static let s: CGFloat = 8
     static let m: CGFloat = 12;  static let l: CGFloat = 16
     static let xl: CGFloat = 20; static let xxl: CGFloat = 24
-    static let cardRadius: CGFloat = 18
+    static let cardRadius: CGFloat = 12
     static let avatarSize: CGFloat = 66
     static let iconSize: CGFloat = 22
     static let rowHeight: CGFloat = 57
     static let green    = Color.vxinBrand
-    static let greenBg  = Color.vxinBrand.opacity(0.12)
-    static let primary  = Color(UIColor.label)
-    static let secondary = Color(UIColor.secondaryLabel)
-    static let bg       = Color(UIColor.systemGroupedBackground)
-    static let cardBg   = Color(UIColor.secondarySystemGroupedBackground)
-    static let divider  = Color(UIColor.separator)
-    static let red      = Color(UIColor.systemRed)
-    static let iconGray = Color(UIColor.label)
+    static let greenBg  = Color.vxinPrimarySoft
+    static let primary  = Color.vxinText
+    static let secondary = Color.vxinTextSecondary
+    static let bg       = Color.vxinBackground
+    static let cardBg   = Color.vxinSurface
+    static let divider  = Color.vxinBorder
+    static let red      = Color.vxinError
+    static let iconGray = Color.vxinText
 }
 
 // MARK: - Reusable components
@@ -46,7 +46,7 @@ private struct SectionHeader: View {
     let text: String
     var body: some View {
         Text(text)
-            .font(.system(size: 14, weight: .medium))
+            .touliaoFont(14, weight: .medium)
             .foregroundColor(Tok.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Tok.xl)
@@ -63,22 +63,21 @@ private struct SettingsRow: View {
     var iconColor: Color = Tok.iconGray
     var body: some View {
         HStack(spacing: Tok.m) {
-            Image(systemName: icon)
-                .font(.system(size: Tok.iconSize - 2, weight: .light))
+            TouliaoIcon(systemName: icon)
+                .touliaoFont(Tok.iconSize - 2, weight: .light)
                 .foregroundColor(iconColor)
                 .frame(width: Tok.xxl, alignment: .center)
             Text(title)
-                .font(.system(size: 16.5))
+                .touliaoFont(16)
                 .foregroundColor(Tok.primary)
             Spacer()
             if let t = trailing {
                 Text(t)
-                    .font(.system(size: 15))
+                    .touliaoFont(14)
                     .foregroundColor(Tok.secondary)
                     .lineLimit(1)
             }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
+            TouliaoIcon(systemName: "chevron.right", size: 13)
                 .foregroundColor(Tok.secondary.opacity(0.6))
         }
         .padding(.horizontal, Tok.l)
@@ -204,7 +203,7 @@ struct ProfileView: View {
                         showLogout = true
                     } label: {
                         Text("退出登录")
-                            .font(.system(size: 16.5))
+                            .touliaoFont(16)
                             .foregroundColor(Tok.red)
                             .frame(maxWidth: .infinity, minHeight: 54)
                     }
@@ -215,7 +214,7 @@ struct ProfileView: View {
                 // ── 6. 版本号 ──────────────────────────────────────
                 VStack(spacing: 2) {
                     Text(showBuild ? "投聊 \(Self.shortVer) (\(Self.buildNum))" : "投聊 \(Self.shortVer)")
-                        .font(.system(size: 13))
+                        .touliaoFont(13)
                         .foregroundColor(Tok.secondary)
                         .onTapGesture {
                             versionTaps += 1
@@ -248,12 +247,12 @@ struct ProfileView: View {
                 avatarView
                 VStack(alignment: .leading, spacing: 4) {
                     Text(user?.username.isEmpty == false ? user!.username : "未设置昵称")
-                        .font(.system(size: 21, weight: .semibold))
+                        .touliaoFont(21, weight: .semibold)
                         .foregroundColor(Tok.primary)
                         .lineLimit(1)
                     if let id = user?.wechatId, !id.isEmpty {
                         Text("投聊号：\(id)")
-                            .font(.system(size: 14))
+                            .touliaoFont(14)
                             .foregroundColor(Tok.secondary)
                             .lineLimit(1)
                     }
@@ -261,16 +260,14 @@ struct ProfileView: View {
                 Spacer()
                 // QR code button — independent tap
                 NavigationLink(destination: MyQRCodeView()) {
-                    Image(systemName: "qrcode")
-                        .font(.system(size: 21, weight: .light))
+                    TouliaoIcon(systemName: "qrcode", size: 21)
                         .foregroundColor(Tok.green)
                 }
                 .buttonStyle(.plain)
                 .simultaneousGesture(TapGesture())   // prevent card tap from firing
                 .accessibilityIdentifier("profile-my-qr")
                 .padding(.trailing, 4)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                TouliaoIcon(systemName: "chevron.right", size: 13)
                     .foregroundColor(Tok.secondary.opacity(0.6))
             }
             .padding(Tok.l)

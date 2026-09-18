@@ -60,7 +60,7 @@ fun FavoritesScreen(
             TopAppBar(
                 title = { Text("收藏") },
                 navigationIcon = {
-                    onBack?.let { cb -> IconButton(onClick = cb) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }
+                    onBack?.let { cb -> IconButton(onClick = cb) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } }
                 },
             )
         },

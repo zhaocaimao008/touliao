@@ -55,11 +55,11 @@ fun FriendLabelsScreen(onBack: () -> Unit, viewModel: FriendLabelsViewModel = hi
         topBar = {
             TopAppBar(
                 title = { Text("好友标签") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreate = true }) { Icon(Icons.Filled.Add, contentDescription = "新建标签") }
+            FloatingActionButton(onClick = { showCreate = true }) { Icon(com.touliao.app.ui.DesignIcons.Plus, contentDescription = "新建标签") }
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
@@ -133,6 +133,6 @@ private fun LabelRow(label: FriendLabel, onEditMembers: () -> Unit, onDelete: ()
             Text(label.name.ifBlank { "未命名标签" }, style = MaterialTheme.typography.bodyLarge)
             Text("${label.members.size} 位好友", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
-        TextButton(onClick = onDelete) { Text("删除", color = Color(0xFFFA5151)) }
+        TextButton(onClick = onDelete) { Text("删除", color = com.touliao.app.ui.theme.VxinError) }
     }
 }

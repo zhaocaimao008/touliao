@@ -1,5 +1,6 @@
 package com.touliao.app.feature.call
 
+import androidx.compose.material3.MaterialTheme
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -107,11 +108,11 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", Color(0xFF555555)) { viewModel.toggleMic() }
+                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleMic() }
                     RoundButton("挂断", CallRed) { viewModel.hangup() }
                     if (state.isVideo) {
-                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", Color(0xFF555555)) { viewModel.toggleCamera() }
-                        RoundButton("翻转", Color(0xFF555555)) { viewModel.switchCamera() }
+                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleCamera() }
+                        RoundButton("翻转", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.switchCamera() }
                     }
                 }
             }
@@ -193,7 +194,7 @@ private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
         Box(Modifier.size(64.dp).clip(CircleShape).background(color).clickable { onClick() },
             contentAlignment = Alignment.Center) { Text(label.take(3), color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = Color(0xFFCCCCCC), fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
+        Text(label, color = MaterialTheme.colorScheme.outline, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
     }
 }
 

@@ -40,9 +40,10 @@ struct SettingsHomeView: View {
             .padding(.horizontal, 16)
             .padding(.top, 16)
         }
-        .background(Color(UIColor.systemGroupedBackground).ignoresSafeArea())
+        .background(Color.vxinBackground.ignoresSafeArea())
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { refreshCacheSize() }
         .alert("清除缓存", isPresented: $showClearConfirm) {
             Button("取消", role: .cancel) {}
@@ -104,11 +105,11 @@ private struct HubCard<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         VStack(spacing: 0) { content }
-            .background(Color(UIColor.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(Color.vxinSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color(UIColor.separator), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.vxinBorder, lineWidth: 0.5)
             )
     }
 }
@@ -127,18 +128,18 @@ private struct HubRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundColor(Color(UIColor.secondaryLabel))
+            TouliaoIcon(systemName: icon)
+                .foregroundColor(Color.vxinTextSecondary)
                 .frame(width: 22)
-            Text(title).foregroundColor(Color(UIColor.label))
+            Text(title).foregroundColor(Color.vxinText)
             Spacer()
             if showsSpinner {
                 ProgressView().scaleEffect(0.7)
             } else if let trailing {
-                Text(trailing).foregroundColor(Color(UIColor.secondaryLabel)).font(.subheadline)
+                Text(trailing).foregroundColor(Color.vxinTextSecondary).touliaoFont(14)
             }
-            Image(systemName: "chevron.right")
-                .font(.caption).foregroundColor(Color(UIColor.secondaryLabel).opacity(0.6))
+            TouliaoIcon(systemName: "chevron.right")
+                .touliaoFont(12).foregroundColor(Color.vxinTextSecondary.opacity(0.6))
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 52)

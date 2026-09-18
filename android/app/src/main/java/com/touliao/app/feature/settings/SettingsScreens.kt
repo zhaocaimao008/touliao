@@ -71,7 +71,7 @@ private fun SettingsScaffold(title: String, onBack: () -> Unit, content: @Compos
         topBar = {
             TopAppBar(
                 title = { Text(title) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -163,7 +163,7 @@ fun NotificationSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel 
                             ) {
                                 Text(label, style = MaterialTheme.typography.bodyLarge)
                                 if (s.ringtone == key) {
-                                    Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Icon(com.touliao.app.ui.DesignIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }
@@ -240,7 +240,7 @@ private fun ThemeRow(label: String, value: ThemeMode, current: ThemeMode, onSele
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
-        if (current == value) Icon(Icons.Filled.Check, contentDescription = "已选", tint = MaterialTheme.colorScheme.primary)
+        if (current == value) Icon(com.touliao.app.ui.DesignIcons.Check, contentDescription = "已选", tint = MaterialTheme.colorScheme.primary)
     }
 }
 

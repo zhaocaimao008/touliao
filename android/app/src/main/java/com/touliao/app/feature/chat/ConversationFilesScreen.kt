@@ -97,7 +97,7 @@ fun ConversationFilesScreen(
                 title = { Text("聊天文件") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回")
                     }
                 },
             )
@@ -220,7 +220,7 @@ private fun FileGridItem(
                 Box(
                     Modifier.fillMaxSize().background(Color(0x22000000)),
                     contentAlignment = Alignment.Center,
-                ) { Text("▶", color = Color.White, fontSize = 22.sp) }
+                ) { com.touliao.app.ui.DesignGlyph("▶", color = Color.White, fontSize = 22.sp) }
             }
         }
         // 文件：图标 + 文件名 + 发送者 + 时间（单列行）
@@ -233,7 +233,7 @@ private fun FileGridItem(
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("📄", fontSize = 28.sp)
+                com.touliao.app.ui.DesignGlyph("📄", fontSize = 28.sp)
                 Spacer(Modifier.size(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(

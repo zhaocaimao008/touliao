@@ -1,5 +1,6 @@
 package com.touliao.app.feature.settings
 
+import androidx.compose.foundation.layout.heightIn
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -138,7 +139,7 @@ fun SettingsHomeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("设置") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -187,7 +188,7 @@ fun SettingsHomeScreen(
             onDismissRequest = { showClearConfirm = false },
             title = { Text("清除缓存") },
             text = { Text("将清除本地图片缓存与离线消息缓存，不影响服务器上的聊天记录。") },
-            confirmButton = { TextButton(onClick = { viewModel.clearCache(); showClearConfirm = false }) { Text("清除", color = Color(0xFFFF3B30)) } },
+            confirmButton = { TextButton(onClick = { viewModel.clearCache(); showClearConfirm = false }) { Text("清除", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("取消") } },
         )
     }
@@ -212,9 +213,9 @@ private fun SettingsGroupCard(modifier: Modifier = Modifier, content: @Composabl
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
         content = content,
     )
 }
@@ -236,7 +237,7 @@ private fun HubRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .heightIn(min = 52.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = rememberRipple(bounded = true),

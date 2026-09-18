@@ -60,7 +60,7 @@ fun CreateGroupScreen(
                 title = { Text("发起群聊") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -113,7 +113,7 @@ private fun SelectableContactRow(contact: Contact, avatarUrl: String? = null, ch
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (checked) {
-            Icon(Icons.Filled.CheckCircle, contentDescription = "已选", tint = VxinGreen)
+            Icon(com.touliao.app.ui.DesignIcons.CircleCheck, contentDescription = "已选", tint = VxinGreen)
         } else {
             RadioButton(selected = false, onClick = onToggle)
         }

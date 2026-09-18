@@ -47,17 +47,16 @@ struct GroupInfoView: View {
                     Section {
                         VStack(spacing: 10) {
                             groupHeroAvatar(info)
-                            if vm.uploadingAvatar { ProgressView().tint(.white) }
+                            if vm.uploadingAvatar { ProgressView().tint(.vxinBrand) }
                             Text(info.name.isEmpty ? "未命名群聊" : info.name)
-                                .touliaoFont(18, weight: .bold).foregroundColor(.white)
+                                .touliaoFont(22, weight: .bold).foregroundColor(.vxinText)
                             Text("\(info.members.count) 名成员")
-                                .touliaoFont(14).foregroundColor(.white.opacity(0.85))
+                                .touliaoFont(14).foregroundColor(.vxinTextSecondary)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
                         .background(
-                            LinearGradient(colors: [.vxinBrandLight, .vxinBrand, .vxinTeal],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                            Color.vxinSurface
                         )
                         .listRowInsets(EdgeInsets())
                         .overlay {
@@ -74,7 +73,7 @@ struct GroupInfoView: View {
                             if info.canManage { showRename = true }
                         } label: {
                             HStack {
-                                Text("群名称").foregroundColor(.primary)
+                                Text("群名称").foregroundColor(.vxinText)
                                 Spacer()
                                 Text(info.name.isEmpty ? "未命名群聊" : info.name).foregroundColor(.vxinTextSecondary)
                                 if info.canManage { TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary) }
@@ -88,7 +87,7 @@ struct GroupInfoView: View {
                             if info.canManage { showAnnouncement = true }
                         } label: {
                             HStack(alignment: .top) {
-                                Text("群公告").foregroundColor(.primary).frame(width: 64, alignment: .leading)
+                                Text("群公告").foregroundColor(.vxinText).frame(width: 64, alignment: .leading)
                                 Text(info.announcement.isEmpty ? (info.canManage ? "点击设置群公告" : "暂无群公告") : info.announcement)
                                     .foregroundColor(.vxinTextSecondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -103,7 +102,7 @@ struct GroupInfoView: View {
                             showNickname = true
                         } label: {
                             HStack {
-                                Text("我的群昵称").foregroundColor(.primary)
+                                Text("我的群昵称").foregroundColor(.vxinText)
                                 Spacer()
                                 Text(info.myNickname(myId).isEmpty ? "未设置" : info.myNickname(myId)).foregroundColor(.vxinTextSecondary)
                                 TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary)
@@ -115,7 +114,7 @@ struct GroupInfoView: View {
                             GroupQrView(conversationId: conversationId)
                         } label: {
                             HStack {
-                                Text("群聊二维码").foregroundColor(.primary)
+                                Text("群聊二维码").foregroundColor(.vxinText)
                                 Spacer()
                                 Text("邀请进群").foregroundColor(.vxinTextSecondary)
                             }
@@ -128,7 +127,7 @@ struct GroupInfoView: View {
                                 vm.copyInviteLink()
                             } label: {
                                 HStack {
-                                    Text("复制邀请链接").foregroundColor(.primary)
+                                    Text("复制邀请链接").foregroundColor(.vxinText)
                                     Spacer()
                                     Text(vm.copyingInviteLink ? "生成中…" : "🔗 复制")
                                         .touliaoFont(14).foregroundColor(.vxinTextSecondary)

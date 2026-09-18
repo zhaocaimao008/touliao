@@ -18,7 +18,7 @@ struct ProfileEditView: View {
 
     private enum Tok {
         static let green = Color.vxinBrand
-        static let secondary = Color(UIColor.secondaryLabel)
+        static let secondary = Color.vxinTextSecondary
         static let avatarSize: CGFloat = 80
     }
 
@@ -30,8 +30,7 @@ struct ProfileEditView: View {
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         avatarView
                             .overlay(alignment: .bottomTrailing) {
-                                Image(systemName: "camera.fill")
-                                    .font(.system(size: 12, weight: .semibold))
+                                TouliaoIcon(systemName: "camera.fill", size: 12)
                                     .foregroundColor(.white)
                                     .padding(5)
                                     .background(Tok.green)
@@ -106,6 +105,7 @@ struct ProfileEditView: View {
         }
         .navigationTitle("个人资料")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($message)
         .onAppear {
             if username.isEmpty { username = session.currentUser?.username ?? "" }

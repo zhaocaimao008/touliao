@@ -46,7 +46,7 @@ fun BlockedScreen(
             TopAppBar(
                 title = { Text("黑名单") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") }
                 },
             )
         },

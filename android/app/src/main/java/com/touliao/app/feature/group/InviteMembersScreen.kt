@@ -52,7 +52,7 @@ fun InviteMembersScreen(
             TopAppBar(
                 title = { Text("邀请成员") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") }
                 },
                 actions = {
                     TextButton(
@@ -87,7 +87,7 @@ private fun CandidateRow(contact: Contact, checked: Boolean, onToggle: () -> Uni
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (checked) Icon(Icons.Filled.CheckCircle, contentDescription = "已选", tint = VxinGreen)
+        if (checked) Icon(com.touliao.app.ui.DesignIcons.CircleCheck, contentDescription = "已选", tint = VxinGreen)
         else RadioButton(selected = false, onClick = onToggle)
         Spacer(Modifier.width(8.dp))
         InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 40.dp)

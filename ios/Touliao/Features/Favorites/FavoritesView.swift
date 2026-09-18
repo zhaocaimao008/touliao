@@ -96,12 +96,15 @@ struct FavoritesView: View {
                         }
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                 }
             }
         }
         .searchable(text: $vm.query, prompt: "搜索收藏")
         .navigationTitle("收藏")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($vm.error)
         .task { await vm.refresh() }
     }

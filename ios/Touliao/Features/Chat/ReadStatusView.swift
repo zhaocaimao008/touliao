@@ -121,7 +121,7 @@ struct ReadStatusDetailSheet: View {
                             } label: {
                                 HStack {
                                     Text("已读 \(model.readCount)/\(model.recipientCount)")
-                                        .foregroundColor(.primary)
+                                        .foregroundColor(.vxinText)
                                     Spacer()
                                     if model.readCount > 0 {
                                         Text(expanded ? "收起" : "展开")
@@ -148,6 +148,7 @@ struct ReadStatusDetailSheet: View {
             }
             .navigationTitle("已读状态")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }
         .task { await load() }

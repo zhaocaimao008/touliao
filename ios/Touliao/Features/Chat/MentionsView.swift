@@ -101,6 +101,7 @@ struct MentionsView: View {
             }
             .navigationTitle("@我")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("关闭") { dismiss() }

@@ -45,6 +45,7 @@ private struct TouliaoFontModifier: ViewModifier {
     }
     func body(content: Content) -> some View {
         content.font(.system(size: size, weight: weight, design: design))
+            .lineSpacing(size * (size <= 16 ? 0.4 : 0.1))
     }
 }
 extension View {
@@ -54,6 +55,9 @@ extension View {
     }
     func touliaoPage() -> some View {
         self.background(Color.vxinBackground)
+            .scrollContentBackground(.hidden)
+            .environment(\.defaultMinListRowHeight, 48)
+            .touliaoFont(16)
             .foregroundColor(.vxinText)
             .tint(.vxinBrand)
             .toolbarBackground(Color.vxinSurface, for: .navigationBar, .tabBar)
@@ -71,4 +75,9 @@ struct TouliaoTextFieldStyle: TextFieldStyle {
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vxinBorder, lineWidth: 1))
     }
+}
+
+/// Honor the in-app smaller preset at the standard OS size, never lower larger OS text.
+func touliaoTextSize(system: DynamicTypeSize, preference: DynamicTypeSize) -> DynamicTypeSize {
+    system > .large ? max(system, preference) : preference
 }

@@ -38,7 +38,8 @@ import com.touliao.app.ui.components.InitialAvatar
 import com.touliao.app.ui.theme.VxinGreen
 import com.touliao.app.ui.theme.VxinTextSecondary
 
-private val ERR = androidx.compose.ui.graphics.Color(0xFFFA5151)
+private val ERR: androidx.compose.ui.graphics.Color
+    @Composable get() = com.touliao.app.ui.theme.VxinError
 
 private fun statusLabel(status: String): String = when (status) {
     "completed" -> "已接通"
@@ -74,7 +75,7 @@ fun CallHistoryScreen(
         topBar = {
             TopAppBar(
                 title = { Text("通话记录") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
     ) { padding ->

@@ -32,17 +32,21 @@ struct PasswordField: View {
                 // 切换后保持焦点，避免键盘收起
                 focused = true
             } label: {
-                Image(systemName: visible ? "eye.slash" : "eye")
+                TouliaoIcon(systemName: visible ? "eye.slash" : "eye")
                     .foregroundColor(.vxinTextSecondary)
+                    .frame(minWidth: 44, minHeight: 44)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(visible ? "隐藏密码" : "显示密码")
         }
-        .padding(.horizontal, 8)
-        .frame(minHeight: 36)
+        .touliaoFont(16)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
+        .frame(minHeight: 48)
+        .background(Color.vxinSurface)
         .background(
             RoundedRectangle(cornerRadius: VxinRadius.sm)
-                .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                .stroke(Color.vxinBorder, lineWidth: 1)
         )
     }
 }

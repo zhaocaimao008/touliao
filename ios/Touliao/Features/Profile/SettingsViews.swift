@@ -81,6 +81,7 @@ struct AppearanceSettingsView: View {
         }
         .navigationTitle("外观")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
     }
 }
 
@@ -154,6 +155,7 @@ struct NotificationSettingsView: View {
         }
         .navigationTitle("通知")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .overlay { if vm.loading { ProgressView() } }
         .toast($vm.error)
         .task { await vm.load() }
@@ -235,6 +237,7 @@ struct ChangePhoneView: View {
         }
         .navigationTitle("换绑手机号")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($vm.message)
     }
 }
@@ -334,8 +337,8 @@ struct QuietSettingsView: View {
                     .accessibilityIdentifier("quiet-end-picker")
                 }
                 Text("示例：23:00 - 07:00 表示每天晚11点至次日早7点不推送通知。")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .touliaoFont(14)
+                    .foregroundColor(.vxinTextSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal)
             }
@@ -355,6 +358,7 @@ struct QuietSettingsView: View {
         }
         .navigationTitle("勿扰模式")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .overlay { if vm.loading { ProgressView() } }
         .toast($vm.error)
         .task { await vm.load() }
@@ -436,6 +440,7 @@ struct PrivacySecurityView: View {
         }
         .navigationTitle("隐私与安全")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .overlay { if vm.loading { ProgressView() } }
         .toast($vm.error)
         .task { await vm.load() }
@@ -514,6 +519,7 @@ struct ChangePasswordView: View {
         }
         .navigationTitle("修改密码")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($vm.message)
     }
 }
@@ -553,7 +559,7 @@ struct DeleteAccountView: View {
             Section {
                 Text("注销后账号将无法登录，聊天记录/好友/群组/钱包余额等数据不可找回。请先确保钱包余额已清零。")
                     .foregroundColor(.red)
-                    .font(.footnote)
+                    .touliaoFont(14)
             }
             Section("验证密码") {
                 SecureField("登录密码", text: $vm.password)
@@ -572,6 +578,7 @@ struct DeleteAccountView: View {
         }
         .navigationTitle("注销账号")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($vm.message)
         .confirmationDialog("注销账号后将无法恢复，确定继续？", isPresented: $showConfirm, titleVisibility: .visible) {
             Button("确认注销", role: .destructive) {

@@ -1,5 +1,6 @@
 package com.touliao.app.feature.profile
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -70,10 +71,10 @@ private object Tok {
     // brand（投聊极光靛，不复制 v信绿）
     val Green: Color @Composable get() = VxinBrand
     val GreenBg: Color @Composable get() = VxinBrandMuted
-    val Red     = Color(0xFFFF3B30)
+    val Red: Color @Composable get() = com.touliao.app.ui.theme.VxinError
     // shape / size
-    val cardRadius = 16.dp
-    val avatarRadius = 14.dp
+    val cardRadius = 12.dp
+    val avatarRadius = 12.dp
     val avatarSize = 66.dp
     val iconSize = 22.dp
     val rowHeight = 56.dp
@@ -129,7 +130,7 @@ private fun SettingsRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(Tok.rowHeight)
+            .heightIn(min = Tok.rowHeight)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = rememberRipple(bounded = true),
@@ -145,13 +146,13 @@ private fun SettingsRow(
         Text(
             text = title,
             modifier = Modifier.weight(1f),
-            fontSize = 16.5.sp,
+            fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onSurface,
         )
         if (trailing != null) {
             Text(
                 text = trailing,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -316,14 +317,14 @@ fun ProfileScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp)
+                            .heightIn(min = 52.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = rememberRipple(bounded = true),
                             ) { showLogoutDialog = true },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("退出登录", color = Tok.Red, fontSize = 16.5.sp)
+                        Text("退出登录", color = Tok.Red, fontSize = 16.sp)
                     }
                 }
 
@@ -451,7 +452,7 @@ private fun AccountSwitchSheet(
                     val isCurrent = acc.id == activeId
                     Row(
                         Modifier.fillMaxWidth()
-                            .height(Tok.rowHeight)
+                            .heightIn(min = Tok.rowHeight)
                             .clickable(enabled = !isCurrent) { onSwitch(acc.id) }
                             .padding(horizontal = Tok.L),
                         verticalAlignment = Alignment.CenterVertically,
@@ -461,7 +462,7 @@ private fun AccountSwitchSheet(
                         Column(Modifier.weight(1f)) {
                             Text(
                                 acc.username.ifBlank { "未命名" },
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                             )
@@ -485,7 +486,7 @@ private fun AccountSwitchSheet(
                 }
                 Row(
                     Modifier.fillMaxWidth()
-                        .height(Tok.rowHeight)
+                        .heightIn(min = Tok.rowHeight)
                         .clickable { onAddAccount() }
                         .padding(horizontal = Tok.L),
                     verticalAlignment = Alignment.CenterVertically,
@@ -494,7 +495,7 @@ private fun AccountSwitchSheet(
                         Icon(TouliaoIcons.Add, contentDescription = null, tint = Tok.Green)
                     }
                     Spacer(Modifier.width(Tok.M))
-                    Text("添加账号", fontSize = 15.sp, color = Tok.Green)
+                    Text("添加账号", fontSize = 14.sp, color = Tok.Green)
                 }
                 Spacer(Modifier.height(Tok.XXL))
             }

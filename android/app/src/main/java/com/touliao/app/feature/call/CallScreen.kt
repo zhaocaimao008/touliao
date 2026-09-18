@@ -1,5 +1,6 @@
 package com.touliao.app.feature.call
 
+import androidx.compose.material3.MaterialTheme
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -162,7 +163,7 @@ fun CallHost(
                 // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
                 if (state.stage == CallStage.CONNECTED && state.callQuality.isNotEmpty()) {
                     val (qColor, qText) = when (state.callQuality) {
-                        "poor" -> Color(0xFFFA5151) to "网络较差"
+                        "poor" -> com.touliao.app.ui.theme.VxinError to "网络较差"
                         "medium" -> Color(0xFFF5A623) to "网络一般"
                         else -> com.touliao.app.ui.theme.VxinSuccess to "网络良好"
                     }
@@ -183,7 +184,7 @@ fun CallHost(
                     .size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
                     .clickable { viewModel.setMinimized(true) },
                 contentAlignment = Alignment.Center,
-            ) { Text("⌄", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
+            ) { com.touliao.app.ui.DesignGlyph("⌄", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
         }
 
         // 控制按钮（systemBarsPadding 避免按钮被底部手势条遮挡）
@@ -194,21 +195,21 @@ fun CallHost(
             if (state.stage == CallStage.INCOMING) {
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     RoundButton("接听", CallGreen) { viewModel.accept() }
-                    RoundButton("回复消息", Color(0xFF555555)) { viewModel.rejectAndReply() }
+                    RoundButton("回复消息", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.rejectAndReply() }
                     RoundButton("拒绝", CallRed) { viewModel.reject() }
                 }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", Color(0xFF555555)) { viewModel.toggleMic() }
-                    RoundButton(if (state.speakerOn) "扬声器开" else "扬声器关", Color(0xFF555555)) { viewModel.toggleSpeaker() }
+                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleMic() }
+                    RoundButton(if (state.speakerOn) "扬声器开" else "扬声器关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleSpeaker() }
                     if (state.bluetoothAvailable) {
-                        RoundButton(if (state.bluetoothOn) "蓝牙开" else "蓝牙关", Color(0xFF555555)) { viewModel.toggleBluetooth() }
+                        RoundButton(if (state.bluetoothOn) "蓝牙开" else "蓝牙关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleBluetooth() }
                     }
-                    RoundButton(if (state.isVideo) "切语音" else "切视频", Color(0xFF555555)) { viewModel.toggleVideo() }
+                    RoundButton(if (state.isVideo) "切语音" else "切视频", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleVideo() }
                     RoundButton("挂断", CallRed) { viewModel.hangup() }
                     if (state.isVideo) {
-                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", Color(0xFF555555)) { viewModel.toggleCamera() }
-                        RoundButton("翻转", Color(0xFF555555)) { viewModel.switchCamera() }
+                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleCamera() }
+                        RoundButton("翻转", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.switchCamera() }
                     }
                 }
             }
@@ -252,7 +253,7 @@ private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) { Text(label.take(3), color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
         Spacer(Modifier.height(4.dp))
-        Text(label, color = Color(0xFFCCCCCC), fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
+        Text(label, color = MaterialTheme.colorScheme.outline, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
     }
 }
 

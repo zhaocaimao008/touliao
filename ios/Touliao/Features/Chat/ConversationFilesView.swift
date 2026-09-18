@@ -133,6 +133,7 @@ struct ConversationFilesView: View {
             }
             .navigationTitle("聊天文件")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("关闭") { dismiss() }

@@ -43,7 +43,7 @@ struct SearchView: View {
                         HStack(spacing: 12) {
                             InitialAvatar(name: r.convName.isEmpty ? "?" : r.convName, size: 44)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(r.convName.isEmpty ? "会话" : r.convName).foregroundColor(.primary).lineLimit(1)
+                                Text(r.convName.isEmpty ? "会话" : r.convName).foregroundColor(.vxinText).lineLimit(1)
                                 // 类型图标 + 摘要（F5：结构化消息透出人话字段，不泄原始 JSON；对齐 Web gs-msg-type-icon）
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                                     Text(messageSearchTypeIcon(r.type))

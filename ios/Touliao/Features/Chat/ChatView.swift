@@ -76,6 +76,7 @@ struct ChatView: View {
         }
         .navigationTitle(vm.peerTyping ? "对方正在输入…" : (vm.title.isEmpty ? "聊天" : vm.title))
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($vm.error)   // 发送/上传/收藏/转发等失败与"已收藏""已转发"等提示统一透出
         .toolbar {
             if isGroup {
@@ -227,6 +228,7 @@ struct ChatView: View {
                 }
                 .navigationTitle("群公告")
                 .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { showAnnouncement = false } } }
             }
         }
@@ -244,6 +246,7 @@ struct ChatView: View {
                 }
                 .navigationTitle("置顶消息 (\(vm.pinnedMessages.count))")
                 .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { showPinnedList = false } } }
             }
         }
@@ -271,7 +274,7 @@ struct ChatView: View {
                         Button { vm.appendMentionAll(); showMentionPicker = false } label: {
                             HStack(spacing: 12) {
                                 InitialAvatar(name: "全", size: 36)
-                                Text("所有人").fontWeight(.semibold).foregroundColor(.primary)
+                                Text("所有人").fontWeight(.semibold).foregroundColor(.vxinText)
                             }
                         }
                     }
@@ -279,12 +282,13 @@ struct ChatView: View {
                         Button { vm.appendMention(m); showMentionPicker = false } label: {
                             HStack(spacing: 12) {
                                 InitialAvatar(name: m.displayName.isEmpty ? "?" : m.displayName, size: 36)
-                                Text(m.displayName.isEmpty ? "未命名" : m.displayName).foregroundColor(.primary)
+                                Text(m.displayName.isEmpty ? "未命名" : m.displayName).foregroundColor(.vxinText)
                             }
                         }
                     }
                 }
                 .navigationTitle("选择要 @ 的成员").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { showMentionPicker = false } } }
             }
         }
@@ -297,11 +301,12 @@ struct ChatView: View {
                         HStack {
                             TouliaoIcon(systemName: forwardSelected.contains(conv.id) ? "checkmark.circle.fill" : "circle").foregroundColor(.vxinGreen)
                             InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32)
-                            Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.primary).lineLimit(1)
+                            Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.vxinText).lineLimit(1)
                         }
                     }
                 }
                 .navigationTitle("转发到").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("取消") { vm.forwardTarget = nil; forwardSelected = [] } }
                     ToolbarItem(placement: .confirmationAction) {
@@ -324,7 +329,7 @@ struct ChatView: View {
                             HStack {
                                 TouliaoIcon(systemName: multiForwardSelected.contains(conv.id) ? "checkmark.circle.fill" : "circle").foregroundColor(.vxinGreen)
                                 InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32)
-                                Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.primary).lineLimit(1)
+                                Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.vxinText).lineLimit(1)
                             }
                         }
                     }
@@ -345,6 +350,7 @@ struct ChatView: View {
                         .padding(.bottom, 8)
                 }
                 .navigationTitle("转发到").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") { showMultiForwardSheet = false }
@@ -1164,7 +1170,7 @@ private struct MessageBubble: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(msg.content.isEmpty ? "文件" : msg.content).lineLimit(2)
                         if let size = humanFileSize(msg.fileSize) {
-                            Text(size).touliaoFont(12).foregroundColor(.secondary)
+                            Text(size).touliaoFont(12).foregroundColor(.vxinTextSecondary)
                         }
                     }
                 }
@@ -1288,7 +1294,7 @@ private struct MessageBubble: View {
     private func card<V: View>(@ViewBuilder _ inner: () -> V) -> some View {
         inner()
             // 对齐 web AURORA：我的=极光靛渐变+白字；对方=系统浅底(暗色自适应)+主色字
-            .foregroundColor(isMine ? Color.vxinBubbleText : .primary)
+            .foregroundColor(isMine ? Color.vxinBubbleText : .vxinText)
             .padding(.horizontal, 12).padding(.vertical, 8)
             .background {
                 if isMine {
@@ -1366,7 +1372,7 @@ private struct PendingBubbleView: View {
                             .foregroundColor(.white)
                     }
                     .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(pending.failed ? Color.vxinError.opacity(0.7) : Color.vxinGreen.opacity(0.6))
+                    .background(pending.failed ? Color.vxinError : Color.vxinBubbleMine)
                     .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
                     .onTapGesture { if pending.failed { onRetry() } }
                     .onLongPressGesture { if pending.failed { onDismiss() } }
@@ -1404,6 +1410,7 @@ private struct SendRedPacketSheet: View {
             }
             .navigationTitle("发红包")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -1443,6 +1450,7 @@ private struct SendTransferSheet: View {
             }
             .navigationTitle("转账")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(sending) }
                 ToolbarItem(placement: .confirmationAction) {
@@ -1501,6 +1509,7 @@ private struct SendScheduleSheet: View {
             }
             .navigationTitle("定时发送")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }.disabled(sending)
@@ -1568,6 +1577,7 @@ private struct ScheduledListSheet: View {
             }
             .navigationTitle("定时消息")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("关闭") { dismiss() }
@@ -1727,6 +1737,7 @@ private struct RedPacketDetailSheet: View {
             }
             .padding()
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("关闭") { onClose() } }
             }
@@ -1763,7 +1774,7 @@ private struct MessageSearchSheet: View {
                                     Spacer()
                                     Text(formatChatTime(msg.createdAt)).touliaoFont(12).foregroundColor(.vxinTextSecondary)
                                 }
-                                Text(preview(msg)).touliaoFont(14).lineLimit(2).foregroundColor(.primary)
+                                Text(preview(msg)).touliaoFont(14).lineLimit(2).foregroundColor(.vxinText)
                             }
                         }
                         .buttonStyle(.plain)
@@ -1775,6 +1786,7 @@ private struct MessageSearchSheet: View {
             }
             .searchable(text: Binding(get: { vm.searchQuery }, set: { vm.onSearchQueryChange($0) }), prompt: "搜索聊天记录")
             .navigationTitle("搜索聊天记录").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("取消") { vm.searchActive = false } } }
         }
     }

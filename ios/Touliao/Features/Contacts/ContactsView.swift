@@ -29,11 +29,11 @@ struct ContactsView: View {
             Section {
                 Button(action: onRequests) {
                     HStack {
-                        Text("新的朋友").foregroundColor(.primary)
+                        Text("新的朋友").foregroundColor(.vxinText)
                         Spacer()
                         if vm.requestCount > 0 {
                             Text("\(vm.requestCount)")
-                                .touliaoFont(12).foregroundColor(.white)
+                                .touliaoFont(12).foregroundColor(.vxinOnPrimary)
                                 .padding(.horizontal, 6).padding(.vertical, 2)
                                 .background(Color.vxinError).clipShape(Capsule())
                         }
@@ -42,21 +42,21 @@ struct ContactsView: View {
                 }
                 Button(action: onOpenLabels) {
                     HStack {
-                        Text("好友标签").foregroundColor(.primary)
+                        Text("好友标签").foregroundColor(.vxinText)
                         Spacer()
                         TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
                     }
                 }
                 Button(action: onOpenBlocked) {
                     HStack {
-                        Text("黑名单").foregroundColor(.primary)
+                        Text("黑名单").foregroundColor(.vxinText)
                         Spacer()
                         TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
                     }
                 }
                 Button(action: { vm.showAiBots.toggle() }) {
                     HStack {
-                        Text(vm.showAiBots ? "AI 助手 (\\(vm.aiBots.count))" : "AI 助手").foregroundColor(.primary)
+                        Text(vm.showAiBots ? "AI 助手 (\\(vm.aiBots.count))" : "AI 助手").foregroundColor(.vxinText)
                         Spacer()
                         TouliaoIcon(systemName: vm.showAiBots ? "chevron.up" : "chevron.right")
                             .foregroundColor(.vxinTextSecondary).touliaoFont(12)
@@ -71,7 +71,7 @@ struct ContactsView: View {
                                 HStack(spacing: 12) {
                                     InitialAvatar(name: bot.name.isEmpty ? "?" : bot.name, size: 40)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(bot.name.isEmpty ? bot.username : bot.name).foregroundColor(.primary)
+                                        Text(bot.name.isEmpty ? bot.username : bot.name).foregroundColor(.vxinText)
                                         if !bot.description.isEmpty {
                                             Text(bot.description).touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                         }
@@ -100,7 +100,7 @@ struct ContactsView: View {
                                     }
                                 }
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.primary)
+                                Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.vxinText)
                                 if !contact.bio.isEmpty {
                                     Text(contact.bio).touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                 }

@@ -28,8 +28,8 @@ struct WalletView: View {
         List {
             Section {
                 VStack(spacing: 8) {
-                    Text("当前余额（金币）").font(.caption).foregroundColor(.vxinTextSecondary)
-                    Text("\(vm.balance)").font(.system(size: VxinFontSize.displayXl, weight: .bold)).foregroundColor(Color(red: 0.98, green: 0.62, blue: 0.23))
+                    Text("当前余额（金币）").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                    Text("\(vm.balance)").touliaoFont(VxinFontSize.displayXl, weight: .bold).foregroundColor(Color(red: 0.98, green: 0.62, blue: 0.23))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
@@ -46,6 +46,7 @@ struct WalletView: View {
         }
         .navigationTitle("我的钱包")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { await vm.load() }
     }
 }
@@ -56,14 +57,14 @@ private struct TransactionRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tx.memo.isEmpty ? typeLabel(tx.type) : tx.memo)
-                Text(formatTime(tx.createdAt)).font(.caption).foregroundColor(.vxinTextSecondary)
+                Text(formatTime(tx.createdAt)).touliaoFont(12).foregroundColor(.vxinTextSecondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text((tx.amount >= 0 ? "+" : "") + "\(tx.amount)")
                     .foregroundColor(tx.amount >= 0 ? .vxinGreen : Color(red: 0.98, green: 0.32, blue: 0.32))
                     .fontWeight(.semibold)
-                Text("余额 \(tx.balanceAfter)").font(.caption).foregroundColor(.vxinTextSecondary)
+                Text("余额 \(tx.balanceAfter)").touliaoFont(12).foregroundColor(.vxinTextSecondary)
             }
         }
     }

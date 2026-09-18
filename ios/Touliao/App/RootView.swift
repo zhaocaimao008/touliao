@@ -14,7 +14,7 @@ struct RootView: View {
         content
             .touliaoPage()
             .preferredColorScheme((AppTheme(rawValue: themeRaw) ?? .system).colorScheme)
-            .dynamicTypeSize(max(systemTextSize, (AppFontScale(rawValue: fontRaw) ?? .standard).dynamicTypeSize))
+            .dynamicTypeSize(touliaoTextSize(system: systemTextSize, preference: (AppFontScale(rawValue: fontRaw) ?? .standard).dynamicTypeSize))
     }
 
     @ViewBuilder private var content: some View {

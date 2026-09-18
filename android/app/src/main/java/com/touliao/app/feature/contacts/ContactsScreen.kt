@@ -111,7 +111,7 @@ fun ContactsScreen(
                             Spacer(Modifier.width(8.dp))
                         }
                     }
-                    Text("›", color = VxinTextSecondary)
+                    com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
                 }
                 HorizontalDivider()
                 // 好友标签入口
@@ -120,7 +120,7 @@ fun ContactsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("好友标签", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    Text("›", color = VxinTextSecondary)
+                    com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
                 }
                 HorizontalDivider()
                 // 黑名单入口
@@ -129,7 +129,7 @@ fun ContactsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("黑名单", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    Text("›", color = VxinTextSecondary)
+                    com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
                 }
                 HorizontalDivider()
                 // AI 助手入口（固定分组；bot 列表来自后端 /api/config）
@@ -171,7 +171,7 @@ fun ContactsScreen(
                                         )
                                     }
                                 }
-                                Text("›", color = VxinTextSecondary)
+                                com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
                             }
                         }
                     }
@@ -371,7 +371,7 @@ private fun ContactRow(
                 Box(
                     Modifier.align(Alignment.BottomEnd).size(12.dp)
                         // 描边圈随主题：浅色=白、深色=卡面色，深色下不再突兀
-                        .clip(CircleShape).background(if (isSystemInDarkTheme()) VxinSurfaceDark else Color.White).padding(2.dp)
+                        .clip(CircleShape).background(MaterialTheme.colorScheme.surface).padding(2.dp)
                         .clip(CircleShape).background(VxinGreen),
                 )
             }

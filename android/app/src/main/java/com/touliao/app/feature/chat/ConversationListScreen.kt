@@ -139,7 +139,7 @@ fun ConversationListScreen(
                     }
                     var addMenu by remember { mutableStateOf(false) }
                     Box {
-                        IconButton(onClick = { addMenu = true }) { Text("＋", fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl) }
+                        IconButton(onClick = { addMenu = true }) { com.touliao.app.ui.DesignGlyph("＋", fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl) }
                         DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
                             DropdownMenuItem(text = { Text("文件传输助手") }, onClick = {
                                 addMenu = false
@@ -228,7 +228,7 @@ fun ConversationListScreen(
                                 Box(
                                     Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
                                     contentAlignment = Alignment.Center,
-                                ) { Text("🗄", fontSize = 22.sp) }
+                                ) { com.touliao.app.ui.DesignGlyph("🗄", fontSize = 22.sp) }
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text("已归档会话", style = MaterialTheme.typography.bodyLarge)
@@ -244,7 +244,7 @@ fun ConversationListScreen(
                                     ) {
                                         Text(
                                             if (archiveUnread > 99) "99+" else archiveUnread.toString(),
-                                            color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
+                                            color = MaterialTheme.colorScheme.onError, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                                         )
                                     }
                                 }
@@ -374,7 +374,7 @@ internal fun ConversationRow(
                         Box(Modifier.size(8.dp).clip(CircleShape).background(com.touliao.app.ui.theme.VxinError))
                         Spacer(Modifier.width(4.dp))
                     }
-                    Text("🔕", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
+                    com.touliao.app.ui.DesignGlyph("🔕", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
                 }
                 // 正常会话：显示未读数字角标
                 conv.unreadCount > 0 -> Box(
@@ -386,7 +386,7 @@ internal fun ConversationRow(
                 ) {
                     Text(
                         if (conv.unreadCount > 99) "99+" else conv.unreadCount.toString(),
-                        color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
+                        color = MaterialTheme.colorScheme.onError, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                     )
                 }
             }

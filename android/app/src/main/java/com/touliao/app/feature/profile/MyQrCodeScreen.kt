@@ -45,7 +45,7 @@ fun MyQrCodeScreen(
                 title = { Text("我的二维码") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回")
                     }
                 },
             )

@@ -35,7 +35,7 @@ struct LoginView: View {
             }
             Text("投聊")
                 .touliaoFont(VxinFontSize.displayLg, weight: .bold)
-                .foregroundColor(.primary)
+                .foregroundColor(.vxinText)
             Text("安全 · 私密 · 畅聊")
                 .touliaoFont(14)
                 .foregroundColor(.vxinTextSecondary)

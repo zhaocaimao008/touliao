@@ -46,7 +46,7 @@ fun WalletScreen(onBack: () -> Unit, viewModel: WalletViewModel = hiltViewModel(
         topBar = {
             TopAppBar(
                 title = { Text("我的钱包") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -92,7 +92,7 @@ private fun TransactionRow(tx: WalletTransaction) {
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 (if (positive) "+" else "") + "${tx.amount}",
-                color = if (positive) com.touliao.app.ui.theme.VxinSuccess else Color(0xFFFA5151),
+                color = if (positive) com.touliao.app.ui.theme.VxinSuccess else com.touliao.app.ui.theme.VxinError,
                 fontWeight = FontWeight.SemiBold,
             )
             Text("余额 ${tx.balanceAfter}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

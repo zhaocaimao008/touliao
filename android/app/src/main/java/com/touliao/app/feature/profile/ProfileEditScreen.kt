@@ -1,5 +1,6 @@
 package com.touliao.app.feature.profile
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -87,7 +88,7 @@ fun ProfileEditScreen(
         topBar = {
             TopAppBar(
                 title = { Text("个人资料") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -187,9 +188,9 @@ private fun EditGroupCard(modifier: Modifier = Modifier, content: @Composable an
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
         content = content,
     )
 }
@@ -210,7 +211,7 @@ private fun EditRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .heightIn(min = 52.dp)
             .then(
                 if (clickable) Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },

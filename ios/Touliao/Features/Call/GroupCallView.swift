@@ -23,7 +23,7 @@ struct GroupCallHostView: View {
     private func inviteBanner(_ inv: GroupCallInvite) -> some View {
         HStack(spacing: 12) {
             Text("\(inv.fromName.isEmpty ? "群成员" : inv.fromName) 发起了群\(inv.type == "video" ? "视频" : "语音")通话")
-                .font(.subheadline).foregroundColor(.white)
+                .touliaoFont(14).foregroundColor(.white)
             Button("加入") { manager.join(callId: inv.callId, conversationId: inv.conversationId, video: inv.type == "video") }
                 .padding(.horizontal, 14).padding(.vertical, 6)
                 .background(Color.vxinSuccess).foregroundColor(.white).clipShape(Capsule())
@@ -52,12 +52,12 @@ private struct GroupCallView: View {
             VStack {
                 VStack(spacing: 2) {
                     Text("群\(state.isVideo ? "视频" : "语音")通话 · \(state.participants.count + 1) 人")
-                        .font(.subheadline).foregroundColor(.white)
+                        .touliaoFont(14).foregroundColor(.white)
                     // 接通后每秒递增的通话时长(mm:ss)，对齐微信/安卓
                     if state.stage == .connected, let start = state.connectedAt {
                         TimelineView(.periodic(from: start, by: 1)) { context in
                             Text(formatCallDuration(from: start, now: context.date))
-                                .font(.caption2).foregroundColor(Color(white: 0.7)).monospacedDigit()
+                                .touliaoFont(12).foregroundColor(Color(white: 0.7)).monospacedDigit()
                         }
                     }
                 }.padding(.top, 12)
@@ -93,7 +93,7 @@ private struct GroupCallView: View {
             } else {
                 InitialAvatar(name: label, size: 64)
             }
-            Text(label).font(.caption2).foregroundColor(.white).padding(6)
+            Text(label).touliaoFont(12).foregroundColor(.white).padding(6)
         }
         .aspectRatio(0.85, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
@@ -128,10 +128,10 @@ private struct GroupCallView: View {
         VStack(spacing: 4) {
             Button(action: action) {
                 Text(String(label.prefix(2)))
-                    .font(.caption).foregroundColor(.white)
+                    .touliaoFont(12).foregroundColor(.white)
                     .frame(width: 60, height: 60).background(color).clipShape(Circle())
             }
-            Text(label).font(.caption2).foregroundColor(Color(white: 0.8))
+            Text(label).touliaoFont(12).foregroundColor(Color(white: 0.8))
         }
     }
 

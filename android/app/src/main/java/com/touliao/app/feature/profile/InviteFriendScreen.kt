@@ -1,5 +1,6 @@
 package com.touliao.app.feature.profile
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -37,7 +38,7 @@ fun InviteFriendScreen(
                 title = { Text("邀请好友") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回")
                     }
                 },
             )
@@ -101,7 +102,7 @@ fun InviteFriendScreen(
                                 size = 36.dp,
                             )
                             Spacer(Modifier.width(10.dp))
-                            Text(u.username.ifBlank { "未命名" }, fontSize = 15.sp)
+                            Text(u.username.ifBlank { "未命名" }, fontSize = 14.sp)
                         }
                         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                     }

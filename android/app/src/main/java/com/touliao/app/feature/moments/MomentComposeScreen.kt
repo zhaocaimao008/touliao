@@ -1,5 +1,6 @@
 package com.touliao.app.feature.moments
 
+import androidx.compose.material3.MaterialTheme
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -72,7 +73,7 @@ fun MomentComposeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("发表") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
                 actions = {
                     TextButton(onClick = viewModel::publish, enabled = !state.publishing) {
                         if (state.publishing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -113,7 +114,7 @@ fun MomentComposeScreen(
                         Modifier.fillMaxWidth(0.6f).aspectRatio(16f / 9f).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                             .clickable { videoPicker.launch("video/*") },
                         contentAlignment = Alignment.Center,
-                    ) { Text("＋", color = VxinTextSecondary) }
+                    ) { com.touliao.app.ui.DesignGlyph("＋", color = VxinTextSecondary) }
                 } else {
                     Box(
                         Modifier.fillMaxWidth(0.6f).aspectRatio(16f / 9f)
@@ -126,7 +127,7 @@ fun MomentComposeScreen(
                                 .clickable { viewModel.removeVideo() },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("▶", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl)
+                            com.touliao.app.ui.DesignGlyph("▶", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl)
                         }
                         Text(
                             "✕",
@@ -150,7 +151,7 @@ fun MomentComposeScreen(
                 items(state.images, key = { it }) { uri ->
                     Box(Modifier.padding(2.dp).aspectRatio(1f)) {
                         AsyncImage(uri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm)))
-                        Text("✕", color = Color.White, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)).clickable { viewModel.removeImage(uri) }.padding(horizontal = 6.dp))
+                        com.touliao.app.ui.DesignGlyph("✕", color = Color.White, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)).clickable { viewModel.removeImage(uri) }.padding(horizontal = 6.dp))
                     }
                 }
                 if (state.images.size < 9) {
@@ -159,7 +160,7 @@ fun MomentComposeScreen(
                             Modifier.padding(2.dp).aspectRatio(1f).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                                 .clickable { picker.launch("image/*") },
                             contentAlignment = Alignment.Center,
-                        ) { Text("＋", color = VxinTextSecondary) }
+                        ) { com.touliao.app.ui.DesignGlyph("＋", color = VxinTextSecondary) }
                     }
                 }
             }
@@ -247,6 +248,6 @@ private fun VideoThumb(uri: Uri, modifier: Modifier = Modifier) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-        } ?: Text("🎬", fontSize = com.touliao.app.ui.theme.VxinTextSize.lg)
+        } ?: com.touliao.app.ui.DesignGlyph("🎬", fontSize = com.touliao.app.ui.theme.VxinTextSize.lg)
     }
 }

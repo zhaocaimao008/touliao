@@ -81,7 +81,7 @@ fun SearchScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") }
                 },
             )
         },
@@ -182,7 +182,7 @@ private fun FilterDropdown(
                 modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.weight(1f))
-            Text("▾", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+            com.touliao.app.ui.DesignGlyph("▾", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEachIndexed { i, opt ->

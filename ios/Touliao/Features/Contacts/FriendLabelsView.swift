@@ -64,7 +64,7 @@ struct FriendLabelsView: View {
                         HStack {
                             Circle().fill(Color(hexOrGreen: label.color)).frame(width: 12, height: 12)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(label.name.isEmpty ? "未命名标签" : label.name).foregroundColor(.primary)
+                                Text(label.name.isEmpty ? "未命名标签" : label.name).foregroundColor(.vxinText)
                                 Text("\(label.members.count) 位好友").touliaoFont(12).foregroundColor(.vxinTextSecondary)
                             }
                             Spacer()
@@ -119,7 +119,7 @@ private struct LabelMembersSheet: View {
                     onToggle(c.id, add)
                 } label: {
                     HStack {
-                        Text(c.displayName.isEmpty ? "未命名" : c.displayName).foregroundColor(.primary)
+                        Text(c.displayName.isEmpty ? "未命名" : c.displayName).foregroundColor(.vxinText)
                         Spacer()
                         if memberIds.contains(c.id) { TouliaoIcon(systemName: "checkmark").foregroundColor(.vxinGreen) }
                     }

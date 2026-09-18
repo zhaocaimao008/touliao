@@ -25,7 +25,7 @@ struct InviteMembersView: View {
                             TouliaoIcon(systemName: vm.selected.contains(contact.id) ? "checkmark.circle.fill" : "circle")
                                 .foregroundColor(vm.selected.contains(contact.id) ? .vxinGreen : .vxinTextSecondary)
                             InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 40)
-                            Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.primary)
+                            Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.vxinText)
                             Spacer()
                         }
                     }

@@ -108,7 +108,7 @@ private struct CallView: View {
                     Spacer().frame(height: 80)
                     InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: 96)
                     Text(state.peerName.isEmpty ? "通话" : state.peerName)
-                        .font(.title2).foregroundColor(.white)
+                        .touliaoFont(22).foregroundColor(.white)
                     statusOrDuration
                     Spacer()
                 }
@@ -125,8 +125,8 @@ private struct CallView: View {
                 VStack {
                     HStack {
                         Button { manager.setMinimized(true) } label: {
-                            Image(systemName: "chevron.down")
-                                .font(.headline).foregroundColor(.white)
+                            TouliaoIcon(systemName: "chevron.down")
+                                .touliaoFont(18, weight: .semibold).foregroundColor(.white)
                                 .frame(width: 36, height: 36)
                                 .background(Color.white.opacity(0.15)).clipShape(Circle())
                         }
@@ -148,16 +148,16 @@ private struct CallView: View {
         if state.stage == .connected, let start = state.connectedAt {
             TimelineView(.periodic(from: start, by: 1)) { context in
                 Text(formatCallDuration(from: start, now: context.date))
-                    .font(.subheadline).foregroundColor(Color(white: 0.7))
+                    .touliaoFont(14).foregroundColor(Color(white: 0.7))
                     .monospacedDigit()
             }
         } else if state.stage == .ended, let start = state.connectedAt {
             // 接通过再结束：定格显示「通话时长 mm:ss」
             Text("通话时长 " + formatCallDuration(from: start, now: state.endedAt ?? Date()))
-                .font(.subheadline).foregroundColor(Color(white: 0.7)).monospacedDigit()
+                .touliaoFont(14).foregroundColor(Color(white: 0.7)).monospacedDigit()
         } else {
             Text(statusText)
-                .font(.subheadline).foregroundColor(Color(white: 0.7))
+                .touliaoFont(14).foregroundColor(Color(white: 0.7))
         }
         // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
         if state.stage == .connected && !state.callQuality.isEmpty {
@@ -167,7 +167,7 @@ private struct CallView: View {
             default: (.vxinSuccess, "网络良好")
             }
             Text(qText)
-                .font(.caption).foregroundColor(qColor)
+                .touliaoFont(12).foregroundColor(qColor)
         }
     }
 
@@ -207,11 +207,11 @@ private struct CallView: View {
         VStack(spacing: 4) {
             Button(action: action) {
                 Text(String(label.prefix(2)))
-                    .font(.caption).foregroundColor(.white)
+                    .touliaoFont(12).foregroundColor(.white)
                     .frame(width: 60, height: 60)
                     .background(color).clipShape(Circle())
             }
-            Text(label).font(.caption2).foregroundColor(Color(white: 0.8))
+            Text(label).touliaoFont(12).foregroundColor(Color(white: 0.8))
         }
     }
 

@@ -92,7 +92,7 @@ fun LoginScreen(
                 horizontalArrangement = Arrangement.Start,
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回")
                 }
             }
             Spacer(Modifier.height(8.dp))

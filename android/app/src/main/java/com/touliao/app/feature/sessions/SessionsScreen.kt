@@ -49,7 +49,7 @@ fun SessionsScreen(onBack: () -> Unit, viewModel: SessionsViewModel = hiltViewMo
         topBar = {
             TopAppBar(
                 title = { Text("登录设备管理") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
                 actions = {
                     if (state.sessions.count { !it.current } > 0) {
                         TextButton(onClick = { kickOthers = true }) { Text("退出其它设备") }
@@ -79,7 +79,7 @@ fun SessionsScreen(onBack: () -> Unit, viewModel: SessionsViewModel = hiltViewMo
             onDismissRequest = { kickTarget = null },
             title = { Text("下线该设备") },
             text = { Text("确认让「${t.device}」下线？该设备需重新登录。") },
-            confirmButton = { TextButton(onClick = { viewModel.kick(t); kickTarget = null }) { Text("确认", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.kick(t); kickTarget = null }) { Text("确认", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { kickTarget = null }) { Text("取消") } },
         )
     }
@@ -88,7 +88,7 @@ fun SessionsScreen(onBack: () -> Unit, viewModel: SessionsViewModel = hiltViewMo
             onDismissRequest = { kickOthers = false },
             title = { Text("退出其它设备") },
             text = { Text("确认退出除当前设备外的所有登录？") },
-            confirmButton = { TextButton(onClick = { viewModel.kickOthers(); kickOthers = false }) { Text("确认", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.kickOthers(); kickOthers = false }) { Text("确认", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { kickOthers = false }) { Text("取消") } },
         )
     }
@@ -107,7 +107,7 @@ private fun SessionRow(s: DeviceSession, onKick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
             )
         }
-        if (!s.current) TextButton(onClick = onKick) { Text("下线", color = Color(0xFFFA5151)) }
+        if (!s.current) TextButton(onClick = onKick) { Text("下线", color = com.touliao.app.ui.theme.VxinError) }
     }
 }
 

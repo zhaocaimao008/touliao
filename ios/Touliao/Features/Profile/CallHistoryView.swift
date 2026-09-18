@@ -74,10 +74,13 @@ struct CallHistoryView: View {
                         .buttonStyle(.plain)
                 }
                 .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
             }
         }
         .navigationTitle("通话记录")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .navigationDestination(isPresented: Binding(get: { navTarget != nil }, set: { if !$0 { navTarget = nil } })) {
             if let conv = navTarget {
                 ChatView(conversation: conv, myId: session.currentUser?.id ?? "", onOpenGroupInfo: {})
@@ -94,17 +97,17 @@ struct CallHistoryView: View {
             InitialAvatar(name: c.peerName.isEmpty ? (isGroup ? "群" : "?") : c.peerName, size: 42)
             VStack(alignment: .leading, spacing: 3) {
                 Text(c.peerName.isEmpty ? (isGroup ? "群聊" : "用户") : c.peerName)
-                    .font(.subheadline).fontWeight(.medium)
+                    .touliaoFont(14).fontWeight(.medium)
                     .foregroundColor(missed ? .vxinError : .primary)
                 HStack(spacing: 4) {
-                    Image(systemName: c.direction == "out" ? "arrow.up.right" : "arrow.down.left")
-                        .font(.caption2)
-                    Text(subtitle(c)).font(.caption)
+                    TouliaoIcon(systemName: c.direction == "out" ? "arrow.up.right" : "arrow.down.left")
+                        .touliaoFont(12)
+                    Text(subtitle(c)).touliaoFont(12)
                 }
                 .foregroundColor(missed ? .vxinError : .vxinTextSecondary)
             }
             Spacer()
-            Text(formatChatTime(c.createdAt)).font(.caption2).foregroundColor(.vxinTextSecondary)
+            Text(formatChatTime(c.createdAt)).touliaoFont(12).foregroundColor(.vxinTextSecondary)
         }
         .padding(.vertical, 2)
     }

@@ -95,6 +95,7 @@ private struct MergedForwardDetailSheet: View {
             }
             .navigationTitle(title.isEmpty ? "聊天记录" : title)
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { dismiss() } } }
         }
     }

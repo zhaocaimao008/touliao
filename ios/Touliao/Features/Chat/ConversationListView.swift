@@ -20,6 +20,7 @@ struct ConversationListView: View {
             content
                 .navigationTitle("消息")
                 .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 // 冷启动点击推送通知兜底：App 启动时 SessionStore 异步恢复、本视图未挂载，
                 // 广播可能丢失；挂载/重新出现时检查 PendingConversation 缓存并消费。
                 .onAppear { consumePendingConversation() }
@@ -210,7 +211,7 @@ struct ConversationListView: View {
                 Spacer()
                 if vm.archiveUnreadTotal > 0 {
                     Text(vm.archiveUnreadTotal > 99 ? "99+" : "\(vm.archiveUnreadTotal)")
-                        .touliaoFont(12).foregroundColor(.white)
+                        .touliaoFont(12).foregroundColor(.vxinOnPrimary)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Color.vxinError).clipShape(Capsule())
                 }
@@ -312,7 +313,7 @@ struct ConversationRow: View {
                 } else if conversation.unreadCount > 0 {
                     Text(conversation.unreadCount > 99 ? "99+" : "\(conversation.unreadCount)")
                         .touliaoFont(12)
-                        .foregroundColor(.white)
+                        .foregroundColor(.vxinOnPrimary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color.vxinError)

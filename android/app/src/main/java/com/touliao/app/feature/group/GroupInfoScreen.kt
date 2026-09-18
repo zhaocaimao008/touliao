@@ -110,7 +110,7 @@ fun GroupInfoScreen(
             TopAppBar(
                 title = { Text("群聊信息") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") }
                 },
             )
         },
@@ -125,7 +125,9 @@ fun GroupInfoScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrand, VxinTeal)))
+                                .padding(16.dp)
+                                .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.card))
+                                .background(MaterialTheme.colorScheme.surface)
                                 .clickable(enabled = info.canManage) { avatarPicker.launch("image/*") }
                                 .padding(vertical = 24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -137,12 +139,12 @@ fun GroupInfoScreen(
                                 } else {
                                     InitialAvatar(name = info.name.ifBlank { "群" }, size = 72.dp)
                                 }
-                                if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp), color = Color.White)
+                                if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp), color = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(Modifier.size(12.dp))
-                            Text(info.name.ifBlank { "未命名群聊" }, color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, fontWeight = FontWeight.Bold)
+                            Text(info.name.ifBlank { "未命名群聊" }, color = MaterialTheme.colorScheme.onSurface, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.size(4.dp))
-                            Text("${info.members.size} 名成员", color = Color.White.copy(alpha = 0.85f), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                            Text("${info.members.size} 名成员", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                         }
                         HorizontalDivider()
                         // 群名称
@@ -154,7 +156,7 @@ fun GroupInfoScreen(
                         ) {
                             Text("群名称", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             Text(info.name.ifBlank { "未命名群聊" }, color = VxinTextSecondary)
-                            if (info.canManage) { Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary) }
+                            if (info.canManage) { Spacer(Modifier.width(6.dp)); com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary) }
                         }
                         HorizontalDivider()
                         // 群公告
@@ -170,7 +172,7 @@ fun GroupInfoScreen(
                                 Modifier.weight(1f).padding(start = 8.dp),
                                 color = VxinTextSecondary,
                             )
-                            if (info.canManage) { Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary) }
+                            if (info.canManage) { Spacer(Modifier.width(6.dp)); com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary) }
                         }
                         HorizontalDivider()
                         // 我的群昵称
@@ -182,7 +184,7 @@ fun GroupInfoScreen(
                         ) {
                             Text("我的群昵称", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             Text(info.myNickname(viewModel.myId).ifBlank { "未设置" }, color = VxinTextSecondary)
-                            Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary)
+                            Spacer(Modifier.width(6.dp)); com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
                         }
                         HorizontalDivider()
                         // 群聊二维码
@@ -194,7 +196,7 @@ fun GroupInfoScreen(
                         ) {
                             Text("群聊二维码", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             Text("邀请进群", color = VxinTextSecondary)
-                            Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary)
+                            Spacer(Modifier.width(6.dp)); com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
                         }
                         // F4a 复制邀请链接：群主/管理员，或群开启 member_can_invite 的普通成员
                         // （权限语义与后端 createInviteLink、Web F3a 一致）。链接经 web 落地页
