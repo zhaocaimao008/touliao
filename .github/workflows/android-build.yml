@@ -23,6 +23,11 @@ on:
         description: 'Only audit installed historical Windows/Android releases; never build or publish apps'
         type: boolean
         default: false
+      legacy_audit_platform:
+        description: 'Installed-client audit scope'
+        type: choice
+        options: [both, android, windows]
+        default: both
       native_ui_review:
         description: 'Run isolated native simulator screenshots (no release / deploy)'
         type: boolean
@@ -124,7 +129,7 @@ jobs:
           if-no-files-found: warn
 
   legacy-android-update:
-    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && inputs.legacy_audit_platform != 'windows'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -173,7 +178,7 @@ jobs:
           if-no-files-found: error
 
   legacy-windows-installed:
-    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && inputs.legacy_audit_platform != 'android'
     runs-on: windows-latest
     timeout-minutes: 20
     permissions:
@@ -189,11 +194,18 @@ jobs:
           $setup = "$env:RUNNER_TEMP/legacy-8.1.26.exe"
           Invoke-WebRequest https://touliao.cc/downloads/updates/touliao-8.1.26-setup.exe -OutFile $setup
           if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLower() -ne '3933d478dc6dd8c4ffb9863abc84c4a4635c8913bfe3a70fd537b1626b4c5c46') { throw 'Historical Windows installer changed' }
-          $directory = "$env:RUNNER_TEMP/TouliaoLegacy"
-          Start-Process $setup -ArgumentList @('/S', "/D=$directory") -Wait
+          New-Item -ItemType Directory -Force legacy-evidence/windows | Out-Null
+          $directory = Join-Path $env:RUNNER_TEMP 'TouliaoLegacy'
+          $installation = Start-Process $setup -ArgumentList @('/S', '/currentuser', "/D=$directory") -Wait -PassThru
+          @{exitCode=$installation.ExitCode;requestedDirectory=$directory} | ConvertTo-Json | Set-Content legacy-evidence/windows/install-result.json
+          if ($installation.ExitCode -ne 0) { throw "Historical installer failed: $($installation.ExitCode)" }
           Get-Process touliao -ErrorAction SilentlyContinue | Stop-Process -Force
-          if (!(Test-Path "$directory/touliao.exe")) { throw 'Historical installation missing' }
-          "LEGACY_EXE=$directory/touliao.exe" >> $env:GITHUB_ENV
+          $exe = Join-Path $directory 'touliao.exe'
+          if (!(Test-Path $exe)) {
+            Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') -Filter touliao.exe -Recurse -ErrorAction SilentlyContinue | Select-Object FullName | ConvertTo-Json | Set-Content legacy-evidence/windows/installed-paths.json
+            throw 'Historical installation missing from requested directory'
+          }
+          "LEGACY_EXE=$exe" >> $env:GITHUB_ENV
           "PLAYWRIGHT_MODULE=$env:RUNNER_TEMP/legacy-driver/node_modules/playwright" >> $env:GITHUB_ENV
           npm install --prefix "$env:RUNNER_TEMP/legacy-driver" --no-audit --no-fund playwright@1.60.0
       - name: Run actual installed Electron and historical update IPC
