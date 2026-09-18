@@ -162,6 +162,18 @@ def external_transition(args, report):
     adb only copies bytes into Downloads; it never installs the new package.
     """
     out = args.output
+    def system_confirmation():
+        install = ('Install', 'INSTALL', '安装')
+        settings = ('Settings', 'SETTINGS', '设置')
+        proceed = ('Continue', 'CONTINUE', '继续')
+        n = find_node(texts=install + settings + proceed, timeout=60)
+        if n.get('text') in proceed:
+            click(texts=proceed)
+        elif n.get('text') in settings:
+            click(texts=settings)
+            click(resource='switch_widget')
+            adb('shell', 'input', 'keyevent', '4')
+        find_node(texts=install, timeout=60)
     name = 'touliao-transition-8.1.26.apk'
     adb('push', str(args.external_transition_apk), '/sdcard/Download/' + name)
     adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW',
@@ -169,15 +181,13 @@ def external_transition(args, report):
         '-t', 'vnd.android.document/root')
     click(texts=('Download', 'Downloads', '下载'))
     click(texts=(name,))
-    click(texts=('Settings', 'SETTINGS', '设置'))
-    click(resource='switch_widget')
-    adb('shell', 'input', 'keyevent', '4')
-    find_node(texts=('Install', 'INSTALL', '安装'), timeout=60)
+    system_confirmation()
     capture(out, '02-external-system-installer')
     click(texts=('Cancel', 'CANCEL', '取消'))
     assert installed()['versionCode'] == report['before']['versionCode']
     report['cancelPreservesOldInstallation'] = True
     click(texts=(name,))
+    system_confirmation()
     click(texts=('Install', 'INSTALL', '安装'))
     end = time.time() + 120
     while time.time() < end and installed()['versionCode'] != 83:
