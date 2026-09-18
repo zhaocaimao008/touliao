@@ -35,6 +35,8 @@ final class NativeUIReviewTests: XCTestCase {
     private var output: URL!
     private var oldServer: String?
     private var oldToken: String?
+    private var oldActive: String?
+    private var oldReviewAccount: StoredAccount?
     private var session: SessionStore!
 
     override func setUpWithError() throws {
@@ -45,6 +47,10 @@ final class NativeUIReviewTests: XCTestCase {
         ServerConfig.shared.baseURL = "https://native-review.invalid"
         oldToken = KeychainStore.shared.token
         KeychainStore.shared.token = "native-ui-review-only"
+        XCTAssertEqual(try XCTUnwrap(KeychainStore.shared.token, "Simulator test host requires ad hoc Keychain entitlements"), "native-ui-review-only")
+        oldActive = AccountStore.shared.activeId()
+        oldReviewAccount = AccountStore.shared.accounts().first { $0.id == "review-me" }
+        AccountStore.shared.upsertActive(StoredAccount(id: "review-me", username: "林清", avatar: "", token: "native-ui-review-only"))
         session = SessionStore()
         output = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("NativeUiReview")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -52,12 +58,16 @@ final class NativeUIReviewTests: XCTestCase {
     override func tearDownWithError() throws {
         SocketService.shared.disconnect()
         KeychainStore.shared.token = oldToken
+        AccountStore.shared.remove("review-me")
+        if let oldReviewAccount { AccountStore.shared.upsertActive(oldReviewAccount) }
+        UserDefaults.standard.set(oldActive, forKey: "touliao_active_account_id")
         UserDefaults.standard.set(oldServer, forKey: "vxin_base_url_override")
         URLProtocol.unregisterClass(ReviewURLProtocol.self)
     }
 
     func testNativeScreenGallery() async throws {
         await session.restoreSession()
+        XCTAssertEqual(try XCTUnwrap(session.currentUser).id, "review-me")
         for dark in [false, true] {
             for (name, view) in screens() {
                 try await capture(view, name: name + (dark ? "-dark" : "-light"), dark: dark)
@@ -67,6 +77,8 @@ final class NativeUIReviewTests: XCTestCase {
             try await capture(view, name: name + "-dark-large-text", dark: true, large: true, width: 320)
         }
         ReviewURLProtocol.lock.lock(); let paths = ReviewURLProtocol.paths.sorted(); ReviewURLProtocol.lock.unlock()
+        XCTAssertTrue(paths.contains("/api/auth/me"))
+        XCTAssertTrue(paths.contains("/api/messages/review-chat"), "Gallery must load real ChatViewModel history through the test transport")
         try JSONSerialization.data(withJSONObject: ["environment": "iOS Simulator — native UIHostingController", "requestsIntercepted": paths], options: .prettyPrinted)
             .write(to: output.appendingPathComponent("environment.json"))
     }
@@ -113,6 +125,10 @@ final class NativeUIReviewTests: XCTestCase {
         window.rootViewController = host
         window.makeKeyAndVisible()
         try await Task.sleep(nanoseconds: 700_000_000)
+        if name.hasPrefix("chat-") {
+            let messages = MsgCacheStore.shared.load("review-chat")
+            XCTAssertTrue(messages.contains { $0.content == "收到，稍后把文件发给你。" }, "Chat rendering requires successfully loaded history")
+        }
         host.view.setNeedsLayout(); host.view.layoutIfNeeded()
         let format = UIGraphicsImageRendererFormat(); format.scale = 2
         let image = UIGraphicsImageRenderer(bounds: host.view.bounds, format: format).image { _ in
