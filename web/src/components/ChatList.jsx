@@ -11,6 +11,7 @@ import { useI18n } from '../contexts/I18nContext';
 import { FixedSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { archiveUnreadTotal, splitArchivedConversations } from '../utils/archiveConversations';
+import { isWindowsDesktop } from '../utils/desktopPlatform';
 
 const ITEM_HEIGHT = 64;
 
@@ -398,8 +399,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   }), [filtered, activeConvId, handleSelectConv, user, drafts]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)' }}>
-      {!searchQuery && !showArchived && (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)', ...(isWindowsDesktop() ? { '--windows-row-height': `${ITEM_HEIGHT}px` } : {}) }}>
+      {!searchQuery && !showArchived && (!isWindowsDesktop() || archivedConversations.length > 0) && (
         <button type="button" className="wc-archive-entry" onClick={() => setShowArchived(true)}>
           <span className="wc-archive-icon" aria-hidden="true">▣</span>
           <span>{t('chatlist.archive')}</span>

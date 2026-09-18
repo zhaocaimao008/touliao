@@ -9,6 +9,7 @@ import './design-tokens.css';
 import './index.css';
 import './skins.css';   // 皮肤层:微信绿 / 企业微信蓝 (body[data-skin] 变量覆盖,必须在 index.css 之后)
 import './mobile-adapt.css';
+import { isWindowsDesktop } from './utils/desktopPlatform';
 import { loadRemoteConfig, getConfig } from './utils/config';
 import { migrateStorage } from './utils/migrateStorage';
 import { initWebVitals } from './utils/webVitals';
@@ -39,6 +40,10 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 // 3. 启动 React
 
 (async function boot() {
+  if (isWindowsDesktop()) {
+    document.documentElement.classList.add('windows-desktop');
+    await import('./windows-desktop.css');
+  }
   initAccountWindow();
   // 迁移旧版 vxin_* localStorage key
   migrateStorage();

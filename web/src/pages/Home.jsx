@@ -39,6 +39,7 @@ import { warmupCacheDB } from '../utils/msgCache';
 import { saveCred, removeCred } from '../utils/rememberedCreds';
 import { useI18n } from '../contexts/I18nContext';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { isWindowsDesktop } from '../utils/desktopPlatform';
 
 function WcEmpty() {
   // 对齐微信 PC：未选会话时近乎纯净留白，仅一枚极淡的单色图标，无文字、无彩色
@@ -1253,7 +1254,7 @@ export default function Home() {
   }
 
   return (
-    <div className={`wc-app${isMobile ? ' wc-mobile' : ''}`}>
+    <div className={`wc-app${isMobile ? ' wc-mobile' : ''}${isWindowsDesktop() && tab === 'me' && !activeConv && !search.trim() ? ' windows-full-panel' : ''}`}>
 
       {/* 左侧导航栏 */}
       <div className="wc-sidebar">

@@ -17,6 +17,7 @@ const SERVER_URL = argValue('--vxin-server-url=') || 'https://touliao.cc';
 // 渲染进程通过 window.__ELECTRON_CONFIG__ 判断 Electron 环境
 contextBridge.exposeInMainWorld('__ELECTRON_CONFIG__', {
   isElectron: true,
+  platform: process.platform,
   serverUrl: SERVER_URL,
   appVersion: APP_VERSION,
   profile: Number(argValue('--touliao-profile=')) || 1,

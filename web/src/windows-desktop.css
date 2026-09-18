@@ -1,0 +1,281 @@
+/* Loaded before rendering, only when the Windows preload identifies win32.
+   Keep Windows surfaces here; shared and native mobile themes stay untouched. */
+html.windows-desktop body {
+  --bg-app: #F5F6F8;
+  --bg-shell: #F0F2F5;
+  --bg-panel: #FFFFFF;
+  --bg-panel-header: #FFFFFF;
+  --bg-chat: #FFFFFF;
+  --bg-chat-header: #FFFFFF;
+  --bg-messages: #F5F6F8;
+  --bg-input: #FFFFFF;
+  --bg-input-search: #F0F2F5;
+  --bg-search: var(--bg-input-search);
+  --bg-card: #FFFFFF;
+  --bg-modal: #FFFFFF;
+  --bg-msg-other: #FFFFFF;
+  --bg-hover: #F3F4F7;
+  --bg-panel-item-hover: var(--bg-hover);
+  --bg-pinned: #FAFAFC;
+  --text-title: #20242D;
+  --text-primary: #292E38;
+  --text-secondary: #626A78;
+  --text-tertiary: #737B88;
+  --text-muted: #737B88;
+  --text-placeholder: #737B88;
+  --border-default: #E4E7EC;
+  --border-subtle: #ECEEF2;
+  --border-color: var(--border-default);
+  --divider: var(--border-subtle);
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-avatar: 8px;
+  --radius-input: 8px;
+  --radius-button: 8px;
+  --radius-card: 10px;
+  --radius-modal: 12px;
+  --font-time: 12px;
+  --nav-w: 72px;
+  --panel-w: 300px;
+  --titlebar-bg: var(--bg-shell);
+  --titlebar-fg: var(--text-secondary);
+  --titlebar-fg-hover: var(--text-primary);
+  --titlebar-title: var(--text-secondary);
+  --titlebar-btn-hover-bg: var(--border-default);
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+
+html.windows-desktop body.dark-mode {
+  --bg-app: #171A20;
+  --bg-shell: #1B1E25;
+  --bg-panel: #21252D;
+  --bg-panel-header: #21252D;
+  --bg-chat: #21252D;
+  --bg-chat-header: #21252D;
+  --bg-messages: #191C23;
+  --bg-input: #21252D;
+  --bg-input-search: #2B303A;
+  --bg-card: #252A33;
+  --bg-modal: #252A33;
+  --bg-msg-other: #2B303A;
+  --bg-hover: #2D333E;
+  --bg-pinned: #242933;
+  --text-title: #F1F3F7;
+  --text-primary: #E6E9EF;
+  --text-secondary: #B1B8C5;
+  --text-tertiary: #A0A9B8;
+  --text-muted: #A0A9B8;
+  --text-placeholder: #A0A9B8;
+  --border-default: #363C48;
+  --border-subtle: #2D333E;
+}
+
+/* A single continuous shell, with dividers separating navigation and content. */
+html.windows-desktop body .wc-app {
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  background: var(--bg-app);
+}
+html.windows-desktop body :is(.wc-sidebar, .wc-panel, .home-chat-area) {
+  border-radius: 0;
+  box-shadow: none;
+}
+html.windows-desktop body .wc-sidebar {
+  background: var(--bg-shell);
+  border-right: 1px solid var(--border-default);
+}
+html.windows-desktop body .wc-panel {
+  width: var(--panel-w);
+  min-width: var(--panel-w);
+  background: var(--bg-panel) !important; /* Existing shared surface rule is important. */
+  border-right: 1px solid var(--border-default);
+}
+html.windows-desktop body .wc-sidebar-btns { padding: 0 8px; gap: 5px; margin-top: 10px; }
+html.windows-desktop body .wc-sidebar-btn { height: 56px; border-radius: 8px; }
+html.windows-desktop body .wc-sidebar-btn.active,
+html.windows-desktop body .wc-sidebar-btn.active:hover {
+  background: var(--color-primary-muted);
+  box-shadow: none;
+}
+html.windows-desktop body .wc-sidebar-btn.active .icon svg { fill: var(--color-primary); }
+html.windows-desktop body .wc-sidebar-btn.active .wc-sidebar-label { color: var(--color-primary); }
+html.windows-desktop body .wc-sidebar-btn:hover { background: var(--bg-hover); }
+html.windows-desktop body :is(.wc-sidebar-avatar-inner, .wc-sidebar-avatar-img, .as-avatar-inner) { box-shadow: none; }
+html.windows-desktop body .wc-sidebar-avatar-inner { background: var(--color-primary); }
+html.windows-desktop #touliao-titlebar { border-bottom: 1px solid var(--border-default); }
+html.windows-desktop #touliao-titlebar button:last-child:hover { color: #FFFFFF !important; }
+
+html.windows-desktop body :is(.wc-panel-topbar, .wc-chat-header) {
+  height: 62px;
+  min-height: 62px;
+  padding: 0 18px;
+  background: var(--bg-chat-header) !important;
+  border-bottom: 1px solid var(--border-subtle);
+}
+html.windows-desktop body .wc-search { height: 34px; border-radius: 7px; background: var(--bg-search); }
+html.windows-desktop body .wc-search input { font-size: 13px; }
+html.windows-desktop body .wc-chat-header-name { font-size: 16px; font-weight: 600; }
+html.windows-desktop body .wc-chat-header-btn { width: 34px; height: 34px; border-radius: 6px; }
+
+/* The virtual list owns row height. No vertical margins outside its 64px slot. */
+html.windows-desktop body .wc-chat-item {
+  height: var(--windows-row-height);
+  margin: 0;
+  padding: 0 16px;
+  gap: 12px;
+  border-radius: 0;
+  transition: background var(--dur-fast);
+  will-change: auto;
+}
+html.windows-desktop body .wc-chat-item:hover { background: var(--bg-hover) !important; transform: none; }
+html.windows-desktop body .wc-chat-item.active,
+html.windows-desktop body .wc-chat-item.active:hover {
+  background: var(--color-primary-muted) !important;
+  box-shadow: none;
+}
+html.windows-desktop body .wc-chat-item.active .wc-chat-item-name { color: var(--text-primary); }
+html.windows-desktop body .wc-chat-item.active :is(.wc-chat-item-preview, .wc-chat-item-time) { color: var(--text-secondary); }
+html.windows-desktop body .wc-chat-item.active .wc-chat-item-draft { color: var(--color-badge); }
+html.windows-desktop body .wc-chat-item.active .wc-chat-item-avatar > * { box-shadow: none; }
+html.windows-desktop body .wc-chat-item.active .wc-chat-item-badge { color: #FFFFFF; background: var(--color-badge); }
+html.windows-desktop body .wc-chat-item-name { font-size: max(14px, var(--font-name)); }
+html.windows-desktop body .wc-chat-item-preview { font-size: max(13px, var(--font-preview)); }
+html.windows-desktop body .wc-chat-item-time { font-size: 12px; }
+html.windows-desktop body .wc-archive-entry { min-height: 34px; padding-top: 8px; padding-bottom: 8px; }
+html.windows-desktop body [data-testid="mention-list-btn"] { min-height: 34px; padding: 8px 16px !important; }
+html.windows-desktop body .permission-guide {
+  margin: 8px 12px;
+  padding: 8px 10px;
+  gap: 6px;
+  font-size: 12px;
+  border-radius: 7px;
+  background: var(--bg-app);
+}
+html.windows-desktop body .permission-guide > span { flex-basis: 120px; }
+html.windows-desktop body .permission-guide-actions { gap: 2px; }
+html.windows-desktop body .permission-guide button { min-height: 28px; padding: 3px 7px; background: transparent; color: var(--color-primary); }
+html.windows-desktop body .permission-guide button + button { color: var(--text-secondary); }
+
+/* Messages carry the color, while the canvas and controls remain quiet. */
+html.windows-desktop body :is(.wc-chat, .wc-messages) { background: var(--bg-messages); }
+html.windows-desktop body .wc-messages { padding: 18px 24px; }
+html.windows-desktop body .wc-msg-bubble { border-radius: 8px; padding: 10px 13px; }
+html.windows-desktop body .wc-msg-bubble.mine {
+  background: var(--brand-600);
+  box-shadow: none;
+}
+html.windows-desktop body .wc-msg-bubble.other { box-shadow: none; border: 1px solid var(--border-default); }
+html.windows-desktop body.dark-mode[data-skin] .wc-msg-bubble.mine { background: var(--brand-500) !important; }
+html.windows-desktop body .wc-msg-time span { background: transparent; backdrop-filter: none; padding: 0; }
+html.windows-desktop body .wc-input-area { background: var(--bg-input) !important; border-top: 1px solid var(--border-default); }
+html.windows-desktop body .wc-input-toolbar { height: 36px; padding: 4px 16px; }
+html.windows-desktop body .wc-input-box { padding: 2px 20px; border: 0; border-radius: 0; }
+html.windows-desktop body .wc-input-box:focus-within { border: 0; box-shadow: none; }
+html.windows-desktop body .wc-textarea { min-height: 64px; max-height: 140px; font-size: 14px; }
+html.windows-desktop body .wc-textarea::placeholder { color: var(--text-placeholder); opacity: 1; }
+html.windows-desktop body .wc-input-footer { padding: 6px 18px 12px; }
+html.windows-desktop body .wc-send-btn.active { background: var(--brand-600); box-shadow: none; }
+html.windows-desktop body .wc-send-btn.active:hover { background: var(--brand-700); box-shadow: none; transform: none; }
+html.windows-desktop body .wc-tool-btn:hover { transform: none; }
+html.windows-desktop body .wc-tool-btn:focus-visible { outline: 2px solid var(--color-primary); }
+
+/* Settings use the available workspace instead of a chat-sized sidebar. */
+html.windows-desktop .windows-full-panel .home-chat-area { display: none; }
+html.windows-desktop .windows-full-panel .wc-panel { width: 100%; min-width: 0; border: 0; }
+html.windows-desktop .windows-full-panel .wc-search { flex: 0 1 420px; }
+html.windows-desktop .windows-full-panel .wc-page-bg {
+  padding: 24px max(24px, calc((100% - 760px) / 2));
+  background: var(--bg-app);
+}
+html.windows-desktop .windows-full-panel .permission-guide { align-self: center; width: min(760px, calc(100% - 48px)); }
+html.windows-desktop .windows-full-panel .wc-me-header { border: 1px solid var(--border-default); border-radius: 10px; margin-bottom: 20px; }
+html.windows-desktop .windows-full-panel .wc-card { border: 1px solid var(--border-default); border-radius: 10px; overflow: hidden; }
+html.windows-desktop .windows-full-panel .wc-section-pad { padding: 0; }
+html.windows-desktop .windows-full-panel .wc-slabel { padding: 18px 2px 8px; font-size: 13px; color: var(--text-secondary); }
+html.windows-desktop .windows-full-panel .wc-page-header { margin-bottom: 16px; background: var(--bg-app); }
+
+/* Authentication follows the same light/dark surfaces as the application. */
+html.windows-desktop body .auth-page {
+  height: 100%;
+  min-height: 100%;
+  padding: 28px;
+  background: var(--bg-app);
+  align-items: flex-start;
+}
+html.windows-desktop body .auth-bg-circle { display: none; }
+html.windows-desktop body .auth-container { width: 400px; max-width: 100%; margin: auto; padding: 12px 0; }
+html.windows-desktop body .auth-brand { margin-bottom: 22px; }
+html.windows-desktop body .auth-brand-icon { width: 56px; height: 56px; margin-bottom: 12px; background: var(--brand-600); box-shadow: none; }
+html.windows-desktop body .auth-brand-icon img { width: 56px; height: 56px; }
+html.windows-desktop body .auth-brand-name { color: var(--text-title); font-size: 26px; }
+html.windows-desktop body .auth-brand-desc { color: var(--text-secondary); font-size: 14px; letter-spacing: 1px; }
+html.windows-desktop body .auth-form {
+  padding: 26px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(20, 24, 40, .04);
+  backdrop-filter: none;
+}
+html.windows-desktop body .auth-field-label {
+  display: block;
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0 0 8px;
+  clip: auto;
+  white-space: normal;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+html.windows-desktop body .auth-field-input-wrap {
+  height: 44px;
+  padding: 0 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+}
+html.windows-desktop body .auth-field.focused .auth-field-input-wrap { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary-muted); }
+html.windows-desktop body .auth-field-input:focus-visible { outline: none; } /* Wrapper supplies the visible focus ring. */
+html.windows-desktop body :is(.auth-field-input, .auth-server-input, .auth-captcha-input) { color: var(--text-primary); }
+html.windows-desktop body :is(.auth-field-input, .auth-server-input, .auth-captcha-input)::placeholder { color: var(--text-placeholder); }
+html.windows-desktop body :is(.auth-field-icon, .auth-pwd-toggle, .auth-remember, .auth-footer, .auth-server-toggle, .auth-server-title, .auth-server-hint, .auth-server-cancel) { color: var(--text-secondary); }
+html.windows-desktop body :is(.auth-link, .auth-pwd-toggle:hover) { color: var(--color-primary); }
+html.windows-desktop body :is(.auth-submit, .auth-server-btn.primary) { background: var(--brand-600); box-shadow: none; }
+html.windows-desktop body .auth-submit:hover { background: var(--brand-700); box-shadow: none; transform: none; }
+html.windows-desktop body .auth-submit:disabled { background: var(--bg-search); color: var(--text-secondary); }
+html.windows-desktop body .auth-captcha-input { padding: 0 12px; height: 44px; border: 1px solid var(--border-default); border-radius: 7px; }
+html.windows-desktop body :is(.auth-server-panel, .auth-accounts) { background: var(--bg-card); border: 1px solid var(--border-default); }
+html.windows-desktop body .auth-server-input { background: var(--bg-panel); border: 1px solid var(--border-default); }
+html.windows-desktop body .auth-server-btn.ghost { background: var(--bg-search); color: var(--text-primary); border-color: var(--border-default); }
+html.windows-desktop body :is(.auth-account-name, .auth-accounts-title) { color: var(--text-primary); }
+html.windows-desktop body :is(.auth-account-id, .auth-accounts-count, .auth-account-remove, .auth-captcha-loading) { color: var(--text-secondary); }
+html.windows-desktop body .auth-note { background: var(--color-primary-muted); color: var(--text-primary); border-color: var(--border-default); }
+html.windows-desktop body .auth-error { background: var(--color-danger-light); color: var(--color-danger); }
+html.windows-desktop body .windows-account-entry { text-align: center; margin-top: 14px; }
+html.windows-desktop body .auth-window-button { background: transparent; border-color: var(--border-default); color: var(--text-secondary); font-size: 12px; }
+
+/* The default login, including server/account actions, fits the 600px window. */
+@media (max-height: 700px) {
+  html.windows-desktop body .auth-page { padding: 16px 28px; }
+  html.windows-desktop body .auth-container { padding: 0; }
+  html.windows-desktop body .auth-brand { margin-bottom: 16px; }
+  html.windows-desktop body .auth-brand-icon { width: 44px; height: 44px; margin-bottom: 8px; }
+  html.windows-desktop body .auth-brand-icon img { width: 44px; height: 44px; }
+  html.windows-desktop body .auth-brand-name { font-size: 24px; }
+  html.windows-desktop body .auth-form { padding: 20px 24px; }
+  html.windows-desktop body .auth-field { margin-bottom: 14px; }
+  html.windows-desktop body .auth-field-label { margin-bottom: 6px; }
+  html.windows-desktop body .auth-footer { margin-top: 14px; }
+  html.windows-desktop body .windows-account-entry { margin-top: 8px; }
+  html.windows-desktop body .windows-account-entry .auth-window-button { margin-top: 0; }
+  html.windows-desktop body .auth-server { margin-top: 8px; }
+}
+
+@media (max-width: 1100px) {
+  html.windows-desktop body { --panel-w: 276px; }
+  html.windows-desktop body .wc-msg-body { max-width: 76%; }
+}
