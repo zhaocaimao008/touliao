@@ -94,6 +94,8 @@ targets:
     platform: iOS
     sources:
       - TouliaoTests
+      - path: ../scripts/native-review/fixtures.json
+        buildPhase: resources
     dependencies:
       - target: Touliao
     settings:
