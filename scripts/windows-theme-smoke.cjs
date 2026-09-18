@@ -172,6 +172,19 @@ async function inspect(page) {
           },
         ];
       });
+    const icons = [
+      ...document.querySelectorAll(
+        ".wc-voice-play-icon,.wc-voice-play-icon-offset",
+      ),
+    ]
+      .filter(visible)
+      .map((e) => {
+        const { bg } = color(e);
+        return {
+          selector: e.getAttribute("class"),
+          contrast: contrast(over(rgb(getComputedStyle(e).fill), bg), bg),
+        };
+      });
     const read = (selector) => {
       const e = document.querySelector(selector);
       if (!e) return null;
@@ -191,6 +204,7 @@ async function inspect(page) {
       overflow: document.documentElement.scrollWidth > innerWidth,
       texts: list,
       fields,
+      icons,
       styles: Object.fromEntries(
         [
           "body",
@@ -226,6 +240,10 @@ async function check(page, name, errors, { screenshot = true } = {}) {
     (t) => t.critical && !t.disabled && !t.avatar,
   );
   assert.ok(measured.length > 0, name + ": critical text must be measured");
+  assert.ok(
+    result.icons.every((icon) => icon.contrast >= 3),
+    name + ": voice control contrast",
+  );
   const failures = measured.filter(
     (t) => t.contrast !== null && t.contrast < 4.5,
   );

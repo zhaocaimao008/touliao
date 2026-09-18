@@ -256,6 +256,7 @@ html.windows-desktop body .wc-msg-bubble.mine :is(.wc-msg-file-size, .wc-msg-tim
 html.windows-desktop body.dark-mode[data-skin] .wc-msg-bubble.mine :is(.wc-msg-file-size, .wc-msg-time, .wc-msg-meta, .wc-msg-edited, .wc-voice-duration) { color: var(--windows-bubble-secondary) !important; }
 html.windows-desktop body .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) { background: rgba(0, 0, 0, .08) !important; border-left-color: var(--windows-bubble-secondary) !important; }
 html.windows-desktop body .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) :is(.wc-msg-reply-name, .wc-msg-reply-text) { color: var(--windows-bubble-secondary) !important; }
+html.windows-desktop body .wc-msg-bubble.mine :is(.wc-voice-play-icon, .wc-voice-play-icon-offset) { fill: var(--windows-action-bg) !important; }
 /* Media and cards retain their own surfaces and their independent reply cards. */
 html.windows-desktop body .wc-msg-bubble:has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-contact-card),
 html.windows-desktop body.dark-mode[data-skin] .wc-msg-bubble:has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-contact-card) { background: transparent !important; padding: 0; border: 0; }
