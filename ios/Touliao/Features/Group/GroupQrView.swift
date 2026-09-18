@@ -30,7 +30,7 @@ struct GroupQrView: View {
                 } label: {
                     Text(copied ? "已复制" : "复制邀请链接").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent).tint(.vxinGreen)
+                .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary).tint(.vxinGreen)
                 Text("链接 7 天内有效").touliaoFont(12).foregroundColor(.vxinTextSecondary)
             } else {
                 Text(error ?? "二维码加载失败").foregroundColor(.vxinTextSecondary)

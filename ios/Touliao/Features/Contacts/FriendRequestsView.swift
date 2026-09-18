@@ -53,7 +53,7 @@ struct FriendRequestsView: View {
                         ProgressView()
                     } else {
                         Button("拒绝") { vm.handle(req, accept: false) }.buttonStyle(.bordered)
-                        Button("接受") { vm.handle(req, accept: true) }.buttonStyle(.borderedProminent).tint(.vxinGreen)
+                        Button("接受") { vm.handle(req, accept: true) }.buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary).tint(.vxinGreen)
                     }
                 }
                 }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)

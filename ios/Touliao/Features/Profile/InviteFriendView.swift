@@ -27,7 +27,7 @@ struct InviteFriendView: View {
                             copied = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary)
                         .tint(Tok.green)
                         .disabled(inv.code.isEmpty)
                     }

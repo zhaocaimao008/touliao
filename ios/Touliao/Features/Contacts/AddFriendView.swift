@@ -12,7 +12,7 @@ struct AddFriendView: View {
                     Label("扫一扫", touliaoSystemImage: "qrcode.viewfinder")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent).tint(.vxinGreen)
+                .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary).tint(.vxinGreen)
 
                 NavigationLink {
                     MyQRCodeView()
@@ -59,7 +59,7 @@ struct AddFriendView: View {
                     Spacer()
                     let sent = vm.sentIds.contains(user.id)
                     Button(sent ? "已发送" : "添加") { vm.sendRequest(user) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary)
                         .tint(.vxinGreen)
                         .disabled(sent)
                 }
@@ -161,7 +161,7 @@ private struct ScannedUserProfileSheet: View {
                     .frame(maxWidth: .infinity)
             } else {
                 Button("申请添加好友") { vm.sendRequestFromScanned() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary)
                     .tint(.vxinGreen)
                     .frame(maxWidth: .infinity)
                 Button("取消") { vm.dismissScannedUser() }
