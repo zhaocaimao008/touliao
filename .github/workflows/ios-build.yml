@@ -80,8 +80,17 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -configuration Debug \
             -only-testing:TouliaoTests \
+            -resultBundlePath NativeReview.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             | tee xcodebuild-test.log
+
+      - name: Collect native simulator screenshots
+        if: always() && steps.sim.outputs.udid != ''
+        run: |
+          container=$(xcrun simctl get_app_container '${{ steps.sim.outputs.udid }}' com.touliao.app data)
+          if [ -d "$container/Documents/NativeUiReview" ]; then
+            cp -R "$container/Documents/NativeUiReview" ios/NativeUiReview
+          fi
 
       - name: Upload build & test logs
         if: always()
@@ -91,4 +100,6 @@ jobs:
           path: |
             ios/xcodebuild.log
             ios/xcodebuild-test.log
+            ios/NativeUiReview/
+            ios/NativeReview.xcresult/
           if-no-files-found: ignore
