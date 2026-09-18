@@ -75,21 +75,19 @@ async function cache(page) {
     assert.ok(JSON.stringify(before).includes(message.content));
     report.localTokenPresent = await page.evaluate(expected => localStorage.getItem('touliao_electron_token') === expected, token);
     assert.equal(report.localTokenPresent, true);
-    // Observe the existing singleton's events without replacing any methods.
-    await app.evaluate(({ app }) => {
-      globalThis.legacyUpdateEvents = [];
-      const updater = require(app.getAppPath() + '/node_modules/electron-updater').autoUpdater;
-      for (const name of ['checking-for-update', 'update-not-available', 'update-available', 'error']) {
-        updater.on(name, info => globalThis.legacyUpdateEvents.push({ name, version: info?.version, error: info?.message }));
-      }
-    });
+    // Observe the installed main process's log without injecting/replacing any
+    // updater implementation. The old release supports TOULIAO_LOG_LEVEL=info.
+    const logs = await app.evaluate(({ app }) => app.getPath('logs'));
+    const logfile = path.join(logs, 'main.log');
+    const previousLog = fs.existsSync(logfile) ? fs.readFileSync(logfile, 'utf8') : '';
     await page.evaluate(() => window.electronAPI.checkUpdate());
     for (let i = 0; i < 45; i++) {
-      report.updateEvents = await app.evaluate(() => globalThis.legacyUpdateEvents);
-      if (report.updateEvents.some(e => e.name === 'update-not-available')) break;
+      report.nativeUpdateLog = fs.existsSync(logfile) ? fs.readFileSync(logfile, 'utf8').slice(previousLog.length) : '';
+      if (report.nativeUpdateLog.includes('已是最新版本')) break;
       await page.waitForTimeout(1000);
     }
-    assert.ok(report.updateEvents.some(e => e.name === 'update-not-available' && e.version === '8.1.26'));
+    assert.ok(report.nativeUpdateLog.includes('已是最新版本'), 'Installed updater must report the current public version');
+    fs.copyFileSync(logfile, path.join(out, 'installed-main.log'));
     await app.close(); active = null;
     active = await launch(); ({ app, page } = active);
     await page.getByTestId('conv-item-legacy-chat').waitFor();

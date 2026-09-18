@@ -118,6 +118,20 @@ def capture(out, name):
     (out / (name + '.png')).write_bytes(adb('exec-out', 'screencap', '-p', binary=True))
 
 
+def click_scrolling(texts):
+    for attempt in range(6):
+        try:
+            click(texts=texts, timeout=3)
+            return
+        except AssertionError:
+            _, nodes = tree()
+            scroll = next(n for n in nodes if n.get('scrollable') == 'true')
+            x1, y1, x2, y2 = map(int, re.findall(r'\d+', scroll.get('bounds')))
+            x = (x1 + x2) // 2
+            adb('shell', 'input', 'swipe', str(x), str(y1 + (y2-y1)*3//4), str(x), str(y1 + (y2-y1)//4), '450')
+    raise AssertionError(f'UI item not found after scrolling: {texts}')
+
+
 def installed():
     text = shell('dumpsys package ' + PACKAGE)
     return {'versionCode': int(re.search(r'versionCode=(\d+)', text)[1]),
@@ -169,7 +183,7 @@ def run(args, report):
     adb('shell', 'input', 'keyevent', '4')
     profile_update(); capture(out, '02-old-discovers-production-update')
     click(texts=('稍后',))
-    click(texts=('设置',))
+    click_scrolling(('设置',))
     # Fail the real historical network request, then recover using the same UI.
     uid = before['uid']
     shell(f'iptables -I OUTPUT -m owner --uid-owner {uid} -j REJECT')
