@@ -92,7 +92,7 @@ fun SearchScreen(
                 if (state.query.isNotBlank()) {
                     SearchFilterBar(state = state, viewModel = viewModel)
                 }
-                Box(Modifier.weight(1f)) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
                     when {
                         state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                         state.query.isBlank() -> Text("输入关键词搜索聊天记录", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))

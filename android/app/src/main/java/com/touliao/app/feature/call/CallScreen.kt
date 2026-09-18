@@ -89,6 +89,8 @@ fun CallHost(
         return
     }
 
+    com.touliao.app.ui.components.DarkMediaSystemBars()
+
     // 权限：进入即申请（接听 / 呼叫均需要）
     val perms = remember(state.isVideo) {
         val base = if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)

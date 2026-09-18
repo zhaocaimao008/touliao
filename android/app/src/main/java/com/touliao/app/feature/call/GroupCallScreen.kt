@@ -63,6 +63,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
 
     // 通话进行中：全屏浮层
     if (state.stage != GroupCallStage.IDLE) {
+        com.touliao.app.ui.components.DarkMediaSystemBars()
         val perms = remember(state.isVideo) {
             if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
             else arrayOf(Manifest.permission.RECORD_AUDIO)

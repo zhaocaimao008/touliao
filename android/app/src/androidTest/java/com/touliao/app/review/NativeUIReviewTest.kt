@@ -86,6 +86,11 @@ class NativeUIReviewTest {
         for (night in listOf(false, true)) for (page in pages) {
             compose.runOnIdle { screen.value = page; dark.value = night; large.value = false }
             settle()
+            if (page == "call-controls") compose.runOnIdle {
+                val bars = androidx.core.view.WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView)
+                Assert.assertFalse(bars.isAppearanceLightStatusBars)
+                Assert.assertFalse(bars.isAppearanceLightNavigationBars)
+            }
             if (page == "chat") compose.onAllNodesWithText("收到，稍后把文件发给你。", substring = true).onFirst().assertExists()
             if (page == "group") compose.onAllNodesWithText("投聊设计讨论", substring = true).onFirst().assertExists()
             snapshot(page + if (night) "-dark" else "-light")
@@ -177,6 +182,7 @@ class NativeUIReviewTest {
             "privacy" -> PrivacySettingsScreen(onBack = back)
             "sessions" -> SessionsScreen(onBack = back)
             "call-controls" -> Surface(Modifier.fillMaxSize(), color = com.touliao.app.ui.theme.TouliaoDarkPalette.background) {
+                com.touliao.app.ui.components.DarkMediaSystemBars()
                 Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
                     FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 3,
                         horizontalArrangement = Arrangement.spacedBy(16.dp, androidx.compose.ui.Alignment.CenterHorizontally),
