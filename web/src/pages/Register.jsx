@@ -1,3 +1,4 @@
+import Icon from '../ui-kit/Icon';
 import './auth.css';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -62,26 +63,16 @@ export default function Register() {
 
   const fields = [
     { key: 'username', label: t('auth.nickname'), type: 'text', autocomplete: 'nickname', placeholder: t('auth.nicknamePlaceholder'), maxLength: 20, icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M10 11a4 4 0 100-8 4 4 0 000 8zM3 18c0-3.3 3.1-6 7-6s7 2.7 7 6"/>
-      </svg>
+      <Icon name="user-round" size={18} className="auth-field-icon" />
     )},
     { key: 'phone', label: t('auth.phone'), type: 'tel', inputMode: 'tel', autocomplete: 'username', placeholder: t('auth.phonePlaceholder'), maxLength: 11, icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="3" y="1" width="14" height="18" rx="3"/>
-        <line x1="8" y1="15" x2="12" y2="15"/>
-      </svg>
+      <Icon name="smartphone" size={18} className="auth-field-icon" />
     )},
     { key: 'password', label: t('auth.password'), type: 'password', autocomplete: 'new-password', placeholder: t('auth.setPasswordPlaceholder'), icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="3" y="9" width="14" height="10" rx="2"/>
-        <path d="M6 9V6a4 4 0 018 0v3"/>
-      </svg>
+      <Icon name="lock-keyhole" size={18} className="auth-field-icon" />
     )},
     ...(inviteRequired ? [{ key: 'inviteCode', label: t('auth.inviteCode'), type: 'text', inputMode: 'numeric', autocomplete: 'off', placeholder: t('auth.inviteCodePlaceholder'), maxLength: 6, icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M10 2l2.4 4.8 5.3.8-3.85 3.75.9 5.3L10 14.1l-4.75 2.55.9-5.3L2.3 7.6l5.3-.8z"/>
-      </svg>
+      <Icon name="key-round" size={18} className="auth-field-icon" />
     )}] : []),
   ];
 

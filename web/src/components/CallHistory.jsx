@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
+import Icon from '../ui-kit/Icon';
 import { GroupAvatar } from './GroupAvatar';
 import { Skeleton } from './StateViews';
 import { useI18n } from '../contexts/I18nContext';
@@ -88,7 +89,7 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
   };
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
+    <div className="tl-call-history" style={{ height: '100%', overflowY: 'auto' }}>
       {loading ? (
         <Skeleton rows={6} avatar />
       ) : loadError && list.length === 0 ? (
@@ -103,7 +104,7 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
           const st = { ...stRaw, label: t(`callHistory.status.${stRaw.key}`) };
           const isMissed = c.direction === 'in' && (c.status === 'missed' || c.status === 'canceled');
           return (
-            <div key={c.id} data-testid="call-log-item" onClick={() => openPeer(c)}
+            <div key={c.id} className="tl-call-log" data-testid="call-log-item" onClick={() => openPeer(c)}
               role={onOpenChat ? 'button' : undefined} tabIndex={onOpenChat ? 0 : undefined}
               onKeyDown={e => { if (onOpenChat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPeer(c); } }}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: onOpenChat ? 'pointer' : 'default' }}>
@@ -113,7 +114,7 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || t('messageItem.defaultUsername')}</div>
                 <div style={{ fontSize: 'var(--text-sm)', color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span aria-hidden="true" style={{ transform: c.direction === 'out' ? 'none' : 'scaleX(-1)' }}>{c.direction === 'out' ? '↗' : '↙'}</span>
+                  <Icon name={isMissed ? 'phone-missed' : c.direction === 'out' ? 'phone-outgoing' : 'phone-incoming'} size={16} />
                   {c.direction === 'out' ? t('callHistory.outgoing') : t('callHistory.incoming')} · {c.kind === 'group'
                     ? (c.type === 'video' ? t('chat.groupVideoCall') : t('chat.groupVoiceCall'))
                     : (c.type === 'video' ? t('chat.videoCall') : t('chat.voiceCall'))} · {st.label}

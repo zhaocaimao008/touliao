@@ -4,6 +4,7 @@ import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { downloadFile } from '../utils/download';
 import { format } from '../utils/time';
 import Avatar from './Avatar';
+import Icon from '../ui-kit/Icon';
 import ImagePreview from './ImagePreview';
 import VideoPreview from './VideoPreview';
 import { useI18n } from '../contexts/I18nContext';
@@ -21,11 +22,7 @@ const TABS = [
   { key: 'file',  labelKey: 'chatFiles.tabFile' },
 ];
 
-const IcoFile = () => (
-  <svg viewBox="0 0 24 24" className="chatfiles-tab-icon">
-    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-  </svg>
-);
+const IcoFile = () => <Icon name="file-text" className="chatfiles-tab-icon" />;
 
 export default function ChatFiles({ convId, onClose }) {
   useMediaCredentials();
@@ -118,9 +115,7 @@ export default function ChatFiles({ convId, onClose }) {
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
-            <svg viewBox="0 0 24 24" className="chatfiles-close-icon">
-              <path d="M19 11H7.83l4.88-4.88c.39-.39.39-1.03 0-1.42-.39-.39-1.02-.39-1.41 0l-6.59 6.59c-.39.39-.39 1.02 0 1.41l6.59 6.59c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L7.83 13H19c.55 0 1-.45 1-1s-.45-1-1-1z"/>
-            </svg>
+            <Icon name="x" className="chatfiles-close-icon" />
           </button>
           <span className="chatfiles-title">{t('chatFiles.title')}</span>
           <span className="chatfiles-count">
@@ -156,9 +151,7 @@ export default function ChatFiles({ convId, onClose }) {
         <div className="chatfiles-list">
           {items.length === 0 && !loading && (
             <div className="chatfiles-empty">
-              <svg viewBox="0 0 24 24" className="chatfiles-empty-icon">
-                <path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/>
-              </svg>
+              <Icon name="folder-open" size={40} className="chatfiles-empty-icon" />
               {t('chatFiles.noFiles')}
             </div>
           )}

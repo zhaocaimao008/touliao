@@ -32,6 +32,7 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(filename).pipe(res);
 });
 async function fixture(browser, base, { platform = 'win32', width = 1200, height = 800, skin = 'aurora', theme = 'light', authenticated = true, font = 'normal', onSocketEvent, messageReply } = {}) {
+  const sockets = new Set();
   const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: 'block' });
   await context.addInitScript(({ platform, base, skin, theme, font }) => {
     localStorage.setItem('wc_skin', skin);
@@ -46,15 +47,16 @@ async function fixture(browser, base, { platform = 'win32', width = 1200, height
     }
   }, { platform, base, skin, theme, font });
   await context.routeWebSocket(/.*/, ws => {
+    sockets.add(ws);
     ws.send('0' + JSON.stringify({ sid: 'ui-review', upgrades: [], pingInterval: 60000, pingTimeout: 60000 }));
     ws.onMessage(data => {
       if (String(data).startsWith('40')) ws.send('40' + JSON.stringify({ sid: 'ui-review' }));
       if (data === '2') ws.send('3');
-      const packet = String(data).match(/^42(\d+)(\[.*)$/);
+      const packet = String(data).match(/^42(\d*)(\[.*)$/);
       if (packet) {
         const [event, payload] = JSON.parse(packet[2]);
         onSocketEvent?.(event, payload);
-        if (event === 'send_message') ws.send('43' + packet[1] + JSON.stringify([messageReply ? messageReply(payload) : {
+        if (event === 'send_message' && packet[1]) ws.send('43' + packet[1] + JSON.stringify([messageReply ? messageReply(payload) : {
           success: true,
           message: { id: 'fixture-sent', conversation_id: payload.conversationId, sender_id: user.id, senderName: user.username, content: payload.content, type: 'text', created_at: now + 1, seq: 100 },
         }]));
@@ -89,7 +91,7 @@ async function fixture(browser, base, { platform = 'win32', width = 1200, height
   await page.goto(base);
   await (authenticated ? page.getByTestId('nav-tab-chats') : page.getByTestId('login-phone-input')).waitFor();
   await page.evaluate(() => document.fonts.ready);
-  return { context, page, errors };
+  return { context, page, errors, emitSocket: (event, payload) => { for (const ws of sockets) ws.send('42' + JSON.stringify([event, payload])); } };
 }
 async function capture(page, name, errors) {
   await page.waitForTimeout(160);

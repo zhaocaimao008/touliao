@@ -36,19 +36,14 @@ function Toggle({ checked, onChange, disabled }) {
   );
 }
 
-/* ─── SVG icons ─── */
-const Ico = ({ d }) => <svg className="wc-ico" viewBox="0 0 24 24"><path d={d}/></svg>;
-const IcoDesktop = () => <Ico d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zm-8-1c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm8-3H4V6h16v8z"/>;
-const IcoMoon    = () => <Ico d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>;
-const IcoBell    = () => <Ico d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>;
-const IcoShield  = () => <Ico d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>;
-const IcoServer  = () => <Ico d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zM6 4a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>;
-const IcoKeyboard = () => <Ico d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 5H5v-2h2v2zm0-3H5v-2h2v2zm0-3H5V8h2v2zm10 6H7v-2h10v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2zm3 6h-2v-2h2v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2z"/>;
-const IcoQR      = () => (
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-    <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2z"/>
-  </svg>
-);
+/* Supplied design icon geometry; existing settings actions are unchanged. */
+const IcoDesktop = () => <Icon name="monitor-smartphone" className="wc-ico" />;
+const IcoMoon = () => <Icon name="palette" className="wc-ico" />;
+const IcoBell = () => <Icon name="bell" className="wc-ico" />;
+const IcoShield = () => <Icon name="shield-check" className="wc-ico" />;
+const IcoServer = () => <Icon name="hard-drive" className="wc-ico" />;
+const IcoKeyboard = () => <Icon name="sliders-horizontal" className="wc-ico" />;
+const IcoQR = () => <Icon name="qr-code" />;
 
 /* ─── 通用 UI 零件 ─── */
 function PageBg({ children }) {
@@ -59,7 +54,7 @@ function PageHeader({ title, onBack, right }) {
   const { t } = useI18n();
   return (
     <div className="wc-page-header">
-      <button className="wc-page-header-back" onClick={onBack}>‹ {t('common.back')}</button>
+      <button className="wc-page-header-back" onClick={onBack}><Icon name="chevron-left" size={18} /> {t('common.back')}</button>
       <span className="wc-page-header-title">{title}</span>
       <div className="wc-page-header-right">{right}</div>
     </div>
@@ -595,10 +590,10 @@ function DeviceList({ onBack }) {
 
   const icon = (p = '') => {
     const pl = p.toLowerCase();
-    if (pl.includes('windows')) return '🖥️';
-    if (pl.includes('mac')) return '💻';
-    if (pl.includes('iphone') || pl.includes('ipad') || pl.includes('android')) return '📱';
-    return '🌐';
+    if (pl.includes('windows')) return <Icon name="monitor" size={24} />;
+    if (pl.includes('mac')) return <Icon name="laptop" size={24} />;
+    if (pl.includes('iphone') || pl.includes('ipad') || pl.includes('android')) return <Icon name="smartphone" size={24} />;
+    return <Icon name="monitor-smartphone" size={24} />;
   };
 
   return (
@@ -1441,9 +1436,9 @@ export default function Profile({ isMobile = false }) {
       {/* ── 钱包 ── */}
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<Ico d="M21 7H3a1 1 0 00-1 1v9a2 2 0 002 2h14a2 2 0 002-2v-2h-7a2 2 0 010-4h7V8a1 1 0 00-1-1zm-4 6h5v2h-5a1 1 0 010-2zM3 5h13a1 1 0 010 2H3a1 1 0 010-2z" />}
+          <CRow icon={<Icon name="backpack" className="wc-ico" />}
             bg="var(--icon-bg-wallet)" label={t('profile.walletMenuLabel')} desc={t('profile.walletMenuDesc')} onClick={() => setSubPage('wallet')} />
-          <CRow icon={<Ico d="M16 11a4 4 0 10-4-4 4 4 0 004 4zm0 2c-3 0-8 1.5-8 4.5V20h12v-1a5.8 5.8 0 00-.3-1.8M6 8V5M4.5 6.5h3" />}
+          <CRow icon={<Icon name="user-plus" className="wc-ico" />}
             bg="var(--icon-bg-invite)" label={t('profile.inviteMenuLabel')} desc={t('profile.inviteMenuDesc')} onClick={() => setSubPage('invite')} />
         </Card>
       </div>

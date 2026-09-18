@@ -1,3 +1,4 @@
+import Icon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import './auth.css';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -203,10 +204,7 @@ export default function Login() {
           <div className={`auth-field ${focusedField === 'phone' ? 'focused' : ''} ${phone ? 'has-value' : ''}`}>
             <label className="auth-field-label" htmlFor="login-phone">{t('auth.phone')}</label>
             <div className="auth-field-input-wrap">
-              <svg className="auth-field-icon" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                <rect x="3" y="1" width="14" height="18" rx="3"/>
-                <line x1="8" y1="15" x2="12" y2="15"/>
-              </svg>
+              <Icon name="smartphone" size={18} className="auth-field-icon" />
               <input
                 id="login-phone"
                 data-testid="login-phone-input"
@@ -227,10 +225,7 @@ export default function Login() {
           <div className={`auth-field ${focusedField === 'password' ? 'focused' : ''} ${password ? 'has-value' : ''}`}>
             <label className="auth-field-label" htmlFor="login-password">{t('auth.password')}</label>
             <div className="auth-field-input-wrap">
-              <svg className="auth-field-icon" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                <rect x="3" y="9" width="14" height="10" rx="2"/>
-                <path d="M6 9V6a4 4 0 018 0v3"/>
-              </svg>
+              <Icon name="lock-keyhole" size={18} className="auth-field-icon" />
               <input
                 id="login-password"
                 data-testid="login-password-input"
