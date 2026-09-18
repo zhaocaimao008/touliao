@@ -25,9 +25,10 @@ struct GroupCallHostView: View {
             Text("\(inv.fromName.isEmpty ? "群成员" : inv.fromName) 发起了群\(inv.type == "video" ? "视频" : "语音")通话")
                 .touliaoFont(14).foregroundColor(.white)
             Button("加入") { manager.join(callId: inv.callId, conversationId: inv.conversationId, video: inv.type == "video") }
-                .padding(.horizontal, 14).padding(.vertical, 6)
+                .padding(.horizontal, 14).frame(minHeight: 44)
                 .background(Color.vxinCallAccept).foregroundColor(.white).clipShape(Capsule())
             Button("忽略") { manager.pendingInvite = nil }
+                .frame(minHeight: 44)
                 .foregroundColor(Color(white: 0.7))
         }
         .padding(12)

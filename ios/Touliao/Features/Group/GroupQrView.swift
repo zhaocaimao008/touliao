@@ -11,6 +11,7 @@ struct GroupQrView: View {
     private let repo = GroupRepository.shared
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 16) {
             if loading {
                 ProgressView()
@@ -37,6 +38,8 @@ struct GroupQrView: View {
             Spacer()
         }
         .padding(24)
+        .frame(maxWidth: .infinity)
+        }
         .navigationTitle("群聊二维码")
         .navigationBarTitleDisplayMode(.inline)
         .touliaoPage()
