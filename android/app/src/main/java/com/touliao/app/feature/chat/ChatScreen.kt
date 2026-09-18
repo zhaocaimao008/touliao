@@ -1687,10 +1687,10 @@ private fun MessageInputBar(
         ) {
             // 语音输入切换（对齐微信左侧麦克风）
             IconButton(onClick = onMicClick, modifier = Modifier.testTag("chat-voice-btn").semantics { contentDescription = if (recording) "停止录音" else "语音输入" }) {
-                Text(if (recording) "⏹" else "🎤", style = MaterialTheme.typography.titleMedium)
+                Icon(if (recording) com.touliao.app.ui.LegacyBusinessIcons.Stop else com.touliao.app.ui.DesignIcons.Mic, contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(24.dp))
             }
             if (showMention) {
-                IconButton(onClick = onMention, modifier = Modifier.semantics { contentDescription = "提及成员" }) { Text("@", style = MaterialTheme.typography.titleMedium) }
+                IconButton(onClick = onMention, modifier = Modifier.semantics { contentDescription = "提及成员" }) { Icon(com.touliao.app.ui.DesignIcons.AtSign, contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(24.dp)) }
             }
             OutlinedTextField(
                 value = value,
@@ -1702,7 +1702,7 @@ private fun MessageInputBar(
             Spacer(Modifier.size(2.dp))
             // 表情面板切换
             IconButton(onClick = onToggleEmoji, modifier = Modifier.testTag("chat-emoji-btn").semantics { contentDescription = if (emojiPanelOpen) "切换键盘" else "表情" }) {
-                Text(if (emojiPanelOpen) "⌨" else "😀", style = MaterialTheme.typography.titleMedium)
+                Icon(if (emojiPanelOpen) com.touliao.app.ui.LegacyBusinessIcons.Keyboard else com.touliao.app.ui.DesignIcons.Smile, contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(24.dp))
             }
             // 有文字 → 发送键；无文字 → +(功能面板)。对齐微信输入栏交互。
             if (hasText || sending) {
@@ -1719,10 +1719,9 @@ private fun MessageInputBar(
                 }
             } else {
                 IconButton(onClick = onToggleFunc, modifier = Modifier.testTag("chat-more-btn").semantics { contentDescription = if (funcPanelOpen) "收起功能" else "更多功能" }) {
-                    Text(
-                        if (funcPanelOpen) "✕" else "＋",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = VxinTextSecondary,
+                    Icon(
+                        if (funcPanelOpen) com.touliao.app.ui.DesignIcons.X else com.touliao.app.ui.DesignIcons.Plus,
+                        contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(24.dp),
                     )
                 }
             }

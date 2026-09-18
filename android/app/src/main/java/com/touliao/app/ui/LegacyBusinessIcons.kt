@@ -42,6 +42,20 @@ object LegacyBusinessIcons {
         )
     }
 
+    // The supplied kit does not include a stop-recording or keyboard symbol.
+    val Stop: ImageVector by lazy {
+        stroke("Stop") { solid { moveTo(6f, 6f); lineTo(18f, 6f); lineTo(18f, 18f); lineTo(6f, 18f); close() } }
+    }
+    val Keyboard: ImageVector by lazy {
+        stroke("Keyboard") {
+            line { moveTo(3f, 5f); lineTo(21f, 5f); lineTo(21f, 19f); lineTo(3f, 19f); close() }
+            line { moveTo(7f, 15f); lineTo(17f, 15f) }
+            for (y in listOf(9f, 12f)) for (x in listOf(7f, 10f, 13f, 16f)) {
+                line { moveTo(x, y); lineTo(x + .1f, y) }
+            }
+        }
+    }
+
     val Wallet: ImageVector by lazy {
         stroke("Wallet") {
             line {
