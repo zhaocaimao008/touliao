@@ -26,7 +26,7 @@ on:
       legacy_audit_platform:
         description: 'Installed-client audit scope'
         type: choice
-        options: [both, android, windows]
+        options: [both, android, windows, transition]
         default: both
       native_ui_review:
         description: 'Run isolated native simulator screenshots (no release / deploy)'
@@ -129,7 +129,7 @@ jobs:
           if-no-files-found: warn
 
   legacy-android-update:
-    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && inputs.legacy_audit_platform != 'windows'
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && (inputs.legacy_audit_platform == 'both' || inputs.legacy_audit_platform == 'android')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -181,7 +181,7 @@ jobs:
           if-no-files-found: error
 
   legacy-windows-installed:
-    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && inputs.legacy_audit_platform != 'android'
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && (inputs.legacy_audit_platform == 'both' || inputs.legacy_audit_platform == 'windows')
     runs-on: windows-latest
     timeout-minutes: 20
     permissions:
@@ -218,4 +218,43 @@ jobs:
         with:
           name: legacy-windows-8.1.26
           path: legacy-evidence/windows/
+          if-no-files-found: error
+
+  legacy-android-transition:
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && inputs.legacy_audit_platform == 'transition'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools build-tools;34.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Download immutable old and unpublished transition APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 34979197799 --repo "$GITHUB_REPOSITORY" --name touliao-release-apk --dir historical-apk
+          gh run download 35373394824 --repo "$GITHUB_REPOSITORY" --name touliao-release-apk --dir transition-apk
+          mkdir -p legacy-evidence/transition
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs transition-apk/app-release.apk > legacy-evidence/transition/candidate-signature.txt
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: External package replacement preserves real old session and offline cache
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          script: python3 scripts/legacy-update/android-installed-flow.py --old-apk historical-apk/app-release.apk --external-transition-apk transition-apk/app-release.apk --output legacy-evidence/transition
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-unpublished-transition-api29
+          path: legacy-evidence/transition/
           if-no-files-found: error

@@ -155,6 +155,48 @@ def profile_update():
     find_node(texts=('发现新版本 8.1.25',))
 
 
+def external_transition(args, report):
+    """Exercise an unpublished APK via the real Files/PackageInstaller UI.
+
+    This deliberately does NOT count as the old client's in-app updater.
+    adb only copies bytes into Downloads; it never installs the new package.
+    """
+    out = args.output
+    name = 'touliao-transition-8.1.26.apk'
+    adb('push', str(args.external_transition_apk), '/sdcard/Download/' + name)
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW',
+        '-d', 'content://com.android.externalstorage.documents/root/primary',
+        '-t', 'vnd.android.document/root')
+    click(texts=('Download', 'Downloads', '下载'))
+    click(texts=(name,))
+    click(texts=('Settings', 'SETTINGS', '设置'))
+    click(resource='switch_widget')
+    adb('shell', 'input', 'keyevent', '4')
+    find_node(texts=('Install', 'INSTALL', '安装'), timeout=60)
+    capture(out, '02-external-system-installer')
+    click(texts=('Cancel', 'CANCEL', '取消'))
+    assert installed()['versionCode'] == report['before']['versionCode']
+    report['cancelPreservesOldInstallation'] = True
+    click(texts=(name,))
+    click(texts=('Install', 'INSTALL', '安装'))
+    end = time.time() + 120
+    while time.time() < end and installed()['versionCode'] != 83:
+        time.sleep(2)
+    after = installed(); report['after'] = after
+    assert after['versionCode'] == 83 and after['versionName'] == '8.1.26'
+    assert after['uid'] == report['before']['uid']
+    assert after['firstInstallTime'] == report['before']['firstInstallTime']
+    capture(out, '03-external-installation-completed')
+    STATE['historyOffline'] = True
+    start(); click(texts=('LegacyPeer',)); find_node(texts=(MESSAGE,))
+    capture(out, '04-transition-ui-offline-history-retained')
+    assert STATE['loginCount'] == 1
+    assert any(x['path'] == '/api/auth/me' and x['authenticated'] and x['historyOffline'] for x in STATE['requests'])
+    report.update({'externalSystemInstallerUpgrade': 'passed', 'oldClientInAppUpgrade': False,
+                   'isolatedAccountSessionRestored': True, 'encryptedOfflineHistoryRenderedWithoutServerHistory': True,
+                   'sameApplicationUidAndFirstInstallTime': True, 'loginCount': STATE['loginCount'], 'passed': True})
+
+
 def run(args, report):
     out = args.output
     assert shell('getprop ro.kernel.qemu') == '1', 'Only disposable emulator allowed'
@@ -187,6 +229,13 @@ def run(args, report):
     click(texts=('LegacyPeer',)); find_node(texts=(MESSAGE,))
     capture(out, '01-old-authenticated-history')
     time.sleep(2)  # allow the old client's own encrypted cache write to finish
+    if args.external_transition_apk:
+        assert api == 29 and before['versionCode'] == 81
+        report['transitionApkSha256'] = hashlib.sha256(args.external_transition_apk.read_bytes()).hexdigest()
+        assert report['transitionApkSha256'] == '29d51c67ac255f6af3a0d717ace35688a6fba49834925943a01e8302dedcc0bc'
+        report['transitionPublished'] = False
+        external_transition(args, report)
+        return
     adb('shell', 'input', 'keyevent', '4')
     profile_update(); capture(out, '02-old-discovers-production-update')
     click(texts=('稍后',))
@@ -255,6 +304,7 @@ def run(args, report):
 
 def main():
     p = argparse.ArgumentParser(); p.add_argument('--old-apk', type=Path, required=True); p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--external-transition-apk', type=Path)
     args = p.parse_args(); args.output.mkdir(parents=True, exist_ok=True)
     report = {'environment': 'Android native emulator (API recorded after connection)', 'unmodifiedHistoricalApk': True,
               'physicalDevice': False, 'productionAccountTested': False, 'testAccountApi': 'isolated loopback fixture',
