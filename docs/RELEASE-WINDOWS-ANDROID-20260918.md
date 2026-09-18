@@ -12,7 +12,7 @@
 
 ## 发布与回退约束
 
-仅 `android-v8.1.25` 标签可以触发本次发布。发布流水线在全部校验成功后，向既有新加坡服务器 `13.212.117.22` 的 `/var/www/downloads` 写入 Android 安装包和清单，不修改生产数据库、后端、Web、Windows、iOS 文件。
+本次使用既有 `Android Release APK (signed)` 工作流，在独立发布分支手动触发 `deploy=true`；不推送任何端标签，避免重复发布或连带构建。发布流水线在全部校验成功后，向既有新加坡服务器 `13.212.117.22` 的 `/var/www/downloads` 写入 Android 安装包和清单，不修改生产数据库、后端、Web、Windows、iOS 文件。
 
 新增不可变版本链接 `touliao-android-8.1.25.apk`；保留落地页使用的 `touliao-android-latest.apk`，更新清单仍为 `touliao-android-version.json`。切换前保存旧 APK 与更新清单到 `.release-backups/android/<run-id>-<attempt>/`，并保留旧版带版本号的 APK。先验证新版本链接的公开字节，再更新入口；公开复验失败时尝试恢复之前的入口和清单，记录失败或回退结果，不报告假成功。
 
