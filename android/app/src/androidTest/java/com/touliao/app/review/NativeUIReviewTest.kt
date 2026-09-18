@@ -109,6 +109,9 @@ class NativeUIReviewTest {
         }
         settle()
         snapshot("login-keyboard")
+        compose.onNodeWithTag("login-submit-btn").performScrollTo().assertIsDisplayed()
+        settle()
+        snapshot("login-keyboard-submit")
         androidx.test.espresso.Espresso.pressBack()
         compose.onNodeWithText("忘记密码").performScrollTo().performClick()
         settle()
