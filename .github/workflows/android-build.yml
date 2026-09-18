@@ -19,6 +19,10 @@ on:
       - '.github/workflows/android-build.yml'
   workflow_dispatch:
     inputs:
+      legacy_update_audit:
+        description: 'Only audit installed historical Windows/Android releases; never build or publish apps'
+        type: boolean
+        default: false
       native_ui_review:
         description: 'Run isolated native simulator screenshots (no release / deploy)'
         type: boolean
@@ -26,6 +30,7 @@ on:
 
 jobs:
   build:
+    if: ${{ !inputs.legacy_update_audit }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -76,7 +81,7 @@ jobs:
           if-no-files-found: warn
 
   native-ui-review:
-    if: github.event_name == 'workflow_dispatch' && inputs.native_ui_review
+    if: github.event_name == 'workflow_dispatch' && inputs.native_ui_review && !inputs.legacy_update_audit
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -117,3 +122,85 @@ jobs:
             android/app/build/reports/androidTests/connected/
             android/app/build/outputs/androidTest-results/connected/
           if-no-files-found: warn
+
+  legacy-android-update:
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        old_run: [33326461700, 34308823256, 34979197799]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools build-tools;34.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Download actual historical signed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD_RUN: ${{ matrix.old_run }}
+        run: |
+          gh run download "$OLD_RUN" --repo "$GITHUB_REPOSITORY" --name touliao-release-apk --dir historical-apk
+          mkdir -p legacy-evidence/android
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs historical-apk/app-release.apk > legacy-evidence/android/old-signature.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging historical-apk/app-release.apk > legacy-evidence/android/old-package.txt
+          sha256sum historical-apk/app-release.apk > legacy-evidence/android/old-sha256.txt
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Old client discovers downloads validates and installs through its own UI
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          script: python3 scripts/legacy-update/android-installed-flow.py --old-apk historical-apk/app-release.apk --output legacy-evidence/android
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy-android-${{ matrix.old_run }}
+          path: legacy-evidence/android/
+          if-no-files-found: error
+
+  legacy-windows-installed:
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install actual published Windows 8.1.26 in disposable runner
+        shell: pwsh
+        run: |
+          $setup = "$env:RUNNER_TEMP/legacy-8.1.26.exe"
+          Invoke-WebRequest https://touliao.cc/downloads/updates/touliao-8.1.26-setup.exe -OutFile $setup
+          if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLower() -ne '3933d478dc6dd8c4ffb9863abc84c4a4635c8913bfe3a70fd537b1626b4c5c46') { throw 'Historical Windows installer changed' }
+          $directory = "$env:RUNNER_TEMP/TouliaoLegacy"
+          Start-Process $setup -ArgumentList @('/S', "/D=$directory") -Wait
+          Get-Process touliao -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (!(Test-Path "$directory/touliao.exe")) { throw 'Historical installation missing' }
+          "LEGACY_EXE=$directory/touliao.exe" >> $env:GITHUB_ENV
+          "PLAYWRIGHT_MODULE=$env:RUNNER_TEMP/legacy-driver/node_modules/playwright" >> $env:GITHUB_ENV
+          npm install --prefix "$env:RUNNER_TEMP/legacy-driver" --no-audit --no-fund playwright@1.60.0
+      - name: Run actual installed Electron and historical update IPC
+        run: node scripts/legacy-update/windows-installed-audit.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy-windows-8.1.26
+          path: legacy-evidence/windows/
+          if-no-files-found: error
