@@ -87,7 +87,7 @@ jobs:
       - name: Collect native simulator screenshots
         if: always() && steps.sim.outputs.udid != ''
         run: |
-          container=$(xcrun simctl get_app_container '${{ steps.sim.outputs.udid }}' com.touliao.app data)
+          container=$(xcrun simctl get_app_container '${{ steps.sim.outputs.udid }}' com.touliao.app data 2>/dev/null || true)
           if [ -d "$container/Documents/NativeUiReview" ]; then
             cp -R "$container/Documents/NativeUiReview" ios/NativeUiReview
           fi

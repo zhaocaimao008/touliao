@@ -81,25 +81,7 @@ struct LoginView: View {
                     .accessibilityIdentifier("auth-error-text")
             }
 
-            Button(action: vm.login) {
-                ZStack {
-                    if vm.loading { ProgressView().tint(.vxinOnPrimary) }
-                    else { Text("登录").bold() }
-                }
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(
-                    Group {
-                        if vm.canLogin {
-                            Color.vxinBrand
-                        } else {
-                            Color.vxinTextSecondary.opacity(0.4)
-                        }
-                    }
-                )
-                .foregroundColor(.vxinOnPrimary)
-                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.pill, style: .continuous))
-            }
-            .disabled(!vm.canLogin)
+            VxinGradientButton(title: "登录", loading: vm.loading, enabled: vm.canLogin, action: vm.login)
             .padding(.top, 8)
             .accessibilityIdentifier("login-submit-btn")
 

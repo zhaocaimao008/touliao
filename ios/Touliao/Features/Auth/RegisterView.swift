@@ -47,26 +47,7 @@ struct RegisterView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Button(action: vm.register) {
-                ZStack {
-                    if vm.loading { ProgressView().tint(.vxinOnPrimary) }
-                    else { Text("注册并登录").bold() }
-                }
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(
-                    Group {
-                        if vm.canRegister {
-                            Color.vxinBrand
-                        } else {
-                            Color.vxinTextSecondary.opacity(0.4)
-                        }
-                    }
-                )
-                .foregroundColor(.vxinOnPrimary)
-                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.pill, style: .continuous))
-                .shadow(color: vm.canRegister ? .vxinBrand.opacity(0.35) : .clear, radius: 8, y: 4)
-            }
-            .disabled(!vm.canRegister)
+            VxinGradientButton(title: "注册并登录", loading: vm.loading, enabled: vm.canRegister, action: vm.register)
             .padding(.top, 8)
             .accessibilityIdentifier("register-submit-btn")
 

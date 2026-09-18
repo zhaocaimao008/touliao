@@ -26,7 +26,7 @@ struct GroupCallHostView: View {
                 .touliaoFont(14).foregroundColor(.white)
             Button("加入") { manager.join(callId: inv.callId, conversationId: inv.conversationId, video: inv.type == "video") }
                 .padding(.horizontal, 14).padding(.vertical, 6)
-                .background(Color.vxinSuccess).foregroundColor(.white).clipShape(Capsule())
+                .background(Color.vxinCallAccept).foregroundColor(.white).clipShape(Capsule())
             Button("忽略") { manager.pendingInvite = nil }
                 .foregroundColor(Color(white: 0.7))
         }
@@ -100,9 +100,9 @@ private struct GroupCallView: View {
     }
 
     @ViewBuilder private var controls: some View {
-        HStack(spacing: 28) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 20) {
             circleButton(state.micEnabled ? "静音" : "取消静音", Color(white: 0.35)) { manager.toggleMic() }
-            circleButton("挂断", .red) { manager.hangup() }
+            circleButton("挂断", .vxinCallDanger) { manager.hangup() }
             // B-1：语音模式也提供"开启视频"升级入口；视频模式保持原摄像头开关（镜像 Web GroupCallModal）
             circleButton(state.isVideo ? (state.cameraEnabled ? "关摄像头" : "开摄像头") : "开启视频", Color(white: 0.35)) {
                 if state.isVideo {
@@ -125,14 +125,7 @@ private struct GroupCallView: View {
     }
 
     private func circleButton(_ label: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
-        VStack(spacing: 4) {
-            Button(action: action) {
-                Text(String(label.prefix(2)))
-                    .touliaoFont(12).foregroundColor(.white)
-                    .frame(width: 60, height: 60).background(color).clipShape(Circle())
-            }
-            Text(label).touliaoFont(12).foregroundColor(Color(white: 0.8))
-        }
+        CallActionButton(label: label, color: color, action: action)
     }
 
     private func ensurePermissions() async {

@@ -77,14 +77,14 @@ class NativeUIReviewTest {
     @Test fun nativeScreenGallery() {
         val pages = listOf("login", "register", "forgot-password", "conversations", "chat", "files", "mentions",
             "contacts", "add-friend", "friend-requests", "create-group", "blocked", "friend-labels", "group", "invite-members",
-            "search", "profile", "edit-profile", "settings", "appearance", "notifications", "privacy", "sessions", "call-history", "wallet",
+            "search", "profile", "edit-profile", "settings", "appearance", "notifications", "privacy", "sessions", "call-history", "call-controls", "wallet",
             "favorites", "moments", "compose-moment", "invite-friend")
         for (night in listOf(false, true)) for (page in pages) {
             compose.runOnIdle { screen.value = page; dark.value = night; large.value = false }
             settle()
             snapshot(page + if (night) "-dark" else "-light")
         }
-        for (page in listOf("login", "contacts", "chat", "settings", "appearance")) {
+        for (page in listOf("login", "contacts", "chat", "settings", "appearance", "call-controls")) {
             compose.runOnIdle { screen.value = page; dark.value = true; large.value = true }
             settle(); snapshot(page + "-dark-large-text")
         }
@@ -119,6 +119,7 @@ class NativeUIReviewTest {
         File(output, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         Assert.assertTrue(bitmap.width > 200)
     }
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
     @Composable private fun ReviewScreen(name: String) {
         val back = { screen.value = "login" }
         when (name) {
@@ -145,6 +146,18 @@ class NativeUIReviewTest {
             "notifications" -> NotificationSettingsScreen(onBack = back)
             "privacy" -> PrivacySettingsScreen(onBack = back)
             "sessions" -> SessionsScreen(onBack = back)
+            "call-controls" -> Surface(Modifier.fillMaxSize(), color = com.touliao.app.ui.theme.TouliaoDarkPalette.background) {
+                Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
+                    FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 3,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, androidx.compose.ui.Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        for (label in listOf("麦克风开", "扬声器关", "切视频", "挂断", "摄像头关", "翻转")) {
+                            com.touliao.app.ui.components.CallActionButton(label,
+                                if (label == "挂断") com.touliao.app.ui.theme.TouliaoLightPalette.readableDanger else com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) {}
+                        }
+                    }
+                }
+            }
             "call-history" -> com.touliao.app.feature.callhistory.CallHistoryScreen(onBack = back)
             "wallet" -> WalletScreen(onBack = back)
             "favorites" -> FavoritesScreen(onBack = back)

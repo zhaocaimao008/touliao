@@ -15,8 +15,8 @@ struct VxinGradientButton: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
             .frame(maxWidth: .infinity, minHeight: 48)
-            .foregroundColor(enabled ? .vxinOnPrimary : .vxinTextSecondary)
-            .background(enabled ? Color.vxinBrand : Color.vxinSurfaceSecondary)
+            .foregroundColor((enabled || loading) ? .vxinOnPrimary : .vxinTextSecondary)
+            .background((enabled || loading) ? Color.vxinBrand : Color.vxinSurfaceSecondary)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .disabled(!enabled || loading)

@@ -108,11 +108,11 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleMic() }
+                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleMic() }
                     RoundButton("挂断", CallRed) { viewModel.hangup() }
                     if (state.isVideo) {
-                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleCamera() }
-                        RoundButton("翻转", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.switchCamera() }
+                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleCamera() }
+                        RoundButton("翻转", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.switchCamera() }
                     }
                 }
             }
@@ -190,12 +190,7 @@ private fun VideoRenderer(
 
 @Composable
 private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).clip(CircleShape).background(color).clickable { onClick() },
-            contentAlignment = Alignment.Center) { Text(label.take(3), color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
-        Spacer(Modifier.height(4.dp))
-        Text(label, color = MaterialTheme.colorScheme.outline, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
-    }
+    com.touliao.app.ui.components.CallActionButton(label, color, onClick)
 }
 
 /** 群通话接通后每秒递增的时长(mm:ss)，未接通返回空串 */

@@ -52,6 +52,7 @@ private val CallGreen = com.touliao.app.ui.theme.TouliaoLightPalette.success // 
 private val CallRed = com.touliao.app.ui.theme.TouliaoLightPalette.readableDanger
 
 /** 全局通话浮层：通话激活时覆盖在主界面之上 */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun CallHost(
     navController: androidx.navigation.NavHostController? = null,
@@ -195,21 +196,25 @@ fun CallHost(
             if (state.stage == CallStage.INCOMING) {
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     RoundButton("接听", CallGreen) { viewModel.accept() }
-                    RoundButton("回复消息", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.rejectAndReply() }
+                    RoundButton("回复消息", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.rejectAndReply() }
                     RoundButton("拒绝", CallRed) { viewModel.reject() }
                 }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleMic() }
-                    RoundButton(if (state.speakerOn) "扬声器开" else "扬声器关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleSpeaker() }
+                androidx.compose.foundation.layout.FlowRow(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(16.dp), maxItemsInEachRow = 3,
+                ) {
+                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleMic() }
+                    RoundButton(if (state.speakerOn) "扬声器开" else "扬声器关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleSpeaker() }
                     if (state.bluetoothAvailable) {
-                        RoundButton(if (state.bluetoothOn) "蓝牙开" else "蓝牙关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleBluetooth() }
+                        RoundButton(if (state.bluetoothOn) "蓝牙开" else "蓝牙关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleBluetooth() }
                     }
-                    RoundButton(if (state.isVideo) "切语音" else "切视频", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleVideo() }
+                    RoundButton(if (state.isVideo) "切语音" else "切视频", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleVideo() }
                     RoundButton("挂断", CallRed) { viewModel.hangup() }
                     if (state.isVideo) {
-                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.toggleCamera() }
-                        RoundButton("翻转", com.touliao.app.ui.theme.VxinTextSecondary) { viewModel.switchCamera() }
+                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleCamera() }
+                        RoundButton("翻转", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.switchCamera() }
                     }
                 }
             }
@@ -246,15 +251,7 @@ private fun callStatusOrDuration(stage: CallStage, video: Boolean, connectedAt: 
 
 @Composable
 private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier.size(64.dp).clip(CircleShape).background(color)
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center,
-        ) { Text(label.take(3), color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
-        Spacer(Modifier.height(4.dp))
-        Text(label, color = MaterialTheme.colorScheme.outline, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
-    }
+    com.touliao.app.ui.components.CallActionButton(label, color, onClick)
 }
 
 /** SurfaceViewRenderer 包装：按 track 变化挂/摘 sink，离场释放 */

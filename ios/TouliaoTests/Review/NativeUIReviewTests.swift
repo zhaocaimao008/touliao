@@ -70,6 +70,19 @@ final class NativeUIReviewTests: XCTestCase {
             .write(to: output.appendingPathComponent("environment.json"))
     }
 
+    func testCallControlLayoutAtLargeText() async throws {
+        let controls = AnyView(
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 20) {
+                ForEach(["静音", "扬声器", "切视频", "挂断", "开摄像头", "翻转"], id: \.self) { label in
+                    CallActionButton(label: label, color: label == "挂断" ? .vxinCallDanger : Color(white: 0.35), action: {})
+                }
+            }.padding(16).frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(white: 0.1))
+        )
+        try await capture(controls, name: "call-controls-dark", dark: true)
+        try await capture(controls, name: "call-controls-dark-large-text", dark: true, large: true, width: 320)
+    }
+
     private func screens() -> [(String, AnyView)] {
         let conversation = Conversation(id: "review-chat", name: "李明")
         return [
@@ -89,7 +102,7 @@ final class NativeUIReviewTests: XCTestCase {
             ("profile", AnyView(ProfileView())), ("edit-profile", AnyView(ProfileEditView())),
             ("settings", AnyView(SettingsHomeView())), ("appearance", AnyView(AppearanceSettingsView())),
             ("notifications", AnyView(NotificationSettingsView())), ("privacy", AnyView(PrivacySecurityView())),
-            ("quiet-hours", AnyView(QuietSettingsView())), ("change-phone", AnyView(ChangePhoneView())),
+            ("quiet-hours", AnyView(QuietSettingsView())), ("change-phone", AnyView(ChangePhoneView(currentPhone: "13800000000", onChanged: { _ in }))),
             ("change-password", AnyView(ChangePasswordView())), ("delete-account", AnyView(DeleteAccountView())),
             ("sessions", AnyView(SessionsView())), ("accounts", AnyView(AccountManagementView())),
             ("call-history", AnyView(CallHistoryView())), ("wallet", AnyView(WalletView())),

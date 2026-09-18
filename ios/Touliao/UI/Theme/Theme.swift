@@ -23,6 +23,8 @@ extension Color {
     static let vxinOnPrimary = TouliaoDesign.primaryForeground
     static let vxinBorder = TouliaoDesign.border
     // Existing financial cards retain their semantic color and functionality.
+    static let vxinCallAccept = Color(red: 24 / 255, green: 133 / 255, blue: 107 / 255)
+    static let vxinCallDanger = Color(red: 190 / 255, green: 63 / 255, blue: 78 / 255)
     static let vxinPay = Color(red: 0x07 / 255, green: 0xC1 / 255, blue: 0x60 / 255)
     static let vxinPayGradStart = Color(red: 0x09 / 255, green: 0xBB / 255, blue: 0x07 / 255)
     static let vxinPayGradEnd = vxinPay
@@ -30,6 +32,8 @@ extension Color {
 extension LinearGradient {
     static let vxinBubble = LinearGradient(colors: [.vxinBubbleMine, .vxinBubbleMine],
                                            startPoint: .top, endPoint: .bottom)
+    static let vxinCallAccept = Color(red: 24 / 255, green: 133 / 255, blue: 107 / 255)
+    static let vxinCallDanger = Color(red: 190 / 255, green: 63 / 255, blue: 78 / 255)
     static let vxinPay = LinearGradient(colors: [.vxinPayGradStart, .vxinPayGradEnd],
                                         startPoint: .topLeading, endPoint: .bottomTrailing)
 }
@@ -39,13 +43,15 @@ private struct TouliaoFontModifier: ViewModifier {
     @ScaledMetric(relativeTo: .body) private var size: CGFloat = 16
     let weight: Font.Weight
     let design: Font.Design
+    let lineSpacingRatio: CGFloat
     init(size: CGFloat, weight: Font.Weight, design: Font.Design) {
         _size = ScaledMetric(wrappedValue: size, relativeTo: .body)
         self.weight = weight; self.design = design
+        self.lineSpacingRatio = size <= 16 ? 0.4 : 0.1
     }
     func body(content: Content) -> some View {
         content.font(.system(size: size, weight: weight, design: design))
-            .lineSpacing(size * (size <= 16 ? 0.4 : 0.1))
+            .lineSpacing(size * lineSpacingRatio)
     }
 }
 extension View {

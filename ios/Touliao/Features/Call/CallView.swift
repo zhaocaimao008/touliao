@@ -185,16 +185,16 @@ private struct CallView: View {
     @ViewBuilder private var controls: some View {
         if state.stage == .incoming {
             HStack(spacing: 24) {
-                circleButton("接听", .vxinSuccess) { manager.accept() }
+                circleButton("接听", .vxinCallAccept) { manager.accept() }
                 circleButton("回复", Color(white: 0.35)) { manager.rejectAndReply() }
-                circleButton("拒绝", .red) { manager.reject() }
+                circleButton("拒绝", .vxinCallDanger) { manager.reject() }
             }
         } else {
-            HStack(spacing: 28) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 20) {
                 circleButton(state.micEnabled ? "静音" : "取消静音", Color(white: 0.35)) { manager.toggleMic() }
                 circleButton(state.speakerOn ? "听筒" : "扬声器", Color(white: 0.35)) { manager.toggleSpeaker() }
                 circleButton(state.isVideo ? "切语音" : "切视频", Color(white: 0.35)) { manager.toggleVideo() }
-                circleButton("挂断", .red) { manager.hangup() }
+                circleButton("挂断", .vxinCallDanger) { manager.hangup() }
                 if state.isVideo {
                     circleButton(state.cameraEnabled ? "关摄像头" : "开摄像头", Color(white: 0.35)) { manager.toggleCamera() }
                     circleButton("翻转", Color(white: 0.35)) { manager.switchCamera() }
@@ -204,15 +204,7 @@ private struct CallView: View {
     }
 
     private func circleButton(_ label: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
-        VStack(spacing: 4) {
-            Button(action: action) {
-                Text(String(label.prefix(2)))
-                    .touliaoFont(12).foregroundColor(.white)
-                    .frame(width: 60, height: 60)
-                    .background(color).clipShape(Circle())
-            }
-            Text(label).touliaoFont(12).foregroundColor(Color(white: 0.8))
-        }
+        CallActionButton(label: label, color: color, action: action)
     }
 
     private func ensurePermissions() async {
