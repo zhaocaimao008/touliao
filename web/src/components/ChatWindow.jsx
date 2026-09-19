@@ -66,7 +66,7 @@ import { shareMessage, canShare } from '../utils/share';
 import { isForwardableMessage } from '../utils/mergedForward';
 import { canViewReadStatus, readUserIdsForMessage } from '../utils/readStatus';
 import './ChatWindow.css';
-import { IcoEmoji, IcoMic, IcoImage, IcoFile, IcoMore, IcoVideo, IcoContacts } from './Icons';
+import { IcoImage, IcoFile, IcoVideo, IcoContacts } from './Icons';
 
 import { computeCtxPos } from '../utils/ctxPos';
 
@@ -2818,9 +2818,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <div className="wc-input-toolbar">
           <button
             className={`wc-tool-btn${showEmoji ? ' active' : ''}`}
-            title={t('chat.emoji')} aria-label={t('chat.emoji')} aria-expanded={showEmoji}
+            data-testid="chat-emoji-panel-btn" title={t('chat.emoji')} aria-label={t('chat.emoji')} aria-expanded={showEmoji}
             onClick={() => togglePanel('emoji')}
-          ><IcoEmoji /></button>
+          ><TouliaoIcon name={showEmoji ? "keyboard" : "emoji"} /></button>
 
           <button
             className={`wc-tool-btn${showStickers ? ' active' : ''}`}
@@ -2833,7 +2833,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             title={voiceMode ? t('chat.switchToText') : t('chat.voiceInput')}
             aria-label={voiceMode ? t('chat.switchToTextInput') : t('chat.voiceInput')}
             onClick={() => dispatchCompose({ type: 'TOGGLE_VOICE' })}
-          ><IcoMic /></button>
+          ><TouliaoIcon name={voiceMode ? "keyboard" : "microphone"} /></button>
 
           <label className="wc-tool-btn wc-tool-label" title={t('chat.image')} aria-label={t('chat.sendImage')}>
             <IcoImage />
@@ -2871,9 +2871,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
           <button
             className={`wc-tool-btn${showMore ? ' active' : ''}`}
-            title={t('chat.more')} aria-label={t('chat.more')} aria-expanded={showMore}
+            data-testid="chat-more-panel-btn" title={t('chat.more')} aria-label={t('chat.more')} aria-expanded={showMore}
             onClick={() => togglePanel('more')}
-          ><IcoMore /></button>
+          ><TouliaoIcon name={showMore ? "close" : "add"} /></button>
         </div>
 
         {/* More panel */}

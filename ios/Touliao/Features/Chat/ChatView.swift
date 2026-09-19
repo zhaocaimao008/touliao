@@ -712,7 +712,7 @@ struct ChatView: View {
                     .accessibilityIdentifier("chat-send-btn")
                     .accessibilityLabel("发送")
                 } else {
-                    inputBarIconButton(icon: "add", tint: .vxinText, filled: true) {
+                    inputBarIconButton(icon: showFuncPanel ? "close" : "add", tint: .vxinText, filled: true) {
                         showFuncPanel.toggle()
                         if showFuncPanel { messageFocused = false; showStickerPanel = false }
                     }

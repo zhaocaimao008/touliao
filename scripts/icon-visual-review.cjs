@@ -20,11 +20,11 @@ try {for(const [platform,width] of platforms)for(const theme of ['light','dark']
  await p.locator('.wc-msg-avatar').first().dblclick(); await p.locator('.up-close-btn').waitFor();await snap('user-profile');await p.locator('.up-close-btn').click();
  const size=await p.locator('.wc-tool-btn svg.tl-icon').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().width));assert.ok(size.every(s=>s===24),'toolbar glyphs must all be 24');
  if(width===390) assert.ok((await p.getByTestId('chat-send-btn').boundingBox()).height>=44,'mobile send target');
- await p.locator('.wc-tool-btn').filter({has:p.locator('[data-icon="more"]')}).click(); await p.locator('.wc-more-item').first().waitFor();await snap('more-panel');
+ await p.getByTestId('chat-more-panel-btn').click(); await p.locator('.wc-more-item').first().waitFor();await snap('more-panel');assert.equal(await p.getByTestId('chat-more-panel-btn').locator('svg').getAttribute('data-icon'),'close');
  assert.equal(await p.locator('.wc-more-item').filter({hasText:'文件'}).locator('svg').getAttribute('data-icon'),'file');
- await p.locator('.wc-tool-btn').filter({has:p.locator('[data-icon="more"]')}).click();
- await p.locator('.wc-tool-btn').filter({has:p.locator('[data-icon="emoji"]')}).click();await snap('emoji');
- await p.locator('.wc-tool-btn').filter({has:p.locator('[data-icon="emoji"]')}).click();
+ await p.getByTestId('chat-more-panel-btn').click();
+ await p.getByTestId('chat-emoji-panel-btn').click();await snap('emoji');assert.equal(await p.getByTestId('chat-emoji-panel-btn').locator('svg').getAttribute('data-icon'),'keyboard');
+ await p.getByTestId('chat-emoji-panel-btn').click();
  await p.locator('.wc-msg-bubble').first().click({button:'right'});await p.getByTestId('ctx-copy').waitFor();await snap('context-menu');
  assert.equal(await p.getByTestId('ctx-copy').locator('svg').getAttribute('data-icon'),'copy');await p.keyboard.press('Escape');await p.locator('.wc-chat-header').click({position:{x:180,y:20}}).catch(()=>{});
  for(const type of ['audio','video']){f.emitSocket('call:incoming',{from:'peer-0',type,caller:{name:'林晓'},callId:'icon-'+type});await p.getByTestId('call-reject-btn').waitFor();await snap('incoming-'+type);const cs=await p.locator('.cm-circle-btn-icon svg').evaluateAll(es=>es.map(e=>e.getBoundingClientRect().width));assert.ok(cs.every(s=>s===24),'call glyphs24');await p.getByTestId('call-reject-btn').click();await p.getByTestId('call-reject-btn').waitFor({state:'hidden'});}
