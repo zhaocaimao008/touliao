@@ -71,4 +71,3 @@ struct TouliaoSettingDivider: View {
             .padding(.leading, TouliaoMetrics.space4 + TouliaoMetrics.space6 + TouliaoMetrics.space3)
     }
 }
-
