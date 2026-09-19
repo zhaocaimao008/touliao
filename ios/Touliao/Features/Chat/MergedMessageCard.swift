@@ -49,20 +49,6 @@ private struct MergedForwardDetailSheet: View {
     let items: [MergedForwardItem]
     @Environment(\.dismiss) private var dismiss
 
-    /// 类型图标（对齐 Web typeIcon）
-    private func typeIcon(_ type: String) -> String {
-        switch type {
-        case "text": return "💬"
-        case "image": return "🖼"
-        case "video": return "🎬"
-        case "voice": return "🎤"
-        case "file": return "📎"
-        case "contact_card", "contact": return "👤"
-        case "merged": return "📚"
-        default: return "💬"
-        }
-    }
-
     var body: some View {
         NavigationStack {
             Group {
@@ -73,7 +59,7 @@ private struct MergedForwardDetailSheet: View {
                     List(items) { item in
                         Group {
                         HStack(alignment: .top, spacing: 8) {
-                            Text(typeIcon(item.type))
+                            TouliaoIcon(TouliaoIcon.messageType(item.type), size: .sm)
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
                                     Text(item.senderName.isEmpty ? "成员" : item.senderName)

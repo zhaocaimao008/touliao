@@ -195,8 +195,8 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
       {/* Gallery navigation arrows */}
       {gallery && (
         <>
-          <button data-testid="lightbox-prev" onClick={(e) => { e.stopPropagation(); prev(); }} style={arrowStyle('left')} aria-label={t('imagePreview.prev')}>‹</button>
-          <button data-testid="lightbox-next" onClick={(e) => { e.stopPropagation(); next(); }} style={arrowStyle('right')} aria-label={t('imagePreview.next')}>›</button>
+          <button data-testid="lightbox-prev" onClick={(e) => { e.stopPropagation(); prev(); }} style={arrowStyle('left')} aria-label={t('imagePreview.prev')}><TouliaoIcon name="previous" size="md" /></button>
+          <button data-testid="lightbox-next" onClick={(e) => { e.stopPropagation(); next(); }} style={arrowStyle('right')} aria-label={t('imagePreview.next')}><TouliaoIcon name="disclosure" size="md" /></button>
           <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
             color: 'rgba(255,255,255,.7)', fontSize: 'var(--text-sm2)', zIndex: 10, pointerEvents: 'none' }}>
             {idx + 1} / {urls.length}

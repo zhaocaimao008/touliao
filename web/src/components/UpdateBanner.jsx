@@ -64,7 +64,7 @@ export default function UpdateBanner() {
     <div className="wc-update-banner" role="status" aria-live="polite">
       {state === 'checking' && (
         <>
-          <span className="wc-update-icon wc-spin">↻</span>
+          <span className="wc-update-icon wc-spin"><TouliaoIcon name="refresh" size="sm" /></span>
           <span className="wc-update-text">{t('update.checking')}</span>
           <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
         </>

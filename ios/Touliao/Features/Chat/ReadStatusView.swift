@@ -99,7 +99,7 @@ struct ReadStatusDetailSheet: View {
                 } else if !model.isGroup {
                     // 私聊：对方已读/未读
                     HStack(spacing: 12) {
-                        Text(model.peerRead ? "✓✓" : "✓")
+                        TouliaoIcon(model.peerRead ? "read" : "check", size: .sm)
                             .touliaoFont(18, weight: .bold)
                             .foregroundColor(model.peerRead ? .vxinGreen : .vxinTextSecondary)
                         VStack(alignment: .leading, spacing: 2) {

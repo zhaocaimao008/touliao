@@ -170,6 +170,9 @@ enum TouliaoIconRegistry {
         "voiceCall": "phone",
         "wallet": "wallet",
         "warning": "triangle-alert",
+        "delivered": "check-check",
+        "read": "check-check",
+        "previous": "chevron-left",
     ]
 }
 

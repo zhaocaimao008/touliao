@@ -210,7 +210,10 @@
     "voice": "mic",
     "voiceCall": "phone",
     "wallet": "wallet",
-    "warning": "triangle-alert"
+    "warning": "triangle-alert",
+    "delivered": "check-check",
+    "read": "check-check",
+    "previous": "chevron-left"
   },
   "assetAliases": {
     "more-horizontal": "ellipsis"

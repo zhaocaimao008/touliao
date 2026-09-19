@@ -84,7 +84,15 @@ private struct CallMinimizedBubble: View {
 
 private struct CallView: View {
     @ObservedObject var manager: CallManager
-    private var state: CallState { manager.state }
+    #if DEBUG
+    var iconReviewState: CallState? = nil
+    #endif
+    private var state: CallState {
+        #if DEBUG
+        if let iconReviewState { return iconReviewState }
+        #endif
+        return manager.state
+    }
 
     var body: some View {
         ZStack {
@@ -248,3 +256,14 @@ private struct RTCVideoViewRepresentable: UIViewRepresentable {
         }
     }
 }
+
+#if DEBUG
+extension CallHostView {
+    // Render production call UI with a fixture state; never change the live call manager.
+    static func iconReview(video: Bool, incoming: Bool) -> some View {
+        CallView(manager: .shared, iconReviewState: CallState(
+            stage: incoming ? .incoming : .connected, peerId: "review-peer", peerName: "李明",
+            isVideo: video, connectedAt: Date().addingTimeInterval(-65)))
+    }
+}
+#endif

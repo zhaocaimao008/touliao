@@ -142,7 +142,7 @@ fun ContactsScreen(
                         Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    Text(if (state.showAiBots) "˄" else "›", color = VxinTextSecondary)
+                    com.touliao.app.ui.TouliaoGlyph(if (state.showAiBots) com.touliao.app.ui.TouliaoIcons.Collapse else com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 HorizontalDivider()
                 if (state.showAiBots) {

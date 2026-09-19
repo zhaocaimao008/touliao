@@ -629,7 +629,7 @@ export default function Moments() {
                     onClick={() => saveVisibleDays(o.d)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); saveVisibleDays(o.d); } }}>
                     <span>{o.label}</span>
-                    {visibleDays === o.d && <span className="moments-check-green">✓</span>}
+                    {visibleDays === o.d && <span className="moments-check-green"><TouliaoIcon name="check" size="xs" /></span>}
                   </div>
                 ))}
               </div>
@@ -688,7 +688,7 @@ export default function Moments() {
                     <div className="wc-moment-notif-body">
                       <div className="wc-moment-notif-text">{f.remark || f.username}</div>
                     </div>
-                    <span className="moments-check-circle" style={{ border: `2px solid ${checked ? 'var(--green)' : 'var(--border-medium)'}`, background: checked ? 'var(--green)' : 'var(--bg-card)' }}>{checked ? '✓' : ''}</span>
+                    <span className="moments-check-circle" style={{ border: `2px solid ${checked ? 'var(--green)' : 'var(--border-medium)'}`, background: checked ? 'var(--green)' : 'var(--bg-card)' }}>{checked ? <TouliaoIcon name="check" size="xs" /> : null}</span>
                   </div>
                 );
               })}

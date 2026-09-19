@@ -123,7 +123,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
       {multiSelect && (
         <div style={{ display: 'flex', alignItems: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'center' }}>
           <div style={{ width: 20, height: 20, borderRadius: 'var(--radius-full)', border: `2px solid ${isSelected ? 'var(--green)' : 'var(--border-default)'}`, background: isSelected ? 'var(--green)' : 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background var(--dur-fast), border-color var(--dur-fast)' }}>
-            {isSelected && <span style={{ color: 'var(--text-inverse)', fontSize: 'var(--text-sm)', fontWeight: 700, lineHeight: 1 }}>✓</span>}
+            {isSelected && <span style={{ color: 'var(--text-inverse)', fontSize: 'var(--text-sm)', fontWeight: 700, lineHeight: 1 }}><TouliaoIcon name="check" size="xs" /></span>}
           </div>
         </div>
       )}
@@ -166,10 +166,10 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               ><TouliaoIcon name="error" size="sm" /></div>
             ) : isLastMine && convType === 'private' ? (
               showRead
-                ? <div className="wc-msg-read wc-msg-status-read" data-testid="msg-read-status">✓✓ {t('messageItem.read')}</div>
+                ? <div className="wc-msg-read wc-msg-status-read" data-testid="msg-read-status"><TouliaoIcon name="read" size="xs" /> {t('messageItem.read')}</div>
                 : showDelivered
-                  ? <div className="wc-msg-read wc-msg-status-delivered">✓✓ {t('messageItem.delivered')}</div>
-                  : <div className="wc-msg-read wc-msg-status-sent">✓ {t('messageItem.sent')}</div>
+                  ? <div className="wc-msg-read wc-msg-status-delivered"><TouliaoIcon name="delivered" size="xs" /> {t('messageItem.delivered')}</div>
+                  : <div className="wc-msg-read wc-msg-status-sent"><TouliaoIcon name="check" size="xs" /> {t('messageItem.sent')}</div>
             ) : null
           )}
           {/* 定时消息标记：气泡左上角「定时」角标 */}

@@ -37,19 +37,19 @@ struct ConversationListView: View {
                     // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
                     if vm.momentsEnabled {
                         ToolbarItem(placement: .navigationBarTrailing) {
-                            Button { showMoments = true } label: { TouliaoIcon("image") }
+                            Button { showMoments = true } label: { TouliaoIcon("image", size: .md) }
                                 .accessibilityLabel("朋友圈")
                                 .accessibilityIdentifier("conv-list-moments-btn")
                         }
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button { path.append(SearchRoute.search) } label: { TouliaoIcon("search") }
+                        Button { path.append(SearchRoute.search) } label: { TouliaoIcon("search", size: .md) }
                             .accessibilityLabel("搜索")
                     }
                     // @我消息聚合入口
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button { showMentions = true } label: {
-                            TouliaoIcon("mention")
+                            TouliaoIcon("mention", size: .md)
                         }
                         .accessibilityLabel("@我的消息")
                         .accessibilityIdentifier("conv-list-mentions-btn")
@@ -59,7 +59,7 @@ struct ConversationListView: View {
                             Button { vm.openFileHelper { conv in path.append(conv) } } label: {
                                 Label("文件传输助手", touliaoIcon: "copy")
                             }
-                        } label: { TouliaoIcon("add") }
+                        } label: { TouliaoIcon("add", size: .md) }
                             .accessibilityLabel("更多")
                     }
                 }

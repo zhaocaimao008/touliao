@@ -226,7 +226,7 @@ struct MomentsView: View {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 // 互动通知入口：铃铛 + 未读角标
                 Button { vm.openNotif(); showNotif = true } label: {
-                    TouliaoIcon("notification")
+                    TouliaoIcon("notification", size: .md)
                         .overlay(alignment: .topTrailing) {
                             if vm.notifUnread > 0 {
                                 Text(vm.notifUnread > 99 ? "99+" : "\(vm.notifUnread)")
@@ -238,9 +238,9 @@ struct MomentsView: View {
                         }
                 }
                 .accessibilityLabel("互动消息")
-                Button { showSettings = true } label: { TouliaoIcon("settings") }
+                Button { showSettings = true } label: { TouliaoIcon("settings", size: .md) }
                     .accessibilityLabel("朋友圈设置")
-                Button { showCompose = true } label: { TouliaoIcon("camera") }
+                Button { showCompose = true } label: { TouliaoIcon("camera", size: .md) }
                     .accessibilityLabel("发朋友圈")
             }
         }

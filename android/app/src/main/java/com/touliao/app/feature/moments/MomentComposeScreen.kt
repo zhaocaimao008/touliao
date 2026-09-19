@@ -127,14 +127,14 @@ fun MomentComposeScreen(
                         ) {
                             com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Play, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md)
                         }
-                        Text(
-                            "✕",
-                            color = Color.White,
+                        com.touliao.app.ui.TouliaoGlyph(
+                            com.touliao.app.ui.TouliaoIcons.Close, label = "移除视频", size = com.touliao.app.ui.IconSize.Md,
+                            color = com.touliao.app.ui.IconColor.OnDark,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb))
                                 .clickable { viewModel.removeVideo() }
-                                .padding(horizontal = 6.dp),
+                                .padding(12.dp),
                         )
                     }
                 }
@@ -149,7 +149,7 @@ fun MomentComposeScreen(
                 items(state.images, key = { it }) { uri ->
                     Box(Modifier.padding(2.dp).aspectRatio(1f)) {
                         AsyncImage(uri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm)))
-                        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Close, color = com.touliao.app.ui.IconColor.OnDark, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)).size(com.touliao.app.ui.IconTouchTarget.Android).clickable { viewModel.removeImage(uri) }.padding(horizontal = 6.dp), size = com.touliao.app.ui.IconSize.Md)
+                        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Close, color = com.touliao.app.ui.IconColor.OnDark, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)).size(com.touliao.app.ui.IconTouchTarget.Android).clickable { viewModel.removeImage(uri) }.padding(12.dp), size = com.touliao.app.ui.IconSize.Md)
                     }
                 }
                 if (state.images.size < 9) {
@@ -207,7 +207,7 @@ fun MomentComposeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(f.displayName.ifBlank { "用户" }, modifier = Modifier.weight(1f))
-                                Text(if (checked) "✓" else "", color = VxinGreen)
+                                if (checked) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = VxinGreen, size = com.touliao.app.ui.IconSize.Xs)
                             }
                         }
                     }

@@ -52,8 +52,8 @@ fun ReadStatusDialog(
                     TextButton(onClick = onRetry) { Text("重试") }
                 }
                 !model.isGroup -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (model.peerRead) "✓✓" else "✓",
+                    com.touliao.app.ui.TouliaoGlyph(
+                        if (model.peerRead) com.touliao.app.ui.TouliaoIcons.Read else com.touliao.app.ui.TouliaoIcons.Check,
                         color = if (model.peerRead) VxinGreen else VxinTextSecondary,
                     )
                     Spacer(Modifier.width(10.dp))

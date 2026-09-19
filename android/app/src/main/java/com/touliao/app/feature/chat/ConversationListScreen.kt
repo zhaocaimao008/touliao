@@ -180,7 +180,7 @@ fun ConversationListScreen(
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = { showArchived = false }) { Text("‹ 返回") }
+                        TextButton(onClick = { showArchived = false }) { Row(verticalAlignment = Alignment.CenterVertically) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Back); Text("返回") } }
                         Spacer(Modifier.width(4.dp))
                         Text("已归档会话", style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.width(6.dp))

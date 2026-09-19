@@ -175,6 +175,9 @@ object TouliaoIcons {
     val VoiceCall get() = DesignIcons.Phone
     val Wallet get() = DesignIcons.Wallet
     val Warning get() = DesignIcons.TriangleAlert
+    val Delivered get() = DesignIcons.CheckCheck
+    val Read get() = DesignIcons.CheckCheck
+    val Previous get() = DesignIcons.ChevronLeft
 }
 
 object IconSize {

@@ -67,16 +67,14 @@ fun VideoPlayerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxSize(),
             )
-            Text(
-                "✕",
-                color = Color.White,
-                fontSize = VxinTextSize.lg,
+            com.touliao.app.ui.TouliaoGlyph(
+                com.touliao.app.ui.TouliaoIcons.Close, label = "关闭预览", color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(top = 40.dp, start = 16.dp)
                     .background(Color(0x66000000), RoundedCornerShape(50))
                     .clickable { onDismiss() }
-                    .padding(10.dp),
+                    .padding(12.dp),
             )
             Row(
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp, end = 16.dp),
@@ -169,11 +167,11 @@ fun PdfViewerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
                     }
                 }
             }
-            Text(
-                "✕", color = Color.White, fontSize = VxinTextSize.lg,
+            com.touliao.app.ui.TouliaoGlyph(
+                com.touliao.app.ui.TouliaoIcons.Close, label = "关闭预览", color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md,
                 modifier = Modifier.align(Alignment.TopStart).padding(top = 40.dp, start = 16.dp)
                     .background(Color(0x66000000), RoundedCornerShape(50))
-                    .clickable { onDismiss() }.padding(10.dp),
+                    .clickable { onDismiss() }.padding(12.dp),
             )
             filename?.let {
                 Text(
@@ -205,7 +203,7 @@ fun FileDetailsOverlay(url: String, filename: String?, sizeText: String?, onDism
                     Modifier.size(64.dp).background(Color(0x33FFFFFF), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("FILE", color = Color.White, fontSize = VxinTextSize.sm2)
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.FileContent, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Xl)
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(filename ?: "未知文件", color = Color.White, fontSize = VxinTextSize.base, maxLines = 2)
@@ -237,11 +235,11 @@ fun FileDetailsOverlay(url: String, filename: String?, sizeText: String?, onDism
                     )
                 }
             }
-            Text(
-                "✕", color = Color.White, fontSize = VxinTextSize.lg,
+            com.touliao.app.ui.TouliaoGlyph(
+                com.touliao.app.ui.TouliaoIcons.Close, label = "关闭预览", color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md,
                 modifier = Modifier.align(Alignment.TopStart).padding(top = 40.dp, start = 16.dp)
                     .background(Color(0x66000000), RoundedCornerShape(50))
-                    .clickable { onDismiss() }.padding(10.dp),
+                    .clickable { onDismiss() }.padding(12.dp),
             )
         }
     }

@@ -150,6 +150,12 @@ final class NativeUIReviewTests: XCTestCase {
         )
         try await capture(controls, name: "call-controls-dark", dark: true)
         try await capture(controls, name: "call-controls-dark-large-text", dark: true, large: true, width: 320)
+        for video in [false, true] {
+            for incoming in [false, true] {
+                let name = (video ? "video-call" : "voice-call") + (incoming ? "-incoming" : "-connected")
+                try await capture(AnyView(CallHostView.iconReview(video: video, incoming: incoming)), name: name, dark: true)
+            }
+        }
     }
 
 

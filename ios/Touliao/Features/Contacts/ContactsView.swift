@@ -146,9 +146,9 @@ struct ContactsView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack {
-                    Button(action: onCreateGroup) { TouliaoIcon("group") }
+                    Button(action: onCreateGroup) { TouliaoIcon("group", size: .md) }
                         .accessibilityLabel("发起群聊")
-                    Button(action: onAddFriend) { TouliaoIcon("add") }
+                    Button(action: onAddFriend) { TouliaoIcon("add", size: .md) }
                         .accessibilityLabel("添加好友")
                 }
             }

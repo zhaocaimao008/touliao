@@ -46,7 +46,7 @@ export default function ReadStatusModal({ state, conversation, members, currentU
             </div>
           ) : model.type === 'private' ? (
             <div className={`read-status-private${model.isRead ? ' is-read' : ''}`}>
-              <span className="read-status-mark" aria-hidden="true">{model.isRead ? '✓✓' : '✓'}</span>
+              <span className="read-status-mark" aria-hidden="true"><TouliaoIcon name={model.isRead ? "read" : "check"} size="sm" /></span>
               <div>
                 <div className="read-status-primary">{model.isRead ? t('readStatus.peerRead') : t('readStatus.peerUnread')}</div>
                 {model.peerName && <div className="read-status-secondary">{model.peerName}</div>}

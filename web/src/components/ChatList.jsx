@@ -427,7 +427,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       )}
       {showArchived && (
         <div className="wc-archive-header">
-          <button type="button" onClick={() => setShowArchived(false)} aria-label={t('common.back')}>‹</button>
+          <button type="button" onClick={() => setShowArchived(false)} aria-label={t('common.back')}><TouliaoIcon name="back" size="md" /></button>
           <strong>{t('chatlist.archivedChats')}</strong>
           <button type="button" onClick={clearArchive} disabled={archivedConversations.length === 0}>{t('chatlist.clearArchive')}</button>
         </div>

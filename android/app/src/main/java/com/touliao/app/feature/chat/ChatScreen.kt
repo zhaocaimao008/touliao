@@ -1226,7 +1226,7 @@ private fun MessageBubble(
                 }
                 isMine && msg.localStatus == LocalMsgStatus.FAILED -> {
                     Text(
-                        text = "❗发送失败，点击重发",
+                        text = "发送失败，点击重发",
                         fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                         color = com.touliao.app.ui.theme.VxinError,
                         modifier = Modifier
@@ -1237,21 +1237,18 @@ private fun MessageBubble(
                     )
                 }
                 isMine && showReadStatus -> {
-                    Text(
-                        text = if (isRead) "✓✓ 已读" else "✓",
-                        fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
-                        color = if (isRead) VxinGreen else VxinTextSecondary,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        com.touliao.app.ui.TouliaoGlyph(if (isRead) com.touliao.app.ui.TouliaoIcons.Read else com.touliao.app.ui.TouliaoIcons.Check, size = com.touliao.app.ui.IconSize.Xs, color = if (isRead) VxinGreen else VxinTextSecondary)
+                        if (isRead) Text("已读", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2, color = VxinGreen)
+                    }
                 }
             }
             // 定时消息角标（后端到点后才出现，is_scheduled=1 表示由定时任务发送）
             if (msg.isScheduled == 1) {
-                Text(
-                    "⏱ 定时",
-                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
-                    color = VxinTextSecondary,
-                    modifier = Modifier.padding(vertical = 1.dp),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Schedule, size = com.touliao.app.ui.IconSize.Xs, color = VxinTextSecondary)
+                    Text("定时", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2, color = VxinTextSecondary)
+                }
             }
             // 被回复消息引用条：被引用消息已撤回/删除(deleted!=0)时整块不渲染，UI 无痕
             msg.replyTo?.takeIf { it.deleted == 0 }?.let { rt ->
@@ -2161,7 +2158,7 @@ private fun RedPacketDetailDialog(
     val canClaim = mine == null && claimedAmount == null && !finished
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("🧧 ${detail.senderName.ifBlank { "好友" }} 的红包") },
+        title = { Row(verticalAlignment = Alignment.CenterVertically) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.RedPacket); Spacer(Modifier.width(8.dp)); Text("${detail.senderName.ifBlank { "好友" }} 的红包") } },
         text = {
             Column {
                 Text(detail.greeting.ifBlank { "恭喜发财，大吉大利" }, color = VxinTextSecondary)

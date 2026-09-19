@@ -2,6 +2,7 @@ package com.touliao.app.navigation
 
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Badge
@@ -261,17 +262,17 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                                 // 「消息」tab 显示未读总数红点角标
                                 if (tab.route == Routes.CONVERSATIONS && unreadTotal > 0) {
                                     BadgedBox(badge = { Badge { Text(if (unreadTotal > 99) "99+" else unreadTotal.toString()) } }) {
-                                        Icon(tab.icon, contentDescription = tab.label)
+                                        Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md))
                                     }
                                 } else {
-                                    Icon(tab.icon, contentDescription = tab.label)
+                                    Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md))
                                 }
                             },
                             label = { Text(tab.label) },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = com.touliao.app.ui.theme.VxinBrand,
+                                selectedIconColor = com.touliao.app.ui.IconColor.Selected,
                                 selectedTextColor = com.touliao.app.ui.theme.VxinBrand,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedIconColor = com.touliao.app.ui.IconColor.Secondary,
                                 unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 indicatorColor = com.touliao.app.ui.theme.VxinBrandMuted,
                             ),

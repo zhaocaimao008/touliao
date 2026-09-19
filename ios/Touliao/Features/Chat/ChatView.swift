@@ -88,27 +88,27 @@ struct ChatView: View {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     // 群语音/群视频按钮受后台开关控制，关闭即隐藏
                     if vm.groupVoiceCallEnabled {
-                        Button { vm.startGroupCall(video: false) } label: { TouliaoIcon("phone") }
+                        Button { vm.startGroupCall(video: false) } label: { TouliaoIcon("phone", size: .md) }
                             .accessibilityIdentifier("chat-call-audio-btn")
                             .accessibilityLabel("语音通话")
                     }
                     if vm.groupVideoCallEnabled {
-                        Button { vm.startGroupCall(video: true) } label: { TouliaoIcon("video") }
+                        Button { vm.startGroupCall(video: true) } label: { TouliaoIcon("video", size: .md) }
                             .accessibilityIdentifier("chat-call-video-btn")
                             .accessibilityLabel("视频通话")
                     }
-                    Button(action: onOpenGroupInfo) { TouliaoIcon("more") }
+                    Button(action: onOpenGroupInfo) { TouliaoIcon("more", size: .md) }
                         .accessibilityLabel("群聊信息")
                 }
             } else {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button { _ = vm.startCall(video: false, callerName: session.currentUser?.username ?? "") } label: {
-                        TouliaoIcon("phone")
+                        TouliaoIcon("phone", size: .md)
                     }
                     .accessibilityIdentifier("chat-call-audio-btn")
                     .accessibilityLabel("语音通话")
                     Button { _ = vm.startCall(video: true, callerName: session.currentUser?.username ?? "") } label: {
-                        TouliaoIcon("video")
+                        TouliaoIcon("video", size: .md)
                     }
                     .accessibilityIdentifier("chat-call-video-btn")
                     .accessibilityLabel("视频通话")
@@ -116,7 +116,7 @@ struct ChatView: View {
             }
             // 会话内消息搜索
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { vm.openSearch() } label: { TouliaoIcon("search") }
+                Button { vm.openSearch() } label: { TouliaoIcon("search", size: .md) }
                     .accessibilityIdentifier("chat-search-btn")
                     .accessibilityLabel("搜索聊天记录")
             }
@@ -1093,19 +1093,19 @@ private struct MessageBubble: View {
                         ProgressView().scaleEffect(0.6).frame(height: 12)
                     } else if msg.localStatus == LocalMsgStatus.failed {
                         // 失败：红色感叹号，点击重发
-                        Text("❗发送失败，点击重发")
+                        Label("发送失败，点击重发", touliaoIcon: "error")
                             .touliaoFont(12)
-                            .foregroundColor(Color(red: 0.9, green: 0.27, blue: 0.27))
+                            .foregroundColor(IconColor.danger)
                             .onTapGesture { vm.retryMessage(msg.id) }
                     } else {
                         // 定时消息角标（is_scheduled=1）显示在已读状态上方
                         if msg.isScheduled == 1 {
-                            Text("⏰ 定时")
+                            Label("定时", touliaoIcon: "schedule")
                                 .touliaoFont(12)
                                 .foregroundColor(.vxinTextSecondary)
                         }
                         let read = vm.isReadByPeer(msg)
-                        Text(read ? "✓✓ 已读" : "✓")
+                        Label(read ? "已读" : "", touliaoIcon: read ? "read" : "check")
                             .touliaoFont(12)
                             .foregroundColor(read ? .vxinGreen : .vxinTextSecondary)
                     }
@@ -1271,7 +1271,7 @@ private struct MessageBubble: View {
     @ViewBuilder private var redPacketCard: some View {
         let rp = vm.parseRedPacket(msg)
         HStack(spacing: 10) {
-            Text("🧧").touliaoFont(28)
+            TouliaoIcon("redPacket", size: .lg)
             VStack(alignment: .leading, spacing: 2) {
                 Text(rp?.greeting.isEmpty == false ? rp!.greeting : "恭喜发财，大吉大利")
                     .foregroundColor(.white).touliaoFont(14).lineLimit(1)
@@ -1289,7 +1289,7 @@ private struct MessageBubble: View {
     @ViewBuilder private var transferCard: some View {
         let t = vm.parseTransfer(msg)
         HStack(spacing: 10) {
-            Text("💸").touliaoFont(26)
+            TouliaoIcon("transfer", size: .lg)
             VStack(alignment: .leading, spacing: 2) {
                 Text(transferTitle(t))
                     .foregroundColor(.white).touliaoFont(14).lineLimit(1)
@@ -1740,7 +1740,7 @@ private struct RedPacketDetailSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
-                Text("🧧").touliaoFont(44)
+                TouliaoIcon("redPacket", size: .xl)
                 Text("\(detail.senderName.isEmpty ? "好友" : detail.senderName) 的红包").touliaoFont(18, weight: .semibold)
                 Text(detail.greeting.isEmpty ? "恭喜发财，大吉大利" : detail.greeting)
                     .foregroundColor(.vxinTextSecondary)

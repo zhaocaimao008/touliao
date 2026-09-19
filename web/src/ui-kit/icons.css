@@ -34,5 +34,5 @@ html.touliao-ui body .m-tab-ico svg.tl-icon { width: var(--icon-md); height: var
 html.touliao-ui body :is(.gi-fill-red, .gi-stroke-red) { color: var(--icon-danger); }
 html.touliao-ui body .cm-circle-btn-icon { display: flex; align-items: center; justify-content: center; }
 @media (max-width: 767px) {
-  html.touliao-ui body :is(.tl-icon-button, .wc-send-btn) { min-width: 44px; min-height: 44px; }
+  html.touliao-ui body :is(.tl-icon-button, .wc-send-btn, .wc-modal-close, .gi-close-btn, .wc-back-btn, .wc-card-picker-close) { min-width: 44px; min-height: 44px; }
 }

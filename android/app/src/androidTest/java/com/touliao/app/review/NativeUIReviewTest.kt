@@ -38,7 +38,7 @@ import java.io.File
 class NativeUIReviewTest {
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
     @get:Rule(order = 1) val compose = createAndroidComposeRule<UiReviewActivity>()
-    @get:Rule(order = 2) val notifications = androidx.test.rule.GrantPermissionRule.grant(android.Manifest.permission.POST_NOTIFICATIONS)
+    @get:Rule(order = 2) val notifications = androidx.test.rule.GrantPermissionRule.grant(android.Manifest.permission.POST_NOTIFICATIONS, android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.CAMERA, android.Manifest.permission.BLUETOOTH_CONNECT)
     private val screen = mutableStateOf("login")
     private val dark = mutableStateOf(false)
     private val large = mutableStateOf(false)
@@ -48,6 +48,8 @@ class NativeUIReviewTest {
     @javax.inject.Inject lateinit var token: com.touliao.app.core.storage.TokenStore
     @javax.inject.Inject lateinit var session: com.touliao.app.core.auth.SessionManager
     @javax.inject.Inject lateinit var socket: com.touliao.app.core.realtime.SocketManager
+
+    @javax.inject.Inject lateinit var callManager: com.touliao.app.core.call.CallManager
 
     @After fun cleanup() { socket.disconnect(); token.token = null }
 
@@ -99,6 +101,22 @@ class NativeUIReviewTest {
             compose.runOnIdle { screen.value = page; dark.value = true; large.value = true }
             settle(); snapshot(page + "-dark-large-text")
         }
+        // Test-only fixture injection leaves CallManager production source and signaling untouched.
+        val field = callManager.javaClass.getDeclaredField("_state").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val callState = field.get(callManager) as kotlinx.coroutines.flow.MutableStateFlow<com.touliao.app.core.call.CallState>
+        try {
+            for (video in listOf(false, true)) for (incoming in listOf(false, true)) {
+                compose.runOnIdle {
+                    callState.value = com.touliao.app.core.call.CallState(
+                        stage = if (incoming) com.touliao.app.core.call.CallStage.INCOMING else com.touliao.app.core.call.CallStage.CONNECTED,
+                        peerId = "review-peer", peerName = "李明", isVideo = video, bluetoothAvailable = true,
+                        connectedAt = android.os.SystemClock.elapsedRealtime() - 65_000)
+                    screen.value = "call-full"; dark.value = true; large.value = false
+                }
+                settle(); snapshot((if (video) "video-call" else "voice-call") + (if (incoming) "-incoming" else "-connected"))
+            }
+        } finally { compose.runOnIdle { callState.value = com.touliao.app.core.call.CallState(); screen.value = "login" } }
         File(output, "requests.txt").writeText(ReviewModule.requests.joinToString("\n"))
     }
 
@@ -203,6 +221,7 @@ class NativeUIReviewTest {
             "notifications" -> NotificationSettingsScreen(onBack = back)
             "privacy" -> PrivacySettingsScreen(onBack = back)
             "sessions" -> SessionsScreen(onBack = back)
+            "call-full" -> com.touliao.app.feature.call.CallHost()
             "call-controls" -> Surface(Modifier.fillMaxSize(), color = com.touliao.app.ui.theme.TouliaoDarkPalette.background) {
                 com.touliao.app.ui.components.DarkMediaSystemBars()
                 Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {

@@ -83,7 +83,7 @@ struct FriendLabelsView: View {
         .touliaoPage()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showCreate = true } label: { TouliaoIcon("add") }
+                Button { showCreate = true } label: { TouliaoIcon("add", size: .md) }
             }
         }
         .task { await vm.load() }

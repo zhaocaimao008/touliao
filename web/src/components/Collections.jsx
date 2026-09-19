@@ -116,7 +116,7 @@ export default function Collections() {
     }
     if (c.type === 'file' || c.type === 'video') {
       const fileUrl = c.extra?.file_url;
-      const label = `${c.type === 'video' ? '🎬' : '📎'} ${c.content || (c.type === 'video' ? t('coll.typeVideo') : t('coll.typeFile'))}`;
+      const label = <span className="tl-icon-label"><TouliaoIcon name={c.type === 'video' ? 'video' : 'fileContent'} size="sm" />{c.content || (c.type === 'video' ? t('coll.typeVideo') : t('coll.typeFile'))}</span>;
       // 有 file_url 才可下载；老数据无 url 则只显示（与聊天窗口一致：点击=下载，不跳网页）
       if (!fileUrl) return <span style={{ fontSize: 'var(--text-base)', color: 'var(--text-primary)' }}>{label}</span>;
       return (
