@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$Output)
+﻿param([Parameter(Mandatory=$true)][string]$Output, [string]$TargetVersion = "8.1.27")
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -69,7 +69,7 @@ try {
             }
         }
         $version = if (Test-Path $env:LEGACY_EXE) { (Get-Item $env:LEGACY_EXE).VersionInfo.ProductVersion } else { '' }
-        if ($version -like '8.1.27*' -and $installerWindows -eq 0) { exit 0 }
+        if ($version -like "$TargetVersion*" -and $installerWindows -eq 0) { exit 0 }
         Start-Sleep -Seconds 1
     }
     throw 'Actual updater-launched NSIS wizard did not complete'

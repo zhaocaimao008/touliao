@@ -11,19 +11,21 @@ p = importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
 
 
 class Publication(unittest.TestCase):
+    version = '8.1.27'
+    previous_version = '8.1.26'
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name); self.stage = self.root / '.stage'; self.stage.mkdir()
         (self.root / 'updates').mkdir(); self.run = '8127-1'
         self.paths = ['touliao-windows-latest.exe', 'touliao-windows-latest-setup.exe', 'updates/latest.yml',
-                      'updates/latest.yml.sig', 'updates/touliao-8.1.26-setup.exe', 'updates/touliao-8.1.26-setup.exe.blockmap']
+                      'updates/latest.yml.sig', f'updates/touliao-{self.previous_version}-setup.exe', f'updates/touliao-{self.previous_version}-setup.exe.blockmap']
         for name in self.paths: (self.root / name).write_bytes(('old-' + name).encode())
         (self.root / 'touliao-android-version.json').write_bytes(b'android-must-not-change')
-        manifest = {'version': '8.1.27', 'previousVersion': '8.1.26', 'buildCommit': 'fixture', 'files': {},
-                    'previousInstallerSha256': p.digest(self.root / 'updates/touliao-8.1.26-setup.exe'),
+        manifest = {'version': self.version, 'previousVersion': self.previous_version, 'buildCommit': 'fixture', 'files': {},
+                    'previousInstallerSha256': p.digest(self.root / f'updates/touliao-{self.previous_version}-setup.exe'),
                     'previousManifestSha256': p.digest(self.root / 'updates/latest.yml'),
                     'previousSignatureSha256': p.digest(self.root / 'updates/latest.yml.sig')}
-        for name in ['latest.yml', 'latest.yml.sig', 'touliao-8.1.27-setup.exe', 'touliao-8.1.27-setup.exe.blockmap']:
+        for name in ['latest.yml', 'latest.yml.sig', f'touliao-{self.version}-setup.exe', f'touliao-{self.version}-setup.exe.blockmap']:
             (self.stage / name).write_bytes(('new-' + name).encode()); manifest['files'][name] = p.digest(self.stage / name)
         (self.stage / 'spec.json').write_text(json.dumps(manifest))
         self.before = {name: (self.root / name).read_bytes() for name in self.paths}
@@ -46,7 +48,7 @@ class Publication(unittest.TestCase):
         self.assertEqual((self.root / 'touliao-windows-latest.exe').read_bytes(), self.before['touliao-windows-latest.exe'])
 
     def test_reject_tampered_stage(self):
-        (self.stage / 'touliao-8.1.27-setup.exe').write_bytes(b'tampered')
+        (self.stage / f'touliao-{self.version}-setup.exe').write_bytes(b'tampered')
         with self.assertRaisesRegex(ValueError, 'Staged file differs'): p.expose_version(self.root, self.stage)
 
     def test_rollback_rejects_concurrent_publication(self):
@@ -68,6 +70,21 @@ class Publication(unittest.TestCase):
         with patch.object(p, 'replace_copy', side_effect=fail_once):
             with self.assertRaisesRegex(OSError, 'injected'): p.activate(self.root, self.stage, self.run)
         for name, old in self.before.items(): self.assertEqual((self.root / name).read_bytes(), old)
+
+    def test_reject_unapproved_version(self):
+        manifest = json.loads((self.stage / 'spec.json').read_text())
+        manifest['version'] = '8.1.30'
+        (self.stage / 'spec.json').write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, 'approved version pair'): p.expose_version(self.root, self.stage)
+
+    def test_reject_replacing_immutable_installer(self):
+        (self.root / f'updates/touliao-{self.version}-setup.exe').write_bytes(b'conflicting artifact')
+        with self.assertRaisesRegex(ValueError, 'Immutable version URL conflicts'): p.expose_version(self.root, self.stage)
+
+
+class Publication8129(Publication):
+    version = '8.1.29'
+    previous_version = '8.1.27'
 
 
 if __name__ == '__main__': unittest.main()

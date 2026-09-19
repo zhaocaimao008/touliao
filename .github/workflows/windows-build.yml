@@ -10,6 +10,10 @@ on:
         description: Publish verified installer to production
         type: boolean
         default: false
+      publish_verified_8129:
+        description: 'User-approved exact 8.1.29 without Authenticode; retain Ed25519, hash, backup, and installed 8.1.27 upgrade validation'
+        type: boolean
+        default: false
       publish_verified_8127:
         description: 'Publish only the user-approved existing 8.1.27 artifact; retain Ed25519, backup, and old-client regression'
         type: boolean
@@ -21,7 +25,7 @@ on:
 
 jobs:
   build:
-    if: ${{ !inputs.publish_verified_8127 }}
+    if: ${{ !inputs.publish_verified_8127 && !inputs.publish_verified_8129 }}
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -289,7 +293,7 @@ jobs:
           echo "✅ 已发布到 https://touliao.cc/downloads/touliao-windows-latest.exe"
 
   publish-existing-8127:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_verified_8127
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_verified_8127 && !inputs.publish_verified_8129 && !inputs.deploy
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -374,4 +378,94 @@ jobs:
         if: always()
         with:
           name: windows-8127-rollback
+          path: windows-publication-evidence/
+
+  publish-existing-8129:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_verified_8129 && !inputs.publish_verified_8127 && !inputs.deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify publication transaction and rollback guards
+        run: python3 -B scripts/test-windows-downloads.py -v
+      - name: Download the exact previously validated user-approved installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run view 35464783766 --repo "$GITHUB_REPOSITORY" --json headSha,conclusion > candidate-build.json
+          node -e 'const x=require("./candidate-build.json"); if(x.headSha!=="08c6734506a7b9766995979aff4c566dae64bc67"||x.conclusion!=="success")process.exit(1)'
+          gh run download 35464783766 --repo "$GITHUB_REPOSITORY" --name touliao-windows-setup --dir candidate
+          node scripts/verify-windows-8127.cjs candidate/dist 8129
+      - name: Publish exact 8.1.29 using the existing signed update protocol
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: bash scripts/publish-windows-8127.sh publish candidate/dist 8129
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-8129-publication
+          path: windows-publication-evidence/
+          if-no-files-found: warn
+
+  verify-existing-8129:
+    needs: publish-existing-8129
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install actual historical 8.1.27
+        shell: pwsh
+        run: |
+          $setup = Join-Path $env:RUNNER_TEMP 'old-8.1.27.exe'
+          Invoke-WebRequest https://touliao.cc/downloads/updates/touliao-8.1.27-setup.exe -OutFile $setup
+          if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLower() -ne 'c2ae64ec1316d5f033b9f2afa25b3eb5bfbf56f978d8abe99b20b21c2cbcf7e0') { throw 'Historical installer changed' }
+          $directory = Join-Path $env:RUNNER_TEMP 'TouliaoLegacy'
+          $p = Start-Process $setup -ArgumentList @('/S', '/currentuser', "/D=$directory") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Historical installation failed' }
+          Get-Process touliao -ErrorAction SilentlyContinue | Stop-Process -Force
+          "LEGACY_EXE=$(Join-Path $directory 'touliao.exe')" >> $env:GITHUB_ENV
+          "PLAYWRIGHT_MODULE=$env:RUNNER_TEMP/legacy-driver/node_modules/playwright" >> $env:GITHUB_ENV
+          npm install --prefix "$env:RUNNER_TEMP/legacy-driver" --no-audit --no-fund playwright@1.60.0
+      - name: Discover download verify and apply through the installed old updater
+        env:
+          WINDOWS_UPDATE_APPROVAL: '8129'
+        run: node scripts/legacy-update/windows-auto-upgrade.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-8129-actual-auto-upgrade
+          path: windows-auto-evidence/
+          if-no-files-found: error
+
+  rollback-existing-8129:
+    needs: [publish-existing-8129, verify-existing-8129]
+    if: always() && needs.publish-existing-8129.result == 'success' && needs.verify-existing-8129.result != 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore saved Windows pointers if installed-client validation fails
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: bash scripts/publish-windows-8127.sh rollback '' 8129
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-8129-rollback
           path: windows-publication-evidence/

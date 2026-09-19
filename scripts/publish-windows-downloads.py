@@ -32,8 +32,10 @@ def replace_copy(source, target, run_id):
 
 def validate_stage(stage):
     spec = json.loads((stage / 'spec.json').read_text())
-    require(spec['version'] == '8.1.27' and spec['previousVersion'] == '8.1.26', 'Only the approved version pair is allowed')
-    names = {'latest.yml', 'latest.yml.sig', 'touliao-8.1.27-setup.exe', 'touliao-8.1.27-setup.exe.blockmap'}
+    require((spec['version'], spec['previousVersion']) in {('8.1.27', '8.1.26'), ('8.1.29', '8.1.27')},
+            'Only the approved version pair is allowed')
+    installer = f"touliao-{spec['version']}-setup.exe"
+    names = {'latest.yml', 'latest.yml.sig', installer, installer + '.blockmap'}
     require(set(spec['files']) == names, 'Unexpected publication scope')
     for name, expected in spec['files'].items():
         require(digest(stage / name) == expected, 'Staged file differs: ' + name)
@@ -42,33 +44,37 @@ def validate_stage(stage):
 
 def expose_version(root, stage):
     spec = validate_stage(stage)
-    for name in ['touliao-8.1.27-setup.exe', 'touliao-8.1.27-setup.exe.blockmap']:
+    installer = f"touliao-{spec['version']}-setup.exe"
+    for name in [installer, installer + '.blockmap']:
         source, target = stage / name, root / 'updates' / name
         os.chmod(source, 0o644)
         if target.exists():
             require(digest(target) == spec['files'][name], 'Immutable version URL conflicts')
         else:
             os.link(source, target)
-    return {'versionExposed': '8.1.27', 'updatePointerChanged': False}
+    return {'versionExposed': spec['version'], 'updatePointerChanged': False}
 
 
 def activate(root, stage, run_id):
     spec = validate_stage(stage)
     require(digest(root / 'updates/latest.yml') == spec['previousManifestSha256'], 'Live version changed; refusing overwrite')
     require(digest(root / 'updates/latest.yml.sig') == spec['previousSignatureSha256'], 'Live signature changed')
-    require(digest(root / 'updates/touliao-8.1.26-setup.exe') == spec['previousInstallerSha256'], 'Previous installer differs')
-    for name in ['touliao-8.1.27-setup.exe', 'touliao-8.1.27-setup.exe.blockmap']:
+    previous = f"updates/touliao-{spec['previousVersion']}-setup.exe"
+    require(digest(root / previous) == spec['previousInstallerSha256'], 'Previous installer differs')
+    installer = f"touliao-{spec['version']}-setup.exe"
+    for name in [installer, installer + '.blockmap']:
         require(digest(root / 'updates' / name) == spec['files'][name], 'Versioned file must be verified first')
     changes = {
-        'touliao-windows-latest.exe': 'touliao-8.1.27-setup.exe',
-        'touliao-windows-latest-setup.exe': 'touliao-8.1.27-setup.exe',
+        'touliao-windows-latest.exe': installer,
+        'touliao-windows-latest-setup.exe': installer,
         'updates/latest.yml.sig': 'latest.yml.sig',
         'updates/latest.yml': 'latest.yml',
     }
     backup = root / '.release-backups/windows' / run_id
     backup.mkdir(parents=True, exist_ok=False)
+    previous_paths = [previous, previous + '.blockmap']
     previous = {}
-    for relative in list(changes) + ['updates/touliao-8.1.26-setup.exe', 'updates/touliao-8.1.26-setup.exe.blockmap']:
+    for relative in list(changes) + previous_paths:
         source, saved = root / relative, backup / relative
         saved.parent.mkdir(parents=True, exist_ok=True)
         previous[relative] = digest(source)
