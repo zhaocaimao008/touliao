@@ -1,3 +1,5 @@
+import TouliaoField from '../ui-kit/Field';
+import { PrimaryButton, SecondaryButton, DangerButton } from '../ui-kit/Button';
 import TouliaoSwitch from '../ui-kit/Switch';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -526,13 +528,13 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           </div>
           {editAnn ? (
             <>
-              <textarea value={annVal} onChange={e => setAnnVal(e.target.value)}
-                className="gi-ann-textarea" maxLength={500}
+              <TouliaoField className="tl-field-inline" variant="MULTILINE" value={annVal} onChange={e => setAnnVal(e.target.value)}
+                controlClassName="gi-ann-textarea" maxLength={500}
                 autoFocus placeholder={t('groupInfo.announcementPlaceholder')} aria-label={t('groupInfo.announcementAriaLabel')}
                 onKeyDown={e => { if (e.key === 'Escape') setEditAnn(false); }} />
               <div className="gi-ann-bar">
-                <button className="gi-btn-cancel" onClick={() => setEditAnn(false)}>{t('common.cancel')}</button>
-                <button className="gi-btn-save" onClick={saveAnn}>{t('common.save')}</button>
+                <SecondaryButton className="gi-btn-cancel" onClick={() => setEditAnn(false)}>{t('common.cancel')}</SecondaryButton>
+                <PrimaryButton className="gi-btn-save" onClick={saveAnn}>{t('common.save')}</PrimaryButton>
               </div>
             </>
           ) : (
@@ -806,17 +808,17 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
         {/* 操作按钮区 */}
         <div className="gi-actions">
-          <button onClick={clearMessages} className="gi-btn-danger">
+          <DangerButton onClick={clearMessages} className="gi-btn-danger">
             {t('groupInfo.clearMessagesBtn')}
-          </button>
+          </DangerButton>
           {isOwner ? (
-            <button onClick={dissolveGroup} data-testid="group-dissolve-btn" className="gi-btn-danger">
+            <DangerButton onClick={dissolveGroup} data-testid="group-dissolve-btn" className="gi-btn-danger">
               {t('groupInfo.dissolveGroupBtn')}
-            </button>
+            </DangerButton>
           ) : (
-            <button onClick={leaveGroup} data-testid="group-leave-btn" className="gi-btn-danger">
+            <DangerButton onClick={leaveGroup} data-testid="group-leave-btn" className="gi-btn-danger">
               {t('chatlist.leaveGroup')}
-            </button>
+            </DangerButton>
           )}
         </div>
       </div>

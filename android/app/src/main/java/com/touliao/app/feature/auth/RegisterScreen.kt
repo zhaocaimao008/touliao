@@ -14,7 +14,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.rememberScrollState
@@ -88,7 +88,7 @@ fun RegisterScreen(
         )
         Spacer(Modifier.height(24.dp))
 
-        OutlinedTextField(
+        TouliaoField(
             value = state.username,
             onValueChange = viewModel::onUsernameChange,
             label = { Text("昵称") },
@@ -96,7 +96,7 @@ fun RegisterScreen(
             modifier = Modifier.fillMaxWidth().testTag("register-username-input"),
         )
         Spacer(Modifier.height(16.dp))
-        OutlinedTextField(
+        TouliaoField(
             value = state.phone,
             onValueChange = viewModel::onPhoneChange,
             label = { Text("手机号") },
@@ -106,7 +106,7 @@ fun RegisterScreen(
         )
         if (state.inviteRequired) {
             Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
+            TouliaoField(
                 value = state.inviteCode,
                 onValueChange = viewModel::onInviteCodeChange,
                 label = { Text("邀请码（6位数字）") },
@@ -117,7 +117,7 @@ fun RegisterScreen(
         }
         Spacer(Modifier.height(16.dp))
         var passwordVisible by remember { mutableStateOf(false) }
-        OutlinedTextField(
+        TouliaoField(
             value = state.password,
             onValueChange = viewModel::onPasswordChange,
             label = { Text("密码（至少8位，含字母和数字）") },

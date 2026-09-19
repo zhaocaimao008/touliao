@@ -94,13 +94,24 @@ extension View {
 
 struct TouliaoTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
+        configuration.modifier(TouliaoFieldSurface())
+    }
+}
+private struct TouliaoFieldSurface: ViewModifier {
+    @Environment(\.isEnabled) private var enabled
+    @Environment(\.touliaoFieldError) private var error
+    @FocusState private var focused: Bool
+    func body(content: Content) -> some View {
+        content.focused($focused)
             .touliaoText(.body)
-            .padding(.horizontal, 12).padding(.vertical, 12)
+            .padding(.horizontal, TouliaoMetrics.space3).padding(.vertical, TouliaoMetrics.space3)
             .frame(minHeight: TouliaoMetrics.fieldHeight)
             .background(Color.vxinSurface)
             .clipShape(RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl))
-            .overlay(RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl).stroke(Color.vxinBorder, lineWidth: TouliaoMetrics.borderDefault))
+            .overlay(RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl)
+                .stroke(error != nil ? Color.vxinError : focused ? Color.vxinBrand : Color.vxinBorder,
+                        lineWidth: focused ? TouliaoMetrics.borderFocus : TouliaoMetrics.borderDefault))
+            .opacity(enabled ? 1 : Double(TouliaoMetrics.disabledOpacity))
     }
 }
 

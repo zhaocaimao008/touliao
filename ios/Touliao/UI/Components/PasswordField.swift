@@ -10,6 +10,8 @@ struct PasswordField: View {
 
     @State private var visible = false
     @FocusState private var focused: Bool
+    @Environment(\.touliaoFieldError) private var error
+    @Environment(\.isEnabled) private var enabled
 
     var body: some View {
         HStack(spacing: 8) {
@@ -42,13 +44,15 @@ struct PasswordField: View {
         .touliaoText(.body)
         .padding(.horizontal, 12)
         .padding(.vertical, 2)
-        .frame(minHeight: 48)
+        .frame(minHeight: TouliaoMetrics.fieldHeight)
         .background(Color.vxinSurface)
-        .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
+        .clipShape(RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl))
         .overlay(
-            RoundedRectangle(cornerRadius: VxinRadius.sm)
-                .stroke(Color.vxinBorder, lineWidth: 1)
+            RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl)
+                .stroke(error != nil ? Color.vxinError : focused ? Color.vxinBrand : Color.vxinBorder,
+                        lineWidth: focused ? TouliaoMetrics.borderFocus : TouliaoMetrics.borderDefault)
         )
+        .opacity(enabled ? 1 : Double(TouliaoMetrics.disabledOpacity))
     }
 }
 

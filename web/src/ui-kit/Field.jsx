@@ -4,7 +4,7 @@ import { useI18n } from '../contexts/I18nContext';
 
 /** TEXT / PASSWORD / SEARCH / CODE / MULTILINE. Validation stays with callers. */
 const TouliaoField = forwardRef(function TouliaoField({ id, label, icon, variant = 'TEXT',
-  error, hint, onClear, className = '', disabled, readOnly, type, value, onFocus, onBlur, ...props }, ref) {
+  error, hint, onClear, className = '', controlClassName = '', wrapperStyle, disabled, readOnly, type, value, onFocus, onBlur, ...props }, ref) {
   const autoId = useId();
   const fieldId = id || autoId;
   const { t } = useI18n();
@@ -15,11 +15,11 @@ const TouliaoField = forwardRef(function TouliaoField({ id, label, icon, variant
   const Control = multiline ? 'textarea' : 'input';
   const state = disabled ? 'DISABLED' : readOnly ? 'READONLY' : error ? 'ERROR' : focused ? 'FOCUSED' : value ? 'FILLED' : 'DEFAULT';
   const description = [props['aria-describedby'], (error || hint) && `${fieldId}-description`].filter(Boolean).join(' ') || undefined;
-  return <div className={`auth-field tl-field ${focused ? 'focused' : ''} ${value ? 'has-value' : ''} ${className}`} data-state={state} data-variant={variant}>
+  return <div className={`auth-field tl-field ${focused ? 'focused' : ''} ${value ? 'has-value' : ''} ${className}`} style={wrapperStyle} data-state={state} data-variant={variant}>
     {label && <label className="auth-field-label" htmlFor={fieldId}>{label}</label>}
     <div className="auth-field-input-wrap tl-field-control">
       {icon && <span className="auth-field-icon" aria-hidden="true">{icon}</span>}
-      <Control {...props} id={fieldId} ref={ref} className="auth-field-input" value={value}
+      <Control {...props} id={fieldId} ref={ref} className={`auth-field-input ${controlClassName}`} value={value}
         disabled={disabled} readOnly={readOnly}
         type={multiline ? undefined : password ? (revealed ? 'text' : 'password') : type || (variant === 'SEARCH' ? 'search' : 'text')}
         inputMode={props.inputMode || (variant === 'CODE' ? 'numeric' : undefined)}

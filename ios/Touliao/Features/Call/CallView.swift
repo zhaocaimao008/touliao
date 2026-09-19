@@ -116,7 +116,7 @@ private struct CallView: View {
             } else {
                 ScrollView {
                 VStack(spacing: 16) {
-                    InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: 96)
+                    InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: TouliaoMetrics.avatarCall)
                     Text(state.peerName.isEmpty ? "通话" : state.peerName)
                         .touliaoText(.title).foregroundColor(.white)
                     statusOrDuration

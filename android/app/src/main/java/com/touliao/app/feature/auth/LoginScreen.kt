@@ -15,7 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.rememberScrollState
@@ -115,7 +115,7 @@ fun LoginScreen(
         Text("安全 · 私密 · 畅聊", fontSize = com.touliao.app.ui.theme.VxinTextSize.base, color = VxinTextSecondary)
         Spacer(Modifier.height(40.dp))
 
-        OutlinedTextField(
+        TouliaoField(
             value = state.phone,
             onValueChange = viewModel::onPhoneChange,
             label = { Text("手机号") },
@@ -125,7 +125,7 @@ fun LoginScreen(
         )
         Spacer(Modifier.height(16.dp))
         var passwordVisible by remember { mutableStateOf(false) }
-        OutlinedTextField(
+        TouliaoField(
             value = state.password,
             onValueChange = viewModel::onPasswordChange,
             label = { Text("密码") },
@@ -148,7 +148,7 @@ fun LoginScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedTextField(
+                TouliaoField(
                     value = state.captchaText,
                     onValueChange = viewModel::onCaptchaTextChange,
                     label = { Text("图形验证码") },
@@ -223,7 +223,7 @@ fun LoginScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                OutlinedTextField(
+                TouliaoField(
                     value = state.tenantCode,
                     onValueChange = viewModel::onTenantCodeChange,
                     label = { Text("企业代码") },
@@ -246,7 +246,7 @@ fun LoginScreen(
                 fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
             )
 
-            OutlinedTextField(
+            TouliaoField(
                 value = state.serverUrl,
                 onValueChange = viewModel::onServerUrlChange,
                 label = { Text("服务器地址") },

@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
-import kotlin.math.abs
+import com.touliao.app.ui.theme.TouliaoMetrics
 
 /**
  * 头像组件：
@@ -25,8 +25,8 @@ import kotlin.math.abs
  * - 加载中 / 加载失败 / 无 url 时，回退到文字首字母占位。
  */
 @Composable
-fun InitialAvatar(name: String, size: Dp = 44.dp, avatarUrl: String? = null) {
-    val shape = RoundedCornerShape(12.dp)
+fun InitialAvatar(name: String, size: Dp = TouliaoMetrics.avatarList, avatarUrl: String? = null) {
+    val shape = RoundedCornerShape(TouliaoMetrics.radiusControl)
     if (!avatarUrl.isNullOrBlank()) {
         SubcomposeAsyncImage(
             model = avatarUrl,

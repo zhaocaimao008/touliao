@@ -1,3 +1,5 @@
+import TouliaoField from '../ui-kit/Field';
+import { TextButton } from '../ui-kit/Button';
 import TouliaoSwitch from '../ui-kit/Switch';
 import { SettingCell as CRow, SettingSection as Card } from '../ui-kit/Settings';
 import TouliaoIcon from '../ui-kit/Icon';
@@ -89,15 +91,15 @@ function EditName({ user, updateUser, onBack }) {
     <PageBg>
       <PageHeader title={t('profile.editNickname')} onBack={onBack}
         right={
-          <button className="wc-save-btn" onClick={save} disabled={saving}>
+          <TextButton className="wc-save-btn" onClick={save} disabled={saving}>
             {saving ? t('profile.savingShort') : t('common.save')}
-          </button>
+          </TextButton>
         }
       />
       <div className="wc-edit-pad">
         <Card>
           <div className="wc-edit-wrap">
-            <input
+            <TouliaoField className="tl-field-inline"
               value={username}
               onChange={e => { setUsername(e.target.value); setError(''); }}
               onKeyDown={e => e.key === 'Enter' && save()}
@@ -105,7 +107,7 @@ function EditName({ user, updateUser, onBack }) {
               autoFocus
               placeholder={t('profile.nicknamePlaceholder')}
               aria-label={t('profile.editNickname')}
-              className="wc-edit-input"
+              controlClassName="wc-edit-input"
             />
             <span className="wc-edit-counter">{username.length}/{MAX}</span>
           </div>
@@ -146,22 +148,22 @@ function EditBio({ user, updateUser, onBack }) {
     <PageBg>
       <PageHeader title={t('profile.editBio')} onBack={onBack}
         right={
-          <button className="wc-save-btn" onClick={save} disabled={saving}>
+          <TextButton className="wc-save-btn" onClick={save} disabled={saving}>
             {saving ? t('profile.savingShort') : t('common.save')}
-          </button>
+          </TextButton>
         }
       />
       <div className="wc-edit-pad">
         <Card>
           <div className="wc-edit-wrap">
-            <textarea
+            <TouliaoField className="tl-field-inline" variant="MULTILINE"
               value={bio}
               onChange={e => { setBio(e.target.value); setError(''); }}
               maxLength={MAX}
               autoFocus
               placeholder={t('profile.bioPlaceholder')}
               aria-label={t('profile.editBio')}
-              className="wc-edit-input wc-edit-textarea"
+              controlClassName="wc-edit-input wc-edit-textarea"
               rows={3}
             />
             <span className="wc-edit-counter">{bio.length}/{MAX}</span>
@@ -207,9 +209,9 @@ function ChangePhone({ user, updateUser, onBack }) {
     <PageBg>
       <PageHeader title={t('profile.changePhoneTitle')} onBack={onBack}
         right={
-          <button className="wc-save-btn" onClick={save} disabled={saving}>
+          <TextButton className="wc-save-btn" onClick={save} disabled={saving}>
             {saving ? t('profile.savingShort') : t('common.save')}
-          </button>
+          </TextButton>
         }
       />
       <div className="wc-edit-pad">
@@ -221,20 +223,20 @@ function ChangePhone({ user, updateUser, onBack }) {
             </div>
             <div>
               <label htmlFor="cp-phone" className="profile-field-label-block">{t('profile.newPhone')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cp-phone"
                 type="tel"
                 value={newPhone}
                 onChange={e => { setNewPhone(e.target.value); setError(''); }}
                 placeholder={t('profile.newPhonePlaceholder')}
                 aria-label={t('profile.newPhone')}
-                className="wc-edit-input"
+                controlClassName="wc-edit-input"
                 autoFocus
               />
             </div>
             <div>
               <label htmlFor="cp-pass" className="profile-field-label-block">{t('profile.loginPasswordVerify')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cp-pass"
                 type="password"
                 value={password}
@@ -242,7 +244,7 @@ function ChangePhone({ user, updateUser, onBack }) {
                 onKeyDown={e => e.key === 'Enter' && save()}
                 placeholder={t('profile.loginPasswordPlaceholder')}
                 aria-label={t('profile.loginPasswordVerify')}
-                className="wc-edit-input"
+                controlClassName="wc-edit-input"
               />
             </div>
           </div>
@@ -286,9 +288,9 @@ function ChangePassword({ onBack }) {
     <PageBg>
       <PageHeader title={t('profile.changePasswordTitle')} onBack={onBack}
         right={
-          <button className="wc-save-btn" onClick={save} disabled={saving}>
+          <TextButton className="wc-save-btn" onClick={save} disabled={saving}>
             {saving ? t('profile.savingShort') : t('common.save')}
-          </button>
+          </TextButton>
         }
       />
       <div className="wc-edit-pad">
@@ -296,27 +298,27 @@ function ChangePassword({ onBack }) {
           <div className="profile-phone-body">
             <div>
               <label htmlFor="cpw-old" className="profile-field-label-block">{t('profile.oldPassword')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cpw-old" type="password" value={oldPassword}
                 onChange={e => { setOldPassword(e.target.value); setError(''); }}
-                placeholder={t('profile.oldPasswordPlaceholder')} aria-label={t('profile.oldPassword')} className="wc-edit-input" autoFocus
+                placeholder={t('profile.oldPasswordPlaceholder')} aria-label={t('profile.oldPassword')} controlClassName="wc-edit-input" autoFocus
               />
             </div>
             <div>
               <label htmlFor="cpw-new" className="profile-field-label-block">{t('profile.newPassword')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cpw-new" type="password" value={newPassword}
                 onChange={e => { setNewPassword(e.target.value); setError(''); }}
-                placeholder={t('profile.newPasswordPlaceholder')} aria-label={t('profile.newPassword')} className="wc-edit-input"
+                placeholder={t('profile.newPasswordPlaceholder')} aria-label={t('profile.newPassword')} controlClassName="wc-edit-input"
               />
             </div>
             <div>
               <label htmlFor="cpw-confirm" className="profile-field-label-block">{t('profile.confirmNewPassword')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cpw-confirm" type="password" value={confirmPassword}
                 onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && save()}
-                placeholder={t('profile.confirmNewPasswordPlaceholder')} aria-label={t('profile.confirmNewPassword')} className="wc-edit-input"
+                placeholder={t('profile.confirmNewPasswordPlaceholder')} aria-label={t('profile.confirmNewPassword')} controlClassName="wc-edit-input"
               />
             </div>
           </div>
@@ -362,11 +364,11 @@ function DeleteAccountPage({ onBack }) {
             </div>
             <div>
               <label htmlFor="del-pass" className="profile-field-label-block">{t('profile.loginPasswordVerify')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="del-pass" type="password" value={password}
                 onChange={e => { setPassword(e.target.value); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && submit()}
-                placeholder={t('profile.loginPasswordPlaceholder')} aria-label={t('profile.loginPasswordVerify')} className="wc-edit-input" autoFocus
+                placeholder={t('profile.loginPasswordPlaceholder')} aria-label={t('profile.loginPasswordVerify')} controlClassName="wc-edit-input" autoFocus
               />
             </div>
           </div>
@@ -483,13 +485,13 @@ function InviteFriends({ onBack }) {
             {loading ? '……' : (data?.code || '—')}
           </div>
           <div className="profile-invite-actions">
-            <button className="wc-save-btn" onClick={() => copyText(data?.code, 'code')} disabled={!data?.code}>
+            <TextButton className="wc-save-btn" onClick={() => copyText(data?.code, 'code')} disabled={!data?.code}>
               {copied === 'code' ? t('profile.copied') : t('profile.copyInviteCode')}
-            </button>
+            </TextButton>
             {inviteLink && (
-              <button className="wc-save-btn" onClick={() => copyText(inviteLink, 'link')}>
+              <TextButton className="wc-save-btn" onClick={() => copyText(inviteLink, 'link')}>
                 {copied === 'link' ? t('profile.copied') : t('profile.copyInviteLink')}
-              </button>
+              </TextButton>
             )}
           </div>
           <div className="profile-invite-hint">

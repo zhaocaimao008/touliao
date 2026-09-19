@@ -1,3 +1,4 @@
+import TouliaoField from '../ui-kit/Field';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { format } from '../utils/time';
@@ -100,16 +101,10 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
         padding: '8px 12px',
       }}>
         <IcoSearch style={{flexShrink:0,color:'var(--text-tertiary)'}} size="xs" />
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={handleChange}
-          placeholder={t('convSearch.searchPlaceholder')}
-          style={{
-            flex: 1, border: 'none', outline: 'none', background: 'transparent',
-            fontSize: 'var(--text-base)', color: 'var(--text-primary)',
-          }}
-        />
+        <TouliaoField variant="SEARCH" className="tl-field-inline"
+          wrapperStyle={{ flex: 1 }} ref={inputRef} value={query}
+          onChange={handleChange} aria-label={t('convSearch.searchPlaceholder')}
+          placeholder={t('convSearch.searchPlaceholder')} />
         {loading && (
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{t('convSearch.searching')}</span>
         )}

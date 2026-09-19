@@ -1,9 +1,19 @@
 /* Component roles extend the existing semantic palette; no icon tokens change. */
+/* Field is self-contained: editing a profile must not depend on visiting Login
+   first to load auth.css. Existing auth classes are compatibility selectors. */
+html.touliao-ui body .tl-field { width: 100%; min-width: 0; }
+html.touliao-ui body .tl-field .tl-field-control { display: flex; align-items: center; gap: var(--tl-space-2); width: 100%; box-sizing: border-box; }
+html.touliao-ui body .tl-field .auth-field-input { flex: 1; width: 100%; padding: var(--tl-space-2) 0; border: 0; outline: 0; box-shadow: none; background: transparent; color: var(--tl-text); font: inherit; line-height: var(--tl-leading-body); }
+html.touliao-ui body .tl-field .auth-field-label { display: block; margin-bottom: var(--tl-space-2); font-size: var(--tl-type-caption-size); color: var(--tl-readable-muted); }
+html.touliao-ui body .tl-field .auth-pwd-toggle { display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--tl-readable-muted); cursor: pointer; padding: 0; flex-shrink: 0; }
+html.touliao-ui body .tl-field .auth-field-icon { display: inline-flex; color: var(--tl-readable-muted); flex-shrink: 0; }
+html.touliao-ui body .tl-field-inline { flex: 1; margin: 0; }
+html.touliao-ui body .tl-field .auth-field-input::placeholder { color: var(--tl-readable-muted); opacity: 1; }
 html.touliao-ui body .tl-button {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
   min-height: var(--tl-control-height); padding: var(--tl-space-2) var(--tl-space-4);
   gap: var(--tl-space-2); border: var(--tl-control-border) solid transparent;
-  border-radius: var(--tl-radius-control); font: inherit; font-size: var(--tl-control-font);
+  border-radius: var(--tl-radius-control); font: inherit; font-size: var(--tl-type-body-size);
   font-weight: 500; line-height: 1.4; cursor: pointer; box-shadow: none;
   transition: background var(--tl-duration-fast), opacity var(--tl-duration-fast);
 }
@@ -35,8 +45,8 @@ html.touliao-ui body .tl-dialog {
   padding: var(--tl-space-6); border: 1px solid var(--tl-border); border-radius: var(--tl-radius-dialog);
   background: var(--tl-surface); color: var(--tl-text); box-shadow: var(--tl-shadow-dialog);
 }
-html.touliao-ui body .tl-dialog-title { font-size: var(--tl-size-section); line-height: 1.4; margin: 0 0 var(--tl-space-3); }
-html.touliao-ui body .tl-dialog-body { padding: 0; font-size: var(--tl-control-font); line-height: 1.6; overflow-wrap: anywhere; }
+html.touliao-ui body .tl-dialog-title { font-size: var(--tl-type-headline-size); line-height: 1.4; margin: 0 0 var(--tl-space-3); }
+html.touliao-ui body .tl-dialog-body { padding: 0; font-size: var(--tl-type-body-size); line-height: 1.6; overflow-wrap: anywhere; }
 html.touliao-ui body .tl-dialog-actions { display: flex; justify-content: flex-end; gap: var(--tl-space-3); padding: 0; border: 0; margin-top: var(--tl-space-6); }
 html.touliao-ui body .tl-dialog-actions .tl-button { flex: 1; min-width: 0; }
 html.touliao-ui body :is(.tl-button, .tl-switch):focus-visible { outline: 2px solid var(--tl-focus); outline-offset: 2px; }
@@ -51,7 +61,7 @@ html.touliao-ui body .tl-file-preview { background: var(--tl-media-canvas) !impo
 .tl-file-details > :first-child { margin-top: auto; }
 .tl-file-details > :last-child { margin-bottom: auto; }
 .tl-file-details-name { font-size: var(--tl-size-body-mobile); font-weight: 500; text-align: center; overflow-wrap: anywhere; max-width: 100%; }
-.tl-file-details-meta, .tl-file-details-description { font-size: var(--tl-size-caption); color: var(--tl-media-secondary); text-align: center; overflow-wrap: anywhere; max-width: 100%; }
+.tl-file-details-meta, .tl-file-details-description { font-size: var(--tl-type-caption-size); color: var(--tl-media-secondary); text-align: center; overflow-wrap: anywhere; max-width: 100%; }
 .tl-file-details-description { max-width: 36ch; line-height: 1.6; }
 html.touliao-ui body :is(.tl-file-preview, [data-testid='video-lightbox'], [data-testid='lightbox']) button { min-height: var(--tl-touch-target); min-width: var(--tl-touch-target); }
 html.touliao-ui body .chatfiles-panel { width: min(400px, 100vw); max-width: 100%; height: 100%; min-height: 0; }
@@ -59,7 +69,7 @@ html.touliao-ui body .chatfiles-tab-btn[data-selected='true'] { background: var(
 html.touliao-ui body .chatfiles-item { box-shadow: var(--tl-shadow-card); background: var(--tl-surface); border-radius: var(--tl-radius-card); }
 html.touliao-ui body .chatfiles-item:hover { background: var(--tl-surface-hover); }
 html.touliao-ui body .chatfiles-info-name { overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; }
-html.touliao-ui body .chatfiles-info-size { font-size: var(--tl-size-caption); color: var(--tl-readable-muted); margin-block: var(--tl-space-1); }
+html.touliao-ui body .chatfiles-info-size { font-size: var(--tl-type-caption-size); color: var(--tl-readable-muted); margin-block: var(--tl-space-1); }
 html.touliao-ui body .chatfiles-info-meta { gap: var(--tl-space-2); }
 html.touliao-ui body .tl-setting-section { border-radius: var(--tl-radius-card); background: var(--tl-surface); border: 1px solid var(--tl-border); }
 html.touliao-ui body .tl-setting-cell { min-height: var(--tl-setting-height); padding: var(--tl-space-3) var(--tl-space-4); gap: var(--tl-space-3); border-color: var(--tl-border); }
@@ -78,22 +88,22 @@ html.touliao-ui body .wc-settings-clear-btn { display: flex; width: 100%; margin
   html.touliao-ui body .wc-settings-panel { position: absolute; inset: 0; width: 100%; max-width: none; z-index: var(--z-modal); border: 0; padding-bottom: env(safe-area-inset-bottom); }
 }
 html.touliao-ui body .tl-message-menu { padding: var(--tl-space-1); border-radius: var(--tl-radius-control); box-shadow: var(--tl-shadow-popover); }
-html.touliao-ui body .tl-message-menu .wc-ctx-item { min-height: var(--tl-control-height); padding: var(--tl-space-2) var(--tl-space-3); font-size: var(--tl-control-font); border-radius: var(--tl-radius-small); }
+html.touliao-ui body .tl-message-menu .wc-ctx-item { min-height: var(--tl-control-height); padding: var(--tl-space-2) var(--tl-space-3); font-size: var(--tl-type-body-size); border-radius: var(--tl-radius-small); }
 html.touliao-ui body .tl-message-menu .wc-ctx-item:focus { outline: 2px solid var(--tl-focus); outline-offset: -2px; background: var(--tl-surface-hover); }
 html.touliao-ui body .tl-message-menu .wc-ctx-item.danger { color: var(--tl-readable-danger); }
 html.touliao-ui body .tl-message-menu .wc-ctx-divider { margin-block: var(--tl-space-1); background: var(--tl-border); }
 html.touliao-ui body .wc-voice-btn { min-height: var(--tl-touch-target); }
 html.touliao-ui body .tl-field .tl-field-control { min-height: var(--tl-control-height); height: auto; padding-inline: var(--tl-space-3); border-radius: var(--tl-radius-control); border: var(--tl-control-border) solid var(--tl-border-strong); background: var(--tl-surface-secondary); }
-html.touliao-ui body .tl-field .auth-field-input { font-size: var(--tl-control-font); min-width: 0; }
+html.touliao-ui body .tl-field .auth-field-input { font-size: var(--tl-type-body-size); min-width: 0; }
 html.touliao-ui body .tl-field[data-variant='MULTILINE'] .auth-field-input { min-height: 6em; resize: vertical; }
 html.touliao-ui body .tl-field[data-state='FOCUSED'] .tl-field-control { border-color: var(--tl-focus); box-shadow: 0 0 0 2px var(--tl-primary-soft); }
 html.touliao-ui body .tl-field[data-state='ERROR'] .tl-field-control { border-color: var(--tl-readable-danger); }
 html.touliao-ui body .tl-field[data-state='DISABLED'] { opacity: var(--tl-disabled-opacity); }
-html.touliao-ui body .tl-field-description { font-size: var(--tl-size-caption); line-height: 1.6; margin-top: var(--tl-space-1); color: var(--tl-readable-muted); }
+html.touliao-ui body .tl-field-description { font-size: var(--tl-type-caption-size); line-height: 1.6; margin-top: var(--tl-space-1); color: var(--tl-readable-muted); }
 html.touliao-ui body .tl-field[data-state='ERROR'] .tl-field-description { color: var(--tl-readable-danger); }
 html.touliao-ui body .tl-field .auth-pwd-toggle { min-width: var(--tl-touch-target); min-height: var(--tl-touch-target); }
 
 html.touliao-ui body :is(.chatfiles-header, .chatfiles-tabs) { flex-shrink: 0; }
 /* Migrated auth buttons take their dimensions from the component, overriding
    the legacy mixed-primary selector that also matches .wc-send-btn.active. */
-html.touliao-ui body .tl-button.auth-submit { min-height: var(--tl-control-height); font-size: var(--tl-control-font); border-radius: var(--tl-radius-control); }
+html.touliao-ui body .tl-button.auth-submit { min-height: var(--tl-control-height); font-size: var(--tl-type-body-size); border-radius: var(--tl-radius-control); }

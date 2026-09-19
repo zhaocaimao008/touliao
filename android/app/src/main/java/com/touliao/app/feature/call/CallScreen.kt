@@ -42,6 +42,7 @@ import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.core.call.CallStage
+import com.touliao.app.ui.theme.TouliaoMetrics
 import com.touliao.app.ui.components.InitialAvatar
 import org.webrtc.EglBase
 import org.webrtc.RendererCommon
@@ -155,7 +156,7 @@ fun CallHost(
                 Modifier.fillMaxSize().systemBarsPadding().padding(top = 96.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                InitialAvatar(name = state.peerName.ifBlank { "?" }, size = 96.dp)
+                InitialAvatar(name = state.peerName.ifBlank { "?" }, size = TouliaoMetrics.avatarCall)
                 Spacer(Modifier.height(16.dp))
                 Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.displaySm)
                 Spacer(Modifier.height(8.dp))

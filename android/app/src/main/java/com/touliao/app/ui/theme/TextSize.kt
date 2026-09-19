@@ -4,17 +4,17 @@ import androidx.compose.ui.unit.sp
 
 // Mobile token scale; sp keeps the platform accessibility font scale.
 object VxinTextSize {
-    val xs2 = 12.sp
-    val xs = 12.sp
-    val sm = 12.sp
-    val sm2 = 14.sp
-    val base = 16.sp
-    val md = 16.sp
-    val lg = 18.sp
-    val xl = 18.sp
-    val xxl = 22.sp
-    val displaySm = 22.sp
-    val display = 28.sp
-    val displayLg = 28.sp
+    val xs2 = TouliaoMetrics.fontCaption
+    val xs = TouliaoMetrics.fontCaption
+    val sm = TouliaoMetrics.fontCaption
+    val sm2 = TouliaoMetrics.fontSecondary
+    val base = TouliaoMetrics.fontBody
+    val md = TouliaoMetrics.fontBody
+    val lg = TouliaoMetrics.fontHeadline
+    val xl = TouliaoMetrics.fontHeadline
+    val xxl = TouliaoMetrics.fontTitle
+    val displaySm = TouliaoMetrics.fontTitle
+    val display = TouliaoMetrics.fontDisplay
+    val displayLg = TouliaoMetrics.fontDisplay
     val displayXl = 40.sp
 }
