@@ -35,55 +35,68 @@ export default function ChatFiles({ convId, onClose }) {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [displayQuery, setDisplayQuery] = useState({ convId, tab });
   const requestRef = useRef(null);
   const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true });
   const [preview, setPreview] = useState(null);
   const loaderRef = useRef(null);
   const LIMIT = 30;
 
-  const load = useCallback(async (currentOffset) => {
+  // Reset presentation before rendering a different query. The effect below
+  // still owns request cancellation and loading; no old rows flash in a new tab.
+  if (displayQuery.convId !== convId || displayQuery.tab !== tab) {
+    setDisplayQuery({ convId, tab });
+    setItems([]);
+    setOffset(0);
+    setHasMore(false);
+    setLoaded(false);
+    setTotal(0);
+    setLoading(true);
+    setError(false);
+  }
+
+  const fetchPage = useCallback((currentOffset) => {
     if (requestRef.current) return;
     const controller = new AbortController();
     requestRef.current = controller;
-    setLoading(true);
-    setError(false);
-    try {
-      const { data } = await axios.get(
-        `/api/messages/conversation/${convId}/files`,
-        { params: { type: tab, offset: currentOffset, limit: LIMIT }, signal: controller.signal }
-      );
+    return axios.get(
+      `/api/messages/conversation/${convId}/files`,
+      { params: { type: tab, offset: currentOffset, limit: LIMIT }, signal: controller.signal }
+    ).then(({ data }) => {
       if (requestRef.current !== controller) return;
       setItems(prev => currentOffset === 0 ? data.items : [...prev, ...data.items]);
       setTotal(data.total);
       setHasMore(data.items.length > 0 && currentOffset + data.items.length < data.total);
       setOffset(currentOffset + data.items.length);
       setLoaded(true);
-    } catch {
+    }).catch(() => {
       if (requestRef.current === controller && !controller.signal.aborted) setError(true);
-    } finally {
+    }).finally(() => {
       if (requestRef.current === controller) {
         requestRef.current = null;
         setLoading(false);
       }
-    }
+    });
   }, [convId, tab]);
 
+  const load = useCallback((currentOffset) => {
+    if (requestRef.current) return;
+    setLoading(true);
+    setError(false);
+    return fetchPage(currentOffset);
+  }, [fetchPage]);
+
   useEffect(() => {
-    setItems([]);
-    setOffset(0);
-    setHasMore(false);
-    setLoaded(false);
-    setTotal(0);
-    load(0);
+    fetchPage(0);
     return () => {
       requestRef.current?.abort();
       requestRef.current = null;
     };
-  }, [load]);
+  }, [fetchPage]);
 
   useEffect(() => {
     const el = loaderRef.current;

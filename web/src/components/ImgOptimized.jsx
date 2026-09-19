@@ -24,7 +24,12 @@ export default function ImgOptimized({
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded]   = useState(false);
   const [broken, setBroken] = useState(false);
-  useEffect(() => { setBroken(false); }, [src]);
+  const [displaySource, setDisplaySource] = useState(src);
+  // A reused message row must not carry its previous image's error placeholder.
+  if (displaySource !== src) {
+    setDisplaySource(src);
+    setBroken(false);
+  }
   const thumbSrc = useMemo(() => getThumbUrl(src), [src]);
 
   // IntersectionObserver 探测入视

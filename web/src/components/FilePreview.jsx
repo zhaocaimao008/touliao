@@ -273,15 +273,6 @@ function PptxRenderer({ url, onLoaded, onError }) {
   );
 }
 
-function iconFor(kind) {
-  // 统一走 SVG，不用 emoji（正式 UI 规范要求）
-  const paths = {
-    pdf: 'M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm8 1.5V8h4.5L14 3.5zM8 13h1.5a1.5 1.5 0 000-3H8v3zm0 1.5V17h1v-2.5H8zm4-3.5h1.2c1 0 1.8.7 1.8 1.75S14.2 14.5 13.2 14.5H13V17h-1v-6zm1 3.5h.2c.4 0 .7-.3.7-.75s-.3-.75-.7-.75H13v1.5zM17 11h1v6h-1v-2.5h1.5V13H18v-1h1.5v-1H17z',
-    generic: 'M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm8 1.5V8h4.5L14 3.5z',
-  };
-  return paths[kind] || paths.generic;
-}
-
 /**
  * 文档/文件全屏预览：PDF/Word/Excel/PPT/TXT/MD/CSV 走对应渲染器 App 内预览；
  * 其他不支持内部预览的格式（zip/rar/doc(旧)/ppt(旧)等二进制）进入"文件详情页"
