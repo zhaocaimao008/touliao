@@ -33,6 +33,11 @@ on:
         description: '已验证 IPA 的 SHA-256'
         required: false
         default: ''
+      prepare_internal_testing:
+        description: '将已处理构建加入内部验收组；不邀请账号，不提交外部审核'
+        type: boolean
+        required: false
+        default: false
   push:
     tags:
       # iOS 端专属前缀触发（见 VERSIONING.md 第 2 节）；避免裸 v*/其他端 tag 误触发。
@@ -53,6 +58,7 @@ jobs:
       BUILD_NUMBER: ${{ inputs.prepared_build_number }}
       EXPECTED_IPA_SHA256: ${{ inputs.prepared_ipa_sha256 }}
       PREPARED_RUN_ID: ${{ inputs.prepared_run_id }}
+      PREPARE_INTERNAL_TESTING: ${{ inputs.prepare_internal_testing }}
     steps:
       - uses: actions/checkout@v4
       - name: Check upload-only request

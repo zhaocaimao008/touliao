@@ -1,4 +1,4 @@
-"""Verify an approved IPA and read its exact ASC processing status; no review API writes."""
+"""Verify/upload an approved IPA; optional internal group setup, never review submission."""
 import base64
 import hashlib
 import json
@@ -124,8 +124,39 @@ def testing_access(status):
     result = []
     for group in groups:
         attrs = group['attributes']
-        result.append({'id': group['id'], 'name': attrs.get('name'), 'isInternalGroup': attrs.get('isInternalGroup'), 'hasAccessToAllBuilds': attrs.get('hasAccessToAllBuilds'), 'assignedToThisBuild': group['id'] in assigned_ids, 'publicLinkEnabled': attrs.get('publicLinkEnabled'), 'publicLink': attrs.get('publicLink') if attrs.get('publicLinkEnabled') else None})
-    save('testing-access.json', {'appId': status['appId'], 'buildId': status['buildId'], 'version': VERSION, 'buildNumber': BUILD, 'groups': result, 'changedGroupsOrInvitedTesters': False})
+        item = {'id': group['id'], 'name': attrs.get('name'), 'isInternalGroup': attrs.get('isInternalGroup'), 'hasAccessToAllBuilds': attrs.get('hasAccessToAllBuilds'), 'assignedToThisBuild': group['id'] in assigned_ids, 'publicLinkEnabled': attrs.get('publicLinkEnabled'), 'publicLink': attrs.get('publicLink') if attrs.get('publicLinkEnabled') else None}
+        if attrs.get('isInternalGroup'):
+            testers = get('betaGroups/' + group['id'] + '/betaTesters', {'limit': 1})
+            item['testerCount'] = testers.get('meta', {}).get('paging', {}).get('total', len(testers['data']))
+        result.append(item)
+    save('testing-access.json', {'appId': status['appId'], 'buildId': status['buildId'], 'version': VERSION, 'buildNumber': BUILD, 'groups': result, 'testersInvited': False})
+
+
+def prepare_internal_testing(status):
+    name = 'iOS 最新 UI 验收'
+    groups = get('apps/' + status['appId'] + '/betaGroups', {'limit': 200})['data']
+    matches = [g for g in groups if g['attributes'].get('isInternalGroup') is True and g['attributes']['name'] == name]
+    require(len(matches) <= 1, 'Ambiguous internal acceptance group')
+
+    def post(resource, body):
+        require(resource == 'betaGroups' or re.fullmatch(r'betaGroups/[a-fA-F0-9-]+/relationships/builds', resource), 'Only internal group creation/build assignment is allowed')
+        token = jwt.encode({'iss': os.environ['ASC_ISSUER_ID'], 'iat': int(time.time()), 'exp': int(time.time()) + 600, 'aud': 'appstoreconnect-v1'}, key_path().read_bytes(), algorithm='ES256', headers={'kid': os.environ['ASC_KEY_ID']})
+        request = urllib.request.Request('https://api.appstoreconnect.apple.com/v1/' + resource, data=json.dumps(body).encode(), headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(request, timeout=45) as response:
+            content = response.read()
+            return json.loads(content) if content else {}
+
+    group = matches[0] if matches else post('betaGroups', {'data': {'type': 'betaGroups', 'attributes': {'name': name, 'isInternalGroup': True}, 'relationships': {'app': {'data': {'type': 'apps', 'id': status['appId']}}}}})['data']
+    require(group['attributes']['isInternalGroup'] is True, 'Expected an internal testing group')
+    if group['id'] not in status['assignedBetaGroupIds']:
+        post('betaGroups/' + group['id'] + '/relationships/builds', {'data': [{'type': 'builds', 'id': status['buildId']}]})
+    for _ in range(10):
+        updated = build_status()
+        if group['id'] in updated['assignedBetaGroupIds']:
+            save('internal-group-setup.json', {'groupId': group['id'], 'groupName': name, 'buildId': status['buildId'], 'buildNumber': BUILD, 'buildAssigned': True, 'testersInvited': False, 'submittedForReview': False})
+            return updated
+        time.sleep(2)
+    raise RuntimeError('Internal group assignment was not visible after verification')
 
 
 if __name__ == '__main__':
@@ -149,6 +180,8 @@ if __name__ == '__main__':
             save('processing-status.json', status)
             print('Build ' + BUILD + ': ' + status['processingState'], flush=True)
             if status['processingState'] == 'VALID':
+                if os.environ.get('PREPARE_INTERNAL_TESTING') == 'true':
+                    status = prepare_internal_testing(status)
                 save('testflight-receipt.json', status)
                 testing_access(status)
                 break
