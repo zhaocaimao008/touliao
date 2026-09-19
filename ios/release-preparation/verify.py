@@ -139,7 +139,7 @@ def verify_bundle(app, label):
     arch = command("lipo", "-archs", str(app / info["CFBundleExecutable"])).decode().strip()
     require("arm64" in arch.split(), "Missing arm64 device executable")
     prefix = PRIVATE / (label + "-cert-")
-    subprocess.run(["codesign", "-d", "--extract-certificates", str(prefix), str(app)], check=True)
+    subprocess.run(["codesign", "-d", "--extract-certificates=" + str(prefix), str(app)], check=True)
     signing_cert = x509.load_der_x509_certificate(Path(str(prefix) + "0").read_bytes())
     require(signing_cert.public_bytes(serialization.Encoding.DER) in profile["DeveloperCertificates"], "App signer absent from profile")
     preflight = json.loads((EVIDENCE / "signing-preflight.json").read_text())
