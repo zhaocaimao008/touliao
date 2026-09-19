@@ -41,6 +41,7 @@ for source in roots:
   elif f.suffix=='.swift':
    refs=re.findall(r'(?:TouliaoIcon\(|touliaoIcon: )"([^"\n]+)"',s)
    if re.search(r'Image\(systemName:|Label\([^\n]+systemImage:',s):fail(f,'SF Symbols','Business views must use registry')
+   if re.search(r'TouliaoIcon\([^\n]*\)(?:\s*\.\w+\([^\n)]*\))*\s*\.foregroundColor\(\.(?:white|black)',s):fail(f,'hardcoded glyph color','Use IconColor or a shared theme token')
   else:
    refs=[props.get(x,'UNKNOWN:'+x) for x in re.findall(r'TouliaoIcons\.(\w+)',s)]
    if 'androidx.compose.material.icons' in s or re.search(r'\bDesignIcons\.',s):fail(f,'native/private icon source','Business views must use semantic registry')

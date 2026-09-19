@@ -159,9 +159,9 @@ struct MomentComposeView: View {
                                         .shadow(color: .black.opacity(0.35), radius: 3)
                                 }
                                 Button { vm.clearVideo() } label: {
-                                    TouliaoIcon("close")
-                                        .touliaoFont(18)
-                                        .foregroundColor(.white)
+                                    TouliaoIcon("close", size: .md)
+                                        .foregroundColor(IconColor.onDark)
+                                        .frame(width: IconTouchTarget.ios, height: IconTouchTarget.ios)
                                         .shadow(color: .black.opacity(0.4), radius: 2)
                                 }
                                 .padding(6)
