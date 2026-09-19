@@ -33,10 +33,7 @@ struct ContactsView: View {
                         Text("新的朋友").foregroundColor(.vxinText)
                         Spacer()
                         if vm.requestCount > 0 {
-                            Text("\(vm.requestCount)")
-                                .touliaoFont(12).foregroundColor(.vxinOnPrimary)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.vxinError).clipShape(Capsule())
+                            TouliaoBadge(count: vm.requestCount)
                         }
                         TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
                     }
@@ -57,7 +54,7 @@ struct ContactsView: View {
                 }
                 Button(action: { vm.showAiBots.toggle() }) {
                     HStack {
-                        Text(vm.showAiBots ? "AI 助手 (\\(vm.aiBots.count))" : "AI 助手").foregroundColor(.vxinText)
+                        Text(vm.showAiBots ? "AI 助手 (\(vm.aiBots.count))" : "AI 助手").foregroundColor(.vxinText)
                         Spacer()
                         TouliaoIcon(systemName: vm.showAiBots ? "chevron.up" : "chevron.right")
                             .foregroundColor(.vxinTextSecondary).touliaoFont(12)

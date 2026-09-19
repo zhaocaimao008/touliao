@@ -6,6 +6,7 @@ struct ConversationListView: View {
     @State private var clearTarget: Conversation?
     @State private var showMentions = false          // @我消息聚合全屏弹窗
     @State private var showMoments = false           // 朋友圈全屏弹窗（方案A：顶栏图标，非底部 tab）
+    @State private var filter = ConversationFilter.all
     @State private var showArchived = false          // F5 归档视图（本地分流，不动导航栈）
     @State private var showClearArchiveConfirm = false
     private let myId: String
@@ -142,7 +143,7 @@ struct ConversationListView: View {
         } else {
             // F5 归档：主/归档列表按 archived 标记本地分流（数据源同一次 includeArchived=1 拉取）。
             // socket 新消息只改对应会话的 summary/unread 并保留标记，归档会话不会回到主列表。
-            let visible = showArchived ? vm.archivedConversations : vm.activeConversations
+            let visible = showArchived ? vm.archivedConversations : vm.activeConversations.filter(filter.includes)
             List {
                 Group {
                 if showArchived {
@@ -169,7 +170,7 @@ struct ConversationListView: View {
                     }
                 }
                 if visible.isEmpty {
-                    Text(showArchived ? "暂无归档会话" : "暂无会话")
+                    Text(showArchived ? "暂无归档会话" : (filter == .unread ? "没有未读消息" : filter == .groups ? "暂无群聊" : "暂无会话"))
                         .touliaoFont(14).foregroundColor(.vxinTextSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 32)
@@ -180,6 +181,9 @@ struct ConversationListView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.vxinSurface)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !showArchived { filterBar }
+            }
             .onAppear { vm.refreshDrafts() }   // 从聊天页返回时刷新「[草稿]」前缀
             .refreshable { await vm.refresh() }
             .alert("清空聊天记录", isPresented: .constant(clearTarget != nil)) {
@@ -212,10 +216,7 @@ struct ConversationListView: View {
                 Text("归档").touliaoFont(16)
                 Spacer()
                 if vm.archiveUnreadTotal > 0 {
-                    Text(vm.archiveUnreadTotal > 99 ? "99+" : "\(vm.archiveUnreadTotal)")
-                        .touliaoFont(12).foregroundColor(.vxinOnPrimary)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.vxinError).clipShape(Capsule())
+                    TouliaoBadge(count: vm.archiveUnreadTotal)
                 }
                 if !vm.archivedConversations.isEmpty {
                     Text("\(vm.archivedConversations.count)").touliaoFont(12).foregroundColor(.vxinTextSecondary)
@@ -250,6 +251,25 @@ struct ConversationListView: View {
         }
         .padding(.vertical, 6)
         .listRowSeparator(.hidden)
+    }
+
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ConversationFilter.allCases, id: \.self) { option in
+                    Button { filter = option } label: {
+                        Text(option.rawValue).touliaoFont(14, weight: .medium)
+                            .padding(.horizontal, 16).frame(minHeight: 44)
+                            .foregroundColor(filter == option ? .vxinBrand : .vxinTextSecondary)
+                            .background(filter == option ? Color.vxinPrimarySoft : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
+                    }
+                    .accessibilityAddTraits(filter == option ? .isSelected : [])
+                    .accessibilityIdentifier("conversation-filter-\(option)")
+                }
+            }.padding(.horizontal, 12).padding(.vertical, 8)
+        }
+        .background(Color.vxinSurface)
     }
 
     private var statusLabel: String {
@@ -313,13 +333,7 @@ struct ConversationRow: View {
                         TouliaoIcon(systemName: "bell.slash.fill").touliaoFont(12).foregroundColor(.vxinTextSecondary)
                     }
                 } else if conversation.unreadCount > 0 {
-                    Text(conversation.unreadCount > 99 ? "99+" : "\(conversation.unreadCount)")
-                        .touliaoFont(12)
-                        .foregroundColor(.vxinOnPrimary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.vxinError)
-                        .clipShape(Capsule())
+                    TouliaoBadge(count: conversation.unreadCount)
                 }
             }
         }

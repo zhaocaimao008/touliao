@@ -96,7 +96,8 @@ struct SearchView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            // 时间 chips（不限/今天/7天/30天）
+            // Keep every time filter reachable at accessibility text sizes.
+            ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(messageSearchTimeRanges) { option in
                     Button {
@@ -104,13 +105,13 @@ struct SearchView: View {
                     } label: {
                         Text(option.label)
                             .touliaoFont(12)
-                            .padding(.horizontal, 12).padding(.vertical, 5)
-                            .background(vm.timeRange == option.value ? Color.vxinGreen.opacity(0.15) : Color.gray.opacity(0.1))
+                            .padding(.horizontal, 12).frame(minHeight: 44)
+                            .background(vm.timeRange == option.value ? Color.vxinPrimarySoft : Color.vxinSurfaceSecondary)
                             .foregroundColor(vm.timeRange == option.value ? .vxinGreen : .vxinTextSecondary)
                             .clipShape(Capsule())
                     }
                 }
-                Spacer()
+            }
             }
         }
         .padding(.horizontal, 12)
