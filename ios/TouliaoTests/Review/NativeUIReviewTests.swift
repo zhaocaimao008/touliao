@@ -59,6 +59,33 @@ final class NativeUIReviewTests: XCTestCase {
     override func setUpWithError() throws {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "fixtures", withExtension: "json"))
         ReviewURLProtocol.fixtures = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any] ?? [:]
+        // Group and rich-message views must render populated histories, not empty fixtures.
+        if let messages = ReviewURLProtocol.fixtures["/api/messages/review-chat"] as? [[String: Any]] {
+            ReviewURLProtocol.fixtures["/api/messages/review-group"] = messages.map { original in
+                var message = original; message["conversation_id"] = "review-group"
+                return message
+            }
+        }
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 80)).image { context in
+            UIColor.systemBlue.setFill(); context.fill(CGRect(x: 0, y: 0, width: 120, height: 80))
+        }
+        ReviewURLProtocol.fixtures["/uploads/ui-image.png"] = ["_reviewPNG": try XCTUnwrap(image.pngData()).base64EncodedString()]
+        for type in ["image", "video", "voice", "file", "reply"] {
+            let conversation = "review-" + type
+            var message: [String: Any] = ["id": conversation + "-message", "conversation_id": conversation,
+                "sender_id": "review-me", "senderName": "林清", "type": type == "reply" ? "text" : type,
+                "created_at": Date().timeIntervalSince1970, "content": "项目设计说明.pdf", "file_size": 24576,
+                "file_url": "/uploads/ui-image.png", "duration": 12]
+            if type == "video", let movie = Bundle(for: Self.self).url(forResource: "ui-preview", withExtension: "mp4") {
+                message["file_url"] = movie.absoluteString
+                message["content"] = "视频.mp4"
+            }
+            if type == "reply" {
+                message["content"] = "@李明 收到，稍后确认。"
+                message["replyTo"] = ["id": "quoted", "type": "text", "content": "请确认新版界面", "senderName": "李明", "deleted": 0]
+            }
+            ReviewURLProtocol.fixtures["/api/messages/" + conversation] = [message]
+        }
         ReviewURLProtocol.uploads = []
         URLProtocol.registerClass(ReviewURLProtocol.self)
         oldServer = UserDefaults.standard.string(forKey: "vxin_base_url_override")
@@ -238,6 +265,11 @@ final class NativeUIReviewTests: XCTestCase {
             ("group-chat", AnyView(ChatView(conversation: Conversation(id: "review-group", type: "group", name: "投聊设计讨论"), myId: "review-me"))),
             ("file-detail", AnyView(FileDetailsOverlay(url: "https://native-review.invalid/uploads/review.zip", filename: "项目资料与设计说明.zip", sizeText: "2.4 MB", onDismiss: {}))),
             ("toast", AnyView(TouliaoToast(message: "文件上传失败，请检查网络后重试").padding(24))),
+            ("image-message", AnyView(ChatView(conversation: Conversation(id: "review-image", name: "图片消息"), myId: "review-me"))),
+            ("video-message", AnyView(ChatView(conversation: Conversation(id: "review-video", name: "视频消息"), myId: "review-me"))),
+            ("voice-message", AnyView(ChatView(conversation: Conversation(id: "review-voice", name: "语音消息"), myId: "review-me"))),
+            ("file-message", AnyView(ChatView(conversation: Conversation(id: "review-file", name: "文件消息"), myId: "review-me"))),
+            ("reply-message", AnyView(ChatView(conversation: Conversation(id: "review-reply", name: "引用与提及"), myId: "review-me"))),
             ("files", AnyView(ConversationFilesView(conversationId: conversation.id))),
             ("mentions", AnyView(MentionsView(myId: "review-me", onOpenConversation: { _ in }))),
             ("contacts", AnyView(ContactsView(onStartChat: { _ in }, onAddFriend: {}, onRequests: {}, onCreateGroup: {}))),
@@ -281,6 +313,9 @@ final class NativeUIReviewTests: XCTestCase {
         // separate window and is outside this view-rendering test's scope.
         host.view.endEditing(true)
         try await Task.sleep(nanoseconds: 350_000_000)
+        if name.hasPrefix("group-chat-") {
+            XCTAssertFalse(MsgCacheStore.shared.load("review-group").isEmpty, "Group screenshots must include loaded message history")
+        }
         if name.hasPrefix("chat-") {
             let messages = MsgCacheStore.shared.load("review-chat")
             XCTAssertTrue(messages.contains { $0.content == "收到，稍后把文件发给你。" }, "Chat rendering requires successfully loaded history")
