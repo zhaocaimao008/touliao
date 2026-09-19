@@ -326,7 +326,7 @@ fun ChatScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -1759,7 +1759,7 @@ private fun FunctionPanel(
         add(Triple(com.touliao.app.ui.TouliaoIcons.File, "文件", onPickFile))
         if (onScreenshot != null) add(Triple(com.touliao.app.ui.TouliaoIcons.Screenshot, "截屏", onScreenshot))
         add(Triple(com.touliao.app.ui.TouliaoIcons.RedPacket, "红包", onRedPacket))
-        if (onTransfer != null) add(Triple(com.touliao.app.ui.TouliaoIcons.Wallet, "转账", onTransfer))
+        if (onTransfer != null) add(Triple(com.touliao.app.ui.TouliaoIcons.Transfer, "转账", onTransfer))
         if (onSchedule != null) add(Triple(com.touliao.app.ui.TouliaoIcons.Schedule, "定时发送", onSchedule))
         if (onScheduleList != null) add(Triple(com.touliao.app.ui.TouliaoIcons.Calendar, "定时列表", onScheduleList))
     }
@@ -2216,7 +2216,7 @@ private fun MessageSearchOverlay(
                     Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = onClose) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "关闭搜索") }
+                    IconButton(onClick = onClose) { Icon(com.touliao.app.ui.TouliaoIcons.Close, contentDescription = "关闭搜索") }
                     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
                     LaunchedEffect(Unit) { kotlinx.coroutines.delay(100); runCatching { focus.requestFocus() } }
                     OutlinedTextField(

@@ -86,7 +86,7 @@ fun ProfileEditScreen(
         topBar = {
             TopAppBar(
                 title = { Text("个人资料") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
             )
         },
     ) { padding ->

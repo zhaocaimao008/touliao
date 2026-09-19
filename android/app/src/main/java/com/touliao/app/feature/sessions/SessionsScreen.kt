@@ -47,7 +47,7 @@ fun SessionsScreen(onBack: () -> Unit, viewModel: SessionsViewModel = hiltViewMo
         topBar = {
             TopAppBar(
                 title = { Text("登录设备管理") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
                 actions = {
                     if (state.sessions.count { !it.current } > 0) {
                         TextButton(onClick = { kickOthers = true }) { Text("退出其它设备") }

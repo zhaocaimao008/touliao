@@ -68,7 +68,7 @@ private fun SettingsScaffold(title: String, onBack: () -> Unit, content: @Compos
         topBar = {
             TopAppBar(
                 title = { Text(title) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
             )
         },
     ) { padding ->

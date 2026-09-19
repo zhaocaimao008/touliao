@@ -113,7 +113,7 @@ fun AddFriendScreen(
                 title = { Text("添加好友") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                     }
                 },
             )

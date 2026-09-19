@@ -363,7 +363,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.openRedPacket(rp.packetId); } }}
                 >
                   <div className="wc-redpacket-body">
-                    <div className="wc-redpacket-icon">🧧</div>
+                    <div className="wc-redpacket-icon"><TouliaoIcon name="redPacket" size="lg" /></div>
                     <div className="wc-redpacket-info">
                       <div className="wc-redpacket-greeting">
                         {rp.greeting || t('messageItem.redPacketFallbackGreeting')}
@@ -383,7 +383,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               return (
                 <div className="wc-transfer-card" aria-label={t('messageItem.transferAriaLabelTemplate').replace('{amount}', tf.amount)}>
                   <div className="wc-transfer-body">
-                    <div className="wc-transfer-icon">💸</div>
+                    <div className="wc-transfer-icon"><TouliaoIcon name="transfer" size="lg" /></div>
                     <div className="wc-transfer-info">
                       <div className="wc-transfer-amount">¥ {tf.amount} {t('chat.coinUnit')}</div>
                       {tf.note ? <div className="wc-transfer-note">{tf.note}</div> : null}

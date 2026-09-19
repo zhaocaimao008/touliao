@@ -55,7 +55,7 @@ fun FriendRequestsScreen(
                 title = { Text("新的朋友") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                     }
                 },
             )

@@ -83,7 +83,7 @@ fun MentionsScreen(
                 title = { Text("@我的消息") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                     }
                 },
             )

@@ -120,7 +120,7 @@ fun CallHost(
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
                 Text(
-                    "⚠️ 通话音量已静音,请按音量键调高",
+                    "通话音量已静音,请按音量键调高",
                     color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
                 )
             }

@@ -3147,7 +3147,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             className="wc-rp-detail-card"
           >
             <div className="wc-rp-detail-header">
-              <div className="wc-rp-detail-icon">🧧</div>
+              <div className="wc-rp-detail-icon"><TouliaoIcon name="redPacket" size="lg" /></div>
               <div className="wc-rp-detail-sender">{t('chat.redPacketFromTemplate').replace('{name}', redPacketDetail.senderName)}</div>
               <div className="wc-rp-detail-greeting">{redPacketDetail.greeting}</div>
             </div>

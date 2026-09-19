@@ -50,6 +50,13 @@ jobs:
           CHROMIUM_CHANNEL: chrome
         run: node scripts/windows-theme-smoke.cjs
 
+      - name: Touliao icon states and light/dark gallery
+        env:
+          CHROMIUM_CHANNEL: chrome
+          ICON_REVIEW_PLATFORMS: win32
+          UI_OUTPUT: artifacts/windows-themes/icons
+        run: node scripts/icon-visual-review.cjs
+
       - name: Upload Windows theme review
         if: always()
         uses: actions/upload-artifact@v4

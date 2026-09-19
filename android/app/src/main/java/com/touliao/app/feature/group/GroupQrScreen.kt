@@ -50,7 +50,7 @@ fun GroupQrScreen(
             TopAppBar(
                 title = { Text("群聊二维码") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") }
                 },
             )
         },

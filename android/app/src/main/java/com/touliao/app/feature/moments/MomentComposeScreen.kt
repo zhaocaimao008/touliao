@@ -71,7 +71,7 @@ fun MomentComposeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("发表") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
                 actions = {
                     TextButton(onClick = viewModel::publish, enabled = !state.publishing) {
                         if (state.publishing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)

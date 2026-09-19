@@ -44,7 +44,7 @@ fun WalletScreen(onBack: () -> Unit, viewModel: WalletViewModel = hiltViewModel(
         topBar = {
             TopAppBar(
                 title = { Text("我的钱包") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
             )
         },
     ) { padding ->

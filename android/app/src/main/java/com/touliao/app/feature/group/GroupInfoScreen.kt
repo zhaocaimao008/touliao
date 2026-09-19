@@ -108,7 +108,7 @@ fun GroupInfoScreen(
             TopAppBar(
                 title = { Text("群聊信息") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") }
                 },
             )
         },

@@ -101,7 +101,7 @@ fun MomentsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("朋友圈") },
-                navigationIcon = { onBack?.let { cb -> IconButton(onClick = cb) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } } },
+                navigationIcon = { onBack?.let { cb -> IconButton(onClick = cb) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } } },
                 actions = {
                     // 互动通知入口：右上角铃铛 + 未读角标
                     IconButton(onClick = { viewModel.openNotif() }) {

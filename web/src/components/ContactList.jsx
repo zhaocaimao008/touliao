@@ -635,7 +635,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       <div className="lt-list-header">
         <button onClick={startCreate}
           className="lt-create-btn">
-          + {t('contacts.newLabel')}
+          <TouliaoIcon name="add" size="sm" /> {t('contacts.newLabel')}
         </button>
       </div>
       {labels.length === 0 && (
