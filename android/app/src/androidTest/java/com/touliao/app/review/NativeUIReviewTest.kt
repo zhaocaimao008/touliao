@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.Density
@@ -147,7 +148,12 @@ class NativeUIReviewTest {
         }
         compose.runOnIdle { screen.value = "p2-states"; large.value = true }
         settle(); snapshot("p2-component-states-dark-large-text")
-        compose.onNodeWithText("加载中").performScrollTo().assertExists()
+        compose.onNodeWithTag("p2-loading-button").performScrollTo()
+        settle()
+        compose.onNodeWithTag("p2-loading-button").assertIsDisplayed()
+        val loadingBounds = compose.onNodeWithTag("p2-loading-button").getUnclippedBoundsInRoot()
+        val rootBounds = compose.onRoot().getUnclippedBoundsInRoot()
+        Assert.assertTrue("Entire loading button must be inside the native viewport", loadingBounds.bottom <= rootBounds.bottom)
         snapshot("p2-component-buttons-dark-large-text")
     }
 
@@ -253,7 +259,7 @@ class NativeUIReviewTest {
                 TouliaoButton("取消", {}, variant = TouliaoButtonVariant.SECONDARY)
                 TouliaoButton("删除", {}, variant = TouliaoButtonVariant.DANGER)
                 TouliaoButton("禁用", {}, enabled = false)
-                TouliaoButton("加载中", {}, loading = true)
+                TouliaoButton("加载中", {}, loading = true, modifier = Modifier.testTag("p2-loading-button"))
             }
             "p2-error" -> {
                 var retried by remember { mutableStateOf(false) }
