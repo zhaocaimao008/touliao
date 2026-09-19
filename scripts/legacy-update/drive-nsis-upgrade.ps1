@@ -4,6 +4,31 @@ Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class NsISButtons {
+    private delegate bool EnumChildProc(IntPtr hwnd, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumChildProc callback, IntPtr data);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int count);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, StringBuilder text, int count);
+    [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll", SetLastError=true)] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    public static string Text(IntPtr hwnd) { var text = new StringBuilder(1024); GetWindowText(hwnd, text, text.Capacity); return text.ToString(); }
+    public static IntPtr[] Find(IntPtr parent) {
+        var buttons = new List<IntPtr>();
+        EnumChildWindows(parent, (hwnd, data) => {
+            var name = new StringBuilder(100); GetClassName(hwnd, name, name.Capacity);
+            if (name.ToString() == "Button") buttons.Add(hwnd);
+            return true;
+        }, IntPtr.Zero);
+        return buttons.ToArray();
+    }
+}
+'@
 $actions = @()
 $seen = @{}
 $deadline = (Get-Date).AddSeconds(170)
@@ -28,16 +53,16 @@ try {
                     $bitmap.Save((Join-Path $Output 'nsis-native-wizard.png'))
                 } finally { $graphics.Dispose(); $bitmap.Dispose() }
             }
-            $buttons = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants,
-                [System.Windows.Automation.PropertyCondition]::new(
-                    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-                    [System.Windows.Automation.ControlType]::Button))
+            # NSIS displays standard Win32 buttons that this runner's UIA
+            # provider does not expose as ControlType.Button. Address the real
+            # controls by their window class/text; never launch another installer.
+            $buttons = [NsISButtons]::Find([IntPtr]$window.Current.NativeWindowHandle)
             foreach ($button in $buttons) {
-                if ($button.Current.IsEnabled -and $button.Current.Name -match 'Next|Install|Finish|下一步|安装|完成') {
-                    $actions += @{window=$window.Current.Name;button=$button.Current.Name;process=$process.ProcessName;time=(Get-Date).ToString('o')}
+                $name = [NsISButtons]::Text($button)
+                if ([NsISButtons]::IsWindowVisible($button) -and [NsISButtons]::IsWindowEnabled($button) -and $name -match 'Next|Install|Finish|下一步|安装|完成') {
+                    $actions += @{window=$window.Current.Name;button=$name;process=$process.ProcessName;time=(Get-Date).ToString('o');driver='Win32 BM_CLICK'}
                     ConvertTo-Json -InputObject @($actions) -Depth 4 | Set-Content (Join-Path $Output 'nsis-ui-actions.json')
-                    $invoke = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-                    $invoke.Invoke()
+                    if (![NsISButtons]::PostMessage($button, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)) { throw 'Native button click failed' }
                     Start-Sleep -Seconds 1
                     break
                 }
