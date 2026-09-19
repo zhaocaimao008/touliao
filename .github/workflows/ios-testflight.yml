@@ -16,6 +16,11 @@ on:
         type: boolean
         required: false
         default: false
+      run_simulator_tests:
+        description: '仅准备模式：运行模拟器测试；仅在相同应用源码已有通过证据时可关闭'
+        type: boolean
+        required: false
+        default: true
   push:
     tags:
       # iOS 端专属前缀触发（见 VERSIONING.md 第 2 节）；避免裸 v*/其他端 tag 误触发。
@@ -47,6 +52,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: bash ios/release-preparation/run.sh credentials
       - name: Clean simulator build and native tests
+        if: ${{ inputs.run_simulator_tests }}
         run: bash ios/release-preparation/run.sh simulator
       - name: Clean signed Release build
         run: bash ios/release-preparation/run.sh build
