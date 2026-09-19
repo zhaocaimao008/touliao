@@ -1,0 +1,37 @@
+source,screens,thisTask,businessLogic,hardware
+ios/Touliao/Features/Auth/ForgotPasswordView.swift,forgot-password,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Auth/LoginView.swift,login,本次补齐或修复,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Auth/RegisterView.swift,register,本次补齐或修复,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Call/CallView.swift,call-controls,本次补齐或修复,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Call/GroupCallView.swift,call-controls,本次补齐或修复,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Chat/AttachmentPreviewViews.swift,,本次补齐或修复,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Chat/ChatView.swift,chat,本次补齐或修复,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Chat/ConversationFilesView.swift,files,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Chat/ConversationListView.swift,conversations,本次补齐或修复,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Chat/MentionsView.swift,mentions,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Chat/MergedMessageCard.swift,,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Chat/ReadStatusView.swift,,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Contacts/AddFriendView.swift,add-friend,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Contacts/BlockedView.swift,blocked,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Contacts/ContactsView.swift,contacts,本次补齐或修复,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Contacts/CreateGroupView.swift,create-group,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Contacts/FriendLabelsView.swift,friend-labels,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Contacts/FriendRequestsView.swift,friend-requests,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Contacts/QRScannerView.swift,,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Favorites/FavoritesView.swift,favorites,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Group/GroupInfoView.swift,group,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Group/GroupQrView.swift,group-qr,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Group/InviteMembersView.swift,invite-members,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Moments/MomentComposeView.swift,compose-moment,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Moments/MomentsView.swift,moments,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/AccountManagementView.swift,accounts,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/CallHistoryView.swift,call-history,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/InviteFriendView.swift,invite-friend,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/MyQRCodeView.swift,my-qr,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/ProfileEditView.swift,edit-profile,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/ProfileView.swift,profile,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/SessionsView.swift,sessions,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/SettingsHomeView.swift,settings,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/SettingsViews.swift,appearance;notifications;privacy;quiet-hours;change-phone;change-password;delete-account,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Profile/WalletView.swift,wallet,接续已有新版 UI，重新回归,Core/Data/ViewModel 未修改,未验证
+ios/Touliao/Features/Search/SearchView.swift,search,本次补齐或修复,Core/Data/ViewModel 未修改,未验证

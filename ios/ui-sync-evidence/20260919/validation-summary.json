@@ -1,0 +1,62 @@
+{
+  "testedCommit": "cf97c1830d1290595e3bbc4295eb0e4a949ea917",
+  "run": "https://github.com/zhaocaimao008/touliao/actions/runs/35428907093",
+  "tests": 71,
+  "failures": 0,
+  "screenshots": 101,
+  "keyboard": {
+    "keyboardVisible": true,
+    "inputFrame": "(76.0, 276.5, 171.0, 114.5)",
+    "keyboardFrame": "(0.0, 407.0, 375.0, 260.0)",
+    "markedChineseAndNewline": true,
+    "device": "iPhone",
+    "wrappedTextHeight": 114.5,
+    "nativeTextEditing": true,
+    "pastedNewlineNormalizationPreserved": true,
+    "singleLineHeight": 20,
+    "hardware": false
+  },
+  "imageTransportConfirmed": true,
+  "moduleRuns": [
+    {
+      "batch": "batch1",
+      "run": 35426733927,
+      "head": "b5f97d7abb65597054a728a0c01ef91cc7f35bb6",
+      "result": "success",
+      "tests": 63,
+      "failures": 0,
+      "screenshots": 79
+    },
+    {
+      "batch": "batch2",
+      "run": 35426972923,
+      "head": "26b60c055528b35e75924968d773a680d5695802",
+      "result": "success",
+      "tests": 65,
+      "failures": 0,
+      "screenshots": 89
+    },
+    {
+      "batch": "batch3",
+      "run": 35427035764,
+      "head": "f5d571bd6c802b5ad260ceee3430b05f9a88a572",
+      "result": "success",
+      "tests": 67,
+      "failures": 0,
+      "screenshots": 89
+    },
+    {
+      "batch": "batch4",
+      "run": 35427193867,
+      "head": "2dc26fdbcfe7b370a2691889509edde10258428a",
+      "result": "success",
+      "tests": 70,
+      "failures": 0,
+      "screenshots": 91
+    }
+  ],
+  "onlyIOSChangesRelativeToCheckpoint": true,
+  "productionReleasePerformed": false,
+  "realDeviceTested": false,
+  "realServerEndToEndTested": false
+}
