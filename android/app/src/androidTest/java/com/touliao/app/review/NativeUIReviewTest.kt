@@ -181,9 +181,18 @@ class NativeUIReviewTest {
         androidx.test.espresso.Espresso.pressBack()
         compose.onNodeWithTag("chat-more-btn").performClick()
         compose.onNodeWithText("文件").performClick()
-        Thread.sleep(1200)
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val deadline = android.os.SystemClock.elapsedRealtime() + 10_000
+        while (automation.rootInActiveWindow?.packageName?.toString()?.contains("documentsui") != true && android.os.SystemClock.elapsedRealtime() < deadline) {
+            Thread.sleep(200)
+        }
+        val pickerPackage = automation.rootInActiveWindow?.packageName?.toString().orEmpty()
+        Assert.assertTrue("Capture the system file picker, not the outgoing chat frame", pickerPackage.contains("documentsui"))
+        automation.waitForIdle(500, 5_000)
+        Thread.sleep(500)
         snapshot("native-file-picker-dark")
-        InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+        File(output, "file-picker-validation.txt").writeText(pickerPackage)
+        automation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
     }
 
     private fun settle() {
