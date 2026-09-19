@@ -98,7 +98,7 @@ def build_status():
     apps = get('apps', {'filter[bundleId]': BUNDLE, 'limit': 2})['data']
     require(len(apps) == 1, 'Expected App Store Connect app not accessible')
     app_id = apps[0]['id']
-    response = get('builds', {'filter[app]': app_id, 'filter[version]': BUILD, 'include': 'preReleaseVersion,betaBuildDetail', 'limit': 20})
+    response = get('builds', {'filter[app]': app_id, 'filter[version]': BUILD, 'include': 'preReleaseVersion,buildBetaDetail,betaGroups', 'limit': 20})
     versions = {r['id']: r['attributes'] for r in response.get('included', []) if r['type'] == 'preReleaseVersions'}
     details = {r['id']: r['attributes'] for r in response.get('included', []) if r['type'] == 'buildBetaDetails'}
     builds = [b for b in response['data'] if b['attributes']['version'] == BUILD]
@@ -111,7 +111,8 @@ def build_status():
         beta_relation = build['relationships'].get('buildBetaDetail', {}).get('data')
         detail = details.get(beta_relation['id'], {}) if beta_relation else {}
         attrs = build['attributes']
-        result.update({'buildId': build['id'], 'processingState': attrs['processingState'], 'uploadedDate': attrs.get('uploadedDate'), 'expired': attrs.get('expired'), 'usesNonExemptEncryption': attrs.get('usesNonExemptEncryption'), 'betaBuildDetail': detail})
+        group_ids = [g['id'] for g in build['relationships'].get('betaGroups', {}).get('data', [])]
+        result.update({'buildId': build['id'], 'processingState': attrs['processingState'], 'uploadedDate': attrs.get('uploadedDate'), 'expired': attrs.get('expired'), 'usesNonExemptEncryption': attrs.get('usesNonExemptEncryption'), 'betaBuildDetail': detail, 'assignedBetaGroupIds': group_ids})
         require(attrs['processingState'] not in ['INVALID', 'FAILED'], 'Apple rejected the exact build: ' + attrs['processingState'])
         require(not attrs.get('expired'), 'Exact build has expired')
     return result
@@ -119,8 +120,7 @@ def build_status():
 
 def testing_access(status):
     groups = get('apps/' + status['appId'] + '/betaGroups', {'limit': 200})['data']
-    assigned = get('builds/' + status['buildId'] + '/betaGroups', {'limit': 200})['data']
-    assigned_ids = {group['id'] for group in assigned}
+    assigned_ids = set(status['assignedBetaGroupIds'])
     result = []
     for group in groups:
         attrs = group['attributes']
