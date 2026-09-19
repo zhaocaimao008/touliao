@@ -15,24 +15,30 @@ struct GroupCallHostView: View {
                     inviteBanner(inv)
                     Spacer()
                 }
-                .padding(.top, 60)
+                .padding(.horizontal, 12).padding(.top, 8)
             }
         }
     }
 
     private func inviteBanner(_ inv: GroupCallInvite) -> some View {
-        HStack(spacing: 12) {
-            Text("\(inv.fromName.isEmpty ? "群成员" : inv.fromName) 发起了群\(inv.type == "video" ? "视频" : "语音")通话")
+        VStack(alignment: .leading, spacing: 12) {
+            Label("\(inv.fromName.isEmpty ? "群成员" : inv.fromName) 发起了群\(inv.type == "video" ? "视频" : "语音")通话",
+                  touliaoSystemImage: inv.type == "video" ? "video.fill" : "phone.fill")
                 .touliaoFont(14).foregroundColor(.white)
-            Button("加入") { manager.join(callId: inv.callId, conversationId: inv.conversationId, video: inv.type == "video") }
-                .padding(.horizontal, 14).frame(minHeight: 44)
-                .background(Color.vxinCallAccept).foregroundColor(.white).clipShape(Capsule())
-            Button("忽略") { manager.pendingInvite = nil }
-                .frame(minHeight: 44)
-                .foregroundColor(Color(white: 0.7))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 16) {
+                Button("加入") { manager.join(callId: inv.callId, conversationId: inv.conversationId, video: inv.type == "video") }
+                    .padding(.horizontal, 20).frame(minHeight: 44)
+                    .background(Color.vxinCallAccept).foregroundColor(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
+                Button("忽略") { manager.pendingInvite = nil }
+                    .frame(minWidth: 44, minHeight: 44).foregroundColor(.white.opacity(0.85))
+            }
         }
-        .padding(12)
-        .background(Color(white: 0.18)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.avatar))
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(white: 0.12)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.card))
+
     }
 }
 
@@ -75,8 +81,11 @@ private struct GroupCallView: View {
                     .padding(8)
                 }
 
-                controls.padding(.bottom, 40)
             }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            controls.padding(.horizontal, 16).padding(.vertical, 16)
+                .background(Color.black.opacity(0.50))
         }
         .task { await ensurePermissions() }
         .onChange(of: state.stage) { stage in

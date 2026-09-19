@@ -1,28 +1,45 @@
 import XCTest
 import SwiftUI
 import UIKit
+import AVFoundation
 @testable import Touliao
 
 /// Native SwiftUI / UIKit snapshots with a test-only network transport. No live accounts.
 private final class ReviewURLProtocol: URLProtocol {
     static var fixtures: [String: Any] = [:]
     static var paths = Set<String>()
+    static var uploads: [(URLRequest, Data)] = []
     static let lock = NSLock()
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let path = request.url?.path ?? ""
         Self.lock.lock(); Self.paths.insert(path); Self.lock.unlock()
+        if path.hasSuffix("/upload") {
+            var bytes = request.httpBody ?? Data()
+            if let stream = request.httpBodyStream {
+                stream.open(); defer { stream.close() }
+                var buffer = [UInt8](repeating: 0, count: 8192)
+                while true {
+                    let count = stream.read(&buffer, maxLength: buffer.count)
+                    if count <= 0 { break }
+                    bytes.append(contentsOf: buffer.prefix(count))
+                }
+            }
+            Self.lock.lock(); Self.uploads.append((request, bytes)); Self.lock.unlock()
+        }
         let value: Any
         if let fixture = Self.fixtures[path] { value = fixture }
         else if path.hasSuffix("/sync") { value = ["messages": [], "cursor": 0, "hasMore": false] }
         else if path.hasSuffix("/read-states") { value = ["states": [:]] }
         else if path.hasSuffix("/settings") || path == "/config.json" { value = [:] }
         else { value = [] }
-        let png = (value as? [String: Any])?["_reviewPNG"] as? String
-        let bytes = png.flatMap { Data(base64Encoded: $0) } ?? (try? JSONSerialization.data(withJSONObject: value)) ?? Data("{}".utf8)
+        let payload = value as? [String: Any]
+        let png = payload?["_reviewPNG"] as? String
+        let raw = payload?["_reviewData"] as? String
+        let bytes = raw.flatMap { Data(base64Encoded: $0) } ?? png.flatMap { Data(base64Encoded: $0) } ?? (try? JSONSerialization.data(withJSONObject: value)) ?? Data("{}".utf8)
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
-                                       headerFields: ["Content-Type": png == nil ? "application/json" : "image/png"])!
+                                       headerFields: ["Content-Type": (payload?["_reviewContentType"] as? String) ?? (png == nil ? "application/json" : "image/png")])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: bytes)
         client?.urlProtocolDidFinishLoading(self)
@@ -42,6 +59,7 @@ final class NativeUIReviewTests: XCTestCase {
     override func setUpWithError() throws {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "fixtures", withExtension: "json"))
         ReviewURLProtocol.fixtures = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any] ?? [:]
+        ReviewURLProtocol.uploads = []
         URLProtocol.registerClass(ReviewURLProtocol.self)
         oldServer = UserDefaults.standard.string(forKey: "vxin_base_url_override")
         ServerConfig.shared.baseURL = "https://native-review.invalid"
@@ -121,6 +139,55 @@ final class NativeUIReviewTests: XCTestCase {
         XCTAssertTrue(vm.input.hasSuffix("😀"))
     }
 
+    func testMediaUploadAndVideoDownloadWithIsolatedTransport() async throws {
+        let movie = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "ui-preview", withExtension: "mp4"))
+        let bytes = try Data(contentsOf: movie)
+        let uploadPath = "/api/messages/review-chat/upload"
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
+            UIColor.blue.setFill(); context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        for (type, mime, name, data) in [
+            ("image", "image/png", "image.png", try XCTUnwrap(image.pngData())),
+            ("voice", "audio/mp4", "voice.m4a", Data("isolated-audio-body".utf8)),
+            ("file", "text/plain", "readme.txt", Data("UI regression".utf8)),
+            ("video", "video/mp4", "preview.mp4", bytes)
+        ] {
+            ReviewURLProtocol.fixtures[uploadPath] = ["id": "uploaded-" + type, "type": type,
+                "conversation_id": "review-chat", "sender_id": "review-me", "content": name,
+                "file_url": "/uploads/" + name, "duration": type == "voice" ? 2 : 0]
+            let message: Message
+            if type == "video" {
+                message = try await ChatRepository.shared.uploadMediaFile(conversationId: "review-chat", fileURL: movie, fileName: name, mimeType: mime)
+            } else {
+                message = try await ChatRepository.shared.uploadMedia(conversationId: "review-chat", data: data, fileName: name, mimeType: mime, duration: type == "voice" ? 2 : 0)
+            }
+            XCTAssertEqual(message.type, type)
+            let upload = try XCTUnwrap(ReviewURLProtocol.uploads.last)
+            XCTAssertEqual(upload.0.httpMethod, "POST")
+            XCTAssertEqual(upload.0.value(forHTTPHeaderField: "Authorization"), "Bearer native-ui-review-only")
+            XCTAssertNotNil(upload.1.range(of: Data(("Content-Type: " + mime).utf8)))
+            XCTAssertNotNil(upload.1.range(of: data), "The entire media body must reach the upload transport")
+            if type == "voice" {
+                XCTAssertNotNil(upload.1.range(of: Data("name=\"duration\"".utf8)))
+            }
+        }
+        ReviewURLProtocol.fixtures["/uploads/preview.mp4"] = ["_reviewData": bytes.base64EncodedString(), "_reviewContentType": "video/mp4"]
+        let downloaded = try await FileShareHelper.prepareShareFile(rawUrl: "/uploads/preview.mp4", filename: "ui-test-preview.mp4", isImage: false)
+        defer { try? FileManager.default.removeItem(at: downloaded) }
+        XCTAssertEqual(try Data(contentsOf: downloaded), bytes)
+        let duration = try await AVURLAsset(url: downloaded).load(.duration)
+        XCTAssertGreaterThan(CMTimeGetSeconds(duration), 0)
+        try await capture(AnyView(VideoPlayerOverlay(url: downloaded.absoluteString, filename: "视频预览", onDismiss: {})), name: "video-preview", dark: true)
+    }
+
+    func testGroupIncomingBannerAtLargeText() async throws {
+        let manager = GroupCallManager.shared
+        let previous = manager.pendingInvite
+        defer { manager.pendingInvite = previous }
+        manager.pendingInvite = GroupCallInvite(callId: "review-invite", conversationId: "review-group", type: "video", from: "review-li", fromName: "产品设计讨论群成员")
+        try await capture(AnyView(GroupCallHostView()), name: "group-incoming-large-text", dark: true, large: true, width: 320)
+    }
+
     private func screens() -> [(String, AnyView)] {
         let conversation = Conversation(id: "review-chat", name: "李明")
         return [
@@ -153,6 +220,10 @@ final class NativeUIReviewTests: XCTestCase {
             ("invite-friend", AnyView(InviteFriendView()))
         ]
     }
+    private func descendants(_ view: UIView) -> [UIView] {
+        view.subviews.flatMap { [$0] + descendants($0) }
+    }
+
     private func capture(_ view: AnyView, name: String, dark: Bool, large: Bool = false, width: CGFloat = 390) async throws {
         print("NATIVE_UI_CAPTURE \(name) width=\(width)"); fflush(stdout)
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
@@ -175,6 +246,19 @@ final class NativeUIReviewTests: XCTestCase {
             XCTAssertTrue(messages.contains { $0.content == "收到，稍后把文件发给你。" }, "Chat rendering requires successfully loaded history")
         }
         host.view.setNeedsLayout(); host.view.layoutIfNeeded()
+        if name.hasPrefix("chat-") || name.hasPrefix("group-chat-") {
+            let fields = descendants(host.view).filter { $0 is UITextField || $0 is UITextView }
+            let visible = fields.filter { !$0.isHidden && $0.alpha > 0 && $0.bounds.width > 0 }
+            XCTAssertFalse(visible.isEmpty, "Chat must contain a native editable input")
+            for field in visible {
+                let frame = field.convert(field.bounds, to: host.view)
+                XCTAssertGreaterThanOrEqual(frame.width, 100, "Input must not collapse between tool buttons")
+                XCTAssertLessThanOrEqual(frame.maxY, host.view.bounds.maxY + 1)
+                XCTAssertGreaterThanOrEqual(frame.minX, -1)
+                XCTAssertLessThanOrEqual(frame.maxX, host.view.bounds.maxX + 1)
+            }
+        }
+
         let format = UIGraphicsImageRendererFormat(); format.scale = 2
         let image = UIGraphicsImageRenderer(bounds: host.view.bounds, format: format).image { _ in
             host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)

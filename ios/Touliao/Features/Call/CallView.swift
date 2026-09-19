@@ -51,6 +51,8 @@ private struct CallMinimizedBubble: View {
                         }
                 )
                 .onTapGesture { manager.setMinimized(false) }
+                .accessibilityLabel("返回通话")
+                .accessibilityAddTraits(.isButton)
         }
         .allowsHitTesting(true)
     }
@@ -104,19 +106,15 @@ private struct CallView: View {
                     }
                 }
             } else {
+                ScrollView {
                 VStack(spacing: 16) {
-                    Spacer().frame(height: 80)
                     InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: 96)
                     Text(state.peerName.isEmpty ? "通话" : state.peerName)
                         .touliaoFont(22).foregroundColor(.white)
                     statusOrDuration
-                    Spacer()
                 }
-            }
-
-            VStack {
-                Spacer()
-                controls.padding(.bottom, 48)
+                .frame(maxWidth: .infinity).padding(.horizontal, 24).padding(.top, 72).padding(.bottom, 24)
+                }
             }
 
             // 2026-08-29新增：通话小窗入口。仅在"已经在通话流程中"(呼出/连接中/已接通)显示，
@@ -127,9 +125,10 @@ private struct CallView: View {
                         Button { manager.setMinimized(true) } label: {
                             TouliaoIcon(systemName: "chevron.down")
                                 .touliaoFont(18, weight: .semibold).foregroundColor(.white)
-                                .frame(width: 36, height: 36)
+                                .frame(width: 44, height: 44)
                                 .background(Color.white.opacity(0.15)).clipShape(Circle())
                         }
+                        .accessibilityLabel("最小化通话")
                         .padding(.leading, 16)
                         Spacer()
                     }
@@ -137,6 +136,10 @@ private struct CallView: View {
                 }
                 .padding(.top, 8)
             }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            controls.padding(.horizontal, 16).padding(.vertical, 16)
+                .background(Color.black.opacity(0.50))
         }
         .task { await ensurePermissions() }
         // 结束态的自动consumeEnded延时已挪到 CallManager.cleanup() 里统一调度(不依赖某个具体
