@@ -12,7 +12,6 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-import zipfile
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -161,8 +160,7 @@ if __name__ == "__main__":
         ipas = list((EVIDENCE / "export").glob("*.ipa"))
         require(len(ipas) == 1, "Expected exactly one exported IPA")
         extracted = PRIVATE / "extracted-ipa"
-        with zipfile.ZipFile(ipas[0]) as archive:
-            archive.extractall(extracted)
+        subprocess.run(["ditto", "-x", "-k", str(ipas[0]), str(extracted)], check=True)
         apps = list((extracted / "Payload").glob("*.app"))
         require(len(apps) == 1, "Expected exactly one app in IPA")
         result = verify_bundle(apps[0], "ipa")

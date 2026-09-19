@@ -31,7 +31,7 @@ jobs:
       contents: read
     env:
       APP_VERSION: ${{ inputs.version }}
-      PREP_DIR: ${{ runner.temp }}/touliao-release-preparation
+      PREP_DIR: /tmp/touliao-release-preparation
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode and generate project
@@ -64,7 +64,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: touliao-ios-release-preparation
-          path: ${{ runner.temp }}/touliao-release-preparation/evidence/
+          path: ${{ env.PREP_DIR }}/evidence/
           if-no-files-found: error
       - name: Remove temporary signing credentials
         if: always()
