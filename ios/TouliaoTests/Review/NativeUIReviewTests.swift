@@ -188,6 +188,46 @@ final class NativeUIReviewTests: XCTestCase {
         try await capture(AnyView(GroupCallHostView()), name: "group-incoming-large-text", dark: true, large: true, width: 320)
     }
 
+    func testNativeComposerKeyboardChineseInputAndMultilineHeight() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        let view = NavigationStack {
+            ChatView(conversation: Conversation(id: "review-chat", name: "键盘回归"), myId: "review-me")
+        }.environmentObject(session!)
+        let host = UIHostingController(rootView: view)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { host.view.endEditing(true); window.isHidden = true; window.rootViewController = nil }
+        try await Task.sleep(nanoseconds: 900_000_000)
+        let input = try XCTUnwrap(descendants(host.view).compactMap { $0 as? UITextView }.first { !$0.isHidden && $0.bounds.width > 0 })
+        XCTAssertTrue(input.becomeFirstResponder())
+        try await Task.sleep(nanoseconds: 600_000_000)
+        let singleLineHeight = input.bounds.height
+        input.setMarkedText("中文", selectedRange: NSRange(location: 2, length: 0))
+        input.unmarkText()
+        input.insertText("\n第二行 😀")
+        try await Task.sleep(nanoseconds: 500_000_000)
+        XCTAssertTrue(input.text.contains("中文"))
+        XCTAssertTrue(input.text.contains("第二行 😀"))
+        XCTAssertGreaterThanOrEqual(input.bounds.height, singleLineHeight)
+        let keyboard = host.view.keyboardLayoutGuide.layoutFrame
+        let frame = input.convert(input.bounds, to: host.view)
+        if keyboard.height > host.view.safeAreaInsets.bottom + 50 {
+            XCTAssertLessThanOrEqual(frame.maxY, keyboard.minY + 1, "Composer must stay above the docked keyboard")
+        }
+        XCTAssertGreaterThanOrEqual(frame.minX, 0)
+        XCTAssertLessThanOrEqual(frame.maxX, host.view.bounds.maxX + 1)
+        host.view.endEditing(true)
+        try await Task.sleep(nanoseconds: 350_000_000)
+        XCTAssertFalse(input.isFirstResponder)
+        XCTAssertTrue(input.text.contains("中文"), "Dismissing the keyboard must preserve the draft")
+        let facts: [String: Any] = ["nativeTextEditing": true, "markedChineseAndNewline": true,
+            "keyboardVisible": keyboard.height > host.view.safeAreaInsets.bottom + 50,
+            "keyboardFrame": NSStringFromCGRect(keyboard), "inputFrame": NSStringFromCGRect(frame),
+            "device": UIDevice.current.model, "hardware": false]
+        try JSONSerialization.data(withJSONObject: facts, options: .prettyPrinted).write(to: output.appendingPathComponent("keyboard-validation.json"))
+    }
+
     private func screens() -> [(String, AnyView)] {
         let conversation = Conversation(id: "review-chat", name: "李明")
         return [
