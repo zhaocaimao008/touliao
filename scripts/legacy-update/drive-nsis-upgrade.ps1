@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Output)
+﻿param([Parameter(Mandatory=$true)][string]$Output)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
