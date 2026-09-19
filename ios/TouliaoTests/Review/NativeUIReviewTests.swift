@@ -2,6 +2,7 @@ import XCTest
 import SwiftUI
 import UIKit
 import AVFoundation
+import Kingfisher
 @testable import Touliao
 
 /// Native SwiftUI / UIKit snapshots with a test-only network transport. No live accounts.
@@ -55,6 +56,7 @@ final class NativeUIReviewTests: XCTestCase {
     private var oldActive: String?
     private var oldReviewAccount: StoredAccount?
     private var session: SessionStore!
+    private var oldImageConfiguration: URLSessionConfiguration?
 
     override func setUpWithError() throws {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "fixtures", withExtension: "json"))
@@ -89,6 +91,12 @@ final class NativeUIReviewTests: XCTestCase {
         }
         ReviewURLProtocol.uploads = []
         URLProtocol.registerClass(ReviewURLProtocol.self)
+        // Kingfisher owns an ephemeral session, so global URLProtocol registration
+        // alone does not isolate its requests. Configure only the test transport.
+        oldImageConfiguration = ImageDownloader.default.sessionConfiguration
+        let imageConfiguration = URLSessionConfiguration.ephemeral
+        imageConfiguration.protocolClasses = [ReviewURLProtocol.self]
+        ImageDownloader.default.sessionConfiguration = imageConfiguration
         oldServer = UserDefaults.standard.string(forKey: "vxin_base_url_override")
         ServerConfig.shared.baseURL = "https://native-review.invalid"
         oldToken = KeychainStore.shared.token
@@ -109,6 +117,7 @@ final class NativeUIReviewTests: XCTestCase {
         UserDefaults.standard.set(oldActive, forKey: "touliao_active_account_id")
         UserDefaults.standard.set(oldServer, forKey: "vxin_base_url_override")
         URLProtocol.unregisterClass(ReviewURLProtocol.self)
+        if let oldImageConfiguration { ImageDownloader.default.sessionConfiguration = oldImageConfiguration }
     }
 
     func testNativeScreenGallery() async throws {
@@ -125,6 +134,7 @@ final class NativeUIReviewTests: XCTestCase {
         ReviewURLProtocol.lock.lock(); let paths = ReviewURLProtocol.paths.sorted(); ReviewURLProtocol.lock.unlock()
         XCTAssertTrue(paths.contains("/api/auth/me"))
         XCTAssertTrue(paths.contains("/api/messages/review-chat"), "Gallery must load real ChatViewModel history through the test transport")
+        XCTAssertTrue(paths.contains("/uploads/ui-image.png"), "Image messages must download image bytes through the isolated transport")
         try JSONSerialization.data(withJSONObject: ["environment": "iOS Simulator — native UIHostingController", "requestsIntercepted": paths], options: .prettyPrinted)
             .write(to: output.appendingPathComponent("environment.json"))
     }
@@ -217,6 +227,9 @@ final class NativeUIReviewTests: XCTestCase {
     }
 
     func testNativeComposerKeyboardChineseInputAndMultilineHeight() async throws {
+        let oldDraft = DraftStore.shared.get("review-chat")
+        DraftStore.shared.clear("review-chat")
+        defer { DraftStore.shared.set("review-chat", oldDraft) }
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
         let view = NavigationStack {
@@ -237,7 +250,10 @@ final class NativeUIReviewTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         XCTAssertTrue(input.text.contains("中文"))
         XCTAssertTrue(input.text.contains("第二行 😀"))
-        XCTAssertGreaterThanOrEqual(input.bounds.height, singleLineHeight)
+        XCTAssertFalse(input.text.contains("\n"), "Preserve the existing pasted-newline normalization")
+        input.insertText(String(repeating: "长文本输入高度检查", count: 8))
+        try await Task.sleep(nanoseconds: 600_000_000)
+        XCTAssertGreaterThan(input.bounds.height, singleLineHeight, "Long text must grow the composer beyond one line")
         let keyboard = host.view.keyboardLayoutGuide.layoutFrame
         let frame = input.convert(input.bounds, to: host.view)
         if keyboard.height > host.view.safeAreaInsets.bottom + 50 {
@@ -250,6 +266,8 @@ final class NativeUIReviewTests: XCTestCase {
         XCTAssertFalse(input.isFirstResponder)
         XCTAssertTrue(input.text.contains("中文"), "Dismissing the keyboard must preserve the draft")
         let facts: [String: Any] = ["nativeTextEditing": true, "markedChineseAndNewline": true,
+            "pastedNewlineNormalizationPreserved": true, "singleLineHeight": singleLineHeight,
+            "wrappedTextHeight": input.bounds.height,
             "keyboardVisible": keyboard.height > host.view.safeAreaInsets.bottom + 50,
             "keyboardFrame": String(describing: keyboard), "inputFrame": String(describing: frame),
             "device": UIDevice.current.model, "hardware": false]
@@ -320,6 +338,11 @@ final class NativeUIReviewTests: XCTestCase {
         if name.hasPrefix("chat-") {
             let messages = MsgCacheStore.shared.load("review-chat")
             XCTAssertTrue(messages.contains { $0.content == "收到，稍后把文件发给你。" }, "Chat rendering requires successfully loaded history")
+        }
+        if name.hasPrefix("image-message-") {
+            let loaded = try XCTUnwrap(ImageCache.default.retrieveImageInMemoryCache(forKey: "https://native-review.invalid/uploads/ui-image.png"), "A blank image placeholder must not count as a successful screenshot")
+            XCTAssertGreaterThan(loaded.size.width, 0)
+            XCTAssertEqual(loaded.size.width / loaded.size.height, 1.5, accuracy: 0.01)
         }
         host.view.setNeedsLayout(); host.view.layoutIfNeeded()
         if name.hasPrefix("chat-") || name.hasPrefix("group-chat-") {
