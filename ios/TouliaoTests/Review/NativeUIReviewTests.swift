@@ -77,7 +77,8 @@ final class NativeUIReviewTests: XCTestCase {
                 "created_at": Date().timeIntervalSince1970, "content": "项目设计说明.pdf", "file_size": 24576,
                 "file_url": "/uploads/ui-image.png", "duration": 12]
             if type == "video", let movie = Bundle(for: Self.self).url(forResource: "ui-preview", withExtension: "mp4") {
-                message["file_url"] = movie.absoluteString
+                message["file_url"] = "https://native-review.invalid/uploads/ui-video.mp4"
+                ReviewURLProtocol.fixtures["/uploads/ui-video.mp4"] = ["_reviewData": try Data(contentsOf: movie).base64EncodedString(), "_reviewContentType": "video/mp4"]
                 message["content"] = "视频.mp4"
             }
             if type == "reply" {
@@ -250,7 +251,7 @@ final class NativeUIReviewTests: XCTestCase {
         XCTAssertTrue(input.text.contains("中文"), "Dismissing the keyboard must preserve the draft")
         let facts: [String: Any] = ["nativeTextEditing": true, "markedChineseAndNewline": true,
             "keyboardVisible": keyboard.height > host.view.safeAreaInsets.bottom + 50,
-            "keyboardFrame": NSStringFromCGRect(keyboard), "inputFrame": NSStringFromCGRect(frame),
+            "keyboardFrame": String(describing: keyboard), "inputFrame": String(describing: frame),
             "device": UIDevice.current.model, "hardware": false]
         try JSONSerialization.data(withJSONObject: facts, options: .prettyPrinted).write(to: output.appendingPathComponent("keyboard-validation.json"))
     }
