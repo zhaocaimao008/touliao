@@ -4,6 +4,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const { _electron } = require(process.env.PLAYWRIGHT_MODULE);
 assert.equal(process.platform, 'win32', 'Native Windows runner required');
 const out = path.resolve('legacy-evidence/windows');
@@ -13,6 +14,7 @@ const user = { id: 'legacy-me', username: 'UpgradeProbe', phone: '13900000001' }
 const conv = { id: 'legacy-chat', type: 'private', name: 'LegacyPeer', lastMessage: 'Open cached history', lastTime: 1789747200, otherUser: { id: 'legacy-peer', username: 'LegacyPeer' } };
 const message = { id: 'legacy-message', conversation_id: conv.id, sender_id: 'legacy-peer', senderName: 'LegacyPeer', type: 'text', content: 'LEGACY-CACHED-MESSAGE-MUST-SURVIVE', created_at: 1789747100 };
 let loginCount = 0;
+let historyOffline = false;
 const report = { environment: 'GitHub Windows native VM', physicalDevice: false, productionAccountTested: false,
   historicalInstaller: '8.1.26', hotUpdate: false, targetUiUpgradeTested: false, targetUiUpgradeBlocked: 'No signed 8.1.27 installer; no hot-resource loader in 8.1.26', passed: false };
 async function launch() {
@@ -28,8 +30,8 @@ async function launch() {
     else if (p === '/api/config') body = { features: { loginCaptcha: false } };
     else if (p === '/api/csrf') body = { csrfToken: 'isolated-only' };
     else if (p === '/api/messages/conversations') body = [conv];
-    else if (p === '/api/messages/legacy-chat') body = [message];
-    else if (p.endsWith('/sync')) body = { messages: [message], cursor: 1, hasMore: false };
+    else if (p === '/api/messages/legacy-chat') { status = historyOffline ? 503 : 200; body = historyOffline ? { error: 'History deliberately offline' } : [message]; }
+    else if (p.endsWith('/sync')) { status = historyOffline ? 503 : 200; body = historyOffline ? {} : { messages: [message], cursor: 1, hasMore: false }; }
     else if (p.endsWith('/read-states')) body = { states: {} };
     else if (/contacts|pinned-messages|friend-requests|my-groups|friend-labels|blocked|collections|moments|call-logs|sessions/.test(p)) body = [];
     return route.fulfill({ status, json: body });
@@ -98,6 +100,41 @@ async function cache(page) {
     await page.screenshot({ path: path.join(out, '02-old-restart-session-cache-retained.png') });
     assert.equal(loginCount, 1);
     report.sameVersionRestartPreservedIsolatedSessionAndCache = true;
+    if (process.env.LEGACY_UPGRADE_INSTALLER) {
+      await app.close(); active = null;
+      // Invoke the actual NSIS installer over the historical installation. No
+      // file replacement, profile migration or updater verification bypass.
+      execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `
+        $ErrorActionPreference = 'Stop'
+        $directory = [IO.Path]::GetDirectoryName($env:LEGACY_EXE)
+        $installation = Start-Process -FilePath $env:LEGACY_UPGRADE_INSTALLER -ArgumentList @('/S', '/currentuser', "/D=$directory") -Wait -PassThru
+        if ($installation.ExitCode -ne 0) { throw "Upgrade installer failed: $($installation.ExitCode)" }
+        Get-Process touliao -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $env:LEGACY_EXE } | Stop-Process -Force
+        exit 0
+      `], { encoding: 'utf8', timeout: 180000, env: process.env });
+      historyOffline = true;
+      active = await launch(); ({ app, page } = active);
+      report.upgradedRuntime = await app.evaluate(({ app }) => ({ version: app.getVersion(),
+        packaged: app.isPackaged, userData: app.getPath('userData'), appPath: app.getAppPath() }));
+      assert.equal(report.upgradedRuntime.version, '8.1.27');
+      assert.equal(report.upgradedRuntime.packaged, true);
+      assert.equal(report.upgradedRuntime.userData, report.runtime.userData);
+      assert.equal(report.upgradedRuntime.appPath, report.runtime.appPath);
+      assert.equal(page.url(), report.rendererUrl);
+      await page.getByTestId('conv-item-legacy-chat').waitFor();
+      assert.equal(await page.evaluate(expected => localStorage.getItem('touliao_electron_token') === expected, token), true);
+      assert.ok(JSON.stringify(await cache(page)).includes(message.content));
+      await page.getByTestId('conv-item-legacy-chat').click();
+      await page.getByText(message.content, { exact: true }).waitFor();
+      await page.screenshot({ path: path.join(out, '03-new-ui-after-manual-upgrade-offline-cache.png') });
+      assert.equal(loginCount, 1);
+      report.manualNsisUpgrade = 'passed';
+      report.targetUiUpgradeTested = true;
+      delete report.targetUiUpgradeBlocked;
+      report.oldSessionAndOfflineCachePreservedAcrossVersions = true;
+      report.automaticUpdateToCandidateTested = false;
+      report.productionPublished = false;
+    }
     report.loginCount = loginCount;
     report.passed = true;
   } catch (e) {

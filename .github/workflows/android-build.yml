@@ -23,6 +23,10 @@ on:
         description: 'Only audit installed historical Windows/Android releases; never build or publish apps'
         type: boolean
         default: false
+      windows_upgrade_run:
+        description: 'Optional existing Windows installer artifact run for manual upgrade audit; never publishes'
+        type: string
+        default: ''
       legacy_audit_platform:
         description: 'Installed-client audit scope'
         type: choice
@@ -211,6 +215,20 @@ jobs:
           "LEGACY_EXE=$exe" >> $env:GITHUB_ENV
           "PLAYWRIGHT_MODULE=$env:RUNNER_TEMP/legacy-driver/node_modules/playwright" >> $env:GITHUB_ENV
           npm install --prefix "$env:RUNNER_TEMP/legacy-driver" --no-audit --no-fund playwright@1.60.0
+      - name: Download requested Windows upgrade artifact for isolated VM only
+        if: inputs.windows_upgrade_run != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPGRADE_RUN: ${{ inputs.windows_upgrade_run }}
+        run: |
+          if ($env:UPGRADE_RUN -notmatch '^\d+$') { throw 'Invalid build run ID' }
+          gh run download $env:UPGRADE_RUN --repo $env:GITHUB_REPOSITORY --name touliao-windows-setup --dir upgrade-artifact
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download candidate installer artifact' }
+          $candidate = Get-ChildItem upgrade-artifact -Recurse -Filter 'touliao-8.1.27-setup.exe'
+          if (@($candidate).Count -ne 1) { throw 'Expected exactly one 8.1.27 installer' }
+          "LEGACY_UPGRADE_INSTALLER=$($candidate.FullName)" >> $env:GITHUB_ENV
+          @{path=$candidate.Name;sha256=(Get-FileHash $candidate.FullName -Algorithm SHA256).Hash.ToLower();publisherSignature=(Get-AuthenticodeSignature $candidate.FullName).Status.ToString();published=$false} | ConvertTo-Json | Set-Content legacy-evidence/windows/candidate-installer.json
       - name: Run actual installed Electron and historical update IPC
         run: node scripts/legacy-update/windows-installed-audit.cjs
       - uses: actions/upload-artifact@v4
