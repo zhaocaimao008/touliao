@@ -44,7 +44,8 @@ struct PasswordField: View {
         .padding(.vertical, 2)
         .frame(minHeight: 48)
         .background(Color.vxinSurface)
-        .background(
+        .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
+        .overlay(
             RoundedRectangle(cornerRadius: VxinRadius.sm)
                 .stroke(Color.vxinBorder, lineWidth: 1)
         )

@@ -25,7 +25,7 @@ struct LoginView: View {
             }
             Spacer()
 
-            // 品牌 Logo 徽章：极光靛渐变圆角方 + 对话图标（对齐 Web/Android 登录页）
+            // 与已上线客户端一致的投聊蓝标识。
             ZStack {
                 RoundedRectangle(cornerRadius: VxinRadius.xl, style: .continuous)
                     .fill(Color.vxinBrand)
@@ -41,14 +41,18 @@ struct LoginView: View {
                 .foregroundColor(.vxinTextSecondary)
                 .padding(.bottom, 24)
 
+            TouliaoField(title: "手机号") {
             TextField("手机号", text: $vm.phone)
                 .keyboardType(.phonePad)
                 .textContentType(.telephoneNumber)
                 .textFieldStyle(TouliaoTextFieldStyle())
                 .accessibilityIdentifier("login-phone-input")
+            }
 
+            TouliaoField(title: "密码") {
             PasswordField(placeholder: "密码", text: $vm.password,
                           accessibilityId: "login-password-input")
+            }
 
             if vm.captchaRequired {
                 HStack(spacing: 12) {

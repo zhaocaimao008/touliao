@@ -14,23 +14,39 @@ private struct ToastModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay(alignment: .bottom) {
             if let message, !message.isEmpty {
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16).padding(.vertical, 10)
-                    .background(Color(white: 0.15).opacity(0.92))
-                    .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
+                TouliaoToast(message: message)
                     .padding(.bottom, 40)
                     .padding(.horizontal, 24)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .task(id: message) {
                         // 展示后自动清空；被新消息覆盖时 task 会随 id 变化重启
-                        try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                        do { try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
+                        catch { return }
+                        guard self.message == message else { return }
                         self.message = nil
                     }
             }
         }
         .animation(.easeInOut(duration: 0.2), value: message)
+    }
+}
+
+/// One neutral design-system surface for both success and error messages.
+struct TouliaoToast: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .touliaoFont(14)
+            .foregroundColor(.vxinText)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .background(Color.vxinSurface)
+            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md))
+            .overlay(RoundedRectangle(cornerRadius: VxinRadius.md).stroke(Color.vxinBorder, lineWidth: 1))
+            .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
+            .accessibilityIdentifier("touliao-toast")
+            .allowsHitTesting(false)
     }
 }
 

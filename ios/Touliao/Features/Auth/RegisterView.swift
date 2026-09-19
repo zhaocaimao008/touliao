@@ -23,16 +23,22 @@ struct RegisterView: View {
                 .foregroundColor(.vxinText)
                 .padding(.bottom, 16)
 
+            TouliaoField(title: "昵称") {
             TextField("昵称", text: $vm.username)
                 .textFieldStyle(TouliaoTextFieldStyle())
                 .accessibilityIdentifier("register-username-input")
+            }
+            TouliaoField(title: "手机号") {
             TextField("手机号", text: $vm.phone)
                 .keyboardType(.phonePad)
                 .textFieldStyle(TouliaoTextFieldStyle())
                 .accessibilityIdentifier("register-phone-input")
+            }
+            TouliaoField(title: "密码") {
             PasswordField(placeholder: "密码（≥8位，含字母和数字）", text: $vm.password,
                           textContentType: .newPassword,
                           accessibilityId: "register-password-input")
+            }
             if vm.inviteRequired {
                 TextField("邀请码（6位数字）", text: $vm.inviteCode)
                     .keyboardType(.numberPad)
@@ -60,7 +66,6 @@ struct RegisterView: View {
         .touliaoPage()
         .navigationTitle("注册")
         .navigationBarTitleDisplayMode(.inline)
-        .touliaoPage()
         .task { await vm.loadConfig() }
         .onChange(of: vm.authedUser) { user in
             if let user { session.onAuthenticated(user) }
