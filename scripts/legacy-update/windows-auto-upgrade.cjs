@@ -2,7 +2,7 @@
 // Actual installed 8.1.26 updater -> production feed -> installed 8.1.27.
 // Account APIs are isolated; update traffic and the NSIS installer are real.
 const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
-const crypto = require('node:crypto'), { execFileSync } = require('node:child_process');
+const crypto = require('node:crypto'), { execFile, execFileSync } = require('node:child_process');
 const { _electron } = require(process.env.PLAYWRIGHT_MODULE);
 assert.equal(process.platform, 'win32');
 const out = path.resolve('windows-auto-evidence'); fs.mkdirSync(out, { recursive: true });
@@ -118,15 +118,29 @@ async function waitFor(check, timeout) {
     // real account endpoint before the test driver reattaches. Updates are fully
     // downloaded and verified already; this does not bypass updater logic.
     blockNetwork();
-    const closed = app.waitForEvent('close', { timeout: 120000 });
-    await page.locator('.wc-update-install-btn').click().catch(e => { if (!/closed/i.test(e.message)) throw e; });
-    await closed; active = null;
-    checkpoint('old-client-launched-native-installer');
     // quitAndInstall() in the historical client uses the assisted NSIS wizard.
-    // Drive that actual wizard instead of substituting a silent/manual installer.
-    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive',
-      '-File', path.resolve('scripts/legacy-update/drive-nsis-upgrade.ps1'), '-Output', out],
-      { encoding: 'utf8', timeout: 210000 });
+    // Start its UI driver BEFORE waiting for Playwright's close event: child
+    // process stdio can remain open while the updater-launched installer runs.
+    // The driver only operates an existing wizard; it never starts an installer.
+    checkpoint('activating-historical-update-install-button');
+    const wizard = new Promise((resolve, reject) => {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive',
+        '-File', path.resolve('scripts/legacy-update/drive-nsis-upgrade.ps1'), '-Output', out],
+      { encoding: 'utf8', timeout: 210000 }, (error, stdout, stderr) => {
+        fs.writeFileSync(path.join(out, 'nsis-driver-output.txt'), stdout + stderr);
+        if (error) reject(error); else resolve();
+      });
+    });
+    const clicked = page.locator('.wc-update-install-btn').click().catch(e => {
+      if (!/closed/i.test(e.message)) throw e;
+    });
+    await Promise.all([clicked, wizard]);
+    const installLog = fs.readFileSync(logFile, 'utf8');
+    assert.ok(installLog.includes('Install: isSilent: false'));
+    assert.ok(installLog.includes('Executing:') && installLog.includes('with args: --updated'));
+    report.activation = 'actual historical Install button and updater-launched NSIS wizard';
+    active = null;
+    checkpoint('old-client-launched-native-installer');
     await waitFor(() => {
       try { return ps('(Get-Item $env:LEGACY_EXE).VersionInfo.ProductVersion').trim().startsWith('8.1.27'); } catch { return false; }
     }, 150000);
