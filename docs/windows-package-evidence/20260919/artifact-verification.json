@@ -1,0 +1,12 @@
+{
+  "version": "8.1.27",
+  "bytes": 108813349,
+  "sha256": "c2ae64ec1316d5f033b9f2afa25b3eb5bfbf56f978d8abe99b20b21c2cbcf7e0",
+  "sha512": "EH6F07hjcPuRO9SUjBQfGDhLWfNTA4J5+rGBbr+PyoaYC9S465ehO/HVxMDZCQvBLg9k/wRXioVHQT2fa7oFDg==",
+  "ed25519ManifestSignature": true,
+  "authenticodeCertificateBytes": 0,
+  "authenticodeCertificateOffset": 0,
+  "productionPublished": false,
+  "sourceCommit": "e764f3969fe84f9577883e790ebae7e85ce6210c",
+  "file": "/home/ubuntu/touliao-windows-package-evidence-20260919/build-artifacts/touliao-windows-setup/dist/touliao-8.1.27-setup.exe"
+}

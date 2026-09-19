@@ -1,0 +1,35 @@
+{
+  "environment": "GitHub Windows native VM",
+  "physicalDevice": false,
+  "productionAccountTested": false,
+  "historicalInstaller": "8.1.26",
+  "hotUpdate": false,
+  "targetUiUpgradeTested": true,
+  "passed": true,
+  "runtime": {
+    "version": "8.1.26",
+    "packaged": true,
+    "appPath": "D:\\a\\_temp\\TouliaoLegacy\\resources\\app.asar",
+    "userData": "C:\\Users\\runneradmin\\AppData\\Roaming\\touliao-desktop",
+    "platform": "win32"
+  },
+  "rendererUrl": "file:///D:/a/_temp/TouliaoLegacy/resources/app.asar/web/dist/index.html",
+  "keyStatus": {
+    "valid": true,
+    "reason": ""
+  },
+  "localTokenPresent": true,
+  "nativeUpdateLog": "[2026-09-19 01:38:39.044] [info]  Checking for update\r\n[2026-09-19 01:38:39.049] [info]  Generated new staging user ID: 660af049-12a9-5bd5-851f-9200b7a9ad2b\r\n[2026-09-19 01:38:39.871] [info]  Update for version 8.1.26 is not available (latest version: 8.1.26, downgrade is disallowed).\r\n[2026-09-19 01:38:39.875] [info]  已是最新版本\r\n",
+  "sameVersionRestartPreservedIsolatedSessionAndCache": true,
+  "upgradedRuntime": {
+    "version": "8.1.27",
+    "packaged": true,
+    "userData": "C:\\Users\\runneradmin\\AppData\\Roaming\\touliao-desktop",
+    "appPath": "D:\\a\\_temp\\TouliaoLegacy\\resources\\app.asar"
+  },
+  "manualNsisUpgrade": "passed",
+  "oldSessionAndOfflineCachePreservedAcrossVersions": true,
+  "automaticUpdateToCandidateTested": false,
+  "productionPublished": false,
+  "loginCount": 1
+}

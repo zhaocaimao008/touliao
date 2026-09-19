@@ -1,0 +1,10 @@
+{
+  "latest.yml": {
+    "unchanged": true,
+    "sha256": "ca6c4724c333853e50d65aa7d13090101ee621eeef7520bdaed5c05d0f5e21d3"
+  },
+  "latest.yml.sig": {
+    "unchanged": true,
+    "sha256": "489b66d87dc134d78b41100cc464046771edcaba32ffeb1f3591f5abfdf315d3"
+  }
+}
