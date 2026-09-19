@@ -1,3 +1,4 @@
+import useFocusTrap from '../hooks/useFocusTrap';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useRef, useCallback, useId } from 'react';
 import axios from 'axios';
@@ -63,40 +64,6 @@ function useResponsiveGrid(tileCount) {
 }
 
 // ── Hook: Focus Trap（弹窗内 Tab 循环） ──────────────────────
-function useFocusTrap(open) {
-  const containerRef = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const container = containerRef.current;
-    if (!container) return;
-    const focusableSel = 'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
-    const focusable = () => [...container.querySelectorAll(focusableSel)].filter(el => el.getClientRects().length > 0);
-    const prevFocus = document.activeElement;
-    const focusFirst = () => {
-      const els = focusable();
-      if (els.length) els[0].focus();
-    };
-    focusFirst();
-    const handler = (e) => {
-      if (e.key !== 'Tab') return;
-      const els = focusable();
-      if (!els.length) return;
-      const first = els[0], last = els[els.length - 1];
-      if (e.shiftKey) {
-        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
-      } else {
-        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
-      }
-    };
-    container.addEventListener('keydown', handler);
-    return () => {
-      container.removeEventListener('keydown', handler);
-      prevFocus?.focus();
-    };
-  }, [open]);
-  return containerRef;
-}
-
 // ── Hook: WebRTC 群通话信令与连接管理 ──────────────────────────
 function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onClose }) {
   const { t } = useI18n();

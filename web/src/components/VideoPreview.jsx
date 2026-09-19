@@ -1,5 +1,6 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import React, { useEffect, useCallback } from 'react';
+import useFocusTrap from '../hooks/useFocusTrap';
+import React from 'react';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
 import { useI18n } from '../contexts/I18nContext';
@@ -22,22 +23,11 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
   useMediaCredentials();
   const url = mediaUrl(fileUrl);
   const { t } = useI18n();
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
-  }, [handleKeyDown]);
+  const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true, initialFocus: '[data-testid="video-lightbox-close"]' });
 
   return (
     <div
-      data-testid="video-lightbox"
+      ref={modalRef} tabIndex={-1} data-testid="video-lightbox"
       role="dialog" aria-modal="true" aria-label={t('videoPreview.title')}
       style={{
         position: 'fixed', inset: 0, zIndex: 'var(--z-top)',

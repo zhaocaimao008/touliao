@@ -1,62 +1,73 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
-/**
- * 弹窗焦点陷阱：把键盘焦点锁在弹窗容器内，避免 Tab 键跳到弹窗背后的页面。
- * - 挂载时把焦点移入容器（若容器内已有 autoFocus 元素则不抢）
- * - Tab / Shift+Tab 在首尾可聚焦元素间循环
- * - 卸载时把焦点还给打开弹窗前的元素
- *
- * 用法：const ref = useFocusTrap(active); <div ref={ref} role="dialog">…</div>
- * 传给最外层 overlay 容器即可（焦点循环基于该容器内的可聚焦元素）。
- */
-export default function useFocusTrap(active = true) {
+// Only the innermost/topmost layer handles focus and Escape, including media
+// previews opened over drawers. Presentation only; no page actions live here.
+const layers = [];
+let scrollLocks = 0;
+let previousOverflow = '';
+const topLayer = () => layers.reduce((top, layer) =>
+  top && layer.container.contains(top.container) ? top : layer, null);
+export function isTopFocusLayer(container) { return topLayer()?.container === container; }
+
+export default function useFocusTrap(active = true, options = {}) {
   const containerRef = useRef(null);
-
+  const optionsRef = useRef(options);
+  useLayoutEffect(() => { optionsRef.current = options; });
+  const lockScroll = !!options.lockScroll;
   useEffect(() => {
-    if (!active) return;
     const container = containerRef.current;
-    if (!container) return;
-
-    const prevFocused = document.activeElement;
-
-    const getFocusable = () => Array.from(
-      container.querySelectorAll(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter(el => el.offsetParent !== null || el === document.activeElement);
-
-    // 若焦点还不在容器内，移入第一个可聚焦元素（不打断已有的 autoFocus）
-    if (!container.contains(document.activeElement)) {
-      const first = getFocusable()[0];
-      if (first) setTimeout(() => first.focus(), 0);
+    if (!active || !container) return;
+    const previous = document.activeElement;
+    const layer = { container };
+    layers.push(layer);
+    if (lockScroll && scrollLocks++ === 0) {
+      previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
     }
-
-    const onKeyDown = (e) => {
-      if (e.key !== 'Tab') return;
-      const focusable = getFocusable();
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey) {
-        if (document.activeElement === first || !container.contains(document.activeElement)) {
-          e.preventDefault();
-          last.focus();
+    const focusable = () => [...container.querySelectorAll(
+      'a[href], button, textarea, input, select, video[controls], audio[controls], [tabindex]'
+    )].filter(el => el.tabIndex >= 0 && !el.disabled && !el.closest('[inert]') &&
+      el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+    const enter = () => {
+      const preferred = optionsRef.current.initialFocus;
+      const target = typeof preferred === 'string' ? container.querySelector(preferred) : preferred?.current;
+      (target || focusable()[0] || container).focus({ preventScroll: true });
+    };
+    const timer = setTimeout(() => {
+      if (isTopFocusLayer(container) && !container.contains(document.activeElement)) enter();
+    }, 0);
+    const onFocus = (event) => {
+      if (isTopFocusLayer(container) && !container.contains(event.target)) enter();
+    };
+    const onKey = (event) => {
+      if (!isTopFocusLayer(container)) return;
+      if (event.key === 'Escape' && optionsRef.current.onEscape) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        optionsRef.current.onEscape();
+      } else if (event.key === 'Tab') {
+        const items = focusable();
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (!items.length || !container.contains(document.activeElement) ||
+            (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+          event.preventDefault();
+          (event.shiftKey ? last : first)?.focus();
+          if (!items.length) container.focus();
         }
-      } else if (document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
       }
     };
-
-    container.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('focusin', onFocus, true);
     return () => {
-      container.removeEventListener('keydown', onKeyDown);
-      // 还原焦点，帮助键盘用户回到触发弹窗的按钮
-      if (prevFocused && typeof prevFocused.focus === 'function') {
-        prevFocused.focus();
-      }
+      clearTimeout(timer);
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('focusin', onFocus, true);
+      layers.splice(layers.indexOf(layer), 1);
+      if (lockScroll && --scrollLocks === 0) document.body.style.overflow = previousOverflow;
+      const top = topLayer();
+      if (previous?.isConnected && (!top || top.container.contains(previous))) previous.focus({ preventScroll: true });
     };
-  }, [active]);
-
+  }, [active, lockScroll]);
   return containerRef;
 }

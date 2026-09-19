@@ -1,5 +1,6 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import useFocusTrap from '../hooks/useFocusTrap';
+import React, { useEffect, useRef, useState } from 'react';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { startDownload, subscribe, cancelDownload, retryDownload } from '../utils/downloadManager';
 import { shareMessage, canShare } from '../utils/share';
@@ -297,12 +298,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
   const [dl, setDl] = useState(null);
   const dlIdRef = useRef(null);
 
-  const handleKeyDown = useCallback((e) => { if (e.key === 'Escape') onClose(); }, [onClose]);
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', handleKeyDown); document.body.style.overflow = ''; };
-  }, [handleKeyDown]);
+  const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true });
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- generic 类型无需异步加载，直接同步置为 ready
@@ -323,7 +319,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
 
   return (
     <div
-      role="dialog" aria-modal="true" aria-label={t('filePreview.title')} data-testid="file-preview"
+      ref={modalRef} tabIndex={-1} className="tl-file-preview" role="dialog" aria-modal="true" aria-label={t('filePreview.title')} data-testid="file-preview"
       style={{
         position: 'fixed', inset: 0, zIndex: 'var(--z-top)', background: 'rgba(0,0,0,.85)',
         display: 'flex', flexDirection: 'column', animation: 'fadeIn .18s ease-out',
@@ -351,7 +347,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
       </div>
 
       {/* 主体 */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', background: kind === 'generic' ? 'transparent' : '#525659' }}>
+      <div className="tl-file-preview-body" style={{ background: kind === 'generic' ? 'transparent' : '#525659' }}>
         {loadState === 'loading' && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--icon-on-dark)' }}>
             正在加载文档…
@@ -372,14 +368,11 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
         </div>
         {/* 提前触发不支持格式的 onLoaded 路径（kind==='generic' 已在 effect 里处理），这里渲染详情页内容 */}
         {kind === 'generic' && loadState === 'ready' && (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 16, color: 'var(--icon-on-dark)', padding: 24,
-          }}>
+          <div className="tl-file-details" tabIndex={0} aria-label={filename}>
             <TouliaoIcon name="fileContent" style={{color:'rgba(255,255,255,.85)'}} size="xl" />
-            <div style={{ fontSize: 16, fontWeight: 500, textAlign: 'center', wordBreak: 'break-all' }}>{filename}</div>
-            <div style={{ fontSize: 13, opacity: .7 }}>{humanSize(fileSize)}{mimeType ? ` · ${mimeType}` : ''}</div>
-            <div style={{ fontSize: 13, opacity: .6, textAlign: 'center', maxWidth: 280 }}>
+            <div className="tl-file-details-name">{filename}</div>
+            <div className="tl-file-details-meta">{humanSize(fileSize)}{mimeType ? ` · ${mimeType}` : ''}</div>
+            <div className="tl-file-details-description">
               该文件格式暂不支持在投聊内直接预览，可以下载保存，或下载后选择用其他应用打开。
             </div>
           </div>

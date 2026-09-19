@@ -1,3 +1,5 @@
+import TouliaoField from '../ui-kit/Field';
+import { PrimaryButton } from '../ui-kit/Button';
 import TouliaoIcon from '../ui-kit/Icon';
 
 import { clientStorage as localStorage } from '../utils/clientStorage';
@@ -25,8 +27,6 @@ export default function Login() {
   const [remember, setRemember] = useState(!!initialPhone);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [focusedField, setFocusedField] = useState(null);
-  const [showPwd, setShowPwd] = useState(false);
 
   // 图形验证码：是否要求由后台开关 features.loginCaptcha 决定（GET /api/config），
   // 默认 false（不要求），避免开关拉取失败时误挡住所有人登录。
@@ -202,53 +202,14 @@ export default function Login() {
 
         {/* 登录表单 */}
         <form className="auth-form" onSubmit={handleSubmit}>
-          <div className={`auth-field ${focusedField === 'phone' ? 'focused' : ''} ${phone ? 'has-value' : ''}`}>
-            <label className="auth-field-label" htmlFor="login-phone">{t('auth.phone')}</label>
-            <div className="auth-field-input-wrap">
-              <TouliaoIcon name="phoneNumber" className="auth-field-icon" size="sm" />
-              <input
-                id="login-phone"
-                data-testid="login-phone-input"
-                className="auth-field-input"
-                type="tel"
-                inputMode="tel"
-                autoComplete="username"
-                placeholder={t('auth.phonePlaceholder')}
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                onFocus={() => setFocusedField('phone')}
-                onBlur={() => setFocusedField(null)}
-                required
-              />
-            </div>
-          </div>
-
-          <div className={`auth-field ${focusedField === 'password' ? 'focused' : ''} ${password ? 'has-value' : ''}`}>
-            <label className="auth-field-label" htmlFor="login-password">{t('auth.password')}</label>
-            <div className="auth-field-input-wrap">
-              <TouliaoIcon name="lock" className="auth-field-icon" size="sm" />
-              <input
-                id="login-password"
-                data-testid="login-password-input"
-                className="auth-field-input"
-                type={showPwd ? 'text' : 'password'}
-                autoComplete="current-password"
-                placeholder={t('auth.passwordPlaceholder')}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onFocus={() => setFocusedField('password')}
-                onBlur={() => setFocusedField(null)}
-                required
-              />
-              <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? t('auth.hidePassword') : t('auth.showPassword')}>
-                {showPwd ? (
-                  <TouliaoIcon name="showPassword" size="sm" />
-                ) : (
-                  <TouliaoIcon name="hidePassword" size="sm" />
-                )}
-              </button>
-            </div>
-          </div>
+          <TouliaoField id="login-phone" data-testid="login-phone-input" label={t('auth.phone')}
+            icon={<TouliaoIcon name="phoneNumber" className="auth-field-icon" size="sm" />}
+            type="tel" inputMode="tel" autoComplete="username" placeholder={t('auth.phonePlaceholder')}
+            value={phone} onChange={e => setPhone(e.target.value)} required aria-describedby={error ? 'login-error' : undefined} />
+          <TouliaoField id="login-password" data-testid="login-password-input" label={t('auth.password')}
+            icon={<TouliaoIcon name="lock" className="auth-field-icon" size="sm" />} variant="PASSWORD"
+            autoComplete="current-password" placeholder={t('auth.passwordPlaceholder')}
+            value={password} onChange={e => setPassword(e.target.value)} required aria-describedby={error ? 'login-error' : undefined} />
 
           {captchaRequired && (
             <div className="auth-field">
@@ -283,7 +244,7 @@ export default function Login() {
           )}
 
           {error && (
-            <div className="auth-error" role="alert" data-testid="auth-error-text">
+            <div id="login-error" className="auth-error" role="alert" data-testid="auth-error-text">
               <TouliaoIcon name="error" size="xs" />
               {error}
             </div>
@@ -303,13 +264,9 @@ export default function Login() {
             <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>{t('auth.forgotPasswordLink')}</Link>
           </div>
 
-          <button type="submit" className="auth-submit" data-testid="login-submit-btn" disabled={loading || !phone || !password || (captchaRequired && !captchaText)}>
-            {loading ? (
-              <span className="auth-spinner" />
-            ) : (
-              t('auth.loginBtn')
-            )}
-          </button>
+          <PrimaryButton type="submit" className="auth-submit" data-testid="login-submit-btn" loading={loading} disabled={!phone || !password || (captchaRequired && !captchaText)}>
+            {t('auth.loginBtn')}
+          </PrimaryButton>
         </form>
 
         <p className="auth-footer">

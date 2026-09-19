@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
+import TouliaoDialog from '../ui-kit/Dialog';
 import { getI18n } from '../contexts/I18nContext';
 
 let _setToast = null;
@@ -45,41 +46,12 @@ function ToastRoot() {
           }}
         >{toast.msg}</div>
       )}
-      {confirmState && (
-        <div
-          className="wc-confirm-overlay"
-          onClick={e => { if (e.target === e.currentTarget) { confirmState.resolve(false); setConfirm(null); } }}
-          style={{
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-        >
-          <div
-            className="wc-confirm-box"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('common.confirm')}
-            style={{
-              animation: 'scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-          >
-            <div className="wc-confirm-msg">{confirmState.msg}</div>
-            <div className="wc-confirm-btns">
-              <button
-                className="wc-confirm-cancel"
-                data-testid="confirm-cancel"
-                onClick={() => { confirmState.resolve(false); setConfirm(null); }}
-                style={{ transition: 'all 0.15s ease' }}
-              >{t('common.cancel')}</button>
-              <button
-                className="wc-confirm-ok"
-                data-testid="confirm-ok"
-                onClick={() => { confirmState.resolve(true); setConfirm(null); }}
-                style={{ transition: 'all 0.15s ease' }}
-              >{t('common.confirm')}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {confirmState && <TouliaoDialog
+        {...confirmState.options} message={confirmState.msg}
+        onCancel={() => { confirmState.resolve(false); setConfirm(null); }}
+        onConfirm={() => { confirmState.resolve(true); setConfirm(null); }}
+      />}
+
     </>
   );
 }
@@ -94,8 +66,8 @@ export function showToast(msg, type = 'info') {
   _setToast?.({ msg, type });
 }
 
-export function showConfirm(msg) {
+export function showConfirm(msg, options = {}) {
   return new Promise(resolve => {
-    _setConfirm?.({ msg, resolve });
+    _setConfirm?.({ msg, resolve, options });
   });
 }

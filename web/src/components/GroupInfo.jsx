@@ -1,3 +1,4 @@
+import TouliaoSwitch from '../ui-kit/Switch';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
@@ -53,25 +54,6 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
       {isAdmin && (
         <input ref={inputRef} type="file" accept="image/*" className="gi-av-input" onChange={onChange} />
       )}
-    </div>
-  );
-}
-
-/* ── 微信风格 Toggle 开关 ── */
-function Toggle({ on, onChange, disabled, label }) {
-  return (
-    <div
-      role="switch"
-      aria-checked={on}
-      aria-disabled={disabled || undefined}
-      aria-label={label}
-      tabIndex={disabled ? -1 : 0}
-      onClick={() => !disabled && onChange(!on)}
-      onKeyDown={e => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onChange(!on); } }}
-      className="gi-toggle"
-      style={{ background: on ? 'var(--green)' : 'var(--border-default)', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }}
-    >
-      <div className="gi-toggle-thumb" style={{ transform: on ? 'translateX(18px)' : 'translateX(0)' }} />
     </div>
   );
 }
@@ -368,7 +350,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   /* 移出成员 */
   const kickMember = async (uid) => {
     const name = info.members.find(m => m.id === uid)?.username || t('groupInfo.unknownUser');
-    if (!(await showConfirm(t('groupInfo.confirmKickTemplate').replace('{name}', name)))) return;
+    if (!(await showConfirm(t('groupInfo.confirmKickTemplate').replace('{name}', name), { variant: 'DANGER' }))) return;
     try {
       await axios.delete(`/api/messages/conversation/${conversation.id}/members/${uid}`);
       setInfo(i => ({ ...i, members: i.members.filter(m => m.id !== uid) }));
@@ -402,7 +384,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   /* 退出群聊（非群主）*/
   const leaveGroup = async () => {
-    if (!(await showConfirm(t('groupInfo.confirmLeaveGroup')))) return;
+    if (!(await showConfirm(t('groupInfo.confirmLeaveGroup'), { variant: 'DANGER' }))) return;
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/leave`);
       onLeave?.();
@@ -411,7 +393,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   /* 解散群聊（仅群主）*/
   const dissolveGroup = async () => {
-    if (!(await showConfirm(t('groupInfo.confirmDissolveGroup')))) return;
+    if (!(await showConfirm(t('groupInfo.confirmDissolveGroup'), { variant: 'DANGER' }))) return;
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/dissolve`);
       onLeave?.();
@@ -420,7 +402,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   const clearMessages = async () => {
     const name = info?.name || conversation.name || t('groupInfo.thisGroupFallback');
-    if (!(await showConfirm(t('groupInfo.confirmClearMessagesTemplate').replace('{name}', name)))) return;
+    if (!(await showConfirm(t('groupInfo.confirmClearMessagesTemplate').replace('{name}', name), { variant: 'DANGER' }))) return;
     try {
       await axios.delete(`/api/messages/conversation/${conversation.id}/messages`);
       onCleared?.();
@@ -597,7 +579,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <div className="gi-mg-label">{t('groupInfo.muteAllLabel')}</div>
                     <div className="gi-mg-desc">{t('groupInfo.muteAllDesc')}</div>
                   </div>
-                  <Toggle on={!!info.mute_all} onChange={toggleMuteAll} disabled={togglingMute} label={t('groupInfo.muteAllLabel')} />
+                  <TouliaoSwitch value={!!info.mute_all} onChange={toggleMuteAll} disabled={togglingMute} label={t('groupInfo.muteAllLabel')} />
                 </div>
 
                 {/* 禁止私聊 */}
@@ -609,7 +591,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <div className="gi-mg-label">{t('groupInfo.noPrivateChatLabel')}</div>
                     <div className="gi-mg-desc">{t('groupInfo.noPrivateChatDesc')}</div>
                   </div>
-                  <Toggle on={!!info.no_private_chat} onChange={toggleNoPrivateChat} disabled={togglingNoPrivate} label={t('groupInfo.noPrivateChatLabel')} />
+                  <TouliaoSwitch value={!!info.no_private_chat} onChange={toggleNoPrivateChat} disabled={togglingNoPrivate} label={t('groupInfo.noPrivateChatLabel')} />
                 </div>
 
                 {/* 禁止群成员互相添加好友 */}
@@ -621,7 +603,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <div className="gi-mg-label">{t('groupInfo.noAddFriendLabel')}</div>
                     <div className="gi-mg-desc">{t('groupInfo.noAddFriendDesc')}</div>
                   </div>
-                  <Toggle on={!!info.no_add_friend} onChange={toggleNoAddFriend} disabled={togglingNoAddFriend} label={t('groupInfo.noAddFriendLabel')} />
+                  <TouliaoSwitch value={!!info.no_add_friend} onChange={toggleNoAddFriend} disabled={togglingNoAddFriend} label={t('groupInfo.noAddFriendLabel')} />
                 </div>
 
                 {/* 允许普通成员邀请 */}
@@ -633,7 +615,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <div className="gi-mg-label">{t('groupInfo.memberInviteLabel')}</div>
                     <div className="gi-mg-desc">{t('groupInfo.memberInviteDesc')}</div>
                   </div>
-                  <Toggle on={!!info.member_can_invite} onChange={toggleMemberInvite} disabled={togglingMemberInvite} label={t('groupInfo.memberInviteLabel')} />
+                  <TouliaoSwitch value={!!info.member_can_invite} onChange={toggleMemberInvite} disabled={togglingMemberInvite} label={t('groupInfo.memberInviteLabel')} />
                 </div>
 
                 {isOwner && (
@@ -745,18 +727,18 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           </div>
           <div className="gi-row">
             <span className="gi-label">{t('chatlist.muteChat')}</span>
-            <Toggle
+            <TouliaoSwitch
               label={t('chatlist.muteChat')}
-              on={myMuted}
+              value={myMuted}
               disabled={savingSetting}
               onChange={toggleMute}
             />
           </div>
           <div className="gi-row">
             <span className="gi-label">{t('chatlist.pinChat')}</span>
-            <Toggle
+            <TouliaoSwitch
               label={t('chatlist.pinChat')}
-              on={myPinned}
+              value={myPinned}
               disabled={savingSetting}
               onChange={togglePin}
             />

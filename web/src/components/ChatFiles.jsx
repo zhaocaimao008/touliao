@@ -1,3 +1,6 @@
+import useFocusTrap from '../hooks/useFocusTrap';
+import { EmptyState, ErrorState } from './StateViews';
+import { humanFileSize } from '../utils/fileSize';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
@@ -33,55 +36,64 @@ export default function ChatFiles({ convId, onClose }) {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const requestRef = useRef(null);
+  const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true });
   const [preview, setPreview] = useState(null);
   const loaderRef = useRef(null);
   const LIMIT = 30;
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    setItems([]);
-    setOffset(0);
-    setHasMore(true);
-    setTotal(0);
-  }, [tab, convId]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
   const load = useCallback(async (currentOffset) => {
-    if (loading) return;
+    if (requestRef.current) return;
+    const controller = new AbortController();
+    requestRef.current = controller;
     setLoading(true);
+    setError(false);
     try {
       const { data } = await axios.get(
         `/api/messages/conversation/${convId}/files`,
-        { params: { type: tab, offset: currentOffset, limit: LIMIT } }
+        { params: { type: tab, offset: currentOffset, limit: LIMIT }, signal: controller.signal }
       );
+      if (requestRef.current !== controller) return;
       setItems(prev => currentOffset === 0 ? data.items : [...prev, ...data.items]);
       setTotal(data.total);
-      setHasMore(currentOffset + data.items.length < data.total);
+      setHasMore(data.items.length > 0 && currentOffset + data.items.length < data.total);
       setOffset(currentOffset + data.items.length);
+      setLoaded(true);
     } catch {
-      // 静默失败
+      if (requestRef.current === controller && !controller.signal.aborted) setError(true);
     } finally {
-      setLoading(false);
+      if (requestRef.current === controller) {
+        requestRef.current = null;
+        setLoading(false);
+      }
     }
-  }, [convId, tab, loading]);
+  }, [convId, tab]);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    setItems([]);
+    setOffset(0);
+    setHasMore(false);
+    setLoaded(false);
+    setTotal(0);
     load(0);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, convId]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+    return () => {
+      requestRef.current?.abort();
+      requestRef.current = null;
+    };
+  }, [load]);
 
   useEffect(() => {
     const el = loaderRef.current;
-    if (!el) return;
+    if (!el || error || loading || !hasMore) return;
     const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !loading) load(offset);
+      if (entries[0].isIntersecting) load(offset);
     }, { threshold: 0.1 });
     obs.observe(el);
     return () => obs.disconnect();
-  }, [hasMore, loading, offset, load]);
+  }, [hasMore, loading, error, offset, load]);
 
   const handleClick = (item) => {
     if (item.type === 'image' || item.type === 'video') {
@@ -93,7 +105,7 @@ export default function ChatFiles({ convId, onClose }) {
 
   return (
     <div
-      role="dialog"
+      ref={modalRef} tabIndex={-1} aria-modal="true" role="dialog"
       aria-label={t('chatFiles.title')}
       className="chatfiles-overlay-root"
     >
@@ -105,7 +117,7 @@ export default function ChatFiles({ convId, onClose }) {
       />
 
       {/* 面板 */}
-      <div className="chatfiles-panel" style={{ width: Math.min(400, window.innerWidth) }}>
+      <div className="chatfiles-panel">
 
         {/* 标题栏 */}
         <div className="chatfiles-header">
@@ -125,14 +137,14 @@ export default function ChatFiles({ convId, onClose }) {
         </div>
 
         {/* Tab 栏 */}
-        <div className="chatfiles-tabs">
+        <div className="chatfiles-tabs" role="group" aria-label={t('chatFiles.title')}>
           {TABS.map(tabItem => {
             const active = tab === tabItem.key;
             return (
               <button
                 key={tabItem.key}
                 onClick={() => setTab(tabItem.key)}
-                aria-selected={active}
+                aria-pressed={active} data-selected={active}
                 className="chatfiles-tab-btn"
                 style={{
                   fontWeight: active ? 600 : 400,
@@ -150,11 +162,8 @@ export default function ChatFiles({ convId, onClose }) {
 
         {/* 文件列表 */}
         <div className="chatfiles-list">
-          {items.length === 0 && !loading && (
-            <div className="chatfiles-empty">
-              <TouliaoIcon name="folderOpen" className="chatfiles-empty-icon" size="xl" />
-              {t('chatFiles.noFiles')}
-            </div>
+          {loaded && items.length === 0 && !loading && !error && (
+            <EmptyState icon={<TouliaoIcon name="folderOpen" className="chatfiles-empty-icon" size="xl" />} title={t('chatFiles.noFiles')} />
           )}
 
           {items.map(item => (
@@ -162,18 +171,11 @@ export default function ChatFiles({ convId, onClose }) {
               key={item.id}
               role="button"
               tabIndex={0}
-              aria-label={t('chatFiles.openFileAriaLabelTemplate').replace('{name}', item.file_name || item.caption || t('chatFiles.tabFile'))}
+              aria-label={t('chatFiles.openFileAriaLabelTemplate').replace('{name}', item.fileName || t('chatFiles.tabFile'))}
               onClick={() => handleClick(item)}
-              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleClick(item)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(item); } }}
               className="chatfiles-item"
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'var(--bg-card-hover)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(109,90,230,.10)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'var(--bg-card)';
-                e.currentTarget.style.boxShadow = '0 1px 3px rgba(36,31,56,.06)';
-              }}
+
             >
               {/* 缩略图 / 图标 */}
               <div className="chatfiles-thumb">
@@ -191,12 +193,12 @@ export default function ChatFiles({ convId, onClose }) {
 
               {/* 信息 */}
               <div className="chatfiles-info">
-                <div className="chatfiles-info-name">
+                <div className="chatfiles-info-name" title={item.fileName}>
                   {item.fileName || (item.type === 'image' ? t('chatFiles.tabImage') : item.type === 'video' ? t('chatFiles.tabVideo') : t('chatFiles.tabFile'))}
                 </div>
+                {item.fileSize != null && <div className="chatfiles-info-size">{humanFileSize(item.fileSize)}</div>}
                 <div className="chatfiles-info-meta">
-                  <Avatar src={item.senderAvatar} name={item.senderName} size='13'
-                    style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }} />
+                  <Avatar src={item.senderAvatar} name={item.senderName} size='xs' />
                   <span className="chatfiles-info-sender">
                     {item.senderName} · {format(item.createdAt * 1000)}
                   </span>
@@ -205,9 +207,10 @@ export default function ChatFiles({ convId, onClose }) {
             </div>
           ))}
 
+          {error && <ErrorState onRetry={() => load(offset)} />}
           <div ref={loaderRef} className="chatfiles-loader-sentinel" />
           {loading && (
-            <div className="chatfiles-loading-more">
+            <div className="chatfiles-loading-more" role="status" aria-live="polite">
               {t('common.loading')}
             </div>
           )}

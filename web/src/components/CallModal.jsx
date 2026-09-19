@@ -1,3 +1,4 @@
+import useFocusTrap from '../hooks/useFocusTrap';
 import TouliaoIcon from '../ui-kit/Icon';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -115,36 +116,6 @@ const IcoHangup = () => <TouliaoIcon name="rejectCall" size="md" />;
 const IcoMinimize = () => <TouliaoIcon name="expand"  />;
 
 /* ── Focus Trap Hook ── */
-function useFocusTrap(open) {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const el = ref.current;
-    if (!el) return;
-    const sel = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"]), [role="button"]';
-    const prev = document.activeElement;
-    const focusFirst = () => {
-      const focusable = el.querySelectorAll(sel);
-      if (focusable.length) focusable[0].focus();
-    };
-    focusFirst();
-    const onKey = (e) => {
-      if (e.key !== 'Tab') return;
-      const focusable = el.querySelectorAll(sel);
-      if (!focusable.length) return;
-      const first = focusable[0], last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    };
-    el.addEventListener('keydown', onKey);
-    return () => {
-      el.removeEventListener('keydown', onKey);
-      prev?.focus();
-    };
-  }, [open]);
-  return ref;
-}
-
 /* ── 主组件 ── */
 export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   useMediaCredentials();

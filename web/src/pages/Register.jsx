@@ -1,3 +1,5 @@
+import TouliaoField from '../ui-kit/Field';
+import { PrimaryButton } from '../ui-kit/Button';
 import TouliaoIcon from '../ui-kit/Icon';
 
 import './auth.css';
@@ -21,8 +23,7 @@ export default function Register() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [focusedField, setFocusedField] = useState(null);
-  const [showPwd, setShowPwd] = useState(false);
+  const [errorField, setErrorField] = useState(null);
   // 是否需要邀请码由后台开关决定（GET /api/config）。默认 true，避免加载前误放行 UI。
   const [inviteRequired, setInviteRequired] = useState(true);
   const { login } = useAuth();
@@ -37,20 +38,20 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return; // 防连点/回车重复提交（避免重复注册）
-    setError(''); setLoading(true);
+    setError(''); setErrorField(null); setLoading(true);
 
     // 前端基础校验
     if (!form.username || form.username.trim().length < 2 || form.username.trim().length > 20) {
-      setError(t('auth.nicknameLenError')); setLoading(false); return;
+      setErrorField('username'); setError(t('auth.nicknameLenError')); setLoading(false); return;
     }
     if (!/^\d{11}$/.test(form.phone)) {
-      setError(t('auth.phoneFormatError')); setLoading(false); return;
+      setErrorField('phone'); setError(t('auth.phoneFormatError')); setLoading(false); return;
     }
     if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(form.password)) {
-      setError(t('auth.passwordFormatError')); setLoading(false); return;
+      setErrorField('password'); setError(t('auth.passwordFormatError')); setLoading(false); return;
     }
     if (inviteRequired && (!form.inviteCode || !/^\d{6}$/.test(form.inviteCode))) {
-      setError(t('auth.inviteCodeFormatError')); setLoading(false); return;
+      setErrorField('inviteCode'); setError(t('auth.inviteCodeFormatError')); setLoading(false); return;
     }
 
     try {
@@ -103,48 +104,25 @@ export default function Register() {
           )}
 
           {fields.map(f => (
-            <div key={f.key} className={`auth-field ${focusedField === f.key ? 'focused' : ''} ${form[f.key] ? 'has-value' : ''}`}>
-              <label className="auth-field-label" htmlFor={`reg-${f.key}`}>{f.label}</label>
-              <div className="auth-field-input-wrap">
-                <span className="auth-field-icon" aria-hidden="true">{f.icon}</span>
-                <input
-                  data-testid={f.key === 'inviteCode' ? 'register-invite-input' : `register-${f.key}-input`}
-                  id={`reg-${f.key}`}
-                  className="auth-field-input"
-                  type={f.key === 'password' ? (showPwd ? 'text' : 'password') : f.type}
-                  inputMode={f.inputMode}
-                  autoComplete={f.autocomplete}
-                  placeholder={f.placeholder}
-                  value={form[f.key]}
-                  maxLength={f.maxLength}
-                  onChange={e => setForm({...form, [f.key]: e.target.value})}
-                  onFocus={() => setFocusedField(f.key)}
-                  onBlur={() => setFocusedField(null)}
-                  required
-                />
-                {f.key === 'password' && (
-                  <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? t('auth.hidePassword') : t('auth.showPassword')}>
-                    {showPwd ? (
-                      <TouliaoIcon name="showPassword" size="sm" />
-                    ) : (
-                      <TouliaoIcon name="hidePassword" size="sm" />
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
+            <TouliaoField key={f.key} id={`reg-${f.key}`} label={f.label} icon={f.icon}
+              data-testid={f.key === 'inviteCode' ? 'register-invite-input' : `register-${f.key}-input`}
+              variant={f.key === 'password' ? 'PASSWORD' : f.key === 'inviteCode' ? 'CODE' : 'TEXT'}
+              type={f.type} inputMode={f.inputMode} autoComplete={f.autocomplete} placeholder={f.placeholder}
+              value={form[f.key]} maxLength={f.maxLength} required
+              error={errorField === f.key ? error : undefined} aria-describedby={error && !errorField ? 'register-error' : undefined}
+              onChange={e => { setForm({...form, [f.key]: e.target.value}); if (errorField === f.key) { setErrorField(null); setError(''); } }} />
           ))}
 
           {error && (
-            <div className="auth-error" role="alert">
+            <div id="register-error" className="auth-error" role="alert">
               <TouliaoIcon name="error" size="xs" />
               {error}
             </div>
           )}
 
-          <button type="submit" data-testid="register-submit-btn" className="auth-submit" disabled={loading || !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
-            {loading ? <span className="auth-spinner" /> : t('auth.registerBtn')}
-          </button>
+          <PrimaryButton type="submit" data-testid="register-submit-btn" className="auth-submit" loading={loading} disabled={ !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
+            {t('auth.registerBtn')}
+          </PrimaryButton>
         </form>
 
         <p className="auth-footer">

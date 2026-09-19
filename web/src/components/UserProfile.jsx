@@ -98,7 +98,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
   };
 
   const deleteFriend = async () => {
-    if (!(await showConfirm(t('up.confirmDeleteFriendTemplate').replace('{name}', user.remark || user.username)))) return;
+    if (!(await showConfirm(t('up.confirmDeleteFriendTemplate').replace('{name}', user.remark || user.username), { variant: 'DANGER' }))) return;
     try {
       await axios.delete(`/api/users/contacts/${userId}`);
       onFriendAdded?.();

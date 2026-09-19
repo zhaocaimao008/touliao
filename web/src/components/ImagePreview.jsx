@@ -1,4 +1,5 @@
 import TouliaoIcon from '../ui-kit/Icon';
+import useFocusTrap, { isTopFocusLayer } from '../hooks/useFocusTrap';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
@@ -17,6 +18,7 @@ function filenameFromUrl(u) {
 export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose }) {
   useMediaCredentials();
   const { t } = useI18n();
+  const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true, initialFocus: '[data-testid="lightbox-close"]' });
   // Gallery mode: urls array + current index; single mode: just url
   const gallery = urls && urls.length > 1;
   const [idx, setIdx] = useState(initialIdx);
@@ -43,21 +45,19 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   const next = useCallback(() => { setIdx(i => i < urls.length - 1 ? i + 1 : 0); resetTransform(); }, [urls]);
 
   const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Escape') onClose();
+    if (!isTopFocusLayer(modalRef.current)) return;
     if (gallery && e.key === 'ArrowLeft') prev();
     if (gallery && e.key === 'ArrowRight') next();
     // 键盘缩放：+/= 放大、-/_ 缩小、0 复位(对齐通用图片查看器)
     if (e.key === '+' || e.key === '=') { setScale(s => Math.min(5, s + 0.25)); }
     if (e.key === '-' || e.key === '_') { setScale(s => { const ns = Math.max(0.5, s - 0.25); if (ns <= 1) setPosition({ x: 0, y: 0 }); return ns; }); }
     if (e.key === '0') { setScale(1); setPosition({ x: 0, y: 0 }); }
-  }, [onClose, gallery, prev, next]);
+  }, [modalRef, gallery, prev, next]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
-    document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
     };
   }, [handleKeyDown]);
 
@@ -134,7 +134,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   return (
     <div
       data-testid="lightbox"
-      role="dialog" aria-modal="true" aria-label={t('imagePreview.title')}
+      ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t('imagePreview.title')}
       style={{
         position: 'fixed', inset: 0, zIndex: "var(--z-top)",
         background: 'rgba(0,0,0,.92)',

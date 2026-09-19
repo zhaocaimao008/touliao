@@ -1,7 +1,7 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, useLayoutEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { composeReducer, initialComposeState } from '../reducers/composeReducer';
 import { showToast, showConfirm } from '../utils/toast';
@@ -68,68 +68,7 @@ import { canViewReadStatus, readUserIdsForMessage } from '../utils/readStatus';
 import './ChatWindow.css';
 import { IcoImage, IcoFile, IcoVideo, IcoContacts } from './Icons';
 
-import { computeCtxPos } from '../utils/ctxPos';
-
-/**
- * 长按菜单 Portal：Overlay 与 Menu 分离。
- *  - Overlay: position:fixed inset:0，只负责点击空白/Esc 关闭，不承担菜单布局
- *  - Menu: 渲染后实测自身尺寸（getBoundingClientRect），用 computeCtxPos clamp 到
- *    viewport（顶部避 Safe Area、底部避输入框/TabBar），永不越界
- */
-function CtxMenuPortal({ anchor, onClose, children }) {
-  const { t } = useI18n();
-  const menuRef = useRef(null);
-  const [pos, setPos] = useState(null);
-
-  // 菜单渲染后实测尺寸再定位（layout effect 避免首帧闪烁）
-  useLayoutEffect(() => {
-    const el = menuRef.current;
-    if (!el) return;
-    // 用 offsetWidth/offsetHeight（布局尺寸）而非 getBoundingClientRect：
-    // 菜单挂入场动画 ctxIn(scale .94→1, fill both)，getBoundingClientRect 返回的是
-    // transform 后的视觉尺寸，在 useLayoutEffect 首帧测到的是缩小值(≈260×.94)，
-    // 定位按缩小尺寸 clamp，展开后右侧/底部溢出视口。offsetWidth 不受 transform 影响。
-    const mw = el.offsetWidth || el.getBoundingClientRect().width;
-    const mh = el.offsetHeight || el.getBoundingClientRect().height;
-    const vw = window.innerWidth, vh = window.innerHeight;
-    // 底部保留区：输入框(~64px) + TabBar(~56px) + 安全区；顶部避状态栏
-    const bottomReserve = 140;
-    const safeTop = 8;
-    setPos(computeCtxPos(anchor, { width: mw, height: mh },
-      { width: vw, height: vh },
-      { safeTop, safeBottom: 8, bottomReserve, gap: 6, edge: 12 }));
-  }, [anchor, children]);
-
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return createPortal(
-    <>
-      {/* Overlay：只负责关闭，不承担布局 */}
-      <div
-        className="wc-ctx-overlay wc-ctx-overlay-fixed"
-        onClick={onClose}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
-        role="button"
-        tabIndex={0}
-        aria-label={t('chat.closeMenu')}
-      />
-      {/* Menu：实测尺寸 + clamp 定位 */}
-      <div
-        ref={menuRef}
-        className="wc-ctx-menu wc-ctx-menu-fixed"
-        role="menu"
-        style={pos ? { left: `${pos.x}px`, top: `${pos.y}px` } : { left: -9999, top: -9999 }}
-      >
-        {children}
-      </div>
-    </>,
-    document.body
-  );
-}
+import MessageActionMenu from '../ui-kit/MessageActionMenu';
 
 // 发送图片前从本地 File 解码出真实像素宽高（w/h）。用于在拿到最终 url 后预置 aspect
 // 缓存，使图片消息 socket 回显的首帧就按真实比例预留高度，避免图片解码后撑高、
@@ -221,17 +160,24 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // reducers/composeReducer.js（已 vitest 穷举测试）。recording 由 MediaRecorder
   // 副作用驱动，仍用独立 useState。
   const [compose, dispatchCompose] = useReducer(composeReducer, initialComposeState);
-  const { input, voiceMode, editingMsg, replyTo } = compose;
+  const { input, mode: composerMode, editingMsg, replyTo } = compose;
+  const voiceMode = composerMode === 'VOICE';
   const [typingName, setTypingName] = useState('');
-  // 三个输入区面板互斥（emoji / stickers / more）——收敛为单一 activePanel，
-  // 消除此前反复出现的「打开一个就手动 set 另两个为 false」三连 setState 模式。
-  // 'emoji' | 'stickers' | 'more' | null
-  const [activePanel, setActivePanel] = useState(null);
-  const showEmoji    = activePanel === 'emoji';
+  // A single presentation mode owns voice, keyboard and all attachment panels.
+  const activePanel = composerMode === 'EMOJI' ? compose.emojiTab : composerMode === 'MORE' ? 'more' : null;
+  const showEmoji = activePanel === 'emoji';
   const showStickers = activePanel === 'stickers';
-  const showMore     = activePanel === 'more';
-  const closePanels  = useCallback(() => setActivePanel(null), []);
-  const togglePanel  = useCallback((p) => setActivePanel(cur => (cur === p ? null : p)), []);
+  const showMore = activePanel === 'more';
+  const closePanels = useCallback(() => dispatchCompose({ type: 'CLOSE_PANEL' }), []);
+  const togglePanel = (panel) => {
+    if (activePanel === panel) {
+      dispatchCompose({ type: 'TOGGLE_PANEL', panel });
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    } else {
+      textareaRef.current?.blur();
+      dispatchCompose({ type: 'TOGGLE_PANEL', panel });
+    }
+  };
   const [recording, setRecording] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [members, setMembers] = useState([]);
@@ -627,7 +573,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // compose 全清 + 载入新会话草稿（replyTo/editingMsg/voiceMode/input 原子重置）
     dispatchCompose({ type: 'RESET', draft: localStorage.getItem(`draft_${conversation.id}`) || '' });
     setMention(null); // 清 @ 提及态,避免跨会话残留下拉
-    setActivePanel(null);  // 关闭 emoji/stickers/more 任一展开面板
+    closePanels();  // 关闭 emoji/stickers/more 任一展开面板
     setHasMore(true);
     setShowGroupInfo(false);
     setMultiSelect(false);
@@ -1533,7 +1479,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     dispatchCompose({ type: 'SENT' });   // 清输入 + 清回复（原子）
     localStorage.removeItem(`draft_${conversation.id}`);
     window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: '' } }));
-    setActivePanel(null);
+    closePanels();
     socket?.emit('stop_typing', { conversationId: conversation.id });
 
     transmitText(optimistic);
@@ -1541,7 +1487,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   // ── 分享名片：发送一条 contact_card 消息（content 为被分享用户的 JSON 快照）──
   const openCardPicker = () => {
-    setActivePanel(null);
+    closePanels();
     axios.get('/api/users/contacts').then(r => setCardContacts(r.data || [])).catch(() => setCardContacts([]));
     setShowCardPicker(true);
   };
@@ -2024,11 +1970,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   // 发送表情包（后端创建 image 消息并广播，发送方经 socket 回显）
   const sendSticker = useCallback((stickerId) => {
-    setActivePanel(null);
+    closePanels();
     axios.post('/api/stickers/send', { conversationId: conversation.id, stickerId })
       .then(() => setTimeout(() => (() => { const o = listOuterRef.current; if (o) o.scrollTo({ top: o.scrollHeight, behavior: 'smooth' }); })(), 80))
       .catch(err => showToast(err.response?.data?.error || t('chat.sendFailed'), 'error'));
-  }, [conversation.id, listOuterRef, t]);
+  }, [conversation.id, listOuterRef, t, closePanels]);
 
   // 拖拽上传
   const handleDragEnter = (e) => {
@@ -2159,7 +2105,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     e.stopPropagation();
 
     // 🔥 动态定位根因修复：不再用 clientX/clientY + 硬编码 220×280 估算，
-    // 改为基于被长按消息 bubble 的 getBoundingClientRect()，由 CtxMenuPortal 渲染后
+    // 改为基于被长按消息 bubble 的 getBoundingClientRect()，由 MessageActionMenu 渲染后
     // 实测菜单尺寸并 clamp 到安全可视区（翻转/避让输入框/TabBar/Safe Area）。
     const bubble = e.currentTarget;
     const r = bubble.getBoundingClientRect();
@@ -2292,7 +2238,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         const isOwn = msg.sender_id === user.id;
         const isAdmin = myGroupRole === 'owner' || myGroupRole === 'admin';
         if (!isOwn && !isAdmin) break;
-        if (!(await showConfirm(t('chat.confirmDeleteMsgForever')))) break;
+        if (!(await showConfirm(t('chat.confirmDeleteMsgForever'), { variant: 'DANGER' }))) break;
         // 先确认服务器删除成功再移除；失败则保留消息并提示，
         // 避免"发送方本地没了、对方还在、刷新又冒出来"的假删除
         try {
@@ -2353,7 +2299,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     exitMultiSelect();
   }, [messages, selectedMsgs, exitMultiSelect, t]);
   const multiDelete = useCallback(async () => {
-    if (!await showConfirm(t('chat.confirmBatchRecallDeleteTemplate').replace('{count}', selectedMsgs.size))) return;
+    if (!await showConfirm(t('chat.confirmBatchRecallDeleteTemplate').replace('{count}', selectedMsgs.size), { variant: 'DANGER' })) return;
     await axios.post('/api/messages/batch-delete', { msgIds: [...selectedMsgs], conversationId: conversation.id }).catch(e => showToast(e.response?.data?.error || t('chat.operationFailed'), 'error'));
     exitMultiSelect();
   }, [selectedMsgs, conversation.id, exitMultiSelect, t]);
@@ -2813,7 +2759,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         </div>
       ) : (
       /* ── Input area ── */
-      <div className="wc-input-area" ref={inputAreaRef}>
+      <div className="wc-input-area" ref={inputAreaRef} data-composer-mode={composerMode}>
         {/* Toolbar */}
         <div className="wc-input-toolbar">
           <button
@@ -2832,7 +2778,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             className={`wc-tool-btn${voiceMode ? ' active' : ''}`}
             title={voiceMode ? t('chat.switchToText') : t('chat.voiceInput')}
             aria-label={voiceMode ? t('chat.switchToTextInput') : t('chat.voiceInput')}
-            onClick={() => dispatchCompose({ type: 'TOGGLE_VOICE' })}
+            onClick={() => { textareaRef.current?.blur(); dispatchCompose({ type: 'TOGGLE_VOICE' }); if (voiceMode) requestAnimationFrame(() => textareaRef.current?.focus()); }}
           ><TouliaoIcon name={voiceMode ? "keyboard" : "microphone"} /></button>
 
           <label className="wc-tool-btn wc-tool-label" title={t('chat.image')} aria-label={t('chat.sendImage')}>
@@ -2957,6 +2903,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   </div>
                 )}
                 <textarea
+                  onFocus={() => dispatchCompose({ type: 'FOCUS_INPUT' })}
+                  onBlur={() => dispatchCompose({ type: 'BLUR_INPUT' })}
                   ref={textareaRef}
                   data-testid="chat-msg-input"
                   className="wc-textarea"
@@ -3020,9 +2968,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
 
 
-      {/* Context menu：CtxMenuPortal 实测菜单尺寸后 clamp 定位（根因修复：不再用硬编码 220×280） */}
+      {/* Context menu：MessageActionMenu 实测菜单尺寸后 clamp 定位（根因修复：不再用硬编码 220×280） */}
       {ctxMenu && createPortal(
-        <CtxMenuPortal key={ctxMenu.msg.id} anchor={ctxMenu.anchor} onClose={closeCtx}>
+        <MessageActionMenu key={ctxMenu.msg.id} anchor={ctxMenu.anchor} onClose={closeCtx} returnFocusRef={textareaRef}>
           {/* 复制：文字全端可用；图片/表情写系统剪贴板（web 走 Clipboard API，桌面走主进程原生剪贴板）。
               出货移动端是原生 Kotlin/Swift App，其"复制图片"在原生侧实现，不经本组件。 */}
           {(ctxMenu.msg.type === 'text' ||
@@ -3084,7 +3032,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-everyone" onClick={() => ctxAction('vanish')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('vanish'); } }}><TouliaoIcon name="delete" size="sm" />{t('chat.delete')}</div>
             </>
           )}
-        </CtxMenuPortal>,
+        </MessageActionMenu>,
         document.body
       )}
 

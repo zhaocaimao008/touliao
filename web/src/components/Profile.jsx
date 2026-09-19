@@ -1,3 +1,5 @@
+import TouliaoSwitch from '../ui-kit/Switch';
+import { SettingCell as CRow, SettingSection as Card } from '../ui-kit/Settings';
 import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
@@ -25,17 +27,6 @@ const activateOnKey = (fn) => (e) => {
 const ChevronRight = () => (
   <IcoBack className="wc-chevron" />
 );
-
-function Toggle({ checked, onChange, disabled, 'aria-label': ariaLabel }) {
-  return (
-    <button type="button" className={`wc-switch${checked ? ' on' : ''}`}
-      onClick={e => { e.stopPropagation(); if (!disabled) onChange?.(!checked); }}
-      disabled={disabled}
-      aria-pressed={checked} aria-label={ariaLabel}>
-      <span />
-    </button>
-  );
-}
 
 /* Supplied design icon geometry; existing settings actions are unchanged. */
 const IcoDesktop = () => <TouliaoIcon name="device" className="wc-ico" />;
@@ -66,31 +57,7 @@ function SLabel({ children }) {
   return <div className="wc-slabel">{children}</div>;
 }
 
-function Card({ children, style, className }) {
-  return <div className={`wc-card${className ? ' ' + className : ''}`} style={style}>{children}</div>;
-}
 
-function CRow({ icon, bg, label, value, desc, onClick, right, danger }) {
-  return (
-    <div className={`wc-crow${onClick ? ' wc-crow-clickable' : ''}`}
-      onClick={onClick}
-      role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? activateOnKey(onClick) : undefined}>
-      {icon && (
-        <div className="wc-crow-icon" style={{ background: bg }}>
-          {icon}
-        </div>
-      )}
-      <div className="wc-crow-body">
-        <div className={danger ? 'wc-crow-label wc-crow-label-danger' : 'wc-crow-label'}>{label}</div>
-        {desc && <div className="wc-crow-desc">{desc}</div>}
-      </div>
-      {value != null && <span className={`wc-crow-value${onClick ? ' wc-crow-value-gap' : ''}`}>{value}</span>}
-      {React.isValidElement(right) && right.type === Toggle ? React.cloneElement(right, { 'aria-label': label }) : right}
-      {onClick && !right && <ChevronRight />}
-    </div>
-  );
-}
 
 /* ── 修改昵称 ── */
 function EditName({ user, updateUser, onBack }) {
@@ -372,7 +339,7 @@ function DeleteAccountPage({ onBack }) {
   const submit = async () => {
     if (saving) return;
     if (!password) { setError(t('profile.deletePasswordPrompt')); return; }
-    if (!(await showConfirm(t('profile.deleteConfirm')))) return;
+    if (!(await showConfirm(t('profile.deleteConfirm'), { variant: 'DANGER' }))) return;
     setSaving(true);
     setError('');
     try {
@@ -580,7 +547,7 @@ function DeviceList({ onBack }) {
   };
 
   const removeAllSessions = async () => {
-    if (!(await showConfirm(t('profile.confirmExitAllDevices')))) return;
+    if (!(await showConfirm(t('profile.confirmExitAllDevices'), { variant: 'DANGER' }))) return;
     try {
       await axios.delete('/api/auth/sessions');
       setSessions(s => s.filter(x => x.current));
@@ -791,13 +758,13 @@ function NotificationSettings({ onBack }) {
       <div className="wc-notif-pad">
         <Card>
           <CRow label={t('profile.lockScreenNotify')} desc={t('profile.lockScreenNotifyDesc')}
-            right={<Toggle checked={messageNotify} onChange={v => { setMessageNotify(v); saveSettings('messageNotify', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={messageNotify} onChange={v => { setMessageNotify(v); saveSettings('messageNotify', v); }} disabled={saving} />} />
           <CRow label={t('profile.detailPreview')} desc={t('profile.detailPreviewDesc')}
-            right={<Toggle checked={preview} onChange={v => { setPreview(v); saveSettings('detailPreview', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={preview} onChange={v => { setPreview(v); saveSettings('detailPreview', v); }} disabled={saving} />} />
           <CRow label={t('profile.notifySound')}
-            right={<Toggle checked={notifySound} onChange={setNotifySound} />} />
+            right={<TouliaoSwitch value={notifySound} onChange={setNotifySound} />} />
           <CRow label={t('profile.notifyVibrate')}
-            right={<Toggle checked={vibrate} onChange={v => { setVibrate(v); saveSettings('vibrate', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={vibrate} onChange={v => { setVibrate(v); saveSettings('vibrate', v); }} disabled={saving} />} />
         </Card>
       </div>
 
@@ -806,7 +773,7 @@ function NotificationSettings({ onBack }) {
       <div className="wc-notif-pad">
         <Card>
           <CRow label={t('profile.quietHoursToggle')} desc={t('profile.quietHoursDesc')}
-            right={<Toggle checked={quietEnabled} onChange={v => { setQuietEnabled(v); saveSettings('quietEnabled', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={quietEnabled} onChange={v => { setQuietEnabled(v); saveSettings('quietEnabled', v); }} disabled={saving} />} />
           {quietEnabled && (
             <>
               <CRow label={t('profile.quietStartTime')}
@@ -886,9 +853,9 @@ function PrivacySettings({ user, onBack }) {
         <div className="wc-privacy-desc">{t('profile.addMethodsDesc')}</div>
         <Card>
           <CRow label={t('profile.addByIdLabel')} desc={user?.wechat_id ? `${t('profile.touliaoIdLabel')}: ${user.wechat_id}` : t('profile.notAssigned')}
-            right={<Toggle checked={settings.addByVxinId} onChange={v => setFlag('addByVxinId', v)} />} />
+            right={<TouliaoSwitch value={settings.addByVxinId} onChange={v => setFlag('addByVxinId', v)} />} />
           <CRow label={t('profile.addByPhoneLabel')} desc={user?.phone || ''}
-            right={<Toggle checked={settings.addByPhone} onChange={v => setFlag('addByPhone', v)} />} />
+            right={<TouliaoSwitch value={settings.addByPhone} onChange={v => setFlag('addByPhone', v)} />} />
         </Card>
       </div>
     </PageBg>
@@ -901,13 +868,13 @@ function PrivacySettings({ user, onBack }) {
         <Card className="wc-privacy-card-mt">
           <CRow label={t('profile.addMethodsEntry')} desc={t('profile.addMethodsEntryDesc')} onClick={() => setPage('add-methods')} />
           <CRow label={t('profile.requireVerifyLabel')} desc={t('profile.requireVerifyDesc')}
-            right={<Toggle checked={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
+            right={<TouliaoSwitch value={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
           <CRow label={t('profile.noDirectGroupInviteLabel')} desc={t('profile.noDirectGroupInviteDesc')}
-            right={<Toggle checked={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
+            right={<TouliaoSwitch value={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
           <CRow label={t('profile.profileVisibleLabel')} desc={t('profile.profileVisibleDesc')}
-            right={<Toggle checked={settings.profileVisible} onChange={v => setFlag('profileVisible', v)} />} />
+            right={<TouliaoSwitch value={settings.profileVisible} onChange={v => setFlag('profileVisible', v)} />} />
           <CRow label={t('profile.blockUnknownLabel')} desc={t('profile.blockUnknownDesc')}
-            right={<Toggle checked={settings.blockUnknownMessages} onChange={v => setFlag('blockUnknownMessages', v)} />} />
+            right={<TouliaoSwitch value={settings.blockUnknownMessages} onChange={v => setFlag('blockUnknownMessages', v)} />} />
         </Card>
       </div>
     </PageBg>
