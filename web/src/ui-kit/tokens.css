@@ -168,6 +168,7 @@ html.touliao-ui body {
   --tl-media-primary-control-size: 68px;
   --tl-media-control-gap: 16px;
   --tl-media-ended-duration: 1800ms;
+  --tl-media-native-control-size: 64px;
 }
 @media (max-width: 767px) {
   html.touliao-ui body {

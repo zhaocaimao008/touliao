@@ -120,9 +120,10 @@ fun ConversationFilesScreen(
                         CircularProgressIndicator(Modifier.align(Alignment.Center))
 
                     state.error != null && state.items.isEmpty() ->
-                        Text(
-                            state.error!!,
-                            color = MaterialTheme.colorScheme.error,
+                        EmptyState(
+                            icon = com.touliao.app.ui.TouliaoIcons.Warning,
+                            title = "加载失败", subtitle = state.error, isError = true,
+                            actionLabel = "重试", onAction = viewModel::loadFirst,
                             modifier = Modifier.align(Alignment.Center),
                         )
 

@@ -19,6 +19,7 @@ import com.touliao.app.ui.TouliaoIcons
 import com.touliao.app.ui.IconSize
 import com.touliao.app.ui.IconColor
 import com.touliao.app.ui.theme.VxinTextSize
+import com.touliao.app.ui.theme.TouliaoMetrics
 
 /** Audio routes use distinct semantic glyphs; callbacks and routing stay with the call screen. */
 @Composable
@@ -37,7 +38,7 @@ fun CallActionButton(label: String, color: Color, onClick: () -> Unit) {
         else -> TouliaoIcons.Speaker
     }
     Column(Modifier.width(80.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(64.dp).clip(CircleShape).background(color).clickable(role = Role.Button, onClick = onClick),
+        Box(Modifier.size(TouliaoMetrics.callControlSize).clip(CircleShape).background(color).clickable(role = Role.Button, onClick = onClick),
             contentAlignment = Alignment.Center) {
             Icon(vector, contentDescription = label, tint = IconColor.OnDark, modifier = Modifier.size(IconSize.Md))
         }

@@ -41,7 +41,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import android.widget.Toast
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
@@ -126,12 +125,12 @@ fun AddFriendScreen(
                         val sc = scanner
                         if (sc == null) {
                             // 无 GMS（华为等）：扫码不可用，引导改用搜索用户名/手机号加好友
-                            Toast.makeText(context, "当前设备不支持扫码，请在下方搜索用户名或手机号添加", Toast.LENGTH_LONG).show()
+                            com.touliao.app.ui.components.TouliaoFeedback.show(context, "当前设备不支持扫码，请在下方搜索用户名或手机号添加", com.touliao.app.ui.components.FeedbackKind.WARNING)
                         } else {
                             sc.startScan()
                                 .addOnSuccessListener { barcode -> barcode.rawValue?.let { viewModel.addByQrPayload(it) } }
                                 .addOnFailureListener { e ->
-                                    Toast.makeText(context, "扫码失败：${e.message ?: "请重试或改用搜索"}", Toast.LENGTH_SHORT).show()
+                                    com.touliao.app.ui.components.TouliaoFeedback.show(context, "扫码失败：${e.message ?: "请重试或改用搜索"}", com.touliao.app.ui.components.FeedbackKind.ERROR)
                                 }
                         }
                     },

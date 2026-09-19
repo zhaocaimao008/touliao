@@ -62,7 +62,7 @@ private struct CallMinimizedBubble: View {
             if state.isVideo && state.remoteVideoActive && state.stage == .connected {
                 RTCVideoViewRepresentable(track: manager.remoteVideoTrack)
             } else {
-                Color(white: 0.15)
+                TouliaoMedia.surface
                 InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: bubbleSize)
             }
             if state.stage != .connected {
@@ -96,7 +96,7 @@ private struct CallView: View {
 
     var body: some View {
         ZStack {
-            Color(white: 0.1).ignoresSafeArea()
+            TouliaoMedia.canvas.ignoresSafeArea()
 
             if state.isVideo && state.remoteVideoActive && state.stage == .connected {
                 RTCVideoViewRepresentable(track: manager.remoteVideoTrack)
@@ -165,16 +165,16 @@ private struct CallView: View {
         if state.stage == .connected, let start = state.connectedAt {
             TimelineView(.periodic(from: start, by: 1)) { context in
                 Text(formatCallDuration(from: start, now: context.date))
-                    .touliaoText(.secondary).foregroundColor(Color(white: 0.7))
+                    .touliaoText(.secondary).foregroundColor(TouliaoMedia.secondary)
                     .monospacedDigit()
             }
         } else if state.stage == .ended, let start = state.connectedAt {
             // 接通过再结束：定格显示「通话时长 mm:ss」
             Text("通话时长 " + formatCallDuration(from: start, now: state.endedAt ?? Date()))
-                .touliaoText(.secondary).foregroundColor(Color(white: 0.7)).monospacedDigit()
+                .touliaoText(.secondary).foregroundColor(TouliaoMedia.secondary).monospacedDigit()
         } else {
             Text(statusText)
-                .touliaoText(.secondary).foregroundColor(Color(white: 0.7))
+                .touliaoText(.secondary).foregroundColor(TouliaoMedia.secondary)
         }
         // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
         if state.stage == .connected && !state.callQuality.isEmpty {
@@ -203,18 +203,18 @@ private struct CallView: View {
         if state.stage == .incoming {
             HStack(spacing: 24) {
                 circleButton("接听", .vxinCallAccept) { manager.accept() }
-                circleButton("回复", Color(white: 0.35)) { manager.rejectAndReply() }
+                circleButton("回复", TouliaoMedia.control) { manager.rejectAndReply() }
                 circleButton("拒绝", .vxinCallDanger) { manager.reject() }
             }
         } else {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 20) {
-                circleButton(state.micEnabled ? "静音" : "取消静音", Color(white: 0.35)) { manager.toggleMic() }
-                circleButton(state.speakerOn ? "听筒" : "扬声器", Color(white: 0.35)) { manager.toggleSpeaker() }
-                circleButton(state.isVideo ? "切语音" : "切视频", Color(white: 0.35)) { manager.toggleVideo() }
+                circleButton(state.micEnabled ? "静音" : "取消静音", TouliaoMedia.control) { manager.toggleMic() }
+                circleButton(state.speakerOn ? "听筒" : "扬声器", TouliaoMedia.control) { manager.toggleSpeaker() }
+                circleButton(state.isVideo ? "切语音" : "切视频", TouliaoMedia.control) { manager.toggleVideo() }
                 circleButton("挂断", .vxinCallDanger) { manager.hangup() }
                 if state.isVideo {
-                    circleButton(state.cameraEnabled ? "关摄像头" : "开摄像头", Color(white: 0.35)) { manager.toggleCamera() }
-                    circleButton("翻转", Color(white: 0.35)) { manager.switchCamera() }
+                    circleButton(state.cameraEnabled ? "关摄像头" : "开摄像头", TouliaoMedia.control) { manager.toggleCamera() }
+                    circleButton("翻转", TouliaoMedia.control) { manager.switchCamera() }
                 }
             }
         }

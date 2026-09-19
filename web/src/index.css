@@ -4595,10 +4595,14 @@ body.dark-mode .pf-hero { box-shadow: 0 10px 34px rgba(0,0,0,.5); }
 .wc-skeleton { padding: 8px 0; }
 .wc-skeleton-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
 .wc-skeleton-avatar {
-  width: 44px; height: 44px; flex: 0 0 44px;
+  width: var(--skeleton-avatar-size); height: var(--skeleton-avatar-size); flex: 0 0 var(--skeleton-avatar-size);
   border-radius: var(--radius-avatar);
   background: var(--bg-hover);
 }
+.wc-skeleton--chat .wc-skeleton-lines { flex: 0 1 70%; }
+.wc-skeleton--chat .wc-skeleton-line { height: 36px; border-radius: var(--radius-bubble); }
+.wc-skeleton-row--mine { justify-content: flex-end; }
+.wc-skeleton--panel .wc-skeleton-line { height: var(--tl-control-height); }
 .wc-skeleton-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .wc-skeleton-line { height: 12px; border-radius: var(--radius-sm); background: var(--bg-hover); }
 .wc-skeleton-avatar, .wc-skeleton-line {
@@ -4608,11 +4612,11 @@ body.dark-mode .pf-hero { box-shadow: 0 10px 34px rgba(0,0,0,.5); }
   content: ''; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
   transform: translateX(-100%);
-  animation: wc-shimmer 1.4s infinite;
+  animation: wc-shimmer var(--tl-skeleton-duration, 1200ms) infinite;
 }
 @keyframes wc-shimmer { 100% { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) {
-  .wc-skeleton-avatar::after, .wc-skeleton-line::after { animation: none; }
+  .wc-skeleton-avatar::after, .wc-skeleton-line::after, .skeleton-box, .img-skeleton { animation: none !important; }
 }
 
 /* Empty / Error 三态 */
@@ -4644,7 +4648,7 @@ body.dark-mode .pf-hero { box-shadow: 0 10px 34px rgba(0,0,0,.5); }
     var(--bg-hover, rgba(0,0,0,.06)) 75%
   );
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  animation: skeleton-shimmer var(--tl-skeleton-duration, 1200ms) ease-in-out infinite;
 }
 body.dark-mode .skeleton-box {
   background: linear-gradient(
@@ -4654,7 +4658,7 @@ body.dark-mode .skeleton-box {
     rgba(255,255,255,.06) 75%
   );
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  animation: skeleton-shimmer var(--tl-skeleton-duration, 1200ms) ease-in-out infinite;
 }
 @keyframes skeleton-shimmer {
   0%   { background-position: 200% 0; }
@@ -4666,7 +4670,7 @@ body.dark-mode .skeleton-box {
   border-radius: var(--radius-bubble-tip);
   display: inline-block;
   min-width: 60px; min-height: 60px;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  animation: skeleton-shimmer var(--tl-skeleton-duration, 1200ms) ease-in-out infinite;
 }
 
 /* ── Profile.jsx（个人资料/设置页）静态样式：P2 UI 体检内联样式迁移 ── */

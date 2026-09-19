@@ -43,3 +43,12 @@ stacking context requires them, without inventing new global semantic levels.
 The P1 component dimensions (40/48 controls, 420 dialog width, readable danger,
 fixed dark media canvas) are preserved. Theme switching re-resolves semantic CSS
 and native adaptive colors; no component caches resolved colors.
+
+## P2 component adapters and exceptions
+
+- Call controls: Web 56 logical px (primary answer/hangup 68), native 64 pt/dp. These retain the platform control density while using one media palette; media canvases intentionally remain dark in either app theme. Existing call callbacks/signaling are unchanged.
+- Avatar roles: list Web 40 / native 44, hero Web 92 / native 66, call Web 88 / native 96. They are explicit layout adapters, not competing token tables.
+- Feedback: readable duration 4 s, errors 4.5 s, long strings up to 12 s. Android uses native Toast LONG because the OS owns its duration/accessibility; no overlay imitation. Legacy iOS mixed success/error String bindings remain neutral until producers can provide types.
+- Motion: shared cubic-bezier control points generate SwiftUI timingCurve and Compose CubicBezierEasing; SwiftUI's root transaction respects Reduce Motion. Native Material transitions retain the OS motion-duration adapter. Media playback, recording timers and signaling delays are excluded.
+- DS-023 dependency: Android CallState has no end-reason property; iOS exposes timeout/network only. UI cannot safely distinguish busy/declined without a change to protected call state producers. Existing 800 ms core disposal cannot be extended in this UI-only task. Never fabricate a reason from elapsed time or strings.
+- Deprecated compatibility wrappers: PanelSkeleton/ChatSkeleton/ConvListSkeleton delegate to StateViews.Skeleton; VxinGradientButton/VxinButton delegate to TouliaoButton. Retain entry points while references exist. No legacy directory was deleted.

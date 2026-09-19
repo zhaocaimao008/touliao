@@ -4,7 +4,7 @@
 No physical-density multiplication: SwiftUI/Compose handle density and font scale.
 Exact generated output checks intentionally fail on any drift.
 """
-import argparse, json
+import argparse, json, re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +28,7 @@ def outputs(root=ROOT):
             disabledOpacity=(c['control']['disabledOpacity'],'ratio'),skeletonDuration=(c['skeleton']['animationDuration'],'duration'),
             toastDuration=(c['toast']['duration'],'duration'),toastErrorDuration=(c['toast']['errorDuration'],'duration'),
             toastMaximumDuration=(c['toast']['maximumDuration'],'duration'),toastReadPerCharacter=(c['toast']['readMillisPerCharacter'],'duration'),
-            callEndedDuration=(c['media']['endedDuration'],'duration'),callControlSize=(c['media']['controlSize'],'layout'),callPrimarySize=(c['media']['primaryControlSize'],'layout'))
+            callEndedDuration=(c['media']['endedDuration'],'duration'),callControlSize=(c['media']['nativeControlSize'],'layout'),callPrimarySize=(c['media']['primaryControlSize'],'layout'))
         header='// Generated from ui-kit/tokens.json by scripts/generate-component-tokens.py. Do not edit.\n'
         if platform=='ios':
             text=header+'import SwiftUI\n\nenum TouliaoMetrics {\n'
@@ -44,16 +44,25 @@ def outputs(root=ROOT):
             text+='}\n\nenum TouliaoMedia {\n'
             for name,value in c['media'].items():
                 if isinstance(value,str): text+=f'    static let {name} = Color(red: {int(value[1:3],16)} / 255.0, green: {int(value[3:5],16)} / 255.0, blue: {int(value[5:7],16)} / 255.0)\n'
+            text+='}\n\nenum TouliaoMotion {\n'
+            for name,value in t['motion']['easing'].items():
+                points=re.fullmatch(r'cubic-bezier\(([^)]+)\)', value).group(1)
+                text+=f'    static func {name}(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation {{ .timingCurve({points}, duration: duration) }}\n'
             text+='}\n'
             result[root/'ios/Touliao/UI/Theme/ComponentTokens.swift']=text
         else:
-            text=header+'package com.touliao.app.ui.theme\n\nimport androidx.compose.ui.unit.dp\nimport androidx.compose.ui.unit.sp\nimport androidx.compose.ui.graphics.Color\n\nobject TouliaoMetrics {\n'
+            text=header+'package com.touliao.app.ui.theme\n\nimport androidx.compose.ui.unit.dp\nimport androidx.compose.ui.unit.sp\nimport androidx.compose.ui.graphics.Color\nimport androidx.compose.animation.core.CubicBezierEasing\n\nobject TouliaoMetrics {\n'
             for name,(value,unit) in numbers.items():
                 suffix={'layout':'.dp','font':'.sp','duration':'L','ratio':'f','integer':''}[unit]
                 text+=f'    val {name} = {value}{suffix}\n'
             text+='}\n\nobject TouliaoMedia {\n'
             for name,value in c['media'].items():
                 if isinstance(value,str):text+=f'    val {name} = Color(0xFF{value[1:].upper()})\n'
+            text+='}\n\nobject TouliaoMotion {\n'
+            for name,value in t['motion']['easing'].items():
+                points=re.fullmatch(r'cubic-bezier\(([^)]+)\)', value).group(1)
+                args=', '.join(x.strip()+'f' for x in points.split(','))
+                text+=f'    val {name} = CubicBezierEasing({args})\n'
             text+='}\n'
             result[root/'android/app/src/main/java/com/touliao/app/ui/theme/ComponentTokens.kt']=text
     return result

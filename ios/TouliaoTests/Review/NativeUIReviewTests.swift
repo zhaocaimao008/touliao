@@ -139,6 +139,30 @@ final class NativeUIReviewTests: XCTestCase {
             .write(to: output.appendingPathComponent("environment.json"))
     }
 
+    func testP2ComponentStates() async throws {
+        let fields = AnyView(ScrollView {
+            VStack(spacing: TouliaoMetrics.space4) {
+                TouliaoField(title: "普通输入") { TextField("请输入", text: .constant("")).textFieldStyle(TouliaoTextFieldStyle()) }
+                TouliaoField(title: "错误输入", error: "请检查输入内容") { TextField("请输入", text: .constant("中文文件名")).textFieldStyle(TouliaoTextFieldStyle()) }
+                TouliaoField(title: "禁用输入") { TextField("请输入", text: .constant("不可编辑")).textFieldStyle(TouliaoTextFieldStyle()).disabled(true) }
+                TouliaoButton(title: "确认", action: {})
+                TouliaoButton(title: "取消", variant: .secondary, action: {})
+                TouliaoButton(title: "删除", variant: .danger, action: {})
+                TouliaoButton(title: "禁用", enabled: false, action: {})
+                TouliaoButton(title: "加载中", loading: true, action: {})
+            }.padding(TouliaoMetrics.space4)
+        }.modifier(TouliaoMotionPolicy()))
+        let failure = AnyView(VxinEmptyState(icon: "warning", title: "文件加载失败",
+            subtitle: "中文长文件名与未知格式文件，网络恢复后可以重试", isError: true,
+            actionTitle: "重试", action: {}))
+        for dark in [false, true] {
+            try await capture(fields, name: "p2-component-states-" + (dark ? "dark" : "light"), dark: dark)
+            try await capture(failure, name: "p2-error-retry-" + (dark ? "dark" : "light"), dark: dark)
+        }
+        try await capture(fields, name: "p2-component-states-dark-large-text", dark: true, large: true, width: 320)
+        try await capture(failure, name: "p2-error-retry-dark-large-text", dark: true, large: true, width: 320)
+    }
+
     func testCallControlLayoutAtLargeText() async throws {
         let controls = AnyView(
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 20) {

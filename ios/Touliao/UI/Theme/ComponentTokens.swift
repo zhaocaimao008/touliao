@@ -69,7 +69,7 @@ enum TouliaoMetrics {
     static let toastMaximumDuration: Double = 12.0
     static let toastReadPerCharacter: Double = 0.08
     static let callEndedDuration: Double = 1.8
-    static let callControlSize: CGFloat = 56
+    static let callControlSize: CGFloat = 64
     static let callPrimarySize: CGFloat = 68
 }
 
@@ -126,4 +126,10 @@ enum TouliaoMedia {
     static let selected = Color(red: 65 / 255.0, green: 107 / 255.0, blue: 180 / 255.0)
     static let danger = Color(red: 190 / 255.0, green: 63 / 255.0, blue: 78 / 255.0)
     static let accept = Color(red: 24 / 255.0, green: 133 / 255.0, blue: 107 / 255.0)
+}
+
+enum TouliaoMotion {
+    static func standard(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0.2, 0, 0, 1, duration: duration) }
+    static func entrance(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0, 0, 0.2, 1, duration: duration) }
+    static func exit(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0.4, 0, 1, 1, duration: duration) }
 }

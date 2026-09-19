@@ -1,3 +1,4 @@
+import { EmptyState } from './StateViews';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense, lazy } from 'react';
 import axios from 'axios';
@@ -291,20 +292,13 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               </div>
             )}
             {contactsLoaded && contacts.length === 0 && !searchQuery && (
-              <div className="cl-empty" role="status">
-                <svg viewBox="0 0 48 48" width="48" height="48" fill="none" className="cl-empty-icon">
+              <EmptyState className="cl-empty" icon={<svg viewBox="0 0 48 48" width="48" height="48" fill="none" className="cl-empty-icon">
                   <circle cx="24" cy="20" r="10" fill="#E8ECF0"/>
                   <path d="M8 40c0-8.84 7.16-16 16-16s16 7.16 16 16" stroke="#D0D7E3" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-                <div className="cl-empty-text">{t('contacts.noContacts')}</div>
-                <div className="cl-empty-sub">{t('contacts.searchToAddFriend')}</div>
-                <button className="cl-add-btn" onClick={() => setShowAddFriend(true)}>{t('contacts.addFriendCta')}</button>
-              </div>
+                </svg>} title={<>{t('contacts.noContacts')}</>} desc={<>{t('contacts.searchToAddFriend')}</>} />
             )}
             {searchQuery && filtered.length === 0 && (
-              <div className="cl-empty" role="status">
-                <div className="cl-empty-text">{t('contacts.notFoundTemplate').replace('{query}', searchQuery)}</div>
-              </div>
+              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.notFoundTemplate').replace('{query}', searchQuery)}</>} />
             )}
           </>
         )}
@@ -327,10 +321,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             {requestsSubTab === 'received' && (
               <>
                 {requests.length === 0 && (
-                  <div className="cl-empty" role="status">
-                    <TouliaoIcon name="contact" className="cl-empty-icon" tone="secondary" size="xl" />
-                    <div className="cl-empty-text">{t('contacts.noNewRequests')}</div>
-                  </div>
+                  <EmptyState className="cl-empty" icon={<TouliaoIcon name="contact" className="cl-empty-icon" tone="secondary" size="xl" />} title={<>{t('contacts.noNewRequests')}</>} />
                 )}
                 {requests.map(r => (
                   <div key={r.id} className="req-item" data-testid="friend-request-item">
@@ -354,9 +345,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             {requestsSubTab === 'sent' && (
               <>
                 {sentRequests.length === 0 && (
-                  <div className="cl-empty" role="status">
-                    <div className="cl-empty-text">{t('contacts.noSentRequests')}</div>
-                  </div>
+                  <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noSentRequests')}</>} />
                 )}
                 {sentRequests.map(r => (
                   <div key={r.id} className="req-item">
@@ -383,9 +372,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
           <>
             <SectionHeader title={t('contacts.aiAssistant')} onBack={() => setTab('contacts')} />
             {aiBots.length === 0 && (
-              <div className="cl-empty" role="status">
-                <div className="cl-empty-text">{t('contacts.noAiAssistants')}</div>
-              </div>
+              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noAiAssistants')}</>} />
             )}
             {aiBots.map(b => (
               <div key={b.id} className="wc-contact-item"
@@ -420,9 +407,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
           <>
             <SectionHeader title={t('contacts.blacklist')} onBack={() => setTab('contacts')} />
             {blockedUsers.length === 0 && (
-              <div className="cl-empty" role="status">
-                <div className="cl-empty-text">{t('contacts.blacklistEmpty')}</div>
-              </div>
+              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.blacklistEmpty')}</>} />
             )}
             {blockedUsers.map(u => (
               <div key={u.id} className="req-item">
@@ -464,9 +449,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               </div>
             ))}
             {groups.length === 0 && (
-              <div className="cl-empty" role="status">
-                <div className="cl-empty-groups">{t('contacts.noGroups')}</div>
-              </div>
+              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noGroups')}</>} />
             )}
           </>
         )}
@@ -623,7 +606,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
               </div>
             );
           })}
-          {contacts.length === 0 && <div className="cl-empty"><div className="cl-empty-text">{t('contacts.noContacts')}</div></div>}
+          {contacts.length === 0 && <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noContacts')}</>} />}
         </div>
       </>
     );
@@ -639,7 +622,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
         </button>
       </div>
       {labels.length === 0 && (
-        <div className="cl-empty"><div className="cl-empty-text">{t('contacts.noLabels')}</div><div className="cl-empty-sub">{t('contacts.noLabelsSub')}</div></div>
+        <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noLabels')}</>} desc={<>{t('contacts.noLabelsSub')}</>} />
       )}
       {labels.map(label => (
         <div key={label.id} className="wc-contact-item">

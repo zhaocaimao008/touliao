@@ -41,10 +41,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.core.call.GroupCallStage
 import com.touliao.app.core.realtime.GroupCallInviteEvent
+import com.touliao.app.ui.theme.TouliaoMedia
 import com.touliao.app.ui.components.InitialAvatar
 
-private val CallGreen = com.touliao.app.ui.theme.TouliaoLightPalette.success // Opaque media controls keep a readable white foreground.
-private val CallRed = com.touliao.app.ui.theme.TouliaoLightPalette.readableDanger
+private val CallGreen = TouliaoMedia.accept // Opaque media controls keep a readable white foreground.
+private val CallRed = TouliaoMedia.danger
 
 /** 全局群通话浮层 + 来电邀请横幅：始终挂载，监听邀请与通话状态。 */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -71,7 +72,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
         val groupCallContext = androidx.compose.ui.platform.LocalContext.current
         val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
             if (!res.values.all { it }) {
-                android.widget.Toast.makeText(groupCallContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", android.widget.Toast.LENGTH_LONG).show()
+                com.touliao.app.ui.components.TouliaoFeedback.show(groupCallContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", com.touliao.app.ui.components.FeedbackKind.ERROR)
             }
         }
         LaunchedEffect(Unit) { permLauncher.launch(perms) }
@@ -127,7 +128,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
     invite?.let { inv ->
         Box(Modifier.fillMaxWidth().systemBarsPadding().padding(top = 60.dp), contentAlignment = Alignment.TopCenter) {
             Row(
-                Modifier.clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.avatar)).background(Color(0xFF2C2C2E)).padding(12.dp),
+                Modifier.clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.avatar)).background(TouliaoMedia.surface).padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -137,7 +138,7 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
                     .clickable { viewModel.join(inv.callId, inv.conversationId, inv.type == "video"); invite = null }
                     .heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 10.dp), contentAlignment = Alignment.Center) { Text("加入", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2) }
                 Box(Modifier.clickable { invite = null }.heightIn(min = 44.dp).padding(horizontal = 8.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
-                    Text("忽略", color = Color(0xFF999999), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                    Text("忽略", color = TouliaoMedia.secondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                 }
             }
         }

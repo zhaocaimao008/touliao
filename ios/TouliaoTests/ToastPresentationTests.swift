@@ -26,7 +26,7 @@ final class ToastPresentationTests: XCTestCase {
         state.message = "第二条提示"
         try await Task.sleep(nanoseconds: 400_000_000)
         XCTAssertEqual(state.message, "第二条提示")
-        try await Task.sleep(nanoseconds: 2_600_000_000)
+        try await Task.sleep(nanoseconds: UInt64((TouliaoMetrics.toastDuration + 0.2) * 1_000_000_000))
         XCTAssertNil(state.message)
     }
 }

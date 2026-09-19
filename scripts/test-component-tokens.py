@@ -21,6 +21,8 @@ class ComponentTokensTest(unittest.TestCase):
             self.assertIn('fontBody: CGFloat = 19',swift);self.assertIn('fontBody = 19.sp',kotlin)
             self.assertIn('touchTarget: CGFloat = 44',swift);self.assertIn('touchTarget = 48.dp',kotlin)
             self.assertIn('case .caption: return .caption',swift)
+            self.assertIn('.timingCurve(0.2, 0, 0, 1, duration: duration)',swift)
+            self.assertIn('CubicBezierEasing(0.2f, 0f, 0f, 1f)',kotlin)
             self.assertIn('case .title: return .title2',swift)
             for role in t['typography']['roles']:
                 self.assertIn('font'+role.title(),swift);self.assertIn('font'+role.title(),kotlin)

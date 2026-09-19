@@ -4,6 +4,7 @@ package com.touliao.app.ui.theme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.core.CubicBezierEasing
 
 object TouliaoMetrics {
     val space0 = 0.dp
@@ -73,7 +74,7 @@ object TouliaoMetrics {
     val toastMaximumDuration = 12000L
     val toastReadPerCharacter = 80L
     val callEndedDuration = 1800L
-    val callControlSize = 56.dp
+    val callControlSize = 64.dp
     val callPrimarySize = 68.dp
 }
 
@@ -86,4 +87,10 @@ object TouliaoMedia {
     val selected = Color(0xFF416BB4)
     val danger = Color(0xFFBE3F4E)
     val accept = Color(0xFF18856B)
+}
+
+object TouliaoMotion {
+    val standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+    val entrance = CubicBezierEasing(0f, 0f, 0.2f, 1f)
+    val exit = CubicBezierEasing(0.4f, 0f, 1f, 1f)
 }

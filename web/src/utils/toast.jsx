@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import TouliaoDialog from '../ui-kit/Dialog';
 import { getI18n } from '../contexts/I18nContext';
+import { feedbackDuration } from '../ui-kit/feedbackPolicy';
 
 let _setToast = null;
 let _setConfirm = null;
@@ -21,10 +22,7 @@ function ToastRoot() {
       setToast(t);
       clearTimeout(timerRef.current);
       if (t) {
-        // 错误停留更久(4.5s),便于阅读;普通/成功 3s;长文案再按字数适当延长
-        const base = t.type === 'error' ? 4500 : 3000;
-        const extra = Math.min(2000, Math.max(0, (String(t.msg).length - 20) * 60));
-        timerRef.current = setTimeout(() => setToast(null), base + extra);
+        timerRef.current = setTimeout(() => setToast(null), feedbackDuration(t.msg, t.type));
       }
     };
     _setConfirm = setConfirm;
@@ -42,7 +40,7 @@ function ToastRoot() {
           onClick={() => { clearTimeout(timerRef.current); setToast(null); }}
           title={t('common.close')}
           style={{
-            animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            animation: 'toastSlideIn var(--tl-duration-normal) var(--tl-easing-entrance)',
           }}
         >{toast.msg}</div>
       )}

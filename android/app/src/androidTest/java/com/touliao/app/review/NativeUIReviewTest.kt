@@ -2,6 +2,13 @@ package com.touliao.app.review
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import com.touliao.app.ui.TouliaoButton
+import com.touliao.app.ui.TouliaoButtonVariant
+import com.touliao.app.ui.components.TouliaoField
+import com.touliao.app.ui.components.EmptyState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -120,6 +127,27 @@ class NativeUIReviewTest {
         File(output, "requests.txt").writeText(ReviewModule.requests.joinToString("\n"))
     }
 
+    @Test fun p2ComponentStates() {
+        for (night in listOf(false, true)) {
+            compose.runOnIdle { screen.value = "p2-states"; dark.value = night; large.value = false }
+            settle()
+            compose.onNodeWithText("禁用输入").assertExists()
+            compose.onNodeWithText("普通输入").performClick()
+            compose.onNodeWithText("普通输入").assertExists()
+            snapshot("p2-component-states-" + if (night) "dark" else "light")
+            androidx.test.espresso.Espresso.pressBack()
+            compose.runOnIdle { screen.value = "p2-error" }
+            settle(); compose.onNodeWithText("重试").assertIsEnabled()
+            snapshot("p2-error-retry-" + if (night) "dark" else "light")
+            compose.onNodeWithText("重试").performClick()
+            compose.onNodeWithText("重试已触发").assertExists()
+        }
+        compose.runOnIdle { screen.value = "p2-states"; large.value = true }
+        settle(); snapshot("p2-component-states-dark-large-text")
+        compose.onNodeWithText("加载中").performScrollTo().assertExists()
+        snapshot("p2-component-buttons-dark-large-text")
+    }
+
     @Test fun loginFormKeyboardAndNavigation() {
         settle()
         compose.onNodeWithTag("login-submit-btn").assertIsNotEnabled()
@@ -210,6 +238,24 @@ class NativeUIReviewTest {
     @Composable private fun ReviewScreen(name: String) {
         val back = { screen.value = "login" }
         when (name) {
+            "p2-states" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                var value by remember { mutableStateOf("") }
+                TouliaoField(value, { value = it }, label = { Text("普通输入") })
+                TouliaoField("中文文件名", {}, label = { Text("错误输入") }, isError = true, supportingText = { Text("请检查输入内容") })
+                TouliaoField("不可编辑", {}, label = { Text("禁用输入") }, enabled = false)
+                TouliaoButton("确认", {})
+                TouliaoButton("取消", {}, variant = TouliaoButtonVariant.SECONDARY)
+                TouliaoButton("删除", {}, variant = TouliaoButtonVariant.DANGER)
+                TouliaoButton("禁用", {}, enabled = false)
+                TouliaoButton("加载中", {}, loading = true)
+            }
+            "p2-error" -> {
+                var retried by remember { mutableStateOf(false) }
+                EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Warning,
+                    title = if (retried) "重试已触发" else "文件加载失败",
+                    subtitle = "中文长文件名与未知格式文件，网络恢复后可以重试", isError = true,
+                    actionLabel = "重试", onAction = { retried = true })
+            }
             "login" -> LoginScreen(onNavigateRegister = { screen.value = "register" }, onNavigateForgotPassword = { screen.value = "forgot-password" })
             "register" -> RegisterScreen(onBack = back)
             "forgot-password" -> ForgotPasswordScreen(onBack = back)

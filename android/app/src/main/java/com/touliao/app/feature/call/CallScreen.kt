@@ -43,14 +43,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.core.call.CallStage
 import com.touliao.app.ui.theme.TouliaoMetrics
+import com.touliao.app.ui.theme.TouliaoMedia
 import com.touliao.app.ui.components.InitialAvatar
 import org.webrtc.EglBase
 import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
 
-private val CallGreen = com.touliao.app.ui.theme.TouliaoLightPalette.success // Opaque media controls keep a readable white foreground.
-private val CallRed = com.touliao.app.ui.theme.TouliaoLightPalette.readableDanger
+private val CallGreen = TouliaoMedia.accept // Opaque media controls keep a readable white foreground.
+private val CallRed = TouliaoMedia.danger
 
 /** 全局通话浮层：通话激活时覆盖在主界面之上 */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -106,12 +107,12 @@ fun CallHost(
         // 此前结果被完全忽略——被拒绝后通话界面照常呈现，用户只会看到"听不到对方声音/
         // 对方看不到自己"却毫无线索。这不拦断通话流程（对方可能仍在等接听），只提示原因。
         if (!res.values.all { it }) {
-            android.widget.Toast.makeText(callScreenContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", android.widget.Toast.LENGTH_LONG).show()
+            com.touliao.app.ui.components.TouliaoFeedback.show(callScreenContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", com.touliao.app.ui.components.FeedbackKind.ERROR)
         }
     }
     LaunchedEffect(Unit) { permLauncher.launch(perms) }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFF1A1A1A))) {
+    Box(Modifier.fillMaxSize().background(TouliaoMedia.canvas)) {
         // 通话音量=0 提示:回铃音无声时用户会以为 App 坏了,主动引导调音量
         if (showVolumeHint) {
             Box(
@@ -162,7 +163,7 @@ fun CallHost(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),
-                    color = Color(0xFFBBBBBB), fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
+                    color = TouliaoMedia.secondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
                 )
                 // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
                 if (state.stage == CallStage.CONNECTED && state.callQuality.isNotEmpty()) {
@@ -185,7 +186,7 @@ fun CallHost(
         if (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING || state.stage == CallStage.CONNECTED) {
             Box(
                 Modifier.align(Alignment.TopStart).systemBarsPadding().padding(start = 16.dp, top = 8.dp)
-                    .size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
+                    .size(com.touliao.app.ui.theme.TouliaoMetrics.touchTarget).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
                     .clickable { viewModel.setMinimized(true) },
                 contentAlignment = Alignment.Center,
             ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Minimize, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md) }
@@ -323,7 +324,7 @@ private fun CallMinimizedBubble(viewModel: CallViewModel, state: com.touliao.app
                 }
                 .size(bubbleSizeDp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF262626))
+                .background(TouliaoMedia.surface)
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { totalDrag = 0f },

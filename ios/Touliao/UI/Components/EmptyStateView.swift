@@ -6,25 +6,32 @@ struct VxinEmptyState: View {
     let icon: String
     let title: String
     var subtitle: String? = nil
+    var isError = false
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: TouliaoMetrics.space3) {
             ZStack {
                 Circle().fill(Color.vxinPrimarySoft).frame(width: 80, height: 80)
                 TouliaoIcon(icon, size: .lg)
-                    .foregroundColor(.vxinBrand)
+                    .foregroundColor(isError ? .vxinError : .vxinBrand)
             }
             Text(title)
-                .touliaoFont(VxinFontSize.md, weight: .medium)
-                .foregroundColor(.vxinText)
+                .touliaoText(.body, weight: .medium)
+                .foregroundColor(isError ? .vxinError : .vxinText)
             if let subtitle {
                 Text(subtitle)
-                    .font(.footnote)
+                    .touliaoText(.secondary)
                     .foregroundColor(.vxinTextSecondary)
                     .multilineTextAlignment(.center)
             }
+            if let actionTitle, let action {
+                TouliaoButton(title: actionTitle, variant: .secondary, action: action)
+            }
         }
+        .accessibilityElement(children: .contain)
         .frame(maxWidth: .infinity)
-        .padding(32)
+        .padding(TouliaoMetrics.space8)
     }
 }

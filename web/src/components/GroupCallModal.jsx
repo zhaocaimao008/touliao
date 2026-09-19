@@ -1,3 +1,4 @@
+import CallControl from '../ui-kit/CallControl';
 import useFocusTrap from '../hooks/useFocusTrap';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useRef, useCallback, useId } from 'react';
@@ -692,16 +693,16 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
         </fieldset>}
       </section>}
       <nav aria-label={t('groupCall.controls')} className="gcm-controls">
-        <CtrlBtn icon={<CallIcon kind="camera" off={!selfHasVideo || cameraOff} />}
+        <CallControl className="gcm-control" icon={<CallIcon kind="camera" off={!selfHasVideo || cameraOff} />}
           label={!selfHasVideo || cameraOff ? t('call.turnCameraOn') : t('call.turnCameraOff')}
           pressed={selfHasVideo && !cameraOff} disabled={!mediaReady}
           onClick={selfHasVideo ? webrtc.toggleCamera : webrtc.upgradeToVideo} />
-        <CtrlBtn icon={<CallIcon kind="mic" off={muted || !mediaReady} />}
+        <CallControl className="gcm-control" icon={<CallIcon kind="mic" off={muted || !mediaReady} />}
           label={muted ? t('call.unmute') : t('call.mute')} pressed={muted} disabled={!mediaReady}
           onClick={webrtc.toggleMute} />
-        <CtrlBtn icon={<CallIcon kind="output" />} label={t('groupCall.audioSettings')}
+        <CallControl className="gcm-control" icon={<CallIcon kind="output" />} label={t('groupCall.audioSettings')}
           pressed={showAudioSettings} onClick={() => setShowAudioSettings(value => !value)} />
-        <CtrlBtn icon={<CallIcon kind="hangup" />} label={t('call.hangup')} danger onClick={webrtc.hangup} />
+        <CallControl className="gcm-control" icon={<CallIcon kind="hangup" />} label={t('call.hangup')} danger onClick={webrtc.hangup} />
       </nav>
     </div>
     {minimized && <aside ref={miniRef} className="gcm-mini" aria-label={t('groupCall.minimized')}
@@ -793,11 +794,4 @@ function CallIcon({ kind, off }) {
   const name = { mic: off ? 'microphoneMuted' : 'microphone', camera: off ? 'cameraOff' : 'video',
     output: off ? 'speakerOff' : 'speaker', minimize: 'minimize', restore: 'fullscreen', hangup: 'hangup' }[kind];
   return <TouliaoIcon name={name} role="call" />;
-}
-
-function CtrlBtn({ icon, label, pressed, danger, disabled, onClick }) {
-  return <button type="button" className={`gcm-control${danger ? ' gcm-control--danger' : ''}`}
-    aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick}>
-    <span className="gcm-control-icon">{icon}</span><span>{label}</span>
-  </button>;
 }

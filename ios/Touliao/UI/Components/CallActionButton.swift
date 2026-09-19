@@ -25,7 +25,7 @@ struct CallActionButton: View {
             Button(action: action) {
                 TouliaoIcon(icon, size: .md)
                     .foregroundColor(IconColor.onDark)
-                    .frame(width: 64, height: 64)
+                    .frame(width: TouliaoMetrics.callControlSize, height: TouliaoMetrics.callControlSize)
                     .background(color).clipShape(Circle())
             }
             .accessibilityLabel(label)

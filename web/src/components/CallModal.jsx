@@ -1,3 +1,4 @@
+import CallControl from '../ui-kit/CallControl';
 import useFocusTrap from '../hooks/useFocusTrap';
 import TouliaoIcon from '../ui-kit/Icon';
 
@@ -992,28 +993,28 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         <div className="cm-controls-bottom">
           {status === 'incoming' ? (
             <div className="cm-btn-row">
-              <CircleBtn icon={<IcoHangup />} label={t('call.reject')} color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
-              <CircleBtn
+              <CallControl icon={<IcoHangup />} label={t('call.reject')} tone="danger" large onClick={reject} testid="call-reject-btn" />
+              <CallControl
                 icon={<TouliaoIcon name="message" size="sm" />}
-                label={t('call.replyMessage')} size={56} onClick={replyInstead} testid="call-reply-btn"
+                label={t('call.replyMessage')} onClick={replyInstead} testid="call-reply-btn"
               />
-              <CircleBtn
+              <CallControl
                 icon={<IcoVideo    size="md" />}
-                label={t('call.accept')} color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
+                label={t('call.accept')} tone="accept" large onClick={accept} testid="call-accept-btn"
               />
             </div>
           ) : (
             <div className="cm-btn-row">
-              <CircleBtn icon={<IcoMute on={muted} />} label={muted ? t('call.unmute') : t('call.mute')} active={muted} onClick={toggleMute} />
+              <CallControl icon={<IcoMute on={muted} />} label={muted ? t('call.unmute') : t('call.mute')} active={muted} onClick={toggleMute} />
               {supportsSinkId && outputDevices.length > 1 && (
-                <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
+                <CallControl icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
-              <CircleBtn
+              <CallControl
                 icon={<IcoVideo    size="md" />}
                 label={t('call.switchToVoice')} onClick={toggleVideo} testid="call-switch-to-audio-btn"
               />
-              <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
-              <CircleBtn icon={<IcoCam off={cameraOff} />} label={cameraOff ? t('call.turnCameraOn') : t('call.turnCameraOff')} active={cameraOff} onClick={toggleCamera} />
+              <CallControl icon={<IcoHangup />} label={t('call.hangup')} tone="danger" large onClick={() => endCall(true)} testid="call-hangup-btn" />
+              <CallControl icon={<IcoCam off={cameraOff} />} label={cameraOff ? t('call.turnCameraOn') : t('call.turnCameraOff')} active={cameraOff} onClick={toggleCamera} />
             </div>
           )}
         </div>
@@ -1087,28 +1088,28 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         <div className="cm-voice-bottom">
           {status === 'incoming' && (
             <div className="cm-btn-row">
-              <CircleBtn icon={<IcoHangup />} label={t('call.reject')} color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
-              <CircleBtn
+              <CallControl icon={<IcoHangup />} label={t('call.reject')} tone="danger" large onClick={reject} testid="call-reject-btn" />
+              <CallControl
                 icon={<TouliaoIcon name="message" size="sm" />}
-                label={t('call.replyMessage')} size={56} onClick={replyInstead} testid="call-reply-btn"
+                label={t('call.replyMessage')} onClick={replyInstead} testid="call-reply-btn"
               />
-              <CircleBtn
+              <CallControl
                 icon={<TouliaoIcon name="acceptCall" size="sm" />}
-                label={t('call.accept')} color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
+                label={t('call.accept')} tone="accept" large onClick={accept} testid="call-accept-btn"
               />
             </div>
           )}
           {inProgress && status !== 'incoming' && (
             <div className="cm-btn-row">
-              <CircleBtn icon={<IcoMute on={muted} />} label={muted ? t('call.unmute') : t('call.mute')} active={muted} onClick={toggleMute} />
+              <CallControl icon={<IcoMute on={muted} />} label={muted ? t('call.unmute') : t('call.mute')} active={muted} onClick={toggleMute} />
               {supportsSinkId && outputDevices.length > 1 && (
-                <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
+                <CallControl icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
-              <CircleBtn
+              <CallControl
                 icon={<IcoVideo    size="md" />}
                 label={t('call.switchToVideo')} onClick={toggleVideo} testid="call-switch-to-video-btn"
               />
-              <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
+              <CallControl icon={<IcoHangup />} label={t('call.hangup')} tone="danger" large onClick={() => endCall(true)} testid="call-hangup-btn" />
             </div>
           )}
         </div>
@@ -1122,28 +1123,5 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         </div>
       )}
     </div>
-  );
-}
-
-/* ── 圆形控制按钮 ── */
-function CircleBtn({ icon, label, color, size = 54, active, onClick, testid }) {
-  const bg = color || (active ? 'rgba(255,255,255,.35)' : 'rgba(255,255,255,.15)');
-  return (
-    <button
-      type="button"
-      aria-label={label} data-testid={testid}
-      onClick={onClick}
-      className="cm-circle-btn"
-    >
-      <span
-        className="cm-circle-btn-disc"
-        style={{ width: size, height: size, background: bg }}
-      >
-        <span className="cm-circle-btn-icon" style={{ width: 'var(--icon-md)', height: 'var(--icon-md)' }}>
-          {icon}
-        </span>
-      </span>
-      <span className="cm-circle-btn-label">{label}</span>
-    </button>
   );
 }

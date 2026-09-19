@@ -107,3 +107,23 @@ html.touliao-ui body :is(.chatfiles-header, .chatfiles-tabs) { flex-shrink: 0; }
 /* Migrated auth buttons take their dimensions from the component, overriding
    the legacy mixed-primary selector that also matches .wc-send-btn.active. */
 html.touliao-ui body .tl-button.auth-submit { min-height: var(--tl-control-height); font-size: var(--tl-type-body-size); border-radius: var(--tl-radius-control); }
+
+/* A single media-control owner for private and group calls. */
+html.touliao-ui body .tl-call-control { display: inline-flex; flex-direction: column; align-items: center; gap: var(--tl-space-2); min-width: var(--tl-media-control-size); padding: 0; border: 0; background: transparent; color: var(--tl-media-text); font: inherit; cursor: pointer; }
+html.touliao-ui body .tl-call-control-disc { display: grid; place-items: center; width: var(--tl-media-control-size); height: var(--tl-media-control-size); border-radius: 50%; background: var(--tl-media-control); }
+html.touliao-ui body .tl-call-control[data-large] .tl-call-control-disc { width: var(--tl-media-primary-control-size); height: var(--tl-media-primary-control-size); }
+html.touliao-ui body .tl-call-control[aria-pressed='true'] .tl-call-control-disc { background: var(--tl-media-selected); }
+html.touliao-ui body .tl-call-control[data-tone='danger'] .tl-call-control-disc { background: var(--tl-media-danger); }
+html.touliao-ui body .tl-call-control[data-tone='accept'] .tl-call-control-disc { background: var(--tl-media-accept); }
+html.touliao-ui body .tl-call-control-icon { display: flex; align-items: center; justify-content: center; color: var(--tl-media-text); }
+html.touliao-ui body .tl-call-control-label { max-width: 9em; font-size: var(--tl-type-caption-size); line-height: var(--tl-type-caption-leading); text-align: center; overflow-wrap: anywhere; }
+html.touliao-ui body .tl-call-control:disabled { opacity: var(--tl-disabled-opacity); cursor: not-allowed; }
+html.touliao-ui body .tl-call-control:focus-visible { outline: 2px solid var(--tl-media-secondary); outline-offset: 4px; border-radius: var(--tl-radius-small); }
+html.touliao-ui body .tl-call-control:hover:not(:disabled) .tl-call-control-disc { filter: brightness(1.15); }
+html.touliao-ui body .tl-call-control:active:not(:disabled) .tl-call-control-disc { filter: brightness(.9); }
+html.touliao-ui body .gcm-controls { flex-wrap: wrap; gap: var(--tl-media-control-gap); }
+html.touliao-ui body :is(.gcm-header h2, .cm-voice-name) { overflow-wrap: anywhere; }
+html.touliao-ui.windows-desktop body .gcm-dialog { top: 30px; }
+@media (max-width: 767px) {
+  html.touliao-ui body :is(.gi-btn-name, .gi-btn-xl, .gi-btn-xl-sm, .gi-clear-search) { min-width: var(--tl-touch-target); min-height: var(--tl-touch-target); }
+}

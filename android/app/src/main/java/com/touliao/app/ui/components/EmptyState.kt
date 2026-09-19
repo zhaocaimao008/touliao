@@ -15,11 +15,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.touliao.app.ui.TouliaoButton
+import com.touliao.app.ui.TouliaoButtonVariant
 import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextPrimary
 import com.touliao.app.ui.theme.VxinTextSecondary
@@ -34,9 +34,12 @@ fun EmptyState(
     title: String,
     subtitle: String? = null,
     modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
     Column(
-        modifier = modifier.fillMaxSize().padding(32.dp),
+        modifier = modifier.fillMaxSize().padding(com.touliao.app.ui.theme.TouliaoMetrics.space8),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -49,13 +52,13 @@ fun EmptyState(
             contentAlignment = Alignment.Center,
         ) {
             androidx.compose.material3.Icon(
-                icon, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Lg), tint = VxinBrand,
+                icon, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Lg), tint = if (isError) androidx.compose.material3.MaterialTheme.colorScheme.error else VxinBrand,
             )
         }
         Spacer(Modifier.height(16.dp))
         Text(
             title,
-            color = VxinTextPrimary,
+            color = if (isError) androidx.compose.material3.MaterialTheme.colorScheme.error else VxinTextPrimary,
             fontSize = com.touliao.app.ui.theme.VxinTextSize.md,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
@@ -68,6 +71,10 @@ fun EmptyState(
                 fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
                 textAlign = TextAlign.Center,
             )
+        }
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.height(com.touliao.app.ui.theme.TouliaoMetrics.space4))
+            TouliaoButton(text = actionLabel, onClick = onAction, variant = TouliaoButtonVariant.SECONDARY)
         }
     }
 }

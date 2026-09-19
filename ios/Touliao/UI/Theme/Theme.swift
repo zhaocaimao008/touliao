@@ -24,8 +24,8 @@ extension Color {
     static let vxinOnPrimary = TouliaoDesign.primaryForeground
     static let vxinBorder = TouliaoDesign.border
     // Existing financial cards retain their semantic color and functionality.
-    static let vxinCallAccept = Color(red: 24 / 255, green: 133 / 255, blue: 107 / 255)
-    static let vxinCallDanger = Color(red: 190 / 255, green: 63 / 255, blue: 78 / 255)
+    static let vxinCallAccept = TouliaoMedia.accept
+    static let vxinCallDanger = TouliaoMedia.danger
     static let vxinPay = Color(red: 0x07 / 255, green: 0xC1 / 255, blue: 0x60 / 255)
     static let vxinPayGradStart = Color(red: 0x09 / 255, green: 0xBB / 255, blue: 0x07 / 255)
     static let vxinPayGradEnd = vxinPay
@@ -33,8 +33,8 @@ extension Color {
 extension LinearGradient {
     static let vxinBubble = LinearGradient(colors: [.vxinBubbleMine, .vxinBubbleMine],
                                            startPoint: .top, endPoint: .bottom)
-    static let vxinCallAccept = Color(red: 24 / 255, green: 133 / 255, blue: 107 / 255)
-    static let vxinCallDanger = Color(red: 190 / 255, green: 63 / 255, blue: 78 / 255)
+    static let vxinCallAccept = TouliaoMedia.accept
+    static let vxinCallDanger = TouliaoMedia.danger
     static let vxinPay = LinearGradient(colors: [.vxinPayGradStart, .vxinPayGradEnd],
                                         startPoint: .topLeading, endPoint: .bottomTrailing)
 }
@@ -89,6 +89,16 @@ extension View {
             .tint(.vxinBrand)
             .toolbarBackground(Color.vxinSurface, for: .navigationBar, .tabBar)
             .toolbarBackground(.visible, for: .navigationBar, .tabBar)
+    }
+}
+
+/// Applies only to UI transactions, never timers, media or transport state.
+struct TouliaoMotionPolicy: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.transaction { transaction in
+            if reduceMotion { transaction.animation = nil; transaction.disablesAnimations = true }
+        }
     }
 }
 

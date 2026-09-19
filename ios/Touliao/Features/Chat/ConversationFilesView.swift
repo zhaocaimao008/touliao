@@ -160,20 +160,13 @@ struct ConversationFilesView: View {
         if vm.loading && vm.items.isEmpty {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let err = vm.error, vm.items.isEmpty {
-            VStack(spacing: 12) {
-                TouliaoIcon("warning", size: .xl).foregroundColor(.vxinTextSecondary)
-                Text(err).foregroundColor(.vxinError)
-                Button("重试") { Task { await vm.loadFirst() } }.foregroundColor(.vxinGreen)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VxinEmptyState(icon: "warning", title: "加载失败", subtitle: err, isError: true,
+                           actionTitle: "重试", action: { Task { await vm.loadFirst() } })
+                .frame(maxHeight: .infinity)
         } else if vm.items.isEmpty {
-            VStack(spacing: 12) {
-                TouliaoIcon("folder", size: .xl).foregroundColor(.vxinTextSecondary)
-                Text("暂无文件").foregroundColor(.vxinTextSecondary)
-                Text("该会话下的图片、视频与文件会在这里汇总")
-                    .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VxinEmptyState(icon: "folder", title: "暂无文件",
+                           subtitle: "该会话下的图片、视频与文件会在这里汇总")
+                .frame(maxHeight: .infinity)
         } else if vm.tab == .file {
             fileList
         } else {

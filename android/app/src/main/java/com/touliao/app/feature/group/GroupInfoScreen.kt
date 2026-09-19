@@ -87,7 +87,7 @@ fun GroupInfoScreen(
     LaunchedEffect(state.inviteLink) {
         val link = state.inviteLink ?: return@LaunchedEffect
         clipboard.setText(androidx.compose.ui.text.AnnotatedString(link))
-        android.widget.Toast.makeText(context, "邀请链接已复制", android.widget.Toast.LENGTH_SHORT).show()
+        com.touliao.app.ui.components.TouliaoFeedback.show(context, "邀请链接已复制", com.touliao.app.ui.components.FeedbackKind.SUCCESS)
         viewModel.consumeInviteLink()
     }
     // 转让成功等一次性绿色提示

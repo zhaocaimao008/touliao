@@ -2,6 +2,8 @@ import TouliaoIcon, { iconForMessageType } from '../ui-kit/Icon';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
+import { EmptyState, ErrorState } from './StateViews';
+import { TextButton } from '../ui-kit/Button';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
 import {
@@ -39,6 +41,8 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   const [messages, setMessages] = useState([]);
   const [searchingMsg, setSearchingMsg] = useState(false);
   const [convError, setConvError] = useState(null);
+  const [messageError, setMessageError] = useState(null);
+  const [retry, setRetry] = useState(0);
   const [typeFilter, setTypeFilter] = useState('');
   const [timeRange, setTimeRange] = useState('');
   const [senderId, setSenderId] = useState('');
@@ -72,7 +76,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
         // [GlobalSearch] Failed to load conversations — suppressed
         setConvError(errorMsg);
       });
-  }, [query, t]);
+  }, [query, t, retry]);
 
   const q = query.trim().toLowerCase();
 
@@ -117,6 +121,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     const ac = new AbortController();
     const timer = setTimeout(() => {
       setSearchingMsg(true);
+      setMessageError(null);
       const params = buildMessageSearchParams({ query: q, type: typeFilter, timeRange, senderId });
       axios.get('/api/messages/search', { params, signal: ac.signal })
         .then(r => {
@@ -134,11 +139,11 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
             return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
           });
         })
-        .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setMessages([]); })
+        .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') { setMessages([]); setMessageError(err.response?.data?.error || err.message); } })
         .finally(() => { if (!ac.signal.aborted) setSearchingMsg(false); });
     }, 300);
     return () => { clearTimeout(timer); ac.abort(); };
-  }, [q, typeFilter, timeRange, senderId]);
+  }, [q, typeFilter, timeRange, senderId, retry]);
 
   const openContact = async (c) => {
     try {
@@ -173,10 +178,11 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   return (
     <div className="gs-scroll">
       {/* 会话加载失败提示（此前静默吞掉，导致会话搜索结果为空却无任何反馈） */}
-      {convError && (
-        <div role="alert" className="gs-searching" style={{ color: 'var(--color-badge)' }}>
-          {convError}
-        </div>
+      {hasQuery && (convError || messageError) && (
+        <ErrorState desc={convError || messageError} onRetry={() => {
+          if (convError) loadedRef.current = false;
+          setRetry(value => value + 1);
+        }} />
       )}
       {/* 联系人 */}
       {matchedContacts.length > 0 && (
@@ -289,15 +295,13 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       )}
 
       {/* 降级兜底：仅在有实际查询词时展示,避免清空输入时闪出「去网络搜索『』」空串 */}
-      {empty && !actualSearching && q && (
-        <div
-          onClick={() => onNetworkSearch(query)}
-          className="gs-network-row"
-          role="button" tabIndex={0}
-          onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onNetworkSearch(query))}>
-          <TouliaoIcon name="search" className="gs-network-icon" tone="selected" size="xs" />
-          <span>{t('gs.noLocalResultsPrefix')}<span className="gs-highlight">「{query}」</span></span>
-        </div>
+      {empty && !actualSearching && !convError && !messageError && q && (
+        <EmptyState icon={null} title={t('gs.noLocalResultsPrefix')} action={
+          <TextButton className="gs-network-row" onClick={() => onNetworkSearch(query)}>
+            <TouliaoIcon name="search" className="gs-network-icon" tone="selected" size="xs" />
+            <span className="gs-highlight">「{query}」</span>
+          </TextButton>
+        } />
       )}
     </div>
   );

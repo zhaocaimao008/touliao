@@ -155,7 +155,7 @@ fun ChatScreen(
             if (viewModel.isGroup) viewModel.startGroupCall(v) else viewModel.startCall(v)
         } else if (v != null) {
             // 被拒绝后此前纯静默——点了通话按钮、权限框拒绝后界面毫无反应，像没反应过来一样。
-            android.widget.Toast.makeText(context, "需要麦克风/摄像头权限才能发起通话", android.widget.Toast.LENGTH_SHORT).show()
+            com.touliao.app.ui.components.TouliaoFeedback.show(context, "需要麦克风/摄像头权限才能发起通话", com.touliao.app.ui.components.FeedbackKind.ERROR)
         }
     }
     fun launchCall(video: Boolean) {
@@ -181,7 +181,7 @@ fun ChatScreen(
         if (granted) viewModel.startRecording()
         // 被拒绝后此前纯静默——用户点了语音按钮、弹了系统权限框、拒绝后界面毫无反应，
         // 像坏了一样。加一条提示至少让用户知道发生了什么（不做"去设置"引导，仅提示原因）。
-        else android.widget.Toast.makeText(context, "需要麦克风权限才能发送语音", android.widget.Toast.LENGTH_SHORT).show()
+        else com.touliao.app.ui.components.TouliaoFeedback.show(context, "需要麦克风权限才能发送语音", com.touliao.app.ui.components.FeedbackKind.ERROR)
     }
     val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.setBackground(it) }
@@ -280,11 +280,11 @@ fun ChatScreen(
                 com.touliao.app.core.util.saveTextToDownloads(context, filename, content)
             }.onSuccess { savedPath ->
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "聊天记录已导出：$savedPath", android.widget.Toast.LENGTH_LONG).show()
+                    com.touliao.app.ui.components.TouliaoFeedback.show(context, "聊天记录已导出：$savedPath", com.touliao.app.ui.components.FeedbackKind.SUCCESS)
                 }
             }.onFailure { e ->
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "导出保存失败：${e.message ?: "未知错误"}", android.widget.Toast.LENGTH_SHORT).show()
+                    com.touliao.app.ui.components.TouliaoFeedback.show(context, "导出保存失败：${e.message ?: "未知错误"}", com.touliao.app.ui.components.FeedbackKind.ERROR)
                 }
             }
         }

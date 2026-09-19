@@ -37,7 +37,7 @@ struct GroupCallHostView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(white: 0.12)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.card))
+        .background(TouliaoMedia.surface).clipShape(RoundedRectangle(cornerRadius: VxinRadius.card))
 
     }
 }
@@ -54,7 +54,7 @@ private struct GroupCallView: View {
 
     var body: some View {
         ZStack {
-            Color(white: 0.07).ignoresSafeArea()
+            TouliaoMedia.canvas.ignoresSafeArea()
 
             VStack {
                 VStack(spacing: 2) {
@@ -64,7 +64,7 @@ private struct GroupCallView: View {
                     if state.stage == .connected, let start = state.connectedAt {
                         TimelineView(.periodic(from: start, by: 1)) { context in
                             Text(formatCallDuration(from: start, now: context.date))
-                                .touliaoText(.caption).foregroundColor(Color(white: 0.7)).monospacedDigit()
+                                .touliaoText(.caption).foregroundColor(TouliaoMedia.secondary).monospacedDigit()
                         }
                     }
                 }.padding(.top, 12)
@@ -111,10 +111,10 @@ private struct GroupCallView: View {
 
     @ViewBuilder private var controls: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 20) {
-            circleButton(state.micEnabled ? "静音" : "取消静音", Color(white: 0.35)) { manager.toggleMic() }
+            circleButton(state.micEnabled ? "静音" : "取消静音", TouliaoMedia.control) { manager.toggleMic() }
             circleButton("挂断", .vxinCallDanger) { manager.hangup() }
             // B-1：语音模式也提供"开启视频"升级入口；视频模式保持原摄像头开关（镜像 Web GroupCallModal）
-            circleButton(state.isVideo ? (state.cameraEnabled ? "关摄像头" : "开摄像头") : "开启视频", Color(white: 0.35)) {
+            circleButton(state.isVideo ? (state.cameraEnabled ? "关摄像头" : "开摄像头") : "开启视频", TouliaoMedia.control) {
                 if state.isVideo {
                     manager.toggleCamera()
                 } else {
@@ -129,7 +129,7 @@ private struct GroupCallView: View {
                 }
             }
             if state.isVideo {
-                circleButton("翻转", Color(white: 0.35)) { manager.switchCamera() }
+                circleButton("翻转", TouliaoMedia.control) { manager.switchCamera() }
             }
         }
     }
