@@ -55,3 +55,17 @@ surface/text/control roles, independent of the page theme. Special optical value
 No existing public component or asset is removed while still referenced. Native
 system file selectors/context menus are PLATFORM_NATIVE_EXCEPTION. Browser
 fixture checks and simulator/emulator tests are NOT_DEVICE_VERIFIED.
+
+## Regression closure
+
+Additional boundaries found while validating the audited P1 paths are included:
+Windows file drawers use their available parent height (the titlebar excludes
+30px), so the paging sentinel remains visible. Chat row measurements continue
+to follow the existing bottom-scroll intent after the initial settle window;
+reading history still disables following. Neither change alters messages, retries
+or transport. Auth and retry buttons explicitly use component height tokens.
+
+Browser regression entry points: `scripts/design-system-p1-regression.cjs` and
+`scripts/design-system-p1-edges.cjs`. Configure `UI_BUILD`, `UI_OUTPUT`, and
+optionally `PLAYWRIGHT_MODULE` / `CHROMIUM_PATH`. All API/media/socket fixtures are
+isolated. The existing four design-system suites remain additional gates.

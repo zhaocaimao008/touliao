@@ -838,10 +838,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     work.timer = setTimeout(() => { stickPendingRef.current = false; autoScrollingRef.current = false; }, 500);
   }, [messages]);
 
-  // 行高被 ResizeObserver 修正后的回调:仅在「贴底挂起」时补贴一次底,使刚发的消息即使
-  // 高度从估算值收敛到真实值也稳定停在底部,且不产生每帧盲滚的往复抖动。
+  // Follow measured layout while the user still intends to stay at the bottom.
+  // A status row can settle after the initial 500ms window (e.g. a failed send).
+  // Reading history clears stickBottomRef, so late measurements cannot pull it down.
   const handleHeightSettle = useCallback(() => {
-    if (!stickPendingRef.current) return;
     if (!stickBottomRef.current) return;
     const o = listOuterRef.current;
     if (!o) return;

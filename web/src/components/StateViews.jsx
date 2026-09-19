@@ -1,5 +1,6 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import React from 'react';
+import { SecondaryButton } from '../ui-kit/Button';
 
 import { useI18n } from '../contexts/I18nContext';
 
@@ -43,7 +44,7 @@ export const ErrorState = React.memo(function ErrorState({ title, desc, onRetry 
       <div className="wc-state-title">{title ?? t('stateViews.loadFailed')}</div>
       {(desc ?? t('stateViews.checkNetworkRetry')) && <div className="wc-state-desc">{desc ?? t('stateViews.checkNetworkRetry')}</div>}
       {onRetry && (
-        <button type="button" className="wc-state-retry" onClick={onRetry}>{t('common.retry')}</button>
+        <SecondaryButton className="wc-state-retry" onClick={onRetry}>{t('common.retry')}</SecondaryButton>
       )}
     </div>
   );
