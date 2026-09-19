@@ -15,6 +15,20 @@ const report = { environment: 'GitHub Windows native VM', physicalDevice: false,
   oldVersion: '8.1.26', targetVersion: '8.1.27', updateTraffic: 'unchanged production HTTPS endpoints',
   accountApiAndSocketTransport: 'isolated fixture; realtime business not tested', hotUpdate: false, passed: false };
 let loginCount = 0, historyOffline = false, active, logFile;
+function checkpoint(stage) {
+  report.stage = stage; report.updatedAt = new Date().toISOString();
+  fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify(report, null, 2));
+  if (logFile && fs.existsSync(logFile)) fs.copyFileSync(logFile, path.join(out, 'installed-updater-main.log'));
+  console.log('[native-upgrade]', stage);
+}
+async function closeDriver(app) {
+  let timer;
+  try {
+    await Promise.race([app.close(), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(Error('Native test driver close timed out')), 20000);
+    })]);
+  } finally { clearTimeout(timer); }
+}
 function ps(script) { return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '$ErrorActionPreference="Stop"; ' + script], { encoding: 'utf8', timeout: 60000 }); }
 function blockNetwork() {
   ps('Get-NetFirewallProfile | Select-Object Name,Enabled | ConvertTo-Json | Set-Content "$env:RUNNER_TEMP/touliao-firewall-before.json"; Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True; New-NetFirewallRule -DisplayName "TouliaoUpdaterAudit" -Direction Outbound -Program $env:LEGACY_EXE -Protocol TCP -RemotePort 443 -Action Block | Out-Null');
@@ -64,6 +78,7 @@ async function waitFor(check, timeout) {
 }
 (async () => {
   try {
+    checkpoint('launching-installed-8.1.26');
     blockNetwork();
     active = await launch(); let { app, page } = active;
     report.before = await app.evaluate(({ app }) => ({ version: app.getVersion(), userData: app.getPath('userData'), appPath: app.getAppPath() }));
@@ -82,6 +97,7 @@ async function waitFor(check, timeout) {
     await waitFor(() => page.evaluate(() => window.__updateAuditErrors.length > 0), 150000);
     report.failedCheckObserved = await page.evaluate(() => window.__updateAuditErrors);
     await page.screenshot({ path: path.join(out, '02-real-network-check-failure.png') });
+    checkpoint('real-network-failure-observed');
     unblockNetwork();
     // Use the unchanged check IPC, so the startup timer cannot replace Retry
     // with Install midway through a locator click and install before inspection.
@@ -97,6 +113,7 @@ async function waitFor(check, timeout) {
     report.downloadedInstallerSha256 = crypto.createHash('sha256').update(fs.readFileSync(path.join(pending, candidates[0]))).digest('hex');
     assert.equal(report.downloadedInstallerSha256, 'c2ae64ec1316d5f033b9f2afa25b3eb5bfbf56f978d8abe99b20b21c2cbcf7e0');
     report.signedManifestAndDownloadedBytesVerified = true;
+    checkpoint('production-update-downloaded-and-verified');
     // Keep the auto-restarted app from sending the isolated account token to a
     // real account endpoint before the test driver reattaches. Updates are fully
     // downloaded and verified already; this does not bypass updater logic.
@@ -104,6 +121,7 @@ async function waitFor(check, timeout) {
     const closed = app.waitForEvent('close', { timeout: 120000 });
     await page.locator('.wc-update-install-btn').click().catch(e => { if (!/closed/i.test(e.message)) throw e; });
     await closed; active = null;
+    checkpoint('old-client-launched-native-installer');
     // quitAndInstall() in the historical client uses the assisted NSIS wizard.
     // Drive that actual wizard instead of substituting a silent/manual installer.
     execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive',
@@ -112,9 +130,11 @@ async function waitFor(check, timeout) {
     await waitFor(() => {
       try { return ps('(Get-Item $env:LEGACY_EXE).VersionInfo.ProductVersion').trim().startsWith('8.1.27'); } catch { return false; }
     }, 150000);
+    checkpoint('native-installer-updated-executable');
     await new Promise(r => setTimeout(r, 5000));
     ps('Get-Process touliao -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $env:LEGACY_EXE } | Stop-Process -Force; exit 0');
     historyOffline = true;
+    checkpoint('launching-8.1.27-with-history-offline');
     active = await launch(); ({ app, page } = active);
     report.after = await app.evaluate(({ app }) => ({ version: app.getVersion(), userData: app.getPath('userData'), appPath: app.getAppPath() }));
     assert.equal(report.after.version, '8.1.27'); assert.equal(report.after.userData, report.before.userData);
@@ -129,11 +149,13 @@ async function waitFor(check, timeout) {
     report.installedThroughHistoricalUpdater = true; report.failedNetworkCheckRecovered = true; report.passed = true;
   } catch (error) {
     report.error = error.stack; process.exitCode = 1;
-    if (active) { try { await active.page.screenshot({ path: path.join(out, 'failure.png') }); } catch {} }
+    checkpoint('failed');
+    if (active) { try { await active.page.screenshot({ path: path.join(out, 'failure.png'), timeout: 10000 }); } catch {} }
   } finally {
-    if (active) { try { await active.app.close(); } catch {} }
+    if (active) { try { await closeDriver(active.app); } catch (error) { report.driverCleanupError = error.message; process.exitCode = 1; } }
     try { unblockNetwork(); } catch (error) { report.firewallCleanupError = error.message; process.exitCode = 1; }
-    if (logFile && fs.existsSync(logFile)) fs.copyFileSync(logFile, path.join(out, 'installed-updater-main.log'));
-    fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify(report, null, 2));
+    checkpoint(report.passed && !process.exitCode ? 'complete' : 'failed');
   }
+  // End isolated transport handles after the actual assertions and cleanup.
+  process.exit(process.exitCode || 0);
 })();
