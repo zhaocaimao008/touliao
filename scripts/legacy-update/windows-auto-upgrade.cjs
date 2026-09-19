@@ -12,7 +12,8 @@ const user = { id: 'legacy-me', username: 'UpgradeProbe', phone: '13900000001' }
 const message = { id: 'legacy-message', conversation_id: 'legacy-chat', sender_id: 'legacy-peer', senderName: 'LegacyPeer', type: 'text', content: 'LEGACY-CACHED-MESSAGE-MUST-SURVIVE', created_at: 1789747100 };
 const conv = { id: 'legacy-chat', type: 'private', name: 'LegacyPeer', lastMessage: 'Open cached history', lastTime: 1789747200, otherUser: { id: 'legacy-peer', username: 'LegacyPeer' } };
 const report = { environment: 'GitHub Windows native VM', physicalDevice: false, productionAccountTested: false,
-  oldVersion: '8.1.26', targetVersion: '8.1.27', updateTraffic: 'unchanged production HTTPS endpoints', hotUpdate: false, passed: false };
+  oldVersion: '8.1.26', targetVersion: '8.1.27', updateTraffic: 'unchanged production HTTPS endpoints',
+  accountApiAndSocketTransport: 'isolated fixture; realtime business not tested', hotUpdate: false, passed: false };
 let loginCount = 0, historyOffline = false, active, logFile;
 function ps(script) { return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '$ErrorActionPreference="Stop"; ' + script], { encoding: 'utf8', timeout: 60000 }); }
 function blockNetwork() {
@@ -36,7 +37,16 @@ async function launch() {
     else if (/contacts|pinned-messages|friend-requests|my-groups|friend-labels|blocked|collections|moments|call-logs|sessions/.test(p)) body = [];
     return route.fulfill({ status, json: body });
   });
-  await app.context().routeWebSocket(/.*/, ws => ws.close());
+  // Only the isolated account's transport handshake is simulated. Keeping it
+  // connected avoids an unrelated, permanently reconnecting account banner
+  // covering the historical update buttons. No message/call success is faked.
+  await app.context().routeWebSocket(/.*/, ws => {
+    ws.send('0' + JSON.stringify({ sid: 'isolated-upgrade', upgrades: [], pingInterval: 600000, pingTimeout: 600000 }));
+    ws.onMessage(data => {
+      if (String(data).startsWith('40')) ws.send('40' + JSON.stringify({ sid: 'isolated-upgrade' }));
+      if (data === '2') ws.send('3');
+    });
+  });
   const page = await app.firstWindow(); await page.reload();
   return { app, page };
 }
@@ -73,7 +83,10 @@ async function waitFor(check, timeout) {
     report.failedCheckObserved = await page.evaluate(() => window.__updateAuditErrors);
     await page.screenshot({ path: path.join(out, '02-real-network-check-failure.png') });
     unblockNetwork();
-    await page.locator('.wc-update-install-btn').click(); // historical UI Retry
+    // Use the unchanged check IPC, so the startup timer cannot replace Retry
+    // with Install midway through a locator click and install before inspection.
+    await page.evaluate(() => window.electronAPI.checkUpdate());
+    report.recoveryTrigger = 'historical checkUpdate IPC after removing the OS network block';
     await waitFor(() => page.locator('.wc-update-banner').innerText().then(t => /重启.*安装/.test(t)), 240000);
     await page.screenshot({ path: path.join(out, '03-production-update-downloaded-and-verified.png') });
     const log = fs.readFileSync(logFile, 'utf8');
