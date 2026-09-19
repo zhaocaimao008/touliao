@@ -1,4 +1,5 @@
-import Icon from '../ui-kit/Icon';
+import TouliaoIcon from '../ui-kit/Icon';
+
 import './auth.css';
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -20,7 +21,7 @@ export default function ForgotPassword() {
       <div className="auth-container" style={{ width: 400 }}>
         <div className="auth-brand">
           <div className="auth-brand-icon">
-            <Icon name="key-round" size={32} />
+            <TouliaoIcon name="passwordReset" size="lg" />
           </div>
           <h1 className="auth-brand-name">{t('auth.forgotTitle')}</h1>
           <p className="auth-brand-desc">{t('auth.forgotUnavailable')}</p>

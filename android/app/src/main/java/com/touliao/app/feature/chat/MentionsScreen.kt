@@ -13,8 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -85,7 +83,7 @@ fun MentionsScreen(
                 title = { Text("@我的消息") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回")
                     }
                 },
             )
@@ -110,7 +108,7 @@ fun MentionsScreen(
 
                 state.items.isEmpty() ->
                     EmptyState(
-                        icon = "@",
+                        icon = com.touliao.app.ui.TouliaoIcons.Mention,
                         title = "暂无 @我 的消息",
                         subtitle = "有人在群里 @ 你时，会在这里汇总",
                         modifier = Modifier.align(Alignment.Center),

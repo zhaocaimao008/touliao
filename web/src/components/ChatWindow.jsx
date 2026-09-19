@@ -1,5 +1,6 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
-import Icon from '../ui-kit/Icon';
+
 import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, useLayoutEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { composeReducer, initialComposeState } from '../reducers/composeReducer';
@@ -2560,7 +2561,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {/* ── 拖拽上传遮罩 ── */}
       {isDragOver && (
         <div className="wc-drag-overlay">
-          <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+          <TouliaoIcon name="upload" size="sm" />
           <span>{t('chat.dropFileHint')}</span>
         </div>
       )}
@@ -2616,7 +2617,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             role="button" tabIndex={0} aria-expanded={showAnnounceDetail} aria-label={t('chat.groupAnnouncement')}
             onClick={() => setShowAnnounceDetail(v => !v)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowAnnounceDetail(v => !v); } }}>
-            <span className="wc-announce-badge">📢 {t('chat.groupAnnouncement')}</span>
+            <span className="wc-announce-badge"><TouliaoIcon name="announcement" size="sm" /> {t('chat.groupAnnouncement')}</span>
             <div className="wc-announce-marquee">
               <span className="wc-announce-text">{announcement.replace(/\n/g, '   ')}</span>
             </div>
@@ -2747,7 +2748,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           <div className="wc-card-picker">
             <div className="wc-card-picker-header">
               <span className="wc-card-picker-title">{t('chat.selectCardToShare')}</span>
-              <button className="wc-card-picker-close" onClick={() => setShowCardPicker(false)} aria-label={t('chat.closeCardPicker')}>✕</button>
+              <button className="wc-card-picker-close" onClick={() => setShowCardPicker(false)} aria-label={t('chat.closeCardPicker')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-card-picker-list">
               {cardContacts.length === 0 && (
@@ -2825,7 +2826,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             className={`wc-tool-btn${showStickers ? ' active' : ''}`}
             title={t('chat.stickers')} aria-label={t('chat.stickers')} aria-expanded={showStickers}
             onClick={() => togglePanel('stickers')}
-          ><Icon name="smile-plus" /></button>
+          ><TouliaoIcon name="stickers"  /></button>
 
           <button
             className={`wc-tool-btn${voiceMode ? ' active' : ''}`}
@@ -2858,7 +2859,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               title={t('chat.screenshotHint')}
               aria-label={t('chat.screenshot')}
               onClick={() => { captureAndSendScreenshot(); }}
-            ><Icon name="scissors" /></button>
+            ><TouliaoIcon name="screenshot" size="md" /></button>
           )}
 
           <button
@@ -2866,7 +2867,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             title={t('chat.sendRedPacket')}
             aria-label={t('chat.sendRedPacket')}
             onClick={() => { setShowRedPacket(true); closePanels(); }}
-          ><svg viewBox="0 0 24 24" style={{ width: 22, height: 22, fill: 'currentColor' }}><path d="M19 6h-2V4c0-.9-.7-1.7-1.6-1.9.4-1.2 1.5-2 2.9-2 1.7 0 3 1.3 3 3 0 .5-.1 1-.3 1.4h.9c.6 0 1.2.4 1.2 1v2c0 .6-.5 1-1.2 1zm-2 4h4v8.5c0 1-.8 1.9-1.8 1.9H2.8C1.8 20.4 1 19.5 1 18.5V6c0-.5.3-1 .8-1.4L17 4v6zM4 14c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm10 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2z"/></svg></button>
+          ><TouliaoIcon name="redPacket" size="md" /></button>
 
           <button
             className={`wc-tool-btn${showMore ? ' active' : ''}`}
@@ -2879,7 +2880,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         {showMore && (
           <div className="wc-more-panel">
             {[
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M12 15.2A3.2 3.2 0 008.8 12 3.2 3.2 0 0012 8.8 3.2 3.2 0 0115.2 12 3.2 3.2 0 0112 15.2M12 7a5 5 0 000 10A5 5 0 0012 7m0-5c0 0-8.02 0-9.5 1.5S1 7 1 12s0 8 1.5 9.5S7 23 12 23s8 0 9.5-1.5S23 17 23 12s0-8-1.5-9.5S17 1 12 1m0 20c-5 0-9-4-9-9s4-9 9-9 9 4 9 9-4 9-9 9z"/></svg>, label:t('chat.camera'), action: async () => {
+              { bg:'var(--icon-bg-neutral)', svg:<TouliaoIcon name="camera" tone="onDark" size="md" />, label:t('chat.camera'), action: async () => {
                 closePanels();
                 // Capacitor 移动端通过 window.__takePhoto__ 调用原生相机
                 // Web 端回退到文件选择
@@ -2896,19 +2897,19 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   document.querySelector('input[accept*="image"]')?.click();
                 }
               } },
-              { bg:'var(--icon-bg-neutral)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M20 6h-2.18c.07-.44.18-.88.18-1.36C18 2.05 15.96 0 13.5 0c-1.3 0-2.47.6-3.28 1.53L9 3 7.78 1.53C6.97.6 5.8 0 4.5 0 2.04 0 0 2.05 0 4.64c0 .48.11.92.18 1.36H0v2h20v-2zM20 10H4v8c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8z"/></svg>, label:t('chat.file'), action:()=>fileInputRef.current?.click() },
-              { bg:'var(--icon-bg-neutral)', svg:<IcoVideo style={{width:24,height:24,fill:'var(--text-inverse)'}} />, label:t('chat.videoCall'), testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
-              { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>, label:t('chat.voiceCall'), testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
-              { bg:'var(--icon-bg-neutral)', svg:<IcoContacts style={{width:24,height:24,fill:'var(--text-inverse)'}} />, label:t('chat.contactCard'), action: openCardPicker },
+              { bg:'var(--icon-bg-neutral)', svg:<TouliaoIcon name="file" tone="onDark" size="md" />, label:t('chat.file'), action:()=>fileInputRef.current?.click() },
+              { bg:'var(--icon-bg-neutral)', svg:<IcoVideo tone="onDark" size="md" />, label:t('chat.videoCall'), testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
+              { bg:'var(--green)', svg:<TouliaoIcon name="voiceCall" tone="onDark" size="md" />, label:t('chat.voiceCall'), testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
+              { bg:'var(--icon-bg-neutral)', svg:<IcoContacts tone="onDark" size="md" />, label:t('chat.contactCard'), action: openCardPicker },
               // 定时发送：把输入框当前文本设为定时消息，到点自动发出
-              { bg:'var(--color-primary)', testid:'chat-schedule-btn', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>, label:t('chat.scheduleSend'), action: () => { closePanels(); openScheduleModal(); } },
+              { bg:'var(--color-primary)', testid:'chat-schedule-btn', svg:<TouliaoIcon name="schedule" tone="onDark" size="md" />, label:t('chat.scheduleSend'), action: () => { closePanels(); openScheduleModal(); } },
               // 对端账号已注销（管理员删号后，服务端 listConversations 返回 otherUser: null）
               // 时不给通话入口：startCall 用的是 conversation.otherUser?.id 当 remoteId，
               // 点了必然 emit call:request { to: undefined }，被服务端 guardId 拒掉并回
               // call:error——用户看到的是「通话报错」而不是「对方已注销」。会话本身仍可打开、
               // 历史仍可读，只是不再提供打不通的入口。
               ...(conversation.type === 'private' && conversation.otherUser?.id ? [
-                { bg:'var(--green)', svg:<svg viewBox="0 0 24 24" style={{width:24,height:24,fill:'var(--text-inverse)'}}><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>, label:t('chat.transfer'), action: () => { setShowTransfer(true); closePanels(); } },
+                { bg:'var(--green)', svg:<TouliaoIcon name="transfer" tone="onDark" size="md" />, label:t('chat.transfer'), action: () => { setShowTransfer(true); closePanels(); } },
               ] : []),
             ].map(item => (
               <button type="button" key={item.label} data-testid={item.testid} className="wc-more-item" onClick={item.action} aria-label={item.label}>
@@ -3003,7 +3004,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   className={`wc-send-btn${input.trim() ? ' active' : ''}`}
                   onClick={sendMessage}
                   disabled={!input.trim()}
-                ><Icon name="send" size={18} />{t('chat.send')}</button>
+                ><TouliaoIcon name="send" size="sm" />{t('chat.send')}</button>
               </div>
             )}
           </>
@@ -3026,49 +3027,49 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               出货移动端是原生 Kotlin/Swift App，其"复制图片"在原生侧实现，不经本组件。 */}
           {(ctxMenu.msg.type === 'text' ||
             ((ctxMenu.msg.type === 'image' || ctxMenu.msg.type === 'sticker') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted)) && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-copy" onClick={() => ctxAction('copy')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('copy'); } }}>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-copy" onClick={() => ctxAction('copy')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('copy'); } }}><TouliaoIcon name="copy" size="sm" />
               {ctxMenu.msg.type === 'text' ? t('chat.copy') : t('chat.copyImage')}
             </div>
           )}
-          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('reply'); } }}>{t('chat.reply')}</div>
+          <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-reply" onClick={() => ctxAction('reply')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('reply'); } }}><TouliaoIcon name="reply" size="sm" />{t('chat.reply')}</div>
           {isForwardableMessage(ctxMenu.msg) && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}>{t('chat.forward')}</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-forward" onClick={() => ctxAction('forward')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('forward'); } }}><TouliaoIcon name="forward" size="sm" />{t('chat.forward')}</div>
           )}
           {/* 多选：进入批量选择模式（MultiSelectBar），非发送中消息均可作为起点 */}
           {!ctxMenu.msg._tempId && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-multiselect" onClick={() => ctxAction('multiselect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('multiselect'); } }}>{t('chat.multiSelect')}</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-multiselect" onClick={() => ctxAction('multiselect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('multiselect'); } }}><TouliaoIcon name="multiselect" size="sm" />{t('chat.multiSelect')}</div>
           )}
           {canViewReadStatus(ctxMenu.msg, user.id) && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-read-status" onClick={() => ctxAction('readStatus')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('readStatus'); } }}>{t('readStatus.menuItem')}</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-read-status" onClick={() => ctxAction('readStatus')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('readStatus'); } }}><TouliaoIcon name="selected" size="sm" />{t('readStatus.menuItem')}</div>
           )}
           {/* 收藏：文字/图片/视频/文件消息可收藏到「我的收藏」 */}
           {!ctxMenu.msg.deleted && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}>{t('chat.collect')}</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-collect" onClick={() => ctxAction('collect')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('collect'); } }}><TouliaoIcon name="favorite" size="sm" />{t('chat.collect')}</div>
           )}
           {/* 编辑：仅限自己的文字消息，不限时间 */}
           {ctxMenu.msg.sender_id === user.id &&
            ctxMenu.msg.type === 'text' &&
            !ctxMenu.msg.deleted && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}>{t('chat.edit')}</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}><TouliaoIcon name="edit" size="sm" />{t('chat.edit')}</div>
           )}
           {/* 下载视频/文件：视频和文件消息显示下载按钮 */}
           {(ctxMenu.msg.type === 'video' || ctxMenu.msg.type === 'file') && ctxMenu.msg.file_url && !ctxMenu.msg.deleted && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-download" onClick={() => ctxAction('download')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('download'); } }}>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-download" onClick={() => ctxAction('download')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('download'); } }}><TouliaoIcon name="download" size="sm" />
               {ctxMenu.msg.type === 'video' ? t('chat.downloadVideo') : t('chat.downloadFile')}
             </div>
           )}
           {/* 分享到第三方：图片/视频/文件/文档/文本，走系统分享面板（不支持则回退下载） */}
           {!ctxMenu.msg.deleted && canShare() && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (ctxMenu.msg.type === 'text' || ctxMenu.msg.file_url) && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-share" onClick={() => ctxAction('share')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('share'); } }}>{t('chat.shareTo')}</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-share" onClick={() => ctxAction('share')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('share'); } }}><TouliaoIcon name="share" size="sm" />{t('chat.shareTo')}</div>
           )}
           {/* 置顶：仅群聊可用（对齐 Android/iOS canPin=isGroup） */}
           {conversation.type === 'group' && (
-          <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('pin'); } }}>
+          <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('pin'); } }}><TouliaoIcon name="pin" size="sm" />
             {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? t('chat.unpinMessage') : t('chat.pinMessage')}
           </div>
           )}
           {ctxMenu.msg.type === 'image' && (
-            <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('addSticker'); } }}>{t('chat.addToSticker')}</div>
+            <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('addSticker')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('addSticker'); } }}><TouliaoIcon name="favorite" size="sm" />{t('chat.addToSticker')}</div>
           )}
           <div className="wc-ctx-divider" />
           {/* 撤回：自己发送的消息，或群主/管理员撤回群内他人消息（对全员生效，服务端 deleted=2，UI 无痕）。
@@ -3078,9 +3079,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             (conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin'))
           ) && (
             <>
-              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}>{t('chat.recall')}</div>
+              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-recall" onClick={() => ctxAction('recall')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('recall'); } }}><TouliaoIcon name="recall" size="sm" />{t('chat.recall')}</div>
               {/* 删除：彻底删除，双方都不可见（原「仅自己删除」语义已改为复用 vanish，与撤回同权限） */}
-              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-everyone" onClick={() => ctxAction('vanish')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('vanish'); } }}>{t('chat.delete')}</div>
+              <div className="wc-ctx-item danger" role="menuitem" tabIndex={0} data-testid="ctx-delete-everyone" onClick={() => ctxAction('vanish')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('vanish'); } }}><TouliaoIcon name="delete" size="sm" />{t('chat.delete')}</div>
             </>
           )}
         </CtxMenuPortal>,

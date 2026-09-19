@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -75,14 +73,14 @@ fun CallHistoryScreen(
         topBar = {
             TopAppBar(
                 title = { Text("通话记录") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.loading && state.items.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.items.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "📞", title = "暂无通话记录", subtitle = "拨打或接听后会出现在这里", modifier = Modifier.align(Alignment.Center))
+                state.items.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Phone, title = "暂无通话记录", subtitle = "拨打或接听后会出现在这里", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.items, key = { it.id }) { c ->
                         CallLogRow(c, resolveUrl = viewModel::resolveUrl, onClick = { viewModel.openPeerChat(c) })

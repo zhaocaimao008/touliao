@@ -111,7 +111,7 @@ fun ContactsScreen(
                             Spacer(Modifier.width(8.dp))
                         }
                     }
-                    com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 HorizontalDivider()
                 // 好友标签入口
@@ -120,7 +120,7 @@ fun ContactsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("好友标签", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 HorizontalDivider()
                 // 黑名单入口
@@ -129,7 +129,7 @@ fun ContactsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("黑名单", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 HorizontalDivider()
                 // AI 助手入口（固定分组；bot 列表来自后端 /api/config）
@@ -171,7 +171,7 @@ fun ContactsScreen(
                                         )
                                     }
                                 }
-                                com.touliao.app.ui.DesignGlyph("›", color = VxinTextSecondary)
+                                com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                             }
                         }
                     }

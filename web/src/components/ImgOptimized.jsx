@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { getThumbUrl } from '../utils/url';
 
@@ -10,12 +11,6 @@ import { getThumbUrl } from '../utils/url';
  * - 两者都失败才显示破损占位图
  */
 
-const IMG_BROKEN = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
-    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-    <path d="M21 15l-5-5L5 21"/>
-  </svg>`
-);
 
 export default function ImgOptimized({
   src, alt = '', className = '', style,
@@ -28,6 +23,8 @@ export default function ImgOptimized({
   const ref    = useRef(null);
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded]   = useState(false);
+  const [broken, setBroken] = useState(false);
+  useEffect(() => { setBroken(false); }, [src]);
   const thumbSrc = useMemo(() => getThumbUrl(src), [src]);
 
   // IntersectionObserver 探测入视
@@ -56,7 +53,7 @@ export default function ImgOptimized({
       return;
     }
     el.onerror = null;
-    el.src = IMG_BROKEN;
+    setBroken(true);
     el.alt = '图片加载失败';
     el.style.cursor = 'default';
     el.style.pointerEvents = 'none';
@@ -76,7 +73,7 @@ export default function ImgOptimized({
 
   return (
     <span ref={ref} style={containerStyle} className={loaded ? '' : 'img-skeleton'}>
-      {visible && src && (
+      {visible && src && !broken && (
         <img
           src={thumbSrc}
           alt={alt}
@@ -94,6 +91,8 @@ export default function ImgOptimized({
           {...rest}
         />
       )}
+      {broken && <span role="img" aria-label="图片加载失败" className="tl-icon-placeholder"
+        style={{ width: width || '100%', height: height || 'var(--icon-xl)' }}><TouliaoIcon name="image" size="xl" tone="secondary" /></span>}
     </span>
   );
 }

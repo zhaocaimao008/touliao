@@ -30,6 +30,8 @@ data class TouliaoPalette(
     val messageIncoming: Color,
     val messageOutgoing: Color,
     val messageOutgoingText: Color,
+    val iconOnDark: Color,
+    val iconOnLight: Color,
     val readableMuted: Color,
     val readableDanger: Color,
 )
@@ -60,6 +62,8 @@ val TouliaoLightPalette = TouliaoPalette(
     messageIncoming = Color(0xFFFFFFFF),
     messageOutgoing = Color(0xFF2864F0),
     messageOutgoingText = Color(0xFFFFFFFF),
+    iconOnDark = Color(0xFFFFFFFF),
+    iconOnLight = Color(0xFF17212E),
     readableMuted = Color(0xFF626E80),
     readableDanger = Color(0xFFBE3F4E),
 )
@@ -90,6 +94,8 @@ val TouliaoDarkPalette = TouliaoPalette(
     messageIncoming = Color(0xFF202B3A),
     messageOutgoing = Color(0xFF2E58A2),
     messageOutgoingText = Color(0xFFFFFFFF),
+    iconOnDark = Color(0xFFFFFFFF),
+    iconOnLight = Color(0xFF17212E),
     readableMuted = Color(0xFFA7B4C6),
     readableDanger = Color(0xFFFF8492),
 )

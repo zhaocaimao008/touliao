@@ -20,8 +20,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -139,7 +137,7 @@ fun SettingsHomeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("设置") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -147,20 +145,20 @@ fun SettingsHomeScreen(
             Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
                 Spacer(Modifier.height(16.dp))
                 SettingsGroupCard(Modifier.padding(horizontal = 16.dp)) {
-                    HubRow(TouliaoIcons.Bell, "消息通知", onClick = onOpenNotifications)
+                    HubRow(TouliaoIcons.Notification, "消息通知", onClick = onOpenNotifications)
                     HubDivider()
-                    HubRow(TouliaoIcons.Shield, "隐私与安全", onClick = onOpenPrivacy)
+                    HubRow(TouliaoIcons.Security, "隐私与安全", onClick = onOpenPrivacy)
                     HubDivider()
-                    HubRow(TouliaoIcons.Palette, "外观", onClick = onOpenAppearance)
+                    HubRow(TouliaoIcons.Appearance, "外观", onClick = onOpenAppearance)
                     HubDivider()
-                    HubRow(TouliaoIcons.Devices, "登录设备管理", onClick = onOpenSessions)
+                    HubRow(TouliaoIcons.Device, "登录设备管理", onClick = onOpenSessions)
                 }
                 Spacer(Modifier.height(12.dp))
                 SettingsGroupCard(Modifier.padding(horizontal = 16.dp)) {
                     val clearingIndicator: (@Composable () -> Unit)? =
                         if (state.clearing) ({ CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = VxinBrand) }) else null
                     HubRow(
-                        TouliaoIcons.Trash, "清除缓存",
+                        TouliaoIcons.Delete, "清除缓存",
                         trailing = if (state.clearing) null else formatBytes(state.cacheBytes),
                         trailingContent = clearingIndicator,
                         onClick = { showClearConfirm = true },
@@ -246,7 +244,7 @@ private fun HubRow(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm))
         Spacer(Modifier.width(12.dp))
         Text(title, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface, fontSize = com.touliao.app.ui.theme.VxinTextSize.md)
         if (trailingContent != null) {
@@ -255,6 +253,6 @@ private fun HubRow(
         } else if (trailing != null) {
             Text(trailing, color = trailingColor ?: MaterialTheme.colorScheme.onSurfaceVariant, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 8.dp))
         }
-        Icon(TouliaoIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+        Icon(TouliaoIcons.Disclosure, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(com.touliao.app.ui.IconSize.Xs))
     }
 }

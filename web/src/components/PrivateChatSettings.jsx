@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState } from 'react';
 import axios from 'axios';
 import { showToast, showConfirm } from '../utils/toast';
@@ -70,7 +71,7 @@ export default function PrivateChatSettings({ conversation, onClose, onConvUpdat
     <div className="wc-settings-panel">
       <div className="wc-settings-header">
         <span className="wc-settings-header-title">{t('privateChat.title')}</span>
-        <button className="wc-settings-close-btn" onClick={onClose} aria-label={t('common.close')}>✕</button>
+        <button className="wc-settings-close-btn" onClick={onClose} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
       </div>
       <div className="wc-settings-body">
         <div className="wc-settings-section-mt">

@@ -1,7 +1,8 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
-import Icon from '../ui-kit/Icon';
+
 import { GroupAvatar } from './GroupAvatar';
 import { Skeleton } from './StateViews';
 import { useI18n } from '../contexts/I18nContext';
@@ -114,7 +115,7 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || t('messageItem.defaultUsername')}</div>
                 <div style={{ fontSize: 'var(--text-sm)', color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Icon name={isMissed ? 'phone-missed' : c.direction === 'out' ? 'phone-outgoing' : 'phone-incoming'} size={16} />
+                  <TouliaoIcon name={isMissed ? 'callMissed' : c.direction === 'out' ? 'callOutgoing' : 'callIncoming'} size="xs" />
                   {c.direction === 'out' ? t('callHistory.outgoing') : t('callHistory.incoming')} · {c.kind === 'group'
                     ? (c.type === 'video' ? t('chat.groupVideoCall') : t('chat.groupVoiceCall'))
                     : (c.type === 'video' ? t('chat.videoCall') : t('chat.voiceCall'))} · {st.label}

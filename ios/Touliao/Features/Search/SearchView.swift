@@ -31,11 +31,11 @@ struct SearchView: View {
                 Spacer(); ProgressView(); Spacer()
             } else if !hasQuery {
                 Spacer()
-                VxinEmptyState(systemImage: "magnifyingglass", title: "搜索聊天记录", subtitle: "输入关键词查找消息")
+                VxinEmptyState(icon: "search", title: "搜索聊天记录", subtitle: "输入关键词查找消息")
                 Spacer()
             } else if vm.searched && vm.results.isEmpty {
                 Spacer()
-                VxinEmptyState(systemImage: "text.magnifyingglass", title: "没有找到相关消息")
+                VxinEmptyState(icon: "searchEmpty", title: "没有找到相关消息")
                 Spacer()
             } else {
                 List(vm.results) { r in
@@ -47,7 +47,7 @@ struct SearchView: View {
                                 Text(r.convName.isEmpty ? "会话" : r.convName).foregroundColor(.vxinText).lineLimit(1)
                                 // 类型图标 + 摘要（F5：结构化消息透出人话字段，不泄原始 JSON；对齐 Web gs-msg-type-icon）
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(messageSearchTypeIcon(r.type))
+                                    TouliaoIcon(TouliaoIcon.messageType(r.type), size: .xs)
                                         .touliaoFont(14)
                                         .foregroundColor(.vxinTextSecondary)
                                     Text(highlighted(prefix: r.senderName.isEmpty ? "" : "\(r.senderName): ",

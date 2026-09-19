@@ -226,7 +226,7 @@ struct MomentsView: View {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 // 互动通知入口：铃铛 + 未读角标
                 Button { vm.openNotif(); showNotif = true } label: {
-                    TouliaoIcon(systemName: "bell")
+                    TouliaoIcon("notification")
                         .overlay(alignment: .topTrailing) {
                             if vm.notifUnread > 0 {
                                 Text(vm.notifUnread > 99 ? "99+" : "\(vm.notifUnread)")
@@ -238,9 +238,9 @@ struct MomentsView: View {
                         }
                 }
                 .accessibilityLabel("互动消息")
-                Button { showSettings = true } label: { TouliaoIcon(systemName: "gearshape") }
+                Button { showSettings = true } label: { TouliaoIcon("settings") }
                     .accessibilityLabel("朋友圈设置")
-                Button { showCompose = true } label: { TouliaoIcon(systemName: "camera") }
+                Button { showCompose = true } label: { TouliaoIcon("camera") }
                     .accessibilityLabel("发朋友圈")
             }
         }
@@ -260,7 +260,7 @@ struct MomentsView: View {
                                 HStack {
                                     Text(label).foregroundColor(.vxinText)
                                     Spacer()
-                                    if vm.visibleDays == day { TouliaoIcon(systemName: "checkmark").foregroundColor(.vxinGreen) }
+                                    if vm.visibleDays == day { TouliaoIcon("check").foregroundColor(.vxinGreen) }
                                 }
                             }
                         }
@@ -340,11 +340,11 @@ private struct MomentCard: View {
                 Spacer()
                 Button { onLike() } label: {
                     // 心形图标 + 文案(对齐微信/安卓 ❤️/🤍)
-                    Label(moment.liked ? "已赞" : "赞", touliaoSystemImage: moment.liked ? "heart.fill" : "heart")
+                    Label(moment.liked ? "已赞" : "赞", touliaoIcon: moment.liked ? "like" : "like")
                         .foregroundColor(moment.liked ? .vxinError : .vxinGreen)
                 }.buttonStyle(.borderless)
                 Button { onComment() } label: {
-                    Label("评论", touliaoSystemImage: "bubble.right")
+                    Label("评论", touliaoIcon: "comment")
                 }.buttonStyle(.borderless).foregroundColor(.vxinGreen)
                 if isMine { Button("删除", role: .destructive) { onDelete() }.buttonStyle(.borderless) }
                 else { Button("举报") { onReport() }.buttonStyle(.borderless).foregroundColor(.vxinTextSecondary) }
@@ -365,7 +365,7 @@ private struct MomentCard: View {
                     .contextMenu {
                         // 长按自己的评论 → 删除(对齐 web/安卓)
                         if !myId.isEmpty && c.userId == myId {
-                            Button(role: .destructive) { onDeleteComment(c) } label: { Label("删除", touliaoSystemImage: "trash") }
+                            Button(role: .destructive) { onDeleteComment(c) } label: { Label("删除", touliaoIcon: "delete") }
                         }
                     }
             }
@@ -457,8 +457,8 @@ private struct MomentVideoCard: View {
                 } else {
                     Color.black.opacity(0.08)
                 }
-                TouliaoIcon(systemName: "play.circle.fill", size: 40)
-                    .foregroundColor(.white)
+                TouliaoIcon("play", size: .xl)
+                    .foregroundColor(IconColor.onDark)
                     .shadow(color: .black.opacity(0.4), radius: 4)
             }
             .frame(width: 200, height: 150)
@@ -498,7 +498,7 @@ private struct MomentGalleryView: View {
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
             HStack {
-                Button { onClose() } label: { TouliaoIcon(systemName: "xmark").foregroundColor(.white).padding() }
+                Button { onClose() } label: { TouliaoIcon("close").foregroundColor(IconColor.onDark).padding() }
                     .accessibilityLabel("关闭")
                 Spacer()
                 Text("\(page + 1)/\(images.count)").foregroundColor(.white).padding()

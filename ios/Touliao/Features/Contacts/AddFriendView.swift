@@ -9,7 +9,7 @@ struct AddFriendView: View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
                 Button { showScanner = true } label: {
-                    Label("扫一扫", touliaoSystemImage: "qrcode.viewfinder")
+                    Label("扫一扫", touliaoIcon: "scan")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary).tint(.vxinGreen)
@@ -17,7 +17,7 @@ struct AddFriendView: View {
                 NavigationLink {
                     MyQRCodeView()
                 } label: {
-                    Label("我的二维码", touliaoSystemImage: "qrcode")
+                    Label("我的二维码", touliaoIcon: "qrcode")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -43,7 +43,7 @@ struct AddFriendView: View {
             if vm.searching {
                 ProgressView().padding()
             } else if vm.searched && vm.results.isEmpty {
-                VxinEmptyState(systemImage: "magnifyingglass", title: "未找到用户", subtitle: "换个手机号 / 投聊号试试")
+                VxinEmptyState(icon: "search", title: "未找到用户", subtitle: "换个手机号 / 投聊号试试")
             }
 
             List(vm.results) { user in

@@ -14,17 +14,17 @@ import kotlinx.serialization.json.jsonObject
 data class SearchTypeOption(val value: String, val label: String, val icon: String)
 
 val MESSAGE_SEARCH_TYPES: List<SearchTypeOption> = listOf(
-    SearchTypeOption("", "全部", "○"),
-    SearchTypeOption("text", "文本", "文"),
-    SearchTypeOption("image", "图片", "▧"),
-    SearchTypeOption("voice", "语音", "◖"),
-    SearchTypeOption("video", "视频", "▶"),
-    SearchTypeOption("file", "文件", "▤"),
-    SearchTypeOption("contact_card", "名片", "人"),
-    SearchTypeOption("red_packet", "红包", "包"),
-    SearchTypeOption("transfer", "转账", "¥"),
-    SearchTypeOption("merged", "合并转发", "☷"),
-    SearchTypeOption("call", "通话", "☎"),
+    SearchTypeOption("", "全部", "allTypes"),
+    SearchTypeOption("text", "文本", "text"),
+    SearchTypeOption("image", "图片", "image"),
+    SearchTypeOption("voice", "语音", "voice"),
+    SearchTypeOption("video", "视频", "video"),
+    SearchTypeOption("file", "文件", "fileContent"),
+    SearchTypeOption("contact_card", "名片", "contact"),
+    SearchTypeOption("red_packet", "红包", "redPacket"),
+    SearchTypeOption("transfer", "转账", "transfer"),
+    SearchTypeOption("merged", "合并转发", "mergedMessages"),
+    SearchTypeOption("call", "通话", "phone"),
 )
 
 /** 时间筛选：空串=不限 | today=今天 | 7d=近7天 | 30d=近30天（秒级 from/to） */
@@ -82,7 +82,7 @@ fun buildSearchFilterParams(
 }
 
 private fun searchTypeIconOf(type: String): String =
-    MESSAGE_SEARCH_TYPES.firstOrNull { it.value == type }?.icon ?: "•"
+    MESSAGE_SEARCH_TYPES.firstOrNull { it.value == type }?.icon ?: "allTypes"
 
 /** 结果行类型图标 */
 fun messageSearchTypeIcon(type: String): String = searchTypeIconOf(type)

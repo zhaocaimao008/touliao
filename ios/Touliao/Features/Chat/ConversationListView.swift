@@ -37,19 +37,19 @@ struct ConversationListView: View {
                     // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
                     if vm.momentsEnabled {
                         ToolbarItem(placement: .navigationBarTrailing) {
-                            Button { showMoments = true } label: { TouliaoIcon(systemName: "photo.on.rectangle") }
+                            Button { showMoments = true } label: { TouliaoIcon("image") }
                                 .accessibilityLabel("朋友圈")
                                 .accessibilityIdentifier("conv-list-moments-btn")
                         }
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button { path.append(SearchRoute.search) } label: { TouliaoIcon(systemName: "magnifyingglass") }
+                        Button { path.append(SearchRoute.search) } label: { TouliaoIcon("search") }
                             .accessibilityLabel("搜索")
                     }
                     // @我消息聚合入口
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button { showMentions = true } label: {
-                            TouliaoIcon(systemName: "at")
+                            TouliaoIcon("mention")
                         }
                         .accessibilityLabel("@我的消息")
                         .accessibilityIdentifier("conv-list-mentions-btn")
@@ -57,9 +57,9 @@ struct ConversationListView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
                             Button { vm.openFileHelper { conv in path.append(conv) } } label: {
-                                Label("文件传输助手", touliaoSystemImage: "doc.on.doc")
+                                Label("文件传输助手", touliaoIcon: "copy")
                             }
-                        } label: { TouliaoIcon(systemName: "plus") }
+                        } label: { TouliaoIcon("add") }
                             .accessibilityLabel("更多")
                     }
                 }
@@ -136,7 +136,7 @@ struct ConversationListView: View {
             Text(error).foregroundColor(.vxinError)
         } else if vm.conversations.isEmpty {
             VxinEmptyState(
-                systemImage: "bubble.left.and.bubble.right",
+                icon: "chat",
                 title: "暂无会话",
                 subtitle: "去「通讯录」找好友开始聊天吧"
             )
@@ -212,7 +212,7 @@ struct ConversationListView: View {
                 RoundedRectangle(cornerRadius: VxinRadius.sm)
                     .fill(Color.vxinBrand.opacity(0.12))
                     .frame(width: 40, height: 40)
-                    .overlay(TouliaoIcon(systemName: "archivebox").foregroundColor(.vxinGreen))
+                    .overlay(TouliaoIcon("archive").foregroundColor(.vxinGreen))
                 Text("归档").touliaoFont(16)
                 Spacer()
                 if vm.archiveUnreadTotal > 0 {
@@ -221,7 +221,7 @@ struct ConversationListView: View {
                 if !vm.archivedConversations.isEmpty {
                     Text("\(vm.archivedConversations.count)").touliaoFont(12).foregroundColor(.vxinTextSecondary)
                 }
-                TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
             }
             .padding(.vertical, 4)
         }
@@ -236,7 +236,7 @@ struct ConversationListView: View {
                 withAnimation { showArchived = false }
             } label: {
                 HStack(spacing: 4) {
-                    TouliaoIcon(systemName: "chevron.left")
+                    TouliaoIcon("back")
                     Text("返回")
                 }
                 .foregroundColor(.vxinGreen)
@@ -330,7 +330,7 @@ struct ConversationRow: View {
                         if conversation.unreadCount > 0 {
                             Circle().fill(Color.vxinError).frame(width: 8, height: 8)
                         }
-                        TouliaoIcon(systemName: "bell.slash.fill").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                        TouliaoIcon("mute").foregroundColor(.vxinTextSecondary)
                     }
                 } else if conversation.unreadCount > 0 {
                     TouliaoBadge(count: conversation.unreadCount)

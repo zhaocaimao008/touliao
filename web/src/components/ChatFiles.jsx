@@ -1,10 +1,11 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { downloadFile } from '../utils/download';
 import { format } from '../utils/time';
 import Avatar from './Avatar';
-import Icon from '../ui-kit/Icon';
+
 import ImagePreview from './ImagePreview';
 import VideoPreview from './VideoPreview';
 import { useI18n } from '../contexts/I18nContext';
@@ -22,7 +23,7 @@ const TABS = [
   { key: 'file',  labelKey: 'chatFiles.tabFile' },
 ];
 
-const IcoFile = () => <Icon name="file-text" className="chatfiles-tab-icon" />;
+const IcoFile = () => <TouliaoIcon name="fileContent" className="chatfiles-tab-icon" />;
 
 export default function ChatFiles({ convId, onClose }) {
   useMediaCredentials();
@@ -115,7 +116,7 @@ export default function ChatFiles({ convId, onClose }) {
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
-            <Icon name="x" className="chatfiles-close-icon" />
+            <TouliaoIcon name="close" className="chatfiles-close-icon" />
           </button>
           <span className="chatfiles-title">{t('chatFiles.title')}</span>
           <span className="chatfiles-count">
@@ -151,7 +152,7 @@ export default function ChatFiles({ convId, onClose }) {
         <div className="chatfiles-list">
           {items.length === 0 && !loading && (
             <div className="chatfiles-empty">
-              <Icon name="folder-open" size={40} className="chatfiles-empty-icon" />
+              <TouliaoIcon name="folderOpen" className="chatfiles-empty-icon" size="xl" />
               {t('chatFiles.noFiles')}
             </div>
           )}

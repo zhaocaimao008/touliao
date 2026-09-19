@@ -3383,12 +3383,12 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .gi-loading-txt { color:var(--text-tertiary); font-size: var(--text-sm); }
 
 /* ── SVG fill utilities ── */
-.gi-fill-warn { fill:var(--color-warning); }
-.gi-fill-green { fill:var(--green); }
-.gi-fill-red { fill:var(--color-badge); }
-.gi-fill-white { fill: var(--gray-0); }
-.gi-fill-tertiary { fill:var(--text-tertiary); }
-.gi-fill-grey { fill:var(--text-disabled); }
+.gi-fill-warn { color:var(--color-warning); }
+.gi-fill-green { color:var(--green); }
+.gi-fill-red { color:var(--color-badge); }
+.gi-fill-white { color: var(--gray-0); }
+.gi-fill-tertiary { color:var(--text-tertiary); }
+.gi-fill-grey { color:var(--text-disabled); }
 
 /* ── Misc ── */
 .gi-mg-click { cursor:pointer; user-select:none; }
@@ -4153,7 +4153,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--text-secondary);
 }
 .m-tab.active { color: var(--green); }
-.m-tab-ico svg { width: 26px; height: 26px; fill: currentColor; display: block; }
+.m-tab-ico svg { width: var(--icon-md); height: var(--icon-md); display: block; }
 .m-tab-label { font-size: var(--text-2xs); line-height: var(--lh-none); }
 .m-tab-badge {
   position: absolute; top: 3px; left: 54%; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box;

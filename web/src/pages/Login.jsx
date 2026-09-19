@@ -1,4 +1,5 @@
-import Icon from '../ui-kit/Icon';
+import TouliaoIcon from '../ui-kit/Icon';
+
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import './auth.css';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -193,7 +194,7 @@ export default function Login() {
                   onClick={() => { removeCred(account.user?.phone || ''); removeAccount(account.id); }}
                   title={t('auth.removeRecord')}
                   aria-label={t('auth.removeRecord')}
-                >✕</button>
+                ><TouliaoIcon name="close" size="sm" /></button>
               </div>
             ))}
           </div>
@@ -204,7 +205,7 @@ export default function Login() {
           <div className={`auth-field ${focusedField === 'phone' ? 'focused' : ''} ${phone ? 'has-value' : ''}`}>
             <label className="auth-field-label" htmlFor="login-phone">{t('auth.phone')}</label>
             <div className="auth-field-input-wrap">
-              <Icon name="smartphone" size={18} className="auth-field-icon" />
+              <TouliaoIcon name="phoneNumber" className="auth-field-icon" size="sm" />
               <input
                 id="login-phone"
                 data-testid="login-phone-input"
@@ -225,7 +226,7 @@ export default function Login() {
           <div className={`auth-field ${focusedField === 'password' ? 'focused' : ''} ${password ? 'has-value' : ''}`}>
             <label className="auth-field-label" htmlFor="login-password">{t('auth.password')}</label>
             <div className="auth-field-input-wrap">
-              <Icon name="lock-keyhole" size={18} className="auth-field-icon" />
+              <TouliaoIcon name="lock" className="auth-field-icon" size="sm" />
               <input
                 id="login-password"
                 data-testid="login-password-input"
@@ -241,16 +242,9 @@ export default function Login() {
               />
               <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? t('auth.hidePassword') : t('auth.showPassword')}>
                 {showPwd ? (
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
+                  <TouliaoIcon name="showPassword" size="sm" />
                 ) : (
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
+                  <TouliaoIcon name="hidePassword" size="sm" />
                 )}
               </button>
             </div>
@@ -290,9 +284,7 @@ export default function Login() {
 
           {error && (
             <div className="auth-error" role="alert" data-testid="auth-error-text">
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zM7 5h2v4H7V5zm0 5h2v2H7v-2z"/>
-              </svg>
+              <TouliaoIcon name="error" size="xs" />
               {error}
             </div>
           )}
@@ -351,9 +343,7 @@ export default function Login() {
         <div className="auth-server">
           {!showServer ? (
             <button type="button" className="auth-server-toggle" data-testid="login-switch-server-toggle" onClick={() => setShowServer(true)}>
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style={{ marginRight: 5, verticalAlign: '-2px' }}>
-                <path d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm2-5a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>
-              </svg>
+              <TouliaoIcon name="server" style={{marginRight:5,verticalAlign:'-2px'}} size="xs" />
               {currentServer ? `${t('auth.currentServerLabel')}${currentServer.replace(/^https?:\/\//, '')} · ` : ''}{t('auth.switchServer')}
             </button>
           ) : (

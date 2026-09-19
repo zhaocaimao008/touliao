@@ -1,4 +1,5 @@
-import Icon from '../ui-kit/Icon';
+import TouliaoIcon from '../ui-kit/Icon';
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -107,11 +108,11 @@ function useDraggable(initial) {
 }
 
 /* Call control states use the supplied outline icons. */
-const IcoMute = ({ on }) => <Icon name="mic" size="100%" slashed={on} />;
-const IcoCam = ({ off }) => <Icon name="video" size="100%" slashed={off} />;
-const IcoOutput = () => <Icon name="volume-2" size="100%" />;
-const IcoHangup = () => <Icon name="phone-off" size="100%" />;
-const IcoMinimize = () => <Icon name="chevron-down" />;
+const IcoMute = ({ on }) => <TouliaoIcon name={on ? "microphoneMuted" : "microphone"} size="md" />;
+const IcoCam = ({ off }) => <TouliaoIcon name={off ? "cameraOff" : "video"} size="md" />;
+const IcoOutput = () => <TouliaoIcon name="speaker" size="md" />;
+const IcoHangup = () => <TouliaoIcon name="rejectCall" size="md" />;
+const IcoMinimize = () => <TouliaoIcon name="expand"  />;
 
 /* ── Focus Trap Hook ── */
 function useFocusTrap(open) {
@@ -861,8 +862,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
               color: '#fff', fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer',
             }}
           >
-            🔇 {t('call.tapToRestoreAudio')} ✕
-          </div>
+            🔇 {t('call.tapToRestoreAudio')}<TouliaoIcon name="close" size="sm" /></div>
         )}
 
         {videoMode ? (
@@ -963,9 +963,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             aria-label={t('common.close')}
             onClick={() => setShowAudioHint(false)}
             style={{ border: 0, background: 'transparent', color: 'rgba(255,255,255,.75)', cursor: 'pointer', fontSize: 13, padding: '0 2px', lineHeight: 1 }}
-          >
-            ✕
-          </button>
+          ><TouliaoIcon name="close" size="sm" /></button>
         </div>
       )}
 
@@ -1025,11 +1023,11 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             <div className="cm-btn-row">
               <CircleBtn icon={<IcoHangup />} label={t('call.reject')} color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
               <CircleBtn
-                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 12H9v-2h2v2zm0-4H9V6h2v4zm4 4h-2v-2h2v2zm0-4h-2V6h2v4z"/></svg>}
+                icon={<TouliaoIcon name="message" size="sm" />}
                 label={t('call.replyMessage')} size={56} onClick={replyInstead} testid="call-reply-btn"
               />
               <CircleBtn
-                icon={<IcoVideo fill="currentColor" />}
+                icon={<IcoVideo    size="md" />}
                 label={t('call.accept')} color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
               />
             </div>
@@ -1040,7 +1038,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
                 <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
               <CircleBtn
-                icon={<IcoVideo fill="currentColor" />}
+                icon={<IcoVideo    size="md" />}
                 label={t('call.switchToVoice')} onClick={toggleVideo} testid="call-switch-to-audio-btn"
               />
               <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
@@ -1120,11 +1118,11 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             <div className="cm-btn-row">
               <CircleBtn icon={<IcoHangup />} label={t('call.reject')} color="var(--color-danger)" size={68} onClick={reject} testid="call-reject-btn" />
               <CircleBtn
-                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 12H9v-2h2v2zm0-4H9V6h2v4zm4 4h-2v-2h2v2zm0-4h-2V6h2v4z"/></svg>}
+                icon={<TouliaoIcon name="message" size="sm" />}
                 label={t('call.replyMessage')} size={56} onClick={replyInstead} testid="call-reply-btn"
               />
               <CircleBtn
-                icon={<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>}
+                icon={<TouliaoIcon name="acceptCall" size="sm" />}
                 label={t('call.accept')} color="var(--color-success)" size={68} onClick={accept} testid="call-accept-btn"
               />
             </div>
@@ -1136,7 +1134,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
                 <CircleBtn icon={<IcoOutput />} label={t('call.outputDevice')} onClick={cycleOutputDevice} />
               )}
               <CircleBtn
-                icon={<IcoVideo fill="currentColor" />}
+                icon={<IcoVideo    size="md" />}
                 label={t('call.switchToVideo')} onClick={toggleVideo} testid="call-switch-to-video-btn"
               />
               <CircleBtn icon={<IcoHangup />} label={t('call.hangup')} color="var(--color-danger)" size={68} onClick={() => endCall(true)} testid="call-hangup-btn" />
@@ -1170,7 +1168,7 @@ function CircleBtn({ icon, label, color, size = 54, active, onClick, testid }) {
         className="cm-circle-btn-disc"
         style={{ width: size, height: size, background: bg }}
       >
-        <span className="cm-circle-btn-icon" style={{ width: size * 0.44, height: size * 0.44 }}>
+        <span className="cm-circle-btn-icon" style={{ width: 'var(--icon-md)', height: 'var(--icon-md)' }}>
           {icon}
         </span>
       </span>

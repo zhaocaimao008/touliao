@@ -31,8 +31,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -103,16 +101,16 @@ fun MomentsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("朋友圈") },
-                navigationIcon = { onBack?.let { cb -> IconButton(onClick = cb) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } } },
+                navigationIcon = { onBack?.let { cb -> IconButton(onClick = cb) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } } },
                 actions = {
                     // 互动通知入口：右上角铃铛 + 未读角标
                     IconButton(onClick = { viewModel.openNotif() }) {
                         BadgedBox(badge = {
                             if (state.notifUnread > 0) Badge { Text(if (state.notifUnread > 99) "99+" else state.notifUnread.toString()) }
-                        }) { com.touliao.app.ui.DesignGlyph("🔔", fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
+                        }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Notification, size = com.touliao.app.ui.IconSize.Md) }
                     }
-                    IconButton(onClick = { viewModel.openSettings() }) { com.touliao.app.ui.DesignGlyph("⚙️", fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
-                    IconButton(onClick = onCompose) { com.touliao.app.ui.DesignGlyph("📷", fontSize = com.touliao.app.ui.theme.VxinTextSize.xl) }
+                    IconButton(onClick = { viewModel.openSettings() }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Settings, size = com.touliao.app.ui.IconSize.Md) }
+                    IconButton(onClick = onCompose) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Camera, size = com.touliao.app.ui.IconSize.Md) }
                 },
             )
         },
@@ -122,7 +120,7 @@ fun MomentsScreen(
         Box(Modifier.fillMaxSize().padding(padding).pullRefresh(pullState)) {
             when {
                 state.loading && state.moments.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.moments.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "📷", title = "还没有朋友圈动态", subtitle = "分享生活，记录点滴", modifier = Modifier.align(Alignment.Center))
+                state.moments.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Camera, title = "还没有朋友圈动态", subtitle = "分享生活，记录点滴", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                     items(state.moments, key = { it.id }) { m ->
                         MomentCard(
@@ -229,7 +227,7 @@ fun MomentsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(label, modifier = Modifier.weight(1f))
-                            if (state.visibleDays == d) com.touliao.app.ui.DesignGlyph("✓", color = VxinGreen)
+                            if (state.visibleDays == d) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = VxinGreen, size = com.touliao.app.ui.IconSize.Xs)
                         }
                     }
                 }
@@ -333,7 +331,7 @@ private fun MomentCard(
                 Box(
                     Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0x88000000)),
                     contentAlignment = Alignment.Center,
-                ) { com.touliao.app.ui.DesignGlyph("▶", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
+                ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Play, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md) }
             }
         }
         Spacer(Modifier.size(6.dp))
@@ -345,7 +343,7 @@ private fun MomentCard(
                 Text(if (moment.liked) "已赞" else "赞", color = VxinGreen)
             }
             TextButton(onClick = onComment) {
-                com.touliao.app.ui.DesignGlyph("💬", fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
+                com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Comment, size = com.touliao.app.ui.IconSize.Md)
                 Spacer(Modifier.size(4.dp))
                 Text("评论", color = VxinGreen)
             }

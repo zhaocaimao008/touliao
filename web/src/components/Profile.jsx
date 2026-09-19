@@ -1,9 +1,10 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import AuthImage from './AuthImage';
-import Icon from '../ui-kit/Icon';
+
 import { IcoBack, IcoCheck } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
@@ -37,13 +38,13 @@ function Toggle({ checked, onChange, disabled, 'aria-label': ariaLabel }) {
 }
 
 /* Supplied design icon geometry; existing settings actions are unchanged. */
-const IcoDesktop = () => <Icon name="monitor-smartphone" className="wc-ico" />;
-const IcoMoon = () => <Icon name="palette" className="wc-ico" />;
-const IcoBell = () => <Icon name="bell" className="wc-ico" />;
-const IcoShield = () => <Icon name="shield-check" className="wc-ico" />;
-const IcoServer = () => <Icon name="hard-drive" className="wc-ico" />;
-const IcoKeyboard = () => <Icon name="sliders-horizontal" className="wc-ico" />;
-const IcoQR = () => <Icon name="qr-code" />;
+const IcoDesktop = () => <TouliaoIcon name="device" className="wc-ico" />;
+const IcoMoon = () => <TouliaoIcon name="appearance" className="wc-ico" />;
+const IcoBell = () => <TouliaoIcon name="notification" className="wc-ico" />;
+const IcoShield = () => <TouliaoIcon name="security" className="wc-ico" />;
+const IcoServer = () => <TouliaoIcon name="server" className="wc-ico" />;
+const IcoKeyboard = () => <TouliaoIcon name="adjustments" className="wc-ico" />;
+const IcoQR = () => <TouliaoIcon name="qrcode"  />;
 
 /* ─── 通用 UI 零件 ─── */
 function PageBg({ children }) {
@@ -54,7 +55,7 @@ function PageHeader({ title, onBack, right }) {
   const { t } = useI18n();
   return (
     <div className="wc-page-header">
-      <button className="wc-page-header-back" onClick={onBack}><Icon name="chevron-left" size={18} /> {t('common.back')}</button>
+      <button className="wc-page-header-back" onClick={onBack}><TouliaoIcon name="back" size="sm" /> {t('common.back')}</button>
       <span className="wc-page-header-title">{title}</span>
       <div className="wc-page-header-right">{right}</div>
     </div>
@@ -590,10 +591,10 @@ function DeviceList({ onBack }) {
 
   const icon = (p = '') => {
     const pl = p.toLowerCase();
-    if (pl.includes('windows')) return <Icon name="monitor" size={24} />;
-    if (pl.includes('mac')) return <Icon name="laptop" size={24} />;
-    if (pl.includes('iphone') || pl.includes('ipad') || pl.includes('android')) return <Icon name="smartphone" size={24} />;
-    return <Icon name="monitor-smartphone" size={24} />;
+    if (pl.includes('windows')) return <TouliaoIcon name="computer" size="md" />;
+    if (pl.includes('mac')) return <TouliaoIcon name="laptop" size="md" />;
+    if (pl.includes('iphone') || pl.includes('ipad') || pl.includes('android')) return <TouliaoIcon name="phoneNumber" size="md" />;
+    return <TouliaoIcon name="device" size="md" />;
   };
 
   return (
@@ -652,9 +653,9 @@ function AppearanceSettings({ onBack }) {
       <div className="wc-appearance-pad">
         <div className="wc-appearance-row">
           {[
-            { label: t('profile.lightMode'), mode: 'light', emoji: <Icon name="sun" />, bg: '#FFFFFF', border: '#E5E5EA', textColor: '#333' },
-            { label: t('profile.darkMode'),  mode: 'dark',  emoji: <Icon name="moon" />, bg: '#1C1C1E', border: '#48484A', textColor: '#EBEBF5' },
-            { label: t('profile.followSystem'), mode: 'auto',  emoji: <Icon name="monitor-smartphone" />, bg: 'linear-gradient(105deg,#FFFFFF 50%,#1C1C1E 50%)', border: '#B0B4BC', textColor: '#888' },
+            { label: t('profile.lightMode'), mode: 'light', emoji: <TouliaoIcon name="lightMode"  />, bg: '#FFFFFF', border: '#E5E5EA', textColor: '#333' },
+            { label: t('profile.darkMode'),  mode: 'dark',  emoji: <TouliaoIcon name="darkMode"  />, bg: '#1C1C1E', border: '#48484A', textColor: '#EBEBF5' },
+            { label: t('profile.followSystem'), mode: 'auto',  emoji: <TouliaoIcon name="device"  />, bg: 'linear-gradient(105deg,#FFFFFF 50%,#1C1C1E 50%)', border: '#B0B4BC', textColor: '#888' },
           ].map(({ label, mode, emoji, bg, border, textColor }) => (
             <button key={mode} type="button"
               className="wc-appearance-btn"
@@ -722,7 +723,7 @@ function AppearanceSettings({ onBack }) {
         <Card>
           {SUPPORTED_LANGS.map(({ code, name }) => (
             <CRow key={code} label={name} onClick={() => setLang(code)}
-              right={lang === code ? <IcoCheck width="18" height="18" fill="var(--green)" /> : null}
+              right={lang === code ? <IcoCheck tone="selected" size="sm" /> : null}
             />
           ))}
         </Card>
@@ -969,12 +970,10 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
 
       <div onClick={toggleForm} className="wc-add-row" role="button" tabIndex={0} onKeyDown={e => activateOnKey(toggleForm)(e)}>
         <div className="wc-add-icon-wrap" style={{ borderColor: showForm ? 'var(--green)' : undefined }}>
-          <svg className="wc-add-icon-svg" style={{ fill: showForm ? 'var(--green)' : undefined }} viewBox="0 0 24 24">
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-          </svg>
+          <TouliaoIcon name="add" className="wc-add-icon-svg" style={{color:showForm?'var(--green)':undefined}} size="sm" />
         </div>
         <span className="wc-add-label" style={{ color: showForm ? 'var(--green)' : undefined }}>{t('profile.addAccount')}</span>
-        <IcoBack className="wc-add-chevron" style={{ transform: showForm ? 'rotate(90deg)' : undefined }} />
+        <IcoBack className="wc-add-chevron" style={{transform:showForm?'rotate(90deg)':undefined}} />
       </div>
 
       {showForm && (
@@ -1075,7 +1074,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
       <div className="pf-hero">
         <div className="pf-hero-bg" aria-hidden="true" />
         <button className="pf-hero-qr" onClick={() => setShowQR(true)} title={t('profile.myQrCode')} aria-label={t('profile.myQrCode')}>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm11-2h2v2h-2v-2zm3 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3 0h2v5h-5v-2h3v-3zm-3 3h2v2h-2v-2z"/></svg>
+          <TouliaoIcon name="qrcode" size="sm" />
         </button>
         <div className="pf-hero-inner">
           <div className="pf-avatar-wrap" role="button" tabIndex={0}
@@ -1083,7 +1082,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
             aria-label={t('profile.changeAvatar')}>
             <Avatar src={user?.avatar} name={user?.username} size='hero' />
             <span className="pf-avatar-edit" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+              <TouliaoIcon name="edit" size="xs" />
             </span>
             {uploading && <div className="pf-avatar-uploading">{t('profile.uploading')}</div>}
           </div>
@@ -1093,7 +1092,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
             <button className="pf-vid-chip" onClick={copyVid} title={t('profile.clickToCopyTouliaoId')}>
               <span className="pf-vid-label">{t('profile.touliaoIdLabel')}</span>
               <span className="pf-vid-value">{user.wechat_id}</span>
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
+              <TouliaoIcon name="copy" aria-hidden="true" size="xs" />
             </button>
           )}
         </div>
@@ -1120,7 +1119,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
           <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label={t('profile.myQrCode')} onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('profile.myQrCode')}</span>
-              <button className="wc-modal-close" aria-label={t('profile.closeQrCode')} onClick={() => setShowQR(false)}>✕</button>
+              <button className="wc-modal-close" aria-label={t('profile.closeQrCode')} onClick={() => setShowQR(false)}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-modal-body home-qr-body">
               <AuthImage src="/api/users/me/qrcode" alt={t('profile.myQrCode')} className="home-qr-img" />
@@ -1423,7 +1422,7 @@ export default function Profile({ isMobile = false }) {
           <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label={t('profile.myQrCode')} onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('profile.myQrCode')}</span>
-              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label={t('common.close')}>✕</button>
+              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-modal-body home-qr-body">
               <AuthImage src="/api/users/me/qrcode" alt={t('profile.myQrCode')} className="home-qr-img" />
@@ -1436,9 +1435,9 @@ export default function Profile({ isMobile = false }) {
       {/* ── 钱包 ── */}
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<Icon name="backpack" className="wc-ico" />}
+          <CRow icon={<TouliaoIcon name="wallet" className="wc-ico" />}
             bg="var(--icon-bg-wallet)" label={t('profile.walletMenuLabel')} desc={t('profile.walletMenuDesc')} onClick={() => setSubPage('wallet')} />
-          <CRow icon={<Icon name="user-plus" className="wc-ico" />}
+          <CRow icon={<TouliaoIcon name="addFriend" className="wc-ico" />}
             bg="var(--icon-bg-invite)" label={t('profile.inviteMenuLabel')} desc={t('profile.inviteMenuDesc')} onClick={() => setSubPage('invite')} />
         </Card>
       </div>

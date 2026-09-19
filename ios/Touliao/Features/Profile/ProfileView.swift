@@ -64,7 +64,7 @@ private struct SettingsRow: View {
     var iconColor: Color = Tok.iconGray
     var body: some View {
         HStack(spacing: Tok.m) {
-            TouliaoIcon(systemName: icon)
+            TouliaoIcon(icon)
                 .touliaoFont(Tok.iconSize - 2, weight: .light)
                 .foregroundColor(iconColor)
                 .frame(width: Tok.xxl, alignment: .center)
@@ -78,7 +78,7 @@ private struct SettingsRow: View {
             if !typeSize.isAccessibilitySize, let trailing {
                 Text(trailing).touliaoFont(14).foregroundColor(Tok.secondary).lineLimit(1)
             }
-            TouliaoIcon(systemName: "chevron.right", size: 13)
+            TouliaoIcon("disclosure", size: .xs)
                 .foregroundColor(Tok.secondary.opacity(0.6))
         }
         .padding(.horizontal, Tok.l).padding(.vertical, 8)
@@ -145,22 +145,22 @@ struct ProfileView: View {
                     .buttonStyle(.plain)
                     RowDivider()
                     NavigationLink(destination: WalletView()) {
-                        SettingsRow(icon: "creditcard", title: "我的钱包")
+                        SettingsRow(icon: "wallet", title: "我的钱包")
                     }
                     .buttonStyle(.plain)
                     RowDivider()
                     NavigationLink(destination: FavoritesView()) {
-                        SettingsRow(icon: "star", title: "收藏")
+                        SettingsRow(icon: "favorite", title: "收藏")
                     }
                     .buttonStyle(.plain)
                     RowDivider()
                     NavigationLink(destination: CallHistoryView()) {
-                        SettingsRow(icon: "phone.arrow.up.right", title: "通话记录")
+                        SettingsRow(icon: "callOutgoing", title: "通话记录")
                     }
                     .buttonStyle(.plain)
                     RowDivider()
                     NavigationLink(destination: SessionsView()) {
-                        SettingsRow(icon: "laptopcomputer.and.iphone", title: "登录设备管理")
+                        SettingsRow(icon: "device", title: "登录设备管理")
                     }
                     .buttonStyle(.plain)
                 }
@@ -170,7 +170,7 @@ struct ProfileView: View {
                 // ── 3. 设置（收拢进独立设置页）──────────────────────
                 VxCard {
                     NavigationLink(destination: SettingsHomeView()) {
-                        SettingsRow(icon: "gearshape", title: "设置")
+                        SettingsRow(icon: "settings", title: "设置")
                     }
                     .buttonStyle(.plain)
                 }
@@ -182,13 +182,13 @@ struct ProfileView: View {
                 SectionHeader(text: "其他")
                 VxCard {
                     NavigationLink(destination: InviteFriendView()) {
-                        SettingsRow(icon: "person.badge.plus", title: "邀请好友")
+                        SettingsRow(icon: "addFriend", title: "邀请好友")
                     }
                     .buttonStyle(.plain)
                     RowDivider()
                     Button { showSwitchAccount = true } label: {
                         SettingsRow(
-                            icon: "person.2",
+                            icon: "contacts",
                             title: "切换账号",
                             trailing: "\(user?.username.isEmpty == false ? user!.username : "当前") · 当前"
                         )
@@ -261,14 +261,14 @@ struct ProfileView: View {
                 Spacer()
                 // QR code button — independent tap
                 NavigationLink(destination: MyQRCodeView()) {
-                    TouliaoIcon(systemName: "qrcode", size: 21)
+                    TouliaoIcon("qrcode", size: .md)
                         .foregroundColor(Tok.green)
                 }
                 .buttonStyle(.plain)
                 .simultaneousGesture(TapGesture())   // prevent card tap from firing
                 .accessibilityIdentifier("profile-my-qr")
                 .padding(.trailing, 4)
-                TouliaoIcon(systemName: "chevron.right", size: 13)
+                TouliaoIcon("disclosure", size: .xs)
                     .foregroundColor(Tok.secondary.opacity(0.6))
             }
             .padding(Tok.l)

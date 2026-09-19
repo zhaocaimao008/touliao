@@ -102,7 +102,7 @@ struct CallHistoryView: View {
                     .touliaoFont(14).fontWeight(.medium)
                     .foregroundColor(missed ? .vxinError : .primary)
                 HStack(spacing: 4) {
-                    TouliaoIcon(systemName: c.direction == "out" ? "arrow.up.right" : "arrow.down.left")
+                    TouliaoIcon(c.direction == "out" ? "callOutgoing" : "callIncoming")
                         .touliaoFont(12)
                     Text(subtitle(c)).touliaoFont(12)
                 }

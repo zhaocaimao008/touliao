@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,7 +47,7 @@ fun SessionsScreen(onBack: () -> Unit, viewModel: SessionsViewModel = hiltViewMo
         topBar = {
             TopAppBar(
                 title = { Text("登录设备管理") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
                 actions = {
                     if (state.sessions.count { !it.current } > 0) {
                         TextButton(onClick = { kickOthers = true }) { Text("退出其它设备") }
@@ -63,7 +61,7 @@ fun SessionsScreen(onBack: () -> Unit, viewModel: SessionsViewModel = hiltViewMo
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.error != null && state.sessions.isEmpty() ->
                     Text(state.error!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center))
-                state.sessions.isEmpty() -> EmptyState(icon = "💻", title = "暂无登录设备", modifier = Modifier.align(Alignment.Center))
+                state.sessions.isEmpty() -> EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Device, title = "暂无登录设备", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.sessions, key = { it.id }) { s ->
                         SessionRow(s, onKick = { kickTarget = s })

@@ -32,7 +32,7 @@ struct PasswordField: View {
                 // 切换后保持焦点，避免键盘收起
                 focused = true
             } label: {
-                TouliaoIcon(systemName: visible ? "eye.slash" : "eye")
+                TouliaoIcon(visible ? "hidePassword" : "showPassword")
                     .foregroundColor(.vxinTextSecondary)
                     .frame(minWidth: 44, minHeight: 44)
             }

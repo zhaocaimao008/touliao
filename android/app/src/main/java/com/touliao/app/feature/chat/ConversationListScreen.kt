@@ -127,7 +127,7 @@ fun ConversationListScreen(
                     // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
                     if (showMoments) {
                         IconButton(onClick = onOpenMoments) {
-                            Icon(TouliaoIcons.Moments, contentDescription = "朋友圈")
+                            Icon(TouliaoIcons.Discover, contentDescription = "朋友圈")
                         }
                     }
                     // @我的消息聚合入口
@@ -139,7 +139,7 @@ fun ConversationListScreen(
                     }
                     var addMenu by remember { mutableStateOf(false) }
                     Box {
-                        IconButton(onClick = { addMenu = true }) { com.touliao.app.ui.DesignGlyph("＋", fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl) }
+                        IconButton(onClick = { addMenu = true }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Add, size = com.touliao.app.ui.IconSize.Md) }
                         DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
                             DropdownMenuItem(text = { Text("文件传输助手") }, onClick = {
                                 addMenu = false
@@ -168,7 +168,7 @@ fun ConversationListScreen(
 
                 state.conversations.isEmpty() ->
                     com.touliao.app.ui.components.EmptyState(
-                        icon = "💬",
+                        icon = com.touliao.app.ui.TouliaoIcons.Chat,
                         title = "暂无会话",
                         subtitle = "去「通讯录」找好友开始聊天吧",
                         modifier = Modifier.align(Alignment.Center),
@@ -188,7 +188,7 @@ fun ConversationListScreen(
                     }
                     if (archivedList.isEmpty()) {
                         com.touliao.app.ui.components.EmptyState(
-                            icon = "🗄",
+                            icon = com.touliao.app.ui.TouliaoIcons.Archive,
                             title = "暂无归档会话",
                             subtitle = "长按会话可选「归档该会话」",
                             modifier = Modifier.weight(1f).align(Alignment.CenterHorizontally),
@@ -228,7 +228,7 @@ fun ConversationListScreen(
                                 Box(
                                     Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
                                     contentAlignment = Alignment.Center,
-                                ) { com.touliao.app.ui.DesignGlyph("🗄", fontSize = 22.sp) }
+                                ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Archive, size = com.touliao.app.ui.IconSize.Md) }
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text("已归档会话", style = MaterialTheme.typography.bodyLarge)
@@ -374,7 +374,7 @@ internal fun ConversationRow(
                         Box(Modifier.size(8.dp).clip(CircleShape).background(com.touliao.app.ui.theme.VxinError))
                         Spacer(Modifier.width(4.dp))
                     }
-                    com.touliao.app.ui.DesignGlyph("🔕", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Mute, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 // 正常会话：显示未读数字角标
                 conv.unreadCount > 0 -> Box(

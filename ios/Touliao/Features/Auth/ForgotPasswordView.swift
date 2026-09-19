@@ -16,7 +16,7 @@ struct ForgotPasswordView: View {
                 RoundedRectangle(cornerRadius: VxinRadius.lg, style: .continuous)
                     .fill(Color.vxinBrand)
                     .frame(width: 64, height: 64)
-                TouliaoIcon(systemName: "lock.rotation", size: 26).foregroundColor(.vxinOnPrimary)
+                TouliaoIcon("passwordReset", size: .lg).foregroundColor(.vxinOnPrimary)
             }
             .padding(.bottom, 4)
             Text("忘记密码")

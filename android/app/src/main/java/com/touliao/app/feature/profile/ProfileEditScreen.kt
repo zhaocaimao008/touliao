@@ -22,8 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -88,7 +86,7 @@ fun ProfileEditScreen(
         topBar = {
             TopAppBar(
                 title = { Text("个人资料") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -129,7 +127,7 @@ fun ProfileEditScreen(
                             )
                             EditDivider()
                             EditRow(label = "我的二维码", onClick = onOpenMyQr, trailingContent = {
-                                Icon(TouliaoIcons.QrCode, contentDescription = null, tint = VxinBrand, modifier = Modifier.size(20.dp))
+                                Icon(TouliaoIcons.Qrcode, contentDescription = null, tint = VxinBrand, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm))
                             })
                         }
                     }
@@ -231,7 +229,7 @@ private fun EditRow(
         }
         if (clickable) {
             Spacer(Modifier.width(8.dp))
-            Icon(TouliaoIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+            Icon(TouliaoIcons.Disclosure, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(com.touliao.app.ui.IconSize.Xs))
         }
     }
 }

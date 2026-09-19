@@ -14,7 +14,7 @@ struct LoginView: View {
                 HStack {
                     Button(action: onCancel) {
                         HStack(spacing: 4) {
-                            TouliaoIcon(systemName: "chevron.left")
+                            TouliaoIcon("back")
                             Text("返回")
                         }
                     }
@@ -30,7 +30,7 @@ struct LoginView: View {
                 RoundedRectangle(cornerRadius: VxinRadius.xl, style: .continuous)
                     .fill(Color.vxinBrand)
                     .frame(width: 72, height: 72)
-                TouliaoIcon(systemName: "bubble.left.and.bubble.right.fill", size: 30)
+                TouliaoIcon("chat", size: .lg)
                     .foregroundColor(.vxinOnPrimary)
             }
             Text("投聊")

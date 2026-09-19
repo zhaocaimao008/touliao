@@ -123,8 +123,8 @@ private struct CallView: View {
                 VStack {
                     HStack {
                         Button { manager.setMinimized(true) } label: {
-                            TouliaoIcon(systemName: "chevron.down")
-                                .touliaoFont(18, weight: .semibold).foregroundColor(.white)
+                            TouliaoIcon("minimize", size: .md)
+                                .foregroundColor(IconColor.onDark)
                                 .frame(width: 44, height: 44)
                                 .background(Color.white.opacity(0.15)).clipShape(Circle())
                         }

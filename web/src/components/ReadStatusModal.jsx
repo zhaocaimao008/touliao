@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useEffect, useMemo, useState } from 'react';
 import Avatar from './Avatar';
 import useFocusTrap from '../hooks/useFocusTrap';
@@ -33,7 +34,7 @@ export default function ReadStatusModal({ state, conversation, members, currentU
       <div className="wc-modal read-status-modal" role="dialog" aria-modal="true" aria-labelledby="read-status-title" onClick={event => event.stopPropagation()}>
         <div className="wc-modal-header">
           <h2 id="read-status-title" className="wc-modal-title">{t('readStatus.title')}</h2>
-          <button type="button" className="wc-modal-close" onClick={onClose} aria-label={t('common.close')}>×</button>
+          <button type="button" className="wc-modal-close" onClick={onClose} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
         </div>
         <div className="wc-modal-body read-status-body">
           {state.loading ? (

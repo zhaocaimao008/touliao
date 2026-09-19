@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -46,7 +44,7 @@ fun BlockedScreen(
             TopAppBar(
                 title = { Text("黑名单") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") }
                 },
             )
         },
@@ -54,7 +52,7 @@ fun BlockedScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.loading && state.users.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.users.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "🚫", title = "黑名单为空", modifier = Modifier.align(Alignment.Center))
+                state.users.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Blocked, title = "黑名单为空", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.users, key = { it.id }) { user ->
                         Row(

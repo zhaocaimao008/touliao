@@ -1,7 +1,8 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense, lazy } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
-import Icon from '../ui-kit/Icon';
+
 import UserProfile from './UserProfile';
 import './ContactList.css';
 import { GroupAvatar } from './GroupAvatar';
@@ -226,37 +227,37 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             {/* 功能入口：真实功能保持原有处理函数 */}
             <div className="tl-contact-shortcuts">
             <EntryRow
-              icon={<IcoPersonAdd width="18" height="18" fill="var(--text-inverse)" />}
+              icon={<IcoPersonAdd tone="onDark" size="sm" />}
               color="var(--icon-bg-newfriend)" label={t('contacts.newFriends')} badge={requests.length}
               onClick={() => setTab('requests')} testid="cl-new-friends-entry"
             />
             <EntryRow
-              icon={<IcoContacts width="18" height="18" fill="var(--text-inverse)" />}
+              icon={<IcoContacts tone="onDark" size="sm" />}
               color="var(--icon-bg-group)" label={t('contacts.groupChats')} badge={0}
               onClick={() => setTab('groups')}
             />
             <EntryRow
-              icon={<IcoPersonAdd width="18" height="18" fill="var(--text-inverse)" />}
+              icon={<IcoPersonAdd tone="onDark" size="sm" />}
               color="var(--brand-500)" label={t('contacts.addFriend')} badge={0}
               onClick={() => setShowAddFriend(true)}
             />
             <EntryRow
-              icon={<Icon name="shield-ban" size={20} />}
+              icon={<TouliaoIcon name="blocked" size="sm" />}
               color="var(--icon-bg-neutral)" label={t('contacts.blacklist')} badge={0}
               onClick={() => { fetchBlocked(); setTab('blocked'); }}
             />
             <EntryRow
-              icon={<Icon name="tag" size={20} />}
+              icon={<TouliaoIcon name="tag" size="sm" />}
               color="var(--icon-bg-label)" label={t('contacts.friendLabels')} badge={0}
               onClick={() => { fetchLabels(); setTab('labels'); }}
             />
             <EntryRow
-              icon={<Icon name="message-circle" size={20} />}
+              icon={<TouliaoIcon name="chat" size="sm" />}
               color="var(--brand-500)" label={t('contacts.aiAssistant')} badge={aiBots.length}
               onClick={() => setTab('ai')}
             />
             <EntryRow
-              icon={<Icon name="file-text" size={20} />}
+              icon={<TouliaoIcon name="fileContent" size="sm" />}
               color="var(--icon-bg-filehelper)" label={t('contacts.fileHelper')} badge={0}
               onClick={async () => {
                 try {
@@ -327,9 +328,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               <>
                 {requests.length === 0 && (
                   <div className="cl-empty" role="status">
-                    <svg viewBox="0 0 24 24" width="40" height="40" fill="#D0D7E3" className="cl-empty-icon">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-                    </svg>
+                    <TouliaoIcon name="contact" className="cl-empty-icon" tone="secondary" size="xl" />
                     <div className="cl-empty-text">{t('contacts.noNewRequests')}</div>
                   </div>
                 )}
@@ -410,7 +409,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   <div className="wc-contact-item-name">{b.name}</div>
                   <div className="wc-contact-item-sub">{b.description || t('contacts.aiBotIdTemplate').replace('{id}', b.wechat_id)}</div>
                 </div>
-                <IcoBack width="14" height="14" fill="var(--text-tertiary)" />
+                <IcoBack style={{color:"var(--text-tertiary)"}} size="xs" />
               </div>
             ))}
           </>
@@ -461,7 +460,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   <div className="wc-contact-item-name">{g.name}</div>
                   <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', g.memberCount)}</div>
                 </div>
-                <IcoBack width="14" height="14" fill="var(--text-tertiary)" />
+                <IcoBack style={{color:"var(--text-tertiary)"}} size="xs" />
               </div>
             ))}
             {groups.length === 0 && (
@@ -619,7 +618,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
                   <div className="wc-contact-item-name">{c.remark || c.username}</div>
                 </div>
                 <div className="lt-member-checkbox" style={{ border: `2px solid ${inLabel ? 'var(--green)' : 'var(--divider)'}`, background: inLabel ? 'var(--green)' : 'transparent' }}>
-                  {inLabel && <IcoCheck width="12" height="12" fill="#fff" />}
+                  {inLabel && <IcoCheck tone="onDark" size="xs" />}
                 </div>
               </div>
             );
@@ -645,7 +644,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       {labels.map(label => (
         <div key={label.id} className="wc-contact-item">
           <div className="lt-label-icon-box" style={{ background: label.color || '#6D5AE6' }}>
-            <Icon name="tag" size={20} />
+            <TouliaoIcon name="tag" size="sm" />
           </div>
           <div className="cl-contact-info">
             <div className="wc-contact-item-name">{label.name}</div>
@@ -706,7 +705,7 @@ function EntryRow({ icon, color, label, badge, onClick, testid }) {
           {badge}
         </span>
       )}
-      <IcoBack width="14" height="14" fill="var(--text-tertiary)" className="cl-entry-arrow" />
+      <IcoBack className="cl-entry-arrow" style={{color:"var(--text-tertiary)"}} size="xs" />
     </div>
   );
 }
@@ -716,7 +715,7 @@ function SectionHeader({ title, onBack }) {
   return (
     <div className="cl-section-header">
       <button onClick={onBack} className="cl-section-back">
-        <Icon name="chevron-left" size={16} />
+        <TouliaoIcon name="back" size="xs" />
         {t('common.back')}
       </button>
       <span className="cl-section-title">{title}</span>

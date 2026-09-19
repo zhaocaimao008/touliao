@@ -21,7 +21,7 @@ struct VideoPlayerOverlay: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             MediaPreviewToolbar(title: filename ?? "视频", onDismiss: onDismiss) {
                 Button(action: saveVideo) {
-                    Label(saving ? "保存中…" : "保存视频", touliaoSystemImage: "square.and.arrow.down")
+                    Label(saving ? "保存中…" : "保存视频", touliaoIcon: "download")
                         .touliaoFont(14).frame(minHeight: 44)
                 }
                 .disabled(saving)
@@ -121,7 +121,7 @@ struct FileDetailsOverlay: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    TouliaoIcon(systemName: "doc.fill", size: 36)
+                    TouliaoIcon("fileContent", size: .xl)
                         .foregroundColor(.vxinBrand)
                         .frame(width: 80, height: 80)
                         .background(Color.vxinPrimarySoft)
@@ -143,7 +143,7 @@ struct FileDetailsOverlay: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: onDismiss) {
-                        TouliaoIcon(systemName: "xmark").frame(minWidth: 44, minHeight: 44)
+                        TouliaoIcon("close", size: .md).frame(minWidth: 44, minHeight: 44)
                     }.accessibilityLabel("关闭文件")
                 }
             }
@@ -202,12 +202,12 @@ struct MediaPreviewToolbar<Actions: View>: View {
     var body: some View {
         HStack(spacing: 12) {
             Button(action: onDismiss) {
-                TouliaoIcon(systemName: "xmark").frame(width: 44, height: 44)
+                TouliaoIcon("close", size: .md).frame(width: 44, height: 44)
             }.accessibilityLabel("关闭预览")
             Text(title).touliaoFont(14).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
             actions()
         }
-        .foregroundColor(.white)
+        .foregroundColor(IconColor.onDark)
         .padding(.horizontal, 12).padding(.vertical, 4)
         .background(Color(white: 0.10))
     }

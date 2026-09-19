@@ -30,7 +30,7 @@ import com.touliao.app.ui.theme.VxinTextSecondary
  */
 @Composable
 fun EmptyState(
-    icon: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String? = null,
     modifier: Modifier = Modifier,
@@ -49,14 +49,7 @@ fun EmptyState(
             contentAlignment = Alignment.Center,
         ) {
             androidx.compose.material3.Icon(
-                when (icon) {
-                    "👥", "👤" -> com.touliao.app.ui.DesignIcons.Users
-                    "🔍" -> com.touliao.app.ui.DesignIcons.Search
-                    "📁", "🗄", "📂" -> com.touliao.app.ui.DesignIcons.Folder
-                    "📞" -> com.touliao.app.ui.DesignIcons.Phone
-                    "⭐", "🌟" -> com.touliao.app.ui.DesignIcons.Star
-                    else -> com.touliao.app.ui.DesignIcons.MessageCircle
-                }, contentDescription = null, modifier = Modifier.size(32.dp), tint = VxinBrand,
+                icon, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Lg), tint = VxinBrand,
             )
         }
         Spacer(Modifier.height(16.dp))

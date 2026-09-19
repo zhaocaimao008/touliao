@@ -1,4 +1,5 @@
-import Icon from '../ui-kit/Icon';
+import TouliaoIcon from '../ui-kit/Icon';
+
 import './auth.css';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -63,16 +64,16 @@ export default function Register() {
 
   const fields = [
     { key: 'username', label: t('auth.nickname'), type: 'text', autocomplete: 'nickname', placeholder: t('auth.nicknamePlaceholder'), maxLength: 20, icon: (
-      <Icon name="user-round" size={18} className="auth-field-icon" />
+      <TouliaoIcon name="contact" className="auth-field-icon" size="sm" />
     )},
     { key: 'phone', label: t('auth.phone'), type: 'tel', inputMode: 'tel', autocomplete: 'username', placeholder: t('auth.phonePlaceholder'), maxLength: 11, icon: (
-      <Icon name="smartphone" size={18} className="auth-field-icon" />
+      <TouliaoIcon name="phoneNumber" className="auth-field-icon" size="sm" />
     )},
     { key: 'password', label: t('auth.password'), type: 'password', autocomplete: 'new-password', placeholder: t('auth.setPasswordPlaceholder'), icon: (
-      <Icon name="lock-keyhole" size={18} className="auth-field-icon" />
+      <TouliaoIcon name="lock" className="auth-field-icon" size="sm" />
     )},
     ...(inviteRequired ? [{ key: 'inviteCode', label: t('auth.inviteCode'), type: 'text', inputMode: 'numeric', autocomplete: 'off', placeholder: t('auth.inviteCodePlaceholder'), maxLength: 6, icon: (
-      <Icon name="key-round" size={18} className="auth-field-icon" />
+      <TouliaoIcon name="passwordReset" className="auth-field-icon" size="sm" />
     )}] : []),
   ];
 
@@ -124,16 +125,9 @@ export default function Register() {
                 {f.key === 'password' && (
                   <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? t('auth.hidePassword') : t('auth.showPassword')}>
                     {showPwd ? (
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-                        <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
+                      <TouliaoIcon name="showPassword" size="sm" />
                     ) : (
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      </svg>
+                      <TouliaoIcon name="hidePassword" size="sm" />
                     )}
                   </button>
                 )}
@@ -143,9 +137,7 @@ export default function Register() {
 
           {error && (
             <div className="auth-error" role="alert">
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zM7 5h2v4H7V5zm0 5h2v2H7v-2z"/>
-              </svg>
+              <TouliaoIcon name="error" size="xs" />
               {error}
             </div>
           )}

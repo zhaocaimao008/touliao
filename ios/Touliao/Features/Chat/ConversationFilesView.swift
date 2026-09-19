@@ -161,14 +161,14 @@ struct ConversationFilesView: View {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let err = vm.error, vm.items.isEmpty {
             VStack(spacing: 12) {
-                TouliaoIcon(systemName: "exclamationmark.triangle", size: 36).foregroundColor(.vxinTextSecondary)
+                TouliaoIcon("warning", size: .xl).foregroundColor(.vxinTextSecondary)
                 Text(err).foregroundColor(.vxinError)
                 Button("重试") { Task { await vm.loadFirst() } }.foregroundColor(.vxinGreen)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if vm.items.isEmpty {
             VStack(spacing: 12) {
-                TouliaoIcon(systemName: "folder", size: 48).foregroundColor(.vxinTextSecondary)
+                TouliaoIcon("folder", size: .xl).foregroundColor(.vxinTextSecondary)
                 Text("暂无文件").foregroundColor(.vxinTextSecondary)
                 Text("该会话下的图片、视频与文件会在这里汇总")
                     .touliaoFont(12).foregroundColor(.vxinTextSecondary)
@@ -250,7 +250,7 @@ private struct FileRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            TouliaoIcon(systemName: "doc", size: 28).foregroundColor(.vxinGreen)
+            TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinGreen)
             VStack(alignment: .leading, spacing: 3) {
                 Text(file.displayName)
                     .touliaoFont(16).lineLimit(1)
@@ -278,7 +278,7 @@ private struct MediaGridCell: View {
             Color.vxinSurfaceSecondary
             if file.type == "file" {
                 VStack(spacing: 8) {
-                    TouliaoIcon(systemName: "doc", size: 28).foregroundColor(.vxinGreen)
+                    TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinGreen)
                     Text(file.displayName).touliaoFont(12).foregroundColor(.vxinText)
                         .lineLimit(2).multilineTextAlignment(.center)
                 }.padding(8)
@@ -289,7 +289,7 @@ private struct MediaGridCell: View {
             // 视频角标：半透明播放标识
             if file.type == "video" {
                 Color.black.opacity(0.18)
-                TouliaoIcon(systemName: "play.circle.fill", size: 30).foregroundColor(.white.opacity(0.9))
+                TouliaoIcon("play", size: .lg).foregroundColor(IconColor.onDark.opacity(0.9))
             }
         }
         .aspectRatio(1, contentMode: .fill)
@@ -321,7 +321,7 @@ private struct FilePreviewImageView: View {
             VStack {
                 HStack {
                     Button { onClose() } label: {
-                        TouliaoIcon(systemName: "xmark").foregroundColor(.white).padding()
+                        TouliaoIcon("close").foregroundColor(IconColor.onDark).padding()
                     }
                     .accessibilityLabel("关闭")
                     Spacer()

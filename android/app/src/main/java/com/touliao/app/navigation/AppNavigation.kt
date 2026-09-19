@@ -202,7 +202,7 @@ private data class TabItem(val route: String, val label: String, val icon: Image
 private val TAB_ITEMS = listOf(
     TabItem(Routes.CONVERSATIONS, "消息", TouliaoIcons.Chat, "chats"),
     TabItem(Routes.CONTACTS, "通讯录", TouliaoIcons.Contacts, "contacts"),
-    TabItem(Routes.PROFILE, "我", TouliaoIcons.Me, "me"),
+    TabItem(Routes.PROFILE, "我", TouliaoIcons.Profile, "me"),
 )
 private val TAB_ROUTES = TAB_ITEMS.map { it.route }.toSet()
 

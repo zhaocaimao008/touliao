@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { showConfirm, showToast } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
@@ -226,7 +227,7 @@ function AccountSwitcher() {
                   title={active ? t('settings.logout') : t('home.removeFromDevice')}
                   data-testid={active ? 'account-logout-btn' : undefined}
                   className="as-remove-btn">
-                  <IcoClose width="13" height="13" fill="currentColor" />
+                  <IcoClose size="xs" />
                 </button>
               </div>
             );
@@ -237,9 +238,7 @@ function AccountSwitcher() {
             className="as-profile-row"
             role="button" tabIndex={0}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowProfile(v => !v); } }}>
-            <svg className="as-profile-icon" viewBox="0 0 24 24">
-              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-            </svg>
+            <TouliaoIcon name="profile" className="as-profile-icon" size="sm" />
             <span className="as-profile-label">{t('home.profile')}</span>
             <IcoBack className={`as-profile-arrow${showProfile ? ' open' : ''}`} />
           </div>
@@ -280,9 +279,7 @@ function AccountSwitcher() {
             role="button" tabIndex={0}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleForm(e); } }}>
             <div className={`wc-add-icon-wrap${showForm ? ' open' : ''}`}>
-              <svg viewBox="0 0 24 24" className={`wc-add-icon-svg${showForm ? ' open' : ''}`}>
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-              </svg>
+              <TouliaoIcon name="add" className={`wc-add-icon-svg${showForm ? ' open' : ''}`} size="sm" />
             </div>
             <span className={`wc-add-label${showForm ? ' open' : ''}`}>{t('home.addAccount')}</span>
             <IcoBack className={`wc-add-chevron${showForm ? ' open' : ''}`} />
@@ -411,7 +408,7 @@ function CreateGroupModal({ onClose, onCreated }) {
         <div className="cgm-header">
           <span className="cgm-title">{t('home.createGroupTitle')}</span>
           <button onClick={onClose} className="cgm-close" aria-label={t('common.close')}>
-            <IcoClose width="18" height="18" fill="currentColor" />
+            <IcoClose size="sm" />
           </button>
         </div>
 
@@ -438,7 +435,7 @@ function CreateGroupModal({ onClose, onCreated }) {
                 className="cgm-chip">
                 <Avatar src={c.avatar} name={c.remark || c.username} size='micro' className="as-avatar-img" />
                 <span className="cgm-chip-text">{c.remark || c.username}</span>
-                <IcoClose width="12" height="12" fill="var(--green)" />
+                <IcoClose tone="selected" size="xs" />
               </div>
             ))}
           </div>
@@ -446,9 +443,7 @@ function CreateGroupModal({ onClose, onCreated }) {
 
         {/* 联系人搜索 */}
         <div className="cgm-search-bar">
-          <svg className="cgm-search-icon" viewBox="0 0 24 24">
-            <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-          </svg>
+          <TouliaoIcon name="search" className="cgm-search-icon" size="sm" />
           <input
             value={contactSearch}
             onChange={e => setContactSearch(e.target.value)}
@@ -1120,7 +1115,7 @@ export default function Home() {
           <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label={t('home.myQrCode')} onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('home.myQrCode')}</span>
-              <button className="wc-modal-close" aria-label={t('home.closeQr')} onClick={() => setShowQR(false)}>✕</button>
+              <button className="wc-modal-close" aria-label={t('home.closeQr')} onClick={() => setShowQR(false)}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-modal-body home-qr-body">
               <AuthImage src="/api/users/me/qrcode" alt={t('home.myQrCode')} className="home-qr-img" />
@@ -1134,13 +1129,13 @@ export default function Home() {
           <div className="home-add-overlay" role="button" tabIndex={0} onClick={closeAddMenu}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeAddMenu(); } }} />
           <div className="home-add-dropdown" style={{ top: addMenuPos.top, right: addMenuPos.right }}>
-            <AddDropItem testid="create-group-entry" icon={<IcoContacts width="17" height="17" fill="currentColor" />}
+            <AddDropItem testid="create-group-entry" icon={<IcoContacts size="sm" />}
               label={t('home.createGroupTitle')} onClick={handleCreateGroup} />
             <div className="home-add-divider" />
-            <AddDropItem icon={<IcoPersonAdd width="17" height="17" fill="currentColor" />}
+            <AddDropItem icon={<IcoPersonAdd size="sm" />}
               label={t('home.addFriendMenuLabel')} onClick={handleAddFriend} />
             <div className="home-add-divider" />
-            <AddDropItem testid="scan-qr-entry" icon={<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v2h-3v-2zm-5 0h3v3h-2v-1h-1v-2zm5 5h3v3h-3v-3zm-5 0h3v3h-3v-3z"/></svg>}
+            <AddDropItem testid="scan-qr-entry" icon={<TouliaoIcon name="scan" size="sm" />}
               label={t('home.scanMenuLabel')} onClick={handleScan} />
           </div>
         </>
@@ -1207,7 +1202,7 @@ export default function Home() {
                     <span className="m-search-icon"><IcoSearch className="ico-sm" /></span>
                     <input placeholder={t('common.search')} aria-label={t('common.search')} value={search}
                       onChange={e => setSearch(e.target.value)} />
-                    {search && <button className="m-search-clear" aria-label={t('common.clear')} onClick={() => setSearch('')}>✕</button>}
+                    {search && <button className="m-search-clear" aria-label={t('common.clear')} onClick={() => setSearch('')}><TouliaoIcon name="close" size="sm" /></button>}
                   </div>
                 </>
               ) : (
@@ -1302,7 +1297,7 @@ export default function Home() {
                 />
                 {search && (
                   <button className="home-search-clear" aria-label={t('common.clear')}
-                    onClick={() => setSearch('')}>✕</button>
+                    onClick={() => setSearch('')}><TouliaoIcon name="close" size="sm" /></button>
                 )}
               </div>
 

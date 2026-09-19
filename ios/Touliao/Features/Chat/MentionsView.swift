@@ -54,7 +54,7 @@ struct MentionsView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let err = vm.error, vm.items.isEmpty {
                     VStack(spacing: 12) {
-                        TouliaoIcon(systemName: "exclamationmark.triangle", size: 36).foregroundColor(.vxinTextSecondary)
+                        TouliaoIcon("warning", size: .xl).foregroundColor(.vxinTextSecondary)
                         Text(err).foregroundColor(.vxinError)
                         Button("重试") { Task { await vm.loadFirst() } }
                             .foregroundColor(.vxinGreen)
@@ -62,7 +62,7 @@ struct MentionsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if vm.items.isEmpty {
                     VStack(spacing: 12) {
-                        TouliaoIcon(systemName: "at.circle", size: 48).foregroundColor(.vxinTextSecondary)
+                        TouliaoIcon("mention", size: .xl).foregroundColor(.vxinTextSecondary)
                         Text("暂无 @ 我的消息").foregroundColor(.vxinTextSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,7 +68,7 @@ private fun SettingsScaffold(title: String, onBack: () -> Unit, content: @Compos
         topBar = {
             TopAppBar(
                 title = { Text(title) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -163,7 +160,7 @@ fun NotificationSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel 
                             ) {
                                 Text(label, style = MaterialTheme.typography.bodyLarge)
                                 if (s.ringtone == key) {
-                                    Icon(com.touliao.app.ui.DesignIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Icon(com.touliao.app.ui.TouliaoIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }
@@ -240,7 +237,7 @@ private fun ThemeRow(label: String, value: ThemeMode, current: ThemeMode, onSele
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
-        if (current == value) Icon(com.touliao.app.ui.DesignIcons.Check, contentDescription = "已选", tint = MaterialTheme.colorScheme.primary)
+        if (current == value) Icon(com.touliao.app.ui.TouliaoIcons.Check, contentDescription = "已选", tint = MaterialTheme.colorScheme.primary)
     }
 }
 

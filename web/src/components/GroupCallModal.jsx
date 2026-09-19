@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useRef, useCallback, useId } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -822,15 +823,9 @@ function Tile({ stream, streamForRef, isVideo, info, self, badge, level }) {
 
 // ── 控制按钮 ─────────────────────────────────────────────────
 function CallIcon({ kind, off }) {
-  return <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {kind === 'mic' && <><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></>}
-    {kind === 'camera' && <><rect x="3" y="6" width="12" height="12" rx="2" /><path d="m15 10 6-4v12l-6-4" /></>}
-    {kind === 'output' && <><path d="M4 9h4l5-4v14l-5-4H4zM17 9a5 5 0 0 1 0 6M20 6a9 9 0 0 1 0 12" /></>}
-    {kind === 'minimize' && <path d="M5 17h14" />}
-    {kind === 'restore' && <path d="M5 10V5h5M14 5h5v5M19 14v5h-5M10 19H5v-5" />}
-    {kind === 'hangup' && <path d="M3 15v-4c5-5 13-5 18 0v4l-5-1v-3a15 15 0 0 0-8 0v3z" />}
-    {off && <path d="m3 3 18 18" />}
-  </svg>;
+  const name = { mic: off ? 'microphoneMuted' : 'microphone', camera: off ? 'cameraOff' : 'video',
+    output: off ? 'speakerOff' : 'speaker', minimize: 'minimize', restore: 'fullscreen', hangup: 'hangup' }[kind];
+  return <TouliaoIcon name={name} role="call" />;
 }
 
 function CtrlBtn({ icon, label, pressed, danger, disabled, onClick }) {

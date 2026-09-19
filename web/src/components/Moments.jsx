@@ -1,4 +1,5 @@
-import Icon from '../ui-kit/Icon';
+import TouliaoIcon from '../ui-kit/Icon';
+
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -154,7 +155,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
               playsInline
               tabIndex={-1}
             />
-            <span className="wc-moment-video-play" aria-hidden="true">▶</span>
+            <span className="wc-moment-video-play" aria-hidden="true"><TouliaoIcon name="play" size="md" tone="onDark" /></span>
           </button>
         )}
         {lightbox && (
@@ -172,11 +173,11 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
             aria-pressed={!!m.liked} aria-label={t('moments.like')}
             onClick={() => { if (!m.liked) { setLikePop(true); setTimeout(() => setLikePop(false), 360); } onLike(m); }}
           >
-            <Icon name="heart" size={18} className={likePop ? 'wc-like-pop' : undefined} />
+            <TouliaoIcon name="like" className={likePop ? 'wc-like-pop' : undefined} size="sm" />
             {m.likeCount > 0 ? m.likeCount : t('moments.like')}
           </button>
           <button className="wc-moment-action-btn" aria-label={t('moments.comment')} onClick={() => setCommenting(v => !v)}>
-            <Icon name="message-circle" size={18} />
+            <TouliaoIcon name="chat" size="sm" />
             {m.commentCount > 0 ? m.commentCount : t('moments.comment')}
           </button>
         </div>
@@ -184,7 +185,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
         {/* 点赞者 */}
         {m.likes?.length > 0 && (
           <div className="wc-moment-likes">
-            <Icon name="heart" size={14} className="wc-moment-heart" />
+            <TouliaoIcon name="like" className="wc-moment-heart" size="xs" />
             {m.likes.map(l => l.username).join('、')}
           </div>
         )}
@@ -599,7 +600,7 @@ export default function Moments() {
       {/* 互动通知入口 */}
       <div className="wc-moment-notif-bar" onClick={openNotif} role="button" tabIndex={0}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNotif(); } }}>
-        <span className="wc-moment-notif-icon"><Icon name="bell" size={18} /></span>
+        <span className="wc-moment-notif-icon"><TouliaoIcon name="notification" size="sm" /></span>
         <span className="wc-moment-notif-label">{t('moments.notifications')}</span>
         {notifCount > 0 && <span className="wc-moment-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
         <div className="moments-spacer" />
@@ -608,7 +609,7 @@ export default function Moments() {
           title={t('moments.settingsTitle')}
           aria-label={t('moments.settingsTitle')}
           onClick={e => { e.stopPropagation(); setShowSettings(true); }}
-        ><svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
+        ><TouliaoIcon name="settings" size="sm" /></button>
       </div>
 
       {/* 朋友圈设置：最近 N 天可见 */}
@@ -617,7 +618,7 @@ export default function Moments() {
           <div className="wc-modal moments-modal-sm" role="dialog" aria-modal="true" aria-label={t('moments.settingsTitle')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('moments.settingsTitle')}</span>
-              <button className="wc-modal-close" onClick={() => setShowSettings(false)} aria-label={t('common.close')}>✕</button>
+              <button className="wc-modal-close" onClick={() => setShowSettings(false)} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="moments-modal-section">
               <div className="moments-modal-desc">{t('moments.visibilityRangeDesc')}</div>
@@ -645,7 +646,7 @@ export default function Moments() {
           <div className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label={t('moments.editMoment')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('moments.editMoment')}</span>
-              <button className="wc-modal-close" onClick={() => !savingEdit && setEditing(null)} aria-label={t('common.close')}>✕</button>
+              <button className="wc-modal-close" onClick={() => !savingEdit && setEditing(null)} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="moments-modal-pad16">
               <textarea autoFocus value={editText} onChange={e => setEditText(e.target.value)}
@@ -671,7 +672,7 @@ export default function Moments() {
           <div className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label={t('moments.chooseFriends')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{visibility === 'include' ? t('moments.chooseVisibleFriends') : t('moments.chooseHiddenFriends')}</span>
-              <button className="wc-modal-close" onClick={() => setShowFriendPicker(false)} aria-label={t('common.close')}>✕</button>
+              <button className="wc-modal-close" onClick={() => setShowFriendPicker(false)} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-moment-notif-list moments-friend-list">
               {friends.length === 0 ? (
@@ -707,7 +708,7 @@ export default function Moments() {
           <div className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label={t('moments.notifications')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('moments.notifications')}</span>
-              <button className="wc-modal-close" onClick={() => setNotifList(null)} aria-label={t('common.close')}>✕</button>
+              <button className="wc-modal-close" onClick={() => setNotifList(null)} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-moment-notif-list">
               {notifList.length === 0 ? (
@@ -748,7 +749,7 @@ export default function Moments() {
                 {images.map((img, i) => (
                   <div key={i} className="wc-moment-img-thumb">
                     <img src={img.previewUrl} alt={t('moments.pendingImageAltTemplate').replace('{n}', i + 1)} loading="lazy" />
-                    <button className="wc-moment-img-remove" onClick={() => removeImage(i)} aria-label={t('moments.removeImageTemplate').replace('{n}', i + 1)}>×</button>
+                    <button className="wc-moment-img-remove" onClick={() => removeImage(i)} aria-label={t('moments.removeImageTemplate').replace('{n}', i + 1)}><TouliaoIcon name="close" size="sm" /></button>
                   </div>
                 ))}
               </div>
@@ -756,7 +757,7 @@ export default function Moments() {
             {video && (
               <div className="wc-moment-video-compose">
                 <video src={video.previewUrl} controls preload="metadata" playsInline />
-                <button type="button" onClick={clearVideo} aria-label={t('moments.removeVideo')}>×</button>
+                <button type="button" onClick={clearVideo} aria-label={t('moments.removeVideo')}><TouliaoIcon name="close" size="sm" /></button>
               </div>
             )}
             <div className="wc-moment-media-modes" role="radiogroup" aria-label={t('moments.mediaMode')}>
@@ -766,9 +767,9 @@ export default function Moments() {
             <div className="wc-moment-editor-actions">
               {mediaMode === 'images' ? <button className="wc-moment-img-btn" onClick={() => imgInputRef.current?.click()}
                 disabled={images.length >= 9} title={t('moments.addImage')} aria-label={`${t('moments.addImage')}${images.length > 0 ? t('moments.addImageCountSuffixTemplate').replace('{n}', images.length) : ''}`}>
-                <Icon name="image" size={18} /> {t('moments.imagesLabel')}{images.length > 0 ? ` (${images.length}/9)` : ''}
+                <TouliaoIcon name="image" size="sm" /> {t('moments.imagesLabel')}{images.length > 0 ? ` (${images.length}/9)` : ''}
               </button> : <button className="wc-moment-img-btn" type="button" onClick={() => videoInputRef.current?.click()} disabled={!!video}>
-                <Icon name="video" size={18} /> {video ? t('moments.videoSelected') : t('moments.selectVideo')}
+                <TouliaoIcon name="video" size="sm" /> {video ? t('moments.videoSelected') : t('moments.selectVideo')}
               </button>}
               <input ref={imgInputRef} type="file" accept="image/*" multiple className="moments-hidden-input"
                 onChange={handleImagePick} />

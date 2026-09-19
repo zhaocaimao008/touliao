@@ -142,7 +142,7 @@ final class NativeUIReviewTests: XCTestCase {
     func testCallControlLayoutAtLargeText() async throws {
         let controls = AnyView(
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 20) {
-                ForEach(["静音", "扬声器", "切视频", "挂断", "开摄像头", "翻转"], id: \.self) { label in
+                ForEach(["静音", "取消静音", "扬声器", "听筒", "切视频", "挂断", "开摄像头", "翻转", "接听"], id: \.self) { label in
                     CallActionButton(label: label, color: label == "挂断" ? .vxinCallDanger : Color(white: 0.35), action: {})
                 }
             }.padding(16).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -281,6 +281,8 @@ final class NativeUIReviewTests: XCTestCase {
             ("forgot-password", AnyView(ForgotPasswordView())),
             ("conversations", AnyView(ConversationListView(myId: "review-me"))),
             ("chat", AnyView(ChatView(conversation: conversation, myId: "review-me"))),
+            ("chat-attachments", AnyView(ChatView.iconReview(conversation: conversation, panel: "attachments"))),
+            ("chat-emoji", AnyView(ChatView.iconReview(conversation: conversation, panel: "emoji"))),
             ("group-chat", AnyView(ChatView(conversation: Conversation(id: "review-group", type: "group", name: "投聊设计讨论"), myId: "review-me"))),
             ("file-detail", AnyView(FileDetailsOverlay(url: "https://native-review.invalid/uploads/review.zip", filename: "项目资料与设计说明.zip", sizeText: "2.4 MB", onDismiss: {}))),
             ("toast", AnyView(TouliaoToast(message: "文件上传失败，请检查网络后重试").padding(24))),

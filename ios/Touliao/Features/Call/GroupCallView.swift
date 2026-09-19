@@ -23,7 +23,7 @@ struct GroupCallHostView: View {
     private func inviteBanner(_ inv: GroupCallInvite) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("\(inv.fromName.isEmpty ? "群成员" : inv.fromName) 发起了群\(inv.type == "video" ? "视频" : "语音")通话",
-                  touliaoSystemImage: inv.type == "video" ? "video.fill" : "phone.fill")
+                  touliaoIcon: inv.type == "video" ? "video" : "phone")
                 .touliaoFont(14).foregroundColor(.white)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 16) {

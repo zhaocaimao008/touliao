@@ -77,7 +77,7 @@ struct GroupInfoView: View {
                                 Text("群名称").foregroundColor(.vxinText)
                                 Spacer()
                                 Text(info.name.isEmpty ? "未命名群聊" : info.name).foregroundColor(.vxinTextSecondary)
-                                if info.canManage { TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary) }
+                                if info.canManage { TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary) }
                             }
                         }
                         .disabled(!info.canManage)
@@ -92,7 +92,7 @@ struct GroupInfoView: View {
                                 Text(info.announcement.isEmpty ? (info.canManage ? "点击设置群公告" : "暂无群公告") : info.announcement)
                                     .foregroundColor(.vxinTextSecondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                if info.canManage { TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary) }
+                                if info.canManage { TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary) }
                             }
                         }
                         .disabled(!info.canManage)
@@ -106,7 +106,7 @@ struct GroupInfoView: View {
                                 Text("我的群昵称").foregroundColor(.vxinText)
                                 Spacer()
                                 Text(info.myNickname(myId).isEmpty ? "未设置" : info.myNickname(myId)).foregroundColor(.vxinTextSecondary)
-                                TouliaoIcon(systemName: "chevron.right").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                             }
                         }
 
@@ -141,7 +141,7 @@ struct GroupInfoView: View {
                     Section("群成员 (\(info.members.count))") {
                         Button(action: onInvite) {
                             HStack {
-                                TouliaoIcon(systemName: "plus.circle.fill").foregroundColor(.vxinGreen)
+                                TouliaoIcon("add").foregroundColor(.vxinGreen)
                                 Text("邀请成员").foregroundColor(.vxinGreen)
                             }
                         }

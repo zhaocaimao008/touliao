@@ -15,8 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -115,7 +113,7 @@ fun AddFriendScreen(
                 title = { Text("添加好友") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回")
                     }
                 },
             )
@@ -170,7 +168,7 @@ fun AddFriendScreen(
                 when {
                     state.searching -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     state.searched && state.results.isEmpty() ->
-                        com.touliao.app.ui.components.EmptyState(icon = "🔍", title = "未找到用户", subtitle = "换个手机号 / 投聊号试试", modifier = Modifier.align(Alignment.Center))
+                        com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Search, title = "未找到用户", subtitle = "换个手机号 / 投聊号试试", modifier = Modifier.align(Alignment.Center))
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(state.results, key = { it.id }) { user ->
                             SearchRow(user, sent = user.id in state.sentIds) { viewModel.sendRequest(user) }

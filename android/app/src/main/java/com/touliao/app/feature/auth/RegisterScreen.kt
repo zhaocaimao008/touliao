@@ -76,7 +76,7 @@ fun RegisterScreen(
                 .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(TouliaoIcons.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(32.dp))
+            Icon(TouliaoIcons.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(com.touliao.app.ui.IconSize.Lg))
         }
         Spacer(Modifier.height(14.dp))
         Text("注册账号", fontSize = com.touliao.app.ui.theme.VxinTextSize.display, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)

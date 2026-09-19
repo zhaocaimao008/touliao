@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -81,7 +79,7 @@ fun SearchScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") }
                 },
             )
         },
@@ -96,7 +94,7 @@ fun SearchScreen(
                     when {
                         state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                         state.query.isBlank() -> Text("输入关键词搜索聊天记录", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
-                        state.searched && state.results.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "🔍", title = "没有找到相关消息", modifier = Modifier.align(Alignment.Center))
+                        state.searched && state.results.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Search, title = "没有找到相关消息", modifier = Modifier.align(Alignment.Center))
                         else -> LazyColumn(Modifier.fillMaxSize()) {
                             items(state.results, key = { it.id }) { r ->
                                 ResultRow(r, avatarUrl = viewModel.resolveUrl(r.otherUser?.avatar), query = state.query) { onOpenResult(r) }
@@ -182,7 +180,7 @@ private fun FilterDropdown(
                 modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.weight(1f))
-            com.touliao.app.ui.DesignGlyph("▾", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+            com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Expand, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Md)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEachIndexed { i, opt ->
@@ -220,13 +218,17 @@ private fun ResultRow(r: SearchResult, avatarUrl: String? = null, query: String,
             Text(r.convName.ifBlank { "会话" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val prefix = if (r.senderName.isNotBlank()) "${r.senderName}: " else ""
             // 类型图标 + 按类型摘要（结构化消息不泄 JSON，对齐 Web formatSearchMessageSummary）
-            val typePrefix = "${messageSearchTypeIcon(r.type)} "
+
             val summary = formatSearchMessageSummary(r.type, r.content)
-            Text(
-                highlightQuery(prefix + typePrefix + summary, query, prefixLen = prefix.length + typePrefix.length),
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.messageTypeIcon(r.type), size = com.touliao.app.ui.IconSize.Xs, color = VxinTextSecondary)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                highlightQuery(prefix + summary, query, prefixLen = prefix.length),
                 color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+                )
+            }
         }
     }
 }

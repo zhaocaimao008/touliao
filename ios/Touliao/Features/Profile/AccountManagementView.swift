@@ -38,7 +38,7 @@ struct AccountManagementView: View {
                 Button {
                     showAddAccount = true
                 } label: {
-                    Label("添加账号", touliaoSystemImage: "plus.circle")
+                    Label("添加账号", touliaoIcon: "add")
                         .foregroundColor(AccountMgmtTok.green)
                 }
             }

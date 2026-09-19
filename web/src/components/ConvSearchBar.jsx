@@ -99,7 +99,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '8px 12px',
       }}>
-        <IcoSearch style={{ width: 16, height: 16, fill: 'var(--text-tertiary)', flexShrink: 0 }} />
+        <IcoSearch style={{flexShrink:0,color:'var(--text-tertiary)'}} size="xs" />
         <input
           ref={inputRef}
           value={query}
@@ -122,7 +122,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
             borderRadius: 'var(--radius-tag)',
           }}
         >
-          <IcoClose style={{ width: 16, height: 16, fill: 'currentColor' }} />
+          <IcoClose size="xs" />
         </button>
       </div>
 

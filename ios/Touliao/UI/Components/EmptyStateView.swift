@@ -3,7 +3,7 @@ import SwiftUI
 /// 统一空态：线性 图标置于主题柔和圆形徽章内 + 主文案 + 可选副文案。
 /// 对齐 Android EmptyState 与 Web cl-empty-icon，提升列表/结果为空时的观感。
 struct VxinEmptyState: View {
-    let systemImage: String
+    let icon: String
     let title: String
     var subtitle: String? = nil
 
@@ -11,7 +11,7 @@ struct VxinEmptyState: View {
         VStack(spacing: 14) {
             ZStack {
                 Circle().fill(Color.vxinPrimarySoft).frame(width: 80, height: 80)
-                TouliaoIcon(systemName: systemImage, size: 32)
+                TouliaoIcon(icon, size: .lg)
                     .foregroundColor(.vxinBrand)
             }
             Text(title)

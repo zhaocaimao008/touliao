@@ -83,7 +83,7 @@ struct FriendLabelsView: View {
         .touliaoPage()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showCreate = true } label: { TouliaoIcon(systemName: "plus") }
+                Button { showCreate = true } label: { TouliaoIcon("add") }
             }
         }
         .task { await vm.load() }
@@ -124,7 +124,7 @@ private struct LabelMembersSheet: View {
                     HStack {
                         Text(c.displayName.isEmpty ? "未命名" : c.displayName).foregroundColor(.vxinText)
                         Spacer()
-                        if memberIds.contains(c.id) { TouliaoIcon(systemName: "checkmark").foregroundColor(.vxinGreen) }
+                        if memberIds.contains(c.id) { TouliaoIcon("check").foregroundColor(.vxinGreen) }
                     }
                 }
                 }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)

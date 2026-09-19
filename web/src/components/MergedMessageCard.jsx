@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useEffect, useMemo, useState } from 'react';
 import { formatFull } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
@@ -50,7 +51,7 @@ export default function MergedMessageCard({ content }) {
           <div className="wc-modal wc-merged-modal" role="dialog" aria-modal="true" aria-label={title}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{title}</span>
-              <button type="button" className="wc-modal-close" onClick={() => setOpen(false)} aria-label={t('common.close')}>✕</button>
+              <button type="button" className="wc-modal-close" onClick={() => setOpen(false)} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-merged-list">
               {record.items.length === 0 ? (

@@ -138,7 +138,7 @@ struct MomentComposeView: View {
                             }
                         }
                         PhotosPicker(selection: $pickerItems, maxSelectionCount: 9, matching: .images) {
-                            Label("添加图片", touliaoSystemImage: "photo.on.rectangle")
+                            Label("添加图片", touliaoIcon: "image")
                         }
                     } else {
                         if let url = vm.videoURL {
@@ -154,12 +154,12 @@ struct MomentComposeView: View {
                                 .frame(width: 160, height: 120)
                                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
                                 .overlay {
-                                    TouliaoIcon(systemName: "play.circle.fill", size: 30)
-                                        .foregroundColor(.white)
+                                    TouliaoIcon("play", size: .lg)
+                                        .foregroundColor(IconColor.onDark)
                                         .shadow(color: .black.opacity(0.35), radius: 3)
                                 }
                                 Button { vm.clearVideo() } label: {
-                                    TouliaoIcon(systemName: "xmark.circle.fill")
+                                    TouliaoIcon("close")
                                         .touliaoFont(18)
                                         .foregroundColor(.white)
                                         .shadow(color: .black.opacity(0.4), radius: 2)
@@ -171,7 +171,7 @@ struct MomentComposeView: View {
                         } else {
                             // 选视频：FileRepresentation 落盘（不整体进内存），iCloud 视频系统自动下载
                             PhotosPicker(selection: $videoItem, matching: .videos) {
-                                Label("选择视频", touliaoSystemImage: "video")
+                                Label("选择视频", touliaoIcon: "video")
                             }
                         }
                         Text("视频与图片不能同时发布，单个视频不超过 200MB。")
@@ -209,7 +209,7 @@ struct MomentComposeView: View {
                         Group {
                         Button { vm.toggleFriend(f.id) } label: {
                             HStack {
-                                TouliaoIcon(systemName: vm.visibleTo.contains(f.id) ? "checkmark.circle.fill" : "circle").foregroundColor(.vxinGreen)
+                                TouliaoIcon(vm.visibleTo.contains(f.id) ? "selected" : "unselected").foregroundColor(.vxinGreen)
                                 InitialAvatar(name: f.displayName.isEmpty ? "?" : f.displayName, size: 32)
                                 Text(f.displayName.isEmpty ? "用户" : f.displayName).foregroundColor(.vxinText).lineLimit(1)
                             }

@@ -151,7 +151,16 @@ class NativeUIReviewTest {
             compose.onNodeWithText("定时列表").assertIsDisplayed()
             compose.onNodeWithTag("chat-more-btn").performClick()
             compose.onNodeWithTag("chat-function-panel").assertDoesNotExist()
+            compose.onNodeWithTag("chat-emoji-btn").performClick()
+            settle(); snapshot(name.replace("attachments", "emoji"))
+            compose.onNodeWithTag("chat-emoji-btn").performClick()
         }
+        compose.runOnIdle { large.value = false }
+        settle()
+        compose.onAllNodesWithText("收到，稍后把文件发给你。", substring = true).onFirst().performTouchInput { longClick() }
+        compose.onNodeWithText("复制").assertExists()
+        snapshot("message-context-menu-dark")
+        androidx.test.espresso.Espresso.pressBack()
     }
 
     private fun settle() {
@@ -200,7 +209,7 @@ class NativeUIReviewTest {
                     FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 3,
                         horizontalArrangement = Arrangement.spacedBy(16.dp, androidx.compose.ui.Alignment.CenterHorizontally),
                         verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        for (label in listOf("麦克风开", "扬声器关", "切视频", "挂断", "摄像头关", "翻转")) {
+                        for (label in listOf("麦克风开", "麦克风关", "扬声器关", "扬声器开", "蓝牙开", "蓝牙关", "挂断", "摄像头关", "翻转")) {
                             com.touliao.app.ui.components.CallActionButton(label,
                                 if (label == "挂断") com.touliao.app.ui.theme.TouliaoLightPalette.readableDanger else com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) {}
                         }

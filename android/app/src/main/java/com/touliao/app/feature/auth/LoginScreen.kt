@@ -38,15 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -92,7 +89,7 @@ fun LoginScreen(
                 horizontalArrangement = Arrangement.Start,
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回")
+                    Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回")
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -109,7 +106,7 @@ fun LoginScreen(
                 TouliaoIcons.Chat,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(38.dp),
+                modifier = Modifier.size(com.touliao.app.ui.IconSize.Xl),
             )
         }
         Spacer(Modifier.height(16.dp))

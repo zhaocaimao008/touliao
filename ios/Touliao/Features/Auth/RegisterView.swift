@@ -15,7 +15,7 @@ struct RegisterView: View {
                 RoundedRectangle(cornerRadius: VxinRadius.lg, style: .continuous)
                     .fill(Color.vxinBrand)
                     .frame(width: 64, height: 64)
-                TouliaoIcon(systemName: "bubble.left.and.bubble.right.fill", size: 26).foregroundColor(.vxinOnPrimary)
+                TouliaoIcon("chat", size: .lg).foregroundColor(.vxinOnPrimary)
             }
             .padding(.bottom, 4)
             Text("注册账号")

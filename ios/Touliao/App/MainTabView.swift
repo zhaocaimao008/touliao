@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UserNotifications
 
 /// 底部 Tab：消息 / 通讯录 / 我（已按需移除 朋友圈 与 收藏）
@@ -9,20 +10,32 @@ struct MainTabView: View {
     @State private var selectedTab = 0
     @Environment(\.scenePhase) private var scenePhase
 
+    init(myId: String) {
+        self.myId = myId
+        let appearance = UITabBarAppearance()
+        appearance.configureWithDefaultBackground()
+        for layout in [appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance] {
+            layout.normal.iconColor = UIColor(IconColor.secondary)
+            layout.selected.iconColor = UIColor(IconColor.selected)
+        }
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             ConversationListView(myId: myId)
-                .tabItem { Label("消息", touliaoSystemImage: "bubble.left.and.bubble.right.fill") }
+                .tabItem { Label("消息", touliaoIcon: "chat") }
                 .accessibilityIdentifier("nav-tab-chats")
                 .tag(0)
 
             ContactsTab(myId: myId)
-                .tabItem { Label("通讯录", touliaoSystemImage: "person.2.fill") }
+                .tabItem { Label("通讯录", touliaoIcon: "contacts") }
                 .accessibilityIdentifier("nav-tab-contacts")
                 .tag(1)
 
             NavigationStack { ProfileView() }
-                .tabItem { Label("我", touliaoSystemImage: "person.crop.circle.fill") }
+                .tabItem { Label("我", touliaoIcon: "profile") }
                 .accessibilityIdentifier("nav-tab-me")
                 .tag(2)
         }

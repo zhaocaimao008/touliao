@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { startDownload, subscribe, cancelDownload, retryDownload } from '../utils/downloadManager';
@@ -375,9 +376,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
             position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 16, color: '#fff', padding: 24,
           }}>
-            <svg viewBox="0 0 24 24" style={{ width: 64, height: 64, fill: 'rgba(255,255,255,.85)' }}>
-              <path d={iconFor('generic')} />
-            </svg>
+            <TouliaoIcon name="fileContent" style={{color:'rgba(255,255,255,.85)'}} size="xl" />
             <div style={{ fontSize: 16, fontWeight: 500, textAlign: 'center', wordBreak: 'break-all' }}>{filename}</div>
             <div style={{ fontSize: 13, opacity: .7 }}>{humanSize(fileSize)}{mimeType ? ` · ${mimeType}` : ''}</div>
             <div style={{ fontSize: 13, opacity: .6, textAlign: 'center', maxWidth: 280 }}>

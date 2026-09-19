@@ -10,9 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -52,7 +49,7 @@ fun InviteMembersScreen(
             TopAppBar(
                 title = { Text("邀请成员") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.DesignIcons.ArrowLeft, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.ArrowLeft, contentDescription = "返回") }
                 },
                 actions = {
                     TextButton(
@@ -66,7 +63,7 @@ fun InviteMembersScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.candidates.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "👥", title = "没有可邀请的联系人", modifier = Modifier.align(Alignment.Center))
+                state.candidates.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Group, title = "没有可邀请的联系人", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.candidates, key = { it.id }) { contact ->
                         CandidateRow(contact, checked = contact.id in state.selected) { viewModel.toggle(contact.id) }
@@ -87,7 +84,7 @@ private fun CandidateRow(contact: Contact, checked: Boolean, onToggle: () -> Uni
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (checked) Icon(com.touliao.app.ui.DesignIcons.CircleCheck, contentDescription = "已选", tint = VxinGreen)
+        if (checked) Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = "已选", tint = VxinGreen)
         else RadioButton(selected = false, onClick = onToggle)
         Spacer(Modifier.width(8.dp))
         InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 40.dp)

@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -65,7 +66,7 @@ export default function UpdateBanner() {
         <>
           <span className="wc-update-icon wc-spin">↻</span>
           <span className="wc-update-text">{t('update.checking')}</span>
-          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}>✕</button>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
         </>
       )}
       {state === 'available' && (
@@ -75,7 +76,7 @@ export default function UpdateBanner() {
           <div className="wc-update-progress-wrap">
             <div className="wc-update-progress-bar" style={{ width: `${progress}%` }} />
           </div>
-          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}>✕</button>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
         </>
       )}
       {state === 'downloading' && (
@@ -85,7 +86,7 @@ export default function UpdateBanner() {
           <div className="wc-update-progress-wrap">
             <div className="wc-update-progress-bar" style={{ width: `${progress}%` }} />
           </div>
-          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('update.downloadInBackground')}>✕</button>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('update.downloadInBackground')}><TouliaoIcon name="close" size="sm" /></button>
         </>
       )}
       {state === 'ready' && (
@@ -101,7 +102,7 @@ export default function UpdateBanner() {
           <span className="wc-update-icon">⚠️</span>
           <span className="wc-update-text">{errMsg || t('update.checkFailed')}</span>
           <button className="wc-update-install-btn" onClick={handleCheck}>{t('common.retry')}</button>
-          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}>✕</button>
+          <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
         </>
       )}
     </div>

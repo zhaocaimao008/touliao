@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
@@ -78,7 +79,7 @@ export default function StickerPanel({ onSend }) {
           <div key={s.id} className="sticker-item" role="button" tabIndex={0} aria-label={t('sticker.send')} onClick={() => onSend(s.id)}
             onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSend(s.id); } }}>
             <img key={mediaUrl(s.url)} loading="lazy" src={mediaUrl(s.url)} alt="" onError={e => { e.currentTarget.style.display = 'none'; }} />
-            <button className="sticker-del" onClick={(e) => del(e, s.id)} title={t('chat.delete')} aria-label={t('sticker.deleteAria')}>✕</button>
+            <button className="sticker-del" onClick={(e) => del(e, s.id)} title={t('chat.delete')} aria-label={t('sticker.deleteAria')}><TouliaoIcon name="close" size="sm" /></button>
           </div>
         ))}
       </div>

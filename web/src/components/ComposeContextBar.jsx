@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { memo } from 'react';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -25,7 +26,7 @@ function ComposeContextBar({ editingMsg, replyTo, onCancelEdit, onCancelReply })
           <div className="wc-edit-bar-label">{t('composeBar.editingMessage')}</div>
           <div className="wc-edit-bar-text">{editingMsg.content}</div>
         </div>
-        <button className="wc-edit-cancel-btn" onClick={onCancelEdit} aria-label={t('composeBar.cancelEdit')}>✕</button>
+        <button className="wc-edit-cancel-btn" onClick={onCancelEdit} aria-label={t('composeBar.cancelEdit')}><TouliaoIcon name="close" size="sm" /></button>
       </div>
     );
   }
@@ -38,7 +39,7 @@ function ComposeContextBar({ editingMsg, replyTo, onCancelEdit, onCancelReply })
             {replyPreview(replyTo.type, replyTo.content, t)}
           </div>
         </div>
-        <button className="wc-reply-bar-close" onClick={onCancelReply} aria-label={t('composeBar.cancelReply')}>✕</button>
+        <button className="wc-reply-bar-close" onClick={onCancelReply} aria-label={t('composeBar.cancelReply')}><TouliaoIcon name="close" size="sm" /></button>
       </div>
     );
   }

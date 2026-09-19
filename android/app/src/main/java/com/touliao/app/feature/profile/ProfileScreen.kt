@@ -76,7 +76,7 @@ private object Tok {
     val cardRadius = 12.dp
     val avatarRadius = 12.dp
     val avatarSize = 66.dp
-    val iconSize = 22.dp
+    val iconSize = com.touliao.app.ui.IconSize.Sm
     val rowHeight = 56.dp
     // 平板/雷电最大内容宽度（避免控件横向拉太宽）
     val maxContentWidth = 600.dp
@@ -160,10 +160,10 @@ private fun SettingsRow(
             )
         }
         Icon(
-            TouliaoIcons.ChevronRight,
+            TouliaoIcons.Disclosure,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(com.touliao.app.ui.IconSize.Xs),
         )
     }
 }
@@ -278,38 +278,38 @@ fun ProfileScreen(
                             onClick = onOpenMyQr,
                             modifier = Modifier.testTag("profile-my-qr"),
                         ) {
-                            Icon(TouliaoIcons.QrCode, contentDescription = "我的二维码", tint = Tok.Green, modifier = Modifier.size(22.dp))
+                            Icon(TouliaoIcons.Qrcode, contentDescription = "我的二维码", tint = Tok.Green, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md))
                         }
-                        Icon(TouliaoIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                        Icon(TouliaoIcons.Disclosure, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(com.touliao.app.ui.IconSize.Xs))
                     }
                 }
 
                 // ── 2. 账户与服务 ──────────────────────────────────────────
                 SectionHeader("账户与服务")
                 VxCard(Modifier.padding(horizontal = Tok.L).padding(bottom = Tok.M)) {
-                    SettingsRow(TouliaoIcons.Phone, "手机号", trailing = maskedPhone(user?.phone), onClick = { showChangePhoneDialog = true })
+                    SettingsRow(TouliaoIcons.PhoneNumber, "手机号", trailing = maskedPhone(user?.phone), onClick = { showChangePhoneDialog = true })
                     RowDivider()
                     SettingsRow(TouliaoIcons.Wallet, "我的钱包", onClick = onOpenWallet, modifier = Modifier.testTag("profile-wallet"))
                     RowDivider()
-                    SettingsRow(TouliaoIcons.PhoneCall, "通话记录", onClick = onOpenCallHistory, modifier = Modifier.testTag("profile-call-history"))
+                    SettingsRow(TouliaoIcons.Phone, "通话记录", onClick = onOpenCallHistory, modifier = Modifier.testTag("profile-call-history"))
                     RowDivider()
-                    SettingsRow(TouliaoIcons.Devices, "登录设备管理", onClick = onOpenSessions, modifier = Modifier.testTag("profile-sessions"))
+                    SettingsRow(TouliaoIcons.Device, "登录设备管理", onClick = onOpenSessions, modifier = Modifier.testTag("profile-sessions"))
                     RowDivider()
                     SettingsRow(TouliaoIcons.Lock, "修改密码", onClick = { showChangePasswordDialog = true })
                 }
 
                 // ── 3. 设置（子项收拢进独立设置页）─────────────────────────
                 VxCard(Modifier.padding(horizontal = Tok.L).padding(top = Tok.M).padding(bottom = Tok.M)) {
-                    SettingsRow(TouliaoIcons.Gear, "设置", onClick = onOpenSettings)
+                    SettingsRow(TouliaoIcons.Settings, "设置", onClick = onOpenSettings)
                 }
 
                 // ── 4. 其他 ────────────────────────────────────────────────
                 SectionHeader("其他")
                 VxCard(Modifier.padding(horizontal = Tok.L).padding(bottom = Tok.M)) {
-                    SettingsRow(TouliaoIcons.UserPlus, "邀请好友", onClick = onOpenInviteFriend)
+                    SettingsRow(TouliaoIcons.AddFriend, "邀请好友", onClick = onOpenInviteFriend)
                     RowDivider()
                     val switchTrailing = "${user?.username?.ifBlank { "当前" } ?: "当前"} · 当前"
-                    SettingsRow(TouliaoIcons.Users, "切换账号", trailing = switchTrailing, onClick = { showSwitchAccount = true })
+                    SettingsRow(TouliaoIcons.Group, "切换账号", trailing = switchTrailing, onClick = { showSwitchAccount = true })
                 }
 
                 // ── 5. 退出登录 ───────────────────────────────────────────

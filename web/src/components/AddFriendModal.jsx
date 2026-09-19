@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
@@ -26,7 +27,7 @@ function AfResultItem({ user: u, onClick }) {
           </div>
         )}
       </div>
-      <IcoBack className="afm-result-chevron" width="14" height="14" fill="currentColor" />
+      <IcoBack className="afm-result-chevron" size="xs" />
     </div>
   );
 }
@@ -108,19 +109,14 @@ export default function AddFriendModal({ onClose, initialQuery = '', onStartChat
             <span className="afm-header-title">{t('contacts.addFriend')}</span>
             <button onClick={onClose} aria-label={t('common.close')}
               className="afm-close-btn">
-              <IcoClose width="18" height="18" fill="currentColor" />
+              <IcoClose size="sm" />
             </button>
           </div>
 
           {/* 搜索框 */}
           <div className="afm-search-pad">
             <div className={`afm-search-wrap${focused ? ' afm-search-wrap-focused' : ''}`}>
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="none"
-                stroke={focused ? GREEN : 'var(--text-tertiary)'} strokeWidth="2" strokeLinecap="round"
-                className="afm-search-icon">
-                <circle cx="11" cy="11" r="7" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+              <TouliaoIcon name="search" className="afm-search-icon" style={{color:focused?GREEN:'var(--text-tertiary)'}} size="sm" />
               <input
                 ref={inputRef}
                 placeholder={t('addFriend.searchPlaceholder')}
@@ -135,9 +131,7 @@ export default function AddFriendModal({ onClose, initialQuery = '', onStartChat
               {query && (
                 <button onClick={clearSearch} aria-label={t('common.clear')}
                   className="afm-clear-btn">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
-                  </svg>
+                  <TouliaoIcon name="clear" size="xs" />
                 </button>
               )}
             </div>
@@ -172,9 +166,7 @@ export default function AddFriendModal({ onClose, initialQuery = '', onStartChat
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doSearch(query); } }}
                 className="afm-search-row"
               >
-                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke={GREEN} strokeWidth="2" strokeLinecap="round" className="afm-search-icon">
-                  <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
+                <TouliaoIcon name="search" className="afm-search-icon" style={{color:GREEN}} size="sm" />
                 <span className="afm-search-text">
                   {t('addFriend.searchColon')}<span className="afm-search-hl">{query}</span>
                 </span>

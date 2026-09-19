@@ -12,28 +12,28 @@ struct SettingsHomeView: View {
             VStack(spacing: 12) {
                 HubCard {
                     NavigationLink(destination: NotificationSettingsView()) {
-                        HubRow(icon: "bell", title: "消息通知")
+                        HubRow(icon: "notification", title: "消息通知")
                     }.buttonStyle(.plain)
                     HubDivider()
                     NavigationLink(destination: PrivacySecurityView()) {
-                        HubRow(icon: "checkmark.shield", title: "隐私与安全")
+                        HubRow(icon: "security", title: "隐私与安全")
                     }.buttonStyle(.plain)
                     HubDivider()
                     NavigationLink(destination: AppearanceSettingsView()) {
-                        HubRow(icon: "paintpalette", title: "外观")
+                        HubRow(icon: "appearance", title: "外观")
                     }.buttonStyle(.plain)
                     HubDivider()
                     NavigationLink(destination: SessionsView()) {
-                        HubRow(icon: "laptopcomputer.and.iphone", title: "登录设备管理")
+                        HubRow(icon: "device", title: "登录设备管理")
                     }.buttonStyle(.plain)
                 }
                 HubCard {
                     Button { showClearConfirm = true } label: {
-                        HubRow(icon: "trash", title: "清除缓存", trailing: clearing ? nil : formatBytes(cacheBytes), showsSpinner: clearing)
+                        HubRow(icon: "delete", title: "清除缓存", trailing: clearing ? nil : formatBytes(cacheBytes), showsSpinner: clearing)
                     }.buttonStyle(.plain)
                     HubDivider()
                     Button { showAbout = true } label: {
-                        HubRow(icon: "info.circle", title: "关于 投聊", trailing: ProfileView.shortVer)
+                        HubRow(icon: "info", title: "关于 投聊", trailing: ProfileView.shortVer)
                     }.buttonStyle(.plain)
                 }
             }
@@ -129,7 +129,7 @@ private struct HubRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            TouliaoIcon(systemName: icon)
+            TouliaoIcon(icon)
                 .foregroundColor(Color.vxinTextSecondary)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 4) {
@@ -144,7 +144,7 @@ private struct HubRow: View {
             } else if !typeSize.isAccessibilitySize, let trailing {
                 Text(trailing).foregroundColor(Color.vxinTextSecondary).touliaoFont(14)
             }
-            TouliaoIcon(systemName: "chevron.right")
+            TouliaoIcon("disclosure", size: .xs)
                 .touliaoFont(12).foregroundColor(Color.vxinTextSecondary.opacity(0.6))
         }
         .padding(.horizontal, 16).padding(.vertical, 8)

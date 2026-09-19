@@ -35,28 +35,28 @@ struct ContactsView: View {
                         if vm.requestCount > 0 {
                             TouliaoBadge(count: vm.requestCount)
                         }
-                        TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
+                        TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                     }
                 }
                 Button(action: onOpenLabels) {
                     HStack {
                         Text("好友标签").foregroundColor(.vxinText)
                         Spacer()
-                        TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
+                        TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                     }
                 }
                 Button(action: onOpenBlocked) {
                     HStack {
                         Text("黑名单").foregroundColor(.vxinText)
                         Spacer()
-                        TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
+                        TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                     }
                 }
                 Button(action: { vm.showAiBots.toggle() }) {
                     HStack {
                         Text(vm.showAiBots ? "AI 助手 (\(vm.aiBots.count))" : "AI 助手").foregroundColor(.vxinText)
                         Spacer()
-                        TouliaoIcon(systemName: vm.showAiBots ? "chevron.up" : "chevron.right")
+                        TouliaoIcon(vm.showAiBots ? "collapse" : "disclosure")
                             .foregroundColor(.vxinTextSecondary).touliaoFont(12)
                     }
                 }
@@ -75,7 +75,7 @@ struct ContactsView: View {
                                         }
                                     }
                                     Spacer()
-                                    TouliaoIcon(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).touliaoFont(12)
+                                    TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                                 }
                             }
                         }
@@ -146,9 +146,9 @@ struct ContactsView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack {
-                    Button(action: onCreateGroup) { TouliaoIcon(systemName: "person.3") }
+                    Button(action: onCreateGroup) { TouliaoIcon("group") }
                         .accessibilityLabel("发起群聊")
-                    Button(action: onAddFriend) { TouliaoIcon(systemName: "plus") }
+                    Button(action: onAddFriend) { TouliaoIcon("add") }
                         .accessibilityLabel("添加好友")
                 }
             }

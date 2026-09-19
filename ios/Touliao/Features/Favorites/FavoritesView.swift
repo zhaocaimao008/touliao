@@ -118,9 +118,9 @@ struct FavoritesView: View {
                 KFImage(source: src).resizable().scaledToFit().frame(maxHeight: 200)
             } else { Text("[图片]") }
         case "file":
-            Label(item.content.isEmpty ? "文件" : item.content, touliaoSystemImage: "doc")
+            Label(item.content.isEmpty ? "文件" : item.content, touliaoIcon: "fileContent")
         case "video":
-            Text("🎬 视频")
+            Label("视频", touliaoIcon: "video")
         default:
             Text(item.content)
         }

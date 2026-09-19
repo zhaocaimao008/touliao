@@ -31,8 +31,8 @@ struct ProfileEditView: View {
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         avatarView
                             .overlay(alignment: .bottomTrailing) {
-                                TouliaoIcon(systemName: "camera.fill", size: 12)
-                                    .foregroundColor(.white)
+                                TouliaoIcon("camera", size: .xs)
+                                    .foregroundColor(IconColor.onDark)
                                     .padding(5)
                                     .background(Tok.green)
                                     .clipShape(Circle())

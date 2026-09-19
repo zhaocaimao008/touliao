@@ -37,6 +37,8 @@ enum TouliaoDesign {
     static let messageIncoming = adaptive(0xFFFFFFFF, 0xFF202B3A)
     static let messageOutgoing = adaptive(0xFF2864F0, 0xFF2E58A2)
     static let messageOutgoingText = adaptive(0xFFFFFFFF, 0xFFFFFFFF)
+    static let iconOnDark = adaptive(0xFFFFFFFF, 0xFFFFFFFF)
+    static let iconOnLight = adaptive(0xFF17212E, 0xFF17212E)
     static let readableMuted = adaptive(0xFF626E80, 0xFFA7B4C6)
     static let readableDanger = adaptive(0xFFBE3F4E, 0xFFFF8492)
 }
