@@ -48,12 +48,12 @@ struct SearchView: View {
                                 // 类型图标 + 摘要（F5：结构化消息透出人话字段，不泄原始 JSON；对齐 Web gs-msg-type-icon）
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                                     TouliaoIcon(TouliaoIcon.messageType(r.type), size: .xs)
-                                        .touliaoFont(14)
+                                        .touliaoText(.secondary)
                                         .foregroundColor(.vxinTextSecondary)
                                     Text(highlighted(prefix: r.senderName.isEmpty ? "" : "\(r.senderName): ",
                                                      summary: formatSearchMessageSummary(type: r.type, content: r.content),
                                                      query: vm.query))
-                                        .touliaoFont(14).lineLimit(1)
+                                        .touliaoText(.secondary).lineLimit(1)
                                 }
                             }
                             Spacer()
@@ -104,7 +104,7 @@ struct SearchView: View {
                         vm.timeRange = option.value
                     } label: {
                         Text(option.label)
-                            .touliaoFont(12)
+                            .touliaoText(.caption)
                             .padding(.horizontal, 12).frame(minHeight: 44)
                             .background(vm.timeRange == option.value ? Color.vxinPrimarySoft : Color.vxinSurfaceSecondary)
                             .foregroundColor(vm.timeRange == option.value ? .vxinGreen : .vxinTextSecondary)

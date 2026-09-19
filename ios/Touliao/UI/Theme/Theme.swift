@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // Compatibility names retain all existing call sites and business behavior.
 extension Color {
@@ -54,7 +55,26 @@ private struct TouliaoFontModifier: ViewModifier {
             .lineSpacing(size * lineSpacingRatio)
     }
 }
+private struct TouliaoTextModifier: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    let role: TouliaoTextRole
+    let weight: Font.Weight
+    let design: Font.Design
+    init(role: TouliaoTextRole, weight: Font.Weight?, design: Font.Design) {
+        self.role = role; self.weight = weight ?? role.weight; self.design = design
+        _size = ScaledMetric(wrappedValue: role.size, relativeTo: role.style)
+    }
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: design))
+            .lineSpacing(max(0, size * role.leading - UIFont.systemFont(ofSize: size).lineHeight))
+    }
+}
 extension View {
+    func touliaoText(_ role: TouliaoTextRole, weight: Font.Weight? = nil,
+                     design: Font.Design = .default) -> some View {
+        modifier(TouliaoTextModifier(role: role, weight: weight, design: design))
+    }
+    // Compatibility for genuinely local optical sizes; standard text uses roles.
     func touliaoFont(_ size: CGFloat, weight: Font.Weight = .regular,
                     design: Font.Design = .default) -> some View {
         modifier(TouliaoFontModifier(size: size, weight: weight, design: design))
@@ -64,7 +84,7 @@ extension View {
             .background(Color.vxinBackground)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 48)
-            .touliaoFont(16)
+            .touliaoText(.body)
             .foregroundColor(.vxinText)
             .tint(.vxinBrand)
             .toolbarBackground(Color.vxinSurface, for: .navigationBar, .tabBar)
@@ -75,12 +95,12 @@ extension View {
 struct TouliaoTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
-            .touliaoFont(16)
+            .touliaoText(.body)
             .padding(.horizontal, 12).padding(.vertical, 12)
-            .frame(minHeight: 48)
+            .frame(minHeight: TouliaoMetrics.fieldHeight)
             .background(Color.vxinSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.vxinBorder, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl))
+            .overlay(RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl).stroke(Color.vxinBorder, lineWidth: TouliaoMetrics.borderDefault))
     }
 }
 

@@ -66,7 +66,7 @@ struct FriendLabelsView: View {
                             Circle().fill(Color(hexOrGreen: label.color)).frame(width: 12, height: 12)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(label.name.isEmpty ? "未命名标签" : label.name).foregroundColor(.vxinText)
-                                Text("\(label.members.count) 位好友").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                Text("\(label.members.count) 位好友").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                             }
                             Spacer()
                         }

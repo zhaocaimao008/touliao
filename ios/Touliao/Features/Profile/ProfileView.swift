@@ -46,7 +46,7 @@ private struct SectionHeader: View {
     let text: String
     var body: some View {
         Text(text)
-            .touliaoFont(14, weight: .medium)
+            .touliaoText(.secondary, weight: .medium)
             .foregroundColor(Tok.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Tok.xl)
@@ -69,14 +69,14 @@ private struct SettingsRow: View {
                 .foregroundColor(iconColor)
                 .frame(width: Tok.xxl, alignment: .center)
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).touliaoFont(16).foregroundColor(Tok.primary)
+                Text(title).touliaoText(.body).foregroundColor(Tok.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 if typeSize.isAccessibilitySize, let trailing {
-                    Text(trailing).touliaoFont(14).foregroundColor(Tok.secondary)
+                    Text(trailing).touliaoText(.secondary).foregroundColor(Tok.secondary)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
             if !typeSize.isAccessibilitySize, let trailing {
-                Text(trailing).touliaoFont(14).foregroundColor(Tok.secondary).lineLimit(1)
+                Text(trailing).touliaoText(.secondary).foregroundColor(Tok.secondary).lineLimit(1)
             }
             TouliaoIcon("disclosure", size: .xs)
                 .foregroundColor(Tok.secondary.opacity(0.6))
@@ -204,7 +204,7 @@ struct ProfileView: View {
                         showLogout = true
                     } label: {
                         Text("退出登录")
-                            .touliaoFont(16)
+                            .touliaoText(.body)
                             .foregroundColor(Tok.red)
                             .frame(maxWidth: .infinity, minHeight: 54)
                     }
@@ -253,7 +253,7 @@ struct ProfileView: View {
                         .lineLimit(1)
                     if let id = user?.wechatId, !id.isEmpty {
                         Text("投聊号：\(id)")
-                            .touliaoFont(14)
+                            .touliaoText(.secondary)
                             .foregroundColor(Tok.secondary)
                             .lineLimit(1)
                     }

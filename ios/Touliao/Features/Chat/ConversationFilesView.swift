@@ -171,7 +171,7 @@ struct ConversationFilesView: View {
                 TouliaoIcon("folder", size: .xl).foregroundColor(.vxinTextSecondary)
                 Text("暂无文件").foregroundColor(.vxinTextSecondary)
                 Text("该会话下的图片、视频与文件会在这里汇总")
-                    .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                    .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if vm.tab == .file {
@@ -253,13 +253,13 @@ private struct FileRow: View {
             TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinGreen)
             VStack(alignment: .leading, spacing: 3) {
                 Text(file.displayName)
-                    .touliaoFont(16).lineLimit(1)
+                    .touliaoText(.body).lineLimit(1)
                 HStack(spacing: 8) {
                     Text(file.senderName.isEmpty ? "某人" : file.senderName)
-                        .touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                     Spacer()
                     Text(formatChatTime(file.createdAt))
-                        .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 }
             }
         }
@@ -279,7 +279,7 @@ private struct MediaGridCell: View {
             if file.type == "file" {
                 VStack(spacing: 8) {
                     TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinGreen)
-                    Text(file.displayName).touliaoFont(12).foregroundColor(.vxinText)
+                    Text(file.displayName).touliaoText(.caption).foregroundColor(.vxinText)
                         .lineLimit(2).multilineTextAlignment(.center)
                 }.padding(8)
             } else {

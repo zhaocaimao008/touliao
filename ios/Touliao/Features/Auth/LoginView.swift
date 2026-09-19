@@ -37,7 +37,7 @@ struct LoginView: View {
                 .touliaoFont(VxinFontSize.displayLg, weight: .bold)
                 .foregroundColor(.vxinText)
             Text("安全 · 私密 · 畅聊")
-                .touliaoFont(14)
+                .touliaoText(.secondary)
                 .foregroundColor(.vxinTextSecondary)
                 .padding(.bottom, 24)
 
@@ -79,7 +79,7 @@ struct LoginView: View {
 
             if let error = vm.error {
                 Text(error)
-                    .touliaoFont(14)
+                    .touliaoText(.secondary)
                     .foregroundColor(.vxinError)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("auth-error-text")
@@ -105,7 +105,7 @@ struct LoginView: View {
             }
 
             Button(showServerConfig ? "收起" : "切换服务器") { showServerConfig.toggle() }
-                .touliaoFont(12)
+                .touliaoText(.caption)
                 .foregroundColor(.vxinTextSecondary)
 
             if showServerConfig {
@@ -124,11 +124,11 @@ struct LoginView: View {
                 }
                 if let status = vm.tenantCodeStatus {
                     Text(status)
-                        .touliaoFont(12)
+                        .touliaoText(.caption)
                         .foregroundColor(.vxinTextSecondary)
                 }
                 Text("不知道代码？向你的公司/团队管理员索取，或在下方直接填服务器地址。")
-                    .touliaoFont(12)
+                    .touliaoText(.caption)
                     .foregroundColor(.vxinTextSecondary)
 
                 TextField("服务器地址", text: $vm.serverURL)

@@ -167,7 +167,7 @@ struct MomentComposeView: View {
                                 .padding(6)
                                 .accessibilityLabel("移除视频")
                             }
-                            Text(url.lastPathComponent).touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                            Text(url.lastPathComponent).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                         } else {
                             // 选视频：FileRepresentation 落盘（不整体进内存），iCloud 视频系统自动下载
                             PhotosPicker(selection: $videoItem, matching: .videos) {
@@ -175,7 +175,7 @@ struct MomentComposeView: View {
                             }
                         }
                         Text("视频与图片不能同时发布，单个视频不超过 200MB。")
-                            .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                            .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                     }
                 }
                 Section("谁可以看") {
@@ -199,7 +199,7 @@ struct MomentComposeView: View {
                     }
                 }
                 if let error = vm.error {
-                    Text(error).foregroundColor(.vxinError).touliaoFont(14)
+                    Text(error).foregroundColor(.vxinError).touliaoText(.secondary)
                 }
                 }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }

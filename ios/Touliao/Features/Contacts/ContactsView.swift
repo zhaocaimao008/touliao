@@ -57,12 +57,12 @@ struct ContactsView: View {
                         Text(vm.showAiBots ? "AI 助手 (\(vm.aiBots.count))" : "AI 助手").foregroundColor(.vxinText)
                         Spacer()
                         TouliaoIcon(vm.showAiBots ? "collapse" : "disclosure")
-                            .foregroundColor(.vxinTextSecondary).touliaoFont(12)
+                            .foregroundColor(.vxinTextSecondary).touliaoText(.caption)
                     }
                 }
                 if vm.showAiBots {
                     if vm.aiBots.isEmpty {
-                        Text("暂无 AI 助手").touliaoFont(14).foregroundColor(.vxinTextSecondary)
+                        Text("暂无 AI 助手").touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                     } else {
                         ForEach(vm.aiBots) { bot in
                             Button { Task { if let conv = await vm.startAiChat(bot) { onStartChat(conv) } } } label: {
@@ -71,7 +71,7 @@ struct ContactsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(bot.name.isEmpty ? bot.username : bot.name).foregroundColor(.vxinText)
                                         if !bot.description.isEmpty {
-                                            Text(bot.description).touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                            Text(bot.description).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                         }
                                     }
                                     Spacer()
@@ -100,12 +100,12 @@ struct ContactsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.vxinText)
                                 if !contact.bio.isEmpty {
-                                    Text(contact.bio).touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                    Text(contact.bio).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                 }
                                 // 特权账户：离线时展示精确最后在线时间（后端仅对特权账户返回 lastOnlineAt）
                                 if !vm.onlineIds.contains(contact.id),
                                    let ts = contact.lastOnlineAt, ts > 0 {
-                                    Text(formatLastOnline(ts)).touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                    Text(formatLastOnline(ts)).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                 }
                             }
                             Spacer()

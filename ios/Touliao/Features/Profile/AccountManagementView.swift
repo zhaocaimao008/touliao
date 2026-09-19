@@ -69,7 +69,7 @@ private struct AccountRow: View {
                 InitialAvatar(name: account.username.isEmpty ? "?" : account.username, size: 40)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Text(account.username.isEmpty ? "未命名" : account.username)
-                    .touliaoFont(16)
+                    .touliaoText(.body)
                     .foregroundColor(AccountMgmtTok.primary)
                     .lineLimit(1)
                 Spacer()

@@ -29,7 +29,7 @@ struct CallActionButton: View {
                     .background(color).clipShape(Circle())
             }
             .accessibilityLabel(label)
-            Text(label).touliaoFont(12).foregroundColor(IconColor.onDark.opacity(0.86))
+            Text(label).touliaoText(.caption).foregroundColor(IconColor.onDark.opacity(0.86))
                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                 .accessibilityHidden(true)
         }

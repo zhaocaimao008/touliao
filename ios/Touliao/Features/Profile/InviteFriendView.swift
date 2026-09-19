@@ -18,7 +18,7 @@ struct InviteFriendView: View {
                 Section("我的邀请码") {
                     HStack {
                         Text(inv.code.isEmpty ? "—" : inv.code)
-                            .touliaoFont(22, weight: .semibold, design: .monospaced)
+                            .touliaoText(.title, weight: .semibold, design: .monospaced)
                             .foregroundColor(Tok.green)
                         Spacer()
                         Button(copied ? "已复制" : "复制") {
@@ -49,7 +49,7 @@ struct InviteFriendView: View {
                             HStack(spacing: 10) {
                                 InitialAvatar(name: u.username.isEmpty ? "?" : u.username, size: 32)
                                 Text(u.username.isEmpty ? "未命名" : u.username)
-                                    .touliaoFont(14)
+                                    .touliaoText(.secondary)
                             }
                         }
                     }

@@ -1,18 +1,4 @@
 /* Component roles extend the existing semantic palette; no icon tokens change. */
-html.touliao-ui body {
-  --tl-control-height: 40px;
-  --tl-touch-target: 44px;
-  --tl-control-font: var(--tl-size-body-desktop);
-  --tl-setting-height: 64px;
-  --tl-control-border: 1px;
-  --tl-disabled-opacity: .55;
-  --tl-media-surface: #18212d;
-  --tl-media-canvas: #10151e;
-  --tl-media-text: #eaf0f8;
-  --tl-media-secondary: #c4d0e0;
-  --tl-media-control: #2d3a4c;
-  --tl-dialog-width: 420px;
-}
 html.touliao-ui body .tl-button {
   position: relative; display: inline-flex; align-items: center; justify-content: center;
   min-height: var(--tl-control-height); padding: var(--tl-space-2) var(--tl-space-4);
@@ -55,7 +41,6 @@ html.touliao-ui body .tl-dialog-actions { display: flex; justify-content: flex-e
 html.touliao-ui body .tl-dialog-actions .tl-button { flex: 1; min-width: 0; }
 html.touliao-ui body :is(.tl-button, .tl-switch):focus-visible { outline: 2px solid var(--tl-focus); outline-offset: 2px; }
 @media (max-width: 767px) {
-  html.touliao-ui body { --tl-control-height: 48px; --tl-control-font: var(--tl-size-body-mobile); --tl-setting-height: 68px; }
   html.touliao-ui body .tl-dialog { padding: var(--tl-space-5); }
 }
 @media (prefers-reduced-motion: reduce) { .tl-button-spinner { animation: none !important; } }

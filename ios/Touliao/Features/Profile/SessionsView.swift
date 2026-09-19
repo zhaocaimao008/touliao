@@ -56,10 +56,10 @@ struct SessionsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 4) {
                                 Text(s.device.isEmpty ? (s.platform.isEmpty ? "未知设备" : s.platform) : s.device)
-                                if s.current { Text("· 当前设备").touliaoFont(12).foregroundColor(.vxinGreen) }
+                                if s.current { Text("· 当前设备").touliaoText(.caption).foregroundColor(.vxinGreen) }
                             }
                             Text((s.ip.isEmpty ? "" : "IP \(s.ip) · ") + "最近活跃 " + formatTime(s.lastSeen))
-                                .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                         }
                         Spacer()
                         if !s.current { Button("下线", role: .destructive) { kickTarget = s } }

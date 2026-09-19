@@ -22,17 +22,17 @@ struct MergedMessageCard: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(record.title.isEmpty ? "聊天记录" : record.title)
-                .touliaoFont(14, weight: .bold)
+                .touliaoText(.secondary, weight: .bold)
                 .lineLimit(1)
             // 摘要最多 2 条（对齐 Web wc-merged-summary）
             ForEach(Array(record.items.prefix(2).enumerated()), id: \.offset) { _, item in
                 Text("\(item.senderName.isEmpty ? "" : "\(item.senderName): ")\(item.snippet)")
-                    .touliaoFont(12)
+                    .touliaoText(.caption)
                     .foregroundColor(isMine ? Color.vxinBubbleText.opacity(0.8) : .vxinTextSecondary)
                     .lineLimit(1)
             }
             Text("查看 \(record.items.count) 条记录")
-                .touliaoFont(12)
+                .touliaoText(.caption)
                 .foregroundColor(isMine ? Color.vxinBubbleText.opacity(0.7) : .vxinTextSecondary)
                 .padding(.top, 2)
         }
@@ -63,13 +63,13 @@ private struct MergedForwardDetailSheet: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
                                     Text(item.senderName.isEmpty ? "成员" : item.senderName)
-                                        .touliaoFont(14, weight: .bold)
+                                        .touliaoText(.secondary, weight: .bold)
                                     Spacer()
                                     Text(formatChatTime(item.ts))
-                                        .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 }
                                 Text(item.snippet.isEmpty ? "内容不可用" : item.snippet)
-                                    .touliaoFont(14)
+                                    .touliaoText(.secondary)
                                     .foregroundColor(.vxinTextSecondary)
                             }
                         }

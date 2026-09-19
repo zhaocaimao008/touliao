@@ -19,7 +19,7 @@ struct RegisterView: View {
             }
             .padding(.bottom, 4)
             Text("注册账号")
-                .touliaoFont(22, weight: .bold)
+                .touliaoText(.title, weight: .bold)
                 .foregroundColor(.vxinText)
                 .padding(.bottom, 16)
 
@@ -48,7 +48,7 @@ struct RegisterView: View {
 
             if let error = vm.error {
                 Text(error)
-                    .touliaoFont(14)
+                    .touliaoText(.secondary)
                     .foregroundColor(.vxinError)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

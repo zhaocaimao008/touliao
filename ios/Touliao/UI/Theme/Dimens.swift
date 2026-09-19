@@ -2,15 +2,15 @@ import CoreGraphics
 
 // Supplied mobile design scale; font values are applied using Dynamic Type.
 enum VxinRadius {
-    static let tag: CGFloat = 8
-    static let sm: CGFloat = 8
-    static let thumb: CGFloat = 8
-    static let badge: CGFloat = 8
-    static let md: CGFloat = 12
-    static let avatar: CGFloat = 12
-    static let card: CGFloat = 12
-    static let lg: CGFloat = 20
-    static let xl: CGFloat = 20
-    static let pill: CGFloat = 8
-    static let bubble: CGFloat = 16
+    static let tag: CGFloat = TouliaoMetrics.radiusSmall
+    static let sm: CGFloat = TouliaoMetrics.radiusSmall
+    static let thumb: CGFloat = TouliaoMetrics.radiusSmall
+    static let badge: CGFloat = TouliaoMetrics.radiusSmall
+    static let md: CGFloat = TouliaoMetrics.radiusControl
+    static let avatar: CGFloat = TouliaoMetrics.radiusControl
+    static let card: CGFloat = TouliaoMetrics.radiusCard
+    static let lg: CGFloat = TouliaoMetrics.radiusDialog
+    static let xl: CGFloat = TouliaoMetrics.radiusDialog
+    static let pill: CGFloat = TouliaoMetrics.radiusSmall
+    static let bubble: CGFloat = TouliaoMetrics.radiusBubble
 }

@@ -344,7 +344,7 @@ struct QuietSettingsView: View {
                     .accessibilityIdentifier("quiet-end-picker")
                 }
                 Text("示例：23:00 - 07:00 表示每天晚11点至次日早7点不推送通知。")
-                    .touliaoFont(14)
+                    .touliaoText(.secondary)
                     .foregroundColor(.vxinTextSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal)
@@ -572,7 +572,7 @@ struct DeleteAccountView: View {
             Section {
                 Text("注销后账号将无法登录，聊天记录/好友/群组/钱包余额等数据不可找回。请先确保钱包余额已清零。")
                     .foregroundColor(.red)
-                    .touliaoFont(14)
+                    .touliaoText(.secondary)
             }
             Section("验证密码") {
                 SecureField("登录密码", text: $vm.password)

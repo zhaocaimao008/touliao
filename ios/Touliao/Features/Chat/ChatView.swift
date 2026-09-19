@@ -243,7 +243,7 @@ struct ChatView: View {
                     Group {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(p.senderName.isEmpty ? "成员" : p.senderName).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                            Text(p.senderName.isEmpty ? "成员" : p.senderName).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                             Text(pinnedPreview(p)).lineLimit(2)
                         }
                         Spacer()
@@ -358,7 +358,7 @@ struct ChatView: View {
                     .padding(.horizontal, 12).padding(.top, 8)
                     // 30 条上限提示（对齐 Web：标题显示封顶后的条数；超 30 时明确只合并前 30 条）
                     Text(multiForwardCountHint)
-                        .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.bottom, 8)
                 }
@@ -410,8 +410,8 @@ struct ChatView: View {
     private var announcementBanner: some View {
         Button { showAnnouncement = true } label: {
             HStack(spacing: 8) {
-                TouliaoIcon("announcement", size: .sm).touliaoFont(12)
-                Text("群公告").touliaoFont(12).foregroundColor(.vxinInfoBannerFg)
+                TouliaoIcon("announcement", size: .sm).touliaoText(.caption)
+                Text("群公告").touliaoText(.caption).foregroundColor(.vxinInfoBannerFg)
                 MarqueeText(text: vm.groupAnnouncement.replacingOccurrences(of: "\n", with: "   "), font: .footnote)
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
@@ -424,10 +424,10 @@ struct ChatView: View {
     private var pinnedBanner: some View {
         Button { showPinnedList = true } label: {
             HStack(spacing: 8) {
-                TouliaoIcon("pin", size: .sm).touliaoFont(12)
-                Text(vm.pinnedMessages.first.map(pinnedPreview) ?? "").lineLimit(1).touliaoFont(14)
+                TouliaoIcon("pin", size: .sm).touliaoText(.caption)
+                Text(vm.pinnedMessages.first.map(pinnedPreview) ?? "").lineLimit(1).touliaoText(.secondary)
                 Spacer()
-                if vm.pinnedMessages.count > 1 { Text("\(vm.pinnedMessages.count) 条").touliaoFont(12).foregroundColor(.vxinTextSecondary) }
+                if vm.pinnedMessages.count > 1 { Text("\(vm.pinnedMessages.count) 条").touliaoText(.caption).foregroundColor(.vxinTextSecondary) }
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
             .frame(maxWidth: .infinity)
@@ -464,7 +464,7 @@ struct ChatView: View {
                         let prev = idx > 0 ? vm.messages[idx - 1].createdAt : nil
                         if shouldShowMessageTime(prev: prev, cur: msg.createdAt) {
                             Text(formatChatTime(msg.createdAt))
-                                .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 .padding(.horizontal, 8).padding(.vertical, 2)
                                 .background(Color.vxinSurfaceSecondary)
                                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
@@ -473,14 +473,14 @@ struct ChatView: View {
                         }
                         if msg.type == "nudge" {
                             Text(vm.nudgeText(msg))
-                                .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 4)
                                 .id(msg.id)
                         } else if msg.type == "call" {
                             // 通话系统消息:居中灰字(微信行为对齐,主叫/被叫文案由 callText 区分)
                             Text(vm.callText(msg))
-                                .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 4)
                                 .id(msg.id)
@@ -539,7 +539,7 @@ struct ChatView: View {
                         TouliaoIcon("scrollDown")
                         Text("\(newMsgCount) 条新消息")
                     }
-                    .touliaoFont(12).foregroundColor(.vxinGreen)
+                    .touliaoText(.caption).foregroundColor(.vxinGreen)
                     .padding(.horizontal, 12).padding(.vertical, 7)
                     .background(Capsule().fill(Color.vxinCard).shadow(color: .black.opacity(0.12), radius: 4, y: 2))
                 }
@@ -555,7 +555,7 @@ struct ChatView: View {
     // MARK: - 多选底栏（批量撤回/删除/转发，对齐 web）
     private var multiSelectBar: some View {
         HStack {
-            Text("已选 \(vm.selectedIds.count) 条").touliaoFont(14).foregroundColor(.vxinTextSecondary)
+            Text("已选 \(vm.selectedIds.count) 条").touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
             Spacer()
             Button("取消") { vm.exitMultiSelect() }
             // F5 合并转发：弹目标选择 sheet（sheet 内可切换合并/逐条模式）
@@ -583,7 +583,7 @@ struct ChatView: View {
             if let t = vm.editTarget {
                 HStack {
                     Text("编辑消息: \(t.content)")
-                        .touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                     Spacer()
                     Button { vm.editTarget = nil } label: { TouliaoIcon("close", size: .sm).foregroundColor(IconColor.secondary).frame(width: IconTouchTarget.ios, height: IconTouchTarget.ios).contentShape(Rectangle()) }
                         .accessibilityLabel("取消编辑")
@@ -594,7 +594,7 @@ struct ChatView: View {
             if let r = vm.replyingTo {
                 HStack {
                     Text("回复 \(r.senderName): \(replyPreviewText(r))")
-                        .touliaoFont(12).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                     Spacer()
                     Button { vm.cancelReply() } label: { TouliaoIcon("close", size: .sm).foregroundColor(IconColor.secondary).frame(width: IconTouchTarget.ios, height: IconTouchTarget.ios).contentShape(Rectangle()) }
                         .accessibilityLabel("取消引用")
@@ -604,7 +604,7 @@ struct ChatView: View {
             }
             if vm.recording {
                 Text("● 录音中…点击麦克风停止并发送")
-                    .touliaoFont(14)
+                    .touliaoText(.secondary)
                     .foregroundColor(.vxinError)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16).padding(.vertical, 4)
@@ -777,7 +777,7 @@ struct ChatView: View {
                 .frame(width: 56, height: 56)
                 .background(Color.vxinSurface)
                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
-            Text(label).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+            Text(label).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -803,7 +803,7 @@ struct ChatView: View {
                 LazyHGrid(rows: [GridItem(.fixed(44)), GridItem(.fixed(44))], spacing: 6) {
                     ForEach(emojis, id: \.self) { e in
                         Button { vm.appendEmoji(e) } label: {
-                            Text(e).touliaoFont(18).frame(minWidth: 44, minHeight: 44)
+                            Text(e).touliaoText(.headline).frame(minWidth: 44, minHeight: 44)
                         }.buttonStyle(.plain).accessibilityLabel(e)
                     }
                 }
@@ -811,10 +811,10 @@ struct ChatView: View {
             }
             Divider()
             HStack {
-                Text("我的表情").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                Text("我的表情").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 Spacer()
                 PhotosPicker(selection: $stickerPhotoItem, matching: .images) {
-                    Label("添加", touliaoIcon: "add").touliaoFont(12).foregroundColor(.vxinGreen)
+                    Label("添加", touliaoIcon: "add").touliaoText(.caption).foregroundColor(.vxinGreen)
                 }
             }
             .padding(.horizontal, 8)
@@ -830,7 +830,7 @@ struct ChatView: View {
                     .padding(.horizontal, 8)
                 }
             } else {
-                Text("还没有表情，点右上「添加」上传，或长按聊天图片「收藏表情」").touliaoFont(12).foregroundColor(.vxinTextSecondary).padding(8)
+                Text("还没有表情，点右上「添加」上传，或长按聊天图片「收藏表情」").touliaoText(.caption).foregroundColor(.vxinTextSecondary).padding(8)
             }
         }
         }
@@ -1003,12 +1003,12 @@ private struct MessageBubble: View {
             }
             VStack(alignment: isMine ? .trailing : .leading, spacing: 2) {
                 if !isMine && !msg.senderName.isEmpty {
-                    Text(msg.senderName).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                    Text(msg.senderName).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 }
                 // 被回复消息引用条：被引用消息已撤回/删除(deleted!=0)时整块不渲染，UI 无痕
                 if let rt = msg.replyTo, rt.deleted == 0 {
                     Text("\(rt.senderName): \(replyPreview(rt))")
-                        .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                         .lineLimit(1)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Color.gray.opacity(0.15)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
@@ -1073,7 +1073,7 @@ private struct MessageBubble: View {
                         ForEach(msg.reactions, id: \.emoji) { r in
                             let mine = r.mine(vm.myId)
                             Text("\(r.emoji) \(r.count)")
-                                .touliaoFont(12)
+                                .touliaoText(.caption)
                                 .foregroundColor(mine ? .vxinBrand : .primary)
                                 .padding(.horizontal, 6).padding(.vertical, 1)
                                 // 高亮「我」贴过的表情（对齐 Web .mine 样式）
@@ -1085,7 +1085,7 @@ private struct MessageBubble: View {
                     }
                 }
                 if msg.edited == 1 {
-                    Text("已编辑").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                    Text("已编辑").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 }
                 if isMine {
                     if msg.localStatus == LocalMsgStatus.sending {
@@ -1094,19 +1094,19 @@ private struct MessageBubble: View {
                     } else if msg.localStatus == LocalMsgStatus.failed {
                         // 失败：红色感叹号，点击重发
                         Label("发送失败，点击重发", touliaoIcon: "error")
-                            .touliaoFont(12)
+                            .touliaoText(.caption)
                             .foregroundColor(IconColor.danger)
                             .onTapGesture { vm.retryMessage(msg.id) }
                     } else {
                         // 定时消息角标（is_scheduled=1）显示在已读状态上方
                         if msg.isScheduled == 1 {
                             Label("定时", touliaoIcon: "schedule")
-                                .touliaoFont(12)
+                                .touliaoText(.caption)
                                 .foregroundColor(.vxinTextSecondary)
                         }
                         let read = vm.isReadByPeer(msg)
                         Label(read ? "已读" : "", touliaoIcon: read ? "read" : "check")
-                            .touliaoFont(12)
+                            .touliaoText(.caption)
                             .foregroundColor(read ? .vxinGreen : .vxinTextSecondary)
                     }
                 }
@@ -1193,7 +1193,7 @@ private struct MessageBubble: View {
                             TouliaoIcon("speaker")
                         }
                         Text(msg.duration > 0 ? "\(msg.duration)″" : "语音")
-                            .touliaoFont(14)
+                            .touliaoText(.secondary)
                             .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
                         if isMine {
                             TouliaoIcon("speaker")
@@ -1213,7 +1213,7 @@ private struct MessageBubble: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(msg.content.isEmpty ? "文件" : msg.content).lineLimit(2)
                         if let size = humanFileSize(msg.fileSize) {
-                            Text(size).touliaoFont(12).foregroundColor(isMine ? .vxinBubbleText : .vxinTextSecondary)
+                            Text(size).touliaoText(.caption).foregroundColor(isMine ? .vxinBubbleText : .vxinTextSecondary)
                         }
                     }
                 }
@@ -1274,8 +1274,8 @@ private struct MessageBubble: View {
             TouliaoIcon("redPacket", size: .lg)
             VStack(alignment: .leading, spacing: 2) {
                 Text(rp?.greeting.isEmpty == false ? rp!.greeting : "恭喜发财，大吉大利")
-                    .foregroundColor(.white).touliaoFont(14).lineLimit(1)
-                Text("领取红包").foregroundColor(Color(red: 0.99, green: 0.89, blue: 0.66)).touliaoFont(12)
+                    .foregroundColor(.white).touliaoText(.secondary).lineLimit(1)
+                Text("领取红包").foregroundColor(Color(red: 0.99, green: 0.89, blue: 0.66)).touliaoText(.caption)
             }
         }
         .padding(12)
@@ -1292,11 +1292,11 @@ private struct MessageBubble: View {
             TouliaoIcon("transfer", size: .lg)
             VStack(alignment: .leading, spacing: 2) {
                 Text(transferTitle(t))
-                    .foregroundColor(.white).touliaoFont(14).lineLimit(1)
+                    .foregroundColor(.white).touliaoText(.secondary).lineLimit(1)
                 if let note = t?.note, !note.isEmpty {
-                    Text(note).foregroundColor(.white.opacity(0.8)).touliaoFont(12).lineLimit(1)
+                    Text(note).foregroundColor(.white.opacity(0.8)).touliaoText(.caption).lineLimit(1)
                 } else {
-                    Text("已到账").foregroundColor(.white.opacity(0.75)).touliaoFont(12)
+                    Text("已到账").foregroundColor(.white.opacity(0.75)).touliaoText(.caption)
                 }
             }
         }
@@ -1387,7 +1387,7 @@ private struct PendingBubbleView: View {
             if pending.failed {
                 Button(action: onRetry) {
                     TouliaoIcon("error")
-                        .foregroundColor(.vxinError).touliaoFont(18)
+                        .foregroundColor(.vxinError).touliaoText(.headline)
                 }
                 .buttonStyle(.plain)
             }
@@ -1402,7 +1402,7 @@ private struct PendingBubbleView: View {
                             // 视频有真实上传进度(磁盘流式上传的 didSendBodyData 回调)，显示百分比而非纯转圈
                             VStack(spacing: 4) {
                                 ProgressView(value: pending.progress).tint(.white).frame(width: 80)
-                                Text("\(Int(pending.progress * 100))%").touliaoFont(12).foregroundColor(.white)
+                                Text("\(Int(pending.progress * 100))%").touliaoText(.caption).foregroundColor(.white)
                             }
                         } else {
                             ProgressView().tint(.white)
@@ -1450,7 +1450,7 @@ private struct SendRedPacketSheet: View {
                 TextField("总金币 (1-20000)", text: $amount).keyboardType(.numberPad)
                 TextField("红包个数 (1-100)", text: $count).keyboardType(.numberPad)
                 TextField("祝福语（可选）", text: $greeting)
-                if let error { Text(error).foregroundColor(.vxinError).touliaoFont(14) }
+                if let error { Text(error).foregroundColor(.vxinError).touliaoText(.secondary) }
                 }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("发红包")
@@ -1492,7 +1492,7 @@ private struct SendTransferSheet: View {
                 Group {
                 TextField("金额（金币，1-20000）", text: $amount).keyboardType(.numberPad)
                 TextField("备注（可选，≤50字）", text: $note)
-                if let error { Text(error).foregroundColor(.vxinError).touliaoFont(14) }
+                if let error { Text(error).foregroundColor(.vxinError).touliaoText(.secondary) }
                 }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("转账")
@@ -1547,11 +1547,11 @@ private struct SendScheduleSheet: View {
                     .accessibilityIdentifier("schedule-date-picker")
                 }
                 if let error {
-                    Section { Text(error).foregroundColor(.vxinError).touliaoFont(14) }
+                    Section { Text(error).foregroundColor(.vxinError).touliaoText(.secondary) }
                 }
                 Section {
                     Text("仅抑制发送操作，聊天和已发消息不受影响。到点由服务器自动发出。")
-                        .touliaoFont(12)
+                        .touliaoText(.caption)
                         .foregroundColor(.vxinTextSecondary)
                 }
                 }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
@@ -1601,19 +1601,19 @@ private struct ScheduledListSheet: View {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text(scheduledStatusLabel(item.status))
-                                    .touliaoFont(12)
+                                    .touliaoText(.caption)
                                     .foregroundColor(item.status == "pending" ? .vxinGreen : .vxinTextSecondary)
                                     .padding(.horizontal, 6).padding(.vertical, 2)
                                     .background((item.status == "pending" ? Color.vxinGreen : Color.gray).opacity(0.12))
                                     .clipShape(Capsule())
                                 Spacer()
                                 Text(formatChatTime(item.sendAt))
-                                    .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                    .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                             }
                             Text(item.content).lineLimit(2)
                             if item.status == "pending" {
                                 Button("取消定时") { vm.cancelScheduledMessage(item) }
-                                    .touliaoFont(12)
+                                    .touliaoText(.caption)
                                     .foregroundColor(.vxinError)
                                     .buttonStyle(.borderless)
                             }
@@ -1741,27 +1741,27 @@ private struct RedPacketDetailSheet: View {
         NavigationStack {
             VStack(spacing: 12) {
                 TouliaoIcon("redPacket", size: .xl)
-                Text("\(detail.senderName.isEmpty ? "好友" : detail.senderName) 的红包").touliaoFont(18, weight: .semibold)
+                Text("\(detail.senderName.isEmpty ? "好友" : detail.senderName) 的红包").touliaoText(.headline, weight: .semibold)
                 Text(detail.greeting.isEmpty ? "恭喜发财，大吉大利" : detail.greeting)
                     .foregroundColor(.vxinTextSecondary)
 
                 if let mine = detail.myClaim {
-                    Text("你领取了 \(mine.amount) 金币").touliaoFont(18).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
+                    Text("你领取了 \(mine.amount) 金币").touliaoText(.headline).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
                 } else if let claimedAmount {
-                    Text("你领取了 \(claimedAmount) 金币").touliaoFont(18).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
+                    Text("你领取了 \(claimedAmount) 金币").touliaoText(.headline).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
                 } else if detail.claimedCount >= detail.totalCount {
                     Text("手慢了，红包已被领完").foregroundColor(.vxinTextSecondary)
                 }
 
                 if canClaim {
                     Button(action: onClaim) {
-                        Text("开").touliaoFont(22).foregroundColor(.white)
+                        Text("开").touliaoText(.title).foregroundColor(.white)
                             .frame(width: 80, height: 80)
                             .background(Color(red: 0.91, green: 0.31, blue: 0.23)).clipShape(Circle())
                     }
                 }
 
-                Text("已领 \(detail.claimedCount)/\(detail.totalCount) 个").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                Text("已领 \(detail.claimedCount)/\(detail.totalCount) 个").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
 
                 if !detail.claims.isEmpty {
                     List(detail.claims) { c in
@@ -1816,11 +1816,11 @@ private struct MessageSearchSheet: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 HStack {
                                     Text(msg.senderName.isEmpty ? "用户" : msg.senderName)
-                                        .touliaoFont(12).fontWeight(.medium).foregroundColor(.vxinGreen)
+                                        .touliaoText(.caption).fontWeight(.medium).foregroundColor(.vxinGreen)
                                     Spacer()
-                                    Text(formatChatTime(msg.createdAt)).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                    Text(formatChatTime(msg.createdAt)).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 }
-                                Text(preview(msg)).touliaoFont(14).lineLimit(2).foregroundColor(.vxinText)
+                                Text(preview(msg)).touliaoText(.secondary).lineLimit(2).foregroundColor(.vxinText)
                             }
                         }
                         .buttonStyle(.plain)

@@ -43,10 +43,10 @@ struct FriendRequestsView: View {
                             Spacer()
                             // 申请时间（F5 补齐，对齐 Web/Android 名字行右侧展示）
                             Text(formatChatTime(req.createdAt))
-                                .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                         }
                         Text(req.message.isEmpty ? "请求添加你为好友" : req.message)
-                            .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                            .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                     }
                     Spacer()
                     if vm.handling.contains(req.id) {
@@ -79,14 +79,14 @@ struct FriendRequestsView: View {
                             Spacer()
                             // 申请时间（F5 补齐，对齐 Web/Android 名字行右侧展示）
                             Text(formatChatTime(req.createdAt))
-                                .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                         }
                         Text(req.message.isEmpty ? "请求添加对方为好友" : req.message)
-                            .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                            .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                     }
                     Spacer()
                     Text(req.status == "accepted" ? "已同意" : (req.status == "rejected" ? "已拒绝" : "等待验证"))
-                        .touliaoFont(12)
+                        .touliaoText(.caption)
                         .foregroundColor(req.status == "accepted" ? .vxinGreen : .vxinTextSecondary)
                 }
                 }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)

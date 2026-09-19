@@ -22,7 +22,7 @@ struct VideoPlayerOverlay: View {
             MediaPreviewToolbar(title: filename ?? "视频", onDismiss: onDismiss) {
                 Button(action: saveVideo) {
                     Label(saving ? "保存中…" : "保存视频", touliaoIcon: "download")
-                        .touliaoFont(14).frame(minHeight: 44)
+                        .touliaoText(.secondary).frame(minHeight: 44)
                 }
                 .disabled(saving)
             }
@@ -126,13 +126,13 @@ struct FileDetailsOverlay: View {
                         .frame(width: 80, height: 80)
                         .background(Color.vxinPrimarySoft)
                         .clipShape(RoundedRectangle(cornerRadius: VxinRadius.card))
-                    Text(filename ?? "未知文件").touliaoFont(18, weight: .semibold)
+                    Text(filename ?? "未知文件").touliaoText(.headline, weight: .semibold)
                         .multilineTextAlignment(.center)
                     if let sizeText, !sizeText.isEmpty {
-                        Text(sizeText).touliaoFont(14).foregroundColor(.vxinTextSecondary)
+                        Text(sizeText).touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                     }
                     Text("该文件格式暂不支持在投聊内直接预览，可以下载保存，或下载后选择用其他应用打开。")
-                        .touliaoFont(14).foregroundColor(.vxinTextSecondary)
+                        .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                         .multilineTextAlignment(.center)
                     VxinGradientButton(title: "用其他应用打开", loading: preparing, action: openWithOtherApp)
                 }
@@ -204,7 +204,7 @@ struct MediaPreviewToolbar<Actions: View>: View {
             Button(action: onDismiss) {
                 TouliaoIcon("close", size: .md).frame(width: 44, height: 44)
             }.accessibilityLabel("关闭预览")
-            Text(title).touliaoFont(14).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            Text(title).touliaoText(.secondary).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
             actions()
         }
         .foregroundColor(IconColor.onDark)

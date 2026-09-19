@@ -99,17 +99,17 @@ struct CallHistoryView: View {
             InitialAvatar(name: c.peerName.isEmpty ? (isGroup ? "群" : "?") : c.peerName, size: 42)
             VStack(alignment: .leading, spacing: 3) {
                 Text(c.peerName.isEmpty ? (isGroup ? "群聊" : "用户") : c.peerName)
-                    .touliaoFont(14).fontWeight(.medium)
+                    .touliaoText(.secondary).fontWeight(.medium)
                     .foregroundColor(missed ? .vxinError : .primary)
                 HStack(spacing: 4) {
                     TouliaoIcon(c.direction == "out" ? "callOutgoing" : "callIncoming")
-                        .touliaoFont(12)
-                    Text(subtitle(c)).touliaoFont(12)
+                        .touliaoText(.caption)
+                    Text(subtitle(c)).touliaoText(.caption)
                 }
                 .foregroundColor(missed ? .vxinError : .vxinTextSecondary)
             }
             Spacer()
-            Text(formatChatTime(c.createdAt)).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+            Text(formatChatTime(c.createdAt)).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
         }
         .padding(.vertical, 2)
     }

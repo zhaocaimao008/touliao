@@ -127,17 +127,17 @@ private struct MentionRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(item.convName.isEmpty ? "未知会话" : item.convName)
-                        .touliaoFont(16).lineLimit(1)
+                        .touliaoText(.body).lineLimit(1)
                     Spacer()
                     Text(formatChatTime(item.createdAt))
-                        .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 }
                 HStack(spacing: 4) {
                     // 发送者名（谁 @了我）
                     Text(item.senderName.isEmpty ? "某人" : item.senderName)
-                        .touliaoFont(14).foregroundColor(.vxinGreen).lineLimit(1)
+                        .touliaoText(.secondary).foregroundColor(.vxinGreen).lineLimit(1)
                     Text(": \(item.content)")
-                        .touliaoFont(14).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                        .touliaoText(.secondary).foregroundColor(.vxinTextSecondary).lineLimit(1)
                 }
             }
         }

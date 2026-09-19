@@ -28,9 +28,9 @@ struct ConversationListView: View {
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         VStack(spacing: 2) {
-                            Text("消息").touliaoFont(18, weight: .semibold)
+                            Text("消息").touliaoText(.headline, weight: .semibold)
                             Text(statusLabel)
-                                .touliaoFont(12)
+                                .touliaoText(.caption)
                                 .foregroundColor(vm.socketStatus == .connected ? .vxinGreen : .vxinTextSecondary)
                         }
                     }
@@ -171,7 +171,7 @@ struct ConversationListView: View {
                 }
                 if visible.isEmpty {
                     Text(showArchived ? "暂无归档会话" : (filter == .unread ? "没有未读消息" : filter == .groups ? "暂无群聊" : "暂无会话"))
-                        .touliaoFont(14).foregroundColor(.vxinTextSecondary)
+                        .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 32)
                         .listRowSeparator(.hidden)
@@ -213,13 +213,13 @@ struct ConversationListView: View {
                     .fill(Color.vxinBrand.opacity(0.12))
                     .frame(width: 40, height: 40)
                     .overlay(TouliaoIcon("archive").foregroundColor(.vxinGreen))
-                Text("归档").touliaoFont(16)
+                Text("归档").touliaoText(.body)
                 Spacer()
                 if vm.archiveUnreadTotal > 0 {
                     TouliaoBadge(count: vm.archiveUnreadTotal)
                 }
                 if !vm.archivedConversations.isEmpty {
-                    Text("\(vm.archivedConversations.count)").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                    Text("\(vm.archivedConversations.count)").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 }
                 TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
             }
@@ -243,10 +243,10 @@ struct ConversationListView: View {
             }
             .accessibilityLabel("返回消息列表")
             Spacer()
-            Text("已归档").touliaoFont(16, weight: .bold)
+            Text("已归档").touliaoText(.body, weight: .bold)
             Spacer()
             Button("全部取消归档") { showClearArchiveConfirm = true }
-                .touliaoFont(14)
+                .touliaoText(.secondary)
                 .disabled(vm.archivedConversations.isEmpty)
         }
         .padding(.vertical, 6)
@@ -258,7 +258,7 @@ struct ConversationListView: View {
             HStack(spacing: 8) {
                 ForEach(ConversationFilter.allCases, id: \.self) { option in
                     Button { filter = option } label: {
-                        Text(option.rawValue).touliaoFont(14, weight: .medium)
+                        Text(option.rawValue).touliaoText(.secondary, weight: .medium)
                             .padding(.horizontal, 16).frame(minHeight: 44)
                             .foregroundColor(filter == option ? .vxinBrand : .vxinTextSecondary)
                             .background(filter == option ? Color.vxinPrimarySoft : Color.clear)
@@ -290,30 +290,30 @@ struct ConversationRow: View {
             InitialAvatar(name: conversation.name.isEmpty ? "?" : conversation.name, size: 44)
             VStack(alignment: .leading, spacing: 3) {
                 Text(conversation.name.isEmpty ? "未命名会话" : conversation.name)
-                    .touliaoFont(16)
+                    .touliaoText(.body)
                     .lineLimit(1)
                     .accessibilityIdentifier("conv-item-name")
                 HStack(spacing: 4) {
                     if conversation.hasMention {
                         // 有未读@我：绿色小标，读后随刷新消失
                         Text("[@我]")
-                            .touliaoFont(12).bold()
+                            .touliaoText(.caption).bold()
                             .foregroundColor(.vxinGreen)
                             .accessibilityIdentifier("conv-item-mention")
                     }
                     if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         // 有未发送草稿：红色「[草稿]」前缀(对齐微信/Web/安卓)
                         Text("[草稿]")
-                            .touliaoFont(14)
+                            .touliaoText(.secondary)
                             .foregroundColor(.vxinError)
                             .accessibilityIdentifier("conv-item-draft")
                         Text(draft)
-                            .touliaoFont(14)
+                            .touliaoText(.secondary)
                             .foregroundColor(.vxinTextSecondary)
                             .lineLimit(1)
                     } else {
                         Text(previewText)
-                            .touliaoFont(14)
+                            .touliaoText(.secondary)
                             .foregroundColor(.vxinTextSecondary)
                             .lineLimit(1)
                     }
@@ -322,7 +322,7 @@ struct ConversationRow: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
                 Text(formatChatTime(conversation.lastTime))
-                    .touliaoFont(12)
+                    .touliaoText(.caption)
                     .foregroundColor(.vxinTextSecondary)
                 if conversation.muted == 1 {
                     // 免打扰：有未读只显示小红点(不显示数字)，并保留🔕(对齐微信/安卓)

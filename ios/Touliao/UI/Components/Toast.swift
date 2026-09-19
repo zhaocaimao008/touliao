@@ -37,7 +37,7 @@ struct TouliaoToast: View {
 
     var body: some View {
         Text(message)
-            .touliaoFont(14)
+            .touliaoText(.secondary)
             .foregroundColor(.vxinText)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 16).padding(.vertical, 12)

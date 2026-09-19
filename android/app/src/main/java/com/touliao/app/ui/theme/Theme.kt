@@ -12,6 +12,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 
@@ -41,23 +42,23 @@ private fun colors(p: TouliaoPalette, dark: Boolean) = if (dark) darkColorScheme
     outline = p.borderStrong, outlineVariant = p.border,
 )
 
-private fun type(size: Int, leading: Float = 1.6f, weight: FontWeight = FontWeight.Normal) = TextStyle(
-    fontFamily = FontFamily.SansSerif, fontSize = size.sp, lineHeight = (size * leading).sp,
+private fun type(size: TextUnit, leading: Float = 1.6f, weight: FontWeight = FontWeight.Normal) = TextStyle(
+    fontFamily = FontFamily.SansSerif, fontSize = size, lineHeight = size * leading,
     fontWeight = weight, letterSpacing = 0.sp,
 )
 private val TouliaoTypography = Typography(
-    displayLarge = type(28, 1.3f, FontWeight.SemiBold),
-    displayMedium = type(28, 1.3f, FontWeight.SemiBold),
-    displaySmall = type(22, 1.3f, FontWeight.SemiBold),
-    headlineLarge = type(22, 1.3f, FontWeight.SemiBold),
-    headlineMedium = type(22, 1.3f, FontWeight.SemiBold),
-    headlineSmall = type(20, 1.3f, FontWeight.SemiBold),
-    titleLarge = type(22, 1.3f, FontWeight.SemiBold),
-    titleMedium = type(18, 1.3f, FontWeight.SemiBold),
-    titleSmall = type(16, 1.4f, FontWeight.Medium),
-    bodyLarge = type(16), bodyMedium = type(16), bodySmall = type(12),
-    labelLarge = type(16, 1.4f, FontWeight.Medium),
-    labelMedium = type(14, 1.4f, FontWeight.Medium), labelSmall = type(12, 1.4f),
+    displayLarge = type(TouliaoMetrics.fontDisplay, 1.3f, FontWeight.SemiBold),
+    displayMedium = type(TouliaoMetrics.fontDisplay, 1.3f, FontWeight.SemiBold),
+    displaySmall = type(TouliaoMetrics.fontTitle, 1.3f, FontWeight.SemiBold),
+    headlineLarge = type(TouliaoMetrics.fontTitle, 1.3f, FontWeight.SemiBold),
+    headlineMedium = type(TouliaoMetrics.fontTitle, 1.3f, FontWeight.SemiBold),
+    headlineSmall = type(20.sp, 1.3f, FontWeight.SemiBold),
+    titleLarge = type(TouliaoMetrics.fontTitle, 1.3f, FontWeight.SemiBold),
+    titleMedium = type(TouliaoMetrics.fontHeadline, 1.3f, FontWeight.SemiBold),
+    titleSmall = type(TouliaoMetrics.fontBody, 1.4f, FontWeight.Medium),
+    bodyLarge = type(TouliaoMetrics.fontBody), bodyMedium = type(TouliaoMetrics.fontBody), bodySmall = type(TouliaoMetrics.fontCaption),
+    labelLarge = type(TouliaoMetrics.fontBody, 1.4f, FontWeight.Medium),
+    labelMedium = type(TouliaoMetrics.fontSecondary, 1.4f, FontWeight.Medium), labelSmall = type(TouliaoMetrics.fontCaption, 1.4f),
 )
 
 @Composable
@@ -77,9 +78,9 @@ fun VxinTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable (
         MaterialTheme(
             colorScheme = colors(palette, darkTheme), typography = TouliaoTypography,
             shapes = androidx.compose.material3.Shapes(
-                extraSmall = RoundedCornerShape(8.dp), small = RoundedCornerShape(8.dp),
-                medium = RoundedCornerShape(12.dp), large = RoundedCornerShape(20.dp),
-                extraLarge = RoundedCornerShape(20.dp),
+                extraSmall = RoundedCornerShape(TouliaoMetrics.radiusSmall), small = RoundedCornerShape(TouliaoMetrics.radiusSmall),
+                medium = RoundedCornerShape(TouliaoMetrics.radiusControl), large = RoundedCornerShape(TouliaoMetrics.radiusDialog),
+                extraLarge = RoundedCornerShape(TouliaoMetrics.radiusDialog),
             ), content = content,
         )
     }

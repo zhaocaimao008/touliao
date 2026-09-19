@@ -92,6 +92,34 @@ html.touliao-ui {
   --tl-duration-fast: 120ms;
   --tl-duration-normal: 180ms;
   --tl-duration-slow: 240ms;
+  --tl-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --tl-easing-entrance: cubic-bezier(0, 0, 0.2, 1);
+  --tl-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+  --tl-weight-regular: 400;
+  --tl-weight-medium: 500;
+  --tl-weight-semibold: 600;
+  --tl-weight-bold: 700;
+  --tl-leading-body: 1.6;
+  --tl-leading-label: 1.4;
+  --tl-leading-heading: 1.3;
+  --tl-type-display-size: var(--tl-size-display);
+  --tl-type-display-weight: var(--tl-weight-semibold);
+  --tl-type-display-leading: var(--tl-leading-heading);
+  --tl-type-title-size: var(--tl-size-page);
+  --tl-type-title-weight: var(--tl-weight-semibold);
+  --tl-type-title-leading: var(--tl-leading-heading);
+  --tl-type-headline-size: var(--tl-size-section);
+  --tl-type-headline-weight: var(--tl-weight-medium);
+  --tl-type-headline-leading: var(--tl-leading-heading);
+  --tl-type-body-size: var(--tl-size-body-desktop);
+  --tl-type-body-weight: var(--tl-weight-regular);
+  --tl-type-body-leading: var(--tl-leading-body);
+  --tl-type-secondary-size: var(--tl-size-body-desktop);
+  --tl-type-secondary-weight: var(--tl-weight-regular);
+  --tl-type-secondary-leading: var(--tl-leading-body);
+  --tl-type-caption-size: var(--tl-size-caption);
+  --tl-type-caption-weight: var(--tl-weight-regular);
+  --tl-type-caption-leading: var(--tl-leading-label);
   --tl-layout-navigation-rail: 76px;
   --tl-layout-conversation-list: 300px;
   --tl-layout-conversation-list-minimum: 260px;
@@ -101,4 +129,51 @@ html.touliao-ui {
   --tl-layout-header-height: 64px;
   --tl-font: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   --tl-font-windows: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+:root {
+  --z-base: 0;
+  --z-raised: 1;
+  --z-local: 10;
+  --z-page: 60;
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-panel: 300;
+  --z-modal: 1000;
+  --z-popover: 1100;
+  --z-toast: 1200;
+  --z-tooltip: 1300;
+  --z-call: 2000;
+  --z-call-top: 3000;
+  --z-top: 9999;
+  --z-native: 100000;
+}
+html.touliao-ui body {
+  --tl-control-height: 40px;
+  --tl-touch-target: 44px;
+  --tl-control-font: var(--tl-size-body-desktop);
+  --tl-setting-height: 64px;
+  --tl-control-border: 1px;
+  --tl-disabled-opacity: 0.55;
+  --tl-dialog-width: 420px;
+  --tl-skeleton-duration: 1200ms;
+  --tl-media-canvas: #10151e;
+  --tl-media-surface: #18212d;
+  --tl-media-text: #eaf0f8;
+  --tl-media-secondary: #c4d0e0;
+  --tl-media-control: #2d3a4c;
+  --tl-media-selected: #416bb4;
+  --tl-media-danger: #be3f4e;
+  --tl-media-accept: #18856b;
+  --tl-media-control-size: 56px;
+  --tl-media-primary-control-size: 68px;
+  --tl-media-control-gap: 16px;
+  --tl-media-ended-duration: 1800ms;
+}
+@media (max-width: 767px) {
+  html.touliao-ui body {
+    --tl-control-height: 48px;
+    --tl-control-font: var(--tl-size-body-mobile);
+    --tl-setting-height: 68px;
+    --tl-type-body-size: var(--tl-size-body-mobile);
+  }
 }

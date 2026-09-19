@@ -2,18 +2,18 @@ import CoreGraphics
 
 // Supplied mobile design scale; font values are applied using Dynamic Type.
 enum VxinFontSize {
-    static let xs2: CGFloat = 12
-    static let xs: CGFloat = 12
-    static let sm: CGFloat = 12
-    static let sm2: CGFloat = 14
-    static let base: CGFloat = 16
-    static let md: CGFloat = 16
-    static let lg: CGFloat = 18
-    static let xl: CGFloat = 18
-    static let xxl: CGFloat = 22
-    static let xxxl: CGFloat = 22
-    static let displaySm: CGFloat = 22
-    static let display: CGFloat = 28
-    static let displayLg: CGFloat = 28
+    static let xs2: CGFloat = TouliaoMetrics.fontCaption
+    static let xs: CGFloat = TouliaoMetrics.fontCaption
+    static let sm: CGFloat = TouliaoMetrics.fontCaption
+    static let sm2: CGFloat = TouliaoMetrics.fontSecondary
+    static let base: CGFloat = TouliaoMetrics.fontBody
+    static let md: CGFloat = TouliaoMetrics.fontBody
+    static let lg: CGFloat = TouliaoMetrics.fontHeadline
+    static let xl: CGFloat = TouliaoMetrics.fontHeadline
+    static let xxl: CGFloat = TouliaoMetrics.fontTitle
+    static let xxxl: CGFloat = TouliaoMetrics.fontTitle
+    static let displaySm: CGFloat = TouliaoMetrics.fontTitle
+    static let display: CGFloat = TouliaoMetrics.fontDisplay
+    static let displayLg: CGFloat = TouliaoMetrics.fontDisplay
     static let displayXl: CGFloat = 40
 }

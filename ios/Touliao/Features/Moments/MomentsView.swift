@@ -230,7 +230,7 @@ struct MomentsView: View {
                         .overlay(alignment: .topTrailing) {
                             if vm.notifUnread > 0 {
                                 Text(vm.notifUnread > 99 ? "99+" : "\(vm.notifUnread)")
-                                    .touliaoFont(12).foregroundColor(.vxinOnPrimary)
+                                    .touliaoText(.caption).foregroundColor(.vxinOnPrimary)
                                     .padding(.horizontal, 4).padding(.vertical, 1)
                                     .background(Color.vxinError).clipShape(Capsule())
                                     .offset(x: 8, y: -6)
@@ -328,7 +328,7 @@ private struct MomentCard: View {
             HStack {
                 InitialAvatar(name: moment.author.username.isEmpty ? "?" : moment.author.username, size: 40)
                 Text(moment.author.username.isEmpty ? "未命名" : moment.author.username)
-                    .foregroundColor(.vxinGreen).touliaoFont(14)
+                    .foregroundColor(.vxinGreen).touliaoText(.secondary)
                 Spacer()
             }
             if !moment.content.isEmpty { Text(moment.content) }
@@ -336,7 +336,7 @@ private struct MomentCard: View {
             // 视频动态（F5）：与图片互斥，轻量缩略图卡片 + 点击全屏播放（不自动播）
             if !moment.video.isEmpty { MomentVideoCard(rawURL: moment.video, cover: moment.cover, onTap: onVideoTap) }
             HStack {
-                Text(formatChatTime(moment.createdAt)).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                Text(formatChatTime(moment.createdAt)).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 Spacer()
                 Button { onLike() } label: {
                     // 心形图标 + 文案(对齐微信/安卓 ❤️/🤍)
@@ -351,13 +351,13 @@ private struct MomentCard: View {
             }
             if !moment.likes.isEmpty {
                 Text("❤ " + moment.likes.map { $0.username.isEmpty ? "用户" : $0.username }.joined(separator: "，"))
-                    .touliaoFont(14).foregroundColor(.vxinGreen)
+                    .touliaoText(.secondary).foregroundColor(.vxinGreen)
                     .padding(8).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.vxinPrimarySoft).clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
             }
             ForEach(moment.comments) { c in
                 commentText(c)
-                    .touliaoFont(14)
+                    .touliaoText(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     // 点非自己的评论 → 回复该人(对齐 web/安卓)
@@ -372,7 +372,7 @@ private struct MomentCard: View {
             // 热门动态：timeline 只返回前 N 条，按需加载全部
             if moment.commentCount > moment.comments.count {
                 Button("查看全部 \(moment.commentCount) 条评论") { onViewAllComments() }
-                    .touliaoFont(14).foregroundColor(.vxinGreen)
+                    .touliaoText(.secondary).foregroundColor(.vxinGreen)
             }
             if commenting {
                 HStack {
@@ -530,8 +530,8 @@ private struct MomentNotifSheet: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 (Text(n.actor.username.isEmpty ? "用户" : n.actor.username).fontWeight(.medium)
                                     + Text(n.type == "like" ? " 赞了你的动态" : " 评论：\(n.commentContent)"))
-                                    .touliaoFont(14).lineLimit(2)
-                                Text(formatChatTime(n.createdAt)).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                    .touliaoText(.secondary).lineLimit(2)
+                                Text(formatChatTime(n.createdAt)).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                             }
                             Spacer()
                             if !n.moment.thumb.isEmpty {
@@ -540,7 +540,7 @@ private struct MomentNotifSheet: View {
                                     .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: VxinRadius.tag))
                             } else if !n.moment.content.isEmpty {
                                 Text(String(n.moment.content.prefix(12)))
-                                    .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                                    .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                     .frame(maxWidth: 80, alignment: .trailing).lineLimit(2)
                             }
                         }

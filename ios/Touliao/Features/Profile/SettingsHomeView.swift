@@ -136,16 +136,16 @@ private struct HubRow: View {
                 Text(title).foregroundColor(Color.vxinText)
                     .fixedSize(horizontal: false, vertical: true)
                 if typeSize.isAccessibilitySize, let trailing, !showsSpinner {
-                    Text(trailing).foregroundColor(.vxinTextSecondary).touliaoFont(14)
+                    Text(trailing).foregroundColor(.vxinTextSecondary).touliaoText(.secondary)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
             if showsSpinner {
                 ProgressView().scaleEffect(0.7)
             } else if !typeSize.isAccessibilitySize, let trailing {
-                Text(trailing).foregroundColor(Color.vxinTextSecondary).touliaoFont(14)
+                Text(trailing).foregroundColor(Color.vxinTextSecondary).touliaoText(.secondary)
             }
             TouliaoIcon("disclosure", size: .xs)
-                .touliaoFont(12).foregroundColor(Color.vxinTextSecondary.opacity(0.6))
+                .touliaoText(.caption).foregroundColor(Color.vxinTextSecondary.opacity(0.6))
         }
         .padding(.horizontal, 16).padding(.vertical, 8)
         .frame(minHeight: 52)

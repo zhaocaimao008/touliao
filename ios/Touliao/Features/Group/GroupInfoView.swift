@@ -50,9 +50,9 @@ struct GroupInfoView: View {
                             groupHeroAvatar(info)
                             if vm.uploadingAvatar { ProgressView().tint(.vxinBrand) }
                             Text(info.name.isEmpty ? "未命名群聊" : info.name)
-                                .touliaoFont(22, weight: .bold).foregroundColor(.vxinText)
+                                .touliaoText(.title, weight: .bold).foregroundColor(.vxinText)
                             Text("\(info.members.count) 名成员")
-                                .touliaoFont(14).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
@@ -131,7 +131,7 @@ struct GroupInfoView: View {
                                     Text("复制邀请链接").foregroundColor(.vxinText)
                                     Spacer()
                                     Text(vm.copyingInviteLink ? "生成中…" : "🔗 复制")
-                                        .touliaoFont(14).foregroundColor(.vxinTextSecondary)
+                                        .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                                 }
                             }
                             .disabled(vm.copyingInviteLink)
@@ -152,15 +152,15 @@ struct GroupInfoView: View {
                                     Text(member.displayName.isEmpty ? "未命名" : member.displayName)
                                     if member.role != "member" {
                                         Text(member.role == "owner" ? "群主" : "管理员")
-                                            .touliaoFont(12).foregroundColor(.vxinGreen)
+                                            .touliaoText(.caption).foregroundColor(.vxinGreen)
                                     }
                                 }
                                 Spacer()
                                 if info.isOwner && member.role != "owner" {
                                     Button(member.role == "admin" ? "取消管理" : "设管理") { vm.setRole(member, makeAdmin: member.role != "admin") }
-                                        .buttonStyle(.borderless).touliaoFont(12)
+                                        .buttonStyle(.borderless).touliaoText(.caption)
                                     Button("转让") { transferTarget = member }
-                                        .buttonStyle(.borderless).touliaoFont(12)
+                                        .buttonStyle(.borderless).touliaoText(.caption)
                                 }
                                 if info.canManage && member.role != "owner" {
                                     Button("移除", role: .destructive) { kickTarget = member }

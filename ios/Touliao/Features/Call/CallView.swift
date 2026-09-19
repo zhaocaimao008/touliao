@@ -118,7 +118,7 @@ private struct CallView: View {
                 VStack(spacing: 16) {
                     InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: 96)
                     Text(state.peerName.isEmpty ? "通话" : state.peerName)
-                        .touliaoFont(22).foregroundColor(.white)
+                        .touliaoText(.title).foregroundColor(.white)
                     statusOrDuration
                 }
                 .frame(maxWidth: .infinity).padding(.horizontal, 24).padding(.top, 72).padding(.bottom, 24)
@@ -165,16 +165,16 @@ private struct CallView: View {
         if state.stage == .connected, let start = state.connectedAt {
             TimelineView(.periodic(from: start, by: 1)) { context in
                 Text(formatCallDuration(from: start, now: context.date))
-                    .touliaoFont(14).foregroundColor(Color(white: 0.7))
+                    .touliaoText(.secondary).foregroundColor(Color(white: 0.7))
                     .monospacedDigit()
             }
         } else if state.stage == .ended, let start = state.connectedAt {
             // 接通过再结束：定格显示「通话时长 mm:ss」
             Text("通话时长 " + formatCallDuration(from: start, now: state.endedAt ?? Date()))
-                .touliaoFont(14).foregroundColor(Color(white: 0.7)).monospacedDigit()
+                .touliaoText(.secondary).foregroundColor(Color(white: 0.7)).monospacedDigit()
         } else {
             Text(statusText)
-                .touliaoFont(14).foregroundColor(Color(white: 0.7))
+                .touliaoText(.secondary).foregroundColor(Color(white: 0.7))
         }
         // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
         if state.stage == .connected && !state.callQuality.isEmpty {
@@ -184,7 +184,7 @@ private struct CallView: View {
             default: (.vxinSuccess, "网络良好")
             }
             Text(qText)
-                .touliaoFont(12).foregroundColor(qColor)
+                .touliaoText(.caption).foregroundColor(qColor)
         }
     }
 

@@ -7,7 +7,7 @@ struct TouliaoField<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).touliaoFont(14, weight: .medium).foregroundColor(.vxinText)
+            Text(title).touliaoText(.secondary, weight: .medium).foregroundColor(.vxinText)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)

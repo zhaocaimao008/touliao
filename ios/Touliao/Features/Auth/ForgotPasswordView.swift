@@ -20,20 +20,20 @@ struct ForgotPasswordView: View {
             }
             .padding(.bottom, 4)
             Text("忘记密码")
-                .touliaoFont(22, weight: .bold)
+                .touliaoText(.title, weight: .bold)
                 .foregroundColor(.vxinText)
             Text("密码重置服务暂时不可用")
-                .touliaoFont(14)
+                .touliaoText(.secondary)
                 .foregroundColor(.vxinTextSecondary)
                 .padding(.bottom, 16)
 
             Text("为保护账号安全，当前不支持在线重置密码。\n请联系管理员协助处理。")
-                .touliaoFont(16)
+                .touliaoText(.body)
                 .foregroundColor(.vxinText)
                 .multilineTextAlignment(.center)
 
             Button("返回登录") { dismiss() }
-                .touliaoFont(14)
+                .touliaoText(.secondary)
                 .foregroundColor(.vxinTextSecondary)
                 .padding(.top, 16)
 

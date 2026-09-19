@@ -24,7 +24,7 @@ struct GroupCallHostView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("\(inv.fromName.isEmpty ? "群成员" : inv.fromName) 发起了群\(inv.type == "video" ? "视频" : "语音")通话",
                   touliaoIcon: inv.type == "video" ? "video" : "phone")
-                .touliaoFont(14).foregroundColor(.white)
+                .touliaoText(.secondary).foregroundColor(.white)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 16) {
                 Button("加入") { manager.join(callId: inv.callId, conversationId: inv.conversationId, video: inv.type == "video") }
@@ -59,12 +59,12 @@ private struct GroupCallView: View {
             VStack {
                 VStack(spacing: 2) {
                     Text("群\(state.isVideo ? "视频" : "语音")通话 · \(state.participants.count + 1) 人")
-                        .touliaoFont(14).foregroundColor(.white)
+                        .touliaoText(.secondary).foregroundColor(.white)
                     // 接通后每秒递增的通话时长(mm:ss)，对齐微信/安卓
                     if state.stage == .connected, let start = state.connectedAt {
                         TimelineView(.periodic(from: start, by: 1)) { context in
                             Text(formatCallDuration(from: start, now: context.date))
-                                .touliaoFont(12).foregroundColor(Color(white: 0.7)).monospacedDigit()
+                                .touliaoText(.caption).foregroundColor(Color(white: 0.7)).monospacedDigit()
                         }
                     }
                 }.padding(.top, 12)
@@ -103,7 +103,7 @@ private struct GroupCallView: View {
             } else {
                 InitialAvatar(name: label, size: 64)
             }
-            Text(label).touliaoFont(12).foregroundColor(.white).padding(6)
+            Text(label).touliaoText(.caption).foregroundColor(.white).padding(6)
         }
         .aspectRatio(0.85, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))

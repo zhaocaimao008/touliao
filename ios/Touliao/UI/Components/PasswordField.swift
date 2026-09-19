@@ -39,7 +39,7 @@ struct PasswordField: View {
             .buttonStyle(.borderless)
             .accessibilityLabel(visible ? "隐藏密码" : "显示密码")
         }
-        .touliaoFont(16)
+        .touliaoText(.body)
         .padding(.horizontal, 12)
         .padding(.vertical, 2)
         .frame(minHeight: 48)

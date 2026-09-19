@@ -10,7 +10,7 @@ struct VxinGradientButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                Text(title).touliaoFont(16, weight: .semibold).opacity(loading ? 0 : 1)
+                Text(title).touliaoText(.body, weight: .semibold).opacity(loading ? 0 : 1)
                 if loading { ProgressView().tint(.vxinOnPrimary) }
             }
             .padding(.horizontal, 16).padding(.vertical, 12)

@@ -37,7 +37,7 @@ struct AddFriendView: View {
             .padding(.horizontal)
 
             if let message = vm.message {
-                Text(message).touliaoFont(14).foregroundColor(.vxinGreen)
+                Text(message).touliaoText(.secondary).foregroundColor(.vxinGreen)
             }
 
             if vm.searching {
@@ -53,7 +53,7 @@ struct AddFriendView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(user.username.isEmpty ? "未命名" : user.username)
                         if !user.wechatId.isEmpty {
-                            Text("投聊号: \(user.wechatId)").touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                            Text("投聊号: \(user.wechatId)").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                         }
                     }
                     Spacer()
@@ -131,16 +131,16 @@ private struct ScannedUserProfileSheet: View {
             InitialAvatar(name: detail.username.isEmpty ? "?" : detail.username, size: 72)
 
             Text(detail.username.isEmpty ? "未命名" : detail.username)
-                .touliaoFont(18).fontWeight(.semibold)
+                .touliaoText(.headline).fontWeight(.semibold)
 
             if !detail.wechatId.isEmpty {
                 Text("投聊号: \(detail.wechatId)")
-                    .touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                    .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
             }
 
             if !detail.bio.isEmpty {
                 Text(detail.bio)
-                    .touliaoFont(14).foregroundColor(.vxinTextSecondary)
+                    .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                     .multilineTextAlignment(.center)
             }
 
@@ -154,7 +154,7 @@ private struct ScannedUserProfileSheet: View {
                     .frame(maxWidth: .infinity)
             } else if detail.hasPendingRequest || alreadySent {
                 Text("好友申请已发送，等待对方确认")
-                    .touliaoFont(14).foregroundColor(.vxinTextSecondary)
+                    .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                 Spacer().frame(height: 8)
                 Button("关闭") { vm.dismissScannedUser() }
                     .buttonStyle(.bordered)

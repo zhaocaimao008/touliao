@@ -35,7 +35,7 @@ struct CreateGroupView: View {
             }
 
             if let error = vm.error {
-                Text(error).foregroundColor(.vxinError).touliaoFont(14).padding(8)
+                Text(error).foregroundColor(.vxinError).touliaoText(.secondary).padding(8)
             }
         }
         .navigationTitle("发起群聊")

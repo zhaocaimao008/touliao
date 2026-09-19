@@ -6,7 +6,7 @@ struct TouliaoBadge: View {
     var body: some View {
         if count > 0 {
             Text(count > 99 ? "99+" : "\(count)")
-                .touliaoFont(12, weight: .medium)
+                .touliaoText(.caption, weight: .medium)
                 .monospacedDigit().fixedSize()
                 .foregroundColor(.vxinOnPrimary)
                 .padding(.horizontal, 6).padding(.vertical, 2)
