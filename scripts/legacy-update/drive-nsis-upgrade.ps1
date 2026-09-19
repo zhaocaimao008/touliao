@@ -2,7 +2,10 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 $actions = @()
+$seen = @{}
 $deadline = (Get-Date).AddSeconds(170)
 try {
     while ((Get-Date) -lt $deadline) {
@@ -15,6 +18,16 @@ try {
             $process = Get-Process -Id $window.Current.ProcessId -ErrorAction SilentlyContinue
             if (!$process -or $process.ProcessName -eq 'touliao') { continue }
             $installerWindows++
+            if (!$seen.ContainsKey($window.Current.Name)) {
+                $seen[$window.Current.Name] = $true
+                $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+                $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
+                $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+                try {
+                    $graphics.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bitmap.Size)
+                    $bitmap.Save((Join-Path $Output 'nsis-native-wizard.png'))
+                } finally { $graphics.Dispose(); $bitmap.Dispose() }
+            }
             $buttons = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants,
                 [System.Windows.Automation.PropertyCondition]::new(
                     [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
@@ -22,6 +35,7 @@ try {
             foreach ($button in $buttons) {
                 if ($button.Current.IsEnabled -and $button.Current.Name -match 'Next|Install|Finish|下一步|安装|完成') {
                     $actions += @{window=$window.Current.Name;button=$button.Current.Name;process=$process.ProcessName;time=(Get-Date).ToString('o')}
+                    ConvertTo-Json -InputObject @($actions) -Depth 4 | Set-Content (Join-Path $Output 'nsis-ui-actions.json')
                     $invoke = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
                     $invoke.Invoke()
                     Start-Sleep -Seconds 1
