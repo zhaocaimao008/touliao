@@ -241,7 +241,7 @@ class NativeUIReviewTest {
     @Composable private fun ReviewScreen(name: String) {
         val back = { screen.value = "login" }
         when (name) {
-            "p2-states" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            "p2-states" -> Column(Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 var checked by remember { mutableStateOf(false) }
                 com.touliao.app.ui.components.TouliaoSettingToggle("状态开关", checked = checked, onChange = { checked = it })
                 com.touliao.app.ui.components.TouliaoSettingToggle("禁用开关", checked = false, enabled = false, onChange = {})

@@ -127,3 +127,7 @@ html.touliao-ui.windows-desktop body .gcm-dialog { top: 30px; }
 @media (max-width: 767px) {
   html.touliao-ui body :is(.gi-btn-name, .gi-btn-xl, .gi-btn-xl-sm, .gi-clear-search) { min-width: var(--tl-touch-target); min-height: var(--tl-touch-target); }
 }
+
+/* Search uses the Field surface; compatibility outer classes retain layout only. */
+html.touliao-ui body .tl-global-search { padding: 0; background: transparent; border: 0; box-shadow: none; height: auto; }
+html.touliao-ui body .wc-search.tl-global-search { margin: 0; }

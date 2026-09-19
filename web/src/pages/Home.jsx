@@ -1,3 +1,4 @@
+import TouliaoField from '../ui-kit/Field';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { showConfirm, showToast } from '../utils/toast';
@@ -1198,12 +1199,10 @@ export default function Home() {
                       </button>
                     )}
                   </div>
-                  <div className="m-search">
-                    <span className="m-search-icon"><IcoSearch className="ico-sm" /></span>
-                    <input placeholder={t('common.search')} aria-label={t('common.search')} value={search}
-                      onChange={e => setSearch(e.target.value)} />
-                    {search && <button className="m-search-clear" aria-label={t('common.clear')} onClick={() => setSearch('')}><TouliaoIcon name="close" size="sm" /></button>}
-                  </div>
+                  <TouliaoField className="m-search tl-global-search" variant="SEARCH"
+                    icon={<IcoSearch className="ico-sm" />} placeholder={t('common.search')}
+                    aria-label={t('common.search')} value={search} onClear={() => setSearch('')}
+                    onChange={e => setSearch(e.target.value)} />
                 </>
               ) : (
                 <div className="m-topbar">
@@ -1286,20 +1285,11 @@ export default function Home() {
             <div className="tl-panel-heading"><h1>{t(TABS.find(item => item.key === tab)?.labelKey || 'home.tab.chats')}</h1></div>
             {/* 固定顶栏：搜索 + 二维码 + 添加 */}
             <div className="wc-panel-topbar">
-              <div className="wc-search">
-                <span className="wc-search-icon"><IcoSearch className="ico-sm" /></span>
-                <input
-                  placeholder={t('common.search')}
-                  aria-label={t('common.search')}
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && tab === 'contacts') { e.preventDefault(); setAddFriendRequest(n => n + 1); } }}
-                />
-                {search && (
-                  <button className="home-search-clear" aria-label={t('common.clear')}
-                    onClick={() => setSearch('')}><TouliaoIcon name="close" size="sm" /></button>
-                )}
-              </div>
+              <TouliaoField className="wc-search tl-global-search" variant="SEARCH"
+                icon={<IcoSearch className="ico-sm" />} placeholder={t('common.search')}
+                aria-label={t('common.search')} value={search} onClear={() => setSearch('')}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && tab === 'contacts') { e.preventDefault(); setAddFriendRequest(n => n + 1); } }} />
 
               {/* 添加按钮 */}
               <button ref={addBtnRef} className="wc-icon-btn" data-testid="add-menu-btn" title={t('home.launch')} aria-label={t('home.launch')} aria-expanded={showAddMenu} onClick={toggleAddMenu}>

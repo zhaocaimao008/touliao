@@ -16,15 +16,4 @@ adb shell am instrument -w -e class com.touliao.app.review.NativeUIReviewTest \
   com.touliao.app.test/com.touliao.app.review.ReviewRunner | tee native-review/instrumentation.txt
 adb pull /sdcard/Android/data/com.touliao.app/files/NativeUiReview native-review/ || true
 adb logcat -d > native-review/logcat.txt || true
-python3 - <<'PY'
-import json,re
-from pathlib import Path
-root=Path('native-review');text=(root/'instrumentation.txt').read_text()
-m=re.search(r'\bOK \((\d+) tests?\)',text)
-images=list((root/'NativeUiReview').glob('*.png'))
-result={'environment':'Android Emulator API 34, native instrumentation','testsPassed':int(m[1]) if m else 0,'screenshots':len(images),'hardware':False}
-(root/'validation.json').write_text(json.dumps(result,indent=2)+'\n')
-assert m and int(m[1]) == 3, 'Native test runner did not report all three tests passing'
-assert len(images) >= 60, 'Native screenshot collection is incomplete'
-print(result)
-PY
+python3 ../scripts/native-review/verify-android.py

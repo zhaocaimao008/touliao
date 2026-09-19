@@ -1,3 +1,4 @@
+import { GhostButton, PrimaryButton, SecondaryButton, DangerButton } from '../ui-kit/Button';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -220,10 +221,10 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
               maxLength={20}
             />
             <div className="up-remark-actions">
-              <button className="up-btn-ghost" onClick={() => setShowRemarkEdit(false)}>{t('common.cancel')}</button>
-              <button className="up-btn-primary" onClick={saveRemark} disabled={remarkSaving}>
+              <GhostButton className="up-btn-ghost" onClick={() => setShowRemarkEdit(false)}>{t('common.cancel')}</GhostButton>
+              <PrimaryButton className="up-btn-primary" onClick={saveRemark} disabled={remarkSaving}>
                 {remarkSaving ? t('up.saving') : t('common.confirm')}
-              </button>
+              </PrimaryButton>
             </div>
           </div>
         )}
@@ -232,10 +233,10 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {!user.isFriend && userId !== currentUser?.id && (
           <div className="up-add-area">
             {addStep === 'idle' && (
-              <button className="up-btn-primary up-btn-full" onClick={() => setAddStep('composing')}>
+              <PrimaryButton className="up-btn-primary up-btn-full" onClick={() => setAddStep('composing')}>
                 <IcoPersonAdd style={{marginRight:6}} size="xs" />
                 {t('up.applyAddFriend')}
-              </button>
+              </PrimaryButton>
             )}
             {addStep === 'composing' && (
               <div className="up-verify-box">
@@ -251,10 +252,10 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
                 />
                 {errMsg && <div className="up-err">{errMsg}</div>}
                 <div className="up-verify-actions">
-                  <button className="up-btn-ghost" onClick={() => { setAddStep('idle'); setErrMsg(''); }}>{t('common.cancel')}</button>
-                  <button className="up-btn-primary" onClick={sendRequest} disabled={sending}>
+                  <GhostButton className="up-btn-ghost" onClick={() => { setAddStep('idle'); setErrMsg(''); }}>{t('common.cancel')}</GhostButton>
+                  <PrimaryButton className="up-btn-primary" onClick={sendRequest} disabled={sending}>
                     {sending ? t('fwd.sending') : t('up.sendApplication')}
-                  </button>
+                  </PrimaryButton>
                 </div>
               </div>
             )}
@@ -270,24 +271,24 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {/* 好友操作按钮 */}
         {user.isFriend && (
           <div className="up-actions">
-            <button className="up-action-btn up-action-chat" onClick={startChat}>
+            <PrimaryButton className="up-action-btn up-action-chat" onClick={startChat}>
               <TouliaoIcon name="chat" size="sm" />
               <span>{t('up.sendMessage')}</span>
-            </button>
+            </PrimaryButton>
             {onNudge && userId !== currentUser?.id && (
-              <button className="up-action-btn up-action-grey" onClick={() => { onNudge(userId); showToast(t('up.nudgeSentToast')); onClose?.(); }}>
+              <SecondaryButton className="up-action-btn up-action-grey" onClick={() => { onNudge(userId); showToast(t('up.nudgeSentToast')); onClose?.(); }}>
                 <TouliaoIcon name="nudge" size="sm" />
                 <span>{t('up.nudge')}</span>
-              </button>
+              </SecondaryButton>
             )}
             <button className={`up-action-btn ${blocked ? 'up-action-warn' : 'up-action-grey'}`} onClick={toggleBlock}>
               <TouliaoIcon name="blocked" size="sm" />
               <span>{blocked ? t('up.blacklistedVerb') : t('up.blacklistVerb')}</span>
             </button>
-            <button className="up-action-btn up-action-danger" onClick={deleteFriend}>
+            <DangerButton className="up-action-btn up-action-danger" onClick={deleteFriend}>
               <TouliaoIcon name="delete" size="sm" />
               <span>{t('chat.delete')}</span>
-            </button>
+            </DangerButton>
           </div>
         )}
       </div>

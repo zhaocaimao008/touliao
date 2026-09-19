@@ -21,7 +21,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Scaffold
 import com.touliao.app.ui.components.TouliaoSettingToggle as ToggleRow
 import androidx.compose.material3.Text
@@ -262,7 +262,7 @@ private fun QuietTimeDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
+                TouliaoField(
                     value = startText,
                     onValueChange = { startText = it; error = null },
                     label = { Text("开始时间（HH:MM）") },
@@ -270,7 +270,7 @@ private fun QuietTimeDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                TouliaoField(
                     value = endText,
                     onValueChange = { endText = it; error = null },
                     label = { Text("结束时间（HH:MM）") },

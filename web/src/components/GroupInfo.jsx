@@ -495,8 +495,8 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-f1">
             {editName ? (
               <div className="gi-fca gi-gap6">
-                <input value={nameVal} onChange={e => setNameVal(e.target.value)}
-                  className="gi-name-edit" data-testid="group-rename-input" maxLength={30}
+                <TouliaoField value={nameVal} onChange={e => setNameVal(e.target.value)}
+                  className="tl-field-inline" controlClassName="gi-name-edit" data-testid="group-rename-input" maxLength={30}
                   aria-label={t('groupInfo.groupNameAriaLabel')} autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditName(false); }} />
                 <button className="gi-btn-edit" data-testid="group-rename-save" onClick={saveName}>{t('common.save')}</button>
@@ -762,17 +762,17 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-nk-bd">
             {editNickname ? (
               <>
-                <input
+                <TouliaoField
                   autoFocus
                   value={nicknameVal}
                   onChange={e => setNicknameVal(e.target.value)}
                   placeholder={t('groupInfo.nicknamePlaceholder')}
                   maxLength={30}
                   aria-label={t('groupInfo.nicknameAriaLabel')}
-                  className="gi-nick-input"
+                  className="tl-field-inline" controlClassName="gi-nick-input"
                   onKeyDown={e => { if (e.key === 'Enter') saveNickname(); if (e.key === 'Escape') setEditNickname(false); }}
                 />
-                <button className="gi-btn-save-sm" onClick={saveNickname}>{t('common.save')}</button>
+                <PrimaryButton className="gi-btn-save-sm" onClick={saveNickname}>{t('common.save')}</PrimaryButton>
                 <button className="gi-btn-xl-sm" onClick={() => setEditNickname(false)}>{t('common.cancel')}</button>
               </>
             ) : (

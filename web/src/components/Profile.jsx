@@ -1,3 +1,4 @@
+import { DangerButton, PrimaryButton, SecondaryButton } from '../ui-kit/Button';
 import TouliaoField from '../ui-kit/Field';
 import { TextButton } from '../ui-kit/Button';
 import TouliaoSwitch from '../ui-kit/Switch';
@@ -588,7 +589,7 @@ function DeviceList({ onBack }) {
                   </div>
                   {s.current
                     ? <span className="wc-badge-current">{t('profile.currentBadge')}</span>
-                    : <button className="wc-btn-exit" onClick={() => removeSession(s.id)}>{t('profile.exitDevice')}</button>
+                    : <DangerButton className="wc-btn-exit" onClick={() => removeSession(s.id)}>{t('profile.exitDevice')}</DangerButton>
                   }
                 </div>
               ))
@@ -598,7 +599,7 @@ function DeviceList({ onBack }) {
         <div className="wc-device-hint">{t('profile.exitDeviceHint')}</div>
         {sessions.some(s => !s.current) && (
           <div className="wc-section-pad profile-mt-8">
-            <button className="wc-btn-exit-all" onClick={removeAllSessions}>{t('profile.exitAllOtherDevices')}</button>
+            <DangerButton className="wc-btn-exit-all" onClick={removeAllSessions}>{t('profile.exitAllOtherDevices')}</DangerButton>
           </div>
         )}
       </div>
@@ -951,12 +952,12 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
             <span className="wc-add-info-text">{t('profile.addAccountHint')}</span>
           </div>
           <form onSubmit={doAdd} className="wc-add-form-inner">
-            <input ref={phoneRef} type="tel" placeholder={t('profile.phoneLabel')} aria-label={t('profile.phoneLabel')} value={form.phone}
+            <TouliaoField ref={phoneRef} type="tel" placeholder={t('profile.phoneLabel')} aria-label={t('profile.phoneLabel')} value={form.phone}
               onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-              className="wc-add-form-input" />
-            <input type="password" placeholder={t('profile.passwordLabel')} aria-label={t('profile.passwordLabel')} value={form.password}
+              className="tl-field-inline" controlClassName="wc-add-form-input" />
+            <TouliaoField type="password" placeholder={t('profile.passwordLabel')} aria-label={t('profile.passwordLabel')} value={form.password}
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              className="wc-add-form-input" />
+              className="tl-field-inline" controlClassName="wc-add-form-input" />
             {error && <div className="wc-add-form-error" role="alert">{error}</div>}
             <button type="submit" disabled={loading} className="wc-add-form-submit">
               {loading ? t('profile.loggingIn') : t('profile.loginAndSwitch')}
@@ -1157,12 +1158,12 @@ function ServerSettings({ onBack }) {
       <PageHeader title={t('profile.serverAddressTitle')} onBack={onBack} />
       <div className="wc-server-pad">
         <div className="wc-server-label">{t('profile.tenantCodeLabel')}</div>
-        <input
+        <TouliaoField
           value={tenantCode}
           onChange={e => { setTenantCode(e.target.value); setCodeResult(null); }}
           placeholder={t('profile.tenantCodePlaceholder')}
           aria-label={t('profile.tenantCodeLabel')}
-          className="wc-server-input"
+          className="tl-field-inline" controlClassName="wc-server-input"
         />
         {codeResult && (
           <div role="status" className="profile-test-result" style={{ color: codeResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
@@ -1171,21 +1172,21 @@ function ServerSettings({ onBack }) {
         )}
       </div>
       <div className="wc-server-btn-row">
-        <button onClick={handleResolveCode} disabled={resolving || !tenantCode.trim()} className="wc-btn-save">
+        <PrimaryButton onClick={handleResolveCode} disabled={resolving || !tenantCode.trim()} className="wc-btn-save">
           {resolving ? t('profile.tenantCodeResolving') : t('profile.tenantCodeResolve')}
-        </button>
+        </PrimaryButton>
       </div>
       <div className="wc-server-hint">
         <div className="wc-server-hint-box">{t('profile.tenantCodeHint')}</div>
       </div>
       <div className="wc-server-pad">
         <div className="wc-server-label">{t('profile.serverAddressLabel')}</div>
-        <input
+        <TouliaoField
           value={input}
           onChange={e => { setInput(e.target.value); setTestResult(null); }}
           placeholder="https://example.com"
           aria-label={t('profile.serverAddressTitle')}
-          className="wc-server-input"
+          className="tl-field-inline" controlClassName="wc-server-input"
         />
         {testResult && (
           <div role="status" className="profile-test-result" style={{ color: testResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
@@ -1194,12 +1195,12 @@ function ServerSettings({ onBack }) {
         )}
       </div>
       <div className="wc-server-btn-row">
-        <button onClick={testConn} disabled={testing} className="wc-btn-test">
+        <SecondaryButton onClick={testConn} disabled={testing} className="wc-btn-test">
           {testing ? t('profile.testing') : t('profile.testConnection')}
-        </button>
-        <button onClick={handleSave} disabled={saving || !input.trim().startsWith('http')} className="wc-btn-save">
+        </SecondaryButton>
+        <PrimaryButton onClick={handleSave} disabled={saving || !input.trim().startsWith('http')} className="wc-btn-save">
           {saving ? t('profile.switching') : t('profile.saveAndSwitch')}
-        </button>
+        </PrimaryButton>
       </div>
       <div className="wc-server-hint">
         <div className="wc-server-hint-box">
@@ -1305,9 +1306,9 @@ function ShortcutSettings({ onBack }) {
                   aria-pressed={isRec}>
                   {isRec ? t('common.cancel') : t('profile.startRecording')}
                 </button>
-                <button className="wc-btn-link" onClick={() => resetOne(key)} title={t('profile.resetDefault')}>
+                <TextButton className="wc-btn-link" onClick={() => resetOne(key)} title={t('profile.resetDefault')}>
                   {t('profile.resetShort')}
-                </button>
+                </TextButton>
               </div>
             </div>
             {st && (
