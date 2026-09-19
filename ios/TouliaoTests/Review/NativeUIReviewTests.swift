@@ -73,7 +73,7 @@ final class NativeUIReviewTests: XCTestCase {
                 try await capture(view, name: name + (dark ? "-dark" : "-light"), dark: dark)
             }
         }
-        for (name, view) in screens().filter({ ["login", "contacts", "chat", "appearance", "settings"].contains($0.0) }) {
+        for (name, view) in screens().filter({ ["login", "register", "contacts", "chat", "group-chat", "file-detail", "toast", "appearance", "settings"].contains($0.0) }) {
             try await capture(view, name: name + "-dark-large-text", dark: true, large: true, width: 320)
         }
         ReviewURLProtocol.lock.lock(); let paths = ReviewURLProtocol.paths.sorted(); ReviewURLProtocol.lock.unlock()
@@ -96,6 +96,31 @@ final class NativeUIReviewTests: XCTestCase {
         try await capture(controls, name: "call-controls-dark-large-text", dark: true, large: true, width: 320)
     }
 
+
+    func testImageVideoAndFilePreviewRouting() async throws {
+        let vm = ChatViewModel(conversationId: "review-chat", title: "测试", myId: "review-me")
+        await vm.loadHistory()
+        var image = Message(cachedId: "image", conversationId: "review-chat", senderId: "review-me")
+        image.type = "image"; image.fileUrl = "/uploads/image.png"
+        vm.messages = [image]
+        vm.openImage(image)
+        XCTAssertEqual(vm.galleryStart, 0)
+        XCTAssertTrue(try XCTUnwrap(vm.galleryImages?.first).contains("/uploads/image.png"))
+        XCTAssertTrue(try XCTUnwrap(vm.galleryImages?.first).contains("token="))
+        var video = image; video.type = "video"; video.fileUrl = "/uploads/video.mp4"; video.content = "视频.mp4"
+        vm.openAttachment(video)
+        XCTAssertTrue(try XCTUnwrap(vm.videoPreview?.url).contains("/uploads/video.mp4"))
+        XCTAssertNil(vm.fileDetails)
+        var pdf = image; pdf.type = "file"; pdf.fileUrl = "/uploads/report.pdf"; pdf.content = "说明.pdf"
+        vm.openAttachment(pdf)
+        XCTAssertNotNil(vm.pdfPreview)
+        var file = pdf; file.content = "资料.zip"; file.fileUrl = "/uploads/archive.zip"
+        vm.openAttachment(file)
+        XCTAssertEqual(vm.fileDetails?.name, "资料.zip")
+        vm.appendEmoji("😀")
+        XCTAssertTrue(vm.input.hasSuffix("😀"))
+    }
+
     private func screens() -> [(String, AnyView)] {
         let conversation = Conversation(id: "review-chat", name: "李明")
         return [
@@ -103,6 +128,9 @@ final class NativeUIReviewTests: XCTestCase {
             ("forgot-password", AnyView(ForgotPasswordView())),
             ("conversations", AnyView(ConversationListView(myId: "review-me"))),
             ("chat", AnyView(ChatView(conversation: conversation, myId: "review-me"))),
+            ("group-chat", AnyView(ChatView(conversation: Conversation(id: "review-group", type: "group", name: "投聊设计讨论"), myId: "review-me"))),
+            ("file-detail", AnyView(FileDetailsOverlay(url: "https://native-review.invalid/uploads/review.zip", filename: "项目资料与设计说明.zip", sizeText: "2.4 MB", onDismiss: {}))),
+            ("toast", AnyView(TouliaoToast(message: "文件上传失败，请检查网络后重试").padding(24))),
             ("files", AnyView(ConversationFilesView(conversationId: conversation.id))),
             ("mentions", AnyView(MentionsView(myId: "review-me", onOpenConversation: { _ in }))),
             ("contacts", AnyView(ContactsView(onStartChat: { _ in }, onAddFriend: {}, onRequests: {}, onCreateGroup: {}))),

@@ -9,44 +9,27 @@ struct VideoPlayerOverlay: View {
     let url: String
     let filename: String?
     let onDismiss: () -> Void
+    @StateObject private var playback = AttachmentPlayback()
     @State private var saving = false
     @State private var errorMsg: String?
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack {
             Color.black.ignoresSafeArea()
-            if let playerUrl = URL(string: url) {
-                VideoPlayer(player: AVPlayer(url: playerUrl))
-                    .ignoresSafeArea()
-            }
-            HStack {
-                Button(action: onDismiss) {
-                    TouliaoIcon(systemName: "xmark")
-                        .foregroundColor(.white)
-                        .padding(10)
-                        .background(Color.black.opacity(0.4))
-                        .clipShape(Circle())
-                }
-                Spacer()
+            VideoPlayer(player: playback.player)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            MediaPreviewToolbar(title: filename ?? "视频", onDismiss: onDismiss) {
                 Button(action: saveVideo) {
-                    Text(saving ? "保存中…" : "保存视频")
-                        .touliaoFont(14)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(Color.black.opacity(0.4))
-                        .clipShape(Capsule())
+                    Label(saving ? "保存中…" : "保存视频", touliaoSystemImage: "square.and.arrow.down")
+                        .touliaoFont(14).frame(minHeight: 44)
                 }
                 .disabled(saving)
             }
-            .padding(.top, 50)
-            .padding(.horizontal, 16)
-            if let errorMsg {
-                Text(errorMsg).foregroundColor(.white).touliaoFont(14)
-                    .padding(8).background(Color.black.opacity(0.6)).cornerRadius(8)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 40)
-            }
         }
+        .toast($errorMsg)
+        .task(id: url) { playback.load(url); playback.player.play() }
+        .onDisappear { playback.player.pause() }
     }
 
     private func saveVideo() {
@@ -76,26 +59,20 @@ struct PdfPreviewOverlay: View {
     @State private var errorMsg: String?
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Color(white: 0.32).ignoresSafeArea()
+        ZStack {
+            Color(white: 0.12).ignoresSafeArea()
             if let document {
-                PdfKitView(document: document).ignoresSafeArea()
+                PdfKitView(document: document)
             } else if let errorMsg {
                 Text("无法预览：\(errorMsg)").foregroundColor(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ProgressView().tint(.white)
+                ProgressView("加载文件…").tint(.white).foregroundColor(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            Button(action: onDismiss) {
-                TouliaoIcon(systemName: "xmark")
-                    .foregroundColor(.white)
-                    .padding(10)
-                    .background(Color.black.opacity(0.4))
-                    .clipShape(Circle())
-            }
-            .padding(.top, 50)
-            .padding(.leading, 16)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            MediaPreviewToolbar(title: filename ?? "PDF", onDismiss: onDismiss) { EmptyView() }
         }
         .task { await load() }
     }
@@ -141,41 +118,37 @@ struct FileDetailsOverlay: View {
     @State private var errorMsg: String?
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Color.black.opacity(0.92).ignoresSafeArea()
-            VStack(spacing: 16) {
-                RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.15))
-                    .frame(width: 64, height: 64)
-                    .overlay(Text("FILE").touliaoFont(12).foregroundColor(.white))
-                Text(filename ?? "未知文件").foregroundColor(.white).multilineTextAlignment(.center)
-                if let sizeText, !sizeText.isEmpty {
-                    Text(sizeText).touliaoFont(14).foregroundColor(.white.opacity(0.6))
-                }
-                Text("该文件格式暂不支持在投聊内直接预览，可以下载保存，或下载后选择用其他应用打开。")
-                    .touliaoFont(14).foregroundColor(.white.opacity(0.6))
-                    .multilineTextAlignment(.center).padding(.horizontal, 32)
-                HStack(spacing: 12) {
-                    Button(action: openWithOtherApp) {
-                        Text(preparing ? "准备中…" : "用其他应用打开")
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 18).padding(.vertical, 10)
-                            .background(Color.white.opacity(0.2)).clipShape(Capsule())
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    TouliaoIcon(systemName: "doc.fill", size: 36)
+                        .foregroundColor(.vxinBrand)
+                        .frame(width: 80, height: 80)
+                        .background(Color.vxinPrimarySoft)
+                        .clipShape(RoundedRectangle(cornerRadius: VxinRadius.card))
+                    Text(filename ?? "未知文件").touliaoFont(18, weight: .semibold)
+                        .multilineTextAlignment(.center)
+                    if let sizeText, !sizeText.isEmpty {
+                        Text(sizeText).touliaoFont(14).foregroundColor(.vxinTextSecondary)
                     }
-                    .disabled(preparing)
+                    Text("该文件格式暂不支持在投聊内直接预览，可以下载保存，或下载后选择用其他应用打开。")
+                        .touliaoFont(14).foregroundColor(.vxinTextSecondary)
+                        .multilineTextAlignment(.center)
+                    VxinGradientButton(title: "用其他应用打开", loading: preparing, action: openWithOtherApp)
                 }
-                if let errorMsg { Text(errorMsg).touliaoFont(14).foregroundColor(.red) }
+                .padding(24)
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Button(action: onDismiss) {
-                TouliaoIcon(systemName: "xmark")
-                    .foregroundColor(.white)
-                    .padding(10)
-                    .background(Color.black.opacity(0.4))
-                    .clipShape(Circle())
+            .navigationTitle("文件详情")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: onDismiss) {
+                        TouliaoIcon(systemName: "xmark").frame(minWidth: 44, minHeight: 44)
+                    }.accessibilityLabel("关闭文件")
+                }
             }
-            .padding(.top, 50)
-            .padding(.leading, 16)
+            .touliaoPage()
+            .toast($errorMsg)
         }
         .sheet(isPresented: Binding(get: { shareUrl != nil }, set: { if !$0 { shareUrl = nil } })) {
             if let shareUrl { ActivityShareSheet(items: [shareUrl]) }
@@ -206,4 +179,36 @@ private struct ActivityShareSheet: UIViewControllerRepresentable {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+/// A single player survives SwiftUI updates (including download progress/toasts).
+/// This is presentation state only; uploads, authenticated URLs and downloads are unchanged.
+final class AttachmentPlayback: ObservableObject {
+    let player = AVPlayer()
+    private(set) var source: String?
+
+    func load(_ source: String) {
+        guard self.source != source, let url = URL(string: source) else { return }
+        self.source = source
+        player.replaceCurrentItem(with: AVPlayerItem(url: url))
+    }
+}
+
+struct MediaPreviewToolbar<Actions: View>: View {
+    let title: String
+    let onDismiss: () -> Void
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: onDismiss) {
+                TouliaoIcon(systemName: "xmark").frame(width: 44, height: 44)
+            }.accessibilityLabel("关闭预览")
+            Text(title).touliaoFont(14).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            actions()
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 12).padding(.vertical, 4)
+        .background(Color(white: 0.10))
+    }
 }

@@ -16,6 +16,8 @@ struct ChatView: View {
     @StateObject private var vm: ChatViewModel
     @EnvironmentObject private var session: SessionStore
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var messageFocused: Bool
+    @ScaledMetric(relativeTo: .body) private var minimumInputWidth: CGFloat = 128
     @State private var photoItem: PhotosPickerItem?
     @State private var bgPhotoItem: PhotosPickerItem?
     @State private var stickerPhotoItem: PhotosPickerItem?
@@ -77,6 +79,9 @@ struct ChatView: View {
         .navigationTitle(vm.peerTyping ? "对方正在输入…" : (vm.title.isEmpty ? "聊天" : vm.title))
         .navigationBarTitleDisplayMode(.inline)
         .touliaoPage()
+        .onChange(of: messageFocused) { focused in
+            if focused { showStickerPanel = false; showFuncPanel = false }
+        }
         .toast($vm.error)   // 发送/上传/收藏/转发等失败与"已收藏""已转发"等提示统一透出
         .toolbar {
             if isGroup {
@@ -508,6 +513,7 @@ struct ChatView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
+            .scrollDismissesKeyboard(.interactively)
             // 最新一条变化：在底部则跟随滚底；在上方看历史则累计"N 条新消息"不打断
             .onChange(of: vm.messages.last?.id) { _ in
                 guard let last = vm.messages.last else { return }
@@ -603,13 +609,54 @@ struct ChatView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16).padding(.vertical, 4)
             }
-            // 2026-08-29 视觉重做(参考V信iOS输入区设计稿)：圆形图标按钮 + 药丸形浅底输入框，
-            // 不改变任何交互逻辑(编辑/回复/录音/@/发送 vs + 切换均与此前完全一致)。
-            // [🎤][@?][ 输入消息…(浅灰药丸底) ][🙂][➕/发送]
-            HStack(alignment: .bottom, spacing: 8) {
+            // Use a second row when the remaining input width is too narrow.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .bottom, spacing: 8) {
+                    voiceAndMentionButtons
+                    composerField.frame(minWidth: minimumInputWidth)
+                    emojiButton
+                    sendOrMoreButton
+                }
+                VStack(spacing: 8) {
+                    composerField
+                    HStack(spacing: 8) {
+                        voiceAndMentionButtons
+                        Spacer(minLength: 0)
+                        emojiButton
+                        sendOrMoreButton
+                    }
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+
+            if showStickerPanel {
+                stickerEmojiPanel
+            }
+            if showFuncPanel {
+                functionPanel
+            }
+        }
+        .background(Color.vxinSurface)
+    }
+
+    private var composerField: some View {
+
+                TextField("输入消息…", text: $vm.input, axis: .vertical)
+                    .lineLimit(1...6)
+                    .focused($messageFocused)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 44)
+                    .background(Color.vxinSurfaceSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
+                    .accessibilityIdentifier("chat-msg-input")
+
+    }
+
+    @ViewBuilder private var voiceAndMentionButtons: some View {
                 inputBarIconButton(
                     systemName: vm.recording ? "stop.fill" : "mic.fill",
-                    tint: vm.recording ? .vxinError : .primary,
+                    tint: vm.recording ? .vxinError : .vxinText,
                     action: onMicTap
                 )
                 .accessibilityIdentifier("chat-voice-btn")
@@ -620,21 +667,23 @@ struct ChatView: View {
                         .accessibilityLabel("提及成员")
                 }
 
-                TextField("输入消息…", text: $vm.input, axis: .vertical)
-                    .lineLimit(1...6)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .frame(minHeight: 44)
-                    .background(Color.vxinSurfaceSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
-                    .accessibilityIdentifier("chat-msg-input")
+    }
+
+    private var emojiButton: some View {
 
                 inputBarIconButton(systemName: showStickerPanel ? "keyboard" : "face.smiling", tint: .vxinText) {
                     showStickerPanel.toggle()
-                    if showStickerPanel { showFuncPanel = false; vm.loadStickers() }
+                    if showStickerPanel {
+                        messageFocused = false; showFuncPanel = false; vm.loadStickers()
+                    } else { messageFocused = true }
                 }
                 .accessibilityIdentifier("chat-emoji-btn")
                 .accessibilityLabel("表情")
+
+    }
+
+    private var sendOrMoreButton: some View {
+        Group {
 
                 // 有文字 → 发送键；无文字(含纯空白) → +(功能面板)。对齐 Android/微信，逻辑不变。
                 let hasText = !vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -652,7 +701,7 @@ struct ChatView: View {
                         if vm.sending {
                             ProgressView().frame(width: 44, height: 44)
                         } else {
-                            TouliaoIcon(systemName: "arrow.up", size: 15)
+                            TouliaoIcon(systemName: "paperplane.fill", size: 20)
                                 .foregroundColor(.vxinOnPrimary)
                                 .frame(width: 44, height: 44)
                                 .background(Color.vxinGreen)
@@ -665,30 +714,20 @@ struct ChatView: View {
                 } else {
                     inputBarIconButton(systemName: "plus", tint: .vxinText, filled: true) {
                         showFuncPanel.toggle()
-                        if showFuncPanel { showStickerPanel = false }
+                        if showFuncPanel { messageFocused = false; showStickerPanel = false }
                     }
                     .accessibilityIdentifier("chat-more-btn")
                     .accessibilityLabel("更多功能")
                 }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-
-            if showStickerPanel {
-                stickerEmojiPanel
-            }
-            if showFuncPanel {
-                functionPanel
-            }
         }
-        .background(Color.vxinSurface)
     }
 
     /// +面板：图片 / 文件 / 红包（对齐微信「更多功能」面板）
     /// 2026-08-29 视觉重做(参考V信iOS输入区设计稿：4列网格，图标统一SF Symbols)。
     /// 功能项与此前完全一致(未增删任何入口)，只是从单行HStack换成不会挤压/换行更整齐的网格。
     private var functionPanel: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 20) {
+        ScrollView {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 12)], spacing: 16) {
             PhotosPicker(selection: $photoItem, matching: .images) {
                 funcItem(systemName: "photo.on.rectangle", label: "图片")
             }
@@ -726,7 +765,8 @@ struct ChatView: View {
                 .accessibilityLabel("定时发送")
         }
         .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
-        .frame(maxWidth: .infinity)
+        }
+        .frame(maxHeight: 260)
         .background(Color.vxinSurfaceSecondary)
     }
 
@@ -738,6 +778,7 @@ struct ChatView: View {
                 .background(Color.vxinSurface)
                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
             Text(label).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -748,6 +789,7 @@ struct ChatView: View {
                 .background(Color.vxinSurface)
                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
             Text(label).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -766,11 +808,14 @@ struct ChatView: View {
     private let emojis = ["😀","😁","😂","🤣","😊","😍","😘","😎","🤔","😅","😉","😴","😭","😡","🥺","👍","👎","🙏","👏","💪","🎉","❤️","💔","🔥","⭐","✅","❌","🌹","🍺","☕","🤝","👌"]
 
     private var stickerEmojiPanel: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        ScrollView {
+        VStack(alignment: .leading, spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHGrid(rows: [GridItem(.fixed(34)), GridItem(.fixed(34))], spacing: 6) {
+                LazyHGrid(rows: [GridItem(.fixed(44)), GridItem(.fixed(44))], spacing: 6) {
                     ForEach(emojis, id: \.self) { e in
-                        Text(e).touliaoFont(18).onTapGesture { vm.appendEmoji(e) }
+                        Button { vm.appendEmoji(e) } label: {
+                            Text(e).touliaoFont(18).frame(minWidth: 44, minHeight: 44)
+                        }.buttonStyle(.plain).accessibilityLabel(e)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -799,7 +844,8 @@ struct ChatView: View {
                 Text("还没有表情，点右上「添加」上传，或长按聊天图片「收藏表情」").touliaoFont(12).foregroundColor(.vxinTextSecondary).padding(8)
             }
         }
-        .frame(height: 150)
+        }
+        .frame(maxHeight: 260)
         .background(Color.vxinSurfaceSecondary)
     }
 
@@ -1174,11 +1220,11 @@ private struct MessageBubble: View {
                 HStack(spacing: 8) {
                     RoundedRectangle(cornerRadius: 6).fill(Color.vxinBrand.opacity(0.12))
                         .frame(width: 28, height: 28)
-                        .overlay(Text("F").touliaoFont(12).foregroundColor(.vxinBrand))
+                        .overlay(TouliaoIcon(systemName: "doc.fill", size: 18).foregroundColor(isMine ? .vxinBubbleText : .vxinBrand))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(msg.content.isEmpty ? "文件" : msg.content).lineLimit(2)
                         if let size = humanFileSize(msg.fileSize) {
-                            Text(size).touliaoFont(12).foregroundColor(.vxinTextSecondary)
+                            Text(size).touliaoFont(12).foregroundColor(isMine ? .vxinBubbleText : .vxinTextSecondary)
                         }
                     }
                 }
@@ -1214,7 +1260,7 @@ private struct MessageBubble: View {
     /// 高亮 @用户名
     private func mentionHighlighted(_ text: String, mine: Bool) -> AttributedString {
         guard text.contains("@"), let re = try? NSRegularExpression(pattern: "@[^\\s@]+") else { return AttributedString(text) }
-        let color: Color = .vxinGreen   // @提及高亮：浅绿/白气泡上都用品牌绿，保证可读
+        let color: Color = mine ? .vxinBubbleText : .vxinBrand
         let ns = text as NSString
         var result = AttributedString("")
         var last = 0
@@ -1682,18 +1728,10 @@ private struct ChatImageGalleryView: View {
                 }
                 .accessibilityLabel("保存图片")
             }
-            if let toast = saveToast {
-                Text(toast)
-                    .touliaoFont(14).foregroundColor(.white)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(Color.black.opacity(0.7))
-                    .clipShape(Capsule())
-                    .padding(.top, 80)
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saveToast = nil }
-                    }
-            }
+
         }
+        .toast($saveToast)
+        .onChange(of: page) { _ in scale = 1 }
         .onAppear { page = min(max(start, 0), max(images.count - 1, 0)) }
         .sheet(isPresented: $showShare) {
             if let items = shareItems { ShareSheet(items: items) }
