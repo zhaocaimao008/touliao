@@ -38,6 +38,11 @@ on:
         type: boolean
         required: false
         default: false
+      prepared_beta_review:
+        description: '将指定已验证构建加入公开测试组并提交 TestFlight 外部 Beta 审核'
+        type: boolean
+        required: false
+        default: false
   push:
     tags:
       # iOS 端专属前缀触发（见 VERSIONING.md 第 2 节）；避免裸 v*/其他端 tag 误触发。
@@ -59,9 +64,10 @@ jobs:
       EXPECTED_IPA_SHA256: ${{ inputs.prepared_ipa_sha256 }}
       PREPARED_RUN_ID: ${{ inputs.prepared_run_id }}
       PREPARE_INTERNAL_TESTING: ${{ inputs.prepare_internal_testing }}
+      PREPARED_BETA_REVIEW: ${{ inputs.prepared_beta_review }}
     steps:
       - uses: actions/checkout@v4
-      - name: Check upload-only request
+      - name: Check prepared artifact request
         env:
           PREPARE_ONLY: ${{ inputs.prepare_only }}
           SUBMIT_REVIEW: ${{ inputs.submit_review }}
@@ -69,6 +75,7 @@ jobs:
           set -euo pipefail
           test "$PREPARE_ONLY" = false
           test "$SUBMIT_REVIEW" = false
+          [[ "$PREPARE_INTERNAL_TESTING" != true || "$PREPARED_BETA_REVIEW" != true ]]
           [[ "$PREPARED_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]
           [[ "$EXPECTED_IPA_SHA256" =~ ^[a-f0-9]{64}$ ]]
@@ -99,6 +106,12 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: bash ios/release-preparation/upload-prepared.sh wait
+      - name: Submit the exact build for external TestFlight Beta review
+        if: ${{ inputs.prepared_beta_review }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bash ios/release-preparation/upload-prepared.sh beta-review
       - name: Save upload receipt
         if: always()
         uses: actions/upload-artifact@v4

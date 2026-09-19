@@ -1,4 +1,4 @@
-"""Verify/upload an approved IPA; optional internal group setup, never review submission."""
+"""Verify/upload an approved IPA, with opt-in TestFlight group setup or Beta review."""
 import base64
 import hashlib
 import json
@@ -159,6 +159,109 @@ def prepare_internal_testing(status):
     raise RuntimeError('Internal group assignment was not visible after verification')
 
 
+def submit_beta_review():
+    require(os.environ.get('PREPARED_BETA_REVIEW') == 'true', 'External Beta review was not requested')
+    require(os.environ.get('PREPARE_INTERNAL_TESTING') != 'true', 'Conflicting testing modes')
+    status = build_status()
+    require(status['processingState'] == 'VALID', 'Exact build is not ready for Beta review')
+    require(status['usesNonExemptEncryption'] is False, 'Expected previously verified export compliance')
+    approved = json.loads((EVIDENCE / 'approved-ipa.json').read_text())
+    require(approved['version'] == VERSION and approved['buildNumber'] == BUILD and approved['signatureVerified'], 'Missing approved artifact evidence')
+    config = json.loads(Path('ios/testflight-config.json').read_text())
+    require(config['bundle'] == BUNDLE and config['mode'] == 'external', 'Unexpected Beta configuration')
+    required = ['locale', 'description', 'feedback_email', 'contact_first', 'contact_last', 'contact_email', 'contact_phone', 'demo_account', 'demo_password', 'review_notes']
+    for field in required:
+        require(isinstance(config.get(field), str) and bool(config[field].strip()), 'Missing Beta configuration: ' + field)
+    app_id, build_id = status['appId'], status['buildId']
+    groups = get('apps/' + app_id + '/betaGroups', {'limit': 200})['data']
+    matches = [g for g in groups if g['id'] == 'f8ad8b68-76f3-47ee-a8dd-2dc88ecaf4ac']
+    require(len(matches) == 1, 'Existing public testing group not found')
+    group = matches[0]
+    attrs = group['attributes']
+    require(attrs.get('isInternalGroup') is False and attrs.get('publicLinkEnabled') is True and attrs.get('publicLink') == 'https://testflight.apple.com/join/JR7seuh6', 'Public testing group configuration changed')
+
+    def write_beta(method, resource, body):
+        # This path cannot write App Store release or review resources.
+        allowed = ((method == 'POST' and resource in ['betaAppLocalizations', 'betaBuildLocalizations', 'betaAppReviewDetails', 'betaAppReviewSubmissions'])
+                   or (method == 'PATCH' and re.fullmatch(r'(betaAppLocalizations|betaBuildLocalizations|betaAppReviewDetails)/[a-zA-Z0-9-]+', resource))
+                   or (method == 'POST' and resource == 'betaGroups/' + group['id'] + '/relationships/builds'))
+        require(allowed, 'Only TestFlight Beta metadata, group assignment and review are permitted')
+        token = jwt.encode({'iss': os.environ['ASC_ISSUER_ID'], 'iat': int(time.time()), 'exp': int(time.time()) + 600, 'aud': 'appstoreconnect-v1'}, key_path().read_bytes(), algorithm='ES256', headers={'kid': os.environ['ASC_KEY_ID']})
+        request = urllib.request.Request('https://api.appstoreconnect.apple.com/v1/' + resource, data=json.dumps(body).encode(), headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}, method=method)
+        try:
+            with urllib.request.urlopen(request, timeout=45) as response:
+                content = response.read()
+                return json.loads(content) if content else {}
+        except urllib.error.HTTPError as error:
+            # Keep credentials and reviewer contact data out of logs/artifacts.
+            details = json.loads(error.read()).get('errors', [])
+            safe = [{'code': e.get('code'), 'status': e.get('status'), 'source': e.get('source')} for e in details]
+            save('beta-review-error.json', {'method': method, 'resource': resource, 'httpStatus': error.code, 'errors': safe})
+            raise RuntimeError('TestFlight Beta API rejected ' + resource + ': ' + str(error.code) + ' ' + str([e['code'] for e in safe])) from None
+
+    def upsert(resource_type, current, attributes, parent_name, parent_type, parent_id):
+        if current:
+            return write_beta('PATCH', resource_type + '/' + current['id'], {'data': {'type': resource_type, 'id': current['id'], 'attributes': attributes}})
+        return write_beta('POST', resource_type, {'data': {'type': resource_type, 'attributes': attributes, 'relationships': {parent_name: {'data': {'type': parent_type, 'id': parent_id}}}}})
+
+    def submission():
+        results = get('betaAppReviewSubmissions', {'filter[build]': build_id, 'include': 'build', 'limit': 10})['data']
+        require(len(results) <= 1, 'Ambiguous Beta review submission')
+        if results:
+            require(results[0]['relationships']['build']['data']['id'] == build_id, 'Beta review references the wrong build')
+        return results[0] if results else None
+
+    existing = submission()
+    require(not existing or existing['attributes']['betaReviewState'] != 'REJECTED', 'The exact build has a rejected Beta review; review feedback must be addressed')
+    if not existing:
+        localizations = get('apps/' + app_id + '/betaAppLocalizations', {'limit': 200})['data']
+        current = next((r for r in localizations if r['attributes']['locale'] == config['locale']), None)
+        app_attrs = {'description': config['description'], 'feedbackEmail': config['feedback_email']}
+        upsert('betaAppLocalizations', current, app_attrs if current else dict(app_attrs, locale=config['locale']), 'app', 'apps', app_id)
+        for item in localizations:
+            if item != current and not (item['attributes'].get('description') or '').strip():
+                upsert('betaAppLocalizations', item, app_attrs, 'app', 'apps', app_id)
+
+        localizations = get('builds/' + build_id + '/betaBuildLocalizations', {'limit': 200})['data']
+        current = next((r for r in localizations if r['attributes']['locale'] == config['locale']), None)
+        whats_new = ('最新 iOS UI 真机验收：请测试登录注册、单聊群聊、中文输入与键盘、图片/视频/语音/文件收发与预览、消息撤回/删除/回复/引用/转发、好友与群管理、前后台与锁屏恢复、断网重连、音视频通话、来电接听挂断、扬声器与静音、不同尺寸屏幕和 Safe Area、第三方文件打开与分享。')
+        build_attrs = {'whatsNew': whats_new}
+        upsert('betaBuildLocalizations', current, build_attrs if current else dict(build_attrs, locale=config['locale']), 'build', 'builds', build_id)
+
+        try:
+            current = get('apps/' + app_id + '/betaAppReviewDetail').get('data')
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            current = None
+        review_attrs = {'contactFirstName': config['contact_first'], 'contactLastName': config['contact_last'], 'contactEmail': config['contact_email'], 'contactPhone': config['contact_phone'], 'demoAccountRequired': True, 'demoAccountName': config['demo_account'], 'demoAccountPassword': config['demo_password'], 'notes': config['review_notes']}
+        upsert('betaAppReviewDetails', current, review_attrs, 'app', 'apps', app_id)
+        print('Beta description, test instructions and existing reviewer account details configured.', flush=True)
+
+    if group['id'] not in status['assignedBetaGroupIds']:
+        write_beta('POST', 'betaGroups/' + group['id'] + '/relationships/builds', {'data': [{'type': 'builds', 'id': build_id}]})
+    existing = submission()
+    created = False
+    if not existing:
+        write_beta('POST', 'betaAppReviewSubmissions', {'data': {'type': 'betaAppReviewSubmissions', 'relationships': {'build': {'data': {'type': 'builds', 'id': build_id}}}}})
+        created = True
+    for _ in range(12):
+        review = submission()
+        updated = build_status()
+        if review and group['id'] in updated['assignedBetaGroupIds']:
+            review_attrs = review['attributes']
+            receipt = {'appId': app_id, 'buildId': build_id, 'bundleId': BUNDLE, 'version': VERSION, 'buildNumber': BUILD, 'submissionId': review['id'], 'betaReviewState': review_attrs['betaReviewState'], 'submittedDate': review_attrs.get('submittedDate'), 'createdSubmissionByThisRun': created, 'groupId': group['id'], 'publicLink': attrs['publicLink'], 'buildAssigned': True, 'ipaSha256': approved['ipaSha256'], 'appStoreReleaseSubmitted': False}
+            save('beta-review-receipt.json', receipt)
+            updated['submittedForReviewByThisRun'] = created
+            save('testflight-receipt.json', updated)
+            testing_access(updated)
+            print('Verified TestFlight Beta review: ' + receipt['betaReviewState'], flush=True)
+            require(receipt['betaReviewState'] in ['WAITING_FOR_REVIEW', 'IN_REVIEW', 'APPROVED'], 'Beta review is not pending or approved')
+            return
+        time.sleep(5)
+    raise RuntimeError('Could not verify Beta submission and public group assignment')
+
+
 if __name__ == '__main__':
     stage = sys.argv[1]
     if stage == 'verify':
@@ -168,6 +271,8 @@ if __name__ == '__main__':
         save('before-upload.json', status)
         export_env('SKIP_IPA_UPLOAD', 'true' if status['found'] else 'false')
         print('Exact build status before upload: ' + status['processingState'])
+    elif stage == 'beta-review':
+        submit_beta_review()
     elif stage == 'wait':
         deadline = time.monotonic() + 1200
         while True:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Upload an existing approved IPA. Never rebuild or submit a review.
+# Upload an existing approved IPA; external Beta review is explicitly opt-in.
 set -euo pipefail
 umask 077
 : "${UPLOAD_DIR:?}"
@@ -23,6 +23,10 @@ case "${1:?Missing stage}" in
     ;;
   wait)
     "$UPLOAD_DIR/private/venv/bin/python" -u ios/release-preparation/upload-prepared.py wait
+    ;;
+  beta-review)
+    test "${PREPARED_BETA_REVIEW:-false}" = true
+    "$UPLOAD_DIR/private/venv/bin/python" -u ios/release-preparation/upload-prepared.py beta-review
     ;;
   *) echo 'Unknown upload stage' >&2; exit 2 ;;
 esac
