@@ -131,6 +131,9 @@ class NativeUIReviewTest {
         for (night in listOf(false, true)) {
             compose.runOnIdle { screen.value = "p2-states"; dark.value = night; large.value = false }
             settle()
+            compose.onNodeWithText("状态开关").assertIsOff().performClick().assertIsOn()
+            compose.onNodeWithText("禁用开关").assertIsNotEnabled()
+            compose.onNodeWithText("普通输入").performScrollTo()
             compose.onNodeWithText("禁用输入").assertExists()
             compose.onNodeWithText("普通输入").performClick()
             compose.onNodeWithText("普通输入").assertExists()
@@ -239,6 +242,9 @@ class NativeUIReviewTest {
         val back = { screen.value = "login" }
         when (name) {
             "p2-states" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                var checked by remember { mutableStateOf(false) }
+                com.touliao.app.ui.components.TouliaoSettingToggle("状态开关", checked = checked, onChange = { checked = it })
+                com.touliao.app.ui.components.TouliaoSettingToggle("禁用开关", checked = false, enabled = false, onChange = {})
                 var value by remember { mutableStateOf("") }
                 TouliaoField(value, { value = it }, label = { Text("普通输入") })
                 TouliaoField("中文文件名", {}, label = { Text("错误输入") }, isError = true, supportingText = { Text("请检查输入内容") })

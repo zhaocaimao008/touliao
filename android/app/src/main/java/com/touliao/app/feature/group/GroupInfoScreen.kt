@@ -24,9 +24,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+import com.touliao.app.ui.components.TouliaoSettingToggle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -254,9 +254,9 @@ fun GroupInfoScreen(
                         item {
                             HorizontalDivider()
                             Text("群管理", Modifier.padding(16.dp), color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
-                            ToggleRow("全员禁言", info.mute_all == 1, !state.updating) { viewModel.setManage(muteAll = it) }
-                            ToggleRow("禁止成员间私聊", info.no_private_chat == 1, !state.updating) { viewModel.setManage(noPrivateChat = it) }
-                            ToggleRow("禁止成员互加好友", info.no_add_friend == 1, !state.updating) { viewModel.setManage(noAddFriend = it) }
+                            TouliaoSettingToggle("全员禁言", checked = info.mute_all == 1, enabled = !state.updating) { viewModel.setManage(muteAll = it) }
+                            TouliaoSettingToggle("禁止成员间私聊", checked = info.no_private_chat == 1, enabled = !state.updating) { viewModel.setManage(noPrivateChat = it) }
+                            TouliaoSettingToggle("禁止成员互加好友", checked = info.no_add_friend == 1, enabled = !state.updating) { viewModel.setManage(noAddFriend = it) }
                         }
                     }
                     item {
@@ -385,23 +385,12 @@ private fun MemberRow(
 }
 
 @Composable
-private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
-    }
-}
-
-@Composable
 private fun RenameDialog(initial: String, busy: Boolean, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("修改群名称") },
-        text = { OutlinedTextField(name, { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+        text = { TouliaoField(name, { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
         confirmButton = { TextButton(onClick = { onConfirm(name) }, enabled = !busy && name.isNotBlank()) { Text("确定") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
@@ -422,7 +411,7 @@ private fun EditTextDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            OutlinedTextField(
+            TouliaoField(
                 text, { text = it },
                 singleLine = singleLine,
                 minLines = if (singleLine) 1 else 3,

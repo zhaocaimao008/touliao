@@ -23,7 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+import com.touliao.app.ui.components.TouliaoSettingToggle as ToggleRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -42,20 +42,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.core.storage.ThemeMode
 
 // ── 通用：设置行（标题 + 副标题 + 右侧开关） ──
-@Composable
-private fun ToggleRow(title: String, subtitle: String? = null, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(16.dp, 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            if (subtitle != null) Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-        }
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
-}
-
 @Composable
 private fun SectionCaption(text: String) {
     Text(text, Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

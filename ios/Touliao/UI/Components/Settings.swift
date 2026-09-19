@@ -34,6 +34,7 @@ struct TouliaoSettingRow: View {
     let icon: String
     let title: String
     var trailing: String? = nil
+    var showsSpinner = false
     var iconColor: Color = Color.vxinText
     var body: some View {
         HStack(spacing: TouliaoMetrics.space3) {
@@ -44,11 +45,13 @@ struct TouliaoSettingRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).touliaoText(.body).foregroundColor(Color.vxinText)
                     .fixedSize(horizontal: false, vertical: true)
-                if typeSize.isAccessibilitySize, let trailing {
+                if typeSize.isAccessibilitySize, let trailing, !showsSpinner {
                     Text(trailing).touliaoText(.secondary).foregroundColor(Color.vxinTextSecondary)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
-            if !typeSize.isAccessibilitySize, let trailing {
+            if showsSpinner {
+                ProgressView()
+            } else if !typeSize.isAccessibilitySize, let trailing {
                 Text(trailing).touliaoText(.secondary).foregroundColor(Color.vxinTextSecondary).lineLimit(1)
             }
             TouliaoIcon("disclosure", size: .xs)

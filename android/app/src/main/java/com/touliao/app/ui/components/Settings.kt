@@ -3,6 +3,7 @@ package com.touliao.app.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,10 +12,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -67,6 +71,8 @@ fun TouliaoSettingRow(
     trailing: String? = null,
     iconColor: Color? = null,
     modifier: Modifier = Modifier,
+    trailingColor: Color? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     Row(
@@ -78,28 +84,29 @@ fun TouliaoSettingRow(
                 indication = rememberRipple(bounded = true),
                 onClick = onClick,
             )
-            .padding(horizontal = TouliaoMetrics.space4),
+            .padding(horizontal = TouliaoMetrics.space4, vertical = TouliaoMetrics.space2),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(modifier = Modifier.size(TouliaoMetrics.space6), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = title, tint = iconColor ?: MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm))
+            Icon(icon, contentDescription = null, tint = iconColor ?: MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm))
         }
         Spacer(Modifier.width(TouliaoMetrics.space3))
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            fontSize = TouliaoMetrics.fontBody,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        if (trailing != null) {
-            Text(
-                text = trailing,
-                fontSize = TouliaoMetrics.fontSecondary,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(end = TouliaoMetrics.space2),
-            )
+        val largeText = LocalDensity.current.fontScale >= 1.4f
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = TouliaoMetrics.fontBody, color = MaterialTheme.colorScheme.onSurface)
+            if (largeText && trailing != null && trailingContent == null) {
+                Text(trailing, fontSize = TouliaoMetrics.fontSecondary,
+                    color = trailingColor ?: MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (trailingContent != null) {
+            trailingContent()
+            Spacer(Modifier.width(TouliaoMetrics.space2))
+        } else if (!largeText && trailing != null) {
+            Text(trailing, fontSize = TouliaoMetrics.fontSecondary,
+                color = trailingColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 160.dp).padding(end = TouliaoMetrics.space2))
         }
         Icon(
             TouliaoIcons.Disclosure,
@@ -110,3 +117,21 @@ fun TouliaoSettingRow(
     }
 }
 
+
+/** One native switch semantic node: its visible title is also its spoken name. */
+@Composable
+fun TouliaoSettingToggle(title: String, subtitle: String? = null, checked: Boolean,
+                         enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = TouliaoMetrics.settingHeight)
+        .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+        .padding(horizontal = TouliaoMetrics.space4, vertical = TouliaoMetrics.space3),
+        verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            if (subtitle != null) Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall)
+        }
+        Spacer(Modifier.width(TouliaoMetrics.space2))
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+    }
+}

@@ -2,6 +2,9 @@ package com.touliao.app.feature.settings
 
 import androidx.compose.foundation.layout.heightIn
 import android.content.Context
+import com.touliao.app.ui.components.TouliaoSettingSection as SettingsGroupCard
+import com.touliao.app.ui.components.TouliaoSettingDivider as HubDivider
+import com.touliao.app.ui.components.TouliaoSettingRow as HubRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -203,56 +206,5 @@ fun SettingsHomeScreen(
             viewModel = updateViewModel,
             onDismiss = { showUpdateDialog = false },
         )
-    }
-}
-
-@Composable
-private fun SettingsGroupCard(modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
-        content = content,
-    )
-}
-
-@Composable
-private fun HubDivider() {
-    HorizontalDivider(modifier = Modifier.padding(start = 52.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-}
-
-@Composable
-private fun HubRow(
-    icon: ImageVector,
-    title: String,
-    trailing: String? = null,
-    trailingColor: Color? = null,
-    trailingContent: (@Composable () -> Unit)? = null,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true),
-                onClick = onClick,
-            )
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm))
-        Spacer(Modifier.width(12.dp))
-        Text(title, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface, fontSize = com.touliao.app.ui.theme.VxinTextSize.md)
-        if (trailingContent != null) {
-            trailingContent()
-            Spacer(Modifier.width(8.dp))
-        } else if (trailing != null) {
-            Text(trailing, color = trailingColor ?: MaterialTheme.colorScheme.onSurfaceVariant, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 8.dp))
-        }
-        Icon(TouliaoIcons.Disclosure, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(com.touliao.app.ui.IconSize.Xs))
     }
 }
