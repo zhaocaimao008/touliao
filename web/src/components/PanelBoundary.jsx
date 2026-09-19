@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React from 'react';
 import { getI18n } from '../contexts/I18nContext';
 
@@ -36,7 +37,7 @@ export default class PanelBoundary extends React.Component {
         justifyContent: 'center', height: '100%', gap: 12,
         color: 'var(--text-secondary)', fontSize: 'var(--text-sm)',
       }}>
-        <span style={{ fontSize: 32 }}>⚠️</span>
+        <TouliaoIcon name="warning" size="lg" tone="danger" />
         <span>{t('panelBoundary.loadErrorTemplate').replace('{panel}', this.props.name || t('panelBoundary.defaultPanelName'))}</span>
         <button
           onClick={() => this.setState({ err: null })}

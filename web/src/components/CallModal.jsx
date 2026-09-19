@@ -862,7 +862,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
               color: '#fff', fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer',
             }}
           >
-            🔇 {t('call.tapToRestoreAudio')}<TouliaoIcon name="close" size="sm" /></div>
+            <TouliaoIcon name="speakerOff" size="xs" tone="onDark" /> {t('call.tapToRestoreAudio')}<TouliaoIcon name="close" size="sm" /></div>
         )}
 
         {videoMode ? (
@@ -957,7 +957,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             boxShadow: '0 4px 16px rgba(0,0,0,.35)', whiteSpace: 'nowrap',
           }}
         >
-          <span>🔇 {t('call.tapToRestoreAudio')}</span>
+          <span><TouliaoIcon name="speakerOff" size="xs" tone="onDark" /> {t('call.tapToRestoreAudio')}</span>
           <button
             type="button"
             aria-label={t('common.close')}

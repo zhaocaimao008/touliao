@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import useFocusTrap from '../hooks/useFocusTrap';
@@ -81,7 +82,7 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
           <div className="rpm-preview">
             <div className="rpm-preview-label">{t('redPacket.avgPerPerson')}</div>
             <div className="rpm-preview-amount">{perPerson} {t('chat.coinUnit')}</div>
-            {amountNum < countNum && <div className="rpm-preview-warn">⚠ {t('redPacket.totalLessThanCountWarn')}</div>}
+            {amountNum < countNum && <div className="rpm-preview-warn"><TouliaoIcon name="warning" size="xs" tone="danger" /> {t('redPacket.totalLessThanCountWarn')}</div>}
           </div>
         )}
 

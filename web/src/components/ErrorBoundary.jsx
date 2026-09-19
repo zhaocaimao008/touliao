@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React from 'react';
 import { getI18n } from '../contexts/I18nContext';
 
@@ -72,7 +73,7 @@ export default class ErrorBoundary extends React.Component {
     return (
       <div style={styles.page}>
         <div style={styles.card}>
-          <div style={styles.icon}>😵</div>
+          <div style={styles.icon}><TouliaoIcon name="error" size="xl" tone="danger" /></div>
           <h1 style={styles.title}>{t('errorBoundary.title')}</h1>
           <p style={styles.desc}>{t('errorBoundary.desc')}</p>
           {this.state.error?.message && (

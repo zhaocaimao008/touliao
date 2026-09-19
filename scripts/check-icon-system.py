@@ -28,10 +28,16 @@ props={k[0].upper()+k[1:]:k for k in reg['icons']}
 roots=[R/'web/src',R/'ios/Touliao',R/'android/app/src/main/java/com/touliao/app']
 for source in roots:
  for f in source.rglob('*'):
-  if f.suffix not in ['.jsx','.swift','.kt']:continue
+  if f.suffix not in ['.jsx','.js','.swift','.kt']:continue
   rel=str(f.relative_to(R));s=f.read_text()
   if f.name in ['DesignIcons.kt','TouliaoIcons.kt','TouliaoIconRegistry.swift'] or '.test.' in f.name:continue
-  if f.suffix=='.jsx':
+  if f.suffix in ['.jsx','.js']:
+   # Mixed JSX text (for example an emoji before a translated label) is also a functional icon.
+   jsx=re.sub(r'/\*.*?\*/','',s,flags=re.S)
+   for m in re.finditer(r'>\s*([\u2190-\u21ff\u2600-\u27ff\U0001f300-\U0001faff\ufe0f]+)\s*(?=[<{])',jsx):
+    fail(f,'functional text icon',m.group(1))
+   if re.search(r'\.fillText\(\s*[\"\'][^\"\']*[\u2600-\u27ff\U0001f300-\U0001faff]',s):
+    fail(f,'canvas text icon','Use shared registry geometry')
    refs=re.findall(r'<(?:TouliaoIcon|Icon)\s[^>]*?name=["\']([^"\']+)["\']',s)
    for m in re.finditer(r'<svg\b',s):
     if f.name=='Icon.jsx':continue

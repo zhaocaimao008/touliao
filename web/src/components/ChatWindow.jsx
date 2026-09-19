@@ -2809,7 +2809,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {/* ── 全群禁言提示（普通成员被禁言时替换输入区） ── */}
       {!multiSelect && conversation.type === 'group' && groupSettings.mute_all && myGroupRole === 'member' ? (
         <div className="wc-mute-notice">
-          <span>🔇 {t('chat.muteAllBanner')}</span>
+          <span><TouliaoIcon name="blocked" size="sm" tone="secondary" /> {t('chat.muteAllBanner')}</span>
         </div>
       ) : (
       /* ── Input area ── */

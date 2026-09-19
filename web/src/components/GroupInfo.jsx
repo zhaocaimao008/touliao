@@ -521,7 +521,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             ) : (
               <div className="gi-name-row">
                 <span className="gi-name">{info.name}</span>
-                {isAdmin && <button className="gi-btn-name" onClick={() => setEditName(true)} aria-label={t('groupInfo.editNameAriaLabel')}>✎</button>}
+                {isAdmin && <button className="gi-btn-name" onClick={() => setEditName(true)} aria-label={t('groupInfo.editNameAriaLabel')}><TouliaoIcon name="edit" size="sm" /></button>}
               </div>
             )}
             <div className="gi-meta">

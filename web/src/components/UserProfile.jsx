@@ -184,7 +184,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             const label = formatLastOnline(user.last_online_at, user.status === 'online');
             return label ? (
               <div className="up-last-online" title={t('up.lastOnlineTitle')}>
-                🟢 {label}
+                <TouliaoIcon name={user.status === 'online' ? "selected" : "clock3"} size="xs" tone="secondary" /> {label}
               </div>
             ) : null;
           })()}

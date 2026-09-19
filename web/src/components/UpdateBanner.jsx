@@ -56,7 +56,7 @@ export default function UpdateBanner() {
         onClick={handleCheck}
         title={t('update.checkForUpdates')}
         aria-label={t('update.checkForUpdates')}
-      >↑</button>
+      ><TouliaoIcon name="refresh" size="sm" /></button>
     );
   }
 
@@ -71,7 +71,7 @@ export default function UpdateBanner() {
       )}
       {state === 'available' && (
         <>
-          <span className="wc-update-icon">🎉</span>
+          <span className="wc-update-icon"><TouliaoIcon name="download" size="sm" /></span>
           <span className="wc-update-text">{t('update.newVersionDownloadingTemplate').replace('{version}', version)}</span>
           <div className="wc-update-progress-wrap">
             <div className="wc-update-progress-bar" style={{ width: `${progress}%` }} />
@@ -81,7 +81,7 @@ export default function UpdateBanner() {
       )}
       {state === 'downloading' && (
         <>
-          <span className="wc-update-icon">⬇</span>
+          <span className="wc-update-icon"><TouliaoIcon name="download" size="sm" /></span>
           <span className="wc-update-text">{t('update.downloadingTemplate').replace('{percent}', Math.round(progress))}</span>
           <div className="wc-update-progress-wrap">
             <div className="wc-update-progress-bar" style={{ width: `${progress}%` }} />
@@ -91,7 +91,7 @@ export default function UpdateBanner() {
       )}
       {state === 'ready' && (
         <>
-          <span className="wc-update-icon">✅</span>
+          <span className="wc-update-icon"><TouliaoIcon name="check" size="sm" /></span>
           <span className="wc-update-text">{t('update.readyToInstall')}</span>
           <button className="wc-update-install-btn" onClick={handleInstall}>{t('update.restartAndInstall')}</button>
           <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('update.later')}>{t('update.later')}</button>
@@ -99,7 +99,7 @@ export default function UpdateBanner() {
       )}
       {state === 'error' && (
         <>
-          <span className="wc-update-icon">⚠️</span>
+          <span className="wc-update-icon"><TouliaoIcon name="warning" size="sm" tone="danger" /></span>
           <span className="wc-update-text">{errMsg || t('update.checkFailed')}</span>
           <button className="wc-update-install-btn" onClick={handleCheck}>{t('common.retry')}</button>
           <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
