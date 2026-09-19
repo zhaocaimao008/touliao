@@ -149,7 +149,13 @@ private struct CallView: View {
             controls.padding(.horizontal, 16).padding(.vertical, 16)
                 .background(Color.black.opacity(0.50))
         }
-        .task { await ensurePermissions() }
+        .task {
+            #if DEBUG
+            // The icon gallery renders fixture state only, without opening audio/video sessions.
+            if iconReviewState != nil { return }
+            #endif
+            await ensurePermissions()
+        }
         // 结束态的自动consumeEnded延时已挪到 CallManager.cleanup() 里统一调度(不依赖某个具体
         // UI是否挂载——通话小窗状态下CallView根本不在视图树里，onChange不会触发)。
     }
