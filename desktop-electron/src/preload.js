@@ -82,6 +82,12 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 
 // ── 主进程 → 渲染进程事件（单向推送）──────────────────────
 // 更新事件
+ipcRenderer.on('update:checking', () => {
+  window.dispatchEvent(new CustomEvent('electron:update-checking'));
+});
+ipcRenderer.on('update:not-available', (_, info) => {
+  window.dispatchEvent(new CustomEvent('electron:update-not-available', { detail: info }));
+});
 ipcRenderer.on('update:available', (_, info) => {
   window.dispatchEvent(new CustomEvent('electron:update-available', { detail: info }));
 });

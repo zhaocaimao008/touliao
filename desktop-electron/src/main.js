@@ -148,6 +148,8 @@ let g_pendingDownloadName = null;
 // 打开"这个需要用户主动选择的动作时才传 true。
 let g_pendingAutoOpen = false;
 let isQuitting = false;
+let updateReady = false;
+let updateInstallRequested = false;
 
 // 引导配置地址（与 web/src/utils/config.js、Android/iOS RemoteConfig 一致）：
 // 主进程在建窗口前据此拉 config.json，使 CSP connect-src 跟随远程配置，
@@ -671,6 +673,7 @@ async function verifyUpdateSignature() {
 // ── 自动更新（验签 → 下载 → 用户确认后安装，不强制重启）──────────
 function setupAutoUpdater() {
   autoUpdater.on('update-available', async (info) => {
+    updateReady = false;
     log.info('发现新版本:', info.version);
     mainWindow?.webContents.send('update:available', info);
     const verdict = await verifyUpdateSignature();
@@ -679,16 +682,23 @@ function setupAutoUpdater() {
       mainWindow?.webContents.send('update:error', '更新包校验失败，已阻止安装，请联系管理员');
       return;
     }
-    autoUpdater.downloadUpdate().catch((e) => log.error('下载更新失败:', e.message));
+    autoUpdater.downloadUpdate().catch((e) => {
+      log.error('下载更新失败:', e.message);
+      mainWindow?.webContents.send('update:error', `下载失败：${e.message}`);
+    });
   });
 
-  autoUpdater.on('update-not-available', () => log.info('已是最新版本'));
+  autoUpdater.on('update-not-available', () => {
+    log.info('当前渠道没有可用更新');
+    mainWindow?.webContents.send('update:not-available', { version: app.getVersion() });
+  });
 
   autoUpdater.on('download-progress', (progress) => {
     mainWindow?.webContents.send('update:progress', Math.round(progress.percent));
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
+    updateReady = true;
     log.info('更新已下载:', info.version);
     // 渲染层 UpdateBanner 已有「立即重启安装」按钮，由它统一接管确认逻辑；
     // 主进程不再弹原生 dialog，避免两套 UI 同时出现打架、且 dialog 阻塞事件循环。
@@ -699,6 +709,10 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
+    if (updateInstallRequested) {
+      updateInstallRequested = false;
+      isQuitting = false;
+    }
     log.error('更新错误:', err.message);
     mainWindow?.webContents.send('update:error', err.message);
   });
@@ -752,6 +766,7 @@ function createTray() {
       enabled: PROFILE === 1,
       click: () => {
         mainWindow?.show(); mainWindow?.focus();
+        mainWindow?.webContents.send('update:checking');
         autoUpdater.checkForUpdates().catch((e) => {
           mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
         });
@@ -1077,9 +1092,19 @@ function setupIPC() {
 
   // 更新：用户在 UI 确认后主动触发安装
   ipcMain.handle('update:install', (_e) => {
-    if (!isTrustedSender(_e) || PROFILE !== 1) return;
+    if (!isTrustedSender(_e)) return;
+    if (PROFILE !== 1) throw new Error('请在账号窗口 1 安装更新，安装前退出其他账号窗口。');
+    if (!updateReady) throw new Error('更新尚未下载完成，请先检查更新。');
+    if (updateInstallRequested) return;
+    updateInstallRequested = true;
     isQuitting = true;
-    autoUpdater.quitAndInstall();
+    try {
+      autoUpdater.quitAndInstall();
+    } catch (error) {
+      updateInstallRequested = false;
+      isQuitting = false;
+      throw error;
+    }
   });
 
   // 更新：用户手动点「检查更新」按钮触发
@@ -1089,6 +1114,7 @@ function setupIPC() {
       mainWindow?.webContents.send('update:error', '请在账号窗口 1 检查更新，安装前退出其他账号窗口。');
       return;
     }
+    mainWindow?.webContents.send('update:checking');
     autoUpdater.checkForUpdates().catch((e) => {
       mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
     });

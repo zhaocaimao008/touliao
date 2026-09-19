@@ -20,6 +20,9 @@ const { _electron: electron } = require('playwright');
   const env = { ...process.env, XDG_CONFIG_HOME: path.join(temp, 'config') };
   delete env.ELECTRON_RUN_AS_NODE;
   const apps = [];
+  const nativeUpdateFeedback = process.platform === 'win32' && Boolean(process.env.TOULIAO_PACKAGED_APP);
+  const updateEvidence = path.resolve(root, '../artifacts/windows-update-feedback');
+  fs.mkdirSync(updateEvidence, { recursive: true });
   const launch = async () => {
     const app = await electron.launch({
       executablePath: process.env.TOULIAO_ELECTRON,
@@ -77,6 +80,18 @@ const { _electron: electron } = require('playwright');
   };
   try {
     const one = await launch();
+    if (nativeUpdateFeedback) {
+    // Exercise real installed main/preload/renderer IPC against the existing update channel.
+    // No update is installed and no signed metadata or production pointers are changed.
+    await one.page.locator('.wc-update-check-btn').click();
+    await one.page.getByText(`当前没有可用更新（当前版本 ${one.state.version}）`, { exact: true }).waitFor({ timeout: 60000 });
+    await one.page.screenshot({ path: path.join(updateEvidence, 'no-update.png') });
+    const notReady = await one.page.evaluate(async () => {
+      try { await window.electronAPI.installUpdate(); return ''; }
+      catch (error) { return error.message; }
+    });
+    assert.match(notReady, /下载完成/, 'unprepared install reports a reason without quitting');
+    }
     await one.page.evaluate(() => localStorage.setItem('smoke_account', '1'));
     await one.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].hide());
     // Concurrent ordinary launches exercise the same no-profile path as desktop shortcuts.
@@ -97,6 +112,16 @@ const { _electron: electron } = require('playwright');
       assert.equal(await window.page.evaluate(() => localStorage.getItem('smoke_account')), expected);
     }
     const two = windows.find(window => window.state.userData === path.join(one.state.userData, 'profiles', '2'));
+    if (nativeUpdateFeedback) {
+    await two.page.locator('.wc-update-check-btn').click();
+    await two.page.getByText('请在账号窗口 1 检查更新，安装前退出其他账号窗口。', { exact: true }).waitFor();
+    await two.page.screenshot({ path: path.join(updateEvidence, 'secondary-profile.png') });
+    const secondaryInstall = await two.page.evaluate(async () => {
+      try { await window.electronAPI.installUpdate(); return ''; }
+      catch (error) { return error.message; }
+    });
+    assert.match(secondaryInstall, /账号窗口 1/, 'secondary install is explicitly refused');
+    }
     await two.page.screenshot({ path: path.join(temp, 'login-window-2.png') });
     await two.app.close();
     apps.splice(apps.indexOf(two.app), 1);
@@ -104,6 +129,13 @@ const { _electron: electron } = require('playwright');
     assert.equal(reopened.state.userData, two.state.userData);
     assert.equal(await reopened.page.evaluate(() => localStorage.getItem('smoke_account')), '2');
     assert.equal(await one.page.evaluate(() => localStorage.getItem('smoke_account')), '1');
+    if (nativeUpdateFeedback) fs.writeFileSync(path.join(updateEvidence, 'report.json'), JSON.stringify({
+      sha: process.env.GITHUB_SHA || null, runtime: one.state, nativeHost: process.platform,
+      installedApp: Boolean(process.env.TOULIAO_PACKAGED_APP), passed: true,
+      checks: ['manual check completes with installed version', 'unprepared install refused',
+        'secondary profile check explains refusal', 'secondary profile install explains refusal'],
+      actualUpgradeInstalled: false,
+    }, null, 2));
     console.log(JSON.stringify({ automaticWindows: 6, concurrentLaunches: true, existingWindowNotShown: true,
       isolated: true, profilePersists: true, logoLoaded: true, runtime: one.state,
       paths, screenshot: path.join(temp, 'login-window-2.png') }));

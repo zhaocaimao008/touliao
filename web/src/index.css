@@ -4066,11 +4066,12 @@ body.dark-mode .wc-announce-detail { background: var(--info-banner-bg-soft); }
 /* banner 内所有交互控件强制 no-drag,否则无边框窗口拖拽区会吞掉点击 */
 .wc-update-banner button, .wc-update-check-btn { -webkit-app-region: no-drag; }
 .wc-update-icon { flex-shrink: 0; font-size: 15px; }
-.wc-update-text { white-space: nowrap; }
+.wc-update-text { min-width: 0; overflow-wrap: anywhere; }
 .wc-update-progress-wrap { width: 120px; height: 6px; background: rgba(0,0,0,.08); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
 .wc-update-progress-bar { height: 100%; background: var(--info-banner-fg); border-radius: 3px; transition: width .2s; }
 .wc-update-install-btn { flex-shrink: 0; padding: 4px 12px; border: none; border-radius: var(--radius-sm); background: var(--info-banner-fg); color: var(--gray-0); font-size: var(--text-sm); cursor: pointer; }
 .wc-update-install-btn:hover { background: var(--info-banner-fg-hover); }
+.wc-update-install-btn:disabled { cursor: wait; opacity: var(--tl-disabled-opacity); }
 .wc-update-dismiss { flex-shrink: 0; border: none; background: transparent; color: var(--text-secondary); font-size: var(--text-sm); cursor: pointer; padding: 4px 6px; }
 .wc-spin { display: inline-block; animation: wc-spin 1s linear infinite; }
 body.dark-mode .wc-update-banner { background: var(--info-banner-bg); border-color: var(--info-banner-border); }
