@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>投聊 Windows 8.1.27 自动更新验证</title>
+<style>body{font:16px/1.6 system-ui,sans-serif;margin:32px auto;max-width:1100px;padding:0 20px;color:#202230}img{max-width:100%;border:1px solid #ddd}a{color:#5142c9}figure{margin:24px 0}code{overflow-wrap:anywhere}</style>
+<h1>Windows 8.1.26 → 8.1.27 自动更新验证</h1>
+<p>已发布成功。真实已安装旧版从生产地址发现并下载更新，原签名和完整性校验通过，经旧客户端“立即重启安装”和原生 NSIS 向导升级。新版本保留隔离测试账号的登录状态与原消息缓存。</p>
+<p>环境为 GitHub Windows VM，账号 API 为隔离 fixture。物理电脑、生产账号与实时消息/音视频未验证。此过程属于应用内覆盖升级；无 Authenticode，原 Ed25519 更新签名保留。</p>
+<p><a href="../../WINDOWS-AUTO-UPDATE-8.1.27-20260919.md">完整报告和回退方法</a> · <a href="https://github.com/zhaocaimao008/touliao/actions/runs/35425944415">成功工作流</a> · <a href="https://touliao.cc/downloads/updates/touliao-8.1.27-setup.exe">正式安装包</a></p>
+<p><a href="result.json">原生测试结果</a> · <a href="publication.json">发布/备份回执</a> · <a href="final-public-verification.json">最终公网复核</a> · <a href="installed-updater-main.log">真实更新器日志</a> · <a href="nsis-ui-actions.json">原生安装按钮记录</a></p>
+<figure><figcaption>升级前：真实 8.1.26，已登录且具有消息缓存</figcaption><img src="01-old-installed-session-and-cache.png" alt="升级前的旧版界面和缓存消息"></figure>
+<figure><figcaption>旧版已完成生产更新下载及校验</figcaption><img src="03-production-update-downloaded-and-verified.png" alt="旧版显示新版已就绪和立即重启安装按钮"></figure>
+<figure><figcaption>旧客户端启动的真实 NSIS 安装向导，识别原安装位置</figcaption><img src="nsis-native-wizard.png" alt="原生安装向导"></figure>
+<figure><figcaption>升级后：真实 8.1.27，历史接口离线时仍显示原缓存，登录仅一次</figcaption><img src="04-new-ui-old-session-offline-history.png" alt="新 UI 保留旧登录状态和缓存消息"></figure>
+</html>

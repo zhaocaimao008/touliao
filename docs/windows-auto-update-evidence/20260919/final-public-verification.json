@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-09-19T06:17:08.138Z",
+  "workflow": "35425944415",
+  "version": "8.1.27",
+  "sourceCommit": "e764f3969fe84f9577883e790ebae7e85ce6210c",
+  "files": {
+    "updates/latest.yml": {
+      "sha256": "b3a645998a6ff1f8bcc0f8c5deeda7c9d50381cc35be66ec5467fcd6041cec4f",
+      "bytes": 346,
+      "verified": true
+    },
+    "updates/latest.yml.sig": {
+      "sha256": "7c12800da728ac02e497bb34052497cae43a20b245cb738cc02cc3b42bee30a9",
+      "bytes": 64,
+      "verified": true
+    },
+    "touliao-windows-latest.exe": {
+      "sha256": "c2ae64ec1316d5f033b9f2afa25b3eb5bfbf56f978d8abe99b20b21c2cbcf7e0",
+      "bytes": 108813349,
+      "verified": true
+    },
+    "touliao-windows-latest-setup.exe": {
+      "sha256": "c2ae64ec1316d5f033b9f2afa25b3eb5bfbf56f978d8abe99b20b21c2cbcf7e0",
+      "bytes": 108813349,
+      "verified": true
+    }
+  },
+  "unrelated": {
+    "android-version.json": {
+      "sha256": "eaffeb0f2047d2c530210367f8bc4123b4019296a453e8d799781028c80462a5",
+      "unchanged": true
+    },
+    "web-home.html": {
+      "sha256": "7752b215aef750e9c5349a522ff8cdab59ceaa9dcc1eaa9f73dcb32b0a5547fe",
+      "unchanged": true
+    }
+  },
+  "passed": true
+}

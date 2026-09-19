@@ -1,0 +1,23 @@
+{
+  "version": "8.1.27",
+  "previousVersion": "8.1.26",
+  "buildCommit": "e764f3969fe84f9577883e790ebae7e85ce6210c",
+  "backup": "/var/www/downloads/.release-backups/windows/35425944415-1",
+  "previous": {
+    "touliao-windows-latest.exe": "3933d478dc6dd8c4ffb9863abc84c4a4635c8913bfe3a70fd537b1626b4c5c46",
+    "touliao-windows-latest-setup.exe": "3933d478dc6dd8c4ffb9863abc84c4a4635c8913bfe3a70fd537b1626b4c5c46",
+    "updates/latest.yml.sig": "489b66d87dc134d78b41100cc464046771edcaba32ffeb1f3591f5abfdf315d3",
+    "updates/latest.yml": "ca6c4724c333853e50d65aa7d13090101ee621eeef7520bdaed5c05d0f5e21d3",
+    "updates/touliao-8.1.26-setup.exe": "3933d478dc6dd8c4ffb9863abc84c4a4635c8913bfe3a70fd537b1626b4c5c46",
+    "updates/touliao-8.1.26-setup.exe.blockmap": "e4dcf6cb49e90134e8877771661ecbd6551f7ae99d438f8deb19cc8d49b2140c"
+  },
+  "activated": {
+    "touliao-windows-latest.exe": "c2ae64ec1316d5f033b9f2afa25b3eb5bfbf56f978d8abe99b20b21c2cbcf7e0",
+    "touliao-windows-latest-setup.exe": "c2ae64ec1316d5f033b9f2afa25b3eb5bfbf56f978d8abe99b20b21c2cbcf7e0",
+    "updates/latest.yml.sig": "7c12800da728ac02e497bb34052497cae43a20b245cb738cc02cc3b42bee30a9",
+    "updates/latest.yml": "b3a645998a6ff1f8bcc0f8c5deeda7c9d50381cc35be66ec5467fcd6041cec4f"
+  },
+  "ed25519Required": true,
+  "authenticode": false,
+  "otherPlatformsChanged": false
+}
