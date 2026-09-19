@@ -179,6 +179,11 @@ class NativeUIReviewTest {
         compose.onNodeWithText("复制").assertExists()
         snapshot("message-context-menu-dark")
         androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithTag("chat-more-btn").performClick()
+        compose.onNodeWithText("文件").performClick()
+        Thread.sleep(1200)
+        snapshot("native-file-picker-dark")
+        InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
     }
 
     private fun settle() {

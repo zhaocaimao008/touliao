@@ -187,7 +187,7 @@ fun CallHost(
                     .size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
                     .clickable { viewModel.setMinimized(true) },
                 contentAlignment = Alignment.Center,
-            ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Expand, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md) }
+            ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Minimize, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md) }
         }
 
         // 控制按钮（systemBarsPadding 避免按钮被底部手势条遮挡）
