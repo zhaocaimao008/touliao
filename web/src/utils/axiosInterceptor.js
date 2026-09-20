@@ -70,9 +70,11 @@ async function refreshToken(axios) {
     })
     .catch(err => {
       if (err.config?._sessionStale || !isOperationCurrent(scope)) throw staleRequest(err.config || { _sessionContext: scope });
-      // 刷新失败，清除认证状态
+      // Rotation is a one-use POST: never retry an uncertain response. Preserve
+      // the credential on transport/5xx failures so a later request can recover;
+      // only a definitive authentication rejection invalidates it locally.
       console.error('[axios] Token refresh failed:', err);
-      if (isBearerClient()) {
+      if (isBearerClient() && [401, 403].includes(err.response?.status)) {
         localStorage.removeItem('touliao_electron_token');
         delete axios.defaults.headers.common['Authorization'];
       }
@@ -167,7 +169,7 @@ export function setupAxiosInterceptors(axios) {
       if (error.response?.status === 401 && 
           originalRequest && 
           !originalRequest.skipRetry &&
-          /^(get|head|options)$/i.test(originalRequest.method || 'get') &&
+          error.code !== 'ERR_CANCELED' && !originalRequest.signal?.aborted &&
           !originalRequest._retry && 
           !originalRequest.url?.includes('/auth/login') &&
           !originalRequest.url?.includes('/auth/refresh')) {

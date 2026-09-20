@@ -71,6 +71,53 @@ test('financial POST cannot be replayed by the 401 refresh branch either', async
   await vi.runAllTimersAsync();
   expect(await result).toBe('failed'); expect(f.writes()).toBe(1);
 });
+test.each(['get', 'post', 'put', 'patch', 'delete'])('%s without skipRetry refreshes on 401 and replays once', async method => {
+  const calls = [];
+  const client = axios.create({ adapter: async config => {
+    calls.push(`${config.method} ${config.url}`);
+    if (calls.length === 1) throw new axios.AxiosError('expired', 'ERR_BAD_RESPONSE', config, null,
+      { status: 401, data: {}, headers: {}, config });
+    return { status: 200, data: config.url.endsWith('/refresh') ? { token: 'synthetic-fresh' } : {}, headers: {}, config };
+  } });
+  setupAxiosInterceptors(client);
+  expect((await client.request({ method, url: '/api/thing' })).status).toBe(200);
+  expect(calls).toEqual([`${method} /api/thing`, 'post /api/auth/refresh', `${method} /api/thing`]);
+});
+test.each(['get', 'post'])('%s with skipRetry refuses both refresh and replay on 401', async method => {
+  const f = fixture(401);
+  await expect(f.client.request({ method, url: '/api/thing', skipRetry: true })).rejects.toMatchObject({ response: { status: 401 } });
+  expect(f.writes()).toBe(1);
+});
+test.each([503, undefined, 401])('refresh failure %s is not replayed; only definitive auth rejection clears Bearer token', async status => {
+  window.__ELECTRON_CONFIG__ = {};
+  localStorage.setItem('touliao_electron_token', 'synthetic-old');
+  const calls = [];
+  const client = axios.create({ adapter: async config => {
+    calls.push(config.url);
+    if (config.url.endsWith('/refresh')) throw new axios.AxiosError('synthetic refresh failure', 'ERR_NETWORK', config, null,
+      status ? { status, data: {}, headers: {}, config } : undefined);
+    if (calls.length === 1) throw new axios.AxiosError('expired', 'ERR_BAD_RESPONSE', config, null,
+      { status: 401, data: {}, headers: {}, config });
+    return { status: 200, data: {}, headers: {}, config };
+  } });
+  client.defaults.headers.common.Authorization = 'Bearer synthetic-old';
+  setupAxiosInterceptors(client);
+  const result = client.get('/api/thing');
+  await vi.runAllTimersAsync();
+  expect((await result).status).toBe(200);
+  expect(calls).toEqual(['/api/thing', '/api/auth/refresh', '/api/thing']);
+  expect(localStorage.getItem('touliao_electron_token')).toBe(status === 401 ? undefined : 'synthetic-old');
+  expect(client.defaults.headers.common.Authorization).toBe(status === 401 ? undefined : 'Bearer synthetic-old');
+});
+test('financial key falls back to random bytes when randomUUID is unavailable', () => {
+  const getRandomValues = globalThis.crypto.getRandomValues.bind(globalThis.crypto);
+  vi.stubGlobal('crypto', { getRandomValues });
+  const config = createFinancialRequest();
+  const first = config({ amount: 1 }).headers['Idempotency-Key'];
+  expect(first).toMatch(/^[a-f0-9]{32}$/);
+  expect(config({ amount: 1 }).headers['Idempotency-Key']).toBe(first);
+  expect(config({ amount: 2 }).headers['Idempotency-Key']).not.toBe(first);
+});
 test('safe read retries stop after three replays', async () => {
   let calls = 0;
   const client = axios.create({ adapter: config => {
